@@ -36,8 +36,8 @@
 
 TEST(ProcessSuspension, CancelWebProcessSuspension)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadTestPageNamed:@"large-red-square-image"];
 
     auto pid1 = [webView _webProcessIdentifier];
@@ -57,25 +57,25 @@ TEST(ProcessSuspension, CancelWebProcessSuspension)
 
 TEST(ProcessSuspension, DestroyWebPageDuringWebProcessSuspension)
 {
-    auto configuration1 = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration1.get() addToWindow:YES]);
+    RetainPtr configuration1 = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration1.get() addToWindow:YES]);
     [webView1 synchronouslyLoadTestPageNamed:@"large-red-square-image"];
 
     auto pid1 = [webView1 _webProcessIdentifier];
     EXPECT_NE(pid1, 0);
 
-    auto configuration2 = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration2 = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration2.get().processPool = configuration1.get().processPool;
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     configuration2.get()._relatedWebView = webView1.get();
     ALLOW_DEPRECATED_DECLARATIONS_END
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(100, 0, 100, 100) configuration:configuration2.get() addToWindow:YES]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(100, 0, 100, 100) configuration:configuration2.get() addToWindow:YES]);
     [webView2 synchronouslyLoadTestPageNamed:@"large-red-square-image"];
 
     auto pid2 = [webView2 _webProcessIdentifier];
     EXPECT_EQ(pid1, pid2);
 
-    auto webView3 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(200, 0, 100, 100) configuration:configuration2.get() addToWindow:YES]);
+    RetainPtr webView3 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(200, 0, 100, 100) configuration:configuration2.get() addToWindow:YES]);
     [webView3 synchronouslyLoadTestPageNamed:@"large-red-square-image"];
 
     [webView3 _processWillSuspendForTesting:^{ }];
@@ -90,16 +90,16 @@ TEST(ProcessSuspension, DestroyWebPageDuringWebProcessSuspension)
 
 TEST(ProcessSuspension, WKWebViewSuspendPage)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
+    RetainPtr testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:testMessageHandler.get() name:@"testHandler"];
     __block unsigned timerFiredCount = 0;
     [testMessageHandler addMessage:@"timer fired" withHandler:^{
         ++timerFiredCount;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadTestPageNamed:@"postMessage-regularly"];
 
     auto pid = [webView _webProcessIdentifier];
@@ -221,7 +221,7 @@ TEST(ProcessSuspension, DeallocateSuspendedView)
 {
     // Deallocating a suspended WebView should not throw or crash.
     @autoreleasepool {
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
         [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
         [webView _test_waitForDidFinishNavigation];
 

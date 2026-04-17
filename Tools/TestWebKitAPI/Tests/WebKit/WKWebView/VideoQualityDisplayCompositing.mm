@@ -34,9 +34,9 @@ namespace TestWebKitAPI {
 
 TEST(VideoQualityDisplayCompositing, Enabled)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().preferences._videoQualityIncludesDisplayCompositingEnabled = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"<video>"];
     id result = [webView objectByEvaluatingJavaScript:@"document.querySelector('video').getVideoPlaybackQuality().displayCompositedVideoFrames"];
     EXPECT_NOT_NULL(result);
@@ -46,9 +46,9 @@ TEST(VideoQualityDisplayCompositing, Enabled)
 
 TEST(VideoQualityDisplayCompositing, Disabled)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().preferences._videoQualityIncludesDisplayCompositingEnabled = NO;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"<video>"];
     auto result = [webView stringByEvaluatingJavaScript:@"typeof document.querySelector('video').getVideoPlaybackQuality().displayCompositedVideoFrames"];
     EXPECT_STREQ("undefined", result.UTF8String);

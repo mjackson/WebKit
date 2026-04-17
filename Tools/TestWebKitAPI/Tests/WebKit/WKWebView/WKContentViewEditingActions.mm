@@ -71,7 +71,7 @@ TEST(WebKit, WKContentViewEditingActions)
 
 TEST(WebKit, InvokeShareWithoutSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568)]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
     [webView shareSelection];
     [webView waitForNextPresentationUpdate];
@@ -81,7 +81,7 @@ TEST(WebKit, CopyInAutoFilledAndViewablePasswordField)
 {
     RetainPtr configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568) configuration:configuration.get()]);
     auto *contentView = [webView textInputContentView];
     [webView synchronouslyLoadHTMLString:@"<input type='password' value='hunter2' autofocus /><input type='password' value='hunter2' id='autofill' />"];
     [webView selectAll:nil];
@@ -106,12 +106,12 @@ TEST(WebKit, DISABLED_AppHighlightsInImageOverlays)
     auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES]);
     [configuration _setAppHighlightsEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"simple-image-overlay" asStringWithBaseURL:[NSURL URLWithString:@"http://webkit.org/simple-image-overlay.html"]];
     [webView stringByEvaluatingJavaScript:@"selectImageOverlay()"];
     [webView waitForNextPresentationUpdate];
 
-    auto menuBuilder = adoptNS([[TestUIMenuBuilder alloc] init]);
+    RetainPtr menuBuilder = adoptNS([[TestUIMenuBuilder alloc] init]);
     [webView buildMenuWithBuilder:menuBuilder.get()];
     EXPECT_NULL([menuBuilder actionWithTitle:WebCore::contextMenuItemTagAddHighlightToNewQuickNote().createNSString().get()]);
     EXPECT_NULL([menuBuilder actionWithTitle:WebCore::contextMenuItemTagAddHighlightToCurrentQuickNote().createNSString().get()]);
@@ -139,12 +139,12 @@ TEST(WebKit, CaptureTextFromCamera)
     gCanPerformActionWithSenderResult = YES;
     InstanceMethodSwizzler swizzler { UIResponder.class, @selector(canPerformAction:withSender:), reinterpret_cast<IMP>(canPerformActionWithSender) };
 
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView _setInputDelegate:inputDelegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<input style='display: block; font-size: 100px;' value='foo' autofocus><input value='bar' readonly>"];

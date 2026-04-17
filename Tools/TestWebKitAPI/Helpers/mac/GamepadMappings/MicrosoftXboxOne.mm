@@ -269,7 +269,7 @@ static void publishReportCallback(Vector<float>& buttonValues, Vector<float>& ax
     // The final byte is the final standalone AC back button
     reportData[reportIndex++] = lround(buttonValues[17]) & 0x01;
 
-    auto nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:XboxOneReportSize]);
+    RetainPtr nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:XboxOneReportSize]);
     [userDevice handleReport:nsReportData.get() error:nil];
 }
 

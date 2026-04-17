@@ -68,11 +68,11 @@ TEST(WebKit, LoadRequestWithSecPurposePrefetch)
         { "/"_s, { main } },
     }, HTTPServer::Protocol::Http);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto messageHandler = adoptNS([[LoadingMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr messageHandler = adoptNS([[LoadingMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"loading"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
 
     [messageHandler setMessageHandler:[](WKScriptMessage *message) {
         EXPECT_WK_STREQ(@"PASS", [message body]);

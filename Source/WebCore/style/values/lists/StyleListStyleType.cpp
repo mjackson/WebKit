@@ -28,9 +28,9 @@
 #include "StyleListStyleType.h"
 
 #include "CSSPropertyParserConsumer+CounterStyles.h"
+#include "CSSStringValue.h"
 #include "CSSValueKeywords.h"
 #include "StyleBuilderChecking.h"
-#include <wtf/StdLibExtras.h>
 
 namespace WebCore {
 namespace Style {
@@ -115,12 +115,12 @@ auto CSSValueConversion<ListStyleType>::operator()(BuilderState& state, const CS
             return CounterStyle { CustomIdent { nameStringForSerialization(valueID) } };
         }
 
-        if (primitiveValue->isString())
-            return AtomString { primitiveValue->stringValue() };
-
         state.setCurrentPropertyInvalidAtComputedValueTime();
         return CSS::Keyword::None { };
     }
+
+    if (RefPtr stringValue = dynamicDowncast<CSSStringValue>(value))
+        return toStyleFromCSSValue<String>(state, *stringValue);
 
     return CounterStyle { toStyleFromCSSValue<CustomIdent>(state, value) };
 }
@@ -128,9 +128,9 @@ auto CSSValueConversion<ListStyleType>::operator()(BuilderState& state, const CS
 auto CSSValueCreation<ListStyleType>::operator()(CSSValuePool& pool, const RenderStyle& style, const ListStyleType& value) -> Ref<CSSValue>
 {
     return WTF::switchOn(value,
-        [&](const CSS::Keyword::None& none) { return Style::createCSSValue(pool, style, none); }, // none
-        [&](const CounterStyle& counterStyle) { return Style::createCSSValue(pool, style, counterStyle.identifier); }, // custom-ident
-        [&](const AtomString& identifier) { return Style::createCSSValue(pool, style, identifier); } // string
+        [&](const CSS::Keyword::None& none) { return Style::createCSSValue(pool, style, none); },
+        [&](const CounterStyle& counterStyle) { return Style::createCSSValue(pool, style, counterStyle); },
+        [&](const String& string) { return Style::createCSSValue(pool, style, string); }
     );
 }
 

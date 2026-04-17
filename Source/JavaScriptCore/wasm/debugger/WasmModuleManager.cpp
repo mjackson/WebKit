@@ -43,8 +43,6 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include <wtf/HexNumber.h>
 #include <wtf/IterationStatus.h>
 #include <wtf/TZoneMallocInlines.h>
-#include <wtf/URL.h>
-#include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/WTFString.h>
 
@@ -71,6 +69,7 @@ void ModuleManager::unregisterModule(Module& module)
     uint32_t moduleId = module.debugId();
     m_moduleIdToModule.remove(moduleId);
     m_unnotifiedModuleIds.remove(moduleId);
+    m_hasPendingModuleRemovals = true;
     dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][unregisterModule] - unregistered module with debug ID: ", moduleId);
 }
 
@@ -97,10 +96,28 @@ bool ModuleManager::needsNewModuleNotification(JSWebAssemblyInstance* jsInstance
     return m_unnotifiedModuleIds.contains(moduleId);
 }
 
-void ModuleManager::markAllModulesAsNotified()
+bool ModuleManager::needsLibraryRequery() const
+{
+    Locker locker { m_lock };
+    return !m_unnotifiedModuleIds.isEmpty() || m_hasPendingModuleRemovals;
+}
+
+void ModuleManager::notifyLibraryRequeryComplete()
 {
     Locker locker { m_lock };
     m_unnotifiedModuleIds.clear();
+    m_hasPendingModuleRemovals = false;
+}
+
+Vector<uint32_t> ModuleManager::unnotifiedModuleIds() const
+{
+    Locker locker { m_lock };
+    Vector<uint32_t> result;
+    result.reserveInitialCapacity(m_unnotifiedModuleIds.size());
+    for (uint32_t id : m_unnotifiedModuleIds)
+        result.append(id);
+    std::sort(result.begin(), result.end());
+    return result;
 }
 
 Module* ModuleManager::module(uint32_t moduleId) const
@@ -150,46 +167,6 @@ JSWebAssemblyInstance* ModuleManager::jsInstance(uint32_t instanceId)
     return instance;
 }
 
-static String generateModuleName(VirtualAddress address, const RefPtr<Module>& module)
-{
-    // LLDB's `image list` already appends the load address in parentheses, so module
-    // names do not need an address suffix for uniqueness.
-    if (module) {
-        const auto& moduleInfo = module->moduleInformation();
-
-        StringBuilder result;
-
-        const String& sourceURL = moduleInfo.debugInfo->sourceURL;
-        if (!sourceURL.isEmpty()) {
-            // LLDB normalizes "//" -> "/" in library names (FileSpec treats them as paths),
-            // so we strip the URL scheme and store only "host/path" to avoid mangling.
-            URL url { sourceURL };
-            if (url.isValid() && !url.host().isEmpty())
-                result.append(makeString(url.host(), url.path()));
-            else
-                result.append(sourceURL);
-        }
-
-        const auto& rawName = moduleInfo.nameSection->moduleName;
-        if (!rawName.isEmpty()) {
-            if (!result.isEmpty())
-                result.append(':');
-            result.append(rawName.span());
-        }
-
-        if (!result.isEmpty()) {
-            String name = result.toString();
-            dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][generateModuleName] ", name);
-            return name;
-        }
-    }
-
-    // Fallback for modules with neither a name section nor a response URL.
-    String fallback = WTF::makeString("0x"_s, address.hex(), ".wasm"_s);
-    dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][generateModuleName] fallback: ", fallback);
-    return fallback;
-}
-
 String ModuleManager::generateLibrariesXML() const
 {
     Locker locker { m_lock };
@@ -197,26 +174,49 @@ String ModuleManager::generateLibrariesXML() const
     xml.append("<?xml version=\"1.0\"?>\n"_s);
     xml.append("<library-list>\n"_s);
 
+    auto appendXMLEscaped = [](StringBuilder& builder, const String& value) {
+        for (UChar c : StringView(value).codeUnits()) {
+            switch (c) {
+            case '&':
+                builder.append("&amp;"_s);
+                break;
+            case '<':
+                builder.append("&lt;"_s);
+                break;
+            case '>':
+                builder.append("&gt;"_s);
+                break;
+            case '"':
+                builder.append("&quot;"_s);
+                break;
+            default:
+                builder.append(c);
+                break;
+            }
+        }
+    };
+
     for (const auto& pair : m_moduleIdToModule) {
         uint32_t moduleId = pair.key;
         RefPtr module = pair.value;
         if (!module)
             continue;
 
-        const auto& source = module->moduleInformation().debugInfo->source;
-        if (source.isEmpty())
+        const auto& debugInfo = module->moduleInformation().debugInfo;
+        if (debugInfo->source.isEmpty())
             continue;
 
+        ASSERT(moduleId == debugInfo->id);
         VirtualAddress moduleBaseAddress = VirtualAddress::createModule(moduleId);
-        String moduleName = generateModuleName(moduleBaseAddress, module);
+        String moduleName = debugInfo->debugName();
         xml.append("  <library name=\""_s);
-        xml.append(moduleName);
+        appendXMLEscaped(xml, moduleName);
         xml.append("\">\n"_s);
         xml.append("    <section address=\"0x"_s);
         xml.append(moduleBaseAddress.hex());
         xml.append("\"/>\n"_s);
         xml.append("  </library>\n"_s);
-        dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][generateLibrariesXML] - added module '", moduleName, "' ID: ", moduleId, " at ", moduleBaseAddress, " size: 0x", hex(source.size(), Lowercase));
+        dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][generateLibrariesXML] - added module '", moduleName, "' ID: ", moduleId, " at ", moduleBaseAddress, " size: 0x", hex(debugInfo->source.size(), Lowercase));
     }
 
     xml.append("</library-list>\n"_s);

@@ -497,14 +497,14 @@ TEST(NativePromise, AsyncResolve)
     AutoWorkQueue awq;
     auto queue = awq.queue();
     queue->dispatch([queue] {
-        auto producer = adoptRef(new RefCountedProducer());
+        RefPtr producer = adoptRef(new RefCountedProducer());
         auto promise = producer->promise();
 
         // Kick off three racing tasks, and make sure we get the one that finishes
         // earliest.
-        auto delayedSettleTask1 = adoptRef(new DelayedSettle(queue, producer, TestPromise::Result(32), 10));
-        auto delayedSettleTask2 = adoptRef(new DelayedSettle(queue, producer, TestPromise::Result(42), 5));
-        auto delayedSettleTask3 = adoptRef(new DelayedSettle(queue, producer, TestPromise::Error(32.0), 7));
+        Ref delayedSettleTask1 = adoptRef(*new DelayedSettle(queue, producer, TestPromise::Result(32), 10));
+        Ref delayedSettleTask2 = adoptRef(*new DelayedSettle(queue, producer, TestPromise::Result(42), 5));
+        Ref delayedSettleTask3 = adoptRef(*new DelayedSettle(queue, producer, TestPromise::Error(32.0), 7));
 
         delayedSettleTask1->dispatch();
         delayedSettleTask2->dispatch();
@@ -539,10 +539,10 @@ TEST(NativePromise, CompletionPromises)
                 },
                 doFailAndReject())->then(queue,
                     [queue](int val) {
-                        auto producer = adoptRef(new RefCountedProducer());
+                        RefPtr producer = adoptRef(new RefCountedProducer());
                         auto p = producer->promise();
 
-                        auto resolver = adoptRef(new DelayedSettle(queue, producer, TestPromise::Result(val - 8), 10));
+                        Ref resolver = adoptRef(*new DelayedSettle(queue, producer, TestPromise::Result(val - 8), 10));
                         resolver->dispatch();
                         return p;
                     },

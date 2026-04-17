@@ -1690,7 +1690,7 @@ TEST(WKWebExtensionAPIMenus, MacContextMenuItems)
         @"browser.test.sendMessage('Menus Created')",
     ]);
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotContextMenu = false;
     delegate.get().getContextMenuFromProposedMenu = ^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completionHandler)(NSMenu *)) {
@@ -1733,10 +1733,10 @@ TEST(WKWebExtensionAPIMenus, MacContextMenuItems)
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     webView.get().UIDelegate = delegate.get();
 
     manager.get().defaultTab.webView = webView.get();
@@ -1785,7 +1785,7 @@ TEST(WKWebExtensionAPIMenus, MacActiveTabContextMenuItems)
         @"browser.test.sendMessage('Menus Created')",
     ]);
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotContextMenu = false;
     delegate.get().getContextMenuFromProposedMenu = ^(NSMenu *menu, _WKContextMenuElementInfo *, id<NSSecureCoding>, void (^completionHandler)(NSMenu *)) {
@@ -1816,10 +1816,10 @@ TEST(WKWebExtensionAPIMenus, MacActiveTabContextMenuItems)
 
     EXPECT_FALSE([manager.get().context hasActiveUserGestureInTab:manager.get().defaultTab]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     webView.get().UIDelegate = delegate.get();
 
     manager.get().defaultTab.webView = webView.get();
@@ -1881,7 +1881,7 @@ TEST(WKWebExtensionAPIMenus, MacURLPatternContextMenuItems)
         @"browser.test.sendMessage('Menus Created')",
     ]);
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotContextMenu = false;
     delegate.get().getContextMenuFromProposedMenu = ^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completionHandler)(NSMenu *)) {
@@ -1915,10 +1915,10 @@ TEST(WKWebExtensionAPIMenus, MacURLPatternContextMenuItems)
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     webView.get().UIDelegate = delegate.get();
 
     manager.get().defaultTab.webView = webView.get();
@@ -1966,7 +1966,7 @@ TEST(WKWebExtensionAPIMenus, MacSelectionContextMenuItems)
         @"browser.test.sendMessage('Menus Created')",
     ]);
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotContextMenu = false;
     delegate.get().getContextMenuFromProposedMenu = ^(NSMenu *menu, _WKContextMenuElementInfo *, id<NSSecureCoding>, void (^completionHandler)(NSMenu *)) {
@@ -1999,10 +1999,10 @@ TEST(WKWebExtensionAPIMenus, MacSelectionContextMenuItems)
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     webView.get().UIDelegate = delegate.get();
 
     manager.get().defaultTab.webView = webView.get();
@@ -2052,7 +2052,7 @@ TEST(WKWebExtensionAPIMenus, MacLinkContextMenuItems)
         @"browser.test.sendMessage('Menus Created')",
     ]);
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotContextMenu = false;
     delegate.get().getContextMenuFromProposedMenu = ^(NSMenu *menu, _WKContextMenuElementInfo *, id<NSSecureCoding>, void (^completionHandler)(NSMenu *)) {
@@ -2084,10 +2084,10 @@ TEST(WKWebExtensionAPIMenus, MacLinkContextMenuItems)
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     webView.get().UIDelegate = delegate.get();
 
     manager.get().defaultTab.webView = webView.get();
@@ -2136,7 +2136,7 @@ TEST(WKWebExtensionAPIMenus, MacImageContextMenuItems)
         @"browser.test.sendMessage('Menus Created')",
     ]);
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotContextMenu = false;
     delegate.get().getContextMenuFromProposedMenu = ^(NSMenu *menu, _WKContextMenuElementInfo *, id<NSSecureCoding>, void (^completionHandler)(NSMenu *)) {
@@ -2169,10 +2169,10 @@ TEST(WKWebExtensionAPIMenus, MacImageContextMenuItems)
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     webView.get().UIDelegate = delegate.get();
 
     manager.get().defaultTab.webView = webView.get();
@@ -2221,7 +2221,7 @@ TEST(WKWebExtensionAPIMenus, MacVideoContextMenuItems)
         @"browser.test.sendMessage('Menus Created')",
     ]);
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotContextMenu = false;
     delegate.get().getContextMenuFromProposedMenu = ^(NSMenu *menu, _WKContextMenuElementInfo *, id<NSSecureCoding>, void (^completionHandler)(NSMenu *)) {
@@ -2254,10 +2254,10 @@ TEST(WKWebExtensionAPIMenus, MacVideoContextMenuItems)
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     webView.get().UIDelegate = delegate.get();
 
     manager.get().defaultTab.webView = webView.get();
@@ -2306,7 +2306,7 @@ TEST(WKWebExtensionAPIMenus, MacAudioContextMenuItems)
         @"browser.test.sendMessage('Menus Created')",
     ]);
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotContextMenu = false;
     delegate.get().getContextMenuFromProposedMenu = ^(NSMenu *menu, _WKContextMenuElementInfo *, id<NSSecureCoding>, void (^completionHandler)(NSMenu *)) {
@@ -2339,10 +2339,10 @@ TEST(WKWebExtensionAPIMenus, MacAudioContextMenuItems)
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     webView.get().UIDelegate = delegate.get();
 
     manager.get().defaultTab.webView = webView.get();
@@ -2387,7 +2387,7 @@ TEST(WKWebExtensionAPIMenus, MacEditableContextMenuItems)
         @"browser.test.sendMessage('Menus Created')",
     ]);
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotContextMenu = false;
     delegate.get().getContextMenuFromProposedMenu = ^(NSMenu *menu, _WKContextMenuElementInfo *, id<NSSecureCoding>, void (^completionHandler)(NSMenu *)) {
@@ -2419,10 +2419,10 @@ TEST(WKWebExtensionAPIMenus, MacEditableContextMenuItems)
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     webView.get().UIDelegate = delegate.get();
 
     manager.get().defaultTab.webView = webView.get();
@@ -2469,7 +2469,7 @@ TEST(WKWebExtensionAPIMenus, MacFrameContextMenuItems)
         @"browser.test.sendMessage('Menus Created')",
     ]);
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotContextMenu = false;
     delegate.get().getContextMenuFromProposedMenu = ^(NSMenu *menu, _WKContextMenuElementInfo *, id<NSSecureCoding>, void (^completionHandler)(NSMenu *)) {
@@ -2503,10 +2503,10 @@ TEST(WKWebExtensionAPIMenus, MacFrameContextMenuItems)
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:server.requestWithLocalhost("/frame.html"_s).URL];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     webView.get().UIDelegate = delegate.get();
 
     manager.get().defaultTab.webView = webView.get();

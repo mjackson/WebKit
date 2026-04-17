@@ -179,16 +179,16 @@ void DocumentImmersive::exitImmersive(CompletionHandler<void(ExceptionOr<void>)>
     });
 }
 
-void DocumentImmersive::exitImmersiveIfNeeded()
+void DocumentImmersive::exitImmersiveIfNeeded(CompletionHandler<void()>&& completionHandler)
 {
     if (immersiveElement()) {
-        exitImmersive([weakThis = WeakPtr { *this }](auto result) {
+        exitImmersive([weakThis = WeakPtr { *this }, completionHandler = WTF::move(completionHandler)](auto result) mutable {
             RefPtr protectedThis = weakThis.get();
-            if (!protectedThis)
-                return;
-
-            if (result.hasException())
+            if (protectedThis && result.hasException())
                 RELEASE_LOG_ERROR(Immersive, "%p - DocumentImmersive: %s", protectedThis.get(), result.releaseException().message().utf8().data());
+
+            if (completionHandler)
+                completionHandler();
         });
         return;
     }
@@ -196,6 +196,9 @@ void DocumentImmersive::exitImmersiveIfNeeded()
     m_pendingImmersiveElement = nullptr;
     m_activeRequest.stage = ActiveRequest::Stage::None;
     m_activeRequest.element = nullptr;
+
+    if (completionHandler)
+        completionHandler();
 }
 
 void DocumentImmersive::exitRemovedImmersiveElementIfNeeded(HTMLModelElement* element, CompletionHandler<void()>&& completionHandler)

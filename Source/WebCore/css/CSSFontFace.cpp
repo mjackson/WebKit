@@ -28,6 +28,7 @@
 
 #include "CSSFontFaceSource.h"
 #include "CSSFontFaceSrcValue.h"
+#include "CSSFontFamilyNameValue.h"
 #include "CSSFontFeatureValue.h"
 #include "CSSFontSelector.h"
 #include "CSSFontStyleRangeValue.h"
@@ -363,13 +364,12 @@ void CSSFontFace::setDisplay(CSSValue& loadingBehaviorValue)
     });
 }
 
-String CSSFontFace::family() const
+AtomString CSSFontFace::family() const
 {
-    RefPtr value = dynamicDowncast<CSSPrimitiveValue>(properties().getPropertyCSSValue(CSSPropertyFontFamily));
+    RefPtr value = dynamicDowncast<CSSFontFamilyNameValue>(properties().getPropertyCSSValue(CSSPropertyFontFamily));
     if (!value)
         return { };
-    ASSERT(value->isFontFamily());
-    return value->stringValue();
+    return value->fontFamilyName().value;
 }
 
 String CSSFontFace::style() const

@@ -63,7 +63,7 @@ TEST(ScrollbarWidthCrash, DynamicallyChangeScrollbarWidth)
 {
     UISideCompositingScope scope { UISideCompositingState::Disabled };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
 
     RetainPtr delegate = adoptNS([[CrashNavigationDelegate alloc] init]);
 

@@ -187,7 +187,7 @@ void testPerformTextSearchWithQueryStringInWebView(WKWebView *webView, NSString 
 RetainPtr<NSOrderedSet<UITextRange *>> textRangesForQueryString(WKWebView *webView, NSString *query)
 {
     __block bool finishedSearching = false;
-    auto aggregator = adoptNS([[TestSearchAggregator alloc] initWithCompletionHandler:^{
+    RetainPtr aggregator = adoptNS([[TestSearchAggregator alloc] initWithCompletionHandler:^{
         finishedSearching = true;
     }]);
 

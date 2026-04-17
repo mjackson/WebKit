@@ -26,11 +26,9 @@
 #ifndef PAS_DEALLOCATE_H
 #define PAS_DEALLOCATE_H
 
-#include "pas_bitfit_page_inlines.h"
 #include "pas_deallocation_mode.h"
 #include "pas_get_page_base_and_kind_for_small_other_in_fast_megapage.h"
 #include "pas_heap_config.h"
-#include "pas_heap_lock.h"
 #include "pas_heap_ref.h"
 #include "pas_large_heap.h"
 #include "pas_malloc_stack_logging.h"

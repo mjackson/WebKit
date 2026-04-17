@@ -32,7 +32,7 @@ namespace TestWebKitAPI {
 TEST(WebKitLegacy, MemoryPressureHandler)
 {
     WebInstallMemoryPressureHandler();
-    auto webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:nil groupName:nil]);
+    RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:nil groupName:nil]);
     // This test passes if it does not assert.
 }
 

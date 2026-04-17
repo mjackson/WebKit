@@ -39,6 +39,8 @@ namespace WebCore {
 
 class PlatformMouseEvent : public PlatformEvent {
 public:
+    using CanInitiateDrag = MouseEventCanInitiateDrag;
+
     PlatformMouseEvent()
         : PlatformEvent(Type::MouseMoved)
     {
@@ -73,6 +75,7 @@ public:
     PointerID pointerId() const { return m_pointerId; }
     const String& pointerType() const LIFETIME_BOUND { return m_pointerType; }
     MouseEventInputSource inputSource() const { return m_inputSource; }
+    CanInitiateDrag canInitiateDrag() const { return m_canInitiateDrag; }
 
     Vector<PlatformMouseEvent> coalescedEvents() const { return m_coalescedEvents; }
     Vector<PlatformMouseEvent> predictedEvents() const { return m_predictedEvents; }
@@ -110,6 +113,7 @@ protected:
     Vector<PlatformMouseEvent> m_coalescedEvents;
     Vector<PlatformMouseEvent> m_predictedEvents;
     MouseEventInputSource m_inputSource { MouseEventInputSource::UserDriven };
+    CanInitiateDrag m_canInitiateDrag { CanInitiateDrag::Yes };
 #if PLATFORM(MAC)
     int m_eventNumber { 0 };
     int m_menuTypeForEvent { 0 };

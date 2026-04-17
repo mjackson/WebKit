@@ -186,7 +186,7 @@ void serializationForCSSTokenization(StringBuilder& builder, const CSS::Serializ
     builder.append(')');
 }
 
-String serializationForCSSTokenization(const CSS::SerializationContext& context, const ColorMix& colorMix)
+WTF::String serializationForCSSTokenization(const CSS::SerializationContext& context, const ColorMix& colorMix)
 {
     StringBuilder builder;
     serializationForCSSTokenization(builder, context, colorMix);

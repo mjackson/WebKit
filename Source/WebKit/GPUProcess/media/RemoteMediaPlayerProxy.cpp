@@ -341,6 +341,12 @@ void RemoteMediaPlayerProxy::setPageIsVisible(bool visible)
     protect(m_player)->setPageIsVisible(visible);
 }
 
+void RemoteMediaPlayerProxy::setViewportVisibility(ViewportVisibility visibility)
+{
+    ALWAYS_LOG(LOGIDENTIFIER, visibility);
+    protect(m_player)->setViewportVisibility(visibility);
+}
+
 void RemoteMediaPlayerProxy::setShouldMaintainAspectRatio(bool maintainRatio)
 {
     protect(m_player)->setShouldMaintainAspectRatio(maintainRatio);

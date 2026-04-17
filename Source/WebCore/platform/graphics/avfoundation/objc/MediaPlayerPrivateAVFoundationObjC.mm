@@ -648,7 +648,6 @@ void MediaPlayerPrivateAVFoundationObjC::createAVPlayerLayer()
     ALWAYS_LOG(LOGIDENTIFIER);
 
     m_videoLayer = adoptNS([PAL::allocAVPlayerLayerInstance() init]);
-    [m_videoLayer setPlayer:m_avPlayer];
 
     [m_videoLayer setName:@"MediaPlayerPrivate AVPlayerLayer"];
     [m_videoLayer addObserver:m_objcObserver.get() forKeyPath:@"readyForDisplay" options:NSKeyValueObservingOptionNew context:(void *)MediaPlayerAVFoundationObservationContextAVPlayerLayer];
@@ -660,6 +659,8 @@ void MediaPlayerPrivateAVFoundationObjC::createAVPlayerLayer()
 #if PLATFORM(IOS_FAMILY) && !PLATFORM(WATCHOS) && !PLATFORM(APPLETV)
     [m_videoLayer setPIPModeEnabled:(player->fullscreenMode() & MediaPlayer::VideoFullscreenModePictureInPicture)];
 #endif
+
+    updateLayerAttachment();
 
 #if HAVE(SPATIAL_TRACKING_LABEL)
     updateSpatialTrackingLabel();
@@ -1420,21 +1421,17 @@ void MediaPlayerPrivateAVFoundationObjC::didEnd(double now)
     MediaPlayerPrivateAVFoundation::didEnd(now);
 }
 
-void MediaPlayerPrivateAVFoundationObjC::platformSetVisible(bool isVisible)
+void MediaPlayerPrivateAVFoundationObjC::platformPageIsVisibleChanged(bool)
 {
-    assertIsMainThread();
-
 #if HAVE(SPATIAL_TRACKING_LABEL)
     updateSpatialTrackingLabel();
 #endif
+    updateLayerAttachment();
+}
 
-    if (!m_videoLayer)
-        return;
-
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    [m_videoLayer setHidden:!isVisible];
-    [CATransaction commit];
+void MediaPlayerPrivateAVFoundationObjC::platformViewportVisibilityChanged(ViewportVisibility)
+{
+    updateLayerAttachment();
 }
 
 void MediaPlayerPrivateAVFoundationObjC::platformPlay()
@@ -4150,7 +4147,7 @@ void MediaPlayerPrivateAVFoundationObjC::updateSpatialTrackingLabel()
         RetainPtr experience = createSpatialAudioExperienceWithOptions({
             .hasLayer = !!m_videoLayer,
             .hasTarget = !!m_videoTarget,
-            .isVisible = isVisible(),
+            .isVisible = pageIsVisible(),
             .soundStageSize = player->soundStageSize(),
             .sceneIdentifier = player->sceneIdentifier(),
 #if HAVE(SPATIAL_TRACKING_LABEL)
@@ -4173,7 +4170,7 @@ void MediaPlayerPrivateAVFoundationObjC::updateSpatialTrackingLabel()
         return;
     }
 
-    if (m_videoLayer && isVisible()) {
+    if (m_videoLayer && pageIsVisible()) {
         // If the media player has a renderer, and that renderer belongs to a page that is visible,
         // then let AVPlayer manage setting the spatial tracking label in its AVPlayerLayer itself;
         ALWAYS_LOG(LOGIDENTIFIER, "No videoLayer, set STSLabel: nil");
@@ -4208,11 +4205,10 @@ void MediaPlayerPrivateAVFoundationObjC::setVideoTarget(const PlatformVideoTarge
         [m_avPlayer removeVideoTarget:m_videoTarget];
 
     m_videoTarget = videoTarget;
+    updateLayerAttachment();
 
     if (m_videoTarget)
         [m_avPlayer addVideoTarget:m_videoTarget];
-    else
-        [m_videoLayer setPlayer:m_avPlayer];
 #else
     UNUSED_PARAM(videoTarget);
 #endif
@@ -4223,14 +4219,19 @@ void MediaPlayerPrivateAVFoundationObjC::isInFullscreenOrPictureInPictureChanged
 #if ENABLE(LINEAR_MEDIA_PLAYER)
     assertIsMainThread();
 
-    if (!m_videoTarget)
+    if (m_isInFullscreenOrPictureInPicture == isInFullscreenOrPictureInPicture)
         return;
-    if (isInFullscreenOrPictureInPicture)
-        [m_videoLayer setPlayer:nil];
-    else if (RetainPtr videoTarget = std::exchange(m_videoTarget, nullptr)) {
+
+    m_isInFullscreenOrPictureInPicture = isInFullscreenOrPictureInPicture;
+
+    updateLayerAttachment();
+
+    if (!m_videoTarget || isInFullscreenOrPictureInPicture)
+        return;
+
+    if (RetainPtr videoTarget = std::exchange(m_videoTarget, nullptr)) {
         INFO_LOG(LOGIDENTIFIER, "Clearing videoTarget");
         [m_avPlayer removeVideoTarget:videoTarget.get()];
-        [m_videoLayer setPlayer:m_avPlayer];
     }
 #else
     UNUSED_PARAM(isInFullscreenOrPictureInPicture);
@@ -4290,6 +4291,34 @@ void MediaPlayerPrivateAVFoundationObjC::setParticipatesInAudioSession(bool part
         [m_avPlayer setParticipatesInAudioSession:participatesInAudioSession completionHandler:nil];
 }
 #endif
+
+void MediaPlayerPrivateAVFoundationObjC::updateLayerAttachment()
+{
+    assertIsMainThread();
+    if (!m_videoLayer || !m_avPlayer)
+        return;
+
+    if (shouldAttachLayerToPlayer())
+        [m_videoLayer setPlayer:m_avPlayer.get()];
+    else
+        [m_videoLayer setPlayer:nil];
+}
+
+bool MediaPlayerPrivateAVFoundationObjC::shouldAttachLayerToPlayer()
+{
+#if ENABLE(LINEAR_MEDIA_PLAYER)
+    if (m_videoTarget && m_isInFullscreenOrPictureInPicture)
+        return false;
+#endif
+
+    if (!pageIsVisible())
+        return false;
+
+    if (viewportVisibility() == ViewportVisibility::NotVisible)
+        return false;
+
+    return true;
+}
 
 NSArray* assetMetadataKeyNames()
 {

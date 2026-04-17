@@ -1,0 +1,12 @@
+
+FAIL moveBefore(): about:blank iframe's document is preserved promise_test: Unhandled rejection with value: object "TypeError: document.body.moveBefore is not a function. (In 'document.body.moveBefore(iframe, null)', 'document.body.moveBefore' is undefined)"
+FAIL moveBefore(): simple same-origin document is preserved promise_test: Unhandled rejection with value: object "TypeError: document.body.moveBefore is not a function. (In 'document.body.moveBefore(iframe, null)', 'document.body.moveBefore' is undefined)"
+FAIL moveBefore(): cross-origin iframe is preserved: remove new parent promise_test: Unhandled rejection with value: object "TypeError: newParent.moveBefore is not a function. (In 'newParent.moveBefore(iframe, null)', 'newParent.moveBefore' is undefined)"
+FAIL moveBefore(): cross-origin iframe is preserved: remove self promise_test: Unhandled rejection with value: object "TypeError: newParent.moveBefore is not a function. (In 'newParent.moveBefore(iframe, null)', 'newParent.moveBefore' is undefined)"
+FAIL moveBefore(): cross-origin iframe is preserved: remove self via replaceChildren() promise_test: Unhandled rejection with value: object "TypeError: newParent.moveBefore is not a function. (In 'newParent.moveBefore(iframe, null)', 'newParent.moveBefore' is undefined)"
+FAIL moveBefore(): cross-origin iframe is preserved: remove self via innerHTML promise_test: Unhandled rejection with value: object "TypeError: newParent.moveBefore is not a function. (In 'newParent.moveBefore(iframe, null)', 'newParent.moveBefore' is undefined)"
+FAIL window.frames ordering does not change due to moveBefore() assert_equals: iframe1 comes first in DOM expected "iframe1" but got ""
+
+
+
+

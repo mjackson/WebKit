@@ -79,7 +79,7 @@ TEST_F(AcceptsFirstMouse, WebKit2)
 
 TEST(WebKit2, AcceptsFirstMouseDuringWebProcessLaunch)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView loadHTMLString:@"<body>" baseURL:nil];
 
     auto mouseEvent = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:NSMakePoint(1, 1) modifierFlags:0 timestamp:GetCurrentEventTime() windowNumber:[webView window].windowNumber context:NSGraphicsContext.currentContext eventNumber:1 clickCount:1 pressure:0];

@@ -35,9 +35,9 @@ namespace TestWebKitAPI {
 TEST(GestureRecognizerTests, DoNotAllowTapToRecognizeAlongsideReparentedScrollViewPanGesture)
 {
     auto frame = CGRectMake(0, 0, 320, 568);
-    auto hiddenScrollView = adoptNS([[UIScrollView alloc] initWithFrame:frame]);
-    auto webViewContainer = adoptNS([[UIView alloc] initWithFrame:frame]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:frame]);
+    RetainPtr hiddenScrollView = adoptNS([[UIScrollView alloc] initWithFrame:frame]);
+    RetainPtr webViewContainer = adoptNS([[UIView alloc] initWithFrame:frame]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:frame]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
     [[webView window] addSubview:webViewContainer.get()];

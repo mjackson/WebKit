@@ -55,6 +55,7 @@ messages -> RemoteMediaPlayerProxy {
 
     PrepareForRendering()
     SetPageIsVisible(bool visible)
+    SetViewportVisibility(enum:uint8_t WebCore::MediaPlayerViewportVisibility visibility)
     SetShouldMaintainAspectRatio(bool maintainAspectRatio)
     AcceleratedRenderingStateChanged(bool canBeAccelerated)
     SetShouldDisableSleep(bool disable)

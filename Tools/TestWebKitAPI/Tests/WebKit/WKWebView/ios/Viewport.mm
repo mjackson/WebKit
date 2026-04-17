@@ -51,7 +51,7 @@ TEST(Viewport, MinimumEffectiveDeviceWidthWithInitialScale)
 {
     IPadUserInterfaceSwizzler iPadUserInterface;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 690, 690)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 690, 690)]);
 
     [webView synchronouslyLoadHTMLString:makeViewportMetaTag(1000, 0.69).get()];
     [webView waitForNextPresentationUpdate];
@@ -67,9 +67,9 @@ TEST(Viewport, RespectInitialScaleExceptOnWikipediaDomain)
     IPadUserInterfaceSwizzler iPadUserInterface;
 
     auto screenDimensions = CGRectMake(0, 0, 2732, 2048);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:screenDimensions]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:screenDimensions]);
     [[webView configuration] preferences]._shouldIgnoreMetaViewport = YES;
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     auto runTest = [&webView, &navigationDelegate, screenWidth = screenDimensions.size.width] (StringView requestURL, Function<void(float, float)>&& scaleExpectation) mutable {

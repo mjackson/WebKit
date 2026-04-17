@@ -69,7 +69,7 @@ namespace TestWebKitAPI {
 
 TEST(WebKit, LinkColor)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     [webView synchronouslyLoadHTMLString:@"<a href>Test</a>"];
 
@@ -81,7 +81,7 @@ TEST(WebKit, LinkColor)
 
 TEST(WebKit, LinkColorWithSystemAppearance)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView _setUseSystemAppearance:YES];
 
     [webView synchronouslyLoadHTMLString:@"<a href>Test</a>"];
@@ -150,7 +150,7 @@ TEST(WebKit, AppAccentColorAffectsSystemColors)
 
 TEST(WebKit, TintColorAffectsInteractionColor)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     auto textInput = [webView textInputContentView];
 
     [webView setTintColor:[UIColor greenColor]];

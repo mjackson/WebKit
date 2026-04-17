@@ -54,8 +54,8 @@ namespace TestWebKitAPI {
 
 TEST(WKWebView, WKScrollViewDelegateCrash)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
-    auto delegateForScrollView = adoptNS([[TestDelegateForScrollView alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr delegateForScrollView = adoptNS([[TestDelegateForScrollView alloc] init]);
     @autoreleasepool {
         [webView scrollView].delegate = delegateForScrollView.get();
     }
@@ -93,8 +93,8 @@ namespace TestWebKitAPI {
 
 TEST(WKWebView, WKScrollViewDelegateCannotOverrideViewForZooming)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] init]);
-    auto delegateForScrollView = adoptNS([[WKScrollViewDelegateWithViewForZoomingOverridden alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] init]);
+    RetainPtr delegateForScrollView = adoptNS([[WKScrollViewDelegateWithViewForZoomingOverridden alloc] init]);
     @autoreleasepool {
         [webView scrollView].delegate = delegateForScrollView.get();
     }

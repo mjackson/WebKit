@@ -27,7 +27,6 @@
 #define PAS_SEGREGATED_VIEW_ALLOCATOR_INLINES_H
 
 #include "pas_debug_spectrum.h"
-#include "pas_epoch.h"
 #include "pas_page_sharing_pool.h"
 #include "pas_physical_memory_transaction.h"
 #include "pas_segregated_exclusive_view_inlines.h"

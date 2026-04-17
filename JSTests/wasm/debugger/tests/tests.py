@@ -2038,7 +2038,7 @@ class DynamicModuleLoadTestCase(BaseTestCase):
 
         # Resume: stops for the module-load notification (library:; T-packet) when module 2 is
         # instantiated.  LLDB re-queries qXfer:libraries:read and loads module 2.
-        self.send_lldb_command_or_raise("c", patterns=["Process 1 stopped", "new wasm module loaded"])
+        self.send_lldb_command_or_raise("c", patterns=["Process 1 stopped", "loaded new wasm module with ids: 1"])
 
         # Set a breakpoint at the 'end' instruction of func_b in module 2 (virtual address
         # 0x4000000100000023).  Module 2 is now loaded, so the breakpoint resolves immediately.
@@ -2076,7 +2076,7 @@ class SwiftWasmDynamicModuleLoadTestCase(BaseTestCase):
         # Resume: stops at when Module B is loaded and the associated instance is created. This stop trigger
         # LLDB re-querying debug info and resolving the pending breakpoint for func_b, confirming that dynamic
         # module load triggers pending breakpoint resolution.
-        self.send_lldb_command_or_raise("c", patterns=["Process 1 stopped", "new wasm module loaded"])
+        self.send_lldb_command_or_raise("c", patterns=["Process 1 stopped", "loaded new wasm module with ids: 1"])
         self.send_lldb_command_or_raise("br list", patterns=["func_a", "func_b"])
 
         # Resume: stops at the func_b breakpoint (module B) on the first call, confirming that the pending breakpoint was resolved via debug info.

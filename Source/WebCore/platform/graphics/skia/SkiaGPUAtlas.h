@@ -60,6 +60,11 @@ public:
 
     virtual ~SkiaGPUAtlas();
 
+    // Ensures the EGLImage and GrBackendTexture are created. For dma-buf backed textures
+    // with deferred binding, this must be called after the upload is complete — typically
+    // from the upload work queue thread, before signaling the upload condition.
+    bool ensureBackendTexture();
+
     const GrBackendTexture& backendTexture() const LIFETIME_BOUND { return m_backendTexture; }
     const ImageToRectMap& imageToRect() const LIFETIME_BOUND { return m_imageToRect; }
     const IntSize& size() const LIFETIME_BOUND { return m_size; }

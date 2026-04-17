@@ -53,7 +53,7 @@ TEST(RemoteObjectRegistry, Basic)
         NSString * const testPlugInClassName = @"RemoteObjectRegistryPlugIn";
         auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:testPlugInClassName]);
         configuration.get()._groupIdentifier = @"testGroupIdentifier";
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
         isDone = false;
 
@@ -93,7 +93,7 @@ TEST(RemoteObjectRegistry, Basic)
         TestWebKitAPI::Util::run(&isDone);
 
         isDone = false;
-        auto initialAwakener = adoptNS([[TestAwakener alloc] initWithValue:42]);
+        RetainPtr initialAwakener = adoptNS([[TestAwakener alloc] initWithValue:42]);
         [object sendAwakener:initialAwakener.get() completionHandler:^(TestAwakener *awakener) {
             EXPECT_EQ(awakener.value, 42);
             isDone = true;
@@ -143,12 +143,12 @@ TEST(RemoteObjectRegistry, Basic)
         isDone = false;
 
         NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"https://webkit.org/"]];
-        auto response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:[NSURL URLWithString:@"https://webkit.org/"] statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:@{ @"testFieldName" : @"testFieldValue" }]);
+        RetainPtr response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:[NSURL URLWithString:@"https://webkit.org/"] statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:@{ @"testFieldName" : @"testFieldValue" }]);
         NSError *error = [NSError errorWithDomain:@"testDomain" code:123 userInfo:@{@"a":@"b"}];
-        auto protectionSpace = adoptNS([[NSURLProtectionSpace alloc] initWithHost:@"testHost" port:80 protocol:@"testProtocol" realm:@"testRealm" authenticationMethod:NSURLAuthenticationMethodHTTPDigest]);
+        RetainPtr protectionSpace = adoptNS([[NSURLProtectionSpace alloc] initWithHost:@"testHost" port:80 protocol:@"testProtocol" realm:@"testRealm" authenticationMethod:NSURLAuthenticationMethodHTTPDigest]);
         NSURLCredential *credential = [NSURLCredential credentialWithUser:@"testUser" password:@"testPassword" persistence:NSURLCredentialPersistenceForSession];
         id<NSURLAuthenticationChallengeSender> sender = nil;
-        auto challenge = adoptNS([[NSURLAuthenticationChallenge alloc] initWithProtectionSpace:protectionSpace.get() proposedCredential:credential previousFailureCount:42 failureResponse:response.get() error:error sender:sender]);
+        RetainPtr challenge = adoptNS([[NSURLAuthenticationChallenge alloc] initWithProtectionSpace:protectionSpace.get() proposedCredential:credential previousFailureCount:42 failureResponse:response.get() error:error sender:sender]);
         NSUUID *uuid = [NSUUID UUID];
         [object sendRequest:request response:response.get() challenge:challenge.get() error:error nsNull:[NSNull null] uuid:uuid completionHandler:^(NSURLRequest *deserializedRequest, NSURLResponse *deserializedResponse, NSURLAuthenticationChallenge *deserializedChallenge, NSError *deserializedError, id nsNull, id deserializedUUID) {
             EXPECT_WK_STREQ(deserializedRequest.URL.absoluteString, "https://webkit.org/");
@@ -225,13 +225,13 @@ TEST(RemoteObjectRegistry, Basic)
 
 TEST(RemoteObjectRegistry, CallReplyBlockAfterOriginatingWebViewDeallocates)
 {
-    auto localObject = adoptNS([[LocalObject alloc] init]);
+    RetainPtr localObject = adoptNS([[LocalObject alloc] init]);
     WeakObjCPtr<WKWebView> weakWebViewPtr;
 
     @autoreleasepool {
         NSString * const testPlugInClassName = @"RemoteObjectRegistryPlugIn";
         auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:testPlugInClassName]);
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
         weakWebViewPtr = webView.get();
 
         RetainPtr interface = remoteObjectInterface();
@@ -278,10 +278,10 @@ TEST(RemoteObjectRegistry, CallReplyBlockAfterOriginatingWebViewDeallocates)
 
 TEST(RemoteObjectRegistry, CallReplyBlockWithInvalidTypeSignature)
 {
-    auto completedReplyObject = adoptNS([[LocalObject alloc] init]);
-    auto stringReplyObject = adoptNS([[StringReplyObject alloc] init]);
+    RetainPtr completedReplyObject = adoptNS([[LocalObject alloc] init]);
+    RetainPtr stringReplyObject = adoptNS([[StringReplyObject alloc] init]);
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:[WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"RemoteObjectRegistryPlugIn"]]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:[WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"RemoteObjectRegistryPlugIn"]]);
 
     [[webView _remoteObjectRegistry] registerExportedObject:completedReplyObject.get() interface:localObjectInterface()];
     [[webView _remoteObjectRegistry] registerExportedObject:stringReplyObject.get() interface:stringReplyObjectInterface()];
@@ -300,8 +300,8 @@ TEST(RemoteObjectRegistry, CallReplyBlockWithInvalidTypeSignature)
 TEST(RemoteObjectRegistry, SerializeErrorWithCertificates)
 {
     TestWebKitAPI::HTTPServer server({ }, TestWebKitAPI::HTTPServer::Protocol::Https);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:[WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"RemoteObjectRegistryPlugIn"]]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:[WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"RemoteObjectRegistryPlugIn"]]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     webView.get().navigationDelegate = delegate.get();
     [webView loadRequest:server.request()];
     NSError *error = [delegate waitForDidFailProvisionalNavigation];
@@ -336,7 +336,7 @@ TEST(RemoteObjectRegistry, CallReplyBlockWithBadInvocation)
         }
     }
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration: configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration: configuration.get()]);
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"RemoteObjectRegistry-BadReplyBlock" withExtension:@"html"]]];
 

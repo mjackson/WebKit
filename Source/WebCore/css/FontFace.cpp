@@ -56,7 +56,7 @@ void FontFace::setErrorState()
     m_backing->setErrorState();
 }
 
-Ref<FontFace> FontFace::create(ScriptExecutionContext& context, const String& family, Source&& source, const Descriptors& descriptors)
+Ref<FontFace> FontFace::create(ScriptExecutionContext& context, const AtomString& family, Source&& source, const Descriptors& descriptors)
 {
     ASSERT(context.cssFontSelector());
     auto result = adoptRef(*new FontFace(*context.cssFontSelector()));
@@ -69,7 +69,7 @@ Ref<FontFace> FontFace::create(ScriptExecutionContext& context, const String& fa
 #endif
     bool dataRequiresAsynchronousLoading = true;
 
-    auto setFamilyResult = result->setFamily(family);
+    auto setFamilyResult = result->setFamily(context, family);
     if (setFamilyResult.hasException()) {
         result->setErrorState();
         return result;
@@ -88,6 +88,7 @@ Ref<FontFace> FontFace::create(ScriptExecutionContext& context, const String& fa
             if (fontBinaryParsingPolicy(arrayBufferView->span(), fontTrustedTypes) == FontParsingPolicy::Deny)
                 return { };
 
+            result->m_sourceIsImmediateBuffer = true;
             dataRequiresAsynchronousLoading = populateFontFaceWithArrayBuffer(result->backing(), WTF::move(arrayBufferView));
             return { };
         },
@@ -95,6 +96,7 @@ Ref<FontFace> FontFace::create(ScriptExecutionContext& context, const String& fa
             if (fontBinaryParsingPolicy(arrayBuffer->span(), fontTrustedTypes) == FontParsingPolicy::Deny)
                 return { };
 
+            result->m_sourceIsImmediateBuffer = true;
             unsigned byteLength = arrayBuffer->byteLength();
             auto arrayBufferView = JSC::Uint8Array::create(WTF::move(arrayBuffer), 0, byteLength);
             dataRequiresAsynchronousLoading = populateFontFaceWithArrayBuffer(result->backing(), WTF::move(arrayBufferView));
@@ -181,11 +183,11 @@ FontFace::~FontFace()
     m_backing->removeClient(*this);
 }
 
-ExceptionOr<void> FontFace::setFamily(const String& family)
+ExceptionOr<void> FontFace::setFamily(ScriptExecutionContext& context, const AtomString& family)
 {
     if (family.isEmpty())
         return Exception { ExceptionCode::SyntaxError };
-    m_backing->setFamily(CSSPrimitiveValue::createFontFamily(family));
+    m_backing->setFamily(context.cssValuePool().createFontFamilyNameValue(family));
     return { };
 }
 
@@ -252,7 +254,7 @@ ExceptionOr<void> FontFace::setSizeAdjust(ScriptExecutionContext& context, const
     return Exception { ExceptionCode::SyntaxError };
 }
 
-String FontFace::family() const
+AtomString FontFace::family() const
 {
     if (auto value = m_backing->family(); !value.isNull())
         return value;
@@ -352,7 +354,7 @@ void FontFace::fontStateChanged(CSSFontFace& face, CSSFontFace::Status, CSSFontF
         // FIXME: This check should not be needed, but because FontFace's are sometimes adopted after they have already
         // gone through a load cycle, we can sometimes come back through here and try to resolve the promise again.
         if (!m_loadedPromise->isFulfilled())
-            m_loadedPromise->reject(Exception { ExceptionCode::NetworkError });
+            m_loadedPromise->reject(Exception { m_sourceIsImmediateBuffer ? ExceptionCode::SyntaxError : ExceptionCode::NetworkError });
         return;
     case CSSFontFace::Status::Pending:
         ASSERT_NOT_REACHED();

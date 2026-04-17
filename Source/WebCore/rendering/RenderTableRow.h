@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "RenderBlock.h"
 #include "RenderTableSection.h"
 
 namespace WebCore {
@@ -32,7 +33,7 @@ namespace WebCore {
 static const unsigned unsetRowIndex = 0x7FFFFFFF;
 static const unsigned maxRowIndex = 0x7FFFFFFE; // 2,147,483,646
 
-class RenderTableRow final : public RenderBox {
+class RenderTableRow final : public RenderBlock {
     WTF_MAKE_TZONE_ALLOCATED(RenderTableRow);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderTableRow);
 public:
@@ -119,12 +120,12 @@ inline RenderTable* RenderTableRow::table() const
 
 inline RenderTableRow* RenderTableRow::nextRow() const
 {
-    return downcast<RenderTableRow>(RenderBox::nextSibling());
+    return downcast<RenderTableRow>(RenderBlock::nextSibling());
 }
 
 inline RenderTableRow* RenderTableRow::previousRow() const
 {
-    return downcast<RenderTableRow>(RenderBox::previousSibling());
+    return downcast<RenderTableRow>(RenderBlock::previousSibling());
 }
 
 inline RenderTableRow* RenderTableSection::firstRow() const

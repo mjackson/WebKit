@@ -34,9 +34,9 @@
 
 TEST(WKWebView, ProvisionalURLNotChange)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
         isDone = true;
     }];

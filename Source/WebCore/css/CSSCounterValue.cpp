@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,7 +31,7 @@
 
 namespace WebCore {
 
-CSSCounterValue::CSSCounterValue(CSS::CustomIdent&& identifier, AtomString&& separator, CSS::CounterStyle&& counterStyle)
+CSSCounterValue::CSSCounterValue(CSS::CustomIdent&& identifier, CSS::String&& separator, CSS::CounterStyle&& counterStyle)
     : CSSValue(ClassType::Counter)
     , m_identifier(WTF::move(identifier))
     , m_separator(WTF::move(separator))
@@ -38,7 +39,7 @@ CSSCounterValue::CSSCounterValue(CSS::CustomIdent&& identifier, AtomString&& sep
 {
 }
 
-Ref<CSSCounterValue> CSSCounterValue::create(CSS::CustomIdent&& identifier, AtomString&& separator, CSS::CounterStyle&& counterStyle)
+Ref<CSSCounterValue> CSSCounterValue::create(CSS::CustomIdent&& identifier, CSS::String&& separator, CSS::CounterStyle&& counterStyle)
 {
     return adoptRef(*new CSSCounterValue(WTF::move(identifier), WTF::move(separator), WTF::move(counterStyle)));
 }
@@ -61,7 +62,7 @@ String CSSCounterValue::customCSSText(const CSS::SerializationContext& context) 
         }
     );
 
-    if (m_separator.isEmpty()) {
+    if (m_separator.value.isEmpty()) {
         StringBuilder builder;
         builder.append("counter("_s);
         CSS::serializationForCSS(builder, context, m_identifier);

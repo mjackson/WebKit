@@ -60,8 +60,8 @@ namespace TestWebKitAPI {
 RetainPtr<_WKAppHighlight> createAppHighlightWithHTML(NSString *HTMLString, NSString *javaScript, NSString *highlightText)
 {
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto delegate = adoptNS([[AppHighlightDelegate alloc] init]);
-    auto webViewCreate = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
+    RetainPtr delegate = adoptNS([[AppHighlightDelegate alloc] init]);
+    RetainPtr webViewCreate = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
     [webViewCreate _setAppHighlightDelegate:delegate.get()];
     [webViewCreate synchronouslyLoadHTMLString:HTMLString];
     [webViewCreate stringByEvaluatingJavaScript:javaScript];
@@ -83,7 +83,7 @@ RetainPtr<_WKAppHighlight> createAppHighlightWithHTML(NSString *HTMLString, NSSt
 RetainPtr<WKWebView> createWebViewForAppHighlightsWithHTML(NSString *HTMLString)
 {
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webViewRestore = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
+    RetainPtr webViewRestore = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
     [webViewRestore synchronouslyLoadHTMLString:HTMLString];
     
     return webViewRestore;
@@ -201,7 +201,7 @@ TEST(AppHighlights, AppHighlightRestoreFromStorageV0)
     
     NSData *storedData = [NSData dataWithBytes:&bytes length:87];
 
-    auto webViewRestore = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
+    RetainPtr webViewRestore = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
 
     [webViewRestore synchronouslyLoadHTMLString:@"Test"];
     [webViewRestore _restoreAppHighlights:@[ storedData ]];
@@ -220,7 +220,7 @@ TEST(AppHighlights, AppHighlightRestoreFromStorageV1)
     
     NSData *storedData = [NSData dataWithBytes:&bytes length:144];
 
-    auto webViewRestore = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
+    RetainPtr webViewRestore = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
 
     [webViewRestore synchronouslyLoadHTMLString:@"Test"];
     [webViewRestore _restoreAppHighlights:@[ storedData ]];

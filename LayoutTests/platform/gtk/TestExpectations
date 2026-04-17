@@ -765,9 +765,6 @@ webkit.org/b/257624 imported/w3c/web-platform-tests/html/canvas/offscreen/the-of
 webkit.org/b/257624 imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/utf-8.html?include=css [ Failure Pass ]
 webkit.org/b/257624 imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/windows-1251.html?include=css [ Failure Pass ]
 webkit.org/b/257624 imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/windows-1252.html?include=css [ Failure Pass ]
-webkit.org/b/257624 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-img-element/sizes/parse-a-sizes-attribute-display-none.html [ Failure Pass ]
-webkit.org/b/257624 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-img-element/sizes/parse-a-sizes-attribute-quirks-mode.html [ Failure Pass Timeout ]
-webkit.org/b/257624 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-img-element/sizes/parse-a-sizes-attribute-standards-mode.html [ Failure Pass Timeout ]
 webkit.org/b/257624 imported/w3c/web-platform-tests/preload/preload-referrer-policy.html [ Failure Pass ]
 webkit.org/b/257624 imported/w3c/web-platform-tests/selection/extend-20.html [ Failure Pass Timeout ]
 webkit.org/b/257624 imported/w3c/web-platform-tests/workers/SharedWorker_dataUrl.html [ Failure Pass ]
@@ -1261,8 +1258,6 @@ webkit.org/b/143153 imported/w3c/web-platform-tests/css/css-text/text-transform/
 
 webkit.org/b/245900 [ Debug ] fast/inline/inline-box-adjust-position-crash2.html [ Skip ]
 
-webkit.org/b/256768 fast/mediastream/captureStream/canvas3d.html [ Failure Pass ]
-
 webkit.org/b/249477 media/audioSession/audioSessionType.html [ Skip ]
 
 media/media-source/media-detachablemse-append.html [ Skip ]
@@ -1479,9 +1474,12 @@ inspector/unit-tests/retryuntil.html [ Pass Failure ]
 
 pointer-lock/lock-lost-on-alert.html [ Pass Failure ]
 
-webkit.org/b/311846 webrtc/h264-high.html [ Pass Failure Timeout ]
+webkit.org/b/311846 webrtc/h264-high.html [ Pass Failure Slow ]
 webkit.org/b/311847 webrtc/dtmf-gc.html [ Pass Timeout ]
 
 webkit.org/b/311927 accessibility/combobox/gtk/combobox-collapsed-selection-changed.html [ Failure Pass ]
 
 webkit.org/b/311930 fonts/font-cache-memory-pressure-crash.html [ Failure Pass ]
+
+webkit.org/b/312269 imported/w3c/web-platform-tests/webrtc/protocol/vp8-fmtp.html [ Pass Crash ]
+webkit.org/b/312269 imported/w3c/web-platform-tests/webrtc/RTCSctpTransport-constructor.html [ Pass Crash ]

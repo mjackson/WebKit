@@ -132,7 +132,7 @@ static void resetInspectorGlobalState()
     [inspector setDelegate:sharedInspectorDelegate.get()];
 
     sharedSimpleURLSchemeHandler = adoptNS([[SimpleURLSchemeHandler alloc] init]);
-    auto inspectorConfiguration = adoptNS([[_WKInspectorConfiguration alloc] init]);
+    RetainPtr inspectorConfiguration = adoptNS([[_WKInspectorConfiguration alloc] init]);
     [inspectorConfiguration setURLSchemeHandler:sharedSimpleURLSchemeHandler.get() forURLScheme:@"testing"];
     return inspectorConfiguration.autorelease();
 }
@@ -169,10 +169,10 @@ TEST(WKInspectorDelegate, InspectorLifecycleCallbacks)
 {
     resetInspectorGlobalState();
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegateForTesting new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr uiDelegate = adoptNS([UIDelegateForTesting new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
@@ -193,10 +193,10 @@ TEST(WKInspectorDelegate, InspectorCloseCalledReentrantly)
 {
     resetInspectorGlobalState();
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegateForTesting new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr uiDelegate = adoptNS([UIDelegateForTesting new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
@@ -217,10 +217,10 @@ TEST(WKInspectorDelegate, ShowURLExternally)
 {
     resetInspectorGlobalState();
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegateForTesting new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr uiDelegate = adoptNS([UIDelegateForTesting new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
@@ -244,10 +244,10 @@ TEST(WKInspectorDelegate, InspectorConfiguration)
 {
     resetInspectorGlobalState();
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegateForTesting new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr uiDelegate = adoptNS([UIDelegateForTesting new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];

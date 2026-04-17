@@ -163,7 +163,7 @@ void Device::createComputePipelineAsync(const WGPUComputePipelineDescriptor& des
 {
     auto pipelineAndError = createComputePipeline(descriptor, true);
     if (auto inst = instance(); inst.get()) {
-        inst->scheduleWork([pipeline = WTF::move(pipelineAndError.first), callback = WTF::move(callback), protectedThis = Ref { *this }, error = WTF::move(pipelineAndError.second)]() mutable {
+        inst->scheduleWork([pipeline = WTF::move(pipelineAndError.first), callback = WTF::move(callback), protectedThis = protect(*this), error = WTF::move(pipelineAndError.second)]() mutable {
             callback((pipeline->isValid() || protectedThis->isDestroyed()) ? WGPUCreatePipelineAsyncStatus_Success : WGPUCreatePipelineAsyncStatus_ValidationError, WTF::move(pipeline), WTF::move(error));
         });
     } else

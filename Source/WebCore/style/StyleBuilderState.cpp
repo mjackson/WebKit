@@ -63,11 +63,13 @@
 #include "StyleColor.h"
 #include "StyleCrossfadeImage.h"
 #include "StyleCursorImage.h"
+#include "StyleCustomPropertyRegistry.h"
 #include "StyleFilterImage.h"
 #include "StyleFontSizeFunctions.h"
 #include "StyleGeneratedImage.h"
 #include "StyleGradientImage.h"
 #include "StyleImageSet.h"
+#include "StyleLocalPropertyRegistry.h"
 #include "StyleNamedImage.h"
 #include "StylePaintImage.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
@@ -88,6 +90,13 @@ BuilderState::BuilderState(RenderStyle& style, BuilderContext&& context)
     , m_context(WTF::move(context))
     , m_cssToLengthConversionData(style, *this)
 {
+}
+
+const CSSRegisteredCustomProperty* BuilderState::registeredProperty(const AtomString& name) const
+{
+    if (m_context.localPropertyRegistry)
+        return m_context.localPropertyRegistry->get(name);
+    return document().customPropertyRegistry().get(name);
 }
 
 float BuilderState::zoomWithTextZoomFactor()

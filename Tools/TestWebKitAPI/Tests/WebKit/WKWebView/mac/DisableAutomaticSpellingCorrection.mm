@@ -30,11 +30,11 @@
 
 TEST(DisableAutomaticSpellingCorrection, AutocorrectAttribute)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<body><input autocorrect='off' autofocus><input autocorrect='on'></body>"];
     [webView waitForNextPresentationUpdate];
 
-    auto item = adoptNS([[NSMenuItem alloc] init]);
+    RetainPtr item = adoptNS([[NSMenuItem alloc] init]);
     [item setAction:@selector(toggleAutomaticSpellingCorrection:)];
     EXPECT_FALSE([webView validateUserInterfaceItem:item.get()]);
 

@@ -26,6 +26,7 @@
 #include "config.h"
 #include "StyleCounterStyle.h"
 
+#include "CSSCounterStyle.h"
 #include "CSSPropertyParserConsumer+CounterStyles.h"
 #include "CSSValueKeywords.h"
 #include "StyleBuilderChecking.h"

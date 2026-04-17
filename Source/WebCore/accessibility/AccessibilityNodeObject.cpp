@@ -109,6 +109,7 @@
 #include "RenderBlockFlowInlines.h"
 #include "RenderBoxInlines.h"
 #include "RenderElementInlines.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderImage.h"
 #include "RenderListBox.h"
 #include "RenderListItem.h"
@@ -1586,7 +1587,7 @@ static RefPtr<Element> nodeActionElement(Node& node)
     if (RefPtr input = dynamicDowncast<HTMLInputElement>(node)) {
         // We only allow date/datetime fields with standard (non-custom) focus here because calling showPicker(), which happens
         // using the action element in AccessibilityObject::press(), on platforms with custom focus (e.g., iOS) is a no-op.
-        if (!input->isDisabledFormControl() && (input->isRadioButton() || input->isCheckbox() || input->isTextButton() || input->isFileUpload() || input->isImageButton() || input->isTextField() || isDateFieldWithStandardFocus(*input)))
+        if (!input->isDisabledFormControl() && (input->isRadioButton() || input->isCheckbox() || input->isTextButton() || input->isFileUpload() || input->isImageButton() || input->isTextField() || isDateFieldWithStandardFocus(*input) || input->isColorControl()))
             return input;
     } else if (elementName == ElementName::HTML_button || elementName == ElementName::HTML_select)
         return &downcast<Element>(node);
@@ -4154,7 +4155,6 @@ Vector<AXStitchGroup> AccessibilityNodeObject::stitchGroups() const
                 continue;
             }
 
-            // FIXME: We should also be able to stitch ellipsis-type boxes.
             if (box->isText() || box->isLineBreak()) {
                 const CheckedRef renderer = box->renderer();
                 RefPtr object = cache->getOrCreate(const_cast<RenderObject&>(renderer.get()));
@@ -4513,6 +4513,20 @@ String AccessibilityNodeObject::descriptionForElements(const Vector<Ref<Element>
 
 String AccessibilityNodeObject::ariaDescribedByAttribute() const
 {
+    // Per the W3C accname spec, if the current node is already part of an
+    // aria-describedby traversal, do not follow its aria-describedby. This
+    // prevents infinite recursion in multi-element cycles.
+    RefPtr element = this->element();
+    if (!element)
+        return { };
+
+    static NeverDestroyed<HashSet<const Element*>> elementsCurrentlyResolving;
+    if (!elementsCurrentlyResolving->add(element.get()).isNewEntry)
+        return { };
+    auto removeOnExit = makeScopeExit([&] {
+        elementsCurrentlyResolving->remove(element.get());
+    });
+
     return descriptionForElements(elementsFromAttribute(aria_describedbyAttr));
 }
 
@@ -4528,6 +4542,21 @@ Vector<Ref<Element>> AccessibilityNodeObject::ariaLabeledByElements() const
 
 String AccessibilityNodeObject::ariaLabeledByAttribute() const
 {
+    // Per the W3C accname spec, if the current node is already part of an
+    // aria-labelledby traversal, do not follow its aria-labelledby. This
+    // prevents infinite recursion in multi-element cycles (e.g., A labelledby
+    // D which contains E which is labelledby F which contains A).
+    RefPtr element = this->element();
+    if (!element)
+        return { };
+
+    static NeverDestroyed<HashSet<const Element*>> elementsCurrentlyResolving;
+    if (!elementsCurrentlyResolving->add(element.get()).isNewEntry)
+        return { };
+    auto removeOnExit = makeScopeExit([&] {
+        elementsCurrentlyResolving->remove(element.get());
+    });
+
     return descriptionForElements(ariaLabeledByElements());
 }
 

@@ -108,15 +108,15 @@ static NSString *testHTML = @"<script>window.webkit.messageHandlers.testHandler.
 
 TEST(WKNavigation, FailureToStartWebProcessRecovery)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([[CrashRecoveryScriptMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[CrashRecoveryScriptMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
 
     [configuration.get().processPool _makeNextWebProcessLaunchFailForTesting];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[CrashOnStartNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CrashOnStartNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     finishedLoad = false;
@@ -135,13 +135,13 @@ TEST(WKNavigation, FailureToStartWebProcessRecovery)
 
 TEST(WKNavigation, FailureToStartWebProcessAfterCrashRecovery)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([[CrashRecoveryScriptMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[CrashRecoveryScriptMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[CrashOnStartNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CrashOnStartNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     receivedScriptMessage = false;
@@ -182,10 +182,10 @@ TEST(WKNavigation, FailureToStartWebProcessAfterCrashRecovery)
 
 TEST(WKNavigation, AutomaticVisibleViewReloadAfterWebProcessCrash)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
 
-    auto delegate = adoptNS([[BasicNavigationDelegateWithoutCrashHandler alloc] init]);
+    RetainPtr delegate = adoptNS([[BasicNavigationDelegateWithoutCrashHandler alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     startedLoad = false;
@@ -217,10 +217,10 @@ TEST(WKNavigation, AutomaticVisibleViewReloadAfterWebProcessCrash)
 
 TEST(WKNavigation, AutomaticHiddenViewDelayedReloadAfterWebProcessCrash)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
 
-    auto delegate = adoptNS([[BasicNavigationDelegateWithoutCrashHandler alloc] init]);
+    RetainPtr delegate = adoptNS([[BasicNavigationDelegateWithoutCrashHandler alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     // Make sure the view is not visible.
@@ -254,9 +254,9 @@ TEST(WKNavigation, AutomaticHiddenViewDelayedReloadAfterWebProcessCrash)
 
 TEST(WKNavigation, ProcessCrashDuringCallback)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto delegate = adoptNS([[BasicNavigationDelegateWithoutCrashHandler alloc] init]);
+    RetainPtr delegate = adoptNS([[BasicNavigationDelegateWithoutCrashHandler alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     startedLoad = false;
@@ -348,8 +348,8 @@ TEST(WKNavigation, ProcessCrashDuringCallback)
 TEST(WKNavigation, ReloadRelatedViewsInProcessDidTerminate)
 {
     const unsigned numberOfViews = 20;
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
 
     Vector<RetainPtr<WKWebView>> webViews;
     webViews.append(webView1);
@@ -358,10 +358,10 @@ TEST(WKNavigation, ReloadRelatedViewsInProcessDidTerminate)
     configuration.get()._relatedWebView = webView1.get();
     ALLOW_DEPRECATED_DECLARATIONS_END
     for (unsigned i = 0; i < numberOfViews - 1; ++i) {
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
         webViews.append(webView);
     }
-    auto delegate = adoptNS([[NavigationDelegateWithCrashHandlerThatLoadsAgain alloc] init]);
+    RetainPtr delegate = adoptNS([[NavigationDelegateWithCrashHandlerThatLoadsAgain alloc] init]);
     for (auto& webView : webViews)
         [webView setNavigationDelegate:delegate.get()];
 
@@ -398,14 +398,14 @@ TEST(WKNavigation, ReloadRelatedViewsInProcessDidTerminate)
 
 TEST(WKNavigation, WebViewURLInProcessDidTerminate)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
     NSString *viewURL = [webView URL].absoluteString;
     EXPECT_TRUE(!!viewURL);
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     __block bool done = false;
@@ -423,13 +423,13 @@ TEST(WKNavigation, WebProcessLimit)
     constexpr unsigned maxProcessCount = 10;
     [WKProcessPool _setWebProcessCountLimit:maxProcessCount];
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
         finishedLoad = true;
     }];
     auto createWebView = [&] {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
         [webView setNavigationDelegate:navigationDelegate.get()];
         finishedLoad = false;
         [webView loadTestPageNamed:@"simple"];
@@ -484,12 +484,12 @@ TEST(WKNavigation, WebProcessLimit)
 
 TEST(WKNavigation, MultipleProcessCrashesRelatedWebViews)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
 
     __block bool webview1FinishedLoad = false;
     __block bool webview2FinishedLoad = false;
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView1 setNavigationDelegate:navigationDelegate.get()];
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
         webview1FinishedLoad = true;
@@ -502,7 +502,7 @@ TEST(WKNavigation, MultipleProcessCrashesRelatedWebViews)
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     configuration.get()._relatedWebView = webView1.get();
     ALLOW_DEPRECATED_DECLARATIONS_END
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
     [webView2 setNavigationDelegate:navigationDelegate.get()];
 
     [navigationDelegate setDidFinishNavigation:^(WKWebView *view, WKNavigation *) {
@@ -566,10 +566,10 @@ TEST(WKNavigation, CrashRecoveryRightAfterLoadRequest)
         { "/index.html"_s, { "foo"_s } },
     });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
 
-    auto navigationDelegate = adoptNS([[BasicNavigationDelegateWithoutCrashHandler alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[BasicNavigationDelegateWithoutCrashHandler alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     // This is to make sure that a WebProcess is launched since we sometimes delay the launch of the

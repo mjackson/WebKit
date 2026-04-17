@@ -49,10 +49,10 @@
 
 + (RetainPtr<ParserYieldTokenTestWebView>)webView
 {
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"ParserYieldTokenPlugIn"];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"custom"];
-    auto webView = adoptNS([[ParserYieldTokenTestWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200) configuration:configuration]);
+    RetainPtr webView = adoptNS([[ParserYieldTokenTestWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200) configuration:configuration]);
     [[webView _remoteObjectRegistry] registerExportedObject:webView.get() interface:[_WKRemoteObjectInterface remoteObjectInterfaceWithProtocol:@protocol(ParserYieldTokenTestRunner)]];
     webView->_bundle = [[webView _remoteObjectRegistry] remoteObjectProxyWithInterface:[_WKRemoteObjectInterface remoteObjectInterfaceWithProtocol:@protocol(ParserYieldTokenTestBundle)]];
     webView->_schemeHandler = WTF::move(schemeHandler);
@@ -167,7 +167,7 @@ TEST(ParserYieldTokenTests, AsyncScriptRunsWhenFetched)
     auto webView = [ParserYieldTokenTestWebView webView];
     [webView schemeHandler].startURLSchemeTaskHandler = [] (WKWebView *, id <WKURLSchemeTask> task) {
         auto script = retainPtr(@"window.eventMessages.push('Running async script.');");
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/javascript" expectedContentLength:[script length] textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/javascript" expectedContentLength:[script length] textEncodingName:nil]);
         dispatch_async(mainDispatchQueueSingleton(), [task = retainPtr(task), response = WTF::move(response), script = WTF::move(script)] {
             [task didReceiveResponse:response.get()];
             [task didReceiveData:[script dataUsingEncoding:NSUTF8StringEncoding]];

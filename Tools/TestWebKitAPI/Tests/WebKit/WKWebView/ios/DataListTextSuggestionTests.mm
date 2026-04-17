@@ -137,7 +137,7 @@ namespace TestWebKitAPI {
 
 TEST(DataListTextSuggestionTestView, InsertSuggestion)
 {
-    auto webView = adoptNS([[DataListTextSuggestionTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[DataListTextSuggestionTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
     [webView synchronouslyLoadHTMLString:@""
         "<input id='input' list='fruits'>"

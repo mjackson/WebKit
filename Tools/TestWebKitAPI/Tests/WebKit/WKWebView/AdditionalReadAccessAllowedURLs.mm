@@ -82,7 +82,7 @@ TEST(WebKit, AdditionalReadAccessAllowedURLs)
 
     processPoolConfiguration.additionalReadAccessAllowedURLs = @[ readableDirectoryURL.get() ];
 
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration]);
     [processPool _setObject:@"AdditionalReadAccessAllowedURLsPlugIn" forBundleParameter:TestWebKitAPI::Util::TestPlugInClassNameParameter];
     [configuration setProcessPool:processPool.get()];
 
@@ -131,7 +131,7 @@ TEST(WebKit, NSAttributedStringWithReadOnlyPaths)
         EXPECT_TRUE(error.code == NSFileWriteFileExistsError);
 
 ALLOW_NEW_API_WITHOUT_GUARDS_BEGIN
-    auto options = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:@[ readableDirectoryURL.get() ], _WKReadAccessFileURLsOption, nil]);
+    RetainPtr options = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:@[ readableDirectoryURL.get() ], _WKReadAccessFileURLsOption, nil]);
 ALLOW_NEW_API_WITHOUT_GUARDS_END
 
     NSString *testString = [NSString stringWithFormat:@"<p>Hello<img src='%@'></p><p>World<img src='%@'></p>", [readableFileURL absoluteString], [unreadableFileURL absoluteString]];
@@ -182,7 +182,7 @@ TEST(WebKit, NSAttributedStringWithAndWithoutReadOnlyPaths)
         EXPECT_TRUE(error.code == NSFileWriteFileExistsError);
     
 ALLOW_NEW_API_WITHOUT_GUARDS_BEGIN
-    auto options = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:@[ readableDirectoryURL.get() ], _WKReadAccessFileURLsOption, nil]);
+    RetainPtr options = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:@[ readableDirectoryURL.get() ], _WKReadAccessFileURLsOption, nil]);
 ALLOW_NEW_API_WITHOUT_GUARDS_END
 
     NSString *testString = [NSString stringWithFormat:@"<p>Hello<img src='%@'></p><p>World<img src='%@'></p>", [readableFileURL absoluteString], [unreadableFileURL absoluteString]];
@@ -255,7 +255,7 @@ TEST(WebKit, NSAttributedStringWithTooManyReadOnlyPaths)
     NSURL *bundlePathURL = [NSURL fileURLWithPath:[[NSBundle mainBundle] bundlePath]];
 
 ALLOW_NEW_API_WITHOUT_GUARDS_BEGIN
-    auto options = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:@[ readableDirectoryURL.get(), unreadableDirectoryURL.get(), bundlePathURL ], _WKReadAccessFileURLsOption, nil]);
+    RetainPtr options = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:@[ readableDirectoryURL.get(), unreadableDirectoryURL.get(), bundlePathURL ], _WKReadAccessFileURLsOption, nil]);
 ALLOW_NEW_API_WITHOUT_GUARDS_END
 
     bool exceptionRaised = false;
@@ -276,7 +276,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
 TEST(WebKit, NSAttributedStringWithInvalidReadOnlyPaths)
 {
 ALLOW_NEW_API_WITHOUT_GUARDS_BEGIN
-    auto options = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:@[ @"/some/random/path" ], _WKReadAccessFileURLsOption, nil]);
+    RetainPtr options = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:@[ @"/some/random/path" ], _WKReadAccessFileURLsOption, nil]);
 ALLOW_NEW_API_WITHOUT_GUARDS_END
 
     bool exceptionRaised = false;
@@ -297,7 +297,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
 
 ALLOW_NEW_API_WITHOUT_GUARDS_BEGIN
     NSURL* testURL = [NSURL URLWithString:@"https://example.com"];
-    auto options2 = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:@[ testURL ], _WKReadAccessFileURLsOption, nil]);
+    RetainPtr options2 = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:@[ testURL ], _WKReadAccessFileURLsOption, nil]);
 ALLOW_NEW_API_WITHOUT_GUARDS_END
     exceptionRaised = false;
     @try {

@@ -291,7 +291,7 @@
 {
     auto *oldNavigationDelegate = self.navigationDelegate;
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     self.navigationDelegate = navigationDelegate.get();
     [navigationDelegate waitForDidStartProvisionalNavigation];
 
@@ -302,7 +302,7 @@
 {
     auto *oldNavigationDelegate = self.navigationDelegate;
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     self.navigationDelegate = navigationDelegate.get();
     [navigationDelegate waitForDidFailProvisionalNavigation];
 
@@ -313,7 +313,7 @@
 {
     auto *oldNavigationDelegate = self.navigationDelegate;
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     self.navigationDelegate = navigationDelegate.get();
     [navigationDelegate waitForDidFinishNavigation];
 
@@ -324,7 +324,7 @@
 {
     auto *oldNavigationDelegate = self.navigationDelegate;
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     self.navigationDelegate = navigationDelegate.get();
     [navigationDelegate waitForDidFinishNavigationWithPreferences:preferences];
 
@@ -335,7 +335,7 @@
 {
     auto *oldNavigationDelegate = self.navigationDelegate;
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     self.navigationDelegate = navigationDelegate.get();
     [navigationDelegate waitForDidFinishNavigation];
 
@@ -354,7 +354,7 @@
 {
     auto *oldNavigationDelegate = self.navigationDelegate;
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     self.navigationDelegate = navigationDelegate.get();
     [navigationDelegate waitForDidSameDocumentNavigation];
 
@@ -365,7 +365,7 @@
 {
     auto *oldNavigationDelegate = self.navigationDelegate;
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     navigationDelegate.get().didReceiveAuthenticationChallenge = ^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
     };
@@ -387,7 +387,7 @@
 {
     auto *oldNavigationDelegate = self.navigationDelegate;
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     self.navigationDelegate = navigationDelegate.get();
     auto result = [navigationDelegate waitForWebContentProcessDidTerminate];
 

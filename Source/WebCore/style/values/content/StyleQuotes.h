@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <WebCore/StyleString.h>
 #include <WebCore/StyleValueTypes.h>
 
 namespace WebCore {
@@ -51,8 +52,8 @@ struct Quotes {
     bool isNone() const { return WTF::holdsAlternative<CSS::Keyword::None>(m_value); }
     bool isQuotes() const { return WTF::holdsAlternative<Data>(m_value); }
 
-    const String& openQuote(unsigned index) const;
-    const String& closeQuote(unsigned index) const;
+    const WTF::String& openQuote(unsigned index) const;
+    const WTF::String& closeQuote(unsigned index) const;
 
     template<typename... F> decltype(auto) switchOn(F&&... f) const
     {

@@ -37,7 +37,7 @@ CGImagePixelReader::CGImagePixelReader(CGImageRef image)
     : m_width(CGImageGetWidth(image))
     , m_height(CGImageGetHeight(image))
 {
-    auto colorSpace = adoptCF(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
+    RetainPtr colorSpace = adoptCF(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
     auto bytesPerPixel = 4;
     auto bytesPerRow = bytesPerPixel * CGImageGetWidth(image);
     auto bitsPerComponent = 8;

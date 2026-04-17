@@ -46,7 +46,7 @@ static bool isShowingColorPicker(TestWKWebView *webView)
 
 TEST(ColorInputTests, SetColorUsingColorPicker)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<input type='color' id='color' style='width: 200px; height: 200px;'>"];
 
     [webView sendClickAtPoint:NSMakePoint(50, 350)];
@@ -64,7 +64,7 @@ TEST(ColorInputTests, SetColorUsingColorPicker)
 
 TEST(ColorInputTests, SetColorWithAlphaUsingColorPicker)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<input type='color' id='color' style='width: 200px; height: 200px;'>"];
 
     [webView sendClickAtPoint:NSMakePoint(50, 350)];

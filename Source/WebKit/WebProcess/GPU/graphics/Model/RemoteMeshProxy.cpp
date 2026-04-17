@@ -253,10 +253,6 @@ std::optional<WebModel::Float4x4> RemoteMeshProxy::entityTransform() const
 }
 #endif
 
-static constexpr float kCSSPixelsPerMeter = 96 / 2.54 * 100;
-// Fixed camera distance matching the ModelRenderer
-static constexpr float kCameraDistance = 0.5;
-
 void RemoteMeshProxy::setFOV(float fovY)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
@@ -348,6 +344,10 @@ void RemoteMeshProxy::setStageMode(WebCore::StageModeOperation stageMode)
 #if ENABLE(GPU_PROCESS_MODEL)
 void RemoteMeshProxy::computeTransform()
 {
+    static constexpr float kCSSPixelsPerMeter = 96 / 2.54 * 100;
+    // Fixed camera distance matching the ModelRenderer
+    static constexpr float kCameraDistance = 0.5;
+
     auto [center, extents] = getCenterAndExtents();
 
     float viewportWidth = m_viewportWidth / kCSSPixelsPerMeter;

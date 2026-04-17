@@ -119,14 +119,14 @@ static void simulateKeyDown(NSWindow *window)
 static bool hasAssertionType(CFStringRef type)
 {
     int32_t pid = getpid();
-    auto cfPid = adoptCF(CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &pid));
+    RetainPtr cfPid = adoptCF(CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &pid));
     CFDictionaryRef bareAssertionsByPID = nullptr;
 
     IOPMCopyAssertionsByProcess(&bareAssertionsByPID);
     if (!bareAssertionsByPID)
         return false;
 
-    auto assertionsByPID = adoptCF(bareAssertionsByPID);
+    RetainPtr assertionsByPID = adoptCF(bareAssertionsByPID);
 
     CFArrayRef assertions = (CFArrayRef)CFDictionaryGetValue(assertionsByPID.get(), cfPid.get());
     if (!assertions)
@@ -153,11 +153,11 @@ TEST(WebKitLegacy, DISABLED_MediaPlaybackSleepAssertion)
     didEndRemotePlayback = false;
 
     @autoreleasepool {
-        auto webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
-        auto frameLoadDelegate = adoptNS([[MediaPlaybackSleepAssertionLoadDelegate alloc] init]);
-        auto policyDelegate = adoptNS([[MediaPlaybackSleepAssertionPolicyDelegate alloc] init]);
+        RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
+        RetainPtr frameLoadDelegate = adoptNS([[MediaPlaybackSleepAssertionLoadDelegate alloc] init]);
+        RetainPtr policyDelegate = adoptNS([[MediaPlaybackSleepAssertionPolicyDelegate alloc] init]);
 
-        auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+        RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
         [[window contentView] addSubview:webView.get()];
         [window makeKeyAndOrderFront:nil];
 

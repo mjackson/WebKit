@@ -80,8 +80,8 @@ namespace TestWebKitAPI {
 
 static WKRetainPtr<WKDataRef> createSessionStateData()
 {
-    auto delegate = adoptNS([SessionStateDelegate new]);
-    auto view = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([SessionStateDelegate new]);
+    RetainPtr view = adoptNS([WKWebView new]);
     [view setNavigationDelegate:delegate.get()];
     [view loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
     Util::run(&didFinishNavigationForSessionState);
@@ -96,7 +96,7 @@ TEST(WebKit, RestoreSessionStateWithoutNavigation)
     auto data = createSessionStateData();
     EXPECT_NOT_NULL(data);
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     auto sessionState = adoptWK(WKSessionStateCreateFromData(data.get()));
     WKPageRestoreFromSessionStateWithoutNavigation([webView _pageForTesting], sessionState.get());
 
@@ -116,8 +116,8 @@ TEST(WebKit, RestoreSessionStateWithoutNavigation)
 
 TEST(WebKit, RestoreSessionStateWithoutNavigationPreservesWasCreatedByJSWithoutUserInteraction)
 {
-    auto delegate = adoptNS([SessionStateDelegate new]);
-    auto view = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([SessionStateDelegate new]);
+    RetainPtr view = adoptNS([WKWebView new]);
     [view setNavigationDelegate:delegate.get()];
 
     [view loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
@@ -138,8 +138,8 @@ TEST(WebKit, RestoreSessionStateWithoutNavigationPreservesWasCreatedByJSWithoutU
     EXPECT_TRUE([view backForwardList].currentItem._wasCreatedByJSWithoutUserInteraction);
 
     // Restore session state into a new web view.
-    auto restoredView = adoptNS([WKWebView new]);
-    auto sessionState = adoptNS([[_WKSessionState alloc] initWithData:[view _sessionStateData]]);
+    RetainPtr restoredView = adoptNS([WKWebView new]);
+    RetainPtr sessionState = adoptNS([[_WKSessionState alloc] initWithData:[view _sessionStateData]]);
     [restoredView _restoreSessionState:sessionState.get() andNavigate:NO];
 
     EXPECT_EQ([restoredView backForwardList].backList.count, 2U);

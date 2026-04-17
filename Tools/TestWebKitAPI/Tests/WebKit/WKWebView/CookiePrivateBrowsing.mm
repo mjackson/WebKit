@@ -58,15 +58,15 @@ static bool didRunJavaScriptAlertForCookiePrivateBrowsing;
 
 TEST(WebKit, CookiePrivateBrowsing)
 {
-    auto delegate = adoptNS([[CookiePrivateBrowsingDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CookiePrivateBrowsingDelegate alloc] init]);
 
-    auto configuration1 = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto configuration2 = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration1 = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration2 = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration2 setProcessPool:[configuration1 processPool]];
     [configuration1 setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
     [configuration2 setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
-    auto view1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration1.get()]);
-    auto view2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration2.get()]);
+    RetainPtr view1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration1.get()]);
+    RetainPtr view2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration2.get()]);
     [view1 setUIDelegate:delegate.get()];
     [view2 setUIDelegate:delegate.get()];
     NSString *alertOldCookie = @"<script>var oldCookie = document.cookie; document.cookie = 'key=value'; alert('old cookie: <' + oldCookie + '>');</script>";
@@ -85,10 +85,10 @@ TEST(WebKit, CookieCacheSyncAcrossProcess)
     }];
     TestWebKitAPI::Util::run(&setDefaultCookieAcceptPolicy);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
-    auto view1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto view2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr view1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr view2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [view1 synchronouslyLoadHTMLString:@"foo" baseURL:[NSURL URLWithString:@"http://example.com/"]];
     [view2 synchronouslyLoadHTMLString:@"bar" baseURL:[NSURL URLWithString:@"http://example.com/"]];
 
@@ -142,8 +142,8 @@ TEST(WebKit, CookieCacheSyncAcrossProcess)
 
 TEST(WebKit, CookieCachePruning)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto view = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr view = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     for (unsigned i = 0; i < 100; ++i) {
         [view synchronouslyLoadHTMLString:@"foo" baseURL:adoptNS([[NSURL alloc] initWithString:makeString("http://foo"_s, i, ".example.com/"_s).createNSString().get()]).get()];
@@ -166,18 +166,18 @@ TEST(WebKit, DISABLED_CookieAccessFromPDFInAboutBlank)
 TEST(WebKit, CookieAccessFromPDFInAboutBlank)
 #endif
 {
-    auto delegate = adoptNS([TestUIDelegate new]);
+    RetainPtr delegate = adoptNS([TestUIDelegate new]);
     __block RetainPtr<WKWebView> openedWebView;
     delegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
         openedWebView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
         return openedWebView.get();
     };
 
-    auto webProcessStarter = adoptNS([TestWKWebView new]);
+    RetainPtr webProcessStarter = adoptNS([TestWKWebView new]);
     [webProcessStarter synchronouslyLoadHTMLString:@"start network process so the creation of the second web view doesn't send NetworkProcessCreationParameters" baseURL:nil];
 
     TestWebKitAPI::HTTPServer server({ { "/"_s, { "hi"_s } } });
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     webView.get().UIDelegate = delegate.get();
     NSString *html = [NSString stringWithFormat:@"<script>"
         "var w = window.open();"

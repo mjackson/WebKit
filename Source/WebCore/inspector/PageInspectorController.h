@@ -37,6 +37,7 @@
 #include <wtf/CheckedRef.h>
 #include <wtf/Forward.h>
 #include <wtf/Noncopyable.h>
+#include <wtf/Ref.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakRef.h>
 #include <wtf/text/WTFString.h>
@@ -45,6 +46,7 @@ namespace Inspector {
 class BackendDispatcher;
 class FrontendChannel;
 class FrontendRouter;
+class IdentifierRegistry;
 class InspectorAgent;
 }
 
@@ -134,6 +136,8 @@ public:
     InspectorDOMAgent& ensureDOMAgent();
     WEBCORE_EXPORT InspectorPageAgent& ensurePageAgent();
 
+    Inspector::IdentifierRegistry& identifierRegistry() const { return m_identifierRegistry.get(); }
+
     // InspectorEnvironment
     bool developerExtrasEnabled() const override;
     bool canAccessInspectedScriptState(JSC::JSGlobalObject*) const override;
@@ -161,6 +165,7 @@ private:
     Inspector::AgentRegistry m_agents;
 
     std::unique_ptr<InspectorBackendClient> m_inspectorBackendClient;
+    Ref<Inspector::IdentifierRegistry> m_identifierRegistry;
     InspectorFrontendClient* m_inspectorFrontendClient { nullptr };
 
     // Lazy, but also on-demand agents.

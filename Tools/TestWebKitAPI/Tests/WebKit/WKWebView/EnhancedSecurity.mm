@@ -74,9 +74,9 @@ static bool isJITEnabled(WKWebView *webView)
 
 TEST(EnhancedSecurity, EnhancedSecurityEnablesTrue)
 {
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeMaximizeCompatibility;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     [webView _test_waitForDidFinishNavigation];
@@ -87,9 +87,9 @@ TEST(EnhancedSecurity, EnhancedSecurityEnablesTrue)
 
 TEST(EnhancedSecurity, EnhancedSecurityEnableFalse)
 {
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeNone;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     [webView _test_waitForDidFinishNavigation];
@@ -100,9 +100,9 @@ TEST(EnhancedSecurity, EnhancedSecurityEnableFalse)
 
 TEST(EnhancedSecurity, EnhancedSecurityDisablesJIT)
 {
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeMaximizeCompatibility;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     [webView _test_waitForDidFinishNavigation];
@@ -111,10 +111,10 @@ TEST(EnhancedSecurity, EnhancedSecurityDisablesJIT)
 
 TEST(EnhancedSecurity, EnhancedSecurityNavigationStaysEnabledAfterNavigation)
 {
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeMaximizeCompatibility;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool finishedNavigation = false;
@@ -137,10 +137,10 @@ TEST(EnhancedSecurity, EnhancedSecurityNavigationStaysEnabledAfterNavigation)
 
 TEST(EnhancedSecurity, PSONToEnhancedSecurity)
 {
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeNone;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool finishedNavigation = false;
@@ -183,10 +183,10 @@ TEST(EnhancedSecurity, PSONToEnhancedSecurity)
 
 TEST(EnhancedSecurity, PSONToEnhancedSecuritySamePage)
 {
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeNone;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool finishedNavigation = false;
@@ -229,7 +229,7 @@ TEST(EnhancedSecurity, PSONToEnhancedSecuritySamePage)
 
 static RetainPtr<_WKProcessPoolConfiguration> psonProcessPoolConfiguration()
 {
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     processPoolConfiguration.get().processSwapsOnNavigation = YES;
     processPoolConfiguration.get().usesWebProcessCache = YES;
     processPoolConfiguration.get().prewarmsProcessesAutomatically = YES;
@@ -240,15 +240,15 @@ static RetainPtr<_WKProcessPoolConfiguration> psonProcessPoolConfiguration()
 TEST(EnhancedSecurity, PSONToEnhancedSecuritySharedProcessPool)
 {
     auto processPoolConfiguration = psonProcessPoolConfiguration();
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [webViewConfiguration setProcessPool:processPool.get()];
     webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeNone;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool finishedNavigation = false;
@@ -265,7 +265,7 @@ TEST(EnhancedSecurity, PSONToEnhancedSecuritySharedProcessPool)
     EXPECT_NE(pid1, 0);
 
     finishedNavigation = false;
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     [webView2 setNavigationDelegate:delegate.get()];
 
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
@@ -286,15 +286,15 @@ TEST(EnhancedSecurity, PSONToEnhancedSecuritySharedProcessPool)
 TEST(EnhancedSecurity, PSONToEnhancedSecuritySharedProcessPoolReverse)
 {
     auto processPoolConfiguration = psonProcessPoolConfiguration();
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [webViewConfiguration setProcessPool:processPool.get()];
     webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeMaximizeCompatibility;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool finishedNavigation = false;
@@ -311,7 +311,7 @@ TEST(EnhancedSecurity, PSONToEnhancedSecuritySharedProcessPoolReverse)
     EXPECT_NE(pid1, 0);
 
     finishedNavigation = false;
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     [webView2 setNavigationDelegate:delegate.get()];
 
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
@@ -331,13 +331,13 @@ TEST(EnhancedSecurity, PSONToEnhancedSecuritySharedProcessPoolReverse)
 
 TEST(EnhancedSecurity, ProcessVariantMatchesConfiguration)
 {
-    auto webViewConfiguration1 = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration1 = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration1.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeMaximizeCompatibility;
-    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration1.get()]);
+    RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration1.get()]);
 
-    auto webViewConfiguration2 = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration2 = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration2.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeNone;
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration2.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration2.get()]);
 
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
 
@@ -354,17 +354,17 @@ TEST(EnhancedSecurity, ProcessVariantMatchesConfiguration)
 
 TEST(EnhancedSecurity, ProcessCanLaunch)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
     configuration.get().processPool = adoptNS([[WKProcessPool alloc] init]).get();
     configuration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeMaximizeCompatibility;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadHTMLString:@"<html><body>test</body></html>" baseURL:nil];
 
     // Wait with explicit timeout instead of _test_waitForDidFinishNavigation
     __block bool navigationFinished = false;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *) {
         navigationFinished = true;
     };
@@ -391,16 +391,16 @@ TEST(EnhancedSecurity, CaptivePortalProcessCanLaunch)
     [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:YES];
 
     // Create configuration AFTER setting global mode
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
     configuration.get().processPool = adoptNS([[WKProcessPool alloc] init]).get();
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadHTMLString:@"<html><body>test</body></html>" baseURL:nil];
 
     // Wait with explicit timeout instead of _test_waitForDidFinishNavigation
     __block bool navigationFinished = false;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *) {
         navigationFinished = true;
     };
@@ -434,8 +434,8 @@ TEST(EnhancedSecurity, EnhancedSecurityNavigationStaysEnabledAfterSubFrameNaviga
     [webViewConfiguration.get().processPool _setObject:@"WebProcessPlugInWithInternals" forBundleParameter:TestWebKitAPI::Util::TestPlugInClassNameParameter];
     webViewConfiguration.get().defaultWebpagePreferences._enhancedSecurityEnabled = YES;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
 
     [webView setNavigationDelegate:delegate.get()];
@@ -480,8 +480,8 @@ TEST(EnhancedSecurity, EnhancedSecurityNavigationStaysEnabledAfterSubFrameNaviga
     [webViewConfiguration.get().processPool _setObject:@"WebProcessPlugInWithInternals" forBundleParameter:TestWebKitAPI::Util::TestPlugInClassNameParameter];
     webViewConfiguration.get().defaultWebpagePreferences._enhancedSecurityEnabled = YES;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
 
     [webView setNavigationDelegate:delegate.get()];
@@ -530,8 +530,8 @@ TEST(EnhancedSecurity, EnhancedSecurityNavigationStaysDisabledAfterSubFrameNavig
     [webViewConfiguration.get().processPool _setObject:@"WebProcessPlugInWithInternals" forBundleParameter:TestWebKitAPI::Util::TestPlugInClassNameParameter];
     webViewConfiguration.get().defaultWebpagePreferences._enhancedSecurityEnabled = NO;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
 
     [webView setNavigationDelegate:delegate.get()];
@@ -575,8 +575,8 @@ TEST(EnhancedSecurity, EnhancedSecurityNavigationStaysDisabledAfterSubFrameNavig
     [webViewConfiguration.get().processPool _setObject:@"WebProcessPlugInWithInternals" forBundleParameter:TestWebKitAPI::Util::TestPlugInClassNameParameter];
     webViewConfiguration.get().defaultWebpagePreferences._enhancedSecurityEnabled = NO;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
 
     [webView setNavigationDelegate:delegate.get()];
@@ -622,16 +622,16 @@ TEST(EnhancedSecurity, WindowOpenWithNoopenerFromEnhancedSecurityPage)
     webViewConfiguration.get().defaultWebpagePreferences._enhancedSecurityEnabled = YES;
     webViewConfiguration.get().preferences.javaScriptCanOpenWindowsAutomatically = YES;
 
-    auto openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto openerDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr openerDelegate = adoptNS([TestNavigationDelegate new]);
     [openerDelegate allowAnyTLSCertificate];
     [openerWebView setNavigationDelegate:openerDelegate.get()];
 
     __block RetainPtr<WKWebView> openedWebView;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
         openedWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
-        auto openedDelegate = adoptNS([TestNavigationDelegate new]);
+        RetainPtr openedDelegate = adoptNS([TestNavigationDelegate new]);
         [openedDelegate allowAnyTLSCertificate];
         [openedWebView setNavigationDelegate:openedDelegate.get()];
         return openedWebView.get();
@@ -662,16 +662,16 @@ TEST(EnhancedSecurity, WindowOpenWithOpenerFromEnhancedSecurityPage)
     webViewConfiguration.get().defaultWebpagePreferences._enhancedSecurityEnabled = YES;
     webViewConfiguration.get().preferences.javaScriptCanOpenWindowsAutomatically = YES;
 
-    auto openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto openerDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr openerDelegate = adoptNS([TestNavigationDelegate new]);
     [openerDelegate allowAnyTLSCertificate];
     [openerWebView setNavigationDelegate:openerDelegate.get()];
 
     __block RetainPtr<WKWebView> openedWebView;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
         openedWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
-        auto openedDelegate = adoptNS([TestNavigationDelegate new]);
+        RetainPtr openedDelegate = adoptNS([TestNavigationDelegate new]);
         [openedDelegate allowAnyTLSCertificate];
         [openedWebView setNavigationDelegate:openedDelegate.get()];
         return openedWebView.get();
@@ -697,15 +697,15 @@ TEST(EnhancedSecurity, WindowOpenNoopenerFromEnhancedSecurityInheritsEnhancedSec
     }, HTTPServer::Protocol::HttpsProxy);
 
     auto processPoolConfiguration = psonProcessPoolConfiguration();
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
     RetainPtr standardConfig = server.httpsProxyConfiguration();
     [standardConfig.get() setProcessPool:processPool.get()];
     standardConfig.get().defaultWebpagePreferences._enhancedSecurityEnabled = NO;
     standardConfig.get().preferences.javaScriptCanOpenWindowsAutomatically = YES;
 
-    auto standardWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:standardConfig.get()]);
-    auto standardDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr standardWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:standardConfig.get()]);
+    RetainPtr standardDelegate = adoptNS([TestNavigationDelegate new]);
     [standardDelegate allowAnyTLSCertificate];
     [standardWebView setNavigationDelegate:standardDelegate.get()];
 
@@ -722,16 +722,16 @@ TEST(EnhancedSecurity, WindowOpenNoopenerFromEnhancedSecurityInheritsEnhancedSec
     enhancedConfig.get().defaultWebpagePreferences._enhancedSecurityEnabled = YES;
     enhancedConfig.get().preferences.javaScriptCanOpenWindowsAutomatically = YES;
 
-    auto openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 1, 1) configuration:enhancedConfig.get()]);
-    auto openerDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 1, 1) configuration:enhancedConfig.get()]);
+    RetainPtr openerDelegate = adoptNS([TestNavigationDelegate new]);
     [openerDelegate allowAnyTLSCertificate];
     [openerWebView setNavigationDelegate:openerDelegate.get()];
 
     __block RetainPtr<WKWebView> openedWebView;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
         openedWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 1, 1) configuration:configuration]);
-        auto openedDelegate = adoptNS([TestNavigationDelegate new]);
+        RetainPtr openedDelegate = adoptNS([TestNavigationDelegate new]);
         [openedDelegate allowAnyTLSCertificate];
         [openedWebView setNavigationDelegate:openedDelegate.get()];
         return openedWebView.get();
@@ -761,21 +761,21 @@ TEST(EnhancedSecurity, WindowOpenNoopenerFromStandardWithEnhancedSecurityViaDele
     }, HTTPServer::Protocol::HttpsProxy);
 
     auto processPoolConfiguration = psonProcessPoolConfiguration();
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
     RetainPtr standardConfig = server.httpsProxyConfiguration();
     [standardConfig.get() setProcessPool:processPool.get()];
     standardConfig.get().defaultWebpagePreferences._enhancedSecurityEnabled = NO;
     standardConfig.get().preferences.javaScriptCanOpenWindowsAutomatically = YES;
 
-    auto openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:standardConfig.get()]);
-    auto openerDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:standardConfig.get()]);
+    RetainPtr openerDelegate = adoptNS([TestNavigationDelegate new]);
     [openerDelegate allowAnyTLSCertificate];
     [openerWebView setNavigationDelegate:openerDelegate.get()];
 
     __block RetainPtr<WKWebView> openedWebView;
     __block RetainPtr<TestNavigationDelegate> openedDelegate;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
         configuration.defaultWebpagePreferences._enhancedSecurityEnabled = YES;
         openedWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
@@ -822,21 +822,21 @@ TEST(EnhancedSecurity, WindowOpenNoopenerFromEnhancedSecurityWithStandardViaDele
     }, HTTPServer::Protocol::HttpsProxy);
 
     auto processPoolConfiguration = psonProcessPoolConfiguration();
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
     RetainPtr enhancedConfig = server.httpsProxyConfiguration();
     [enhancedConfig.get() setProcessPool:processPool.get()];
     enhancedConfig.get().defaultWebpagePreferences._enhancedSecurityEnabled = YES;
     enhancedConfig.get().preferences.javaScriptCanOpenWindowsAutomatically = YES;
 
-    auto openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:enhancedConfig.get()]);
-    auto openerDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:enhancedConfig.get()]);
+    RetainPtr openerDelegate = adoptNS([TestNavigationDelegate new]);
     [openerDelegate allowAnyTLSCertificate];
     [openerWebView setNavigationDelegate:openerDelegate.get()];
 
     __block RetainPtr<WKWebView> openedWebView;
     __block RetainPtr<TestNavigationDelegate> openedDelegate;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
         configuration.defaultWebpagePreferences._enhancedSecurityEnabled = NO;
         openedWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
@@ -871,11 +871,11 @@ TEST(EnhancedSecurity, WindowOpenNoopenerFromEnhancedSecurityWithStandardViaDele
 
 TEST(EnhancedSecurity, LockdownModeTakesPrecedenceOverEnhancedSecurity)
 {
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences._enhancedSecurityEnabled = YES;
     webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 1, 1) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 1, 1) configuration:webViewConfiguration.get()]);
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     [webView _test_waitForDidFinishNavigation];
@@ -887,11 +887,11 @@ TEST(EnhancedSecurity, LockdownModeTakesPrecedenceOverEnhancedSecurity)
 
 TEST(EnhancedSecurity, EnhancedSecurityRequestedWhenLockdownModeActive)
 {
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool finishedNavigation = false;
@@ -926,10 +926,10 @@ TEST(EnhancedSecurity, SystemLockdownModeEnablesEnhancedSecurityWhenLockdownOpts
 {
     [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:YES];
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = NO;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     [webView _test_waitForDidFinishNavigation];
@@ -945,10 +945,10 @@ TEST(EnhancedSecurity, SystemLockdownModeEnablesEnhancedSecurityWhenSecurityRest
 {
     [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:YES];
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeNone;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     [webView _test_waitForDidFinishNavigation];
@@ -964,11 +964,11 @@ TEST(EnhancedSecurity, SystemLockdownModeEnablesEnhancedSecurityWhenBothAPIOptsO
 {
     [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:YES];
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeNone;
     webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = NO;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     [webView _test_waitForDidFinishNavigation];
@@ -984,10 +984,10 @@ TEST(EnhancedSecurity, SystemLockdownModeEnablesEnhancedSecurityWhenMaximizeComp
 {
     [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:YES];
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeMaximizeCompatibility;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     [webView _test_waitForDidFinishNavigation];

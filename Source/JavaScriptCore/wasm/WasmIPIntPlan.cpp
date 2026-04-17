@@ -36,6 +36,7 @@
 #include "LLIntData.h"
 #include "LLIntThunks.h"
 #include "LinkBuffer.h"
+#include "NativeCalleeRegistry.h"
 #include "WasmCallee.h"
 #include "WasmFunctionIPIntMetadataGenerator.h"
 #include "WasmIPIntGenerator.h"
@@ -149,7 +150,7 @@ void IPIntPlan::compileFunction(FunctionCodeIndex functionIndex)
         if (!entrypoint)
             entrypoint = LLInt::getCodeFunctionPtr<CFunctionPtrTag>(ipint_trampoline);
 
-        callee->setEntrypoint(entrypoint);
+        callee->setEntrypointWithoutRegistration(entrypoint);
         ipintCallee = callee.ptr();
         m_calleesVector[functionIndex] = WTF::move(callee);
     } else
@@ -184,6 +185,7 @@ void IPIntPlan::didCompleteCompilation()
     unsigned functionCount = m_wasmInternalFunctions.size();
     if (!m_callees && functionCount) {
         m_callees = m_calleesVector.span().data();
+        NativeCalleeRegistry::singleton().registerCallees(m_calleesVector);
         if (!m_moduleInformation->clobberingTailCalls().isEmpty())
             computeTransitiveTailCalls();
     }

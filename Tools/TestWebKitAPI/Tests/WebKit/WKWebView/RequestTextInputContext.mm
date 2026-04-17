@@ -198,8 +198,8 @@ static void webViewLoadHTMLStringAndWaitForAllFramesToPaint(TestWKWebView *webVi
 
 TEST(RequestTextInputContext, Iframe)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     NSArray<_WKTextInputContext *> *contexts;
 
@@ -221,8 +221,8 @@ TEST(RequestTextInputContext, Iframe)
 
 TEST(RequestTextInputContext, ViewIsEditable)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body></body>")];
     [webView _setEditable:YES];
     EXPECT_GE([webView synchronouslyRequestTextInputContextsInRect:[webView bounds]].count, 1UL);
@@ -275,7 +275,7 @@ TEST(RequestTextInputContext, CompositedOverlap)
 
 TEST(RequestTextInputContext, RectContainsEditableNonRootChild)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body contenteditable='true' style='width: 500px; height: 500px'><div style='width: 200px; height: 200px; background-color: blue'>Hello World</div></body>")];
     NSArray<_WKTextInputContext *> *contexts = [webView synchronouslyRequestTextInputContextsInRect:CGRectMake(10, 10, 20, 20)];
     EXPECT_EQ(1UL, contexts.count);
@@ -284,7 +284,7 @@ TEST(RequestTextInputContext, RectContainsEditableNonRootChild)
 
 TEST(RequestTextInputContext, RectContainsNestedEditableNonRootChild)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body contenteditable='true' style='width: 500px; height: 500px'><div style='width: 200px; height: 200px; background-color: blue'><div style='width: 100px; height: 100px; background-color: yellow' contenteditable='true'>Hello World</div></div></body>")];
     NSArray<_WKTextInputContext *> *contexts = [webView synchronouslyRequestTextInputContextsInRect:CGRectMake(10, 10, 20, 20)];
     EXPECT_EQ(1UL, contexts.count);
@@ -293,7 +293,7 @@ TEST(RequestTextInputContext, RectContainsNestedEditableNonRootChild)
 
 TEST(RequestTextInputContext, RectContainsInnerEditableNonRootChild)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body contenteditable='true' style='width: 500px; height: 500px'><div style='width: 200px; height: 200px; background-color: blue' contenteditable='false'><div style='width: 100px; height: 100px; background-color: yellow' contenteditable='true'>Hello World</div></div><p>Body</p></body>")];
     NSArray<_WKTextInputContext *> *contexts = [webView synchronouslyRequestTextInputContextsInRect:CGRectMake(10, 10, 20, 20)];
     EXPECT_EQ(1UL, contexts.count);
@@ -302,8 +302,8 @@ TEST(RequestTextInputContext, RectContainsInnerEditableNonRootChild)
 
 TEST(RequestTextInputContext, ReadOnlyField)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView synchronouslyLoadHTMLString:applyStyle(@"<input type='text' value='hello world' style='width: 100px; height: 50px;' readonly>")];
     EXPECT_EQ(0UL, [webView synchronouslyRequestTextInputContextsInRect:[webView bounds]].count);
@@ -311,8 +311,8 @@ TEST(RequestTextInputContext, ReadOnlyField)
 
 TEST(RequestTextInputContext, DisabledField)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView synchronouslyLoadHTMLString:applyStyle(@"<input type='text' value='hello world' style='width: 100px; height: 50px;' disabled>")];
     EXPECT_EQ(0UL, [webView synchronouslyRequestTextInputContextsInRect:[webView bounds]].count);
@@ -322,7 +322,7 @@ TEST(RequestTextInputContext, FocusedEditableEmptyLine)
 {
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     RetainPtr<TestWKWebView> webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -339,7 +339,7 @@ TEST(RequestTextInputContext, FocusedEditableLineWithOnlyLineBreak)
 {
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     RetainPtr<TestWKWebView> webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -354,8 +354,8 @@ TEST(RequestTextInputContext, FocusedEditableLineWithOnlyLineBreak)
 
 TEST(RequestTextInputContext, FocusAfterNavigation)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     // 1. Load initial page and save off the text input context for the input element on it.
     [webView synchronouslyLoadHTMLString:applyStyle(@"<input type='text' value='hello world' style='width: 100px; height: 50px;'>")];
@@ -372,8 +372,8 @@ TEST(RequestTextInputContext, FocusAfterNavigation)
 
 TEST(RequestTextInputContext, CaretShouldNotMoveInAlreadyFocusedField)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     constexpr char exampleText[] = "hello world";
     constexpr size_t exampleTextLength = sizeof(exampleText) - 1;
@@ -401,9 +401,9 @@ TEST(RequestTextInputContext, CaretShouldNotMoveInAlreadyFocusedField)
 
 TEST(RequestTextInputContext, CaretShouldNotMoveInAlreadyFocusedField2)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -428,9 +428,9 @@ TEST(RequestTextInputContext, CaretShouldNotMoveInAlreadyFocusedField2)
 
 TEST(RequestTextInputContext, PlaceCaretInNonAssistedFocusedField)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [webView _setInputDelegate:inputDelegate.get()];
 
     [webView synchronouslyLoadHTMLString:applyStyle(@"<input type='text' id='input' value='hello world' style='width: 100px; height: 50px;'>")];
@@ -456,8 +456,8 @@ TEST(RequestTextInputContext, PlaceCaretInNonAssistedFocusedField)
 
 TEST(RequestTextInputContext, FocusTextFieldThenProgrammaticallyReplaceWithTextAreaAndFocusTextArea)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView synchronouslyLoadHTMLString:applyStyle(@"<input type='text' style='width: 50px; height: 50px;'>")];
     NSArray<_WKTextInputContext *> *contexts = [webView synchronouslyRequestTextInputContextsInRect:[webView bounds]];
@@ -479,8 +479,8 @@ TEST(RequestTextInputContext, FocusTextFieldThenProgrammaticallyReplaceWithTextA
 
 TEST(RequestTextInputContext, FocusFieldAndPlaceCaretAtStart)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView synchronouslyLoadHTMLString:applyStyle(@"<input type='text' value='hello world' style='width: 100px; height: 50px;'>")];
     NSArray<_WKTextInputContext *> *contexts = [webView synchronouslyRequestTextInputContextsInRect:[webView bounds]];
@@ -495,8 +495,8 @@ TEST(RequestTextInputContext, FocusFieldAndPlaceCaretAtStart)
 
 TEST(RequestTextInputContext, FocusFieldAndPlaceCaretAtEnd)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     constexpr char exampleText[] = "hello world";
     constexpr size_t exampleTextLength = sizeof(exampleText) - 1;
@@ -515,8 +515,8 @@ TEST(RequestTextInputContext, FocusFieldAndPlaceCaretAtEnd)
 
 TEST(RequestTextInputContext, FocusFieldWithPaddingAndPlaceCaretAtEnd)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     constexpr char exampleText[] = "hello world";
     constexpr size_t exampleTextLength = sizeof(exampleText) - 1;
@@ -535,8 +535,8 @@ TEST(RequestTextInputContext, FocusFieldWithPaddingAndPlaceCaretAtEnd)
 
 TEST(RequestTextInputContext, FocusFieldAndPlaceCaretOutsideField)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     constexpr char exampleText[] = "hello world";
     constexpr size_t exampleTextLength = sizeof(exampleText) - 1;
@@ -567,9 +567,9 @@ TEST(RequestTextInputContext, FocusFieldAndPlaceCaretOutsideField)
 
 TEST(RequestTextInputContext, FocusFieldInFrame)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAllowUniversalAccessFromFileURLs:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     auto testPage = applyStyle([NSString stringWithFormat:@"<input type='text' value='mainFrameField' style='width: 100px; height: 50px;'>%@", applyIframe(@"<input type='text' value='iframeField' style='width: 120px; height: 70px;'>")]);
     webViewLoadHTMLStringAndWaitForAllFramesToPaint(webView.get(), testPage);
@@ -587,9 +587,9 @@ TEST(RequestTextInputContext, FocusFieldInFrame)
 
 TEST(RequestTextInputContext, SwitchFocusBetweenFrames)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAllowUniversalAccessFromFileURLs:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     auto testPage = applyStyle([NSString stringWithFormat:@"<input type='text' value='mainFrameField' style='width: 100px; height: 50px;'>%@", applyIframe(@"<input type='text' value='iframeField' style='width: 100px; height: 50px;'>")]);
     webViewLoadHTMLStringAndWaitForAllFramesToPaint(webView.get(), testPage);
@@ -614,9 +614,9 @@ TEST(RequestTextInputContext, SwitchFocusBetweenFrames)
 
 TEST(RequestTextInputContext, FocusingAssistedElementShouldNotScrollPage)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body style='height: 4096px'><div id='editable' style='position: fixed; width: 100%; height: 50px; background-color: blue' contenteditable='true'></div></body>")];
@@ -641,8 +641,8 @@ TEST(RequestTextInputContext, TextInteraction_FocusingReadOnlyElementShouldScrol
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body style='height: 4096px'><input id='input'></body>")];
 
     NSArray<_WKTextInputContext *> *contexts = [webView synchronouslyRequestTextInputContextsInRect:[webView bounds]];
@@ -653,7 +653,7 @@ TEST(RequestTextInputContext, TextInteraction_FocusingReadOnlyElementShouldScrol
     [webView stringByEvaluatingJavaScript:@"input.readOnly = true"];
 
     didScroll = false;
-    auto scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
+    RetainPtr scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
     [webView scrollView].delegate = scrollDelegate.get();
 
     // Focus the field using -focusTextInputContext; scroll view should scroll to reveal the focused element.
@@ -671,9 +671,9 @@ TEST(RequestTextInputContext, TextInteraction_FocusElementInDetachedDocument)
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAllowUniversalAccessFromFileURLs:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     webViewLoadHTMLStringAndWaitForAllFramesToPaint(webView.get(), applyIframe(@"<input type='text' id='input' style='width: 100px; height: 50px;'>"));
 
     NSArray<_WKTextInputContext *> *contexts = [webView synchronouslyRequestTextInputContextsInRect:[webView bounds]];
@@ -683,7 +683,7 @@ TEST(RequestTextInputContext, TextInteraction_FocusElementInDetachedDocument)
     EXPECT_WK_STREQ("BODY", [webView stringByEvaluatingJavaScript:@"document.querySelector('iframe').contentDocument.activeElement.tagName"]);
 
     didScroll = false;
-    auto scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
+    RetainPtr scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
     [webView scrollView].delegate = scrollDelegate.get();
 
     // Save a reference to the framed document (to prevent its destruction when its frame is removed)
@@ -702,8 +702,8 @@ TEST(RequestTextInputContext, TextInteraction_FocusingElementShouldScrollToRevea
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body style='height: 4096px'><input id='input'></body>")];
 
     NSArray<_WKTextInputContext *> *contexts = [webView synchronouslyRequestTextInputContextsInRect:[webView bounds]];
@@ -713,7 +713,7 @@ TEST(RequestTextInputContext, TextInteraction_FocusingElementShouldScrollToRevea
     EXPECT_WK_STREQ("BODY", [webView stringByEvaluatingJavaScript:@"document.activeElement.tagName"]);
 
     didScroll = false;
-    auto scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
+    RetainPtr scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
     [webView scrollView].delegate = scrollDelegate.get();
 
     // Scroll view should scroll to reveal the focused element.
@@ -731,8 +731,8 @@ TEST(RequestTextInputContext, TextInteraction_FocusingElementMultipleTimesShould
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body style='height: 4096px'><input id='input'></body>")];
 
     NSArray<_WKTextInputContext *> *contexts = [webView synchronouslyRequestTextInputContextsInRect:[webView bounds]];
@@ -742,7 +742,7 @@ TEST(RequestTextInputContext, TextInteraction_FocusingElementMultipleTimesShould
     EXPECT_WK_STREQ("BODY", [webView stringByEvaluatingJavaScript:@"document.activeElement.tagName"]);
 
     didScroll = false;
-    auto scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
+    RetainPtr scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
     [webView scrollView].delegate = scrollDelegate.get();
 
     // Scroll view should scroll to reveal the focused element.
@@ -762,8 +762,8 @@ TEST(RequestTextInputContext, TextInteraction_FocusDefocusDisableFocusAgainShoul
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body style='height: 4096px'><input id='input'></body>")];
 
     NSArray<_WKTextInputContext *> *contexts = [webView synchronouslyRequestTextInputContextsInRect:[webView bounds]];
@@ -773,7 +773,7 @@ TEST(RequestTextInputContext, TextInteraction_FocusDefocusDisableFocusAgainShoul
     EXPECT_WK_STREQ("BODY", [webView stringByEvaluatingJavaScript:@"document.activeElement.tagName"]);
 
     didScroll = false;
-    auto scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
+    RetainPtr scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
     [webView scrollView].delegate = scrollDelegate.get();
 
     {
@@ -801,8 +801,8 @@ TEST(RequestTextInputContext, TextInteraction_FocusDefocusFocusAgainShouldScroll
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body style='height: 4096px'><input id='input'></body>")];
 
     NSArray<_WKTextInputContext *> *contexts = [webView synchronouslyRequestTextInputContextsInRect:[webView bounds]];
@@ -812,7 +812,7 @@ TEST(RequestTextInputContext, TextInteraction_FocusDefocusFocusAgainShouldScroll
     EXPECT_WK_STREQ("BODY", [webView stringByEvaluatingJavaScript:@"document.activeElement.tagName"]);
 
     didScroll = false;
-    auto scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
+    RetainPtr scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
     [webView scrollView].delegate = scrollDelegate.get();
 
     {
@@ -839,9 +839,9 @@ TEST(RequestTextInputContext, DISABLED_TextInteraction_FocusingAssistedElementSh
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body style='height: 4096px'><input id='input'></body>")];
@@ -854,7 +854,7 @@ TEST(RequestTextInputContext, DISABLED_TextInteraction_FocusingAssistedElementSh
     EXPECT_WK_STREQ("INPUT", [webView stringByEvaluatingJavaScript:@"document.activeElement.tagName"]);
 
     didScroll = false;
-    auto scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
+    RetainPtr scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
     [webView scrollView].delegate = scrollDelegate.get();
 
     // Focus the field using -focusTextInputContext; scroll view should not scroll to reveal focused element.
@@ -871,9 +871,9 @@ TEST(RequestTextInputContext, TextInteraction_FocusingNonAssistedFocusedElementS
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [webView _setInputDelegate:inputDelegate.get()];
     [webView synchronouslyLoadHTMLString:applyStyle(@"<body style='height: 4096px'><input id='input'></body>")];
 
@@ -886,7 +886,7 @@ TEST(RequestTextInputContext, TextInteraction_FocusingNonAssistedFocusedElementS
     EXPECT_WK_STREQ("INPUT", [webView stringByEvaluatingJavaScript:@"document.activeElement.tagName"]);
 
     didScroll = false;
-    auto scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
+    RetainPtr scrollDelegate = adoptNS([[TextInteractionScrollDelegate alloc] init]);
     [webView scrollView].delegate = scrollDelegate.get();
 
     // Focus the field using -focusTextInputContext; scroll view should scroll to reveal the focused element.
@@ -904,8 +904,8 @@ TEST(RequestTextInputContext, TextInteraction_FocusingNonAssistedFocusedElementS
 
 TEST(RequestTextInputContext, TextInteraction_HighlightSelectedText)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [webView _setInputDelegate:inputDelegate.get()];
     [webView synchronouslyLoadHTMLString:applyStyle(@"<input id='input' value='hello'>")];
 

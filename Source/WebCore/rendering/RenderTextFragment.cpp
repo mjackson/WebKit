@@ -68,7 +68,14 @@ RenderTextFragment::~RenderTextFragment()
 
 bool RenderTextFragment::canBeSelectionLeaf() const
 {
-    return textNode() && textNode()->hasEditableStyle();
+    if (RefPtr textNode = this->textNode()) {
+        // Remaining (trailing) text fragments with first-letter are always selectable,
+        // matching the base RenderText::canBeSelectionLeaf() behavior.
+        return firstLetter() || textNode->hasEditableStyle();
+    }
+    // First-letter is always selectable.
+    CheckedPtr anonymousInlineWrapper = dynamicDowncast<RenderInline>(this->parent());
+    return anonymousInlineWrapper && anonymousInlineWrapper->firstLetterRemainingText();
 }
 
 void RenderTextFragment::setTextInternal(const String& newText, bool force)
@@ -85,6 +92,16 @@ void RenderTextFragment::setTextInternal(const String& newText, bool force)
         RenderTreeBuilder(*document().renderView()).destroy(*m_firstLetter);
     ASSERT(!m_firstLetter);
     ASSERT(!textNode() || textNode()->renderer() == this);
+}
+
+void RenderTextFragment::setTextWithOffset(const String& newText, unsigned offset)
+{
+    // Edits within the first-letter range invalidate the first-letter split.
+    // The base class skips the update when the fragment text matches the new
+    // content, but the split is stale and the tree builder needs to recreate it.
+    if (m_firstLetter && offset < m_start)
+        RenderTreeBuilder::current() ? RenderTreeBuilder::current()->destroy(*m_firstLetter) : RenderTreeBuilder(*document().renderView()).destroy(*m_firstLetter);
+    RenderText::setTextWithOffset(newText, offset);
 }
 
 Node* RenderTextFragment::nodeForHitTest() const

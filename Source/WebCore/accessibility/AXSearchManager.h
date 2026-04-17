@@ -96,6 +96,10 @@ struct AccessibilitySearchCriteria {
 // IPC-serializable version of AccessibilitySearchCriteria for cross-process search queries.
 // Excludes object pointers since the remote frame will use its own root as anchor.
 struct AccessibilitySearchCriteriaIPC {
+    // IPC validation limits, intended to be used for defense-in-depth bounds-checking for
+    // data from potentially compromised processes.
+    static constexpr unsigned maxSearchTextLength = 5000;
+
     AccessibilitySearchDirection searchDirection { AccessibilitySearchDirection::Next };
     Vector<AccessibilitySearchKey> searchKeys;
     String searchText;

@@ -49,6 +49,7 @@ RealtimeOutgoingMediaSourceGStreamer::RealtimeOutgoingMediaSourceGStreamer(Type 
     initialize();
 
     m_track = track.privateTrack();
+    m_muted = m_track->muted();
     m_outgoingSource = webkitMediaStreamSrcNew();
     GST_DEBUG_OBJECT(m_bin.get(), "Created outgoing source %" GST_PTR_FORMAT, m_outgoingSource.get());
     gst_bin_add(GST_BIN_CAST(m_bin.get()), m_outgoingSource.get());
@@ -59,6 +60,7 @@ RealtimeOutgoingMediaSourceGStreamer::RealtimeOutgoingMediaSourceGStreamer(Type 
     : m_type(type)
     , m_mediaStreamId(createVersion4UUIDString())
     , m_trackId(emptyString())
+    , m_muted(true)
     , m_ssrcGenerator(ssrcGenerator)
 {
     initialize();

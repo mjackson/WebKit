@@ -713,9 +713,9 @@ void MediaPlayerPrivateMediaStreamAVFObjC::setVisibleForCanvas(bool)
 {
 }
 
-void MediaPlayerPrivateMediaStreamAVFObjC::setVisibleInViewport(bool isVisible)
+void MediaPlayerPrivateMediaStreamAVFObjC::setViewportVisibility(ViewportVisibility visibility)
 {
-    m_isVisibleInViewPort = isVisible;
+    m_isVisibleInViewPort = visibility == ViewportVisibility::VisibleInViewport;
 }
 
 MediaTime MediaPlayerPrivateMediaStreamAVFObjC::duration() const

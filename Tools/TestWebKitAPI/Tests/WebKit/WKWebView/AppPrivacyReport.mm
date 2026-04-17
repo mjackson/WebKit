@@ -46,9 +46,9 @@ TEST(AppPrivacyReport, DefaultRequestIsAppInitiated)
 {
     TestWebKitAPI::HTTPServer server(TestWebKitAPI::HTTPServer::respondWithChallengeThenOK);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
     NSString *url = [NSString stringWithFormat:@"http://127.0.0.1:%d/", server.port()];
 
     __block bool isDone = false;
@@ -76,9 +76,9 @@ TEST(AppPrivacyReport, DefaultRequestIsAppInitiated)
 TEST(AppPrivacyReport, AppInitiatedRequest)
 {
     TestWebKitAPI::HTTPServer server(TestWebKitAPI::HTTPServer::respondWithChallengeThenOK);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
     NSString *url = [NSString stringWithFormat:@"http://127.0.0.1:%d/", server.port()];
 
     __block bool isDone = false;
@@ -109,9 +109,9 @@ TEST(AppPrivacyReport, NonAppInitiatedRequest)
 {
     TestWebKitAPI::HTTPServer server(TestWebKitAPI::HTTPServer::respondWithChallengeThenOK);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
     NSString *url = [NSString stringWithFormat:@"http://127.0.0.1:%d/", server.port()];
 
     __block bool isDone = false;
@@ -142,9 +142,9 @@ TEST(AppPrivacyReport, AppInitiatedRequestWithNavigation)
 {
     TestWebKitAPI::HTTPServer server(TestWebKitAPI::HTTPServer::respondWithChallengeThenOK);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
     NSString *appInitiatedURL = [NSString stringWithFormat:@"http://127.0.0.1:%d/", server.port()];
     NSString *nonAppInitiatedURL = [NSString stringWithFormat:@"http://localhost:%d/", server.port()];
 
@@ -205,11 +205,11 @@ TEST(AppPrivacyReport, AppInitiatedRequestWithNavigation)
 
 TEST(AppPrivacyReport, AppInitiatedRequestWithSubFrame)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setOverrideContentSecurityPolicy:@"script-src 'nonce-b'"];
 
     __block bool isDone = false;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     NSMutableURLRequest *appInitiatedRequest = [NSMutableURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"page-with-csp" withExtension:@"html"]];
     appInitiatedRequest.attribution = NSURLRequestAttributionDeveloper;
 
@@ -228,11 +228,11 @@ TEST(AppPrivacyReport, AppInitiatedRequestWithSubFrame)
 
 TEST(AppPrivacyReport, NonAppInitiatedRequestWithSubFrame)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setOverrideContentSecurityPolicy:@"script-src 'nonce-b'"];
 
     __block bool isDone = false;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     NSMutableURLRequest *nonAppInitiatedRequest = [NSMutableURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"page-with-csp" withExtension:@"html"]];
     nonAppInitiatedRequest.attribution = NSURLRequestAttributionUser;
 
@@ -301,9 +301,9 @@ static void runTest(ResponseType responseType, IsAppInitiated isAppInitiated)
         { "/fetched.html"_s, { "<script>alert('fetched from server')</script>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::Https);
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodServerTrust);
         callback(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
@@ -383,10 +383,10 @@ TEST(AppPrivacyReport, MultipleWebViewsWithSharedServiceWorker)
         { "/fetched.html"_s, { "<script>alert('fetched from server')</script>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::Https);
 
-    auto webView1 = adoptNS([WKWebView new]);
-    auto webView2 = adoptNS([WKWebView new]);
+    RetainPtr webView1 = adoptNS([WKWebView new]);
+    RetainPtr webView2 = adoptNS([WKWebView new]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodServerTrust);
         callback(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
@@ -443,15 +443,15 @@ static void softUpdateTest(IsAppInitiated isAppInitiated)
     }];
     TestWebKitAPI::Util::run(&isDone);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodServerTrust);
         callback(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     webView1.get().navigationDelegate = delegate.get();
     webView2.get().navigationDelegate = delegate.get();
@@ -530,7 +530,7 @@ static void runWebProcessPlugInTest(IsAppInitiated isAppInitiated)
     TestWebKitAPI::HTTPServer server(TestWebKitAPI::HTTPServer::respondWithChallengeThenOK);
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"AppPrivacyReportPlugIn"];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
 
     NSString *url = [NSString stringWithFormat:@"http://127.0.0.1:%d/", server.port()];
 
@@ -660,10 +660,10 @@ TEST(AppPrivacyReport, RegisterServiceWorkerClientUpdatesAppInitiatedValue)
     RetainPtr<SWAppInitiatedRequestMessageHandler> messageHandler = adoptNS([[SWAppInitiatedRequestMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
-    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodServerTrust);
         callback(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
@@ -706,9 +706,9 @@ TEST(AppPrivacyReport, RegisterServiceWorkerClientUpdatesAppInitiatedValue)
 
 static void loadSimulatedRequestTest(IsAppInitiated isAppInitiated)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto delegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSMutableURLRequest *loadRequest = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]];
@@ -742,7 +742,7 @@ TEST(AppPrivacyReport, LoadSimulatedRequestIsNonAppInitiated)
 
 static void restoreFromSessionStateTest(IsAppInitiated isAppInitiated)
 {
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"https://www.apple.com/"]];
     request.attribution = isAppInitiated == IsAppInitiated::Yes ? NSURLRequestAttributionDeveloper : NSURLRequestAttributionUser;
@@ -759,7 +759,7 @@ static void restoreFromSessionStateTest(IsAppInitiated isAppInitiated)
     }];
     TestWebKitAPI::Util::run(&isDone);
 
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView2 _restoreSessionState:sessionState.get() andNavigate:YES];
     [webView2 _test_waitForDidFinishNavigation];
 
@@ -789,7 +789,7 @@ TEST(AppPrivacyReport, DISABLED_RestoreFromSessionStateIsNonAppInitiated)
 
 static void restoreFromInteractionStateTest(IsAppInitiated isAppInitiated)
 {
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"https://www.apple.com/"]];
     request.attribution = isAppInitiated == IsAppInitiated::Yes ? NSURLRequestAttributionDeveloper : NSURLRequestAttributionUser;
@@ -806,7 +806,7 @@ static void restoreFromInteractionStateTest(IsAppInitiated isAppInitiated)
     }];
     TestWebKitAPI::Util::run(&isDone);
 
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView2 setInteractionState:interactionState];
     [webView2 _test_waitForDidFinishNavigation];
 
@@ -836,7 +836,7 @@ TEST(AppPrivacyReport, DISABLED_RestoreFromInteractionStateIsNonAppInitiated)
 
 static void loadFileTest(IsAppInitiated isAppInitiated)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
     NSURL *file = [NSBundle.test_resourcesBundle URLForResource:@"file-with-iframe" withExtension:@"html"];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:file];

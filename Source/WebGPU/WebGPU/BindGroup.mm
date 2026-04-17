@@ -1535,7 +1535,7 @@ bool BindGroup::makeSubmitInvalid(ShaderStage stage, const BindGroupLayout* pipe
     if (!m_bindGroupLayout)
         return true;
 
-    Ref pipelineBindGroupLayout = Ref { *pipelineLayout };
+    Ref pipelineBindGroupLayout { *pipelineLayout };
     switch (stage) {
     case ShaderStage::Vertex:
         return m_vertexArgumentBuffer.length != pipelineBindGroupLayout->encodedLength(stage);

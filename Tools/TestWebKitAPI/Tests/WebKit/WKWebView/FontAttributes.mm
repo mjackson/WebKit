@@ -218,7 +218,7 @@ static void checkParagraphStyles(NSParagraphStyle *style, ParagraphStyleExpectat
 
 static RetainPtr<TestWKWebView> webViewForTestingFontAttributes(NSString *testPageName)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 320, 500)]);
     [webView synchronouslyLoadTestPageNamed:testPageName];
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
 #if PLATFORM(MAC)
@@ -231,7 +231,7 @@ static RetainPtr<TestWKWebView> webViewForTestingFontAttributes(NSString *testPa
 
 TEST(FontAttributes, FontAttributesAfterChangingSelection)
 {
-    auto delegate = adoptNS([FontAttributesListener new]);
+    RetainPtr delegate = adoptNS([FontAttributesListener new]);
     auto webView = webViewForTestingFontAttributes(@"rich-text-attributes");
     [webView setUIDelegate:delegate.get()];
 
@@ -412,7 +412,7 @@ TEST(FontAttributes, FontAttributesAfterChangingSelection)
 
 TEST(FontAttributes, NestedTextListsWithHorizontalAlignment)
 {
-    auto delegate = adoptNS([FontAttributesListener new]);
+    RetainPtr delegate = adoptNS([FontAttributesListener new]);
     auto webView = webViewForTestingFontAttributes(@"nested-lists");
     [webView setUIDelegate:delegate.get()];
 
@@ -461,8 +461,8 @@ TEST(FontAttributes, NestedTextListsWithHorizontalAlignment)
 
 TEST(FontAttributes, FontTextStyle)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
-    auto uiDelegate = adoptNS([[FontTextStyleUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr uiDelegate = adoptNS([[FontTextStyleUIDelegate alloc] init]);
     [webView setUIDelegate:uiDelegate.get()];
     [webView synchronouslyLoadHTMLString:@"<body contenteditable>"
         "<span id='foo'>foo</span> <span id='bar'>bar</span> <span id='baz'>baz</span>"
@@ -492,7 +492,7 @@ TEST(FontAttributes, FontTextStyle)
 TEST(FontAttributes, SelectTextStyle)
 {
     __block bool done = false;
-    auto menu = adoptNS([NSMenu new]);
+    RetainPtr menu = adoptNS([NSMenu new]);
     InstanceMethodSwizzler swizzler { [[menu _menuImpl] class],
         NSSelectorFromString(@"popUpMenu:atLocation:width:forView:withSelectedItem:withFont:withFlags:withOptions:"),
         imp_implementationWithBlock(^(id, NSMenu *menu, NSPoint, CGFloat, NSView *, NSInteger, NSFont* font, NSUInteger, NSDictionary *) {
@@ -501,8 +501,8 @@ TEST(FontAttributes, SelectTextStyle)
             done = true;
     }) };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
-    auto uiDelegate = adoptNS([[FontTextStyleUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr uiDelegate = adoptNS([[FontTextStyleUIDelegate alloc] init]);
     [webView setUIDelegate:uiDelegate.get()];
     [webView synchronouslyLoadHTMLString:@"<body>"
         "<select style='font-family: Helvetica; font-size: 32px; background-color: white;'>"

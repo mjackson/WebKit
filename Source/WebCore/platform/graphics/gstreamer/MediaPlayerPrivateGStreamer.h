@@ -161,7 +161,7 @@ public:
     MediaPlayer::NetworkState networkState() const final;
     MediaPlayer::ReadyState readyState() const final;
     void setPageIsVisible(bool visible) final { m_pageIsVisible = visible; }
-    void setVisibleInViewport(bool isVisible) final;
+    void setViewportVisibility(ViewportVisibility) final;
     void setPresentationSize(const IntSize&) final;
     MediaTime duration() const override;
     MediaTime currentTime() const override;

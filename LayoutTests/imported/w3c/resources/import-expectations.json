@@ -178,7 +178,6 @@
     "web-platform-tests/event-timing": "import",
     "web-platform-tests/eventsource": "import",
     "web-platform-tests/eyedropper": "skip",
-    "web-platform-tests/feature-policy": "import",
     "web-platform-tests/fenced-frame": "skip",
     "web-platform-tests/fetch": "import",
     "web-platform-tests/file-system-access": "import",

@@ -262,6 +262,9 @@ bool ServiceWorkerNavigationPreloader::convertToDownload(DownloadManager& manage
     if (!m_networkLoad)
         return false;
 
+    if (!m_responseCompletionHandler)
+        return false;
+
     auto networkLoad = std::exchange(m_networkLoad, nullptr);
     manager.convertNetworkLoadToDownload(downloadID, networkLoad.releaseNonNull(), WTF::move(m_responseCompletionHandler), { }, request, response);
     return true;

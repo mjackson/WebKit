@@ -44,9 +44,9 @@ static NSString *htmlString2 = @"<html><body><h1>Hello, new world!</h1></body></
 
 TEST(WKWebView, LoadSimulatedRequestUsingResponseHTMLString)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto delegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *loadRequest = [NSURLRequest requestWithURL:exampleURL];
@@ -63,15 +63,15 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 TEST(WKWebView, LoadSimulatedRequestUsingResponseData)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto delegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *loadRequest = [NSURLRequest requestWithURL:exampleURL];
 
     NSData *data = [htmlString dataUsingEncoding:NSUTF8StringEncoding];
-    auto response = adoptNS([[NSURLResponse alloc] initWithURL:exampleURL MIMEType:@"text/HTML" expectedContentLength:[data length] textEncodingName:@"UTF-8"]);
+    RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:exampleURL MIMEType:@"text/HTML" expectedContentLength:[data length] textEncodingName:@"UTF-8"]);
 
     [webView loadSimulatedRequest:loadRequest response:response.get() responseData:data];
     [delegate waitForDidFinishNavigation];
@@ -103,7 +103,7 @@ TEST(WKWebView, LoadSimulatedRequestDelegateCallbacks)
 
     __block Vector<Callback> callbacks;
     __block bool finished = false;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *, void (^completionHandler)(WKNavigationActionPolicy)) {
         callbacks.append(Callback::NavigationAction);
         completionHandler(WKNavigationActionPolicyAllow);
@@ -123,7 +123,7 @@ TEST(WKWebView, LoadSimulatedRequestDelegateCallbacks)
         finished = true;
     };
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     webView.get().navigationDelegate = delegate.get();
     NSURL *url = [NSURL URLWithString:@"https://webkit.org/"];
     [webView loadHTMLString:@"hi!" baseURL:url];
@@ -140,9 +140,9 @@ TEST(WKWebView, LoadSimulatedRequestDelegateCallbacks)
 
 TEST(WKWebView, LoadFileRequest)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto delegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURL *file = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
@@ -154,9 +154,9 @@ TEST(WKWebView, LoadFileRequest)
 
 TEST(WKWebView, LoadSimulatedRequestUpdatesBackForwardList)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto delegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *loadRequest = [NSURLRequest requestWithURL:exampleURL];
@@ -202,7 +202,7 @@ TEST(WKWebView, LoadSimulatedRequestUpdatesBackForwardList)
     
     // loadHTMLString is peculiarly different than loadSimulatedRequest, but we need to leave it
     // like it is until we decide to change it, probably with a linked-on-or-after check.
-    auto webView2 = adoptNS([WKWebView new]);
+    RetainPtr webView2 = adoptNS([WKWebView new]);
     [webView2 setNavigationDelegate:delegate.get()];
     [webView2 loadHTMLString:htmlString baseURL:loadRequest.URL];
     [delegate waitForDidFinishNavigation];

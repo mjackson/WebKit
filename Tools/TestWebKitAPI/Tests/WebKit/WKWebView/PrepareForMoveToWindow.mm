@@ -40,7 +40,7 @@
 
 TEST(WKWebView, PrepareForMoveToWindow)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]];
     [webView loadRequest:request];
@@ -59,7 +59,7 @@ TEST(WKWebView, PrepareForMoveToWindow)
 
 TEST(WKWebView, PrepareToUnparentView)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
     __block bool done = false;
@@ -73,8 +73,8 @@ TEST(WKWebView, PrepareToUnparentView)
 
 TEST(WKWebView, PrepareForMoveToWindowShouldNotCrashWhenRemovingWindowObservers)
 {
-    auto window = adoptNS([NSWindow new]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([NSWindow new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
     [[window contentView] addSubview:webView.get()];
@@ -90,7 +90,7 @@ TEST(WKWebView, PrepareForMoveToWindowShouldNotCrashWhenRemovingWindowObservers)
 
 TEST(WKWebView, PrepareForMoveToWindowThenClose)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]];
     [webView loadRequest:request];
@@ -110,10 +110,10 @@ TEST(WKWebView, PrepareForMoveToWindowThenClose)
 
 TEST(WKWebView, PrepareForMoveToWindowThenViewDeallocBeforeMoving)
 {
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 200, 200) styleMask:NSBorderlessWindowMask backing:NSBackingStoreBuffered defer:NO]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 200, 200) styleMask:NSBorderlessWindowMask backing:NSBackingStoreBuffered defer:NO]);
 
     @autoreleasepool {
-        auto webView = adoptNS([[WKWebView alloc] init]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] init]);
         [webView _prepareForMoveToWindow:window.get() completionHandler:^{
             isDone = true;
         }];
@@ -134,11 +134,11 @@ TEST(WKWebView, PrepareForMoveToWindowThenViewDeallocBeforeMoving)
 
 TEST(WKWebView, PrepareForMoveToWindowThenWindowDeallocBeforeMoving)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
     static WeakObjCPtr<NSWindow> weakWindow;
 
     @autoreleasepool {
-        auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO]);
+        RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO]);
         weakWindow = window.get();
         [webView _prepareForMoveToWindow:window.get() completionHandler:^{
             isDone = true;

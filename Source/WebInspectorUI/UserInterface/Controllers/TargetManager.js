@@ -159,6 +159,14 @@ WI.TargetManager = class TargetManager extends WI.Object
         if (!target)
             return;
 
+        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=312386 SI Move cleanup of children workers to backend
+        if (target.type === WI.TargetType.Frame) {
+            for (let workerTarget of this.workerTargets) {
+                if (workerTarget.parentTarget === target)
+                    WI.workerManager.workerTerminated(workerTarget.identifier);
+            }
+        }
+
         this._checkAndHandlePageTargetTermination(target);
         this.removeTarget(target);
     }

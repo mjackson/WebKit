@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,6 +25,7 @@
 #pragma once
 
 #include <WebCore/CSSPropertyNames.h>
+#include <WebCore/StylePropertyIdentifier.h>
 #include <WebCore/StyleValueTypes.h>
 #include <wtf/PointerComparison.h>
 #include <wtf/RefCounted.h>

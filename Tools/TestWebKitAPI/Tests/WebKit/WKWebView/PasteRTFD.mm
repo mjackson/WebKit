@@ -86,9 +86,9 @@ void writeRTFDToPasteboard(NSData *data)
 
 static RetainPtr<NSAttributedString> createHelloWorldString()
 {
-    auto hello = adoptNS([[NSAttributedString alloc] initWithString:@"hello" attributes:@{ NSUnderlineStyleAttributeName : @(NSUnderlineStyleSingle) }]);
-    auto world = adoptNS([[NSAttributedString alloc] initWithString:@", world" attributes:@{ }]);
-    auto string = adoptNS([[NSMutableAttributedString alloc] init]);
+    RetainPtr hello = adoptNS([[NSAttributedString alloc] initWithString:@"hello" attributes:@{ NSUnderlineStyleAttributeName : @(NSUnderlineStyleSingle) }]);
+    RetainPtr world = adoptNS([[NSAttributedString alloc] initWithString:@", world" attributes:@{ }]);
+    RetainPtr string = adoptNS([[NSMutableAttributedString alloc] init]);
     [string appendAttributedString:hello.get()];
     [string appendAttributedString:world.get()];
     return string;
@@ -144,7 +144,7 @@ TEST(PasteRTFD, ImageElementUsesBlobURL)
     [webView synchronouslyLoadTestPageNamed:@"paste-rtfd"];
 
     auto *pngData = [NSData dataWithContentsOfFile:[NSBundle.test_resourcesBundle pathForResource:@"sunset-in-cupertino-200px" ofType:@"png"]];
-    auto attachment = adoptNS([[NSTextAttachment alloc] initWithData:pngData ofType:UTTypePNG.identifier]);
+    RetainPtr attachment = adoptNS([[NSTextAttachment alloc] initWithData:pngData ofType:UTTypePNG.identifier]);
     NSAttributedString *string = [NSAttributedString attributedStringWithAttachment:attachment.get()];
     NSData *RTFDData = [string RTFDFromRange:NSMakeRange(0, [string length]) documentAttributes:@{ }];
 
@@ -162,7 +162,7 @@ TEST(PasteRTFD, ImageElementUsesBlobURLInHTML)
     [webView synchronouslyLoadTestPageNamed:@"paste-rtfd"];
 
     auto *pngData = [NSData dataWithContentsOfFile:[NSBundle.test_resourcesBundle pathForResource:@"sunset-in-cupertino-200px" ofType:@"png"]];
-    auto attachment = adoptNS([[NSTextAttachment alloc] initWithData:pngData ofType:UTTypePNG.identifier]);
+    RetainPtr attachment = adoptNS([[NSTextAttachment alloc] initWithData:pngData ofType:UTTypePNG.identifier]);
     NSAttributedString *string = [NSAttributedString attributedStringWithAttachment:attachment.get()];
     NSData *RTFDData = [string RTFDFromRange:NSMakeRange(0, [string length]) documentAttributes:@{ }];
 
@@ -190,9 +190,9 @@ TEST(PasteRTFD, TransformColorsOfDarkContent)
     PlatformColor *textColor = [PlatformColor lightGrayColor];
     PlatformColor *backgroundColor = [PlatformColor darkGrayColor];
 
-    auto hello = adoptNS([[NSAttributedString alloc] initWithString:@"Hello" attributes:@{ NSBackgroundColorAttributeName : backgroundColor, NSForegroundColorAttributeName : textColor }]);
-    auto world = adoptNS([[NSAttributedString alloc] initWithString:@" World" attributes:@{ NSForegroundColorAttributeName : textColor }]);
-    auto string = adoptNS([[NSMutableAttributedString alloc] init]);
+    RetainPtr hello = adoptNS([[NSAttributedString alloc] initWithString:@"Hello" attributes:@{ NSBackgroundColorAttributeName : backgroundColor, NSForegroundColorAttributeName : textColor }]);
+    RetainPtr world = adoptNS([[NSAttributedString alloc] initWithString:@" World" attributes:@{ NSForegroundColorAttributeName : textColor }]);
+    RetainPtr string = adoptNS([[NSMutableAttributedString alloc] init]);
     [string appendAttributedString:hello.get()];
     [string appendAttributedString:world.get()];
 
@@ -220,9 +220,9 @@ TEST(PasteRTFD, DoesNotTransformColorsOfLightContent)
     PlatformColor *textColor = [PlatformColor darkGrayColor];
     PlatformColor *backgroundColor = [PlatformColor lightGrayColor];
 
-    auto hello = adoptNS([[NSAttributedString alloc] initWithString:@"Hello" attributes:@{ NSBackgroundColorAttributeName : backgroundColor, NSForegroundColorAttributeName : textColor }]);
-    auto world = adoptNS([[NSAttributedString alloc] initWithString:@" World" attributes:@{ NSForegroundColorAttributeName : textColor }]);
-    auto string = adoptNS([[NSMutableAttributedString alloc] init]);
+    RetainPtr hello = adoptNS([[NSAttributedString alloc] initWithString:@"Hello" attributes:@{ NSBackgroundColorAttributeName : backgroundColor, NSForegroundColorAttributeName : textColor }]);
+    RetainPtr world = adoptNS([[NSAttributedString alloc] initWithString:@" World" attributes:@{ NSForegroundColorAttributeName : textColor }]);
+    RetainPtr string = adoptNS([[NSMutableAttributedString alloc] init]);
     [string appendAttributedString:hello.get()];
     [string appendAttributedString:world.get()];
 

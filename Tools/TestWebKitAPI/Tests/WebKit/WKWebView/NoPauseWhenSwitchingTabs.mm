@@ -44,7 +44,7 @@ TEST(WebKit, DISABLED_NoPauseWhenSwitchingTabs)
 TEST(WebKit, NoPauseWhenSwitchingTabs)
 #endif
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 #if PLATFORM(IOS) || PLATFORM(VISION)
     configuration.get().allowsInlineMediaPlayback = YES;
     configuration.get()._inlineMediaPlaybackRequiresPlaysInlineAttribute = NO;
@@ -52,7 +52,7 @@ TEST(WebKit, NoPauseWhenSwitchingTabs)
     configuration.get()._mediaDataLoadsAutomatically = YES;
     configuration.get().mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeAudio;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     [webView synchronouslyLoadTestPageNamed:@"video-with-audio"];
 

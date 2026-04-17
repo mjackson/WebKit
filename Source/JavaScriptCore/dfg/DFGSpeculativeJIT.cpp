@@ -3309,7 +3309,7 @@ static double clampDoubleToByte(double d)
         d = 0;
     else if (d > 255)
         d = 255;
-    return std::nearbyint(d);
+    return roundeven(d);
 }
 
 static void compileClampIntegerToByte(JITCompiler& jit, GPRReg resultGPR, GPRReg scratch1GPR)
@@ -15805,8 +15805,8 @@ void SpeculativeJIT::compileCreatePromise(Node* node)
     // We can avoid using an additional GPR this way
     GPRReg rareDataGPR = structureGPR;
 
-    move(TrustedImmPtr(m_graph.registerStructure(node->isInternalPromise() ? globalObject->internalPromiseStructure() : globalObject->promiseStructure())), structureGPR);
-    auto fastPromisePath = branchLinkableConstant(Equal, calleeGPR, LinkableConstant(*this, node->isInternalPromise() ? globalObject->internalPromiseConstructor() : globalObject->promiseConstructor()));
+    move(TrustedImmPtr(m_graph.registerStructure(globalObject->promiseStructure())), structureGPR);
+    auto fastPromisePath = branchLinkableConstant(Equal, calleeGPR, LinkableConstant(*this, globalObject->promiseConstructor()));
 
     JumpList slowCases;
 
@@ -15816,22 +15816,19 @@ void SpeculativeJIT::compileCreatePromise(Node* node)
     load32(Address(rareDataGPR, FunctionRareData::offsetOfInternalFunctionAllocationProfile() + InternalFunctionAllocationProfile::offsetOfStructureID() - JSFunction::rareDataTag), structureGPR);
     slowCases.append(branchTest32(Zero, structureGPR));
     emitNonNullDecodeZeroExtendedStructureID(structureGPR, structureGPR);
-    move(TrustedImmPtr(node->isInternalPromise() ? JSInternalPromise::info() : JSPromise::info()), scratch1GPR);
+    move(TrustedImmPtr(JSPromise::info()), scratch1GPR);
     slowCases.append(branchPtr(NotEqual, scratch1GPR, Address(structureGPR, Structure::classInfoOffset())));
     loadLinkableConstant(LinkableConstant::globalObject(*this, node), scratch1GPR);
     slowCases.append(branchPtr(NotEqual, scratch1GPR, Address(structureGPR, Structure::realmOffset())));
 
     fastPromisePath.link(this);
     auto butterfly = TrustedImmPtr(nullptr);
-    if (node->isInternalPromise())
-        emitAllocateJSObjectWithKnownSize<JSInternalPromise>(resultGPR, structureGPR, butterfly, scratch1GPR, scratch2GPR, slowCases, sizeof(JSInternalPromise), SlowAllocationResult::UndefinedBehavior);
-    else
-        emitAllocateJSObjectWithKnownSize<JSPromise>(resultGPR, structureGPR, butterfly, scratch1GPR, scratch2GPR, slowCases, sizeof(JSPromise), SlowAllocationResult::UndefinedBehavior);
+    emitAllocateJSObjectWithKnownSize<JSPromise>(resultGPR, structureGPR, butterfly, scratch1GPR, scratch2GPR, slowCases, sizeof(JSPromise), SlowAllocationResult::UndefinedBehavior);
     storeTrustedValue(jsNumber(static_cast<int32_t>(JSPromise::Status::Pending)), Address(resultGPR, JSInternalFieldObjectImpl<>::offsetOfInternalField(static_cast<unsigned>(JSPromise::Field::Flags))));
     storeTrustedValue(JSValue(), Address(resultGPR, JSInternalFieldObjectImpl<>::offsetOfInternalField(static_cast<unsigned>(JSPromise::Field::ReactionsOrResult))));
     mutatorFence(vm());
 
-    addSlowPathGenerator(slowPathCall(slowCases, this, node->isInternalPromise() ? operationCreateInternalPromise : operationCreatePromise, resultGPR, LinkableConstant::globalObject(*this, node), calleeGPR));
+    addSlowPathGenerator(slowPathCall(slowCases, this, operationCreatePromise, resultGPR, LinkableConstant::globalObject(*this, node), calleeGPR));
 
     cellResult(resultGPR, node);
 }
@@ -15981,12 +15978,8 @@ void SpeculativeJIT::compileNewInternalFieldObject(Node* node)
         compileNewInternalFieldObjectImpl<JSAsyncGenerator>(node, operationNewAsyncGenerator);
         break;
     case JSPromiseType: {
-        if (node->structure()->classInfoForCells() == JSInternalPromise::info())
-            compileNewInternalFieldObjectImpl<JSInternalPromise>(node, operationNewInternalPromise);
-        else {
-            ASSERT(node->structure()->classInfoForCells() == JSPromise::info());
-            compileNewInternalFieldObjectImpl<JSPromise>(node, operationNewPromise);
-        }
+        ASSERT(node->structure()->classInfoForCells() == JSPromise::info());
+        compileNewInternalFieldObjectImpl<JSPromise>(node, operationNewPromise);
         break;
     }
     default:
@@ -17852,11 +17845,6 @@ void SpeculativeJIT::compileNumberIsSafeInteger(Node* node)
             silentFillAllRegisters();
             compareDouble(DoubleEqualAndOrdered, argumentFPR, tempFPR, isValidGPR);
         }
-
-        // check if the value is finite
-        subDouble(argumentFPR, argumentFPR, tempFPR);
-        compareDouble(DoubleEqualAndOrdered, tempFPR, tempFPR, scratchGPR);
-        and32(scratchGPR, isValidGPR);
 
         // check if the value is in the range
         absDouble(argumentFPR, tempFPR);

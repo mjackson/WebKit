@@ -50,7 +50,9 @@
 #include "RenderObjectStyle.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleExtractor.h"
+#include <JavaScriptCore/ArgList.h>
 #include <JavaScriptCore/ConstructData.h>
+#include <JavaScriptCore/JSCJSValueInlines.h>
 
 namespace WebCore {
 

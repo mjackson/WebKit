@@ -26,6 +26,7 @@
 #include "config.h"
 #include "CSSPropertyParserConsumer+CounterStyles.h"
 
+#include "CSSCounterStyle.h"
 #include "CSSCustomIdentValue.h"
 #include "CSSParserContext.h"
 #include "CSSParserIdioms.h"

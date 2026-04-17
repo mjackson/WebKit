@@ -150,8 +150,6 @@
 		DD42949F284BE0B7004D49ED /* WebKit.framework in Product Dependencies */ = {isa = PBXBuildFile; fileRef = C081224813FC1B0300DC39AE /* WebKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		DD4671652A685F6800E49DBD /* WebCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7B9FC5B628A52236007570E7 /* WebCore.framework */; };
 		DD5698002DC1320500050321 /* rdar150228472.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5697FF2DC1320500050321 /* rdar150228472.swift */; };
-		DDAA0E2129E63FED003ECAE2 /* libpas.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DDAA0E2029E63FED003ECAE2 /* libpas.a */; };
-		DDAA0E2929E640FA003ECAE2 /* libpas.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DDAA0E2029E63FED003ECAE2 /* libpas.a */; };
 		DDADB22628FA094400918467 /* libgtest.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F3FC3EE213678B7300126A65 /* libgtest.a */; };
 		DDB3724628ECE32F00A2F32D /* libbmalloc.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DDB3724528ECE32F00A2F32D /* libbmalloc.a */; };
 		DDD2187627A21750002B7025 /* WebKit.framework in Product Dependencies */ = {isa = PBXBuildFile; fileRef = C081224813FC1B0300DC39AE /* WebKit.framework */; };
@@ -173,6 +171,7 @@
 			);
 			script = (
 				"\"${SCRIPT_INPUT_FILE_0}\"",
+				"",
 				"",
 			);
 		};
@@ -562,13 +561,19 @@
 		CDA3159C1ED5643F009F60D3 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 		DD403D4928EB932F009B4684 /* libbmalloc.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libbmalloc.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		DD5697FF2DC1320500050321 /* rdar150228472.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rdar150228472.swift; sourceTree = "<group>"; };
-		DDAA0E2029E63FED003ECAE2 /* libpas.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libpas.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDB3724528ECE32F00A2F32D /* libbmalloc.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libbmalloc.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDF3A82928930475005920CF /* gtest.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = gtest.xcodeproj; path = ../../Source/ThirdParty/gtest/xcode/gtest.xcodeproj; sourceTree = SOURCE_ROOT; };
 		F3FC3EE213678B7300126A65 /* libgtest.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libgtest.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		07AA27602F83C3A900FE10FC /* Exceptions for "Tests" folder in "TestWebKitAPI" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				WebKit/WKWebView/WKWebViewSwiftOverlayTests.swift,
+			);
+			target = 8DD76F960486AA7600D96B5E /* TestWebKitAPI */;
+		};
 		07C907B32F820907003A09D8 /* Exceptions for "Helpers" folder in "TestWebKitAPILibrary" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			additionalCompilerFlagsByRelativePath = {
@@ -1560,6 +1565,7 @@
 				07C913DA2F820CCA003A09D8 /* Exceptions for "Tests" folder in "TestWebKitAPILibrary" target */,
 				07C913DB2F820CCA003A09D8 /* Exceptions for "Tests" folder in "TestWTFLibrary" target */,
 				07C913DC2F820CCA003A09D8 /* Exceptions for "Tests" folder in "TestIPC" target */,
+				07AA27602F83C3A900FE10FC /* Exceptions for "Tests" folder in "TestWebKitAPI" target */,
 				07C913DD2F820CCA003A09D8 /* Exceptions for "Tests" folder in "TestWebKitAPIApp" target */,
 				07C913DE2F820CCA003A09D8 /* Exceptions for "Tests" folder in "TestWebKitAPIBundle" target */,
 				07C913DF2F820CCA003A09D8 /* Exceptions for "Tests" folder in "TestWGSL" target */,
@@ -1609,7 +1615,6 @@
 				DDB3724628ECE32F00A2F32D /* libbmalloc.a in Frameworks */,
 				DDADB22628FA094400918467 /* libgtest.a in Frameworks */,
 				3A5DDAF528D1638A004DA950 /* libicucore.tbd in Frameworks */,
-				DDAA0E2929E640FA003ECAE2 /* libpas.a in Frameworks */,
 				3A5DDB2D28D55265004DA950 /* libwgsl.a in Frameworks */,
 				3A5DDB2C28D5525E004DA950 /* libWTF.a in Frameworks */,
 				97DAA8D02DF70B91004B3040 /* Metal.framework in Frameworks */,
@@ -1640,7 +1645,6 @@
 			files = (
 				DD403D4A28EB932F009B4684 /* libbmalloc.a in Frameworks */,
 				93F56DA71E5F9174003EDE84 /* libicucore.dylib in Frameworks */,
-				DDAA0E2129E63FED003ECAE2 /* libpas.a in Frameworks */,
 				DDFBE4AC2A90556700CA7023 /* libWTF.a in Frameworks */,
 				143DDE9820C9018B007F76FA /* Security.framework in Frameworks */,
 			);
@@ -1834,7 +1838,6 @@
 				3A5DDAF228D1637A004DA950 /* libicu.a */,
 				7C83E0331D0A5F2700FEBCF3 /* libicucore.dylib */,
 				3A5DDAF428D1638A004DA950 /* libicucore.tbd */,
-				DDAA0E2029E63FED003ECAE2 /* libpas.a */,
 				A1798B7E22431D2B000764BD /* libWebCoreTestSupport.dylib */,
 				4135FB862011FABF00332139 /* libWebCoreTestSupport.dylib */,
 				7B9FC5A928A38F2E007570E7 /* libWebKitIPC.a */,
@@ -2005,6 +2008,7 @@
 			buildConfigurationList = 1DEB927408733DD40010E9CD /* Build configuration list for PBXNativeTarget "TestWebKitAPI" */;
 			buildPhases = (
 				A1508C552DAF1F8000C3E213 /* Process Entitlements */,
+				0777713A2F887DCE00A1C903 /* Embed Testing.framework */,
 				8DD76F990486AA7600D96B5E /* Sources */,
 				8DD76F9B0486AA7600D96B5E /* Frameworks */,
 			);
@@ -2250,6 +2254,27 @@
 				"if [ \"${ACTION}\" = installhdrs ]",
 				"then touch \"${DERIVED_FILES_DIR}/generate-platform-args.d\"",
 				"else \"${SCRIPT_INPUT_FILE_0}\"",
+				"fi",
+				"",
+			);
+		};
+		0777713A2F887DCE00A1C903 /* Embed Testing.framework */ = {
+			isa = PBXShellScriptBuildPhase;
+			inputPaths = (
+				"$(PLATFORM_DIR)/Developer/Library/Frameworks/Testing.framework",
+				"$(PLATFORM_DIR)/Developer/usr/lib/lib_TestingInterop.dylib",
+			);
+			name = "Embed Testing.framework";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/Testing.framework",
+				"$(BUILT_PRODUCTS_DIR)/lib_TestingInterop.dylib",
+			);
+			shellPath = /bin/sh;
+			shellScript = (
+				"ditto \"${PLATFORM_DIR}/Developer/Library/Frameworks/Testing.framework\" \"${BUILT_PRODUCTS_DIR}/Testing.framework\"",
+				"",
+				"if [ \"${USE_INTERNAL_SDK}\" = \"YES\" ] && [ -e \"${PLATFORM_DIR}/Developer/usr/lib/lib_TestingInterop.dylib\" ]; then",
+				"    ditto \"${PLATFORM_DIR}/Developer/usr/lib/lib_TestingInterop.dylib\" \"${BUILT_PRODUCTS_DIR}/lib_TestingInterop.dylib\"",
 				"fi",
 				"",
 			);

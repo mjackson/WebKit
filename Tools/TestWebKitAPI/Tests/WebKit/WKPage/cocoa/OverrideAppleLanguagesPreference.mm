@@ -43,10 +43,10 @@ TEST(WebKit, OverrideAppleLanguagesPreference)
 
     [[NSUserDefaults standardUserDefaults] setVolatileDomain:dict forName:NSArgumentDomain];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     configuration.get().processPool = (WKProcessPool *)context.get();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     auto preferredLanguage = [&] {
         return [webView stringByEvaluatingJavaScript:@"window.internals.userPreferredLanguages()[0]"];
@@ -64,8 +64,8 @@ TEST(WebKit, OverrideAppleLanguagesPreferenceAffectsNavigatorLanguage)
     };
     [[NSUserDefaults standardUserDefaults] setVolatileDomain:dict forName:NSArgumentDomain];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     EXPECT_WK_STREQ("en-GB", [webView stringByEvaluatingJavaScript:@"window.navigator.language"]);
 }
@@ -78,10 +78,10 @@ public:
     AppleLanguagesTest()
     {
         // Save current system language to restore it later.
-        auto task = adoptNS([[NSTask alloc] init]);
+        RetainPtr task = adoptNS([[NSTask alloc] init]);
         [task setLaunchPath:@"/usr/bin/defaults"];
         [task setArguments:@[@"read", @"NSGlobalDomain", @"AppleLanguages"]];
-        auto pipe = adoptNS([[NSPipe alloc] init]);
+        RetainPtr pipe = adoptNS([[NSPipe alloc] init]);
         [task setStandardOutput:pipe.get()];
         auto fileHandle = [pipe fileHandleForReading];
         [task launch];
@@ -147,8 +147,8 @@ TEST_F(AppleLanguagesTest, DISABLED_UpdateAppleLanguages)
         TestWebKitAPI::Util::runFor(0.1_s);
     EXPECT_WK_STREQ(@"en-GB", getLanguageFromNSUserDefaults());
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
     // We only listen for preference changes when the application is active.

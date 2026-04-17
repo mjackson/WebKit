@@ -74,7 +74,7 @@ public:
     void abort();
     // Only responses that meet all of the following requirements will be processed:
     // 1) it has the same origin as the request;
-    // 2) it has a status code of 302 or 200.
+    // 2) it has a status code of 200, 302, 307 (POST only), or 401 (with non-empty body).
     // Otherwise, it falls back to the web path.
     // Only the following HTTP headers will be processed:
     // { Set-Cookie, Location }.

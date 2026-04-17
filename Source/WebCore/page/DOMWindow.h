@@ -229,7 +229,7 @@ public:
     bool isCurrentlyDisplayedInFrame() const;
     void printErrorMessage(const String&) const;
     String crossDomainAccessErrorMessage(const LocalDOMWindow& activeWindow, IncludeTargetOrigin);
-    bool isInsecureScriptAccess(const LocalDOMWindow& activeWindow, const String& urlString);
+    bool isInsecureScriptAccess(const LocalDOMWindow& activeWindow, const URL&);
 
 protected:
     bool passesSetLocationSecurityChecks(const LocalDOMWindow& activeWindow, const URL& completedURL, CanNavigateState& navigationState);

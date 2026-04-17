@@ -48,8 +48,8 @@ namespace TestWebKitAPI {
 TEST(WebKitLegacy, StopLoadingFromDidFinishLoading)
 {
     @autoreleasepool {
-        auto webView = adoptNS([[WebView alloc] init]);
-        auto resourceLoadDelegate = adoptNS([[StopLoadingFromDidFinishLoadingDelegate alloc] init]);
+        RetainPtr webView = adoptNS([[WebView alloc] init]);
+        RetainPtr resourceLoadDelegate = adoptNS([[StopLoadingFromDidFinishLoadingDelegate alloc] init]);
         webView.get().resourceLoadDelegate = resourceLoadDelegate.get();
         [webView.get().mainFrame loadHTMLString:@"Hello, World!" baseURL:[NSURL URLWithString:@""]];
         Util::run(&finished);

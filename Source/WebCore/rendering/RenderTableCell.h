@@ -146,8 +146,6 @@ private:
     void styleDidChange(Style::Difference, const RenderStyle* oldStyle) override;
     void computePreferredLogicalWidths() override;
 
-    LayoutRect frameRectForStickyPositioning() const override;
-
     LayoutUnit containingBlockLogicalWidthForContent() const override;
 
     static RenderPtr<RenderTableCell> createTableCellWithStyle(Document&, const RenderStyle&);

@@ -412,9 +412,9 @@ static std::pair<GridPosition, GridPosition> adjustGridPositionsFromStyle(const 
         finalPosition = CSS::Keyword::Auto { };
 
     // If the grid item has an automatic position and a grid span for a named line in a given dimension, instead treat the grid span as one.
-    if (initialPosition.isAuto() && finalPosition.isSpan() && !finalPosition.namedGridLine().isNull())
+    if (initialPosition.isAuto() && finalPosition.isSpan() && !finalPosition.namedGridLine().value.isNull())
         finalPosition = GridPosition::Span { { 1 } };
-    if (finalPosition.isAuto() && initialPosition.isSpan() && !initialPosition.namedGridLine().isNull())
+    if (finalPosition.isAuto() && initialPosition.isSpan() && !initialPosition.namedGridLine().value.isNull())
         initialPosition = GridPosition::Span { { 1 } };
 
     if (isIndefiniteSpan(initialPosition, finalPosition)) {

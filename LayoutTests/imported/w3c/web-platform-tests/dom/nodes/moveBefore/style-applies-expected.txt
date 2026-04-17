@@ -1,0 +1,3 @@
+
+FAIL Moving a style inside the document should not affect whether it's applied promise_test: Unhandled rejection with value: object "TypeError: document.body.moveBefore is not a function. (In 'document.body.moveBefore(link, null)', 'document.body.moveBefore' is undefined)"
+

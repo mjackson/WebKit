@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,6 +26,7 @@
 #include "config.h"
 #include "ScopedName.h"
 
+#include "CSSStringValue.h"
 #include "StyleBuilderChecking.h"
 #include <wtf/text/TextStream.h>
 
@@ -36,17 +37,12 @@ namespace Style {
 
 auto CSSValueConversion<ScopedName>::operator()(BuilderState& state, const CSSValue& value) -> ScopedName
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        if (primitiveValue->isString()) {
-            return ScopedName {
-                .name = AtomString { primitiveValue->string() },
-                .scopeOrdinal = state.styleScopeOrdinal(),
-                .isIdentifier = false,
-            };
-        }
-
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return ScopedName { nullAtom() };
+    if (RefPtr stringValue = dynamicDowncast<CSSStringValue>(value)) {
+        return ScopedName {
+            .name = AtomString { toStyleFromCSSValue<String>(state, value).value },
+            .scopeOrdinal = state.styleScopeOrdinal(),
+            .isIdentifier = false,
+        };
     }
 
     return ScopedName {

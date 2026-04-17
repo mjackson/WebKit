@@ -29,7 +29,6 @@
 #include "ArgList.h"
 #include "BuiltinNames.h"
 #include "JSCInlines.h"
-#include "JSInternalPromise.h"
 #include "JSModuleEnvironment.h"
 #include "JSModuleNamespaceObject.h"
 #include "JSONObject.h"

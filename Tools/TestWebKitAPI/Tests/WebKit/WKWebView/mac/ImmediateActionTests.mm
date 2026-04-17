@@ -71,7 +71,7 @@ TEST(ImmediateActionTests, ImmediateActionOverText)
 {
     swizzlePresentingContextInitialization();
 
-    auto webView = adoptNS([[WKWebViewForTestingImmediateActions alloc] initWithFrame:NSMakeRect(0, 0, 500, 500)]);
+    RetainPtr webView = adoptNS([[WKWebViewForTestingImmediateActions alloc] initWithFrame:NSMakeRect(0, 0, 500, 500)]);
     [webView synchronouslyLoadHTMLString:@"<div style='font-size: 32px;'>Foobar</div>"];
 
     auto [hitTestResult, actionType] = [webView simulateImmediateAction:NSMakePoint(16, 16)];
@@ -83,7 +83,7 @@ TEST(ImmediateActionTests, ImmediateActionOverText)
 
 TEST(ImmediateActionTests, ImmediateActionOverBody)
 {
-    auto webView = adoptNS([[WKWebViewForTestingImmediateActions alloc] initWithFrame:NSMakeRect(0, 0, 500, 500)]);
+    RetainPtr webView = adoptNS([[WKWebViewForTestingImmediateActions alloc] initWithFrame:NSMakeRect(0, 0, 500, 500)]);
     [webView synchronouslyLoadHTMLString:@"<div style='font-size: 32px;'>Foobar</div>"];
 
     auto [hitTestResult, actionType] = [webView simulateImmediateAction:NSMakePoint(490, 490)];
@@ -97,7 +97,7 @@ TEST(ImmediateActionTests, ImmediateActionOverBody)
 TEST(ImmediateActionTests, ImmediateActionOverImageOverlay)
 {
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[WKWebViewForTestingImmediateActions alloc] initWithFrame:NSMakeRect(0, 0, 500, 500) configuration:configuration]);
+    RetainPtr webView = adoptNS([[WKWebViewForTestingImmediateActions alloc] initWithFrame:NSMakeRect(0, 0, 500, 500) configuration:configuration]);
     [webView synchronouslyLoadTestPageNamed:@"simple-image-overlay"];
 
     auto [hitTestResult, actionType] = [webView simulateImmediateAction:NSMakePoint(50, 50)];

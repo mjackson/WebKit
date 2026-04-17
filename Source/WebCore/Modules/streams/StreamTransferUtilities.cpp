@@ -36,8 +36,11 @@
 #include "StructuredSerializeOptions.h"
 #include "WritableStream.h"
 #include "WritableStreamSink.h"
+#include <JavaScriptCore/JSCJSValueInlines.h>
+#include <JavaScriptCore/JSObjectInlines.h>
 #include <JavaScriptCore/JSString.h>
 #include <JavaScriptCore/ObjectConstructor.h>
+#include <JavaScriptCore/StrongInlines.h>
 
 namespace WebCore {
 

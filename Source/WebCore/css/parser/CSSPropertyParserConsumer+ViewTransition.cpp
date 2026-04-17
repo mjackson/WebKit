@@ -29,6 +29,7 @@
 #include "CSSCustomIdentValue.h"
 #include "CSSParserTokenRange.h"
 #include "CSSPropertyParserConsumer+Ident.h"
+#include "CSSPropertyParserConsumer+List.h"
 #include "CSSValueKeywords.h"
 #include "CSSValueList.h"
 

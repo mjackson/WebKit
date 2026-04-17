@@ -11,6 +11,7 @@ list(APPEND WTF_LIBRARIES
 
 list(APPEND WTF_SOURCES
     BlockObjCExceptions.mm
+    ObjCRuntimeExtras.mm
     ProcessPrivilege.cpp
     TranslatedProcess.cpp
 
@@ -21,6 +22,7 @@ list(APPEND WTF_SOURCES
     cf/SchedulePairCF.cpp
     cf/URLCF.cpp
 
+    cocoa/AuditToken.mm
     cocoa/AutodrainedPool.cpp
     cocoa/CrashReporter.cpp
     cocoa/Entitlements.mm
@@ -33,10 +35,12 @@ list(APPEND WTF_SOURCES
     cocoa/MemoryPressureHandlerCocoa.mm
     cocoa/NSURLExtras.mm
     cocoa/ResourceUsageCocoa.cpp
-    cocoa/RuntimeApplicationChecksCocoa.cpp
+    cocoa/RuntimeApplicationChecksCocoa.mm
     cocoa/SchedulePairCocoa.mm
+    cocoa/SpanCocoa.mm
     cocoa/SystemTracingCocoa.cpp
     cocoa/URLCocoa.mm
+    cocoa/UUIDCocoa.mm
     cocoa/WorkQueueCocoa.cpp
 
     darwin/LibraryPathDiagnostics.mm
@@ -62,9 +66,13 @@ list(APPEND WTF_SOURCES
     text/cocoa/StringImplCocoa.mm
     text/cocoa/StringViewCocoa.mm
     text/cocoa/TextBreakIteratorInternalICUCocoa.cpp
+    text/cocoa/TextStreamCocoa.mm
 )
 
 list(APPEND WTF_PUBLIC_HEADERS
+    PlatformEnableCocoa.h
+    module.modulemap
+
     cf/CFTypeTraits.h
     cf/CFURLExtras.h
     cf/NotificationCenterCF.h
@@ -83,6 +91,10 @@ list(APPEND WTF_PUBLIC_HEADERS
     darwin/OSLogPrintStream.h
     darwin/WeakLinking.h
     darwin/XPCExtras.h
+
+    ios/WebCoreThread.h
+
+    posix/SocketPOSIX.h
 
     spi/cf/CFBundleSPI.h
     spi/cf/CFStringSPI.h

@@ -121,6 +121,9 @@ struct QuirksData {
         NeedsVP9FullRangeFlagQuirk,
         NeedsVideoShouldMaintainAspectRatioQuirk,
         NeedsWebKitMediaTextTrackDisplayQuirk,
+#if PLATFORM(COCOA)
+        NeedsYouTubeCaptionQuirk,
+#endif
 #if ENABLE(TWO_PHASE_CLICKS)
         NeedsYouTubeMouseOutQuirk,
 #endif
@@ -208,6 +211,7 @@ struct QuirksData {
 #if ENABLE(META_VIEWPORT)
         ShouldIgnoreViewportArgumentsToAvoidExcessiveZoomQuirk,
         ShouldIgnoreViewportArgumentsToAvoidEnlargedViewQuirk,
+        ShouldUseDynamicViewportUnitsAsDefaultQuirk,
 #endif
         ShouldLayOutAtMinimumWindowWidthWhenIgnoringScalingConstraintsQuirk,
 #if PLATFORM(IOS_FAMILY)
@@ -250,6 +254,7 @@ struct QuirksData {
         NeedsChromeOSNavigatorUserAgentQuirk,
 #endif
         ShouldLimitHLSPlaybackRate,
+        ShouldDeferIntersectionObserversDuringResize,
 
         NumberOfQuirks
     };
@@ -371,6 +376,7 @@ struct QuirksData {
     enum class ShouldDispatchSimulatedMouseEvents : uint8_t {
         Unknown,
         No,
+        DependingOnTargetForFacebook,
         DependingOnTargetFor_mybinder_org,
         Yes,
     };

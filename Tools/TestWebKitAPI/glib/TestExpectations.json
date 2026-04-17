@@ -145,6 +145,9 @@
             "/webkit/WebKitFaviconDatabase/get-favicon": {
                 "expected": {"gtk": {"status": ["FAIL", "PASS"], "bug": "webkit.org/b/310428"}}
             },
+            "/webkit/WebKitFaviconDatabase/ephemeral": {
+                "expected": {"gtk": {"status": ["FAIL", "PASS"], "bug": "webkit.org/b/310428"}}
+            },
             "/webkit/WebKitFaviconDatabase/get-page-icons": {
                 "expected": {"gtk": {"status": ["FAIL", "PASS"], "bug": "webkit.org/b/311105"}}
             }

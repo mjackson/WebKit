@@ -35,7 +35,7 @@
 
 TEST(SelectionTests, ByWordAtEndOfDocument)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] init]);
 
     [webView synchronouslyLoadHTMLString:@"<body><p>Paragraph One</p><p style='-webkit-user-select: none'>Paragraph Two</p><p>Paragraph Three</p><p></p></body>"];
 
@@ -57,7 +57,7 @@ TEST(SelectionTests, ByWordAtEndOfDocument)
 
 TEST(SelectionTests, SelectWordForReplacementWithDictationAlternative)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 320)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 320)]);
     [webView synchronouslyLoadTestPageNamed:@"editable-responsive-body"];
 
     auto contentView = [webView textInputContentView];
@@ -65,7 +65,7 @@ TEST(SelectionTests, SelectWordForReplacementWithDictationAlternative)
     [contentView insertText:@"foo bar"];
     [webView waitForNextPresentationUpdate];
 
-    auto alternatives = adoptNS([[NSTextAlternatives alloc] initWithPrimaryString:@"foo bar" alternativeStrings:@[ @"baz" ]]);
+    RetainPtr alternatives = adoptNS([[NSTextAlternatives alloc] initWithPrimaryString:@"foo bar" alternativeStrings:@[ @"baz" ]]);
     [[webView textInputContentView] addTextAlternatives:alternatives.get()];
     [[webView textInputContentView] selectWordForReplacement];
     [webView waitForNextPresentationUpdate];

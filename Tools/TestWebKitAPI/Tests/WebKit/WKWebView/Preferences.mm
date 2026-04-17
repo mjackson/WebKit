@@ -70,9 +70,9 @@ TEST(WebKit, ExperimentalFeatures)
 TEST(WebKit, WebAudioPreference)
 {
     auto check = [](bool value) {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         [configuration preferences]._webAudioEnabled = value;
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
         __block bool done = false;
         __block RetainPtr<NSString> result;
         [webView evaluateJavaScript:@"new Boolean(window.AudioContext).toString()" completionHandler:^(id resultFromJS, NSError *error) {
@@ -114,16 +114,16 @@ static bool receivedAlert;
 TEST(WebKit, WebGLEnabled)
 {
     NSString *html = @"<script>if(document.createElement('canvas').getContext('webgl')){alert('enabled')}else{alert('disabled')}</script>";
-    auto delegate = adoptNS([[AlertSaver alloc] init]);
+    RetainPtr delegate = adoptNS([[AlertSaver alloc] init]);
 
-    auto webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView loadHTMLString:html baseURL:nil];
     TestWebKitAPI::Util::run(&receivedAlert);
     EXPECT_STREQ([delegate alert].UTF8String, "enabled");
 
     receivedAlert = false;
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration preferences] _setWebGLEnabled:NO];
     webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setUIDelegate:delegate.get()];

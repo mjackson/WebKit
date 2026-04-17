@@ -63,7 +63,7 @@ TEST(Preconnect, HTTP)
             requested = true;
         });
     });
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView _preconnectToServer:server.request().URL];
     Util::run(&connected);
     Util::spinRunLoop(10);
@@ -86,7 +86,7 @@ TEST(Preconnect, ConnectionCount)
             requested = true;
         });
     });
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
 
     [webView _preconnectToServer:server.request().URL];
     Util::run(&anyConnections);
@@ -111,8 +111,8 @@ TEST(Preconnect, HTTPS)
             requested = true;
         });
     }, HTTPServer::Protocol::Https);
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     [delegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         receivedChallenge = true;
@@ -164,7 +164,7 @@ TEST(Preconnect, H2Ping)
         pingPong(H2::Connection::create(tlsConnection), headersCount);
     }, HTTPServer::Protocol::Http2);
     
-    auto delegate = adoptNS([SessionDelegate new]);
+    RetainPtr delegate = adoptNS([SessionDelegate new]);
     NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration ephemeralSessionConfiguration] delegate:delegate.get() delegateQueue:[NSOperationQueue mainQueue]];
     NSURLSessionDataTask *task = [session dataTaskWithRequest:server.request()];
     task._preconnect = YES;
@@ -205,9 +205,9 @@ TEST(Preconnect, H2PingFromWebCoreNSURLSession)
     }, HTTPServer::Protocol::Http2);
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     __block bool receivedChallenge = false;
     [delegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodServerTrust);
@@ -232,9 +232,9 @@ static void verifyPreconnectDisabled(void(*disabler)(WKWebViewConfiguration *))
     NSString *html = [NSString stringWithFormat:@"<link rel='preconnect' href='http://127.0.0.1:%d'>", server.port()];
 
     {
-        auto configuration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
         disabler(configuration.get());
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
         [webView loadHTMLString:html baseURL:nil];
         [webView _test_waitForDidFinishNavigation];
         Util::spinRunLoop(10);
@@ -244,7 +244,7 @@ static void verifyPreconnectDisabled(void(*disabler)(WKWebViewConfiguration *))
     }
 
     {
-        auto webView = adoptNS([WKWebView new]);
+        RetainPtr webView = adoptNS([WKWebView new]);
         [webView loadHTMLString:html baseURL:nil];
         [webView _test_waitForDidFinishNavigation];
         while (connectionCount != 1)
@@ -281,11 +281,11 @@ TEST(Preconnect, PrivacyProxyRequestFlags)
         | _WKWebsiteNetworkConnectionIntegrityPolicyFailClosed
         | _WKWebsiteNetworkConnectionIntegrityPolicyRequestValidation;
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration defaultWebpagePreferences]._networkConnectionIntegrityPolicy = policies;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
-    auto request = adoptNS(server.request().mutableCopy);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr request = adoptNS(server.request().mutableCopy);
     [request _setPrivacyProxyFailClosedForUnreachableHosts:YES];
     [request _setUseEnhancedPrivacyMode:YES];
     [webView loadRequest:request.get()];

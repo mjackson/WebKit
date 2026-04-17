@@ -42,7 +42,7 @@ struct ResolvedComputedPseudoElement {
     std::optional<PseudoElementIdentifier> identifier;
 };
 
-ResolvedComputedPseudoElement resolveComputedPseudoElement(Element&, const String& pseudoElement);
+ResolvedComputedPseudoElement resolveComputedPseudoElement(Element&, const WTF::String& pseudoElement);
 
 bool pseudoElementRendererIsNeeded(const RenderStyle&);
 

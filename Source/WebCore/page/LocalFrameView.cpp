@@ -4013,6 +4013,11 @@ bool LocalFrameView::renderedCharactersExceed(unsigned threshold)
 void LocalFrameView::availableContentSizeChanged(AvailableSizeChangeReason reason)
 {
     if (RefPtr document = m_frame->document()) {
+        if (document->quirks().shouldDeferIntersectionObserversDuringResize()) {
+            if (RefPtr page = m_frame->page())
+                page->recordResizeForIntersectionObserverQuirk();
+        }
+
         // FIXME: Merge this logic with m_setNeedsLayoutWasDeferred and find a more appropriate
         // way of handling potential recursive layouts when the viewport is resized to accomodate
         // the content but the content always overflows the viewport. See webkit.org/b/165781.
@@ -6885,6 +6890,9 @@ void LocalFrameView::setOverrideSizeForCSSDefaultViewportUnits(OverrideViewportS
 
 FloatSize LocalFrameView::sizeForCSSDefaultViewportUnits() const
 {
+    if (m_shouldUseDynamicViewportUnitsAsDefault)
+        return sizeForCSSDynamicViewportUnits();
+
     return calculateSizeForCSSViewportUnitsOverride(m_defaultViewportSizeOverride);
 }
 

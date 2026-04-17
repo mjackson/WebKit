@@ -52,9 +52,9 @@ TEST(WebKitLegacy, ScheduleInRunLoop)
 {
     const size_t webViewCount = 50;
     Vector<RetainPtr<WebView>> webViews;
-    auto delegate = adoptNS([[ScheduleInRunLoopDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[ScheduleInRunLoopDelegate alloc] init]);
     for (size_t i = 0; i < webViewCount; ++i) {
-        auto webView = adoptNS([[WebView alloc] init]);
+        RetainPtr webView = adoptNS([[WebView alloc] init]);
         [webView setFrameLoadDelegate:delegate.get()];
         [webView unscheduleFromRunLoop:[NSRunLoop currentRunLoop] forMode:(NSString *)kCFRunLoopCommonModes];
         [webView scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:@"TestRunLoopMode"];

@@ -30,6 +30,7 @@
 #include "CSSParserContext.h"
 #include "CSSParserTokenRange.h"
 #include "CSSPrimitiveValue.h"
+#include "CSSPropertyIdentifierValue.h"
 #include "CSSPropertyParserConsumer+Ident.h"
 #include "CSSValueList.h"
 
@@ -45,10 +46,10 @@ static RefPtr<CSSValue> consumeSingleTransitionPropertyIdent(CSSParserTokenRange
             return consumeIdent(range);
         if (auto property = token.parseAsCSSPropertyID()) {
             range.consumeIncludingWhitespace();
-            return CSSPrimitiveValue::create(property);
+            return CSSPropertyIdentifierValue::create(CSS::PropertyIdentifier { property });
         }
     }
-    return consumeCustomIdent(range, state);
+    return consumeCustomIdentExcluding(range, state, { CSSValueNone, CSSValueAll });
 }
 
 RefPtr<CSSValue> consumeSingleTransitionPropertyOrNone(CSSParserTokenRange& range, CSS::PropertyParserState& state)

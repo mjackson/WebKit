@@ -385,6 +385,7 @@
 #include <wtf/UUID.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuffer.h>
+#include <wtf/text/TextPosition.h>
 #include <wtf/text/TextStream.h>
 
 #if ENABLE(APP_HIGHLIGHTS)
@@ -442,6 +443,7 @@
 
 #if ENABLE(VIDEO)
 #include "CaptionUserPreferences.h"
+#include "LazyLoadVideoObserver.h"
 #endif
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
@@ -3537,8 +3539,10 @@ void Document::destroyRenderTree()
         while (m_renderView->firstChild())
             builder.destroy(*m_renderView->firstChild());
 
-        if (RefPtr view = this->view())
+        if (RefPtr view = this->view()) {
             view->layoutContext().deleteDetachedRenderersNow();
+            view->layoutContext().deleteDetachedInlineContentNow();
+        }
 
         m_renderView->destroy();
     }
@@ -4890,9 +4894,12 @@ void Document::processBaseElement()
     if (!href.isNull())
         baseElementURL = completeURL(href, fallbackBaseURL());
     if (m_baseElementURL != baseElementURL) {
-        if (!protect(contentSecurityPolicy())->allowBaseURI(baseElementURL))
+        if (settings().shouldRestrictBaseURLSchemes() && !baseElementURL.isEmpty() && !baseElementURL.isValid()) {
             m_baseElementURL = { };
-        else if (settings().shouldRestrictBaseURLSchemes() && !SecurityPolicy::isBaseURLSchemeAllowed(baseElementURL)) {
+            addConsoleMessage(MessageSource::Security, MessageLevel::Error, makeString("Blocked setting "_s, baseElementURL.stringCenterEllipsizedToLength(), " as the base URL because it is not a valid URL."_s));
+        } else if (!protect(contentSecurityPolicy())->allowBaseURI(baseElementURL))
+            m_baseElementURL = { };
+        else if (settings().shouldRestrictBaseURLSchemes() && !baseElementURL.isEmpty() && !SecurityPolicy::isBaseURLSchemeAllowed(baseElementURL)) {
             m_baseElementURL = { };
             addConsoleMessage(MessageSource::Security, MessageLevel::Error, makeString("Blocked setting "_s, baseElementURL.stringCenterEllipsizedToLength(), " as the base URL because it does not have an allowed scheme."_s));
         } else
@@ -11482,6 +11489,15 @@ LazyLoadModelObserver& Document::lazyLoadModelObserver()
 }
 #endif
 
+#if ENABLE(VIDEO)
+LazyLoadVideoObserver& Document::lazyLoadVideoObserver()
+{
+    if (!m_lazyLoadVideoObserver)
+        m_lazyLoadVideoObserver = makeUnique<LazyLoadVideoObserver>();
+    return *m_lazyLoadVideoObserver;
+}
+#endif
+
 CrossOriginOpenerPolicy Document::crossOriginOpenerPolicy() const
 {
     if (isTopDocument())
@@ -12075,6 +12091,14 @@ void Document::updateCachedSetInnerHTML(const String& sourceString, ContainerNod
     cache.cachedContainer = &container;
     cache.contextElementName = contextElement.elementName();
     container.clearDidMutateSubtreeAfterSetInnerHTML();
+}
+
+std::optional<TextPosition> Document::currentParserSourcePosition() const
+{
+    if (scriptableDocumentParser() && !isInDocumentWrite())
+        return { scriptableDocumentParser()->textPosition() };
+
+    return { };
 }
 
 } // namespace WebCore

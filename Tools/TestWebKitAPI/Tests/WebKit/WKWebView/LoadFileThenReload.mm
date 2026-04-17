@@ -55,9 +55,9 @@
 
 TEST(WKWebView, LoadFileThenReload)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto delegate = adoptNS([[LoadFileThenReloadDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[LoadFileThenReloadDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURL *file = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];

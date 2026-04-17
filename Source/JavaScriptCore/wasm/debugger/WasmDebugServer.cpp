@@ -104,11 +104,11 @@ bool DebugServer::start()
 }
 
 #if ENABLE(REMOTE_INSPECTOR)
-bool DebugServer::startRWI(Function<bool(const String&)>&& rwiResponseHandler)
+void DebugServer::startRWI(Function<bool(const String&)>&& rwiResponseHandler)
 {
     if (isState(State::Running) || isState(State::Starting)) {
         dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Server already running or is starting");
-        return true;
+        return;
     }
 
     setState(State::Starting);
@@ -123,7 +123,6 @@ bool DebugServer::startRWI(Function<bool(const String&)>&& rwiResponseHandler)
 
     setState(State::Running);
     dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Wasm Debug Server started in RWI mode (WorkQueue-based)");
-    return true;
 }
 #endif
 

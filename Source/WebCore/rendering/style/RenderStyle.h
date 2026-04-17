@@ -392,7 +392,7 @@ public:
 
     // MARK: - Used Values
 
-    const AtomString& hyphenString() const LIFETIME_BOUND;
+    const String& hyphenString() const LIFETIME_BOUND;
     float usedStrokeWidth(const IntSize& viewportSize) const;
     Color usedStrokeColor() const;
     Color usedStrokeColorApplyingColorFilter() const;

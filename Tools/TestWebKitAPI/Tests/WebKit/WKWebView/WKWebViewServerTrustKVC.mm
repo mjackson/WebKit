@@ -30,6 +30,6 @@
 
 TEST(WKWebView, ServerTrustKVC)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
     EXPECT_NULL([webView valueForKey:@"serverTrust"]);
 }

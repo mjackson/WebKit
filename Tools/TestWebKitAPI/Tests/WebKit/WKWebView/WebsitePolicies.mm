@@ -115,7 +115,7 @@ static size_t alertCount;
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction preferences:(WKWebpagePreferences *)preferences decisionHandler:(void (^)(WKNavigationActionPolicy, WKWebpagePreferences *))decisionHandler
 {
-    auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     switch (alertCount) {
     case 0:
         // Verify the content blockers behave correctly with the default behavior.
@@ -149,7 +149,7 @@ TEST(WebpagePreferences, WebsitePoliciesContentBlockersEnabled)
 {
     [[WKContentRuleListStore defaultStore] _removeAllContentRuleLists];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     doneCompiling = false;
     NSString* contentBlocker = @"[{\"action\":{\"type\":\"css-display-none\",\"selector\":\".hidden\"},\"trigger\":{\"url-filter\":\".*\"}}]";
@@ -160,9 +160,9 @@ TEST(WebpagePreferences, WebsitePoliciesContentBlockersEnabled)
     }];
     TestWebKitAPI::Util::run(&doneCompiling);
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[ContentBlockingWebsitePoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[ContentBlockingWebsitePoliciesDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
 
@@ -199,7 +199,7 @@ TEST(WebpagePreferences, WebsitePoliciesContentBlockersEnabled)
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction preferences:(WKWebpagePreferences *)preferences decisionHandler:(void (^)(WKNavigationActionPolicy, WKWebpagePreferences *))decisionHandler
 {
-    auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     if (_allowedAutoplayQuirksForURL)
         [websitePolicies _setAllowedAutoplayQuirks:_allowedAutoplayQuirksForURL(navigationAction.request.URL)];
     if (_autoplayPolicyForURL)
@@ -232,7 +232,7 @@ TEST(WebpagePreferences, WebsitePoliciesContentBlockersEnabled)
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction preferences:(WKWebpagePreferences *)preferences decisionHandler:(void (^)(WKNavigationActionPolicy, WKWebpagePreferences *))decisionHandler
 {
     dispatch_async(mainDispatchQueueSingleton(), ^{
-        auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+        RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
         if (_allowedAutoplayQuirksForURL)
             [websitePolicies _setAllowedAutoplayQuirks:_allowedAutoplayQuirksForURL(navigationAction.request.URL)];
         if (_autoplayPolicyForURL)
@@ -267,16 +267,16 @@ TEST(WebpagePreferences, WebsitePoliciesContentBlockersEnabled)
 
 TEST(WebpagePreferences, WebsitePoliciesAutoplayEnabled)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
 #if PLATFORM(IOS_FAMILY)
     configuration.get().allowsInlineMediaPlayback = YES;
     configuration.get()._inlineMediaPlaybackRequiresPlaysInlineAttribute = NO;
 #endif
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *requestWithAudio = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"autoplay-check" withExtension:@"html"]];
@@ -314,7 +314,7 @@ TEST(WebpagePreferences, WebsitePoliciesAutoplayEnabled)
     [webView waitForMessage:@"did-not-play"];
 
     // Test updating website policies.
-    auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     [websitePolicies _setAutoplayPolicy:_WKWebsiteAutoplayPolicyAllow];
     [webView _updateWebpagePreferences:websitePolicies.get()];
     [webView stringByEvaluatingJavaScript:@"playVideo()"];
@@ -369,10 +369,10 @@ static void runUntilReceivesAutoplayEvent(_WKAutoplayEvent event)
 #if PLATFORM(MAC)
 TEST(WebpagePreferences, WebsitePoliciesPlayAfterPreventedAutoplay)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 336, 276) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 336, 276) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
     [delegate setAutoplayPolicyForURL:^(NSURL *) {
         return _WKWebsiteAutoplayPolicyDeny;
     }];
@@ -441,15 +441,15 @@ TEST(WebpagePreferences, WebsitePoliciesPlayAfterPreventedAutoplay)
 
 TEST(WebpagePreferences, WebsitePoliciesPlayingWithUserGesture)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 #if PLATFORM(IOS_FAMILY)
     configuration.get().allowsInlineMediaPlayback = YES;
     configuration.get()._inlineMediaPlaybackRequiresPlaysInlineAttribute = NO;
 #endif
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
     [delegate setAutoplayPolicyForURL:^(NSURL *) {
         return _WKWebsiteAutoplayPolicyAllow;
     }];
@@ -497,15 +497,15 @@ TEST(WebpagePreferences, WebsitePoliciesPlayingWithUserGesture)
 
 TEST(WebpagePreferences, WebsitePoliciesPlayingWithoutInterference)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 #if PLATFORM(IOS_FAMILY)
     configuration.get().allowsInlineMediaPlayback = YES;
     configuration.get()._inlineMediaPlaybackRequiresPlaysInlineAttribute = NO;
 #endif
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 336, 276) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 336, 276) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
     [delegate setAutoplayPolicyForURL:^(NSURL *) {
         return _WKWebsiteAutoplayPolicyAllow;
     }];
@@ -521,15 +521,15 @@ TEST(WebpagePreferences, WebsitePoliciesPlayingWithoutInterference)
 
 TEST(WebpagePreferences, WebsitePoliciesUserInterferenceWithPlaying)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 #if PLATFORM(IOS_FAMILY)
     configuration.get().allowsInlineMediaPlayback = YES;
     configuration.get()._inlineMediaPlaybackRequiresPlaysInlineAttribute = NO;
 #endif
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 336, 276) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 336, 276) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
     [delegate setAutoplayPolicyForURL:^(NSURL *) {
         return _WKWebsiteAutoplayPolicyAllow;
     }];
@@ -582,10 +582,10 @@ TEST(WebpagePreferences, WebsitePoliciesUserInterferenceWithPlaying)
 #if PLATFORM(MAC)
 TEST(WebpagePreferences, WebsitePoliciesPerDocumentAutoplayBehaviorMediaLoading)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool receivedLoadedEvent = false;
@@ -622,9 +622,9 @@ TEST(WebpagePreferences, WebsitePoliciesPerDocumentAutoplayBehaviorMediaLoading)
 
 TEST(WebpagePreferences, WebsitePoliciesWithBridgingCast)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 336, 276) configuration:configuration.get()]);
-    auto delegate = adoptNS([[WebsitePoliciesNavigationDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 336, 276) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[WebsitePoliciesNavigationDelegate alloc] init]);
 
     __block bool didInvokeDecisionHandler = false;
     [delegate setDecidePolicyForNavigationActionWithWebsitePolicies:^(WKNavigationAction *, WKWebpagePreferences *, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
@@ -705,7 +705,7 @@ struct ParsedRange {
     auto& range = *parsedRange.range;
     
     NSDictionary *headerFields = @{ @"Content-Length": [@(range.second - range.first + 1) stringValue], @"Content-Range": [NSString stringWithFormat:@"bytes %lu-%lu/%lu", range.first, range.second, [videoData length]] };
-    auto response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:task.request.URL statusCode:200 HTTPVersion:(NSString *)kCFHTTPVersion1_1 headerFields:headerFields]);
+    RetainPtr response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:task.request.URL statusCode:200 HTTPVersion:(NSString *)kCFHTTPVersion1_1 headerFields:headerFields]);
     [task didReceiveResponse:response.get()];
     [task didReceiveData:[videoData subdataWithRange:NSMakeRange(range.first, range.second - range.first + 1)]];
     [task didFinish];
@@ -720,12 +720,12 @@ struct ParsedRange {
 
 TEST(WebpagePreferences, WebsitePoliciesDuringRedirect)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto videoData = adoptNS([[NSData alloc] initWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"test" withExtension:@"mp4"]]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr videoData = adoptNS([[NSData alloc] initWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"test" withExtension:@"mp4"]]);
     [configuration setURLSchemeHandler:adoptNS([[TestSchemeHandler alloc] initWithVideoData:WTF::move(videoData)]).get() forURLScheme:@"test"];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     
-    auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
     [delegate setAutoplayPolicyForURL:^(NSURL *url) {
         if ([url.path isEqualToString:@"/should-redirect"])
             return _WKWebsiteAutoplayPolicyDeny;
@@ -741,14 +741,14 @@ TEST(WebpagePreferences, WebsitePoliciesDuringRedirect)
 
 TEST(WebpagePreferences, WebsitePoliciesUpdates)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 #if PLATFORM(IOS_FAMILY)
     configuration.get().allowsInlineMediaPlayback = YES;
     configuration.get()._inlineMediaPlaybackRequiresPlaysInlineAttribute = NO;
 #endif
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
 
@@ -760,7 +760,7 @@ TEST(WebpagePreferences, WebsitePoliciesUpdates)
     [webView loadRequest:requestWithAudio];
     [webView waitForMessage:@"did-not-play"];
 
-    auto policies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr policies = adoptNS([[WKWebpagePreferences alloc] init]);
     [policies _setAutoplayPolicy:_WKWebsiteAutoplayPolicyAllow];
     [webView _updateWebpagePreferences:policies.get()];
 
@@ -770,7 +770,7 @@ TEST(WebpagePreferences, WebsitePoliciesUpdates)
 
     [webView stringByEvaluatingJavaScript:@"pauseVideo()"];
 
-    auto preferences = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr preferences = adoptNS([[WKWebpagePreferences alloc] init]);
     [preferences _setAutoplayPolicy:_WKWebsiteAutoplayPolicyDeny];
     [webView _updateWebpagePreferences:preferences.get()];
 
@@ -783,10 +783,10 @@ TEST(WebpagePreferences, WebsitePoliciesUpdates)
 #if PLATFORM(MAC)
 TEST(WebpagePreferences, WebsitePoliciesAutoplayQuirks)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     configuration.get().preferences._needsSiteSpecificQuirks = YES;
@@ -839,9 +839,9 @@ TEST(WebpagePreferences, WebsitePoliciesAutoplayQuirks)
 TEST(WebpagePreferences, WebsitePoliciesPerDocumentAutoplayBehaviorQuirks)
 {
     auto* configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
 
-    auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     configuration.preferences._needsSiteSpecificQuirks = YES;
@@ -910,15 +910,15 @@ TEST(WebpagePreferences, WebsitePoliciesPerDocumentAutoplayBehaviorQuirks)
 
 TEST(WebpagePreferences, WebsitePoliciesAutoplayQuirksAsyncPolicyDelegate)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 #if PLATFORM(IOS_FAMILY)
     configuration.get().allowsInlineMediaPlayback = YES;
     configuration.get()._inlineMediaPlaybackRequiresPlaysInlineAttribute = NO;
 #endif
     [configuration preferences].siteSpecificQuirksModeEnabled = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[AsyncAutoplayPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[AsyncAutoplayPoliciesDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *requestWithAudio = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"autoplay-check" withExtension:@"html"]];
@@ -953,7 +953,7 @@ TEST(WebpagePreferences, WebsitePoliciesAutoplayQuirksAsyncPolicyDelegate)
 
 TEST(WebpagePreferences, InvalidCustomHeaders)
 {
-    auto customHeaderFields = adoptNS([[_WKCustomHeaderFields alloc] init]);
+    RetainPtr customHeaderFields = adoptNS([[_WKCustomHeaderFields alloc] init]);
     [customHeaderFields setFields:@{@"invalidheader" : @"", @"noncustom" : @"header", @"    x-Custom ":@"  Needs Canonicalization\t ", @"x-other" : @"other value"}];
     NSDictionary<NSString *, NSString *> *canonicalized = [customHeaderFields fields];
     EXPECT_EQ(canonicalized.count, 2u);
@@ -993,7 +993,7 @@ static void respond(id <WKURLSchemeTask>task, NSString *html = nil)
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction preferences:(WKWebpagePreferences *)preferences decisionHandler:(void (^)(WKNavigationActionPolicy, WKWebpagePreferences *))decisionHandler
 {
-    auto headerFields = adoptNS([[_WKCustomHeaderFields alloc] init]);
+    RetainPtr headerFields = adoptNS([[_WKCustomHeaderFields alloc] init]);
     [headerFields setFields:@{@"X-key3": @"value3", @"X-key4": @"value4"}];
     [headerFields setThirdPartyDomains:@[
         @"*.hostwithasterisk.com",
@@ -1072,10 +1072,10 @@ static void respond(id <WKURLSchemeTask>task, NSString *html = nil)
 
 TEST(WebpagePreferences, CustomHeaderFields)
 {
-    auto delegate = adoptNS([[CustomHeaderFieldsDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr delegate = adoptNS([[CustomHeaderFieldsDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:delegate.get() forURLScheme:@"test"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"test:///mainresource"]]];
     TestWebKitAPI::Util::run(&firstTestDone);
@@ -1120,7 +1120,7 @@ static unsigned loadCount;
     if (_taskHandler)
         _taskHandler(task);
 
-    auto response = adoptNS([[NSURLResponse alloc] initWithURL:finalURL MIMEType:@"text/html" expectedContentLength:1 textEncodingName:nil]);
+    RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:finalURL MIMEType:@"text/html" expectedContentLength:1 textEncodingName:nil]);
     [task didReceiveResponse:response.get()];
 
     if (RetainPtr data = _dataMappings.get([finalURL absoluteString]))
@@ -1146,7 +1146,7 @@ constexpr auto customUserAgent = "Foo Custom UserAgent"_s;
 
 - (void)_webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction preferences:(WKWebpagePreferences *)preferences userInfo:(id <NSSecureCoding>)userInfo decisionHandler:(void (^)(WKNavigationActionPolicy, WKWebpagePreferences *))decisionHandler
 {
-    auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     if (navigationAction.targetFrame.mainFrame)
         [websitePolicies _setCustomUserAgent:[NSString stringWithUTF8String:customUserAgent]];
 
@@ -1192,9 +1192,9 @@ onload = () => {
 
 TEST(WebpagePreferences, WebsitePoliciesCustomUserAgent)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto schemeHandler = adoptNS([[DataMappingSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[DataMappingSchemeHandler alloc] init]);
     [schemeHandler addMappingFromURLString:@"test://www.webkit.org/main.html" toData:customUserAgentMainFrameTestBytes];
     [schemeHandler addMappingFromURLString:@"test://www.apple.com/subframe.html" toData:customUserAgentSubFrameTestBytes];
     [schemeHandler setTaskHandler:[](id <WKURLSchemeTask> task) {
@@ -1202,9 +1202,9 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgent)
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[CustomUserAgentDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CustomUserAgentDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     loadCount = 0;
@@ -1238,7 +1238,7 @@ constexpr auto customUserAgentAsSiteSpecificQuirk = "Foo Site Specific Quirks Us
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction preferences:(WKWebpagePreferences *)preferences decisionHandler:(void (^)(WKNavigationActionPolicy, WKWebpagePreferences *))decisionHandler
 {
-    auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     if (navigationAction.targetFrame.mainFrame) {
         [websitePolicies _setCustomUserAgentAsSiteSpecificQuirks:[NSString stringWithUTF8String:customUserAgentAsSiteSpecificQuirk]];
         if (_setCustomUserAgent)
@@ -1257,9 +1257,9 @@ constexpr auto customUserAgentAsSiteSpecificQuirk = "Foo Site Specific Quirks Us
 
 TEST(WebpagePreferences, WebsitePoliciesCustomUserAgentAsSiteSpecificQuirksDisabled)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto schemeHandler = adoptNS([[DataMappingSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[DataMappingSchemeHandler alloc] init]);
     [schemeHandler addMappingFromURLString:@"test://www.webkit.org/main.html" toData:customUserAgentMainFrameTestBytes];
     [schemeHandler addMappingFromURLString:@"test://www.apple.com/subframe.html" toData:customUserAgentSubFrameTestBytes];
     [schemeHandler setTaskHandler:[](id <WKURLSchemeTask> task) {
@@ -1270,9 +1270,9 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgentAsSiteSpecificQuirksDisab
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
     [configuration preferences].siteSpecificQuirksModeEnabled = NO;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[CustomJavaScriptUserAgentDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CustomJavaScriptUserAgentDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     loadCount = 0;
@@ -1296,9 +1296,9 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgentAsSiteSpecificQuirksDisab
 
 TEST(WebpagePreferences, WebsitePoliciesCustomUserAgentAsSiteSpecificQuirks)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto schemeHandler = adoptNS([[DataMappingSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[DataMappingSchemeHandler alloc] init]);
     [schemeHandler addMappingFromURLString:@"test://www.webkit.org/main.html" toData:customUserAgentMainFrameTestBytes];
     [schemeHandler addMappingFromURLString:@"test://www.apple.com/subframe.html" toData:customUserAgentSubFrameTestBytes];
     [schemeHandler setTaskHandler:[](id <WKURLSchemeTask> task) {
@@ -1307,9 +1307,9 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgentAsSiteSpecificQuirks)
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
     [configuration preferences].siteSpecificQuirksModeEnabled = YES;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[CustomJavaScriptUserAgentDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CustomJavaScriptUserAgentDelegate alloc] init]);
     delegate.get().setCustomUserAgent = YES;
     [webView setNavigationDelegate:delegate.get()];
 
@@ -1329,18 +1329,18 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgentAsSiteSpecificQuirks)
 
 TEST(WebpagePreferences, WebViewCustomUserAgentOverridesWebsitePoliciesCustomUserAgentAsSiteSpecificQuirks)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto schemeHandler = adoptNS([[DataMappingSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[DataMappingSchemeHandler alloc] init]);
     [schemeHandler setTaskHandler:[](id<WKURLSchemeTask> task) {
         EXPECT_STREQ(customUserAgentAsSiteSpecificQuirk, [[task.request valueForHTTPHeaderField:@"User-Agent"] UTF8String]);
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
     [configuration preferences].siteSpecificQuirksModeEnabled = YES;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[CustomJavaScriptUserAgentDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CustomJavaScriptUserAgentDelegate alloc] init]);
     delegate.get().setCustomUserAgent = YES;
     [webView setNavigationDelegate:delegate.get()];
 
@@ -1365,7 +1365,7 @@ TEST(WebpagePreferences, WebViewCustomUserAgentOverridesWebsitePoliciesCustomUse
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction preferences:(WKWebpagePreferences *)preferences decisionHandler:(void (^)(WKNavigationActionPolicy, WKWebpagePreferences *))decisionHandler
 {
-    auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     if (navigationAction.targetFrame.mainFrame)
         [websitePolicies _setCustomNavigatorPlatform:@"Test Custom Platform"];
 
@@ -1381,11 +1381,11 @@ TEST(WebpagePreferences, WebViewCustomUserAgentOverridesWebsitePoliciesCustomUse
 
 TEST(WebpagePreferences, WebsitePoliciesCustomNavigatorPlatform)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[CustomNavigatorPlatformDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CustomNavigatorPlatformDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"data:text/html,hello"]];
@@ -1424,7 +1424,7 @@ addEventListener("deviceorientation", (event) => {
 
 - (void)_webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction preferences:(WKWebpagePreferences *)preferences userInfo:(id <NSSecureCoding>)userInfo decisionHandler:(void (^)(WKNavigationActionPolicy, WKWebpagePreferences *))decisionHandler
 {
-    auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     [websitePolicies _setDeviceOrientationAndMotionAccessPolicy:_accessPolicy];
 
     decisionHandler(WKNavigationActionPolicyAllow, websitePolicies.get());
@@ -1455,17 +1455,17 @@ static bool calledShouldAllowDeviceOrientationAndMotionAccessDelegate = false;
 
 static void runWebsitePoliciesDeviceOrientationEventTest(_WKWebsiteDeviceOrientationAndMotionAccessPolicy accessPolicy)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto schemeHandler = adoptNS([[DataMappingSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[DataMappingSchemeHandler alloc] init]);
     [schemeHandler addMappingFromURLString:@"test://localhost/main.html" toData:deviceOrientationEventTestBytes];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[WebsitePoliciesDeviceOrientationDelegate alloc] initWithDeviceOrientationAccessPolicy:accessPolicy]);
+    RetainPtr delegate = adoptNS([[WebsitePoliciesDeviceOrientationDelegate alloc] initWithDeviceOrientationAccessPolicy:accessPolicy]);
     [webView setNavigationDelegate:delegate.get()];
-    auto uiDelegate = adoptNS([[WebsitePoliciesDeviceOrientationUIDelegate alloc] init]);
+    RetainPtr uiDelegate = adoptNS([[WebsitePoliciesDeviceOrientationUIDelegate alloc] init]);
     [webView setUIDelegate:uiDelegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"test://localhost/main.html"]];
@@ -1531,7 +1531,7 @@ TEST(WebpagePreferences, WebsitePoliciesDeviceOrientationAskAccess)
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction preferences:(WKWebpagePreferences *)preferences decisionHandler:(void (^)(WKNavigationActionPolicy, WKWebpagePreferences *))decisionHandler
 {
-    auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     if (_popUpPolicyForURL)
         [websitePolicies _setPopUpPolicy:_popUpPolicyForURL(navigationAction.request.URL)];
     decisionHandler(WKNavigationActionPolicyAllow, websitePolicies.get());
@@ -1546,11 +1546,11 @@ TEST(WebpagePreferences, WebsitePoliciesDeviceOrientationAskAccess)
 
 TEST(WebpagePreferences, WebsitePoliciesPopUp)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[PopUpPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[PopUpPoliciesDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
 
@@ -1580,7 +1580,7 @@ TEST(WebpagePreferences, WebsitePoliciesPopUp)
 {
     NSURL *url = navigationAction.request.URL;
     if ([url.path isEqualToString:@"/invalid"]) {
-        auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+        RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
         [websitePolicies _setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]).get()];
 
         bool sawException = false;
@@ -1596,12 +1596,12 @@ TEST(WebpagePreferences, WebsitePoliciesPopUp)
     if ([url.path isEqualToString:@"/checkStorage"]
         || [url.path isEqualToString:@"/checkCookies"]
         || [url.path isEqualToString:@"/mainFrame"]) {
-        auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+        RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
         [websitePolicies _setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
         decisionHandler(WKNavigationActionPolicyAllow, websitePolicies.get());
     }
     if ([url.path isEqualToString:@"/subFrame"]) {
-        auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+        RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
         [websitePolicies _setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
         bool sawException = false;
         @try {
@@ -1640,11 +1640,11 @@ TEST(WebpagePreferences, WebsitePoliciesPopUp)
 
 RetainPtr<WKWebView> websiteDataStoreTestWebView()
 {
-    auto delegate = adoptNS([[WebsitePoliciesWebsiteDataStoreDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr delegate = adoptNS([[WebsitePoliciesWebsiteDataStoreDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:delegate.get() forURLScheme:@"test"];
     [configuration setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
     return webView;
@@ -1653,7 +1653,7 @@ RetainPtr<WKWebView> websiteDataStoreTestWebView()
 TEST(WebpagePreferences, UpdateWebsitePoliciesInvalid)
 {
     auto webView = websiteDataStoreTestWebView();
-    auto policies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr policies = adoptNS([[WKWebpagePreferences alloc] init]);
     [policies _setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
     bool sawException = false;
     @try {
@@ -1692,12 +1692,12 @@ TEST(WebpagePreferences, WebsitePoliciesUserContentController)
     auto makeScript = [] (NSString *script, BOOL forMainFrameOnly = YES) {
         return adoptNS([[WKUserScript alloc] initWithSource:script injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:forMainFrameOnly]);
     };
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addUserScript:makeScript(@"alert('testAlert1')").get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:uiDelegate.get()];
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     __block RetainPtr<WKUserContentController> replacementUserContentController;
     __block RetainPtr iframeController = adoptNS([WKUserContentController new]);
     RetainPtr messageHandler = adoptNS([TestScriptMessageHandler new]);
@@ -1706,14 +1706,14 @@ TEST(WebpagePreferences, WebsitePoliciesUserContentController)
         if ([action.request.URL.path hasSuffix:@"/simple-iframe.html"])
             return completionHandler(WKNavigationActionPolicyAllow, nil);
         if ([action.request.URL.path hasSuffix:@"/simple.html"]) {
-            auto preferences = adoptNS([WKWebpagePreferences new]);
+            RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
             [preferences _setUserContentController:iframeController.get()];
             completionHandler(WKNavigationActionPolicyAllow, preferences.get());
             return;
         }
         
         EXPECT_TRUE([action.request.URL.path hasSuffix:@"/simple2.html"]);
-        auto preferences = adoptNS([WKWebpagePreferences new]);
+        RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
         replacementUserContentController = adoptNS([WKUserContentController new]);
         [replacementUserContentController addUserScript:makeScript(@"alert('testAlert2')").get()];
         [preferences _setUserContentController:replacementUserContentController.get()];
@@ -1736,7 +1736,7 @@ TEST(WebpagePreferences, WebsitePoliciesUserContentController)
 
     bool caughtException = false;
     @try {
-        auto preferences = adoptNS([WKWebpagePreferences new]);
+        RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
         [preferences _setUserContentController:adoptNS([WKUserContentController new]).get()];
         [webView _updateWebpagePreferences:preferences.get()];
     } @catch (NSException *exception) {
@@ -1750,11 +1750,11 @@ TEST(WebpagePreferences, WebsitePoliciesUserContentController)
 
 TEST(WebpagePreferences, UserExplicitlyPrefersColorSchemeLight)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     configuration.get().defaultWebpagePreferences._colorSchemePreference = _WKWebsiteColorSchemePreferenceLight;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView forceDarkMode];
 
     [webView loadTestPageNamed:@"color-scheme"];
@@ -1763,11 +1763,11 @@ TEST(WebpagePreferences, UserExplicitlyPrefersColorSchemeLight)
 
 TEST(WebpagePreferences, UserExplicitlyPrefersColorSchemeDark)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     configuration.get().defaultWebpagePreferences._colorSchemePreference = _WKWebsiteColorSchemePreferenceDark;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView loadTestPageNamed:@"color-scheme"];
     [webView waitForMessage:@"dark-detected"];
@@ -1775,8 +1775,8 @@ TEST(WebpagePreferences, UserExplicitlyPrefersColorSchemeDark)
 
 TEST(WebpagePreferences, UserExplicitlyPrefersColorSchemeDarkForContentThatDoesNotSupportDarkMode)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"color-scheme"];
 
     NSString *backgroundColorWithoutPreference = [webView stringByEvaluatingJavaScript:@"getComputedStyle(document.body).backgroundColor"];
@@ -1822,7 +1822,7 @@ TEST(WebpagePreferences, ContentRuleListEnablement)
         "\"action\": { \"type\": \"block\" }"
         "}]";
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration defaultWebpagePreferences] _setContentRuleListsEnabled:YES exceptions:[NSSet setWithObject:identifierToDisable]];
 
     auto rulesToDisable = compileRuleList(identifierToDisable, @(contentRulesToDisable));
@@ -1831,7 +1831,7 @@ TEST(WebpagePreferences, ContentRuleListEnablement)
     auto rulesToEnable = compileRuleList(identifierToEnable, @(contentRulesToEnable));
     [[configuration userContentController] addContentRuleList:rulesToEnable.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     RetainPtr request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"https://bundle-file/load-image.html"]];
     [webView synchronouslyLoadRequest:request.get()];
 
@@ -1852,7 +1852,7 @@ TEST(WebpagePreferences, ContentRuleListEnablement)
     EXPECT_FALSE(canLoadImage(@"./sunset-in-cupertino-200px.png"));
     EXPECT_TRUE(canLoadImage(@"./sunset-in-cupertino-100px.tiff"));
 
-    auto newPreferences = adoptNS([WKWebpagePreferences new]);
+    RetainPtr newPreferences = adoptNS([WKWebpagePreferences new]);
     [newPreferences _setContentRuleListsEnabled:NO exceptions:[NSSet setWithObject:identifierToEnable]];
     [webView synchronouslyLoadRequest:request.get() preferences:newPreferences.get()];
 
@@ -1863,7 +1863,7 @@ TEST(WebpagePreferences, ContentRuleListEnablement)
 
 TEST(WebpagePreferences, ToggleAdvancedPrivacyProtections)
 {
-    auto preferences = adoptNS([WKWebpagePreferences new]);
+    RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
     EXPECT_FALSE([preferences _networkConnectionIntegrityEnabled]);
     [preferences _setNetworkConnectionIntegrityEnabled:YES];
     EXPECT_TRUE([preferences _networkConnectionIntegrityEnabled]);
@@ -1877,7 +1877,7 @@ TEST(WebpagePreferences, AlternateRequestSPIToAPI)
 {
     RetainPtr request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]];
 
-    auto preferences = adoptNS([WKWebpagePreferences new]);
+    RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
     EXPECT_NULL([preferences alternateRequest]);
     EXPECT_NULL([preferences _alternateRequest]);
 
@@ -1898,7 +1898,7 @@ TEST(WebpagePreferences, OverrideReferrerSPIToAPI)
 {
     NSString *referrer = @"hello";
 
-    auto preferences = adoptNS([WKWebpagePreferences new]);
+    RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
     EXPECT_NULL([preferences overrideReferrer]);
     EXPECT_NULL([preferences _overrideReferrerForAllRequests]);
 
@@ -1919,7 +1919,7 @@ TEST(WebpagePreferences, HttpPageContentBlockers)
 {
     [[WKContentRuleListStore defaultStore] _removeAllContentRuleLists];
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     navigationDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         [preferences _setContentBlockersEnabled:YES];
         if (action.targetFrame.mainFrame)
@@ -1942,7 +1942,7 @@ TEST(WebpagePreferences, HttpPageContentBlockers)
         { "/subframe.html"_s, { "<script src='test:///script_subframe.js'></script>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::Http);
 
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         NSString *path = task.request.URL.path;
         NSString *type = nil;
@@ -1960,13 +1960,13 @@ TEST(WebpagePreferences, HttpPageContentBlockers)
             return;
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[result dataUsingEncoding:NSUTF8StringEncoding]];
         [task didFinish];
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"test"];
 
     doneCompiling = false;
@@ -1978,7 +1978,7 @@ TEST(WebpagePreferences, HttpPageContentBlockers)
     }];
     TestWebKitAPI::Util::run(&doneCompiling);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     [webView loadRequest:server.requestWithLocalhost("/index.html"_s)];
@@ -1999,7 +1999,7 @@ TEST(WebpagePreferences, ExtensionPageContentBlockers)
 {
     [[WKContentRuleListStore defaultStore] _removeAllContentRuleLists];
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     navigationDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         [preferences _setContentBlockersEnabled:YES];
         if (action.targetFrame.mainFrame)
@@ -2013,7 +2013,7 @@ TEST(WebpagePreferences, ExtensionPageContentBlockers)
     }, TestWebKitAPI::HTTPServer::Protocol::Http);
 
     __block auto port = server.port();
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         NSString *path = task.request.URL.path;
         NSString *type = nil;
@@ -2042,13 +2042,13 @@ TEST(WebpagePreferences, ExtensionPageContentBlockers)
             return;
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[result dataUsingEncoding:NSUTF8StringEncoding]];
         [task didFinish];
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"test"];
 
     doneCompiling = false;
@@ -2060,7 +2060,7 @@ TEST(WebpagePreferences, ExtensionPageContentBlockers)
     }];
     TestWebKitAPI::Util::run(&doneCompiling);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     auto request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"test:///index.html"]];
@@ -2083,7 +2083,7 @@ TEST(WebpagePreferences, ExtensionPageAdvancedPrivacyProtectionsReferrer)
     auto *store = WKWebsiteDataStore.nonPersistentDataStore;
     store._resourceLoadStatisticsEnabled = YES;
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     navigationDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         [preferences _setNetworkConnectionIntegrityEnabled:YES];
         if (action.targetFrame.mainFrame)
@@ -2099,7 +2099,7 @@ TEST(WebpagePreferences, ExtensionPageAdvancedPrivacyProtectionsReferrer)
     server.addResponse("/subframe1.html"_s, { makeString("<iframe src='http://127.0.0.1:"_s, server.port(), "/subframe2.html'></iframe>"_s) });
 
     __block auto port = server.port();
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         NSString *path = task.request.URL.path;
         NSString *type = nil;
@@ -2122,17 +2122,17 @@ TEST(WebpagePreferences, ExtensionPageAdvancedPrivacyProtectionsReferrer)
             return;
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[result dataUsingEncoding:NSUTF8StringEncoding]];
         [task didFinish];
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:store];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"test"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     auto request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"test:///index.html"]];
@@ -2154,7 +2154,7 @@ TEST(WebpagePreferences, ExtensionPageAdvancedPrivacyProtectionsReferrer)
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction preferences:(WKWebpagePreferences *)preferences decisionHandler:(void (^)(WKNavigationActionPolicy, WKWebpagePreferences *))decisionHandler
 {
-    auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     [websitePolicies _setPushAndNotificationAPIEnabled:_pushAndNotificationAPIEnabled];
     decisionHandler(WKNavigationActionPolicyAllow, websitePolicies.get());
 }
@@ -2166,7 +2166,7 @@ TEST(WebpagePreferences, PushAndNotificationsEnabled)
     RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[PushAndNotificationsEnabledPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[PushAndNotificationsEnabledPoliciesDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool finishedNavigation = false;
@@ -2190,7 +2190,7 @@ TEST(WebpagePreferences, PushAndNotificationsDisabled)
     [[configuration preferences] _setNotificationsEnabled:YES];
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[PushAndNotificationsEnabledPoliciesDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[PushAndNotificationsEnabledPoliciesDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool finishedNavigation = false;
@@ -2209,8 +2209,8 @@ TEST(WebpagePreferences, PushAndNotificationsDisabled)
 
 TEST(WebpagePreferences, LoadHTMLString)
 {
-    auto webView = adoptNS([TestWKWebView new]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     __block RetainPtr replacement = adoptNS([WKUserContentController new]);
     RetainPtr messageHandler = adoptNS([TestScriptMessageHandler new]);
     [replacement addScriptMessageHandler:messageHandler.get() name:@"testMessageHandler"];

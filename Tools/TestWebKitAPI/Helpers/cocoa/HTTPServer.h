@@ -25,6 +25,8 @@
 
 #pragma once
 
+#ifdef __cplusplus
+
 #import "Helpers/cocoa/NetworkConnection.h"
 #import <wtf/CompletionHandler.h>
 #import <wtf/Forward.h>
@@ -202,3 +204,5 @@ RetainPtr<SecCertificateRef> testCertificate();
 RetainPtr<SecIdentityRef> testIdentity();
 RetainPtr<SecIdentityRef> testIdentity2();
 void verifyCertificateAndPublicKey(SecTrustRef);
+
+#endif // __cplusplus

@@ -68,7 +68,7 @@
 
 + (instancetype)preferencesWithContentMode:(WKContentMode)mode
 {
-    auto preferences = adoptNS([[self alloc] init]);
+    RetainPtr preferences = adoptNS([[self alloc] init]);
     [preferences setPreferredContentMode:mode];
     return preferences.autorelease();
 }
@@ -171,12 +171,12 @@ namespace TestWebKitAPI {
 template <typename ViewClass>
 RetainPtr<ViewClass> setUpWebViewForPreferredContentModeTestingWithoutNavigationDelegate(std::optional<WKContentMode> defaultContentMode = { }, std::optional<String> applicationNameForUserAgent = { "TestWebKitAPI"_s }, CGSize size = CGSizeMake(1024, 768))
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     if (defaultContentMode)
         [configuration setDefaultWebpagePreferences:[WKWebpagePreferences preferencesWithContentMode:defaultContentMode.value()]];
     if (applicationNameForUserAgent)
         [configuration setApplicationNameForUserAgent:applicationNameForUserAgent->isNull() ? nil : applicationNameForUserAgent.value().createNSString().get()];
-    auto webView = adoptNS([[ViewClass alloc] initWithFrame:CGRectMake(0, 0, size.width, size.height) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[ViewClass alloc] initWithFrame:CGRectMake(0, 0, size.width, size.height) configuration:configuration.get()]);
     EXPECT_TRUE([webView isKindOfClass:WKWebView.class]);
     return webView;
 }
@@ -185,7 +185,7 @@ template <typename ViewClass>
 std::pair<RetainPtr<ViewClass>, RetainPtr<ContentModeNavigationDelegate>> setUpWebViewForPreferredContentModeTesting(std::optional<WKContentMode> defaultContentMode = { }, std::optional<String> applicationNameForUserAgent = { "TestWebKitAPI"_s }, CGSize size = CGSizeMake(1024, 768))
 {
     auto webView = setUpWebViewForPreferredContentModeTestingWithoutNavigationDelegate<ViewClass>(defaultContentMode, applicationNameForUserAgent, size);
-    auto navigationDelegate = adoptNS([[ContentModeNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[ContentModeNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     return { webView, navigationDelegate };
 }

@@ -51,7 +51,7 @@ static void checkElementTypeAndBoundingRect(_WKActivatedElementInfo *elementInfo
 
 TEST(_WKActivatedElementInfo, InfoForLink)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView loadHTMLString:@"<html><head><meta name='viewport' content='initial-scale=1'></head><body style='margin: 0px;'><a href='testURL.test' style='display: block; height: 100%;' title='HitTestLinkTitle' id='testID'></a></body></html>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
 
@@ -76,7 +76,7 @@ TEST(_WKActivatedElementInfo, InfoForLink)
 
 TEST(_WKActivatedElementInfo, InfoForImage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 215, 174)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 215, 174)]);
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"image" withExtension:@"html"]];
     [webView loadRequest:request];
     [webView _test_waitForDidFinishNavigation];
@@ -96,7 +96,7 @@ TEST(_WKActivatedElementInfo, InfoForImage)
 
 TEST(_WKActivatedElementInfo, InfoForMediaDocument)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 215, 174)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 215, 174)]);
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"icon" withExtension:@"png"]];
     [webView loadRequest:request];
     [webView _test_waitForDidFinishNavigation];
@@ -120,7 +120,7 @@ TEST(_WKActivatedElementInfo, InfoForMediaDocument)
 
 TEST(_WKActivatedElementInfo, InfoForLinkAroundImage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"link-with-image" withExtension:@"html"]];
     [webView loadRequest:request];
     [webView _test_waitForDidFinishNavigation];
@@ -145,7 +145,7 @@ TEST(_WKActivatedElementInfo, InfoForLinkAroundImage)
 
 TEST(_WKActivatedElementInfo, InfoForRotatedImage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     auto imagePixels = [](CGImageRef image) -> Vector<unsigned> {
         static const size_t bytesPerPixel = 4;
         static const size_t bitsPerComponent = 8;
@@ -202,7 +202,7 @@ IGNORE_WARNINGS_END
 
 TEST(_WKActivatedElementInfo, InfoForBlank)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView loadHTMLString:@"<html><head><meta name='viewport' content='initial-scale=1'></head><body style='margin: 0px;'></body></html>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
 
@@ -221,7 +221,7 @@ TEST(_WKActivatedElementInfo, InfoForBlank)
 
 TEST(_WKActivatedElementInfo, InfoForBrokenImage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView loadHTMLString:@"<html><head><meta name='viewport' content='initial-scale=1'></head><body style='margin: 0px;'><img  src='missing.gif' height='100' width='100'></body></html>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
 
@@ -240,10 +240,10 @@ TEST(_WKActivatedElementInfo, InfoForBrokenImage)
 
 TEST(_WKActivatedElementInfo, InfoForAttachment)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAttachmentElementEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
     [webView loadHTMLString:@"<html><head><meta name='viewport' content='initial-scale=1'></head><body style='margin: 0px;'><attachment  /></body></html>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
 
@@ -259,7 +259,7 @@ TEST(_WKActivatedElementInfo, InfoForAttachment)
 
 TEST(_WKActivatedElementInfo, InfoWithNestedSynchronousUpdates)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='initial-scale=1'><style>body { margin:0 } a { display:block; width:200px; height:200px }</style><a href='https://www.apple.com'>FOO</a>"];
 
     __block bool finished = false;
@@ -283,7 +283,7 @@ TEST(_WKActivatedElementInfo, InfoWithNestedSynchronousUpdates)
 
 TEST(_WKActivatedElementInfo, InfoWithNestedRequests)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadTestPageNamed:@"image-and-contenteditable"];
 
     __block bool finishedWithInner = false;
@@ -315,7 +315,7 @@ TEST(_WKActivatedElementInfo, InfoWithNestedRequests)
 
 TEST(_WKActivatedElementInfo, HitTestPointOutsideView)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)]);
     [webView synchronouslyLoadHTMLString:@R"(
         <!DOCTYPE html>
         <html>

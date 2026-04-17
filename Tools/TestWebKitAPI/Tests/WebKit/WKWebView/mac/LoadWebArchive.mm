@@ -85,15 +85,15 @@ TEST(LoadWebArchive, FailNavigation1)
     // Using `document.location.href = 'helloworld.webarchive';`.
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"load-web-archive-1" withExtension:@"html"];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     for (_WKFeature *feature in WKPreferences._features) {
         NSString *key = feature.key;
         if ([key isEqualToString:@"LoadWebArchiveWithEphemeralStorageEnabled"])
             [[configuration preferences] _setEnabled:YES forFeature:feature];
     }
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     navigationFail = false;
@@ -108,17 +108,17 @@ TEST(LoadWebArchive, FailNavigation2)
     // Using `window.open('helloworld.webarchive');`.
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"load-web-archive-2" withExtension:@"html"];
 
-    auto delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
     gDelegate = delegate.get();
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     for (_WKFeature *feature in WKPreferences._features) {
         NSString *key = feature.key;
         if ([key isEqualToString:@"LoadWebArchiveWithEphemeralStorageEnabled"])
             [[configuration preferences] _setEnabled:YES forFeature:feature];
     }
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
 
@@ -133,8 +133,8 @@ TEST(LoadWebArchive, ClientNavigationSucceed)
 {
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"helloworld" withExtension:@"webarchive"];
 
-    auto webView = adoptNS([[WKWebView alloc] init]);
-    auto delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     navigationComplete = false;
@@ -149,10 +149,10 @@ TEST(LoadWebArchive, ClientNavigationSucceedWithCookie)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"helloworld" withExtension:@"webarchive"];
 
     RetainPtr<WKWebsiteDataStore> dataStore = WKWebsiteDataStore.nonPersistentDataStore;
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool doneSettingCookie { false };
@@ -181,16 +181,16 @@ TEST(LoadWebArchive, ClientNavigationReload)
 {
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"helloworld" withExtension:@"webarchive"];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     for (_WKFeature *feature in WKPreferences._features) {
         NSString *key = feature.key;
         if ([key isEqualToString:@"LoadWebArchiveWithEphemeralStorageEnabled"])
             [[configuration preferences] _setEnabled:YES forFeature:feature];
     }
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     navigationComplete = false;
@@ -208,15 +208,15 @@ TEST(LoadWebArchive, ClientNavigationWithStorageReload)
 {
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"helloworld" withExtension:@"webarchive"];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     for (_WKFeature *feature in WKPreferences._features) {
         NSString *key = feature.key;
         if ([key isEqualToString:@"LoadWebArchiveWithEphemeralStorageEnabled"])
             [[configuration preferences] _setEnabled:YES forFeature:feature];
     }
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     navigationComplete = false;
@@ -263,19 +263,19 @@ TEST(LoadWebArchive, DragNavigationSucceed)
     [pasteboard declareTypes:@[NSFilenamesPboardType] owner:nil];
     [pasteboard setPropertyList:@[webArchiveURL.get().path] forType:NSFilenamesPboardType];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     for (_WKFeature *feature in WKPreferences._features) {
         NSString *key = feature.key;
         if ([key isEqualToString:@"LoadWebArchiveWithEphemeralStorageEnabled"])
             [[configuration preferences] _setEnabled:YES forFeature:feature];
     }
 
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
     [simulator setExternalDragPasteboard:pasteboard];
     [simulator setDragDestinationAction:WKDragDestinationActionAny];
 
     auto webView = [simulator webView];
-    auto delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     navigationComplete = false;
@@ -299,19 +299,19 @@ TEST(LoadWebArchive, DragNavigationReload)
     [pasteboard declareTypes:@[NSFilenamesPboardType] owner:nil];
     [pasteboard setPropertyList:@[webArchiveURL.get().path] forType:NSFilenamesPboardType];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     for (_WKFeature *feature in WKPreferences._features) {
         NSString *key = feature.key;
         if ([key isEqualToString:@"LoadWebArchiveWithEphemeralStorageEnabled"])
             [[configuration preferences] _setEnabled:YES forFeature:feature];
     }
 
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
     [simulator setExternalDragPasteboard:pasteboard];
     [simulator setDragDestinationAction:WKDragDestinationActionAny];
 
     auto webView = [simulator webView];
-    auto delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     navigationComplete = false;
@@ -333,8 +333,8 @@ TEST(LoadWebArchive, DragNavigationReload)
 static NSData* constructArchive()
 {
     NSString *js = @"alert('loaded http subresource successfully')";
-    auto response = adoptNS([[NSURLResponse alloc] initWithURL:[NSURL URLWithString:@"http://download.example/script.js"] MIMEType:@"application/javascript" expectedContentLength:js.length textEncodingName:@"utf-8"]);
-    auto responseArchiver = adoptNS([[NSKeyedArchiver alloc] initRequiringSecureCoding:YES]);
+    RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:[NSURL URLWithString:@"http://download.example/script.js"] MIMEType:@"application/javascript" expectedContentLength:js.length textEncodingName:@"utf-8"]);
+    RetainPtr responseArchiver = adoptNS([[NSKeyedArchiver alloc] initRequiringSecureCoding:YES]);
     [responseArchiver encodeObject:response.get() forKey:@"WebResourceResponse"];
     NSDictionary *archive = @{
         @"WebMainResource": @{
@@ -359,14 +359,14 @@ TEST(LoadWebArchive, HTTPSUpgrade)
 {
     NSData *data = constructArchive();
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     for (_WKFeature *feature in WKPreferences._features) {
         NSString *key = feature.key;
         if ([key isEqualToString:@"LoadWebArchiveWithEphemeralStorageEnabled"])
             [[configuration preferences] _setEnabled:YES forFeature:feature];
     }
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView loadData:data MIMEType:@"application/x-webarchive" characterEncodingName:@"utf-8" baseURL:[NSURL URLWithString:@"http://download.example/"]];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "loaded http subresource successfully");
@@ -376,7 +376,7 @@ TEST(LoadWebArchive, DisallowedNetworkHosts)
 {
     NSData *data = constructArchive();
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get()._allowedNetworkHosts = [NSSet set];
 
     for (_WKFeature *feature in WKPreferences._features) {
@@ -385,7 +385,7 @@ TEST(LoadWebArchive, DisallowedNetworkHosts)
             [[configuration preferences] _setEnabled:YES forFeature:feature];
     }
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadData:data MIMEType:@"application/x-webarchive" characterEncodingName:@"utf-8" baseURL:[NSURL URLWithString:@"http://download.example/"]];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "loaded http subresource successfully");
 }
@@ -398,13 +398,13 @@ TEST(LoadWebArchive, SiteToWebArchiveAndBack)
         { "http://download.example/page1.html"_s, { "<body>page1</body>"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(server.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
     for (_WKFeature *feature in WKPreferences._features) {
@@ -413,9 +413,9 @@ TEST(LoadWebArchive, SiteToWebArchiveAndBack)
             [[configuration preferences] _setEnabled:YES forFeature:feature];
     }
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     navigationComplete = false;
@@ -491,13 +491,13 @@ TEST(LoadWebArchive, WebArchiveToSiteAndBack)
         { "http://download.example/page1.html"_s, { "<body>page1</body>"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(server.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
     for (_WKFeature *feature in WKPreferences._features) {
@@ -506,9 +506,9 @@ TEST(LoadWebArchive, WebArchiveToSiteAndBack)
             [[configuration preferences] _setEnabled:YES forFeature:feature];
     }
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     navigationComplete = false;
@@ -596,16 +596,16 @@ TEST(LoadWebArchive, WebArchiveToSiteAndBack)
 
 TEST(LoadWebArchive, FileWebArchiveToDataWebArchiveAndBack)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     for (_WKFeature *feature in WKPreferences._features) {
         NSString *key = feature.key;
         if ([key isEqualToString:@"LoadWebArchiveWithEphemeralStorageEnabled"])
             [[configuration preferences] _setEnabled:YES forFeature:feature];
     }
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestLoadWebArchiveNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     navigationComplete = false;

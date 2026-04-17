@@ -59,7 +59,7 @@ TEST(StringCF, ConstructFromLatin1WithHighBytes)
 {
     // Create a CFString with Latin-1 characters above ASCII range (e.g. U+00E9 = é).
     const uint8_t latin1Bytes[] = { 'r', 0xE9, 's', 'u', 'm', 0xE9 }; // "résumé" in Latin-1
-    auto cfString = adoptCF(CFStringCreateWithBytes(kCFAllocatorDefault, latin1Bytes, sizeof(latin1Bytes), kCFStringEncodingISOLatin1, false));
+    RetainPtr cfString = adoptCF(CFStringCreateWithBytes(kCFAllocatorDefault, latin1Bytes, sizeof(latin1Bytes), kCFStringEncodingISOLatin1, false));
 
     String string(cfString.get());
     EXPECT_EQ(string.length(), 6u);
@@ -73,7 +73,7 @@ TEST(StringCF, ConstructFromUTF16WithLatin1Characters)
     // Use a long string so CF is likely to expose its internal UTF-16 buffer via
     // CFStringGetCharactersSpan, exercising the create8BitIfPossible narrowing path.
     Vector<char16_t> characters(FillWith { }, 4096, 'A');
-    auto cfString = adoptCF(CFStringCreateWithCharacters(kCFAllocatorDefault, reinterpret_cast<const UniChar*>(characters.span().data()), characters.size()));
+    RetainPtr cfString = adoptCF(CFStringCreateWithCharacters(kCFAllocatorDefault, reinterpret_cast<const UniChar*>(characters.span().data()), characters.size()));
 
     String string(cfString.get());
     EXPECT_EQ(string.length(), 4096u);
@@ -85,7 +85,7 @@ TEST(StringCF, ConstructFromUTF16WithHighLatin1Characters)
 {
     // Create a CFString from UTF-16 characters that include high Latin-1 chars (U+00E9).
     const char16_t characters[] = { 'r', 0x00E9, 's', 'u', 'm', 0x00E9 }; // "résumé"
-    auto cfString = adoptCF(CFStringCreateWithCharacters(kCFAllocatorDefault, reinterpret_cast<const UniChar*>(characters), std::size(characters)));
+    RetainPtr cfString = adoptCF(CFStringCreateWithCharacters(kCFAllocatorDefault, reinterpret_cast<const UniChar*>(characters), std::size(characters)));
 
     String string(cfString.get());
     EXPECT_EQ(string.length(), 6u);
@@ -97,7 +97,7 @@ TEST(StringCF, ConstructFromUTF16WithNonLatin1Characters)
 {
     // Create a CFString with characters outside Latin-1 range (e.g. U+4E16 = 世, U+754C = 界).
     const char16_t characters[] = { 0x4E16, 0x754C }; // "世界"
-    auto cfString = adoptCF(CFStringCreateWithCharacters(kCFAllocatorDefault, reinterpret_cast<const UniChar*>(characters), std::size(characters)));
+    RetainPtr cfString = adoptCF(CFStringCreateWithCharacters(kCFAllocatorDefault, reinterpret_cast<const UniChar*>(characters), std::size(characters)));
 
     String string(cfString.get());
     EXPECT_EQ(string.length(), 2u);
@@ -110,7 +110,7 @@ TEST(StringCF, ConstructFromUTF16MixedLatin1AndNonLatin1)
 {
     // Mix of Latin-1 and non-Latin-1 characters — should stay 16-bit.
     const char16_t characters[] = { 'H', 'i', 0x4E16 }; // "Hi世"
-    auto cfString = adoptCF(CFStringCreateWithCharacters(kCFAllocatorDefault, reinterpret_cast<const UniChar*>(characters), std::size(characters)));
+    RetainPtr cfString = adoptCF(CFStringCreateWithCharacters(kCFAllocatorDefault, reinterpret_cast<const UniChar*>(characters), std::size(characters)));
 
     String string(cfString.get());
     EXPECT_EQ(string.length(), 3u);

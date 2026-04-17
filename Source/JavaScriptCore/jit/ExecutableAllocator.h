@@ -35,8 +35,8 @@
 #include <bit>
 #include <limits>
 #include <wtf/Assertions.h>
+#include <wtf/FastMalloc.h>
 #include <wtf/ForbidHeapAllocation.h>
-#include <wtf/Gigacage.h>
 #include <wtf/Lock.h>
 #include <wtf/TZoneMalloc.h>
 

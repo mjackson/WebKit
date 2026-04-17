@@ -119,6 +119,7 @@ public:
 #endif
 
     void connectIncomingTrack(WebRTCTrackData&);
+    void notifyFirstPacketReceived(WebRTCTrackData&);
 
     void startRTCLogs();
     void stopRTCLogs();

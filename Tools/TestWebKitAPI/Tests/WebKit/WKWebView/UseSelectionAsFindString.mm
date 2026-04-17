@@ -33,7 +33,7 @@ namespace TestWebKitAPI {
 
 TEST(WebKit, UseSelectionAsFindString)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadHTMLString:@"<body>Hello <span id='text'>world</span></body>"];
     [webView evaluateJavaScript:@"getSelection().selectAllChildren(text)" completionHandler:nil];
     [webView _takeFindStringFromSelection:nil];

@@ -39,7 +39,7 @@ namespace TestWebKitAPI {
 
 TEST(ApplicationStateTracking, WindowDeallocDoesNotPermanentlyFreezeLayerTree)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
 
     RetainPtr<TestWKWebView> webView;
     RetainPtr<UIWindow> window;

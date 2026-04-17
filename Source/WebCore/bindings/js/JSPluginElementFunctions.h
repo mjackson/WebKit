@@ -20,8 +20,10 @@
 #pragma once
 
 #include "JSDOMBinding.h"
+#include <JavaScriptCore/CallData.h>
 
 namespace JSC {
+class JSObject;
 namespace Bindings {
 class Instance;
 }

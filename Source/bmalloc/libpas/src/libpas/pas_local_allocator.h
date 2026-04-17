@@ -26,7 +26,6 @@
 #ifndef PAS_LOCAL_ALLOCATOR_H
 #define PAS_LOCAL_ALLOCATOR_H
 
-#include "pas_allocation_result.h"
 #include "pas_allocator_scavenge_action.h"
 #include "pas_bitfit_allocator.h"
 #include "pas_config.h"

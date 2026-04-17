@@ -1,0 +1,4 @@
+This text should be green
+
+FAIL moveBefore() should invalidate target when descendant selector changes new_parent.moveBefore is not a function. (In 'new_parent.moveBefore(mv, null)', 'new_parent.moveBefore' is undefined)
+

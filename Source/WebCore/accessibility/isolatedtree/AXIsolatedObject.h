@@ -56,7 +56,6 @@ public:
     static Ref<AXIsolatedObject> create(IsolatedObjectData&&);
     ~AXIsolatedObject();
 
-    // FIXME: tree()->treeID() is never optional, so this shouldn't return an optional either.
     std::optional<AXTreeID> treeID() const final { return tree().treeID(); }
     String debugDescriptionInternal(bool, std::optional<OptionSet<AXDebugStringOption>> = std::nullopt) const final;
 
@@ -114,6 +113,8 @@ public:
 #if PLATFORM(COCOA)
     RetainPtr<CTFontRef> font() const final { return fontAttributeValue(AXProperty::Font); }
 #endif
+
+    bool isBlockFlow() const final { return boolAttributeValue(AXProperty::IsBlockFlow); }
 
 private:
     constexpr ProcessID processID() const final { return tree().processID(); }
@@ -550,7 +551,6 @@ private:
     String titleAttribute() const final { return stringAttributeValue(AXProperty::TitleAttribute); }
 
     std::optional<String> textContent() const final;
-    bool isBlockFlow() const final { return boolAttributeValue(AXProperty::IsBlockFlow); }
     std::optional<AXStitchGroup> stitchGroup(IncludeGroupMembers = IncludeGroupMembers::Yes) const final;
     const Vector<AXStitchGroup>* stitchGroupsView() const;
 

@@ -92,10 +92,10 @@ TEST(WebTransport, ClientBidirectional)
         co_await connection.awaitableSend(WTF::move(request));
     });
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     __block bool challenged { false };
     __block uint16_t port = echoServer.port();
@@ -158,10 +158,10 @@ TEST(WebTransport, Datagram)
         co_await datagramConnection.awaitableSend(WTF::move(request));
     });
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     __block bool challenged { false };
     __block uint16_t port = echoServer.port();
@@ -217,10 +217,10 @@ TEST(WebTransport, Unidirectional)
         co_await serverUnidirectionalStream.awaitableSend(WTF::move(request));
     });
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     __block bool challenged { false };
     __block uint16_t port = echoServer.port();
@@ -267,10 +267,10 @@ TEST(WebTransport, ServerBidirectional)
         co_await serverBidirectionalStream.awaitableSend(WTF::move(request));
     });
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     __block bool challenged { false };
     __block uint16_t port = echoServer.port();
@@ -319,10 +319,10 @@ TEST(WebTransport, NetworkProcessCrash)
         co_await uniConnection.awaitableSend(@"abc", false);
     });
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     __block bool challenged { false };
     __block uint16_t port = echoServer.port();
@@ -529,7 +529,7 @@ TEST(WebTransport, Worker)
     RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
     RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:loadingServer.request()];
@@ -581,7 +581,7 @@ TEST(WebTransport, WorkerAfterNetworkProcessCrash)
     RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
     RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:loadingServer.request()];
@@ -691,7 +691,7 @@ TEST(WebTransport, CreateStreamsBeforeReady)
     RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
     RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
 
@@ -744,7 +744,7 @@ TEST(WebTransport, DISABLED_CSP)
     RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
     RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
 
@@ -831,10 +831,10 @@ TEST(WebTransport, ServerCertificateHashes)
             "}; test();"
             "</script>", certificateBytes.toString().utf8().data(), echoServer.port()];
 
-        auto configuration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
         enableWebTransport(configuration.get());
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-        auto delegate = adoptNS([TestNavigationDelegate new]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
         [webView setNavigationDelegate:delegate.get()];
 
         __block bool challenged { false };
@@ -866,10 +866,10 @@ TEST(WebTransport, ServerConnectionTermination)
         group.cancel();
     });
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
 
@@ -923,10 +923,10 @@ TEST(WebTransport, BackForwardCache)
         { "/other"_s, { @"<script>alert('loaded')</script>" } }
     });
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
 
@@ -957,10 +957,10 @@ TEST(WebTransport, ServerDrain)
         group.drainWebTransportSession();
     });
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
 
@@ -1009,10 +1009,10 @@ TEST(WebTransport, DISABLED_ClientStreamAborts)
         co_await group.awaitableFailure();
     });
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
 
@@ -1062,10 +1062,10 @@ TEST(WebTransport, DISABLED_ServerStreamAborts)
         co_await group.awaitableFailure();
     });
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableWebTransport(configuration.get());
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
 

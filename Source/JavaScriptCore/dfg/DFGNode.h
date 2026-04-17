@@ -1545,17 +1545,6 @@ public:
         return m_opInfo.as<unsigned>();
     }
 
-    bool hasIsInternalPromise()
-    {
-        return op() == CreatePromise;
-    }
-
-    bool isInternalPromise()
-    {
-        ASSERT(hasIsInternalPromise());
-        return m_opInfo2.as<bool>();
-    }
-
     void setIndexingType(IndexingType indexingType)
     {
         ASSERT(hasIndexingType());

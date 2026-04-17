@@ -52,7 +52,7 @@ static NSString *overscrollBehaviorContainY = @"<meta name='viewport' content='w
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoNotSet)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     EXPECT_EQ([[webView scrollView] bounces], YES);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorAuto];
     EXPECT_EQ([[webView scrollView] bounces], YES);
@@ -60,7 +60,7 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoNotSet)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoSet)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorAuto];
     [[webView scrollView] setBounces:NO];
     EXPECT_EQ([[webView scrollView] bounces], NO);
@@ -68,7 +68,7 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoSet)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoNotSetDynamicallyChange)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorNone];
     EXPECT_EQ([[webView scrollView] bounces], NO);
     [webView stringByEvaluatingJavaScript:@"document.documentElement.style.overscrollBehavior = 'auto'"];
@@ -78,7 +78,7 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoNotSetDynamicallyChange)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoSetDynamicallyChange)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorNone];
     EXPECT_EQ([[webView scrollView] bounces], NO);
     [[webView scrollView] setBounces:NO];
@@ -90,7 +90,7 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoSetDynamicallyChange)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorNoneDynamicallyChange)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorAuto];
     EXPECT_EQ([[webView scrollView] bounces], YES);
     [webView objectByEvaluatingJavaScript:@"document.documentElement.style.overscrollBehavior = 'none'"];
@@ -100,7 +100,7 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorNoneDynamicallyChange)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorNoneSet)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorNone];
     [[webView scrollView] setBounces:NO];
     EXPECT_EQ([[webView scrollView] bounces], NO);
@@ -108,14 +108,14 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorNoneSet)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorContainNotSet)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorContain];
     EXPECT_EQ([[webView scrollView] bounces], YES);
 }
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorContainSet)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorContain];
     [[webView scrollView] setBounces:NO];
     EXPECT_EQ([[webView scrollView] bounces], NO);
@@ -123,14 +123,14 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorContainSet)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoNotSetX)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorAutoX];
     EXPECT_EQ([[webView scrollView] bounces], YES);
 }
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoSetX)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorAutoX];
     [[webView scrollView] setBounces:NO];
     EXPECT_EQ([[webView scrollView] bounces], NO);
@@ -138,14 +138,14 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoSetX)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorNoneNotSetX)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorNoneX];
     EXPECT_EQ([[webView scrollView] bounces], NO);
 }
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorNoneSetX)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorNoneX];
     [[webView scrollView] setBounces:NO];
     EXPECT_EQ([[webView scrollView] bounces], NO);
@@ -153,14 +153,14 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorNoneSetX)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorContainNotSetX)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorContainX];
     EXPECT_EQ([[webView scrollView] bounces], YES);
 }
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorContainSetX)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorContainX];
     [[webView scrollView] setBounces:NO];
     EXPECT_EQ([[webView scrollView] bounces], NO);
@@ -168,14 +168,14 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorContainSetX)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoNotSetY)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorAutoY];
     EXPECT_EQ([[webView scrollView] bounces], YES);
 }
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoSety)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorAutoY];
     [[webView scrollView] setBounces:NO];
     EXPECT_EQ([[webView scrollView] bounces], NO);
@@ -183,14 +183,14 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorAutoSety)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorNoneNotSetY)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorNoneY];
     EXPECT_EQ([[webView scrollView] bounces], NO);
 }
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorNoneSetY)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorNoneY];
     [[webView scrollView] setBounces:NO];
     EXPECT_EQ([[webView scrollView] bounces], NO);
@@ -198,14 +198,14 @@ TEST(ScrollViewBouncesTests, OverscrollBehaviorNoneSetY)
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorContainNotSetY)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorContainY];
     EXPECT_EQ([[webView scrollView] bounces], YES);
 }
 
 TEST(ScrollViewBouncesTests, OverscrollBehaviorContainSetY)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:overscrollBehaviorContainY];
     [[webView scrollView] setBounces:NO];
     EXPECT_EQ([[webView scrollView] bounces], NO);

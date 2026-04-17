@@ -2308,6 +2308,7 @@ imported/w3c/web-platform-tests/html/semantics/text-level-semantics/the-br-eleme
 imported/w3c/web-platform-tests/html/semantics/text-level-semantics/the-ruby-element [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/text-level-semantics/the-time-element [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/text-level-semantics/the-wbr-element [ Skip ]
+imported/w3c/web-platform-tests/html/semantics/text-level-semantics/the-a-element/a-type.historical.html [ Skip ] # timeout
 imported/w3c/web-platform-tests/html/syntax [ Skip ]
 imported/w3c/web-platform-tests/html/the-xhtml-syntax [ Skip ]
 imported/w3c/web-platform-tests/html/user-activation [ Skip ]
@@ -2597,6 +2598,7 @@ compositing/overflow/parent-overflow.html [ Skip ]
 compositing/overflow/remove-overflow-crash2.html [ Skip ]
 compositing/overflow/scrollbar-painting.html [ Skip ]
 compositing/overflow/theme-affects-visual-overflow.html [ Skip ]
+compositing/overflow/absolute-in-overflow.html [ Skip ]
 compositing/reflections/animation-inside-reflection.html [ Skip ]
 compositing/reflections/compositing-change-inside-reflection.html [ Skip ]
 compositing/reflections/deeply-nested-reflections.html [ Skip ]
@@ -3381,6 +3383,7 @@ fast/css/first-letter-visibility.html [ Skip ]
 fast/css/first-line-text-decoration-inherited-from-parent.html [ Skip ]
 fast/css/first-line-text-decoration.html [ Skip ]
 fast/css/first-of-type-pseudo-class.html [ Skip ]
+fast/css/focus-ring-border-radius-outline-offset.html [ ImageOnlyFailure ]
 fast/css/focus-ring-continuations.html [ Skip ]
 fast/css/focus-ring-detached.html [ Skip ]
 fast/css/focus-ring-exists-for-search-field.html [ Skip ]
@@ -4423,6 +4426,7 @@ fast/html/transient-activation.html [ Skip ]
 fast/html/history-action-user-activation.html [ Skip ]
 
 http/tests/inspector/network/resource-timing.html [ Pass Failure ]
+http/tests/inspector/target/pause-on-inline-debugger-statement.html [ Skip ]
 
 fast/canvas/image-buffer-backend-variants.html [ Skip ]
 
@@ -4664,3 +4668,5 @@ imported/w3c/web-platform-tests/largest-contentful-paint/video-play-after-poster
 webkit.org/b/306256 editing/selection/modify-up-on-rtl-wrapping-text.html [ Failure ]
 
 fast/canvas/offscreen-webgl-transfer-after-navigation-crash.html [ Skip ] # Flaky failing test
+
+webkit.org/b/312135 fast/animation/request-video-frame-callback-in-isolated-world-with-javascript-disabled.html [ Timeout ]

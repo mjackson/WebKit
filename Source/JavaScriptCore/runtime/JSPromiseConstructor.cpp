@@ -53,6 +53,7 @@ static JSC_DECLARE_HOST_FUNCTION(promiseConstructorFuncAny);
 static JSC_DECLARE_HOST_FUNCTION(promiseConstructorFuncRace);
 static JSC_DECLARE_HOST_FUNCTION(promiseConstructorFuncAll);
 static JSC_DECLARE_HOST_FUNCTION(promiseConstructorFuncAllSettled);
+static JSC_DECLARE_HOST_FUNCTION(promiseConstructorFuncIsPromise);
 
 }
 
@@ -106,6 +107,9 @@ void JSPromiseConstructor::finishCreation(VM& vm, JSPromisePrototype* promisePro
 
     putDirectNonIndexAccessorWithoutTransition(vm, vm.propertyNames->speciesSymbol, globalObject->promiseSpeciesGetterSetter(), PropertyAttribute::Accessor | PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum);
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->tryKeyword, promiseConstructorTryCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
+
+    if (Options::usePromiseIsPromise())
+        JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("isPromise"_s, promiseConstructorFuncIsPromise, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public);
 }
 
 #if USE(BUN_JSC_ADDITIONS)
@@ -1439,6 +1443,11 @@ JSC_DEFINE_HOST_FUNCTION(promiseAnySlowRejectFunction, (JSGlobalObject* globalOb
     }
 
     return JSValue::encode(jsUndefined());
+}
+
+JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncIsPromise, (JSGlobalObject*, CallFrame* callFrame))
+{
+    return JSValue::encode(jsBoolean(callFrame->argument(0).inherits<JSPromise>()));
 }
 
 } // namespace JSC

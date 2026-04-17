@@ -31,7 +31,7 @@ namespace TestWebKitAPI {
 
 TEST(WebKitLegacy, TypingStyleCrash)
 {
-    auto webView = adoptNS([[WebView alloc] init]);
+    RetainPtr webView = adoptNS([[WebView alloc] init]);
     (void)[webView typingStyle];
     webView = nil;
 }

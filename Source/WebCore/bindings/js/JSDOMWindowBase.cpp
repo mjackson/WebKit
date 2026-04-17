@@ -57,7 +57,6 @@
 #include <JavaScriptCore/CodeBlock.h>
 #include <JavaScriptCore/DeferredWorkTimer.h>
 #include <JavaScriptCore/GlobalObjectMethodTable.h>
-#include <JavaScriptCore/JSInternalPromise.h>
 #include <JavaScriptCore/JSMicrotaskDispatcher.h>
 #include <JavaScriptCore/JSWebAssembly.h>
 #include <JavaScriptCore/Microtask.h>

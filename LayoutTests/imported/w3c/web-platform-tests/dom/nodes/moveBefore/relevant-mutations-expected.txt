@@ -1,0 +1,4 @@
+
+FAIL Moving <source> out of <picture> triggers a relevant mutation on sibling <img> promise_test: Unhandled rejection with value: object "TypeError: document.body.moveBefore is not a function. (In 'document.body.moveBefore(source, null)', 'document.body.moveBefore' is undefined)"
+FAIL Moving <img> into a <picture> triggers a relevant mutation on the <img>, loading <source> promise_test: Unhandled rejection with value: object "TypeError: picture.moveBefore is not a function. (In 'picture.moveBefore(img, null)', 'picture.moveBefore' is undefined)"
+

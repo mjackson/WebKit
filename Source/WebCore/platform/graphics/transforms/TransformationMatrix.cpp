@@ -1919,6 +1919,7 @@ bool TransformationMatrix::decompose4(Decomposed4Type& decomp) const
         decomp.scaleX = 1;
         decomp.scaleY = 1;
         decomp.scaleZ = 1;
+        decomp.quaternion.w = 1;
         return true;
     }
 

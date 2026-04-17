@@ -403,7 +403,7 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters& para
         setNotifyState(name, state);
 #endif
 
-    RELEASE_LOG_FORWARDABLE(Process, PLATFORM_INITIALIZE_WEBPROCESS);
+    RELEASE_LOG_FORWARDABLE(Process, PlatformInitializeWebProcess);
 
 #if USE(EXTENSIONKIT)
     // Workaround for crash seen when running tests. See rdar://118186487.
@@ -1219,7 +1219,7 @@ void WebProcess::destroyRenderingResources()
 #if !RELEASE_LOG_DISABLED
     MonotonicTime endTime = MonotonicTime::now();
 #endif
-    WEBPROCESS_RELEASE_LOG_FORWARDABLE(ProcessSuspension, WEBPROCESS_DESTROY_RENDERING_RESOURCES, (endTime - startTime).milliseconds());
+    WEBPROCESS_RELEASE_LOG_FORWARDABLE(ProcessSuspension, WebProcessDestroyRenderingResources, (endTime - startTime).milliseconds());
 }
 
 void WebProcess::releaseSystemMallocMemory()

@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #include <type_traits>
 #include <wtf/ASCIICType.h>
 #include <wtf/text/WTFString.h>

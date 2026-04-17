@@ -296,6 +296,7 @@ public:
             return platform(event);
         });
         m_inputSource = platform(webEvent.inputSource());
+        m_canInitiateDrag = webEvent.canInitiateDrag();
 
 #if PLATFORM(MAC)
         m_eventNumber = webEvent.eventNumber();

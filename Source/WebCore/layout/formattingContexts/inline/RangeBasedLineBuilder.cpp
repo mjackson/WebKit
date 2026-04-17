@@ -149,7 +149,8 @@ bool RangeBasedLineBuilder::isEligibleForRangeInlineLayout(const InlineFormattin
             if (!inlineItem.isInlineBoxStart())
                 return false;
             CheckedRef inlineBox = inlineItem.layoutBox();
-            if (inlineFormattingContext.geometryForBox(inlineBox).horizontalMarginBorderAndPadding())
+            auto& inlineBoxGeometry = inlineFormattingContext.geometryForBox(inlineBox);
+            if (inlineBoxGeometry.horizontalMarginBorderAndPadding() || inlineBoxGeometry.marginStart() < 0 || inlineBoxGeometry.marginEnd() < 0)
                 return true;
             if (inlineBox->style().boxDecorationBreak() != Style::ComputedStyle::initialBoxDecorationBreak())
                 return true;

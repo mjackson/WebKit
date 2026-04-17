@@ -35,9 +35,10 @@ namespace Style {
 WTF_MAKE_TZONE_ALLOCATED_IMPL(CustomFunction);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(CustomFunctionRegistry);
 
-CustomFunction::CustomFunction(const AtomString& name, const Vector<StyleRuleFunction::Parameter>& parameters, const StyleProperties& properties)
+CustomFunction::CustomFunction(const AtomString& name, const Vector<StyleRuleFunction::Parameter>& parameters, const CSSCustomPropertySyntax& returnType, const StyleProperties& properties)
     : name(name)
     , parameters(parameters)
+    , returnType(returnType)
     , properties(properties)
 {
 }
@@ -59,7 +60,7 @@ void CustomFunctionRegistry::registerFunction(const StyleRuleFunction& function,
         return mutableProperties->immutableCopy();
     };
 
-    auto customFunction = makeUniqueRef<CustomFunction>(function.name(), function.parameters(), mergedProperties());
+    auto customFunction = makeUniqueRef<CustomFunction>(function.name(), function.parameters(), function.returnType(), mergedProperties());
 
     // Last function with the same name wins.
     m_functions.set(function.name(), WTF::move(customFunction));

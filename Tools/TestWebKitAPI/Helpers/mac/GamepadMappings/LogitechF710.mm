@@ -136,7 +136,7 @@ static void publishReportCallback(Vector<float>& buttonValues, Vector<float>& ax
     // Final is vendor specific (changes with vibration mode, I know, but not relevant to the gamepad spec at this time)
     reportData[7] = 0x5f;
 
-    auto nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:F710ReportSize]);
+    RetainPtr nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:F710ReportSize]);
     [userDevice handleReport:nsReportData.get() error:nil];
 }
 

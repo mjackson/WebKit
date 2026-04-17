@@ -52,36 +52,54 @@ ContentSecurityPolicySource::ContentSecurityPolicySource(const ContentSecurityPo
 bool ContentSecurityPolicySource::matches(const URL& url, bool didReceiveRedirectResponse) const
 {
     // https://www.w3.org/TR/CSP3/#match-url-to-source-expression.
-    if (!schemeMatches(url))
+    auto schemeMatch = schemeMatches(url);
+    if (schemeMatch == SchemeMatchResult::NoMatch)
         return false;
     if (isSchemeOnly())
         return true;
-    return hostMatches(url) && portMatches(url) && (didReceiveRedirectResponse || pathMatches(url));
+    auto shouldUpgradePorts = (schemeMatch == SchemeMatchResult::InsecureUpgradeMatch) ? ShouldUpgradePorts::Yes : ShouldUpgradePorts::No;
+    return hostMatches(url) && portMatches(url, shouldUpgradePorts) && (didReceiveRedirectResponse || pathMatches(url));
 }
 
-bool ContentSecurityPolicySource::schemeMatches(const URL& url) const
+SchemeMatchResult ContentSecurityPolicySource::schemeMatches(const URL& url) const
 {
     // https://www.w3.org/TR/CSP3/#match-schemes.
-    auto& scheme = m_scheme.isEmpty() ? m_policy->selfProtocol() : m_scheme;
+    const auto& scheme = m_scheme.isEmpty() ? m_policy->selfProtocol() : m_scheme;
     auto urlScheme = url.protocol();
 
+    // Step 1.1: A matches B.
     if (scheme == urlScheme)
-        return true;
+        return SchemeMatchResult::Match;
 
-    // host-sources can do direct-upgrades.
+    // Step 1.2: A is "http" and B is "https".
     if (scheme == "http"_s && urlScheme == "https"_s)
-        return true;
-    if (scheme == "ws"_s && (urlScheme == "wss"_s || urlScheme == "https"_s || urlScheme == "http"_s))
-        return true;
+        return SchemeMatchResult::InsecureUpgradeMatch;
+
+    // Step 1.3: A is "ws" and B is "wss", "http", or "https".
+    if (scheme == "ws"_s) {
+        if (urlScheme == "wss"_s || urlScheme == "https"_s)
+            return SchemeMatchResult::InsecureUpgradeMatch;
+        if (urlScheme == "http"_s)
+            return SchemeMatchResult::Match;
+    }
+
+    // Step 1.4: A is "wss" and B is "https".
     if (scheme == "wss"_s && urlScheme == "https"_s)
-        return true;
+        return SchemeMatchResult::Match;
 
-    // self-sources can always upgrade to secure protocols and side-grade insecure protocols.
-    if ((m_isSelfSource
-        && ((urlScheme == "https"_s || urlScheme == "wss"_s) || (scheme == "http"_s && urlScheme == "ws"_s))))
-        return true;
+    // self-sources can always upgrade to secure protocols and side-grade insecure protocols. (§6.7.2.8 step 4 NOTE)
+    if (m_isSelfSource) {
+        if (urlScheme == "https"_s || urlScheme == "wss"_s) {
+            if (scheme == "http"_s || scheme == "ws"_s)
+                return SchemeMatchResult::InsecureUpgradeMatch;
+            return SchemeMatchResult::Match;
+        }
+        if (scheme == "http"_s && urlScheme == "ws"_s)
+            return SchemeMatchResult::Match;
+    }
 
-    return false;
+    // Step 2: return "Does Not Match".
+    return SchemeMatchResult::NoMatch;
 }
 
 static bool NODELETE wildcardMatches(StringView host, const String& hostWithWildcard)
@@ -117,30 +135,44 @@ bool ContentSecurityPolicySource::pathMatches(const URL& url) const
     return path == m_path;
 }
 
-bool ContentSecurityPolicySource::portMatches(const URL& url) const
+bool ContentSecurityPolicySource::portMatches(const URL& url, ShouldUpgradePorts shouldUpgradePorts) const
 {
+    // https://www.w3.org/TR/CSP3/#match-ports
+    // input is the source expression's port-part (m_port).
+    // url is the URL being checked against the policy.
+
+    // Step 1: Assert input is null, "*", or a sequence of one or more ASCII digits.
+    ASSERT(!(m_portHasWildcard && m_port));
+
+    // Step 2: wildcard port matches any URL.
     if (m_portHasWildcard)
         return true;
 
-    std::optional<uint16_t> port = url.port();
+    std::optional<uint16_t> urlPort = url.port();
 
-    if (port == m_port)
+    // Steps 3-4: if normalizedInput equals url's port (including null), return "Matches".
+    if (urlPort == m_port)
         return true;
 
-    // host-source and self-source allows upgrading to a more secure scheme which allows for different ports.
-    auto defaultSecurePort = WTF::defaultPortForProtocol("https"_s).value_or(443);
-    auto defaultInsecurePort = WTF::defaultPortForProtocol("http"_s).value_or(80);
-    bool isUpgradeSecure = (port == defaultSecurePort) || (!port && (url.protocol() == "https"_s || url.protocol() == "wss"_s));
-    bool isCurrentUpgradable = (m_port == defaultInsecurePort) || (m_scheme == "http"_s && (!m_port || m_port == defaultSecurePort));
-    if (isUpgradeSecure && isCurrentUpgradable)
-        return true;
+    // When upgrading from an insecure to secure scheme, treat default
+    // ports as equivalent since they differ across schemes (80 vs 443).
+    if (shouldUpgradePorts == ShouldUpgradePorts::Yes) {
+        auto defaultSecurePort = WTF::defaultPortForProtocol("https"_s).value_or(443);
+        auto defaultInsecurePort = WTF::defaultPortForProtocol("http"_s).value_or(80);
+        bool urlOnSecureDefaultPort = (urlPort == defaultSecurePort) || (!urlPort && (url.protocol() == "https"_s || url.protocol() == "wss"_s));
+        bool sourcePortIsUpgradable = !m_port || m_port == defaultInsecurePort || m_port == defaultSecurePort;
+        if (urlOnSecureDefaultPort && sourcePortIsUpgradable)
+            return true;
+    }
 
-    if (!port)
+    // Step 5: if url's port is null, check if source port is the default for url's scheme.
+    if (!urlPort)
         return WTF::isDefaultPortForProtocol(m_port.value(), url.protocol());
 
     if (!m_port)
-        return WTF::isDefaultPortForProtocol(port.value(), url.protocol());
+        return WTF::isDefaultPortForProtocol(urlPort.value(), url.protocol());
 
+    // Step 6: return "Does Not Match".
     return false;
 }
 

@@ -73,6 +73,7 @@ public:
 
     const String& message() const LIFETIME_BOUND { return m_message; }
     double fontSize() const { return m_fontSize; }
+    const IntRect& anchorRect() const { return m_anchorRect; }
 
 #if PLATFORM(IOS_FAMILY)
     WEBCORE_EXPORT void setAnchorRect(const IntRect& anchorRect, UIViewController* presentingViewController = nullptr);
@@ -96,6 +97,7 @@ protected:
 #endif
     String m_message;
     double m_fontSize { 0 };
+    IntRect m_anchorRect;
 #if PLATFORM(MAC)
     RetainPtr<NSPopover> m_popover;
 #elif PLATFORM(IOS_FAMILY)

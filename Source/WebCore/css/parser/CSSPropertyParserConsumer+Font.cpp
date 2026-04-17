@@ -298,7 +298,7 @@ static RefPtr<CSSValue> consumeGenericFamily(CSSParserTokenRange& range, CSS::Pr
     if (auto familyName = consumeGenericFamilyUnresolved(range)) {
         // FIXME: Remove special case for system-ui.
         if (*familyName == CSSValueSystemUi)
-            return state.pool.createFontFamilyValue(nameString(*familyName));
+            return state.pool.createFontFamilyNameValue(nameLiteral(*familyName));
         return CSSPrimitiveValue::create(*familyName);
     }
     return nullptr;
@@ -330,7 +330,7 @@ RefPtr<CSSValue> consumeFamilyName(CSSParserTokenRange& range, CSS::PropertyPars
     auto familyName = consumeFamilyNameUnresolved(range);
     if (familyName.isNull())
         return nullptr;
-    return state.pool.createFontFamilyValue(familyName);
+    return state.pool.createFontFamilyNameValue(familyName);
 }
 
 RefPtr<CSSValue> consumeFontFamily(CSSParserTokenRange& range, CSS::PropertyParserState& state)

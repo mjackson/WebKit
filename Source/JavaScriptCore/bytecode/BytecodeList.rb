@@ -351,7 +351,6 @@ op :create_promise,
     args: {
         dst: VirtualRegister,
         callee: VirtualRegister,
-        isInternalPromise: bool,
     },
     metadata: {
         cachedCallee: WriteBarrier[JSCell]
@@ -1204,7 +1203,6 @@ op :create_cloned_arguments,
 op :new_promise,
     args: {
         dst: VirtualRegister,
-        isInternalPromise: bool,
     }
 
 op :new_generator,

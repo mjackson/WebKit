@@ -81,6 +81,7 @@
 #include "InspectorBackendClient.h"
 #include "InspectorCSSAgent.h"
 #include "InspectorHistory.h"
+#include "InspectorIdentifierRegistry.h"
 #include "InspectorNodeFinder.h"
 #include "InspectorPageAgent.h"
 #include "InstrumentingAgents.h"
@@ -1514,12 +1515,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorDOMAgent::highlightSelector(co
     RefPtr<Document> document;
 
     if (!!frameId) {
-        Ref agents = m_instrumentingAgents.get();
-        CheckedPtr pageAgent = agents->enabledPageAgent();
-        if (!pageAgent)
-            return makeUnexpected("Page domain must be enabled"_s);
-
-        RefPtr frame = pageAgent->assertFrame(errorString, frameId);
+        RefPtr frame = m_inspectedPage->inspectorController().identifierRegistry().assertFrame(errorString, frameId);
         if (!frame)
             return makeUnexpected(errorString);
 
@@ -1690,12 +1686,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorDOMAgent::highlightFrame(const
 {
     Inspector::Protocol::ErrorString errorString;
 
-    Ref agents = m_instrumentingAgents.get();
-    CheckedPtr pageAgent = agents->enabledPageAgent();
-    if (!pageAgent)
-        return makeUnexpected("Page domain must be enabled"_s);
-
-    RefPtr frame = pageAgent->assertFrame(errorString, frameId);
+    RefPtr frame = m_inspectedPage->inspectorController().identifierRegistry().assertFrame(errorString, frameId);
     if (!frame)
         return makeUnexpected(errorString);
 
@@ -2028,11 +2019,8 @@ Ref<Inspector::Protocol::DOM::Node> InspectorDOMAgent::buildObjectForNode(Node* 
             value->setLayoutFlags(layoutFlags.releaseNonNull());
     }
 
-    CheckedPtr pageAgent = agents->enabledPageAgent();
-    if (pageAgent) {
-        if (RefPtr frameView = node->document().view())
-            value->setFrameId(pageAgent->frameId(&frameView->frame()));
-    }
+    if (RefPtr frameView = node->document().view())
+        value->setFrameId(m_inspectedPage->inspectorController().identifierRegistry().frameId(&frameView->frame()));
 
     if (RefPtr element = dynamicDowncast<Element>(*node)) {
         value->setAttributes(buildArrayForElementAttributes(element.get()));
@@ -2066,8 +2054,7 @@ Ref<Inspector::Protocol::DOM::Node> InspectorDOMAgent::buildObjectForNode(Node* 
                 value->setPseudoElements(pseudoElements.releaseNonNull());
         }
     } else if (RefPtr document = dynamicDowncast<Document>(*node)) {
-        if (pageAgent)
-            value->setFrameId(pageAgent->frameId(document->frame()));
+        value->setFrameId(m_inspectedPage->inspectorController().identifierRegistry().frameId(document->frame()));
         value->setDocumentURL(documentURLString(document.get()));
         value->setBaseURL(documentBaseURLString(document.get()));
         value->setXmlVersion(document->xmlVersion());

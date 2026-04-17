@@ -202,15 +202,15 @@ static Vector<String> userContentWorldReceivedMessages;
 
 TEST(UserContentWorld, DefaultClientWorldMessageEvent)
 {
-    auto handler = adoptNS([[UserContentWorldMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[UserContentWorldMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
     [[configuration userContentController] addUserScript:[[WKUserScript alloc] initWithSource:
         @"window.addEventListener('message', function(message) { console.error(message.data); });"
         injectionTime:WKUserScriptInjectionTimeAtDocumentStart
         forMainFrameOnly:NO
         inContentWorld:WKContentWorld.defaultClientWorld]];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)  configuration:configuration.get() addToWindow:NO]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)  configuration:configuration.get() addToWindow:NO]);
     [webView synchronouslyLoadTestPageNamed:@"postMessage-various-types"];
     while (userContentWorldReceivedMessages.size() != 4)
         TestWebKitAPI::Util::spinRunLoop();

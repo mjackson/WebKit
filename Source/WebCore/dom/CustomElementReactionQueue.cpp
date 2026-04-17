@@ -35,6 +35,7 @@
 #include "LocalDOMWindow.h"
 #include "WindowEventLoop.h"
 #include <JavaScriptCore/Heap.h>
+#include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/TopExceptionScope.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Ref.h>

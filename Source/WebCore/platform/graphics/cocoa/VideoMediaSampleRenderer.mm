@@ -148,7 +148,9 @@ VideoMediaSampleRenderer::~VideoMediaSampleRenderer()
 #if HAVE(AVSAMPLEBUFFERVIDEORENDERER)
 AVSampleBufferVideoRenderer *VideoMediaSampleRenderer::videoRendererFor(WebSampleBufferVideoRendering *renderer)
 {
-    ASSERT(renderer);
+    if (!renderer)
+        return nullptr;
+
     if (auto *displayLayer = dynamic_objc_cast<AVSampleBufferDisplayLayer>(renderer))
         return [displayLayer sampleBufferRenderer];
     return checked_objc_cast<AVSampleBufferVideoRenderer>(renderer);

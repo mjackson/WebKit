@@ -66,6 +66,8 @@ int WebExtensionContext::toAPIError(WebExtensionContext::Error error)
         return static_cast<int>(WebExtensionContext::APIError::NoBackgroundContent);
     case WebExtensionContext::Error::BackgroundContentFailedToLoad:
         return static_cast<int>(WebExtensionContext::APIError::BackgroundContentFailedToLoad);
+    case WebExtensionContext::Error::ScriptExecutionError:
+        return static_cast<int>(WebExtensionContext::APIError::ScriptExecutionError);
     }
 
     ASSERT_NOT_REACHED();
@@ -100,6 +102,10 @@ Ref<API::Error> WebExtensionContext::createError(Error error, const String& cust
 
     case Error::BackgroundContentFailedToLoad:
         localizedDescription = WEB_UI_STRING("The background content failed to load due to an error.", "WKWebExtensionContextErrorBackgroundContentFailedToLoad description");
+        break;
+
+    case Error::ScriptExecutionError:
+        localizedDescription = WEB_UI_STRING("A script error has occurred.", "WKWebExtensionContextErrorScriptExecutionError description");
         break;
     }
 

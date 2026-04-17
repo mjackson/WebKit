@@ -90,6 +90,7 @@ class InputCursor;
 
 namespace WTF {
 class TextStream;
+class TextPosition;
 }
 
 namespace PAL {
@@ -316,6 +317,10 @@ struct EventTrackingRegions;
 
 #if USE(SYSTEM_PREVIEW)
 struct SystemPreviewInfo;
+#endif
+
+#if ENABLE(VIDEO)
+class LazyLoadVideoObserver;
 #endif
 
 #if ENABLE(WEB_RTC)
@@ -1546,7 +1551,7 @@ public:
     WEBCORE_EXPORT unsigned NODELETE touchEventHandlerCount() const;
 
     WEBCORE_EXPORT void NODELETE startTrackingStyleRecalcs();
-    WEBCORE_EXPORT unsigned styleRecalcCount() const { return m_styleRecalcCount; }
+    unsigned styleRecalcCount() const { return m_styleRecalcCount; }
 
 #if ENABLE(TOUCH_EVENTS)
     bool hasTouchEventHandlers() const;
@@ -1584,7 +1589,7 @@ public:
 
     bool visualUpdatesAllowed() const { return m_visualUpdatesPreventedReasons.isEmpty(); }
 
-    bool isInDocumentWrite() { return m_writeRecursionDepth > 0; }
+    bool isInDocumentWrite() const { return m_writeRecursionDepth > 0; }
 
     void suspendScheduledTasks(ReasonForSuspension);
     void resumeScheduledTasks(ReasonForSuspension);
@@ -1976,6 +1981,9 @@ public:
 #if ENABLE(MODEL_ELEMENT)
     LazyLoadModelObserver& lazyLoadModelObserver();
 #endif
+#if ENABLE(VIDEO)
+    LazyLoadVideoObserver& lazyLoadVideoObserver();
+#endif
 
     ContentVisibilityDocumentState& contentVisibilityDocumentState();
 
@@ -2074,6 +2082,8 @@ public:
 
     WEBCORE_EXPORT void ariaNotify(const String&);
     WEBCORE_EXPORT void ariaNotify(const String&, const AriaNotifyOptions&);
+
+    std::optional<TextPosition> currentParserSourcePosition() const;
 
 protected:
     enum class ConstructionFlag : uint8_t {
@@ -2350,6 +2360,9 @@ private:
     std::unique_ptr<LazyLoadImageObserver> m_lazyLoadImageObserver;
 #if ENABLE(MODEL_ELEMENT)
     std::unique_ptr<LazyLoadModelObserver> m_lazyLoadModelObserver;
+#endif
+#if ENABLE(VIDEO)
+    std::unique_ptr<LazyLoadVideoObserver> m_lazyLoadVideoObserver;
 #endif
 
     std::unique_ptr<ContentVisibilityDocumentState> m_contentVisibilityDocumentState;

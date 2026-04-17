@@ -233,14 +233,13 @@ enum HEVCParameterCodec {
     ExportMacro=WEBCORE_TESTSUPPORT_EXPORT,
     JSGenerateToJSObject,
     JSGenerateToNativeObject,
-    LegacyNativeDictionaryRequiredInterfaceNullability,
 ] dictionary HEVCParameterSet {
     HEVCParameterCodec codec = "hvc1";
     unsigned short generalProfileSpace = 0;
     unsigned short generalProfileIDC = 0;
     unsigned long generalProfileCompatibilityFlags = 0;
     octet generalTierFlag = 0;
-    required FrozenArray<octet> generalConstraintIndicatorFlags;
+    required [InlineCapacity=6] FrozenArray<octet> generalConstraintIndicatorFlags;
     unsigned short generalLevelIDC = 0;
 };
 
@@ -362,7 +361,6 @@ enum AV1ConfigurationRange {
     ExportMacro=WEBCORE_TESTSUPPORT_EXPORT,
     JSGenerateToJSObject,
     JSGenerateToNativeObject,
-    LegacyNativeDictionaryRequiredInterfaceNullability,
 ] dictionary WebDriverCookieData {
     DOMString name;
     DOMString value;
@@ -377,7 +375,6 @@ enum AV1ConfigurationRange {
 [
     ExportMacro=WEBCORE_TESTSUPPORT_EXPORT,
     JSGenerateToJSObject,
-    LegacyNativeDictionaryRequiredInterfaceNullability,
 ] dictionary TextIndicatorInfo {
     DOMRectReadOnly textBoundingRectInRootViewCoordinates;
     DOMRectList textRectsInBoundingRectCoordinates;
@@ -1414,6 +1411,8 @@ enum ContentsFormat {
 
     DOMString systemColorForCSSValue(DOMString cssValue, boolean useDarkModeAppearance, boolean useElevatedUserInterfaceLevel);
     DOMString focusRingColor();
+
+    readonly attribute double switchAnimationVisuallyOnDuration;
 
     boolean systemHasBattery();
 

@@ -661,6 +661,7 @@ XMLDocumentParser::XMLDocumentParser(Document& document, IsInFrameView isInFrame
     , m_isInFrameView(isInFrameView)
     , m_pendingCallbacks(makeUniqueRef<PendingCallbacks>())
     , m_currentNode(&document)
+    , m_maxEntityExpansionCount(document.settings().maximumXMLParserEntityExpansionCount())
     , m_scriptStartPosition(TextPosition::belowRangePosition())
 {
 }
@@ -669,6 +670,7 @@ XMLDocumentParser::XMLDocumentParser(DocumentFragment& fragment, HashMap<AtomStr
     : ScriptableDocumentParser(fragment.document(), parserContentPolicy)
     , m_pendingCallbacks(makeUniqueRef<PendingCallbacks>())
     , m_currentNode(&fragment)
+    , m_maxEntityExpansionCount(fragment.document().settings().maximumXMLParserEntityExpansionCount())
     , m_scriptStartPosition(TextPosition::belowRangePosition())
     , m_parsingFragment(true)
     , m_prefixToNamespaceMap(WTF::move(prefixToNamespaceMap))
@@ -1280,24 +1282,131 @@ static xmlEntityPtr getXHTMLEntity(const xmlChar* name)
     return entity;
 }
 
-static xmlEntityPtr getEntityHandler(void* closure, const xmlChar* name)
+xmlEntityPtr XMLDocumentParser::getEntity(const xmlChar* name)
 {
-    xmlParserCtxtPtr ctxt = static_cast<xmlParserCtxtPtr>(closure);
-
     xmlEntityPtr ent = xmlGetPredefinedEntity(name);
     if (ent) {
         RELEASE_ASSERT(ent->etype == XML_INTERNAL_PREDEFINED_ENTITY);
         return ent;
     }
 
-    ent = xmlGetDocEntity(ctxt->myDoc, name);
-    if (!ent && getParser(closure)->isXHTMLDocument()) {
+    if (!m_deferredEntityDeclarationsFlushed)
+        flushDeferredEntityDeclarations();
+
+    ent = xmlGetDocEntity(context()->myDoc, name);
+    if (!ent && isXHTMLDocument()) {
         ent = getXHTMLEntity(name);
         if (ent)
             ent->etype = XML_INTERNAL_GENERAL_ENTITY;
     }
 
     return ent;
+}
+
+void XMLDocumentParser::entityDecl(const xmlChar* name, int type, const xmlChar* publicId, const xmlChar* systemId, xmlChar* content)
+{
+    auto contentString = toString(content);
+    if (type == XML_INTERNAL_GENERAL_ENTITY && contentString.contains('&')) {
+        m_deferredEntityDeclarations.append({
+            toString(name),
+            type,
+            toString(publicId),
+            toString(systemId),
+            WTF::move(contentString),
+        });
+        m_deferredEntityDeclarationsFlushed = false;
+        return;
+    }
+    xmlSAX2EntityDecl(context(), name, type, publicId, systemId, content);
+}
+
+void XMLDocumentParser::flushDeferredEntityDeclarations()
+{
+    m_deferredEntityDeclarationsFlushed = true;
+
+    // Clear cached counts since new entities may have been added.
+    m_entityTransitiveReferenceCounts.clear();
+
+    // Build a map from entity name to content for transitive count computation.
+    HashMap<AtomString, String> entityContents;
+    for (auto& decl : m_deferredEntityDeclarations)
+        entityContents.add(AtomString(decl.name), decl.content);
+
+    // Compute transitive reference counts and register only safe entities.
+    for (auto& decl : m_deferredEntityDeclarations) {
+        auto entityName = AtomString(decl.name);
+        HashSet<AtomString> visiting;
+        if (computeTransitiveEntityReferenceCount(entityName, entityContents, visiting) > m_maxEntityExpansionCount) {
+            handleError(XMLErrors::Type::Fatal, "Entity reference expansion limit reached", textPosition());
+            return;
+        }
+
+        auto nameUTF8 = decl.name.utf8();
+        if (xmlGetDocEntity(context()->myDoc, byteCast<xmlChar>(nameUTF8.data())))
+            continue;
+        auto publicIdUTF8 = decl.publicId.utf8();
+        auto systemIdUTF8 = decl.systemId.utf8();
+        auto contentUTF8 = decl.content.utf8();
+        xmlSAX2EntityDecl(context(),
+            byteCast<xmlChar>(nameUTF8.data()),
+            decl.type,
+            byteCast<xmlChar>(publicIdUTF8.data()),
+            byteCast<xmlChar>(systemIdUTF8.data()),
+            const_cast<xmlChar*>(byteCast<xmlChar>(contentUTF8.data())));
+    }
+}
+
+uint64_t XMLDocumentParser::computeTransitiveEntityReferenceCount(const AtomString& name, const HashMap<AtomString, String>& entityContents, HashSet<AtomString>& visiting)
+{
+    if (name.isEmpty())
+        return 0;
+
+    auto it = m_entityTransitiveReferenceCounts.find(name);
+    if (it != m_entityTransitiveReferenceCounts.end())
+        return it->value;
+
+    if (!visiting.add(name).isNewEntry)
+        return 0;
+
+    auto contentIt = entityContents.find(name);
+    if (contentIt == entityContents.end()) {
+        m_entityTransitiveReferenceCounts.set(name, 0);
+        return 0;
+    }
+
+    auto& content = contentIt->value;
+    CheckedUint64 count = 0;
+    size_t i = 0;
+    while (i < content.length()) {
+        if (content[i] != '&') {
+            ++i;
+            continue;
+        }
+        size_t nameStart = i + 1;
+        size_t nameEnd = nameStart;
+        while (nameEnd < content.length() && content[nameEnd] != ';')
+            ++nameEnd;
+        if (nameEnd >= content.length())
+            break;
+        ++count;
+        auto referencedName = AtomString(content.substring(nameStart, nameEnd - nameStart));
+        count += computeTransitiveEntityReferenceCount(referencedName, entityContents, visiting);
+        i = nameEnd + 1;
+    }
+
+    uint64_t result = count.hasOverflowed() ? std::numeric_limits<uint64_t>::max() : count.value();
+    m_entityTransitiveReferenceCounts.set(name, result);
+    return result;
+}
+
+static void entityDeclHandler(void* closure, const xmlChar* name, int type, const xmlChar* publicId, const xmlChar* systemId, xmlChar* content)
+{
+    protect(getParser(closure))->entityDecl(name, type, publicId, systemId, content);
+}
+
+static xmlEntityPtr getEntityHandler(void* closure, const xmlChar* name)
+{
+    return protect(getParser(closure))->getEntity(name);
 }
 
 static void startDocumentHandler(void* closure)
@@ -1364,7 +1473,7 @@ void XMLDocumentParser::initializeParserContext(const CString& chunk)
     sax.internalSubset = internalSubsetHandler;
     sax.externalSubset = externalSubsetHandler;
     sax.ignorableWhitespace = ignorableWhitespaceHandler;
-    sax.entityDecl = xmlSAX2EntityDecl;
+    sax.entityDecl = entityDeclHandler;
     sax.initialized = XML_SAX2_MAGIC;
     DocumentParser::startParsing();
     m_sawError = false;

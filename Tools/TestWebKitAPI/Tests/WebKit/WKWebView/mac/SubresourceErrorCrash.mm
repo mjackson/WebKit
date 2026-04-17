@@ -31,7 +31,7 @@ namespace TestWebKitAPI {
 
 TEST(WebKitLegacy, SubresourceErrorCrash)
 {
-    auto webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:@"" groupName:@""]);
+    RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:@"" groupName:@""]);
     [[webView mainFrame] loadHTMLString:@"<link rel=stylesheet href='x-error:error'>" baseURL:nil];
     webView = nil;
 }

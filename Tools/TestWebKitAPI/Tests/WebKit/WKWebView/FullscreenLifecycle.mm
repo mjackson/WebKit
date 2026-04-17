@@ -58,15 +58,15 @@ static bool fullscreenStateChanged;
 
 TEST(Fullscreen, AudioLifecycle)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
     [configuration preferences].elementFullscreenEnabled = YES;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
     ASSERT_FALSE([webView _canEnterFullscreen]);
     ASSERT_EQ([webView fullscreenState], WKFullscreenStateNotInFullscreen);
 
-    auto observer = adoptNS([[FullscreenLifecycleObserver alloc] init]);
+    RetainPtr observer = adoptNS([[FullscreenLifecycleObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:canEnterFullscreenKeyPath options:NSKeyValueObservingOptionNew context:nil];
     [webView addObserver:observer.get() forKeyPath:fullscreenStateKeyPath options:NSKeyValueObservingOptionNew context:nil];
 
@@ -82,11 +82,11 @@ TEST(Fullscreen, AudioLifecycle)
 
 static void runTest(WKWebViewConfiguration *configuration)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration]);
     ASSERT_FALSE([webView _canEnterFullscreen]);
     ASSERT_EQ([webView fullscreenState], WKFullscreenStateNotInFullscreen);
 
-    auto observer = adoptNS([[FullscreenLifecycleObserver alloc] init]);
+    RetainPtr observer = adoptNS([[FullscreenLifecycleObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:canEnterFullscreenKeyPath options:NSKeyValueObservingOptionNew context:nil];
     [webView addObserver:observer.get() forKeyPath:fullscreenStateKeyPath options:NSKeyValueObservingOptionNew context:nil];
 
@@ -131,7 +131,7 @@ static void runTest(WKWebViewConfiguration *configuration)
 
 TEST(Fullscreen, VideoLifecycle)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
     [configuration preferences].elementFullscreenEnabled = YES;
 
@@ -145,7 +145,7 @@ TEST(Fullscreen, DISABLED_VideoLifecycleElementFullscreenDisabled)
 TEST(Fullscreen, VideoLifecycleElementFullscreenDisabled)
 #endif
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
     [configuration preferences]._videoFullscreenRequiresElementFullscreen = YES;
 
@@ -158,15 +158,15 @@ TEST(Fullscreen, VideoLifecycleElementFullscreenDisabled)
 
 TEST(Fullscreen, VideoPausesAfterExitingFullscreen)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
     [configuration preferences]._videoFullscreenRequiresElementFullscreen = YES;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
     ASSERT_FALSE([webView _canEnterFullscreen]);
     ASSERT_EQ([webView fullscreenState], WKFullscreenStateNotInFullscreen);
 
-    auto observer = adoptNS([[FullscreenLifecycleObserver alloc] init]);
+    RetainPtr observer = adoptNS([[FullscreenLifecycleObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:fullscreenStateKeyPath options:NSKeyValueObservingOptionNew context:nil];
 
     [webView loadTestPageNamed:@"large-video-test-now-playing"];

@@ -53,6 +53,7 @@
 #include "InspectorInstrumentation.h"
 #include "IntRect.h"
 #include "JSCanvasRenderingContext2D.h"
+#include "JSDOMGlobalObject.h"
 #include "JSDOMRectReadOnly.h"
 #include "JSExecState.h"
 #include "JSHTMLCanvasElement.h"
@@ -210,22 +211,24 @@ void FrameConsoleClient::addMessage(MessageSource source, MessageLevel level, co
 void FrameConsoleClient::messageWithTypeAndLevel(MessageType type, MessageLevel level, JSC::JSGlobalObject* lexicalGlobalObject, Ref<Inspector::ScriptArguments>&& arguments)
 {
     String messageText;
-    std::span<const String> additionalArguments;
-    Vector<String> messageArgumentsVector = arguments->getArgumentsAsStrings();
-    if (!messageArgumentsVector.isEmpty()) {
-        messageText = messageArgumentsVector.first();
-        additionalArguments = messageArgumentsVector.subspan(1);
-    }
+    arguments->getFirstArgumentAsString(messageText);
 
     auto message = makeUnique<Inspector::ConsoleMessage>(MessageSource::ConsoleAPI, type, level, messageText, arguments.copyRef(), lexicalGlobalObject);
 
-    String url = message->url();
-    unsigned lineNumber = message->line();
-    unsigned columnNumber = message->column();
+    auto url = message->url();
+    auto lineNumber = message->line();
+    auto columnNumber = message->column();
+
+    auto* domGlobalObject = jsDynamicCast<JSDOMGlobalObject*>(lexicalGlobalObject);
+    if (level == MessageLevel::Error && domGlobalObject && domGlobalObject->hasScriptErrorCallbacks()) {
+        auto fullMessageText = makeStringByJoining(arguments->getArgumentsAsStrings(), " "_s);
+        domGlobalObject->invokeScriptErrorCallbacks(fullMessageText, url, lineNumber, columnNumber);
+    }
 
 #if ENABLE(WEBDRIVER_BIDI)
     AutomationInstrumentation::addMessageToConsole(message);
 #endif
+
     Ref frame = m_frame.get();
     InspectorInstrumentation::addMessageToConsole(frame.get(), WTF::move(message));
 
@@ -236,7 +239,7 @@ void FrameConsoleClient::messageWithTypeAndLevel(MessageType type, MessageLevel 
     if (page->usesEphemeralSession())
         return;
 
-    if (!messageArgumentsVector.isEmpty()) {
+    if (arguments->argumentCount()) {
         page->chrome().client().addMessageToConsole(MessageSource::ConsoleAPI, level, messageText, lineNumber, columnNumber, url);
 
         if (RefPtr consoleMessageListener = page->consoleMessageListenerForTesting())

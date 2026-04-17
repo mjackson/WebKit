@@ -438,12 +438,13 @@ public:
 #endif
     void cancelLoad();
 
+    bool pageIsVisible() const { return m_pageIsVisible; }
     void setPageIsVisible(bool);
     void setVisibleForCanvas(bool);
     bool isVisibleForCanvas() const { return m_visibleForCanvas; }
 
-    void setVisibleInViewport(bool);
-    bool isVisibleInViewport() const { return m_visibleInViewport; }
+    void setViewportVisibility(ViewportVisibility);
+    ViewportVisibility viewportVisibility() const { return m_viewportVisibility; }
 
     void prepareToPlay();
     void play();
@@ -847,7 +848,6 @@ private:
     double m_volume { 1 };
     bool m_pageIsVisible { false };
     bool m_visibleForCanvas { false };
-    bool m_visibleInViewport { false };
     bool m_muted { false };
     bool m_preservesPitch { true };
     bool m_inPrivateBrowsingMode { false };
@@ -857,6 +857,7 @@ private:
     DynamicRangeMode m_preferredDynamicRangeMode;
     PlatformDynamicRangeLimit m_platformDynamicRangeLimit { PlatformDynamicRangeLimit::initialValueForVideos() };
     PitchCorrectionAlgorithm m_pitchCorrectionAlgorithm { PitchCorrectionAlgorithm::BestAllAround };
+    ViewportVisibility m_viewportVisibility { ViewportVisibility::NotVisible };
     RefPtr<PlatformMediaResourceLoader> m_mediaResourceLoader;
 
 #if ENABLE(MEDIA_SOURCE)

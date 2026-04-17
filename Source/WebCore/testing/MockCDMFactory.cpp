@@ -35,6 +35,7 @@
 #include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/UUID.h>
+#include <wtf/WeakHashSet.h>
 #include <wtf/text/StringHash.h>
 #include <wtf/text/StringView.h>
 
@@ -42,16 +43,32 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(MockCDM);
 
+static WeakHashSet<MockCDMFactory>& allMockFactories()
+{
+    static NeverDestroyed<WeakHashSet<MockCDMFactory>> factories;
+    return factories;
+}
+
+void MockCDMFactory::unregisterAllMockFactories()
+{
+    for (auto& weakFactory : copyToVector(allMockFactories())) {
+        if (RefPtr factory = weakFactory.get())
+            factory->unregister();
+    }
+}
+
 MockCDMFactory::MockCDMFactory()
     : m_supportedSessionTypes({ MediaKeySessionType::Temporary, MediaKeySessionType::PersistentUsageRecord, MediaKeySessionType::PersistentLicense })
     , m_supportedEncryptionSchemes({ MediaKeyEncryptionScheme::cenc })
 {
     CDMFactory::registerFactory(*this);
+    allMockFactories().add(*this);
 }
 
 MockCDMFactory::~MockCDMFactory()
 {
     unregister();
+    allMockFactories().remove(*this);
 }
 
 void MockCDMFactory::unregister()

@@ -107,7 +107,7 @@ public:
     // 1. Direct TCP socket mode (JSC shell debugging)
     // 2. Remote Web Inspector integration mode (WebKit debugging)
     bool isRWIMode() const { return !!m_rwiResponseHandler; }
-    JS_EXPORT_PRIVATE bool startRWI(Function<bool(const String&)>&& rwiResponseHandler);
+    JS_EXPORT_PRIVATE void startRWI(Function<bool(const String&)>&& rwiResponseHandler);
 #endif
 
     void trackInstance(JSWebAssemblyInstance*);
@@ -144,8 +144,9 @@ public:
 
     JS_EXPORT_PRIVATE ModuleManager& moduleManager() const;
 
+    JS_EXPORT_PRIVATE void reset();
+
 private:
-    void reset();
 
     void setState(State);
     JS_EXPORT_PRIVATE bool NODELETE isState(State) const;

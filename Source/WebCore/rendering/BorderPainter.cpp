@@ -442,7 +442,7 @@ bool BorderPainter::paintNinePieceImageImpl(const LayoutRect& rect, const Render
 
     ImagePaintingOptions options = {
         op,
-        ImageOrientation::Orientation::FromImage,
+        m_renderer->imageOrientation(),
         m_paintInfo.paintBehavior.contains(PaintBehavior::DrawsHDRContent) ? DrawsHDRContent::Yes : DrawsHDRContent::No,
         style.dynamicRangeLimit().toPlatformDynamicRangeLimit()
     };

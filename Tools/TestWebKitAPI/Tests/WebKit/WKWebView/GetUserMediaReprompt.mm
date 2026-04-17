@@ -76,12 +76,12 @@ static void initializeMediaCaptureConfiguration(WKWebViewConfiguration* configur
 
 TEST(WebKit2, GetUserMediaReprompt)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     auto preferences = [configuration preferences];
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[GetUserMediaRepromptTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[GetUserMediaRepromptTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -110,14 +110,14 @@ TEST(WebKit2, GetUserMediaReprompt)
 
 TEST(WebKit2, GetUserMediaRepromptWithoutUserGesture)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     auto preferences = [configuration preferences];
     preferences._inactiveMediaCaptureStreamRepromptWithoutUserGestureIntervalInMinutes = 0.5 / 60;
 
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[GetUserMediaRepromptTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[GetUserMediaRepromptTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -149,11 +149,11 @@ TEST(WebKit2, GetUserMediaRepromptWithoutUserGesture)
 
 TEST(WebKit2, GetUserMediaRepromptAfterAudioVideoBeingDenied)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[GetUserMediaRepromptTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[GetUserMediaRepromptTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [delegate setAudioDecision:WKPermissionDecisionGrant];
     [delegate setVideoDecision:WKPermissionDecisionDeny];
     [webView setUIDelegate:delegate.get()];
@@ -169,11 +169,11 @@ TEST(WebKit2, GetUserMediaRepromptAfterAudioVideoBeingDenied)
 
 TEST(WebKit2, MultipleGetUserMediaSynchronously)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[GetUserMediaRepromptTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[GetUserMediaRepromptTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -187,12 +187,12 @@ TEST(WebKit2, MultipleGetUserMediaSynchronously)
 
 TEST(WebKit2, GetUserMediaDefaultInactiveCaptureRepromptInterval)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     auto preferences = [configuration preferences];
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[GetUserMediaRepromptTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[GetUserMediaRepromptTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView loadTestPageNamed:@"getUserMedia"];

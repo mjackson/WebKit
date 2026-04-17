@@ -131,7 +131,7 @@ TEST(WebKit, DISABLED_DataDetectionReferenceDate)
 
 TEST(WebKit, AddAndRemoveDataDetectors)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadTestPageNamed:@"data-detectors"];
     [webView expectElementCount:0 querySelector:@"a[x-apple-data-detectors=true]"];
     EXPECT_EQ(0U, [webView _dataDetectionResults].count);
@@ -167,7 +167,7 @@ TEST(WebKit, AddAndRemoveDataDetectors)
 
 TEST(WebKit, DoNotCrashWhenDetectingDataAfterWebProcessTerminates)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadTestPageNamed:@"data-detectors"];
     [webView _killWebContentProcessAndResetState];
     [webView synchronouslyDetectDataWithTypes:WKDataDetectorTypeAll];

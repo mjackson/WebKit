@@ -244,13 +244,13 @@ TEST(WKWebView, LocalStorageEmptyString)
 
 TEST(WKWebView, LocalStorageOpenWindowPrivate)
 {
-    auto handler = adoptNS([[LocalStorageMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[LocalStorageMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
     [configuration _setAllowUniversalAccessFromFileURLs:YES];
     [configuration setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
-    auto delegate = adoptNS([[LocalStorageNavigationDelegate alloc] init]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[LocalStorageNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
     [webView configuration].preferences.javaScriptCanOpenWindowsAutomatically = YES;
@@ -265,12 +265,12 @@ TEST(WKWebView, LocalStorageOpenWindowPrivate)
 
 TEST(WKWebView, PrivateBrowsingAffectsLocalStorage)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAllowUniversalAccessFromFileURLs:YES];
     [configuration setWebsiteDataStore:[WKWebsiteDataStore defaultDataStore]];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     
-    auto delegate = adoptNS([[LocalStorageNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[LocalStorageNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]];
@@ -360,12 +360,12 @@ TEST(WKWebView, PrivateBrowsingAffectsLocalStorage)
 
 TEST(WKWebView, AuxiliaryWindowsShareLocalStorage)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAllowUniversalAccessFromFileURLs:YES];
     [configuration setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     
-    auto delegate = adoptNS([[LocalStorageNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[LocalStorageNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
     
@@ -428,11 +428,11 @@ TEST(WKWebView, AuxiliaryWindowsShareLocalStorage)
 TEST(WKWebView, LocalStorageGroup)
 {
     auto runTest = [] (bool setGroupIdentifier) {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         [configuration setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
         if (setGroupIdentifier)
             [configuration _setGroupIdentifier:@"testgroupidentifier"];
-        auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
         NSString *html1 = @""
         "<script>"
         "localStorage.setItem('testkey', 'testvalue1');"
@@ -441,7 +441,7 @@ TEST(WKWebView, LocalStorageGroup)
         [webView1 loadHTMLString:html1 baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
         [webView1 _test_waitForDidFinishNavigation];
 
-        auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
         NSString *html2 = @""
         "<script>"
         "alert('second web view got value ' + localStorage.getItem('testkey'));"
@@ -458,10 +458,10 @@ TEST(WKWebView, LocalStorageGroup)
 
 TEST(WKWebView, LocalStorageDifferentPageGroupSameProcess)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
     [configuration _setGroupIdentifier:@"testgroupidentifier1"];
-    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     NSString *htmlString = @"<script>localStorage.setItem('key', 'value')</script>";
     [webView1 synchronouslyLoadHTMLString:htmlString baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
 
@@ -470,7 +470,7 @@ TEST(WKWebView, LocalStorageDifferentPageGroupSameProcess)
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     [configuration _setRelatedWebView:webView1.get()];
     ALLOW_DEPRECATED_DECLARATIONS_END
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     // Network process would crash if the second page creates a new StorageArea.
     [webView2 synchronouslyLoadHTMLString:htmlString baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
 }
@@ -492,11 +492,11 @@ TEST(WKWebView, LocalStorageNoSizeOverflow)
         window.addEventListener('storage', onStorage);\
         window.webkit.messageHandlers.testHandler.postMessage(getItem()); \
         </script>";
-    auto handler = adoptNS([[LocalStorageMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[LocalStorageMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadHTMLString:htmlString baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     EXPECT_WK_STREQ(@"[null]", [lastScriptMessage body]);
@@ -508,7 +508,7 @@ TEST(WKWebView, LocalStorageNoSizeOverflow)
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     receivedScriptMessage = false;
     
-    auto secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [secondWebView loadHTMLString:htmlString baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     EXPECT_WK_STREQ(@"value", [lastScriptMessage body]);
@@ -553,13 +553,13 @@ TEST(WebKit, LocalStorageCorruptedDatabase)
             result = '[null]'; \
         window.webkit.messageHandlers.testHandler.postMessage(result); \
         </script>";
-    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     websiteDataStoreConfiguration.get().generalStorageDirectory = generalStorageDirectory;
-    auto messageHandler = adoptNS([[LocalStorageMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr messageHandler = adoptNS([[LocalStorageMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]).get()];
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     receivedScriptMessage = false;
     [webView loadHTMLString:htmlString baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
@@ -573,7 +573,7 @@ TEST(WebKit, LocalStorageCorruptedDatabase)
     TestWebKitAPI::Util::run(&done);
 
     // Ensure item is stored by getting it in another WKWebView.
-    auto secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     receivedScriptMessage = false;
     [secondWebView loadHTMLString:htmlString baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
@@ -585,10 +585,10 @@ TEST(WebKit, LocalStorageCorruptedDatabase)
 
 TEST(WKWebView, LocalStorageDirectoryExcludedFromBackup)
 {
-    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     websiteDataStoreConfiguration.get().unifiedOriginStorageLevel = _WKUnifiedOriginStorageLevelNone;
     RetainPtr<NSURL> webStorageDirectory = [websiteDataStoreConfiguration _webStorageDirectory];
-    auto websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+    RetainPtr websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
     
     // Create WebStorage directory and make it not excluded.
     [[NSFileManager defaultManager] createDirectoryAtURL:webStorageDirectory.get() withIntermediateDirectories:YES attributes:nil error:nullptr];
@@ -597,10 +597,10 @@ TEST(WKWebView, LocalStorageDirectoryExcludedFromBackup)
     EXPECT_TRUE([webStorageDirectory.get() getResourceValue:&isDirectoryExcluded forKey:NSURLIsExcludedFromBackupKey error:nil]);
     EXPECT_FALSE(isDirectoryExcluded.boolValue);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:websiteDataStore.get()];
-    auto delegate = adoptNS([[LocalStorageNavigationDelegate alloc] init]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[LocalStorageNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
     didFinishNavigationBoolean = false;
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]];

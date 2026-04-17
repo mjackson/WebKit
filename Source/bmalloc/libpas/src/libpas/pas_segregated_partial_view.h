@@ -29,7 +29,6 @@
 #include "pas_compact_segregated_shared_view_ptr.h"
 #include "pas_compact_segregated_size_directory_ptr.h"
 #include "pas_lenient_compact_unsigned_ptr.h"
-#include "pas_page_granule_use_count.h"
 #include "pas_segregated_page_config.h"
 #include "pas_segregated_view.h"
 #include "pas_utils.h"

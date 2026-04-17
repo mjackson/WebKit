@@ -34,7 +34,7 @@
 
 static RetainPtr<TestWKWebView> createWebViewForTest()
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"InputTypeDateEnabled"]) {
             [[configuration preferences] _setEnabled:YES forFeature:feature];
@@ -42,7 +42,7 @@ static RetainPtr<TestWKWebView> createWebViewForTest()
         }
     }
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
     return webView;
 }
 

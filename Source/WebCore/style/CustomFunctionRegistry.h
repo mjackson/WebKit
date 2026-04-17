@@ -35,9 +35,10 @@ namespace Style {
 struct CustomFunction : CanMakeCheckedPtr<CustomFunction> {
     AtomString name;
     const Vector<StyleRuleFunction::Parameter> parameters;
+    const CSSCustomPropertySyntax returnType;
     Ref<const StyleProperties> properties;
 
-    CustomFunction(const AtomString&, const Vector<StyleRuleFunction::Parameter>&, const StyleProperties&);
+    CustomFunction(const AtomString&, const Vector<StyleRuleFunction::Parameter>&, const CSSCustomPropertySyntax& returnType, const StyleProperties&);
 
     WTF_MAKE_STRUCT_TZONE_ALLOCATED(CustomFunction);
     WTF_STRUCT_OVERRIDE_DELETE_FOR_CHECKED_PTR(CustomFunction);

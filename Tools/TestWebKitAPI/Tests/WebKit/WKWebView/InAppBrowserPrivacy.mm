@@ -146,14 +146,14 @@ TEST(InAppBrowserPrivacy, NonAppBoundDomainFailedUserScriptAtStart)
 {
     isDone = false;
     initializeInAppBrowserPrivacyTestSettings();
-    auto userScript = adoptNS([[WKUserScript alloc] initWithSource:userScriptSource injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
+    RetainPtr userScript = adoptNS([[WKUserScript alloc] initWithSource:userScriptSource injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     [configuration.userContentController addUserScript:userScript.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"in-app-browser:///in-app-browser-privacy-test-user-script"]];
     [webView loadRequest:request];
     [webView _test_waitForDidFinishNavigation];
@@ -186,14 +186,14 @@ TEST(InAppBrowserPrivacy, NonAppBoundDomainFailedUserScriptAtEnd)
 {
     isDone = false;
     initializeInAppBrowserPrivacyTestSettings();
-    auto userScript = adoptNS([[WKUserScript alloc] initWithSource:userScriptSource injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES]);
+    RetainPtr userScript = adoptNS([[WKUserScript alloc] initWithSource:userScriptSource injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES]);
     
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     [configuration.userContentController addUserScript:userScript.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"in-app-browser:///in-app-browser-privacy-test-user-script"]];
     [webView loadRequest:request];
     [webView _test_waitForDidFinishNavigation];
@@ -230,10 +230,10 @@ TEST(InAppBrowserPrivacy, NonAppBoundDomainFailedUserAgentScripts)
     // Disable blocking of restricted APIs for test setup.
     [[configuration preferences] _setNeedsInAppBrowserPrivacyQuirks:YES];
 
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"in-app-browser:///in-app-browser-privacy-test-user-agent-script"]];
     [webView loadRequest:request];
     [webView _test_waitForDidFinishNavigation];
@@ -249,7 +249,7 @@ TEST(InAppBrowserPrivacy, NonAppBoundDomainFailedUserAgentScripts)
     // Enable blocking of restricted APIs.
     [[configuration preferences] _setNeedsInAppBrowserPrivacyQuirks:NO];
 
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
     isDone = false;
     [webView2 loadRequest:request];
     [webView2 _test_waitForDidFinishNavigation];
@@ -309,9 +309,9 @@ TEST(InAppBrowserPrivacy, AppBoundSchemes)
 TEST(InAppBrowserPrivacy, LocalFilesAreAppBound)
 {
     initializeInAppBrowserPrivacyTestSettings();
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"in-app-browser-privacy-local-file" withExtension:@"html"]];
     [webView loadRequest:request];
     [webView _test_waitForDidFinishNavigation];
@@ -328,9 +328,9 @@ TEST(InAppBrowserPrivacy, LocalFilesAreAppBound)
 TEST(InAppBrowserPrivacy, DataProtocolIsAppBound)
 {
     initializeInAppBrowserPrivacyTestSettings();
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"data:text/html,start"]]];
     [webView _test_waitForDidFinishNavigation];
 
@@ -346,9 +346,9 @@ TEST(InAppBrowserPrivacy, DataProtocolIsAppBound)
 TEST(InAppBrowserPrivacy, AboutProtocolIsAppBound)
 {
     initializeInAppBrowserPrivacyTestSettings();
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
     [webView _test_waitForDidFinishNavigation];
 
@@ -366,12 +366,12 @@ TEST(InAppBrowserPrivacy, LocalHostIsAppBound)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"in-app-browser://localhost/app-bound-domain-load"]];
@@ -392,12 +392,12 @@ TEST(InAppBrowserPrivacy, LoopbackIPAddressIsAppBound)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"in-app-browser://127.0.0.1/app-bound-domain-load"]];
@@ -438,16 +438,16 @@ TEST(InAppBrowserPrivacy, NonAppBoundUserStyleSheetForSpecificWebViewFails)
 
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     RetainPtr<WKContentWorld> world = [WKContentWorld worldWithName:@"TestWorld"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
     RetainPtr<_WKUserStyleSheet> styleSheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:styleSheetSource forWKWebView:webView.get() forMainFrameOnly:YES includeMatchPatternStrings:nil excludeMatchPatternStrings:nil baseURL:nil level:_WKUserStyleUserLevel contentWorld:world.get()]);
 
     [[configuration userContentController] _addUserStyleSheet:styleSheet.get()];
 
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"in-app-browser:///in-app-browser-privacy-test-user-style-sheets"]];
@@ -463,14 +463,14 @@ TEST(InAppBrowserPrivacy, NonAppBoundUserStyleSheetForAllWebViewsFails)
 
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     
     RetainPtr<_WKUserStyleSheet> styleSheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:styleSheetSource forMainFrameOnly:YES]);
     [[configuration userContentController] _addUserStyleSheet:styleSheet.get()];
     
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"in-app-browser:///in-app-browser-privacy-test-user-style-sheets"]];
@@ -486,13 +486,13 @@ TEST(InAppBrowserPrivacy, NonAppBoundUserStyleSheetAffectingAllFramesFails)
 
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     RetainPtr<_WKUserStyleSheet> styleSheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:styleSheetSource forMainFrameOnly:NO]);
     [[configuration userContentController] _addUserStyleSheet:styleSheet.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"in-app-browser:///in-app-browser-privacy-test-user-style-sheets-iframe"]];
@@ -509,10 +509,10 @@ TEST(InAppBrowserPrivacy, NonAppBoundDomainCannotAccessMessageHandlers)
 
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     [webView performAfterReceivingMessage:@"Failed" action:^() {
         FAIL();
@@ -539,11 +539,11 @@ TEST(InAppBrowserPrivacy, AppBoundDomainCanAccessMessageHandlers)
 
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     [configuration setLimitsNavigationsToAppBoundDomains:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     [webView performAfterReceivingMessage:@"Passed" action:^() {
         isDone = true;
@@ -613,7 +613,7 @@ TEST(InAppBrowserPrivacy, SetCookieForNonAppBoundDomainFails)
     initializeInAppBrowserPrivacyTestSettings();
 
     auto dataStore = [WKWebsiteDataStore defaultDataStore];
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView loadHTMLString:@"Oh hello" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView _test_waitForDidFinishNavigation];
 
@@ -705,7 +705,7 @@ TEST(InAppBrowserPrivacy, GetCookieForNonAppBoundDomainFails)
     }];
 
     gotFlag = false;
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadHTMLString:@"start network process"];
 
     // This should successfully set a cookie because protections are off.
@@ -787,7 +787,7 @@ TEST(InAppBrowserPrivacy, GetCookieForURLFails)
     }];
 
     __block bool done = false;
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadHTMLString:@"start network process"];
     [globalCookieStore setCookie:nonAppBoundCookie completionHandler:^{
         [globalCookieStore setCookie:appBoundCookie completionHandler:^{
@@ -914,14 +914,14 @@ static RetainPtr<WKWebView> setUpSWTest(WKWebsiteDataStore *dataStore)
 {
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto messageHandler = adoptNS([[SWInAppBrowserPrivacyMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr messageHandler = adoptNS([[SWInAppBrowserPrivacyMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
     [configuration preferences]._serviceWorkerEntitlementDisabledForTesting = YES;
     [configuration setLimitsNavigationsToAppBoundDomains:YES];
     [configuration setWebsiteDataStore:dataStore];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
 
     // Start with a clean slate data store
@@ -1010,9 +1010,9 @@ TEST(InAppBrowserPrivacy, UnregisterServiceWorker)
 TEST(InAppBrowserPrivacy, UnregisterServiceWorkerMaxRegistrationCount)
 {
     initializeInAppBrowserPrivacyTestSettings();
-    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [websiteDataStoreConfiguration setOverrideServiceWorkerRegistrationCountTestingValue:1];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
     auto webView = setUpSWTest(dataStore.get());
 
     TestWebKitAPI::HTTPServer server({
@@ -1038,9 +1038,9 @@ TEST(InAppBrowserPrivacy, UnregisterServiceWorkerMaxRegistrationCount)
 TEST(InAppBrowserPrivacy, ReregisterServiceWorkerMaxRegistrationCount)
 {
     initializeInAppBrowserPrivacyTestSettings();
-    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [websiteDataStoreConfiguration setOverrideServiceWorkerRegistrationCountTestingValue:1];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
     auto webView = setUpSWTest(dataStore.get());
 
     TestWebKitAPI::HTTPServer server({
@@ -1069,13 +1069,13 @@ TEST(InAppBrowserPrivacy, NonAppBoundDomainDoesNotAllowServiceWorkers)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     // Disable entitlement which allows service workers.
     [configuration preferences]._serviceWorkerEntitlementDisabledForTesting = YES;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     // Load a non-app bound domain.
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"in-app-browser:///in-app-browser-privacy-test-user-style-sheets"]];
@@ -1104,13 +1104,13 @@ TEST(InAppBrowserPrivacy, AppBoundFlagForNonAppBoundDomainFails)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     [configuration setLimitsNavigationsToAppBoundDomains:YES];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     // Load a non-app bound domain.
@@ -1130,13 +1130,13 @@ TEST(InAppBrowserPrivacy, NavigateAwayFromAppBoundDomainWithAppBoundFlagFails)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     [configuration setLimitsNavigationsToAppBoundDomains:YES];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     
     // Navigate to an app-bound domain and expect a successful load.
@@ -1161,12 +1161,12 @@ TEST(InAppBrowserPrivacy, AppBoundDomainWithoutFlagTreatedAsNonAppBound)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     
     // Navigate to an app-bound domain and expect a successful load.
@@ -1190,12 +1190,12 @@ TEST(InAppBrowserPrivacy, WebViewWithoutAppBoundFlagCanFreelyNavigate)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     
     // Navigate to an app-bound domain and expect a successful load.
@@ -1240,13 +1240,13 @@ TEST(InAppBrowserPrivacy, WebViewCannotUpdateAppBoundFlagOnceSet)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     [configuration setLimitsNavigationsToAppBoundDomains:YES];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     
     // Navigate to an app-bound domain and expect a successful load.
@@ -1275,16 +1275,16 @@ TEST(InAppBrowserPrivacy, InjectScriptThenNavigateToNonAppBoundDomainFails)
 {
     isDone = false;
     initializeInAppBrowserPrivacyTestSettings();
-    auto userScript = adoptNS([[WKUserScript alloc] initWithSource:userScriptSource injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
+    RetainPtr userScript = adoptNS([[WKUserScript alloc] initWithSource:userScriptSource injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     [configuration.userContentController addUserScript:userScript.get()];
     [[configuration preferences] _setNeedsInAppBrowserPrivacyQuirks:NO];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     isDone = false;
@@ -1308,17 +1308,17 @@ TEST(InAppBrowserPrivacy, InjectScriptInNonAppBoundSubframeAppBoundMainframeFail
     isDone = false;
     initializeInAppBrowserPrivacyTestSettings();
 
-    auto userScript = adoptNS([[WKUserScript alloc] initWithSource:@"var img = document.createElement('img'); img.src = 'in-app-browser:///should-load-for-main-frame-only'; document.getElementById('body').appendChild(img);" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]);
+    RetainPtr userScript = adoptNS([[WKUserScript alloc] initWithSource:@"var img = document.createElement('img'); img.src = 'in-app-browser:///should-load-for-main-frame-only'; document.getElementById('body').appendChild(img);" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]);
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     [[configuration preferences] _setNeedsInAppBrowserPrivacyQuirks:NO];
     [configuration setLimitsNavigationsToAppBoundDomains:YES];
     [[configuration userContentController] addUserScript:userScript.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     // Load an app-bound domain with an iframe that is not app-bound.
@@ -1340,17 +1340,17 @@ TEST(InAppBrowserPrivacy, JavaScriptInNonAppBoundFrameFails)
     isDone = false;
     initializeInAppBrowserPrivacyTestSettings();
 
-    auto userScript = adoptNS([[WKUserScript alloc] initWithSource:@"var img = document.createElement('img'); img.src = 'in-app-browser:///should-load-for-main-frame-only'; document.getElementById('body').appendChild(img);" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]);
+    RetainPtr userScript = adoptNS([[WKUserScript alloc] initWithSource:@"var img = document.createElement('img'); img.src = 'in-app-browser:///should-load-for-main-frame-only'; document.getElementById('body').appendChild(img);" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]);
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     [[configuration preferences] _setNeedsInAppBrowserPrivacyQuirks:NO];
     [configuration setLimitsNavigationsToAppBoundDomains:YES];
     [[configuration userContentController] addUserScript:userScript.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
 
     __block bool didFinishNavigation = false;
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
@@ -1418,14 +1418,14 @@ TEST(InAppBrowserPrivacy, LoadFromHTMLStringsSucceedsIfAppBound)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
 
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
 
     NSString *HTML = @"<html><head></head><body><img src='in-app-browser:///in-app-browser-privacy-test-user-style-sheets/'></img></body></html>";
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
 
     [webView loadHTMLString:HTML baseURL:[NSURL URLWithString:@"in-app-browser://apple.com/"]];
@@ -1439,14 +1439,14 @@ TEST(InAppBrowserPrivacy, LoadFromHTMLStringNoBaseURLIsAppBound)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
 
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
 
     NSString *HTML = @"<html><head></head><body><img src='in-app-browser:///in-app-browser-privacy-test-user-style-sheets/'></img></body></html>";
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
 
     [webView loadHTMLString:HTML baseURL:nil];
@@ -1466,14 +1466,14 @@ TEST(InAppBrowserPrivacy, LoadFromHTMLStringsFailsIfNotAppBound)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
 
-    auto delegate = adoptNS([AppBoundDomainDelegate new]);
+    RetainPtr delegate = adoptNS([AppBoundDomainDelegate new]);
 
     NSString *HTML = @"<html><head></head><body><img src='in-app-browser:///in-app-browser-privacy-test-user-style-sheets/'></img></body></html>";
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
 
     [webView loadHTMLString:HTML baseURL:[NSURL URLWithString:@"in-app-browser:///in-app-browser-privacy-test-user-agent-script"]];
@@ -1494,19 +1494,19 @@ TEST(InAppBrowserPrivacy, AppBoundCustomScheme)
     initializeInAppBrowserPrivacyTestSettings();
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
     [configuration setLimitsNavigationsToAppBoundDomains:YES];
 
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[NSData dataWithBytes:mainBytes length:strlen(mainBytes)]];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"test://host/main.html"]];
 
@@ -1536,7 +1536,7 @@ TEST(InAppBrowserPrivacy, AppBoundCustomScheme)
 
 static void loadRequest(RetainPtr<TestWKWebView> webView, NSString *url)
 {
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
 
     __block bool didFinishNavigation = false;
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
@@ -1565,11 +1565,11 @@ TEST(InAppBrowserPrivacy, AboutBlankSubFrameMatchesTopFrameAppBound)
     initializeInAppBrowserPrivacyTestSettings();
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
     [configuration setLimitsNavigationsToAppBoundDomains:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
     NSString *url = @"in-app-browser://apple.com/in-app-browser-privacy-test-about-blank-subframe";
     loadRequest(webView, url);
     
@@ -1604,10 +1604,10 @@ TEST(InAppBrowserPrivacy, AboutBlankSubFrameMatchesTopFrameNonAppBound)
     initializeInAppBrowserPrivacyTestSettings();
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[InAppBrowserSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"in-app-browser"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
     NSString *url = @"in-app-browser://apple.com/in-app-browser-privacy-test-about-blank-subframe";
     loadRequest(webView, url);
 

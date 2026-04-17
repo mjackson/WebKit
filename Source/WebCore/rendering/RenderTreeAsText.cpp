@@ -228,7 +228,9 @@ void RenderTreeAsText::writeRenderObject(TextStream& ts, const RenderObject& o, 
         // FIXME: Deliberately dump the "inner" box of table cells, since that is what current results reflect.  We'd like
         // to clean up the results to dump both the outer box and the intrinsic padding so that both bits of information are
         // captured by the results.
-        r = LayoutRect(cell->x(), cell->y() + cell->intrinsicPaddingBefore(), cell->width(), cell->height() - cell->intrinsicPaddingBefore() - cell->intrinsicPaddingAfter());
+        // FIXME: Cell positions are row-relative but we dump them as section-relative to avoid rebaselining every table test.
+        auto rowOffset = cell->parent() ? downcast<RenderBox>(*cell->parent()).location() : LayoutPoint();
+        r = LayoutRect(cell->x() + rowOffset.x(), cell->y() + rowOffset.y() + cell->intrinsicPaddingBefore(), cell->width(), cell->height() - cell->intrinsicPaddingBefore() - cell->intrinsicPaddingAfter());
     } else if (auto* box = dynamicDowncast<RenderBox>(o))
         r = box->frameRect();
     else if (auto* svgModelObject = dynamicDowncast<RenderSVGModelObject>(o)) {
@@ -484,7 +486,7 @@ static inline void writeTextRuns(TextStream& ts, auto& textRenderer)
         ts << ": "_s
             << quoteAndEscapeNonPrintables(textRun.originalText());
         if (textRun.hasHyphen())
-            ts << " + hyphen string "_s << quoteAndEscapeNonPrintables(textRenderer.style().hyphenString().string());
+            ts << " + hyphen string "_s << quoteAndEscapeNonPrintables(textRenderer.style().hyphenString());
         ts << '\n';
     };
 

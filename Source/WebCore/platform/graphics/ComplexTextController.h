@@ -40,7 +40,6 @@
 typedef unsigned short CGGlyph;
 
 typedef const struct __CTRun * CTRunRef;
-typedef const struct __CTLine * CTLineRef;
 
 typedef struct hb_buffer_t hb_buffer_t;
 
@@ -195,10 +194,6 @@ private:
     // the average (3.5) plus one standard deviation (7.5) of nonzero sizes used on Arabic Wikipedia.
     Vector<unsigned, 16> m_runIndices;
     Vector<unsigned, 16> m_glyphCountFromStartToIndex;
-
-#if PLATFORM(COCOA)
-    Vector<RetainPtr<CTLineRef>, 4> m_coreTextLines;
-#endif
 
     Vector<String> m_stringsFor8BitRuns;
 

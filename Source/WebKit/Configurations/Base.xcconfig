@@ -115,12 +115,9 @@ SUPPORTS_MACCATALYST = YES;
 // Can't enable objcxx mode until rdar://135979809 is resolved.
 SWIFT_OBJC_INTEROP_MODE = objc;
 
-SWIFT_VERSION = $(SWIFT_VERSION$(WK_XCODE_16));
-SWIFT_VERSION_XCODE_BEFORE_16 = 5.0;
-SWIFT_VERSION_XCODE_SINCE_16 = 6.0;
+SWIFT_VERSION = 6.0;
 
-OTHER_SWIFT_FLAGS = $(inherited) -Xfrontend -experimental-spi-only-imports $(OTHER_SWIFT_FLAGS$(WK_XCODE_16)) @$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/platform-enabled-swift-args.$(arch).resp @$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/swift-tba-availability-macros.resp;
-OTHER_SWIFT_FLAGS_XCODE_BEFORE_16 = -Xfrontend -enable-experimental-concurrency -Xfrontend -enable-upcoming-feature -Xfrontend IsolatedDefaultValues;
+OTHER_SWIFT_FLAGS = $(inherited) -Xfrontend -experimental-spi-only-imports @$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/platform-enabled-swift-args.$(arch).resp @$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/swift-tba-availability-macros.resp;
 
 WK_ENABLE_SWIFTUI = YES;
 WK_ENABLE_SWIFTUI[sdk=macosx15*] = NO;
@@ -155,17 +152,6 @@ WK_WEBKIT_RESOURCES_OUTPUT_XCFILELIST_ADDITIONS = $(WK_WEBKIT_RESOURCES_OUTPUT_X
 WK_WEBKIT_RESOURCES_OUTPUT_XCFILELIST_ADDITIONS_installhdrs_NO = $(WK_WEBKITADDITIONS_HEADERS_FOLDER_PATH)/WebKit/AdditionalResources-output.xcfilelist;
 
 LLVM_LTO = $(WK_USER_LTO_MODE_$(WK_LTO_MODE));
-
-WK_XCODE_VERSION_BEFORE_14_3_0800 = YES;
-WK_XCODE_VERSION_BEFORE_14_3_0900 = YES;
-WK_XCODE_VERSION_BEFORE_14_3_1000 = YES;
-WK_XCODE_VERSION_BEFORE_14_3_1100 = YES;
-WK_XCODE_VERSION_BEFORE_14_3_1200 = YES;
-WK_XCODE_VERSION_BEFORE_14_3_1300 = YES;
-WK_XCODE_VERSION_BEFORE_14_3_1400 = $(WK_XCODE_VERSION_BEFORE_14_3_1400_$(XCODE_VERSION_MINOR));
-WK_XCODE_VERSION_BEFORE_14_3_1400_1400 = YES;
-WK_XCODE_VERSION_BEFORE_14_3_1400_1410 = YES;
-WK_XCODE_VERSION_BEFORE_14_3_1400_1420 = YES;
 
 WK_USER_LTO_MODE_full = YES;
 WK_USER_LTO_MODE_thin = YES_THIN;

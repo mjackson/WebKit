@@ -32,7 +32,9 @@ extension WebPage {
     @available(watchOS, unavailable)
     @available(tvOS, unavailable)
     public struct FrameInfo {
-        init(_ wrapped: WKFrameInfo) {
+        // swift-format-ignore: AllPublicDeclarationsHaveDocumentation
+        @_spi(CrossImportOverlay)
+        public init(_ wrapped: WKFrameInfo) {
             self.wrapped = wrapped
         }
 

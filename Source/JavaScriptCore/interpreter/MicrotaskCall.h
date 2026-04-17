@@ -27,6 +27,7 @@
 
 #include <JavaScriptCore/CallLinkInfoBase.h>
 #include <JavaScriptCore/ExceptionHelpers.h>
+#include <JavaScriptCore/FunctionExecutable.h>
 #include <JavaScriptCore/JSFunction.h>
 #include <wtf/ForbidHeapAllocation.h>
 

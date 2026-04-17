@@ -52,10 +52,10 @@ static void testWindowOpenMouseEvent(const String& event, bool expectOpenedWindo
 
     auto configuration = server.httpsProxyConfiguration();
     [[configuration preferences] _setVerifyWindowOpenUserGestureFromUIProcess:YES];
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
-    auto openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [openerWebView setNavigationDelegate:navigationDelegate.get()];
     [openerWebView setUIDelegate:uiDelegate.get()];
 
@@ -121,10 +121,10 @@ TEST(VerifyUserGesture, WindowOpenKeyEvent)
 
     auto configuration = server.httpsProxyConfiguration();
     [[configuration preferences] _setVerifyWindowOpenUserGestureFromUIProcess:YES];
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
-    auto openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [openerWebView setNavigationDelegate:navigationDelegate.get()];
     [openerWebView setUIDelegate:uiDelegate.get()];
 
@@ -164,10 +164,10 @@ TEST(VerifyUserGesture, InvalidateAuthorizationTokensByPage)
 
     auto configuration = server.httpsProxyConfiguration();
     [[configuration preferences] _setVerifyWindowOpenUserGestureFromUIProcess:YES];
-    auto openerNavigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr openerNavigationDelegate = adoptNS([TestNavigationDelegate new]);
     [openerNavigationDelegate allowAnyTLSCertificate];
-    auto openerUIDelegate = adoptNS([TestUIDelegate new]);
-    auto openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr openerUIDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [openerWebView setNavigationDelegate:openerNavigationDelegate.get()];
     [openerWebView setUIDelegate:openerUIDelegate.get()];
 

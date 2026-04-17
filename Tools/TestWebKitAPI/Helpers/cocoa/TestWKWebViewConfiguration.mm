@@ -32,31 +32,31 @@
 TEST(WKWebViewConfiguration, FlagsThroughWKWebView)
 {
     {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-        auto view = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr view = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
         BOOL defaultRespectsImageOrientation = [configuration _respectsImageOrientation];
         EXPECT_EQ([[view configuration] _respectsImageOrientation], defaultRespectsImageOrientation);
     }
 
     {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         BOOL defaultRespectsImageOrientation = [configuration _respectsImageOrientation];
-        auto view = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr view = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
         EXPECT_EQ([[view configuration] _respectsImageOrientation], defaultRespectsImageOrientation);
     }
 
     {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         BOOL defaultRespectsImageOrientation = [configuration _respectsImageOrientation];
         [configuration _setRespectsImageOrientation:!defaultRespectsImageOrientation];
-        auto view = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr view = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
         EXPECT_EQ([[view configuration] _respectsImageOrientation], !defaultRespectsImageOrientation);
     }
 
     {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         BOOL defaultRespectsImageOrientation = [configuration _respectsImageOrientation];
-        auto view = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr view = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
         EXPECT_EQ([[view configuration] _respectsImageOrientation], defaultRespectsImageOrientation);
         // Spooky action at a distance, due to API::PageConfiguration::copy() doing a shallow copy and keeping a reference to the same WebPreferences.
         [configuration _setRespectsImageOrientation:!defaultRespectsImageOrientation];

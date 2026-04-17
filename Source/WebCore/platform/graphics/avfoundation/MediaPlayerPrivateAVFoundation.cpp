@@ -69,7 +69,7 @@ MediaPlayerPrivateAVFoundation::MediaPlayerPrivateAVFoundation(MediaPlayer& play
     , m_delayCharacteristicsChangedNotification(0)
     , m_mainThreadCallPending(false)
     , m_assetIsPlayable(false)
-    , m_visible(false)
+    , m_pageIsVisible(false)
     , m_loadingMetadata(false)
     , m_isAllowedToRender(false)
     , m_cachedHasAudio(false)
@@ -469,7 +469,7 @@ bool MediaPlayerPrivateAVFoundation::isReadyForVideoSetup() const
     // AVFoundation will not return true for firstVideoFrameAvailable until
     // an AVPlayerLayer has been added to the AVPlayerItem, so allow video setup
     // here if a video track to trigger allocation of a AVPlayerLayer.
-    return (m_isAllowedToRender || m_cachedHasVideo) && m_readyState >= MediaPlayer::ReadyState::HaveMetadata && m_visible;
+    return (m_isAllowedToRender || m_cachedHasVideo) && m_readyState >= MediaPlayer::ReadyState::HaveMetadata && m_pageIsVisible;
 }
 
 void MediaPlayerPrivateAVFoundation::prepareForRendering()
@@ -598,16 +598,25 @@ void MediaPlayerPrivateAVFoundation::updateStates()
 
 void MediaPlayerPrivateAVFoundation::setPageIsVisible(bool visible)
 {
-    if (m_visible == visible)
+    if (m_pageIsVisible == visible)
         return;
 
     ALWAYS_LOG(LOGIDENTIFIER, visible);
 
-    m_visible = visible;
+    m_pageIsVisible = visible;
     if (visible)
         setUpVideoRendering();
 
-    platformSetVisible(visible);
+    platformPageIsVisibleChanged(visible);
+}
+
+void MediaPlayerPrivateAVFoundation::setViewportVisibility(ViewportVisibility visibility)
+{
+    if (m_viewportVisibility == visibility)
+        return;
+
+    m_viewportVisibility = visibility;
+    platformViewportVisibilityChanged(visibility);
 }
 
 void MediaPlayerPrivateAVFoundation::acceleratedRenderingStateChanged()

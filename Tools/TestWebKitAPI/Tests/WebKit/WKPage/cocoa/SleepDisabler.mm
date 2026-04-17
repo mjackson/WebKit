@@ -35,10 +35,10 @@
 
 TEST(WebKit, SleepDisabler)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     configuration.get().processPool = (WKProcessPool *)context.get();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     ASSERT_FALSE([webView _hasSleepDisabler]);
 
@@ -70,7 +70,7 @@ public:
 
     void SetUp() final
     {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         configuration.get()._mediaDataLoadsAutomatically = YES;
         configuration.get().mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
         webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 240) configuration:configuration.get() addToWindow:YES]);

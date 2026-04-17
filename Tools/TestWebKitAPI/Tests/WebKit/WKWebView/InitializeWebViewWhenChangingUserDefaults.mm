@@ -53,8 +53,8 @@ namespace TestWebKitAPI {
 
 TEST(WebKit2, NoCrashWhenInitializeWebViewWhenChangingUserDefaults)
 {
-    auto observer = adoptNS([UserDefaultChangeObserver new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr observer = adoptNS([UserDefaultChangeObserver new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
 }
 
 } // namespace TestWebKitAPI

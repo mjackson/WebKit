@@ -1,0 +1,4 @@
+
+FAIL [Connected move] MutationObserver removal + insertion is tracked by moveBefore() promise_test: Unhandled rejection with value: object "TypeError: newParent.moveBefore is not a function. (In 'newParent.moveBefore(target, null)', 'newParent.moveBefore' is undefined)"
+FAIL [Disconnected move] MutationObserver removal + insertion is tracked by moveBefore() promise_test: Unhandled rejection with value: object "TypeError: newParent.moveBefore is not a function. (In 'newParent.moveBefore(target, null)', 'newParent.moveBefore' is undefined)"
+

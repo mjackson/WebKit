@@ -438,7 +438,14 @@ if (ENABLE_WEBKIT)
             Helpers/mac/PlatformUtilitiesMac.mm
         )
     endif ()
-    add_library(TestWebKitAPIInjectedBundle SHARED ${TestWebKitAPIInjectedBundle_SOURCES})
+    # macOS: MODULE + BUNDLE TRUE (PlatformMac) emits a CFBundle matching Xcode's MH_BUNDLE.
+    # Other ports: SHARED dylib/so.
+    if (APPLE)
+        set(TestWebKitAPIInjectedBundle_LIBRARY_TYPE MODULE)
+    else ()
+        set(TestWebKitAPIInjectedBundle_LIBRARY_TYPE SHARED)
+    endif ()
+    add_library(TestWebKitAPIInjectedBundle ${TestWebKitAPIInjectedBundle_LIBRARY_TYPE} ${TestWebKitAPIInjectedBundle_SOURCES})
 
     target_compile_definitions(TestWebKitAPIInjectedBundle PRIVATE BUILDING_TestWebKit)
     target_include_directories(TestWebKitAPIInjectedBundle PRIVATE ${TestWebKit_PRIVATE_INCLUDE_DIRECTORIES})

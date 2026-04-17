@@ -57,12 +57,14 @@
 #include "HTMLStyleElement.h"
 #include "InspectorDOMAgent.h"
 #include "InspectorHistory.h"
+#include "InspectorIdentifierRegistry.h"
 #include "InspectorPageAgent.h"
 #include "InstrumentingAgents.h"
 #include "LocalDOMWindow.h"
 #include "LocalFrameInlines.h"
 #include "Node.h"
 #include "NodeList.h"
+#include "PageInspectorController.h"
 #include "PseudoElement.h"
 #include "RenderFlexibleBox.h"
 #include "RenderGrid.h"
@@ -806,11 +808,7 @@ Inspector::Protocol::ErrorStringOr<Inspector::Protocol::CSS::StyleSheetId> Inspe
 {
     Inspector::Protocol::ErrorString errorString;
 
-    CheckedPtr pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent();
-    if (!pageAgent)
-        return makeUnexpected("Page domain must be enabled"_s);
-
-    auto* frame = pageAgent->assertFrame(errorString, frameId);
+    auto* frame = m_inspectedPage->inspectorController().identifierRegistry().assertFrame(errorString, frameId);
     if (!frame)
         return makeUnexpected(errorString);
 
@@ -1262,12 +1260,15 @@ void InspectorCSSAgent::nodesWithPendingLayoutFlagsChangeDispatchTimerFired()
 
 InspectorStyleSheetForInlineStyle& InspectorCSSAgent::asInspectorStyleSheet(StyledElement& element)
 {
-    return m_nodeToInspectorStyleSheet.ensure(&element, [this, &element] {
-        String newStyleSheetId = String::number(m_lastStyleSheetId++);
-        auto inspectorStyleSheet = InspectorStyleSheetForInlineStyle::create(Ref { m_instrumentingAgents.get() }->enabledPageAgent(), newStyleSheetId, element, Inspector::Protocol::CSS::StyleSheetOrigin::Author, this);
-        m_idToInspectorStyleSheet.set(newStyleSheetId, inspectorStyleSheet.copyRef());
-        return inspectorStyleSheet;
-    }).iterator->value;
+    auto it = m_nodeToInspectorStyleSheet.find(&element);
+    if (it != m_nodeToInspectorStyleSheet.end())
+        return it->value;
+
+    String newStyleSheetId = String::number(m_lastStyleSheetId);
+    ++m_lastStyleSheetId;
+    auto inspectorStyleSheet = InspectorStyleSheetForInlineStyle::create(m_inspectedPage->inspectorController().identifierRegistry(), newStyleSheetId, element, Inspector::Protocol::CSS::StyleSheetOrigin::Author, this);
+    m_idToInspectorStyleSheet.set(newStyleSheetId, inspectorStyleSheet.copyRef());
+    return m_nodeToInspectorStyleSheet.set(&element, WTF::move(inspectorStyleSheet)).iterator->value;
 }
 
 Element* InspectorCSSAgent::elementForId(Inspector::Protocol::ErrorString& errorString, Inspector::Protocol::DOM::NodeId nodeId)
@@ -1305,15 +1306,17 @@ String InspectorCSSAgent::unbindStyleSheet(InspectorStyleSheet* inspectorStyleSh
 
 InspectorStyleSheet& InspectorCSSAgent::bindStyleSheet(CSSStyleSheet* styleSheet)
 {
-    return m_cssStyleSheetToInspectorStyleSheet.ensure(styleSheet, [&] {
-        auto id = String::number(m_lastStyleSheetId++);
-        RefPtr document = styleSheet->ownerDocument();
-        Ref inspectorStyleSheet = InspectorStyleSheet::create(protect(m_instrumentingAgents)->enabledPageAgent(), id, styleSheet, detectOrigin(styleSheet, document), InspectorDOMAgent::documentURLString(document), this);
-        m_idToInspectorStyleSheet.set(id, inspectorStyleSheet);
-        if (m_creatingViaInspectorStyleSheet && document)
-            m_documentToInspectorStyleSheet.add(document.releaseNonNull(), Vector<Ref<InspectorStyleSheet>>()).iterator->value.append(inspectorStyleSheet);
-        return inspectorStyleSheet;
-    }).iterator->value;
+    auto it = m_cssStyleSheetToInspectorStyleSheet.find(styleSheet);
+    if (it != m_cssStyleSheetToInspectorStyleSheet.end())
+        return it->value;
+
+    auto id = String::number(m_lastStyleSheetId++);
+    RefPtr document = styleSheet->ownerDocument();
+    Ref inspectorStyleSheet = InspectorStyleSheet::create(m_inspectedPage->inspectorController().identifierRegistry(), id, styleSheet, detectOrigin(styleSheet, document), InspectorDOMAgent::documentURLString(document), this);
+    m_idToInspectorStyleSheet.set(id, inspectorStyleSheet);
+    if (m_creatingViaInspectorStyleSheet && document)
+        m_documentToInspectorStyleSheet.add(document.releaseNonNull(), Vector<Ref<InspectorStyleSheet>>()).iterator->value.append(inspectorStyleSheet);
+    return m_cssStyleSheetToInspectorStyleSheet.set(styleSheet, WTF::move(inspectorStyleSheet)).iterator->value;
 }
 
 InspectorStyleSheet* InspectorCSSAgent::assertStyleSheetForId(Inspector::Protocol::ErrorString& errorString, const String& styleSheetId)

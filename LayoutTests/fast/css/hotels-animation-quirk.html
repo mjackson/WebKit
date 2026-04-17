@@ -16,9 +16,10 @@
 }
 </style>
 <body>
-<!-- Minimal DOM structure matching the hotels.com menu, per the quirk's CSS selector -->
+<!-- Minimal DOM structure matching the hotels.com menu, per the quirk's CSS selector.
+     uitk-menu-open is required: the quirk only fires when the menu is actively opening. -->
 <div class="uitk-menu-mounted">
-    <div id="target" class="uitk-menu-container uitk-menu-container-autoposition uitk-menu-container-has-intersection-root-el"></div>
+    <div id="target" class="uitk-menu-container uitk-menu-container-autoposition uitk-menu-container-has-intersection-root-el uitk-menu-open"></div>
 </div>
 <script>
 "use strict";

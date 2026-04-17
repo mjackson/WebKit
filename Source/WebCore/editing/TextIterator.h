@@ -111,6 +111,10 @@ public:
     WEBCORE_EXPORT SimpleRange range() const;
     WEBCORE_EXPORT Node* node() const;
 
+    // Returns true when the current output is a newline emitted from exiting
+    // a block-level element, as opposed to text content or <br> newlines.
+    bool isBlockNewline() const { return m_isBlockNewline; }
+
     const TextIteratorCopyableText& copyableText() const LIFETIME_BOUND { ASSERT(!atEnd()); return m_copyableText; }
     void appendTextToStringBuilder(StringBuilder& builder) const { copyableText().appendToStringBuilder(builder); }
 
@@ -176,9 +180,11 @@ private:
     RefPtr<Text> m_lastTextNode;
     bool m_lastTextNodeEndedWithCollapsedSpace { false };
     char16_t m_lastCharacter { 0 };
+    unsigned m_consecutiveNewlineCount { 0 };
 
     // Used when deciding whether to emit a "positioning" (e.g. newline) before any other content
     bool m_hasEmitted { false };
+    bool m_isBlockNewline { false };
 
     // Used when deciding text fragment created by :first-letter should be looked into.
     bool m_handledFirstLetter { false };

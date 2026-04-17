@@ -78,11 +78,15 @@ auto FontSelectionAlgorithm::styleDistance(Capabilities capabilities) const -> D
     // We implement this by giving mismatched faces a distance penalty large enough to
     // always lose to any matching-category face, while still allowing last-resort use
     // when no better face exists.
-    if (m_request.slopeAxis == FontStyleAxis::slnt && capabilities.faceAxis == FontStyleAxis::ital)
-        return { FontSelectionValue::maximumValue(), requestSlope };
+    if (m_request.slopeAxis == FontStyleAxis::slnt && capabilities.faceAxis == FontStyleAxis::ital) {
+        auto clampedSlope = std::clamp(requestSlope, slope.minimum, slope.maximum);
+        return { FontSelectionValue::maximumValue(), clampedSlope };
+    }
 
-    if (m_request.penalizeObliqueFontSelection && capabilities.faceAxis == FontStyleAxis::slnt)
-        return { FontSelectionValue::maximumValue(), requestSlope };
+    if (m_request.penalizeObliqueFontSelection && capabilities.faceAxis == FontStyleAxis::slnt) {
+        auto clampedSlope = std::clamp(requestSlope, slope.minimum, slope.maximum);
+        return { FontSelectionValue::maximumValue(), clampedSlope };
+    }
 
     if (slope.includes(requestSlope))
         return { FontSelectionValue(), requestSlope };
@@ -163,6 +167,7 @@ FontSelectionValue FontSelectionAlgorithm::bestValue(std::span<const bool> elimi
         if (!smallestDistance || distanceResult.distance < smallestDistance.value().distance)
             smallestDistance = distanceResult;
     }
+    ASSERT(smallestDistance);
     return smallestDistance.value().value;
 }
 

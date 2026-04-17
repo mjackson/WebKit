@@ -1,0 +1,6 @@
+
+FAIL Moving default content into a slot fires 'slotchange' event promise_test: Unhandled rejection with value: object "TypeError: slot.moveBefore is not a function. (In 'slot.moveBefore(defaultContentP, null)', 'slot.moveBefore' is undefined)"
+FAIL Moving default content out of a slot fires 'slotchange' event promise_test: Unhandled rejection with value: object "TypeError: customElement.shadowRoot.moveBefore is not a function. (In 'customElement.shadowRoot.moveBefore(defaultContentP, null)', 'customElement.shadowRoot.moveBefore' is undefined)"
+FAIL Moving a slottable into and out out of a custom element fires 'slotchange' event promise_test: Unhandled rejection with value: object "TypeError: customElement.moveBefore is not a function. (In 'customElement.moveBefore(slottable, null)', 'customElement.moveBefore' is undefined)"
+FAIL Moving a slot runs the assign slottables algorithm promise_test: Unhandled rejection with value: object "TypeError: document.body.moveBefore is not a function. (In 'document.body.moveBefore(slot, null)', 'document.body.moveBefore' is undefined)"
+

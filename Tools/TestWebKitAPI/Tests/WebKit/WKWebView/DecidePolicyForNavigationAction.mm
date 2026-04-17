@@ -105,12 +105,12 @@ static NSString *thirdURL = @"data:text/html,Third";
 
 TEST(WebKit, DecidePolicyForNavigationActionReload)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -135,12 +135,12 @@ TEST(WebKit, DecidePolicyForNavigationActionReload)
 
 TEST(WebKit, DecidePolicyForNavigationActionReloadFromOrigin)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -165,12 +165,12 @@ TEST(WebKit, DecidePolicyForNavigationActionReloadFromOrigin)
 
 TEST(WebKit, DecidePolicyForNavigationActionGoBack)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -199,12 +199,12 @@ TEST(WebKit, DecidePolicyForNavigationActionGoBack)
 
 TEST(WebKit, DecidePolicyForNavigationActionGoForward)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -349,12 +349,12 @@ TEST(WebKit, DecidePolicyForNavigationActionCancelAfterDiscardingForwardItemsWit
 
 TEST(WebKit, DecidePolicyForNavigationActionOpenNewWindowAndDeallocSourceWebView)
 {
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
 
     @autoreleasepool {
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-        auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+        RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
         [[window contentView] addSubview:webView.get()];
 
         [webView setNavigationDelegate:controller.get()];
@@ -403,12 +403,12 @@ TEST(WebKit, DecidePolicyForNewWindowAction)
 
 TEST(WebKit, DecidePolicyForNavigationActionForTargetedHyperlink)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -459,12 +459,12 @@ TEST(WebKit, DecidePolicyForNavigationActionForTargetedHyperlink)
 
 TEST(WebKit, DecidePolicyForNavigationActionForLoadHTMLStringAllow)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -477,12 +477,12 @@ TEST(WebKit, DecidePolicyForNavigationActionForLoadHTMLStringAllow)
 
 TEST(WebKit, DecidePolicyForNavigationActionForLoadHTMLStringDeny)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -497,12 +497,12 @@ TEST(WebKit, DecidePolicyForNavigationActionForLoadHTMLStringDeny)
 
 TEST(WebKit, DecidePolicyForNavigationActionForTargetedWindowOpen)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -548,12 +548,12 @@ TEST(WebKit, DecidePolicyForNavigationActionForTargetedWindowOpen)
 
 TEST(WebKit, DecidePolicyForNavigationActionForTargetedFormSubmission)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -604,19 +604,19 @@ TEST(WebKit, DecidePolicyForNavigationActionForTargetedFormSubmission)
 enum class ShouldEnableProcessSwap : bool { No, Yes };
 static void runDecidePolicyForNavigationActionForHyperlinkThatRedirects(ShouldEnableProcessSwap shouldEnableProcessSwap)
 {
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     processPoolConfiguration.get().processSwapsOnNavigation = shouldEnableProcessSwap == ShouldEnableProcessSwap::Yes ? YES : NO;
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
-    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -677,12 +677,12 @@ TEST(WebKit, DecidePolicyForNavigationActionForHyperlinkThatRedirectsWithPSON)
 
 TEST(WebKit, DecidePolicyForNavigationActionForPOSTFormSubmissionThatRedirectsToGET)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -724,12 +724,12 @@ TEST(WebKit, DecidePolicyForNavigationActionForPOSTFormSubmissionThatRedirectsTo
 
 TEST(WebKit, DecidePolicyForNavigationActionForPOSTFormSubmissionThatRedirectsToPOST)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -773,8 +773,8 @@ TEST(WebKit, DelayDecidePolicyForNavigationAction)
 {
     shouldDelayDecision = true;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
-    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
 
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
@@ -815,8 +815,8 @@ static size_t calls;
 
 TEST(WebKit, DecidePolicyForNavigationActionFragment)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
-    auto delegate = adoptNS([[DecidePolicyForNavigationActionFragmentDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr delegate = adoptNS([[DecidePolicyForNavigationActionFragmentDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadHTMLString:@"<script>window.location.href='#fragment';</script>" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     TestWebKitAPI::Util::run(&done);
@@ -825,8 +825,8 @@ TEST(WebKit, DecidePolicyForNavigationActionFragment)
 TEST(WebKit, NavigationActionFrames)
 {
     TestWebKitAPI::HTTPServer server({ { "/"_s, { "hi"_s } } });
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         EXPECT_NOT_NULL(action.sourceFrame.request);
         EXPECT_NOT_NULL(action.targetFrame.request);

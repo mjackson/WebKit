@@ -86,7 +86,13 @@ set(TestRunnerInjectedBundle_PRIVATE_INCLUDE_DIRECTORIES
     ${WebKitTestRunner_DIR}/InjectedBundle
 )
 
-set(TestRunnerInjectedBundle_LIBRARY_TYPE SHARED)
+# macOS: MODULE + BUNDLE TRUE (PlatformMac) emits a CFBundle matching Xcode's MH_BUNDLE output.
+# Other ports: SHARED dylib/so.
+if (APPLE)
+    set(TestRunnerInjectedBundle_LIBRARY_TYPE MODULE)
+else ()
+    set(TestRunnerInjectedBundle_LIBRARY_TYPE SHARED)
+endif ()
 set(TestRunnerInjectedBundle_PRIVATE_LIBRARIES
     WebKit::TestRunnerShared
     WebKit::WebCoreTestSupport

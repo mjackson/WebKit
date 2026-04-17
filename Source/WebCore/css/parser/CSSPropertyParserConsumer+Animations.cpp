@@ -38,6 +38,7 @@
 #include "CSSPropertyParserConsumer+PercentageDefinitions.h"
 #include "CSSPropertyParserConsumer+Timeline.h"
 #include "CSSPropertyParserState.h"
+#include "CSSStringValue.h"
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
@@ -137,7 +138,7 @@ RefPtr<CSSValue> consumeKeyframesName(CSSParserTokenRange& range, CSS::PropertyP
         auto valueId = cssValueKeywordID(token.value());
         if (isValidCustomIdentifier(valueId) && valueId != CSSValueNone)
             return CSSCustomIdentValue::create(CSS::CustomIdent { token.value().toAtomString() });
-        return CSSPrimitiveValue::create(token.value().toString());
+        return CSSStringValue::create(CSS::String { token.value().toString() });
     }
 
     return consumeCustomIdent(range, state);

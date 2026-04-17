@@ -160,7 +160,7 @@ TEST(ImageAnalysisTests, DoNotAnalyzeImagesInEditableContent)
 {
     auto requestSwizzler = makeImageAnalysisRequestSwizzler(processRequestWithError);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
     [webView _setEditable:YES];
     [webView synchronouslyLoadTestPageNamed:@"image"];
     EXPECT_EQ([webView simulateImageAnalysisGesture:CGPointMake(100, 100)], 0U);
@@ -170,7 +170,7 @@ TEST(ImageAnalysisTests, HandleImageAnalyzerErrors)
 {
     auto requestSwizzler = makeImageAnalysisRequestSwizzler(processRequestWithError);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"image"];
 
     EXPECT_EQ([webView simulateImageAnalysisGesture:CGPointMake(100, 100)], 2U);
@@ -180,7 +180,7 @@ TEST(ImageAnalysisTests, DoNotCrashWhenHitTestingOutsideOfWebView)
 {
     auto requestSwizzler = makeImageAnalysisRequestSwizzler(processRequestWithError);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"image"];
 
     EXPECT_EQ([webView simulateImageAnalysisGesture:CGPointMake(500, 500)], 0U);
@@ -326,7 +326,7 @@ static RetainPtr<CGImageRef> iconImage()
 #if PLATFORM(IOS_FAMILY)
     return [UIImage imageWithContentsOfFile:iconPath].CGImage;
 #else
-    auto image = adoptNS([[NSImage alloc] initWithContentsOfFile:iconPath]);
+    RetainPtr image = adoptNS([[NSImage alloc] initWithContentsOfFile:iconPath]);
     return [image CGImageForProposedRect:nil context:nil hints:nil];
 #endif
 }
@@ -360,7 +360,7 @@ static void invokeRemoveBackgroundAction(TestWKWebView *webView)
 {
     simulateEditMenuAppearance(webView);
 
-    auto menuBuilder = adoptNS([[TestUIMenuBuilder alloc] init]);
+    RetainPtr menuBuilder = adoptNS([[TestUIMenuBuilder alloc] init]);
     [webView buildMenuWithBuilder:menuBuilder.get()];
     [[menuBuilder actionWithTitle:WebCore::contextMenuItemTitleRemoveBackground().createNSString().get()] performWithSender:nil target:nil];
     [webView waitForNextPresentationUpdate];
@@ -377,7 +377,7 @@ TEST(ImageAnalysisTests, RemoveBackgroundUsingContextMenu)
 
     EXPECT_TRUE(simulateEditContextMenuAppearance(webView.get(), CGPointMake(100, 100)));
 
-    auto menuBuilder = adoptNS([[TestUIMenuBuilder alloc] init]);
+    RetainPtr menuBuilder = adoptNS([[TestUIMenuBuilder alloc] init]);
     [webView buildMenuWithBuilder:menuBuilder.get()];
     EXPECT_NOT_NULL([menuBuilder actionWithTitle:WebCore::contextMenuItemTitleRemoveBackground().createNSString().get()]);
 }
@@ -387,7 +387,7 @@ TEST(ImageAnalysisTests, MenuControllerItems)
     RemoveBackgroundSwizzler swizzler { iconImage().autorelease(), CGRectMake(10, 10, 215, 174) };
 
     auto webView = createWebViewWithTextRecognitionEnhancements();
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[](WKWebView *, id <_WKFocusedElementInfo>) {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
@@ -400,7 +400,7 @@ TEST(ImageAnalysisTests, MenuControllerItems)
     [webView waitForNextPresentationUpdate];
     simulateEditMenuAppearance(webView.get());
 
-    auto menuBuilder = adoptNS([[TestUIMenuBuilder alloc] init]);
+    RetainPtr menuBuilder = adoptNS([[TestUIMenuBuilder alloc] init]);
     [webView buildMenuWithBuilder:menuBuilder.get()];
     EXPECT_NOT_NULL([menuBuilder actionWithTitle:WebCore::contextMenuItemTitleRemoveBackground().createNSString().get()]);
 
@@ -426,7 +426,7 @@ static RetainPtr<TestWKWebView> runMarkupTest(NSString *testPage, NSString *scri
     RemoveBackgroundSwizzler swizzler { iconImage().autorelease(), CGRectMake(10, 10, 215, 174) };
 
     auto webView = createWebViewWithTextRecognitionEnhancements();
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[](WKWebView *, id <_WKFocusedElementInfo>) {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
@@ -480,7 +480,7 @@ TEST(ImageAnalysisTests, AllowRemoveBackgroundOnce)
     [webView waitForNextPresentationUpdate];
     simulateEditMenuAppearance(webView.get());
 
-    auto menuBuilder = adoptNS([TestUIMenuBuilder new]);
+    RetainPtr menuBuilder = adoptNS([TestUIMenuBuilder new]);
     [webView buildMenuWithBuilder:menuBuilder.get()];
 
     EXPECT_NULL([menuBuilder actionWithTitle:WebCore::contextMenuItemTitleRemoveBackground().createNSString().get()]);

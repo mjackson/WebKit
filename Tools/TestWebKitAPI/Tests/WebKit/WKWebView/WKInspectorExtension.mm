@@ -59,7 +59,7 @@ static RetainPtr<NSObject> evaluationResult;
     if (!sharedURLSchemeHandler)
         sharedURLSchemeHandler = adoptNS([[TestInspectorURLSchemeHandler alloc] init]);
 
-    auto inspectorConfiguration = adoptNS([[_WKInspectorConfiguration alloc] init]);
+    RetainPtr inspectorConfiguration = adoptNS([[_WKInspectorConfiguration alloc] init]);
     [inspectorConfiguration setURLSchemeHandler:sharedURLSchemeHandler.get() forURLScheme:@"test-resource"];
     return inspectorConfiguration.autorelease();
 }
@@ -89,10 +89,10 @@ TEST(WKInspectorExtension, CanEvaluateScriptInExtensionTab)
 {
     resetGlobalState();
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegateForTestingInspectorExtension new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr uiDelegate = adoptNS([UIDelegateForTestingInspectorExtension new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
@@ -115,7 +115,7 @@ TEST(WKInspectorExtension, CanEvaluateScriptInExtensionTab)
     }];
     TestWebKitAPI::Util::run(&pendingCallbackWasCalled);
 
-    auto extensionDelegate = adoptNS([InspectorExtensionDelegateForTestingInspectorExtension new]);
+    RetainPtr extensionDelegate = adoptNS([InspectorExtensionDelegateForTestingInspectorExtension new]);
     [sharedInspectorExtension setDelegate:extensionDelegate.get()];
 
     // Create and show an extension tab.
@@ -185,10 +185,10 @@ TEST(WKInspectorExtension, ExtensionTabIsPersistent)
 {
     resetGlobalState();
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegateForTestingInspectorExtension new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr uiDelegate = adoptNS([UIDelegateForTestingInspectorExtension new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
@@ -211,7 +211,7 @@ TEST(WKInspectorExtension, ExtensionTabIsPersistent)
     }];
     TestWebKitAPI::Util::run(&pendingCallbackWasCalled);
 
-    auto extensionDelegate = adoptNS([InspectorExtensionDelegateForTestingInspectorExtension new]);
+    RetainPtr extensionDelegate = adoptNS([InspectorExtensionDelegateForTestingInspectorExtension new]);
     [sharedInspectorExtension setDelegate:extensionDelegate.get()];
 
     // Create and show an extension tab.
@@ -303,10 +303,10 @@ TEST(WKInspectorExtension, EvaluateScriptInExtensionTabCanReturnPromises)
 {
     resetGlobalState();
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegateForTestingInspectorExtension new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr uiDelegate = adoptNS([UIDelegateForTestingInspectorExtension new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
@@ -329,7 +329,7 @@ TEST(WKInspectorExtension, EvaluateScriptInExtensionTabCanReturnPromises)
     }];
     TestWebKitAPI::Util::run(&pendingCallbackWasCalled);
 
-    auto extensionDelegate = adoptNS([InspectorExtensionDelegateForTestingInspectorExtension new]);
+    RetainPtr extensionDelegate = adoptNS([InspectorExtensionDelegateForTestingInspectorExtension new]);
     [sharedInspectorExtension setDelegate:extensionDelegate.get()];
 
     // Create and show an extension tab.
@@ -397,11 +397,11 @@ TEST(WKInspectorExtension, EvaluateScriptOnPage)
 {
     resetGlobalState();
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegateForTestingInspectorExtension new]);
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr uiDelegate = adoptNS([UIDelegateForTestingInspectorExtension new]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
 
     auto *testPageFileURL = [NSBundle.test_resourcesBundle URLForResource:@"WKInspectorExtensionEvaluateScriptOnPage" withExtension:@"html"];
 
@@ -428,7 +428,7 @@ TEST(WKInspectorExtension, EvaluateScriptOnPage)
     }];
     TestWebKitAPI::Util::run(&pendingCallbackWasCalled);
 
-    auto extensionDelegate = adoptNS([InspectorExtensionDelegateForTestingInspectorExtension new]);
+    RetainPtr extensionDelegate = adoptNS([InspectorExtensionDelegateForTestingInspectorExtension new]);
     [sharedInspectorExtension setDelegate:extensionDelegate.get()];
 
     // Create and show an extension tab.

@@ -33,7 +33,7 @@ namespace TestWebKitAPI {
 
 TEST(WebKit2, GetMatchedCSSRulesTest)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200)]);
     auto html = @"<!DOCTYPE html>"
     "<html>"
     "<head><style type=\"text/css\">p { font-size: 100px; }</style></head>"

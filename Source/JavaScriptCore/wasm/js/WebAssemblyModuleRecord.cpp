@@ -110,11 +110,13 @@ Synchronousness WebAssemblyModuleRecord::link(JSGlobalObject* globalObject, JSVa
 
     RELEASE_ASSERT(m_instance);
 
-    JSWebAssemblyModule* module = m_instance->jsModule();
-    SymbolTable* exportSymbolTable = module->exportSymbolTable();
+    if (!moduleEnvironmentMayBeNull()) {
+        JSWebAssemblyModule* module = m_instance->jsModule();
+        SymbolTable* exportSymbolTable = module->exportSymbolTable();
 
-    JSModuleEnvironment* moduleEnvironment = JSModuleEnvironment::create(vm, globalObject, nullptr, exportSymbolTable, jsTDZValue(), this);
-    setModuleEnvironment(globalObject, moduleEnvironment);
+        JSModuleEnvironment* moduleEnvironment = JSModuleEnvironment::create(vm, globalObject, nullptr, exportSymbolTable, jsTDZValue(), this);
+        setModuleEnvironment(globalObject, moduleEnvironment);
+    }
 
     return Synchronousness::Sync;
 }

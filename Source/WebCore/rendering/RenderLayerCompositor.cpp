@@ -2594,6 +2594,7 @@ void RenderLayerCompositor::computeExtent(const LayerOverlapMap& overlapMap, con
         auto constrainingRect = box.constrainingRectForStickyPosition();
         box.computeStickyPositionConstraints(constraints, constrainingRect);
         auto stickyBounds = LayoutRect(constraints.computeStickyExtent());
+        stickyBounds.move(extent.bounds.x() - LayoutUnit(constraints.stickyBoxRect().x()), extent.bounds.y() - LayoutUnit(constraints.stickyBoxRect().y()));
         scrollInflated.intersect(stickyBounds);
         extent.bounds = scrollInflated;
     } else if (renderer.isFixedPositioned() && renderer.container() == &m_renderView) {

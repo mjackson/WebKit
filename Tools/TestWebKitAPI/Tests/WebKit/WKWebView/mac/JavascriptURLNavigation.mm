@@ -170,11 +170,11 @@ TEST(WKWebView, JavascriptURLNavigation)
 {
     static bool done;
 
-    auto delegate = adoptNS([[JavascriptURLNavigationDelegate alloc] init]);
-    auto handler = adoptNS([[TestURLSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr delegate = adoptNS([[JavascriptURLNavigationDelegate alloc] init]);
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"jsurl"];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setUIDelegate:delegate.get()];
 
     [webView performAfterReceivingMessage:@"Passed" action:^() {
@@ -192,7 +192,7 @@ TEST(WKWebView, JavascriptURLNavigation)
             FAIL();
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[NSData dataWithBytes:mainResource length:strlen(mainResource)]];
         [task didFinish];

@@ -152,7 +152,6 @@ css/CSSFontFace.cpp
 css/CSSFontFaceRule.cpp
 css/CSSFontValue.cpp
 css/CSSGroupingRule.cpp
-css/CSSImageSetOptionValue.cpp
 css/CSSImageValue.h
 css/CSSKeyframeRule.cpp
 css/CSSKeyframesRule.cpp
@@ -579,7 +578,6 @@ rendering/RenderTextControl.cpp
 rendering/RenderTextControlMultiLine.cpp
 rendering/RenderTextControlSingleLine.cpp
 rendering/RenderTextControlSingleLine.h
-rendering/RenderTextFragment.cpp
 rendering/RenderTheme.cpp
 rendering/RenderTreeAsText.cpp
 rendering/RenderView.cpp

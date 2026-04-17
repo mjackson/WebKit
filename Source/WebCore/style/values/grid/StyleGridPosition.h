@@ -100,7 +100,7 @@ struct GridPosition {
 
     WEBCORE_EXPORT int NODELETE explicitPosition() const;
     WEBCORE_EXPORT int NODELETE spanPosition() const;
-    String NODELETE namedGridLine() const;
+    const CustomIdent& NODELETE namedGridLine() const LIFETIME_BOUND;
 
     bool shouldBeResolvedAgainstOppositePosition() const { return isAuto() || isSpan(); }
 

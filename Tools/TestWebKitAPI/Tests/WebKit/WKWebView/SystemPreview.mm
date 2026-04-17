@@ -114,9 +114,9 @@ TEST(WebKit, SystemPreviewLoad)
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
     [configuration _setSystemPreviewEnabled:YES];
 
-    auto viewController = adoptNS([[UIViewController alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
-    auto uiDelegate = adoptNS([[TestSystemPreviewUIDelegate alloc] init]);
+    RetainPtr viewController = adoptNS([[UIViewController alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr uiDelegate = adoptNS([[TestSystemPreviewUIDelegate alloc] init]);
     uiDelegate.get().viewController = viewController.get();
     [webView setUIDelegate:uiDelegate.get()];
     [viewController setView:webView.get()];
@@ -162,9 +162,9 @@ TEST(WebKit, SystemPreviewBlobRevokedImmediately)
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
     [configuration _setSystemPreviewEnabled:YES];
 
-    auto viewController = adoptNS([[UIViewController alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
-    auto uiDelegate = adoptNS([[TestSystemPreviewUIDelegate alloc] init]);
+    RetainPtr viewController = adoptNS([[UIViewController alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr uiDelegate = adoptNS([[TestSystemPreviewUIDelegate alloc] init]);
     uiDelegate.get().viewController = viewController.get();
     [webView setUIDelegate:uiDelegate.get()];
     [viewController setView:webView.get()];
@@ -226,9 +226,9 @@ TEST(WebKit, SystemPreviewUnknownMIMEType)
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
     [configuration _setSystemPreviewEnabled:YES];
 
-    auto viewController = adoptNS([[UIViewController alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
-    auto uiDelegate = adoptNS([[TestSystemPreviewUIDelegate alloc] init]);
+    RetainPtr viewController = adoptNS([[UIViewController alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr uiDelegate = adoptNS([[TestSystemPreviewUIDelegate alloc] init]);
     uiDelegate.get().viewController = viewController.get();
     [webView setUIDelegate:uiDelegate.get()];
     [viewController setView:webView.get()];
@@ -263,11 +263,11 @@ TEST(WebKit, SystemPreviewUnknownMIMEType)
 TEST(WebKit, SystemPreviewTriggered)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto messageHandler = adoptNS([[TestSystemPreviewTriggeredHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[TestSystemPreviewTriggeredHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testSystemPreview"];
     [configuration _setSystemPreviewEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
     [webView synchronouslyLoadTestPageNamed:@"system-preview-trigger"];
     Util::run(&hasTriggerInfo);
 
@@ -278,11 +278,11 @@ TEST(WebKit, SystemPreviewTriggered)
 TEST(WebKit, SystemPreviewTriggeredOnDetachedElement)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto messageHandler = adoptNS([[TestSystemPreviewTriggeredOnDetachedElementHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[TestSystemPreviewTriggeredOnDetachedElementHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testSystemPreview"];
     [configuration _setSystemPreviewEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
     [webView synchronouslyLoadTestPageNamed:@"system-preview-trigger"];
     Util::run(&hasTriggerInfo);
 

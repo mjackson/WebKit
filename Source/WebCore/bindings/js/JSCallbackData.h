@@ -29,7 +29,9 @@
 #pragma once
 
 #include "ScriptExecutionContext.h"
+#include <JavaScriptCore/PropertyName.h>
 #include <JavaScriptCore/Weak.h>
+#include <JavaScriptCore/WeakHandleOwner.h>
 #include <wtf/NakedPtr.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Threading.h>

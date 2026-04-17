@@ -89,6 +89,8 @@
 #import "WKFormInfoInternal.h"
 #import "WKFrameInfoInternal.h"
 #import "WKHistoryDelegatePrivate.h"
+#import "WKImmersiveEnvironmentDelegate.h"
+#import "WKImmersiveEnvironmentInternal.h"
 #import "WKIntelligenceReplacementTextEffectCoordinator.h"
 #import "WKIntelligenceSmartReplyTextEffectCoordinator.h"
 #import "WKIntelligenceTextEffectCoordinator.h"
@@ -144,7 +146,6 @@
 #import "_WKFrameTreeNodeInternal.h"
 #import "_WKFullscreenDelegate.h"
 #import "_WKHitTestResultInternal.h"
-#import "_WKImmersiveEnvironmentDelegate.h"
 #import "_WKInputDelegate.h"
 #import "_WKInspectorInternal.h"
 #import "_WKPageLoadTimingInternal.h"
@@ -1168,7 +1169,12 @@ static void addBrowsingContextControllerMethodStubsIfNeeded()
 
 - (NSURL *)URL
 {
-    return [NSURL _web_URLWithWTFString:_page->pageLoadState().activeURL()];
+    auto& activeURL = _page->pageLoadState().activeURL();
+    if (_cachedActiveNSURL.first != activeURL.string()) {
+        _cachedActiveNSURL.first = activeURL.string();
+        _cachedActiveNSURL.second = activeURL.createNSURL();
+    }
+    return _cachedActiveNSURL.second.getAutoreleased();
 }
 
 - (NSURL *)_resourceDirectoryURL
@@ -2139,50 +2145,54 @@ inline OptionSet<WebKit::FindOptions> toFindOptions(WKFindConfiguration *configu
 #endif
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-- (void)_allowImmersiveElementFromURL:(const URL&)url completion:(CompletionHandler<void(bool)>&&)completion
+- (void)_allowImmersiveElement:(WKFrameInfo *)frameInfo completion:(CompletionHandler<void(bool)>&&)completion
 {
-    id<_WKImmersiveEnvironmentDelegate> immersiveEnvironmentDelegate = self._immersiveEnvironmentDelegate;
+    id<WKImmersiveEnvironmentDelegate> immersiveEnvironmentDelegate = self.immersiveEnvironmentDelegate;
     if (!immersiveEnvironmentDelegate) {
         completion(false);
         return;
     }
 
-    auto nsURL = url.createNSURL();
-    [immersiveEnvironmentDelegate webView:self allowImmersiveEnvironmentFromURL:nsURL.get() completion:makeBlockPtr([completion = WTF::move(completion)](bool allow) mutable {
+    [immersiveEnvironmentDelegate webView:self shouldAllowImmersiveEnvironmentFromFrame:frameInfo completionHandler:makeBlockPtr([completion = WTF::move(completion)](BOOL allow) mutable {
         completion(allow);
     }).get()];
 }
 
-- (void)_presentImmersiveElement:(const WebCore::LayerHostingContextIdentifier)contextID completion:(CompletionHandler<void(bool)>&&)completion
+- (void)_presentImmersiveElement:(const WebCore::LayerHostingContextIdentifier)contextID frameInfo:(WKFrameInfo *)frameInfo completion:(CompletionHandler<void(bool)>&&)completion
 {
-    id<_WKImmersiveEnvironmentDelegate> immersiveEnvironmentDelegate = self._immersiveEnvironmentDelegate;
+    id<WKImmersiveEnvironmentDelegate> immersiveEnvironmentDelegate = self.immersiveEnvironmentDelegate;
     if (!immersiveEnvironmentDelegate) {
         completion(false);
         return;
     }
 
-    RetainPtr environmentView = adoptNS([[UIView alloc] initWithFrame:CGRectZero]);
-    RetainPtr remoteModelView = adoptNS([[_UIRemoteView alloc] initWithFrame:CGRectZero pid:[self _webProcessIdentifier] contextID:contextID.toUInt64()]);
-    [environmentView addSubview:remoteModelView.get()];
-    // To match the assumptions made in ModelProcessModelPlayerProxy.mm, the frame of the model view must stay zero, and be centered inside its container.
-    // This ensures that the model is correctly placed at the world's origin when the client puts the view inside their Immersive Space.
-    [remoteModelView setFrame:CGRectZero];
-    [remoteModelView setAutoresizingMask:(UIViewAutoresizingNone | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin)];
+    RetainPtr environment = adoptNS([[WKImmersiveEnvironment alloc] _initWithContextID:contextID processIdentifier:[self _webProcessIdentifier] frameInfo:frameInfo]);
+    _currentImmersiveEnvironment = environment;
 
-    [immersiveEnvironmentDelegate webView:self presentImmersiveEnvironment:environmentView.autorelease() completion:makeBlockPtr([completion = WTF::move(completion)](NSError *error) mutable {
+    [immersiveEnvironmentDelegate webView:self presentImmersiveEnvironment:environment.get() completionHandler:makeBlockPtr([weakSelf = WeakObjCPtr<WKWebView>(self), completion = WTF::move(completion)](NSError *error) mutable {
+        if (error) {
+            if (RetainPtr retainedSelf = weakSelf.get())
+                retainedSelf->_currentImmersiveEnvironment = nil;
+        }
         completion(!error);
     }).get()];
 }
 
 - (void)_dismissImmersiveElement:(CompletionHandler<void()>&&)completion
 {
-    id<_WKImmersiveEnvironmentDelegate> immersiveEnvironmentDelegate = self._immersiveEnvironmentDelegate;
+    id<WKImmersiveEnvironmentDelegate> immersiveEnvironmentDelegate = self.immersiveEnvironmentDelegate;
     if (!immersiveEnvironmentDelegate) {
         completion();
         return;
     }
 
-    [immersiveEnvironmentDelegate webView:self dismissImmersiveEnvironment:makeBlockPtr([completion = WTF::move(completion)]() mutable {
+    RetainPtr environment = std::exchange(_currentImmersiveEnvironment, nil);
+    if (!environment) {
+        completion();
+        return;
+    }
+
+    [immersiveEnvironmentDelegate webView:self dismissImmersiveEnvironment:environment.get() completionHandler:makeBlockPtr([completion = WTF::move(completion)]() mutable {
         completion();
     }).get()];
 }
@@ -2584,7 +2594,12 @@ static std::optional<WebCore::JSHandleIdentifier> jsHandleIdentifierInFrame(cons
 
 - (void)willBeginWritingToolsSession:(WTSession *)session requestContexts:(void (^)(NSArray<WTContext *> *))completion
 {
-    [self willBeginWritingToolsSession:session forProofreadingReview:NO requestContexts:completion];
+    BOOL proofreadingReview = NO;
+#if ENABLE(WRITING_TOOLS_EXTENDED_PROOFREADING)
+    if ([session respondsToSelector:@selector(proofreadingSessionType)] && [session proofreadingSessionType] == WTProofreadingSessionTypeGrammarChecking)
+        proofreadingReview = YES;
+#endif
+    [self willBeginWritingToolsSession:session forProofreadingReview:proofreadingReview requestContexts:completion];
 }
 
 - (void)didBeginWritingToolsSession:(WTSession *)session contexts:(NSArray<WTContext *> *)contexts
@@ -3887,6 +3902,35 @@ struct WKWebViewData {
 
 #endif
 
+- (id<WKImmersiveEnvironmentDelegate>)immersiveEnvironmentDelegate
+{
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    return _immersiveEnvironmentDelegate.getAutoreleased();
+#else
+    return nil;
+#endif
+}
+
+- (void)setImmersiveEnvironmentDelegate:(id<WKImmersiveEnvironmentDelegate>)delegate
+{
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    _immersiveEnvironmentDelegate = delegate;
+#else
+    UNUSED_PARAM(delegate);
+#endif
+}
+
+- (void)dismissImmersiveEnvironmentWithCompletionHandler:(void (^)(void))completionHandler
+{
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    _page->exitImmersive([completionHandler = makeBlockPtr(completionHandler)] {
+        completionHandler();
+    });
+#else
+    completionHandler();
+#endif
+}
+
 @end
 
 #pragma mark -
@@ -4758,29 +4802,6 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 #endif
 }
 
-- (id<_WKImmersiveEnvironmentDelegate>)_immersiveEnvironmentDelegate
-{
-#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-    return _immersiveEnvironmentDelegate.getAutoreleased();
-#else
-    return nil;
-#endif
-}
-
-- (void)_setImmersiveEnvironmentDelegate:(id<_WKImmersiveEnvironmentDelegate>)delegate
-{
-#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-    _immersiveEnvironmentDelegate = delegate;
-#endif
-}
-
-- (void)_exitImmersive
-{
-#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-    _page->exitImmersive();
-#endif
-}
-
 - (void)_addAppHighlight
 {
     THROW_IF_SUSPENDED;
@@ -4837,7 +4858,7 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 
 - (NSURL *)_unreachableURL
 {
-    return [NSURL _web_URLWithWTFString:_page->pageLoadState().unreachableURL()];
+    return _page->pageLoadState().unreachableURL().createNSURL().autorelease();
 }
 
 - (NSURL *)_mainFrameURL
@@ -4928,6 +4949,24 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 #endif
         });
         return completionHandler(typeIdentifier.createNSString().get(), availableSizes.autorelease(), nil);
+    });
+}
+
+- (void)_getImageMetadata:(NSData *)imageData completionHandler:(void (^)(NSDictionary<NSString *, id> *metadata, NSError *error))completionHandler
+{
+    _page->getImageMetadata(makeVector(imageData), [completionHandler = makeBlockPtr(completionHandler)](auto result) mutable {
+        if (!result) {
+            RetainPtr error = adoptNS([[NSError alloc] initWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:@{ NSLocalizedDescriptionKey: WebCore::descriptionString(result.error()).createNSString().get() }]);
+            return completionHandler(nil, error.get());
+        }
+
+        auto metadata = result.value();
+        RetainPtr valueMap = adoptNS([[NSMutableDictionary alloc] initWithCapacity:metadata.size()]);
+
+        for (const auto& pair : metadata)
+            [valueMap setObject:@(pair.second) forKey:pair.first.createNSString().get()];
+
+        return completionHandler(valueMap.autorelease(), nil);
     });
 }
 
@@ -5070,7 +5109,7 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 
 - (NSURL *)_committedURL
 {
-    return [NSURL _web_URLWithWTFString:_page->pageLoadState().url()];
+    return _page->pageLoadState().url().createNSURL().autorelease();
 }
 
 - (NSString *)_MIMEType
@@ -7181,10 +7220,12 @@ static RetainPtr<_WKTextExtractionResult> createEmptyTextExtractionResult()
     }
 
     if (wkInteraction.hasSetLocation) {
+        auto insets = self.obscuredContentInsets;
+        auto location = CGPointMake(wkInteraction.location.x + insets.left, wkInteraction.location.y + insets.top);
 #if PLATFORM(IOS_FAMILY)
-        interaction.locationInRootView = [self convertPoint:wkInteraction.location toView:_contentView.get()];
+        interaction.locationInRootView = [self convertPoint:location toView:_contentView.get()];
 #else
-        interaction.locationInRootView = wkInteraction.location;
+        interaction.locationInRootView = location;
 #endif
     }
     interaction.text = wkInteraction.text;

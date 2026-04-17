@@ -248,6 +248,9 @@ public:
     void clearSizeOverrideForCSSDefaultViewportUnits();
     FloatSize sizeForCSSDefaultViewportUnits() const;
 
+    void setShouldUseDynamicViewportUnitsAsDefault(bool value) { m_shouldUseDynamicViewportUnitsAsDefault = value; }
+    bool shouldUseDynamicViewportUnitsAsDefault() const { return m_shouldUseDynamicViewportUnitsAsDefault; }
+
     WEBCORE_EXPORT void setOverrideSizeForCSSSmallViewportUnits(OverrideViewportSize);
     std::optional<OverrideViewportSize> overrideSizeForCSSSmallViewportUnits() const { return m_smallViewportSizeOverride; }
     WEBCORE_EXPORT void setSizeForCSSSmallViewportUnits(FloatSize);
@@ -1050,6 +1053,8 @@ private:
     std::optional<OverrideViewportSize> m_defaultViewportSizeOverride;
     std::optional<OverrideViewportSize> m_smallViewportSizeOverride;
     std::optional<OverrideViewportSize> m_largeViewportSizeOverride;
+
+    bool m_shouldUseDynamicViewportUnitsAsDefault { false };
 
     // The view size when autosizing.
     IntSize m_autoSizeConstraint;

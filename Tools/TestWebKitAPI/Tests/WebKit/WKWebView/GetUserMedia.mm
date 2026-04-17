@@ -173,11 +173,11 @@ static void initializeMediaCaptureConfiguration(WKWebViewConfiguration* configur
 
 void doCaptureMuteTest(NOESCAPE const Function<void(TestWKWebView*, _WKMediaMutedState)>& setPageMuted)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView _setMediaCaptureReportingDelayForTesting:0];
@@ -264,16 +264,16 @@ TEST(WebKit2, DISABLED_CaptureMuteAPI)
 TEST(WebKit2, CaptureMuteAPI)
 #endif
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView _setMediaCaptureReportingDelayForTesting:0];
 
-    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[MediaCaptureObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:@"microphoneCaptureState" options:NSKeyValueObservingOptionNew context:nil];
     [webView addObserver:observer.get() forKeyPath:@"cameraCaptureState" options:NSKeyValueObservingOptionNew context:nil];
 
@@ -366,15 +366,15 @@ TEST(WebKit2, CaptureMuteAPI)
 
 TEST(WebKit2, CaptureStop)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -401,15 +401,15 @@ TEST(WebKit2, CaptureStop)
 
 TEST(WebKit2, CloseWKWebViewShortlyAfterStartingToCapture)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -426,17 +426,17 @@ TEST(WebKit2, CloseWKWebViewShortlyAfterStartingToCapture)
 
 TEST(WebKit2, CaptureIndicatorDelay)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
     [webView _setMediaCaptureReportingDelayForTesting:2];
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -459,17 +459,17 @@ TEST(WebKit2, CaptureIndicatorDelay)
 
 TEST(WebKit2, CaptureIndicatorDelayWhenClosed)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
     [webView _setMediaCaptureReportingDelayForTesting:2];
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -484,15 +484,15 @@ TEST(WebKit2, CaptureIndicatorDelayWhenClosed)
 
 TEST(WebKit2, GetCapabilities)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -508,7 +508,7 @@ TEST(WebKit2, GetCapabilities)
 
 TEST(WebKit, InterruptionBetweenSameProcessPages)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
 #if PLATFORM(IOS_FAMILY)
     [configuration setAllowsInlineMediaPlayback:YES];
@@ -516,12 +516,12 @@ TEST(WebKit, InterruptionBetweenSameProcessPages)
 
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
     done = false;
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     webView1.get().UIDelegate = delegate.get();
     [webView1 loadTestPageNamed:@"getUserMedia2"];
     TestWebKitAPI::Util::run(&done);
@@ -531,7 +531,7 @@ TEST(WebKit, InterruptionBetweenSameProcessPages)
     ALLOW_DEPRECATED_DECLARATIONS_END
 
     done = false;
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
     webView2.get().UIDelegate = delegate.get();
     [webView2 loadTestPageNamed:@"getUserMedia2"];
     TestWebKitAPI::Util::run(&done);
@@ -591,17 +591,17 @@ TEST(WebKit, TransferTrackBetweenSameProcessPages)
         { "/?no-open"_s, { transferTrackBetweenSameProcessPagesText } }
     }, TestWebKitAPI::HTTPServer::Protocol::Http, nullptr, nullptr, 9090);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
     __block RetainPtr<TestWKWebView> webView2;
-    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[MediaCaptureObserver alloc] init]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     delegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
         webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration addToWindow:YES]);
         [webView2 addObserver:observer.get() forKeyPath:@"microphoneCaptureState" options:NSKeyValueObservingOptionNew context:nil];
@@ -680,16 +680,16 @@ TEST(WebKit, KeepPermissionForWebAppSameOriginNavigations)
         { "/1"_s, { KeepPermissionForWebAppSameOriginNavigationsText } }
     }, TestWebKitAPI::HTTPServer::Protocol::Http, nullptr, nullptr, 9090);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
-    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr observer = adoptNS([[MediaCaptureObserver alloc] init]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     webView1.get().UIDelegate = delegate.get();
 
     done = false;
@@ -766,21 +766,21 @@ TEST(WebKit, KeepPermissionForWebAppSameOriginNavigations)
 #if PLATFORM(MAC)
 TEST(WebKit, InterruptionBetweenGetDisplayMediaAndGetUserMedia)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
 
     configuration.get().processPool = (WKProcessPool *)context.get();
 
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     webView1.get().UIDelegate = delegate.get();
 
-    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[MediaCaptureObserver alloc] init]);
     [webView1 addObserver:observer.get() forKeyPath:@"microphoneCaptureState" options:NSKeyValueObservingOptionNew context:nil];
     [webView1 addObserver:observer.get() forKeyPath:@"cameraCaptureState" options:NSKeyValueObservingOptionNew context:nil];
 
@@ -789,7 +789,7 @@ TEST(WebKit, InterruptionBetweenGetDisplayMediaAndGetUserMedia)
 
     EXPECT_TRUE(waitUntilCameraState(webView1.get(), WKMediaCaptureStateActive));
 
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
     webView2.get().UIDelegate = delegate.get();
 
     [delegate setGetDisplayMediaDecision:WKDisplayCapturePermissionDecisionScreenPrompt];
@@ -825,7 +825,7 @@ TEST(WebKit, PermissionDelegateParameters)
         { "/frame"_s, { frameText } },
     }, TestWebKitAPI::HTTPServer::Protocol::Http, nullptr, nullptr, 9091);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
 #if PLATFORM(IOS_FAMILY)
     [configuration setAllowsInlineMediaPlayback:YES];
@@ -834,8 +834,8 @@ TEST(WebKit, PermissionDelegateParameters)
     initializeMediaCaptureConfiguration(configuration.get());
 
     done = false;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegateForParameters alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegateForParameters alloc] init]);
     webView.get().UIDelegate = delegate.get();
     [webView loadRequest:server1.request()];
     TestWebKitAPI::Util::run(&done);
@@ -846,19 +846,19 @@ TEST(WebKit, WebAudioAndGetUserMedia)
 {
     done = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     configuration.get().processPool = (WKProcessPool *)context.get();
     configuration.get().processPool._configuration.shouldCaptureAudioInUIProcess = NO;
 
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     auto url = adoptWK(Util::createURLForResource("getUserMedia-webaudio", "html"));
@@ -872,7 +872,7 @@ TEST(WebKit, WebAudioAndGetUserMedia)
 #if ENABLE(GPU_PROCESS)
 TEST(WebKit2, CrashGPUProcessWhileCapturing)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto preferences = [configuration preferences];
 
     for (_WKFeature *feature in [WKPreferences _features]) {
@@ -884,12 +884,12 @@ TEST(WebKit2, CrashGPUProcessWhileCapturing)
 
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     webView.get().UIDelegate = delegate.get();
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -944,7 +944,7 @@ TEST(WebKit2, CrashGPUProcessWhileCapturing)
 
 TEST(WebKit2, CrashGPUProcessAfterApplyingConstraints)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto preferences = [configuration preferences];
 
     for (_WKFeature *feature in [WKPreferences _features]) {
@@ -959,12 +959,12 @@ TEST(WebKit2, CrashGPUProcessAfterApplyingConstraints)
     [configuration setAllowsInlineMediaPlayback:YES];
 #endif
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     webView.get().UIDelegate = delegate.get();
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -1019,7 +1019,7 @@ TEST(WebKit2, CrashGPUProcessAfterApplyingConstraints)
 
 TEST(WebKit2, CrashGPUProcessWhileCapturingAndCalling)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto preferences = [configuration preferences];
 
     for (_WKFeature *feature in [WKPreferences _features]) {
@@ -1033,12 +1033,12 @@ TEST(WebKit2, CrashGPUProcessWhileCapturingAndCalling)
 
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     webView.get().UIDelegate = delegate.get();
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -1165,20 +1165,20 @@ TEST(WebKit, AutoplayOnVisibilityChange)
         { "/"_s, { visibilityTestText } }
     }, TestWebKitAPI::HTTPServer::Protocol::Http, nullptr, nullptr, 9090);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     configuration.get().processPool = (WKProcessPool *)context.get();
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
     initializeMediaCaptureConfiguration(configuration.get());
 
     done = false;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     webView.get().UIDelegate = delegate.get();
 
     NSLog(@"AutoplayOnVisibilityChange 1\n");
@@ -1244,12 +1244,12 @@ TEST(WebKit, GetUserMediaFocus)
         { "/"_s, { getUserMediaFocusText } }
     }, TestWebKitAPI::HTTPServer::Protocol::Http, nullptr, nullptr, 9090);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     configuration.get().processPool = (WKProcessPool *)context.get();
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
     initializeMediaCaptureConfiguration(configuration.get());
@@ -1257,9 +1257,9 @@ TEST(WebKit, GetUserMediaFocus)
     preferences._getUserMediaRequiresFocus = YES;
 
     done = false;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     webView.get().UIDelegate = delegate.get();
 
     // Load page.
@@ -1304,14 +1304,14 @@ TEST(WebKit, InvalidDeviceIdHashSalts)
         Util::spinRunLoop();
 
     // Prepare web view to use the invalid data
-    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [websiteDataStoreConfiguration setDeviceIdHashSaltsStorageDirectory:tempDir];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]).get()];
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     // Wait for invalid data to be loaded.
@@ -1338,16 +1338,16 @@ static _WKFeature *permissionsAPIEnabledExperimentalFeature()
 
 TEST(WebKit2, CapturePermission)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
     [[configuration preferences] _setEnabled:YES forFeature:permissionsAPIEnabledExperimentalFeature()];
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -1428,15 +1428,15 @@ TEST(WebKit2, CapturePermissionChangedFromGrantToDeny)
         { "/"_s, { capturePermissionChangedWebPage } }
     }, TestWebKitAPI::HTTPServer::Protocol::Http);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [delegate setAudioDecision:WKPermissionDecisionGrant];
@@ -1476,15 +1476,15 @@ TEST(WebKit2, CapturePermissionChangedFromDenyToGrant)
         { "/"_s, { capturePermissionChangedWebPage } }
     }, TestWebKitAPI::HTTPServer::Protocol::Http);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [delegate setAudioDecision:WKPermissionDecisionDeny];
@@ -1520,7 +1520,7 @@ TEST(WebKit2, CapturePermissionChangedFromDenyToGrant)
 
 TEST(WebKit2, EnumerateDevicesAfterMuting)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration preferences]._inactiveMediaCaptureStreamRepromptIntervalInMinutes = .5 / 60;
 
     initializeMediaCaptureConfiguration(configuration.get());
@@ -1529,12 +1529,12 @@ TEST(WebKit2, EnumerateDevicesAfterMuting)
     [configuration setAllowsInlineMediaPlayback:YES];
 #endif
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     webView.get().UIDelegate = delegate.get();
 
     [webView loadTestPageNamed:@"getUserMedia"];
@@ -1555,7 +1555,7 @@ TEST(WebKit2, EnumerateDevicesAfterMuting)
 #if PLATFORM(IOS_FAMILY)
 TEST(WebKit2, CapturePermissionWithSystemBlocking)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get()._mediaCaptureEnabled = YES;
 
     auto preferences = [configuration preferences];
@@ -1564,12 +1564,12 @@ TEST(WebKit2, CapturePermissionWithSystemBlocking)
     preferences._getUserMediaRequiresFocus = NO;
     [preferences _setEnabled:YES forFeature:permissionsAPIEnabledExperimentalFeature()];
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -1610,15 +1610,15 @@ TEST(WebKit2, CapturePermissionWithSystemBlocking)
 #if PLATFORM(MAC)
 TEST(WebKit2, ConnectedToHardwareConsole)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView _setMediaCaptureReportingDelayForTesting:0];
 
-    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[MediaCaptureObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:@"microphoneCaptureState" options:NSKeyValueObservingOptionNew context:nil];
     [webView addObserver:observer.get() forKeyPath:@"cameraCaptureState" options:NSKeyValueObservingOptionNew context:nil];
 
@@ -1666,15 +1666,15 @@ TEST(WebKit2, ConnectedToHardwareConsole)
 
 TEST(WebKit2, DoNotUnmuteWhenTakingAThumbnail)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView _setMediaCaptureReportingDelayForTesting:0];
 
-    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[MediaCaptureObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:@"microphoneCaptureState" options:NSKeyValueObservingOptionNew context:nil];
     [webView addObserver:observer.get() forKeyPath:@"cameraCaptureState" options:NSKeyValueObservingOptionNew context:nil];
 
@@ -1703,23 +1703,23 @@ TEST(WebKit2, WebRTCAndRemoteCommands)
 {
     [TestProtocol registerWithScheme:@"https"];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     configuration.get().processPool = (WKProcessPool *)context.get();
     configuration.get().processPool._configuration.shouldCaptureAudioInUIProcess = NO;
 
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView _setMediaCaptureReportingDelayForTesting:0];
 
-    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[MediaCaptureObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:@"microphoneCaptureState" options:NSKeyValueObservingOptionNew context:nil];
     [webView addObserver:observer.get() forKeyPath:@"cameraCaptureState" options:NSKeyValueObservingOptionNew context:nil];
 
@@ -1786,7 +1786,7 @@ TEST(WebKit2, ToggleCameraCaptureWhenRestarting)
 {
     [TestProtocol registerWithScheme:@"https"];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKPreferencesSetBoolValueForKeyForTesting((__bridge WKPreferencesRef)[configuration preferences], true, WKStringCreateWithUTF8CString("MediaSessionCaptureToggleAPIEnabled"));
 
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
@@ -1795,16 +1795,16 @@ TEST(WebKit2, ToggleCameraCaptureWhenRestarting)
 
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView _setMediaCaptureReportingDelayForTesting:0];
 
-    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[MediaCaptureObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:@"microphoneCaptureState" options:NSKeyValueObservingOptionNew context:nil];
     [webView addObserver:observer.get() forKeyPath:@"cameraCaptureState" options:NSKeyValueObservingOptionNew context:nil];
 
@@ -1852,7 +1852,7 @@ TEST(WebKit2, ToggleMicrophoneCaptureWhenRestarting)
 {
     [TestProtocol registerWithScheme:@"https"];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKPreferencesSetBoolValueForKeyForTesting((__bridge WKPreferencesRef)[configuration preferences], true, WKStringCreateWithUTF8CString("MediaSessionCaptureToggleAPIEnabled"));
 
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
@@ -1861,16 +1861,16 @@ TEST(WebKit2, ToggleMicrophoneCaptureWhenRestarting)
 
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView _setMediaCaptureReportingDelayForTesting:0];
 
-    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[MediaCaptureObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:@"microphoneCaptureState" options:NSKeyValueObservingOptionNew context:nil];
     [webView addObserver:observer.get() forKeyPath:@"cameraCaptureState" options:NSKeyValueObservingOptionNew context:nil];
 
@@ -1926,15 +1926,15 @@ TEST(WebKit2, OrientationNotAffectedByCSSOrientation)
     auto runTestForOrientation = ^(UIInterfaceOrientation orientation) {
         done = false;
 
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-        auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
         initializeMediaCaptureConfiguration(configuration.get());
 
-        auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+        RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
         [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-        auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+        RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
         [webView setUIDelegate:delegate.get()];
 
         [webView _setInterfaceOrientationOverride:orientation];
@@ -1970,7 +1970,7 @@ TEST(GetUserMedia, DISABLED_ClearRemoteVideoFrameObjectHeapPixelConformerUnderMe
 TEST(GetUserMedia, ClearRemoteVideoFrameObjectHeapPixelConformerUnderMemoryPressure)
 #endif
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKPreferencesSetBoolValueForKeyForTesting((__bridge WKPreferencesRef)[configuration preferences], true, WKStringCreateWithUTF8CString("CaptureAudioInGPUProcessEnabled"));
     WKPreferencesSetBoolValueForKeyForTesting((__bridge WKPreferencesRef)[configuration preferences], true, WKStringCreateWithUTF8CString("CaptureVideoInGPUProcessEnabled"));
     WKPreferencesSetBoolValueForKeyForTesting((__bridge WKPreferencesRef)[configuration preferences], true, WKStringCreateWithUTF8CString("UseGPUProcessForMediaEnabled"));
@@ -1983,11 +1983,11 @@ TEST(GetUserMedia, ClearRemoteVideoFrameObjectHeapPixelConformerUnderMemoryPress
     preferences._mockCaptureDevicesEnabled = YES;
     preferences._getUserMediaRequiresFocus = NO;
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -2047,15 +2047,15 @@ TEST(WebKit2, getUserMediaWithDeviceChangeWebPage)
         { "/"_s, { getUserMediaWithDeviceChangeWebPage } }
     }, TestWebKitAPI::HTTPServer::Protocol::Http);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegateWithDeviceChange alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegateWithDeviceChange alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -2083,20 +2083,20 @@ TEST(WebKit2, GetUserMediaAfterMuting)
 {
     [TestProtocol registerWithScheme:@"https"];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get()._mediaCaptureEnabled = YES;
     auto preferences = [configuration preferences];
     preferences._mediaCaptureRequiresSecureConnection = NO;
     preferences._mockCaptureDevicesEnabled = YES;
     preferences._getUserMediaRequiresFocus = NO;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
 
-    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[MediaCaptureObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:@"microphoneCaptureState" options:NSKeyValueObservingOptionNew context:nil];
     [webView addObserver:observer.get() forKeyPath:@"cameraCaptureState" options:NSKeyValueObservingOptionNew context:nil];
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView _setMediaCaptureReportingDelayForTesting:0];
 
@@ -2143,11 +2143,11 @@ TEST(WebKit, GetUserMediaWithWebThread)
     [WebView enableWebThread];
 #endif
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView _setMediaCaptureReportingDelayForTesting:0];
@@ -2170,23 +2170,23 @@ TEST(GetUserMedia, OriginAndWebArchivePermission)
         { "/"_s, { "body"_s } }
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(server.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
 
     RetainPtr navDelegate = adoptNS([TestNavigationDelegate new]);
 
-    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[MediaCaptureObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:@"microphoneCaptureState" options:NSKeyValueObservingOptionNew context:nil];
     [webView addObserver:observer.get() forKeyPath:@"cameraCaptureState" options:NSKeyValueObservingOptionNew context:nil];
 

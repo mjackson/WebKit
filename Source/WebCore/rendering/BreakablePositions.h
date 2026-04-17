@@ -61,7 +61,9 @@ private:
     template<typename CharacterType, LineBreakRules, WordBreakBehavior, NoBreakSpaceBehavior>
     static inline size_t nextBreakablePosition(CachedLineBreakIteratorFactory&, std::span<const CharacterType> string, size_t startPosition);
 
-    template<typename CharacterType, NoBreakSpaceBehavior>
+    enum class PunctuationBreaks : bool { No, Yes };
+
+    template<typename CharacterType, NoBreakSpaceBehavior, PunctuationBreaks = PunctuationBreaks::No>
     static inline size_t nextBreakableSpace(std::span<const CharacterType> string, size_t startPosition);
 
     static inline unsigned nextCharacter(CachedLineBreakIteratorFactory&, unsigned startPosition);
@@ -242,10 +244,9 @@ inline size_t BreakablePositions::nextBreakablePosition(CachedLineBreakIteratorF
     return string.size();
 }
 
-template<typename CharacterType, BreakablePositions::NoBreakSpaceBehavior nonBreakingSpaceBehavior>
+template<typename CharacterType, BreakablePositions::NoBreakSpaceBehavior nonBreakingSpaceBehavior, BreakablePositions::PunctuationBreaks punctuationBreaks>
 inline size_t BreakablePositions::nextBreakableSpace(std::span<const CharacterType> string, size_t startPosition)
 {
-    // FIXME: Use ICU instead.
     for (size_t i = startPosition; i < string.size(); ++i) {
         if (isBreakableSpace<nonBreakingSpaceBehavior>(string[i]))
             return i;
@@ -254,6 +255,10 @@ inline size_t BreakablePositions::nextBreakableSpace(std::span<const CharacterTy
             return i;
         if (string[i] == ideographicSpace)
             return i + 1;
+        if constexpr (punctuationBreaks == PunctuationBreaks::Yes) {
+            if ((U_GET_GC_MASK(string[i]) & (U_GC_PS_MASK | U_GC_PE_MASK | U_GC_PI_MASK | U_GC_PF_MASK | U_GC_PO_MASK)) && i + 1 < string.size())
+                return i + 1;
+        }
     }
     return string.size();
 }
@@ -279,9 +284,9 @@ inline unsigned BreakablePositions::next(CachedLineBreakIteratorFactory& lineBre
             ? nextBreakableSpace<Latin1Character, spaces>(stringView.span8(), startPosition)
             : nextBreakablePosition<Latin1Character, rules, words, spaces>(lineBreakIteratorFactory, stringView.span8(), startPosition);
     }
-    return words == WordBreakBehavior::KeepAll
-        ? nextBreakableSpace<char16_t, spaces>(stringView.span16(), startPosition)
-        : nextBreakablePosition<char16_t, rules, words, spaces>(lineBreakIteratorFactory, stringView.span16(), startPosition);
+    if constexpr (words == WordBreakBehavior::KeepAll)
+        return nextBreakableSpace<char16_t, spaces, PunctuationBreaks::Yes>(stringView.span16(), startPosition);
+    return nextBreakablePosition<char16_t, rules, words, spaces>(lineBreakIteratorFactory, stringView.span16(), startPosition);
 }
 
 

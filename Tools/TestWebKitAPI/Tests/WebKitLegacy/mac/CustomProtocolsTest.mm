@@ -157,7 +157,7 @@ TEST(WebKit2CustomProtocolsTest, ProcessPoolDestroyedDuringLoading)
     [ProcessPoolDestroyedDuringLoadingProtocol registerWithScheme:@"custom"];
 
     @autoreleasepool {
-        auto wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+        RetainPtr wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
         [wkView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"custom:///test"]]];
 

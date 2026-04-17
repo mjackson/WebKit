@@ -29,9 +29,9 @@
 
 #if ENABLE(WEBASSEMBLY_OMGJIT)
 
+#include "HeapCellInlines.h"
 #include "JITCompilation.h"
 #include "LinkBuffer.h"
-#include "NativeCalleeRegistry.h"
 #include "WasmCallee.h"
 #include "WasmFaultSignalHandler.h"
 #include "WasmIRGeneratorHelpers.h"
@@ -175,8 +175,10 @@ void OMGPlan::work()
         callee->setEntrypoint(WTF::move(omgEntrypoint), WTF::move(unlinkedCalls), WTF::move(internalFunction->stackmaps), WTF::move(internalFunction->exceptionHandlers), WTF::move(exceptionHandlerLocations));
         entrypoint = callee->entrypoint();
 
-        if (samplingProfilerMap)
-            NativeCalleeRegistry::singleton().addPCToCodeOriginMap(callee.ptr(), WTF::move(samplingProfilerMap));
+        if (samplingProfilerMap) {
+            WTF::storeStoreFence();
+            callee->setPCToCodeOriginMap(WTF::move(samplingProfilerMap));
+        }
 
         Locker locker { m_calleeGroup->m_lock };
         newlyInstalled = m_calleeGroup->installOptimizedCallee(locker, m_moduleInformation, m_functionIndex, callee.copyRef(), internalFunction->outgoingJITDirectCallees);

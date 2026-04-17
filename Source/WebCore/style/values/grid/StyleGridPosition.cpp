@@ -37,6 +37,7 @@
 #include "CSSPrimitiveValue.h"
 #include "StyleBuilderChecking.h"
 #include "StylePrimitiveKeyword+Logging.h"
+#include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 #include <wtf/text/TextStream.h>
 
@@ -88,10 +89,10 @@ int GridPosition::spanPosition() const
     return m_integerPosition;
 }
 
-String GridPosition::namedGridLine() const
+const CustomIdent& GridPosition::namedGridLine() const
 {
     ASSERT(m_type == GridPositionType::Explicit || m_type == GridPositionType::Span || m_type == GridPositionType::NamedGridArea);
-    return m_namedGridLine.value;
+    return m_namedGridLine;
 }
 
 int GridPosition::max()

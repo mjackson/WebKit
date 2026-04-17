@@ -786,9 +786,11 @@ inline void wtfCompileTimeCheckPrintfSpecifier(const char* format, ...)
 }
 
 #define SD_JOURNAL_SEND(channel, priority, file, line, function, ...) do { \
+    IGNORE_WARNINGS_BEGIN("unsafe-buffer-usage-in-format-attr-call") \
     wtfCompileTimeCheckPrintfSpecifier(__VA_ARGS__); \
     if (LOG_CHANNEL(channel).state != WTFLogChannelState::Off) \
         sd_journal_send_with_location("CODE_FILE=" file, "CODE_LINE=" line, function, "WEBKIT_SUBSYSTEM=" LOG_CHANNEL_WEBKIT_SUBSYSTEM, "WEBKIT_CHANNEL=%s", LOG_CHANNEL(channel).name, "PRIORITY=%u", static_cast<unsigned>(priority), "MESSAGE=" __VA_ARGS__, nullptr); \
+    IGNORE_WARNINGS_END \
 } while (0)
 
 #define RELEASE_LOG(channel, ...) SD_JOURNAL_SEND(channel, LOG_NOTICE, __FILE__, _STRINGIFY(__LINE__), __func__, __VA_ARGS__)

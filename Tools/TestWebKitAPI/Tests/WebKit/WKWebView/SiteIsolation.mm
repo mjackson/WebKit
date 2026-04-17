@@ -24,20 +24,22 @@
  */
 
 #import "config.h"
+#import "FrameTreeChecks.h"
+#import "Helpers/PlatformUtilities.h"
+#import "Helpers/Utilities.h"
 #import "Helpers/cocoa/DragAndDropSimulator.h"
 #import "Helpers/cocoa/FindInPageUtilities.h"
-#import "FrameTreeChecks.h"
 #import "Helpers/cocoa/HTTPServer.h"
-#import "Helpers/PlatformUtilities.h"
 #import "Helpers/cocoa/TestCocoa.h"
 #import "Helpers/cocoa/TestNavigationDelegate.h"
 #import "Helpers/cocoa/TestScriptMessageHandler.h"
 #import "Helpers/cocoa/TestUIDelegate.h"
-#import "TestURLSchemeHandler.h"
 #import "Helpers/cocoa/TestWKWebView.h"
 #import "Helpers/cocoa/UserMediaCaptureUIDelegate.h"
-#import "Helpers/Utilities.h"
 #import "Helpers/cocoa/WKWebViewConfigurationExtras.h"
+#import "InstanceMethodSwizzler.h"
+#import "TestInputDelegate.h"
+#import "TestURLSchemeHandler.h"
 #import "WKWebViewFindStringFindDelegate.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <WebCore/SQLiteDatabase.h>
@@ -68,15 +70,15 @@
 #import <wtf/BlockPtr.h>
 #import <wtf/text/MakeString.h>
 
+#if PLATFORM(IOS_FAMILY)
+#import "UIKitSPIForTesting.h"
+#import <MobileCoreServices/MobileCoreServices.h>
+#endif
+
 #if ENABLE(IMAGE_ANALYSIS)
 #import "Helpers/cocoa/ImageAnalysisTestingUtilities.h"
 #import <pal/spi/cocoa/VisionKitCoreSPI.h>
 #import <pal/cocoa/VisionKitCoreSoftLink.h>
-#endif
-
-#if PLATFORM(IOS_FAMILY)
-#import "UIKitSPIForTesting.h"
-#import <MobileCoreServices/MobileCoreServices.h>
 #endif
 
 @interface WKWebView ()
@@ -265,11 +267,11 @@ static void enableSiteIsolation(WKWebViewConfiguration *configuration)
 
 static std::pair<RetainPtr<TestWKWebView>, RetainPtr<TestNavigationDelegate>> siteIsolatedViewAndDelegate(RetainPtr<WKWebViewConfiguration> configuration, CGRect rect, bool enable)
 {
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     if (enable)
         enableSiteIsolation(configuration.get());
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:rect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:rect configuration:configuration.get()]);
     webView.get().navigationDelegate = navigationDelegate.get();
     return { WTF::move(webView), WTF::move(navigationDelegate) };
 }
@@ -299,24 +301,24 @@ static std::pair<RetainPtr<TestWKWebView>, RetainPtr<TestNavigationDelegate>> si
     [dataStoreConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", server.port()]]];
     [dataStoreConfiguration setAdditionalDomainsWithUserInteractionForTesting:domainsWithUserInteraction];
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     if (enableProcessCache == EnableProcessCache::Yes) {
-        auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+        RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
         processPoolConfiguration.get().usesWebProcessCache = YES;
         processPoolConfiguration.get().prewarmsProcessesAutomatically = YES;
-        auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+        RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
         [configuration setProcessPool:processPool.get()];
     }
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     enableSiteIsolation(configuration.get());
     enableFeature(configuration.get(), @"SiteIsolationSharedProcessEnabled");
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     webView.get().navigationDelegate = navigationDelegate.get();
     return { WTF::move(webView), WTF::move(navigationDelegate) };
 }
@@ -534,7 +536,7 @@ TEST(SiteIsolation, LoadingCallbacksAndPostMessage)
     }).get();
 
     __block RetainPtr<NSString> alert;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().runJavaScriptAlertPanelWithMessage = ^(WKWebView *, NSString *message, WKFrameInfo *, void (^completionHandler)(void)) {
         alert = message;
         completionHandler();
@@ -684,7 +686,7 @@ TEST(SiteIsolation, BasicPostMessageWindowOpen)
     __block RetainPtr<WKWebView> openerWebView;
     __block RetainPtr<WKWebView> openedWebView;
 
-    auto openerNavigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr openerNavigationDelegate = adoptNS([TestNavigationDelegate new]);
     [openerNavigationDelegate allowAnyTLSCertificate];
     openerNavigationDelegate.get().didFinishNavigation = ^(WKWebView *opener, WKNavigation *navigation) {
         EXPECT_WK_STREQ(navigation._request.URL.absoluteString, "https://example.com/example");
@@ -692,7 +694,7 @@ TEST(SiteIsolation, BasicPostMessageWindowOpen)
         openerFinishedLoading = true;
     };
 
-    __block auto openedNavigationDelegate = adoptNS([TestNavigationDelegate new]);
+    __block RetainPtr openedNavigationDelegate = adoptNS([TestNavigationDelegate new]);
     [openedNavigationDelegate allowAnyTLSCertificate];
     openedNavigationDelegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *navigation) {
         EXPECT_WK_STREQ(navigation._request.URL.absoluteString, "https://webkit.org/webkit");
@@ -720,7 +722,7 @@ TEST(SiteIsolation, BasicPostMessageWindowOpen)
     enableSiteIsolation(configuration);
 
     __block RetainPtr<NSString> alert;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().runJavaScriptAlertPanelWithMessage = ^(WKWebView *, NSString *message, WKFrameInfo *, void (^completionHandler)(void)) {
         alert = message;
         completionHandler();
@@ -901,7 +903,7 @@ TEST(SiteIsolation, PreferencesUpdatesToAllProcesses)
     [navigationDelegate waitForDidFinishNavigation];
     webView.get().configuration.preferences.javaScriptCanOpenWindowsAutomatically = YES;
 
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     __block bool opened { false };
     uiDelegate.get().createWebViewWithConfiguration = ^WKWebView *(WKWebViewConfiguration *configuration, WKNavigationAction *action, WKWindowFeatures *windowFeatures)
     {
@@ -1253,7 +1255,7 @@ TEST(SiteIsolation, PostMessageWithNotAllowedTargetOrigin)
     }).get();
 
     __block RetainPtr<NSString> alert;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().runJavaScriptAlertPanelWithMessage = ^(WKWebView *, NSString *message, WKFrameInfo *, void (^completionHandler)(void)) {
         alert = message;
         completionHandler();
@@ -1311,7 +1313,7 @@ TEST(SiteIsolation, PostMessageToIFrameWithOpaqueOrigin)
     }).get();
 
     __block RetainPtr<NSString> alert;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().runJavaScriptAlertPanelWithMessage = ^(WKWebView *, NSString *message, WKFrameInfo *, void (^completionHandler)(void)) {
         alert = message;
         completionHandler();
@@ -1343,7 +1345,7 @@ TEST(SiteIsolation, QueryFramesStateAfterNavigating)
         { "/subframe3.html"_s, { "SubFrame3"_s } },
         { "/subframe4.html"_s, { "SubFrame4"_s } }
     }, HTTPServer::Protocol::Http);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero]);
     [webView synchronouslyLoadRequest:server.request("/page1.html"_s)];
     EXPECT_EQ(3u, [webView mainFrame].childFrames.count);
 
@@ -1576,7 +1578,7 @@ TEST(SiteIsolation, ChildNavigatingToDomainLoadedOnADifferentPage)
 
     [firstWebView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://webkit.org/foo"]]];
     
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:firstWebView.get().configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:firstWebView.get().configuration]);
     webView.get().navigationDelegate = navigationDelegate.get();
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
     
@@ -2148,7 +2150,7 @@ TEST(SiteIsolation, RunOpenPanel)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://a.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:uiDelegate.get()];
     __block bool fileSelected = false;
     [uiDelegate setRunOpenPanelWithParameters:^(WKWebView *, WKOpenPanelParameters *, WKFrameInfo *, void (^completionHandler)(NSArray<NSURL *> *)) {
@@ -2181,7 +2183,7 @@ TEST(SiteIsolation, CancelOpenPanel)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://a.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:uiDelegate.get()];
     [uiDelegate setRunOpenPanelWithParameters:^(WKWebView *, WKOpenPanelParameters *, WKFrameInfo *, void (^completionHandler)(NSArray<NSURL *> *)) {
         completionHandler(nil);
@@ -2219,11 +2221,11 @@ TEST(SiteIsolation, DragEvents)
         { "/subframe"_s, { subframeHTML } }
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     auto configuration = server.httpsProxyConfiguration();
     enableSiteIsolation(configuration);
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration]);
     RetainPtr webView = [simulator webView];
     webView.get().navigationDelegate = navigationDelegate.get();
 
@@ -2515,11 +2517,11 @@ TEST(SiteIsolation, OpenerProcessSharing)
     auto [webView, delegate] = siteIsolatedViewAndDelegate(server);
 
     __block RetainPtr<TestWKWebView> openedWebView;
-    __block auto uiDelegate = adoptNS([TestUIDelegate new]);
+    __block RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     webView.get().UIDelegate = uiDelegate.get();
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *action, WKWindowFeatures *windowFeatures) {
         openedWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
-        static auto openedNavigationDelegate = adoptNS([TestNavigationDelegate new]);
+        static RetainPtr openedNavigationDelegate = adoptNS([TestNavigationDelegate new]);
         [openedNavigationDelegate allowAnyTLSCertificate];
         openedWebView.get().navigationDelegate = openedNavigationDelegate.get();
         openedWebView.get().UIDelegate = uiDelegate.get();
@@ -2553,8 +2555,8 @@ TEST(SiteIsolation, AppKitText)
     }, HTTPServer::Protocol::HttpsProxy);
     auto configuration = server.httpsProxyConfiguration();
     enableSiteIsolation(configuration);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     webView.get().navigationDelegate = navigationDelegate.get();
 
@@ -2758,7 +2760,7 @@ TEST(SiteIsolation, FindStringInFrame)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     EXPECT_TRUE([[webView findStringAndWait:@"Hello World" withConfiguration:findConfiguration.get()] matchFound]);
     EXPECT_FALSE([[webView findStringAndWait:@"Missing string" withConfiguration:findConfiguration.get()] matchFound]);
 }
@@ -2775,7 +2777,7 @@ TEST(SiteIsolation, FindStringInNestedFrame)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     EXPECT_TRUE([[webView findStringAndWait:@"Hello World" withConfiguration:findConfiguration.get()] matchFound]);
     EXPECT_FALSE([[webView findStringAndWait:@"Missing string" withConfiguration:findConfiguration.get()] matchFound]);
 }
@@ -2793,7 +2795,7 @@ TEST(SiteIsolation, FindStringSelection)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     using SelectionOffsets = std::array<std::pair<int, int>, 3>;
     auto findStringAndValidateResults = [&findConfiguration](TestWKWebView *webView, const SelectionOffsets& offsets) {
         EXPECT_TRUE([[webView findStringAndWait:@"Hello World" withConfiguration:findConfiguration.get()] matchFound]);
@@ -2832,7 +2834,7 @@ TEST(SiteIsolation, FindStringSelectionWithEmptyFrames)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     using SelectionOffsets = std::array<std::pair<int, int>, 3>;
     auto findStringAndValidateResults = [&findConfiguration](TestWKWebView *webView, const SelectionOffsets& offsets) {
         EXPECT_TRUE([[webView findStringAndWait:@"Hello World" withConfiguration:findConfiguration.get()] matchFound]);
@@ -2867,7 +2869,7 @@ TEST(SiteIsolation, FindStringSelectionNoWrap)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     findConfiguration.get().wraps = NO;
     using SelectionOffsets = std::array<std::pair<int, int>, 2>;
     auto findStringAndValidateResults = [findConfiguration](TestWKWebView *webView, const SelectionOffsets& offsets) {
@@ -2902,7 +2904,7 @@ TEST(SiteIsolation, FindStringSelectionBackwards)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     findConfiguration.get().backwards = YES;
     using SelectionOffsets = std::array<std::pair<int, int>, 3>;
     auto findStringAndValidateResults = [&findConfiguration](TestWKWebView *webView, const SelectionOffsets& offsets) {
@@ -2936,7 +2938,7 @@ TEST(SiteIsolation, FindStringSelectionSameOriginFrames)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     using SelectionOffsets = std::array<std::pair<int, int>, 3>;
     auto findStringAndValidateResults = [&findConfiguration](TestWKWebView *webView, const SelectionOffsets& offsets) {
         EXPECT_TRUE([[webView findStringAndWait:@"Hello World" withConfiguration:findConfiguration.get()] matchFound]);
@@ -2975,7 +2977,7 @@ TEST(SiteIsolation, FindStringSelectionNestedFrames)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     using SelectionOffsets = std::array<std::pair<int, int>, 5>;
     auto findStringAndValidateResults = [&findConfiguration](TestWKWebView *webView, const SelectionOffsets& offsets) {
         EXPECT_TRUE([[webView findStringAndWait:@"Hello World" withConfiguration:findConfiguration.get()] matchFound]);
@@ -3013,7 +3015,7 @@ TEST(SiteIsolation, FindStringSelectionMultipleMatchesInMainFrame)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     using SelectionOffsets = std::array<std::pair<int, int>, 2>;
     auto findStringAndValidateResults = [&findConfiguration](TestWKWebView *webView, const SelectionOffsets& offsets) {
         EXPECT_TRUE([[webView findStringAndWait:@"Hello World" withConfiguration:findConfiguration.get()] matchFound]);
@@ -3048,7 +3050,7 @@ TEST(SiteIsolation, FindStringSelectionMultipleMatchesInChildFrame)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     using SelectionOffsets = std::array<std::pair<int, int>, 2>;
     auto findStringAndValidateResults = [&findConfiguration](TestWKWebView *webView, const SelectionOffsets& offsets) {
         EXPECT_TRUE([[webView findStringAndWait:@"Hello World" withConfiguration:findConfiguration.get()] matchFound]);
@@ -3093,7 +3095,7 @@ TEST(SiteIsolation, FindStringSelectionSameOriginFrameBeforeWrap)
     }];
     Util::run(&done);
 
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     using SelectionOffsets = std::array<std::pair<int, int>, 3>;
     auto findStringAndValidateResults = [&findConfiguration](TestWKWebView *webView, const SelectionOffsets& offsets) {
         EXPECT_TRUE([[webView findStringAndWait:@"Hello World" withConfiguration:findConfiguration.get()] matchFound]);
@@ -3126,8 +3128,8 @@ TEST(SiteIsolation, FindStringMatchCount)
         { "/subframe"_s, { "<p>Hello world</p>"_s } }
     }, HTTPServer::Protocol::HttpsProxy);
     auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server);
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
-    auto findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
     [webView _setFindDelegate:findDelegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
@@ -3144,8 +3146,8 @@ TEST(SiteIsolation, CountStringMatches)
         { "/subframe"_s, { "<p>Hello world</p>"_s } }
     }, HTTPServer::Protocol::HttpsProxy);
     auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server);
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
-    auto findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
     [webView _setFindDelegate:findDelegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://apple.com/mainframe"]]];
     [navigationDelegate waitForDidFinishNavigation];
@@ -3163,14 +3165,14 @@ TEST(SiteIsolation, ProcessDisplayNames)
         { "/apple"_s, { "<script></script>"_s } }
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
-    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     [storeConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", server.port()]]];
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
     enableSiteIsolation(viewConfiguration.get());
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
     webView.get().navigationDelegate = navigationDelegate.get();
 
     __block bool done { false };
@@ -4114,15 +4116,15 @@ TEST(SiteIsolation, ProtocolProcessSeparation)
         } }
     });
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", secureServer.port()]]];
     [storeConfiguration setHTTPProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", plaintextServer.port()]]];
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
     enableSiteIsolation(viewConfiguration.get());
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
     webView.get().navigationDelegate = navigationDelegate.get();
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://a.com/"]]];
@@ -4224,14 +4226,14 @@ TEST(SiteIsolation, AdvancedPrivacyProtectionsHideScreenMetricsFromBindings)
         { "/example"_s, { "<iframe src='https://frame.com/frame'></iframe>"_s } },
         { "/frame"_s, { frameHTML } }
     }, HTTPServer::Protocol::HttpsProxy);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     auto configuration = server.httpsProxyConfiguration();
     enableSiteIsolation(configuration);
-    auto preferences = adoptNS([WKWebpagePreferences new]);
+    RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
     [preferences _setNetworkConnectionIntegrityPolicy:_WKWebsiteNetworkConnectionIntegrityPolicyEnhancedTelemetry | _WKWebsiteNetworkConnectionIntegrityPolicyEnabled];
     [configuration setDefaultWebpagePreferences:preferences.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
     webView.get().navigationDelegate = navigationDelegate.get();
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
     [navigationDelegate waitForDidFinishNavigation];
@@ -4253,7 +4255,7 @@ TEST(SiteIsolation, UpdateWebpagePreferences)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://a.com/example"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto preferences = adoptNS([WKWebpagePreferences new]);
+    RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
     [preferences _setCustomUserAgent:@"Custom UserAgent"];
     [webView _updateWebpagePreferences:preferences.get()];
     while (![[webView objectByEvaluatingJavaScript:@"navigator.userAgent" inFrame:[webView firstChildFrame]] isEqualToString:@"Custom UserAgent"])
@@ -4288,8 +4290,8 @@ TEST(SiteIsolation, URLSchemeTask)
         { "/webkit"_s, { ""_s } }
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     handler.get().startURLSchemeTaskHandler = ^(WKWebView *, id<WKURLSchemeTask> task) {
         if ([task.request.URL.path isEqualToString:@"/example"])
             respond(task, "<iframe src='customscheme://webkit.org/webkit'></iframe>");
@@ -4303,7 +4305,7 @@ TEST(SiteIsolation, URLSchemeTask)
                 "xhr.send();"
             "</script>");
         } else if ([task.request.URL.path isEqualToString:@"/fetched"]) {
-            auto newRequest = adoptNS([[NSURLRequest alloc] initWithURL:[NSURL URLWithString:@"customscheme://webkit.org/redirected"]]);
+            RetainPtr newRequest = adoptNS([[NSURLRequest alloc] initWithURL:[NSURL URLWithString:@"customscheme://webkit.org/redirected"]]);
             [(id<WKURLSchemeTaskPrivate>)task _willPerformRedirection:adoptNS([NSURLResponse new]).get() newRequest:newRequest.get() completionHandler:^(NSURLRequest *request) {
                 respond(task, "hi");
             }];
@@ -4342,16 +4344,16 @@ TEST(SiteIsolation, ThemeColor)
 
     __block bool observedThemeColor { false };
     __block bool observedUnderPageBackgroundColor { false };
-    auto observer = adoptNS([TestObserver new]);
+    RetainPtr observer = adoptNS([TestObserver new]);
     observer.get().observeValueForKeyPath = ^(NSString *path, id view) {
-        auto sRGBColorSpace = adoptCF(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
+        RetainPtr sRGBColorSpace = adoptCF(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
         if ([path isEqualToString:@"themeColor"]) {
-            auto redColor = adoptCF(CGColorCreate(sRGBColorSpace.get(), redColorComponents));
+            RetainPtr redColor = adoptCF(CGColorCreate(sRGBColorSpace.get(), redColorComponents));
             EXPECT_TRUE(CGColorEqualToColor([[view themeColor] CGColor], redColor.get()));
             observedThemeColor = true;
         } else {
             EXPECT_WK_STREQ(path, "underPageBackgroundColor");
-            auto blueColor = adoptCF(CGColorCreate(sRGBColorSpace.get(), blueColorComponents));
+            RetainPtr blueColor = adoptCF(CGColorCreate(sRGBColorSpace.get(), blueColorComponents));
             EXPECT_TRUE(CGColorEqualToColor([[view underPageBackgroundColor] CGColor], blueColor.get()));
             observedUnderPageBackgroundColor = true;
         }
@@ -4656,7 +4658,7 @@ TEST(SiteIsolation, MultipleWebViewsWithSameOpenedConfiguration)
         { "/popup"_s, { "hi"_s } },
     }, HTTPServer::Protocol::HttpsProxy);
     auto [opener, opened] = openerAndOpenedViews(server, @"https://example.com/example", false);
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:opened.webView.get().configuration]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:opened.webView.get().configuration]);
     [opened.navigationDelegate waitForDidFinishNavigation];
     // FIXME: load something with webView2 without asserting, like https://example.com/popup
 }
@@ -4671,13 +4673,13 @@ TEST(SiteIsolation, RecoverFromCrash)
     }, HTTPServer::Protocol::HttpsProxy);
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", server.port()]]];
     [configuration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
     enableSiteIsolation(configuration);
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/crash"]]];
@@ -5033,14 +5035,14 @@ TEST(SiteIsolation, ReuseConfiguration)
 
 TEST(SiteIsolation, ReuseConfigurationLoadHTMLString)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     enableSiteIsolation(configuration.get());
     [configuration setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
-    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView1 loadHTMLString:@"hi!" baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
     [webView1 _test_waitForDidFinishNavigation];
 
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView2 loadHTMLString:@"hi!" baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
     [webView2 _test_waitForDidFinishNavigation];
 
@@ -5159,7 +5161,7 @@ TEST(SiteIsolation, MutesAndSetsAudioInMultipleFrames)
     }, HTTPServer::Protocol::HttpsProxy);
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", server.port()]]];
     [configuration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
     enableSiteIsolation(configuration);
@@ -5248,7 +5250,7 @@ TEST(SiteIsolation, StopsMediaCaptureInRemoteFrame)
     [preferences _setGetUserMediaRequiresFocus:NO];
 
     auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(configuration, CGRectZero, false);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/mainframe"]]];
@@ -5337,7 +5339,7 @@ TEST(SiteIsolation, FrameServerTrust)
     }, HTTPServer::Protocol::HttpsProxy);
 
     __block bool receivedAlert { false };
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().runJavaScriptAlertPanelWithMessage = ^(WKWebView *, NSString *message, WKFrameInfo *frameInfo, void (^completionHandler)(void)) {
         EXPECT_WK_STREQ(message, "iframe loaded");
         EXPECT_NULL(frameInfo._serverTrust);
@@ -6202,7 +6204,7 @@ TEST(SiteIsolation, DragAndDrop)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
     [simulator runFrom:CGPointMake(100, 50) to:CGPointMake(100, 300)];
 
     NSArray *registeredTypes = [[simulator sourceItemProviders].firstObject registeredTypeIdentifiers];
@@ -6342,7 +6344,7 @@ TEST(SiteIsolation, SharedProcessLoadIsolatedSiteInSubframeOfNewWindow)
 
     __block auto *sharedNavigationDelegate = navigationDelegate.get();
     __block RetainPtr<TestWKWebView> opendWebView;
-    auto uiDelegate = adoptNS([[TestUIDelegate new] init]);
+    RetainPtr uiDelegate = adoptNS([[TestUIDelegate new] init]);
     webView.get().UIDelegate = uiDelegate.get();
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *action, WKWindowFeatures *windowFeatures) {
         opendWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 200) configuration:configuration]);
@@ -6878,7 +6880,7 @@ TEST(SiteIsolation, SharedProcessAfterUserInteractionInSharedProcesss)
     webView.get().configuration.preferences.javaScriptCanOpenWindowsAutomatically = YES;
 
     __block RetainPtr<TestWKWebView> opendWebView;
-    auto uiDelegate = adoptNS([[TestUIDelegate new] init]);
+    RetainPtr uiDelegate = adoptNS([[TestUIDelegate new] init]);
     auto *sharedNavigationDelegate = navigationDelegate.get();
     webView.get().UIDelegate = uiDelegate.get();
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *action, WKWindowFeatures *windowFeatures) {
@@ -7619,13 +7621,13 @@ TEST(SiteIsolation, LocalIframeOpensBlobURLFromFileMainFrame)
     RetainPtr messageHandler = adoptNS([TestMessageHandler new]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
 
     __block RetainPtr<WKWebView> blobWindow;
     __block bool blobWindowOpened = false;
     __block bool blobContentChecked = false;
 
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *action, WKWindowFeatures *windowFeatures) {
         EXPECT_WK_STREQ([action.request.URL scheme], @"blob");
         blobWindowOpened = true;
@@ -7711,6 +7713,53 @@ TEST(SiteIsolation, ColorInputPickerLocation)
 
 #endif
 
+#if PLATFORM(IOS_FAMILY)
+
+TEST(SiteIsolation, SelectMultiplePickerLocationInCrossOriginIframe)
+{
+    HTTPServer server({
+        { "/mainframe"_s, { "<body style='margin: 0'><iframe style='margin: 100px; width: 400px; height: 300px; border: none;' src='https://webkit.org/iframe'></iframe></body>"_s } },
+        { "/iframe"_s, { "<!DOCTYPE html><body style='margin: 0'><select multiple style='margin: 50px; width: 100px; height: 50px; appearance: none; border: none; padding: 0;'><option>A</option><option>B</option></select></body>"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    __block bool pickerPresented = false;
+
+    InstanceMethodSwizzler swizzler {
+        UIViewController.class,
+        @selector(presentViewController:animated:completion:),
+        imp_implementationWithBlock(^(UIViewController *, UIViewController *, BOOL, id) {
+            pickerPresented = true;
+        })
+    };
+
+    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server, CGRectMake(0, 0, 800, 600));
+
+    RetainPtr hostViewController = adoptNS([[UIViewController alloc] init]);
+    [[webView window] setRootViewController:hostViewController.get()];
+    [[hostViewController view] addSubview:webView.get()];
+
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    [inputDelegate setFocusStartsInputSessionPolicyHandler:[](WKWebView *, id<_WKFocusedElementInfo>) {
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+    [webView _setInputDelegate:inputDelegate.get()];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/mainframe"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView waitForNextPresentationUpdate];
+
+    [webView evaluateJavaScript:@"document.querySelector('select').focus()" inFrame:[webView firstChildFrame] completionHandler:nil];
+
+    Util::run(&pickerPresented);
+
+    // The select element is at (50, 50) in iframe coordinates with size (100, 50).
+    // The iframe is at (100, 100) in main frame coordinates (margin: 100px, border: none).
+    // After conversion, the focused element's interaction rect should be (150, 150, 100, 50) in main frame coordinates.
+    EXPECT_EQ([webView _focusedElementInteractionRect], CGRectMake(150, 150, 100, 50));
+}
+
+#endif // PLATFORM(IOS_FAMILY)
+
 #if ENABLE(IMAGE_ANALYSIS)
 
 static RetainPtr<WKWebViewConfiguration> createWebViewConfigurationWithTextRecognitionEnhancements()
@@ -7744,7 +7793,7 @@ TEST(SiteIsolation, IframeImageTranslation)
 
     RetainPtr configuration = createWebViewConfigurationWithTextRecognitionEnhancements();
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", server.port()]]];
     [configuration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
 
@@ -7790,7 +7839,7 @@ TEST(SiteIsolation, IframeImageTranslationIfIframeIsAddedAfterTranslationCall)
 
     RetainPtr configuration = createWebViewConfigurationWithTextRecognitionEnhancements();
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", server.port()]]];
     [configuration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
 
@@ -7985,7 +8034,7 @@ TEST(SiteIsolation, DecorateFoundTextRangeIOS)
     }, HTTPServer::Protocol::HttpsProxy);
     auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server);
 
-    auto findDelegate = adoptNS([[TestFindDelegate alloc] init]);
+    RetainPtr findDelegate = adoptNS([[TestFindDelegate alloc] init]);
     [webView _setFindDelegate:findDelegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
@@ -8074,7 +8123,7 @@ TEST(SiteIsolation, ClearAllDecoratedFoundTextIOS)
     }, HTTPServer::Protocol::HttpsProxy);
     auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server);
 
-    auto findDelegate = adoptNS([[TestFindDelegate alloc] init]);
+    RetainPtr findDelegate = adoptNS([[TestFindDelegate alloc] init]);
     [webView _setFindDelegate:findDelegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
@@ -8500,5 +8549,53 @@ TEST(SiteIsolation, OpenEmptySiteFromProcessWithNonEmptySite)
     [webView evaluateJavaScript:@"window.open()" completionHandler:nil];
     Util::run(&openedFinishedLoading);
 }
+
+#if PLATFORM(IOS_FAMILY)
+TEST(SiteIsolation, NoRedundantFocusPolicyCallbackAfterBlurAndRefocusInCrossOriginIframe)
+{
+    auto mainHTML = "<iframe src='https://webkit.org/iframe' style='width: 300px; height: 300px;'></iframe>"_s;
+    auto iframeHTML = "<input id='input' type='text' style='width: 200px; font-size: 20px;'>"_s;
+
+    HTTPServer server({
+        { "/example"_s, { mainHTML } },
+        { "/iframe"_s, { { { "Content-Type"_s, "text/html"_s } }, iframeHTML } },
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server, CGRectMake(0, 0, 320, 500));
+
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
+    int focusPolicyCallCount = 0;
+    bool didFocusPolicy = false;
+    [inputDelegate setFocusStartsInputSessionPolicyHandler:[&](WKWebView *, id<_WKFocusedElementInfo>) {
+        focusPolicyCallCount++;
+        didFocusPolicy = true;
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+    [webView _setInputDelegate:inputDelegate.get()];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    // Wait for the cross-origin iframe's content to load.
+    EXPECT_TRUE(Util::waitFor([&] {
+        auto frame = [webView firstChildFrame];
+        return frame && [[webView objectByEvaluatingJavaScript:@"!!document.getElementById('input')" inFrame:frame] boolValue];
+    }));
+
+    // Focus the input in the cross-origin iframe. Use WithUserGesture because Element::focus()
+    // is a no-op for cross-origin non-main-frame iframes without a user gesture.
+    [webView objectByEvaluatingJavaScriptWithUserGesture:@"document.getElementById('input').focus()" inFrame:[webView firstChildFrame]];
+    Util::run(&didFocusPolicy);
+    EXPECT_EQ(1, focusPolicyCallCount);
+
+    // Blur and immediately refocus the same element. The focus policy handler should not be
+    // called again because the refocus of the same element should be suppressed.
+    [webView objectByEvaluatingJavaScriptWithUserGesture:@"var i = document.getElementById('input'); i.blur(); i.focus();" inFrame:[webView firstChildFrame]];
+    [webView waitForNextPresentationUpdate];
+    [webView waitForNextPresentationUpdate];
+
+    EXPECT_EQ(1, focusPolicyCallCount);
+}
+#endif
 
 }

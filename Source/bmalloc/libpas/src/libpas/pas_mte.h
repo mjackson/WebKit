@@ -650,6 +650,8 @@ pas_mte_generate_tag_and_tag_region(
 PAS_ALWAYS_INLINE void
 pas_mte_check_tag_for_deallocation(uintptr_t ptr)
 {
+    if (!PAS_MTE_FEATURE_ENABLED(PAS_MTE_FEATURE_CHECK_TAG_ON_DEALLOC))
+        return;
     // We want to execute this load purely for its side-effects,
     // i.e. the tag-check and, on mismatch, subsequent tag-check-fault.
     volatile char* v_ptr = (volatile char*)ptr;

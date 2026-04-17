@@ -81,8 +81,8 @@ TEST(WebKit, JavaScriptDuringNavigation)
     firstURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     secondURL = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
     
-    auto webView = adoptNS([[WKWebView alloc] init]);
-    auto delegate = adoptNS([[JSNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr delegate = adoptNS([[JSNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
 

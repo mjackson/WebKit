@@ -1,0 +1,5 @@
+Some text
+
+Harness Error (FAIL), message = TypeError: document.head.moveBefore is not a function. (In 'document.head.moveBefore(document.getElementById("target"), null)', 'document.head.moveBefore' is undefined)
+
+

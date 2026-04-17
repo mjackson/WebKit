@@ -78,7 +78,7 @@ static RetainPtr<nw_protocol_definition_t> proxyDefinition(HTTPServer::Protocol 
                         "Proxy-Authenticate: Basic realm=\"testrealm\"\r\n"
                         "Content-Length: 0\r\n"
                         "\r\n";
-                    auto response = adoptOSObject(dispatch_data_create(challengeResponse, strlen(challengeResponse), nullptr, nullptr));
+                    OSObjectPtr response = adoptOSObject(dispatch_data_create(challengeResponse, strlen(challengeResponse), nullptr, nullptr));
                     nw_framer_write_output_data(retainedFramer.get(), response.get());
                     state = State::DidRequestCredentials;
                     break;
@@ -90,7 +90,7 @@ static RetainPtr<nw_protocol_definition_t> proxyDefinition(HTTPServer::Protocol 
                     const char* negotiationResponse = ""
                         "HTTP/1.1 200 Connection Established\r\n"
                         "Connection: close\r\n\r\n";
-                    auto response = adoptOSObject(dispatch_data_create(negotiationResponse, strlen(negotiationResponse), nullptr, nullptr));
+                    OSObjectPtr response = adoptOSObject(dispatch_data_create(negotiationResponse, strlen(negotiationResponse), nullptr, nullptr));
                     nw_framer_write_output_data(retainedFramer.get(), response.get());
                     nw_framer_mark_ready(retainedFramer.get());
                     state = State::PassThrough;
@@ -128,8 +128,8 @@ RetainPtr<nw_parameters_t> HTTPServer::listenerParameters(Protocol protocol, Cer
         customTestIdentity = testIdentity();
 
     auto configureTLS = [protocol, verifier = WTF::move(verifier), testIdentity = WTF::move(customTestIdentity)] (nw_protocol_options_t protocolOptions) mutable {
-        auto options = adoptNS(nw_tls_copy_sec_protocol_options(protocolOptions));
-        auto identity = adoptNS(sec_identity_create(testIdentity.get()));
+        RetainPtr options = adoptNS(nw_tls_copy_sec_protocol_options(protocolOptions));
+        RetainPtr identity = adoptNS(sec_identity_create(testIdentity.get()));
         sec_protocol_options_set_local_identity(options.get(), identity.get());
         if (protocol == Protocol::HttpsWithLegacyTLS) {
 #if ENABLE(TLS_1_2_DEFAULT_MINIMUM)
@@ -148,16 +148,16 @@ RetainPtr<nw_parameters_t> HTTPServer::listenerParameters(Protocol protocol, Cer
     };
 
     auto configureTLSBlock = shouldDisableTLS(protocol) ? makeBlockPtr(NW_PARAMETERS_DISABLE_PROTOCOL) : makeBlockPtr(WTF::move(configureTLS));
-    auto parameters = adoptNS(nw_parameters_create_secure_tcp(configureTLSBlock.get(), NW_PARAMETERS_DEFAULT_CONFIGURATION));
+    RetainPtr parameters = adoptNS(nw_parameters_create_secure_tcp(configureTLSBlock.get(), NW_PARAMETERS_DEFAULT_CONFIGURATION));
     if (port)
         nw_parameters_set_local_endpoint(parameters.get(), nw_endpoint_create_host("::", makeString(*port).utf8().data()));
 
     if (protocol == Protocol::HttpsProxy || protocol == Protocol::HttpsProxyWithAuthentication) {
-        auto stack = adoptNS(nw_parameters_copy_default_protocol_stack(parameters.get()));
-        auto options = adoptNS(nw_framer_create_options(proxyDefinition(protocol).get()));
+        RetainPtr stack = adoptNS(nw_parameters_copy_default_protocol_stack(parameters.get()));
+        RetainPtr options = adoptNS(nw_framer_create_options(proxyDefinition(protocol).get()));
         nw_protocol_stack_prepend_application_protocol(stack.get(), options.get());
 
-        auto tlsOptions = adoptNS(nw_tls_create_options());
+        RetainPtr tlsOptions = adoptNS(nw_tls_create_options());
         configureTLS(tlsOptions.get());
         nw_protocol_stack_prepend_application_protocol(stack.get(), tlsOptions.get());
     }
@@ -498,9 +498,9 @@ NSURLRequest *HTTPServer::requestWithLocalhost(StringView path) const
 
 WKWebViewConfiguration *HTTPServer::httpsProxyConfiguration() const
 {
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", port()]]];
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
     return viewConfiguration.autorelease();
 }

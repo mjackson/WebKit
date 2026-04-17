@@ -4955,10 +4955,13 @@ class YarrGenerator final : public YarrJITInfo {
                     // Restore state from ParenContext (captures, frame slots)
                     restoreParenContext(currParenContextReg, m_regs.regT2, term->parentheses.subpatternId, term->parentheses.lastSubpatternId, parenthesesFrameLocation);
 
-                    // Null out inner Greedy/NonGreedy patterns' parenContextHead after
-                    // restore: those pointers may reference contexts freed and recycled
-                    // during a different backtracking path. See clearInnerParenContextHeadSlots.
-                    clearInnerParenContextHeadSlots(term->parentheses.disjunction);
+                    // Clear Greedy/NonGreedy patterns' stale parenContextHead
+                    // in the restored frame range. restoreParenContext restores ALL
+                    // frame slots from parenthesesFrameLocation to the end, including
+                    // sibling and ancestor-sibling groups. Those groups may have freed
+                    // their own contexts during a later iteration's execution.
+                    // See clearParenContextHeadSlotsInRange.
+                    clearParenContextHeadSlotsInRange(m_pattern.m_body, parenthesesFrameLocation + YarrStackSpaceForBackTrackInfoParentheses, m_parenContextSizes.frameSlots());
 
                     // FixedCount backtracking:
                     //
@@ -5095,9 +5098,12 @@ class YarrGenerator final : public YarrJITInfo {
 
                 restoreParenContext(currParenContextReg, m_regs.regT2, term->parentheses.subpatternId, term->parentheses.lastSubpatternId, parenthesesFrameLocation);
 
-                // Clear inner Greedy/NonGreedy patterns' stale parenContextHead.
-                // (Same rationale as the FixedCount path — see clearInnerParenContextHeadSlots.)
-                clearInnerParenContextHeadSlots(term->parentheses.disjunction);
+                // Clear Greedy/NonGreedy patterns' stale parenContextHead
+                // in the restored frame range. restoreParenContext restores ALL
+                // frame slots from parenthesesFrameLocation to the end, including
+                // sibling, ancestor-sibling, and isCopy groups.
+                // See clearParenContextHeadSlotsInRange.
+                clearParenContextHeadSlotsInRange(m_pattern.m_body, parenthesesFrameLocation + YarrStackSpaceForBackTrackInfoParentheses, m_parenContextSizes.frameSlots());
 
                 m_jit.loadPtr(MacroAssembler::Address(currParenContextReg, ParenContext::nextOffset()), newParenContextReg);
                 freeParenContext(currParenContextReg);
@@ -6659,32 +6665,47 @@ public:
         return m_vm->isSafeToRecurse();
     }
 
-    // Emit stores to clear parenContextHead of inner Greedy/NonGreedy
-    // ParenthesesSubpattern terms after restoreParenContext.
+    // Emit stores to null out parenContextHead of Greedy/NonGreedy
+    // ParenthesesSubpattern terms whose frame slots fall within the range
+    // restored by restoreParenContext.
     //
-    // restoreParenContext restores all frame slots including inner patterns'
-    // parenContextHead pointers. For Greedy/NonGreedy inner patterns, those
-    // pointers may reference contexts that were freed during a different
-    // backtracking path and subsequently recycled via the free list. Nulling
-    // them prevents use of corrupted context chains.
+    // restoreParenContext restores ALL frame slots in
+    // [subpatternBaseFrameLocation + YarrStackSpaceForBackTrackInfoParentheses,
+    //  m_parenContextSizes.frameSlots()), which is a global range covering
+    // inner, sibling, and ancestor-sibling groups. Any Greedy/NonGreedy
+    // group in this range may have freed its own contexts between the save
+    // and restore points, leaving stale parenContextHead pointers after
+    // restoration. Walk the entire pattern tree and null every qualifying
+    // parenContextHead in the restored range.
+    //
+    // isCopy groups are always skipped: an isCopy group's contexts are
+    // allocated by the isCopy group itself and are never freed by the
+    // outer group's backtrack operations (which only free/reuse the outer
+    // group's own context). Between save and restore, new isCopy contexts
+    // may be pushed on top or popped by the isCopy's own backtracking,
+    // but the contexts from the save point remain deeper in the chain
+    // and are never freed. The restored parenContextHead always points
+    // to still-valid memory.
     //
     // FixedCount inner patterns are unaffected: their contexts become
     // unreachable (Begin.forward sets parenContextHead=null) but are never
     // freed, so they remain valid when restored.
-    void clearInnerParenContextHeadSlots(PatternDisjunction* disjunction)
+    void clearParenContextHeadSlotsInRange(PatternDisjunction* disjunction, unsigned minFrameLocation, unsigned maxFrameLocation)
     {
         for (auto& alternative : disjunction->m_alternatives) {
             for (auto& term : alternative->m_terms) {
-                if (term.type == PatternTerm::Type::ParenthesesSubpattern || term.type == PatternTerm::Type::ParentheticalAssertion) {
-                    if (term.type == PatternTerm::Type::ParenthesesSubpattern
-                        && term.quantityType != QuantifierType::FixedCount
-                        && term.quantityMaxCount != 1
-                        && !term.parentheses.isTerminal
-                        && !term.parentheses.isCopy)
-                        storeToFrame(MacroAssembler::TrustedImmPtr(nullptr), term.frameLocation + BackTrackInfoParentheses::parenContextHeadIndex());
-
-                    clearInnerParenContextHeadSlots(term.parentheses.disjunction);
+                if (term.type != PatternTerm::Type::ParenthesesSubpattern && term.type != PatternTerm::Type::ParentheticalAssertion)
+                    continue;
+                if (term.type == PatternTerm::Type::ParenthesesSubpattern
+                    && term.quantityType != QuantifierType::FixedCount
+                    && term.quantityMaxCount != 1
+                    && !term.parentheses.isTerminal
+                    && !term.parentheses.isCopy) {
+                    unsigned headSlot = term.frameLocation + BackTrackInfoParentheses::parenContextHeadIndex();
+                    if (headSlot >= minFrameLocation && headSlot < maxFrameLocation)
+                        storeToFrame(MacroAssembler::TrustedImmPtr(nullptr), headSlot);
                 }
+                clearParenContextHeadSlotsInRange(term.parentheses.disjunction, minFrameLocation, maxFrameLocation);
             }
         }
     }

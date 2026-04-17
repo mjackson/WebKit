@@ -142,15 +142,15 @@ TEST(ActionSheetTests, DISABLED_DismissingActionSheetShouldNotDismissPresentingV
     IPadUserInterfaceSwizzler iPadUserInterface;
     TestWebKitAPI::Util::instantiateUIApplicationIfNeeded();
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
-    auto window = adoptNS([[TestWKWebViewControllerWindow alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
-    auto rootViewController = adoptNS([[UIViewController alloc] init]);
-    auto navigationController = adoptNS([[UINavigationController alloc] initWithRootViewController:rootViewController.get()]);
-    auto observer = adoptNS([[ActionSheetObserver alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr window = adoptNS([[TestWKWebViewControllerWindow alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
+    RetainPtr rootViewController = adoptNS([[UIViewController alloc] init]);
+    RetainPtr navigationController = adoptNS([[UINavigationController alloc] initWithRootViewController:rootViewController.get()]);
+    RetainPtr observer = adoptNS([[ActionSheetObserver alloc] init]);
     [window setRootViewController:navigationController.get()];
     [window makeKeyAndVisible];
 
-    auto webViewController = adoptNS([[TestWKWebViewController alloc] initWithFrame:CGRectMake(0, 0, 1024, 768) configuration:nil]);
+    RetainPtr webViewController = adoptNS([[TestWKWebViewController alloc] initWithFrame:CGRectMake(0, 0, 1024, 768) configuration:nil]);
     TestWKWebView *webView = [webViewController webView];
     webView.UIDelegate = observer.get();
     [webView synchronouslyLoadTestPageNamed:@"link-and-input"];
@@ -194,8 +194,8 @@ TEST(ActionSheetTests, ImageMapDoesNotDestroySelection)
 {
     IPadUserInterfaceSwizzler iPadUserInterface;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
-    auto observer = adoptNS([[ActionSheetObserver alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
+    RetainPtr observer = adoptNS([[ActionSheetObserver alloc] init]);
     [webView setUIDelegate:observer.get()];
     [webView synchronouslyLoadTestPageNamed:@"image-map"];
     [webView stringByEvaluatingJavaScript:@"selectTextNode(h1.childNodes[0])"];
@@ -227,8 +227,8 @@ TEST(ActionSheetTests, DataDetectorsLinkIsNotPresentedAsALink)
         reinterpret_cast<IMP>(swizzledResizableSnapshotViewFromRect)
     };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
-    auto observer = adoptNS([[ActionSheetObserver alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
+    RetainPtr observer = adoptNS([[ActionSheetObserver alloc] init]);
     [webView setUIDelegate:observer.get()];
 
     auto runTest = ^(NSString *phoneNumber) {
@@ -294,8 +294,8 @@ TEST(ActionSheetTests, CopyImageElementWithHREFAndTitle)
     TestWebKitAPI::Util::instantiateUIApplicationIfNeeded();
     [UIPasteboard generalPasteboard].items = @[ ];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto observer = adoptNS([[ActionSheetObserver alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr observer = adoptNS([[ActionSheetObserver alloc] init]);
     [webView setUIDelegate:observer.get()];
     [webView synchronouslyLoadTestPageNamed:@"image-in-link-and-input"];
     [webView stringByEvaluatingJavaScript:@"document.querySelector('a').setAttribute('title', 'hello world')"];
@@ -335,8 +335,8 @@ TEST(ActionSheetTests, CopyImageElementWithHREF)
     TestWebKitAPI::Util::instantiateUIApplicationIfNeeded();
     [UIPasteboard generalPasteboard].items = @[ ];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto observer = adoptNS([[ActionSheetObserver alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr observer = adoptNS([[ActionSheetObserver alloc] init]);
     [webView setUIDelegate:observer.get()];
     [webView synchronouslyLoadTestPageNamed:@"image-in-link-and-input"];
 
@@ -375,8 +375,8 @@ TEST(ActionSheetTests, CopyImageElementWithoutHREF)
     TestWebKitAPI::Util::instantiateUIApplicationIfNeeded();
     [UIPasteboard generalPasteboard].items = @[ ];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto observer = adoptNS([[ActionSheetObserver alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr observer = adoptNS([[ActionSheetObserver alloc] init]);
     [webView setUIDelegate:observer.get()];
     [webView synchronouslyLoadTestPageNamed:@"image-and-contenteditable"];
 
@@ -402,8 +402,8 @@ TEST(ActionSheetTests, CopyLinkWritesURLAndPlainText)
     TestWebKitAPI::Util::instantiateUIApplicationIfNeeded();
     [UIPasteboard generalPasteboard].items = @[ ];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto observer = adoptNS([[ActionSheetObserver alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr observer = adoptNS([[ActionSheetObserver alloc] init]);
     [webView setUIDelegate:observer.get()];
     [webView synchronouslyLoadTestPageNamed:@"link-and-input"];
 
@@ -463,8 +463,8 @@ static void performLongPressAction(WKWebView *webView, ActionSheetObserver *obse
 static void playPauseAnimationTest(NSString *testFilename)
 {
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebViewForAnimationControls alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration addToWindow:YES]);
-    auto observer = adoptNS([[ActionSheetObserver alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebViewForAnimationControls alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration addToWindow:YES]);
+    RetainPtr observer = adoptNS([[ActionSheetObserver alloc] init]);
     [webView setUIDelegate:observer.get()];
     [webView synchronouslyLoadTestPageNamed:testFilename];
     // Pause animations globally to establish a known state.
@@ -496,8 +496,8 @@ TEST(ActionSheetTests, PlayPauseAnimationSheetActionsNotPresentByDefault)
     // Note that this is a TestWKWebView, not a TestWKWebViewForAnimationControls, which has the necessary testing only override.
     // Without the testing override, the only way "Play Animation" and "Pause Animation" should appear is when a system setting is in a non-default state.
     // So this test ensures these actions are not available by default.
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration addToWindow:YES]);
-    auto observer = adoptNS([[ActionSheetObserver alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration addToWindow:YES]);
+    RetainPtr observer = adoptNS([[ActionSheetObserver alloc] init]);
     [webView setUIDelegate:observer.get()];
     [webView synchronouslyLoadTestPageNamed:@"img-animation-in-anchor"];
 

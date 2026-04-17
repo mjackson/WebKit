@@ -6,4 +6,5 @@ list(APPEND ImageDiff_LIBRARIES
     Apple::CoreFoundation
     Apple::CoreGraphics
     Apple::CoreText
+    Apple::ImageIO
 )

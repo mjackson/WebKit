@@ -41,6 +41,10 @@ struct FloatingObjectHashFunctions;
 
 using FloatingObjectSet = ListHashSet<std::unique_ptr<FloatingObject>, FloatingObjectHashFunctions>;
 
+namespace Layout {
+class InlineContentCache;
+}
+
 namespace LayoutIntegration {
 class LineLayout;
 }
@@ -538,6 +542,9 @@ public:
     RenderBlockFlowRareData& ensureRareBlockFlowData() LIFETIME_BOUND;
     void materializeRareBlockFlowData();
 
+    Layout::InlineContentCache& ensureInlineContentCache();
+    void resetInlineContentCache();
+
 #if ENABLE(TEXT_AUTOSIZING)
     void adjustComputedFontSizes(float size, float visibleWidth);
     void resetComputedFontSize()
@@ -552,6 +559,9 @@ protected:
     std::unique_ptr<RenderBlockFlowRareData> m_rareBlockFlowData;
 
 private:
+    // m_inlineContentCache must be declared before m_lineLayout.
+    // m_lineLayout's destructor runs first which requires the cache to still exist.
+    std::unique_ptr<Layout::InlineContentCache> m_inlineContentCache;
     Variant<
         std::monostate,
         std::unique_ptr<LayoutIntegration::LineLayout>,

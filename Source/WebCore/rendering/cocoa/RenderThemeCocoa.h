@@ -86,6 +86,7 @@ public:
     Vector<String, 2> mediaControlsScripts() final;
     RefPtr<FragmentedSharedBuffer> mediaControlsImageDataForIconNameAndType(const String&, const String&) final;
     String mediaControlsFormattedStringForDuration(double) final;
+    String youTubeQuirkScript() final;
 #endif
 
 #if ENABLE(FORM_CONTROL_REFRESH)
@@ -301,6 +302,7 @@ private:
     String m_mediaControlsScript;
     String m_mediaControlsStyleSheet;
     RetainPtr<NSDateComponentsFormatter> m_durationFormatter;
+    String m_youTubeCaptionQuirkScript;
 #endif // ENABLE(VIDEO)
 };
 

@@ -35,6 +35,7 @@
 #include "HTMLInputElement.h"
 #include "HTMLTextAreaElement.h"
 #include "HitTestLocation.h"
+#include "InlineContentCache.h"
 #include "InlineIteratorBoxInlines.h"
 #include "InlineIteratorInlineBox.h"
 #include "InlineIteratorLineBoxInlines.h"
@@ -106,6 +107,19 @@ RenderBlockFlowRareData::RenderBlockFlowRareData(const RenderBlockFlow& block)
 }
 
 RenderBlockFlowRareData::~RenderBlockFlowRareData() = default;
+
+Layout::InlineContentCache& RenderBlockFlow::ensureInlineContentCache()
+{
+    if (!m_inlineContentCache)
+        m_inlineContentCache = makeUnique<Layout::InlineContentCache>();
+    return *m_inlineContentCache;
+}
+
+void RenderBlockFlow::resetInlineContentCache()
+{
+    ASSERT(m_inlineContentCache);
+    m_inlineContentCache = nullptr;
+}
 
 // Our MarginInfo state used when laying out block children.
 RenderBlockFlow::MarginInfo::MarginInfo(const RenderBlockFlow& block, IgnoreScrollbarForAfterMargin ignoreScrollbarForAfterMargin)
@@ -627,6 +641,19 @@ void RenderBlockFlow::layoutBlock(RelayoutChildren relayoutChildren, LayoutUnit 
 
     updateLogicalHeight();
     LayoutUnit newHeight = logicalHeight();
+
+    auto undoBottomMarginCollapsingIfMinHeightApplied = [&] {
+        // When min-height increases the block's height beyond the auto height, the last
+        // child's bottom margin can no longer collapse through the parent (CSS2 8.3.1).
+        // Reset the propagated after-margin to just the parent's own margin.
+        if (newHeight <= oldHeight || !style().logicalHeight().isAuto())
+            return;
+        auto& logicalMinHeight = style().logicalMinHeight();
+        if (logicalMinHeight.isAuto() || logicalMinHeight.isPossiblyZero())
+            return;
+        setMaxMarginAfterValues(std::max(0_lu, marginAfter()), std::max(0_lu, -marginAfter()));
+    };
+    undoBottomMarginCollapsingIfMinHeightApplied();
 
     LayoutUnit alignContentShift;
     auto shouldApplyAlignContent = [&] {
@@ -1444,39 +1471,39 @@ bool RenderBlockFlow::childrenPreventSelfCollapsing() const
 
 LayoutUnit RenderBlockFlow::collapseMargins(RenderBox& child, MarginInfo& marginInfo)
 {
-    auto beforeCollapseLogicalTop = logicalHeight();
-    auto logicalTop = collapseMarginsWithChildInfo(&child, marginInfo);
-    auto logicalTopIntrudesIntoFloat = logicalTop < beforeCollapseLogicalTop;
-    // If margin collapsing with the child does not move the parent up, we don't have to recalculate intruding floats.
+    auto logicalTopBeforeMarginCollapse = logicalHeight();
+    auto logicalTopAfterMarginCollapse = collapseMarginsWithChildInfo(&child, marginInfo);
+    auto marginCollapseMovedParentRendererUp = logicalTopAfterMarginCollapse < logicalTopBeforeMarginCollapse;
+    // If margin collapsing with the child did not move the parent up, we don't have to recalculate intruding floats.
     // This should be handled in `rebuildFloatingObjectSetFromIntrudingFloats`.
-    if (!logicalTopIntrudesIntoFloat)
-        return logicalTop;
+    if (!marginCollapseMovedParentRendererUp)
+        return logicalTopAfterMarginCollapse;
 
     // Search for and handle potential intruding floats from previous siblings if margin collapsing moves the parent upward.
-    auto addIntrudingFloatsFromPreviousBlocks = [&] {
+    auto handleIntrudingFloatsFromPreviousSiblings = [&] {
         for (auto* previousSibling = child.previousSibling(); previousSibling; previousSibling = previousSibling->previousSibling()) {
             CheckedPtr previousBlockSibling = dynamicDowncast<RenderBlockFlow>(previousSibling);
             if (!previousBlockSibling || previousBlockSibling->createsNewFormattingContext())
                 continue;
-            if (previousBlockSibling->logicalTop() + previousBlockSibling->lowestFloatLogicalBottom() <= logicalTop)
+            if (previousBlockSibling->logicalTop() + previousBlockSibling->lowestFloatLogicalBottom() <= logicalTopAfterMarginCollapse)
                 break;
             // If |child| is a self-collapsing block it may have collapsed into a previous sibling and although it hasn't reduced the height of the parent yet
             // any floats from the parent will now overhang.
             auto oldLogicalHeight = logicalHeight();
-            setLogicalHeight(logicalTop);
+            setLogicalHeight(logicalTopAfterMarginCollapse);
             if (previousBlockSibling->containsFloats() && !previousBlockSibling->avoidsFloats())
                 addOverhangingFloats(*previousBlockSibling, false);
             setLogicalHeight(oldLogicalHeight);
         }
     };
-    addIntrudingFloatsFromPreviousBlocks();
+    handleIntrudingFloatsFromPreviousSiblings();
     // If |child|'s previous sibling is or contains a self-collapsing block that cleared a float and margin collapsing resulted in |child| moving up
     // into the margin area of the self-collapsing block then the float it clears is now intruding into |child|. Layout again so that we can look for
     // floats in the parent that overhang |child|'s new logical top.
-    ASSERT(logicalTopIntrudesIntoFloat);
-    if (containsFloats() && !child.avoidsFloats() && lowestFloatLogicalBottom() > logicalTop)
+    ASSERT(marginCollapseMovedParentRendererUp);
+    if (containsFloats() && !child.avoidsFloats() && lowestFloatLogicalBottom() > logicalTopAfterMarginCollapse)
         child.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
-    return logicalTop;
+    return logicalTopAfterMarginCollapse;
 }
 
 std::optional<LayoutUnit> RenderBlockFlow::selfCollapsingMarginBeforeWithClear(RenderObject* candidate)

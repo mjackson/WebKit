@@ -27,15 +27,14 @@
 
 #if ENABLE(WEBASSEMBLY)
 
+#include "B3Type.h"
 #include "WasmOps.h"
 
 namespace JSC { namespace Wasm {
 
-
 AddressType::AddressType(AddressType::Kind addressType) : m_type(addressType) { };
 
 AddressType::AddressType(bool is64Bit) : m_type(is64Bit ? AddressType::I64 : AddressType::I32) { };
-
 
 AddressType::AddressType(TypeKind typeKind)
 {
@@ -50,6 +49,22 @@ AddressType::AddressType(TypeKind typeKind)
         RELEASE_ASSERT_NOT_REACHED("Invalid Wasm Type to AddressType conversion");
     }
 }
+
+#if !PLATFORM(PLAYSTATION)
+AddressType::AddressType(B3::Type type)
+{
+    switch (type.kind()) {
+    case B3::TypeKind::Int32:
+        m_type = AddressType::I32;
+        break;
+    case B3::TypeKind::Int64:
+        m_type = AddressType::I64;
+        break;
+    default:
+        RELEASE_ASSERT_NOT_REACHED("Invalid Wasm Type to AddressType conversion");
+    }
+}
+#endif
 
 TypeKind AddressType::asTypeKind() const
 {

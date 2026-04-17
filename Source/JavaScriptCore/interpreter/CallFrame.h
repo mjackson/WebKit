@@ -124,50 +124,53 @@ using JSInstruction = BaseInstruction<JSOpcodeTraits>;
     //  See details below the diagram.
     //
     //
-    //   |          ......            |   |
-    //   +----------------------------+   |
-    //   |           argN             |   v  lower addresses
-    //   +----------------------------+
-    //   |           ...              |
-    //   +----------------------------+
-    //   |           arg1             |
-    //   +----------------------------+
-    //   |           arg0             |
-    //   +----------------------------+
-    //   |          this(+)           |
-    //   +----------------------------+
-    //   | argumentCountIncludingThis |
-    //   +----------------------------+
-    //   |          callee            |
-    //   +----------------------------+
-    //   |       codeBlock(+)         |
-    //   +----------------------------+
-    //   |       returnAddress        |
-    //   +----------------------------+
-    //   |        callerFrame         |  <- callee's cfr is pointing at this address
-    //   +----------------------------+
-    //   |          local0            |
-    //   +----------------------------+
-    //   |          local1            |
-    //   +----------------------------+
-    //   |           ...              |
-    //   +----------------------------+
-    //   |          localN            |
-    //   +----------------------------+
-    //   |          ......            |
+    //   |            ......              |   |
+    //   +--------------------------------+   |
+    //   |             argN               |   v  lower addresses
+    //   +--------------------------------+
+    //   |             ...                |
+    //   +--------------------------------+
+    //   |             arg1               |
+    //   +--------------------------------+
+    //   |             arg0               |
+    //   +--------------------------------+
+    //   |            this(+)             |
+    //   +--------------------------------+
+    //   | argumentCountIncludingThis(+)  |
+    //   +--------------------------------+
+    //   |            callee              |
+    //   +--------------------------------+
+    //   |         codeBlock(+)           |
+    //   +--------------------------------+
+    //   |         returnAddress          |
+    //   +--------------------------------+
+    //   |          callerFrame           |  <- callee's cfr is pointing at this address
+    //   +--------------------------------+
+    //   |            local0              |
+    //   +--------------------------------+
+    //   |            local1              |
+    //   +--------------------------------+
+    //   |             ...                |
+    //   +--------------------------------+
+    //   |            localN              |
+    //   +--------------------------------+
+    //   |            ......              |
     //
     //
     //  Overloaded slots:
     //
     //    - 'this': when executing Wasm code, the slot contains the value of $sp relative to $fp, saved before the call.
     //      Saving the value allows moving the $sp freely in tail calls.
+    //    - 'argumentCountIncludingThis': when executing Wasm code, the tag half (upper 32 bits)
+    //      of this slot stores the call site index, used to look up exception handlers.
+    //      The payload half (lower 32 bits) is unused in Wasm-to-Wasm calls, but stores
+    //      the actual argument count when calling from Wasm into JS.
     //    - 'codeBlock': when executing Wasm code, the slot contains a pointer to the Wasm instance.
     //      A special case is calling a module import whose functionCallLinkInfo.targetInstance is
     //      null, which is the case when the imported function is a JS function.
     //      In that case, 'codeBlock' points at the functionCallLinkInfo object.
-    //
-    // Further, in Wasm execution not all slots shown above are used, and not all exist.
-    // Argument slots beyond 'this' typically do not exist and 'argumentCountIncludingThis' value is not meaningful.
+    //    - 'arg0': for Wasm multi-value returns, this is the first stack result
+    //      (i.e. the first return value that doesn't fit in a register).
 
     enum class CallFrameSlot {
         codeBlock = CallerFrameAndPC::sizeInRegisters,

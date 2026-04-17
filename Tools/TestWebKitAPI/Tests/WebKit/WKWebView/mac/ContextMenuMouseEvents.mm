@@ -40,10 +40,10 @@ namespace TestWebKitAPI {
     
 static void runTest(NSEventModifierFlags flags, NSEventType mouseDownType, NSEventType mouseUpType)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"context-menu-control-click"];
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     __block bool navigationAttempted = false;
@@ -52,7 +52,7 @@ static void runTest(NSEventModifierFlags flags, NSEventType mouseDownType, NSEve
         navigationAttempted = true;
     }];
 
-    auto uiDelegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr uiDelegate = adoptNS([[TestUIDelegate alloc] init]);
     [webView setUIDelegate:uiDelegate.get()];
 
     __block bool done = false;

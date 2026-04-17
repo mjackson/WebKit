@@ -54,7 +54,7 @@ static gboolean agentSourcePrepare(GSource* base, gint* timeout)
     auto now = WTF::MonotonicTime::now().secondsSinceEpoch();
 
     gboolean result = FALSE;
-    while (true) {
+    {
         RiceAgentPoll ret;
         rice_agent_poll_init(&ret);
         GST_TRACE_OBJECT(iceAgent.get(), "Polling");
@@ -84,19 +84,18 @@ static gboolean agentSourcePrepare(GSource* base, gint* timeout)
             auto delta = Seconds::fromNanoseconds(ret.wait_until_nanos - now.nanoseconds());
             if (delta >= 99998_s) {
                 GST_TRACE_OBJECT(iceAgent.get(), "Nothing special to do.");
-                result = FALSE;
                 break;
             }
             if (timeout) {
                 *timeout = static_cast<int>(delta.milliseconds());
                 GST_TRACE_OBJECT(iceAgent.get(), "Waiting for %d ms", *timeout);
             }
-            result = FALSE;
             break;
         }
         case RICE_AGENT_POLL_GATHERING_COMPLETE:
             GST_TRACE_OBJECT(iceAgent.get(), "Gathering complete");
             webkitGstWebRTCIceAgentGatheringDoneForStream(iceAgent.get(), ret.gathering_complete.stream_id);
+            result = TRUE;
             break;
         case RICE_AGENT_POLL_GATHERED_CANDIDATE:
             GST_TRACE_OBJECT(iceAgent.get(), "Gathered candidate");
@@ -124,8 +123,6 @@ static gboolean agentSourcePrepare(GSource* base, gint* timeout)
             }
         } else
             rice_transmit_clear(&transmit);
-        if (!result)
-            break;
     }
 
     return result;

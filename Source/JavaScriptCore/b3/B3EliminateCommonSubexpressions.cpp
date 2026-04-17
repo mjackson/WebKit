@@ -38,7 +38,11 @@
 #include "B3ProcedureInlines.h"
 #include "B3PureCSE.h"
 #include "B3ValueInlines.h"
+#include "B3ValueKeyInlines.h"
 #include "B3VariableValue.h"
+#include "B3WasmArrayElementValue.h"
+#include "B3WasmArrayGetValue.h"
+#include "B3WasmArraySetValue.h"
 #include "B3WasmStructFieldValue.h"
 #include "B3WasmStructGetValue.h"
 #include "B3WasmStructSetValue.h"
@@ -67,6 +71,7 @@ static constexpr bool verbose = false;
 
 using MemoryMatches = Vector<MemoryValue*, 1>;
 using WasmStructMatches = Vector<WasmStructFieldValue*, 1>;
+using WasmArrayMatches = Vector<WasmArrayElementValue*, 1>;
 
 class MemoryValueMap {
 public:
@@ -195,6 +200,64 @@ private:
     UncheckedKeyHashMap<WasmStructFieldKey, Matches> m_map;
 };
 
+using WasmArrayElementKey = std::tuple<Value*, Value*>; // (arrayPtr, indexValue)
+
+class WasmArrayValueMap {
+public:
+    WasmArrayValueMap() = default;
+
+    void add(WasmArrayElementValue* value)
+    {
+        WasmArrayElementKey key(value->child(0), value->child(1));
+        Matches& matches = m_map.add(key, Matches()).iterator->value;
+        if (matches.contains(value))
+            return;
+        matches.append(value);
+    }
+
+    template<typename Functor>
+    void removeIf(const Functor& functor)
+    {
+        m_map.removeIf(
+            [&](UncheckedKeyHashMap<WasmArrayElementKey, Matches>::KeyValuePairType& entry) -> bool {
+                entry.value.removeAllMatching(
+                    [&](Value* value) -> bool {
+                        if (auto* elem = value->as<WasmArrayElementValue>())
+                            return functor(elem);
+                        return true;
+                    });
+                return entry.value.isEmpty();
+            });
+    }
+
+    template<typename Functor>
+    WasmArrayElementValue* find(Value* arrayPtr, Value* indexValue, const Functor& functor)
+    {
+        auto iter = m_map.find(WasmArrayElementKey(arrayPtr, indexValue));
+        if (iter == m_map.end())
+            return nullptr;
+        for (auto* candidate : iter->value) {
+            if (auto* candidateElem = candidate->as<WasmArrayElementValue>()) {
+                if (functor(candidateElem))
+                    return candidateElem;
+            }
+        }
+        return nullptr;
+    }
+
+    void dump(PrintStream& out) const
+    {
+        out.print("{"_s);
+        CommaPrinter comma;
+        for (auto& entry : m_map)
+            out.print(comma, "(", pointerDump(std::get<0>(entry.key)), ",", pointerDump(std::get<1>(entry.key)), ")=>"_s, pointerListDump(entry.value));
+        out.print("}"_s);
+    }
+
+private:
+    UncheckedKeyHashMap<WasmArrayElementKey, Matches> m_map;
+};
+
 struct ImpureBlockData {
     void dump(PrintStream& out) const
     {
@@ -202,6 +265,7 @@ struct ImpureBlockData {
             "{reads = ", reads, ", writes = ", writes,
             ", memoryStoresAtHead = ", memoryStoresAtHead, ", memoryValuesAtTail = ", memoryValuesAtTail,
             ", wasmStructStoresAtHead = ", wasmStructStoresAtHead, ", wasmStructValuesAtTail = ", wasmStructValuesAtTail,
+            ", wasmArrayStoresAtHead = ", wasmArrayStoresAtHead, ", wasmArrayValuesAtTail = ", wasmArrayValuesAtTail,
             "}");
     }
 
@@ -215,6 +279,9 @@ struct ImpureBlockData {
 
     WasmStructValueMap wasmStructStoresAtHead;
     WasmStructValueMap wasmStructValuesAtTail;
+
+    WasmArrayValueMap wasmArrayStoresAtHead;
+    WasmArrayValueMap wasmArrayValuesAtTail;
 
     // This Maps x->y in "y = WasmAddress(@x)"
     UncheckedKeyHashMap<Value*, Value*> m_candidateWasmAddressesAtTail;
@@ -244,6 +311,7 @@ public:
                 Effects effects = value->effects();
                 MemoryValue* memory = value->as<MemoryValue>();
                 WasmStructFieldValue* wasmStructField = value->as<WasmStructFieldValue>();
+                WasmArrayElementValue* wasmArrayElem = value->as<WasmArrayElementValue>();
 
                 if (memory) {
                     if (memory->isStore()
@@ -259,6 +327,13 @@ public:
                         && !data.fence)
                         data.wasmStructStoresAtHead.add(wasmStructField);
                 }
+                if (wasmArrayElem) {
+                    if (wasmArrayElem->opcode() == WasmArraySet
+                        && !data.reads.overlaps(wasmArrayElem->range())
+                        && !data.writes.overlaps(wasmArrayElem->range())
+                        && !data.fence)
+                        data.wasmArrayStoresAtHead.add(wasmArrayElem);
+                }
 
                 data.reads.add(effects.reads);
 
@@ -270,6 +345,8 @@ public:
                     data.memoryValuesAtTail.add(memory);
                 if (wasmStructField)
                     data.wasmStructValuesAtTail.add(wasmStructField);
+                if (wasmArrayElem)
+                    data.wasmArrayValuesAtTail.add(wasmArrayElem);
 
                 if (WasmAddressValue* wasmAddress = value->as<WasmAddressValue>())
                     data.m_candidateWasmAddressesAtTail.add(wasmAddress->child(0), wasmAddress);
@@ -330,6 +407,21 @@ private:
             return;
         }
 
+        // If a WasmArrayLength is dominated by the same key's WasmArrayLength,
+        // traps-bit does not matter since dominating WasmArrayLength already ensured that
+        // traps check is already done. PureCSE already handles same-variant matches above;
+        // this queries for the opposite traps-bit variant via ValueKey lookup.
+        if (m_value->opcode() == WasmArrayLength) {
+            Kind altKind = m_value->kind();
+            altKind.setTraps(!altKind.traps());
+            ValueKey altKey(altKind, m_value->type(), m_value->child(0));
+            if (Value* match = m_pureCSE.findMatch(altKey, m_block, m_dominators)) {
+                m_value->replaceWithIdentity(match);
+                m_changed = true;
+                return;
+            }
+        }
+
         if (WasmAddressValue* wasmAddress = m_value->as<WasmAddressValue>()) {
             processWasmAddressValue(wasmAddress);
             return;
@@ -345,12 +437,17 @@ private:
         MemoryValue* memory = m_value->as<MemoryValue>();
         WasmStructGetValue* structGet = m_value->as<WasmStructGetValue>();
         WasmStructSetValue* structSet = m_value->as<WasmStructSetValue>();
+        WasmArrayGetValue* arrayGet = m_value->as<WasmArrayGetValue>();
+        WasmArraySetValue* arraySet = m_value->as<WasmArraySetValue>();
 
         // Before clobber - try to eliminate redundant operations
         if (memory && processMemoryBeforeClobber(memory))
             return;
 
         if (structSet && processWasmStructSetBeforeClobber(structSet))
+            return;
+
+        if (arraySet && processWasmArraySetBeforeClobber(arraySet))
             return;
 
         // Clobber based on writes - this handles both MemoryValue and WasmStruct operations
@@ -366,6 +463,12 @@ private:
 
         if (structSet)
             processWasmStructSetAfterClobber(structSet);
+
+        if (arrayGet)
+            processWasmArrayGetAfterClobber(arrayGet);
+
+        if (arraySet)
+            processWasmArraySetAfterClobber(arraySet);
 
         // The reads info should be updated even the block is processed
         // since the dominated store nodes may dependent on the data
@@ -432,6 +535,16 @@ private:
                 // If field is immutable (only applies to Get), clobbering never changes the result
                 if (auto* structGet = value->as<WasmStructGetValue>()) {
                     if (structGet->mutability() == Mutability::Immutable)
+                        return false;
+                }
+                return value->range().overlaps(writes);
+            });
+
+        data.wasmArrayValuesAtTail.removeIf(
+            [&](WasmArrayElementValue* value) {
+                // If element is immutable (only applies to Get), clobbering never changes the result
+                if (auto* arrayGet = value->as<WasmArrayGetValue>()) {
+                    if (arrayGet->mutability() == Mutability::Immutable)
                         return false;
                 }
                 return value->range().overlaps(writes);
@@ -720,7 +833,8 @@ private:
     void handleMemoryValue(
         Value* ptr, HeapRange range, const Filter& filter, const Replace& replace)
     {
-        MemoryMatches matches = findMemoryValue(ptr, range, filter);
+        // FIXME: Currently we observed some performance regression in this case.
+        MemoryMatches matches = findMemoryValue(ptr, range, filter /* , m_value->as<MemoryValue>()->readsMutability() */);
         if (replaceMemoryValue(matches, replace))
             return;
         m_data.memoryValuesAtTail.add(m_value->as<MemoryValue>());
@@ -785,7 +899,7 @@ private:
     }
 
     template<typename Filter>
-    MemoryMatches findMemoryValue(Value* ptr, HeapRange range, const Filter& filter)
+    MemoryMatches findMemoryValue(Value* ptr, HeapRange range, const Filter& filter, Mutability readsMutability = Mutability::Mutable)
     {
         if constexpr (B3EliminateCommonSubexpressionsInternal::verbose) {
             dataLogLn(*m_value, ": looking backward for ", *ptr, "...");
@@ -802,7 +916,7 @@ private:
             return { match };
         }
 
-        if (m_data.writes.overlaps(range)) {
+        if (readsMutability != Mutability::Immutable && m_data.writes.overlaps(range)) {
             dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Giving up because of writes.");
             return { };
         }
@@ -825,7 +939,7 @@ private:
                 continue;
             }
 
-            if (data.writes.overlaps(range)) {
+            if (readsMutability != Mutability::Immutable && data.writes.overlaps(range)) {
                 dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Giving up because of writes.");
                 return { };
             }
@@ -906,14 +1020,14 @@ private:
         uint64_t fieldHeapKey = structGet->fieldHeapKey();
 
         dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Processing WasmStructGet: ", *structGet, " fieldHeapKey=", fieldHeapKey);
-        WasmStructMatches matches = findWasmStructValue(structPtr, range, fieldHeapKey, [&](WasmStructFieldValue*) { return true; });
+        WasmStructMatches matches = findWasmStructValue(structPtr, range, fieldHeapKey, [&](WasmStructFieldValue*) { return true; }, structGet->mutability());
         if (replaceWasmStructValue(matches, structGet))
             return;
         m_data.wasmStructValuesAtTail.add(structGet);
     }
 
     template<typename Filter>
-    WasmStructMatches findWasmStructValue(Value* structPtr, HeapRange range, uint64_t fieldHeapKey, const Filter& filter)
+    WasmStructMatches findWasmStructValue(Value* structPtr, HeapRange range, uint64_t fieldHeapKey, const Filter& filter, Mutability readsMutability = Mutability::Mutable)
     {
         if constexpr (B3EliminateCommonSubexpressionsInternal::verbose) {
             dataLogLn(*m_value, ": looking backward for WasmStruct structPtr=", *structPtr, " fieldHeapKey=", fieldHeapKey);
@@ -927,7 +1041,7 @@ private:
         }
 
         // Check if current block has clobbering writes
-        if (m_data.writes.overlaps(range)) {
+        if (readsMutability != Mutability::Immutable && m_data.writes.overlaps(range)) {
             dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Giving up because of writes.");
             return { };
         }
@@ -951,7 +1065,7 @@ private:
                 continue;
             }
 
-            if (data.writes.overlaps(range)) {
+            if (readsMutability != Mutability::Immutable && data.writes.overlaps(range)) {
                 dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Giving up because of writes.");
                 return { };
             }
@@ -1125,6 +1239,222 @@ private:
             ImpureBlockData& data = m_impureBlockData[block];
 
             Value* match = data.wasmStructStoresAtHead.find(structPtr, fieldHeapKey, [&](Value*) { return true; });
+            if (match && match != m_value)
+                continue;
+
+            if (data.writes.overlaps(range) || data.reads.overlaps(range))
+                return false;
+
+            if (!block->numSuccessors())
+                return false;
+
+            worklist.pushAll(block->successorBlocks());
+        }
+
+        return true;
+    }
+
+    void processWasmArrayGetAfterClobber(WasmArrayGetValue* arrayGet)
+    {
+        Value* arrayPtr = arrayGet->child(0);
+        Value* indexValue = arrayGet->child(1);
+        HeapRange range = arrayGet->range();
+
+        dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Processing WasmArrayGet: ", *arrayGet);
+        WasmArrayMatches matches = findWasmArrayValue(arrayPtr, indexValue, range, [&](WasmArrayElementValue*) { return true; }, arrayGet->mutability());
+        if (replaceWasmArrayValue(matches, arrayGet))
+            return;
+        m_data.wasmArrayValuesAtTail.add(arrayGet);
+    }
+
+    template<typename Filter>
+    WasmArrayMatches findWasmArrayValue(Value* arrayPtr, Value* indexValue, HeapRange range, const Filter& filter, Mutability readsMutability = Mutability::Mutable)
+    {
+        // Check local block first
+        if (auto* match = m_data.wasmArrayValuesAtTail.find(arrayPtr, indexValue, filter)) {
+            dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Found ", *match, " locally.");
+            return { match };
+        }
+
+        if (readsMutability != Mutability::Immutable && m_data.writes.overlaps(range)) {
+            dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Giving up because of writes.");
+            return { };
+        }
+
+        BlockWorklist worklist;
+        worklist.pushAll(m_block->predecessors());
+
+        WasmArrayMatches matches;
+
+        while (BasicBlock* block = worklist.pop()) {
+            ImpureBlockData& data = m_impureBlockData[block];
+
+            auto* match = data.wasmArrayValuesAtTail.find(arrayPtr, indexValue, filter);
+            if (match && match != m_value) {
+                matches.append(match);
+                continue;
+            }
+
+            if (readsMutability != Mutability::Immutable && data.writes.overlaps(range)) {
+                dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Giving up because of writes.");
+                return { };
+            }
+
+            if (!block->numPredecessors()) {
+                dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Giving up because it's live at root.");
+                return { };
+            }
+
+            worklist.pushAll(block->predecessors());
+        }
+
+        dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Got matches: ", pointerListDump(matches));
+        return matches;
+    }
+
+    bool replaceWasmArrayValue(const WasmArrayMatches& matches, WasmArrayGetValue* arrayGet)
+    {
+        if (matches.isEmpty())
+            return false;
+
+        dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "Eliminating ", *m_value, " due to ", pointerListDump(matches));
+
+        m_changed = true;
+
+        SUPPRESS_UNCOUNTED_LOCAL const Wasm::ArrayType* arrayType = arrayGet->arrayType();
+        auto elementType = arrayType->elementType().type;
+
+        auto replace = [&](Value* dominatingMatch, Vector<Value*, 16>& extraValues) -> Value* {
+            if (auto* arraySet = dominatingMatch->as<WasmArraySetValue>()) {
+                Value* storedValue = arraySet->child(2);
+                Value* forwardedValue = storedValue;
+
+                // Handle packed types: mask the stored value to match the element size
+                if (elementType.is<Wasm::PackedType>()) {
+                    uint32_t mask = 0;
+                    switch (elementType.as<Wasm::PackedType>()) {
+                    case Wasm::PackedType::I8:
+                        mask = 0xff;
+                        break;
+                    case Wasm::PackedType::I16:
+                        mask = 0xffff;
+                        break;
+                    }
+                    Value* maskValue = m_proc.add<Const32Value>(arrayGet->origin(), mask);
+                    forwardedValue = m_proc.add<Value>(BitAnd, arrayGet->origin(), storedValue, maskValue);
+                    extraValues.append(maskValue);
+                    extraValues.append(forwardedValue);
+                }
+
+                dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Forwarding from WasmArraySet with value: ", *forwardedValue);
+                return forwardedValue;
+            }
+
+            return dominatingMatch;
+        };
+
+        if (matches.size() == 1) {
+            auto* dominatingMatch = matches[0];
+            RELEASE_ASSERT(m_dominators.dominates(dominatingMatch->owner, m_block));
+
+            Vector<Value*, 16> extraValues;
+            auto* value = replace(dominatingMatch, extraValues);
+            ASSERT(value);
+            for (auto* extraValue : extraValues)
+                m_insertionSet.insertValue(m_index, extraValue);
+            m_value->replaceWithIdentity(value);
+            return true;
+        }
+
+        Variable* variable = m_proc.addVariable(m_value->type());
+        VariableValue* get = m_insertionSet.insert<VariableValue>(m_index, Get, m_value->origin(), variable);
+        m_value->replaceWithIdentity(get);
+
+        for (auto* match : matches) {
+            Vector<Value*>& sets = m_sets.add(match, Vector<Value*>()).iterator->value;
+            Vector<Value*, 16> extraValues;
+            auto* value = replace(match, extraValues);
+            ASSERT(value);
+            sets.appendVector(extraValues);
+            Value* set = m_proc.add<VariableValue>(Set, m_value->origin(), variable, value);
+            sets.append(set);
+        }
+
+        return true;
+    }
+
+    bool processWasmArraySetBeforeClobber(WasmArraySetValue* arraySet)
+    {
+        Value* arrayPtr = arraySet->child(0);
+        Value* indexValue = arraySet->child(1);
+        Value* value = arraySet->child(2);
+
+        dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Processing WasmArraySet (before clobber): ", *arraySet);
+
+        WasmArrayMatches matches = findWasmArrayValue(arrayPtr, indexValue, arraySet->range(), [&](WasmArrayElementValue* candidate) {
+            // Set(@arr, @idx, @z) after Set(@arr, @idx, @z) -> redundant
+            if (auto* candidateSet = candidate->as<WasmArraySetValue>())
+                return candidateSet->child(2) == value;
+
+            // Get(@arr, @idx) followed by Set(@arr, @idx, @get_result) -> no-op
+            if (auto* candidateGet = candidate->as<WasmArrayGetValue>())
+                return candidateGet == value;
+
+            return false;
+        });
+        if (matches.isEmpty())
+            return false;
+
+        m_value->replaceWithNop();
+        m_changed = true;
+        return true;
+    }
+
+    void processWasmArraySetAfterClobber(WasmArraySetValue* arraySet)
+    {
+        Value* arrayPtr = arraySet->child(0);
+        Value* indexValue = arraySet->child(1);
+        HeapRange range = arraySet->range();
+
+        dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Processing WasmArraySet (after clobber): ", *arraySet);
+
+        if (!arraySet->traps() && findWasmArraySetAfterClobber(arrayPtr, indexValue, range)) {
+            dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, "    Forward elimination - replacing with nop");
+            m_value->replaceWithNop();
+            m_changed = true;
+            return;
+        }
+
+        m_data.wasmArrayValuesAtTail.add(arraySet);
+    }
+
+    bool findWasmArraySetAfterClobber(Value* arrayPtr, Value* indexValue, HeapRange range)
+    {
+        dataLogLnIf(B3EliminateCommonSubexpressionsInternal::verbose, *m_value, ": looking forward for WasmArraySet...");
+
+        for (unsigned index = m_index + 1; index < m_block->size(); ++index) {
+            Value* value = m_block->at(index);
+
+            if (auto* candidateSet = value->as<WasmArraySetValue>()) {
+                if (candidateSet->child(0) == arrayPtr && candidateSet->child(1) == indexValue)
+                    return true;
+            }
+
+            Effects effects = value->effects();
+            if (effects.reads.overlaps(range) || effects.writes.overlaps(range))
+                return false;
+        }
+
+        if (!m_block->numSuccessors())
+            return false;
+
+        BlockWorklist worklist;
+        worklist.pushAll(m_block->successorBlocks());
+
+        while (BasicBlock* block = worklist.pop()) {
+            ImpureBlockData& data = m_impureBlockData[block];
+
+            Value* match = data.wasmArrayStoresAtHead.find(arrayPtr, indexValue, [&](Value*) { return true; });
             if (match && match != m_value)
                 continue;
 

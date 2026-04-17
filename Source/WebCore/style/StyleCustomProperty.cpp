@@ -28,6 +28,7 @@
 #include "CSSCalcValue.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSSerializationContext.h"
+#include "CSSStringValue.h"
 #include "CSSSubstitutionValue.h"
 #include "CSSTokenizer.h"
 #include "CSSValueList.h"
@@ -82,7 +83,7 @@ Ref<CSSValue> CustomProperty::propertyValue(CSSValuePool& pool, const RenderStyl
 
     return WTF::switchOn(m_value,
         [&](const GuaranteedInvalid&) -> Ref<CSSValue> {
-            return CSSPrimitiveValue::create(""_s);
+            return CSSStringValue::create(CSS::String { emptyString() });
         },
         [&](const Ref<CSSVariableData>& variableData) -> Ref<CSSValue> {
             return CSSSubstitutionValue::create(variableData.copyRef());
@@ -107,7 +108,7 @@ Ref<CSSValue> CustomProperty::propertyValue(CSSValuePool& pool, const RenderStyl
     );
 }
 
-String CustomProperty::propertyValueSerialization(const CSS::SerializationContext& context, const RenderStyle& style) const
+WTF::String CustomProperty::propertyValueSerialization(const CSS::SerializationContext& context, const RenderStyle& style) const
 {
     StringBuilder builder;
     propertyValueSerialization(builder, context, style);
@@ -119,7 +120,7 @@ void CustomProperty::propertyValueSerialization(StringBuilder& builder, const CS
     auto serializeValue = [&](StringBuilder& builder, const Value& value) {
         WTF::switchOn(value,
             [&](const auto& value) {
-                Style::serializationForCSS(builder, context, style, value);
+                serializationForCSS(builder, context, style, value);
             }
         );
     };
@@ -144,7 +145,7 @@ void CustomProperty::propertyValueSerialization(StringBuilder& builder, const CS
     );
 }
 
-String CustomProperty::propertyValueSerializationForTokenization(const CSS::SerializationContext& context, const RenderStyle& style) const
+WTF::String CustomProperty::propertyValueSerializationForTokenization(const CSS::SerializationContext& context, const RenderStyle& style) const
 {
     StringBuilder builder;
     propertyValueSerializationForTokenization(builder, context, style);
@@ -162,10 +163,10 @@ void CustomProperty::propertyValueSerializationForTokenization(StringBuilder& bu
     auto serializeValue = [&](StringBuilder& builder, const Value& value) {
         WTF::switchOn(value,
             [&](const Color& value) {
-                Style::serializationForCSSTokenization(builder, context, value);
+                serializationForCSSTokenization(builder, context, value);
             },
             [&](const auto& value) {
-                Style::serializationForCSS(builder, context, style, value);
+                serializationForCSS(builder, context, style, value);
             }
         );
     };

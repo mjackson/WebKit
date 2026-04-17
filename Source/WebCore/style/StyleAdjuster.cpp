@@ -483,11 +483,10 @@ void Adjuster::adjust(RenderStyle& style) const
         if (style.display() == DisplayType::InlineFlow && !style.pseudoElementType() && style.writingMode().computedWritingMode() != m_parentStyle.writingMode().computedWritingMode())
             style.setDisplayMaintainingOriginalDisplay(DisplayType::InlineFlowRoot);
 
-        // After performing the display mutation, check table rows. We do not honor position:relative or position:sticky on
-        // table rows or cells. This has been established for position:relative in CSS2.1 (and caused a crash in containingBlock()
-        // on some sites).
+        // We do not honor position:relative or position:sticky on table row groups. Table rows are
+        // allowed to be position:relative (they extend RenderBlock and can be proper containing blocks).
         if ((style.display() == DisplayType::TableHeaderGroup || style.display() == DisplayType::TableRowGroup
-            || style.display() == DisplayType::TableFooterGroup || style.display() == DisplayType::TableRow)
+            || style.display() == DisplayType::TableFooterGroup)
             && style.position() == PositionType::Relative)
             style.setPosition(PositionType::Static);
 
@@ -642,7 +641,11 @@ void Adjuster::adjust(RenderStyle& style) const
 
     bool overflowIsClipOrVisible = isOverflowClipOrVisible(style.overflowY()) && isOverflowClipOrVisible(style.overflowX());
 
-    if (!overflowIsClipOrVisible && style.display().isTableBox()) {
+    // The overflow property does not apply to table row elements (CSS2 section 11.1.1).
+    if (style.display() == DisplayType::TableRow) {
+        style.setOverflowX(ComputedStyle::initialOverflowX());
+        style.setOverflowY(ComputedStyle::initialOverflowY());
+    } else if (!overflowIsClipOrVisible && style.display().isTableBox()) {
         // Tables only support overflow:hidden and overflow:visible and ignore anything else,
         // see https://drafts.csswg.org/css2/#overflow. As a table is not a block
         // container box the rules for resolving conflicting x and y values in CSS Overflow Module
@@ -1068,11 +1071,11 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
 #endif
 #endif
 
-    if (documentQuirks.needsHotelsAnimationQuirk(*m_element, style)) {
+    if (documentQuirks.needsHotelsAnimationQuirk(*m_element)) {
         // We need to reset animation styles that are mistakenly overridden:
         //     animation-delay: 0s, 0.06s;
         //     animation-duration: 0.18s, 0.06s;
-        //     animation-fill-mode: none, forwards;
+        //     animation-fill-mode: none, both;
         //     animation-name: menu-grow-left, menu-fade-in;
         auto menuGrowLeftAnimation = Style::Animation { { ScopedName { "menu-grow-left"_s } } };
         menuGrowLeftAnimation.setDelay(0_css_s);
@@ -1082,7 +1085,7 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
         auto menuFadeInAnimation = Style::Animation { { ScopedName { "menu-fade-in"_s } } };
         menuFadeInAnimation.setDelay(.06_css_s);
         menuFadeInAnimation.setDuration(.06_css_s);
-        menuFadeInAnimation.setFillMode(AnimationFillMode::Forwards);
+        menuFadeInAnimation.setFillMode(AnimationFillMode::Both);
 
         auto& animations = style.ensureAnimations();
         animations = Style::Animations { WTF::move(menuGrowLeftAnimation), WTF::move(menuFadeInAnimation) };

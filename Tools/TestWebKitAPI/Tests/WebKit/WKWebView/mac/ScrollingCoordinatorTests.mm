@@ -85,7 +85,7 @@ TEST(ScrollingCoordinatorTests, DISABLED_ScrollingTreeAfterDetachReattach)
     [[NSUserDefaults standardUserDefaults] setObject:@"Scrolling" forKey:@"WebKit2Logging"];
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 500, 500) configuration:configuration addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 500, 500) configuration:configuration addToWindow:YES]);
     
     NSString *documentString = @"<style>body { height: 5000px; }</style>" \
         "<iframe srcdoc=\"<style>body { height: 5000px; }</style><div style='position:fixed; width: 100px; height: 50px; background: blue'></div>\"></iframe>";

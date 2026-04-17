@@ -83,7 +83,7 @@ TEST(WebSocket, LongMessageNoDeflate)
         "    ws.onmessage = function(msg) { alert(msg.data.length == twoMegabytes ? 'PASS' : 'FAIL - wrong receive length'); };"
         "    ws.onerror = function(error) { alert('FAIL - error ' + error.message); }"
         "</script>", server.port()];
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView loadHTMLString:html baseURL:nil];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "PASS");
 }
@@ -102,9 +102,9 @@ TEST(WebSocket, PageWithAttributedBundleIdentifierDestroyed)
     "</script>", server.port()];
 
     pid_t originalNetworkProcessPID { 0 };
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     __block size_t webSocketsConnected { 0 };
-    auto delegate = adoptNS([TestUIDelegate new]);
+    RetainPtr delegate = adoptNS([TestUIDelegate new]);
     delegate.get().runJavaScriptAlertPanelWithMessage = ^(WKWebView *, NSString *message, WKFrameInfo *, void (^completionHandler)(void)) {
         EXPECT_WK_STREQ(message, "opened successfully");
         webSocketsConnected++;
@@ -185,7 +185,7 @@ TEST(WebSocket, CloseCode)
             vector.append(string[i]);
     };
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView loadRequest:httpServer.request("/navigateAway"_s)];
     Util::run(&receivedWebSocketClose);
     Vector<uint8_t> expected { 0x3, 0xe9 }; // NSURLSessionWebSocketCloseCodeGoingAway
@@ -229,13 +229,13 @@ TEST(WebSocket, BlockedWithSubresources)
     "</script>", server.port()];
 
     {
-        auto configuration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
         configuration.get()._loadsSubresources = NO;
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
         [webView loadHTMLString:html baseURL:nil];
         EXPECT_WK_STREQ([webView _test_waitForAlert], "FAIL - error undefined");
     }
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView loadHTMLString:html baseURL:nil];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "opened successfully");
 }
@@ -245,13 +245,13 @@ TEST(WebSocket, LoadRequestWSS)
     HTTPServer tlsServer({ }, HTTPServer::Protocol::HttpsProxy);
     HTTPServer plaintextServer({ });
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", tlsServer.port()]]];
     [storeConfiguration setHTTPProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", plaintextServer.port()]]];
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     webView.get().navigationDelegate = delegate.get();
 

@@ -33,7 +33,7 @@
 
 TEST(WKProcessPoolConfiguration, Copy)
 {
-    auto configuration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     
     [configuration setInjectedBundleURL:[NSURL fileURLWithPath:@"/path/to/injected.wkbundle"]];
     [configuration setIgnoreSynchronousMessagingTimeoutsForTesting:YES];
@@ -52,7 +52,7 @@ TEST(WKProcessPoolConfiguration, Copy)
     [configuration setPrewarmsProcessesAutomatically:YES];
     [configuration setPageCacheEnabled:YES];
 
-    auto copy = adoptNS([configuration copy]);
+    RetainPtr copy = adoptNS([configuration copy]);
 
     EXPECT_TRUE([[configuration injectedBundleURL] isEqual:[copy injectedBundleURL]]);
     EXPECT_EQ([configuration ignoreSynchronousMessagingTimeoutsForTesting], [copy ignoreSynchronousMessagingTimeoutsForTesting]);
@@ -93,9 +93,9 @@ TEST(WKProcessPool, JavaScriptConfiguration)
     BOOL result = [contents writeToURL:[tempDir URLByAppendingPathComponent:@"JSC.config"] atomically:YES];
     EXPECT_TRUE(result);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().processPool._javaScriptConfigurationDirectory = tempDir;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
     [webView loadHTMLString:@"<html>hello</html>" baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
 
     NSString *path = [tempDir URLByAppendingPathComponent:@"Log.txt"].path;

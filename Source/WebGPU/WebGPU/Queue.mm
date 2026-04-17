@@ -286,14 +286,14 @@ void Queue::commitMTLCommandBuffer(id<MTLCommandBuffer> commandBuffer)
     }
 
     ASSERT(commandBuffer.commandQueue == m_commandQueue);
-    [commandBuffer addScheduledHandler:[protectedThis = Ref { *this }](id<MTLCommandBuffer>) {
+    [commandBuffer addScheduledHandler:[protectedThis = protect(*this)](id<MTLCommandBuffer>) {
         protectedThis->scheduleWork([protectedThis = protectedThis.copyRef()]() {
             ++(protectedThis->m_scheduledCommandBufferCount);
             for (auto& callback : protectedThis->m_onSubmittedWorkScheduledCallbacks.take(protectedThis->m_scheduledCommandBufferCount))
                 callback();
         });
     }];
-    [commandBuffer addCompletedHandler:[protectedThis = Ref { *this }](id<MTLCommandBuffer> mtlCommandBuffer) {
+    [commandBuffer addCompletedHandler:[protectedThis = protect(*this)](id<MTLCommandBuffer> mtlCommandBuffer) {
         MTLCommandBufferStatus status = mtlCommandBuffer.status;
         bool loseTheDevice = false;
         if (NSError *error = mtlCommandBuffer.error; status != MTLCommandBufferStatusCompleted) {
@@ -413,7 +413,7 @@ uint64_t Queue::retainCounterSampleBuffer(CommandEncoder& encoder)
 
 void Queue::releaseCounterSampleBuffer(uint64_t encoderHandle)
 {
-    scheduleWork([protectedThis = Ref { *this }, encoderHandle]() {
+    scheduleWork([protectedThis = protect(*this), encoderHandle]() {
         [protectedThis->m_retainedCounterSampleBuffers removeObjectForKey:[NSNumber numberWithUnsignedLongLong:encoderHandle]];
     });
 }
@@ -424,7 +424,7 @@ void Queue::retainTimestampsForOneUpdate(NSMutableSet<id<MTLCounterSampleBuffer>
     if (!timestamps)
         return;
 
-    scheduleWork([protectedThis = Ref { *this }, timestamps]() {
+    scheduleWork([protectedThis = protect(*this), timestamps]() {
         UNUSED_PARAM(timestamps);
     });
 }

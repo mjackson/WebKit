@@ -28,6 +28,7 @@
 
 #include "FontCascade.h"
 #include "TextBoundaries.h"
+#include <limits>
 #include <wtf/Compiler.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/text/ParsingUtilities.h>
@@ -57,9 +58,25 @@ static UStringSearch* globalSearcher()
     return searcher;
 }
 
-ICUSearcher::ICUSearcher()
+ICUSearcher::ICUSearcher(const String& foldedTarget, FindOptions& options)
 {
     lock();
+    // Characters in the separator category never really occur at the beginning of a word,
+    // so if the target begins with such a character, we just ignore the AtWordStart option.
+    if (options.contains(FindOption::AtWordStarts) && foldedTarget.length()) {
+        char32_t targetFirstCharacter;
+        U16_GET(foldedTarget, 0, 0u, foldedTarget.length(), targetFirstCharacter);
+        if (isSeparator(targetFirstCharacter))
+            options.remove(FindOption::AtWordStarts);
+    }
+
+    UCollationStrength strength = options.contains(FindOption::CaseInsensitive) ? UCOL_SECONDARY : UCOL_TERTIARY;
+    USearchAttributeValue comparator = options.contains(FindOption::CaseInsensitive)
+        ? USEARCH_PATTERN_BASE_WEIGHT_IS_WILDCARD
+        : USEARCH_STANDARD_ELEMENT_COMPARISON;
+
+    setCollationStrength(strength);
+    setAttribute(USEARCH_ELEMENT_COMPARISON, comparator);
 }
 
 ICUSearcher::~ICUSearcher()
@@ -96,6 +113,72 @@ void ICUSearcher::reset()
 UStringSearch* ICUSearcher::searcher()
 {
     return globalSearcher();
+}
+
+void ICUSearcher::setCollationStrength(UCollationStrength strength)
+{
+    SUPPRESS_FORWARD_DECL_ARG auto* s = searcher();
+    SUPPRESS_FORWARD_DECL_ARG auto* collator = usearch_getCollator(s);
+    if (ucol_getStrength(collator) != strength) {
+        ucol_setStrength(collator, strength);
+        SUPPRESS_FORWARD_DECL_ARG usearch_reset(s);
+    }
+}
+
+void ICUSearcher::setAttribute(USearchAttribute attribute, USearchAttributeValue value)
+{
+    UErrorCode status = U_ZERO_ERROR;
+    SUPPRESS_FORWARD_DECL_ARG usearch_setAttribute(searcher(), attribute, value, &status);
+    ASSERT(U_SUCCESS(status));
+}
+
+void ICUSearcher::setPattern(std::span<const char16_t> pattern)
+{
+    UErrorCode status = U_ZERO_ERROR;
+    SUPPRESS_FORWARD_DECL_ARG usearch_setPattern(searcher(), pattern.data(), static_cast<int32_t>(pattern.size()), &status);
+    ASSERT(U_SUCCESS(status));
+}
+
+void ICUSearcher::setText(std::span<const char16_t> text)
+{
+    UErrorCode status = U_ZERO_ERROR;
+    SUPPRESS_FORWARD_DECL_ARG usearch_setText(searcher(), text.data(), static_cast<int32_t>(text.size()), &status);
+    ASSERT(U_SUCCESS(status));
+}
+
+void ICUSearcher::setOffset(size_t offset)
+{
+    UErrorCode status = U_ZERO_ERROR;
+    SUPPRESS_FORWARD_DECL_ARG usearch_setOffset(searcher(), static_cast<int32_t>(offset), &status);
+    ASSERT(U_SUCCESS(status));
+}
+
+std::optional<size_t> ICUSearcher::next()
+{
+    UErrorCode status = U_ZERO_ERROR;
+    SUPPRESS_FORWARD_DECL_ARG int32_t result = usearch_next(searcher(), &status);
+    ASSERT(U_SUCCESS(status));
+    if (result == USEARCH_DONE)
+        return std::nullopt;
+    return static_cast<size_t>(result);
+}
+
+#if !PLATFORM(PLAYSTATION)
+std::optional<size_t> ICUSearcher::previous()
+{
+    UErrorCode status = U_ZERO_ERROR;
+    SUPPRESS_FORWARD_DECL_ARG int32_t result = usearch_previous(searcher(), &status);
+    ASSERT(U_SUCCESS(status));
+    if (result == USEARCH_DONE)
+        return std::nullopt;
+    return static_cast<size_t>(result);
+}
+#endif
+
+size_t ICUSearcher::matchedLength()
+{
+    SUPPRESS_FORWARD_DECL_ARG int32_t result = usearch_getMatchedLength(searcher());
+    return static_cast<size_t>(result);
 }
 
 static bool isKanaLetter(char16_t character);
@@ -155,6 +238,61 @@ bool isBadMatch(std::span<const char16_t> match, std::span<const char16_t> norma
     }
 }
 
+// Dictionary-based word break algorithms produce incorrect segmentation when the context-requiring
+// characters (e.g., Thai, Lao, Khmer) are surrounded by very long runs of unrelated characters. This
+// function limits the context surrounding context-sensitive words, which addresses this issue.
+static std::pair<std::span<const char16_t>, size_t> extractSubspanIncludingContextNeededForDictionaryBasedWordBreak(std::span<const char16_t> buffer, size_t position)
+{
+    RELEASE_ASSERT(buffer.size() <= static_cast<size_t>(std::numeric_limits<int>::max()));
+    RELEASE_ASSERT(position <= buffer.size());
+    int size = static_cast<int>(buffer.size());
+
+    {
+        char32_t character;
+        int offset = static_cast<int>(position);
+        U16_GET(buffer, 0, offset, size, character);
+        if (!requiresContextForWordBoundary(character))
+            return { buffer, 0 };
+    }
+
+    size_t contextStart = position;
+    {
+        int index = static_cast<int>(position);
+        while (index > 0) {
+            char32_t character;
+            U16_PREV(buffer, 0, index, character);
+            if (!requiresContextForWordBoundary(character))
+                break;
+            contextStart = static_cast<size_t>(index);
+        }
+    }
+
+    size_t contextEnd = position;
+    {
+        int index = static_cast<int>(position);
+        while (index < size) {
+            char32_t character;
+            U16_NEXT(buffer, index, size, character);
+            if (!requiresContextForWordBoundary(character))
+                break;
+            contextEnd = static_cast<size_t>(index);
+        }
+    }
+
+    if (contextStart > 0) {
+        int index = static_cast<int>(contextStart);
+        U16_BACK_1(buffer, 0, index);
+        contextStart = static_cast<size_t>(index);
+    }
+    if (contextEnd < buffer.size()) {
+        int index = static_cast<int>(contextEnd);
+        U16_FWD_1(buffer, index, size);
+        contextEnd = static_cast<size_t>(index);
+    }
+
+    return { buffer.subspan(contextStart, contextEnd - contextStart), contextStart };
+}
+
 bool isWordStartMatch(std::span<const char16_t> buffer, size_t start, size_t length, FindOptions options)
 {
     ASSERT(options.contains(FindOption::AtWordStarts));
@@ -203,10 +341,13 @@ bool isWordStartMatch(std::span<const char16_t> buffer, size_t start, size_t len
     if (FontCascade::isCJKIdeographOrSymbol(firstCharacter))
         return true;
 
-    size_t wordBreakSearchStart = start + length;
-    while (wordBreakSearchStart > start)
-        wordBreakSearchStart = findNextWordFromIndex(buffer, wordBreakSearchStart, false /* backwards */);
-    return wordBreakSearchStart == start;
+    auto [contextBuffer, contextOffset] = extractSubspanIncludingContextNeededForDictionaryBasedWordBreak(buffer, start);
+    size_t adjustedStart = start - contextOffset;
+
+    size_t wordBreakSearchStart = adjustedStart + length;
+    while (wordBreakSearchStart > adjustedStart)
+        wordBreakSearchStart = findNextWordFromIndex(contextBuffer, wordBreakSearchStart, false /* backwards */);
+    return wordBreakSearchStart == adjustedStart;
 }
 
 bool isWordEndMatch(std::span<const char16_t> buffer, size_t start, size_t length, FindOptions options)
@@ -215,10 +356,13 @@ bool isWordEndMatch(std::span<const char16_t> buffer, size_t start, size_t lengt
     ASSERT(options.contains(FindOption::AtWordEnds));
     UNUSED_PARAM(options);
 
+    auto [contextBuffer, contextOffset] = extractSubspanIncludingContextNeededForDictionaryBasedWordBreak(buffer, start);
+    size_t adjustedStart = start - contextOffset;
+
     // Start searching at the end of matched search, so that multiple word matches succeed.
     int endWord;
-    findEndWordBoundary(buffer, start + length - 1, &endWord);
-    return static_cast<size_t>(endWord) == start + length;
+    findEndWordBoundary(contextBuffer, adjustedStart + length - 1, &endWord);
+    return static_cast<size_t>(endWord) == adjustedStart + length;
 }
 
 void normalizeCharacters(const char16_t* characters, unsigned length, Vector<char16_t>& buffer)

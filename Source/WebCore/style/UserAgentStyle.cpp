@@ -111,7 +111,7 @@ static const MQ::MediaQueryEvaluator& printEval()
     return staticPrintEval;
 }
 
-static StyleSheetContents* parseUASheet(const String& str)
+static StyleSheetContents* parseUASheet(const WTF::String& str)
 {
     Ref sheet = StyleSheetContents::create(CSSParserContext(UASheetMode));
     sheet->parseString(str);
@@ -171,7 +171,7 @@ void UserAgentStyle::initDefaultStyleSheet()
     defaultQuirksStyle = &RuleSet::create().leakRef();
     mediaQueryStyleSheet = &StyleSheetContents::create(CSSParserContext(UASheetMode)).leakRef();
 
-    String defaultRules;
+    WTF::String defaultRules;
     auto extraDefaultStyleSheet = RenderTheme::singleton().extraDefaultStyleSheet();
     if (extraDefaultStyleSheet.isEmpty())
         defaultRules = StringImpl::createWithoutCopying(htmlUserAgentStyleSheet);

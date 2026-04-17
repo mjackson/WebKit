@@ -47,6 +47,8 @@ namespace WTF {
 
 WTF_EXPORT_PRIVATE double charactersToDouble(std::span<const Latin1Character>, bool* ok = nullptr);
 WTF_EXPORT_PRIVATE double charactersToDouble(std::span<const char16_t>, bool* ok = nullptr);
+WTF_EXPORT_PRIVATE double charactersToFixedDouble(std::span<const Latin1Character>, bool* ok = nullptr);
+WTF_EXPORT_PRIVATE double charactersToFixedDouble(std::span<const char16_t>, bool* ok = nullptr);
 WTF_EXPORT_PRIVATE float charactersToFloat(std::span<const Latin1Character>, bool* ok = nullptr);
 WTF_EXPORT_PRIVATE float charactersToFloat(std::span<const char16_t>, bool* ok = nullptr);
 WTF_EXPORT_PRIVATE float charactersToFloat(std::span<const Latin1Character>, size_t& parsedLength);
@@ -626,6 +628,7 @@ inline String operator""_str(const char16_t* characters, size_t length)
 using WTF::TrailingZerosPolicy;
 using WTF::String;
 using WTF::charactersToDouble;
+using WTF::charactersToFixedDouble;
 using WTF::charactersToFloat;
 using WTF::emptyString;
 using WTF::makeStringByJoining;

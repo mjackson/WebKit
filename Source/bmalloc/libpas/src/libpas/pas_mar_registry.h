@@ -46,7 +46,6 @@ invoked.
 #include "pas_utils.h"
 
 #include <assert.h>
-#include <execinfo.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>

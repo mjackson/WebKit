@@ -84,7 +84,7 @@ TEST(WebKit, PreferenceObserver)
 
     CFPreferencesSetAppValue(TEST_KEY(), CFSTR("1"), testDomain);
 
-    auto observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
+    RetainPtr observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
 
     CFPreferencesSetAppValue(TEST_KEY(), CFSTR("2"), testDomain);
 
@@ -101,10 +101,10 @@ TEST(WebKit, PreferenceObserverArray)
 
     NSArray *array = @[@1, @2, @3];
 
-    auto userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
+    RetainPtr userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
     [userDefaults setObject:array forKey:(NSString *)TEST_KEY()];
 
-    auto observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
+    RetainPtr observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
 
     NSArray *changedArray = @[@3, @2, @1];
     [userDefaults setObject:changedArray forKey:(NSString *)TEST_KEY()];
@@ -125,12 +125,12 @@ TEST(WebKit, PreferenceChanges)
 
     CFPreferencesSetAppValue(TEST_KEY(), CFSTR("0"), testDomain);
 
-    auto observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
+    RetainPtr observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
     
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     [configuration setProcessPool:(WKProcessPool *)context.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
     receivedPreferenceNotification = false;
@@ -166,15 +166,15 @@ TEST(WebKit, PreferenceChangesWithSuspendedProcess)
 
     CFPreferencesSetAppValue(TEST_KEY(), CFSTR("0"), testDomain);
 
-    auto observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
+    RetainPtr observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     [configuration setProcessPool:(WKProcessPool *)context.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:NO]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:NO]);
     [webView2 synchronouslyLoadTestPageNamed:@"simple"];
 
     unsigned attempts = 0;
@@ -209,12 +209,12 @@ TEST(WebKit, GlobalPreferenceChangesUsingDefaultsWrite)
 
     system([NSString stringWithFormat:@"defaults write %@ %@ 0", (__bridge id)globalDomain, (__bridge id)TEST_KEY()].UTF8String);
     
-    auto observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
+    RetainPtr observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
     
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     [configuration setProcessPool:(WKProcessPool *)context.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
     receivedPreferenceNotification = false;
@@ -256,15 +256,15 @@ TEST(WebKit, GlobalPreferenceChangesUsingDefaultsWriteWithSuspendedProcess)
 
     system([NSString stringWithFormat:@"defaults write %@ %@ 0", (__bridge id)globalDomain, (__bridge id)TEST_KEY()].UTF8String);
 
-    auto observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
+    RetainPtr observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     [configuration setProcessPool:(WKProcessPool *)context.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:NO]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:NO]);
     [webView2 synchronouslyLoadTestPageNamed:@"simple"];
     unsigned attempts = 0;
     while (![webView2 _isSuspended] && ++attempts < 5)
@@ -306,17 +306,17 @@ TEST(WebKit, PreferenceChangesArray)
 {
     CLEAR_DEFAULTS();
 
-    auto observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
+    RetainPtr observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
 
     NSArray *array = @[@1, @2, @3];
 
-    auto userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
+    RetainPtr userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
     [userDefaults setObject:array forKey:(NSString *)TEST_KEY()];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     [configuration setProcessPool:(WKProcessPool *)context.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     auto preferenceValue = [&] {
         waitForPreferenceSynchronization();
@@ -332,7 +332,7 @@ TEST(WebKit, PreferenceChangesArray)
     RetainPtr<NSObject> object;
     for (unsigned i = 0; i < preferenceQueryMaxCount && ![object isEqual:changedArray]; i++) {
         RetainPtr encodedString = preferenceValue();
-        auto encodedData = adoptNS([[NSData alloc] initWithBase64EncodedString:encodedString.get() options:0]);
+        RetainPtr encodedData = adoptNS([[NSData alloc] initWithBase64EncodedString:encodedString.get() options:0]);
         ASSERT_TRUE(encodedData);
         NSError *err = nil;
         object = retainPtr([NSKeyedUnarchiver unarchivedObjectOfClass:[NSObject class] fromData:encodedData.get() error:&err]);
@@ -349,20 +349,20 @@ TEST(WebKit, PreferenceChangesDictionary)
 {
     CLEAR_DEFAULTS();
 
-    auto observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
+    RetainPtr observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
 
     NSDictionary *dict = @{
         @"a" : @1,
         @"b" : @2,
     };
 
-    auto userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
+    RetainPtr userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
     [userDefaults setObject:dict forKey:(NSString *)TEST_KEY()];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     [configuration setProcessPool:(WKProcessPool *)context.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     auto preferenceValue = [&] {
         waitForPreferenceSynchronization();
@@ -382,7 +382,7 @@ TEST(WebKit, PreferenceChangesDictionary)
     RetainPtr<NSObject> object;
     for (unsigned i = 0; i < preferenceQueryMaxCount && ![object isEqual:changedDict]; i++) {
         RetainPtr encodedString = preferenceValue();
-        auto encodedData = adoptNS([[NSData alloc] initWithBase64EncodedString:encodedString.get() options:0]);
+        RetainPtr encodedData = adoptNS([[NSData alloc] initWithBase64EncodedString:encodedString.get() options:0]);
         ASSERT_TRUE(encodedData);
         NSError *err = nil;
         object = retainPtr([NSKeyedUnarchiver unarchivedObjectOfClass:[NSObject class] fromData:encodedData.get() error:&err]);
@@ -399,17 +399,17 @@ TEST(WebKit, PreferenceChangesData)
 {
     CLEAR_DEFAULTS();
 
-    auto observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
+    RetainPtr observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
 
     NSData *data = [NSData dataWithBytes:"abc" length:3];
 
-    auto userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
+    RetainPtr userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
     [userDefaults setObject:data forKey:(NSString *)TEST_KEY()];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     [configuration setProcessPool:(WKProcessPool *)context.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     auto preferenceValue = [&] {
         waitForPreferenceSynchronization();
@@ -425,7 +425,7 @@ TEST(WebKit, PreferenceChangesData)
     RetainPtr<NSObject> object;
     for (unsigned i = 0; i < preferenceQueryMaxCount && ![object isEqual:changedData]; i++) {
         RetainPtr encodedString = preferenceValue();
-        auto encodedData = adoptNS([[NSData alloc] initWithBase64EncodedString:encodedString.get() options:0]);
+        RetainPtr encodedData = adoptNS([[NSData alloc] initWithBase64EncodedString:encodedString.get() options:0]);
         ASSERT_TRUE(encodedData);
         NSError *err = nil;
         object = retainPtr([NSKeyedUnarchiver unarchivedObjectOfClass:[NSObject class] fromData:encodedData.get() error:&err]);
@@ -442,17 +442,17 @@ TEST(WebKit, PreferenceChangesDate)
 {
     CLEAR_DEFAULTS();
 
-    auto observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
+    RetainPtr observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
 
     NSDate *date = [NSDate dateWithTimeIntervalSinceNow:0];
 
-    auto userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
+    RetainPtr userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
     [userDefaults setObject:date forKey:(NSString *)TEST_KEY()];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     [configuration setProcessPool:(WKProcessPool *)context.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     auto preferenceValue = [&] {
         waitForPreferenceSynchronization();
@@ -468,7 +468,7 @@ TEST(WebKit, PreferenceChangesDate)
     RetainPtr<NSObject> object;
     for (unsigned i = 0; i < preferenceQueryMaxCount && ![object isEqual:changedDate]; i++) {
         RetainPtr encodedString = preferenceValue();
-        auto encodedData = adoptNS([[NSData alloc] initWithBase64EncodedString:encodedString.get() options:0]);
+        RetainPtr encodedData = adoptNS([[NSData alloc] initWithBase64EncodedString:encodedString.get() options:0]);
         ASSERT_TRUE(encodedData);
         NSError *err = nil;
         object = retainPtr([NSKeyedUnarchiver unarchivedObjectOfClass:[NSObject class] fromData:encodedData.get() error:&err]);
@@ -485,15 +485,15 @@ TEST(WebKit, PreferenceChangesNil)
 {
     CLEAR_DEFAULTS();
 
-    auto observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
+    RetainPtr observer = adoptNS([[WKTestPreferenceObserver alloc] init]);
 
-    auto userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
+    RetainPtr userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:(NSString *)testDomain]);
     [userDefaults setObject:@1 forKey:(NSString *)TEST_KEY()];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     [configuration setProcessPool:(WKProcessPool *)context.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
     auto preferenceValue = [&] {
@@ -535,10 +535,10 @@ TEST(WebKit, PreferenceObserverStartedOnActivation)
     sharedInstanceMethodOriginal = method_setImplementation(sharedInstanceMethod, (IMP)sharedInstanceMethodOverride);
     ASSERT(sharedInstanceMethodOriginal);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     [configuration setProcessPool:(WKProcessPool *)context.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 

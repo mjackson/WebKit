@@ -38,6 +38,7 @@
 #include "HTMLEmbedElement.h"
 #include "HTMLImageElement.h"
 #include "HTMLInputElement.h"
+#include "HTMLModelElement.h"
 #include "HTMLObjectElement.h"
 #include "HTMLTextAreaElement.h"
 #include "HTMLVideoElement.h"
@@ -515,6 +516,19 @@ URL HitTestResult::absoluteMediaURL() const
 {
 #if ENABLE(VIDEO)
     if (RefPtr element = mediaElement()) {
+        auto sourceURL = element->currentSrc();
+        if (RefPtr page = element->document().page())
+            return page->applyLinkDecorationFiltering(sourceURL, LinkDecorationFilteringTrigger::Unspecified);
+        return sourceURL;
+    }
+#endif
+    return { };
+}
+
+URL HitTestResult::absoluteModelURL() const
+{
+#if ENABLE(MODEL_ELEMENT)
+    if (RefPtr element = dynamicDowncast<HTMLModelElement>(m_innerNonSharedNode.get())) {
         auto sourceURL = element->currentSrc();
         if (RefPtr page = element->document().page())
             return page->applyLinkDecorationFiltering(sourceURL, LinkDecorationFilteringTrigger::Unspecified);

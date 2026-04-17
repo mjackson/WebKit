@@ -409,8 +409,10 @@ String CanvasRenderingContext2DBase::State::fontString() const
         auto separator = i ? ", "_s : " "_s;
         if (fontFamily.isGeneric())
             serializedFont.append(separator, family);
-        else
-            serializedFont.append(separator, serializeFontFamily(family.toString()));
+        else {
+            serializedFont.append(separator);
+            serializeFontFamily(serializedFont, family);
+        }
     }
 
     return serializedFont.toString();

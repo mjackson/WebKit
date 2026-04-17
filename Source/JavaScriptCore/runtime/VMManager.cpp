@@ -119,6 +119,15 @@ VMManager::Error VMManager::forEachVMWithTimeoutImpl(Seconds timeout, const Scop
     return Error::None;
 }
 
+void VMManager::Info::dump(PrintStream& out) const
+{
+    out.print("VMManager::Info(numberOfVMs:", numberOfVMs);
+    out.print(", numberOfActiveVMs:", numberOfActiveVMs);
+    out.print(", numberOfStoppedVMs:", numberOfStoppedVMs);
+    out.print(", worldMode:", worldMode);
+    out.print(", targetVM:", RawPointer(targetVM), ")");
+}
+
 auto VMManager::info() -> Info
 {
     Info info;

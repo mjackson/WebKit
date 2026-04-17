@@ -1,5 +1,6 @@
 CONSOLE MESSAGE: Hello from leaf-iframe http://localhost:8000/site-isolation/inspector/target/resources/leaf-iframe.html
 CONSOLE MESSAGE: Hello from leaf-iframe http://127.0.0.1:8000/site-isolation/inspector/target/resources/leaf-iframe.html
+CONSOLE MESSAGE: Hello from leaf-iframe http://localhost:8000/site-isolation/inspector/target/resources/leaf-iframe.html
 Test that frame targets are properly destroyed and created during a cross-origin page navigation.
 
 
@@ -21,4 +22,12 @@ http://127.0.0.1:8000/site-isolation/inspector/target/resources/leaf-iframe.html
 http://localhost:8000/site-isolation/inspector/target/resources/middle-iframe.html
 http://localhost:8000/site-isolation/inspector/target/target-cross-origin-page-navigation.html
 PASS: Frame targets should be new despite the same page structure.
+
+-- Running test case: SiteIsolation.Target.CrossOriginPageNavigation.ProvisionalLoadCancelsPreviousLoad
+Navigating cross-origin slowly...
+PASS: First provisional frame target was created.
+Navigating cross-origin again to cancel previous load...
+PASS: First provisional frame target was removed.
+PASS: Second provisional frame target was committed.
+PASS: Committed target should not be the first provisional.
 

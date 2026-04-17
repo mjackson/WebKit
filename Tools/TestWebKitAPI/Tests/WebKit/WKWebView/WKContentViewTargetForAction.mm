@@ -46,7 +46,7 @@
 
 TEST(WebKit, WKContentViewTargetForAction)
 {
-    auto webView = adoptNS([[TestWKContentViewTargetForActionView alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKContentViewTargetForActionView alloc] init]);
     [webView synchronouslyLoadTestPageNamed:@"rich-and-plain-text"];
     [webView becomeFirstResponder];
     [webView stringByEvaluatingJavaScript:@"selectPlainText()"];

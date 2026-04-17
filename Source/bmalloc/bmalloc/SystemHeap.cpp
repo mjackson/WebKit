@@ -201,7 +201,7 @@ void SystemHeap::dump()
 
 #endif
 
-// FIXME: This looks an awful lot like the code in wtf/Gigacage.cpp for large allocation.
+// FIXME: This looks an awful lot like the code in wtf/FastMalloc.cpp for large allocation.
 // https://bugs.webkit.org/show_bug.cgi?id=175086
 
 void* SystemHeap::memalignLarge(size_t alignment, size_t size)

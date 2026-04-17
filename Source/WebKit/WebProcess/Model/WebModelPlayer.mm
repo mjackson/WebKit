@@ -144,7 +144,7 @@ WebModelPlayer::~WebModelPlayer() = default;
 
 void WebModelPlayer::ensureOnMainThreadWithProtectedThis(Function<void(Ref<WebModelPlayer>)>&& task)
 {
-    ensureOnMainThread([protectedThis = Ref { *this }, task = WTF::move(task)]() mutable {
+    ensureOnMainThread([protectedThis = protect(*this), task = WTF::move(task)]() mutable {
         task(protectedThis);
     });
 }
@@ -297,14 +297,14 @@ void WebModelPlayer::load(WebCore::Model& modelSource, WebCore::LayoutSize size)
         .swizzle = { }
     };
 
-    m_currentModel = static_cast<RemoteGPUProxy&>(gpu->backing()).createModelBacking(m_currentPixelSize.width(), m_currentPixelSize.height(), diffuseTexture, specularTexture, [protectedThis = Ref { *this }] (Vector<MachSendRight>&& surfaceHandles) {
+    m_currentModel = static_cast<RemoteGPUProxy&>(gpu->backing()).createModelBacking(m_currentPixelSize.width(), m_currentPixelSize.height(), diffuseTexture, specularTexture, [protectedThis = protect(*this)] (Vector<MachSendRight>&& surfaceHandles) {
         if (surfaceHandles.size())
             protectedThis->m_displayBuffers = WTF::move(surfaceHandles);
     });
     m_currentModel->setViewportSize(cssSize.width().toFloat(), cssSize.height().toFloat());
 
     m_modelLoader = adoptNS([allocWKBridgeModelLoaderInstance() init]);
-    Ref protectedThis = Ref { *this };
+    Ref protectedThis { *this };
     [m_modelLoader setCallbacksWithModelUpdatedCallback:^(NSArray<WKBridgeUpdateMesh *> *updateRequest) {
         ensureOnMainThreadWithProtectedThis([updateRequest] (Ref<WebModelPlayer> protectedThis) {
             RefPtr model = protectedThis->m_currentModel;
@@ -397,7 +397,7 @@ void WebModelPlayer::sizeDidChange(WebCore::LayoutSize size)
 
     m_currentPixelSize = newPixelSize;
 
-    currentModel->sizeDidChange(newPixelSize.width(), newPixelSize.height(), [protectedThis = Ref { *this }](Vector<MachSendRight>&& newBuffers) {
+    currentModel->sizeDidChange(newPixelSize.width(), newPixelSize.height(), [protectedThis = protect(*this)](Vector<MachSendRight>&& newBuffers) {
         if (newBuffers.isEmpty())
             return;
 
@@ -405,7 +405,7 @@ void WebModelPlayer::sizeDidChange(WebCore::LayoutSize size)
         protectedThis->m_renderTextureIndex = 0;
         protectedThis->m_displayTextureIndex = 0;
         if (protectedThis->m_contentsDisplayDelegate)
-            RefPtr { protectedThis->m_contentsDisplayDelegate }->setDisplayBuffer(*protectedThis->displayBuffer());
+            protect(protectedThis->m_contentsDisplayDelegate)->setDisplayBuffer(*protectedThis->displayBuffer());
         protectedThis->startUpdateLoopIfNeeded();
     });
 
@@ -616,7 +616,7 @@ void WebModelPlayer::scheduleUpdateIfNeeded()
         return;
 
     m_isUpdateScheduled = true;
-    document->eventLoop().queueTask(WebCore::TaskSource::ModelElement, [protectedThis = Ref { *this }] {
+    document->eventLoop().queueTask(WebCore::TaskSource::ModelElement, [protectedThis = protect(*this)] {
         protectedThis->m_isUpdateScheduled = false;
         protectedThis->update();
     });
@@ -674,7 +674,7 @@ bool WebModelPlayer::render()
     if (++m_renderTextureIndex >= m_displayBuffers.size())
         m_renderTextureIndex = 0;
 
-    currentModel->render(textureIndex, [protectedThis = Ref { *this }, textureIndex] (bool result) mutable {
+    currentModel->render(textureIndex, [protectedThis = protect(*this), textureIndex] (bool result) mutable {
         protectedThis->ensureOnMainThreadWithProtectedThis([result, textureIndex] (Ref<WebModelPlayer> protectedThis) {
             protectedThis->m_isUpdating = false;
             if (!result)
@@ -682,7 +682,7 @@ bool WebModelPlayer::render()
 
             protectedThis->m_displayTextureIndex = textureIndex;
             if (auto* machSendRight = protectedThis->displayBuffer(); machSendRight && protectedThis->contentsDisplayDelegate())
-                RefPtr { protectedThis->m_contentsDisplayDelegate }->setDisplayBuffer(*machSendRight);
+                protect(protectedThis->m_contentsDisplayDelegate)->setDisplayBuffer(*machSendRight);
 
             protectedThis->scheduleDisplayUpdate();
         });

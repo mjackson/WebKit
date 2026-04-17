@@ -34,7 +34,7 @@ namespace TestWebKitAPI {
 void InjectedBundleController::platformInitialize()
 {
     // Set up user defaults.
-    auto argumentDomain = adoptNS([[[NSUserDefaults standardUserDefaults] volatileDomainForName:NSArgumentDomain] mutableCopy]);
+    RetainPtr argumentDomain = adoptNS([[[NSUserDefaults standardUserDefaults] volatileDomainForName:NSArgumentDomain] mutableCopy]);
     if (!argumentDomain)
         argumentDomain = adoptNS([[NSMutableDictionary alloc] init]);
 

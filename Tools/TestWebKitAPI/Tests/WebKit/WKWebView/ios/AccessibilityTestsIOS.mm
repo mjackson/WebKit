@@ -70,7 +70,7 @@ namespace TestWebKitAPI {
 
 TEST(AccessibilityTests, RectsForSpeakingSelectionBasic)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width,initial-scale=1'><span id='first'>first</span><span id='second'> second</span><br><span id='third'> third</span>"];
     [webView stringByEvaluatingJavaScript:@"document.execCommand('SelectAll')"];
 
@@ -87,7 +87,7 @@ TEST(AccessibilityTests, RectsForSpeakingSelectionBasic)
 
 TEST(AccessibilityTests, RectsForSpeakingSelectionWithLineWrapping)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width,initial-scale=1'><body style='font-size: 100px; word-wrap: break-word'><span id='text'>abcdefghijklmnopqrstuvwxyz</span></body>"];
     [webView stringByEvaluatingJavaScript:@"document.execCommand('SelectAll')"];
 
@@ -109,7 +109,7 @@ TEST(AccessibilityTests, RectsForSpeakingSelectionWithLineWrapping)
 
 TEST(AccessibilityTests, RectsForSpeakingSelectionDoNotCrashWhenChangingSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width,initial-scale=1'><span id='first'>first</span><span id='second'> second</span><br><span id='third'> third</span>"];
 
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(third, 0, third, 1)"];
@@ -123,7 +123,7 @@ TEST(AccessibilityTests, RectsForSpeakingSelectionDoNotCrashWhenChangingSelectio
 
 TEST(AccessibilityTests, StoreSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width,initial-scale=1'><span id='first'>first</span><br><span id='second'>first</span>"];
     
     // Select first node and store the selection
@@ -158,7 +158,7 @@ TEST(AccessibilityTests, WebProcessLoaderBundleLoaded)
     _AXSApplicationAccessibilitySetEnabled(true);
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"AccessibilityTestPlugin"];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration]);
     _WKRemoteObjectInterface *interface = [_WKRemoteObjectInterface remoteObjectInterfaceWithProtocol:@protocol(AccessibilityTestSupportProtocol)];
     id <AccessibilityTestSupportProtocol> remoteObjectProxy = [[webView _remoteObjectRegistry] remoteObjectProxyWithInterface:interface];
 

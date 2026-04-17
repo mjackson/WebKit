@@ -319,12 +319,12 @@ static Vector<InvalidationRuleSet>* ensureInvalidationRuleSets(const KeyType& ke
             MatchElement matchElement;
             IsNegation isNegation;
         };
-        using BuilderKey = std::tuple<uint8_t, bool, bool>;
+        using BuilderKey = std::tuple<GenericHashKey<MatchElement>, bool>;
 
         HashMap<BuilderKey, Builder> builderMap;
 
         for (auto& feature : *features) {
-            auto key = BuilderKey { static_cast<uint8_t>(feature.matchElement), static_cast<bool>(feature.isNegation), true };
+            auto key = BuilderKey { feature.matchElement, static_cast<bool>(feature.isNegation) };
 
             auto& builder = builderMap.ensure(key, [&] {
                 return Builder {
@@ -422,7 +422,7 @@ SelectorsForStyleAttribute ScopeRuleSets::selectorsForStyleAttribute() const
         if (!ruleSets)
             return SelectorsForStyleAttribute::None;
         for (auto& ruleSet : *ruleSets) {
-            if (ruleSet.matchElement != MatchElement::Subject)
+            if (ruleSet.matchElement.relation != MatchElement::Relation::Subject)
                 return SelectorsForStyleAttribute::NonSubjectPosition;
         }
         return SelectorsForStyleAttribute::SubjectPositionOnly;

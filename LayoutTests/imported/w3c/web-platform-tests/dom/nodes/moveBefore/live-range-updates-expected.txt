@@ -1,0 +1,8 @@
+RangeStartTarget
+RangeEndTarget
+Middle
+
+FAIL moveBefore still results in range startContainer snapping up to parent when startContainer is moved old_parent.moveBefore is not a function. (In 'old_parent.moveBefore(start, null)', 'old_parent.moveBefore' is undefined)
+FAIL moveBefore still causes range startContainer to snap up to parent, when startContainer ancestor is moved new_parent.moveBefore is not a function. (In 'new_parent.moveBefore(movable_div, null)', 'new_parent.moveBefore' is undefined)
+FAIL moveBefore still causes range endContainer to snap up to parent, when endContainer ancestor is moved new_parent.moveBefore is not a function. (In 'new_parent.moveBefore(movable_div, null)', 'new_parent.moveBefore' is undefined)
+

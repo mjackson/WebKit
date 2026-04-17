@@ -712,7 +712,11 @@ public:
 private:
     explicit FastStringifier(JSGlobalObject&);
     void append(JSValue);
+    void appendInt32(int32_t);
+    void appendInt32Array(JSArray&);
     String result();
+
+    static constexpr unsigned maxInt32StringLength = ("-2147483648"_s).length();
 
     // FIXME These should probably just take an ASCIILiteral.
     void append(char, char, char, char);
@@ -1076,6 +1080,24 @@ inline void FastStringifier<CharType, bufferMode>::append(char a, char b, char c
     m_length += 5;
 }
 
+template<typename CharType, BufferMode bufferMode>
+ALWAYS_INLINE void FastStringifier<CharType, bufferMode>::appendInt32(int32_t number)
+{
+    if constexpr (sizeof(CharType) == 1) {
+        char* cursor = std::bit_cast<char*>(buffer()) + m_length;
+        auto result = std::to_chars(cursor, cursor + maxInt32StringLength, number);
+        ASSERT(result.ec != std::errc::value_too_large);
+        m_length += result.ptr - cursor;
+    } else {
+        std::array<char, maxInt32StringLength> temporary;
+        auto result = std::to_chars(temporary.data(), temporary.data() + maxInt32StringLength, number);
+        ASSERT(result.ec != std::errc::value_too_large);
+        unsigned lengthToCopy = result.ptr - temporary.data();
+        WTF::copyElements(spanReinterpretCast<uint16_t>(bufferSpan().subspan(m_length)), spanReinterpretCast<const uint8_t>(std::span { temporary }).first(lengthToCopy));
+        m_length += lengthToCopy;
+    }
+}
+
 template<typename CharType>
 static ALWAYS_INLINE bool stringCopySameType(std::span<const CharType> span, CharType* cursor)
 {
@@ -1200,25 +1222,11 @@ void FastStringifier<CharType, bufferMode>::append(JSValue value)
     }
 
     if (value.isInt32()) {
-        auto number = value.asInt32();
-        constexpr unsigned maxInt32StringLength = 11; // -INT32_MIN, "-2147483648".
         if (!hasRemainingCapacity(maxInt32StringLength)) [[unlikely]] {
             recordBufferFull();
             return;
         }
-        if constexpr (sizeof(CharType) == 1) {
-            char* cursor = std::bit_cast<char*>(buffer()) + m_length;
-            auto result = std::to_chars(cursor, cursor + maxInt32StringLength, number);
-            ASSERT(result.ec != std::errc::value_too_large);
-            m_length += result.ptr - cursor;
-        } else {
-            std::array<char, maxInt32StringLength> temporary;
-            auto result = std::to_chars(temporary.data(), temporary.data() + maxInt32StringLength, number);
-            ASSERT(result.ec != std::errc::value_too_large);
-            unsigned lengthToCopy = result.ptr - temporary.data();
-            WTF::copyElements(spanReinterpretCast<uint16_t>(bufferSpan().subspan(m_length)), spanReinterpretCast<const uint8_t>(std::span { temporary }).first(lengthToCopy));
-            m_length += lengthToCopy;
-        }
+        appendInt32(value.asInt32());
         return;
     }
 
@@ -1449,6 +1457,17 @@ void FastStringifier<CharType, bufferMode>::append(JSValue value)
             return;
         }
         buffer()[m_length++] = '[';
+        if (hasInt32(array.indexingType())) {
+            appendInt32Array(array);
+            if (haveFailure()) [[unlikely]]
+                return;
+            if (!hasRemainingCapacity()) [[unlikely]] {
+                recordBufferFull();
+                return;
+            }
+            buffer()[m_length++] = ']';
+            return;
+        }
         for (unsigned i = 0, length = array.length(); i < length; ++i) {
             if (i) {
                 if (!hasRemainingCapacity()) [[unlikely]] {
@@ -1479,6 +1498,32 @@ void FastStringifier<CharType, bufferMode>::append(JSValue value)
 
     default:
         recordFailure("object type"_s);
+    }
+}
+
+template<typename CharType, BufferMode bufferMode>
+NEVER_INLINE void FastStringifier<CharType, bufferMode>::appendInt32Array(JSArray& array)
+{
+    auto* butterfly = array.butterfly();
+    unsigned length = butterfly->publicLength();
+    if (length > butterfly->vectorLength()) [[unlikely]] {
+        recordFailure("!canGetIndexQuickly"_s);
+        return;
+    }
+    auto data = butterfly->contiguousInt32();
+    for (unsigned i = 0; i < length; ++i) {
+        JSValue element = data.at(&array, i).get();
+        if (!element) [[unlikely]] {
+            recordFailure("!canGetIndexQuickly"_s);
+            return;
+        }
+        if (!hasRemainingCapacity(1 + maxInt32StringLength)) [[unlikely]] {
+            recordBufferFull();
+            return;
+        }
+        if (i)
+            buffer()[m_length++] = ',';
+        appendInt32(element.asInt32());
     }
 }
 

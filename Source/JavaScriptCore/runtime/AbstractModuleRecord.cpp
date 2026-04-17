@@ -26,13 +26,16 @@
 #include "config.h"
 #include "AbstractModuleRecord.h"
 
+#include "CyclicModuleRecord.h"
 #include "Error.h"
 #include "JSCInlines.h"
 #include "JSInternalFieldObjectImplInlines.h"
 #include "JSMapInlines.h"
 #include "JSModuleEnvironment.h"
+#include "JSModuleLoader.h"
 #include "JSModuleNamespaceObject.h"
 #include "JSModuleRecord.h"
+#include "JSPromise.h"
 #include "ObjectConstructor.h"
 #include "SyntheticModuleRecord.h"
 #include "VMTrapsInlines.h"
@@ -47,13 +50,31 @@ static constexpr bool verbose = false;
 
 const ClassInfo AbstractModuleRecord::s_info = { "AbstractModuleRecord"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(AbstractModuleRecord) };
 
-AbstractModuleRecord::AbstractModuleRecord(VM& vm, Structure* structure, const Identifier& moduleKey)
-    : Base(vm, structure)
-    , m_moduleKey(moduleKey)
+AbstractModuleRecord::AsyncEvaluationOrder::AsyncEvaluationOrder(int64_t order)
+    : m_order(order)
 {
 }
 
-void AbstractModuleRecord::finishCreation(JSGlobalObject* globalObject, VM& vm)
+int64_t AbstractModuleRecord::AsyncEvaluationOrder::order() const
+{
+    ASSERT(hasOrder());
+    return m_order;
+}
+
+auto AbstractModuleRecord::AsyncEvaluationOrder::order(int64_t order) -> AsyncEvaluationOrder&
+{
+    ASSERT(order >= 0);
+    m_order = order;
+    return *this;
+}
+
+AbstractModuleRecord::AbstractModuleRecord(VM& vm, Structure* structure, Identifier moduleKey)
+    : Base(vm, structure)
+    , m_moduleKey(WTF::move(moduleKey))
+{
+}
+
+void AbstractModuleRecord::finishCreation(JSGlobalObject*, VM& vm)
 {
     Base::finishCreation(vm);
     ASSERT(inherits(info()));
@@ -62,10 +83,6 @@ void AbstractModuleRecord::finishCreation(JSGlobalObject* globalObject, VM& vm)
     ASSERT(values.size() == numberOfInternalFields);
     for (unsigned index = 0; index < values.size(); ++index)
         Base::internalField(index).set(vm, this, values[index]);
-
-    JSMap* map = JSMap::create(vm, globalObject->mapStructure());
-    m_dependenciesMap.set(vm, this, map);
-    putDirect(vm, Identifier::fromString(vm, "dependenciesMap"_s), m_dependenciesMap.get());
 }
 
 template<typename Visitor>
@@ -76,7 +93,15 @@ void AbstractModuleRecord::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_moduleEnvironment);
     visitor.append(thisObject->m_moduleNamespaceObject);
-    visitor.append(thisObject->m_dependenciesMap);
+    visitor.append(thisObject->m_cycleRoot);
+    visitor.append(thisObject->m_topLevelCapability);
+    visitor.append(thisObject->m_asyncCapability);
+    Locker locker { thisObject->cellLock() };
+    visitor.append(thisObject->m_asyncParentModules.begin(), thisObject->m_asyncParentModules.end());
+    auto values = thisObject->m_dependencies.values();
+    visitor.append(values.begin(), values.end());
+    for (const auto& [key, loadedModule] : thisObject->m_loadedModules)
+        visitor.append(loadedModule.m_module);
 }
 
 DEFINE_VISIT_CHILDREN(AbstractModuleRecord);
@@ -86,15 +111,45 @@ size_t AbstractModuleRecord::estimatedSize(JSCell* cell, VM& vm)
     size_t size = Base::estimatedSize(cell, vm);
     auto* thisObject = jsCast<AbstractModuleRecord*>(cell);
     size += thisObject->m_starExportEntries.capacity() * sizeof(ExportEntry);
-    size += thisObject->m_requestedModules.capacity() * sizeof(Identifier);
+    size += thisObject->m_requestedModules.capacity() * sizeof(ModuleRequest);
     size += thisObject->m_exportEntries.byteSize();
     size += thisObject->m_importEntries.byteSize();
     return size;
 }
 
+ScriptFetchParameters::Type AbstractModuleRecord::ModuleRequest::type(ScriptFetchParameters::Type fallback) const
+{
+    if (m_attributes)
+        return m_attributes->type();
+    return fallback;
+}
+
+AbstractModuleRecord::LoadedModuleRequest::LoadedModuleRequest(VM& vm, ModuleRequest moduleRequest, AbstractModuleRecord* loadedModule, JSCell* owner)
+    : ModuleRequest(WTF::move(moduleRequest))
+    , m_module(vm, owner, loadedModule)
+{
+}
+
+bool AbstractModuleRecord::ModuleRequest::operator==(const ModuleRequest& other) const
+{
+    if (this == &other)
+        return true;
+
+    if (m_specifier != other.m_specifier)
+        return false;
+
+    if (!!m_attributes != !!other.m_attributes)
+        return false;
+
+    if (m_attributes)
+        return m_attributes->type() == other.m_attributes->type();
+
+    return true;
+}
+
 void AbstractModuleRecord::appendRequestedModule(const Identifier& moduleName, RefPtr<ScriptFetchParameters>&& attributes)
 {
-    m_requestedModules.append({ moduleName.impl(), WTF::move(attributes) });
+    m_requestedModules.append({ moduleName, WTF::move(attributes) });
 }
 
 void AbstractModuleRecord::addStarExportEntry(const Identifier& moduleName)
@@ -166,22 +221,15 @@ auto AbstractModuleRecord::Resolution::ambiguous() -> Resolution
 
 AbstractModuleRecord* AbstractModuleRecord::hostResolveImportedModule(JSGlobalObject* globalObject, const Identifier& moduleName)
 {
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-    JSValue moduleNameValue = identifierToJSValue(vm, moduleName);
-    JSValue entry = m_dependenciesMap->JSMap::get(globalObject, moduleNameValue);
-    RETURN_IF_EXCEPTION(scope, nullptr);
-    RELEASE_AND_RETURN(scope, entry.getAs<AbstractModuleRecord*>(globalObject, Identifier::fromString(vm, "module"_s)));
+    if (auto iter = m_dependencies.find(moduleName.string()); iter != m_dependencies.end())
+        return iter->value.get();
+    return globalObject->moduleLoader()->maybeGetImportedModule(this, moduleName);
 }
 
 void AbstractModuleRecord::setImportedModule(JSGlobalObject* globalObject, const Identifier& moduleName, AbstractModuleRecord* record)
 {
     VM& vm = globalObject->vm();
-    JSValue moduleNameValue = identifierToJSValue(vm, moduleName);
-    JSObject* object = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype(), 1);
-    object->putDirect(vm, PropertyName(Identifier::fromString(vm, "module"_s)), record);
-    // TODO(@heimskr): perhaps more properties, such as state
-    m_dependenciesMap->JSMap::set(globalObject, moduleNameValue, object);
+    m_dependencies.set(moduleName.string(), WriteBarrier<AbstractModuleRecord>(vm, this, record));
 }
 
 auto AbstractModuleRecord::resolveImport(JSGlobalObject* globalObject, const Identifier& localName) -> Resolution
@@ -777,6 +825,11 @@ JSModuleNamespaceObject* AbstractModuleRecord::getModuleNamespace(JSGlobalObject
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+#if ASSERT_ENABLED
+    if (auto* cyclic = jsDynamicCast<CyclicModuleRecord*>(this))
+        ASSERT(cyclic->status() != CyclicModuleRecord::Status::New && cyclic->status() != CyclicModuleRecord::Status::Unlinked);
+#endif
+
     // http://www.ecma-international.org/ecma-262/6.0/#sec-getmodulenamespace
     if (m_moduleNamespaceObject)
         return m_moduleNamespaceObject.get();
@@ -827,6 +880,16 @@ JSModuleNamespaceObject* AbstractModuleRecord::getModuleNamespace(JSGlobalObject
     return moduleNamespaceObject;
 }
 
+JSPromise* AbstractModuleRecord::asyncCapability() const
+{
+    return m_asyncCapability.get();
+}
+
+void AbstractModuleRecord::asyncCapability(VM& vm, JSPromise* promise)
+{
+    m_asyncCapability.set(vm, this, promise);
+}
+
 void AbstractModuleRecord::setModuleEnvironment(JSGlobalObject* globalObject, JSModuleEnvironment* moduleEnvironment)
 {
     VM& vm = globalObject->vm();
@@ -844,20 +907,14 @@ void AbstractModuleRecord::setModuleEnvironment(JSGlobalObject* globalObject, JS
     m_moduleEnvironment.set(vm, this, moduleEnvironment);
 }
 
-Synchronousness AbstractModuleRecord::link(JSGlobalObject* globalObject, JSValue scriptFetcher)
+void AbstractModuleRecord::link(JSGlobalObject* globalObject, JSValue scriptFetcher)
 {
-    if (auto* jsModuleRecord = jsDynamicCast<JSModuleRecord*>(this))
-        return jsModuleRecord->link(globalObject, scriptFetcher);
-#if ENABLE(WEBASSEMBLY)
-    // WebAssembly module imports and exports are set up in the module record's
-    // evaluate() step. At this point, imports are just initialized as TDZ.
-    if (auto* wasmModuleRecord = jsDynamicCast<WebAssemblyModuleRecord*>(this))
-        return wasmModuleRecord->link(globalObject, scriptFetcher);
-#endif
-    if (auto* moduleRecord = jsDynamicCast<SyntheticModuleRecord*>(this))
-        return moduleRecord->link(globalObject, scriptFetcher);
-    RELEASE_ASSERT_NOT_REACHED();
-    return Synchronousness::Sync;
+    if (auto* cyclicModuleRecord = jsDynamicCast<CyclicModuleRecord*>(this))
+        cyclicModuleRecord->link(globalObject, scriptFetcher); // can throw
+    else if (auto* moduleRecord = jsDynamicCast<SyntheticModuleRecord*>(this))
+        moduleRecord->link(globalObject, scriptFetcher);
+    else
+        RELEASE_ASSERT_NOT_REACHED();
 }
 
 JS_EXPORT_PRIVATE JSValue AbstractModuleRecord::evaluate(JSGlobalObject* globalObject, JSValue sentValue, JSValue resumeMode)
@@ -879,10 +936,287 @@ JS_EXPORT_PRIVATE JSValue AbstractModuleRecord::evaluate(JSGlobalObject* globalO
         RELEASE_AND_RETURN(scope, wasmModuleRecord->evaluate(globalObject));
     }
 #endif
-    if (auto* moduleRecord = jsDynamicCast<SyntheticModuleRecord*>(this))
-        RELEASE_AND_RETURN(scope, moduleRecord->evaluate(globalObject));
+    if (auto* syntheticRecord = jsDynamicCast<SyntheticModuleRecord*>(this))
+        RELEASE_AND_RETURN(scope, syntheticRecord->evaluate(globalObject));
     RELEASE_ASSERT_NOT_REACHED();
     return jsUndefined();
+}
+
+JSPromise* AbstractModuleRecord::evaluate(JSGlobalObject* globalObject)
+{
+    VM& vm = globalObject->vm();
+
+    auto wrap = [&](JSValue value) -> JSPromise* {
+        if (!value)
+            return nullptr;
+        if (auto* promise = jsDynamicCast<JSPromise*>(value))
+            return promise;
+        auto* promise = JSPromise::create(vm, globalObject->promiseStructure());
+        promise->resolve(globalObject, vm, value);
+        return promise;
+    };
+
+    if (auto* cyclicRecord = jsDynamicCast<CyclicModuleRecord*>(this))
+        return wrap(cyclicRecord->evaluate(globalObject));
+    if (auto* syntheticRecord = jsDynamicCast<SyntheticModuleRecord*>(this))
+        return wrap(syntheticRecord->evaluate(globalObject));
+    RELEASE_ASSERT_NOT_REACHED();
+    return nullptr;
+}
+
+void AbstractModuleRecord::evaluateModuleSync(JSGlobalObject* globalObject)
+{
+    // EvaluateModuleSync(module)
+    // https://tc39.es/ecma262/#sec-EvaluateModuleSync
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    ASSERT(!inherits(JSModuleRecord::info()));
+    JSPromise* promise = evaluate(globalObject);
+    RETURN_IF_EXCEPTION(scope, void());
+    // "the caller guarantees that module's evaluation will return an already settled promise"
+    ASSERT(promise->status() != JSPromise::Status::Pending);
+    if (promise->status() == JSPromise::Status::Rejected)
+        throwException(globalObject, scope, promise->result());
+}
+
+static void checkSafeToRecurse(JSGlobalObject* globalObject, ThrowScope& scope)
+{
+    if (!globalObject->vm().isSafeToRecurse())
+        throwRangeError(globalObject, scope, "Maximum call stack size exceeded"_s);
+}
+
+unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObject, Vector<AbstractModuleRecord*, 8>& stack, unsigned index)
+{
+    // InnerModuleEvaluation(module, stack, index)
+    // https://tc39.es/ecma262/#sec-innermoduleevaluation
+
+    constexpr auto invalid = static_cast<unsigned>(-1);
+    using Status = CyclicModuleRecord::Status;
+
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    auto* module = jsDynamicCast<CyclicModuleRecord*>(this);
+
+    // 1. If module is not a Cyclic Module Record, then
+    if (!module) {
+        // 1.a. Perform ? EvaluateModuleSync(module).
+        evaluateModuleSync(globalObject);
+        RETURN_IF_EXCEPTION(scope, invalid);
+        // 1.b. Return index.
+        return index;
+    }
+    // 2. If module.[[Status]] is either EVALUATING-ASYNC or EVALUATED, then
+    if (auto status = module->status(); status == Status::EvaluatingAsync || status == Status::Evaluated) {
+        // 2.a. If module.[[EvaluationError]] is EMPTY, return index.
+        JSValue evaluationError = module->evaluationError();
+        if (!evaluationError)
+            RELEASE_AND_RETURN(scope, index);
+        // 2.b. Otherwise, return ? module.[[EvaluationError]].
+        scope.throwException(globalObject, evaluationError);
+        return invalid;
+    }
+    // 3. If module.[[Status]] is EVALUATING, return index.
+    if (module->status() == Status::Evaluating)
+        RELEASE_AND_RETURN(scope, index);
+    // 4. Assert: module.[[Status]] is LINKED.
+    ASSERT(module->status() == Status::Linked);
+    // 5. Set module.[[Status]] to EVALUATING.
+    module->status(Status::Evaluating);
+    // 6. Let moduleIndex be index.
+    unsigned moduleIndex = index;
+    // 7. Set module.[[DFSAncestorIndex]] to index.
+    module->dfsAncestorIndex(index);
+    // 8. Set module.[[PendingAsyncDependencies]] to 0.
+    module->pendingAsyncDependencies(0);
+    // 9. Set index to index + 1.
+    ++index;
+    // 10. Append module to stack.
+    stack.append(module);
+    // 11. For each ModuleRequest Record request of module.[[RequestedModules]], do
+    for (const ModuleRequest& request : module->requestedModules()) {
+        // 11.a. Let requiredModule be GetImportedModule(module, request).
+        AbstractModuleRecord* requiredModule = JSModuleLoader::getImportedModule(module, request);
+        checkSafeToRecurse(globalObject, scope);
+        RETURN_IF_EXCEPTION(scope, invalid);
+        // 11.b. Set index to ? InnerModuleEvaluation(requiredModule, stack, index).
+        unsigned result = requiredModule->innerModuleEvaluation(globalObject, stack, index);
+        RETURN_IF_EXCEPTION(scope, invalid);
+        index = result;
+        // 11.c. If requiredModule is a Cyclic Module Record, then
+        if (auto* cyclic = jsDynamicCast<CyclicModuleRecord*>(requiredModule)) {
+            // 11.c.i. Assert: requiredModule.[[Status]] is one of EVALUATING, EVALUATING-ASYNC, or EVALUATED.
+            ASSERT(cyclic->status() == Status::Evaluating || cyclic->status() == Status::EvaluatingAsync || cyclic->status() == Status::Evaluated);
+            // 11.c.ii. Assert: requiredModule.[[Status]] is EVALUATING if and only if stack contains requiredModule.
+            ASSERT(stack.contains(requiredModule) == (cyclic->status() == Status::Evaluating));
+            // 11.c.iii. If requiredModule.[[Status]] is EVALUATING, then
+            if (cyclic->status() == Status::Evaluating) {
+                // 11.c.iii.1. Set module.[[DFSAncestorIndex]] to min(module.[[DFSAncestorIndex]], requiredModule.[[DFSAncestorIndex]]).
+                module->dfsAncestorIndex(std::min(module->dfsAncestorIndex(), cyclic->dfsAncestorIndex()));
+            // 11.c.iv. Else,
+            } else {
+                // 11.c.iv.1. Set requiredModule to requiredModule.[[CycleRoot]].
+                cyclic = requiredModule->cycleRoot();
+                requiredModule = cyclic;
+                // 11.c.iv.2. Assert: requiredModule.[[Status]] is either EVALUATING-ASYNC or EVALUATED.
+                ASSERT(cyclic->status() == Status::EvaluatingAsync || cyclic->status() == Status::Evaluated);
+                // 11.c.iv.3. If requiredModule.[[EvaluationError]] is not empty, return ? requiredModule.[[EvaluationError]].
+                if (JSValue error = cyclic->evaluationError()) {
+                    scope.throwException(globalObject, error);
+                    return invalid;
+                }
+            }
+            // 11.c.v. If requiredModule.[[AsyncEvaluationOrder]] is an integer, then
+            if (cyclic->asyncEvaluationOrder().hasOrder()) {
+                // 11.c.v.1. Set module.[[PendingAsyncDependencies]] to module.[[PendingAsyncDependencies]] + 1.
+                module->pendingAsyncDependencies(module->pendingAsyncDependencies().value() + 1);
+                // 11.c.v.2. Append module to requiredModule.[[AsyncParentModules]].
+                cyclic->appendAsyncParentModule(vm, module);
+            }
+        }
+    }
+    // 12. If module.[[PendingAsyncDependencies]] > 0 or module.[[HasTLA]] is true, then
+    if (module->pendingAsyncDependencies() > 0 || module->hasTLA()) {
+        // 12.a. Assert: module.[[AsyncEvaluationOrder]] is UNSET.
+        ASSERT(module->asyncEvaluationOrder().isUnset());
+        // 12.b. Set module.[[AsyncEvaluationOrder]] to IncrementModuleAsyncEvaluationCount().
+        module->asyncEvaluationOrder(vm.incrementModuleAsyncEvaluationCount());
+        // 12.c. If module.[[PendingAsyncDependencies]] = 0, perform ExecuteAsyncModule(module).
+        if (std::optional<int> deps = module->pendingAsyncDependencies(); deps && !*deps) {
+            module->executeAsync(globalObject);
+            RETURN_IF_EXCEPTION(scope, invalid);
+        }
+    // 13. Else,
+    } else {
+        // 13.a. Perform ? module.ExecuteModule().
+        module->execute(globalObject);
+        RETURN_IF_EXCEPTION(scope, invalid);
+    }
+    // 14. Assert: module occurs exactly once in stack.
+    ASSERT(stack.contains(module));
+    ASSERT(stack.find(module) == stack.reverseFind(module));
+    // 15. Assert: module.[[DFSAncestorIndex]] <= moduleIndex.
+    ASSERT(module->dfsAncestorIndex() <= moduleIndex);
+    // 16. If module.[[DFSAncestorIndex]] = moduleIndex, then
+    if (module->dfsAncestorIndex() == moduleIndex) {
+        // 16.a. Let done be false.
+        bool done = false;
+        // 16.b. Repeat, while done is false,
+        do {
+            // 16.b.i. Let requiredModule be the last element of stack.
+            // 16.b.ii. Remove the last element of stack.
+            AbstractModuleRecord* requiredModule = stack.takeLast();
+            // 16.b.iii. Assert: requiredModule is a Cyclic Module Record.
+            auto* cyclic = jsCast<CyclicModuleRecord*>(requiredModule); // cyclic is a downcasted alias of requiredModule.
+            // 16.b.iv. Assert: requiredModule.[[AsyncEvaluationOrder]] is either an integer or UNSET.
+            ASSERT(cyclic->asyncEvaluationOrder().hasOrder() || cyclic->asyncEvaluationOrder().isUnset());
+            // 16.b.v. If requiredModule.[[AsyncEvaluationOrder]] is UNSET, set requiredModule.[[Status]] to EVALUATED.
+            if (cyclic->asyncEvaluationOrder().isUnset()) {
+                cyclic->status(Status::Evaluated);
+            // 16.b.vi. Otherwise, set requiredModule.[[Status]] to EVALUATING-ASYNC.
+            } else
+                cyclic->status(Status::EvaluatingAsync);
+            // 16.b.vii. If requiredModule and module are the same Module Record, set done to true.
+            done = requiredModule == module;
+            // 16.b.viii. Set requiredModule.[[CycleRoot]] to module.
+            requiredModule->cycleRoot(vm, module);
+        } while (!done);
+    }
+    // 17. Return index.
+    RELEASE_AND_RETURN(scope, index);
+}
+
+unsigned AbstractModuleRecord::innerModuleLinking(JSGlobalObject* globalObject, Vector<CyclicModuleRecord*, 8>& stack, unsigned index, JSValue scriptFetcher)
+{
+    // InnerModuleLinking(module, stack, index)
+    // https://tc39.es/ecma262/#sec-InnerModuleLinking
+
+    constexpr auto invalid = static_cast<unsigned>(-1);
+    using Status = CyclicModuleRecord::Status;
+
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    auto* module = jsDynamicCast<CyclicModuleRecord*>(this);
+
+    // 1. If module is not a Cyclic Module Record, then
+    if (!module) {
+        // 1.a. Perform ? module.Link().
+        link(globalObject, scriptFetcher);
+        RETURN_IF_EXCEPTION(scope, invalid);
+        // 1.b. Return index.
+        return index;
+    }
+    // 2. If module.[[Status]] is one of LINKING, LINKED, EVALUATING-ASYNC, or EVALUATED, then
+    if (auto status = module->status(); status == Status::Linking || status == Status::Linked || status == Status::EvaluatingAsync || status == Status::Evaluated) {
+        // 2.a. Return index.
+        return index;
+    }
+    // 3. Assert: module.[[Status]] is UNLINKED.
+    ASSERT(module->status() == Status::Unlinked);
+    // 4. Set module.[[Status]] to LINKING.
+    module->status(Status::Linking);
+    // 5. Let moduleIndex be index.
+    unsigned moduleIndex = index;
+    // 6. Set module.[[DFSAncestorIndex]] to index.
+    module->dfsAncestorIndex(index);
+    // 7. Set index to index + 1.
+    ++index;
+    // 8. Append module to stack.
+    stack.append(module);
+    // 9. For each ModuleRequest Record request of module.[[RequestedModules]], do
+    for (const ModuleRequest& request : module->requestedModules()) {
+        // 9.a. Let requiredModule be GetImportedModule(module, request).
+        AbstractModuleRecord* requiredModule = JSModuleLoader::getImportedModule(module, request);
+        {
+            Locker locker { cellLock() };
+            m_dependencies.set(request.m_specifier.string(), WriteBarrier<AbstractModuleRecord>(vm, this, requiredModule));
+        }
+        checkSafeToRecurse(globalObject, scope);
+        RETURN_IF_EXCEPTION(scope, invalid);
+        // 9.b. Set index to ? InnerModuleLinking(requiredModule, stack, index).
+        index = requiredModule->innerModuleLinking(globalObject, stack, index, scriptFetcher);
+        RETURN_IF_EXCEPTION(scope, invalid);
+        // 9.c. If requiredModule is a Cyclic Module Record, then
+        if (auto* requiredCyclic = jsDynamicCast<CyclicModuleRecord*>(requiredModule)) {
+            // 9.c.i. Assert: requiredModule.[[Status]] is one of LINKING, LINKED, EVALUATING-ASYNC, or EVALUATED.
+            Status status = requiredCyclic->status();
+            ASSERT_UNUSED(status, status == Status::Linking || status == Status::Linked || status == Status::EvaluatingAsync || status == Status::Evaluated);
+            // 9.c.ii. Assert: requiredModule.[[Status]] is LINKING if and only if stack contains requiredModule.
+            ASSERT((status == Status::Linking) == stack.contains(requiredModule));
+            // 9.c.iii. If requiredModule.[[Status]] is LINKING, then
+            if (status == Status::Linking) {
+                // 9.c.iii.1. Set module.[[DFSAncestorIndex]] to min(module.[[DFSAncestorIndex]], requiredModule.[[DFSAncestorIndex]]).
+                module->dfsAncestorIndex(std::min(module->dfsAncestorIndex(), requiredCyclic->dfsAncestorIndex()));
+            }
+        }
+    }
+    // 10. Perform ? module.InitializeEnvironment().
+    module->initializeEnvironment(globalObject, scriptFetcher);
+    JSModuleLoader::attachErrorInfo(globalObject, scope, module, module->moduleKey(), module->moduleType(), JSModuleLoader::ModuleFailure::Kind::Instantiation);
+    RETURN_IF_EXCEPTION(scope, invalid);
+    // 11. Assert: module occurs exactly once in stack.
+    ASSERT(stack.contains(this));
+    ASSERT(stack.find(this) == stack.reverseFind(this));
+    // 12. Assert: module.[[DFSAncestorIndex]] ≤ moduleIndex.
+    ASSERT(module->dfsAncestorIndex() <= moduleIndex);
+    // 13. If module.[[DFSAncestorIndex]] = moduleIndex, then
+    if (module->dfsAncestorIndex() == moduleIndex) {
+        // 13.a. Let done be false.
+        bool done = false;
+        // 13.b. Repeat, while done is false,
+        do {
+            // 13.b.i. Let requiredModule be the last element of stack.
+            // 13.b.ii. Remove the last element of stack.
+            AbstractModuleRecord* requiredModule = stack.takeLast();
+            // 13.b.iii. Assert: requiredModule is a Cyclic Module Record.
+            auto* cyclic = jsCast<CyclicModuleRecord*>(requiredModule);
+            // 13.b.iv. Set requiredModule.[[Status]] to LINKED.
+            cyclic->status(Status::Linked);
+            // 13.b.v. If requiredModule and module are the same Module Record, set done to true.
+            done = requiredModule == module;
+        } while (!done);
+    }
+    // 14. Return index.
+    return index;
 }
 
 static String printableName(const RefPtr<UniquedStringImpl>& uid)
@@ -895,6 +1229,41 @@ static String printableName(const RefPtr<UniquedStringImpl>& uid)
 static String printableName(const Identifier& ident)
 {
     return printableName(ident.impl());
+}
+
+ScriptFetchParameters::Type AbstractModuleRecord::moduleType() const
+{
+    if (jsDynamicCast<const JSModuleRecord*>(this))
+        return ScriptFetchParameters::JavaScript;
+    if (jsDynamicCast<const SyntheticModuleRecord*>(this))
+        return ScriptFetchParameters::JSON;
+#if ENABLE(WEBASSEMBLY)
+    if (jsDynamicCast<const WebAssemblyModuleRecord*>(this))
+        return ScriptFetchParameters::WebAssembly;
+#endif
+    RELEASE_ASSERT_NOT_REACHED();
+    return ScriptFetchParameters::None;
+}
+
+void AbstractModuleRecord::cycleRoot(VM& vm, CyclicModuleRecord* newRoot)
+{
+    m_cycleRoot.set(vm, this, newRoot);
+}
+
+void AbstractModuleRecord::topLevelCapability(VM& vm, JSPromise* promise)
+{
+    m_topLevelCapability.set(vm, this, promise);
+}
+
+void AbstractModuleRecord::hasTLA(bool has)
+{
+    m_hasTLA = has;
+}
+
+void AbstractModuleRecord::appendAsyncParentModule(VM& vm, AbstractModuleRecord* parentModule)
+{
+    Locker locker { cellLock() };
+    m_asyncParentModules.append({ vm, this, parentModule });
 }
 
 void AbstractModuleRecord::dump()

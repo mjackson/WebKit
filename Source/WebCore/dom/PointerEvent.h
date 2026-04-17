@@ -53,7 +53,7 @@ class PointerEvent : public MouseEvent {
     WTF_MAKE_TZONE_ALLOCATED(PointerEvent);
 public:
     struct Init : MouseEventInit {
-        PointerID pointerId { mousePointerID };
+        long pointerId { mousePointerID };
         double width { 1 };
         double height { 1 };
         float pressure { 0 };

@@ -34,10 +34,10 @@ namespace TestWebKitAPI {
 
 TEST(NowPlayingMetadataObserver, VideoTitle)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
     [webView loadTestPageNamed:@"large-video-test-now-playing"];
     [webView waitForMessage:@"playing"];
 
@@ -58,10 +58,10 @@ TEST(NowPlayingMetadataObserver, VideoTitle)
 
 TEST(NowPlayingMetadataObserver, VideoTitleUpdatedByMediaSession)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
     [webView loadTestPageNamed:@"large-video-test-now-playing"];
     [webView waitForMessage:@"playing"];
 

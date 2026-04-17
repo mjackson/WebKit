@@ -552,7 +552,6 @@ webkit.org/b/307143 imported/w3c/web-platform-tests/preload/preload-in-data-doc.
 
 # Flaky tests detected from 29Jan2023 to 23Feb2023
 webkit.org/b/252878 gamepad/gamepad-event-handlers.html [ Pass Timeout ]
-webkit.org/b/252878 http/tests/media/video-play-waiting.html [ Failure Pass ]
 webkit.org/b/281053 http/tests/media/user-gesture-preserved-across-xmlhttprequest.html [ Failure ]
 webkit.org/b/252878 http/wpt/service-workers/controlled-sharedworker.https.html [ Failure Pass ]
 webkit.org/b/252878 imported/blink/fast/transforms/transform-update-frame-overflow.html [ ImageOnlyFailure ]
@@ -1245,6 +1244,9 @@ webkit.org/b/309636 [ arm64 ] webgl/tex-2d-video-no-change-wrap.html [ Pass Fail
 
 webkit.org/b/309863 [ arm64 ] media/video-seek-have-nothing.html [ Pass Failure ]
 
+webkit.org/b/312150 [ arm64 ] imported/w3c/web-platform-tests/encoding/textdecoder-mistakes.any.html [ Failure ]
+webkit.org/b/312150 [ arm64 ] imported/w3c/web-platform-tests/encoding/textdecoder-mistakes.any.worker.html [ Failure ]
+
 [ arm64 ] imported/w3c/web-platform-tests/content-security-policy/frame-ancestors/frame-ancestors-none-block.html [ Failure Pass ]
 
 webkit.org/b/309575 imported/w3c/web-platform-tests/uievents/textInput/enter-textarea-contenteditable.html [ Pass Failure ]
@@ -1276,3 +1278,10 @@ webkit.org/b/311861 [ arm64 ] media/video-played-ranges-1.html [ Pass Failure Ti
 webkit.org/b/311863 [ arm64 ] media/video-interruption-with-resume-not-allowing-play.html [ Pass Failure Timeout ]
 webkit.org/b/311864 [ arm64 ] fast/events/monotonic-event-time-real-gap.html [ Pass Failure ]
 webkit.org/b/311865 [ arm64 ] imported/w3c/web-platform-tests/webrtc/RTCDataChannel-send-close-blob.window.html [ Pass Failure ]
+
+webkit.org/b/312273 http/tests/media/video-play-waiting.html [ Pass Failure ]
+
+webkit.org/b/312396 imported/w3c/web-platform-tests/wasm/core/memory64/table_fill64.wast.js.html [ Failure ]
+webkit.org/b/312396 imported/w3c/web-platform-tests/wasm/core/memory64/table_get64.wast.js.html [ Failure ]
+webkit.org/b/312396 imported/w3c/web-platform-tests/wasm/core/memory64/table_grow64.wast.js.html [ Failure ]
+webkit.org/b/312396 imported/w3c/web-platform-tests/wasm/core/memory64/table_set64.wast.js.html [ Failure ]

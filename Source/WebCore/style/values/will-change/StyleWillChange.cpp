@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,6 +26,7 @@
 #include "config.h"
 #include "StyleWillChange.h"
 
+#include "CSSPropertyIdentifierValue.h"
 #include "Settings.h"
 #include "StyleBuilderChecking.h"
 #include <wtf/TZoneMallocInlines.h>
@@ -205,37 +206,40 @@ auto CSSValueConversion<WillChange>::operator()(BuilderState& state, const CSSVa
         case CSSValueContents:
             return WillChangeAnimatableFeatures { WillChangeAnimatableFeature::Feature::Contents };
         default:
-            if (primitiveValue->isPropertyID()) {
-                if (auto propertyID = primitiveValue->propertyID(); isExposed(propertyID, &state.document().settings()))
-                    return WillChangeAnimatableFeatures { WillChangeAnimatableFeature::Feature::Property, propertyID };
-            }
-
             return CSS::Keyword::Auto { };
         }
     }
 
-    auto list = requiredListDowncast<CSSValueList, CSSPrimitiveValue, 1>(state, value);
+    if (RefPtr propertyIdentifierValue = dynamicDowncast<CSSPropertyIdentifierValue>(value)) {
+        if (auto propertyID = propertyIdentifierValue->propertyIdentifier().value; isExposed(propertyID, &state.document().settings()))
+            return WillChangeAnimatableFeatures { WillChangeAnimatableFeature::Feature::Property, propertyID };
+
+        state.setCurrentPropertyInvalidAtComputedValueTime();
+        return CSS::Keyword::Auto { };
+    }
+
+    auto list = requiredListDowncast<CSSValueList, CSSValue, 1>(state, value);
     if (!list)
         return CSS::Keyword::Auto { };
 
     auto result = WillChangeAnimatableFeatures { };
 
     for (Ref item : *list) {
-        switch (item->valueID()) {
-        case CSSValueScrollPosition:
-            result.addFeature(WillChangeAnimatableFeature::Feature::ScrollPosition);
-            break;
-        case CSSValueContents:
-            result.addFeature(WillChangeAnimatableFeature::Feature::Contents);
-            break;
-        default:
-            if (item->isPropertyID()) {
-                if (auto propertyID = item->propertyID(); isExposed(propertyID, &state.document().settings())) {
-                    result.addFeature(WillChangeAnimatableFeature::Feature::Property, propertyID);
-                    break;
-                }
+        if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(item)) {
+            switch (primitiveValue->valueID()) {
+            case CSSValueScrollPosition:
+                result.addFeature(WillChangeAnimatableFeature::Feature::ScrollPosition);
+                break;
+            case CSSValueContents:
+                result.addFeature(WillChangeAnimatableFeature::Feature::Contents);
+                break;
+            default:
+                break;
             }
-            break;
+        } else if (RefPtr propertyIdentifierValue = dynamicDowncast<CSSPropertyIdentifierValue>(item)) {
+            if (auto propertyID = propertyIdentifierValue->propertyIdentifier().value; isExposed(propertyID, &state.document().settings())) {
+                result.addFeature(WillChangeAnimatableFeature::Feature::Property, propertyID);
+            }
         }
     }
 

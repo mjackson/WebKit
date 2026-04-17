@@ -151,7 +151,7 @@ protected:
         auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
         m_configuration.get().processPool = (WKProcessPool *)context.get();
 
-        auto handler = adoptNS([[GetDisplayMediaMessageHandler alloc] init]);
+        RetainPtr handler = adoptNS([[GetDisplayMediaMessageHandler alloc] init]);
         [[m_configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
 
         auto preferences = [m_configuration preferences];

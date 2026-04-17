@@ -321,7 +321,7 @@ TEST(ScreenTime, IsBlockedByScreenTimeKVO)
     __block bool childRestrictionsDone = false;
 
     RetainPtr webView = webViewForScreenTimeTests();
-    auto observer = adoptNS([[BlockedStateObserver alloc] initWithWebView:webView.get()]);
+    RetainPtr observer = adoptNS([[BlockedStateObserver alloc] initWithWebView:webView.get()]);
 
     RetainPtr request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"http://webkit.org"]];
     auto swizzle = swizzleEnforcesChildRestrictions(childRestrictionsDone);

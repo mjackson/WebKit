@@ -29,7 +29,6 @@
 #include "pas_config.h"
 #include "pas_platform.h"
 #if defined(PAS_BMALLOC)
-#include "BPlatform.h"
 // FIXME: Find a way to declare bmalloc's symbol visibility without having to
 // import a bmalloc header.
 #include "BExport.h"
@@ -75,6 +74,7 @@ typedef struct {
         uint8_t zero_tag_all : 1;
         uint8_t adjacent_tag_exclusion : 1;
         uint8_t assert_adjacent_tags_are_disjoint : 1;
+        uint8_t check_tag_on_dealloc : 1;
     } mode_bits;
 
     bool medium_tagging_enabled;

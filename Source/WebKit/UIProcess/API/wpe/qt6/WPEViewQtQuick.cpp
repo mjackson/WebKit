@@ -34,7 +34,6 @@
 #include <wtf/glib/RunLoopSourcePriority.h>
 #include <wtf/glib/WTFGType.h>
 
-#include <QOffscreenSurface>
 #include <QOpenGLFunctions>
 #include <QQuickWindow>
 #include <QSGTexture>
@@ -48,9 +47,6 @@ struct _WPEViewQtQuickPrivate {
     GRefPtr<WPEBuffer> committedBuffer;
     bool bufferUpdateRequested;
     GLuint textureId;
-    GLuint textureUniform;
-    GLuint program;
-    QOffscreenSurface surface;
     QOpenGLContext* context;
     WPEQtView* wpeQtView;
 
@@ -115,45 +111,6 @@ gboolean wpe_view_qtquick_initialize_rendering(WPEViewQtQuick* view, WPEQtView* 
     if (!imageTargetTexture2DOES)
         imageTargetTexture2DOES = reinterpret_cast<PFNGLEGLIMAGETARGETTEXTURE2DOESPROC>(eglGetProcAddress("glEGLImageTargetTexture2DOES"));
 
-    static const char* vertexShaderSource =
-        "attribute vec2 pos;\n"
-        "attribute vec2 texture;\n"
-        "varying vec2 v_texture;\n"
-        "void main() {\n"
-        "  v_texture = texture;\n"
-        "  gl_Position = vec4(pos, 0, 1);\n"
-        "}\n";
-
-    static const char* fragmentShaderSource =
-        "precision mediump float;\n"
-        "uniform sampler2D u_texture;\n"
-        "varying vec2 v_texture;\n"
-        "void main() {\n"
-        "  gl_FragColor = texture2D(u_texture, v_texture);\n"
-        "}\n";
-
-    auto* glFunctions = context->functions();
-    auto vertexShader = glFunctions->glCreateShader(GL_VERTEX_SHADER);
-    glFunctions->glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
-    glFunctions->glCompileShader(vertexShader);
-
-    auto fragmentShader = glFunctions->glCreateShader(GL_FRAGMENT_SHADER);
-    glFunctions->glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
-    glFunctions->glCompileShader(fragmentShader);
-
-    priv->program = glFunctions->glCreateProgram();
-    glFunctions->glAttachShader(priv->program, vertexShader);
-    glFunctions->glAttachShader(priv->program, fragmentShader);
-
-    glFunctions->glBindAttribLocation(priv->program, 0, "pos");
-    glFunctions->glBindAttribLocation(priv->program, 1, "texture");
-
-    glFunctions->glLinkProgram(priv->program);
-    priv->textureUniform = glFunctions->glGetUniformLocation(priv->program, "u_texture");
-
-    priv->surface.setFormat(context->format());
-    priv->surface.create();
-
     return TRUE;
 }
 
@@ -171,7 +128,6 @@ void wpe_view_qtquick_invalidate_rendering(WPEViewQtQuick* view)
 QSGTexture* wpe_view_qtquick_render_buffer_to_texture(WPEViewQtQuick* view, QSize size, GError** error)
 {
     auto* priv = WPE_VIEW_QTQUICK(view)->priv;
-    priv->context->makeCurrent(&priv->surface);
 
     auto wrapNativeTexture = [&]() -> QSGTexture* {
         RELEASE_ASSERT(priv->wpeQtView->window());
@@ -214,49 +170,10 @@ QSGTexture* wpe_view_qtquick_render_buffer_to_texture(WPEViewQtQuick* view, QSiz
         glFunctions->glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    glFunctions->glClearColor(1, 0, 0, 1);
-    glFunctions->glClear(GL_COLOR_BUFFER_BIT);
-
-    glFunctions->glUseProgram(priv->program);
-
-    glFunctions->glActiveTexture(GL_TEXTURE0);
     glFunctions->glBindTexture(GL_TEXTURE_2D, priv->textureId);
     imageTargetTexture2DOES(GL_TEXTURE_2D, eglImage);
-    glFunctions->glUniform1i(priv->textureUniform, 0);
 
-    static const GLfloat vertices[4][2] = {
-        { -1.0, 1.0 },
-        { 1.0, 1.0 },
-        { -1.0, -1.0 },
-        { 1.0, -1.0 },
-    };
-
-    static const GLfloat texturePos[4][2] = {
-        { 0, 0 },
-        { 1, 0 },
-        { 0, 1 },
-        { 1, 1 },
-    };
-
-    glFunctions->glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, vertices);
-    glFunctions->glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, texturePos);
-
-    glFunctions->glEnableVertexAttribArray(0);
-    glFunctions->glEnableVertexAttribArray(1);
-
-    glFunctions->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-    glFunctions->glDisableVertexAttribArray(0);
-    glFunctions->glDisableVertexAttribArray(1);
-
-    // Wrap in QSGOpenGLTexture for Qt Scene Graph.
-    auto texture = QNativeInterface::QSGOpenGLTexture::fromNative(priv->textureId, priv->wpeQtView->window(), size, QQuickWindow::TextureHasAlphaChannel);
-    if (!texture) {
-        g_set_error_literal(error, WPE_VIEW_ERROR, WPE_VIEW_ERROR_RENDER_FAILED, "Failed to import QSOpenGLTexture from native OpenGL texture");
-        return nullptr;
-    }
-
-    return texture;
+    return wrapNativeTexture();
 }
 
 void wpe_view_qtquick_did_update_scene(WPEViewQtQuick* view)

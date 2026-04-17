@@ -69,7 +69,7 @@ TEST(LegacyPDF, PrintSize)
             mimeType = @"application/pdf";
             data = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"test_print" withExtension:@"pdf"]];
         }
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:url MIMEType:mimeType expectedContentLength:data.length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:url MIMEType:mimeType expectedContentLength:data.length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data];
         [task didFinish];

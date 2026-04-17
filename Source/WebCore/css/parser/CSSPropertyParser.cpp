@@ -60,6 +60,7 @@
 #include "CSSPropertyParserState.h"
 #include "CSSPropertyParsing.h"
 #include "CSSShorthandSubstitutionValue.h"
+#include "CSSStringValue.h"
 #include "CSSSubstitutionParser.h"
 #include "CSSSubstitutionValue.h"
 #include "CSSTokenizer.h"
@@ -579,19 +580,17 @@ std::optional<Variant<Ref<const Style::CustomProperty>, CSSWideKeyword>> consume
             return Style::toStyleFromCSSValue<Style::Resolution<>>(builderState, downcast<CSSPrimitiveValue>(value));
         case CSSCustomPropertySyntax::Type::Color:
             return Style::toStyleFromCSSValue<Style::Color>(builderState, value, Style::ForVisitedLink::No);
-        case CSSCustomPropertySyntax::Type::Image: {
-            auto styleImage = builderState.createStyleImage(value);
-            if (!styleImage)
-                return { };
-            return Style::ImageWrapper { styleImage.releaseNonNull() };
-        }
+        case CSSCustomPropertySyntax::Type::Image:
+            if (RefPtr styleImage = builderState.createStyleImage(value))
+                return Style::ImageWrapper { styleImage.releaseNonNull() };
+            return { };
         case CSSCustomPropertySyntax::Type::URL:
-            return Style::toStyle(downcast<CSSURLValue>(value).url(), builderState);
+            return Style::toStyleFromCSSValue<Style::URL>(builderState, downcast<CSSURLValue>(value));
         case CSSCustomPropertySyntax::Type::Ident:
         case CSSCustomPropertySyntax::Type::CustomIdent:
-            return Style::toStyleFromCSSValue<Style::CustomIdent>(builderState, value);
+            return Style::toStyleFromCSSValue<Style::CustomIdent>(builderState, downcast<CSSCustomIdentValue>(value));
         case CSSCustomPropertySyntax::Type::String:
-            return downcast<CSSPrimitiveValue>(value).stringValue();
+            return Style::toStyleFromCSSValue<Style::String>(builderState, downcast<CSSStringValue>(value));
         case CSSCustomPropertySyntax::Type::TransformFunction:
         case CSSCustomPropertySyntax::Type::TransformList:
             return Style::toStyleFromCSSValue<Style::TransformFunction>(builderState, value);

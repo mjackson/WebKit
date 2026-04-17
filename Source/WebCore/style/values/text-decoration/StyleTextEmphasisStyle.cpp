@@ -92,8 +92,8 @@ const AtomString& TextEmphasisStyle::markString() const
         [&](const Shape& shape) -> const AtomString& {
             return markStringFromShape(shape);
         },
-        [&](const AtomString& customMark) -> const AtomString& {
-            return customMark;
+        [&](const CustomMark& customMark) -> const AtomString& {
+            return customMark.value;
         }
     );
 }
@@ -124,30 +124,27 @@ auto CSSValueConversion<TextEmphasisStyle>::operator()(BuilderState& state, cons
         return TextEmphasisStyle::Shape { .fill = *fill, .mark = *mark };
     }
 
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
+        switch (primitiveValue->valueID()) {
+        case CSSValueInvalid:
+            break;
+
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+
+        case CSSValueFilled:
+        case CSSValueOpen:
+            return defaultTextEmphasisShape(state.style().writingMode(), fromCSSValue<TextEmphasisFill>(*primitiveValue));
+
+        default:
+            return TextEmphasisStyle::Shape { .mark = fromCSSValue<TextEmphasisMark>(*primitiveValue) };
+        }
+
+        state.setCurrentPropertyInvalidAtComputedValueTime();
         return CSS::Keyword::None { };
-
-    switch (primitiveValue->valueID()) {
-    case CSSValueInvalid:
-        break;
-
-    case CSSValueNone:
-        return CSS::Keyword::None { };
-
-    case CSSValueFilled:
-    case CSSValueOpen:
-        return defaultTextEmphasisShape(state.style().writingMode(), fromCSSValue<TextEmphasisFill>(*primitiveValue));
-
-    default:
-        return TextEmphasisStyle::Shape { .mark = fromCSSValue<TextEmphasisMark>(*primitiveValue) };
     }
 
-    if (primitiveValue->isString())
-        return AtomString { primitiveValue->stringValue() };
-
-    state.setCurrentPropertyInvalidAtComputedValueTime();
-    return CSS::Keyword::None { };
+    return TextEmphasisStyle::CustomMark { AtomString { toStyleFromCSSValue<String>(state, value).value } };
 }
 
 } // namespace Style

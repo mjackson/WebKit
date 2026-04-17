@@ -61,11 +61,11 @@ static bool receivedMessage;
 
 TEST(WebKit, FirstVisuallyNonEmptyMilestoneWithDeferredScript)
 {
-    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto messageHandler = adoptNS([[FirstPaintMessageHandler alloc] init]);
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr messageHandler = adoptNS([[FirstPaintMessageHandler alloc] init]);
     [[webViewConfiguration userContentController] addScriptMessageHandler:messageHandler.get() name:@"firstpaint"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
 
     RetainPtr<RenderingProgressNavigationDelegate> delegate = adoptNS([[RenderingProgressNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
@@ -92,8 +92,8 @@ TEST(WebKit, FirstVisuallyNonEmptyMilestoneWithDeferredScript)
 
 static NSString *contentTypeForFileExtension(NSString *fileExtension)
 {
-    auto identifier = adoptCF(UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, (__bridge CFStringRef)fileExtension, nullptr));
-    auto mimeType = adoptCF(UTTypeCopyPreferredTagWithClass(identifier.get(), kUTTagClassMIMEType));
+    RetainPtr identifier = adoptCF(UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, (__bridge CFStringRef)fileExtension, nullptr));
+    RetainPtr mimeType = adoptCF(UTTypeCopyPreferredTagWithClass(identifier.get(), kUTTagClassMIMEType));
     return (__bridge NSString *)mimeType.autorelease();
 }
 
@@ -107,7 +107,7 @@ static NSString *contentTypeForFileExtension(NSString *fileExtension)
     NSData *responseData = [NSData dataWithContentsOfURL:bundleURL];
     NSUInteger responseLength = responseData.length;
 
-    auto response = adoptNS([[NSURLResponse alloc] initWithURL:requestURL MIMEType:contentTypeForFileExtension(fileExtension) expectedContentLength:responseLength textEncodingName:nil]);
+    RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:requestURL MIMEType:contentTypeForFileExtension(fileExtension) expectedContentLength:responseLength textEncodingName:nil]);
     [task didReceiveResponse:response.get()];
 
     [task didReceiveData:[responseData subdataWithRange:NSMakeRange(0, responseLength - 1024)]];
@@ -121,17 +121,17 @@ static NSString *contentTypeForFileExtension(NSString *fileExtension)
 
 TEST(WebKit, FirstVisuallyNonEmptyMilestoneWithMediaDocument)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 #if PLATFORM(IOS_FAMILY)
     [configuration setAllowsInlineMediaPlayback:YES];
     [configuration _setInlineMediaPlaybackRequiresPlaysInlineAttribute:NO];
 #endif
 
-    auto schemeHandler = adoptNS([[NeverFinishLoadingSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[NeverFinishLoadingSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:NeverFinishLoadingSchemeHandler.URLScheme];
 
-    auto navigationDelegate = adoptNS([[RenderingProgressNavigationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr navigationDelegate = adoptNS([[RenderingProgressNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView _setAllowsMediaDocumentInlinePlayback:YES];
 

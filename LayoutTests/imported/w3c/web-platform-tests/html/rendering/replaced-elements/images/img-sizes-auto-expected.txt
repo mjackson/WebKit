@@ -15,6 +15,10 @@ PASS <img sizes=""> - contain
 PASS <img sizes=""> - contain-intrinsic-size
 PASS <img sizes="xyz,auto"> - contain
 PASS <img sizes="xyz,auto"> - contain-intrinsic-size
+PASS <img sizes="automatic"> - contain
+PASS <img sizes="automatic"> - contain-intrinsic-size
+PASS <img sizes="auto ,xyz"> - contain
+PASS <img sizes="auto ,xyz"> - contain-intrinsic-size
 PASS <img> (in <picture>) - contain
 PASS <img> (in <picture>) - contain-intrinsic-size
 PASS <img sizes="auto" class="test-important"> - contain

@@ -93,7 +93,7 @@ TEST(NSAttributedStringWebKitAdditions, DirectoriesNotCreated)
     };
     EXPECT_FALSE(cookieDirectoryExists());
 
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadHTMLString:@"hi"];
     EXPECT_TRUE(cookieDirectoryExists());
 }

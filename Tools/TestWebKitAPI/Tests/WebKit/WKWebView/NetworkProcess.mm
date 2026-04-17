@@ -57,7 +57,7 @@
 
 TEST(NetworkProcess, Entitlements)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:adoptNS([[WKWebViewConfiguration alloc] init]).get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:adoptNS([[WKWebViewConfiguration alloc] init]).get()]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
     WKWebsiteDataStore *store = [webView configuration].websiteDataStore;
     bool hasEntitlement = [store _networkProcessHasEntitlementForTesting:@"com.apple.rootless.storage.WebKitNetworkingSandbox"];
@@ -84,7 +84,7 @@ TEST(WebKit, HTTPReferer)
                 done = true;
             });
         });
-        auto webView = adoptNS([WKWebView new]);
+        RetainPtr webView = adoptNS([WKWebView new]);
         [webView loadHTMLString:[NSString stringWithFormat:@"<meta name='referrer' content='unsafe-url'><body onload='document.getElementById(\"formID\").submit()'><form id='formID' method='post' action='http://127.0.0.1:%d/'></form></body>", server.port()] baseURL:baseURL];
         Util::run(&done);
     };
@@ -108,7 +108,7 @@ TEST(NetworkProcess, LaunchOnlyWhenNecessary)
     RetainPtr<WKWebsiteDataStore> websiteDataStore;
 
     @autoreleasepool {
-        auto webView = adoptNS([WKWebView new]);
+        RetainPtr webView = adoptNS([WKWebView new]);
         websiteDataStore = [webView configuration].websiteDataStore;
         [websiteDataStore _setResourceLoadStatisticsEnabled:YES];
         [[webView configuration].processPool _registerURLSchemeAsSecure:@"test"];
@@ -123,11 +123,11 @@ TEST(NetworkProcess, CrashWhenNotAssociatedWithDataStore)
 {
     pid_t networkProcessPID = 0;
     @autoreleasepool {
-        auto viewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
-        auto dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
-        auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+        RetainPtr viewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+        RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
         [viewConfiguration setWebsiteDataStore:dataStore.get()];
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:viewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:viewConfiguration.get()]);
         [webView loadHTMLString:@"foo" baseURL:[NSURL URLWithString:@"about:blank"]];
         while (![dataStore _networkProcessIdentifier])
             TestWebKitAPI::Util::spinRunLoop(10);
@@ -140,11 +140,11 @@ TEST(NetworkProcess, CrashWhenNotAssociatedWithDataStore)
     kill(networkProcessPID, 9);
     TestWebKitAPI::Util::spinRunLoop(10);
 
-    auto viewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr viewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
     [viewConfiguration setWebsiteDataStore:dataStore.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:viewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:viewConfiguration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
     EXPECT_NE(networkProcessPID, [webView configuration].websiteDataStore._networkProcessIdentifier);
 }
@@ -153,10 +153,10 @@ TEST(NetworkProcess, TerminateWhenNoWebsiteDataStore)
 {
     pid_t networkProcessIdentifier = 0;
     @autoreleasepool {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         auto nonPersistentStore = [WKWebsiteDataStore nonPersistentDataStore];
         configuration.get().websiteDataStore = nonPersistentStore;
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 0, 0) configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 0, 0) configuration:configuration.get()]);
         [webView synchronouslyLoadTestPageNamed:@"simple"];
         EXPECT_TRUE([WKWebsiteDataStore _defaultNetworkProcessExists]);
 
@@ -174,7 +174,7 @@ TEST(NetworkProcess, TerminateWhenNoDefaultWebsiteDataStore)
 {
     pid_t networkProcessIdentifier = 0;
     @autoreleasepool {
-        auto webView = adoptNS([WKWebView new]);
+        RetainPtr webView = adoptNS([WKWebView new]);
         [webView synchronouslyLoadTestPageNamed:@"simple"];
         EXPECT_TRUE([WKWebsiteDataStore _defaultNetworkProcessExists]);
 
@@ -214,7 +214,7 @@ TEST(NetworkProcess, TerminateWhenNetworkProcessIsSuspended)
 {
     pid_t networkProcessIdentifier = 0;
     @autoreleasepool {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         auto nonPersistentStore = [WKWebsiteDataStore nonPersistentDataStore];
 
         bool networkProcessLaunched = TestWebKitAPI::Util::waitFor([&]() {
@@ -242,13 +242,13 @@ TEST(NetworkProcess, TerminateWhenNetworkProcessIsSuspended)
 
 TEST(NetworkProcess, DoNotLaunchOnDataStoreDestruction)
 {
-    auto storeConfiguration1 = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
-    auto websiteDataStore1 = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration: storeConfiguration1.get()]);
+    RetainPtr storeConfiguration1 = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr websiteDataStore1 = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration: storeConfiguration1.get()]);
 
     EXPECT_FALSE([WKWebsiteDataStore _defaultNetworkProcessExists]);
     @autoreleasepool {
-        auto storeConfiguration2 = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
-        auto websiteDataStore2 = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration: storeConfiguration2.get()]);
+        RetainPtr storeConfiguration2 = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+        RetainPtr websiteDataStore2 = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration: storeConfiguration2.get()]);
     }
 
     TestWebKitAPI::Util::spinRunLoop(10);
@@ -287,14 +287,14 @@ TEST(NetworkProcess, CORSPreflightCachePartitioned)
     });
     NSString *html = [NSString stringWithFormat:@"<script>var xhr = new XMLHttpRequest();xhr.open('DELETE', 'http://localhost:%d/');xhr.send()</script>", server.port()];
     NSURL *baseURL = [NSURL URLWithString:@"http://example.com/"];
-    auto firstWebView = adoptNS([WKWebView new]);
+    RetainPtr firstWebView = adoptNS([WKWebView new]);
     [firstWebView loadHTMLString:html baseURL:baseURL];
     while (preflightRequestsReceived != 1)
         TestWebKitAPI::Util::spinRunLoop();
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     configuration.get().websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
-    auto secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [secondWebView loadHTMLString:html baseURL:baseURL];
     while (preflightRequestsReceived != 2)
         TestWebKitAPI::Util::spinRunLoop();
@@ -348,12 +348,12 @@ static void waitUntilNetworkProcessIsResponsive(WKWebView *webView1, WKWebView *
 
 TEST(NetworkProcess, BroadcastChannelCrashRecovery)
 {
-    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto messageHandler = adoptNS([[NetworkProcessTestMessageHandler alloc] init]);
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr messageHandler = adoptNS([[NetworkProcessTestMessageHandler alloc] init]);
     [[webViewConfiguration userContentController] addScriptMessageHandler:messageHandler.get() name:@"test"];
 
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
 
     receivedMessage = false;
     receivedMessagesVector.clear();
@@ -533,7 +533,7 @@ TEST(_WKDataTask, Basic)
             EXPECT_FALSE(true);
         }
     });
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadRequest:server.request("/initial_request"_s)];
 
     __block bool done = false;
@@ -543,7 +543,7 @@ TEST(_WKDataTask, Basic)
     auto requestBody = "request body";
     [postRequest setHTTPBody:[NSData dataWithBytes:requestBody length:strlen(requestBody)]];
     [webView _dataTaskWithRequest:postRequest.get() completionHandler:^(_WKDataTask *task) {
-        auto delegate = adoptNS([TestDataTaskDelegate new]);
+        RetainPtr delegate = adoptNS([TestDataTaskDelegate new]);
         task.delegate = delegate.get();
         __block bool receivedResponse = false;
         delegate.get().didReceiveResponse = ^(_WKDataTask *, NSURLResponse *response, void (^decisionHandler)(_WKDataTaskResponsePolicy)) {
@@ -572,7 +572,7 @@ TEST(_WKDataTask, Basic)
     __block RetainPtr<_WKDataTask> retainedTask;
     [webView _dataTaskWithRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"unsupported:blank"]] completionHandler:^(_WKDataTask *task) {
         retainedTask = task;
-        auto delegate = adoptNS([TestDataTaskDelegate new]);
+        RetainPtr delegate = adoptNS([TestDataTaskDelegate new]);
         task.delegate = delegate.get();
         __block bool receivedResponse = false;
         delegate.get().didReceiveResponse = ^(_WKDataTask *, NSURLResponse *response, void (^decisionHandler)(_WKDataTaskResponsePolicy)) {
@@ -598,7 +598,7 @@ TEST(_WKDataTask, Basic)
     done = false;
     [webView _dataTaskWithRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://webkit.org<>/"]] completionHandler:^(_WKDataTask *task) {
         retainedTask = task;
-        auto delegate = adoptNS([TestDataTaskDelegate new]);
+        RetainPtr delegate = adoptNS([TestDataTaskDelegate new]);
         task.delegate = delegate.get();
         delegate.get().didCompleteWithError = ^(_WKDataTask *task, NSError *error) {
             EXPECT_WK_STREQ(error.domain, WebKitErrorDomain);
@@ -613,11 +613,11 @@ TEST(_WKDataTask, Challenge)
 {
     using namespace TestWebKitAPI;
     HTTPServer server(HTTPServer::respondWithChallengeThenOK, HTTPServer::Protocol::Https);
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
 
     __block bool done = false;
     [webView _dataTaskWithRequest:server.request() completionHandler:^(_WKDataTask *task) {
-        auto delegate = adoptNS([TestDataTaskDelegate new]);
+        RetainPtr delegate = adoptNS([TestDataTaskDelegate new]);
         task.delegate = delegate.get();
         __block bool receivedServerTrustChallenge = false;
         __block bool receivedBasicAuthChallenge = false;
@@ -677,9 +677,9 @@ TEST(_WKDataTask, Cancel)
         });
     });
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView _dataTaskWithRequest:server.request() completionHandler:^(_WKDataTask *task) {
-        auto delegate = adoptNS([TestDataTaskDelegate new]);
+        RetainPtr delegate = adoptNS([TestDataTaskDelegate new]);
         task.delegate = delegate.get();
         delegate.get().didReceiveResponse = ^(_WKDataTask *task, NSURLResponse *response, void (^decisionHandler)(_WKDataTaskResponsePolicy)) {
             decisionHandler(_WKDataTaskResponsePolicyAllow);
@@ -694,7 +694,7 @@ TEST(_WKDataTask, Cancel)
 
     __block bool completed { false };
     [webView _dataTaskWithRequest:server.request() completionHandler:^(_WKDataTask *task) {
-        auto delegate = adoptNS([TestDataTaskDelegate new]);
+        RetainPtr delegate = adoptNS([TestDataTaskDelegate new]);
         task.delegate = delegate.get();
         delegate.get().didReceiveResponse = ^(_WKDataTask *task, NSURLResponse *response, void (^decisionHandler)(_WKDataTaskResponsePolicy)) {
             decisionHandler(_WKDataTaskResponsePolicyCancel);
@@ -715,11 +715,11 @@ TEST(_WKDataTask, Redirect)
         { "/"_s, { 301, { { "Location"_s, "/redirectTarget"_s }, { "Custom-Name"_s, "Custom-Value"_s } } } },
         { "/redirectTarget"_s, { "hi"_s } },
     } };
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     RetainPtr<NSURLRequest> serverRequest = server.request();
     __block bool receivedData { false };
     [webView _dataTaskWithRequest:serverRequest.get() completionHandler:^(_WKDataTask *task) {
-        auto delegate = adoptNS([TestDataTaskDelegate new]);
+        RetainPtr delegate = adoptNS([TestDataTaskDelegate new]);
         task.delegate = delegate.get();
         delegate.get().willPerformHTTPRedirection = ^(_WKDataTask *task, NSHTTPURLResponse *response, NSURLRequest *request, void(^decisionHandler)(_WKDataTaskRedirectPolicy)) {
             EXPECT_WK_STREQ(serverRequest.get().URL.absoluteString, response.URL.absoluteString);
@@ -738,7 +738,7 @@ TEST(_WKDataTask, Redirect)
     __block bool completed { false };
     __block bool receivedResponse { false };
     [webView _dataTaskWithRequest:serverRequest.get() completionHandler:^(_WKDataTask *task) {
-        auto delegate = adoptNS([TestDataTaskDelegate new]);
+        RetainPtr delegate = adoptNS([TestDataTaskDelegate new]);
         task.delegate = delegate.get();
         delegate.get().willPerformHTTPRedirection = ^(_WKDataTask *task, NSHTTPURLResponse *response, NSURLRequest *request, void(^decisionHandler)(_WKDataTaskRedirectPolicy)) {
             decisionHandler(_WKDataTaskRedirectPolicyCancel);
@@ -762,10 +762,10 @@ TEST(_WKDataTask, CrashDuringCreation)
 {
     using namespace TestWebKitAPI;
     HTTPServer server(HTTPServer::respondWithOK);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     __block bool done = false;
     [webView _dataTaskWithRequest:server.request() completionHandler:^(_WKDataTask *task) {
-        auto delegate = adoptNS([TestDataTaskDelegate new]);
+        RetainPtr delegate = adoptNS([TestDataTaskDelegate new]);
         task.delegate = delegate.get();
         delegate.get().didCompleteWithError = ^(_WKDataTask *, NSError *error) {
             EXPECT_NOT_NULL(error);
@@ -783,11 +783,11 @@ TEST(_WKDataTask, Crash)
 {
     using namespace TestWebKitAPI;
     HTTPServer server(HTTPServer::respondWithOK);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
 
     __block bool done = false;
     [webView _dataTaskWithRequest:server.request() completionHandler:^(_WKDataTask *task) {
-        auto delegate = adoptNS([TestDataTaskDelegate new]);
+        RetainPtr delegate = adoptNS([TestDataTaskDelegate new]);
         task.delegate = delegate.get();
         delegate.get().didReceiveResponse = ^(_WKDataTask *task, NSURLResponse *response, void (^decisionHandler)(_WKDataTaskResponsePolicy)) {
             kill(webView.get().configuration.websiteDataStore._networkProcessIdentifier, SIGKILL);
@@ -805,13 +805,13 @@ TEST(_WKDataTask, Crash)
 TEST(_WKDataTask, Blob)
 {
     __block bool done { false };
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     NSString *html = @"<script>alert(window.URL.createObjectURL(new Blob(['Blob hello'], {type: 'application/octet-stream'})));</script>";
     [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
     NSString *url = [webView _test_waitForAlert];
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:url]];
     [webView _dataTaskWithRequest:request completionHandler:^(_WKDataTask *task) {
-        auto delegate = adoptNS([TestDataTaskDelegate new]);
+        RetainPtr delegate = adoptNS([TestDataTaskDelegate new]);
         task.delegate = delegate.get();
         __block bool receivedResponse = false;
         delegate.get().didReceiveResponse = ^(_WKDataTask *, NSURLResponse *response, void (^decisionHandler)(_WKDataTaskResponsePolicy)) {
@@ -821,7 +821,7 @@ TEST(_WKDataTask, Blob)
         __block bool receivedData = false;
         delegate.get().didReceiveData = ^(_WKDataTask *, NSData *data) {
             EXPECT_TRUE(receivedResponse);
-            auto dataString = adoptNS([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
+            RetainPtr dataString = adoptNS([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
             EXPECT_WK_STREQ(dataString.get(), "Blob hello");
             receivedData = true;
         };
@@ -863,19 +863,19 @@ TEST(WKWebView, CrossOriginDoubleRedirectAuthentication)
         }
     });
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(server.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:dataStore.get()];
 
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"http://example.com/original-target"]];
     [request setValue:@"TestValue" forHTTPHeaderField:@"Authorization"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:viewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:viewConfiguration.get()]);
     [webView loadRequest:request];
     Util::run(&done);
 }
@@ -912,11 +912,11 @@ TEST(NetworkProcess, DoNotLaunchForDOMCacheDestruction)
         { "/"_s, { mainBytes } },
         { "/worker.js"_s, { { { "Content-Type"_s, "text/javascript"_s } }, workerBytes } }
     });
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration.get().websiteDataStore _setResourceLoadStatisticsEnabled:NO];
-    auto messageHandler = adoptNS([[NetworkProcessTestMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[NetworkProcessTestMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
     [webView loadRequest:server.request()];
     EXPECT_WK_STREQ(@"cache is opened", (NSString *)[waitAndGetNextMessage() body]);
     EXPECT_TRUE([configuration.get().websiteDataStore _networkProcessExists]);
@@ -941,7 +941,7 @@ TEST(NetworkProcess, CustomSchemeWasPrivateRelayed)
 {
     [TestProtocol registerWithScheme:@"custom"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"custom://test"]]];
 
     EXPECT_EQ(NO, [webView _wasPrivateRelayed]);
@@ -951,21 +951,21 @@ TEST(NetworkProcess, CustomSchemeWasPrivateRelayed)
 
 TEST(NetworkProcess, URLSchemeHandlerWasPrivateRelayed)
 {
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         auto result = @"<html></html>";
         auto type = @"text/html";
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[result dataUsingEncoding:NSUTF8StringEncoding]];
         [task didFinish];
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"custom"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"custom://test"]]];
 

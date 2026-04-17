@@ -183,7 +183,7 @@ public:
 
     // Rate limiter to prevent excessive navigation requests.
     class RateLimiter {
-        WTF_MAKE_TZONE_ALLOCATED(RateLimiter);
+        WTF_MAKE_TZONE_NON_HEAP_ALLOCATABLE(RateLimiter);
         WTF_MAKE_NONCOPYABLE(RateLimiter);
         WTF_MAKE_NONMOVABLE(RateLimiter);
     public:

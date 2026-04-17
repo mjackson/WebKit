@@ -27,6 +27,9 @@
 
 @class _WKWebExtensionSidebar;
 
+/*! @abstract Indicates a script error occurred in the extension, such as an uncaught exception, unhandled promise rejection, or a call to console.error(). */
+static const WKWebExtensionContextError WKWebExtensionContextErrorScriptExecutionError = (WKWebExtensionContextError)7;
+
 WK_HEADER_AUDIT_BEGIN(nullability, sendability)
 
 @interface WKWebExtensionContext ()

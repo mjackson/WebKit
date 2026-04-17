@@ -63,7 +63,6 @@ do { \
 #define VALIDATE_IPINT_SIMD_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_simd_v128_load_mem_validate, alignIPInt, opcode, name)
 #define VALIDATE_IPINT_ATOMIC_OPCODE(opcode, name) VALIDATE_IPINT_ATOMIC_OPCODE_FROM_BASE(ipint_memory_atomic_notify_atomic_validate, alignAtomicIPInt, opcode, name)
 #define VALIDATE_IPINT_ARGUMINT_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_argumINT_a0_validate, alignArgumInt, opcode, name)
-#define VALIDATE_IPINT_SLOW_PATH(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_local_get_slow_path_validate, alignIPInt, opcode, name)
 #define VALIDATE_IPINT_MINT_CALL_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_mint_a0_validate, alignMInt, opcode, name)
 #define VALIDATE_IPINT_MINT_RETURN_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_mint_r0_validate, alignMInt, opcode, name)
 #define VALIDATE_IPINT_UINT_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_uint_r0_validate, alignUInt, opcode, name)
@@ -92,7 +91,6 @@ void initialize()
     FOR_EACH_IPINT_ATOMIC_OPCODE(VALIDATE_IPINT_ATOMIC_OPCODE);
 
     FOR_EACH_IPINT_ARGUMINT_OPCODE(VALIDATE_IPINT_ARGUMINT_OPCODE);
-    FOR_EACH_IPINT_SLOW_PATH(VALIDATE_IPINT_SLOW_PATH);
     FOR_EACH_IPINT_MINT_CALL_OPCODE(VALIDATE_IPINT_MINT_CALL_OPCODE);
     FOR_EACH_IPINT_MINT_RETURN_OPCODE(VALIDATE_IPINT_MINT_RETURN_OPCODE);
     FOR_EACH_IPINT_UINT_OPCODE(VALIDATE_IPINT_UINT_OPCODE);

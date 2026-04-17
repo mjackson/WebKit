@@ -32,7 +32,6 @@
 namespace JSC {
 
 class JSGlobalObject;
-class JSInternalPromise;
 
 // https://tc39.es/proposal-json-modules/#sec-synthetic-module-records
 class SyntheticModuleRecord final : public AbstractModuleRecord {

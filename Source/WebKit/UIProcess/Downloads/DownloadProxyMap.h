@@ -26,6 +26,7 @@
 #pragma once
 
 #include "DownloadID.h"
+#include "NetworkProcessProxy.h"
 #include <wtf/HashMap.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/RetainPtr.h>
@@ -47,7 +48,6 @@ class ResourceRequest;
 namespace WebKit {
 
 class DownloadProxy;
-class NetworkProcessProxy;
 class ProcessAssertion;
 class WebPageProxy;
 class WebsiteDataStore;

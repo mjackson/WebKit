@@ -1,0 +1,3 @@
+
+FAIL Moving an object element does not crash p.moveBefore is not a function. (In 'p.moveBefore(p.lastChild, p.firstChild)', 'p.moveBefore' is undefined)
+

@@ -127,7 +127,7 @@ void EarlyHintsResourceLoader::startPreconnectTask(const URL& baseURL, const Lin
         return;
 
     const auto& originalRequest = loader->originalRequest();
-    if (!contentSecurityPolicy.allowConnectToSource(url, ContentSecurityPolicy::RedirectResponseReceived::No, originalRequest.url()))
+    if (!contentSecurityPolicy.allowConnectToSource(url, { }, ContentSecurityPolicy::RedirectResponseReceived::No, originalRequest.url()))
         return;
 
     CheckedPtr networkSession = protect(loader->connectionToWebProcess())->networkSession();

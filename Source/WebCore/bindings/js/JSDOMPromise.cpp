@@ -30,8 +30,11 @@
 #include "LocalDOMWindow.h"
 #include <JavaScriptCore/BuiltinNames.h>
 #include <JavaScriptCore/Exception.h>
+#include <JavaScriptCore/JSBoundFunction.h>
 #include <JavaScriptCore/JSNativeStdFunction.h>
 #include <JavaScriptCore/JSPromiseConstructor.h>
+#include <JavaScriptCore/MarkedVector.h>
+#include <JavaScriptCore/SourceCode.h>
 #include <JavaScriptCore/TopExceptionScope.h>
 
 using namespace JSC;

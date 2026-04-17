@@ -55,7 +55,7 @@ static void *snapshotSizeChangeKVOContext = &snapshotSizeChangeKVOContext;
 - (CGImageRef)_test_cgImage
 {
     auto bounds = self.bounds;
-    auto image = adoptNS([[NSImage alloc] initWithSize:bounds.size]);
+    RetainPtr image = adoptNS([[NSImage alloc] initWithSize:bounds.size]);
     [image lockFocus];
     [self.layer renderInContext:NSGraphicsContext.currentContext.CGContext];
     [image unlockFocus];
@@ -208,7 +208,7 @@ TEST(WebKit, WKThumbnailViewMaximumSnapshotSize)
 
 TEST(WebKit, WKThumbnailViewKeepSnapshotWhenRemovedFromSuperviewWKWebView)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     WKPageSetCustomBackingScaleFactor([webView _pageForTesting], 1);
     [webView synchronouslyLoadTestPageNamed:@"lots-of-text"];
 
@@ -247,13 +247,13 @@ TEST(WebKit, WKThumbnailViewKeepSnapshotWhenRemovedFromSuperviewWKWebView)
 
 TEST(WebKit, WKThumbnailViewMaximumSnapshotSizeWKWebView)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     WKPageSetCustomBackingScaleFactor([webView _pageForTesting], 1);
     [webView synchronouslyLoadTestPageNamed:@"lots-of-text"];
 
-    auto thumbnailView = adoptNS([[_WKThumbnailView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) fromWKWebView:webView.get()]);
+    RetainPtr thumbnailView = adoptNS([[_WKThumbnailView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) fromWKWebView:webView.get()]);
 
-    auto observer = adoptNS([[SnapshotSizeObserver alloc] init]);
+    RetainPtr observer = adoptNS([[SnapshotSizeObserver alloc] init]);
     
     [thumbnailView addObserver:observer.get() forKeyPath:@"snapshotSize" options:NSKeyValueObservingOptionNew context:snapshotSizeChangeKVOContext];
     
@@ -293,13 +293,13 @@ TEST(WebKit, WKThumbnailViewMaximumSnapshotSizeWKWebView)
 TEST(WebKit, WKThumbnailViewResetsViewStateWhenUnparented)
 {
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration]);
     [webView removeFromSuperview];
     [webView synchronouslyLoadTestPageNamed:@"lots-of-text"];
 
-    auto thumbnailView = adoptNS([[_WKThumbnailView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) fromWKWebView:webView.get()]);
+    RetainPtr thumbnailView = adoptNS([[_WKThumbnailView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) fromWKWebView:webView.get()]);
 
-    auto observer = adoptNS([[SnapshotSizeObserver alloc] init]);
+    RetainPtr observer = adoptNS([[SnapshotSizeObserver alloc] init]);
 
     [thumbnailView addObserver:observer.get() forKeyPath:@"snapshotSize" options:NSKeyValueObservingOptionNew context:snapshotSizeChangeKVOContext];
 
@@ -342,7 +342,7 @@ static std::pair<WebCore::Color, WebCore::Color> leftCornerColorsForThumbnailVie
 
 void checkThumbnailViewSnapshotConsistency(TestWKWebView *webView)
 {
-    auto thumbnail = adoptNS([[_WKThumbnailView alloc] initWithFrame:webView.frame fromWKWebView:webView]);
+    RetainPtr thumbnail = adoptNS([[_WKThumbnailView alloc] initWithFrame:webView.frame fromWKWebView:webView]);
     [webView.window.contentView addSubview:thumbnail.get()];
 
     auto [topLeftBeforeSnapshot, bottomLeftBeforeSnapshot] = leftCornerColorsForThumbnailView(thumbnail.get());
@@ -357,7 +357,7 @@ TEST(WebKit, WKThumbnailViewLayerReparentingWithUISideCompositing)
 {
     UISideCompositingScope scope { UISideCompositingState::Enabled };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"fixed-nav-bar"];
     [webView waitForNextPresentationUpdate];
 
@@ -368,7 +368,7 @@ TEST(WebKit, WKThumbnailViewLayerReparentingWithUISideCompositingAndTopContentIn
 {
     UISideCompositingScope scope { UISideCompositingState::Enabled };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView _setAutomaticallyAdjustsContentInsets:NO];
     [webView _setTopContentInset:100];
     [webView synchronouslyLoadTestPageNamed:@"fixed-nav-bar"];

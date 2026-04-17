@@ -81,6 +81,7 @@
 #import <WebKit/WebDocumentPrivate.h>
 #import <WebKit/WebEditingDelegate.h>
 #import <WebKit/WebFeature.h>
+#import <WebKit/WebFramePrivate.h>
 #import <WebKit/WebFrameView.h>
 #import <WebKit/WebHistory.h>
 #import <WebKit/WebHistoryItemPrivate.h>
@@ -1413,7 +1414,7 @@ static RetainPtr<NSString> dumpFramesAsText(WebFrame *frame)
     else
         result = adoptNS([[NSMutableString alloc] init]);
 
-    NSString *innerText = [documentElement innerText];
+    NSString *innerText = [frame _plainTextForTesting];
 
     // We use WTF::String::tryGetUTF8 to convert innerText to a UTF8 buffer since
     // it can handle dangling surrogates and the NSString

@@ -1,0 +1,6 @@
+
+Harness Error (FAIL), message = ReferenceError: Can't find variable: hostref
+
+PASS #1 Reinitialize the default imports
+FAIL #2 Test that WebAssembly compilation succeeds assert_equals: expected (boolean) false but got (string) "table_grow64.wast:1"
+

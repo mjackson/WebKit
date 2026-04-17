@@ -47,18 +47,18 @@ static void emptyReleaseInfoCallback(void*)
 
 static RetainPtr<NSData> createPDFWithLinkToURL(NSURL *url)
 {
-    auto pdfData = adoptNS([[NSMutableData alloc] init]);
+    RetainPtr pdfData = adoptNS([[NSMutableData alloc] init]);
     
     CGDataConsumerCallbacks callbacks;
     callbacks.putBytes = (CGDataConsumerPutBytesCallback)putPDFBytesCallback;
     callbacks.releaseConsumer = (CGDataConsumerReleaseInfoCallback)emptyReleaseInfoCallback;
-    auto consumer = adoptCF(CGDataConsumerCreate(pdfData.get(), &callbacks));
-    auto contextDictionary = adoptCF(CFDictionaryCreateMutable(NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
+    RetainPtr consumer = adoptCF(CGDataConsumerCreate(pdfData.get(), &callbacks));
+    RetainPtr contextDictionary = adoptCF(CFDictionaryCreateMutable(NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
     CGRect rectangle = CGRectMake(0, 0, 1000, 1000);
-    auto pdfContext = adoptCF(CGPDFContextCreate(consumer.get(), &rectangle, contextDictionary.get()));
+    RetainPtr pdfContext = adoptCF(CGPDFContextCreate(consumer.get(), &rectangle, contextDictionary.get()));
 
-    auto pageDictionary = adoptCF(CFDictionaryCreateMutable(NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
-    auto boxData = adoptCF(CFDataCreate(NULL, (const UInt8 *)&rectangle, sizeof(CGRect)));
+    RetainPtr pageDictionary = adoptCF(CFDictionaryCreateMutable(NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
+    RetainPtr boxData = adoptCF(CFDataCreate(NULL, (const UInt8 *)&rectangle, sizeof(CGRect)));
     CFDictionarySetValue(pageDictionary.get(), kCGPDFContextMediaBox, boxData.get());
     CGPDFContextBeginPage(pdfContext.get(), pageDictionary.get());
     
@@ -93,7 +93,7 @@ TEST(WebKit, PDFLinkReferrer)
 
     RetainPtr<TestWKWebView> webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     webView.get().navigationDelegate = navigationDelegate.get();
 
     auto *linkURL = [NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%hu", server.port()]];

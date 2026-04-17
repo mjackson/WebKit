@@ -45,9 +45,9 @@ namespace TestWebKitAPI {
 
 TEST(OverflowScrollViewTests, ContentChangeMaintainsScrollbars)
 {
-    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
 
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"overflow-scroll" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
@@ -76,9 +76,9 @@ TEST(OverflowScrollViewTests, ContentChangeMaintainsScrollbars)
 
 TEST(OverflowScrollViewTests, CompositingChangeMaintainsCustomView)
 {
-    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
 
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"composited" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
@@ -88,7 +88,7 @@ TEST(OverflowScrollViewTests, CompositingChangeMaintainsCustomView)
     UIView *compositingView = [webView wkFirstSubviewWithBoundsSize:CGSizeMake(200, 200)];
     EXPECT_NOT_NULL(compositingView);
 
-    auto customView = adoptNS([[UIView alloc] initWithFrame:CGRectMake(20, 20, 200, 100)]);
+    RetainPtr customView = adoptNS([[UIView alloc] initWithFrame:CGRectMake(20, 20, 200, 100)]);
     [compositingView addSubview:customView.get()];
 
     bool contentChanged = false;

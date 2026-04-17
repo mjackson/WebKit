@@ -44,12 +44,12 @@ TEST(WKWebView, InitializingWebViewWithEphemeralStorageDoesNotLog)
     dup2(p[1], STDERR_FILENO);
     close(p[1]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     [configuration setProcessPool:adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]).get()];
     [configuration setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     FILE *stderrFileHandle = fdopen(p[0], "r");
     char buffer[1024];

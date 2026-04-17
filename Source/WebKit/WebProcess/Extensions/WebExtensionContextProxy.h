@@ -84,6 +84,8 @@ public:
     const URL& baseURL() const LIFETIME_BOUND { return m_baseURL; }
     const String& uniqueIdentifier() const LIFETIME_BOUND { return m_uniqueIdentifier; }
 
+    bool isURLForThisExtension(const URL&) const;
+
 #if PLATFORM(COCOA)
     NSDictionary *manifest() const { return m_manifest.get(); }
 
@@ -106,6 +108,8 @@ public:
     void setContentScriptWorld(WebCore::DOMWrapperWorld&);
 
     void addFrameWithExtensionContent(WebFrame&);
+
+    void didEncounterScriptError(const String& message, const String& sourceURL, unsigned lineNumber, unsigned columnNumber, WebExtensionContentWorldType);
 
     std::optional<WebExtensionTabIdentifier> NODELETE tabIdentifier(WebPage&) const;
 

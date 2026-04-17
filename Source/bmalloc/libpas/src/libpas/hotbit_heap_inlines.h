@@ -26,12 +26,6 @@
 #ifndef HOTBIT_HEAP_INLINES_H
 #define HOTBIT_HEAP_INLINES_H
 
-#include "hotbit_heap.h"
-#include "hotbit_heap_config.h"
-#include "hotbit_heap_innards.h"
-#include "pas_deallocate.h"
-#include "pas_try_allocate_intrinsic.h"
-#include "pas_try_reallocate.h"
 
 #if PAS_ENABLE_HOTBIT
 

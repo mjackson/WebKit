@@ -185,6 +185,23 @@ public:
     }
 
     template<typename Callback>
+    void fulfillWithCallback(Callback callback)
+    {
+        if (shouldIgnoreRequestToFulfill())
+            return;
+
+        ASSERT(deferred());
+        ASSERT(globalObject());
+        auto* lexicalGlobalObject = globalObject();
+        auto& vm = lexicalGlobalObject->vm();
+        JSC::JSLockHolder locker(vm);
+        auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
+        auto jsValue = callback(*globalObject());
+        DEFERRED_PROMISE_HANDLE_AND_RETURN_IF_EXCEPTION(scope, lexicalGlobalObject);
+        fulfillWithoutThenableCheck(*lexicalGlobalObject, jsValue);
+    }
+
+    template<typename Callback>
     void rejectWithCallback(const Callback& callback, RejectAsHandled rejectAsHandled = RejectAsHandled::No)
     {
         if (shouldIgnoreRequestToFulfill())
@@ -229,10 +246,11 @@ private:
 
     JSC::JSPromise* deferred() const { return guarded(); }
 
-    enum class ResolveMode { Resolve, Reject, RejectAsHandled };
+    enum class ResolveMode { Resolve, Reject, RejectAsHandled, Fulfill };
     WEBCORE_EXPORT void callFunction(JSC::JSGlobalObject&, ResolveMode, JSC::JSValue resolution);
 
     void resolve(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue resolution) { callFunction(lexicalGlobalObject, ResolveMode::Resolve, resolution); }
+    void fulfillWithoutThenableCheck(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue resolution) { callFunction(lexicalGlobalObject, ResolveMode::Fulfill, resolution); }
     void reject(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue resolution, RejectAsHandled rejectAsHandled)
     {
         callFunction(lexicalGlobalObject, rejectAsHandled == RejectAsHandled::Yes ? ResolveMode::RejectAsHandled : ResolveMode::Reject, resolution);

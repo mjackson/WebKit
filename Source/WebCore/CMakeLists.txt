@@ -110,6 +110,7 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/css/values/counter-styles"
     "${WEBCORE_DIR}/css/values/easing"
     "${WEBCORE_DIR}/css/values/filter-effects"
+    "${WEBCORE_DIR}/css/values/fonts"
     "${WEBCORE_DIR}/css/values/grid"
     "${WEBCORE_DIR}/css/values/images"
     "${WEBCORE_DIR}/css/values/motion"
@@ -511,6 +512,7 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/mediasession/MediaSessionAction.idl
     Modules/mediasession/MediaSessionActionDetails.idl
     Modules/mediasession/MediaSessionActionHandler.idl
+    Modules/mediasession/MediaSessionCaptionTrack.idl
     Modules/mediasession/MediaSessionCoordinator.idl
     Modules/mediasession/MediaSessionCoordinatorMixin.idl
     Modules/mediasession/MediaSessionCoordinatorState.idl
@@ -2819,7 +2821,7 @@ ${WebCore_DERIVED_SOURCES_DIR}/RenderStyleProperties.h ${WebCore_DERIVED_SOURCES
     DEPENDS ${WebCore_CSS_PROPERTY_NAMES}
     WORKING_DIRECTORY ${WebCore_DERIVED_SOURCES_DIR}
     COMMAND ${PERL_EXECUTABLE} -ne "print" ${WebCore_CSS_PROPERTY_NAMES} > ${WebCore_DERIVED_SOURCES_DIR}/CSSProperties.json
-    COMMAND ${PYTHON_EXECUTABLE} ${WEBCORE_DIR}/css/scripts/process-css-properties.py --defines "${FEATURE_DEFINES_WITH_SPACE_SEPARATOR}" --gperf-executable "${GPERF_EXECUTABLE}"
+    COMMAND ${PYTHON_EXECUTABLE} ${WEBCORE_DIR}/css/scripts/process-css-properties.py --defines "${FEATURE_DEFINES_WITH_SPACE_SEPARATOR} ${CSS_VALUE_PLATFORM_DEFINES}" --gperf-executable "${GPERF_EXECUTABLE}"
     VERBATIM)
 list(APPEND WebCore_SOURCES ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyNames.cpp)
 list(APPEND WebCore_SOURCES ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyParsing.cpp)
@@ -3108,8 +3110,31 @@ list(APPEND WebCoreTestSupport_INTERFACE_DEPENDENCIES WebCore_CopyPrivateHeaders
 
 WEBKIT_FRAMEWORK(WebCore)
 
+if (DEFINED WebCore_EXTRA_LINK_OPTIONS)
+    target_link_options(WebCore PRIVATE ${WebCore_EXTRA_LINK_OPTIONS})
+endif ()
+
+# WebCore has no Swift sources. When SWIFT_REQUIRED is ON, CMake may select the
+# Swift linker for targets that transitively depend on Swift libraries (PAL).
+# Force CXX linker -- swiftc mishandles -I include paths during linking.
+set_target_properties(WebCore PROPERTIES LINKER_LANGUAGE CXX)
+
 if (APPLE)
-    set_target_properties(WebCore PROPERTIES LINK_FLAGS "-weak-lxslt -sub_library libobjc -umbrella WebKit -allowable_client WebCoreTestSupport -allowable_client WebKit2 -allowable_client WebKitLegacy")
+    # Use target_link_options with LINKER: so CMake translates these for
+    # whichever linker driver is used (clang or swiftc).
+    target_link_options(WebCore PRIVATE
+        "LINKER:-sub_library,libobjc"
+        "LINKER:-umbrella,WebKit"
+        "LINKER:-weak-lxslt"
+        "LINKER:-allowable_client,WebCoreTestSupport"
+        "LINKER:-allowable_client,WebKit2"
+        "LINKER:-allowable_client,WebKitLegacy"
+        "LINKER:-allowable_client,WebKitTestRunner"
+        "LINKER:-allowable_client,WebKitTestRunnerInjectedBundle"
+        "LINKER:-allowable_client,InjectedBundleTestWebKitAPI"
+        "LINKER:-allowable_client,TestWebCore"
+        "LINKER:-allowable_client,TestWebKitLegacy"
+    )
 endif ()
 
 # The -ftree-sra optimization (implicit with -O2) causes crashes when
@@ -3141,6 +3166,12 @@ list(APPEND WebCoreTestSupport_SYSTEM_INCLUDE_DIRECTORIES ${WebCore_SYSTEM_INCLU
 WEBKIT_LIBRARY(WebCoreTestSupport)
 
 if (${WebCore_LIBRARY_TYPE} MATCHES "SHARED")
-    set_target_properties(WebCore PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
+    # Unquoted empty PROJECT_VERSION_MAJOR makes CMake parse SOVERSION as VERSION's value
+    # -> Versions/SOVERSION/ instead of Versions/A/. Mac builds set FRAMEWORK_VERSION directly.
+    if (APPLE)
+        set_target_properties(WebCore PROPERTIES FRAMEWORK_VERSION A)
+    elseif (PROJECT_VERSION)
+        set_target_properties(WebCore PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
+    endif ()
     install(TARGETS WebCore DESTINATION "${LIB_INSTALL_DIR}")
 endif ()

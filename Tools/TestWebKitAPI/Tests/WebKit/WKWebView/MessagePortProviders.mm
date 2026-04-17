@@ -51,8 +51,8 @@ namespace TestWebKitAPI {
 TEST(MessagePort, Providers)
 {
     // Loading a WebView that uses message ports guarantees that the default MessagePortChannelProviderImpl is set.
-    auto wk1View = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) frameName:nil groupName:nil]);
-    auto delegate = adoptNS([[MessagePortFrameLoadDelegate alloc] init]);
+    RetainPtr wk1View = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) frameName:nil groupName:nil]);
+    RetainPtr delegate = adoptNS([[MessagePortFrameLoadDelegate alloc] init]);
     [wk1View.get() setFrameLoadDelegate:delegate.get()];
     [[wk1View mainFrame] loadHTMLString:@"<script>new MessageChannel;</script>" baseURL:nil];
 
@@ -61,7 +61,7 @@ TEST(MessagePort, Providers)
     // Now using a WKWebView to load content that uses message ports will use the WK2-style message ports.
     // This should not conflict with WK1-style message ports.
     // The conflict is caught by a RELEASE_ASSERT so, if this doesn't crash, it passes.
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<script>new MessageChannel;</script>"];
 }
 
@@ -85,7 +85,7 @@ setInterval(() => {
 
 TEST(MessagePort, MessageToClosedPort)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:[NSString stringWithUTF8String:portMessageMemoryBomb]];
 
     RetainPtr networkProcessInfo = [WKProcessPool _networkingProcessInfo];

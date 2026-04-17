@@ -46,7 +46,7 @@ namespace TestWebKitAPI {
 
 TEST(ModelProcess, CleanUpOnReload)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAllowTestOnlyIPC:YES];
     WKPreferencesSetBoolValueForKeyForTesting((__bridge WKPreferencesRef)[configuration preferences], true, WKStringCreateWithUTF8CString("ModelElementEnabled"));
     WKPreferencesSetBoolValueForKeyForTesting((__bridge WKPreferencesRef)[configuration preferences], true, WKStringCreateWithUTF8CString("ModelProcessEnabled"));
@@ -54,7 +54,7 @@ TEST(ModelProcess, CleanUpOnReload)
     RetainPtr messageHandler = adoptNS([[ModelLoadingMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"modelLoading"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"simple-model-page"];
 
     while (![messageHandler modelIsReady])
@@ -73,7 +73,7 @@ TEST(ModelProcess, CleanUpOnReload)
 
 TEST(ModelProcess, CleanUpOnNavigate)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAllowTestOnlyIPC:YES];
     WKPreferencesSetBoolValueForKeyForTesting((__bridge WKPreferencesRef)[configuration preferences], true, WKStringCreateWithUTF8CString("ModelElementEnabled"));
     WKPreferencesSetBoolValueForKeyForTesting((__bridge WKPreferencesRef)[configuration preferences], true, WKStringCreateWithUTF8CString("ModelProcessEnabled"));
@@ -81,7 +81,7 @@ TEST(ModelProcess, CleanUpOnNavigate)
     RetainPtr messageHandler = adoptNS([[ModelLoadingMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"modelLoading"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"simple-model-page"];
 
     while (![messageHandler modelIsReady])
@@ -105,7 +105,7 @@ TEST(ModelProcess, CleanUpOnHide)
     RetainPtr messageHandler = adoptNS([[ModelLoadingMessageHandler alloc] init]);
     [configuration.userContentController addScriptMessageHandler:messageHandler.get() name:@"modelLoading"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration]);
     [webView synchronouslyLoadTestPageNamed:@"simple-model-page"];
 
     bool isHidden = false;

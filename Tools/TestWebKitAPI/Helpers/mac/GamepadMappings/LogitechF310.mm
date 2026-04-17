@@ -125,7 +125,7 @@ static void publishReportCallback(Vector<float>& buttonValues, Vector<float>& ax
     reportData[6] = 0x00;
     reportData[7] = 0xff;
 
-    auto nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:F310ReportSize]);
+    RetainPtr nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:F310ReportSize]);
     [userDevice handleReport:nsReportData.get() error:nil];
 }
 

@@ -863,6 +863,8 @@ static_assert(IsIncreasing<
     , offsetof(TestObj::Dictionary, dictionaryWithImplementationRequired)
     , offsetof(TestObj::Dictionary, nullableIntegerWithImplementationRequired)
     , offsetof(TestObj::Dictionary, nullableNodeWithImplementationRequired)
+    , offsetof(TestObj::Dictionary, sequenceWithInlineCapacity)
+    , offsetof(TestObj::Dictionary, frozenArrayWithInlineCapacity)
 >);
 
 IGNORE_WARNINGS_END
@@ -1050,6 +1052,20 @@ template<> ConversionResult<IDLDictionary<TestObj::Dictionary>> convertDictionar
     }
     auto fooWithDefaultConversionResult = convertOptionalWithDefault<IDLAny>(lexicalGlobalObject, fooWithDefaultAliasValue, [&] -> ConversionResult<IDLAny> { return Converter<IDLAny>::ReturnType { 0 }; });
     if (fooWithDefaultConversionResult.hasException(throwScope)) [[unlikely]]
+        return ConversionResultException { };
+    JSValue frozenArrayWithInlineCapacityValue;
+    if (isNullOrUndefined)
+        frozenArrayWithInlineCapacityValue = jsUndefined();
+    else {
+        frozenArrayWithInlineCapacityValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "frozenArrayWithInlineCapacity"_s));
+        RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
+    }
+    if (frozenArrayWithInlineCapacityValue.isUndefined()) {
+        throwRequiredMemberTypeError(lexicalGlobalObject, throwScope, "frozenArrayWithInlineCapacity"_s, "TestDictionary"_s, "FrozenArray"_s);
+        return ConversionResultException { };
+    }
+    auto frozenArrayWithInlineCapacityConversionResult = convert<IDLFrozenArray<IDLDOMString, 4>>(lexicalGlobalObject, frozenArrayWithInlineCapacityValue);
+    if (frozenArrayWithInlineCapacityConversionResult.hasException(throwScope)) [[unlikely]]
         return ConversionResultException { };
     JSValue integerValue;
     if (isNullOrUndefined)
@@ -1301,6 +1317,16 @@ template<> ConversionResult<IDLDictionary<TestObj::Dictionary>> convertDictionar
     auto sequenceWithImplementationRequiredConversionResult = convert<IDLSequence<IDLDOMString>>(lexicalGlobalObject, sequenceWithImplementationRequiredValue);
     if (sequenceWithImplementationRequiredConversionResult.hasException(throwScope)) [[unlikely]]
         return ConversionResultException { };
+    JSValue sequenceWithInlineCapacityValue;
+    if (isNullOrUndefined)
+        sequenceWithInlineCapacityValue = jsUndefined();
+    else {
+        sequenceWithInlineCapacityValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "sequenceWithInlineCapacity"_s));
+        RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
+    }
+    auto sequenceWithInlineCapacityConversionResult = convert<IDLOptional<IDLSequence<IDLLong, 8>>>(lexicalGlobalObject, sequenceWithInlineCapacityValue);
+    if (sequenceWithInlineCapacityConversionResult.hasException(throwScope)) [[unlikely]]
+        return ConversionResultException { };
     JSValue smallIntegerClampedValue;
     if (isNullOrUndefined)
         smallIntegerClampedValue = jsUndefined();
@@ -1529,6 +1555,8 @@ template<> ConversionResult<IDLDictionary<TestObj::Dictionary>> convertDictionar
         dictionaryWithImplementationRequiredConversionResult.releaseReturnValue(),
         nullableIntegerWithImplementationRequiredConversionResult.releaseReturnValue(),
         nullableNodeWithImplementationRequiredConversionResult.releaseReturnValue(),
+        sequenceWithInlineCapacityConversionResult.releaseReturnValue(),
+        frozenArrayWithInlineCapacityConversionResult.releaseReturnValue(),
     };
 }
 
@@ -1602,6 +1630,9 @@ JSC::JSObject* convertDictionaryToJS(JSC::JSGlobalObject& lexicalGlobalObject, J
     auto fooWithDefaultAliasValue = toJS<IDLAny>(lexicalGlobalObject, throwScope, dictionary.fooWithDefault);
     RETURN_IF_EXCEPTION(throwScope, { });
     result->putDirect(vm, JSC::Identifier::fromString(vm, "fooWithDefaultAlias"_s), fooWithDefaultAliasValue);
+    auto frozenArrayWithInlineCapacityValue = toJS<IDLFrozenArray<IDLDOMString, 4>>(lexicalGlobalObject, globalObject, throwScope, dictionary.frozenArrayWithInlineCapacity);
+    RETURN_IF_EXCEPTION(throwScope, { });
+    result->putDirect(vm, JSC::Identifier::fromString(vm, "frozenArrayWithInlineCapacity"_s), frozenArrayWithInlineCapacityValue);
     if (!IDLLong::isNullValue(dictionary.integer)) {
         auto integerValue = toJS<IDLLong>(lexicalGlobalObject, throwScope, IDLLong::extractValueFromNullable(dictionary.integer));
         RETURN_IF_EXCEPTION(throwScope, { });
@@ -1681,6 +1712,11 @@ JSC::JSObject* convertDictionaryToJS(JSC::JSGlobalObject& lexicalGlobalObject, J
     auto sequenceWithImplementationRequiredValue = toJS<IDLSequence<IDLDOMString>>(lexicalGlobalObject, globalObject, throwScope, dictionary.sequenceWithImplementationRequired);
     RETURN_IF_EXCEPTION(throwScope, { });
     result->putDirect(vm, JSC::Identifier::fromString(vm, "sequenceWithImplementationRequired"_s), sequenceWithImplementationRequiredValue);
+    if (!IDLSequence<IDLLong, 8>::isNullValue(dictionary.sequenceWithInlineCapacity)) {
+        auto sequenceWithInlineCapacityValue = toJS<IDLSequence<IDLLong, 8>>(lexicalGlobalObject, globalObject, throwScope, IDLSequence<IDLLong, 8>::extractValueFromNullable(dictionary.sequenceWithInlineCapacity));
+        RETURN_IF_EXCEPTION(throwScope, { });
+        result->putDirect(vm, JSC::Identifier::fromString(vm, "sequenceWithInlineCapacity"_s), sequenceWithInlineCapacityValue);
+    }
     if (!IDLClampAdaptor<IDLByte>::isNullValue(dictionary.smallIntegerClamped)) {
         auto smallIntegerClampedValue = toJS<IDLClampAdaptor<IDLByte>>(lexicalGlobalObject, throwScope, IDLClampAdaptor<IDLByte>::extractValueFromNullable(dictionary.smallIntegerClamped));
         RETURN_IF_EXCEPTION(throwScope, { });
@@ -2450,6 +2486,7 @@ static JSC_DECLARE_HOST_FUNCTION(jsTestObjPrototypeFunction_classMethodWithEnfor
 static JSC_DECLARE_HOST_FUNCTION(jsTestObjPrototypeFunction_classMethodWithEnforceRangeOnOptional);
 static JSC_DECLARE_HOST_FUNCTION(jsTestObjPrototypeFunction_methodWithUnsignedLongSequence);
 static JSC_DECLARE_HOST_FUNCTION(jsTestObjPrototypeFunction_stringArrayFunction);
+static JSC_DECLARE_HOST_FUNCTION(jsTestObjPrototypeFunction_methodWithInlineCapacitySequence);
 static JSC_DECLARE_HOST_FUNCTION(jsTestObjPrototypeFunction_domStringListFunction);
 static JSC_DECLARE_HOST_FUNCTION(jsTestObjPrototypeFunction_operationWithOptionalUnionParameter);
 static JSC_DECLARE_HOST_FUNCTION(jsTestObjPrototypeFunction_methodWithAndWithoutNullableSequence);
@@ -2981,7 +3018,7 @@ template<> void JSTestObjDOMConstructor::initializeProperties(VM& vm, JSDOMGloba
 
 /* Hash table for prototype */
 
-static const std::array<HashTableValue, 301> JSTestObjPrototypeTableValues {
+static const std::array<HashTableValue, 302> JSTestObjPrototypeTableValues {
     HashTableValue { "constructor"_s, static_cast<unsigned>(PropertyAttribute::DontEnum), NoIntrinsic, { HashTableValue::GetterSetterType, jsTestObjConstructor, 0 } },
     HashTableValue { "readOnlyLongAttr"_s, JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute, NoIntrinsic, { HashTableValue::GetterSetterType, jsTestObj_readOnlyLongAttr, 0 } },
     HashTableValue { "readOnlyStringAttr"_s, JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute, NoIntrinsic, { HashTableValue::GetterSetterType, jsTestObj_readOnlyStringAttr, 0 } },
@@ -3281,6 +3318,7 @@ static const std::array<HashTableValue, 301> JSTestObjPrototypeTableValues {
     HashTableValue { "classMethodWithEnforceRangeOnOptional"_s, static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { HashTableValue::NativeFunctionType, jsTestObjPrototypeFunction_classMethodWithEnforceRangeOnOptional, 0 } },
     HashTableValue { "methodWithUnsignedLongSequence"_s, static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { HashTableValue::NativeFunctionType, jsTestObjPrototypeFunction_methodWithUnsignedLongSequence, 1 } },
     HashTableValue { "stringArrayFunction"_s, static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { HashTableValue::NativeFunctionType, jsTestObjPrototypeFunction_stringArrayFunction, 1 } },
+    HashTableValue { "methodWithInlineCapacitySequence"_s, static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { HashTableValue::NativeFunctionType, jsTestObjPrototypeFunction_methodWithInlineCapacitySequence, 1 } },
     HashTableValue { "domStringListFunction"_s, static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { HashTableValue::NativeFunctionType, jsTestObjPrototypeFunction_domStringListFunction, 1 } },
     HashTableValue { "operationWithOptionalUnionParameter"_s, static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { HashTableValue::NativeFunctionType, jsTestObjPrototypeFunction_operationWithOptionalUnionParameter, 0 } },
     HashTableValue { "methodWithAndWithoutNullableSequence"_s, static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { HashTableValue::NativeFunctionType, jsTestObjPrototypeFunction_methodWithAndWithoutNullableSequence, 2 } },
@@ -10748,6 +10786,27 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunction_stringArrayFunction
 JSC_DEFINE_HOST_FUNCTION(jsTestObjPrototypeFunction_stringArrayFunction, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
 {
     return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunction_stringArrayFunctionBody>(*lexicalGlobalObject, *callFrame, "stringArrayFunction");
+}
+
+static inline JSC::EncodedJSValue jsTestObjPrototypeFunction_methodWithInlineCapacitySequenceBody(JSC::JSGlobalObject* lexicalGlobalObject, JSC::CallFrame* callFrame, typename IDLOperation<JSTestObj>::ClassParameter castedThis)
+{
+    SUPPRESS_UNCOUNTED_LOCAL auto& vm = JSC::getVM(lexicalGlobalObject);
+    auto throwScope = DECLARE_THROW_SCOPE(vm);
+    UNUSED_PARAM(throwScope);
+    UNUSED_PARAM(callFrame);
+    SUPPRESS_UNCOUNTED_LOCAL auto& impl = castedThis->wrapped();
+    if (callFrame->argumentCount() < 1) [[unlikely]]
+        return throwVMError(lexicalGlobalObject, throwScope, createNotEnoughArgumentsError(lexicalGlobalObject));
+    EnsureStillAliveScope argument0 = callFrame->uncheckedArgument(0);
+    auto sequenceArgConversionResult = convert<IDLSequence<IDLLong, 8>>(*lexicalGlobalObject, argument0.value());
+    if (sequenceArgConversionResult.hasException(throwScope)) [[unlikely]]
+       return encodedJSValue();
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&] -> decltype(auto) { return impl.methodWithInlineCapacitySequence(sequenceArgConversionResult.releaseReturnValue()); })));
+}
+
+JSC_DEFINE_HOST_FUNCTION(jsTestObjPrototypeFunction_methodWithInlineCapacitySequence, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
+{
+    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunction_methodWithInlineCapacitySequenceBody>(*lexicalGlobalObject, *callFrame, "methodWithInlineCapacitySequence");
 }
 
 static inline JSC::EncodedJSValue jsTestObjPrototypeFunction_domStringListFunctionBody(JSC::JSGlobalObject* lexicalGlobalObject, JSC::CallFrame* callFrame, typename IDLOperation<JSTestObj>::ClassParameter castedThis)

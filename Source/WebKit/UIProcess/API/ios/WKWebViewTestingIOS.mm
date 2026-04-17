@@ -438,6 +438,11 @@ static void dumpUIView(TextStream& ts, UIView *view, bool traverse)
     return [_contentView tapHighlightViewRect];
 }
 
+- (CGRect)_focusedElementInteractionRect
+{
+    return [_contentView focusedElementInformation].interactionRect;
+}
+
 - (UIGestureRecognizer *)_imageAnalysisGestureRecognizer
 {
     return [_contentView imageAnalysisGestureRecognizer];

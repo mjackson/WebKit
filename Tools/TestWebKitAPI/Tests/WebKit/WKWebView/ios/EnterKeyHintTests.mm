@@ -70,8 +70,8 @@ Vector<EnterKeyHintTestCase> enterKeyHintTestCases(UIReturnKeyType fallbackRetur
 
 static std::pair<RetainPtr<TestWKWebView>, RetainPtr<TestInputDelegate>> createWebViewAndInputDelegateForTesting()
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];

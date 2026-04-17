@@ -37,8 +37,6 @@ PAS_IGNORE_WARNINGS_BEGIN("missing-field-initializers")
 #include "bmalloc_heap_innards.h"
 #include "pas_deallocate.h"
 #include "pas_mar_registry.h"
-#include "pas_try_allocate.h"
-#include "pas_try_allocate_array.h"
 #include "pas_try_allocate_intrinsic.h"
 #include "pas_try_allocate_primitive.h"
 #include "pas_try_reallocate.h"
@@ -383,23 +381,6 @@ bmalloc_reallocate_inline(void* old_ptr, size_t new_size,
         pas_reallocate_allow_heap_teleport,
         free_mode).begin;
 }
-
-PAS_CREATE_TRY_ALLOCATE(
-    bmalloc_try_iso_allocate_impl,
-    BMALLOC_HEAP_CONFIG,
-    &bmalloc_typed_runtime_config.base,
-    &bmalloc_allocator_counts,
-    pas_allocation_result_identity);
-
-PAS_CREATE_TRY_ALLOCATE(
-    bmalloc_iso_allocate_impl,
-    BMALLOC_HEAP_CONFIG,
-    &bmalloc_typed_runtime_config.base,
-    &bmalloc_allocator_counts,
-    pas_allocation_result_crash_on_error);
-
-PAS_API void* bmalloc_try_iso_allocate_casual(pas_heap_ref* heap_ref, pas_allocation_mode allocation_mode);
-PAS_API void* bmalloc_iso_allocate_casual(pas_heap_ref* heap_ref, pas_allocation_mode allocation_mode);
 
 static PAS_ALWAYS_INLINE void bmalloc_deallocate_inline(void* ptr)
 {

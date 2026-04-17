@@ -63,7 +63,7 @@ TEST(WebKit, WKObject_classInDictionary)
     Class wkObjectClass = NSClassFromString(@"WKObject");
     ASSERT_NE((Class)0, wkObjectClass);
 
-    auto map = adoptNS([[NSMapTable alloc] initWithKeyOptions:NSMapTableStrongMemory valueOptions:NSMapTableWeakMemory capacity:0]);
+    RetainPtr map = adoptNS([[NSMapTable alloc] initWithKeyOptions:NSMapTableStrongMemory valueOptions:NSMapTableWeakMemory capacity:0]);
     [map setObject:@"test" forKey:wkObjectClass];
     ASSERT_TRUE([@"test" isEqualToString:(NSString *)[map objectForKey: wkObjectClass]]);
 }

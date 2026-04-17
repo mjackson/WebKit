@@ -85,7 +85,7 @@ inline void callCompletionHandler(CompletionHandlers::WebBackForwardList::BackFo
 {
     (*fn)(WTF::move(items));
 }
-inline void callCompletionHandler(CompletionHandlers::WebBackForwardList::BackForwardItemAtIndexCompletionHandler& fn, WebKit::RefPtrFrameState&& state)
+inline void callCompletionHandler(CompletionHandlers::WebBackForwardList::BackForwardItemAtIndexForWebContentCompletionHandler& fn, WebKit::RefPtrFrameState&& state)
 {
     (*fn)(WTF::move(state));
 }

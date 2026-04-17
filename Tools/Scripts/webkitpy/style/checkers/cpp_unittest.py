@@ -6103,6 +6103,45 @@ class WebKitStyleTest(CppStyleTestBase):
             "  [runtime/wtf_checked_size] [5]",
             'foo.cpp')
 
+    def test_auto_with_adopt(self):
+        self.assert_lint(
+            'RetainPtr webView = adoptNS([[TestWKWebView alloc] init]);',
+            '',
+            'foo.mm')
+        self.assert_lint(
+            'auto webView = adoptNS([[TestWKWebView alloc] init]);',
+            "Use 'RetainPtr' instead of 'auto' with 'adoptNS()'."
+            "  [runtime/auto_with_adopt] [4]",
+            'foo.mm')
+        self.assert_lint(
+            'auto context = adoptCF(CGBitmapContextCreate(0, 0, 0, 0, 0, 0, 0));',
+            "Use 'RetainPtr' instead of 'auto' with 'adoptCF()'."
+            "  [runtime/auto_with_adopt] [4]",
+            'foo.cpp')
+        self.assert_lint(
+            'auto obj = adoptRef(*new MyClass);',
+            "Use 'Ref/RefPtr' instead of 'auto' with 'adoptRef()'."
+            "  [runtime/auto_with_adopt] [4]",
+            'foo.cpp')
+        self.assert_lint(
+            'auto queue = adoptOSObject(dispatch_queue_create("foo", DISPATCH_QUEUE_SERIAL));',
+            "Use 'OSObjectPtr' instead of 'auto' with 'adoptOSObject()'."
+            "  [runtime/auto_with_adopt] [4]",
+            'foo.cpp')
+        self.assert_lint(
+            'auto dc = adoptGDIObject(CreateDC());',
+            "Use 'GDIObject' instead of 'auto' with 'adoptGDIObject()'."
+            "  [runtime/auto_with_adopt] [4]",
+            'foo.cpp')
+        self.assert_lint(
+            'Ref obj = adoptRef(*new MyClass);',
+            '',
+            'foo.cpp')
+        self.assert_lint(
+            'auto x = someOtherFunction();',
+            '',
+            'foo.cpp')
+
 
     def test_wtf_make_unique(self):
         self.assert_lint(
@@ -6351,7 +6390,8 @@ class WebKitStyleTest(CppStyleTestBase):
     def test_wtf_os_object_ptr(self):
         self.assert_lint(
             'auto queue = adoptOSObject(dispatch_queue_create("foo", DISPATCH_QUEUE_SERIAL));',
-            '',
+            "Use 'OSObjectPtr' instead of 'auto' with 'adoptOSObject()'."
+            "  [runtime/auto_with_adopt] [4]",
             'foo.cpp')
         self.assert_lint(
             'OSObjectPtr queue = adoptOSObject(dispatch_queue_create("foo", DISPATCH_QUEUE_SERIAL));',
@@ -6363,7 +6403,8 @@ class WebKitStyleTest(CppStyleTestBase):
             'foo.cpp')
         self.assert_lint(
             'auto group = adoptOSObject(dispatch_group_create());',
-            '',
+            "Use 'OSObjectPtr' instead of 'auto' with 'adoptOSObject()'."
+            "  [runtime/auto_with_adopt] [4]",
             'foo.cpp')
         self.assert_lint(
             'RetainPtr<dispatch_queue_t> m_queue;',
@@ -6385,35 +6426,29 @@ class WebKitStyleTest(CppStyleTestBase):
             "Use 'OSObjectPtr' instead of 'RetainPtr' for dispatch objects."
             "  [runtime/wtf_os_object_ptr] [4]",
             'foo.mm')
-        self.assert_lint(
+        self.assert_lint_one_of_many_errors_re(
             'auto queue = adoptNS(dispatch_queue_create("foo", DISPATCH_QUEUE_SERIAL));',
-            "Use 'adoptOSObject()' instead of 'adoptNS()' for dispatch objects."
-            "  [runtime/wtf_os_object_ptr] [4]",
+            r"Use 'adoptOSObject\(\)' instead of 'adoptNS\(\)' for dispatch objects.",
             'foo.mm')
-        self.assert_lint(
+        self.assert_lint_one_of_many_errors_re(
             'auto group = adoptNS(dispatch_group_create());',
-            "Use 'adoptOSObject()' instead of 'adoptNS()' for dispatch objects."
-            "  [runtime/wtf_os_object_ptr] [4]",
+            r"Use 'adoptOSObject\(\)' instead of 'adoptNS\(\)' for dispatch objects.",
             'foo.mm')
-        self.assert_lint(
+        self.assert_lint_one_of_many_errors_re(
             'auto queue = adoptOSObject(dispatch_queue_create("foo", RetainPtr { DISPATCH_QUEUE_CONCURRENT }.get()));',
-            "Use 'OSObjectPtr' instead of 'RetainPtr' for dispatch objects."
-            "  [runtime/wtf_os_object_ptr] [4]",
+            r"Use 'OSObjectPtr' instead of 'RetainPtr' for dispatch objects.",
             'foo.mm')
-        self.assert_lint(
+        self.assert_lint_one_of_many_errors_re(
             'auto queue = adoptOSObject(dispatch_queue_create("foo", RetainPtr { DISPATCH_QUEUE_SERIAL }.get()));',
-            "Use 'OSObjectPtr' instead of 'RetainPtr' for dispatch objects."
-            "  [runtime/wtf_os_object_ptr] [4]",
+            r"Use 'OSObjectPtr' instead of 'RetainPtr' for dispatch objects.",
             'foo.mm')
-        self.assert_lint(
+        self.assert_lint_one_of_many_errors_re(
             'auto queue = adoptOSObject(dispatch_queue_create("foo", retainPtr(DISPATCH_QUEUE_CONCURRENT).get()));',
-            "Use 'OSObjectPtr' instead of 'RetainPtr' for dispatch objects."
-            "  [runtime/wtf_os_object_ptr] [4]",
+            r"Use 'OSObjectPtr' instead of 'RetainPtr' for dispatch objects.",
             'foo.mm')
-        self.assert_lint(
+        self.assert_lint_one_of_many_errors_re(
             'auto queue = adoptOSObject(dispatch_queue_create("foo", retainPtr(DISPATCH_QUEUE_SERIAL).get()));',
-            "Use 'OSObjectPtr' instead of 'RetainPtr' for dispatch objects."
-            "  [runtime/wtf_os_object_ptr] [4]",
+            r"Use 'OSObjectPtr' instead of 'RetainPtr' for dispatch objects.",
             'foo.mm')
 
     def test_wtf_xpc_object_ptr(self):
@@ -6433,15 +6468,15 @@ class WebKitStyleTest(CppStyleTestBase):
             '',
             'foo.mm')
 
-        self.assert_lint(
+        self.assert_lint_one_of_many_errors_re(
             'auto connection = adoptNS(xpc_connection_create_from_endpoint(endpoint));',
-            "Use 'adoptOSObject()' instead of 'adoptNS()' for XPC objects."
-            "  [runtime/wtf_xpc_object_ptr] [4]",
+            r"Use 'adoptOSObject\(\)' instead of 'adoptNS\(\)' for XPC objects.",
             'foo.mm')
 
         self.assert_lint(
             'auto connection = adoptOSObject(xpc_connection_create_from_endpoint(endpoint));',
-            '',
+            "Use 'OSObjectPtr' instead of 'auto' with 'adoptOSObject()'."
+            "  [runtime/auto_with_adopt] [4]",
             'foo.mm')
 
     def test_lock_guard(self):

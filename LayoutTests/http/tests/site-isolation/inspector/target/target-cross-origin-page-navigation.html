@@ -2,6 +2,17 @@
 <script src="../debugger/resources/site-isolation-debugger-test-utilities.js"></script>
 
 <script>
+    function navigateCrossOrigin() {
+        location.hostname = location.hostname === "127.0.0.1" ? "localhost" : "127.0.0.1";
+    }
+
+    function navigateCrossOriginSlowly() {
+        let crossOriginHost = location.hostname === "127.0.0.1" ? "localhost" : "127.0.0.1";
+        let path = location.pathname;
+        // Delay the response, giving time to cancel the provisional load.
+        location.href = `http://${crossOriginHost}:8000/resources/network-simulator.py?test=inspector-target-cancel-nav&path=${path}&initialdelay=10000`;
+    }
+
     function test() {
         let suite = InspectorTest.createAsyncSuite("SiteIsolation.Target.CrossOriginPageNavigation");
 
@@ -41,7 +52,7 @@
 
                 InspectorTest.log("Navigating cross-origin...");
                 InspectorTest.deferOutputUntilTestPageIsReloaded();
-                InspectorTest.evaluateInPage(`location.hostname = "localhost";`);
+                InspectorTest.evaluateInPage(`navigateCrossOrigin();`);
 
                 // Wait for the log from leaf-iframe to ensure all loading has completed.
                 await WI.consoleManager.awaitEvent(WI.ConsoleManager.Event.MessageAdded);
@@ -61,6 +72,62 @@
                 let oldIds = oldFrameTargets.map((t) => t.identifier);
                 let targetsHaveNewIds = newFrameTargets.every((t) => !oldIds.includes(t.identifier));
                 InspectorTest.expectThat(targetsHaveNewIds, "Frame targets should be new despite the same page structure.");
+            },
+        });
+
+        suite.addTestCase({
+            name: "SiteIsolation.Target.CrossOriginPageNavigation.ProvisionalLoadCancelsPreviousLoad",
+            description: "Two consecutive cross-origin navigations cancel the first provisional frame target and commit the second.",
+            async test() {
+                let firstProvisionalFrameTargetAdded = new Promise(function (resolve) {
+                    function handle(event) {
+                        let { target } = event.data;
+                        if (target.type === WI.TargetType.Frame && target.isProvisional) {
+                            WI.targetManager.removeEventListener(WI.TargetManager.Event.TargetAdded, handle);
+                            resolve(target);
+                        }
+                    }
+                    WI.targetManager.addEventListener(WI.TargetManager.Event.TargetAdded, handle);
+                });
+
+                InspectorTest.log("Navigating cross-origin slowly...");
+                InspectorTest.deferOutputUntilTestPageIsReloaded();
+                InspectorTest.evaluateInPage(`navigateCrossOriginSlowly();`);
+
+                let firstProvisionalTarget = await firstProvisionalFrameTargetAdded;
+                InspectorTest.pass("First provisional frame target was created.");
+
+                let frameTargetRemoved = new Promise(function (resolve) {
+                    function handle(event) {
+                        let { target } = event.data;
+                        if (target.type === WI.TargetType.Frame) {
+                            WI.targetManager.removeEventListener(WI.TargetManager.Event.TargetRemoved, handle);
+                            resolve(target);
+                        }
+                    }
+                    WI.targetManager.addEventListener(WI.TargetManager.Event.TargetRemoved, handle);
+                });
+                let provisionalFrameTargetCommitted = new Promise(function (resolve) {
+                    function handle(event) {
+                        let { target } = event.data;
+                        if (target.type === WI.TargetType.Frame) {
+                            WI.targetManager.removeEventListener(WI.TargetManager.Event.DidCommitProvisionalTarget, handle);
+                            resolve(target);
+                        }
+                    }
+                    WI.targetManager.addEventListener(WI.TargetManager.Event.DidCommitProvisionalTarget, handle);
+                });
+
+                InspectorTest.log("Navigating cross-origin again to cancel previous load...");
+                InspectorTest.deferOutputUntilTestPageIsReloaded();
+                InspectorTest.evaluateInPage(`navigateCrossOrigin();`);
+
+                let removedTarget = await frameTargetRemoved;
+                InspectorTest.expectEqual(removedTarget.identifier, firstProvisionalTarget.identifier, "First provisional frame target was removed.");
+
+                let committedTarget = await provisionalFrameTargetCommitted;
+                InspectorTest.pass("Second provisional frame target was committed.");
+                InspectorTest.expectNotEqual(committedTarget.identifier, firstProvisionalTarget.identifier, "Committed target should not be the first provisional.");
             },
         });
 

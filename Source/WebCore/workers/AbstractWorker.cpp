@@ -32,6 +32,7 @@
 #include "AbstractWorker.h"
 
 #include "ContentSecurityPolicy.h"
+#include "Document.h"
 #include "ExceptionOr.h"
 #include "OriginAccessPatterns.h"
 #include "ScriptExecutionContext.h"
@@ -76,7 +77,12 @@ std::optional<Exception> AbstractWorker::validateURL(ScriptExecutionContext& con
         return Exception { ExceptionCode::SecurityError };
 
     ASSERT(context.contentSecurityPolicy());
-    if (!protect(context.contentSecurityPolicy())->allowWorkerFromSource(scriptURL))
+
+    std::optional<TextPosition> sourcePosition;
+    if (RefPtr document = dynamicDowncast<Document>(context))
+        sourcePosition = document->currentParserSourcePosition();
+
+    if (!protect(context.contentSecurityPolicy())->allowWorkerFromSource(scriptURL, WTF::move(sourcePosition)))
         return Exception { ExceptionCode::SecurityError };
 
     return { };

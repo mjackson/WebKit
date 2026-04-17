@@ -49,6 +49,7 @@
 #include "RenderView.h"
 #include "StyleBuilderState.h"
 #include "StyleScope.h"
+#include "StyleableInlines.h"
 #include "WritingMode.h"
 #include <ranges>
 
@@ -784,11 +785,11 @@ CheckedPtr<RenderBoxModelObject> AnchorPositionEvaluator::findAnchorForAnchorFun
     if (!isValid())
         return { };
 
-    Ref elementOrHost = *builderState.element();
+    Styleable styleable { *const_cast<Element*>(builderState.element()), style.pseudoElementIdentifier() };
 
-    // PseudoElement nodes are created on-demand by render tree builder so dont' work as keys here.
+    // PseudoElement nodes are created on-demand by render tree builder so don't work as keys here.
     auto& anchorPositionedStates = *builderState.anchorPositionedStates();
-    auto& anchorPositionedState = anchorPositionedStates.ensure({ elementOrHost.ptr(), style.pseudoElementIdentifier() }, [&] {
+    auto& anchorPositionedState = anchorPositionedStates.ensure(styleable, [&] {
         return makeUniqueRef<AnchorPositionedState>();
     }).iterator->value.get();
 
@@ -798,7 +799,7 @@ CheckedPtr<RenderBoxModelObject> AnchorPositionEvaluator::findAnchorForAnchorFun
         return defaultAnchorName(style);
     };
 
-    auto resolvedAnchorName = ResolvedScopedName::createFromScopedName(elementOrHost, scopedAnchorName());
+    auto resolvedAnchorName = ResolvedScopedName::createFromScopedName(styleable.element, scopedAnchorName());
 
     // Collect anchor names that this element refers to in anchor() or anchor-size()
     bool isNewAnchorName = anchorPositionedState.anchorNames.add(resolvedAnchorName).isNewEntry;
@@ -835,7 +836,8 @@ CheckedPtr<RenderBoxModelObject> AnchorPositionEvaluator::findAnchorForAnchorFun
         return { };
     }
 
-    if (auto* state = anchorPositionedStates.get(keyForElementOrPseudoElement(*anchorElement))) {
+    // FIXME: don't use Styleable::fromElement here.
+    if (auto* state = anchorPositionedStates.get(Styleable::fromElement(*anchorElement))) {
         // Check if the anchor is itself anchor-positioned but hasn't been positioned yet.
         if (state->stage < AnchorPositionResolutionStage::Positioned) {
             anchorPositionedState.stage = AnchorPositionResolutionStage::WaitingForAnchorToBePositioned;
@@ -1044,11 +1046,11 @@ std::optional<double> AnchorPositionEvaluator::evaluateSize(BuilderState& builde
     return { };
 }
 
-static const RenderElement* penultimateContainingBlockChainElement(const RenderElement& descendant, const RenderElement* ancestor)
+static const RenderElement* penultimateContainingBlockChainElement(const RenderElement& descendant, const RenderElement& ancestor)
 {
     auto* currentElement = &descendant;
     for (auto* nextElement = currentElement->container(); nextElement; nextElement = nextElement->container()) {
-        if (nextElement == ancestor)
+        if (nextElement == &ancestor)
             return currentElement;
         currentElement = nextElement;
     }
@@ -1061,7 +1063,7 @@ static const RenderElement* penultimateContainingBlockChainElement(const RenderE
 // returns nullptr.
 // (*): an anchor element can also establish an anchor scope containing itself. In this
 // case, the return value is itself.
-static CheckedPtr<const Element> anchorScopeForAnchorName(const RenderBoxModelObject& renderer, const ResolvedScopedName anchorName)
+static CheckedPtr<const Element> anchorScopeForAnchorName(const RenderElement& renderer, const ResolvedScopedName anchorName)
 {
     // Traverse up the composed tree through itself and each ancestor.
     CheckedPtr<const Element> anchorElement = renderer.element();
@@ -1089,7 +1091,7 @@ static CheckedPtr<const Element> anchorScopeForAnchorName(const RenderBoxModelOb
 }
 
 enum class TopLayerStatus : uint8_t { Same, Lower, Higher };
-static TopLayerStatus computeTopLayerStatus(const RenderBox& anchored, const RenderBoxModelObject& anchor)
+static TopLayerStatus computeTopLayerStatus(const RenderElement& anchored, const RenderElement& anchor)
 {
     // Two elements are in the same top layer if they have the same top layer root (including if both are none).
     // An element A is in a higher top layer than an element B if A has a top layer root, and either B has a top
@@ -1127,14 +1129,14 @@ static TopLayerStatus computeTopLayerStatus(const RenderBox& anchored, const Ren
 }
 
 // See: https://drafts.csswg.org/css-anchor-position-1/#acceptable-anchor-element
-static bool isAcceptableAnchorElement(const RenderBoxModelObject& anchorRenderer, Ref<const Element> anchorPositionedElement, const std::optional<ResolvedScopedName> anchorName = { })
+static bool isAcceptableAnchorElement(const RenderBoxModelObject& anchorRenderer, const Styleable& anchorPositioned, const std::optional<ResolvedScopedName> anchorName = { })
 {
     // "Possible anchor is either an element or a fully styleable tree-abiding pseudo-element."
     // This always have an associated Element (for ::before/::after it is PseudoElement).
     if (!anchorRenderer.element())
         return false;
 
-    CheckedPtr anchorPositionedRenderer = dynamicDowncast<RenderBox>(anchorPositionedElement->renderer());
+    CheckedPtr anchorPositionedRenderer = anchorPositioned.renderer();
     ASSERT(anchorPositionedRenderer);
 
     if (anchorName) {
@@ -1161,7 +1163,7 @@ static bool isAcceptableAnchorElement(const RenderBoxModelObject& anchorRenderer
         CheckedPtr containingBlock = anchorPositionedRenderer->container();
         ASSERT(containingBlock);
 
-        auto* penultimateElement = penultimateContainingBlockChainElement(anchorRenderer, containingBlock.get());
+        auto* penultimateElement = penultimateContainingBlockChainElement(anchorRenderer, *containingBlock);
         if (!penultimateElement)
             return false;
 
@@ -1177,17 +1179,17 @@ static bool isAcceptableAnchorElement(const RenderBoxModelObject& anchorRenderer
     return false;
 }
 
-static RefPtr<Element> findImplicitAnchor(const Element& anchorPositionedElement)
+static RefPtr<Element> findImplicitAnchor(const Styleable& anchorPositioned)
 {
     auto find = [&]() -> RefPtr<Element> {
         // "The implicit anchor element of a pseudo-element is its originating element, unless otherwise specified."
         // https://drafts.csswg.org/css-anchor-position-1/#implicit
-        if (auto pseudoElement = dynamicDowncast<PseudoElement>(anchorPositionedElement))
-            return pseudoElement->hostElement();
+        if (anchorPositioned.pseudoElementIdentifier)
+            return anchorPositioned.element;
 
         // https://html.spec.whatwg.org/multipage/popover.html#the-popover-attribute
         // 24. Set element's implicit anchor element to invoker.
-        if (auto popoverData = anchorPositionedElement.popoverData())
+        if (auto popoverData = anchorPositioned.element.popoverData())
             return popoverData->invoker();
 
         return nullptr;
@@ -1197,22 +1199,22 @@ static RefPtr<Element> findImplicitAnchor(const Element& anchorPositionedElement
         // "If [a spec] defines is an implicit anchor element for query el which is an acceptable anchor element for query el, return that element."
         // https://drafts.csswg.org/css-anchor-position-1/#target
         CheckedPtr anchor = dynamicDowncast<RenderBoxModelObject>(implicitAnchorElement->renderer());
-        if (anchor && isAcceptableAnchorElement(*anchor, anchorPositionedElement))
+        if (anchor && isAcceptableAnchorElement(*anchor, anchorPositioned))
             return implicitAnchorElement;
     }
 
     return nullptr;
 }
 
-static RefPtr<Element> findLastAcceptableAnchorWithName(ResolvedScopedName anchorName, const Element& anchorPositionedElement, const AnchorsForAnchorName& anchorsForAnchorName)
+static RefPtr<Element> findLastAcceptableAnchorWithName(ResolvedScopedName anchorName, const Styleable& anchorPositioned, const AnchorsForAnchorName& anchorsForAnchorName)
 {
     if (anchorName.name() == implicitAnchorElementName().name)
-        return findImplicitAnchor(anchorPositionedElement);
+        return findImplicitAnchor(anchorPositioned);
 
     const auto& anchors = anchorsForAnchorName.get(anchorName);
 
     for (auto& anchor : anchors | std::views::reverse) {
-        if (isAcceptableAnchorElement(anchor.get(), anchorPositionedElement, anchorName))
+        if (isAcceptableAnchorElement(anchor.get(), anchorPositioned, anchorName))
             return anchor->element();
     }
 
@@ -1256,12 +1258,12 @@ static AnchorsForAnchorName collectAnchorsForAnchorName(const Document& document
     return anchorsForAnchorName;
 }
 
-AnchorElements AnchorPositionEvaluator::findAnchorsForAnchorPositionedElement(const Element& anchorPositionedElement, const HashSet<ResolvedScopedName>& anchorNames, const AnchorsForAnchorName& anchorsForAnchorName)
+static AnchorElements findAnchorsForAnchorPositionedElement(const Styleable& anchorPositioned, const HashSet<ResolvedScopedName>& anchorNames, const AnchorsForAnchorName& anchorsForAnchorName)
 {
     AnchorElements anchorElements;
 
     for (auto& anchorName : anchorNames) {
-        auto anchor = findLastAcceptableAnchorWithName(anchorName, anchorPositionedElement, anchorsForAnchorName);
+        auto anchor = findLastAcceptableAnchorWithName(anchorName, anchorPositioned, anchorsForAnchorName);
         anchorElements.add(anchorName, anchor);
     }
 
@@ -1276,36 +1278,34 @@ void AnchorPositionEvaluator::updateAnchorPositioningStatesAfterInterleavedLayou
     // FIXME: Make the code below oeprate on renderers (boxes) rather than elements.
     auto anchorsForAnchorName = collectAnchorsForAnchorName(document);
 
-    for (auto& elementAndState : anchorPositionedStates) {
-        auto& state = elementAndState.value.get();
+    for (auto& [weakAnchorPositioned, state] : anchorPositionedStates) {
+        auto anchorPositioned = weakAnchorPositioned.styleable();
+        if (!anchorPositioned)
+            continue;
 
-        switch (state.stage) {
+        CheckedPtr renderer = anchorPositioned->renderer();
+
+        switch (state->stage) {
         case AnchorPositionResolutionStage::FindAnchors: {
-            RefPtr element = elementAndState.key.first;
-            if (elementAndState.key.second)
-                element = element->pseudoElementIfExists(*elementAndState.key.second);
-
-            CheckedPtr renderer = element ? element->renderer() : nullptr;
             if (renderer) {
                 // FIXME: Remove the redundant anchorElements member. The mappings are available in anchorPositionedToAnchorMap.
-                state.anchorElements = findAnchorsForAnchorPositionedElement(*element, state.anchorNames, anchorsForAnchorName);
+                state->anchorElements = findAnchorsForAnchorPositionedElement(*anchorPositioned, state->anchorNames, anchorsForAnchorName);
                 if (isLayoutTimeAnchorPositioned(renderer->style()))
                     renderer->setNeedsLayout();
 
                 Vector<ResolvedAnchor> anchors;
-                for (auto& anchorNameAndElement : state.anchorElements) {
+                for (auto& anchorNameAndElement : state->anchorElements) {
                     CheckedPtr anchorElement = anchorNameAndElement.value.get();
                     anchors.append(ResolvedAnchor {
                         .renderer = anchorElement ? dynamicDowncast<RenderBoxModelObject>(anchorElement->renderer()) : nullptr,
                         .name = anchorNameAndElement.key
                     });
                 }
-                document.styleScope().anchorPositionedToAnchorMap().set(*element, AnchorPositionedToAnchorEntry {
-                    .pseudoElementIdentifier = elementAndState.key.second,
+                document.styleScope().anchorPositionedToAnchorMap().set(*anchorPositioned, AnchorPositionedToAnchorEntry {
                     .anchors = WTF::move(anchors)
                 });
             }
-            state.stage = AnchorPositionResolutionStage::Resolved;
+            state->stage = AnchorPositionResolutionStage::Resolved;
             break;
         }
 
@@ -1313,11 +1313,10 @@ void AnchorPositionEvaluator::updateAnchorPositioningStatesAfterInterleavedLayou
             break;
 
         case AnchorPositionResolutionStage::Resolved:
-            if (CheckedPtr anchored = elementAndState.key.first->renderer()) {
-                if (auto anchoredBox = dynamicDowncast<RenderBox>(anchored.get()))
-                    AnchorPositionEvaluator::captureScrollSnapshots(*anchoredBox, false);
-            }
-            state.stage = AnchorPositionResolutionStage::Positioned;
+            if (auto anchoredBox = dynamicDowncast<RenderBox>(renderer))
+                AnchorPositionEvaluator::captureScrollSnapshots(*anchoredBox, false);
+
+            state->stage = AnchorPositionResolutionStage::Positioned;
             break;
 
         case AnchorPositionResolutionStage::Positioned:
@@ -1339,7 +1338,9 @@ void AnchorPositionEvaluator::updateAnchorPositionedStateForDefaultAnchorAndPosi
     if (!shouldResolveDefaultAnchor && !hasPositionVisibilityNoOverflow)
         return;
 
-    auto& state = states.ensure({ &element, style.pseudoElementIdentifier() }, [&] {
+    Styleable styleable { element, style.pseudoElementIdentifier() };
+
+    auto& state = states.ensure(styleable, [&] {
         return makeUniqueRef<AnchorPositionedState>();
     }).iterator->value.get();
 
@@ -1358,14 +1359,23 @@ auto AnchorPositionEvaluator::makeAnchorPositionedForAnchorMap(AnchorPositionedT
 {
     AnchorToAnchorPositionedMap map;
 
-    for (auto elementAndAnchors : toAnchorMap) {
-        CheckedRef anchorPositionedElement = elementAndAnchors.key;
-        for (auto& anchor : elementAndAnchors.value.anchors) {
+    for (auto& [weakStyleable, anchors] : toAnchorMap) {
+        auto styleable = weakStyleable.styleable();
+        if (!styleable)
+            continue;
+
+        for (auto& anchor : anchors.anchors) {
             if (!anchor.renderer)
                 continue;
+
+            // FIXME: change AnchorToAnchorPositionedMap to use Styleable instead.
+            RefPtr element = &styleable->element;
+            if (styleable->pseudoElementIdentifier)
+                element = element->pseudoElementIfExists(*styleable->pseudoElementIdentifier);
+
             map.ensure(*anchor.renderer, [&] {
                 return Vector<Ref<Element>> { };
-            }).iterator->value.append(anchorPositionedElement);
+            }).iterator->value.append(*element);
         }
     }
     return map;
@@ -1645,13 +1655,6 @@ RefPtr<const Element> AnchorPositionEvaluator::anchorPositionedElementOrPseudoEl
     return element;
 }
 
-AnchorPositionedKey AnchorPositionEvaluator::keyForElementOrPseudoElement(const Element& element)
-{
-    if (auto* pseudoElement = dynamicDowncast<PseudoElement>(element))
-        return { pseudoElement->hostElement(), PseudoElementIdentifier { pseudoElement->pseudoElementType() } };
-    return { &element, { } };
-}
-
 bool AnchorPositionEvaluator::isAnchor(const RenderStyle& style)
 {
     if (!style.anchorNames().isNone())
@@ -1694,14 +1697,16 @@ CheckedPtr<RenderBoxModelObject> AnchorPositionEvaluator::defaultAnchorForBox(co
     if (!box.element())
         return nullptr;
 
-    CheckedRef element = *box.element();
+    auto styleable = Styleable::fromRenderer(box);
+    if (!styleable)
+        return nullptr;
 
     auto& anchorPositionedMap = box.document().styleScope().anchorPositionedToAnchorMap();
-    auto it = anchorPositionedMap.find(element);
+    auto it = anchorPositionedMap.find(*styleable);
     if (it == anchorPositionedMap.end())
         return nullptr;
 
-    auto anchorName = ResolvedScopedName::createFromScopedName(element, defaultAnchorName(box.style()));
+    auto anchorName = ResolvedScopedName::createFromScopedName(styleable->element, defaultAnchorName(box.style()));
 
     for (auto& anchor : it->value.anchors) {
         if (anchorName == anchor.name)
@@ -1710,16 +1715,17 @@ CheckedPtr<RenderBoxModelObject> AnchorPositionEvaluator::defaultAnchorForBox(co
     return nullptr;
 }
 
-HashMap<AnchorPositionedKey, size_t> AnchorPositionEvaluator::recordLastSuccessfulPositionOptions(const SingleThreadWeakHashSet<const RenderBox>& positionTryBoxes)
+HashMap<WeakStyleable, size_t> AnchorPositionEvaluator::recordLastSuccessfulPositionOptions(const SingleThreadWeakHashSet<const RenderBox>& positionTryBoxes)
 {
-    HashMap<Style::AnchorPositionedKey, size_t> lastSuccessfulPositionOptionMap;
+    HashMap<WeakStyleable, size_t> lastSuccessfulPositionOptionMap;
 
     for (const auto& positionTryBox : positionTryBoxes) {
         auto styleable = Styleable::fromRenderer(positionTryBox);
-        ASSERT(styleable);
+        if (!styleable)
+            continue;
 
         if (auto usedPositionOptionIndex = positionTryBox.style().usedPositionOptionIndex())
-            lastSuccessfulPositionOptionMap.add({ styleable->element, styleable->pseudoElementIdentifier }, *usedPositionOptionIndex);
+            lastSuccessfulPositionOptionMap.add(*styleable, *usedPositionOptionIndex);
     }
 
     return lastSuccessfulPositionOptionMap;

@@ -1,5 +1,6 @@
 //@ slow!
-//@ skip if $buildType == "debug" or $memoryLimited
+//@ memoryHog!
+//@ skip if $buildType == "debug"
 //@ $skipModes << "wasm-no-jit".to_sym
 //@ $skipModes << "wasm-no-wasm-jit".to_sym
 //@ $skipModes << "wasm-collect-continuously".to_sym

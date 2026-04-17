@@ -277,7 +277,7 @@ RetainPtr<VKImageAnalyzerRequest> createRequest(CGImageRef image, VKImageOrienta
 IMP makeRequestHandler(CGImageRef image, CGRect cropRect)
 {
     return imp_implementationWithBlock([image = RetainPtr { image }, cropRect](VKCRemoveBackgroundRequestHandler *, VKCRemoveBackgroundRequest *, void (^completion)(VKCRemoveBackgroundResult *, NSError *)) {
-        auto result = adoptNS([[FakeRemoveBackgroundResult alloc] initWithImage:image.get() cropRect:cropRect]);
+        RetainPtr result = adoptNS([[FakeRemoveBackgroundResult alloc] initWithImage:image.get() cropRect:cropRect]);
         completion(static_cast<VKCRemoveBackgroundResult *>(result.get()), nil);
     });
 }

@@ -75,10 +75,10 @@
 
 TEST(WebKit, ConfigurationSubclass)
 {
-    auto configuration = adoptNS([SubclassWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([SubclassWebViewConfiguration new]);
     [configuration setSubclassData:@"original"];
     EXPECT_WK_STREQ([configuration subclassData], "original");
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     EXPECT_WK_STREQ([(SubclassWebViewConfiguration *)[webView configuration] subclassData], "copied");
 }
 
@@ -86,9 +86,9 @@ TEST(WebKit, InvalidConfiguration)
 {
     auto shouldThrowExceptionWhenUsed = [](Function<void(WKWebViewConfiguration *)>&& modifier, bool expectException) {
         @try {
-            auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+            RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
             modifier(configuration.get());
-            auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+            RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
             EXPECT_FALSE(expectException);
         } @catch (NSException *exception) {
             EXPECT_TRUE(expectException);
@@ -115,9 +115,9 @@ TEST(WebKit, InvalidConfiguration)
     IGNORE_NULL_CHECK_WARNINGS_END
 
     // Related WebViews cannot use different data stores.
-    auto configurationForEphemeralView = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configurationForEphemeralView = adoptNS([[WKWebViewConfiguration alloc] init]);
     configurationForEphemeralView.get().websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
-    auto ephemeralWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configurationForEphemeralView.get()]);
+    RetainPtr ephemeralWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configurationForEphemeralView.get()]);
     shouldThrowExceptionWhenUsed([&](WKWebViewConfiguration *configuration) {
         ALLOW_DEPRECATED_DECLARATIONS_BEGIN
         [configuration _setRelatedWebView:ephemeralWebView.get()];
@@ -127,18 +127,18 @@ TEST(WebKit, InvalidConfiguration)
 
 TEST(WebKit, ConfigurationGroupIdentifierIsCopied)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setGroupIdentifier:@"TestGroupIdentifier"];
 
-    auto configurationCopy = adoptNS([configuration copy]);
+    RetainPtr configurationCopy = adoptNS([configuration copy]);
     EXPECT_STREQ([configuration _groupIdentifier].UTF8String, [configurationCopy _groupIdentifier].UTF8String);
 }
 
 TEST(WebKit, DefaultConfigurationEME)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     EXPECT_TRUE([configuration _legacyEncryptedMediaAPIEnabled]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
     [webView loadHTMLString:@"<html>hi</html>" baseURL:nil];
     __block bool done = false;
     [webView evaluateJavaScript:@"window.WebKitMediaKeys ? 'ENABLED' : 'DISABLED'" completionHandler:^(id result, NSError *){
@@ -162,7 +162,7 @@ TEST(WebKit, ConfigurationHTTPSUpgrade)
 
     auto runTest = [&] (bool upgrade) {
         done = false;
-        auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+        RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
         [storeConfiguration setAllowsServerPreconnect:NO];
         [storeConfiguration setProxyConfiguration:@{
             (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
@@ -170,11 +170,11 @@ TEST(WebKit, ConfigurationHTTPSUpgrade)
             (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
             (NSString *)kCFStreamPropertyHTTPProxyPort: @(server.port()),
         }];
-        auto store = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-        auto configuration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr store = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+        RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
         [configuration setWebsiteDataStore:store.get()];
         [configuration setUpgradeKnownHostsToHTTPS:upgrade];
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
         auto request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"http://www.opengl.org/"]];
         [webView loadRequest:request];
         Util::run(&done);
@@ -201,10 +201,10 @@ TEST(WebKit, ConfigurationHTTPSUpgrade)
 
 TEST(WebKit, ConfigurationDisableJavaScript)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     EXPECT_TRUE([configuration _allowsJavaScriptMarkup]);
     [configuration _setAllowsJavaScriptMarkup:NO];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"<body onload=\"document.write('FAIL');\">PASS</body>"];
     NSString *bodyHTML = [webView stringByEvaluatingJavaScript:@"document.body.innerHTML"];
     EXPECT_WK_STREQ(bodyHTML, @"PASS");
@@ -212,10 +212,10 @@ TEST(WebKit, ConfigurationDisableJavaScript)
 
 TEST(WebKit, ConfigurationDisableJavaScriptNestedBody)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     EXPECT_TRUE([configuration _allowsJavaScriptMarkup]);
     [configuration _setAllowsJavaScriptMarkup:NO];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"<table><body onload=\"document.write('FAIL');\"></table>"];
     NSString *bodyHTML = [webView stringByEvaluatingJavaScript:@"document.body.innerHTML"];
     EXPECT_WK_STREQ(bodyHTML, @"<table></table>");
@@ -223,10 +223,10 @@ TEST(WebKit, ConfigurationDisableJavaScriptNestedBody)
 
 TEST(WebKit, ConfigurationDisableJavaScriptSVGAnimateElement)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     EXPECT_TRUE([configuration _allowsJavaScriptMarkup]);
     [configuration _setAllowsJavaScriptMarkup:NO];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"<svg><a><rect fill=\"green\" width=\"10\" height=\"10\"></rect><animate attributeName=\"href\" to=\"javascript:document.write('FAIL')\"/></a></svg>"];
     NSString *bodyHTML = [webView stringByEvaluatingJavaScript:@"document.body.innerHTML"];
     EXPECT_WK_STREQ(bodyHTML, @"<svg><a><rect fill=\"green\" width=\"10\" height=\"10\"></rect><animate attributeName=\"href\"></animate></a></svg>");
@@ -234,10 +234,10 @@ TEST(WebKit, ConfigurationDisableJavaScriptSVGAnimateElement)
 
 TEST(WebKit, ConfigurationDisableJavaScriptSVGAnimateElementComplex)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     EXPECT_TRUE([configuration _allowsJavaScriptMarkup]);
     [configuration _setAllowsJavaScriptMarkup:NO];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"<svg><a><rect fill=\"green\" width=\"10\" height=\"10\"></rect><animate attributeName=\"href\" dur=\"4s\" calcMode=\"spline\" repeatCount=\"indefinite\" values=\"javascript:document.write('FAIL'); javascript:document.write('FAIL'); javascript:document.write(location.href); javascript:document.write('FAIL'); javascript:document.write('FAIL')\" keyTimes=\"0; 0.25; 0.5; 0.75; 1\" keySplines=\"0.5 0 0.5 1; 0.5 0 0.5 1; 0.5 0 0.5 1; 0.5 0 0.5 1\"/></a></svg>"];
     NSString *bodyHTML = [webView stringByEvaluatingJavaScript:@"document.body.innerHTML"];
     EXPECT_WK_STREQ(bodyHTML, @"<svg><a><rect fill=\"green\" width=\"10\" height=\"10\"></rect><animate attributeName=\"href\" dur=\"4s\" calcMode=\"spline\" repeatCount=\"indefinite\" keyTimes=\"0; 0.25; 0.5; 0.75; 1\" keySplines=\"0.5 0 0.5 1; 0.5 0 0.5 1; 0.5 0 0.5 1; 0.5 0 0.5 1\"></animate></a></svg>");
@@ -247,12 +247,12 @@ TEST(WebKit, ConfigurationMaskedURLSchemes)
 {
     [TestProtocol registerWithScheme:@"https"];
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
 
     EXPECT_NS_EQUAL([configuration _maskedURLSchemes], [NSSet set]);
 
 #if ENABLE(WK_WEB_EXTENSIONS)
-    auto extensionController = adoptNS([[WKWebExtensionController alloc] init]);
+    RetainPtr extensionController = adoptNS([[WKWebExtensionController alloc] init]);
     [configuration setWebExtensionController:extensionController.get()];
 
     EXPECT_NS_EQUAL([configuration _maskedURLSchemes], [NSSet setWithObject:@"webkit-extension"]);
@@ -271,8 +271,8 @@ TEST(WebKit, ConfigurationMaskedURLSchemes)
     [configuration _setMaskedURLSchemes:[NSSet setWithObjects:@"test-scheme", @"another-scheme", nil]];
     EXPECT_NS_EQUAL([configuration _maskedURLSchemes], ([NSSet setWithObjects:@"test-scheme", @"another-scheme", nil]));
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
-    auto delegate = adoptNS([TestUIDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<img src=\"test-scheme://foo.com/bar.jpg\"><img src=\"baz.png\">" baseURL:[NSURL URLWithString:@"https://example.com"]];
@@ -340,7 +340,7 @@ TEST(WebKit, ConfigurationMaskedURLSchemes)
     [webView synchronouslyLoadHTMLString:@""];
 
     NSURL *scriptURL = [NSURL URLWithString:@"another-scheme://foo.com/bar.js"];
-    auto userScript = adoptNS([[WKUserScript alloc] _initWithSource:@"alert((new Error).stack)" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES includeMatchPatternStrings:@[] excludeMatchPatternStrings:@[] associatedURL:scriptURL contentWorld:nil deferRunningUntilNotification:NO]);
+    RetainPtr userScript = adoptNS([[WKUserScript alloc] _initWithSource:@"alert((new Error).stack)" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES includeMatchPatternStrings:@[] excludeMatchPatternStrings:@[] associatedURL:scriptURL contentWorld:nil deferRunningUntilNotification:NO]);
 
     [[webView configuration].userContentController _addUserScriptImmediately:userScript.get()];
 
@@ -356,12 +356,12 @@ TEST(WebKit, ConfigurationMaskedURLSchemes)
 
 TEST(WebKit, ConfigurationWebViewToCloneSessionStorageFrom)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"<script>sessionStorage.setItem('key', 'value')</script>" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
 
     [configuration _setWebViewToCloneSessionStorageFrom:webView.get()];
-    auto copiedWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr copiedWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [copiedWebView synchronouslyLoadHTMLString:@"" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     __block bool done = false;
     [copiedWebView evaluateJavaScript:@"sessionStorage.getItem('key')" completionHandler:^(id result, NSError *error) {
@@ -404,8 +404,8 @@ TEST(WebKit, OverrideReferrer)
         EXPECT_FALSE(true);
     } }, HTTPServer::Protocol::HttpsProxy);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:server.httpsProxyConfiguration()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:server.httpsProxyConfiguration()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     auto addReferrer = ^(WKNavigationAction *, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         preferences._overrideReferrerForAllRequests = @"overridereferer";
         completionHandler(WKNavigationActionPolicyAllow, preferences);

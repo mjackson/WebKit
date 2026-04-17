@@ -41,7 +41,8 @@
 #import <wtf/darwin/DispatchExtras.h>
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-#import <WebKit/_WKImmersiveEnvironmentDelegate.h>
+#import <WebKit/WKImmersiveEnvironment.h>
+#import <WebKit/WKImmersiveEnvironmentDelegate.h>
 #endif
 
 #if PLATFORM(MAC)
@@ -79,7 +80,7 @@ struct CustomMenuActionInfo {
     , UIGestureRecognizerDelegate
 #endif
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-    , _WKImmersiveEnvironmentDelegate
+    , WKImmersiveEnvironmentDelegate
 #endif
 > {
     RetainPtr<NSNumber> _stableStateOverride;
@@ -231,7 +232,7 @@ IGNORE_WARNINGS_END
         self.traitOverrides.displayScale = 2.0f;
 #endif
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-        self._immersiveEnvironmentDelegate = self;
+        self.immersiveEnvironmentDelegate = self;
 #endif
     }
     return self;
@@ -807,21 +808,21 @@ static bool isQuickboardViewController(UIViewController *viewController)
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
 
-#pragma mark - _WKImmersiveEnvironmentDelegate
+#pragma mark - WKImmersiveEnvironmentDelegate
 
-- (void)webView:(WKWebView *)webView allowImmersiveEnvironmentFromURL:(NSURL *)url completion:(void (^)(bool))completion
+- (void)webView:(WKWebView *)webView shouldAllowImmersiveEnvironmentFromFrame:(WKFrameInfo *)frame completionHandler:(void (^)(BOOL))completionHandler
 {
-    completion(self.shouldAcceptImmersiveEnvironmentRequests);
+    completionHandler(self.shouldAcceptImmersiveEnvironmentRequests);
 }
 
-- (void)webView:(WKWebView *)webView presentImmersiveEnvironment:(UIView *)environmentView completion:(void (^)(NSError * _Nullable))completion
+- (void)webView:(WKWebView *)webView presentImmersiveEnvironment:(WKImmersiveEnvironment *)environment completionHandler:(void (^)(NSError * _Nullable))completionHandler
 {
-    completion(nil);
+    completionHandler(nil);
 }
 
-- (void)webView:(WKWebView *)webView dismissImmersiveEnvironment:(void (^)())completion
+- (void)webView:(WKWebView *)webView dismissImmersiveEnvironment:(WKImmersiveEnvironment *)environment completionHandler:(void (^)(void))completionHandler
 {
-    completion();
+    completionHandler();
 }
 
 #endif

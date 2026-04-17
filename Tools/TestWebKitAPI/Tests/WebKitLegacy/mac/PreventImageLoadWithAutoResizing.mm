@@ -44,7 +44,7 @@ TEST(WebKit, PreventImageLoadWithAutoResizingTest)
     PlatformWebView webView(context.get());
 
     [webView.platformView() _setMinimumLayoutWidth:400];
-    auto loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
+    RetainPtr loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
         testFinished = true;
     }]);
     webView.platformView().navigationDelegate = loadDelegate.get();

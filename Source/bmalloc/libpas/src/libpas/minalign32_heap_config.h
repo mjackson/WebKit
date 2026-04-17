@@ -82,7 +82,8 @@ PAS_API void minalign32_heap_config_activate(void);
     .marge_bitfit_min_align_shift = PAS_MIN_MARGE_ALIGN_SHIFT, \
     .marge_bitfit_page_size = PAS_MARGE_PAGE_DEFAULT_SIZE, \
     .pgm_enabled = false, \
-    .delegate_large_user_allocations = true)
+    .delegate_large_user_allocations = true, \
+    .large_map_variant = pas_default_large_map_variant)
 
 PAS_API extern const pas_heap_config minalign32_heap_config;
 

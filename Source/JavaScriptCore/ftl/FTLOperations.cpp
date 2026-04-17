@@ -45,10 +45,10 @@
 #include "JSCInlines.h"
 #include "JSGenerator.h"
 #include "JSGeneratorFunction.h"
-#include "JSInternalPromise.h"
 #include "JSIteratorHelper.h"
 #include "JSLexicalEnvironment.h"
 #include "JSMapIterator.h"
+#include "JSPromise.h"
 #include "JSPromiseReaction.h"
 #include "JSRegExpStringIterator.h"
 #include "JSSetIterator.h"
@@ -209,12 +209,8 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationPopulateObjectInOSR, void, (JSGlobalO
             materialize(jsCast<JSAsyncGenerator*>(target));
             break;
         case JSPromiseType:
-            if (target->classInfo() == JSInternalPromise::info())
-                materialize(jsCast<JSInternalPromise*>(target));
-            else {
-                ASSERT(target->classInfo() == JSPromise::info());
-                materialize(jsCast<JSPromise*>(target));
-            }
+            ASSERT(target->classInfo() == JSPromise::info());
+            materialize(jsCast<JSPromise*>(target));
             break;
         default:
             RELEASE_ASSERT_NOT_REACHED();
@@ -511,8 +507,6 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationMaterializeObjectInOSR, HeapCell*, (J
         case JSAsyncGeneratorType:
             return create.operator()<JSAsyncGenerator>();
         case JSPromiseType:
-            if (structure->classInfoForCells() == JSInternalPromise::info())
-                return create.operator()<JSInternalPromise>();
             ASSERT(structure->classInfoForCells() == JSPromise::info());
             return create.operator()<JSPromise>();
         default:

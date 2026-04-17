@@ -81,9 +81,14 @@ auto ToStyle<CSS::URL>::operator()(const CSS::URL& url, const BuilderState& stat
     return toStyleWithScriptExecutionContext(url, protect(state.document()));
 }
 
-Ref<CSSValue> CSSValueCreation<URL>::operator()(CSSValuePool&, const RenderStyle& style, const URL& value)
+Ref<CSSValue> CSSValueCreation<URL>::operator()(CSSValuePool& pool, const RenderStyle& style, const URL& value)
 {
-    return CSSURLValue::create(toCSS(value, style));
+    return CSS::createCSSValue(pool, toCSS(value, style));
+}
+
+auto CSSValueConversion<URL>::operator()(BuilderState& state, const CSSURLValue& value) -> URL
+{
+    return toStyle(value.url(), state);
 }
 
 auto CSSValueConversion<URL>::operator()(BuilderState& state, const CSSValue& value) -> URL

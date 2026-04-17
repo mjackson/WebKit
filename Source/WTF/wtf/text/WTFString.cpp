@@ -522,14 +522,24 @@ String String::fromCodePoint(char32_t codePoint)
 
 // String Operations
 
-template<typename CharacterType, TrailingJunkPolicy policy>
+enum class WhitespacePolicy : bool { Skip, Preserve };
+enum class ParseMode : bool { General, Fixed };
+
+template<typename CharacterType, TrailingJunkPolicy trailingJunkPolicy, WhitespacePolicy whitespacePolicy, ParseMode mode>
 static inline double toDoubleType(std::span<const CharacterType> data, bool* ok, size_t& parsedLength)
 {
     size_t leadingSpacesLength = 0;
-    while (leadingSpacesLength < data.size() && isUnicodeCompatibleASCIIWhitespace(data[leadingSpacesLength]))
-        ++leadingSpacesLength;
+    if constexpr (whitespacePolicy == WhitespacePolicy::Skip) {
+        while (leadingSpacesLength < data.size() && isUnicodeCompatibleASCIIWhitespace(data[leadingSpacesLength]))
+            ++leadingSpacesLength;
+    }
 
-    double number = parseDouble(data.subspan(leadingSpacesLength), parsedLength);
+    double number;
+    if constexpr (mode == ParseMode::Fixed)
+        number = parseFixedDouble(data.subspan(leadingSpacesLength), parsedLength);
+    else
+        number = parseDouble(data.subspan(leadingSpacesLength), parsedLength);
+
     if (!parsedLength) {
         if (ok)
             *ok = false;
@@ -538,46 +548,58 @@ static inline double toDoubleType(std::span<const CharacterType> data, bool* ok,
 
     parsedLength += leadingSpacesLength;
     if (ok)
-        *ok = policy == TrailingJunkPolicy::Allow || parsedLength == data.size();
+        *ok = trailingJunkPolicy == TrailingJunkPolicy::Allow || parsedLength == data.size();
     return number;
 }
 
 double charactersToDouble(std::span<const Latin1Character> data, bool* ok)
 {
     size_t parsedLength;
-    return toDoubleType<Latin1Character, TrailingJunkPolicy::Disallow>(data, ok, parsedLength);
+    return toDoubleType<Latin1Character, TrailingJunkPolicy::Disallow, WhitespacePolicy::Skip, ParseMode::General>(data, ok, parsedLength);
 }
 
 double charactersToDouble(std::span<const char16_t> data, bool* ok)
 {
     size_t parsedLength;
-    return toDoubleType<char16_t, TrailingJunkPolicy::Disallow>(data, ok, parsedLength);
+    return toDoubleType<char16_t, TrailingJunkPolicy::Disallow, WhitespacePolicy::Skip, ParseMode::General>(data, ok, parsedLength);
+}
+
+double charactersToFixedDouble(std::span<const Latin1Character> data, bool* ok)
+{
+    size_t parsedLength;
+    return toDoubleType<Latin1Character, TrailingJunkPolicy::Disallow, WhitespacePolicy::Preserve, ParseMode::Fixed>(data, ok, parsedLength);
+}
+
+double charactersToFixedDouble(std::span<const char16_t> data, bool* ok)
+{
+    size_t parsedLength;
+    return toDoubleType<char16_t, TrailingJunkPolicy::Disallow, WhitespacePolicy::Preserve, ParseMode::Fixed>(data, ok, parsedLength);
 }
 
 float charactersToFloat(std::span<const Latin1Character> data, bool* ok)
 {
     // FIXME: This will return ok even when the string fits into a double but not a float.
     size_t parsedLength;
-    return static_cast<float>(toDoubleType<Latin1Character, TrailingJunkPolicy::Disallow>(data, ok, parsedLength));
+    return static_cast<float>(toDoubleType<Latin1Character, TrailingJunkPolicy::Disallow, WhitespacePolicy::Skip, ParseMode::General>(data, ok, parsedLength));
 }
 
 float charactersToFloat(std::span<const char16_t> data, bool* ok)
 {
     // FIXME: This will return ok even when the string fits into a double but not a float.
     size_t parsedLength;
-    return static_cast<float>(toDoubleType<char16_t, TrailingJunkPolicy::Disallow>(data, ok, parsedLength));
+    return static_cast<float>(toDoubleType<char16_t, TrailingJunkPolicy::Disallow, WhitespacePolicy::Skip, ParseMode::General>(data, ok, parsedLength));
 }
 
 float charactersToFloat(std::span<const Latin1Character> data, size_t& parsedLength)
 {
     // FIXME: This will return ok even when the string fits into a double but not a float.
-    return static_cast<float>(toDoubleType<Latin1Character, TrailingJunkPolicy::Allow>(data, nullptr, parsedLength));
+    return static_cast<float>(toDoubleType<Latin1Character, TrailingJunkPolicy::Allow, WhitespacePolicy::Skip, ParseMode::General>(data, nullptr, parsedLength));
 }
 
 float charactersToFloat(std::span<const char16_t> data, size_t& parsedLength)
 {
     // FIXME: This will return ok even when the string fits into a double but not a float.
-    return static_cast<float>(toDoubleType<char16_t, TrailingJunkPolicy::Allow>(data, nullptr, parsedLength));
+    return static_cast<float>(toDoubleType<char16_t, TrailingJunkPolicy::Allow, WhitespacePolicy::Skip, ParseMode::General>(data, nullptr, parsedLength));
 }
 
 const StaticString nullStringData { nullptr };

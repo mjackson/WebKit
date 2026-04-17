@@ -35,8 +35,8 @@
 
 namespace WebCore {
 
-class CSSPrimitiveValue;
 class CSSSegmentedFontFace;
+class CSSValue;
 class FontFaceSet;
 
 template<typename> class ExceptionOr;
@@ -108,7 +108,7 @@ private:
 
     void ensureLocalFontFacesForFamilyRegistered(const AtomString&);
 
-    static String familyNameFromPrimitive(const CSSPrimitiveValue&);
+    static AtomString familyName(const CSSValue&);
 
     using FontSelectionKey = std::optional<FontSelectionRequest>;
     struct FontSelectionKeyHash : WTF::HasherBasedHash<FontSelectionKey> {

@@ -32,6 +32,8 @@
 #include "GLDisplay.h"
 #include <atomic>
 #include <drm_fourcc.h>
+#include <fcntl.h>
+#include <xf86drm.h>
 
 #if USE(LIBEPOXY)
 #include <epoxy/egl.h>
@@ -89,8 +91,18 @@ std::optional<DMABufBufferAttributes> DMABufBufferAttributes::fromGBMBufferObjec
     attributes.fourcc = gbm_bo_get_format(bo);
     attributes.modifier = enableModifiers == EnableModifiers::Yes ? gbm_bo_get_modifier(bo) : DRM_FORMAT_MOD_INVALID;
 
+    auto getMappableFDForPlane = [](struct gbm_bo* bo, int plane) {
+        auto handle = gbm_bo_get_handle_for_plane(bo, plane);
+        if (handle.s32 == -1)
+            return -1;
+
+        int fd;
+        int ret = drmPrimeHandleToFD(gbm_device_get_fd(gbm_bo_get_device(bo)), handle.u32, DRM_CLOEXEC | DRM_RDWR, &fd);
+        return ret < 0 ? -1 : fd;
+    };
+
     for (int i = 0; i < planeCount; ++i) {
-        int fd = gbm_bo_get_fd_for_plane(bo, i);
+        int fd = getMappableFDForPlane(bo, i);
         if (fd < 0) {
             LOG_ERROR("DMABufBufferAttributes::fromGBMBufferObject(), failed to export dma-buf for plane %d", i);
             return std::nullopt;

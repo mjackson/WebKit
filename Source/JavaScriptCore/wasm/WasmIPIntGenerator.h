@@ -82,10 +82,6 @@ struct InstructionLengthMetadata {
     uint8_t length; // 1B for length of current instruction
 };
 
-struct MemoryIndexMetadata {
-    uint8_t memoryIndex; // 1B for memory index (JS embedding of wasm is limited to 100 memories)
-};
-
 struct BlockMetadata {
     // Field order is significant, both may be loaded with one 'loadpairi' instruction.
     // Negative deltas are possible for some Wasm instructions and require sign extension to 64b before the addition.
@@ -137,23 +133,58 @@ struct GlobalMetadata {
     uint8_t isRef; // 1B for ref flag
 };
 
-// Constant metadata structures
+// Metadata for instructions that pass a single index/offset to a C call.
+// Each category gets its own named type.
 
-struct Const32Metadata {
-    // instructionLength needs to go first because we encode small
-    // i32 as just instructionLength with the value embedded in bytecode.
-    InstructionLengthMetadata instructionLength;
-    uint32_t value;
-};
-
-struct Const64Metadata {
-    uint64_t value;
+struct TableAccessMetadata {
+    uint32_t index; // 4B for table index
     InstructionLengthMetadata instructionLength;
 };
 
-struct Const128Metadata {
-    v128_t value;
+struct RefFuncMetadata {
+    uint32_t index; // 4B for function space index
     InstructionLengthMetadata instructionLength;
+};
+
+struct ElemDropMetadata {
+    uint32_t index; // 4B for element index
+    InstructionLengthMetadata instructionLength;
+};
+
+struct DataAccessMetadata {
+    uint32_t index; // 4B for data index
+    InstructionLengthMetadata instructionLength;
+};
+
+struct MemoryInitMetadata {
+    uint8_t memoryIndex;
+    uint32_t dataIndex; // 4B for data index
+    InstructionLengthMetadata instructionLength;
+};
+
+struct MemoryFillMetadata {
+    uint8_t memoryIndex;
+    InstructionLengthMetadata instructionLength;
+};
+
+struct MemoryCopyMetadata {
+    uint8_t dstMemoryIndex;
+    uint8_t srcMemoryIndex;
+    InstructionLengthMetadata instructionLength;
+};
+
+struct AtomicMemoryAccessMetadata {
+    uint8_t memoryIndex;
+    uint64_t offset;
+    InstructionLengthMetadata instructionLength;
+};
+
+struct MemorySizeMetadata {
+    uint8_t memoryIndex;
+};
+
+struct MemoryGrowMetadata {
+    uint8_t memoryIndex;
 };
 
 struct TableInitMetadata {

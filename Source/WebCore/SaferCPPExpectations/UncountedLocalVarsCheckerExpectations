@@ -68,6 +68,7 @@ html/HTMLOptionElement.cpp
 html/OffscreenCanvas.cpp
 html/canvas/CanvasRenderingContext2DBase.cpp
 inspector/InspectorAuditAccessibilityObject.cpp
+inspector/InspectorIdentifierRegistry.cpp
 inspector/InspectorNodeFinder.cpp
 inspector/agents/InspectorAnimationAgent.cpp
 inspector/agents/InspectorCSSAgent.cpp

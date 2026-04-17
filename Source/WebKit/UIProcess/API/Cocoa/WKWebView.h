@@ -49,11 +49,13 @@ NS_ASSUME_NONNULL_BEGIN
 @class WKFindConfiguration;
 @class WKFindResult;
 @class WKFrameInfo;
+@class WKImmersiveEnvironment;
 @class WKNavigation;
 @class WKPDFConfiguration;
 @class WKSnapshotConfiguration;
 @class WKWebViewConfiguration;
 
+@protocol WKImmersiveEnvironmentDelegate;
 @protocol WKNavigationDelegate;
 @protocol WKUIDelegate;
 
@@ -724,6 +726,16 @@ typedef NS_OPTIONS(NSUInteger, WKWebViewDataType) {
 @property (nonatomic) NSEdgeInsets obscuredContentInsets WK_API_AVAILABLE(macos(26.0));
 #else
 @property (nonatomic) UIEdgeInsets obscuredContentInsets WK_API_AVAILABLE(ios(26.0), visionos(26.0));
+#endif
+
+#if defined(TARGET_OS_VISION) && TARGET_OS_VISION
+/*! @abstract The delegate that manages immersive environment presentation.
+ */
+@property (nullable, nonatomic, weak) id <WKImmersiveEnvironmentDelegate> immersiveEnvironmentDelegate WK_API_AVAILABLE(visionos(WK_XROS_TBA));
+
+/*! @abstract Dismisses the currently presented immersive environment.
+ */
+- (void)dismissImmersiveEnvironmentWithCompletionHandler:(NS_SWIFT_UI_ACTOR void (^)(void))completionHandler NS_SWIFT_ASYNC_NAME(dismissImmersiveEnvironment()) WK_API_AVAILABLE(visionos(WK_XROS_TBA));
 #endif
 
 #if 0 // API_WEBKIT_ADDITIONS_REPLACEMENT

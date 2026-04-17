@@ -99,7 +99,7 @@ TEST(WebKitLegacy, CrossPartitionFileSchemeAccess)
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     
-    auto delegate = adoptNS([[CrossPartitionFileSchemeAccessNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CrossPartitionFileSchemeAccessNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     
     NSURLRequest *request = [NSURLRequest requestWithURL:url];

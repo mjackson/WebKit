@@ -54,18 +54,6 @@ HasSelectorFilter::HasSelectorFilter(const Element& element, Type type)
     }
 }
 
-auto HasSelectorFilter::typeForMatchElement(MatchElement matchElement) -> std::optional<Type>
-{
-    switch (matchElement) {
-    case MatchElement::HasChild:
-        return Type::Children;
-    case MatchElement::HasDescendant:
-        return Type::Descendants;
-    default:
-        return { };
-    }
-}
-
 auto HasSelectorFilter::makeKey(const CSSSelector& hasSelector) -> Key
 {
     SelectorFilter::CollectedSelectorHashes hashes;

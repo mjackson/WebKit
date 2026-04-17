@@ -1,0 +1,3 @@
+
+FAIL moveBefore() is allowed in ShadowRoots (i.e., connected DocumentFragments) shadowTarget.shadowRoot.moveBefore is not a function. (In 'shadowTarget.shadowRoot.moveBefore(child2, child1)', 'shadowTarget.shadowRoot.moveBefore' is undefined)
+

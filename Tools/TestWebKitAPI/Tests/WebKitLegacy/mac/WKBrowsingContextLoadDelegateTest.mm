@@ -95,7 +95,7 @@ TEST_F(WKBrowsingContextLoadDelegateTest, SimpleLoad)
     bool simpleLoadDone = false;
 
     // Add the load delegate.
-    auto loadDelegate = adoptNS([[SimpleLoadDelegate alloc] initWithFlag:&simpleLoadDone]);
+    RetainPtr loadDelegate = adoptNS([[SimpleLoadDelegate alloc] initWithFlag:&simpleLoadDone]);
     view.get().navigationDelegate = loadDelegate.get();
 
     // Load the file.
@@ -114,7 +114,7 @@ TEST_F(WKBrowsingContextLoadDelegateTest, SimpleLoadOfHTMLString)
     bool simpleLoadDone = false;
 
     // Add the load delegate.
-    auto loadDelegate = adoptNS([[SimpleLoadDelegate alloc] initWithFlag:&simpleLoadDone]);
+    RetainPtr loadDelegate = adoptNS([[SimpleLoadDelegate alloc] initWithFlag:&simpleLoadDone]);
     view.get().navigationDelegate = loadDelegate.get();
 
     // Load the HTML string.
@@ -132,7 +132,7 @@ TEST_F(WKBrowsingContextLoadDelegateTest, SimpleLoadOfHTMLString_NilBaseURL)
     bool simpleLoadDone = false;
 
     // Add the load delegate.
-    auto loadDelegate = adoptNS([[SimpleLoadDelegate alloc] initWithFlag:&simpleLoadDone]);
+    RetainPtr loadDelegate = adoptNS([[SimpleLoadDelegate alloc] initWithFlag:&simpleLoadDone]);
     view.get().navigationDelegate = loadDelegate.get();
 
     // Load the HTML string, pass nil as the baseURL.
@@ -150,7 +150,7 @@ TEST_F(WKBrowsingContextLoadDelegateTest, SimpleLoadOfHTMLString_NilHTMLStringAn
     bool simpleLoadDone = false;
 
     // Add the load delegate.
-    auto loadDelegate = adoptNS([[SimpleLoadDelegate alloc] initWithFlag:&simpleLoadDone]);
+    RetainPtr loadDelegate = adoptNS([[SimpleLoadDelegate alloc] initWithFlag:&simpleLoadDone]);
     view.get().navigationDelegate = loadDelegate.get();
 
     // Load the HTML string (as nil).
@@ -200,7 +200,7 @@ TEST_F(WKBrowsingContextLoadDelegateTest, SimpleLoadFail)
     bool simpleLoadFailDone = false;
 
     // Add the load delegate.
-    auto loadDelegate = adoptNS([[SimpleLoadFailDelegate alloc] initWithFlag:&simpleLoadFailDone]);
+    RetainPtr loadDelegate = adoptNS([[SimpleLoadFailDelegate alloc] initWithFlag:&simpleLoadFailDone]);
     view.get().navigationDelegate = loadDelegate.get();
 
     // Load a non-existent file.

@@ -106,7 +106,7 @@ TEST(WebKit, LoadInvalidURLRequest)
 TEST(WebKit, LoadInvalidURLRequestNonASCII)
 {
     __block bool done = false;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().webContentProcessDidTerminate = ^(WKWebView *, _WKProcessTerminationReason) {
         ASSERT_NOT_REACHED();
     };
@@ -116,7 +116,7 @@ TEST(WebKit, LoadInvalidURLRequestNonASCII)
         EXPECT_WK_STREQ([error.userInfo[NSURLErrorFailingURLErrorKey] absoluteString], "");
         done = true;
     };
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
     const UInt8 bytes[10] = { 'h', 't', 't', 'p', ':', '/', '/', 0xE2, 0x80, 0x80 };
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:bridge_cast(adoptCF(CFURLCreateAbsoluteURLWithBytes(nullptr, bytes, 10, kCFStringEncodingUTF8, nullptr, true))).get()];
@@ -127,14 +127,14 @@ TEST(WebKit, LoadInvalidURLRequestNonASCII)
 
 TEST(WebKit, LoadNSURLRequestSubclass)
 {
-    auto request = adoptNS([[TestURLRequest alloc] initWithURL:[NSURL URLWithString:@"test:///"]]);
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr request = adoptNS([[TestURLRequest alloc] initWithURL:[NSURL URLWithString:@"test:///"]]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     handler.get().startURLSchemeTaskHandler = ^(WKWebView *, id<WKURLSchemeTask> task) {
         respond(task, "hi");
     };
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"test"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
     [webView loadRequest:request.get()];
     [webView _test_waitForDidFinishNavigation];
 }
@@ -146,16 +146,16 @@ TEST(WebKit, LoadNSURLRequestWithMutablePropertiesAndKeys)
     [NSURLProtocol setProperty:[NSMutableArray array] forKey:@"key1" inRequest:request];
     [NSURLProtocol setProperty:[NSMutableDictionary dictionary] forKey:@"key2" inRequest:request];
     [NSURLProtocol setProperty:[NSMutableString string] forKey:@"key3" inRequest:request];
-    auto webView = adoptNS([WKWebView new]);
-    auto response = adoptNS([[NSURLResponse alloc] initWithURL:request.URL MIMEType:nil expectedContentLength:0 textEncodingName:nil]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:request.URL MIMEType:nil expectedContentLength:0 textEncodingName:nil]);
     [webView loadSimulatedRequest:request response:response.get() responseData:[NSData data]];
     [webView _test_waitForDidFinishNavigation];
 }
 
 TEST(WebKit, NavigateToInvalidURL)
 {
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     webView.get().navigationDelegate = delegate.get();
     __block bool finished { false };
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^decisionHandler)(WKNavigationActionPolicy)) {
@@ -172,14 +172,14 @@ TEST(WebKit, NavigateToInvalidURL)
 TEST(WebKit, LoadInvalidURLWithSpaceCharacter)
 {
     __block bool done = false;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().didFailProvisionalNavigation = ^(WKWebView *, WKNavigation *, NSError *error) {
         EXPECT_WK_STREQ(error.domain, @"WebKitErrorDomain");
         EXPECT_EQ(error.code, WebKitErrorCannotShowURL);
         EXPECT_WK_STREQ([error.userInfo[NSURLErrorFailingURLErrorKey] absoluteString], "");
         done = true;
     };
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://%20.example.com/"]]];
     Util::run(&done);

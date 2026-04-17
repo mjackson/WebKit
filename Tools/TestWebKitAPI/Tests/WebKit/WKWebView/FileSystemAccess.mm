@@ -99,14 +99,14 @@ test();
 
 TEST(FileSystemAccess, WebProcessCrashDuringWrite)
 {
-    auto handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
     auto preferences = [configuration preferences];
     preferences._fileSystemAccessEnabled = YES;
     preferences._accessHandleEnabled = YES;
     preferences._storageAPIEnabled = YES;
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         RetainPtr<NSURLResponse> response;
         RetainPtr<NSData> data;
@@ -120,7 +120,7 @@ TEST(FileSystemAccess, WebProcessCrashDuringWrite)
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webkit"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadHTMLString:workerFrameString baseURL:[NSURL URLWithString:@"webkit://webkit.org"]];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     receivedScriptMessage = false;
@@ -131,7 +131,7 @@ TEST(FileSystemAccess, WebProcessCrashDuringWrite)
     receivedScriptMessage = false;
     EXPECT_WK_STREQ(@"success: write 10 bytes", [lastScriptMessage body]);
 
-    auto secondWebView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr secondWebView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [secondWebView loadHTMLString:workerFrameString baseURL:[NSURL URLWithString:@"webkit://webkit.org"]];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     receivedScriptMessage = false;
@@ -153,19 +153,19 @@ TEST(FileSystemAccess, WebProcessCrashDuringWrite)
 
 TEST(FileSystemAccess, NetworkProcessCrashDuringWrite)
 {
-    auto handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
     auto preferences = [configuration preferences];
     preferences._fileSystemAccessEnabled = YES;
     preferences._accessHandleEnabled = YES;
     preferences._storageAPIEnabled = YES;
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         RetainPtr<NSData> data;
         NSURL *requestURL = task.request.URL;
         EXPECT_WK_STREQ("webkit://webkit.org/worker.js", requestURL.absoluteString);
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:requestURL MIMEType:@"text/javascript" expectedContentLength:0 textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:requestURL MIMEType:@"text/javascript" expectedContentLength:0 textEncodingName:nil]);
         data = [NSData dataWithBytes:workerBytes length:strlen(workerBytes)];
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
@@ -173,7 +173,7 @@ TEST(FileSystemAccess, NetworkProcessCrashDuringWrite)
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webkit"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadHTMLString:workerFrameString baseURL:[NSURL URLWithString:@"webkit://webkit.org"]];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     receivedScriptMessage = false;
@@ -200,18 +200,18 @@ TEST(FileSystemAccess, NetworkProcessCrashDuringWrite)
 
 TEST(FileSystemAccess, DeleteDataDuringWrite)
 {
-    auto handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
     auto preferences = [configuration preferences];
     preferences._fileSystemAccessEnabled = YES;
     preferences._accessHandleEnabled = YES;
     preferences._storageAPIEnabled = YES;
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         NSURL *requestURL = task.request.URL;
         EXPECT_WK_STREQ("webkit://webkit.org/worker.js", requestURL.absoluteString);
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:requestURL MIMEType:@"text/javascript" expectedContentLength:0 textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:requestURL MIMEType:@"text/javascript" expectedContentLength:0 textEncodingName:nil]);
         RetainPtr<NSData> data = [NSData dataWithBytes:workerBytes length:strlen(workerBytes)];
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
@@ -219,7 +219,7 @@ TEST(FileSystemAccess, DeleteDataDuringWrite)
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webkit"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadHTMLString:workerFrameString baseURL:[NSURL URLWithString:@"webkit://webkit.org"]];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     receivedScriptMessage = false;
@@ -297,14 +297,14 @@ TEST(FileSystemAccess, MigrateToNewStorageDirectory)
     EXPECT_TRUE([[NSFileManager defaultManager] fileExistsAtPath:newFilePath]);
 
     // Ensure file can be opened after migration: test page only opens the file if it exists.
-    auto handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
     auto preferences = [configuration preferences];
     preferences._fileSystemAccessEnabled = YES;
     preferences._storageAPIEnabled = YES;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadHTMLString:basicString baseURL:[NSURL URLWithString:@"https://webkit.org"]];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     receivedScriptMessage = false;
@@ -327,8 +327,8 @@ static NSString *testString = @"<script> \
 
 TEST(FileSystemAccess, FetchAndRemoveData)
 {
-    auto handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
     auto websiteDataStore = [configuration websiteDataStore];
     auto types = [NSSet setWithObject:WKWebsiteDataTypeFileSystem];
@@ -343,7 +343,7 @@ TEST(FileSystemAccess, FetchAndRemoveData)
     auto preferences = [configuration preferences];
     preferences._fileSystemAccessEnabled = YES;
     preferences._storageAPIEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadHTMLString:testString baseURL:[NSURL URLWithString:@"https://webkit.org"]];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     receivedScriptMessage = false;
@@ -379,13 +379,13 @@ TEST(FileSystemAccess, FetchAndRemoveData)
 
 TEST(FileSystemAccess, RemoveDataByModificationTime)
 {
-    auto handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
     auto preferences = [configuration preferences];
     preferences._fileSystemAccessEnabled = YES;
     preferences._storageAPIEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadHTMLString:testString baseURL:[NSURL URLWithString:@"https://webkit.org"]];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     receivedScriptMessage = false;
@@ -457,8 +457,8 @@ TEST(FileSystemAccess, FetchDataForThirdParty)
         { "/"_s, { frameBytes } },
     }, TestWebKitAPI::HTTPServer::Protocol::Https, nullptr, nullptr, 9091);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[FileSystemAccessMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
     auto preferences = [configuration preferences];
     preferences._fileSystemAccessEnabled = YES;
@@ -472,8 +472,8 @@ TEST(FileSystemAccess, FetchDataForThirdParty)
     }];
     TestWebKitAPI::Util::run(&done);
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodServerTrust);
         callback(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);

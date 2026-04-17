@@ -441,7 +441,7 @@ bool isDefaultPortForProtocol(uint16_t port, StringView protocol)
 
 bool URL::protocolIsJavaScript() const
 {
-    return WTF::protocolIsJavaScript(string());
+    return protocolIs("javascript"_s);
 }
 
 bool URL::protocolIs(StringView protocol) const
@@ -1044,9 +1044,9 @@ String URL::strippedForUseAsReport() const
     return makeString(StringView(m_string).left(m_userStart), StringView(m_string).substring(end, m_pathEnd - end));
 }
 
-bool protocolIsJavaScript(StringView string)
+bool isValidJavaScriptURL(StringView string)
 {
-    return protocolIsInternal(string, "javascript"_s);
+    return URL(string.toStringWithoutCopying()).protocolIsJavaScript();
 }
 
 bool protocolIsInHTTPFamily(StringView url)
@@ -1063,14 +1063,14 @@ bool protocolIsInHTTPFamily(StringView url)
 
 
 static StaticStringImpl aboutBlankString { "about:blank" };
-const URL& aboutBlankURL()
+SUPPRESS_NODELETE const URL& aboutBlankURL()
 {
     static NeverDestroyed<URL> staticBlankURL { &aboutBlankString };
     return staticBlankURL;
 }
 
 static StaticStringImpl aboutSrcDocString { "about:srcdoc" };
-const URL& aboutSrcDocURL()
+SUPPRESS_NODELETE const URL& aboutSrcDocURL()
 {
     static NeverDestroyed<URL> staticSrcDocURL { &aboutSrcDocString };
     return staticSrcDocURL;

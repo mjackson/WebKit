@@ -27,6 +27,7 @@
 
 #if ENABLE(WK_WEB_EXTENSIONS)
 
+#import "Helpers/cocoa/HTTPServer.h"
 #import "Helpers/cocoa/TestCocoa.h"
 #import "Helpers/cocoa/WebExtensionUtilities.h"
 #import <WebKit/WKFoundation.h>
@@ -956,20 +957,542 @@ TEST(WKWebExtensionContext, LoadNonExistentImage)
 
     auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionErrorResourceNotFound);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Unable to find \"non-existent-image.png\" in the extension’s resources. It is an invalid path.");
+}
+
+TEST(WKWebExtensionContext, TopLevelThrowInModuleBackground)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"scripts": @[ @"background.js" ],
+            @"type": @"module",
+            @"persistent": @NO,
+        },
+    };
+
+    auto *backgroundScript = @"throw new Error('Top level module error')";
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Error: Top level module error (background.js:1:16)");
+}
+
+TEST(WKWebExtensionContext, ReferenceErrorInBackground)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"scripts": @[ @"background.js" ],
+            @"type": @"module",
+            @"persistent": @NO,
+        },
+    };
+
+    auto *backgroundScript = @"undeclaredVariable.foo";
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"ReferenceError: Can't find variable: undeclaredVariable (background.js:1:19)");
+}
+
+TEST(WKWebExtensionContext, CallingMissingBrowserAPIInBackground)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"scripts": @[ @"background.js" ],
+            @"type": @"module",
+            @"persistent": @NO,
+        },
+    };
+
+    auto *backgroundScript = @"browser.runtime.nonExistentMethod()";
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"TypeError: browser.runtime.nonExistentMethod is not a function. (In 'browser.runtime.nonExistentMethod()', 'browser.runtime.nonExistentMethod' is undefined) (background.js:1:34)");
+}
+
+TEST(WKWebExtensionContext, UncaughtScriptErrorInBackground)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"scripts": @[ @"background.js" ],
+            @"type": @"module",
+            @"persistent": @NO,
+        },
+    };
+
+    // Use setTimeout so the throw happens as a runtime uncaught exception, not a module evaluation rejection.
+    auto *backgroundScript = @"setTimeout(() => { throw new Error('Test uncaught error') }, 0)";
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Error: Test uncaught error (background.js:1:58)");
+}
+
+TEST(WKWebExtensionContext, UnhandledPromiseRejectionInBackground)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"scripts": @[ @"background.js" ],
+            @"type": @"module",
+            @"persistent": @NO,
+        },
+    };
+
+    auto *backgroundScript = @"Promise.reject(new Error('Test rejection'))";
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Error: Test rejection");
+}
+
+TEST(WKWebExtensionContext, UncaughtScriptErrorInServiceWorkerBackground)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"service_worker": @"background.js",
+        },
+    };
+
+    auto *backgroundScript = @"setTimeout(() => { throw new Error('Service worker uncaught error') }, 0)";
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Error: Service worker uncaught error (background.js:1:68)");
+}
+
+TEST(WKWebExtensionContext, UnhandledPromiseRejectionInServiceWorkerBackground)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"service_worker": @"background.js",
+        },
+    };
+
+    auto *backgroundScript = @"Promise.reject(new Error('Service worker rejection'))";
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Error: Service worker rejection");
+}
+
+TEST(WKWebExtensionContext, SyntaxErrorInBackground)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"scripts": @[ @"background.js" ],
+            @"persistent": @NO,
+        },
+    };
+
+    // A bare syntax error: fails at parse time, so exception->stack() will be empty.
+    // Validates that the source URL fallback via error.sourceURL is correctly reported.
+    auto *backgroundScript = @")(";
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"SyntaxError: Unexpected token ')' (background.js:1)");
+}
+
+TEST(WKWebExtensionContext, NoErrorForCaughtExceptionsInBackground)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"scripts": @[ @"background.js" ],
+            @"type": @"module",
+            @"persistent": @NO,
+        },
+    };
+
+    auto *backgroundScript = Util::constructScript(@[
+        // Caught synchronous exception — should not populate errors.
+        @"try { throw new Error('Caught error') } catch (e) {}",
+
+        // Handled promise rejection — should not populate errors.
+        @"Promise.reject(new Error('Handled rejection')).catch(() => {})",
+
+        @"browser.test.notifyPass()",
+    ]);
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+    [manager run];
+
+    EXPECT_EQ(manager.get().context.errors.count, 0ul);
+}
+
+TEST(WKWebExtensionContext, UncaughtScriptErrorInContentScript)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"content_scripts": @[ @{
+            @"matches": @[ @"*://localhost/*" ],
+            @"js": @[ @"content.js" ],
+        } ],
+    };
+
+    auto *contentScript = @"throw new Error('Content script error')";
+
+    auto manager = Util::loadExtension(manifest, @{ @"content.js": contentScript });
+
+    auto *urlRequest = server.requestWithLocalhost();
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
+    [manager.get().defaultTab.webView loadRequest:urlRequest];
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Error: Content script error (content.js:1:40)");
+}
+
+TEST(WKWebExtensionContext, UncaughtScriptErrorInMainWorldContentScript)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"content_scripts": @[ @{
+            @"matches": @[ @"*://localhost/*" ],
+            @"js": @[ @"content.js" ],
+            @"world": @"MAIN",
+        } ],
+    };
+
+    auto *contentScript = @"throw new Error('Main world error')";
+
+    auto manager = Util::loadExtension(manifest, @{ @"content.js": contentScript });
+
+    auto *urlRequest = server.requestWithLocalhost();
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
+    [manager.get().defaultTab.webView loadRequest:urlRequest];
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Error: Main world error (content.js:1:36)");
+}
+
+TEST(WKWebExtensionContext, PageScriptErrorNotReportedToExtension)
+{
+    // Verify that errors thrown by page scripts (not extension scripts) are not reported to the extension,
+    // even when a main-world content script is active on the same page.
+    TestWebKitAPI::HTTPServer server({
+        { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, "<script>throw new Error('Page error')</script>"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"content_scripts": @[ @{
+            @"matches": @[ @"*://localhost/*" ],
+            @"js": @[ @"content.js" ],
+            @"world": @"MAIN",
+        } ],
+    };
+
+    // The content script itself does not throw; only the page script does.
+    auto *contentScript = @"let result = 2 + 2;";
+
+    auto manager = Util::loadExtension(manifest, @{ @"content.js": contentScript });
+
+    auto *urlRequest = server.requestWithLocalhost();
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
+    [manager.get().defaultTab.webView loadRequest:urlRequest];
+
+    [manager runForTimeInterval:3];
+
     EXPECT_NS_EQUAL(manager.get().context.errors, @[ ]);
+}
 
-    [NSNotificationCenter.defaultCenter addObserverForName:WKWebExtensionContextErrorsDidUpdateNotification object:nil queue:nil usingBlock:^(NSNotification *notification) {
-        auto *extensionContext = dynamic_objc_cast<WKWebExtensionContext>(notification.object);
+TEST(WKWebExtensionContext, UncaughtScriptErrorInEventListener)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"scripts": @[ @"background.js" ],
+            @"type": @"module",
+            @"persistent": @NO,
+        },
+        @"action": @{ },
+    };
 
-        EXPECT_EQ(extensionContext.errors.count, 1ul);
+    auto *backgroundScript = Util::constructScript(@[
+        @"browser.action.onClicked.addListener((tab) => {",
+        @"  throw new Error('Error in event listener')",
+        @"})",
 
-        auto *predicate = [NSPredicate predicateWithFormat:@"localizedDescription CONTAINS %@", @"Unable to find \"non-existent-image.png\" in the extension’s resources."];
-        auto *filteredErrors = [extensionContext.errors filteredArrayUsingPredicate:predicate];
+        @"browser.test.sendMessage('Ready')",
+    ]);
 
-        EXPECT_NS_EQUAL(extensionContext.errors, filteredErrors);
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
-        [manager done];
-    }];
+    [manager runUntilTestMessage:@"Ready"];
+
+    [manager.get().context performActionForTab:manager.get().defaultTab];
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Error: Error in event listener (background.js:2:18)");
+}
+
+TEST(WKWebExtensionContext, TopLevelThrowInPopup)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"action": @{
+            @"default_popup": @"popup.html",
+        },
+    };
+
+    auto *popupScript = Util::constructScript(@[
+        @"browser.test.sendMessage('Ready')",
+        @"throw new Error('Popup error')",
+    ]);
+
+    auto *resources = @{
+        @"popup.html": @"<script type='module' src='popup.js'></script>",
+        @"popup.js": popupScript,
+    };
+
+    auto manager = Util::loadExtension(manifest, resources);
+
+    manager.get().internalDelegate.presentPopupForAction = ^(WKWebExtensionAction *action) {
+        EXPECT_NOT_NULL(action.popupWebView);
+    };
+
+    [manager.get().context performActionForTab:manager.get().defaultTab];
+
+    [manager runUntilTestMessage:@"Ready"];
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Error: Popup error (popup.js:2:16)");
+}
+
+TEST(WKWebExtensionContext, ConsoleErrorReportedNotLogOrWarn)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"scripts": @[ @"background.js" ],
+            @"type": @"module",
+            @"persistent": @NO,
+        },
+    };
+
+    auto *backgroundScript = Util::constructScript(@[
+        @"console.log('This is a log message')",
+        @"console.warn('This is a warning message')",
+        @"console.error('Failed to inject script:', new Error('Missing permission'))",
+
+        @"browser.test.sendMessage('Ready')",
+    ]);
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilTestMessage:@"Ready"];
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Failed to inject script: Error: Missing permission (background.js:3:14)");
+}
+
+TEST(WKWebExtensionContext, ConsoleAssertWithMessage)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"scripts": @[ @"background.js" ],
+            @"type": @"module",
+            @"persistent": @NO,
+        },
+    };
+
+    auto *backgroundScript = Util::constructScript(@[
+        @"console.assert(true, 'This should not appear')",
+        @"console.assert(false, 'Something went wrong')",
+
+        @"browser.test.sendMessage('Ready')",
+    ]);
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilTestMessage:@"Ready"];
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"Something went wrong (background.js:2:15)");
+}
+
+TEST(WKWebExtensionContext, ConsoleAssertWithoutMessage)
+{
+    auto *manifest = @{
+        @"manifest_version": @3,
+        @"name": @"Test Extension",
+        @"description": @"Test",
+        @"version": @"1.0",
+        @"background": @{
+            @"scripts": @[ @"background.js" ],
+            @"type": @"module",
+            @"persistent": @NO,
+        },
+    };
+
+    auto *backgroundScript = Util::constructScript(@[
+        @"console.assert(true)",
+        @"console.assert(false)",
+
+        @"browser.test.sendMessage('Ready')",
+    ]);
+
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilTestMessage:@"Ready"];
+
+    [manager runUntilContextError];
+
+    EXPECT_EQ(manager.get().context.errors.count, 1ul);
+
+    auto *error = manager.get().context.errors.firstObject;
+    EXPECT_EQ(error.code, WKWebExtensionContextErrorScriptExecutionError);
+    EXPECT_NS_EQUAL(error.localizedDescription, @"(background.js:2:15)");
 }
 
 } // namespace TestWebKitAPI

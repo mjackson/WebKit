@@ -29,6 +29,7 @@
 #include "CSSParserContext.h"
 #include "CSSParserTokenRange.h"
 #include "CSSPrimitiveValue.h"
+#include "CSSPropertyIdentifierValue.h"
 #include "CSSPropertyNames.h"
 #include "CSSPropertyParser.h"
 #include "CSSPropertyParserConsumer+Ident.h"
@@ -70,7 +71,7 @@ RefPtr<CSSValue> consumeWillChange(CSSParserTokenRange& range, CSS::PropertyPars
             if (!isExposed(propertyID, &state.context.propertySettings))
                 propertyID = CSSPropertyInvalid;
             if (propertyID != CSSPropertyInvalid) {
-                values.append(CSSPrimitiveValue::create(propertyID));
+                values.append(CSSPropertyIdentifierValue::create(CSS::PropertyIdentifier { propertyID }));
                 range.consumeIncludingWhitespace();
                 break;
             }

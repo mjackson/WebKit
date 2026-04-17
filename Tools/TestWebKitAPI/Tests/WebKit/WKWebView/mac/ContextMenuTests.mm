@@ -115,7 +115,7 @@ namespace TestWebKitAPI {
 
 TEST(ContextMenuTests, ProposedMenuContainsSpellingMenu)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block RetainPtr<NSMenu> proposedMenu;
     __block bool gotProposedMenu = false;
@@ -125,7 +125,7 @@ TEST(ContextMenuTests, ProposedMenuContainsSpellingMenu)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView _setEditable:YES];
     [webView synchronouslyLoadTestPageNamed:@"simple"];
@@ -144,8 +144,8 @@ TEST(ContextMenuTests, ProposedMenuContainsSpellingMenu)
 
 TEST(ContextMenuTests, NavigationTypeWhenOpeningLink)
 {
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView loadHTMLString:@"<a href='simple.html' style='font-size: 100px;'>Hello world</a>" baseURL:NSBundle.test_resourcesBundle.resourceURL];
     [navigationDelegate waitForDidFinishNavigation];
@@ -174,7 +174,7 @@ TEST(ContextMenuTests, ShowColorPanel)
 {
     InstanceMethodSwizzler swizzler { NSApplication.class, @selector(orderFrontColorPanel:), reinterpret_cast<IMP>(swizzledOrderFrontColorPanel) };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setEditable:YES];
     [webView synchronouslyLoadTestPageNamed:@"simple"];
     [webView rightClick:NSMakePoint(16, 16) andSelectItemMatching:^BOOL(NSMenuItem *item) {
@@ -233,12 +233,12 @@ TEST(ContextMenuTests, ShowSharePopoverForImage)
 TEST(ContextMenuTests, SharePopoverDoesNotClearSelection)
 {
     bool didShowPopover = false;
-    auto listener = adoptNS([[PopoverNotificationListener alloc] initWithCallback:[&](NSNotification *notification) {
+    RetainPtr listener = adoptNS([[PopoverNotificationListener alloc] initWithCallback:[&](NSNotification *notification) {
         if ([notification.name isEqualToString:NSPopoverDidShowNotification])
             didShowPopover = true;
     }]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     auto presentingViewSwizzler = InstanceMethodSwizzler {
         NSMenu.class,
         @selector(_presentingView),
@@ -262,7 +262,7 @@ TEST(ContextMenuTests, SharePopoverDoesNotClearSelection)
 
 TEST(ContextMenuTests, ContextMenuElementInfoContainsHitTestResult)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -271,7 +271,7 @@ TEST(ContextMenuTests, ContextMenuElementInfoContainsHitTestResult)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView _setEditable:YES];
     [webView synchronouslyLoadTestPageNamed:@"simple"];
@@ -282,7 +282,7 @@ TEST(ContextMenuTests, ContextMenuElementInfoContainsHitTestResult)
 
 TEST(ContextMenuTests, HitTestResultDoesNotContainEmptyURLs)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -299,7 +299,7 @@ TEST(ContextMenuTests, HitTestResultDoesNotContainEmptyURLs)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView _setEditable:YES];
     [webView synchronouslyLoadTestPageNamed:@"simple"];
@@ -317,7 +317,7 @@ static NSString *qrCodeSVGString()
 
 TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringDefaultConfiguration)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600)]);
     [webView synchronouslyLoadHTMLString:@"<img src='qr-code.png'></img>"];
 
     _WKContextMenuElementInfo *elementInfo = [webView rightClickAtPointAndWaitForContextMenu:NSMakePoint(300, 300)];
@@ -331,10 +331,10 @@ TEST(ContextMenuTests, DISABLED_ContextMenuElementInfoContainsQRCodePayloadStrin
 TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadString)
 #endif
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setContextMenuQRCodeDetectionEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"<img src='qr-code.png'></img>"];
 
     _WKContextMenuElementInfo *elementInfo = [webView rightClickAtPointAndWaitForContextMenu:NSMakePoint(150, 150)];
@@ -346,10 +346,10 @@ TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadString)
 
 TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringInsideLink)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setContextMenuQRCodeDetectionEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"<a href='https://www.webkit.org'><img src='qr-code.png'></img></a>"];
 
     _WKContextMenuElementInfo *elementInfo = [webView rightClickAtPointAndWaitForContextMenu:NSMakePoint(300, 300)];
@@ -358,18 +358,18 @@ TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringInsideLi
 
 TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringCanvas)
 {
-    auto testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
+    RetainPtr testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
 
     __block bool imageLoaded = false;
     [testMessageHandler addMessage:@"imageLoaded" withHandler:^{
         imageLoaded = true;
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:testMessageHandler.get() name:@"testHandler"];
     [configuration _setContextMenuQRCodeDetectionEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"<canvas id='canvas' width='400' height='400'></canvas>"];
 
     NSString *drawImageToCanvasScript = @""
@@ -394,10 +394,10 @@ TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringCanvas)
 
 TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringSVG)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setContextMenuQRCodeDetectionEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:qrCodeSVGString()];
 
     _WKContextMenuElementInfo *elementInfo = [webView rightClickAtPointAndWaitForContextMenu:NSMakePoint(150, 150)];
@@ -409,10 +409,10 @@ TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringSVG)
 
 TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringObscuredSVG)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setContextMenuQRCodeDetectionEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:[NSString stringWithFormat:@"%@<div style='width: 400px; height: 100px; background: red; position: absolute; top: 0px; left: 0px;'></div>", qrCodeSVGString()]];
 
     _WKContextMenuElementInfo *elementInfo = [webView rightClickAtPointAndWaitForContextMenu:NSMakePoint(150, 550)];
@@ -424,10 +424,10 @@ TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringObscured
 
 TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringSVGInsideTransformedElement)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setContextMenuQRCodeDetectionEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:[NSString stringWithFormat:@"<div style='transform: translateX(100px);'>%@</div>", qrCodeSVGString()]];
 
     _WKContextMenuElementInfo *elementInfo = [webView rightClickAtPointAndWaitForContextMenu:NSMakePoint(50, 550)];
@@ -439,10 +439,10 @@ TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringSVGInsid
 
 TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringSVGPageZoom)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setContextMenuQRCodeDetectionEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
     [webView setPageZoom:1.3];
     [webView synchronouslyLoadHTMLString:qrCodeSVGString()];
 
@@ -457,9 +457,9 @@ TEST(ContextMenuTests, ContextMenuElementInfoContainsQRCodePayloadStringSVGPageZ
 TEST(ContextMenuElementInfoWithQRCodeDetectionCrash, DISABLED_ContextMenuTests)
 {
     auto createWebView = [] {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         [configuration _setContextMenuQRCodeDetectionEnabled:YES];
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 600) configuration:configuration.get()]);
         [webView synchronouslyLoadHTMLString:@"<img src='qr-code.png'></img>"];
         return webView;
     };
@@ -482,7 +482,7 @@ TEST(ContextMenuTests, ContextMenuElementInfoHasEntireImage)
 {
     CGFloat iconWidth = 215;
     CGFloat iconHeight = 174;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, iconWidth * 2, iconHeight * 2)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, iconWidth * 2, iconHeight * 2)]);
     [webView synchronouslyLoadHTMLString:@"<img src='icon.png'></img>"];
 
     _WKContextMenuElementInfo *elementInfo = [webView rightClickAtPointAndWaitForContextMenu:NSMakePoint(iconWidth, iconHeight)];
@@ -494,7 +494,7 @@ TEST(ContextMenuTests, ContextMenuElementInfoHasEntireImage)
 
 TEST(ContextMenuTests, HitTestResultElementTypeNone)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -504,7 +504,7 @@ TEST(ContextMenuTests, HitTestResultElementTypeNone)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
@@ -515,7 +515,7 @@ TEST(ContextMenuTests, HitTestResultElementTypeNone)
 
 TEST(ContextMenuTests, HitTestResultElementTypeVideo)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -525,7 +525,7 @@ TEST(ContextMenuTests, HitTestResultElementTypeVideo)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<video src=\"video-without-audio.mp4\" controls></video>"];
 
@@ -536,7 +536,7 @@ TEST(ContextMenuTests, HitTestResultElementTypeVideo)
 
 TEST(ContextMenuTests, HitTestResultWithElementSelected)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -546,7 +546,7 @@ TEST(ContextMenuTests, HitTestResultWithElementSelected)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<body style='font-size: 100px;'>This text can be selected.</body>"];
     [[webView window] makeFirstResponder:webView.get()];
@@ -560,7 +560,7 @@ TEST(ContextMenuTests, HitTestResultWithElementSelected)
 
 TEST(ContextMenuTests, HitTestResultWithNoElementSelected)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -570,7 +570,7 @@ TEST(ContextMenuTests, HitTestResultWithNoElementSelected)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<body style='font-size: 100px; -webkit-user-select: none;'>This text cannot be selected.</body>"];
 
@@ -584,7 +584,7 @@ TEST(ContextMenuTests, HitTestResultWhenClickingInSubframe)
     // This is the escaped version of "data:text/html,<body>Hello from a frame!</body>" since that's what -[NSURL absoluteString] returns.
     NSString *subframeContentsString = @"data:text/html,%3Cbody%3EHello%20from%20a%20frame!%3C/body%3E";
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -599,7 +599,7 @@ TEST(ContextMenuTests, HitTestResultWhenClickingInSubframe)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:[NSString stringWithFormat:@"<iframe width='400' height='400' src='%@'</iframe>", subframeContentsString]];
     [webView waitForNextPresentationUpdate];
@@ -611,7 +611,7 @@ TEST(ContextMenuTests, HitTestResultWhenClickingInSubframe)
 
 TEST(ContextMenuTests, HitTestResultNonFullscreenMedia)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -621,7 +621,7 @@ TEST(ContextMenuTests, HitTestResultNonFullscreenMedia)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<video src=\"video-without-audio.mp4\" controls></video>"];
 
@@ -632,7 +632,7 @@ TEST(ContextMenuTests, HitTestResultNonFullscreenMedia)
 
 TEST(ContextMenuTests, HitTestResultMediaDownloadable)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -642,7 +642,7 @@ TEST(ContextMenuTests, HitTestResultMediaDownloadable)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<video src=\"video-without-audio.mp4\" controls></video>"];
 
@@ -653,7 +653,7 @@ TEST(ContextMenuTests, HitTestResultMediaDownloadable)
 
 TEST(ContextMenuTests, HitTestResultImageMIMEType)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -663,7 +663,7 @@ TEST(ContextMenuTests, HitTestResultImageMIMEType)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<img src='sunset-in-cupertino-600px.jpg'></img>"];
 
@@ -677,7 +677,7 @@ TEST(ContextMenuTests, HitTestResultLinkLocalResourceResponse)
     _WKContextMenuElementInfo *elementInfo;
     NSURLResponse* linkLocalResourceResponse;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<a href='sunset-in-cupertino-600px.jpg'><img src='sunset-in-cupertino-600px.jpg'></img></a>"];
     elementInfo = [webView rightClickAtPointAndWaitForContextMenu:NSMakePoint(200, 200)];
     linkLocalResourceResponse = elementInfo.hitTestResult.linkLocalResourceResponse;
@@ -693,7 +693,7 @@ TEST(ContextMenuTests, HitTestResultLinkLocalResourceResponse)
 
 TEST(ContextMenuTests, HitTestResultLinkSuggestedFilename)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -703,7 +703,7 @@ TEST(ContextMenuTests, HitTestResultLinkSuggestedFilename)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<a href='sunset-in-cupertino-600px.jpg' download='Sunset.jpg'><img src='sunset-in-cupertino-600px.jpg'></img></a>"];
 
@@ -714,7 +714,7 @@ TEST(ContextMenuTests, HitTestResultLinkSuggestedFilename)
 
 TEST(ContextMenuTests, HitTestResultImageSuggestedFilename)
 {
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
     __block bool gotProposedMenu = false;
     [delegate setGetContextMenuFromProposedMenu:^(NSMenu *menu, _WKContextMenuElementInfo *elementInfo, id<NSSecureCoding>, void (^completion)(NSMenu *)) {
@@ -725,7 +725,7 @@ TEST(ContextMenuTests, HitTestResultImageSuggestedFilename)
         gotProposedMenu = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView setUIDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<img src='sunset-in-cupertino-600px.jpg'></img>"];
 
@@ -748,7 +748,7 @@ TEST(ContextMenuTests, ContextMenuElementInfoAllowsFollowingImageURL)
     _WKContextMenuElementInfo *elementInfo;
     CGFloat iconWidth = 215;
     CGFloat iconHeight = 174;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, iconWidth * 2, iconHeight * 2)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, iconWidth * 2, iconHeight * 2)]);
 
     [webView synchronouslyLoadHTMLString:@"<img src='icon.png'></img>"];
     elementInfo = [webView rightClickAtPointAndWaitForContextMenu:NSMakePoint(iconWidth, iconHeight)];
@@ -762,7 +762,7 @@ TEST(ContextMenuTests, ContextMenuElementInfoAllowsFollowingImageURL)
 TEST(ContextMenuTests, ContextMenuElementInfoAllowsFollowingLink)
 {
     _WKContextMenuElementInfo *elementInfo;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
 
     [webView synchronouslyLoadHTMLString:@"<a href='icon.png' style='font-size: 100px;'>Link</a>"];
     elementInfo = [webView rightClickAtPointAndWaitForContextMenu:NSMakePoint(50, 350)];

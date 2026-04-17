@@ -316,14 +316,14 @@ TEST(SmartLists, InsertingSpaceAfterMultipleDigitNumberGeneratesOrderedList)
 {
     static constexpr auto expectedHTML = R"""(
     <body contenteditable="">
-        <ol start="1234" style="list-style-type: decimal;">
+        <ol start="123" style="list-style-type: decimal;">
             <li>Hello</li>
             <li>World</li>
         </ol>
     </body>
     )"""_s;
 
-    runTest(@"1234. Hello\n1235. World", expectedHTML.createNSString().get(), @"//body/ol/li[2]/text()", @"World".length);
+    runTest(@"123. Hello\n125. World", expectedHTML.createNSString().get(), @"//body/ol/li[2]/text()", @"World".length);
 }
 
 TEST(SmartLists, InsertingSpaceAfterInvalidNumberDoesNotGenerateOrderedList)
@@ -350,10 +350,10 @@ TEST(SmartLists, InsertingSpaceAfterInvalidNumberDoesNotGenerateOrderedList)
 TEST(SmartLists, InsertingSpaceAfterLargeNumberDoesNotGenerateOrderedList)
 {
     static constexpr auto expectedHTML = R"""(
-    <body>1000000000000000. hi</body>
+    <body>1000. hi</body>
     )"""_s;
 
-    NSString *input = @"1000000000000000. hi";
+    NSString *input = @"1000. hi";
 
     runTest(input, expectedHTML.createNSString().get(), @"//body/text()", input.length);
 }

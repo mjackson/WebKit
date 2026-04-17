@@ -1021,13 +1021,13 @@ TEST(ScriptTrackingPrivacyTests, BlockSubsequentFetch)
         }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(server.port())
     }];
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
 
     RetainPtr webView = setUpWebViewForFingerprintingTests(@"http://top-domain.org/index.html", dataStore.get());
 
@@ -1126,13 +1126,13 @@ TEST(ScriptTrackingPrivacyTests, BlockSubsequentElement)
         }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(server.port())
     }];
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
 
     RetainPtr webView = setUpWebViewForFingerprintingTests(@"http://top-domain.org/index.html", dataStore.get());
 
@@ -1203,13 +1203,13 @@ TEST(ScriptTrackingPrivacyTests, BlockSubsequent2Element)
         }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(server.port())
     }];
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
 
     RetainPtr webView = setUpWebViewForFingerprintingTests(@"http://top-domain.org/index.html", dataStore.get());
 
@@ -1281,13 +1281,13 @@ TEST(ScriptTrackingPrivacyTests, SameSiteFetchNotBlocked)
         }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(server.port())
     }];
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
 
     RetainPtr webView = setUpWebViewForFingerprintingTests(@"http://tainted.example/index.html", dataStore.get());
 
@@ -1333,13 +1333,13 @@ TEST(ScriptTrackingPrivacyTests, MainFrameNavigationNotBlocked)
         }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(server.port())
     }];
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
 
     RetainPtr webView = setUpWebViewForFingerprintingTests(@"http://top-domain.org/index.html", dataStore.get());
 

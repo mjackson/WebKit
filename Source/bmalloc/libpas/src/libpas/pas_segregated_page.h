@@ -33,7 +33,6 @@ PAS_IGNORE_WARNINGS_BEGIN("cast-align")
 #include "pas_allocator_index.h"
 #include "pas_bitvector.h"
 #include "pas_config.h"
-#include "pas_free_range_kind.h"
 #include "pas_heap_config.h"
 #include "pas_heap_summary.h"
 #include "pas_local_allocator.h"

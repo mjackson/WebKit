@@ -57,6 +57,8 @@
 #include "SVGElementInlines.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
+#include "ShadowRootMode.h"
+#include "SlotAssignmentMode.h"
 #include "Text.h"
 #include "UserScriptTypes.h"
 #include <unicode/ubrk.h>
@@ -553,27 +555,27 @@ void HTMLConstructionSite::insertHTMLTemplateElement(AtomHTMLToken&& token)
         auto delegatesFocus = ShadowRootDelegatesFocus::No;
         auto clonable = ShadowRootClonable::No;
         auto serializable = ShadowRootSerializable::No;
+        auto slotAssignment = SlotAssignmentMode::Named;
         String referenceTarget;
         auto registryKind = Element::CustomElementRegistryKind::Window;
         for (auto& attribute : token.attributes()) {
-            if (attribute.name() == HTMLNames::shadowrootmodeAttr) {
-                if (equalLettersIgnoringASCIICase(attribute.value(), "closed"_s))
-                    mode = ShadowRootMode::Closed;
-                else if (equalLettersIgnoringASCIICase(attribute.value(), "open"_s))
-                    mode = ShadowRootMode::Open;
-            } else if (attribute.name() == HTMLNames::shadowrootdelegatesfocusAttr)
+            if (attribute.name() == HTMLNames::shadowrootmodeAttr)
+                mode = parseShadowRootMode(attribute.value());
+            else if (attribute.name() == HTMLNames::shadowrootdelegatesfocusAttr)
                 delegatesFocus = ShadowRootDelegatesFocus::Yes;
             else if (attribute.name() == HTMLNames::shadowrootclonableAttr)
                 clonable = ShadowRootClonable::Yes;
             else if (attribute.name() == HTMLNames::shadowrootserializableAttr)
                 serializable = ShadowRootSerializable::Yes;
+            else if (attribute.name() == HTMLNames::shadowrootslotassignmentAttr)
+                slotAssignment = parseSlotAssignmentMode(attribute.value());
             else if (document().settings().shadowRootReferenceTargetEnabled() && attribute.name() == HTMLNames::shadowrootreferencetargetAttr)
                 referenceTarget = AtomString(attribute.value());
             else if (attribute.name() == HTMLNames::shadowrootcustomelementregistryAttr)
                 registryKind = Element::CustomElementRegistryKind::Null;
         }
         if (mode && is<Element>(currentNode())) {
-            auto exceptionOrShadowRoot = currentElement().attachDeclarativeShadow(*mode, delegatesFocus, clonable, serializable, referenceTarget, registryKind);
+            auto exceptionOrShadowRoot = currentElement().attachDeclarativeShadow(*mode, delegatesFocus, clonable, serializable, slotAssignment, referenceTarget, registryKind);
             if (!exceptionOrShadowRoot.hasException()) {
                 Ref shadowRoot = exceptionOrShadowRoot.releaseReturnValue();
                 auto element = createHTMLElement(token);

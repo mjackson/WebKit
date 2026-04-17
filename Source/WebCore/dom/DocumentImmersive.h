@@ -59,7 +59,7 @@ public:
 
     void requestImmersive(HTMLModelElement*, CompletionHandler<void(ExceptionOr<void>)>&&);
     void exitImmersive(CompletionHandler<void(ExceptionOr<void>)>&&);
-    WEBCORE_EXPORT void exitImmersiveIfNeeded();
+    WEBCORE_EXPORT void exitImmersiveIfNeeded(CompletionHandler<void()>&& = nullptr);
     void exitRemovedImmersiveElementIfNeeded(HTMLModelElement*, CompletionHandler<void()>&&);
 
     enum class EventType : bool { Change, Error };

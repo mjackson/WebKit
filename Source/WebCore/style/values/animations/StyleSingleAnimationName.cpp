@@ -42,13 +42,11 @@ auto CSSValueConversion<SingleAnimationName>::operator()(BuilderState& state, co
         if (primitiveValue->valueID() == CSSValueNone)
             return SingleAnimationName { CSS::Keyword::None { } };
 
-        return SingleAnimationName { ScopedName { AtomString { primitiveValue->stringValue() }, state.styleScopeOrdinal(), false } };
+        state.setCurrentPropertyInvalidAtComputedValueTime();
+        return SingleAnimationName { CSS::Keyword::None { } };
     }
 
-    auto customIdent = toStyleFromCSSValue<CustomIdent>(state, value);
-    if (customIdent.value.isNull())
-        return SingleAnimationName { CSS::Keyword::None { } };
-    return SingleAnimationName { ScopedName { WTF::move(customIdent.value), state.styleScopeOrdinal(), true } };
+    return toStyleFromCSSValue<ScopedName>(state, value);
 }
 
 } // namespace Style

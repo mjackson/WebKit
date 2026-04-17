@@ -32,7 +32,7 @@ namespace TestWebKitAPI {
 
 TEST(WebKit, VisitedLinkStore_Add)
 {
-    auto visitedLinkStore = adoptNS([[_WKVisitedLinkStore alloc] init]);
+    RetainPtr visitedLinkStore = adoptNS([[_WKVisitedLinkStore alloc] init]);
     NSURL *appleURL = [NSURL URLWithString:@"https://www.apple.com"];
     NSURL *webkitURL = [NSURL URLWithString:@"https://www.webkit.org"];
     NSURL *bugzillaURL = [NSURL URLWithString:@"https://bugs.webkit.org"];
@@ -51,7 +51,7 @@ TEST(WebKit, VisitedLinkStore_Add)
 
 TEST(WebKit, VisitedLinkStore_RemoveAll)
 {
-    auto visitedLinkStore = adoptNS([[_WKVisitedLinkStore alloc] init]);
+    RetainPtr visitedLinkStore = adoptNS([[_WKVisitedLinkStore alloc] init]);
     NSURL *appleURL = [NSURL URLWithString:@"https://www.apple.com"];
     NSURL *webkitURL = [NSURL URLWithString:@"https://www.webkit.org"];
     NSURL *bugzillaURL = [NSURL URLWithString:@"https://bugs.webkit.org"];
@@ -69,7 +69,7 @@ TEST(WebKit, VisitedLinkStore_RemoveAll)
 
 TEST(WebKit, VisitedLinkStore_Remove)
 {
-    auto visitedLinkStore = adoptNS([[_WKVisitedLinkStore alloc] init]);
+    RetainPtr visitedLinkStore = adoptNS([[_WKVisitedLinkStore alloc] init]);
     NSURL *appleURL = [NSURL URLWithString:@"https://www.apple.com"];
     NSURL *webkitURL = [NSURL URLWithString:@"https://www.webkit.org"];
     NSURL *bugzillaURL = [NSURL URLWithString:@"https://bugs.webkit.org"];
@@ -97,7 +97,7 @@ TEST(WebKit, VisitedLinkStore_Remove)
 
 TEST(WebKit, VisitedLinkStore_AddAndRemove)
 {
-    auto visitedLinkStore = adoptNS([[_WKVisitedLinkStore alloc] init]);
+    RetainPtr visitedLinkStore = adoptNS([[_WKVisitedLinkStore alloc] init]);
     NSURL *appleURL = [NSURL URLWithString:@"https://www.apple.com"];
     NSURL *webkitURL = [NSURL URLWithString:@"https://www.webkit.org"];
     NSURL *bugzillaURL = [NSURL URLWithString:@"https://bugs.webkit.org"];

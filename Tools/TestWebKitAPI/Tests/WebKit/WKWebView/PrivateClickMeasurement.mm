@@ -41,15 +41,15 @@
 static RetainPtr<WKWebView> webViewWithResourceLoadStatisticsEnabledInNetworkProcess()
 {
     auto *sharedProcessPool = [WKProcessPool _sharedProcessPool];
-    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     dataStoreConfiguration.get().pcmMachServiceName = nil;
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setProcessPool: sharedProcessPool];
     configuration.get().websiteDataStore = dataStore.get();
 
     // We need an active NetworkProcess to perform PCM operations.
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
     return webView;
@@ -294,7 +294,7 @@ static void pollUntilPCMIsMigrated(WKWebView *webView, MigratingFromResourceLoad
 static NSString *emptyObservationsDBPath()
 {
     NSFileManager *defaultFileManager = NSFileManager.defaultManager;
-    auto dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     NSURL *itpRootURL = dataStoreConfiguration.get()._resourceLoadStatisticsDirectory;
     NSURL *fileURL = [itpRootURL URLByAppendingPathComponent:@"observations.db"];
     [defaultFileManager removeItemAtPath:itpRootURL.path error:nil];
@@ -306,7 +306,7 @@ static NSString *emptyObservationsDBPath()
 static NSString *emptyPcmDBPath()
 {
     NSFileManager *defaultFileManager = NSFileManager.defaultManager;
-    auto dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     NSURL *itpRootURL = dataStoreConfiguration.get()._resourceLoadStatisticsDirectory;
     NSURL *fileURL = [itpRootURL URLByAppendingPathComponent:@"pcm.db"];
     [defaultFileManager removeItemAtPath:itpRootURL.path error:nil];
@@ -320,7 +320,7 @@ static void cleanUp(RetainPtr<WKWebView> webView)
     static bool isDone = false;
     [[webView.get() configuration].websiteDataStore _closeDatabases:^{
         NSFileManager *defaultFileManager = NSFileManager.defaultManager;
-        auto dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+        RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
         NSString *itpRoot = dataStoreConfiguration.get()._resourceLoadStatisticsDirectory.path;
         [defaultFileManager removeItemAtPath:itpRoot error:nil];
         while ([defaultFileManager fileExistsAtPath:itpRoot])

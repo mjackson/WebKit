@@ -51,7 +51,7 @@ Ref<CStringBuffer> CStringBuffer::createUninitialized(size_t length)
 
 CString::CString(ASCIILiteral string)
 {
-    if (!string)
+    if (string.isNull())
         return;
 
     init(string.span());

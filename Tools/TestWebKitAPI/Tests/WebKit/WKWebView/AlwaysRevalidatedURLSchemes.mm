@@ -59,8 +59,8 @@ static size_t loadsStarted;
 {
     ++loadsStarted;
 
-    auto data = adoptNS([[NSData alloc] initWithBase64EncodedString:@"iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAFZJREFUeF59z4EJADEIQ1F36k7u5E7ZKXeUQPACJ3wK7UNokVxVk9kHnQH7bY9hbDyDhNXgjpRLqFlo4M2GgfyJHhjq8V4agfrgPQX3JtJQGbofmCHgA/nAKks+JAjFAAAAAElFTkSuQmCC" options:0]);
-    auto response = adoptNS([[NSURLResponse alloc] initWithURL:self.request.URL MIMEType:@"image/png" expectedContentLength:[data length] textEncodingName:nil]);
+    RetainPtr data = adoptNS([[NSData alloc] initWithBase64EncodedString:@"iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAFZJREFUeF59z4EJADEIQ1F36k7u5E7ZKXeUQPACJ3wK7UNokVxVk9kHnQH7bY9hbDyDhNXgjpRLqFlo4M2GgfyJHhjq8V4agfrgPQX3JtJQGbofmCHgA/nAKks+JAjFAAAAAElFTkSuQmCC" options:0]);
+    RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:self.request.URL MIMEType:@"image/png" expectedContentLength:[data length] textEncodingName:nil]);
     [self.client URLProtocol:self didReceiveResponse:response.get() cacheStoragePolicy:NSURLCacheStorageNotAllowed];
     [self.client URLProtocol:self didLoadData:data.get()];
     [self.client URLProtocolDidFinishLoading:self];
@@ -78,14 +78,14 @@ TEST(WebKit, AlwaysRevalidatedURLSchemes)
         [NSURLProtocol registerClass:[AlwaysRevalidatedURLSchemeProtocol class]];
         [WKBrowsingContextController registerSchemeForCustomProtocol:customScheme];
 
-        auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+        RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
         [processPoolConfiguration setAlwaysRevalidatedURLSchemes:@[customScheme]];
 
-        auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
-        auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+        RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
         [webViewConfiguration setProcessPool:processPool.get()];
 
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:webViewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:webViewConfiguration.get()]);
 
         NSString *htmlString = [NSString stringWithFormat:@"<!DOCTYPE html><body><img src='%@://image'>", customScheme];
         [webView loadHTMLString:htmlString baseURL:nil];

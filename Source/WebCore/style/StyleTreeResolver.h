@@ -187,11 +187,11 @@ private:
     const RenderStyle* beforeResolutionStyle(const Element&, std::optional<PseudoElementIdentifier>);
     void saveBeforeResolutionStyleForInterleaving(const Element&, const RenderStyle*);
 
-    bool NODELETE hasUnresolvedAnchorPosition(const Styleable&) const;
-    bool NODELETE hasResolvedAnchorPosition(const Styleable&) const;
+    bool hasUnresolvedAnchorPosition(const Styleable&) const;
+    bool hasResolvedAnchorPosition(const Styleable&) const;
     // Returns true if (1) the styleable specifies position fallbacks and
     // (2) we're in the middle of trying position options.
-    bool NODELETE isTryingPositionOption(const Styleable&) const;
+    bool isTryingPositionOption(const Styleable&) const;
 
     void collectChangedAnchorNames(const RenderStyle&, const RenderStyle* currentStyle);
 
@@ -247,7 +247,7 @@ private:
         const RenderStyle& NODELETE originalStyle() const;
         std::unique_ptr<RenderStyle> currentOption() const;
     };
-    HashMap<AnchorPositionedKey, PositionOptions> m_positionOptions;
+    HashMap<WeakStyleable, PositionOptions> m_positionOptions;
 
     HashSet<AtomString> m_changedAnchorNames;
     bool m_allAnchorNamesInvalid { false };

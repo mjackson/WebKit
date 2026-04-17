@@ -318,7 +318,7 @@ void TestController::platformCreateWebView(WKPageConfigurationRef configuration,
 #endif
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-    [cocoaConfiguration _setAllowsImmersiveEnvironments:YES];
+    [cocoaConfiguration setAllowsImmersiveEnvironments:YES];
 #endif
 
     if (options.enableAttachmentElement())

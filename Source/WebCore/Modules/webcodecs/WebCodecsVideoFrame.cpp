@@ -303,31 +303,40 @@ ExceptionOr<Ref<WebCodecsVideoFrame>> WebCodecsVideoFrame::create(ScriptExecutio
     auto layoutOrException = computeLayoutAndAllocationSize(defaultRect, init.layout, pixelFormat);
     if (layoutOrException.hasException())
         return layoutOrException.releaseException();
-    
+
     auto layout = layoutOrException.releaseReturnValue();
     if (data.byteLength() < layout.allocationSize)
         return Exception { ExceptionCode::TypeError, makeString("Data is too small "_s, data.byteLength(), " / "_s, layout.allocationSize) };
 
     auto colorSpace = videoFramePickColorSpace(init.colorSpace, pixelFormat);
     RefPtr<VideoFrame> videoFrame;
-    if (pixelFormat == VideoPixelFormat::NV12) {
+    switch (pixelFormat) {
+    case VideoPixelFormat::NV12:
         if (auto exception = validateI420Sizes(init))
             return WTF::move(*exception);
         videoFrame = VideoFrame::createNV12(data.span(), parsedRect.width, parsedRect.height, layout.computedLayouts[0], layout.computedLayouts[1], WTF::move(colorSpace));
-    } else if (pixelFormat == VideoPixelFormat::RGBA || init.format == VideoPixelFormat::RGBX)
+        break;
+    case VideoPixelFormat::RGBA:
+    case VideoPixelFormat::RGBX:
         videoFrame = VideoFrame::createRGBA(data.span(), parsedRect.width, parsedRect.height, layout.computedLayouts[0], WTF::move(colorSpace));
-    else if (pixelFormat == VideoPixelFormat::BGRA || init.format == VideoPixelFormat::BGRX)
+        break;
+    case VideoPixelFormat::BGRA:
+    case VideoPixelFormat::BGRX:
         videoFrame = VideoFrame::createBGRA(data.span(), parsedRect.width, parsedRect.height, layout.computedLayouts[0], WTF::move(colorSpace));
-    else if (pixelFormat == VideoPixelFormat::I420) {
+        break;
+    case VideoPixelFormat::I420:
         if (auto exception = validateI420Sizes(init))
             return WTF::move(*exception);
         videoFrame = VideoFrame::createI420(data.span(), parsedRect.width, parsedRect.height, layout.computedLayouts[0], layout.computedLayouts[1], layout.computedLayouts[2], WTF::move(colorSpace));
-    } else if (pixelFormat == VideoPixelFormat::I420A) {
+        break;
+    case VideoPixelFormat::I420A:
         if (auto exception = validateI420Sizes(init))
             return WTF::move(*exception);
         videoFrame = VideoFrame::createI420A(data.span(), parsedRect.width, parsedRect.height, layout.computedLayouts[0], layout.computedLayouts[1], layout.computedLayouts[2], layout.computedLayouts[3], WTF::move(colorSpace));
-    } else
+        break;
+    default:
         return Exception { ExceptionCode::NotSupportedError, "VideoPixelFormat is not supported"_s };
+    }
 
     if (!videoFrame)
         return Exception { ExceptionCode::TypeError, "Unable to create internal resource from data"_s };

@@ -51,7 +51,9 @@ public:
     {
         va_list args;
         va_start(args, description);
+        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
         sysprof_collector_mark_vprintf(SYSPROF_CAPTURE_CURRENT_TIME, 0, m_processName, name.data(), description, args);
+        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         va_end(args);
     }
 
@@ -59,7 +61,9 @@ public:
     {
         va_list args;
         va_start(args, description);
+        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
         sysprof_collector_mark_vprintf(time, 0, m_processName, name.data(), description, args);
+        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         va_end(args);
     }
 
@@ -141,7 +145,9 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         } else {
             va_list args;
             va_start(args, description);
+            WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
             sysprof_collector_mark_vprintf(time, 0, m_processName, name.data(), description, args);
+            WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
             va_end(args);
         }
     }

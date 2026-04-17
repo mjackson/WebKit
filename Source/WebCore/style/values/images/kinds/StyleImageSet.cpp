@@ -69,7 +69,11 @@ bool ImageSet::equals(const ImageSet& other) const
 Ref<CSSValue> ImageSet::computedStyleValue(const RenderStyle& style) const
 {
     auto builder = WTF::map<CSSValueListBuilderInlineCapacity>(m_images, [&](auto& image) -> Ref<CSSValue> {
-        return CSSImageSetOptionValue::create(image.image->computedStyleValue(style), CSSPrimitiveValue::create(image.scaleFactor, CSSUnitType::CSS_DPPX), image.mimeType);
+        return CSSImageSetOptionValue::create(
+            image.image->computedStyleValue(style),
+            toCSS(image.scaleFactor, style),
+            toCSS(image.mimeType, style)
+        );
     });
     return CSSImageSetValue::create(WTF::move(builder));
 }
@@ -91,7 +95,7 @@ ImageWithScale ImageSet::bestImageForScaleFactor()
     ImageWithScale result;
     for (auto index : m_sortedIndices) {
         const auto& image = m_images[index];
-        if (!image.mimeType.isNull() && !MIMETypeRegistry::isSupportedImageMIMEType(image.mimeType))
+        if (image.mimeType && !MIMETypeRegistry::isSupportedImageMIMEType(image.mimeType->parameters.value))
             continue;
         if (!result.image->isInvalidImage() && result.scaleFactor == image.scaleFactor)
             continue;
@@ -102,8 +106,8 @@ ImageWithScale ImageSet::bestImageForScaleFactor()
     }
 
     ASSERT(result.scaleFactor >= 0);
-    if (result.image->isInvalidImage() || !result.scaleFactor)
-        result = ImageWithScale { InvalidImage::create(), 1, String() };
+    if (result.image->isInvalidImage() || !result.scaleFactor.value)
+        result = ImageWithScale { InvalidImage::create(), 1, std::nullopt };
 
     return result;
 }

@@ -75,12 +75,12 @@ public:
 
     Ref<CSSColorValue> createColorValue(const WebCore::Color&);
     RefPtr<CSSValueList> createFontFaceValue(const AtomString&);
-    Ref<CSSPrimitiveValue> createFontFamilyValue(const AtomString&);
+    Ref<CSSValue> createFontFamilyNameValue(const AtomString&);
 
 private:
     HashMap<WebCore::Color, Ref<CSSColorValue>> m_colorValueCache;
     HashMap<AtomString, RefPtr<CSSValueList>> m_fontFaceValueCache;
-    HashMap<AtomString, Ref<CSSPrimitiveValue>> m_fontFamilyValueCache;
+    HashMap<AtomString, Ref<CSSValue>> m_fontFamilyNameValueCache;
 };
 
 inline CSSPrimitiveValue& CSSPrimitiveValue::implicitInitialValue()

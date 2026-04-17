@@ -38,7 +38,9 @@
     "togglemicrophone",
     "togglecamera",
     "togglescreenshare",
-    "voiceactivity"
+    "voiceactivity",
+    "togglecaptions",
+    "selectcaptiontrack"
 #if defined(ENABLE_MEDIA_SESSION_PLAYLIST) && ENABLE_MEDIA_SESSION_PLAYLIST
     , "settrack"
 #endif

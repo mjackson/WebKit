@@ -68,9 +68,9 @@ std::optional<ProcessID> WasmDebuggerDebuggable::webContentProcessPID() const
     if (!process)
         return std::nullopt;
 
-    // When WasmDebuggerDebuggable is created, the WebContent process is guaranteed to have
-    // finished launching (see didFinishLaunching -> createWasmDebuggerTarget).
-    // Therefore, processID() must return a valid non-zero PID.
+    // WasmDebuggerDebuggable is created in wasmDebugServerReady(), which is an IPC handler
+    // called by the WebContent process after startRWI() succeeds. Since the message came from
+    // the process itself, it is guaranteed to be running and processID() must be non-zero.
     auto pid = process->processID();
     RELEASE_ASSERT(pid);
     return pid;

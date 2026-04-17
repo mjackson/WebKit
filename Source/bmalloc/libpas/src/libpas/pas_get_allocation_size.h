@@ -32,7 +32,6 @@
 #include "pas_large_map.h"
 #include "pas_mte.h"
 #include "pas_segregated_page_inlines.h"
-#include "pas_segregated_size_directory.h"
 
 PAS_BEGIN_EXTERN_C;
 

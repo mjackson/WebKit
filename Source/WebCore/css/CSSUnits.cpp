@@ -1,6 +1,7 @@
 /*
  * (C) 1999-2003 Lars Knoll (knoll@kde.org)
  * Copyright (C) 2004, 2005, 2006, 2007, 2008, 2012, 2013, 2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -110,16 +111,11 @@ CSSUnitCategory unitCategory(CSSUnitType type)
     case CSSUnitType::CSS_CQB:
     case CSSUnitType::CSS_CQMIN:
     case CSSUnitType::CSS_CQMAX:
-    case CSSUnitType::CSS_ATTR:
     case CSSUnitType::CSS_CALC:
     case CSSUnitType::CSS_CALC_PERCENTAGE_WITH_ANGLE:
     case CSSUnitType::CSS_CALC_PERCENTAGE_WITH_LENGTH:
     case CSSUnitType::CSS_DIMENSION:
-    case CSSUnitType::CSS_FONT_FAMILY:
-    case CSSUnitType::CSS_IDENT:
-    case CSSUnitType::CSS_PROPERTY_ID:
     case CSSUnitType::CSS_QUIRKY_EM:
-    case CSSUnitType::CSS_STRING:
     case CSSUnitType::CSS_UNKNOWN:
     case CSSUnitType::CSS_VALUE_ID:
         return CSSUnitCategory::Other;
@@ -202,9 +198,6 @@ TextStream& operator<<(TextStream& ts, CSSUnitType unitType)
     case CSSUnitType::CSS_HZ: ts << "hz"_s; break;
     case CSSUnitType::CSS_KHZ: ts << "khz"_s; break;
     case CSSUnitType::CSS_DIMENSION: ts << "dimension"_s; break;
-    case CSSUnitType::CSS_STRING: ts << "string"_s; break;
-    case CSSUnitType::CSS_IDENT: ts << "ident"_s; break;
-    case CSSUnitType::CSS_ATTR: ts << "attr"_s; break;
     case CSSUnitType::CSS_VW: ts << "vw"_s; break;
     case CSSUnitType::CSS_VH: ts << "vh"_s; break;
     case CSSUnitType::CSS_VMIN: ts << "vmin"_s; break;
@@ -255,8 +248,6 @@ TextStream& operator<<(TextStream& ts, CSSUnitType unitType)
     case CSSUnitType::CSS_CALC: ts << "calc"_s; break;
     case CSSUnitType::CSS_CALC_PERCENTAGE_WITH_ANGLE: ts << "calc_percentage_with_angle"_s; break;
     case CSSUnitType::CSS_CALC_PERCENTAGE_WITH_LENGTH: ts << "calc_percentage_with_length"_s; break;
-    case CSSUnitType::CSS_FONT_FAMILY: ts << "font_family"_s; break;
-    case CSSUnitType::CSS_PROPERTY_ID: ts << "property_id"_s; break;
     case CSSUnitType::CSS_VALUE_ID: ts << "value_id"_s; break;
     case CSSUnitType::CSS_QUIRKY_EM: ts << "quirky_em"_s; break;
     }
@@ -367,16 +358,11 @@ bool conversionToCanonicalUnitRequiresConversionData(CSSUnitType unit)
     case CSSUnitType::CSS_DPI:
     case CSSUnitType::CSS_DPCM:
     case CSSUnitType::CSS_FR:
-    case CSSUnitType::CSS_ATTR:
     case CSSUnitType::CSS_CALC:
     case CSSUnitType::CSS_CALC_PERCENTAGE_WITH_ANGLE:
     case CSSUnitType::CSS_CALC_PERCENTAGE_WITH_LENGTH:
     case CSSUnitType::CSS_DIMENSION:
-    case CSSUnitType::CSS_FONT_FAMILY:
-    case CSSUnitType::CSS_IDENT:
-    case CSSUnitType::CSS_PROPERTY_ID:
     case CSSUnitType::CSS_QUIRKY_EM:
-    case CSSUnitType::CSS_STRING:
     case CSSUnitType::CSS_UNKNOWN:
     case CSSUnitType::CSS_VALUE_ID:
         break;

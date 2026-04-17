@@ -152,10 +152,10 @@ String serializeString(StringView string)
     return builder.toString();
 }
 
-String serializeFontFamily(const String& string)
+static bool shouldQuoteFontFamily(StringView string)
 {
     if (!isCSSTokenizerIdentifier(string))
-        return serializeString(string);
+        return true;
 
     // Font family names that match CSS-wide keywords, 'default', or generic
     // family keywords must be quoted to prevent confusion with the keywords
@@ -168,9 +168,23 @@ String serializeFontFamily(const String& string)
     // keyword from a quoted family name at this point, and the generic
     // keyword is the common case, we leave it unquoted.
     auto valueID = cssValueKeywordID(string);
-    if (valueID != CSSValueSystemUi && (!isValidCustomIdentifier(valueID) || isGenericFontFamilyKeyword(valueID)))
-        return serializeString(string);
+    return valueID != CSSValueSystemUi && (!isValidCustomIdentifier(valueID) || isGenericFontFamilyKeyword(valueID));
+}
 
+void serializeFontFamily(StringBuilder& builder, StringView string)
+{
+    if (shouldQuoteFontFamily(string)) {
+        serializeString(builder, string);
+        return;
+    }
+
+    builder.append(string);
+}
+
+String serializeFontFamily(const String& string)
+{
+    if (shouldQuoteFontFamily(string))
+        return serializeString(string);
     return string;
 }
 

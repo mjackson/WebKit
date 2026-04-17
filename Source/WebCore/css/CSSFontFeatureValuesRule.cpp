@@ -45,7 +45,7 @@ String CSSFontFeatureValuesRule::cssText() const
         for (auto element : elements) {
             if (!first)
                 builder.append(separator);
-            builder.append(serializeFontFamily(element));
+            serializeFontFamily(builder, element);
             first = false;
         }
     };

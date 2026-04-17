@@ -268,9 +268,7 @@ void Node::dumpStatistics()
 
             // Tag stats
             Element& element = uncheckedDowncast<Element>(node);
-            HashMap<String, size_t>::AddResult result = perTagCount.add(element.tagName(), 1);
-            if (!result.isNewEntry)
-                result.iterator->value++;
+            perTagCount.add(element.tagName(), 0).iterator->value++;
 
             if (const ElementData* elementData = element.elementData()) {
                 unsigned length = elementData->length();

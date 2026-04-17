@@ -529,6 +529,22 @@ concept IntegralOrEnum = std::integral<T> || std::is_enum_v<T>;
 template<typename Derived, typename Base>
 concept DerivedFromOrConvertibleTo = std::is_base_of_v<Base, Derived> || std::is_convertible_v<Derived, Base>;
 
+#if PLATFORM(WIN)
+
+// Use a single unconstrained function template with if constexpr to work around Clang's
+// MS ABI mangler failing on pack expansions in constrained function templates when the
+// concept (HasSwitchOn) involves a call to a variadic member template.
+// https://github.com/llvm/llvm-project/issues/191588
+template<class V, class... F> ALWAYS_INLINE constexpr decltype(auto) switchOn(V&& v, F&&... f)
+{
+    if constexpr (HasSwitchOn<V>)
+        return std::forward<V>(v).switchOn(std::forward<F>(f)...);
+    else
+        return WTF::visit(makeVisitor(std::forward<F>(f)...), asVariant(std::forward<V>(v)));
+}
+
+#else
+
 #ifdef _LIBCPP_VERSION
 
 // Single-variant switch-based visit function adapted from https://www.reddit.com/r/cpp/comments/kst2pu/comment/giilcxv/.
@@ -567,6 +583,8 @@ template<class V, class... F> requires (HasSwitchOn<V>) ALWAYS_INLINE auto switc
 {
     return v.switchOn(std::forward<F>(f)...);
 }
+
+#endif // !PLATFORM(WIN)
 
 // Implementation of std::variant_alternative_index from https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2024/p2527r3.html.
 

@@ -35,8 +35,8 @@
 
 TEST(WebKit, GetTextFragmentMatch)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
 
     auto testTextFragment = ^(NSString *pageContent, NSString *textFragment, NSString *expectedResult) {
         // Load an empty baseURL-less string, otherwise using the same baseURL (modulo the fragment) does a same-document navigation.

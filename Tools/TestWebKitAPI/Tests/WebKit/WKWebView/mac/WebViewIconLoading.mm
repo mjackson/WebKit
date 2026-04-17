@@ -63,7 +63,7 @@ static NSData *customFaviconData()
 
 static NSImage *imageFromData(NSData *data)
 {
-    auto image = adoptNS([[NSImage alloc] initWithData:data]);
+    RetainPtr image = adoptNS([[NSImage alloc] initWithData:data]);
     [image setSize:NSMakeSize(16, 16)];
     return image.autorelease();
 }
@@ -156,10 +156,10 @@ TEST(WebKitLegacy, IconLoadingDelegateDefaultFirst)
 
     currentMainHTML = &defaultFaviconHTML;
     @autoreleasepool {
-        auto webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
-        auto frameLoadDelegate = adoptNS([[IconLoadingFrameLoadDelegate alloc] init]);
+        RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
+        RetainPtr frameLoadDelegate = adoptNS([[IconLoadingFrameLoadDelegate alloc] init]);
 
-        auto kvo = adoptNS([[MainFrameIconKVO alloc] init]);
+        RetainPtr kvo = adoptNS([[MainFrameIconKVO alloc] init]);
         kvo->oldImage = webView.get().mainFrameIcon;
         kvo->expectedImage = imageFromData(defaultFaviconData());
         [webView.get() addObserver:kvo.get() forKeyPath:MainFrameIconKeyPath options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];
@@ -197,10 +197,10 @@ TEST(WebKitLegacy, IconLoadingDelegateCustomFirst)
 
     currentMainHTML = &customFaviconHTML;
     @autoreleasepool {
-        auto webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
-        auto frameLoadDelegate = adoptNS([[IconLoadingFrameLoadDelegate alloc] init]);
+        RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
+        RetainPtr frameLoadDelegate = adoptNS([[IconLoadingFrameLoadDelegate alloc] init]);
 
-        auto kvo = adoptNS([[MainFrameIconKVO alloc] init]);
+        RetainPtr kvo = adoptNS([[MainFrameIconKVO alloc] init]);
         kvo->oldImage = webView.get().mainFrameIcon;
         kvo->expectedImage = imageFromData(customFaviconData());
         [webView.get() addObserver:kvo.get() forKeyPath:MainFrameIconKeyPath options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];

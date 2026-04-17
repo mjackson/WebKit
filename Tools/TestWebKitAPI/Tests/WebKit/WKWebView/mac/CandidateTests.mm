@@ -89,8 +89,8 @@ namespace TestWebKitAPI {
 
 TEST(CandidateTests, DISABLED_DoNotLeakViewThatLoadsEditableArea)
 {
-    auto webView = adoptNS([[DoNotLeakWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
-    auto delegate = adoptNS([[DoNotLeakFrameLoadDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[DoNotLeakWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
+    RetainPtr delegate = adoptNS([[DoNotLeakFrameLoadDelegate alloc] init]);
     [webView setFrameLoadDelegate:delegate.get()];
     
     NSURL *contentURL = [NSBundle.test_resourcesBundle URLForResource:@"autofocused-text-input" withExtension:@"html"];
@@ -105,9 +105,9 @@ TEST(CandidateTests, DISABLED_DoNotLeakViewThatLoadsEditableArea)
 
 TEST(CandidateTests, DISABLED_RequestCandidatesForTextInput)
 {
-    auto webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
+    RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
     [webView forceRequestCandidatesForTesting];
-    auto delegate = adoptNS([[CandidateRequestFrameLoadDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CandidateRequestFrameLoadDelegate alloc] init]);
     [webView setFrameLoadDelegate:delegate.get()];
     
     NSURL *contentURL = [NSBundle.test_resourcesBundle URLForResource:@"focus-inputs" withExtension:@"html"];
@@ -126,9 +126,9 @@ TEST(CandidateTests, DISABLED_RequestCandidatesForTextInput)
 
 TEST(CandidateTests, DoNotRequestCandidatesForPasswordInput)
 {
-    auto webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
+    RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
     [webView forceRequestCandidatesForTesting];
-    auto delegate = adoptNS([[CandidateRequestFrameLoadDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CandidateRequestFrameLoadDelegate alloc] init]);
     [webView setFrameLoadDelegate:delegate.get()];
     
     NSURL *contentURL = [NSBundle.test_resourcesBundle URLForResource:@"focus-inputs" withExtension:@"html"];
@@ -159,15 +159,15 @@ TEST(CandidateTests, DoNotHideCandidatesDuringTextReplacement)
 {
     InstanceMethodSwizzler visibilityUpdateSwizzler { NSCandidateListTouchBarItem.class, @selector(updateWithInsertionPointVisibility:), reinterpret_cast<IMP>(updateCandidateListWithVisibility) };
 
-    auto webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
+    RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
     [webView forceRequestCandidatesForTesting];
 
-    auto delegate = adoptNS([[CandidateRequestFrameLoadDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CandidateRequestFrameLoadDelegate alloc] init]);
     [webView setFrameLoadDelegate:delegate.get()];
     [[webView mainFrame] loadHTMLString:@"<body contenteditable>Hello world<script>document.body.focus()</script>" baseURL:nil];
     TestWebKitAPI::Util::run(&didFinishLoad);
 
-    auto textToInsert = adoptNS([[NSMutableAttributedString alloc] initWithString:@"Goodbye"]);
+    RetainPtr textToInsert = adoptNS([[NSMutableAttributedString alloc] initWithString:@"Goodbye"]);
     [textToInsert addAttribute:NSTextInputReplacementRangeAttributeName value:NSStringFromRange(NSMakeRange(0, 5)) range:NSMakeRange(0, 7)];
     [webView insertText:textToInsert.get()];
 

@@ -42,6 +42,7 @@
 #include "Page.h"
 #include "SharedBuffer.h"
 #include <JavaScriptCore/ContentSearchUtilities.h>
+#include <JavaScriptCore/InspectorProtocolObjects.h>
 
 namespace Inspector {
 

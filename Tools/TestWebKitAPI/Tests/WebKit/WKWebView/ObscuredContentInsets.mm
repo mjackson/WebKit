@@ -447,8 +447,11 @@ TEST(ObscuredContentInsets, TopOverhangColorExtensionLayerAppearsImmediatelyAfte
     [webView synchronouslyLoadTestPageNamed:@"top-fixed-element"];
     [webView waitForNextPresentationUpdate];
 
-    RetainPtr layerBeforeReload = [webView firstLayerWithNameContaining:@"top overhang"];
-    EXPECT_NOT_NULL(layerBeforeReload.get());
+    RetainPtr<CALayer> layerBeforeReload;
+    Util::waitForConditionWithLogging([&] {
+        layerBeforeReload = [webView firstLayerWithNameContaining:@"top overhang"];
+        return !!layerBeforeReload;
+    }, 3, @"Timed out waiting for top overhang color extension layer to appear");
 
     RetainPtr expectedColor = [webView _sampledTopFixedPositionContentColor];
     EXPECT_NOT_NULL(expectedColor.get());
@@ -487,7 +490,11 @@ TEST(ObscuredContentInsets, TopOverhangColorExtensionLayerRemovedQuicklyAfterNav
     [webView synchronouslyLoadTestPageNamed:@"top-fixed-element"];
     [webView waitForNextPresentationUpdate];
 
-    EXPECT_NOT_NULL([webView firstLayerWithNameContaining:@"top overhang"]);
+    RetainPtr<CALayer> layerBeforeReload;
+    Util::waitForConditionWithLogging([&] {
+        layerBeforeReload = [webView firstLayerWithNameContaining:@"top overhang"];
+        return !!layerBeforeReload;
+    }, 3, @"Timed out waiting for top overhang color extension layer to appear");
 
     [webView synchronouslyLoadHTMLString:@"<body style='height:4000px'>No fixed header</body>"];
 

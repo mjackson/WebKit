@@ -172,7 +172,7 @@ void ScreenWakeLockTests::setUpCrossSite()
 
 void ScreenWakeLockTests::setUpSameSite()
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     m_webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
     [m_webView synchronouslyLoadHTMLString:@"<body></body>"];
 }

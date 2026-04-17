@@ -41,8 +41,8 @@ static constexpr uint8_t completionCodeCancel = 4;
 
 TEST(NetworkActivityTracker, PageLoadCompletedReportsSuccess)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     HTTPServer server({ { "/"_s, { "<html><body>Hello</body></html>"_s } } });
@@ -63,8 +63,8 @@ TEST(NetworkActivityTracker, PageLoadCompletedReportsSuccess)
 
 TEST(NetworkActivityTracker, NavigationCancelReportsCancel)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     // Load a first page successfully to establish root activity tracking for this page.

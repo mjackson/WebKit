@@ -143,10 +143,10 @@ const FontCascade& MockRealtimeVideoSource::DrawingState::statsFont()
 MockRealtimeVideoSource::MockRealtimeVideoSource(String&& deviceID, AtomString&& name, MediaDeviceHashSalts&& hashSalts, std::optional<PageIdentifier> pageIdentifier)
     : RealtimeVideoCaptureSource(CaptureDevice { WTF::move(deviceID), CaptureDevice::DeviceType::Camera, WTF::move(name) }, WTF::move(hashSalts), pageIdentifier)
     , m_runLoop(RunLoop::create("WebKit::MockRealtimeVideoSource generateFrame runloop"_s))
-    , m_emitFrameTimer(m_runLoop.get(), "MockRealtimeVideoSource::EmitFrameTimer"_s, [weakThis = ThreadSafeWeakPtr { *this }]() {
+    , m_emitFrameTimer(makeUnique<RunLoop::Timer>(m_runLoop.get(), "MockRealtimeVideoSource::EmitFrameTimer"_s, [weakThis = ThreadSafeWeakPtr { *this }]() {
         if (RefPtr protectedThis = weakThis.get())
             protectedThis->generateFrame();
-      })
+      }))
     , m_deviceOrientation { VideoFrameRotation::None }
 {
     allMockRealtimeVideoSource().add(*this);
@@ -173,7 +173,7 @@ MockRealtimeVideoSource::MockRealtimeVideoSource(String&& deviceID, AtomString&&
 
 MockRealtimeVideoSource::~MockRealtimeVideoSource()
 {
-    m_runLoop->dispatch([] {
+    m_runLoop->dispatch([emitFrameTimer = std::exchange(m_emitFrameTimer, { })] {
         threadGlobalDataSingleton().destroy();
         RunLoop::currentSingleton().stop();
     });
@@ -394,7 +394,7 @@ void MockRealtimeVideoSource::applyFrameRateAndZoomWithPreset(double frameRate, 
     if (m_preset)
         setIntrinsicSize(m_preset->size());
     if (isProducingData())
-        m_emitFrameTimer.startRepeating(1_s / frameRate);
+        m_emitFrameTimer->startRepeating(1_s / frameRate);
 }
 
 IntSize MockRealtimeVideoSource::captureSize() const
@@ -439,7 +439,7 @@ void MockRealtimeVideoSource::settingsDidChange(OptionSet<RealtimeMediaSourceSet
 
 void MockRealtimeVideoSource::startCaptureTimer()
 {
-    m_emitFrameTimer.startRepeating(1_s / frameRate());
+    m_emitFrameTimer->startRepeating(1_s / frameRate());
 }
 
 void MockRealtimeVideoSource::startProducingData()
@@ -456,7 +456,7 @@ void MockRealtimeVideoSource::startProducingData()
 
 void MockRealtimeVideoSource::stopProducingData()
 {
-    m_emitFrameTimer.stop();
+    m_emitFrameTimer->stop();
     m_elapsedTime += MonotonicTime::now() - m_startTime;
     m_startTime = MonotonicTime::nan();
 }
@@ -782,7 +782,7 @@ void MockRealtimeVideoSource::setIsInterrupted(bool isInterrupted)
         if (!source->isProducingData())
             continue;
         if (isInterrupted)
-            source->m_emitFrameTimer.stop();
+            source->m_emitFrameTimer->stop();
         else
             source->startCaptureTimer();
         source->notifyMutedChange(isInterrupted);

@@ -59,6 +59,11 @@ extension EnvironmentValues {
 
     @Entry
     var webViewScrollEdgeEffectStyleContext: ScrollEdgeEffectStyleContext? = nil
+
+    #if ENABLE_MODEL_ELEMENT_IMMERSIVE
+    @Entry
+    var webViewImmersiveEnvironmentRequestContext: ImmersiveEnvironmentRequestContext? = nil
+    #endif
 }
 
 #endif

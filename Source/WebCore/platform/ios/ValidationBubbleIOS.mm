@@ -225,6 +225,8 @@ static UIViewController *fallbackViewController(UIView *view)
 
 void ValidationBubble::setAnchorRect(const IntRect& anchorRect, UIViewController *presentingViewController)
 {
+    m_anchorRect = anchorRect;
+
     RetainPtr view = m_view.get();
     if (!presentingViewController)
         presentingViewController = fallbackViewController(view.get());

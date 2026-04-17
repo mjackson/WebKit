@@ -51,7 +51,7 @@ TEST(SpellCheckerDocumentTag, SpellCheckerDocumentTagWhenCheckingString)
         reinterpret_cast<IMP>(swizzledCheckString)
     };
 
-    auto webView = adoptNS([[TestWKWebView<NSTextInputClient> alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView<NSTextInputClient> alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<body contenteditable>"];
     [webView objectByEvaluatingJavaScript:@"getSelection().setPosition(document.body)"];
     [webView insertText:@"Testing.\n" replacementRange:NSMakeRange(0, 0)];

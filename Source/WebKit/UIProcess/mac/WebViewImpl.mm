@@ -6252,7 +6252,7 @@ static TextStream& operator<<(TextStream& ts, NSEventType eventType)
 }
 #endif
 
-void WebViewImpl::nativeMouseEventHandler(NSEvent *event, WebMouseEventInputSource inputSource)
+void WebViewImpl::nativeMouseEventHandler(NSEvent *event, WebMouseEventInputSource inputSource, WebCore::PlatformMouseEvent::CanInitiateDrag canInitiateDrag)
 {
     if (m_ignoresNonWheelEvents) {
         RELEASE_LOG(MouseHandling, "[pageProxyID=%lld] WebViewImpl::nativeMouseEventHandler: ignored event", m_page->identifier().toUInt64());
@@ -6262,23 +6262,23 @@ void WebViewImpl::nativeMouseEventHandler(NSEvent *event, WebMouseEventInputSour
     if (RetainPtr context = [m_view.get() inputContext]) {
         WeakPtr weakThis { *this };
         RetainPtr<NSEvent> retainedEvent = event;
-        [context handleEvent:event completionHandler:[weakThis, retainedEvent, inputSource] (BOOL handled) {
+        [context handleEvent:event completionHandler:[weakThis, retainedEvent, inputSource, canInitiateDrag] (BOOL handled) {
             if (!weakThis)
                 return;
             if (handled)
                 LOG_WITH_STREAM(TextInput, stream << "Event " << [retainedEvent type] << " was handled by text input context");
             else {
-                NativeWebMouseEvent webEvent(retainedEvent.get(), weakThis->m_lastPressureEvent.get(), weakThis->m_view.getAutoreleased(), inputSource);
+                NativeWebMouseEvent webEvent(retainedEvent.get(), weakThis->m_lastPressureEvent.get(), weakThis->m_view.getAutoreleased(), inputSource, canInitiateDrag);
                 weakThis->m_page->handleMouseEvent(webEvent);
             }
         }];
         return;
     }
-    NativeWebMouseEvent webEvent(event, m_lastPressureEvent.get(), m_view.get().get(), inputSource);
+    NativeWebMouseEvent webEvent(event, m_lastPressureEvent.get(), m_view.get().get(), inputSource, canInitiateDrag);
     m_page->handleMouseEvent(webEvent);
 }
 
-void WebViewImpl::nativeMouseEventHandlerInternal(NSEvent *event, WebMouseEventInputSource inputSource)
+void WebViewImpl::nativeMouseEventHandlerInternal(NSEvent *event, WebMouseEventInputSource inputSource, WebCore::PlatformMouseEvent::CanInitiateDrag canInitiateDrag)
 {
     if (m_warningView)
         return;
@@ -6287,7 +6287,7 @@ void WebViewImpl::nativeMouseEventHandlerInternal(NSEvent *event, WebMouseEventI
         return;
 #endif
 
-    nativeMouseEventHandler(event, inputSource);
+    nativeMouseEventHandler(event, inputSource, canInitiateDrag);
 }
 
 void WebViewImpl::createFlagsChangedEventMonitor()
@@ -6379,19 +6379,19 @@ void WebViewImpl::mouseMovedInternal(NSEvent *event)
     nativeMouseEventHandlerInternal(event, WebMouseEventInputSource::UserDriven);
 }
 
-void WebViewImpl::mouseDownInternal(NSEvent *event, WebMouseEventInputSource inputSource)
+void WebViewImpl::mouseDownInternal(NSEvent *event, WebMouseEventInputSource inputSource, WebCore::PlatformMouseEvent::CanInitiateDrag canInitiateDrag)
 {
-    nativeMouseEventHandlerInternal(event, inputSource);
+    nativeMouseEventHandlerInternal(event, inputSource, canInitiateDrag);
 }
 
-void WebViewImpl::mouseUpInternal(NSEvent *event, WebMouseEventInputSource inputSource)
+void WebViewImpl::mouseUpInternal(NSEvent *event, WebMouseEventInputSource inputSource, WebCore::PlatformMouseEvent::CanInitiateDrag canInitiateDrag)
 {
-    nativeMouseEventHandlerInternal(event, inputSource);
+    nativeMouseEventHandlerInternal(event, inputSource, canInitiateDrag);
 }
 
-void WebViewImpl::mouseDraggedInternal(NSEvent *event, WebMouseEventInputSource inputSource)
+void WebViewImpl::mouseDraggedInternal(NSEvent *event, WebMouseEventInputSource inputSource, WebCore::PlatformMouseEvent::CanInitiateDrag canInitiateDrag)
 {
-    nativeMouseEventHandlerInternal(event, inputSource);
+    nativeMouseEventHandlerInternal(event, inputSource, canInitiateDrag);
 }
 
 void WebViewImpl::mouseMoved(NSEvent *event)
@@ -6478,7 +6478,7 @@ void WebViewImpl::setAlwaysBounceHorizontal(bool value)
     m_page->setAlwaysBounceHorizontal(value);
 }
 
-void WebViewImpl::mouseDown(NSEvent *event, WebMouseEventInputSource inputSource)
+void WebViewImpl::mouseDown(NSEvent *event, WebMouseEventInputSource inputSource, WebCore::PlatformMouseEvent::CanInitiateDrag canInitiateDrag)
 {
     if (m_ignoresNonWheelEvents)
         return;
@@ -6486,10 +6486,10 @@ void WebViewImpl::mouseDown(NSEvent *event, WebMouseEventInputSource inputSource
     setLastMouseDownEvent(event);
     setIgnoresMouseDraggedEvents(false);
 
-    mouseDownInternal(event, inputSource);
+    mouseDownInternal(event, inputSource, canInitiateDrag);
 }
 
-void WebViewImpl::mouseUp(NSEvent *event, WebMouseEventInputSource inputSource)
+void WebViewImpl::mouseUp(NSEvent *event, WebMouseEventInputSource inputSource, WebCore::PlatformMouseEvent::CanInitiateDrag canInitiateDrag)
 {
     if (m_ignoresNonWheelEvents)
         return;
@@ -6500,17 +6500,17 @@ void WebViewImpl::mouseUp(NSEvent *event, WebMouseEventInputSource inputSource)
     fulfillDeferredImageAnalysisOverlayViewHierarchyTask();
 #endif
 
-    mouseUpInternal(event, inputSource);
+    mouseUpInternal(event, inputSource, canInitiateDrag);
 }
 
-void WebViewImpl::mouseDragged(NSEvent *event, WebMouseEventInputSource inputSource)
+void WebViewImpl::mouseDragged(NSEvent *event, WebMouseEventInputSource inputSource, WebCore::PlatformMouseEvent::CanInitiateDrag canInitiateDrag)
 {
     if (m_ignoresNonWheelEvents)
         return;
     if (ignoresMouseDraggedEvents())
         return;
 
-    mouseDraggedInternal(event, inputSource);
+    mouseDraggedInternal(event, inputSource, canInitiateDrag);
 }
 
 bool WebViewImpl::windowIsFrontWindowUnderMouse(NSEvent *event)

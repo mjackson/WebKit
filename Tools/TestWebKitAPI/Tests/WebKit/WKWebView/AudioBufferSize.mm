@@ -58,7 +58,7 @@ double waitForBufferSizeChange(WKWebView* webView, double oldSize)
 
 TEST(WebKit, AudioBufferSize)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
 
 #if PLATFORM(IOS) || PLATFORM(VISION)
@@ -74,8 +74,8 @@ TEST(WebKit, AudioBufferSize)
     preferences._mockCaptureDevicesEnabled = YES;
     preferences._getUserMediaRequiresFocus = NO;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     webView.get().UIDelegate = delegate.get();
 
     [webView synchronouslyLoadTestPageNamed:@"audio-buffer-size"];

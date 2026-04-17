@@ -45,6 +45,7 @@
 #include "FontLoadRequest.h"
 #include "FrameDestructionObserverInlines.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObject.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSWorkerGlobalScope.h"
 #include "JSWorkletGlobalScope.h"
@@ -91,6 +92,7 @@
 #include <JavaScriptCore/SourceTaintedOrigin.h>
 #include <JavaScriptCore/StackVisitor.h>
 #include <JavaScriptCore/StrongInlines.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/TopExceptionScope.h>
 #include <JavaScriptCore/VM.h>
 #include <JavaScriptCore/WeakGCSetInlines.h>
@@ -554,7 +556,7 @@ void ScriptExecutionContext::reportException(const String& errorMessage, int lin
         logExceptionToConsole(exception->m_errorMessage, exception->m_sourceURL, exception->m_lineNumber, exception->m_columnNumber, WTF::move(exception->m_callStack));
 }
 
-void ScriptExecutionContext::reportUnhandledPromiseRejection(JSC::JSGlobalObject& state, JSC::JSPromise& promise, RefPtr<Inspector::ScriptCallStack>&& callStack)
+void ScriptExecutionContext::reportUnhandledPromiseRejection(JSC::JSGlobalObject& state, JSC::JSPromise& promise, RefPtr<Inspector::ScriptCallStack>&& callStack, const String& unmaskedSourceURL)
 {
     Page* page = nullptr;
     if (auto* document = dynamicDowncast<Document>(*this))
@@ -585,6 +587,25 @@ void ScriptExecutionContext::reportUnhandledPromiseRejection(JSC::JSGlobalObject
 
     if (!errorMessage)
         errorMessage = "Unhandled Promise Rejection"_s;
+
+    if (auto* domGlobalObject = jsDynamicCast<JSDOMGlobalObject*>(&state); domGlobalObject && domGlobalObject->hasScriptErrorCallbacks()) {
+        // Use the unmasked source URL captured at rejection time when available; fall back
+        // to the call stack URL which may be masked for extension content scripts.
+        String rejectionSourceURL = unmaskedSourceURL;
+        unsigned rejectionLine = 0;
+        unsigned rejectionColumn = 0;
+
+        if (callStack) {
+            if (auto* frame = callStack->firstNonNativeCallFrame()) {
+                if (rejectionSourceURL.isEmpty())
+                    rejectionSourceURL = frame->sourceURL();
+                rejectionLine = frame->lineNumber();
+                rejectionColumn = frame->columnNumber();
+            }
+        }
+
+        domGlobalObject->invokeScriptErrorCallbacks(resultMessage, rejectionSourceURL, rejectionLine, rejectionColumn);
+    }
 
     std::unique_ptr<Inspector::ConsoleMessage> message;
     if (callStack)

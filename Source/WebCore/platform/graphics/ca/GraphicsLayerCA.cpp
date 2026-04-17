@@ -98,10 +98,9 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(GraphicsLayerCA);
 // large enough to avoid tiled layers for most GraphicsLayers, but less than the OpenGL
 // texture size limit on all supported hardware.
 #if PLATFORM(IOS_FAMILY)
-static const unsigned cMaxImageByteSize = 16*1024*1024; // equivalent to 2048 x 2048 RGBA8
-static const unsigned cMaxImageByteLowMemory = 9*1024*1024; // equivalent to 1536 x 1536 RGBA8 which is tile size on device with scale factor 3
-static const int cMemoryLevelToUseSmallerImageByteSize = 35;
-static const int cMaxPixelDimension = 8192; // Apple2 maximum 1D/2D dimension
+static const int cMaxPixelDimension = 1280;
+static const int cMaxPixelDimensionLowMemory = 1024;
+static const int cMemoryLevelToUseSmallerPixelDimension = 35;
 #else
 static const int cMaxPixelDimension = 2048;
 #endif
@@ -4851,14 +4850,8 @@ bool GraphicsLayerCA::requiresTiledLayer(float pageScaleFactor) const
 
     // FIXME: catch zero-size height or width here (or earlier)?
 #if PLATFORM(IOS_FAMILY)
-    RefPtr layer = m_layer; // Is this ever nullptr?
-    auto bytesPerPixel = (layer) ? layer->backingStoreBytesPerPixel() : 4;
-    auto scaleFactor = deviceScaleFactor() * pageScaleFactor;
-    auto maxImageByteSize = systemMemoryLevel() < cMemoryLevelToUseSmallerImageByteSize ? cMaxImageByteLowMemory : cMaxImageByteSize;
-    auto memoryEstimateByteSize = m_size.area() * scaleFactor * scaleFactor * bytesPerPixel;
-    return m_size.width() * scaleFactor > cMaxPixelDimension
-        || m_size.height() * scaleFactor > cMaxPixelDimension
-        || memoryEstimateByteSize > maxImageByteSize;
+    int maxPixelDimension = systemMemoryLevel() < cMemoryLevelToUseSmallerPixelDimension ? cMaxPixelDimensionLowMemory : cMaxPixelDimension;
+    return m_size.width() * pageScaleFactor > maxPixelDimension || m_size.height() * pageScaleFactor > maxPixelDimension;
 #else
     return m_size.width() * pageScaleFactor > cMaxPixelDimension || m_size.height() * pageScaleFactor > cMaxPixelDimension;
 #endif

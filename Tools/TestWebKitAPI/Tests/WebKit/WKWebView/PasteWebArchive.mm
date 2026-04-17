@@ -47,8 +47,8 @@ TEST(PasteWebArchive, ExposesHTMLTypeInDataTransfer)
     auto* url = [NSURL URLWithString:@"file:///some-file.html"];
     auto* markup = [@"<!DOCTYPE html><html><body><meta content=\"secret\"><b onmouseover=\"dangerousCode()\">hello</b>"
         "<!-- secret-->, world<script>dangerousCode()</script></html>" dataUsingEncoding:NSUTF8StringEncoding];
-    auto mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
-    auto archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
+    RetainPtr mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
+    RetainPtr archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
 
     [[NSPasteboard generalPasteboard] declareTypes:@[WebArchivePboardType] owner:nil];
     [[NSPasteboard generalPasteboard] setData:[archive data] forType:WebArchivePboardType];
@@ -76,8 +76,8 @@ TEST(PasteWebArchive, SanitizesHTML)
     auto* url = [NSURL URLWithString:@"file:///some-file.html"];
     auto* markup = [@"<!DOCTYPE html><html><body><meta content=\"secret\"><b onmouseover=\"dangerousCode()\">hello</b>"
         "<!-- secret-->, world<script>dangerousCode()</script></html>" dataUsingEncoding:NSUTF8StringEncoding];
-    auto mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
-    auto archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
+    RetainPtr mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
+    RetainPtr archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
 
     [[NSPasteboard generalPasteboard] declareTypes:@[WebArchivePboardType] owner:nil];
     [[NSPasteboard generalPasteboard] setData:[archive data] forType:WebArchivePboardType];
@@ -99,8 +99,8 @@ TEST(PasteWebArchive, PreservesMSOList)
 {
     auto *url = [NSURL URLWithString:@"file:///some-file.html"];
     auto *markup = [NSData dataWithContentsOfFile:[NSBundle.test_resourcesBundle pathForResource:@"mso-list" ofType:@"html"]];
-    auto mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
-    auto archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
+    RetainPtr mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
+    RetainPtr archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
 
     [[NSPasteboard generalPasteboard] declareTypes:@[WebArchivePboardType] owner:nil];
     [[NSPasteboard generalPasteboard] setData:[archive data] forType:WebArchivePboardType];
@@ -150,8 +150,8 @@ TEST(PasteWebArchive, PreservesMSOListInCompatibilityMode)
 {
     auto *url = [NSURL URLWithString:@"file:///some-file.html"];
     auto *markup = [NSData dataWithContentsOfFile:[NSBundle.test_resourcesBundle pathForResource:@"mso-list-compat-mode" ofType:@"html"]];
-    auto mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
-    auto archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
+    RetainPtr mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
+    RetainPtr archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
 
     [[NSPasteboard generalPasteboard] declareTypes:@[WebArchivePboardType] owner:nil];
     [[NSPasteboard generalPasteboard] setData:[archive data] forType:WebArchivePboardType];
@@ -204,8 +204,8 @@ TEST(PasteWebArchive, StripsMSOListWhenMissingMSOHTMLElement)
     auto *url = [NSURL URLWithString:@"file:///some-file.html"];
     auto *markup = msoListMarkupWithoutProperHTMLElement();
 
-    auto mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
-    auto archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
+    RetainPtr mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
+    RetainPtr archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
 
     [[NSPasteboard generalPasteboard] declareTypes:@[WebArchivePboardType] owner:nil];
     [[NSPasteboard generalPasteboard] setData:[archive data] forType:WebArchivePboardType];
@@ -238,15 +238,15 @@ TEST(PasteWebArchive, PreservesPictureInsideSpan)
 {
     NSData *markupData = [@"<span class='s1'><picture><source srcset='1.png' type='image/png'><img src='2.gif'></picture></span>" dataUsingEncoding:NSUTF8StringEncoding];
 
-    auto mainResource = adoptNS([[WebResource alloc] initWithData:markupData URL:[NSURL URLWithString:@"foo.html"] MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
+    RetainPtr mainResource = adoptNS([[WebResource alloc] initWithData:markupData URL:[NSURL URLWithString:@"foo.html"] MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
 
     auto pngData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"icon" withExtension:@"png"]];
-    auto pngResource = adoptNS([[WebResource alloc] initWithData:pngData URL:[NSURL URLWithString:@"1.png"] MIMEType:@"image/png" textEncodingName:nil frameName:nil]);
+    RetainPtr pngResource = adoptNS([[WebResource alloc] initWithData:pngData URL:[NSURL URLWithString:@"1.png"] MIMEType:@"image/png" textEncodingName:nil frameName:nil]);
 
     auto gifData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"apple" withExtension:@"gif"]];
-    auto gifResource = adoptNS([[WebResource alloc] initWithData:gifData URL:[NSURL URLWithString:@"2.gif"] MIMEType:@"image/gif" textEncodingName:nil frameName:nil]);
+    RetainPtr gifResource = adoptNS([[WebResource alloc] initWithData:gifData URL:[NSURL URLWithString:@"2.gif"] MIMEType:@"image/gif" textEncodingName:nil frameName:nil]);
 
-    auto archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:@[ pngResource.get(), gifResource.get() ] subframeArchives:@[ ]]);
+    RetainPtr archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:@[ pngResource.get(), gifResource.get() ] subframeArchives:@[ ]]);
 
     [[NSPasteboard generalPasteboard] declareTypes:@[WebArchivePboardType] owner:nil];
     [[NSPasteboard generalPasteboard] setData:[archive data] forType:WebArchivePboardType];
@@ -266,8 +266,8 @@ TEST(PasteWebArchive, WebArchiveTypeIdentifier)
     NSURL *url = [NSURL URLWithString:@"file:///some-file.html"];
     NSString *markup = @"<strong style='color: rgb(255, 0, 0);'>This is some text to copy.</strong>";
 
-    auto mainResource = adoptNS([[WebResource alloc] initWithData:[markup dataUsingEncoding:NSUTF8StringEncoding] URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
-    auto archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
+    RetainPtr mainResource = adoptNS([[WebResource alloc] initWithData:[markup dataUsingEncoding:NSUTF8StringEncoding] URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
+    RetainPtr archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
 
     NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
     [pasteboard declareTypes:@[UTTypeWebArchive.identifier] owner:nil];
@@ -317,8 +317,8 @@ TEST(PasteWebArchive, StripsDataDetectorsLinks)
 {
     auto* url = [NSURL URLWithString:@"file:///some-file.html"];
     auto* markup = [@"<!DOCTYPE html><html><body><span>Meeting <a href=\"x-apple-data-detectors://0\" dir=\"ltr\" x-apple-data-detectors=\"true\" x-apple-data-detectors-type=\"calendar-event\" x-apple-data-detectors-result=\"0\" style=\"color: currentcolor; text-decoration-color: rgba(128, 128, 128, 0.38); font-weight: bold;\">on Friday 11/6 at 4pm</a> at <a href=\"x-apple-data-detectors://1\" dir=\"ltr\" x-apple-data-detectors=\"true\" x-apple-data-detectors-type=\"address\" x-apple-data-detectors-result=\"1\" style=\"color: currentcolor; text-decoration-color: rgba(128, 128, 128, 0.38);\">1 Apple Park Way, Cupertino CA</a></span></body></html>" dataUsingEncoding:NSUTF8StringEncoding];
-    auto mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
-    auto archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
+    RetainPtr mainResource = adoptNS([[WebResource alloc] initWithData:markup URL:url MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
+    RetainPtr archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
 
     [[NSPasteboard generalPasteboard] declareTypes:@[WebArchivePboardType] owner:nil];
     [[NSPasteboard generalPasteboard] setData:[archive data] forType:WebArchivePboardType];

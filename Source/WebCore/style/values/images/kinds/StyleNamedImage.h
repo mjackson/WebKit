@@ -27,15 +27,15 @@
 
 #pragma once
 
+#include "StyleCustomIdent.h"
 #include "StyleGeneratedImage.h"
-#include <wtf/text/WTFString.h>
 
 namespace WebCore {
 namespace Style {
 
 class NamedImage final : public GeneratedImage {
 public:
-    static Ref<NamedImage> create(String name)
+    static Ref<NamedImage> create(CustomIdent&& name)
     {
         return adoptRef(*new NamedImage(WTF::move(name)));
     }
@@ -47,7 +47,7 @@ public:
     static constexpr bool isFixedSize = false;
 
 private:
-    explicit NamedImage(String&&);
+    explicit NamedImage(CustomIdent&&);
 
     Ref<CSSValue> computedStyleValue(const RenderStyle&) const final;
     bool isPending() const final;
@@ -58,7 +58,7 @@ private:
     void didAddClient(RenderElement&) final { }
     void didRemoveClient(RenderElement&) final { }
 
-    String m_name;
+    CustomIdent m_name;
 };
 
 } // namespace Style

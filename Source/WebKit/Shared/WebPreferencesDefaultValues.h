@@ -52,7 +52,7 @@
 #define Supporthdrdisplay_feature_status Testable
 #endif
 
-#if defined(ENABLE_WEBXR_LAYERS) && ENABLE_WEBXR_LAYERS
+#if defined(ENABLE_WEBXR_LAYERS) && ENABLE_WEBXR_LAYERS && USE(OPENXR)
 #define Webxr_layers_feature_status Testable
 #else
 #define Webxr_layers_feature_status Unstable

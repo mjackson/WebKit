@@ -76,7 +76,7 @@ static float scrollbarSize()
 
 TEST(CSSViewportUnits, AllSame)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
     [webView waitForNextPresentationUpdate];
 
@@ -235,7 +235,7 @@ TEST(CSSViewportUnits, AllSame)
 
 TEST(CSSViewportUnits, NegativeMinimumViewportInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
     bool didThrow = false;
     @try {
@@ -248,7 +248,7 @@ TEST(CSSViewportUnits, NegativeMinimumViewportInset)
 
 TEST(CSSViewportUnits, NegativeMaximumViewportInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
     bool didThrow = false;
     @try {
@@ -261,7 +261,7 @@ TEST(CSSViewportUnits, NegativeMaximumViewportInset)
 
 TEST(CSSViewportUnits, MinimumViewportInsetLargerThanMaximumViewportInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
     bool didThrow = false;
     @try {
@@ -274,7 +274,7 @@ TEST(CSSViewportUnits, MinimumViewportInsetLargerThanMaximumViewportInset)
 
 TEST(CSSViewportUnits, MinimumViewportInsetThanLargerFrame)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
     bool didThrow = false;
     @try {
@@ -287,7 +287,7 @@ TEST(CSSViewportUnits, MinimumViewportInsetThanLargerFrame)
 
 TEST(CSSViewportUnits, MaximumViewportInsetThanLargerFrame)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
     bool didThrow = false;
     @try {
@@ -300,7 +300,7 @@ TEST(CSSViewportUnits, MaximumViewportInsetThanLargerFrame)
 
 TEST(CSSViewportUnits, MinimumViewportInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsMake(11, 21, 31, 41) maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -341,7 +341,7 @@ TEST(CSSViewportUnits, MinimumViewportInset)
 
 TEST(CSSViewportUnits, MaximumViewportInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsZero maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -382,7 +382,7 @@ TEST(CSSViewportUnits, MaximumViewportInset)
 
 TEST(CSSViewportUnits, MinimumViewportInsetWithZoom)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsMake(11, 21, 31, 41) maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -430,7 +430,7 @@ TEST(CSSViewportUnits, MinimumViewportInsetWithZoom)
 
 TEST(CSSViewportUnits, MaximumViewportInsetWithZoom)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsZero maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -478,7 +478,7 @@ TEST(CSSViewportUnits, MaximumViewportInsetWithZoom)
 
 TEST(CSSViewportUnits, MinimumViewportInsetWithWritingMode)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsMake(11, 21, 31, 41) maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -555,7 +555,7 @@ TEST(CSSViewportUnits, MinimumViewportInsetWithWritingMode)
 
 TEST(CSSViewportUnits, MaximumViewportInsetWithWritingMode)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsZero maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -632,7 +632,7 @@ TEST(CSSViewportUnits, MaximumViewportInsetWithWritingMode)
 
 TEST(CSSViewportUnits, MinimumViewportInsetWithFrame)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsMake(11, 21, 31, 41) maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -675,7 +675,7 @@ TEST(CSSViewportUnits, MinimumViewportInsetWithFrame)
 
 TEST(CSSViewportUnits, MaximumViewportInsetWithFrame)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsZero maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -718,7 +718,7 @@ TEST(CSSViewportUnits, MaximumViewportInsetWithFrame)
 
 TEST(CSSViewportUnits, MinimumViewportInsetWithBounds)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsMake(11, 21, 31, 41) maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -761,7 +761,7 @@ TEST(CSSViewportUnits, MinimumViewportInsetWithBounds)
 
 TEST(CSSViewportUnits, MaximumViewportInsetWithBounds)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsZero maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -811,9 +811,9 @@ TEST(CSSViewportUnits, DISABLED_TopContentInset)
 TEST(CSSViewportUnits, TopContentInset)
 #endif
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:CGRectMake(0, 0, 320, 500) styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskFullSizeContentView) backing:NSBackingStoreBuffered defer:NO]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:CGRectMake(0, 0, 320, 500) styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskFullSizeContentView) backing:NSBackingStoreBuffered defer:NO]);
     [[window contentView] addSubview:webView.get()];
     [window makeKeyAndOrderFront:nil];
 
@@ -859,9 +859,9 @@ TEST(CSSViewportUnits, TopContentInset)
 
 TEST(CSSViewportUnits, MinimumViewportInsetWithTopContentInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:CGRectMake(0, 0, 320, 500) styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskFullSizeContentView) backing:NSBackingStoreBuffered defer:NO]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:CGRectMake(0, 0, 320, 500) styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskFullSizeContentView) backing:NSBackingStoreBuffered defer:NO]);
     [[window contentView] addSubview:webView.get()];
     [window makeKeyAndOrderFront:nil];
 
@@ -913,9 +913,9 @@ TEST(CSSViewportUnits, DISABLED_MaximumViewportInsetWithTopContentInset)
 TEST(CSSViewportUnits, MaximumViewportInsetWithTopContentInset)
 #endif
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:CGRectMake(0, 0, 320, 500) styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskFullSizeContentView) backing:NSBackingStoreBuffered defer:NO]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:CGRectMake(0, 0, 320, 500) styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskFullSizeContentView) backing:NSBackingStoreBuffered defer:NO]);
     [[window contentView] addSubview:webView.get()];
     [window makeKeyAndOrderFront:nil];
 
@@ -966,7 +966,7 @@ TEST(CSSViewportUnits, MaximumViewportInsetWithTopContentInset)
 
 TEST(CSSViewportUnits, MinimumViewportInsetWithContentInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsMake(11, 21, 31, 41) maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -1009,7 +1009,7 @@ TEST(CSSViewportUnits, MinimumViewportInsetWithContentInset)
 
 TEST(CSSViewportUnits, MaximumViewportInsetWithContentInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsZero maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -1052,11 +1052,11 @@ TEST(CSSViewportUnits, MaximumViewportInsetWithContentInset)
 
 TEST(CSSViewportUnits, MinimumViewportInsetWithSafeAreaInsets)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsMake(11, 21, 31, 41) maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
-    auto viewController = adoptNS([[UIViewController alloc] init]);
+    RetainPtr viewController = adoptNS([[UIViewController alloc] init]);
     [viewController setAdditionalSafeAreaInsets:CocoaEdgeInsetsMake(50, 60, 70, 80)];
     [viewController setView:webView.get()];
 
@@ -1097,11 +1097,11 @@ TEST(CSSViewportUnits, MinimumViewportInsetWithSafeAreaInsets)
 
 TEST(CSSViewportUnits, MaximumViewportInsetWithSafeAreaInsets)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsZero maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
-    auto viewController = adoptNS([[UIViewController alloc] init]);
+    RetainPtr viewController = adoptNS([[UIViewController alloc] init]);
     [viewController setAdditionalSafeAreaInsets:CocoaEdgeInsetsMake(50, 60, 70, 80)];
     [viewController setView:webView.get()];
 
@@ -1142,7 +1142,7 @@ TEST(CSSViewportUnits, MaximumViewportInsetWithSafeAreaInsets)
 
 TEST(CSSViewportUnits, UnobscuredSizeOverridesIgnoreMinimumViewportInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsMake(11, 21, 31, 41) maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -1185,7 +1185,7 @@ TEST(CSSViewportUnits, UnobscuredSizeOverridesIgnoreMinimumViewportInset)
 
 TEST(CSSViewportUnits, UnobscuredSizeOverridesIgnoreMaximumViewportInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setMinimumViewportInset:CocoaEdgeInsetsZero maximumViewportInset:CocoaEdgeInsetsMake(12, 22, 32, 42)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
 
@@ -1228,7 +1228,7 @@ TEST(CSSViewportUnits, UnobscuredSizeOverridesIgnoreMaximumViewportInset)
 
 TEST(CSSViewportUnits, EmptyUnobscuredSizeOverrides)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView _overrideLayoutParametersWithMinimumLayoutSize:CGSizeMake(10.5, 20.5) minimumUnobscuredSizeOverride:CGSizeZero maximumUnobscuredSizeOverride:CGSizeZero];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
     [webView waitForNextPresentationUpdate];
@@ -1373,7 +1373,7 @@ TEST(CSSViewportUnits, EmptyUnobscuredSizeOverrides)
 
 TEST(CSSViewportUnits, SameUnobscuredSizeOverrides)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     auto unobscuredSizeOverride = CGSizeMake(10.5, 20.5);
     [webView _overrideLayoutParametersWithMinimumLayoutSize:unobscuredSizeOverride minimumUnobscuredSizeOverride:unobscuredSizeOverride maximumUnobscuredSizeOverride:unobscuredSizeOverride];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
@@ -1519,7 +1519,7 @@ TEST(CSSViewportUnits, SameUnobscuredSizeOverrides)
 
 TEST(CSSViewportUnits, DifferentUnobscuredSizeOverrides)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView _overrideLayoutParametersWithMinimumLayoutSize:CGSizeMake(10.5, 20.5) minimumUnobscuredSizeOverride:CGSizeMake(10.5, 30.5) maximumUnobscuredSizeOverride:CGSizeMake(30.5, 40.5)];
     [webView synchronouslyLoadTestPageNamed:@"CSSViewportUnits"];
     [webView waitForNextPresentationUpdate];
@@ -1666,7 +1666,7 @@ TEST(CSSViewportUnits, DifferentUnobscuredSizeOverrides)
 
 TEST(CSSViewportUnits, SVGDocument)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"CSSViewportUnits" withExtension:@"svg"]]];
     [webView _test_waitForDidFinishNavigation];
     [webView waitForNextPresentationUpdate];

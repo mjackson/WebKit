@@ -32,7 +32,7 @@
 TEST(WebKit, DisableSpellcheck)
 {
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"DisableSpellcheckPlugIn" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
     BOOL isSpellcheckDisabled = [[webView objectByEvaluatingJavaScript:@"internals.isSpellcheckDisabledExceptTextReplacement(document.getElementById('disabled'))"] boolValue];

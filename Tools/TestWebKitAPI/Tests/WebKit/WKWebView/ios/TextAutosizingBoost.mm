@@ -44,7 +44,7 @@ TEST(TextAutosizingBoost, ChangeAutosizingBoostAtRuntime)
 
     InstanceMethodSwizzler screenSizeSwizzler(UIScreen.class, @selector(_referenceBounds), reinterpret_cast<IMP>(mainScreenReferenceBoundsOverride));
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 960, 360)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 960, 360)]);
     WKPreferencesSetTextAutosizingEnabled((__bridge WKPreferencesRef)[webView configuration].preferences, true);
     WKPreferencesSetTextAutosizingUsesIdempotentMode((__bridge WKPreferencesRef)[webView configuration].preferences, false);
     [webView synchronouslyLoadHTMLString:testMarkup];

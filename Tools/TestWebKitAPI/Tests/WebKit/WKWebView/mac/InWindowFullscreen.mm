@@ -37,7 +37,7 @@ static RetainPtr<TestWKWebView> createInWindowFullscreenWebView()
     RetainPtr configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
     [configuration preferences].elementFullscreenEnabled = YES;
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeAudio];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
     return webView;
 }
 

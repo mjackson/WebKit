@@ -44,8 +44,7 @@
 #include "JSAsyncGenerator.h"
 #include "JSCellButterfly.h"
 #include "JSGenerator.h"
-#include "JSInternalPromise.h"
-#include "JSInternalPromiseConstructor.h"
+#include "JSPromise.h"
 #include "JSPromiseConstructor.h"
 #include "JSPromisePrototype.h"
 #include "JSWebAssemblyInstance.h"
@@ -3953,9 +3952,9 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     case CreatePromise: {
         JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
         if (JSValue base = forNode(node->child1()).m_value) {
-            if (base == (node->isInternalPromise() ? globalObject->internalPromiseConstructor() : globalObject->promiseConstructor())) {
+            if (base == globalObject->promiseConstructor()) {
                 didFoldClobberWorld();
-                setForNode(node, node->isInternalPromise() ? globalObject->internalPromiseStructure() : globalObject->promiseStructure());
+                setForNode(node, globalObject->promiseStructure());
                 break;
             }
             if (auto* function = jsDynamicCast<JSFunction*>(base)) {
@@ -3963,7 +3962,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
                     if (rareData->allocationProfileWatchpointSet().isStillValid() && m_graph.isWatchingStructureCacheClearedWatchpoint(node)) {
                         Structure* structure = rareData->internalFunctionAllocationStructure();
                         if (structure
-                            && structure->classInfoForCells() == (node->isInternalPromise() ? JSInternalPromise::info() : JSPromise::info())
+                            && structure->classInfoForCells() == JSPromise::info()
                             && structure->realm() == globalObject) {
                             m_graph.freeze(rareData);
                             m_graph.watchpoints().addLazily(rareData->allocationProfileWatchpointSet());

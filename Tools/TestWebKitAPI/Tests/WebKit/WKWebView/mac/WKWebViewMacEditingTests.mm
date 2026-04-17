@@ -340,7 +340,7 @@ TEST(WKWebViewMacEditingTests, DoNotCrashWhenInterpretingKeyEventWhileDeallocati
     __block bool isDone = false;
 
     @autoreleasepool {
-        auto webView = adoptNS([[SlowInputWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+        RetainPtr webView = adoptNS([[SlowInputWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
         [webView synchronouslyLoadHTMLString:[NSString stringWithFormat:@"<body contenteditable>Hello world</body>"]];
         [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
         [webView waitForNextPresentationUpdate];
@@ -359,15 +359,15 @@ TEST(WKWebViewMacEditingTests, ProcessSwapAfterSettingMarkedText)
 {
     [TestProtocol registerWithScheme:@"https"];
 
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     [processPoolConfiguration setProcessSwapsOnNavigation:YES];
 
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool:processPool.get()];
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView<NSTextInputClient, NSTextInputClient_Async> alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView<NSTextInputClient, NSTextInputClient_Async> alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView _setEditable:YES];
 
@@ -400,7 +400,7 @@ TEST(WKWebViewMacEditingTests, DoNotRenderInlinePredictionsForRegularMarkedText)
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
     [webView waitForNextPresentationUpdate];
 
-    auto string = adoptNS([[NSAttributedString alloc] initWithString:@"xie wen sheng" attributes:@{
+    RetainPtr string = adoptNS([[NSAttributedString alloc] initWithString:@"xie wen sheng" attributes:@{
         NSMarkedClauseSegmentAttributeName: @0,
         NSUnderlineStyleAttributeName: @(NSUnderlineStyleSingle),
         NSUnderlineColorAttributeName: NSColor.controlAccentColor
@@ -424,7 +424,7 @@ TEST(WKWebViewMacEditingTests, DoNotRenderInlinePredictionsForRegularMarkedText)
 TEST(WKWebViewMacEditingTests, InlinePredictionsShouldSuppressAutocorrection)
 {
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView<NSTextInputClient, NSTextInputClient_Async> alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView<NSTextInputClient, NSTextInputClient_Async> alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView _setContinuousSpellCheckingEnabledForTesting:YES];
     [webView synchronouslyLoadHTMLString:@"<body id='p' contenteditable>Is it &nbsp;</body>"];
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
@@ -445,12 +445,12 @@ TEST(WKWebViewMacEditingTests, InlinePredictionsShouldSuppressAutocorrection)
 
     [webView stringByEvaluatingJavaScript:modifySelectionJavascript];
 
-    auto typedString = adoptNS([[NSAttributedString alloc] initWithString:@"wedn"]);
-    auto predictedString = adoptNS([[NSAttributedString alloc] initWithString:@"esday" attributes:@{
+    RetainPtr typedString = adoptNS([[NSAttributedString alloc] initWithString:@"wedn"]);
+    RetainPtr predictedString = adoptNS([[NSAttributedString alloc] initWithString:@"esday" attributes:@{
         NSForegroundColorAttributeName : NSColor.grayColor
     }]);
 
-    auto string = adoptNS([[NSMutableAttributedString alloc] init]);
+    RetainPtr string = adoptNS([[NSMutableAttributedString alloc] init]);
     [string appendAttributedString:typedString.get()];
     [string appendAttributedString:predictedString.get()];
 
@@ -463,7 +463,7 @@ TEST(WKWebViewMacEditingTests, InlinePredictionsShouldSuppressAutocorrection)
 TEST(WKWebViewMacEditingTests, SetMarkedTextWithNoAttributedString)
 {
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView<NSTextInputClient, NSTextInputClient_Async> alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView<NSTextInputClient, NSTextInputClient_Async> alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView _setContinuousSpellCheckingEnabledForTesting:YES];
     [webView synchronouslyLoadHTMLString:@"<body id='p' contenteditable>Is it &nbsp;</body>"];
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];

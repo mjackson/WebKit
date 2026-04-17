@@ -76,6 +76,10 @@ public:
     // Used by Wasm's fault signal handler to determine if the fault came from Wasm.
     std::tuple<void*, void*> range() const;
 
+#if ENABLE(JIT)
+    Box<PCToCodeOriginMap> pcToCodeOriginMap() const;
+#endif
+
     const HandlerInfo* handlerForIndex(JSWebAssemblyInstance&, unsigned, const Tag*);
 
     bool hasExceptionHandlers() const { return !m_exceptionHandlers.isEmpty(); }
@@ -92,6 +96,10 @@ public:
     {
         return 0;
     }
+
+#if ENABLE(JIT)
+    Box<PCToCodeOriginMap> pcToCodeOriginMapImpl() const { return nullptr; }
+#endif
 
 protected:
     JS_EXPORT_PRIVATE Callee(Wasm::CompilationMode);
@@ -258,6 +266,9 @@ public:
 
     Box<PCToCodeOriginMap> materializePCToOriginMap(B3::PCToOriginMap&&, LinkBuffer&);
 
+    Box<PCToCodeOriginMap> pcToCodeOriginMapImpl() const { return m_pcToCodeOriginMap; }
+    void setPCToCodeOriginMap(Box<PCToCodeOriginMap>&& map) { m_pcToCodeOriginMap = WTF::move(map); }
+
     unsigned computeCodeHashImpl() const;
 
 protected:
@@ -283,6 +294,7 @@ private:
     Vector<WasmCodeOrigin, 0> codeOrigins;
     Vector<Ref<NameSection>, 0> nameSections;
     Box<PCToCodeOriginMap> m_callSiteIndexMap;
+    Box<PCToCodeOriginMap> m_pcToCodeOriginMap;
     const Ref<IPIntCallee> m_profiledCallee;
 };
 
@@ -445,6 +457,7 @@ public:
 
     FunctionCodeIndex functionIndex() const { return m_functionIndex; }
     void setEntrypoint(CodePtr<WasmEntryPtrTag>);
+    void setEntrypointWithoutRegistration(CodePtr<WasmEntryPtrTag>);
     const uint8_t* bytecode() const { return m_bytecode; }
     const uint8_t* bytecodeEnd() const { return m_bytecodeEnd; }
     const uint8_t* metadata() const LIFETIME_BOUND { return m_metadata.span().data(); }

@@ -66,22 +66,22 @@ public:
     RefPtr<CSSValue> propertyValue(CSSPropertyID, UpdateLayout = UpdateLayout::Yes, ExtractorState::PropertyValueType = ExtractorState::PropertyValueType::Resolved) const;
 
     // Extract a serialized value for the specified property.
-    String propertyValueSerialization(CSSPropertyID, const CSS::SerializationContext&, UpdateLayout = UpdateLayout::Yes, ExtractorState::PropertyValueType = ExtractorState::PropertyValueType::Resolved) const;
+    WTF::String propertyValueSerialization(CSSPropertyID, const CSS::SerializationContext&, UpdateLayout = UpdateLayout::Yes, ExtractorState::PropertyValueType = ExtractorState::PropertyValueType::Resolved) const;
 
     // Extract a CSSValue for the specified property using the provided RenderStyle and RenderElement.
     RefPtr<CSSValue> propertyValueInStyle(const RenderStyle&, CSSPropertyID, CSSValuePool&, const RenderElement* = nullptr, ExtractorState::PropertyValueType = ExtractorState::PropertyValueType::Resolved) const;
 
     // Extract a serialized value for the specified property using the provided RenderStyle and RenderElement.
-    String propertyValueSerializationInStyle(const RenderStyle&, CSSPropertyID, const CSS::SerializationContext&, CSSValuePool&, const RenderElement* = nullptr, ExtractorState::PropertyValueType = ExtractorState::PropertyValueType::Resolved) const;
+    WTF::String propertyValueSerializationInStyle(const RenderStyle&, CSSPropertyID, const CSS::SerializationContext&, CSSValuePool&, const RenderElement* = nullptr, ExtractorState::PropertyValueType = ExtractorState::PropertyValueType::Resolved) const;
 
     // Extract a CSSValue for the specified custom property.
     RefPtr<CSSValue> customPropertyValue(const AtomString& propertyName) const;
 
     // Extract a serialized value for the specified custom property.
-    String customPropertyValueSerialization(const AtomString& propertyName, const CSS::SerializationContext&) const;
+    WTF::String customPropertyValueSerialization(const AtomString& propertyName, const CSS::SerializationContext&) const;
 
     // Extract a serialized value for the specified custom property using the provided RenderStyle and RenderElement.
-    String customPropertyValueSerializationInStyle(const RenderStyle&, const AtomString& propertyName, const CSS::SerializationContext&) const;
+    WTF::String customPropertyValueSerializationInStyle(const RenderStyle&, const AtomString& propertyName, const CSS::SerializationContext&) const;
 
     // Helper methods for HTML editing.
     Ref<MutableStyleProperties> copyProperties(std::span<const CSSPropertyID>) const;

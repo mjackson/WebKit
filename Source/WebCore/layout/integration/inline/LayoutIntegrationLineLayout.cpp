@@ -48,6 +48,8 @@
 #include "LayoutIntegrationPagination.h"
 #include "LayoutIntegrationUtils.h"
 #include "LayoutTreeBuilder.h"
+#include "LocalFrameView.h"
+#include "LocalFrameViewLayoutContext.h"
 #include "PaintInfo.h"
 #include "PlacedFloats.h"
 #include "RenderBlockFlow.h"
@@ -216,8 +218,18 @@ LineLayout::~LineLayout()
     };
     if (shouldPopulateBreakingPositionCache())
         Layout::InlineItemsBuilder::populateBreakingPositionCache(m_inlineContentCache.inlineItems().content(), rootRenderer->document());
-    clearInlineContent();
-    layoutState().destroyInlineContentCache(rootLayoutBox());
+
+    auto prepareAndDetachInlineContent = [&] {
+        if (!m_inlineContent)
+            return;
+        for (auto& box : m_inlineContent->displayContent().boxes)
+            box.detachLayoutBox();
+        m_inlineContent->releaseCaches();
+        m_inlineContent->clearFormattingContextRoot();
+        rootRenderer->view().frameView().layoutContext().detachInlineContent(WTF::move(m_inlineContent));
+    };
+    prepareAndDetachInlineContent();
+    rootRenderer->resetInlineContentCache();
     layoutState().destroyBlockFormattingState(rootLayoutBox());
     m_boxGeometryUpdater.clear();
     m_lineDamage = { };

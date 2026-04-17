@@ -45,7 +45,7 @@ static void runSnapshotAcrossPagesTest(ShouldUseSameProcess shouldUseSameProcess
         { "/"_s, { "foo"_s } }
     });
 
-    auto configuration1 = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration1 = adoptNS([[WKWebViewConfiguration alloc] init]);
     for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"WebLocksAPIEnabled"]) {
             [[configuration1 preferences] _setEnabled:YES forFeature:feature];
@@ -53,7 +53,7 @@ static void runSnapshotAcrossPagesTest(ShouldUseSameProcess shouldUseSameProcess
         }
     }
 
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration1.get()]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration1.get()]);
     [webView1 synchronouslyLoadRequest:server.request()];
 
     auto pid1 = [webView1 _webProcessIdentifier];
@@ -69,7 +69,7 @@ static void runSnapshotAcrossPagesTest(ShouldUseSameProcess shouldUseSameProcess
     }];
     TestWebKitAPI::Util::run(&done);
 
-    auto configuration2 = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration2 = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration2.get().processPool = [configuration1 processPool];
     for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"WebLocksAPIEnabled"]) {
@@ -82,7 +82,7 @@ static void runSnapshotAcrossPagesTest(ShouldUseSameProcess shouldUseSameProcess
         configuration2.get()._relatedWebView = webView1.get();
         ALLOW_DEPRECATED_DECLARATIONS_END
     }
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration2.get()]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration2.get()]);
     [webView2 synchronouslyLoadRequest:server.request()];
 
     auto pid2 = [webView2 _webProcessIdentifier];
@@ -141,7 +141,7 @@ static void runLockRequestWaitingOnAnotherPage(ShouldUseSameProcess shouldUseSam
         { "/"_s, { "foo"_s } }
     });
 
-    auto configuration1 = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration1 = adoptNS([[WKWebViewConfiguration alloc] init]);
     for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"WebLocksAPIEnabled"]) {
             [[configuration1 preferences] _setEnabled:YES forFeature:feature];
@@ -149,7 +149,7 @@ static void runLockRequestWaitingOnAnotherPage(ShouldUseSameProcess shouldUseSam
         }
     }
 
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration1.get()]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration1.get()]);
     [webView1 synchronouslyLoadRequest:server.request()];
 
     auto pid1 = [webView1 _webProcessIdentifier];
@@ -165,7 +165,7 @@ static void runLockRequestWaitingOnAnotherPage(ShouldUseSameProcess shouldUseSam
     }];
     TestWebKitAPI::Util::run(&done);
 
-    auto configuration2 = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration2 = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration2.get().processPool = [configuration1 processPool];
     for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"WebLocksAPIEnabled"]) {
@@ -178,7 +178,7 @@ static void runLockRequestWaitingOnAnotherPage(ShouldUseSameProcess shouldUseSam
         configuration2.get()._relatedWebView = webView1.get();
         ALLOW_DEPRECATED_DECLARATIONS_END
     }
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration2.get()]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration2.get()]);
     [webView2 synchronouslyLoadRequest:server.request()];
 
     auto pid2 = [webView2 _webProcessIdentifier];

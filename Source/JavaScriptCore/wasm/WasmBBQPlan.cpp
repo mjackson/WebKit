@@ -28,10 +28,10 @@
 
 #if ENABLE(WEBASSEMBLY_BBQJIT)
 
+#include "HeapCellInlines.h"
 #include "JITCompilation.h"
 #include "JSToWasm.h"
 #include "LinkBuffer.h"
-#include "NativeCalleeRegistry.h"
 #include "WasmBBQJIT.h"
 #include "WasmCallee.h"
 #include "WasmCalleeGroup.h"
@@ -126,8 +126,10 @@ void BBQPlan::work()
         callee->setEntrypoint(WTF::move(function->entrypoint), WTF::move(unlinkedWasmToWasmCalls), WTF::move(function->stackmaps), WTF::move(function->exceptionHandlers), WTF::move(exceptionHandlerLocations), WTF::move(loopEntrypointLocations), sharedLoopEntrypoint, function->osrEntryScratchBufferSize);
         entrypoint = callee->entrypoint();
 
-        if (context.pcToCodeOriginMap)
-            NativeCalleeRegistry::singleton().addPCToCodeOriginMap(callee.ptr(), WTF::move(context.pcToCodeOriginMap));
+        if (context.pcToCodeOriginMap) {
+            WTF::storeStoreFence();
+            callee->setPCToCodeOriginMap(WTF::move(context.pcToCodeOriginMap));
+        }
 
         {
             Locker locker { m_calleeGroup->m_lock };

@@ -42,7 +42,7 @@ static bool didFinishLoad;
 
 - (NSDictionary *)convertAttributes:(NSDictionary *)dictionary
 {
-    auto newDictionary = adoptNS([dictionary mutableCopy]);
+    RetainPtr newDictionary = adoptNS([dictionary mutableCopy]);
     [newDictionary removeObjectForKey:NSForegroundColorAttributeName];
     return newDictionary.autorelease();
 }

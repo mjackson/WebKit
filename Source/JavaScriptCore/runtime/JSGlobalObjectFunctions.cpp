@@ -33,7 +33,6 @@
 #include "Interpreter.h"
 #include "IntlDateTimeFormat.h"
 #include "JSCInlines.h"
-#include "JSInternalPromise.h"
 #include "JSModuleLoader.h"
 #include "JSPromise.h"
 #include "JSSet.h"
@@ -810,21 +809,25 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncImportModule, (JSGlobalObject* globalObject, 
     // We always specify parameters as undefined. Once dynamic import() starts accepting fetching parameters,
     // we should retrieve this from the arguments.
     JSValue parameters = callFrame->argument(1);
-    auto* internalPromise = globalObject->moduleLoader()->importModule(globalObject, specifier, parameters, sourceOrigin);
+    auto* importPromise = globalObject->moduleLoader()->importModule(globalObject, specifier, parameters, sourceOrigin);
     RETURN_IF_EXCEPTION(scope, JSValue::encode(JSPromise::rejectedPromiseWithCaughtException(globalObject, scope)));
 
     scope.release();
 
+#if USE(BUN_JSC_ADDITIONS)
     auto* promise = JSPromise::create(vm, globalObject->promiseStructure());
 
-    if (internalPromise->status() == JSPromise::Status::Fulfilled) {
-        auto result = internalPromise->result();
+    if (importPromise->status() == JSPromise::Status::Fulfilled) {
+        auto result = importPromise->result();
         promise->fulfill(vm, globalObject, result);
     } else {
-        promise->resolve(globalObject, vm, internalPromise);
+        promise->resolve(globalObject, vm, importPromise);
     }
 
     return JSValue::encode(promise);
+#else
+    return JSValue::encode(importPromise);
+#endif
 }
 
 static bool NODELETE canPerformFastPropertyEnumerationForCopyDataProperties(Structure* structure)

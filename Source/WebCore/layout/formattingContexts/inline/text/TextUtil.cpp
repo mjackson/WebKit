@@ -181,7 +181,7 @@ TextUtil::FallbackFontList TextUtil::fallbackFontsForText(StringView textContent
     };
 
     if (includeHyphen == IncludeHyphen::Yes)
-        collectFallbackFonts(TextRun { StringView(style.hyphenString().string()), { }, { }, ExpansionBehavior::defaultBehavior(), style.writingMode().bidiDirection() });
+        collectFallbackFonts(TextRun { StringView(style.hyphenString()), { }, { }, ExpansionBehavior::defaultBehavior(), style.writingMode().bidiDirection() });
     collectFallbackFonts(TextRun { textContent, { }, { }, ExpansionBehavior::defaultBehavior(), style.writingMode().bidiDirection() });
     return fallbackFonts;
 }

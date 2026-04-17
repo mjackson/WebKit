@@ -40,9 +40,8 @@ namespace Detail {
 
 template<typename IDL>
 struct GenericSequenceInnerConverter {
-    using SequenceType = Vector<typename IDL::SequenceStorageType>;
-
-    static void convert(JSC::ThrowScope& scope, JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue value, SequenceType& sequence)
+    template<typename Container>
+    static void convert(JSC::ThrowScope& scope, JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue value, Container& sequence)
     {
         ASSERT(!scope.exception());
 
@@ -57,9 +56,9 @@ struct GenericSequenceInnerConverter {
 template<typename T>
 struct GenericSequenceInnerConverter<IDLInterface<T>> {
     using IDL = IDLInterface<T>;
-    using SequenceType = Vector<typename IDL::SequenceStorageType>;
 
-    static void convert(JSC::ThrowScope& scope, JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue value, SequenceType& result)
+    template<typename Container>
+    static void convert(JSC::ThrowScope& scope, JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue value, Container& result)
     {
         ASSERT(!scope.exception());
 
@@ -76,7 +75,7 @@ struct GenericSequenceConverter {
     using Result = ConversionResult<IDL>;
     using InnerTypeIDL = typename IDL::InnerType;
     using InnerConverter = GenericSequenceInnerConverter<InnerTypeIDL>;
-    using SequenceType = typename InnerConverter::SequenceType;
+    using SequenceType = Vector<typename InnerTypeIDL::SequenceStorageType, IDL::vectorInlineCapacity>;
 
     static Result convert(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSObject* object)
     {
@@ -353,10 +352,10 @@ template<> struct Converter<IDLFrozenArray<IDLUnrestrictedFloat>> : Detail::Nume
 template<> struct Converter<IDLFrozenArray<IDLDouble>> : Detail::NumericSequenceConverter<IDLFrozenArray<IDLDouble>> { };
 template<> struct Converter<IDLFrozenArray<IDLUnrestrictedDouble>> : Detail::NumericSequenceConverter<IDLFrozenArray<IDLUnrestrictedDouble>> { };
 
-template<typename T> struct Converter<IDLSequence<T>> : Detail::SequenceConverter<IDLSequence<T>> { };
-template<typename T> struct Converter<IDLFrozenArray<T>> : Detail::SequenceConverter<IDLFrozenArray<T>> { };
+template<typename T, size_t N> struct Converter<IDLSequence<T, N>> : Detail::SequenceConverter<IDLSequence<T, N>> { };
+template<typename T, size_t N> struct Converter<IDLFrozenArray<T, N>> : Detail::SequenceConverter<IDLFrozenArray<T, N>> { };
 
-template<typename T> struct JSConverter<IDLSequence<T>> {
+template<typename T, size_t N> struct JSConverter<IDLSequence<T, N>> {
     static constexpr bool needsState = true;
     static constexpr bool needsGlobalObject = true;
 
@@ -380,7 +379,7 @@ template<typename T> struct JSConverter<IDLSequence<T>> {
     }
 };
 
-template<typename T> struct JSConverter<IDLFrozenArray<T>> {
+template<typename T, size_t N> struct JSConverter<IDLFrozenArray<T, N>> {
     static constexpr bool needsState = true;
     static constexpr bool needsGlobalObject = true;
 

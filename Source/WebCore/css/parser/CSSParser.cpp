@@ -35,6 +35,7 @@
 #include "CSSCounterStyleRule.h"
 #include "CSSCustomPropertySyntax.h"
 #include "CSSCustomPropertyValue.h"
+#include "CSSFontFamilyNameValue.h"
 #include "CSSFontFeatureValuesRule.h"
 #include "CSSKeyframeRule.h"
 #include "CSSKeyframesRule.h"
@@ -55,6 +56,7 @@
 #include "CSSPropertyParserConsumer+Primitives.h"
 #include "CSSPropertyParserConsumer+Timeline.h"
 #include "CSSSelectorParser.h"
+#include "CSSStringValue.h"
 #include "CSSStyleSheet.h"
 #include "CSSSubstitutionParser.h"
 #include "CSSSupportsParser.h"
@@ -937,19 +939,18 @@ RefPtr<StyleRuleFontPaletteValues> CSSParser::consumeFontPaletteValuesRule(CSSPa
     auto fontFamilies = [&] {
         Vector<AtomString> fontFamilies;
         auto append = [&](auto& value) {
-            if (value.isFontFamily())
-                fontFamilies.append(AtomString { value.stringValue() });
+            if (RefPtr fontFamilyNameValue = dynamicDowncast<CSSFontFamilyNameValue>(value))
+                fontFamilies.append(fontFamilyNameValue->fontFamilyName().value);
         };
         RefPtr cssFontFamily = properties->getPropertyCSSValue(CSSPropertyFontFamily);
         if (!cssFontFamily)
             return fontFamilies;
         if (RefPtr families = dynamicDowncast<CSSValueList>(*cssFontFamily)) {
             for (Ref item : *families)
-                append(downcast<CSSPrimitiveValue>(item.get()));
+                append(item.get());
             return fontFamilies;
         }
-        if (RefPtr family = dynamicDowncast<CSSPrimitiveValue>(cssFontFamily.releaseNonNull()))
-            append(*family);
+        append(*cssFontFamily);
         return fontFamilies;
     }();
 
@@ -1386,7 +1387,7 @@ RefPtr<StyleRuleProperty> CSSParser::consumePropertyRule(CSSParserTokenRange pre
     for (auto& property : declarations) {
         switch (property.id()) {
         case CSSPropertySyntax:
-            descriptor.syntax = Ref { downcast<CSSPrimitiveValue>(*property.value()) }->stringValue();
+            descriptor.syntax = Ref { downcast<CSSStringValue>(*property.value()) }->string().value;
             continue;
         case CSSPropertyInherits:
             descriptor.inherits = property.value()->valueID() == CSSValueTrue;

@@ -65,7 +65,7 @@
 
 TEST(WKWebViewTitlebarSeparatorTests, ScrollWithTitlebarAdjacency)
 {
-    auto webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     auto separatorTrackingAdapter = [webView separatorTrackingAdapter];
     EXPECT_FALSE([separatorTrackingAdapter hasScrolledContentsUnderTitlebar]);
@@ -81,7 +81,7 @@ TEST(WKWebViewTitlebarSeparatorTests, ScrollWithTitlebarAdjacency)
 
 TEST(WKWebViewTitlebarSeparatorTests, NavigationResetsTitlebarAppearance)
 {
-    auto webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     auto separatorTrackingAdapter = [webView separatorTrackingAdapter];
     EXPECT_FALSE([separatorTrackingAdapter hasScrolledContentsUnderTitlebar]);
@@ -97,7 +97,7 @@ TEST(WKWebViewTitlebarSeparatorTests, NavigationResetsTitlebarAppearance)
 
 TEST(WKWebViewTitlebarSeparatorTests, ScrollWithoutTitlebarAdjacency)
 {
-    auto webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setFrameSize:NSMakeSize(800, 500)];
 
     auto separatorTrackingAdapter = [webView separatorTrackingAdapter];
@@ -110,7 +110,7 @@ TEST(WKWebViewTitlebarSeparatorTests, ScrollWithoutTitlebarAdjacency)
 
 TEST(WKWebViewTitlebarSeparatorTests, ChangeTitlebarAdjacency)
 {
-    auto webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     auto separatorTrackingAdapter = [webView separatorTrackingAdapter];
     EXPECT_FALSE([separatorTrackingAdapter hasScrolledContentsUnderTitlebar]);
@@ -128,7 +128,7 @@ TEST(WKWebViewTitlebarSeparatorTests, ChangeTitlebarAdjacency)
 
 TEST(WKWebViewTitlebarSeparatorTests, ChangeViewVisibility)
 {
-    auto webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     auto separatorTrackingAdapter = [webView separatorTrackingAdapter];
     EXPECT_FALSE([separatorTrackingAdapter hasScrolledContentsUnderTitlebar]);
@@ -146,7 +146,7 @@ TEST(WKWebViewTitlebarSeparatorTests, ChangeViewVisibility)
 
 TEST(WKWebViewTitlebarSeparatorTests, BackForwardCache)
 {
-    auto webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TitlebarSeparatorTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     auto separatorTrackingAdapter = [webView separatorTrackingAdapter];
     EXPECT_FALSE([separatorTrackingAdapter hasScrolledContentsUnderTitlebar]);
@@ -170,15 +170,15 @@ TEST(WKWebViewTitlebarSeparatorTests, BackForwardCache)
 
 TEST(WKWebViewTitlebarSeparatorTests, ParentWhileScrolled)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto rect = CGRectMake(0, 0, 800, 600);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:rect configuration:configuration.get() addToWindow:NO]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:rect configuration:configuration.get() addToWindow:NO]);
     [webView synchronouslyLoadTestPageNamed:@"simple-tall"];
     [webView stringByEvaluatingJavaScript:@"scrollTo(0, 1000)"];
     [webView waitForNextPresentationUpdate];
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:rect styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:rect styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
     [window makeKeyAndOrderFront:nil];
 

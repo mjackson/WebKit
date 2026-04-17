@@ -56,8 +56,8 @@
 #include <JavaScriptCore/Exception.h>
 #include <JavaScriptCore/ExceptionHelpers.h>
 #include <JavaScriptCore/GCActivityCallback.h>
+#include <JavaScriptCore/JSCJSValueInlines.h>
 #include <JavaScriptCore/JSGlobalProxyInlines.h>
-#include <JavaScriptCore/JSInternalPromise.h>
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/JSModuleRecord.h>
 #include <JavaScriptCore/JSNativeStdFunction.h>
@@ -65,6 +65,7 @@
 #include <JavaScriptCore/JSScriptFetcher.h>
 #include <JavaScriptCore/ScriptCallStack.h>
 #include <JavaScriptCore/StrongInlines.h>
+#include <JavaScriptCore/Symbol.h>
 #include <JavaScriptCore/SyntheticModuleRecord.h>
 #include <JavaScriptCore/VMTrapsInlines.h>
 #include <JavaScriptCore/WebAssemblyModuleRecord.h>
@@ -452,7 +453,7 @@ void WorkerOrWorkletScriptController::linkAndEvaluateModule(WorkerScriptFetcher&
     JSLockHolder lock { vm };
 
     NakedPtr<JSC::Exception> returnedException;
-    JSExecState::linkAndEvaluateModule(globalObject, Identifier::fromUid(vm, protect(scriptFetcher.moduleKey()).get()), jsUndefined(), returnedException);
+    JSC::JSPromise* promise = JSExecState::linkAndEvaluateModule(globalObject, Identifier::fromUid(vm, protect(scriptFetcher.moduleKey()).get()), jsUndefined(), returnedException);
     if ((returnedException && vm.isTerminationException(returnedException)) || isTerminatingExecution()) {
         forbidExecution();
         return;
@@ -472,6 +473,23 @@ void WorkerOrWorkletScriptController::linkAndEvaluateModule(WorkerScriptFetcher&
 
         JSLockHolder lock(vm);
         reportException(m_globalScopeWrapper.get(), returnedException);
+    }
+
+    if (promise) {
+        constexpr bool fromModule = true;
+
+        JSC::JSValue onRejected = JSC::JSNativeStdFunction::create(vm, &globalObject, 1, { }, [](JSGlobalObject* globalObject, CallFrame* callFrame) -> EncodedJSValue {
+            reportException(globalObject, callFrame->argument(0), nullptr, fromModule);
+            return encodedJSUndefined();
+        });
+
+        auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
+        promise->then(&globalObject, jsUndefined(), onRejected);
+
+        if (scope.exception()) {
+            reportException(&globalObject, scope.exception(), nullptr, fromModule);
+            scope.clearException();
+        }
     }
 }
 
@@ -515,7 +533,7 @@ void WorkerOrWorkletScriptController::loadAndEvaluateModule(const URL& moduleURL
             }
 
             NakedPtr<JSC::Exception> returnedException;
-            JSExecState::linkAndEvaluateModule(*globalObject, moduleKey, jsUndefined(), returnedException);
+            JSPromise* promise = JSExecState::linkAndEvaluateModule(*globalObject, moduleKey, jsUndefined(), returnedException);
             if ((returnedException && vm.isTerminationException(returnedException)) || context->script()->isTerminatingExecution()) {
                 if (context->script())
                     context->script()->forbidExecution();
@@ -523,18 +541,35 @@ void WorkerOrWorkletScriptController::loadAndEvaluateModule(const URL& moduleURL
                 return JSValue::encode(jsUndefined());
             }
 
-            if (returnedException) {
+            auto report = [context, moduleKey](JSGlobalObject* globalObject, JSValue error) {
                 String message;
                 if (context->canIncludeErrorDetails(nullptr, moduleKey.string())) {
                     // FIXME: It's not great that this can run arbitrary code to string-ify the value of the exception.
                     // Do we need to do anything to handle that properly, if it, say, raises another exception?
-                    message = returnedException->value().toWTFString(globalObject);
+                    message = error.toWTFString(globalObject);
                 } else
                     message = "Script error."_s;
-                context->reportException(message, { }, { }, { }, { }, { });
+                context->reportException(message, { }, { }, { }, { }, { }, nullptr, true);
+            };
+
+            if (returnedException) {
+                report(globalObject, returnedException->value());
+                task->run(std::nullopt);
+            } else {
+                JSC::JSValue onRejected = JSC::JSNativeStdFunction::create(vm, globalObject, 1, { }, [report](JSGlobalObject* globalObject, CallFrame* callFrame) -> JSC::EncodedJSValue {
+                    report(globalObject, callFrame->argument(0));
+                    return encodedJSUndefined();
+                }, promise);
+
+                promise->then(globalObject, jsUndefined(), onRejected);
+                if (JSC::Exception* exception = scope.exception()) {
+                    report(globalObject, exception->value());
+                    task->run(std::nullopt);
+                    TRY_CLEAR_EXCEPTION(scope, { });
+                } else
+                    task->run(std::nullopt);
             }
 
-            task->run(std::nullopt);
             return JSValue::encode(jsUndefined());
         });
 

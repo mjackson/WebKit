@@ -333,6 +333,8 @@ Expected<typename Parser<LexerType>::ParseInnerResult, String> Parser<LexerType>
         features |= ArgumentsFeature;
     if (scope->asyncFunctionBodyDoesNotUseAwait())
         features |= AsyncFunctionWithoutAwaitFeature;
+    if (scope->usesAwait())
+        features |= AwaitFeature;
 
 #if ASSERT_ENABLED
 #ifndef BUN_SKIP_FAILING_ASSERTIONS

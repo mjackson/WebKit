@@ -265,7 +265,7 @@
 - (NSString *)_test_waitForAlert
 {
     EXPECT_FALSE(self.UIDelegate);
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     self.UIDelegate = uiDelegate.get();
     NSString *alert = [uiDelegate waitForAlert];
     self.UIDelegate = nil;
@@ -275,7 +275,7 @@
 - (NSString *)_test_waitForConfirm
 {
     EXPECT_FALSE(self.UIDelegate);
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     self.UIDelegate = uiDelegate.get();
     NSString *message = [uiDelegate waitForConfirm];
     self.UIDelegate = nil;
@@ -285,7 +285,7 @@
 - (NSString *)_test_waitForPromptWithReply:(NSString *)reply
 {
     EXPECT_FALSE(self.UIDelegate);
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     self.UIDelegate = uiDelegate.get();
     NSString *prompt = [uiDelegate waitForPromptWithReply:reply];
     self.UIDelegate = nil;
@@ -295,7 +295,7 @@
 - (void)_test_waitForInspectorToShow
 {
     EXPECT_FALSE(self.UIDelegate);
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     self.UIDelegate = uiDelegate.get();
     [uiDelegate waitForInspectorToShow];
     self.UIDelegate = nil;

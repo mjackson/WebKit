@@ -91,19 +91,19 @@
 
 - (NSArray<_WKTargetedElementInfo *> *)targetedElementInfoAt:(CGPoint)point
 {
-    auto request = adoptNS([[_WKTargetedElementRequest alloc] initWithPoint:point]);
+    RetainPtr request = adoptNS([[_WKTargetedElementRequest alloc] initWithPoint:point]);
     return [self targetedElementInfo:request.get()];
 }
 
 - (NSArray<_WKTargetedElementInfo *> *)targetedElementInfoWithText:(NSString *)searchText
 {
-    auto request = adoptNS([[_WKTargetedElementRequest alloc] initWithSearchText:searchText]);
+    RetainPtr request = adoptNS([[_WKTargetedElementRequest alloc] initWithSearchText:searchText]);
     return [self targetedElementInfo:request.get()];
 }
 
 - (NSArray<_WKTargetedElementInfo *> *)targetedElementInfoWithSelectors:(NSArray<NSSet<NSString *> *> *)selectors
 {
-    auto request = adoptNS([[_WKTargetedElementRequest alloc] initWithSelectors:selectors]);
+    RetainPtr request = adoptNS([[_WKTargetedElementRequest alloc] initWithSelectors:selectors]);
     return [self targetedElementInfo:request.get()];
 }
 
@@ -191,7 +191,7 @@ namespace TestWebKitAPI {
 
 TEST(ElementTargeting, BasicElementTargeting)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"element-targeting-1"];
 
     Util::waitForConditionWithLogging([&] {
@@ -246,7 +246,7 @@ TEST(ElementTargeting, BasicElementTargeting)
 
 TEST(ElementTargeting, DoNotIgnorePointerEventsNone)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"element-targeting-1"];
 
     Util::waitForConditionWithLogging([&] {
@@ -264,7 +264,7 @@ TEST(ElementTargeting, DoNotIgnorePointerEventsNone)
 
 TEST(ElementTargeting, NearbyOutOfFlowElements)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"element-targeting-2"];
 
     RetainPtr elements = [webView targetedElementInfoAt:CGPointMake(100, 100)];
@@ -296,7 +296,7 @@ TEST(ElementTargeting, NearbyOutOfFlowElements)
 static std::pair<RetainPtr<TestWKWebView>, RetainPtr<Util::PlatformWindow>> setUpWebViewForSnapshotting(CGRect frame)
 {
 #if PLATFORM(IOS_FAMILY)
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:frame configuration:configuration.get() addToWindow:NO]);
     RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:frame]);
     [window addSubview:webView.get()];
@@ -394,7 +394,7 @@ TEST(ElementTargeting, AdjustVisibilityFromSelectors)
 
 TEST(ElementTargeting, RequestElementsFromSelectors)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 480)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 480)]);
 
     RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
     [preferences _setVisibilityAdjustmentSelectors:[NSSet setWithObjects:
@@ -573,7 +573,7 @@ TEST(ElementTargeting, AdjustVisibilityForTargetsInShadowRoot)
 
 TEST(ElementTargeting, TargetContainsShadowRoot)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"element-targeting-4"];
 
     RetainPtr elements = [webView targetedElementInfoAt:CGPointMake(100, 150)];
@@ -583,7 +583,7 @@ TEST(ElementTargeting, TargetContainsShadowRoot)
 
 TEST(ElementTargeting, ParentRelativeSelectors)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"element-targeting-5"];
     [webView expectSingleTargetedSelector:@"BODY > DIV:first-of-type" at:CGPointMake(100, 50)];
     [webView expectSingleTargetedSelector:@"BODY > DIV:nth-child(3)" at:CGPointMake(100, 150)];
@@ -594,7 +594,7 @@ TEST(ElementTargeting, ParentRelativeSelectors)
 TEST(ElementTargeting, TargetInFlowElements)
 {
     auto center = CGPointMake(200, 200);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"element-targeting-6"];
     [webView expectSingleTargetedSelector:@"MAIN > P:first-of-type" at:center];
 
@@ -609,7 +609,7 @@ TEST(ElementTargeting, TargetInFlowElements)
 
 TEST(ElementTargeting, ReplacedRendererSizeIgnoresPageScaleAndZoom)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"element-targeting-7"];
     RetainPtr targetBeforeScaling = [[webView targetedElementInfoAt:CGPointMake(100, 100)] firstObject];
 #if PLATFORM(MAC)
@@ -631,7 +631,7 @@ TEST(ElementTargeting, ReplacedRendererSizeIgnoresPageScaleAndZoom)
 
 TEST(ElementTargeting, RequestTargetedElementsBySearchableText)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"element-targeting-7"];
 
     RetainPtr targetFromHitTest = [[webView targetedElementInfoAt:CGPointMake(100, 100)] firstObject];
@@ -658,7 +658,7 @@ TEST(ElementTargeting, TargetedElementWithInvalidURLShouldNotCrash)
 
 TEST(ElementTargeting, AdjustVisibilityAfterRecreatingElement)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
 
     RetainPtr delegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:delegate.get()];
@@ -679,7 +679,7 @@ TEST(ElementTargeting, AdjustVisibilityAfterRecreatingElement)
 
 TEST(ElementTargeting, TargetedElementWithLargeImage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 480, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 480, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"element-targeting-9"];
     RetainPtr element = [[webView targetedElementInfoAt:CGPointMake(80, 80)] firstObject];
 
@@ -690,7 +690,7 @@ TEST(ElementTargeting, TargetedElementWithLargeImage)
 
 TEST(ElementTargeting, CountVisibilityAdjustmentsAfterNavigatingBack)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"element-targeting-1"];
 
     Util::waitForConditionWithLogging([&] {
@@ -733,7 +733,7 @@ TEST(ElementTargeting, DoNotBeginRepeatedVisibilityAdjustmentIfTargetIsAlreadyHi
 #if PLATFORM(VISION)
 TEST(ElementTargeting, RequestAllVisibleElements)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"element-targeting-11"];
 
     RetainPtr elements = [webView allTargetableElementsWithHitTestInterval:CGFloat(40.0)];

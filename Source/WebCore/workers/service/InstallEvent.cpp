@@ -33,6 +33,7 @@
 #include "ServiceWorkerGlobalScope.h"
 #include "ServiceWorkerRoute.h"
 #include "WorkerSWClientConnection.h"
+#include <JavaScriptCore/JSGlobalObjectInlines.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {

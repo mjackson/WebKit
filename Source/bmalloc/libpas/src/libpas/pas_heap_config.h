@@ -39,6 +39,7 @@
 #include "pas_heap_config_kind.h"
 #include "pas_heap_lock.h"
 #include "pas_heap_ref.h"
+#include "pas_large_map_variant.h"
 #include "pas_heap_ref_kind.h"
 #include "pas_mmap_capability.h"
 #include "pas_segregated_heap_lookup_kind.h"
@@ -208,6 +209,8 @@ struct pas_heap_config {
      * allocated through the system allocator, which provides additional
      * memory protection guarantees. */
     bool delegate_large_user_allocations;
+
+    pas_large_map_variant large_map_variant;
 };
 
 /*

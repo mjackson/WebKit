@@ -73,7 +73,7 @@
     }
 
     TestWebExtensionWindow *window = openWindows.firstObject;
-    auto newTab = adoptNS([[TestWebExtensionTab alloc] initWithWindow:window extensionController:controller]);
+    RetainPtr newTab = adoptNS([[TestWebExtensionTab alloc] initWithWindow:window extensionController:controller]);
 
     window.tabs = [window.tabs arrayByAddingObject:newTab.get()];
 

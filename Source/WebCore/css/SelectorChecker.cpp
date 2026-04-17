@@ -1440,19 +1440,38 @@ bool SelectorChecker::matchHasPseudoClass(CheckingContext& checkingContext, cons
     if (checkingContext.disallowHasPseudoClass)
         return false;
 
-    auto matchElement = Style::computeHasPseudoClassMatchElement(hasSelector);
+    auto matchElement = Style::computeHasArgumentRelation(hasSelector);
+
+    enum class HasTraversalType : uint8_t { Children, Descendants, Siblings, SiblingDescendants };
+    auto traversalType = [&] {
+        switch (matchElement) {
+        case Style::MatchElement::HasRelation::Child:
+            return HasTraversalType::Children;
+        case Style::MatchElement::HasRelation::Descendant:
+            return HasTraversalType::Descendants;
+        case Style::MatchElement::HasRelation::DirectSibling:
+        case Style::MatchElement::HasRelation::IndirectSibling:
+            return HasTraversalType::Siblings;
+        case Style::MatchElement::HasRelation::SiblingChild:
+        case Style::MatchElement::HasRelation::SiblingDescendant:
+            return HasTraversalType::SiblingDescendants;
+        default:
+            ASSERT_NOT_REACHED();
+            return HasTraversalType::Descendants;
+        }
+    }();
 
     auto canMatch = [&] {
-        switch (matchElement) {
-        case Style::MatchElement::HasChild:
-        case Style::MatchElement::HasDescendant:
+        switch (traversalType) {
+        case HasTraversalType::Children:
+        case HasTraversalType::Descendants:
             return !!element.firstElementChild();
-        case Style::MatchElement::HasSibling:
-        case Style::MatchElement::HasSiblingDescendant:
+        case HasTraversalType::Siblings:
+        case HasTraversalType::SiblingDescendants:
             return !!element.nextElementSibling();
-        default:
-            return true;
-        };
+        }
+        ASSERT_NOT_REACHED();
+        return false;
     };
 
     // See if there are any elements that this :has() selector could match.
@@ -1483,7 +1502,16 @@ bool SelectorChecker::matchHasPseudoClass(CheckingContext& checkingContext, cons
     auto filterForElement = [&]() -> Style::HasSelectorFilter* {
         if (!checkingContext.selectorMatchingState)
             return nullptr;
-        auto type = Style::HasSelectorFilter::typeForMatchElement(matchElement);
+        auto type = [&]() -> std::optional<Style::HasSelectorFilter::Type> {
+            switch (traversalType) {
+            case HasTraversalType::Children:
+                return Style::HasSelectorFilter::Type::Children;
+            case HasTraversalType::Descendants:
+                return Style::HasSelectorFilter::Type::Descendants;
+            default:
+                return { };
+            }
+        }();
         if (!type)
             return nullptr;
         auto& filtersMap = checkingContext.selectorMatchingState->hasPseudoClassSelectorFilters;
@@ -1545,16 +1573,16 @@ bool SelectorChecker::matchHasPseudoClass(CheckingContext& checkingContext, cons
     };
 
     auto match = [&] {
-        switch (matchElement) {
-        // :has(> .child)
-        case Style::MatchElement::HasChild:
+        switch (traversalType) {
+        case HasTraversalType::Children:
+            // :has(> .child)
             for (CheckedRef child : childrenOfType<Element>(element)) {
                 if (checkRelative(child))
                     return true;
             }
             break;
-        // :has(.descendant)
-        case Style::MatchElement::HasDescendant: {
+        case HasTraversalType::Descendants: {
+            // :has(.descendant)
             if (cache) {
                 // See if we already know this descendant selector doesn't match in this subtree.
                 for (CheckedPtr ancestor = element.parentElement(); ancestor; ancestor = ancestor->parentElement()) {
@@ -1568,27 +1596,19 @@ bool SelectorChecker::matchHasPseudoClass(CheckingContext& checkingContext, cons
 
             break;
         }
-        // FIXME: Add a separate case for adjacent combinator.
-        // :has(+ .sibling)
-        // :has(~ .sibling)
-        case Style::MatchElement::HasSibling:
+        case HasTraversalType::Siblings:
+            // :has(~ .sibling)
             for (CheckedPtr sibling = element.nextElementSibling(); sibling; sibling = sibling->nextElementSibling()) {
                 if (checkRelative(*sibling))
                     return true;
             }
             break;
-        // FIXME: Add a separate case for adjacent combinator.
-        // :has(+ .sibling .descendant)
-        // :has(~ .sibling .descendant)
-        case Style::MatchElement::HasSiblingDescendant:
+        case HasTraversalType::SiblingDescendants:
+            // :has(~ .sibling .descendant)
             for (CheckedPtr sibling = element.nextElementSibling(); sibling; sibling = sibling->nextElementSibling()) {
                 if (checkDescendants(*sibling))
                     return true;
             }
-            break;
-
-        default:
-            ASSERT_NOT_REACHED();
             break;
         }
         return false;

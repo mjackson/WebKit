@@ -116,7 +116,7 @@ TEST(WKNavigation, NavigationDelegate)
 {
     RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto delegate = adoptNS([[NavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[NavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     @autoreleasepool {
@@ -147,14 +147,14 @@ TEST(WKNavigation, LoadRequest)
 TEST(WKNavigation, HTTPBody)
 {
     __block bool done = false;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     NSData *testData = [@"testhttpbody" dataUsingEncoding:NSUTF8StringEncoding];
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^decisionHandler)(WKNavigationActionPolicy)) {
         EXPECT_TRUE([action.request.HTTPBody isEqualToData:testData]);
         decisionHandler(WKNavigationActionPolicyCancel);
         done = true;
     };
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"test:///willNotActuallyLoad"]];
     [request setHTTPBody:testData];
@@ -167,14 +167,14 @@ TEST(WKNavigation, UserAgentAndAccept)
     using namespace TestWebKitAPI;
     HTTPServer server([](Connection) { });
     __block bool done = false;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^decisionHandler)(WKNavigationActionPolicy)) {
         EXPECT_WK_STREQ(action.request.allHTTPHeaderFields[@"User-Agent"], "testUserAgent");
         EXPECT_WK_STREQ(action.request.allHTTPHeaderFields[@"Accept"], "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
         decisionHandler(WKNavigationActionPolicyCancel);
         done = true;
     };
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     webView.get().customUserAgent = @"testUserAgent";
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:server.request()];
@@ -310,8 +310,8 @@ struct ExpectedStrings {
 
 TEST(WKNavigation, Frames)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         NSString *responseString = nil;
         if ([task.request.URL.absoluteString isEqualToString:@"frame://host1/"])
@@ -325,15 +325,15 @@ TEST(WKNavigation, Frames)
             responseString = @"<p>Hello World</p>";
 
         ASSERT(responseString);
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:responseString.length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:responseString.length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[responseString dataUsingEncoding:NSUTF8StringEncoding]];
         [task didFinish];
     }];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"frame"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([FrameNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([FrameNavigationDelegate new]);
     webView.get().navigationDelegate = delegate.get();
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"frame://host1/"]]];
     [delegate waitForNavigations:3];
@@ -601,9 +601,9 @@ TEST(WKNavigation, DidFailProvisionalNavigation)
 
 TEST(WKNavigation, CrashReason)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     
-    auto delegate = adoptNS([[CrashReasonDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[CrashReasonDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     
     [webView loadHTMLString:@"<html>start the web process</html>" baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
@@ -718,11 +718,11 @@ TEST(WKNavigation, NavigationActionHasNavigation)
 
 TEST(WKNavigation, WebViewWillPerformClientRedirect)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get()._allowTopNavigationToDataURLs = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[ClientRedirectNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[ClientRedirectNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     auto request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"data:text/html,%3Cmeta%20http-equiv=%22refresh%22%20content=%22123;URL=data:text/html,Page1%22%3E"]];
@@ -749,11 +749,11 @@ TEST(WKNavigation, WebViewWillPerformClientRedirect)
 
 TEST(WKNavigation, WebViewDidCancelClientRedirect)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get()._allowTopNavigationToDataURLs = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[ClientRedirectNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[ClientRedirectNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     // Test 1: During a navigation that is not a client redirect, -_webViewDidCancelClientRedirect: should not be called.
@@ -831,8 +831,8 @@ TEST(WKNavigation, WebViewDidCancelClientRedirect)
 
 TEST(WKNavigation, NavigationActionSPI)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
-    auto delegate = adoptNS([[NavigationActionSPIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr delegate = adoptNS([[NavigationActionSPIDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"data:text/html,1"]]];
     TestWebKitAPI::Util::run(&isDone);
@@ -862,8 +862,8 @@ static bool navigationComplete;
 
 TEST(WKNavigation, WillGoToBackForwardListItem)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
-    auto delegate = adoptNS([[BackForwardDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr delegate = adoptNS([[BackForwardDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
     TestWebKitAPI::Util::run(&navigationComplete);
@@ -940,9 +940,9 @@ static bool didRejectNavigation = false;
 
 TEST(WKNavigation, ShouldGoToBackForwardListItem)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
     navigationComplete = false;
-    auto delegate = adoptNS([[BackForwardDelegateWithShouldGo alloc] init]);
+    RetainPtr delegate = adoptNS([[BackForwardDelegateWithShouldGo alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
     TestWebKitAPI::Util::run(&navigationComplete);
@@ -970,7 +970,7 @@ TEST(WKNavigation, ShouldGoToBackForwardListItem)
     navigationComplete = false;
     didRejectNavigation = false;
 
-    auto delegate2 = adoptNS([[BackForwardDelegateWithShouldGoSPI alloc] init]);
+    RetainPtr delegate2 = adoptNS([[BackForwardDelegateWithShouldGoSPI alloc] init]);
     [webView setNavigationDelegate:delegate2.get()];
     delegate2.get().targetItem = webView.get().backForwardList.backItem;
     delegate2.get().allowNavigation = YES;
@@ -1032,8 +1032,8 @@ RetainPtr<WKBackForwardListItem> secondItem;
 
 TEST(WKNavigation, ListItemAddedRemoved)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
-    auto delegate = adoptNS([[ListItemDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr delegate = adoptNS([[ListItemDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
     TestWebKitAPI::Util::run(&navigationComplete);
@@ -1075,9 +1075,9 @@ TEST(WKNavigation, FrameBackLoading)
         { "/frame1.html"_s, { "<a href='frame2.html'>link</a>"_s } },
         { "/frame2.html"_s, { "<script>alert('frame2 loaded')</script>"_s } },
     });
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestUIDelegate new]);
-    auto observer = adoptNS([LoadingObserver new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestUIDelegate new]);
+    RetainPtr observer = adoptNS([LoadingObserver new]);
     [webView setUIDelegate:delegate.get()];
     [webView addObserver:observer.get() forKeyPath:@"loading" options:NSKeyValueObservingOptionNew context:nil];
     EXPECT_FALSE([webView isLoading]);
@@ -1136,8 +1136,8 @@ TEST(WKNavigation, SimultaneousNavigationWithFontsFinishes)
         { "/iframesrc.html"_s, { "frame content"_s } },
     });
 
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
@@ -1167,8 +1167,8 @@ TEST(WKNavigation, LoadRadarURLFromSandboxedFrameAllowPopups)
         { "/frame.html"_s, { frameHTML } },
     });
 
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool didTryToLoadRadarURL = false;
@@ -1202,8 +1202,8 @@ TEST(WKNavigation, LoadRadarURLFromSandboxedFrameAllowTopNavigation)
         { "/frame.html"_s, { frameHTML } },
     });
 
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool didTryToLoadRadarURL = false;
@@ -1237,8 +1237,8 @@ TEST(WKNavigation, LoadRadarURLFromSandboxedFrameAllowCustomProtocolsNavigation)
         { "/frame.html"_s, { frameHTML } },
     });
 
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool didTryToLoadRadarURL = false;
@@ -1272,8 +1272,8 @@ TEST(WKNavigation, LoadRadarURLFromSandboxedFrameWithUserGesture)
         { "/frame.html"_s, { frameHTML } },
     });
 
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block RetainPtr<WKFrameInfo> iframe;
@@ -1315,8 +1315,8 @@ TEST(WKNavigation, LoadRadarURLFromSandboxedFrame)
         { "/frame.html"_s, { frameHTML } },
     });
 
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool didTryToLoadRadarURL = false;
@@ -1352,8 +1352,8 @@ TEST(WKNavigation, LoadRadarURLFromSandboxedFrameMissingUserGesture)
         { "/frame.html"_s, { frameHTML } },
     });
 
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool didTryToLoadRadarURL = false;
@@ -1387,21 +1387,21 @@ TEST(WKNavigation, CrossOriginCOOPCancelResponseFailProvisionalNavigationCallbac
         { "/path3"_s, { { { "Cross-Origin-Opener-Policy"_s, "same-origin"_s } }, "hi"_s } }
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(server.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block Vector<bool> finishedSuccessfullyCallbacks;
     auto loadWithResponsePolicy = ^(WKWebView *webView, NSString *url, WKNavigationResponsePolicy responsePolicy) {
         auto callbacksSizeBefore = finishedSuccessfullyCallbacks.size();
 
-        auto delegate = adoptNS([TestNavigationDelegate new]);
+        RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
         delegate.get().decidePolicyForNavigationResponse = ^(WKNavigationResponse *response, void (^decisionHandler)(WKNavigationResponsePolicy)) {
             decisionHandler(responsePolicy);
         };
@@ -1439,15 +1439,15 @@ TEST(WKNavigation, HTTPSFirstHTTPDowngrade)
         { "http://site.example/secure"_s, { "Welcome"_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSFirst;
     for (_WKFeature *feature in [WKPreferences _features]) {
@@ -1456,12 +1456,12 @@ TEST(WKNavigation, HTTPSFirstHTTPDowngrade)
             break;
         }
     }
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -1540,15 +1540,15 @@ TEST(WKNavigation, HTTPSFirstHTTPDowngradeAfterPSON)
         { "http://site2.example/secure"_s, { "body"_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"HTTPSByDefaultEnabled"]) {
@@ -1556,14 +1556,14 @@ TEST(WKNavigation, HTTPSFirstHTTPDowngradeAfterPSON)
             break;
         }
     }
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block bool didFailLoad { false };
     __block unsigned loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -1669,15 +1669,15 @@ TEST(WKNavigation, HTTPSFirstHTTPDowngradeAndSameSiteNavigation)
         { "http://site2.example/secure2"_s, { "<body>Done</body>"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSFirst;
     for (_WKFeature *feature in [WKPreferences _features]) {
@@ -1686,12 +1686,12 @@ TEST(WKNavigation, HTTPSFirstHTTPDowngradeAndSameSiteNavigation)
             break;
         }
     }
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block unsigned loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -1803,24 +1803,24 @@ TEST(WKNavigation, HTTPSFirstHTTPDowngradeRedirect)
         { "http://site.example/secure"_s, { 302, {{ "Location"_s, "https://site.example/secure"_s }}, "redirecting..."_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSFirst;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -1855,23 +1855,23 @@ TEST(WKNavigation, HTTPSFirstRedirectNoHTTPDowngradeRedirect)
         { "http://site.example/redirect"_s, { 302, {{ "Location"_s, "https://site.example"_s }}, "redirecting..."_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSFirst;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
 
     delegate.get().didReceiveAuthenticationChallenge = ^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         if (!loadCount)
@@ -1909,15 +1909,15 @@ TEST(WKNavigation, HTTPSFirstLocalHostIPAddress)
         { "/notsecure"_s, { { }, "not secure page"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSFirst;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block int loadCount { 0 };
     __block bool didReceiveAuthenticationChallenge { false };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -1972,25 +1972,25 @@ TEST(WKNavigation, HTTPSOnlyInitialLoad)
         { "http://site.example/notsecure"_s, { { }, "not secure page"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSOnly;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block int loadCount { 0 };
     __block bool didReceiveAuthenticationChallenge { false };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -2034,11 +2034,11 @@ TEST(WKNavigation, HTTPSOnlyNonHTTPSSecureSchemes)
 
     [TestProtocol registerWithScheme:secureScheme];
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSOnly;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         completionHandler(WKNavigationActionPolicyAllow);
     };
@@ -2109,22 +2109,22 @@ TEST(WKNavigation, HTTPSOnlyHTTPFallbackGoBack)
         { "/secure"_s, { { }, "hi"_s } }
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSOnly;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool failedNavigation { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -2186,24 +2186,24 @@ TEST(WKNavigation, HTTPSOnlyHTTPFallbackContinue)
         { "http://site.example/page2"_s, { } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSOnly;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool failedNavigation { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -2326,21 +2326,21 @@ TEST(WKNavigation, HTTPSOnlyHTTPFallbackBypassEnabledCertificateError)
         { "/secure"_s, { { }, "hi"_s } }
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSOnly | _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSOnlyExplicitlyBypassedForDomain;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -2391,25 +2391,25 @@ TEST(WKNavigation, HTTPSOnlyWithSameSiteBypass)
         { "http://site2.example/secure"_s, { { }, "hi: not secure"_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSOnly;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     // Step 1: Attempt https load without implementing didReceiveAuthenticationChallenge
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -2565,24 +2565,24 @@ TEST(WKNavigation, HTTPSOnlyWithHTTPRedirect)
         { "http://site2.example/secure3"_s, { { }, "hi: not secure"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSOnly;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -2738,24 +2738,24 @@ TEST(WKNavigation, HTTPSFirstWithHTTPRedirect)
         { "http://site2.example/secure3"_s, { { }, "hi: not secure"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyHTTPSFirst;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -2879,23 +2879,23 @@ TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackHTTPDowngrade)
         { "http://site.example/secure"_s, { "Welcome"_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyAutomaticFallbackToHTTP;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -2974,24 +2974,24 @@ TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackHTTPDowngradeAfterPS
         { "http://site2.example/secure"_s, { "body"_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block bool didFailLoad { false };
     __block unsigned loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -3097,23 +3097,23 @@ TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackHTTPDowngradeAndSame
         { "http://site2.example/secure2"_s, { "<body>Done</body>"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyAutomaticFallbackToHTTP;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block unsigned loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -3225,24 +3225,24 @@ TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackHTTPDowngradeRedirec
         { "http://site.example/secure"_s, { 302, {{ "Location"_s, "https://site.example/secure"_s }}, "redirecting..."_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyAutomaticFallbackToHTTP;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -3277,23 +3277,23 @@ TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackRedirectNoHTTPDowngr
         { "http://site.example/redirect"_s, { 302, {{ "Location"_s, "https://site.example"_s }}, "redirecting..."_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyAutomaticFallbackToHTTP;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
 
     delegate.get().didReceiveAuthenticationChallenge = ^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         if (!loadCount)
@@ -3331,15 +3331,15 @@ TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackLocalHostIPAddress)
         { "/notsecure"_s, { { }, "not secure page"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyAutomaticFallbackToHTTP;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block int loadCount { 0 };
     __block bool didReceiveAuthenticationChallenge { false };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -3393,23 +3393,23 @@ TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackAfterTerminateProces
         { "http://site.example/secure"_s, { "Welcome"_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyAutomaticFallbackToHTTP;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -3547,23 +3547,23 @@ TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackAfterSessionRestore)
         { "http://site.example/secure"_s, { "Welcome"_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyAutomaticFallbackToHTTP;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -3706,25 +3706,25 @@ TEST(WKNavigation, PreferredHTTPSPolicyUserMediatedHTTPFallbackInitialLoad)
         { "http://site.example/notsecure"_s, { { }, "not secure page"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyUserMediatedFallbackToHTTP;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block int loadCount { 0 };
     __block bool didReceiveAuthenticationChallenge { false };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -3763,22 +3763,22 @@ TEST(WKNavigation, PreferredHTTPSPolicyUserMediatedHTTPFallbackHTTPFallbackGoBac
         { "/secure"_s, { { }, "hi"_s } }
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyUserMediatedFallbackToHTTP;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool failedNavigation { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -3840,24 +3840,24 @@ TEST(WKNavigation, PreferredHTTPSPolicyUserMediatedHTTPFallbackHTTPFallbackConti
         { "http://site.example/page2"_s, { } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyUserMediatedFallbackToHTTP;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool failedNavigation { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -3987,24 +3987,24 @@ TEST(WKNavigation, PreferredHTTPSPolicyUserMediatedHTTPFallbackWithHTTPRedirect)
         { "http://site2.example/secure3"_s, { { }, "hi: not secure"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyUserMediatedFallbackToHTTP;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -4113,24 +4113,24 @@ TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackWithHTTPRedirect)
         { "http://site2.example/secure3"_s, { { }, "hi: not secure"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyAutomaticFallbackToHTTP;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -4183,23 +4183,23 @@ TEST(WKNavigation, PreferredHTTPSPolicyNoFallbackRedirectNoHTTPDowngradeRedirect
         { "http://site.example/redirect"_s, { 302, {{ "Location"_s, "https://site.example"_s }}, "redirecting..."_s } }
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyErrorOnFailure;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block int loadCount { 0 };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
 
     delegate.get().didReceiveAuthenticationChallenge = ^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         if (!loadCount)
@@ -4241,25 +4241,25 @@ TEST(WKNavigation, PreferredHTTPSPolicyNoFallbackInitialLoad)
         { "http://site.example/notsecure"_s, { { }, "not secure page"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyErrorOnFailure;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block int loadCount { 0 };
     __block bool didReceiveAuthenticationChallenge { false };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -4302,25 +4302,25 @@ TEST(WKNavigation, PreferredHTTPSPolicyNoFallbackOnCertificateError)
         { "http://site.example/notsecure"_s, { { }, "not secure page"_s } },
     }, HTTPServer::Protocol::Http);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
     configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyErrorOnFailure;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block int errorCode { 0 };
     __block bool finishedSuccessfully { false };
     __block bool didFailNavigation { false };
     __block int loadCount { 0 };
     __block bool didReceiveAuthenticationChallenge { false };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         ++loadCount;
         completionHandler(WKNavigationActionPolicyAllow);
@@ -4425,20 +4425,20 @@ TEST(WKNavigation, Multiple303Redirects)
         { "http://site.example/page3"_s, { "Done."_s  } },
     });
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port())
     }];
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     __block bool finishedSuccessfully { false };
     __block bool reachedPage3 { false };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         if ([action.request.URL.path isEqual:@"/page1"]) {
             EXPECT_WK_STREQ(action.request.URL.path, @"/page1");
@@ -4475,9 +4475,9 @@ TEST(WKNavigation, Multiple303Redirects)
 
 TEST(WKNavigation, NavigationToUnknownBlankURL)
 {
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool navigationFailed = false;
@@ -4550,7 +4550,7 @@ TEST(WKNavigation, GeneratePageLoadTiming)
     RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 400, 400) styleMask:0 backing:NSBackingStoreBuffered defer:NO]);
     RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     [window.get().contentView addSubview:webView.get()];
 
@@ -4591,7 +4591,7 @@ TEST(WKNavigation, GeneratePageLoadTimingWithNoSubresources)
     RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 400, 400) styleMask:0 backing:NSBackingStoreBuffered defer:NO]);
     RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:viewConfiguration.get()]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
     [window.get().contentView addSubview:webView.get()];
@@ -4696,23 +4696,23 @@ PrivateTokenTestSetupState setupWebViewForPrivateTokenTests(bool& didDecideServi
         }
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(server->port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [dataStore _setPrivateTokenIPCForTesting:true];
 
     RetainPtr<NavigationDelegate> websiteDataStoreDelegate = adoptNS([[NavigationDelegate alloc] init]);
     dataStore.get()._delegate = websiteDataStoreDelegate.get();
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     navigationDelegate.get().didReceiveAuthenticationChallenge = ^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
     };
@@ -5148,8 +5148,8 @@ TEST(WKNavigation, AllowResourceLoadFromBlockedPortWithCustomScheme)
         { "/page1"_s, { 302, {{ "Location"_s, "custom://site.example:0/"_s } }, "redirecting..."_s } },
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     __block unsigned requestsSchemeHandled = 0;
     [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         NSString *responseString = nil;
@@ -5159,26 +5159,26 @@ TEST(WKNavigation, AllowResourceLoadFromBlockedPortWithCustomScheme)
             responseString = @"alert('This resource was loaded');";
         ASSERT(responseString);
         requestsSchemeHandled++;
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:responseString.length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:responseString.length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[responseString dataUsingEncoding:NSUTF8StringEncoding]];
         [task didFinish];
     }];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"custom"];
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto navDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr navDelegate = adoptNS([TestNavigationDelegate new]);
     [navDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navDelegate.get()];
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://site.example/page1"]]];
     EXPECT_WK_STREQ([uiDelegate waitForAlert], "This resource was loaded");
@@ -5235,17 +5235,17 @@ TEST(Navigation, FormResubmited)
         }
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto navDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr navDelegate = adoptNS([TestNavigationDelegate new]);
     [navDelegate allowAnyTLSCertificate];
 
     __block bool didCommitNavigation = false;
@@ -5254,7 +5254,7 @@ TEST(Navigation, FormResubmited)
     };
 
     [webView setNavigationDelegate:navDelegate.get()];
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:uiDelegate.get()];
 
     // Load main page from same origin as form submission

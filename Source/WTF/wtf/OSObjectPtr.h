@@ -103,7 +103,7 @@ public:
     ~OSObjectPtr()
     {
         if (m_ptr)
-            RetainTraits::release(m_ptr);
+            SUPPRESS_FORWARD_DECL_ARG RetainTraits::release(m_ptr);
     }
 
     // Hash table deleted values, which are only constructed and never copied or destroyed.

@@ -72,7 +72,7 @@ namespace TestWebKitAPI {
 
 TEST(WKWebViewFirstResponderTests, ContentViewIsFirstResponder)
 {
-    auto webView = adoptNS([[FirstResponderTestingView alloc] init]);
+    RetainPtr webView = adoptNS([[FirstResponderTestingView alloc] init]);
     EXPECT_FALSE([webView isFirstResponder]);
     EXPECT_TRUE([webView _contentViewIsFirstResponder]);
     EXPECT_FALSE([webView inputField].isFirstResponder);

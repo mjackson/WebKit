@@ -189,7 +189,7 @@ class MediaSessionCoordinatorTest : public testing::Test {
 public:
     void SetUp() final
     {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         auto preferences = [configuration preferences];
 
         for (_WKFeature *feature in [WKPreferences _features]) {

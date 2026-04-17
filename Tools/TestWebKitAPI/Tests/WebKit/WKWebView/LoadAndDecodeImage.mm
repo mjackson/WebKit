@@ -72,7 +72,7 @@ TEST(WebKit, LoadAndDecodeImage)
         { "/redirect"_s, { 302, { { "Location"_s, "/test_png"_s } }, "redirecting..."_s } },
         { "/not_image"_s, { "this is not an image"_s } }
     };
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
 
     auto imageOrError = [&] (auto requestPath, CGSize size = CGSizeZero) -> Expected<RetainPtr<Util::PlatformImage>, RetainPtr<NSError>> {
         __block RetainPtr<Util::PlatformImage> image;
@@ -226,6 +226,59 @@ TEST(WebKit, GetInformationFromImageData)
         EXPECT_NOT_NULL(error);
         EXPECT_NULL(typeIdentifier);
         EXPECT_EQ(0u, availableSizes.count);
+        done = true;
+    }];
+    Util::run(&done);
+}
+
+TEST(WebKit, GetImageMetadata)
+{
+    RetainPtr webView = adoptNS([WKWebView new]);
+    done = false;
+    RetainPtr pngData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"icon" withExtension:@"png"]];
+    [webView _getImageMetadata:pngData.get() completionHandler:^(NSDictionary *metadata, NSError *error) {
+        EXPECT_NULL(error);
+        EXPECT_EQ(5, (int)[metadata count]);
+        EXPECT_EQ(215, [metadata[@"PixelWidth"] intValue]);
+        EXPECT_EQ(174, [metadata[@"PixelHeight"] intValue]);
+        EXPECT_EQ(72, [metadata[@"DPIWidth"] floatValue]);
+        EXPECT_EQ(72, [metadata[@"DPIHeight"] floatValue]);
+        EXPECT_EQ(1, [metadata[@"ImageCount"] intValue]);
+        done = true;
+    }];
+    Util::run(&done);
+
+    done = false;
+    RetainPtr gifData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"animated-red-green-blue-repeat-infinite" withExtension:@"gif"]];
+    [webView _getImageMetadata:gifData.get() completionHandler:^(NSDictionary *metadata, NSError *error) {
+        EXPECT_NULL(error);
+        EXPECT_EQ(100, [metadata[@"PixelWidth"] intValue]);
+        EXPECT_EQ(100, [metadata[@"PixelHeight"] intValue]);
+        EXPECT_EQ(72, [metadata[@"DPIWidth"] floatValue]);
+        EXPECT_EQ(72, [metadata[@"DPIHeight"] floatValue]);
+        EXPECT_EQ(3, [metadata[@"ImageCount"] intValue]);
+        done = true;
+    }];
+    Util::run(&done);
+
+    done = false;
+    RetainPtr tiffData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"sunset-in-cupertino-100px" withExtension:@"tiff"]];
+    [webView _getImageMetadata:tiffData.get() completionHandler:^(NSDictionary *metadata, NSError *error) {
+        EXPECT_NULL(error);
+        EXPECT_EQ(100, [metadata[@"PixelWidth"] intValue]);
+        EXPECT_EQ(75, [metadata[@"PixelHeight"] intValue]);
+        EXPECT_EQ(72, [metadata[@"DPIWidth"] floatValue]);
+        EXPECT_EQ(72, [metadata[@"DPIHeight"] floatValue]);
+        EXPECT_EQ(1, [metadata[@"ImageCount"] intValue]);
+        done = true;
+    }];
+    Util::run(&done);
+
+    done = false;
+    RetainPtr svgData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"AllAhem" withExtension:@"svg"]];
+    [webView _getImageMetadata:svgData.get() completionHandler:^(NSDictionary *metadata, NSError *error) {
+        EXPECT_NOT_NULL(error);
+        EXPECT_EQ(0u, [metadata count]);
         done = true;
     }];
     Util::run(&done);

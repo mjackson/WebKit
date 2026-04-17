@@ -91,10 +91,10 @@ static RetainPtr<NSString> cocoaTextListMarkerName(const Style::ListStyleType& s
         [&](const CSS::Keyword::None&) {
             return retainPtr(ordered ? NSTextListMarkerDecimal : NSTextListMarkerDisc);
         },
-        [&](const AtomString& identifier) {
+        [&](const Style::String& identifier) {
             // The marker for the marker format `{<identifier>}` is `n` where `n` is the item ordinal, and the list is considered ordered.
             // The marker for the marker format `<identifier>` is `<identifier>`, and the list is considered unordered.
-            auto format = ordered ? makeString("{"_s, identifier, "}"_s) : identifier;
+            auto format = ordered ? makeString("{"_s, identifier.value, "}"_s) : identifier.value;
             return format.createNSString();
         }
     );

@@ -32,7 +32,6 @@
 #include "pas_thread.h"
 #if defined(__has_include)
 #if __has_include(<pthread/tsd_private.h>)
-#include <pthread/tsd_private.h>
 #define PAS_HAVE_PTHREAD_MACHDEP_H 1
 #else
 #define PAS_HAVE_PTHREAD_MACHDEP_H 0
@@ -59,7 +58,6 @@ PAS_IGNORE_CLANG_WARNINGS_BEGIN("qualifier-requires-header")
 #define PAS_END_EXTERN_C __PAS_END_EXTERN_C
 
 #if defined(PAS_BMALLOC) && PAS_BMALLOC
-#include "pas_mte_config.h"
 #endif // defined(PAS_BMALLOC) && PAS_BMALLOC
 
 #if defined(PAS_BMALLOC) && PAS_BMALLOC
@@ -68,7 +66,6 @@ PAS_IGNORE_CLANG_WARNINGS_BEGIN("qualifier-requires-header")
 // FIXME: Properly support using WKA in modules.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnon-modular-include-in-module"
-#include <WebKitAdditions/pas_utils_additions.h>
 #pragma clang diagnostic pop
 #endif // __has_include(<WebKitAdditions/pas_utils_additions.h>) && !PAS_ENABLE_TESTING
 #endif // defined(__has_include)

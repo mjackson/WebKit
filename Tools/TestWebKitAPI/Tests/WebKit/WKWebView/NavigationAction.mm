@@ -93,8 +93,8 @@
 
 TEST(WKNavigationAction, ShouldPerformDownload_NoDownloadAttribute)
 {
-    auto navigationDelegate = adoptNS([[NavigationActionTestDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr navigationDelegate = adoptNS([[NavigationActionTestDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     auto baseURL = retainPtr([NSURL URLWithString:@"https://example.com/index.html"]);
@@ -111,8 +111,8 @@ TEST(WKNavigationAction, ShouldPerformDownload_NoDownloadAttribute)
 
 TEST(WKNavigationAction, ShouldPerformDownload_BlankDownloadAttribute_SameOrigin)
 {
-    auto navigationDelegate = adoptNS([[NavigationActionTestDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr navigationDelegate = adoptNS([[NavigationActionTestDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     auto baseURL = retainPtr([NSURL URLWithString:@"https://example.com/index.html"]);
@@ -129,8 +129,8 @@ TEST(WKNavigationAction, ShouldPerformDownload_BlankDownloadAttribute_SameOrigin
 
 TEST(WKNavigationAction, ShouldPerformDownload_BlankDownloadAttribute_CrossOrigin)
 {
-    auto navigationDelegate = adoptNS([[NavigationActionTestDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr navigationDelegate = adoptNS([[NavigationActionTestDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     auto baseURL = retainPtr([NSURL URLWithString:@"https://example.com/index.html"]);
@@ -147,8 +147,8 @@ TEST(WKNavigationAction, ShouldPerformDownload_BlankDownloadAttribute_CrossOrigi
 
 TEST(WKNavigationAction, ShouldPerformDownload_DownloadAttribute_SameOrigin)
 {
-    auto navigationDelegate = adoptNS([[NavigationActionTestDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr navigationDelegate = adoptNS([[NavigationActionTestDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     auto baseURL = retainPtr([NSURL URLWithString:@"https://example.com/index.html"]);
@@ -165,8 +165,8 @@ TEST(WKNavigationAction, ShouldPerformDownload_DownloadAttribute_SameOrigin)
 
 TEST(WKNavigationAction, ShouldPerformDownload_DownloadAttribute_CrossOrigin)
 {
-    auto navigationDelegate = adoptNS([[NavigationActionTestDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr navigationDelegate = adoptNS([[NavigationActionTestDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     auto baseURL = retainPtr([NSURL URLWithString:@"https://example.com/index.html"]);
@@ -201,8 +201,8 @@ TEST(WKNavigationAction, BlobRequestBody)
             "}"
         "</script>"
         "<body onload='bodyLoaded()'>";
-    auto delegate = adoptNS([TestNavigationDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
     __block bool done = false;
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
@@ -225,8 +225,8 @@ TEST(WKNavigationAction, NonMainThread)
         { "/"_s, { "hi"_s } },
     });
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
     __block bool done = false;
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
@@ -249,9 +249,9 @@ TEST(WKNavigationAction, NonMainThread)
 
 TEST(WKNavigationAction, TargetFrameName)
 {
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     webView.get().configuration.preferences.javaScriptCanOpenWindowsAutomatically = YES;
     webView.get().navigationDelegate = navigationDelegate.get();
     webView.get().UIDelegate = uiDelegate.get();

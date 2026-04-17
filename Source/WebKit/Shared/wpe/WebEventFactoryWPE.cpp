@@ -171,6 +171,7 @@ WebMouseEvent WebEventFactory::createWebMouseEvent(WPEEvent* event)
         clickCount,
         0 /* force */,
         WebMouseEventInputSource::UserDriven,
+        WebCore::PlatformMouseEvent::CanInitiateDrag::Yes,
         syntheticClickType);
 }
 

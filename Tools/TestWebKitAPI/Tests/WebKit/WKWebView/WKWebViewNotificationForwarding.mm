@@ -52,9 +52,9 @@ TEST(WKWebView, NotifyStateIsInitiallySetAndForwarded)
     EXPECT_EQ(notify_register_check(name, &token), 0u);
     EXPECT_EQ(notify_set_state(token, 42), 0u);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     NSURLRequest *loadRequest = [NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com"]];
     [webView loadSimulatedRequest:loadRequest responseHTMLString:@"Hello world!"];

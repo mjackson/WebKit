@@ -4265,6 +4265,10 @@ void TestController::decidePolicyForNavigationAction(WKPageRef page, WKNavigatio
 
     if (m_policyDelegateEnabled) {
         auto url = adoptWK(WKURLRequestCopyURL(request.get()));
+        if (!url) {
+            WKFramePolicyListenerUse(listener);
+            return;
+        }
         auto urlScheme = adoptWK(WKURLCopyScheme(url.get()));
 
         StringBuilder stringBuilder;

@@ -49,6 +49,7 @@
 #include "ErrorEvent.h"
 #include "EventNames.h"
 #include "JSAudioWorkletNodeOptions.h"
+#include "JSDOMGlobalObject.h"
 #include "MessageChannel.h"
 #include "MessagePort.h"
 #include "SerializedScriptValue.h"

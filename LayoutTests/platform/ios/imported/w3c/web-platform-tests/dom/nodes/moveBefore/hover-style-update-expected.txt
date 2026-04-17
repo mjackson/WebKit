@@ -1,0 +1,4 @@
+
+FAIL Element loses hover when moved to different position assert_true: expected true got false
+FAIL Hover works immediately after moved promise_test: Unhandled rejection with value: object "TypeError: container.moveBefore is not a function. (In 'container.moveBefore(item, null)', 'container.moveBefore' is undefined)"
+

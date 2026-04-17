@@ -72,7 +72,6 @@
 #include <JavaScriptCore/ImportMap.h>
 #include <JavaScriptCore/InitializeThreading.h>
 #include <JavaScriptCore/JSFunction.h>
-#include <JavaScriptCore/JSInternalPromise.h>
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/JSModuleRecord.h>
 #include <JavaScriptCore/JSNativeStdFunction.h>
@@ -239,10 +238,11 @@ void ScriptController::loadModuleScript(LoadableModuleScript& moduleScript, cons
     loadModuleScriptInWorld(moduleScript, sourceCode, mainThreadNormalWorldSingleton());
 }
 
-JSC::JSValue ScriptController::linkAndEvaluateModuleScriptInWorld(LoadableModuleScript& moduleScript, DOMWrapperWorld& world)
+JSC::JSPromise* ScriptController::linkAndEvaluateModuleScriptInWorld(LoadableModuleScript& moduleScript, DOMWrapperWorld& world)
 {
     JSC::VM& vm = world.vm();
     JSLockHolder lock(vm);
+    auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
     auto& proxy = jsWindowProxy(world);
     auto& lexicalGlobalObject = *proxy.window();
@@ -252,18 +252,32 @@ JSC::JSValue ScriptController::linkAndEvaluateModuleScriptInWorld(LoadableModule
     Ref protectedFrame { m_frame.get() };
 
     NakedPtr<JSC::Exception> evaluationException;
-    auto returnValue = JSExecState::linkAndEvaluateModule(lexicalGlobalObject, Identifier::fromUid(vm, protect(moduleScript.moduleKey()).get()), jsUndefined(), evaluationException);
+    constexpr bool fromModule = true;
+
+    JSPromise* returnPromise = JSExecState::linkAndEvaluateModule(lexicalGlobalObject, Identifier::fromUid(vm, protect(moduleScript.moduleKey()).get()), jsUndefined(), evaluationException);
     if (evaluationException) {
         // FIXME: Give a chance to dump the stack trace if the "crossorigin" attribute allows.
         // https://bugs.webkit.org/show_bug.cgi?id=164539
-        constexpr bool fromModule = true;
         reportException(&lexicalGlobalObject, evaluationException, nullptr, fromModule);
-        return jsUndefined();
+        return nullptr;
     }
-    return returnValue;
+
+    JSC::JSValue onRejected = JSC::JSNativeStdFunction::create(vm, &lexicalGlobalObject, 1, { }, [](JSGlobalObject* globalObject, CallFrame* callFrame) -> EncodedJSValue {
+        reportException(globalObject, callFrame->argument(0), nullptr, fromModule);
+        return encodedJSUndefined();
+    });
+
+    returnPromise->then(&lexicalGlobalObject, jsUndefined(), onRejected);
+    if (scope.exception()) {
+        reportException(&lexicalGlobalObject, scope.exception(), nullptr, fromModule);
+        scope.clearException();
+        return nullptr;
+    }
+
+    return returnPromise;
 }
 
-JSC::JSValue ScriptController::linkAndEvaluateModuleScript(LoadableModuleScript& moduleScript)
+JSC::JSPromise* ScriptController::linkAndEvaluateModuleScript(LoadableModuleScript& moduleScript)
 {
     return linkAndEvaluateModuleScriptInWorld(moduleScript, mainThreadNormalWorldSingleton());
 }
@@ -348,7 +362,7 @@ static Identifier jsValueToModuleKey(JSGlobalObject* lexicalGlobalObject, JSValu
     return asString(value)->toIdentifier(lexicalGlobalObject);
 }
 
-void ScriptController::setupModuleScriptHandlers(LoadableModuleScript& moduleScriptRef, JSInternalPromise& promise, DOMWrapperWorld& world)
+void ScriptController::setupModuleScriptHandlers(LoadableModuleScript& moduleScriptRef, JSPromise& promise, DOMWrapperWorld& world)
 {
     auto& proxy = jsWindowProxy(world);
     auto& lexicalGlobalObject = *proxy.window();

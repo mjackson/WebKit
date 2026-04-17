@@ -129,7 +129,7 @@ static NSString *GetDocumentScrollTopJSExpression = @"document.body.scrollTop";
 
 + (RetainPtr<CandidateTestWebView>)setUpWithFrame:(NSRect)frame testPage:(NSString *)testPageName
 {
-    auto wkWebView = adoptNS([[CandidateTestWebView alloc] initWithFrame:frame]);
+    RetainPtr wkWebView = adoptNS([[CandidateTestWebView alloc] initWithFrame:frame]);
 
     [wkWebView loadTestPageNamed:testPageName];
     [wkWebView waitForMessage:@"focused"];
@@ -214,7 +214,7 @@ TEST(WKWebViewCandidateTests, ClickingInTextFieldDoesNotThrashCandidateVisibilit
 
 TEST(WKWebViewCandidateTests, ShouldNotRequestCandidatesInPasswordField)
 {
-    auto wkWebView = adoptNS([[CandidateTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr wkWebView = adoptNS([[CandidateTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [wkWebView loadTestPageNamed:@"text-and-password-inputs"];
     [wkWebView waitForMessage:@"loaded"];
     [wkWebView _forceRequestCandidates];

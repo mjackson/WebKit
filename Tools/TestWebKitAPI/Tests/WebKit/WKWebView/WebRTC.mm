@@ -141,16 +141,16 @@ TEST(WebKit2, RTCDataChannelPostMessage)
     }, HTTPServer::Protocol::Https);
     auto* request = server.request();
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         callback(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto messageHandler = adoptNS([[WebRTCMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr messageHandler = adoptNS([[WebRTCMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"webrtc"];
 
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
     webView1.get().navigationDelegate = navigationDelegate.get();
 
     [messageHandler setMessageHandler:[](WKScriptMessage *message) {
@@ -161,7 +161,7 @@ TEST(WebKit2, RTCDataChannelPostMessage)
     [webView1 loadRequest:request];
     TestWebKitAPI::Util::run(&isReady);
 
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
     webView2.get().navigationDelegate = navigationDelegate.get();
 
     [messageHandler setMessageHandler:[](WKScriptMessage *message) {

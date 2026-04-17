@@ -382,14 +382,14 @@ TEST_F(WKContentRuleListStoreTest, CrossOriginCookieBlocking)
             }
         }, HTTPServer::Protocol::HttpsProxy);
 
-        auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+        RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
         [storeConfiguration setAllowsServerPreconnect:NO];
         [storeConfiguration setProxyConfiguration:@{
             (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
             (NSString *)kCFStreamPropertyHTTPSProxyPort: @(server.port())
         }];
 
-        auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+        RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
         [dataStore _setResourceLoadStatisticsEnabled:NO];
         __block bool setPolicy { false };
         [dataStore.get().httpCookieStore _setCookieAcceptPolicy:NSHTTPCookieAcceptPolicyAlways completionHandler:^{
@@ -397,7 +397,7 @@ TEST_F(WKContentRuleListStoreTest, CrossOriginCookieBlocking)
         }];
         Util::run(&setPolicy);
 
-        auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
         [viewConfiguration setWebsiteDataStore:dataStore.get()];
 
         if (blockCookies) {
@@ -411,8 +411,8 @@ TEST_F(WKContentRuleListStoreTest, CrossOriginCookieBlocking)
             TestWebKitAPI::Util::run(&doneCompiling);
         }
 
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
-        auto delegate = adoptNS([TestNavigationDelegate new]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
+        RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
         delegate.get().didReceiveAuthenticationChallenge = ^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
             completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
         };
@@ -591,12 +591,12 @@ TEST_F(WKContentRuleListStoreTest, AddRemove)
     TestWebKitAPI::Util::run(&doneCompiling);
     EXPECT_NOT_NULL(ruleList);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addContentRuleList:ruleList.get()];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[ContentRuleListDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[ContentRuleListDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"contentBlockerCheck" withExtension:@"html"]];
@@ -687,7 +687,7 @@ static RetainPtr<WKContentRuleList> compileContentRuleList(const char* json, NSS
 
 static RetainPtr<TestNavigationDelegate> navigationDelegateAllowingActiveActionsOnTestHost()
 {
-    static auto delegate = adoptNS([TestNavigationDelegate new]);
+    static RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         preferences._activeContentRuleListActionPatterns = @{
             @"testidentifier": [NSSet setWithObject:@"testscheme://testhost/*"],
@@ -732,7 +732,7 @@ TEST_F(WKContentRuleListStoreTest, ModifyHeaders)
     )JSON");
 
     __block bool receivedAllRequests { false };
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     handler.get().startURLSchemeTaskHandler = ^(WKWebView *, id <WKURLSchemeTask> task) {
         NSString *path = task.request.URL.path;
         NSDictionary<NSString *, NSString *> *fields = [task.request allHTTPHeaderFields];
@@ -758,10 +758,10 @@ TEST_F(WKContentRuleListStoreTest, ModifyHeaders)
         ASSERT_NOT_REACHED();
     };
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:list.get()];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"testscheme"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
     auto delegate = navigationDelegateAllowingActiveActionsOnTestHost().unsafeGet();
     webView.get().navigationDelegate = delegate;
     __block bool receivedActionNotification { false };
@@ -831,7 +831,7 @@ TEST_F(WKContentRuleListStoreTest, ModifyHeadersWithCompetingRulesWhereAppendWin
     )JSON");
 
     __block bool receivedAllRequests { false };
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     handler.get().startURLSchemeTaskHandler = ^(WKWebView *, id <WKURLSchemeTask> task) {
         NSString *path = task.request.URL.path;
         NSDictionary<NSString *, NSString *> *fields = [task.request allHTTPHeaderFields];
@@ -844,10 +844,10 @@ TEST_F(WKContentRuleListStoreTest, ModifyHeadersWithCompetingRulesWhereAppendWin
         ASSERT_NOT_REACHED();
     };
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:list.get()];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"testscheme"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
     auto delegate = navigationDelegateAllowingActiveActionsOnTestHost().unsafeGet();
     webView.get().navigationDelegate = delegate;
     __block bool receivedActionNotification { false };
@@ -920,7 +920,7 @@ TEST_F(WKContentRuleListStoreTest, ModifyHeadersWithCompetingRulesWhereSetWins)
     )JSON");
 
     __block bool receivedAllRequests { false };
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     handler.get().startURLSchemeTaskHandler = ^(WKWebView *, id <WKURLSchemeTask> task) {
         NSString *path = task.request.URL.path;
         NSDictionary<NSString *, NSString *> *fields = [task.request allHTTPHeaderFields];
@@ -933,10 +933,10 @@ TEST_F(WKContentRuleListStoreTest, ModifyHeadersWithCompetingRulesWhereSetWins)
         ASSERT_NOT_REACHED();
     };
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:list.get()];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"testscheme"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
     auto delegate = navigationDelegateAllowingActiveActionsOnTestHost().unsafeGet();
     webView.get().navigationDelegate = delegate;
     __block bool receivedActionNotification { false };
@@ -987,7 +987,7 @@ TEST_F(WKContentRuleListStoreTest, ModifyHeadersWithCompetingRulesWhereRemoveWin
     )JSON");
 
     __block bool receivedAllRequests { false };
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     handler.get().startURLSchemeTaskHandler = ^(WKWebView *, id <WKURLSchemeTask> task) {
         NSString *path = task.request.URL.path;
         NSDictionary<NSString *, NSString *> *fields = [task.request allHTTPHeaderFields];
@@ -999,10 +999,10 @@ TEST_F(WKContentRuleListStoreTest, ModifyHeadersWithCompetingRulesWhereRemoveWin
         ASSERT_NOT_REACHED();
     };
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:list.get()];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"testscheme"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
     auto delegate = navigationDelegateAllowingActiveActionsOnTestHost().unsafeGet();
     webView.get().navigationDelegate = delegate;
     __block bool receivedActionNotification { false };
@@ -1058,7 +1058,7 @@ TEST_F(WKContentRuleListStoreTest, ModifyHeadersWithMultipleRuleLists)
     )JSON", @"testidentifier2");
 
     __block bool receivedAllRequests { false };
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     handler.get().startURLSchemeTaskHandler = ^(WKWebView *, id <WKURLSchemeTask> task) {
         NSString *path = task.request.URL.path;
         NSDictionary<NSString *, NSString *> *fields = [task.request allHTTPHeaderFields];
@@ -1070,11 +1070,11 @@ TEST_F(WKContentRuleListStoreTest, ModifyHeadersWithMultipleRuleLists)
         ASSERT_NOT_REACHED();
     };
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:list.get()];
     [[configuration userContentController] addContentRuleList:secondList.get()];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"testscheme"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
     auto delegate = navigationDelegateAllowingActiveActionsOnTestHost().unsafeGet();
     webView.get().navigationDelegate = delegate;
     __block bool receivedActionNotification { false };
@@ -1159,8 +1159,8 @@ TEST_F(WKContentRuleListStoreTest, Redirect)
     )JSON");
 
     __block bool receivedAllRequests { false };
-    __block auto urls = adoptNS([NSMutableArray new]);
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    __block RetainPtr urls = adoptNS([NSMutableArray new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     handler.get().startURLSchemeTaskHandler = ^(WKWebView *, id <WKURLSchemeTask> task) {
         NSURL *url = task.request.URL;
         [urls addObject:url];
@@ -1190,11 +1190,11 @@ TEST_F(WKContentRuleListStoreTest, Redirect)
         respond(task, "");
     };
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:list.get()];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"testscheme"];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"othertestscheme"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
     auto delegate = navigationDelegateAllowingActiveActionsOnTestHost().unsafeGet();
     webView.get().navigationDelegate = delegate;
     __block bool receivedActionNotification { false };
@@ -1247,9 +1247,9 @@ TEST_F(WKContentRuleListStoreTest, MainResourceCrossOriginRedirect)
 
     auto configuration = server.httpsProxyConfiguration();
     [[configuration userContentController] addContentRuleList:list.get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         preferences._activeContentRuleListActionPatterns = @{
             @"testidentifier": [NSSet setWithObject:@"https://example.com/*"]
@@ -1279,9 +1279,9 @@ TEST_F(WKContentRuleListStoreTest, MainResourceSameOriginRedirect)
 
     auto configuration = server.httpsProxyConfiguration();
     [configuration.userContentController addContentRuleList:list.get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         preferences._activeContentRuleListActionPatterns = @{
             @"testidentifier": [NSSet setWithObject:@"https://example.com/*"]
@@ -1315,9 +1315,9 @@ TEST_F(WKContentRuleListStoreTest, MainResourceCrossOriginRedirectFromLoadedPage
 
     auto configuration = server.httpsProxyConfiguration();
     [[configuration userContentController] addContentRuleList:list.get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         preferences._activeContentRuleListActionPatterns = @{
             @"testidentifier": [NSSet setWithObject:@"https://webkit.org/*"]
@@ -1346,7 +1346,7 @@ TEST_F(WKContentRuleListStoreTest, NullPatternSet)
     )JSON");
 
     __block std::optional<bool> redirectedResult;
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     handler.get().startURLSchemeTaskHandler = ^(WKWebView *, id <WKURLSchemeTask> task) {
         NSString *path = task.request.URL.path;
         if ([path isEqualToString:@"/main.html"])
@@ -1363,7 +1363,7 @@ TEST_F(WKContentRuleListStoreTest, NullPatternSet)
         AllowNone,
         AllowTestHost,
     } delegateAction;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         EXPECT_NOT_NULL(preferences._activeContentRuleListActionPatterns);
         EXPECT_EQ(preferences._activeContentRuleListActionPatterns.count, 0u);
@@ -1381,10 +1381,10 @@ TEST_F(WKContentRuleListStoreTest, NullPatternSet)
         decisionHandler(WKNavigationActionPolicyAllow, preferences);
     };
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:list.get()];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"testscheme"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
     webView.get().navigationDelegate = delegate.get();
 
     auto getRedirectResult = ^(DelegateAction action) {
@@ -1412,23 +1412,23 @@ TEST_F(WKContentRuleListStoreTest, ExtensionPath)
     )JSON");
 
     __block RetainPtr<NSURL> redirectedURL;
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     handler.get().startURLSchemeTaskHandler = ^(WKWebView *, id <WKURLSchemeTask> task) {
         redirectedURL = task.request.URL;
         respond(task, "");
     };
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         preferences._activeContentRuleListActionPatterns = [NSDictionary dictionaryWithObject:[NSSet setWithObject:@"testscheme://testhost/*"] forKey:@"testidentifier"];
         decisionHandler(WKNavigationActionPolicyAllow, preferences);
     };
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] _addContentRuleList:list.get() extensionBaseURL:[NSURL URLWithString:@"extension-scheme://extension-host/"]];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"testscheme"];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"extension-scheme"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
     webView.get().navigationDelegate = delegate.get();
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"testscheme://testhost/main.html"]]];

@@ -115,7 +115,7 @@ TEST(Fullscreen, OverriddenLayoutParameters)
 {
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
     configuration.preferences.elementFullscreenEnabled = YES;
-    auto webView = adoptNS([[FullscreenLayoutParametersWebView alloc] initWithFrame:CGRectMake(0, 0, 390, 800) configuration:configuration]);
+    RetainPtr webView = adoptNS([[FullscreenLayoutParametersWebView alloc] initWithFrame:CGRectMake(0, 0, 390, 800) configuration:configuration]);
     [webView synchronouslyLoadTestPageNamed:@"element-fullscreen"];
 
     auto layoutSize = CGSizeMake(390, 745);
@@ -132,7 +132,7 @@ TEST(Fullscreen, ResizeEventOrder)
 {
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
     configuration.preferences.elementFullscreenEnabled = YES;
-    auto webView = adoptNS([[FullscreenLayoutParametersWebView alloc] initWithFrame:CGRectMake(0, 0, 390, 800) configuration:configuration]);
+    RetainPtr webView = adoptNS([[FullscreenLayoutParametersWebView alloc] initWithFrame:CGRectMake(0, 0, 390, 800) configuration:configuration]);
     [webView synchronouslyLoadTestPageNamed:@"element-fullscreen"];
 
     [webView waitForNextPresentationUpdate];

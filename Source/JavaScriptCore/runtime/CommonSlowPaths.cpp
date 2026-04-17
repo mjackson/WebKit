@@ -42,10 +42,9 @@
 #include "JSBoundFunction.h"
 #include "JSCInlines.h"
 #include "JSCellButterfly.h"
-#include "JSInternalPromise.h"
-#include "JSInternalPromiseConstructor.h"
 #include "JSIteratorHelper.h"
 #include "JSLexicalEnvironment.h"
+#include "JSPromise.h"
 #include "JSPromiseConstructor.h"
 #include "JSPropertyNameEnumerator.h"
 #include "JSWithScope.h"
@@ -197,11 +196,7 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_create_promise)
     JSObject* constructorAsObject = asObject(GET(bytecode.m_callee).jsValue());
 
     JSPromise* result = nullptr;
-    if (bytecode.m_isInternalPromise) {
-        Structure* structure = JSC_GET_DERIVED_STRUCTURE(vm, internalPromiseStructure, constructorAsObject, globalObject->internalPromiseConstructor());
-        CHECK_EXCEPTION();
-        result = JSInternalPromise::create(vm, structure);
-    } else {
+    {
         Structure* structure = JSC_GET_DERIVED_STRUCTURE(vm, promiseStructure, constructorAsObject, globalObject->promiseConstructor());
         CHECK_EXCEPTION();
         result = JSPromise::create(vm, structure);
@@ -222,11 +217,7 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_new_promise)
 {
     BEGIN();
     auto bytecode = pc->as<OpNewPromise>();
-    JSPromise* result = nullptr;
-    if (bytecode.m_isInternalPromise)
-        result = JSInternalPromise::create(vm, globalObject->internalPromiseStructure());
-    else
-        result = JSPromise::create(vm, globalObject->promiseStructure());
+    JSPromise* result = JSPromise::create(vm, globalObject->promiseStructure());
     RETURN(result);
 }
 

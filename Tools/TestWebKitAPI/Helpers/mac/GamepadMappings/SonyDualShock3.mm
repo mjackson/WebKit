@@ -181,7 +181,7 @@ static void publishReportCallback(Vector<float>& buttonValues, Vector<float>& ax
     for (size_t i = 4; i < 16; ++i)
         reportData[reportIndex++] = (uint8_t)(buttonValues[i] * 255);
 
-    auto nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:Dualshock3ReportSize]);
+    RetainPtr nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:Dualshock3ReportSize]);
     [userDevice handleReport:nsReportData.get() error:nil];
 }
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2016-2021 Apple Inc. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,11 +27,15 @@
 #include "config.h"
 #include "DeprecatedCSSOMPrimitiveValue.h"
 
+#include "CSSAttrValue.h"
 #include "CSSColorValue.h"
 #include "CSSCounterValue.h"
 #include "CSSCustomIdentValue.h"
+#include "CSSFontFamilyNameValue.h"
+#include "CSSPropertyIdentifierValue.h"
 #include "CSSRectValue.h"
 #include "CSSSerializationContext.h"
+#include "CSSStringValue.h"
 #include "CSSURLValue.h"
 #include "DeprecatedCSSOMCounter.h"
 #include "DeprecatedCSSOMRGBColor.h"
@@ -53,24 +58,25 @@ unsigned short DeprecatedCSSOMPrimitiveValue::primitiveType() const
         return CSS_RGBCOLOR;
     if (m_value->isURL())
         return CSS_URI;
-    if (m_value->isCustomIdentValue())
+    if (m_value->isCustomIdentValue() || m_value->isPropertyIdentifierValue())
         return CSS_IDENT;
+    if (m_value->isStringValue() || m_value->isFontFamilyNameValue())
+        return CSS_STRING;
+    if (m_value->isAttrValue())
+        return CSS_ATTR;
 
     RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(m_value.get());
     if (!primitiveValue)
         return CSS_UNKNOWN;
 
     switch (primitiveValue->primitiveType()) {
-    case CSSUnitType::CSS_ATTR:                         return CSS_ATTR;
     case CSSUnitType::CSS_CM:                           return CSS_CM;
     case CSSUnitType::CSS_DEG:                          return CSS_DEG;
     case CSSUnitType::CSS_DIMENSION:                    return CSS_DIMENSION;
     case CSSUnitType::CSS_EM:                           return CSS_EMS;
     case CSSUnitType::CSS_EX:                           return CSS_EXS;
-    case CSSUnitType::CSS_FONT_FAMILY:                  return CSS_STRING;
     case CSSUnitType::CSS_GRAD:                         return CSS_GRAD;
     case CSSUnitType::CSS_HZ:                           return CSS_HZ;
-    case CSSUnitType::CSS_IDENT:                        return CSS_IDENT;
     case CSSUnitType::CSS_INTEGER:                      return CSS_NUMBER;
     case CSSUnitType::CSS_IN:                           return CSS_IN;
     case CSSUnitType::CSS_KHZ:                          return CSS_KHZ;
@@ -79,12 +85,10 @@ unsigned short DeprecatedCSSOMPrimitiveValue::primitiveType() const
     case CSSUnitType::CSS_NUMBER:                       return CSS_NUMBER;
     case CSSUnitType::CSS_PC:                           return CSS_PC;
     case CSSUnitType::CSS_PERCENTAGE:                   return CSS_PERCENTAGE;
-    case CSSUnitType::CSS_PROPERTY_ID:                  return CSS_IDENT;
     case CSSUnitType::CSS_PT:                           return CSS_PT;
     case CSSUnitType::CSS_PX:                           return CSS_PX;
     case CSSUnitType::CSS_RAD:                          return CSS_RAD;
     case CSSUnitType::CSS_S:                            return CSS_S;
-    case CSSUnitType::CSS_STRING:                       return CSS_STRING;
     case CSSUnitType::CSS_VALUE_ID:                     return CSS_IDENT;
 
     // All other, including newer types, should return UNKNOWN.
@@ -94,7 +98,7 @@ unsigned short DeprecatedCSSOMPrimitiveValue::primitiveType() const
 
 ExceptionOr<float> DeprecatedCSSOMPrimitiveValue::getFloatValue(unsigned short unitType) const
 {
-    auto numericType = [&]() -> std::optional<CSSUnitType> {
+    auto numericType = [&] -> std::optional<CSSUnitType> {
         switch (unitType) {
         case CSS_CM:            return CSSUnitType::CSS_CM;
         case CSS_DEG:           return CSSUnitType::CSS_DEG;
@@ -128,13 +132,17 @@ ExceptionOr<String> DeprecatedCSSOMPrimitiveValue::getStringValue() const
 {
     switch (primitiveType()) {
     case CSS_ATTR:
-        return downcast<CSSPrimitiveValue>(m_value.get()).stringValue();
+        return downcast<CSSAttrValue>(m_value.get()).cssText(CSS::defaultSerializationContext());
     case CSS_IDENT:
         if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(m_value))
-            return String { customIdentValue->customIdent().value.string() };
+            return customIdentValue->stringValue();
+        if (RefPtr propertyIdentifierValue = dynamicDowncast<CSSPropertyIdentifierValue>(m_value))
+            return propertyIdentifierValue->stringValue();
         return downcast<CSSPrimitiveValue>(m_value.get()).stringValue();
     case CSS_STRING:
-        return downcast<CSSPrimitiveValue>(m_value.get()).stringValue();
+        if (RefPtr fontFamilyNameValue = dynamicDowncast<CSSFontFamilyNameValue>(m_value))
+            return fontFamilyNameValue->stringValue();
+        return downcast<CSSStringValue>(m_value.get()).stringValue();
     case CSS_URI:
         return downcast<CSSURLValue>(m_value.get()).stringValue();
 
@@ -155,11 +163,11 @@ ExceptionOr<Ref<DeprecatedCSSOMCounter>> DeprecatedCSSOMPrimitiveValue::getCount
                 return customIdent.value.string();
             }
         );
-        return DeprecatedCSSOMCounter::create(value->identifier().value, value->separator(), WTF::move(counterStyle));
+        return DeprecatedCSSOMCounter::create(value->identifier().value, value->separator().value, WTF::move(counterStyle));
     }
     return Exception { ExceptionCode::InvalidAccessError };
 }
-    
+
 ExceptionOr<Ref<DeprecatedCSSOMRect>> DeprecatedCSSOMPrimitiveValue::getRectValue() const
 {
     if (RefPtr rectValue = dynamicDowncast<CSSRectValue>(m_value.get()))

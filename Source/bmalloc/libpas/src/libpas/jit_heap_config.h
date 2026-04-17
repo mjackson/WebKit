@@ -249,7 +249,8 @@ PAS_HEAP_CONFIG_SPECIALIZATION_DECLARATIONS(jit_heap_config);
         .for_each_shared_page_directory_remote = \
             jit_heap_config_for_each_shared_page_directory_remote, \
         .dump_shared_page_directory_arg = jit_heap_config_dump_shared_page_directory_arg, \
-        PAS_HEAP_CONFIG_SPECIALIZATIONS(jit_heap_config) \
+        PAS_HEAP_CONFIG_SPECIALIZATIONS(jit_heap_config), \
+        .large_map_variant = pas_sequestered_large_map_variant, \
     })
 
 PAS_API extern const pas_heap_config jit_heap_config;

@@ -68,7 +68,7 @@ TEST(SpatialAudioExperience, NoWindow)
     isDone = false;
 
     RetainPtr configuration = autoplayingInternalsConfiguration();
-    auto messageHandler = adoptNS([[SpatialAudioExperienceMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[SpatialAudioExperienceMessageHandler alloc] init]);
 
     [messageHandler setExpectedBody:@"{CAHeadTrackedSpatialAudio: soundStageSize(0), anchoringStrategy: {CAAutomaticAnchoringStrategy}}"];
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"media-player-spatial-experience-change"];
@@ -91,7 +91,7 @@ TEST(SpatialAudioExperience, WindowWithWindowScene)
     isDone = false;
 
     RetainPtr configuration = autoplayingInternalsConfiguration();
-    auto messageHandler = adoptNS([[SpatialAudioExperienceMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[SpatialAudioExperienceMessageHandler alloc] init]);
 
     [messageHandler setExpectedBody:@"{CAHeadTrackedSpatialAudio: soundStageSize(0), anchoringStrategy: {CAAutomaticAnchoringStrategy}}"];
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"media-player-spatial-experience-change"];
@@ -120,7 +120,7 @@ TEST(SpatialAudioExperience, AudioOnly)
     isDone = false;
 
     RetainPtr configuration = autoplayingInternalsConfiguration();
-    auto messageHandler = adoptNS([[SpatialAudioExperienceMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[SpatialAudioExperienceMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"media-player-spatial-experience-change"];
 
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);

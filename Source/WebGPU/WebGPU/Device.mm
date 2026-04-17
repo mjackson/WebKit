@@ -382,7 +382,7 @@ Device::~Device()
 
 RefPtr<XRSubImage> Device::getXRViewSubImage(XRProjectionLayer& projectionLayer)
 {
-    RefPtr { m_xrSubImage }->update(projectionLayer);
+    protect(m_xrSubImage)->update(projectionLayer);
     return m_xrSubImage;
 }
 

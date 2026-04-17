@@ -82,15 +82,15 @@ TEST(WKWebViewFindString, DoNotFocusMatchWhenWebViewResignedAndHardwareKeyboardA
     ClassMethodSwizzler swizzler([UIKeyboard class], @selector(isInHardwareKeyboardMode), reinterpret_cast<IMP>(returnYes));
 #endif
 
-    auto inputDelegate = adoptNS([[WKWebViewFindStringInputDelegate alloc] init]);
-    auto findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto firstWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr inputDelegate = adoptNS([[WKWebViewFindStringInputDelegate alloc] init]);
+    RetainPtr findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr firstWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
     [firstWebView synchronouslyLoadHTMLString:@"<input type='text' value='hello'>"];
     [firstWebView _setInputDelegate:inputDelegate.get()];
     [firstWebView _setFindDelegate:findDelegate.get()];
 
-    auto secondWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(300, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr secondWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(300, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
     EXPECT_TRUE([secondWebView becomeFirstResponder]);
     EXPECT_FALSE(viewIsFirstResponder(firstWebView.get()));
 
@@ -107,15 +107,15 @@ TEST(WKWebViewFindString, DoNotFocusMatchWhenWebViewResigned)
 {
     ClassMethodSwizzler swizzler([UIKeyboard class], @selector(isInHardwareKeyboardMode), reinterpret_cast<IMP>(returnNo));
 
-    auto inputDelegate = adoptNS([[WKWebViewFindStringInputDelegate alloc] init]);
-    auto findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto firstWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr inputDelegate = adoptNS([[WKWebViewFindStringInputDelegate alloc] init]);
+    RetainPtr findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr firstWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
     [firstWebView synchronouslyLoadHTMLString:@"<input type='text' value='hello'>"];
     [firstWebView _setInputDelegate:inputDelegate.get()];
     [firstWebView _setFindDelegate:findDelegate.get()];
 
-    auto secondWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(300, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr secondWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(300, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
     EXPECT_TRUE([secondWebView becomeFirstResponder]);
     EXPECT_FALSE([firstWebView isFirstResponder]);
 
@@ -130,9 +130,9 @@ TEST(WKWebViewFindString, DoNotFocusMatchWhenWebViewResigned)
 
 TEST(WKWebViewFindString, DoNotUpdateMatchIndexWhenGivenNoIndexChangeOption)
 {
-    auto findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto firstWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr firstWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
     [firstWebView synchronouslyLoadHTMLString:@"<p>hello</p><p>hello</p>"];
     [firstWebView _setFindDelegate:findDelegate.get()];
 
@@ -149,9 +149,9 @@ TEST(WKWebViewFindString, DoNotUpdateMatchIndexWhenGivenNoIndexChangeOption)
 
 TEST(WKWebViewFindString, MatchIndexIsCorrectWhenNavigatingForwardAndBackward)
 {
-    auto findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadHTMLString:@"<p>hello</p><p>hello</p><p>hello</p>"];
     [webView _setFindDelegate:findDelegate.get()];
 
@@ -177,9 +177,9 @@ TEST(WKWebViewFindString, MatchIndexIsCorrectWhenNavigatingForwardAndBackward)
 
 TEST(WKWebViewFindString, MatchIndexDoesNotUpdateWithoutDetermineMatchIndexOption)
 {
-    auto findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadHTMLString:@"<p>hello</p><p>hello</p><p>hello</p>"];
     [webView _setFindDelegate:findDelegate.get()];
 
@@ -205,9 +205,9 @@ TEST(WKWebViewFindString, MatchIndexDoesNotUpdateWithoutDetermineMatchIndexOptio
 
 TEST(WKWebViewFindString, MatchIndexIsCorrectNavigatingWrapAround)
 {
-    auto findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadHTMLString:@"<p>hello</p><p>hello</p><p>hello</p>"];
     [webView _setFindDelegate:findDelegate.get()];
 
@@ -235,9 +235,9 @@ TEST(WKWebViewFindString, MatchIndexIsCorrectNavigatingWrapAround)
 
 TEST(WKWebViewFindString, MatchIndexIsCorrectNavigatingWrapAroundBackwards)
 {
-    auto findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr findDelegate = adoptNS([[WKWebViewFindStringFindDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 200) configuration:configuration.get() addToWindow:YES]);
     [webView synchronouslyLoadHTMLString:@"<p>hello</p><p>hello</p><p>hello</p>"];
     [webView _setFindDelegate:findDelegate.get()];
 

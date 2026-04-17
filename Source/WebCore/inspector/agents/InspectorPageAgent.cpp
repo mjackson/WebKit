@@ -52,6 +52,7 @@
 #include "ImageUtilities.h"
 #include "InspectorBackendClient.h"
 #include "InspectorDOMAgent.h"
+#include "InspectorIdentifierRegistry.h"
 #include "InspectorNetworkAgent.h"
 #include "InspectorOverlay.h"
 #include "InspectorResourceUtilities.h"
@@ -61,6 +62,7 @@
 #include "MIMETypeRegistry.h"
 #include "MemoryCache.h"
 #include "Page.h"
+#include "PageInspectorController.h"
 #include "RenderObjectInlines.h"
 #include "RenderTheme.h"
 #include "ScriptController.h"
@@ -686,49 +688,35 @@ void InspectorPageAgent::frameNavigated(LocalFrame& frame)
 
 void InspectorPageAgent::frameDetached(LocalFrame& frame)
 {
-    auto identifier = m_frameToIdentifier.take(frame);
+    auto identifier = m_inspectedPage->inspectorController().identifierRegistry().takeFrame(frame);
     if (identifier.isNull())
         return;
     m_frontendDispatcher->frameDetached(identifier);
-    m_identifierToFrame.remove(identifier);
 }
 
 Frame* InspectorPageAgent::frameForId(const Inspector::Protocol::Network::FrameId& frameId)
 {
-    return frameId.isEmpty() ? nullptr : m_identifierToFrame.get(frameId);
+    return m_inspectedPage->inspectorController().identifierRegistry().frameForId(frameId);
 }
 
 String InspectorPageAgent::frameId(Frame* frame)
 {
-    if (!frame)
-        return emptyString();
-    return m_frameToIdentifier.ensure(*frame, [this, frame] {
-        auto identifier = IdentifiersFactory::createIdentifier();
-        m_identifierToFrame.set(identifier, frame);
-        return identifier;
-    }).iterator->value;
+    return m_inspectedPage->inspectorController().identifierRegistry().frameId(frame);
 }
 
 String InspectorPageAgent::loaderId(DocumentLoader* loader)
 {
-    if (!loader)
-        return emptyString();
-    return m_loaderToIdentifier.ensure(loader, [] {
-        return IdentifiersFactory::createIdentifier();
-    }).iterator->value;
+    return m_inspectedPage->inspectorController().identifierRegistry().loaderId(loader);
 }
 
 LocalFrame* InspectorPageAgent::assertFrame(Inspector::Protocol::ErrorString& errorString, const Inspector::Protocol::Network::FrameId& frameId)
 {
-    auto* frame = dynamicDowncast<LocalFrame>(frameForId(frameId));
-    if (!frame)
-        errorString = "Missing frame for given frameId"_s;
-    return frame;
+    return m_inspectedPage->inspectorController().identifierRegistry().assertFrame(errorString, frameId);
 }
 
 void InspectorPageAgent::loaderDetachedFromFrame(DocumentLoader& loader)
 {
-    m_loaderToIdentifier.remove(&loader);
+    m_inspectedPage->inspectorController().identifierRegistry().takeLoader(loader);
 }
 
 void InspectorPageAgent::accessibilitySettingsDidChange()

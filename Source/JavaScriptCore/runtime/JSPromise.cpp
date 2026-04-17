@@ -33,9 +33,6 @@
 #include "JSCInlines.h"
 #include "JSFunctionWithFields.h"
 #include "JSInternalFieldObjectImplInlines.h"
-#include "JSInternalPromise.h"
-#include "JSInternalPromiseConstructor.h"
-#include "JSInternalPromisePrototype.h"
 #include "JSMicrotask.h"
 #include "JSPromiseCombinatorsContext.h"
 #include "JSPromiseCombinatorsGlobalContext.h"
@@ -118,12 +115,6 @@ std::tuple<JSObject*, JSObject*, JSObject*> JSPromise::newPromiseCapability(JSGl
 
     if (constructor == globalObject->promiseConstructor()) {
         auto* promise = JSPromise::create(vm, globalObject->promiseStructure());
-        auto [resolve, reject] = promise->createFirstResolvingFunctions(vm, globalObject);
-        return { promise, resolve, reject };
-    }
-
-    if (constructor == globalObject->internalPromiseConstructor()) {
-        auto* promise = JSInternalPromise::create(vm, globalObject->internalPromiseStructure());
         auto [resolve, reject] = promise->createFirstResolvingFunctions(vm, globalObject);
         return { promise, resolve, reject };
     }
@@ -219,6 +210,17 @@ void JSPromise::fulfill(VM& vm, JSGlobalObject* globalObject, JSValue value)
         internalField(Field::Flags).setWithoutWriteBarrier(jsNumber(static_cast<int32_t>(flags | isFirstResolvingFunctionCalledFlag)));
         fulfillPromise(vm, globalObject, value);
     }
+}
+
+void JSPromise::pipeFrom(VM& vm, JSPromise* from)
+{
+    int32_t flags = this->flags();
+    if (flags & isFirstResolvingFunctionCalledFlag)
+        return;
+    internalField(Field::Flags).setWithoutWriteBarrier(jsNumber(static_cast<int32_t>(flags | isFirstResolvingFunctionCalledFlag)));
+
+    JSGlobalObject* globalObject = this->realm();
+    from->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::PromiseFulfillWithoutHandlerJob, this, jsUndefined());
 }
 
 void JSPromise::performPromiseThenExported(VM& vm, JSGlobalObject* globalObject, JSValue onFulfilled, JSValue onRejected, JSValue promiseOrCapability)
@@ -372,11 +374,26 @@ void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, JSGlobalObject* 
     case JSPromise::Status::Rejected: {
         if (!isHandled())
             globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, this, JSPromiseRejectionOperation::Handle);
+#if USE(BUN_JSC_ADDITIONS)
+        if (vm.m_synchronousModuleLoadingDepth) [[unlikely]] {
+            markAsHandled();
+            std::array<const JSValue, maxMicrotaskArguments> args { { promise, reactionsOrResult, context, jsUndefined() } };
+            runInternalMicrotask(globalObject, vm, task, static_cast<uint8_t>(Status::Rejected), args);
+            break;
+        }
+#endif
         globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(Status::Rejected), promise, reactionsOrResult, context);
         markAsHandled();
         break;
     }
     case JSPromise::Status::Fulfilled: {
+#if USE(BUN_JSC_ADDITIONS)
+        if (vm.m_synchronousModuleLoadingDepth) [[unlikely]] {
+            std::array<const JSValue, maxMicrotaskArguments> args { { promise, reactionsOrResult, context, jsUndefined() } };
+            runInternalMicrotask(globalObject, vm, task, static_cast<uint8_t>(Status::Fulfilled), args);
+            break;
+        }
+#endif
         globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(Status::Fulfilled), promise, reactionsOrResult, context);
         break;
     }
@@ -394,6 +411,8 @@ bool isDefinitelyNonThenable(JSObject* object, JSGlobalObject* globalObject)
 
     while (structure) {
         if (structure->hasSpecialProperties())
+            return false;
+        if (structure->typeInfo().getOwnPropertySlotIsImpureForPropertyAbsence())
             return false;
         if (structure->typeInfo().overridesGetPrototype())
             return false;
@@ -664,6 +683,13 @@ void JSPromise::triggerPromiseReactions(VM& vm, JSGlobalObject* globalObject, St
             task = static_cast<InternalMicrotask>(handler.asInt32());
             handler = arg;
             arg = context;
+#if USE(BUN_JSC_ADDITIONS)
+            if (vm.m_synchronousModuleLoadingDepth) [[unlikely]] {
+                std::array<const JSValue, maxMicrotaskArguments> args { { promise, handler, arg, jsUndefined() } };
+                runInternalMicrotask(globalObject, vm, task, static_cast<uint8_t>(status), args);
+                return;
+            }
+#endif
             globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(status), promise, handler, arg);
             return;
         }
@@ -751,7 +777,7 @@ void JSPromise::resolveWithInternalMicrotaskForAsyncAwait(JSGlobalObject* global
             return;
         }
 
-        if (constructor == globalObject->promiseConstructor() || constructor == globalObject->internalPromiseConstructor())
+        if (constructor == globalObject->promiseConstructor())
             return promise->performPromiseThenWithInternalMicrotask(vm, globalObject, task, jsUndefined(), BUN_CONTEXT);
     }
 
@@ -809,16 +835,10 @@ bool JSPromise::isThenFastAndNonObservable()
 {
     JSGlobalObject* globalObject = this->realm();
     Structure* structure = this->structure();
-    if (!globalObject->promiseThenWatchpointSet().isStillValid()) [[unlikely]] {
-        if (inherits<JSInternalPromise>())
-            return true;
+    if (!globalObject->promiseThenWatchpointSet().isStillValid()) [[unlikely]]
         return false;
-    }
 
     if (structure == globalObject->promiseStructure())
-        return true;
-
-    if (inherits<JSInternalPromise>())
         return true;
 
     if (getPrototypeDirect() != globalObject->promisePrototype())
@@ -886,10 +906,7 @@ JSObject* JSPromise::then(JSGlobalObject* globalObject, JSValue onFulfilled, JSV
     JSObject* resultPromise;
     JSValue resultPromiseCapability;
     if (promiseSpeciesWatchpointIsValid(vm, this)) [[likely]] {
-        if (inherits<JSInternalPromise>())
-            resultPromise = JSInternalPromise::create(vm, globalObject->internalPromiseStructure());
-        else
-            resultPromise = JSPromise::create(vm, globalObject->promiseStructure());
+        resultPromise = JSPromise::create(vm, globalObject->promiseStructure());
         resultPromiseCapability = resultPromise;
     } else {
         auto* constructor = promiseSpeciesConstructor(globalObject, this);
@@ -915,16 +932,6 @@ JSObject* JSPromise::promiseResolve(JSGlobalObject* globalObject, JSObject* cons
     if (argument.inherits<JSPromise>()) {
         auto* promise = jsCast<JSPromise*>(argument);
         if (promiseSpeciesWatchpointIsValid(vm, promise)) [[likely]] {
-#if USE(BUN_JSC_ADDITIONS)
-            // For InternalPromise, we can only return the same promise if the constructor
-            // matches. This preserves the behavior where Promise.resolve(InternalPromise)
-            // creates a new regular Promise, ensuring user-facing APIs return regular Promises.
-            if (promise->structure()->classInfoForCells() == JSInternalPromise::info()) {
-                if (constructor != globalObject->internalPromiseConstructor())
-                    goto createNewPromise;
-                return promise;
-            }
-#endif
             if (constructor == promise->realm()->promiseConstructor())
                 return promise;
         } else {
@@ -935,24 +942,10 @@ JSObject* JSPromise::promiseResolve(JSGlobalObject* globalObject, JSObject* cons
                 return promise;
         }
     }
-#if USE(BUN_JSC_ADDITIONS)
-createNewPromise:
-#endif
 
     if (constructor == globalObject->promiseConstructor()) [[likely]] {
         JSPromise* promise = JSPromise::create(vm, globalObject->promiseStructure());
         scope.release();
-#if USE(BUN_JSC_ADDITIONS)
-        // For InternalPromise, use internal microtask to adopt the state without
-        // calling user-visible .then(). This preserves InternalPromise isolation
-        // while returning a regular Promise for instanceof checks.
-        if (argument.inherits<JSInternalPromise>()) {
-            auto* internalPromise = jsCast<JSInternalPromise*>(argument);
-            internalPromise->performPromiseThenWithInternalMicrotask(vm, globalObject,
-                InternalMicrotask::PromiseResolveWithoutHandlerJob, promise, jsUndefined());
-            return promise;
-        }
-#endif
         promise->resolve(globalObject, vm, argument);
         return promise;
     }

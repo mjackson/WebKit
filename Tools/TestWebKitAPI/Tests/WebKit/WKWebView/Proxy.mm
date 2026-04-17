@@ -79,13 +79,13 @@ TEST(WebKit, HTTPSProxy)
 {
     HTTPServer server(HTTPServer::respondWithOK, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     [storeConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", server.port()]]];
     [storeConfiguration setAllowsServerPreconnect:NO];
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
-    auto delegate = adoptNS([ProxyDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([ProxyDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
 
@@ -144,15 +144,15 @@ TEST(WebKit, SOCKS5)
         });
     });
 
-    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     [storeConfiguration setProxyConfiguration:@{
         @"SOCKSProxy": @"127.0.0.1",
         @"SOCKSPort": @(server.port())
     }];
     [storeConfiguration setAllowsServerPreconnect:NO];
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://example.com/"]]];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "success!");
 }
@@ -160,8 +160,8 @@ TEST(WebKit, SOCKS5)
 #if HAVE(NW_PROXY_CONFIG)
 TEST(WebKit, HTTPSProxyAPI)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)]);
-    auto delegate = adoptNS([ProxyDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)]);
+    RetainPtr delegate = adoptNS([ProxyDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
 
@@ -179,14 +179,14 @@ TEST(WebKit, HTTPSProxyAPI)
 
     // 127.0.0.1:1 will never be reachable and will immediately timeout, causing
     // us to fallback to 127.0.0.1:<real port>
-    auto endpoint1 = adoptNS(nw_endpoint_create_host("127.0.0.1", "1"));
-    auto proxyConfig1 = adoptNS(nw_proxy_config_create_http_connect(endpoint1.get(), nil));
+    RetainPtr endpoint1 = adoptNS(nw_endpoint_create_host("127.0.0.1", "1"));
+    RetainPtr proxyConfig1 = adoptNS(nw_proxy_config_create_http_connect(endpoint1.get(), nil));
 
-    auto endpoint2 = adoptNS(nw_endpoint_create_host("127.0.0.1", std::to_string(proxyServer1.port()).c_str()));
-    auto proxyConfig2 = adoptNS(nw_proxy_config_create_http_connect(endpoint2.get(), nil));
+    RetainPtr endpoint2 = adoptNS(nw_endpoint_create_host("127.0.0.1", std::to_string(proxyServer1.port()).c_str()));
+    RetainPtr proxyConfig2 = adoptNS(nw_proxy_config_create_http_connect(endpoint2.get(), nil));
 
-    auto endpoint3 = adoptNS(nw_endpoint_create_host("127.0.0.1", std::to_string(proxyServer2.port()).c_str()));
-    auto proxyConfig3 = adoptNS(nw_proxy_config_create_http_connect(endpoint3.get(), nil));
+    RetainPtr endpoint3 = adoptNS(nw_endpoint_create_host("127.0.0.1", std::to_string(proxyServer2.port()).c_str()));
+    RetainPtr proxyConfig3 = adoptNS(nw_proxy_config_create_http_connect(endpoint3.get(), nil));
 
     // Proxy 1 should be ignored as it is unreachable.
     // Proxy 2 should be used.
@@ -221,16 +221,16 @@ TEST(WebKit, ProxyAfterNetworkProcessCrash)
         { "/"_s, { "<script>alert('proxy success!')</script>"_s } }
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
 
-    auto endpoint = adoptNS(nw_endpoint_create_host("127.0.0.1", std::to_string(proxyServer1.port()).c_str()));
-    auto proxyConfig = adoptNS(nw_proxy_config_create_http_connect(endpoint.get(), nil));
+    RetainPtr endpoint = adoptNS(nw_endpoint_create_host("127.0.0.1", std::to_string(proxyServer1.port()).c_str()));
+    RetainPtr proxyConfig = adoptNS(nw_proxy_config_create_http_connect(endpoint.get(), nil));
 
     auto dataStore = WKWebsiteDataStore.nonPersistentDataStore;
     dataStore.proxyConfigurations = @[ proxyConfig.get() ];
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:dataStore];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
-    auto delegate = adoptNS([ProxyDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([ProxyDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
 
@@ -299,10 +299,10 @@ TEST(WebKit, SOCKS5API)
         });
     });
 
-    auto endpoint = adoptNS(nw_endpoint_create_host("127.0.0.1", std::to_string(server.port()).c_str()));
-    auto proxyConfig = adoptNS(nw_proxy_config_create_socksv5(endpoint.get()));
+    RetainPtr endpoint = adoptNS(nw_endpoint_create_host("127.0.0.1", std::to_string(server.port()).c_str()));
+    RetainPtr proxyConfig = adoptNS(nw_proxy_config_create_socksv5(endpoint.get()));
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)]);
     webView.get().configuration.websiteDataStore.proxyConfigurations = @[ proxyConfig.get() ];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://example.com/"]]];
@@ -317,7 +317,7 @@ static HTTPServer proxyAuthenticationServer()
 
 static std::pair<RetainPtr<WKWebView>, RetainPtr<ProxyDelegate>> webViewAndDelegate(const HTTPServer& server)
 {
-    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(server.port())
@@ -325,10 +325,10 @@ static std::pair<RetainPtr<WKWebView>, RetainPtr<ProxyDelegate>> webViewAndDeleg
     [storeConfiguration setAllowsServerPreconnect:NO];
     [storeConfiguration setPreventsSystemHTTPProxyAuthentication:YES];
 
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
-    auto delegate = adoptNS([ProxyDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([ProxyDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
     return { webView, delegate };
@@ -352,13 +352,13 @@ TEST(WebKit, DISABLED_ProxyConfigurationAuthentication)
 #endif
 {
     auto server = proxyAuthenticationServer();
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
 
-    auto endpoint = adoptNS(nw_endpoint_create_host("127.0.0.1", std::to_string(server.port()).c_str()));
-    auto proxyConfiguration = adoptNS(nw_proxy_config_create_http_connect(endpoint.get(), nil));
+    RetainPtr endpoint = adoptNS(nw_endpoint_create_host("127.0.0.1", std::to_string(server.port()).c_str()));
+    RetainPtr proxyConfiguration = adoptNS(nw_proxy_config_create_http_connect(endpoint.get(), nil));
     webView.get().configuration.websiteDataStore.proxyConfigurations = @[ proxyConfiguration.get() ];
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     __block bool challenged { false };
     delegate.get().didReceiveAuthenticationChallenge = ^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust])
@@ -409,7 +409,7 @@ TEST(WebKit, SecureProxyConnection)
         });
     });
     
-    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(server.port())
@@ -417,9 +417,9 @@ TEST(WebKit, SecureProxyConnection)
     [storeConfiguration setAllowsServerPreconnect:NO];
     [storeConfiguration setRequiresSecureHTTPSProxyConnection:YES];
 
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/"]]];
     TestWebKitAPI::Util::run(&receivedValidClientHello);
 }
@@ -497,18 +497,18 @@ TEST(WebKit, RelaxThirdPartyCookieBlocking)
             });
         });
 
-        auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+        RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
         [storeConfiguration setProxyConfiguration:@{
             (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
             (NSString *)kCFStreamPropertyHTTPProxyPort: @(server.port())
         }];
         [storeConfiguration setAllowsServerPreconnect:NO];
-        auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+        RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
         [dataStore _setResourceLoadStatisticsEnabled:YES];
-        auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
         [viewConfiguration _setShouldRelaxThirdPartyCookieBlocking:shouldRelaxThirdPartyCookieBlocking];
         [viewConfiguration setWebsiteDataStore:dataStore.get()];
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
 
         [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://www.webkit.org/path1"]]];
         EXPECT_WK_STREQ([webView _test_waitForAlert], "fetched");

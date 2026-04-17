@@ -55,7 +55,6 @@ namespace JSC { namespace B3 {
 void prepareForGeneration(Procedure& procedure)
 {
     CompilerTimingScope timingScope("Total B3+Air"_s, "prepareForGeneration"_s);
-
     generateToAir(procedure);
     Air::prepareForGeneration(procedure.code());
 }

@@ -293,10 +293,10 @@ TEST(FocusWebView, FocusNavigationIntoFrameWithNestedRemoteFrameSiteIsolation)
 TEST(FocusWebView, DoNotFocusWebViewWhenUnparented)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration]);
     [webView synchronouslyLoadTestPageNamed:@"open-in-new-tab"];
 
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:uiDelegate.get()];
 
     __block bool calledFocusWebView = false;

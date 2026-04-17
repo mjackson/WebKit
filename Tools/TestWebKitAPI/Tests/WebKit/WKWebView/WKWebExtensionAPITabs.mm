@@ -1335,7 +1335,7 @@ TEST(WKWebExtensionAPITabs, ReplacedEvent)
     [manager runUntilTestMessage:@"Replace Tab"];
 
     auto initialTab = manager.get().defaultWindow.tabs.firstObject;
-    auto newTab = adoptNS([[TestWebExtensionTab alloc] initWithWindow:manager.get().defaultWindow extensionController:manager.get().controller]);
+    RetainPtr newTab = adoptNS([[TestWebExtensionTab alloc] initWithWindow:manager.get().defaultWindow extensionController:manager.get().controller]);
 
     [manager.get().defaultWindow replaceTab:initialTab withTab:newTab.get()];
     [manager run];

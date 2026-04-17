@@ -47,7 +47,7 @@ static bool isAnimating(NSString *domID, RetainPtr<TestWKWebView> webView)
 TEST(WebKit, PlayAllPauseAllAnimationSupport)
 {
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration addToWindow:YES]);
 
     [webView synchronouslyLoadHTMLString:@"<img id='imgOne' src='test-mse.mp4'><img id='imgTwo' src='test-without-audio-track.mp4'>"];
 
@@ -72,7 +72,7 @@ TEST(WebKit, PlayAllPauseAllAnimationSupport)
 TEST(WebKit, IsAnyAnimationAllowedToPlayBehaviorWithIndividualAnimationControl)
 {
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration addToWindow:YES]);
 
     [webView synchronouslyLoadHTMLString:@"<img id='imgOne' src='test-mse.mp4'><img id='imgTwo' src='test-without-audio-track.mp4'>"];
     [webView stringByEvaluatingJavaScript:@"window.internals.setImageAnimationEnabled(false)"];

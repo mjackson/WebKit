@@ -89,8 +89,8 @@ TEST(ShareSheetTests, DISABLED_ShareImgElementWithBase64URL)
 TEST(ShareSheetTests, ShareImgElementWithBase64URL)
 #endif
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto observer = adoptNS([[ShareSheetObserver alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr observer = adoptNS([[ShareSheetObserver alloc] init]);
     [webView setUIDelegate:observer.get()];
     [webView synchronouslyLoadTestPageNamed:@"img-with-base64-url"];
 
@@ -108,8 +108,8 @@ TEST(ShareSheetTests, ShareImgElementWithBase64URL)
 
 TEST(ShareSheetTests, ShareAnchorElementAsURL)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto observer = adoptNS([[ShareSheetObserver alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr observer = adoptNS([[ShareSheetObserver alloc] init]);
     [webView setUIDelegate:observer.get()];
     [webView synchronouslyLoadTestPageNamed:@"link-and-input"];
 

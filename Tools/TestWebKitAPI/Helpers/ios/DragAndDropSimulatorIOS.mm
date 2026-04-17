@@ -194,7 +194,7 @@ InteractionType *findInteractionOfType(UIView *view)
 
 - (instancetype)initWithProviders:(NSArray<NSItemProvider *> *)providers location:(CGPoint)locationInWindow window:(UIWindow *)window allowMove:(BOOL)allowMove
 {
-    auto items = adoptNS([[NSMutableArray alloc] init]);
+    RetainPtr items = adoptNS([[NSMutableArray alloc] init]);
     for (NSItemProvider *itemProvider in providers)
         [items addObject:adoptNS([[UIDragItem alloc] initWithItemProvider:itemProvider]).get()];
 

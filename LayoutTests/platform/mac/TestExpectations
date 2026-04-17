@@ -1945,6 +1945,8 @@ imported/w3c/web-platform-tests/webaudio/the-audio-api/the-audioparam-interface/
 [ x86_64 ] svg/W3C-SVG-1.1/metadata-example-01-b.svg [ Failure ]
 [ x86_64 ] svg/custom/use-on-symbol-inside-pattern.svg [ Failure ]
 
+[ x86_64 ] imported/w3c/web-platform-tests/shadow-dom/reference-target/tentative/form.html [ Pass Failure ]
+
 webkit.org/b/256108 media/video-audio-session-mode.html [ Failure ]
 
 webkit.org/b/258181 [ Debug ] inspector/debugger/async-stack-trace-truncate.html [ Slow Failure ]

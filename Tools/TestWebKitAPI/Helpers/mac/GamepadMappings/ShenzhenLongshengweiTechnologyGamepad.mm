@@ -134,7 +134,7 @@ static void publishReportCallback(Vector<float>& buttonValues, Vector<float>& ax
 
     reportData[7] = 0x00;
 
-    auto nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:SLTGamepadReportSize]);
+    RetainPtr nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:SLTGamepadReportSize]);
     [userDevice handleReport:nsReportData.get() error:nil];
 }
 

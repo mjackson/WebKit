@@ -735,11 +735,17 @@ std::pair<bool, std::optional<Vector<ElementRuleCollector::ScopingRootWithDistan
             unsigned distance = 0;
             RefPtr ancestor = &element();
             bool shadowHostCrossed = false;
+            // Scope root traversal normally stops at shadow boundaries so document-scoped rules don't
+            // leak into shadow trees. However, slotted elements live in the light DOM, so the traversal
+            // must cross the shadow host to find scope roots in the containing document.
+            bool stopsAtShadowBoundary = element().containingShadowRoot() || context.styleScopeOrdinal == Style::ScopeOrdinal::Shadow;
             while (ancestor && !shadowHostCrossed) {
                 auto subContext = context;
-                if (auto* shadowRoot = ancestor->shadowRoot(); shadowRoot && shadowRoot->mode() != ShadowRootMode::UserAgent) {
-                    subContext.styleScopeOrdinal = Style::ScopeOrdinal::Shadow;
-                    shadowHostCrossed = true;
+                if (stopsAtShadowBoundary) {
+                    if (auto* shadowRoot = ancestor->shadowRoot(); shadowRoot && shadowRoot->mode() != ShadowRootMode::UserAgent) {
+                        subContext.styleScopeOrdinal = Style::ScopeOrdinal::Shadow;
+                        shadowHostCrossed = true;
+                    }
                 }
                 for (const auto& selector : selectorList) {
                     auto appendIfMatch = [&] (std::optional<ScopingRootWithDistance> previousScopingRoot = { }) {

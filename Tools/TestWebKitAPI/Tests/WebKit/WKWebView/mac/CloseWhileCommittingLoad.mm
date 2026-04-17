@@ -49,8 +49,8 @@ namespace TestWebKitAPI {
 
 TEST(WebKitLegacy, CloseWhileCommittingLoad)
 {
-    auto webView = adoptNS([WebView new]);
-    auto delegate = adoptNS([CloseWhileCommittingLoadDelegate new]);
+    RetainPtr webView = adoptNS([WebView new]);
+    RetainPtr delegate = adoptNS([CloseWhileCommittingLoadDelegate new]);
     [webView setFrameLoadDelegate:delegate.get()];
 
     didCloseWhileCommittingLoad = false;

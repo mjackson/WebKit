@@ -68,11 +68,11 @@ static bool receivedPreferenceNotification = false;
 TEST(WebKit, AccessibilityIncreaseContrast)
 {
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration addToWindow:YES]);
 
     CFPreferencesSetAppValue(INCREASE_CONTRAST_PREFERENCE, kCFBooleanFalse, ACCESSIBILITY_DOMAIN);
 
-    auto observer = adoptNS([[WKPreferenceObserverForTestingIncreaseContrast alloc] init]);
+    RetainPtr observer = adoptNS([[WKPreferenceObserverForTestingIncreaseContrast alloc] init]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 

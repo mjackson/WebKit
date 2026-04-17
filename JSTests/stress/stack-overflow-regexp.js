@@ -1,4 +1,4 @@
-//@ skip if $memoryLimited
+//@ memoryHog!
 
 // Test that we do not overflow the stack while handling regular expressions.
 

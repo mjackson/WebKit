@@ -97,7 +97,7 @@ TEST(WKWebView, GetContentsShouldReturnString)
 
 TEST(WKWebView, GetContentsShouldFailWhenClosingPage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
@@ -218,7 +218,7 @@ TEST(WKWebView, GetContentsWithOpticallySizedFontShouldReturnAttributedString)
 
 TEST(WKWebView, AttributedStringAccessibilityLabel)
 {
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
 
     NSString *imagePath = [NSBundle.test_resourcesBundle pathForResource:@"icon" ofType:@"png"];
     [webView synchronouslyLoadHTMLString:[NSString stringWithFormat:@"<html><body><b>Hello</b> <img src='file://%@' width='100' height='100' alt='alt text'> <img src='file://%@' width='100' height='100' alt='aria label text'></body></html>", imagePath, imagePath]];
@@ -263,7 +263,7 @@ TEST(WKWebView, AttributedStringAttributeTypes)
     "</body>"
     "</html>";
 
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadHTMLString:html];
 
     __block bool finished { false };
@@ -296,7 +296,7 @@ TEST(WKWebView, AttributedStringAttributeTypes)
 
 TEST(WKWebView, AttributedStringFromTable)
 {
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadHTMLString:@"<html>"
         "  <head>"
         "  <style>"
@@ -372,7 +372,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 TEST(WKWebView, AttributedStringWithLinksInTableCell)
 {
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadHTMLString:@"<html>"
         "  <body>"
         "    <table>"
@@ -420,7 +420,7 @@ TEST(WKWebView, AttributedStringWithLinksInTableCell)
 
 TEST(WKWebView, AttributedStringFromList)
 {
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadHTMLString:@"<html>"
         "  <body>"
         "    <ol>"
@@ -560,7 +560,7 @@ TEST(WKWebView, AttributedStringWithoutNetworkLoads)
         "</body>";
 
     __block bool attemptedImageLoad = false;
-    auto resourceLoadDelegate = adoptNS([TestResourceLoadDelegate new]);
+    RetainPtr resourceLoadDelegate = adoptNS([TestResourceLoadDelegate new]);
     [resourceLoadDelegate setDidSendRequest:^(WKWebView *, _WKResourceLoadInfo *info, NSURLRequest *) {
         if (info.resourceType == _WKResourceLoadInfoResourceTypeImage)
             attemptedImageLoad = true;
@@ -625,7 +625,7 @@ TEST(WKWebView, AttributedStringWithSourceApplicationBundleID)
 TEST(WKWebView, TextWithWebFontAsAttributedString)
 {
     auto archiveURL = [NSBundle.test_resourcesBundle URLForResource:@"text-with-web-font" withExtension:@"webarchive"];
-    auto archiveData = adoptNS([[NSData alloc] initWithContentsOfURL:archiveURL]);
+    RetainPtr archiveData = adoptNS([[NSData alloc] initWithContentsOfURL:archiveURL]);
 
     RetainPtr<NSAttributedString> result;
     bool done = false;

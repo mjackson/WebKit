@@ -34,7 +34,7 @@ namespace TestWebKitAPI {
 
 TEST(WKWebView, PageZoom)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<body>TEST</body>" baseURL:nil];
 
     // On macOS this will be 400, per the size of the WKWebView.
@@ -49,7 +49,7 @@ TEST(WKWebView, PageZoom)
 
 TEST(WKWebView, PageZoomAfterPDF)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]];
     [webView loadRequest:request];
@@ -72,7 +72,7 @@ TEST(WKWebView, PageZoomAfterPDF)
 
 TEST(WKWebView, MinimumMagnification)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<body>TEST</body>" baseURL:nil];
 
     EXPECT_EQ([webView minimumMagnification], 1.00);
@@ -80,7 +80,7 @@ TEST(WKWebView, MinimumMagnification)
 
 TEST(WKWebView, MinimumMagnificationPDF)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
 
     NSURLRequest *pdfRequest = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"test" withExtension:@"pdf"]];
     [webView loadRequest:pdfRequest];

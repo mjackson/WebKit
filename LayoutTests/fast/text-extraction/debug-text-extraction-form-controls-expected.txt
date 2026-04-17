@@ -3,7 +3,7 @@
 root
     role=banner
         label='Main Page Title' 'Welcome to Test Page'
-    navigation role=navigation label='Main navigation'
+    navigation label='Main navigation'
         list
             link 'Section 1'
             link 'Section 2'
@@ -14,11 +14,11 @@ root
             input uid=… placeholder='Enter text here'
             role=button title='Test action' 'Clickable Div'
         section label='Content with Roles'
-            article role=article
+            article
                 'Article Title'
                 'January 1, 2024'
                 'This is some article content with highlighted text.'
-            role=complementary label='Related information'
+            label='Related information'
                 'Related Links'
                 list
                     link 'Example Link'
@@ -44,10 +44,9 @@ root
                 option selected value=banana
                 option selected value=pear
                 option value=apple
-    role=contentinfo
-        'Footer content with'
-        role=img label='copyright symbol' '©'
-        '2024'
+    'Footer content with'
+    role=img label='copyright symbol' '©'
+    '2024'
 
 -- html
 
@@ -55,7 +54,7 @@ root
     <div role='banner'>
         <h1 aria-label='Main Page Title'>Welcome to Test Page</h1>
     </div>
-    <nav role='navigation' aria-label='Main navigation'>
+    <nav aria-label='Main navigation'>
         <ul>
             <li>
                 <a>Section 1</a>
@@ -73,12 +72,12 @@ root
             <div role='button' title='Test action'>Clickable Div</div>
         </section>
         <section aria-label='Content with Roles'>
-            <article role='article'>
+            <article>
                 Article Title
                 January 1, 2024
                 This is some article content with highlighted text.
             </article>
-            <aside role='complementary' aria-label='Related information'>
+            <aside aria-label='Related information'>
                 Related Links
                 <ul>
                     <li>
@@ -118,11 +117,9 @@ root
             </select>
         </section>
     </main>
-    <footer role='contentinfo'>
-        Footer content with
-        <span role='img' aria-label='copyright symbol'>©</span>
-        2024
-    </footer>
+    Footer content with
+    <span role='img' aria-label='copyright symbol'>©</span>
+    2024
 </body>
 
 -- json
@@ -151,7 +148,6 @@ root
     {
       "type": "navigation",
       "nodeName": "nav",
-      "role": "navigation",
       "aria-label": "Main navigation",
       "children": [
         {
@@ -255,7 +251,6 @@ root
             {
               "type": "article",
               "nodeName": "article",
-              "role": "article",
               "children": [
                 {
                   "type": "text",
@@ -274,7 +269,6 @@ root
             {
               "type": "container",
               "nodeName": "aside",
-              "role": "complementary",
               "aria-label": "Related information",
               "children": [
                 {
@@ -501,31 +495,24 @@ root
       ]
     },
     {
+      "type": "text",
+      "content": "Footer content with"
+    },
+    {
       "type": "container",
-      "nodeName": "footer",
-      "role": "contentinfo",
+      "nodeName": "span",
+      "role": "img",
+      "aria-label": "copyright symbol",
       "children": [
         {
           "type": "text",
-          "content": "Footer content with"
-        },
-        {
-          "type": "container",
-          "nodeName": "span",
-          "role": "img",
-          "aria-label": "copyright symbol",
-          "children": [
-            {
-              "type": "text",
-              "content": "©"
-            }
-          ]
-        },
-        {
-          "type": "text",
-          "content": "2024"
+          "content": "©"
         }
       ]
+    },
+    {
+      "type": "text",
+      "content": "2024"
     }
   ],
   "version": 2

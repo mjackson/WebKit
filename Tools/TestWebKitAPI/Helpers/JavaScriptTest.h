@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if PLATFORM(COCOA)
 OBJC_CLASS WebView;
 OBJC_CLASS WKWebView;

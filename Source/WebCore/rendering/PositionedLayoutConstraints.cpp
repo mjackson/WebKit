@@ -34,7 +34,6 @@
 #include "RenderInline.h"
 #include "RenderLayer.h"
 #include "RenderStyle.h"
-#include "RenderTableRow.h"
 #include "RenderView.h"
 #include "StylePositionArea.h"
 
@@ -656,7 +655,7 @@ static LayoutPoint staticDistance(const RenderBoxModelObject& container, const R
     auto hasSeenNonInlineBoxContainer = false;
     for (auto* ancestorContainer = child->parent(); ancestorContainer && ancestorContainer != &container; ancestorContainer = ancestorContainer->container()) {
         CheckedPtr containerBox = dynamicDowncast<RenderBox>(*ancestorContainer);
-        if (!containerBox || is<RenderTableRow>(*containerBox))
+        if (!containerBox)
             continue;
 
         staticPosition = child == &outOfFlowBox ? initialStaticPosition() : positionInContainer(*containerBox, *child, staticPosition);

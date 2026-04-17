@@ -22,7 +22,7 @@
 
 #if USE(GBM)
 header: <WebCore/DMABufBufferAttributes.h>
-[CustomHeader] class WebCore::DMABufBufferAttributes {
+[RValue, CustomHeader] class WebCore::DMABufBufferAttributes {
     WebCore::IntSize size;
     WebCore::FourCC fourcc;
     Vector<WTF::UnixFileDescriptor> fds;

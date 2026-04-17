@@ -52,7 +52,7 @@ namespace TestWebKitAPI {
 static RetainPtr<TestWKWebView> createWebViewForTestingTextAlternatives()
 {
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568) configuration:configuration]);
     [webView _setEditable:YES];
     return webView;
 }
@@ -63,7 +63,7 @@ TEST(TextAlternatives, AddAndRemoveTextAlternativesWithMatch)
     [webView synchronouslyLoadHTMLString:@"<body>hello world&nbsp;</body>"];
     [webView stringByEvaluatingJavaScript:@"getSelection().setPosition(document.body, 1)"];
 
-    auto alternatives = adoptNS([[NSTextAlternatives alloc] initWithPrimaryString:@"hello world" alternativeStrings:@[ @"👋🌎" ]]);
+    RetainPtr alternatives = adoptNS([[NSTextAlternatives alloc] initWithPrimaryString:@"hello world" alternativeStrings:@[ @"👋🌎" ]]);
     [[webView textInputContentView] addTextAlternatives:alternatives.get()];
     [webView waitForNextPresentationUpdate];
 
@@ -89,7 +89,7 @@ TEST(TextAlternatives, AddAndRemoveTextAlternativesWithTextAndEmojis)
     [webView synchronouslyLoadHTMLString:@"<body>hello world</body>"];
     [webView stringByEvaluatingJavaScript:@"getSelection().setPosition(document.body, 1)"];
 
-    auto alternatives = adoptNS([[NSTextAlternatives alloc] initWithPrimaryString:@"hello world" alternativeStrings:@[ @"👋🌎", @"Hello world" ]]);
+    RetainPtr alternatives = adoptNS([[NSTextAlternatives alloc] initWithPrimaryString:@"hello world" alternativeStrings:@[ @"👋🌎", @"Hello world" ]]);
     [[webView textInputContentView] addTextAlternatives:alternatives.get()];
     [webView waitForNextPresentationUpdate];
 
@@ -108,7 +108,7 @@ TEST(TextAlternatives, AddTextAlternativesWithSelectedMatch)
     [webView synchronouslyLoadHTMLString:@"<body>hello world&nbsp;</body>"];
     [webView stringByEvaluatingJavaScript:@"getSelection().selectAllChildren(document.body)"];
 
-    auto alternatives = adoptNS([[NSTextAlternatives alloc] initWithPrimaryString:@"hello world" alternativeStrings:@[ @"👋🌎" ]]);
+    RetainPtr alternatives = adoptNS([[NSTextAlternatives alloc] initWithPrimaryString:@"hello world" alternativeStrings:@[ @"👋🌎" ]]);
     [[webView textInputContentView] addTextAlternatives:alternatives.get()];
     [webView waitForNextPresentationUpdate];
 
@@ -121,7 +121,7 @@ TEST(TextAlternatives, AddTextAlternativesWithoutMatch)
     [webView synchronouslyLoadHTMLString:@"<body>hello world&nbsp;</body>"];
     [webView stringByEvaluatingJavaScript:@"getSelection().setPosition(document.body, 1)"];
 
-    auto alternatives = adoptNS([[NSTextAlternatives alloc] initWithPrimaryString:@"goodbye world" alternativeStrings:@[ @"👋🌎" ]]);
+    RetainPtr alternatives = adoptNS([[NSTextAlternatives alloc] initWithPrimaryString:@"goodbye world" alternativeStrings:@[ @"👋🌎" ]]);
     [[webView textInputContentView] addTextAlternatives:alternatives.get()];
     [webView waitForNextPresentationUpdate];
 

@@ -33,13 +33,13 @@
 
 TEST(WebKit, AttrStyle)
 {
-    auto poolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr poolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     [poolConfiguration setAttrStyleEnabled:YES];
-    auto pool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:poolConfiguration.get()]);
-    auto viewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr pool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:poolConfiguration.get()]);
+    RetainPtr viewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [viewConfiguration setProcessPool:pool.get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:viewConfiguration.get()]);
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:viewConfiguration.get()]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"AttrStyle" withExtension:@"html"]]];

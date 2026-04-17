@@ -28,6 +28,7 @@
 #include "CachedResource.h" // for CachedResource::Type.
 #include <JavaScriptCore/InspectorProtocolObjects.h>
 #include <wtf/Forward.h>
+#include <wtf/text/WTFString.h>
 
 namespace WebCore {
 class DocumentLoader;
@@ -39,6 +40,10 @@ class TextResourceDecoder;
 
 namespace Inspector {
 namespace Protocol {
+typedef String ErrorString;
+namespace Page {
+enum class ResourceType : int;
+}
 }
 
 enum class ResourceType;

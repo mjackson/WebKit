@@ -75,8 +75,8 @@ namespace TestWebKitAPI {
 
 TEST(WebKitLegacy, NoDecidePolicyForMIMETypeDecision)
 {
-    auto webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:nil groupName:nil]);
-    auto delegate = adoptNS([NoDecidePolicyForMIMETypeDecisionDelegate new]);
+    RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:nil groupName:nil]);
+    RetainPtr delegate = adoptNS([NoDecidePolicyForMIMETypeDecisionDelegate new]);
 
     webView.get().frameLoadDelegate = delegate.get();
     webView.get().policyDelegate = delegate.get();
@@ -89,8 +89,8 @@ TEST(WebKitLegacy, NoDecidePolicyForMIMETypeDecision)
 
 TEST(WebKitLegacy, NoDecidePolicyForNavigationActionDecision)
 {
-    auto webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:nil groupName:nil]);
-    auto delegate = adoptNS([NoDecidePolicyForNavigationActionDecisionDelegate new]);
+    RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:nil groupName:nil]);
+    RetainPtr delegate = adoptNS([NoDecidePolicyForNavigationActionDecisionDelegate new]);
 
     webView.get().frameLoadDelegate = delegate.get();
     webView.get().policyDelegate = delegate.get();

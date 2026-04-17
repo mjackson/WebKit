@@ -37,6 +37,7 @@ namespace WebCore {
 class RenderTableCol;
 class RenderTableCaption;
 class RenderTableCell;
+class RenderTableRow;
 class RenderTableSection;
 class TableLayout;
 
@@ -190,6 +191,7 @@ public:
     void invalidateCollapsedBordersAfterStyleChangeIfNeeded(const RenderStyle& oldStyle, const RenderStyle& newStyle, RenderTableCell* cellWithStyleChange = nullptr);
     void collapsedEmptyBorderIsPresent() { m_collapsedEmptyBorderIsPresent = true; }
     const CollapsedBorderValue* currentBorderValue() const LIFETIME_BOUND { return m_currentBorder; }
+    void paintCollapsedBordersForRow(PaintInfo&, RenderTableRow&, const LayoutPoint& paintOffset);
     
     bool hasSections() const { return m_head || m_foot || m_firstBody; }
 

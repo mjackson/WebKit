@@ -218,11 +218,11 @@ private:
 
     // Message handlers for IndexedDB.
     void openDatabase(IPC::Connection&, const WebCore::IDBOpenRequestData&);
-    void openDBRequestCancelled(const WebCore::IDBOpenRequestData&);
+    void openDBRequestCancelled(IPC::Connection&, const WebCore::IDBOpenRequestData&);
     void deleteDatabase(IPC::Connection&, const WebCore::IDBOpenRequestData&);
     void establishTransaction(WebCore::IDBDatabaseConnectionIdentifier, const WebCore::IDBTransactionInfo&);
     void NODELETE databaseConnectionPendingClose(WebCore::IDBDatabaseConnectionIdentifier);
-    void databaseConnectionClosed(WebCore::IDBDatabaseConnectionIdentifier);
+    void databaseConnectionClosed(IPC::Connection&, WebCore::IDBDatabaseConnectionIdentifier);
     void abortOpenAndUpgradeNeeded(WebCore::IDBDatabaseConnectionIdentifier, const std::optional<WebCore::IDBResourceIdentifier>& transactionIdentifier);
     void didFireVersionChangeEvent(WebCore::IDBDatabaseConnectionIdentifier, const WebCore::IDBResourceIdentifier& requestIdentifier, const WebCore::IndexedDB::ConnectionClosedOnBehalfOfServer);
     void didGenerateIndexKeyForRecord(const WebCore::IDBResourceIdentifier& transactionIdentifier, const WebCore::IDBResourceIdentifier& requestIdentifier, const WebCore::IDBIndexInfo&, const WebCore::IDBKeyData&, const WebCore::IndexKey&, std::optional<int64_t> recordID);

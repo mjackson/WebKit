@@ -565,7 +565,7 @@ static const float indicatorInset = 10;
 FloatPoint RemoteLayerTreeDrawingAreaProxy::indicatorLocation() const
 {
     FloatPoint tiledMapLocation;
-    auto* page = this->page();
+    RefPtr page = this->page();
     if (!page)
         return { };
 

@@ -34,6 +34,7 @@
 #include "InspectorCanvas.h"
 #include "InspectorInstrumentation.h"
 #include "IntRect.h"
+#include "JSDOMGlobalObject.h"
 #include "JSImageBitmap.h"
 #include "JSImageBitmapRenderingContext.h"
 #include "JSImageData.h"
@@ -77,8 +78,15 @@ void WorkerConsoleClient::messageWithTypeAndLevel(MessageType type, MessageLevel
 {
     String messageText;
     arguments->getFirstArgumentAsString(messageText);
-    auto message = makeUnique<Inspector::ConsoleMessage>(MessageSource::ConsoleAPI, type, level, messageText, WTF::move(arguments), exec);
-    Ref { m_globalScope.get() }->addConsoleMessage(WTF::move(message));
+
+    auto message = makeUnique<Inspector::ConsoleMessage>(MessageSource::ConsoleAPI, type, level, messageText, arguments.copyRef(), exec);
+    protect(m_globalScope.get())->addConsoleMessage(WTF::move(message));
+
+    auto* domGlobalObject = jsDynamicCast<JSDOMGlobalObject*>(exec);
+    if (level == MessageLevel::Error && domGlobalObject && domGlobalObject->hasScriptErrorCallbacks()) {
+        auto fullMessageText = makeStringByJoining(arguments->getArgumentsAsStrings(), " "_s);
+        domGlobalObject->invokeScriptErrorCallbacks(fullMessageText, message->url(), message->line(), message->column());
+    }
 }
 
 void WorkerConsoleClient::count(JSC::JSGlobalObject* exec, const String& label)

@@ -78,7 +78,7 @@ public:
 
     ResumeMode stopCode(Locker<Lock>&, StopTheWorldEvent) WTF_REQUIRES_LOCK(m_lock);
 
-    DebuggerTrapStatus handleDebuggerTrapIfNeeded(CallFrame*, JSWebAssemblyInstance*, IPIntCallee*, uint8_t* pc, uint8_t* mc, IPInt::IPIntLocal*, IPInt::IPIntStackEntry*, Wasm::ExceptionType);
+    DebuggerTrapStatus handleDebuggerTrapIfNeeded(CallFrame*, JSWebAssemblyInstance*, IPIntCallee*, uint8_t* pc, uint8_t* mc, IPInt::IPIntStackEntry*, Wasm::ExceptionType);
 
     JS_EXPORT_PRIVATE void resume();
     JS_EXPORT_PRIVATE void step();

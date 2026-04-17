@@ -31,10 +31,14 @@ namespace WebCore {
 
 // Common serializing methods. See: http://dev.w3.org/csswg/cssom/#common-serializing-idioms
 enum class ShouldSkipStartChecks : bool { No, Yes };
-void serializeIdentifier(StringBuilder& appendTo, StringView identifier, ShouldSkipStartChecks = ShouldSkipStartChecks::No);
-void serializeString(StringBuilder& appendTo, StringView);
+void serializeIdentifier(StringBuilder&, StringView identifier, ShouldSkipStartChecks = ShouldSkipStartChecks::No);
+
+void serializeString(StringBuilder&, StringView);
 String serializeString(StringView);
-void serializeURLTokenValue(StringBuilder& appendTo, StringView);
+
+void serializeURLTokenValue(StringBuilder&, StringView);
+
+void serializeFontFamily(StringBuilder&, StringView);
 String serializeFontFamily(const String&);
 
 } // namespace WebCore

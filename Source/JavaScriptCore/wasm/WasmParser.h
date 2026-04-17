@@ -185,13 +185,12 @@ ALWAYS_INLINE bool ParserBase::consumeUTF8String(Name& result, size_t stringLeng
         return false;
 
     auto string = byteCast<char8_t>(m_source.subspan(m_offset, stringLength));
-    if (auto checkResult = WTF::Unicode::checkUTF8(string); checkResult.characters.size() != string.size())
+    if (auto checkResult = WTF::Unicode::checkUTF8WithoutUTF16Length(string); checkResult.size() != string.size())
         return false;
 
-    result.grow(stringLength);
-    // FIXME: Adopt memcpySpan().
-    memcpy(result.mutableSpan().data(), string.data(), stringLength);
-    m_offset += stringLength;
+    result.grow(string.size());
+    memcpySpan(result.mutableSpan().last(string.size()), string);
+    m_offset += string.size();
     return true;
 }
 

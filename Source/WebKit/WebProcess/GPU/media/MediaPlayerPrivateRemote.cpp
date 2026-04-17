@@ -732,6 +732,17 @@ void MediaPlayerPrivateRemote::setPageIsVisible(bool visible)
     protect(connection())->send(Messages::RemoteMediaPlayerProxy::SetPageIsVisible(visible), m_id);
 }
 
+void MediaPlayerPrivateRemote::setViewportVisibility(ViewportVisibility visibility)
+{
+    if (m_viewportVisibility == visibility)
+        return;
+
+    ALWAYS_LOG(LOGIDENTIFIER, visibility);
+
+    m_viewportVisibility = visibility;
+    protect(connection())->send(Messages::RemoteMediaPlayerProxy::SetViewportVisibility(visibility), m_id);
+}
+
 void MediaPlayerPrivateRemote::setShouldMaintainAspectRatio(bool maintainRatio)
 {
     if (maintainRatio == m_shouldMaintainAspectRatio)

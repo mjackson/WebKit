@@ -34,6 +34,7 @@
 #include "ScriptWrappableInlines.h"
 #include "SubscriberCallback.h"
 #include "SubscriptionObserverCallback.h"
+#include <JavaScriptCore/Exception.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {

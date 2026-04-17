@@ -103,8 +103,8 @@ TEST(WebKit, UploadDirectory)
             });
         });
 
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
-        auto delegate = adoptNS([[UploadDelegate alloc] initWithDirectory:directory]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+        RetainPtr delegate = adoptNS([[UploadDelegate alloc] initWithDirectory:directory]);
         [webView setUIDelegate:delegate.get()];
 
         [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/", server.port()]]]];

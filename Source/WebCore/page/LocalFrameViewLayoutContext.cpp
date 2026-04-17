@@ -33,6 +33,7 @@
 #include "LayoutBoxGeometry.h"
 #include "LayoutContext.h"
 #include "LayoutDisallowedScope.h"
+#include "LayoutIntegrationInlineContent.h"
 #include "LayoutIntegrationLineLayout.h"
 #include "LayoutState.h"
 #include "LayoutTreeBuilder.h"
@@ -50,6 +51,7 @@
 #include "RenderStyle.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
+#include "SVGTextFragment.h"
 #include "ScriptDisallowedScope.h"
 #include "Settings.h"
 #include "StyleScope.h"
@@ -805,12 +807,38 @@ bool LocalFrameViewLayoutContext::DetachedRendererList::append(RenderPtr<RenderO
         return false;
     }
 
-    static constexpr int maximumNumberOfDetachedRenderers = 5000;
+    static constexpr unsigned maximumNumberOfDetachedRenderers = 5000;
     if (m_renderers.size() == maximumNumberOfDetachedRenderers)
         clear();
 
     m_renderers.append(detachedRenderer.release());
     return true;
+}
+
+LocalFrameViewLayoutContext::DetachedInlineContentList::~DetachedInlineContentList() = default;
+
+void LocalFrameViewLayoutContext::DetachedInlineContentList::append(std::unique_ptr<LayoutIntegration::InlineContent>&& content)
+{
+    static constexpr unsigned maximumNumberOfDeferredInlineContent = 5000;
+    if (m_inlineContent.size() == maximumNumberOfDeferredInlineContent)
+        clear();
+
+    m_inlineContent.append(WTF::move(content));
+}
+
+void LocalFrameViewLayoutContext::DetachedInlineContentList::clear()
+{
+    m_inlineContent.clear();
+}
+
+void LocalFrameViewLayoutContext::detachInlineContent(std::unique_ptr<LayoutIntegration::InlineContent>&& content) const
+{
+    m_detachedInlineContent.append(WTF::move(content));
+}
+
+void LocalFrameViewLayoutContext::deleteDetachedInlineContentNow() const
+{
+    m_detachedInlineContent.clear();
 }
 
 void LocalFrameViewLayoutContext::setBoxNeedsTransformUpdateAfterContainerLayout(RenderBox& box, RenderBlock& container)

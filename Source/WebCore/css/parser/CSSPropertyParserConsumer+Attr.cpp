@@ -32,6 +32,7 @@
 #include "CSSPrimitiveValue.h"
 #include "CSSPropertyParserConsumer+Primitives.h"
 #include "CSSPropertyParserState.h"
+#include "CSSString.h"
 #include <wtf/text/AtomString.h>
 
 namespace WebCore {
@@ -63,19 +64,16 @@ RefPtr<CSSValue> consumeAttr(CSSParserTokenRange args, CSS::PropertyParserState&
     if (!args.atEnd() && !consumeCommaIncludingWhitespace(args))
         return nullptr;
 
-    RefPtr<CSSValue> fallback;
+    std::optional<CSS::String> fallback;
     if (args.peek().type() == StringToken) {
         token = args.consumeIncludingWhitespace();
-        fallback = CSSPrimitiveValue::create(token.value().toString());
+        fallback = CSS::String { token.value().toString() };
     }
 
     if (!args.atEnd())
         return nullptr;
 
-    auto attr = CSSAttrValue::create(WTF::move(attrName), WTF::move(fallback));
-    // FIXME: Consider moving to a CSSFunctionValue with a custom-ident rather than a special CSS_ATTR primitive value.
-
-    return CSSPrimitiveValue::create(WTF::move(attr));
+    return CSSAttrValue::create(WTF::move(attrName), WTF::move(fallback));
 }
 
 } // namespace CSSPropertyParserHelpers

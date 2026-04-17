@@ -44,6 +44,7 @@ namespace WebCore {
 class FontCascadeDescription;
 class FontSelectionValue;
 class StyleResolver;
+struct CSSRegisteredCustomProperty;
 
 namespace CSSCalc {
 struct RandomCachingKey;
@@ -52,7 +53,9 @@ struct RandomCachingKey;
 namespace Style {
 
 class BuilderState;
+class CustomPropertyRegistry;
 class Image;
+class LocalPropertyRegistry;
 struct Color;
 struct FontFamilies;
 struct FontFeatureSettings;
@@ -89,6 +92,7 @@ struct BuilderContext {
     RefPtr<const Element> element { };
     CheckedPtr<TreeResolutionState> treeResolutionState { };
     std::optional<BuilderPositionTryFallback> positionTryFallback { };
+    const LocalPropertyRegistry* localPropertyRegistry { nullptr };
 };
 
 class BuilderState : public CanMakeCheckedPtr<BuilderState> {
@@ -123,6 +127,8 @@ public:
     const Document& document() const { return *m_context.document; }
     const Element* element() const { return m_context.element.get(); }
 
+    const CSSRegisteredCustomProperty* registeredProperty(const AtomString&) const;
+
     inline void setZoom(Zoom);
     inline void setUsedZoom(float);
     inline void setWritingMode(StyleWritingMode);
@@ -152,6 +158,7 @@ public:
     const CSSToLengthConversionData& cssToLengthConversionData() const LIFETIME_BOUND { return m_cssToLengthConversionData; }
 
     GuardedSubstitutionContexts::Guard guardSubstitutionContext(SubstitutionContext&& context) { return m_guardedSubstitutionContexts.guard(WTF::move(context)); }
+    void addGuardedFunctionContexts(const BuilderState& other) { m_guardedSubstitutionContexts.addFunctionContextsFrom(other.m_guardedSubstitutionContexts); }
 
     void setIsBuildingKeyframeStyle() { m_isBuildingKeyframeStyle = true; }
     bool hasRevertRuleOrLayerInKeyframeStyle() const { return m_hasRevertRuleOrLayerInKeyframeStyle; }

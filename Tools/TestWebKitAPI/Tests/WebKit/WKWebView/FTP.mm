@@ -46,12 +46,12 @@ namespace TestWebKitAPI {
 
 TEST(WKWebView, FTPMainResource)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     configuration.get()._shouldSendConsoleLogsToUIProcessForTesting = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     
     RetainPtr consoleMessages = [NSMutableArray arrayWithCapacity:2];
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().didReceiveConsoleLogForTesting = ^(NSString *log) {
         [consoleMessages addObject:log];
     };
@@ -70,12 +70,12 @@ TEST(WKWebView, FTPMainResourceRedirect)
         { "/ftp_redirect"_s, { 301, {{ "Location"_s, "ftp://example.com/"_s }} } },
     });
     
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     configuration.get()._shouldSendConsoleLogsToUIProcessForTesting = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     
     RetainPtr consoleMessages = [NSMutableArray arrayWithCapacity:2];
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().didReceiveConsoleLogForTesting = ^(NSString *log) {
         [consoleMessages addObject:log];
     };
@@ -97,12 +97,12 @@ Goodbye
 
 TEST(WKWebView, FTPSubresource)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     configuration.get()._shouldSendConsoleLogsToUIProcessForTesting = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
 
     RetainPtr consoleMessages = [NSMutableArray arrayWithCapacity:2];
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().didReceiveConsoleLogForTesting = ^(NSString *log) {
         [consoleMessages addObject:log];
     };
@@ -122,16 +122,16 @@ TEST(WKWebView, FTPSubresourceRedirect)
         { "/webkitten.png"_s, { 301, {{ "Location"_s, "ftp://example.com/webkitten.png"_s }} } },
     });
         
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     configuration.get()._shouldSendConsoleLogsToUIProcessForTesting = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     
     // Allow HTTP to redirect away from HTTP for subresources for the purposes of this test
     auto preferences = (__bridge WKPreferencesRef)[[webView configuration] preferences];
     WKPreferencesSetRestrictedHTTPResponseAccess(preferences, false);
     
     RetainPtr consoleMessages = [NSMutableArray arrayWithCapacity:2];
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().didReceiveConsoleLogForTesting = ^(NSString *log) {
         [consoleMessages addObject:log];
     };

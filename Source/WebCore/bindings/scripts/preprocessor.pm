@@ -59,10 +59,14 @@ sub applyPreprocessor
     }
 
     if ($Config::Config{"osname"} eq "darwin") {
-        (my $arch, @_) = split(" ", $ENV{ARCHS});
-        my $vendor = $ENV{LLVM_TARGET_TRIPLE_VENDOR};
-        my $os = $ENV{LLVM_TARGET_TRIPLE_OS_VERSION} . ($ENV{LLVM_TARGET_TRIPLE_SUFFIX} // "");
-        push(@args, "-target", "$arch-$vendor-$os");
+        if ($ENV{ARCHS}) {
+            (my $arch, @_) = split(" ", $ENV{ARCHS});
+            my $vendor = $ENV{LLVM_TARGET_TRIPLE_VENDOR};
+            my $os = $ENV{LLVM_TARGET_TRIPLE_OS_VERSION} . ($ENV{LLVM_TARGET_TRIPLE_SUFFIX} // "");
+            push(@args, "-target", "$arch-$vendor-$os");
+        }
+        # When ARCHS is unset (CMake builds), clang defaults to the host
+        # triple, which is correct for preprocessing.
         push(@args, "-I" . $ENV{BUILT_PRODUCTS_DIR} . "/usr/local/include") if $ENV{BUILT_PRODUCTS_DIR};
         push(@args, "-isysroot", $ENV{SDKROOT}) if $ENV{SDKROOT};
     }

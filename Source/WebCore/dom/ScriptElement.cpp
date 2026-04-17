@@ -227,6 +227,12 @@ bool ScriptElement::prepareScript(const TextPosition& scriptStartPosition)
     String sourceText = scriptContent();
     Ref element = this->element();
     Ref context = *element->scriptExecutionContext();
+
+    // Use the script start position captured when tree building (rather than the start line number)
+    // to match other browsers.
+    if (m_startLineNumber > OrdinalNumber::beforeFirst() && scriptStartPosition.m_line > OrdinalNumber::beforeFirst())
+        m_startLineNumber = scriptStartPosition.m_line;
+
     if (context->settingsValues().trustedTypesEnabled && sourceText != m_trustedScriptText) {
         auto trustedText = trustedTypeCompliantString(TrustedType::TrustedScript, context, sourceText, is<HTMLScriptElement>(element) ? "HTMLScriptElement text"_s : "SVGScriptElement text"_s);
         if (trustedText.hasException())

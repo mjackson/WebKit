@@ -150,6 +150,9 @@ public:
     // ActiveDOMObject
     void stop() final;
 
+    bool isIntersectingViewport() const final { return m_isIntersectingViewport; }
+    void viewportIntersectionChanged(bool isIntersecting);
+
 private:
     HTMLVideoElement(const QualifiedName&, Document&, bool createdByParser);
 
@@ -213,6 +216,7 @@ private:
     Vector<UniqueRef<VideoFrameRequest>> m_videoFrameRequests;
     Vector<UniqueRef<VideoFrameRequest>> m_servicedVideoFrameRequests;
     unsigned m_nextVideoFrameRequestIndex { 0 };
+    bool m_isIntersectingViewport { false };
 
 #if USE(GSTREAMER)
     bool m_enableGStreamerHolePunching { false };

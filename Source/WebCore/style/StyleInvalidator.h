@@ -28,6 +28,7 @@
 #include "RuleFeature.h"
 #include "RuleSet.h"
 #include <wtf/Forward.h>
+#include <wtf/GenericHashKey.h>
 #include <wtf/HashMap.h>
 
 namespace WebCore {
@@ -63,7 +64,7 @@ public:
 
     static void invalidateShadowParts(ShadowRoot&);
 
-    using MatchElementRuleSets = HashMap<MatchElement, InvalidationRuleSetVector, IntHash<MatchElement>, WTF::StrongEnumHashTraits<MatchElement>>;
+    using MatchElementRuleSets = HashMap<GenericHashKey<MatchElement>, InvalidationRuleSetVector>;
     static void addToMatchElementRuleSets(Invalidator::MatchElementRuleSets&, const InvalidationRuleSet&);
     static void addToMatchElementRuleSetsRespectingNegation(Invalidator::MatchElementRuleSets&, const InvalidationRuleSet&);
     static void invalidateWithMatchElementRuleSets(Element&, const MatchElementRuleSets&);

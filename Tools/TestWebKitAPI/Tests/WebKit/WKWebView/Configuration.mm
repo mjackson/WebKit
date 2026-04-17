@@ -34,28 +34,28 @@
 
 TEST(WebKit, ConfigurationCPULimit)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     EXPECT_EQ([configuration _cpuLimit], 0);
     [configuration _setCPULimit:0.75];
     EXPECT_EQ([configuration _cpuLimit], 0.75);
-    auto other = adoptNS([configuration copy]);
+    RetainPtr other = adoptNS([configuration copy]);
     EXPECT_EQ([other _cpuLimit], 0.75);
 }
 
 TEST(WebKit, ConfigurationDrawsBackground)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     EXPECT_EQ([configuration _drawsBackground], YES);
     [configuration _setDrawsBackground:NO];
     EXPECT_EQ([configuration _drawsBackground], NO);
 
-    auto other = adoptNS([configuration copy]);
+    RetainPtr other = adoptNS([configuration copy]);
     EXPECT_EQ([other _drawsBackground], NO);
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect]);
     EXPECT_EQ([webView _drawsBackground], YES);
 
-    auto configedWebView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr configedWebView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
     EXPECT_EQ([configedWebView _drawsBackground], NO);
 }
 

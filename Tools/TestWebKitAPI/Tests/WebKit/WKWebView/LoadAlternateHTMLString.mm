@@ -68,8 +68,8 @@ static NSString *loadableURL = @"data:text/html,no%20error";
 
 TEST(WKWebView, LoadAlternateHTMLStringFromProvisionalLoadError)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
-    auto controller = adoptNS([[LoadAlternateHTMLStringFromProvisionalLoadErrorController alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr controller = adoptNS([[LoadAlternateHTMLStringFromProvisionalLoadErrorController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:unloadableURL]]];
@@ -126,14 +126,14 @@ TEST(WKWebView, LoadAlternateHTMLStringFromProvisionalLoadErrorBackToBack)
 
 TEST(WKWebView, LoadAlternateHTMLStringNoFileSystemPath)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
     [webView loadHTMLString:@"<html>hi</html>" baseURL:[NSURL URLWithString:@"file:///.file/id="]];
 }
 
 TEST(WKWebView, LoadNilAlternateHTMLStringDoesNotCrash)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
-    auto controller = adoptNS([LoadAlternateHTMLStringFromProvisionalLoadErrorController new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr controller = adoptNS([LoadAlternateHTMLStringFromProvisionalLoadErrorController new]);
     [webView setNavigationDelegate:controller.get()];
 
     IGNORE_NULL_CHECK_WARNINGS_BEGIN
@@ -145,8 +145,8 @@ TEST(WKWebView, LoadNilAlternateHTMLStringDoesNotCrash)
 
 TEST(WKWebView, LoadAlternateHTMLStringFromProvisionalLoadErrorReload)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
-    auto controller = adoptNS([[LoadAlternateHTMLStringFromProvisionalLoadErrorController alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr controller = adoptNS([[LoadAlternateHTMLStringFromProvisionalLoadErrorController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
 
     NSURL *invalidURL = [NSURL URLWithString:@"https://www.example.com%3C%3E/"];
@@ -180,8 +180,8 @@ TEST(WKWebView, LoadHTMLStringOrigin)
             done = true;
         });
     });
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *, void (^completionHandler)(WKNavigationActionPolicy)) {
         completionHandler(WKNavigationActionPolicyAllow);
     };
@@ -193,9 +193,9 @@ TEST(WKWebView, LoadHTMLStringOrigin)
 
 TEST(WebKit, LoadHTMLStringWithInvalidBaseURL)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect]);
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     __block bool didCrash = false;

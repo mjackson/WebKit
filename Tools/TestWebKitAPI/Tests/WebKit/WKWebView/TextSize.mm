@@ -34,8 +34,8 @@
 
 TEST(WebKit, TextSize)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView configuration].preferences._textAutosizingEnabled = NO;
     [webView synchronouslyLoadHTMLString:
         @"<!DOCTYPE html>"

@@ -232,6 +232,14 @@ void Line::handleTrailingHangingContent(std::optional<IntrinsicWidthMode> intrin
     }
 }
 
+void Line::detachHangingTrailingWhitespaceIfApplicable()
+{
+    if (m_runs.isEmpty() || !isHangingTrailingContentWhitespace())
+        return;
+    if (auto trailingRun = m_runs.last().detachTrailingWhitespace())
+        m_runs.append(*trailingRun);
+}
+
 void Line::resetBidiLevelForTrailingWhitespace(UBiDiLevel rootBidiLevel)
 {
     ASSERT(m_trimmableTrailingContent.isEmpty());

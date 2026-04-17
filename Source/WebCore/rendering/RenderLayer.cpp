@@ -2162,17 +2162,9 @@ bool RenderLayer::updateLayerPosition(OptionSet<UpdateLayerPositionsFlag>* flags
         // We must adjust our position by walking up the render tree looking for the
         // nearest enclosing object with a layer.
         while (ancestor && !ancestor->hasLayer()) {
-            if (auto* boxRenderer = dynamicDowncast<RenderBox>(ancestor)) {
-                // Rows and cells share the same coordinate space (that of the section).
-                // Omit them when computing our xpos/ypos.
-                if (!is<RenderTableRow>(boxRenderer))
-                    localPoint += boxRenderer->topLeftLocationOffset();
-            }
+            if (auto* boxRenderer = dynamicDowncast<RenderBox>(ancestor))
+                localPoint += boxRenderer->topLeftLocationOffset();
             ancestor = ancestor->parent();
-        }
-        if (auto* tableRow = dynamicDowncast<RenderTableRow>(ancestor)) {
-            // Put ourselves into the row coordinate space.
-            localPoint -= tableRow->topLeftLocationOffset();
         }
     }
     

@@ -1,0 +1,3 @@
+
+FAIL Node.moveBefore should trigger CSS transition state (left) if needed promise_test: Unhandled rejection with value: object "TypeError: document.querySelector("#new-parent").moveBefore is not a function. (In 'document.querySelector("#new-parent").moveBefore(item, null)', 'document.querySelector("#new-parent").moveBefore' is undefined)"
+

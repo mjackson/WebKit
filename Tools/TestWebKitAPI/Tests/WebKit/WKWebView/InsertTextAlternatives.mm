@@ -40,8 +40,8 @@ namespace TestWebKitAPI {
 TEST(InsertTextAlternatives, Simple)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -73,8 +73,8 @@ TEST(InsertTextAlternatives, Simple)
 TEST(InsertTextAlternatives, InsertLeadingSpace)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -95,8 +95,8 @@ TEST(InsertTextAlternatives, InsertLeadingSpace)
 TEST(InsertTextAlternatives, InsertLeadingNewline)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -124,8 +124,8 @@ static inline NSString *makeNSStringWithCharacter(unichar c)
 TEST(InsertTextAlternatives, InsertLeadingNoBreakSpace_ExpectedFailure)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -148,8 +148,8 @@ TEST(InsertTextAlternatives, InsertLeadingNoBreakSpace_ExpectedFailure)
 TEST(InsertTextAlternatives, InsertTrailingSpace)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -168,8 +168,8 @@ TEST(InsertTextAlternatives, InsertTrailingSpace)
 TEST(InsertTextAlternatives, InsertTrailingSpaceWhitespaceRebalance)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -185,8 +185,8 @@ TEST(InsertTextAlternatives, InsertTrailingSpaceWhitespaceRebalance)
 TEST(InsertTextAlternatives, InsertTrailingNewline)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -208,8 +208,8 @@ TEST(InsertTextAlternatives, InsertTrailingNewline)
 TEST(InsertTextAlternatives, InsertTrailingNoBreakSpace_ExpectedFailure)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -229,8 +229,8 @@ TEST(InsertTextAlternatives, InsertTrailingNoBreakSpace_ExpectedFailure)
 TEST(InsertTextAlternatives, InsertSpaceInMiddle)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -252,8 +252,8 @@ TEST(InsertTextAlternatives, InsertSpaceInMiddle)
 TEST(InsertTextAlternatives, InsertNewlineInMiddle_ExpectedFailure)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -279,8 +279,8 @@ TEST(InsertTextAlternatives, InsertNewlineInMiddle_ExpectedFailure)
 TEST(InsertTextAlternatives, InsertNoBreakSpaceInMiddle)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -304,8 +304,8 @@ TEST(InsertTextAlternatives, InsertNoBreakSpaceInMiddle)
 TEST(InsertTextAlternatives, InsertLeadingNonWhitespaceCharacter)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -326,8 +326,8 @@ TEST(InsertTextAlternatives, InsertLeadingNonWhitespaceCharacter)
 TEST(InsertTextAlternatives, InsertTrailingNonWhitespaceCharacter)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -345,8 +345,8 @@ TEST(InsertTextAlternatives, InsertTrailingNonWhitespaceCharacter)
 TEST(InsertTextAlternatives, InsertNonWhitespaceCharacterInMiddle)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -368,8 +368,8 @@ TEST(InsertTextAlternatives, InsertNonWhitespaceCharacterInMiddle)
 TEST(InsertTextAlternatives, InsertMultipleWordsWithAlternatives)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 

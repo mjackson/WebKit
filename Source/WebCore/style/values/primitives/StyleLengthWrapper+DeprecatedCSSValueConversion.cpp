@@ -33,6 +33,8 @@ namespace Style {
 
 std::optional<CSSToLengthConversionData> deprecatedLengthConversionCreateCSSToLengthConversionData(RefPtr<Element> element)
 {
+    if (!element)
+        return std::nullopt;
     CheckedPtr elementRenderer = element->renderer();
     if (!elementRenderer)
         return std::nullopt;

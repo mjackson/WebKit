@@ -148,7 +148,7 @@ static bool hasValidColumnEnd(const Style::GridPositionExplicit& explicitColumnS
             return false;
         },
         [&](const Style::GridPositionExplicit&) {
-            if (!columnEnd.namedGridLine().isEmpty() || columnEnd.explicitPosition() < 0 || columnEnd.explicitPosition() > static_cast<int>(linesFromGridTemplateColumnsCount))
+            if (!columnEnd.namedGridLine().value.isEmpty() || columnEnd.explicitPosition() < 0 || columnEnd.explicitPosition() > static_cast<int>(linesFromGridTemplateColumnsCount))
                 return false;
 
             // FIXME: Multi-span items are not yet supported in intrinsic sizing
@@ -198,7 +198,7 @@ static bool hasValidRowEnd(const Style::GridPositionExplicit& explicitRowStart, 
             return false;
         },
         [&](const Style::GridPositionExplicit&) {
-            if (!rowEnd.namedGridLine().isEmpty() || rowEnd.explicitPosition() < 0 || rowEnd.explicitPosition() > static_cast<int>(linesFromGridTemplateRowsCount))
+            if (!rowEnd.namedGridLine().value.isEmpty() || rowEnd.explicitPosition() < 0 || rowEnd.explicitPosition() > static_cast<int>(linesFromGridTemplateRowsCount))
                 return false;
 
             // FIXME: Multi-span items are not yet supported in intrinsic sizing
@@ -477,7 +477,7 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
             },
             [&](const Style::GridPositionExplicit& explicitPosition) -> std::optional<GridAvoidanceReason> {
                 auto columnStartLineNumber = explicitPosition.position.value;
-                if (!columnStart.namedGridLine().isEmpty())
+                if (!columnStart.namedGridLine().value.isEmpty())
                     return GridAvoidanceReason::GridItemColumnStartHasLineName;
                 if (columnStartLineNumber < 0)
                     return GridAvoidanceReason::GridItemColumnStartHasNegativeLineNumber;
@@ -507,7 +507,7 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
             },
             [&](const Style::GridPositionExplicit& explicitPosition) -> std::optional<GridAvoidanceReason> {
                 auto rowStartLineNumber = explicitPosition.position.value;
-                if (!rowStart.namedGridLine().isEmpty())
+                if (!rowStart.namedGridLine().value.isEmpty())
                     return GridAvoidanceReason::GridItemRowStartHasLineName;
                 if (rowStartLineNumber < 0)
                     return GridAvoidanceReason::GridItemRowStartHasNegativeLineNumber;

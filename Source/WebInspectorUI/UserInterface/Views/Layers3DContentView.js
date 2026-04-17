@@ -538,6 +538,9 @@ WI.Layers3DContentView = class Layers3DContentView extends WI.ContentView
 
     _resetCamera()
     {
+        if (!this._layers.length)
+            return;
+
         let {x, y, width, height} = this._layers[0].bounds;
         this._controls.target.set(x + (width / 2), -y - (height / 2), 0);
         this._camera.position.set(x + (width / 2), -y - (height / 2), this._controls.maxDistance - WI.Layers3DContentView._zPadding / 2);
@@ -656,6 +659,9 @@ WI.Layers3DContentView = class Layers3DContentView extends WI.ContentView
         this._visibleDimensionsElement.textContent = `${layer.bounds.width}px ${multiplicationSign} ${layer.bounds.height}px`;
 
         WI.layerTreeManager.reasonsForCompositingLayer(layer, (compositingReasons) => {
+            if (this._selectedLayerGroup?.userData.layer.layerId !== layer.layerId)
+                return;
+
             this._updateReasonsList(compositingReasons);
             this._layerInfoElement.classList.remove("hidden");
         });

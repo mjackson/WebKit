@@ -158,9 +158,6 @@
 #include "JSGlobalObjectFunctions.h"
 #include "JSGlobalObjectInlines.h"
 #include "JSGlobalProxyInlines.h"
-#include "JSInternalPromise.h"
-#include "JSInternalPromiseConstructor.h"
-#include "JSInternalPromisePrototype.h"
 #include "JSIterator.h"
 #include "JSIteratorConstructor.h"
 #include "JSIteratorHelper.h"
@@ -176,6 +173,7 @@
 #include "JSModuleLoaderInlines.h"
 #include "JSModuleNamespaceObjectInlines.h"
 #include "JSModuleRecord.h"
+#include "JSModuleRecordInlines.h"
 #include "JSNativeStdFunctionInlines.h"
 #include "JSONObjectInlines.h"
 #include "JSPromise.h"
@@ -883,18 +881,6 @@ JSC_DEFINE_HOST_FUNCTION(promiseResolveWithThen, (JSGlobalObject* globalObject, 
     JSObject* constructor = jsCast<JSObject*>(callFrame->uncheckedArgument(0));
     JSValue argument = callFrame->uncheckedArgument(1);
 
-    // If constructor is Promise and argument is InternalPromise,
-    // create a new regular Promise instead of returning InternalPromise directly.
-    // This "shields" the internal promise from user code.
-    if (constructor == globalObject->promiseConstructor() && argument.inherits<JSInternalPromise>()) {
-        JSPromise* promise = JSPromise::create(vm, globalObject->promiseStructure());
-        promise->resolve(globalObject, vm, argument);
-        // Set @then property
-        auto thenPrivateName = vm.propertyNames->builtinNames().thenPrivateName();
-        promise->putDirect(vm, thenPrivateName, globalObject->promiseProtoThenFunction(), PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly);
-        return JSValue::encode(promise);
-    }
-
     JSObject* promise = JSPromise::promiseResolve(globalObject, constructor, argument);
     if (promise) [[likely]] {
         // Set @then property on the promise if it doesn't already have one
@@ -1516,10 +1502,8 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
 #undef CREATE_CONSTRUCTOR_FOR_SIMPLE_TYPE
 
     m_promiseConstructor.set(vm, this, promiseConstructor);
-    m_internalPromiseConstructor.set(vm, this, internalPromiseConstructor);
     m_stringConstructor.set(vm, this, stringConstructor);
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::Promise)].set(vm, this, promiseConstructor);
-    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::InternalPromise)].set(vm, this, internalPromiseConstructor);
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::String)].set(vm, this, stringConstructor);
 
     m_evalErrorStructure.initLater(
@@ -1866,7 +1850,7 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     m_moduleLoader.initLater(
         [] (const Initializer<JSModuleLoader>& init) {
             auto catchScope = DECLARE_TOP_EXCEPTION_SCOPE(init.vm);
-            init.set(JSModuleLoader::create(init.owner, init.vm, JSModuleLoader::createStructure(init.vm, init.owner, jsNull())));
+            init.set(JSModuleLoader::create(init.owner, init.vm));
             catchScope.releaseAssertNoException();
         });
     if (Options::exposeInternalModuleLoader())
@@ -2293,7 +2277,7 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     if (Wasm::isSupported()) {
         m_webAssemblyModuleRecordStructure.initLater(
             [] (const Initializer<Structure>& init) {
-                init.set(WebAssemblyModuleRecord::createStructure(init.vm, init.owner, init.owner->m_objectPrototype.get()));
+                init.set(WebAssemblyModuleRecord::createStructure(init.vm, init.owner, jsNull()));
             });
         m_webAssemblyFunctionStructure.initLater(
             [] (const Initializer<Structure>& init) {
@@ -3009,7 +2993,6 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     visitor.append(thisObject->m_functionConstructor);
     visitor.append(thisObject->m_iteratorConstructor);
     visitor.append(thisObject->m_promiseConstructor);
-    visitor.append(thisObject->m_internalPromiseConstructor);
     visitor.append(thisObject->m_stringConstructor);
 
     thisObject->m_defaultCollator.visit(visitor);

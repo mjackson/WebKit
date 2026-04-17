@@ -38,6 +38,7 @@
 @class _WKProcessPoolConfiguration;
 
 #if PLATFORM(IOS_FAMILY)
+#import "UIKitSPIForTesting.h"
 #import "WKBrowserEngineDefinitions.h"
 @class _WKActivatedElementInfo;
 @class _WKTextInputContext;
@@ -211,6 +212,7 @@ class Color;
 - (void)focus;
 - (std::optional<CGPoint>)getElementMidpoint:(NSString *)selector;
 - (Vector<WebCore::Color>)sampleColors;
+- (Vector<WebCore::Color>)sampleColorsInRect:(CGRect)rect;
 - (Vector<WebCore::Color>)sampleColorsWithInterval:(unsigned)interval;
 - (RetainPtr<_WKFrameTreeNode>)frameTree;
 - (void)typeCharacter:(char)character;

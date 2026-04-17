@@ -3077,6 +3077,33 @@ def check_wtf_xpc_object_ptr(clean_lines, line_number, file_state, error):
         return
 
 
+def check_auto_with_adopt(clean_lines, line_number, file_state, error):
+    """Looks for usage of 'auto' with adopt functions, which should use the explicit smart pointer type.
+
+    Args:
+      clean_lines: A CleansedLines instance containing the file.
+      line_number: The number of the line to check.
+      file_state: A _FileState instance which maintains information about
+                  the state of things in the file.
+      error: The function to call with any errors found.
+    """
+
+    line = clean_lines.elided[line_number]  # Get rid of comments and strings.
+
+    matched = search(r'\bauto\b\s+\w+\s*=\s*adopt(NS|CF|GDIObject|OSObject|Ref)\b', line)
+    if matched:
+        adopt_func = 'adopt' + matched.group(1)
+        type_map = {
+            'adoptNS': 'RetainPtr',
+            'adoptCF': 'RetainPtr',
+            'adoptGDIObject': 'GDIObject',
+            'adoptOSObject': 'OSObjectPtr',
+            'adoptRef': 'Ref/RefPtr',
+        }
+        smart_ptr = type_map.get(adopt_func, 'the appropriate smart pointer type')
+        error(line_number, 'runtime/auto_with_adopt', 4, "Use '%s' instead of 'auto' with '%s()'." % (smart_ptr, adopt_func))
+
+
 def check_lock_guard(clean_lines, line_number, file_state, error):
     """Looks for use of 'std::lock_guard<>' which should be replaced with 'WTF::Locker'.
 
@@ -3897,6 +3924,7 @@ def check_style(clean_lines, line_number, file_extension, class_state, file_stat
     check_wtf_never_destroyed(clean_lines, line_number, file_state, error)
     check_wtf_os_object_ptr(clean_lines, line_number, file_state, error)
     check_wtf_xpc_object_ptr(clean_lines, line_number, file_state, error)
+    check_auto_with_adopt(clean_lines, line_number, file_state, error)
     check_lock_guard(clean_lines, line_number, file_state, error)
     check_log(clean_lines, line_number, file_state, error)
     check_ctype_functions(clean_lines, line_number, file_state, error)
@@ -5176,6 +5204,7 @@ class CppChecker(object):
         'runtime/unsafe_get_ptr',
         'runtime/unsigned',
         'runtime/virtual',
+        'runtime/auto_with_adopt',
         'runtime/wtf_checked_size',
         'runtime/wtf_make_unique',
         'runtime/wtf_move',

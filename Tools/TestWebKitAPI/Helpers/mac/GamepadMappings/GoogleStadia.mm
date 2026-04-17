@@ -186,7 +186,7 @@ static void publishReportCallback(Vector<float>& buttonValues, Vector<float>& ax
     // Final byte has 5 padding bits, 3 button bits in it, but no way to actuate them
     reportData[reportIndex++] = 0x00;
 
-    auto nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:StadiaReportSize]);
+    RetainPtr nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:StadiaReportSize]);
     [userDevice handleReport:nsReportData.get() error:nil];
 }
 

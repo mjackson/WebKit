@@ -167,7 +167,9 @@ private:
     void synchronizeTextTrackState() final;
 
     bool timeIsProgressing() const final { return effectiveRate(); }
-    void platformSetVisible(bool) final;
+    void platformPageIsVisibleChanged(bool) final;
+    void platformViewportVisibilityChanged(ViewportVisibility) final;
+
     void platformPlay() final;
     void platformPause() final;
     bool platformPaused() const final;
@@ -405,6 +407,9 @@ private:
     void setParticipatesInAudioSession(bool);
 #endif
 
+    void updateLayerAttachment();
+    bool shouldAttachLayerToPlayer();
+
     RetainPtr<AVURLAsset> m_avAsset;
     RetainPtr<AVPlayer> m_avPlayer;
     RetainPtr<AVPlayerItem> m_avPlayerItem;
@@ -519,6 +524,7 @@ private:
     bool m_muted { false };
     bool m_preservesPitch { true };
     bool m_shouldObserveTimeControlStatus { false };
+    bool m_isInFullscreenOrPictureInPicture { false };
     mutable std::optional<bool> m_tracksArePlayable;
     bool m_automaticallyWaitsToMinimizeStalling { false };
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)

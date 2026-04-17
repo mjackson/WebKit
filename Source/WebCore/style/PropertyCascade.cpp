@@ -234,6 +234,12 @@ bool PropertyCascade::mayOverrideExistingProperty(CSSPropertyID propertyID, cons
     return !!m_lastIndexForLogicalGroup;
 }
 
+const PropertyCascade::Property& PropertyCascade::functionResultProperty() const
+{
+    ASSERT(hasNormalProperty(CSSPropertyResult));
+    return normalProperty(CSSPropertyResult);
+}
+
 const PropertyCascade::Property* PropertyCascade::lastPropertyResolvingLogicalPropertyPair(CSSPropertyID propertyID, WritingMode writingMode) const
 {
     ASSERT(CSSProperty::isInLogicalPropertyGroup(propertyID));
@@ -294,6 +300,8 @@ bool PropertyCascade::addMatch(const MatchedProperties& matchedProperties, Origi
                 return false;
 #endif
             if (propertyAllowlist == PropertyAllowlist::Marker && !isValidMarkerStyleProperty(propertyID))
+                return false;
+            if (propertyAllowlist == PropertyAllowlist::Highlight && !isValidHighlightStyleProperty(propertyID))
                 return false;
 
             if (m_includedProperties.types.containsAll(normalPropertyTypes()))

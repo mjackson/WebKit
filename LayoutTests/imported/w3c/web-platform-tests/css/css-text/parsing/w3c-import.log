@@ -27,6 +27,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-text/parsing/hyphens-invalid.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-text/parsing/hyphens-valid.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-text/parsing/letter-spacing-computed.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-text/parsing/letter-spacing-inherited-computed.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-text/parsing/letter-spacing-invalid.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-text/parsing/letter-spacing-valid.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-text/parsing/line-break-computed.html

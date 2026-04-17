@@ -181,6 +181,16 @@ void WebFullScreenManagerProxy::close()
 void WebFullScreenManagerProxy::detachFromClient()
 {
     close();
+
+    // If we were in fullscreen, notify the client that fullscreen has exited,
+    // since the normal IPC round-trip through the web process won't complete
+    // after the page is closed.
+    if (m_fullscreenState != FullscreenState::NotInFullscreen) {
+        m_fullscreenState = FullscreenState::NotInFullscreen;
+        if (RefPtr page = m_page.get())
+            page->fullscreenClient().didExitFullscreen(page.get());
+    }
+
     m_client = nullptr;
 }
 

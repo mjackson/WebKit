@@ -2,6 +2,7 @@
  * (C) 1999-2003 Lars Knoll (knoll@kde.org)
  * Copyright (C) 2004-2023 Apple Inc. All rights reserved.
  * Copyright (C) 2007 Alexey Proskuryakov <ap@webkit.org>
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -21,10 +22,8 @@
 
 #pragma once
 
-#include <WebCore/CSSAttrValue.h>
 #include <WebCore/CSSCalcValue.h>
 #include <WebCore/CSSPrimitiveNumericUnits.h>
-#include <WebCore/CSSPropertyNames.h>
 #include <WebCore/CSSValue.h>
 #include <WebCore/CSSValueKeywords.h>
 #include <WebCore/LayoutUnit.h>
@@ -57,7 +56,6 @@ public:
 
     // FIXME: Some of these use primitiveUnitType() and some use NODELETE primitiveType(). Many that use primitiveUnitType() are likely broken with calc().
     bool isAngle() const { return unitCategory(primitiveType()) == CSSUnitCategory::Angle; }
-    bool isAttr() const { return primitiveUnitType() == CSSUnitType::CSS_ATTR; }
     bool isFontIndependentLength() const { return isFontIndependentLength(primitiveUnitType()); }
     bool isFontRelativeLength() const { return isFontRelativeLength(primitiveUnitType()); }
     bool isParentFontRelativeLength() const { return isPercentage() || (isFontRelativeLength() && !isRootFontRelativeLength()); }
@@ -88,21 +86,10 @@ public:
     static Ref<CSSPrimitiveValue> create(double, CSSUnitType);
     static Ref<CSSPrimitiveValue> NODELETE createInteger(double);
     static Ref<CSSPrimitiveValue> create(Ref<CSSCalc::Value>);
-    static Ref<CSSPrimitiveValue> NODELETE create(Ref<CSSAttrValue>);
 
     static inline Ref<CSSPrimitiveValue> create(CSSValueID);
     bool isValueID() const { return primitiveUnitType() == CSSUnitType::CSS_VALUE_ID; }
     CSSValueID valueID() const { return isValueID() ? m_value.valueID : CSSValueInvalid; }
-
-    static Ref<CSSPrimitiveValue> NODELETE create(CSSPropertyID);
-    bool isPropertyID() const { return primitiveUnitType() == CSSUnitType::CSS_PROPERTY_ID; }
-    CSSPropertyID propertyID() const { return isPropertyID() ? m_value.propertyID : CSSPropertyInvalid; }
-
-    bool isString() const { return primitiveUnitType() == CSSUnitType::CSS_STRING; }
-    static Ref<CSSPrimitiveValue> create(String);
-
-    static Ref<CSSPrimitiveValue> createFontFamily(String);
-    bool isFontFamily() const { return primitiveUnitType() == CSSUnitType::CSS_FONT_FAMILY; }
 
     static inline CSSPrimitiveValue& implicitInitialValue();
 
@@ -172,7 +159,6 @@ public:
 
     WEBCORE_EXPORT String stringValue() const;
     const CSSCalc::Value* cssCalcValue() const { return isCalculated() ? m_value.calc : nullptr; }
-    const CSSAttrValue* cssAttrValue() const { return isAttr() ? m_value.attr : nullptr; }
 
     String customCSSText(const CSS::SerializationContext&) const;
 
@@ -188,11 +174,9 @@ private:
     friend LazyNeverDestroyed<CSSPrimitiveValue>;
     friend bool CSSValue::addHash(Hasher&) const;
 
-    explicit CSSPrimitiveValue(CSSPropertyID);
     CSSPrimitiveValue(const String&, CSSUnitType);
     CSSPrimitiveValue(double, CSSUnitType);
     explicit CSSPrimitiveValue(Ref<CSSCalc::Value>);
-    explicit CSSPrimitiveValue(Ref<CSSAttrValue>);
 
     CSSPrimitiveValue(StaticCSSValueTag, CSSValueID);
     CSSPrimitiveValue(StaticCSSValueTag, double, CSSUnitType);
@@ -244,12 +228,9 @@ private:
     static constexpr bool isViewportPercentageLength(CSSUnitType);
 
     union {
-        CSSPropertyID propertyID;
         CSSValueID valueID;
         double number;
-        StringImpl* string;
         const CSSCalc::Value* calc;
-        const CSSAttrValue* attr;
     } m_value;
 };
 
@@ -733,18 +714,6 @@ inline CSSValueID CSSValue::valueID() const
 {
     auto* value = dynamicDowncast<CSSPrimitiveValue>(*this);
     return value ? value->valueID() : CSSValueInvalid;
-}
-
-inline bool CSSValue::isString() const
-{
-    auto* value = dynamicDowncast<CSSPrimitiveValue>(*this);
-    return value && value->isString();
-}
-
-inline String CSSValue::string() const
-{
-    ASSERT(isString());
-    return downcast<CSSPrimitiveValue>(*this).stringValue();
 }
 
 inline bool CSSValue::isInteger() const

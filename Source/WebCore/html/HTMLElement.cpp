@@ -1137,7 +1137,8 @@ static void runPopoverFocusingSteps(HTMLElement& popover)
 
 void HTMLElement::queuePopoverToggleEventTask(ToggleState oldState, ToggleState newState, Element* source)
 {
-    popoverData()->ensureToggleEventTask(*this)->queue(oldState, newState, source);
+    if (auto* popoverData = this->popoverData())
+        popoverData->ensureToggleEventTask(*this)->queue(oldState, newState, source);
 }
 
 ExceptionOr<void> HTMLElement::showPopover(const ShowPopoverOptions& options)
@@ -1202,16 +1203,20 @@ ExceptionOr<void> HTMLElement::showPopoverInternal(HTMLElement* source)
 
     addToTopLayer();
 
-    popoverData()->setPreviouslyFocusedElement(nullptr);
+    if (auto* popoverData = this->popoverData())
+        popoverData->setPreviouslyFocusedElement(nullptr);
 
     Style::PseudoClassChangeInvalidation styleInvalidation(*this, CSSSelector::PseudoClass::PopoverOpen, true);
-    popoverData()->setVisibilityState(PopoverVisibilityState::Showing);
+    if (auto* popoverData = this->popoverData())
+        popoverData->setVisibilityState(PopoverVisibilityState::Showing);
 
     runPopoverFocusingSteps(*this);
 
     if (shouldRestoreFocus) {
-        ASSERT(popoverState() == PopoverState::Auto);
-        popoverData()->setPreviouslyFocusedElement(previouslyFocusedElement.get());
+        if (auto* popoverData = this->popoverData()) {
+            ASSERT(popoverState() == PopoverState::Auto);
+            popoverData->setPreviouslyFocusedElement(previouslyFocusedElement.get());
+        }
     }
 
     queuePopoverToggleEventTask(ToggleState::Closed, ToggleState::Open, source);

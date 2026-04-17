@@ -26,6 +26,7 @@
 #pragma once
 
 #include <WebCore/StyleCustomIdent.h>
+#include <WebCore/StyleString.h>
 #include <WebCore/StyleValueTypes.h>
 #include <wtf/text/AtomString.h>
 
@@ -35,12 +36,17 @@ namespace Style {
 // <'-webkit-locale'> = auto | <string>
 // NOTE: There is no standard associated with this property.
 struct WebkitLocale {
-    WebkitLocale(CSS::Keyword::Auto) : m_platform { nullAtom() } { }
-    WebkitLocale(const AtomString& value) : m_platform { value } { }
-    WebkitLocale(AtomString&& value) : m_platform { WTF::move(value) } { }
+    using Platform = AtomString;
 
-    const AtomString& platform() const LIFETIME_BOUND { return m_platform; }
-    AtomString takePlatform() { return WTF::move(m_platform); }
+    WebkitLocale(CSS::Keyword::Auto) : m_platform { nullAtom() } { }
+    WebkitLocale(const String& value) : m_platform { value.value } { }
+    WebkitLocale(String&& value) : m_platform { WTF::move(value.value) } { }
+
+    WebkitLocale(const Platform& value) : m_platform { value } { }
+    WebkitLocale(Platform&& value) : m_platform { WTF::move(value) } { }
+
+    const Platform& platform() const LIFETIME_BOUND { return m_platform; }
+    Platform takePlatform() { return WTF::move(m_platform); }
 
     bool isAuto() const { return m_platform.isNull(); }
 
@@ -58,7 +64,7 @@ struct WebkitLocale {
     bool operator==(const WebkitLocale&) const = default;
 
 private:
-    AtomString m_platform;
+    Platform m_platform;
 };
 
 // MARK: - Conversion

@@ -62,7 +62,7 @@ TEST(WKWebExtensionDataRecord, GetDataRecords)
         @"await browser?.storage?.sync?.set(data)",
     ]);
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:dataRecordTestManifest resources:@{ @"background.js": backgroundScript  }]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:dataRecordTestManifest resources:@{ @"background.js": backgroundScript  }]);
     auto *testController = [[WKWebExtensionController alloc] initWithConfiguration:WKWebExtensionControllerConfiguration._temporaryConfiguration];
 
     auto *context = [[WKWebExtensionContext alloc] initForExtension:extension.get()];
@@ -183,7 +183,7 @@ TEST(WKWebExtensionDataRecord, DISABLED_RemoveDataRecords)
         @"await browser?.storage?.sync?.set(data)",
     ]);
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:dataRecordTestManifest resources:@{ @"background.js": backgroundScript  }]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:dataRecordTestManifest resources:@{ @"background.js": backgroundScript  }]);
     auto *testController = [[WKWebExtensionController alloc] initWithConfiguration:WKWebExtensionControllerConfiguration._temporaryConfiguration];
 
     auto *context = [[WKWebExtensionContext alloc] initForExtension:extension.get()];

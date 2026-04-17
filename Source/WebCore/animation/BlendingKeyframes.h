@@ -165,6 +165,7 @@ public:
     bool hasExplicitlyInheritedKeyframeProperty() const { return m_hasExplicitlyInheritedKeyframeProperty; }
     bool usesAnchorFunctions() const { return m_usesAnchorFunctions; }
     bool hasKeyframeNotUsingRangeOffset() const { return m_hasKeyframeNotUsingRangeOffset; }
+    bool animatesOffsetDistanceToPercentOrCalculated() const { return m_animatesOffsetDistanceToPercentOrCalculated; }
 
     void updatedComputedOffsets(NOESCAPE const Function<double(const BlendingKeyframe::Offset&)>&);
     bool hasKeyframeWithUnresolvedComputedOffset() const;
@@ -191,6 +192,7 @@ private:
     bool m_hasExplicitlyInheritedKeyframeProperty { false };
     bool m_hasKeyframeNotUsingRangeOffset { false };
     bool m_hasPropertiesWithRevertRuleOrLayer { false };
+    bool m_animatesOffsetDistanceToPercentOrCalculated { false };
 };
 
 } // namespace WebCore

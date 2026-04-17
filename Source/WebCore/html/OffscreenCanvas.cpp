@@ -54,6 +54,8 @@
 #include "WorkerClient.h"
 #include "WorkerGlobalScope.h"
 #include "WorkerNavigator.h"
+#include <JavaScriptCore/HeapCellInlines.h>
+#include <JavaScriptCore/JSCJSValueInlines.h>
 #include <wtf/TZoneMallocInlines.h>
 
 #if ENABLE(WEBGL)
@@ -63,7 +65,7 @@
 #endif // ENABLE(WEBGL)
 
 #if HAVE(WEBGPU_IMPLEMENTATION)
-#include "LocalDomWindow.h"
+#include "LocalDOMWindow.h"
 #include "Navigator.h"
 #endif
 

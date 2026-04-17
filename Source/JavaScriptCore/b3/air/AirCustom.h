@@ -319,6 +319,8 @@ struct WasmBoundsCheckCustom : public CommonCustomBase<WasmBoundsCheckCustom> {
     {
         functor(inst.args[0], Arg::Use, GP, pointerWidth());
         functor(inst.args[1], Arg::Use, GP, pointerWidth());
+        if (inst.args.size() > 2)
+            functor(inst.args[2], Arg::Use, GP, pointerWidth());
     }
 
     template<typename... Arguments>

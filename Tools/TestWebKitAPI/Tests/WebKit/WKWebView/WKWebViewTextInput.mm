@@ -48,7 +48,7 @@ static void insertText(WKWebView *webView, NSString *text)
 
 TEST(WKWebView, InsertTextWithRangedSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 320)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 320)]);
     [webView synchronouslyLoadHTMLString:@"<div id='editor' contenteditable>foo bar baz</div>"];
 
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(editor.childNodes[0], 4, editor.childNodes[0], 8)"];
@@ -66,7 +66,7 @@ TEST(WKWebView, InsertTextWithRangedSelection)
 
 TEST(WKWebView, InsertTextWithCaretSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 320)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 320)]);
     [webView synchronouslyLoadHTMLString:@"<div id='editor' contenteditable>foo bar baz</div>"];
 
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(editor.childNodes[0], 3, editor.childNodes[0], 3)"];
@@ -86,7 +86,7 @@ TEST(WKWebView, InsertTextWithCaretSelection)
 
 TEST(WKWebView, ShouldHaveInputContextForEditableContent)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"editable-body"];
     [webView waitForNextPresentationUpdate];
 

@@ -56,7 +56,7 @@ public:
     {
         m_configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-        auto handler = adoptNS([[PreferenceTestMessageHandler alloc] init]);
+        RetainPtr handler = adoptNS([[PreferenceTestMessageHandler alloc] init]);
         [[m_configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
     }
 
@@ -73,7 +73,7 @@ public:
         m_configuration.get()._inlineMediaPlaybackRequiresPlaysInlineAttribute = NO;
 #endif
 
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:m_configuration.get()]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:m_configuration.get()]);
         [webView synchronouslyLoadTestPageNamed:@"video"];
 
         [webView stringByEvaluatingJavaScript:[NSString stringWithFormat:@"test('%s')", elementType == ElementType::Audio ? "audio" : "video"]];

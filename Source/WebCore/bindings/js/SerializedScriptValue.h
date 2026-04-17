@@ -31,9 +31,9 @@
 #include <JavaScriptCore/Strong.h>
 #include <WebCore/Blob.h>
 #include <WebCore/DetachedRTCDataChannel.h>
+#include <wtf/FastMalloc.h>
 #include <wtf/Forward.h>
 #include <wtf/Function.h>
-#include <wtf/Gigacage.h>
 #include <wtf/text/WTFString.h>
 
 #if ENABLE(MEDIA_STREAM)

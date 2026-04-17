@@ -285,7 +285,17 @@ static void dumpCALayer(TextStream& ts, CALayer *layer, bool traverse)
         RefPtr validationBubble = _page->validationBubble();
         String message = validationBubble ? validationBubble->message() : emptyString();
         double fontSize = validationBubble ? validationBubble->fontSize() : 0;
-        return @{ userInterfaceItem: @{ @"message": message.createNSString().get(), @"fontSize": @(fontSize) } };
+        auto anchorRect = validationBubble ? validationBubble->anchorRect() : WebCore::IntRect();
+        return @{ userInterfaceItem: @{
+            @"message": message.createNSString().get(),
+            @"fontSize": @(fontSize),
+            @"anchorRect": @{
+                @"x": @(anchorRect.x()),
+                @"y": @(anchorRect.y()),
+                @"width": @(anchorRect.width()),
+                @"height": @(anchorRect.height())
+            }
+        } };
     }
 
     if (RetainPtr contents = _page->contentsOfUserInterfaceItem(userInterfaceItem))

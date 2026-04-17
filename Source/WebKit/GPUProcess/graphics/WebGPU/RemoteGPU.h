@@ -119,7 +119,7 @@ private:
     template<typename T>
     IPC::Error send(T&& message) const
     {
-        return Ref { *m_streamConnection }->send(std::forward<T>(message), m_identifier);
+        return protect(*m_streamConnection)->send(std::forward<T>(message), m_identifier);
     }
 
     // IPC::StreamMessageReceiver overrides.

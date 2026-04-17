@@ -39,7 +39,7 @@ namespace Style {
 
 auto CSSValueConversion<FontVariantAlternates>::operator()(BuilderState& state, const CSSValue& value) -> FontVariantAlternates
 {
-    auto processSingleItemFunction = [&](const CSSFunctionValue& function, String& parameterToSet) -> bool {
+    auto processSingleItemFunction = [&](const CSSFunctionValue& function, WTF::String& parameterToSet) -> bool {
         if (function.size() != 1) {
             state.setCurrentPropertyInvalidAtComputedValueTime();
             return false;
@@ -51,7 +51,7 @@ auto CSSValueConversion<FontVariantAlternates>::operator()(BuilderState& state, 
         return true;
     };
 
-    auto processListFunction = [&](const CSSFunctionValue& function, Vector<String>& parameterToSet) -> bool {
+    auto processListFunction = [&](const CSSFunctionValue& function, Vector<WTF::String>& parameterToSet) -> bool {
         if (!function.size()) {
             state.setCurrentPropertyInvalidAtComputedValueTime();
             return false;

@@ -69,7 +69,7 @@ TEST(NavigationSwipeTests, RestoreFirstResponderAfterNavigationSwipe)
 {
     poseAsClass("TestNavigationInteractiveTransition", "_UINavigationInteractiveTransitionBase");
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setAllowsBackForwardNavigationGestures:YES];
     [webView becomeFirstResponder];
 
@@ -84,7 +84,7 @@ TEST(NavigationSwipeTests, DoNotBecomeFirstResponderAfterNavigationSwipeIfWebVie
 {
     poseAsClass("TestNavigationInteractiveTransition", "_UINavigationInteractiveTransitionBase");
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView setAllowsBackForwardNavigationGestures:YES];
     [webView becomeFirstResponder];
 
@@ -102,7 +102,7 @@ TEST(NavigationSwipeTests, DoNotAssertWhenSnapshottingZeroSizeView)
 {
     poseAsClass("TestNavigationInteractiveTransition", "_UINavigationInteractiveTransitionBase");
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero]);
     [webView setAllowsBackForwardNavigationGestures:YES];
     [webView becomeFirstResponder];
 

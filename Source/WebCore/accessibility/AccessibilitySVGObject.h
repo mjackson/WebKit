@@ -63,8 +63,14 @@ private:
 
     // Returns true if the SVG element associated with this object has a <title> or <desc> child.
     bool hasTitleOrDescriptionChild() const;
-    template <typename ChildrenType>
-    Element* childElementWithMatchingLanguage(ChildrenType&) const;
+
+    struct MatchingLanguageChildren {
+        RefPtr<Element> title;
+        RefPtr<Element> desc;
+    };
+    MatchingLanguageChildren matchingTitleAndDescChildren() const;
+    String descriptionFromTitleChild(Element* titleChild) const;
+    String helpTextFromChildren(Element* titleChild, Element* descChild, const String& descriptionText) const;
 
     // Set for remote SVG resources, on the root.
     WeakPtr<AccessibilityRenderObject> m_parent;

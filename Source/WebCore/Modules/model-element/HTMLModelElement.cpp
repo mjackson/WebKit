@@ -599,7 +599,7 @@ void HTMLModelElement::createModelPlayer()
 
 void HTMLModelElement::deleteModelPlayer()
 {
-    auto deleteModelPlayerBlock = [weakThis = WeakPtr { *this }, modelPlayerProvider = RefPtr { m_modelPlayerProvider.get() }, modelPlayer = RefPtr { m_modelPlayer }] {
+    auto deleteModelPlayerBlock = [weakThis = WeakPtr { *this }, modelPlayerProvider = protect(m_modelPlayerProvider), modelPlayer = protect(m_modelPlayer)] {
         if (modelPlayerProvider && modelPlayer)
             modelPlayerProvider->deleteModelPlayer(*modelPlayer);
 
@@ -1597,7 +1597,7 @@ void HTMLModelElement::ensureModelPlayer(CompletionHandler<void(ExceptionOr<RefP
         reloadModelPlayer();
 
     if (modelPlayer && !modelPlayer->isPlaceholder())
-        return completion(RefPtr { modelPlayer });
+        return completion(protect(modelPlayer));
 
     RELEASE_LOG_INFO(ModelElement, "%p - HTMLModelElement: Model Player creation request: STARTED", this);
     m_modelPlayerCreationCallbacks.append(WTF::move(completion));

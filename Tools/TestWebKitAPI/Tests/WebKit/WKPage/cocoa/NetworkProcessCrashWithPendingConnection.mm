@@ -108,7 +108,7 @@ TEST(WebKit, NetworkProcessCrashWithPendingConnection)
     kill(relaunchedNetworkProcessIdentifier, SIGKILL);
     Util::run(&networkProcessCrashed);
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     loadedOrCrashed = false;
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
         loadedOrCrashed = true;
@@ -126,8 +126,8 @@ TEST(WebKit, NetworkProcessCrashWithPendingConnection)
 
 TEST(WebKit, NetworkProcessRelaunchOnLaunchFailure)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPool = adoptNS([[WKProcessPool alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] init]);
 
     [configuration setProcessPool:processPool.get()];
 
@@ -142,7 +142,7 @@ TEST(WebKit, NetworkProcessRelaunchOnLaunchFailure)
     };
     WKContextSetClient(static_cast<WKContextRef>(processPool.get()), &client.base);
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     testView = webView.get();
 
     // Constucting a WebView starts a network process so terminate this one. The page load below will then request a network process and we
@@ -150,7 +150,7 @@ TEST(WebKit, NetworkProcessRelaunchOnLaunchFailure)
     [WKWebsiteDataStore _makeNextNetworkProcessLaunchFailForTesting];
     [configuration.get().websiteDataStore _terminateNetworkProcess];
 
-    auto delegate = adoptNS([[MonitorWebContentCrashNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[MonitorWebContentCrashNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];

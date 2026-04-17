@@ -72,11 +72,11 @@ TEST(WebKit2CustomProtocolsTest, LoadInvalidScheme)
     [WKBrowsingContextController registerSchemeForCustomProtocol:@"custom"];
     WKRetainPtr<WKContextRef> context = adoptWK(Util::createContextForInjectedBundleTest("CustomProtocolInvalidSchemeTest"));
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     configuration.get().processPool = (WKProcessPool *)context.get();
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
-    auto loadDelegate = adoptNS([[LoadInvalidSchemeDelegate alloc] init]);
+    RetainPtr loadDelegate = adoptNS([[LoadInvalidSchemeDelegate alloc] init]);
     webView.get().navigationDelegate = loadDelegate.get();
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"ht'tp://www.webkit.org"]]];

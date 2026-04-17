@@ -50,7 +50,7 @@ static WKProcessPool *sharedProcessPool()
     static NeverDestroyed<RetainPtr<WKProcessPool>> pool;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+        RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
         pool.get() = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
     });
     return pool.get().get();
@@ -58,13 +58,13 @@ static WKProcessPool *sharedProcessPool()
 
 static RetainPtr<TestWKWebView> createWebViewWithSeparateProcess()
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool:sharedProcessPool()];
     [configuration setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
     [[configuration preferences] _setManagedMediaSourceEnabled:YES];
     [[configuration preferences] _setMediaSourceEnabled:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"is-type-supported-perf"];
     return webView;
 }

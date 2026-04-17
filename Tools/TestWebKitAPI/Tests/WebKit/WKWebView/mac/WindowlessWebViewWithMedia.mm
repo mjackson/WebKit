@@ -64,8 +64,8 @@ static void spinLoop(NSTimeInterval timeout, BOOL (^block)())
 TEST(WebKitLegacy, WindowlessWebViewWithMedia)
 {
     @autoreleasepool {
-        auto webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
-        auto testController = adoptNS([WindowlessWebViewWithMediaFrameLoadDelegate new]);
+        RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
+        RetainPtr testController = adoptNS([WindowlessWebViewWithMediaFrameLoadDelegate new]);
         webView.get().frameLoadDelegate = testController.get();
         [[webView.get() mainFrame] loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"WindowlessWebViewWithMedia" withExtension:@"html"]]];
 

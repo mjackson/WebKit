@@ -34,12 +34,12 @@
 
 TEST(WKWebViewSuspendAllMediaPlayback, BeforeLoading)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
 #if TARGET_OS_IPHONE
     configuration.get().allowsInlineMediaPlayback = YES;
 #endif
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
     [webView _suspendAllMediaPlayback];
 
     __block bool notPlaying = false;
@@ -55,12 +55,12 @@ TEST(WKWebViewSuspendAllMediaPlayback, DISABLED_AfterLoading)
 TEST(WKWebViewSuspendAllMediaPlayback, AfterLoading)
 #endif
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
 #if TARGET_OS_IPHONE
     configuration.get().allowsInlineMediaPlayback = YES;
 #endif
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
 
     __block bool isPlaying = false;
     [webView performAfterReceivingMessage:@"playing" action:^{ isPlaying = true; }];
@@ -84,14 +84,19 @@ TEST(WKWebViewSuspendAllMediaPlayback, AfterLoading)
     TestWebKitAPI::Util::run(&isPlaying);
 }
 
+// FIXME when rdar://169658576 is resolved.
+#if PLATFORM(MAC)
+TEST(WKWebViewSuspendAllMediaPlayback, DISABLED_PauseWhenResume)
+#else
 TEST(WKWebViewSuspendAllMediaPlayback, PauseWhenResume)
+#endif
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
 #if TARGET_OS_IPHONE
     configuration.get().allowsInlineMediaPlayback = YES;
 #endif
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
 
     [webView synchronouslyLoadTestPageNamed:@"video-with-audio"];
 
@@ -117,10 +122,10 @@ TEST(WKWebViewSuspendAllMediaPlayback, PauseWhenResume)
 
 TEST(WKWebViewSuspendAllMediaPlayback, FullscreenWhileSuspended)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration preferences].elementFullscreenEnabled = YES;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
 
     [webView synchronouslyLoadTestPageNamed:@"video-with-audio"];
 

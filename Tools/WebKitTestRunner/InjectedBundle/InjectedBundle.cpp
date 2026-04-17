@@ -203,7 +203,7 @@ bool InjectedBundle::shouldForceRepaint() const
 {
     WKTypeRef result = nullptr;
     WKBundlePagePostSynchronousMessageForTesting(page()->page(), toWK("ShouldForceRepaint").get(), nullptr, &result);
-    return booleanValue(result);
+    return booleanValue(adoptWK(result).get());
 }
 
 void InjectedBundle::reportLiveDocuments(WKBundlePageRef page)
@@ -514,7 +514,7 @@ WKRetainPtr<WKStringRef> InjectedBundle::getBackgroundFetchIdentifier()
 {
     WKTypeRef result = nullptr;
     WKBundlePagePostSynchronousMessageForTesting(page()->page(), toWK("GetBackgroundFetchIdentifier").get(), 0, &result);
-    return static_cast<WKStringRef>(result);
+    return adoptWK(static_cast<WKStringRef>(result));
 }
 
 unsigned InjectedBundle::imageCountInGeneralPasteboard() const
@@ -593,7 +593,7 @@ bool InjectedBundle::isPrinting() const
 {
     WKTypeRef result = nullptr;
     WKBundlePagePostSynchronousMessageForTesting(page()->page(), toWK("GetIsPrinting").get(), nullptr, &result);
-    return booleanValue(result);
+    return booleanValue(adoptWK(result).get());
 }
 
 void InjectedBundle::processWorkQueue()
@@ -669,28 +669,28 @@ WKRetainPtr<WKStringRef> InjectedBundle::lastAddedBackgroundFetchIdentifier() co
 {
     WKTypeRef result = nullptr;
     WKBundlePagePostSynchronousMessageForTesting(page()->page(), toWK("LastAddedBackgroundFetchIdentifier").get(), 0, &result);
-    return static_cast<WKStringRef>(result);
+    return adoptWK(static_cast<WKStringRef>(result));
 }
 
 WKRetainPtr<WKStringRef> InjectedBundle::lastRemovedBackgroundFetchIdentifier() const
 {
     WKTypeRef result = nullptr;
     WKBundlePagePostSynchronousMessageForTesting(page()->page(), toWK("LastRemovedBackgroundFetchIdentifier").get(), 0, &result);
-    return static_cast<WKStringRef>(result);
+    return adoptWK(static_cast<WKStringRef>(result));
 }
 
 WKRetainPtr<WKStringRef> InjectedBundle::lastUpdatedBackgroundFetchIdentifier() const
 {
     WKTypeRef result = nullptr;
     WKBundlePagePostSynchronousMessageForTesting(page()->page(), toWK("LastUpdatedBackgroundFetchIdentifier").get(), 0, &result);
-    return static_cast<WKStringRef>(result);
+    return adoptWK(static_cast<WKStringRef>(result));
 }
 
 WKRetainPtr<WKStringRef> InjectedBundle::backgroundFetchState(WKStringRef identifier)
 {
     WKTypeRef result = nullptr;
     WKBundlePagePostSynchronousMessageForTesting(page()->page(), toWK("BackgroundFetchState").get(), identifier, &result);
-    return static_cast<WKStringRef>(result);
+    return adoptWK(static_cast<WKStringRef>(result));
 }
 
 void InjectedBundle::textDidChangeInTextField()

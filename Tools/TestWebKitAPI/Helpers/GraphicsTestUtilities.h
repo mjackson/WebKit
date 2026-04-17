@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #include "Helpers/Test.h"
 #include <WebCore/Color.h>
 #include <WebCore/FloatPoint.h>

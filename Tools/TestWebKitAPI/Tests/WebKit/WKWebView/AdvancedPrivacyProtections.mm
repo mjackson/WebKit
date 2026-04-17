@@ -109,7 +109,7 @@ static IMP makeQueryParameterRequestHandler(NSArray<NSString *> *parameters, NSA
 {
     return imp_implementationWithBlock([&didHandleRequest, parameters = RetainPtr { parameters }, domains = RetainPtr { domains }, paths = RetainPtr { paths }](WPResources *, WPResourceRequestOptions *, void(^completion)(WPLinkFilteringData *, NSError *)) mutable {
         RunLoop::mainSingleton().dispatch([&didHandleRequest, parameters = WTF::move(parameters), domains = WTF::move(domains), paths = WTF::move(paths), completion = makeBlockPtr(completion)]() mutable {
-            auto data = adoptNS([PAL::allocWPLinkFilteringDataInstance() initWithQueryParameters:parameters.get()
+            RetainPtr data = adoptNS([PAL::allocWPLinkFilteringDataInstance() initWithQueryParameters:parameters.get()
 #if defined(HAS_WEB_PRIVACY_LINK_FILTERING_RULE_PATH)
                 domains:domains.get() paths:paths.get()
 #endif
@@ -124,7 +124,7 @@ static IMP makeAllowedLinkFilteringDataRequestHandler(NSArray<NSString *> *param
 {
     return imp_implementationWithBlock([parameters = RetainPtr { parameters }](WPResources *, WPResourceRequestOptions *, void(^completion)(WPLinkFilteringData *, NSError *)) mutable {
         RunLoop::mainSingleton().dispatch([parameters = WTF::move(parameters), completion = makeBlockPtr(completion)]() mutable {
-            auto data = adoptNS([PAL::allocWPLinkFilteringDataInstance() initWithQueryParameters:parameters.get()]);
+            RetainPtr data = adoptNS([PAL::allocWPLinkFilteringDataInstance() initWithQueryParameters:parameters.get()]);
             completion(data.get(), nil);
         });
     });
@@ -188,7 +188,7 @@ static RetainPtr<TestWKWebView> createWebViewWithAdvancedPrivacyProtections(BOOL
     preferences = preferences ?: adoptNS([WKWebpagePreferences new]);
     [preferences _setNetworkConnectionIntegrityPolicy:policies];
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:store];
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
     [configuration setDefaultWebpagePreferences:preferences.get()];
@@ -315,7 +315,7 @@ TEST(AdvancedPrivacyProtections, RemoveTrackingQueryParametersWhenNavigatingWith
     [TestProtocol registerWithScheme:@"https"];
     QueryParameterRequestSwizzler swizzler { @[ @"foo", @"bar", @"baz" ], @[ @"", @"", @"" ], @[ @"", @"", @"" ] };
 
-    auto preferences = adoptNS([WKWebpagePreferences new]);
+    RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
     [preferences _setContentBlockersEnabled:NO];
     auto webView = createWebViewWithAdvancedPrivacyProtections(YES, preferences.get());
     auto url = [NSURL URLWithString:@"https://bundle-file/simple.html?foo=10&garply=20&bar=30&baz=40"];
@@ -476,7 +476,7 @@ TEST(AdvancedPrivacyProtections, RemoveTrackingQueryParametersWhenDecidingNaviga
     auto webView = createWebViewWithAdvancedPrivacyProtections();
     [webView synchronouslyLoadHTMLString:@"<body><a href='https://bundle-file/simple.html?foo=10&garply=20&bar=30&baz=40'>Link</a></body>"];
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     bool didCallDecisionHandler = false;
@@ -499,7 +499,7 @@ TEST(AdvancedPrivacyProtections, RemoveTrackingQueryParametersForMainResourcesOn
     QueryParameterRequestSwizzler blockListSwizzler { @[ @"blockThis" ], @[ @"" ], @[ @"" ] };
 
     auto webView = createWebViewWithAdvancedPrivacyProtections();
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
 
     __block Vector<std::pair<String, String>> adjustedURLStrings;
     [navigationDelegate setDidChangeLookalikeCharactersFromURL:^(WKWebView *, NSURL *originalURL, NSURL *adjustedURL) {
@@ -582,7 +582,7 @@ TEST(AdvancedPrivacyProtections, ApplyNavigationalProtectionsAfterMultiplePSON)
     __block bool finishedSuccessfully { false };
     __block RetainPtr<NSURL> targetURL;
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     navigationDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         if ([action.request.URL.host isEqualToString:@"127.0.0.1"])
             didCallDecisionHandler = true;
@@ -652,14 +652,14 @@ static RetainPtr<TestWKWebView> setUpWebViewForTestingQueryParameterHiding(NSStr
     auto *store = WKWebsiteDataStore.nonPersistentDataStore;
     store._resourceLoadStatisticsEnabled = YES;
 
-    auto preferences = adoptNS([WKWebpagePreferences new]);
+    RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
     [preferences _setNetworkConnectionIntegrityPolicy:_WKWebsiteNetworkConnectionIntegrityPolicyEnabled];
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:store];
     [configuration setDefaultWebpagePreferences:preferences.get()];
 
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         NSString *path = task.request.URL.path;
         NSString *type = nil;
@@ -684,7 +684,7 @@ static RetainPtr<TestWKWebView> setUpWebViewForTestingQueryParameterHiding(NSStr
             return;
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[result dataUsingEncoding:NSUTF8StringEncoding]];
         [task didFinish];
@@ -799,18 +799,18 @@ static RetainPtr<TestWKWebView> setUpWebViewForTestingTrackerDomainBlocking(Stri
         { "/initialize"_s, { { }, "initialize"_s } },
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto store = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);;
+    RetainPtr store = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     store.get()._resourceLoadStatisticsEnabled = YES;
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setWebsiteDataStore:store.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
 
     RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
@@ -1006,15 +1006,15 @@ TEST(AdvancedPrivacyProtections, LinkPreconnectUsesEnhancedPrivacy)
 
 static RetainPtr<TestWKWebView> webViewAfterCrossSiteNavigationWithReducedPrivacy(NSString *initialURLString, bool withRedirect = false)
 {
-    auto preferences = adoptNS([WKWebpagePreferences new]);
+    RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
     [preferences _setNetworkConnectionIntegrityPolicy:_WKWebsiteNetworkConnectionIntegrityPolicyNone];
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setDefaultWebpagePreferences:preferences.get()];
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     [webView loadRequest:adoptNS([[NSURLRequest alloc] initWithURL:adoptNS([[NSURL alloc] initWithString:initialURLString]).get()]).get()];
@@ -1089,17 +1089,17 @@ TEST(AdvancedPrivacyProtections, ConsistentlyFilterQueryParametersOnSource)
         { "/destination.html"_s, { "<script>window.result = location.href;</script>"_s } },
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(server.port())
     }];
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
 
     RetainPtr webView = createWebViewLinkDecorationFiltering(YES, dataStore.get());
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [navigationDelegate allowAnyTLSCertificate];
 
@@ -1160,17 +1160,17 @@ TEST(AdvancedPrivacyProtections, ConsistentlyFilterQueryParametersOnDestination)
         { "/destination.html"_s, { "<script>window.result = location.href;</script>"_s } },
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(server.port())
     }];
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
 
     RetainPtr webView = createWebViewLinkDecorationFiltering(YES, dataStore.get());
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [navigationDelegate allowAnyTLSCertificate];
 
@@ -1194,7 +1194,7 @@ TEST(AdvancedPrivacyProtections, HideScreenMetricsFromBindings)
 
     [TestProtocol registerWithScheme:@"https"];
 
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
 #if PLATFORM(MAC)
     [uiDelegate setGetWindowFrameWithCompletionHandler:^(WKWebView *view, void(^completionHandler)(CGRect)) {
         auto viewBounds = view.bounds;
@@ -1336,7 +1336,7 @@ TEST(AdvancedPrivacyProtections, AddNoiseToWebAudioAPIsAfterMultiplePSON)
     __block bool didCallDecisionHandler { false };
     __block bool finishedSuccessfully { false };
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     navigationDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         if ([action.request.URL.host isEqualToString:@"bundle-file"])
             didCallDecisionHandler = true;
@@ -1378,7 +1378,7 @@ TEST(AdvancedPrivacyProtections, AddNoiseToWebAudioAPIsAfterReducingPrivacyProte
 
     server.addResponse("/index1.html"_s, { makeString("<a href='http://127.0.0.1:"_s, server.port(), "/index2.html'>Link</a>"_s) });
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate setDecidePolicyForNavigationActionWithPreferences:[&](WKNavigationAction *action, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         [preferences _setNetworkConnectionIntegrityPolicy:_WKWebsiteNetworkConnectionIntegrityPolicyEnabled | _WKWebsiteNetworkConnectionIntegrityPolicySanitizeLookalikeCharacters | _WKWebsiteNetworkConnectionIntegrityPolicyEnhancedTelemetry];
         decisionHandler(WKNavigationActionPolicyAllow, preferences);
@@ -1605,16 +1605,16 @@ TEST(AdvancedPrivacyProtections, Canvas2DQuirks)
         { "/"_s, { { }, "index"_s } },
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
     }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     auto webView = createWebViewWithAdvancedPrivacyProtections(YES, { }, dataStore.get());
 
     __block bool finishedSuccessfully { false };
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().didReceiveAuthenticationChallenge = ^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
     };

@@ -84,19 +84,13 @@ public:
 
     void applyPendingAcceleratedActions() const;
 
-    bool hasAcceleratedEffects(const Settings&) const;
-#if ENABLE(THREADED_ANIMATIONS)
-    void setAcceleratedEffects(WeakListHashSet<AcceleratedEffect>&& acceleratedEffects) { m_acceleratedEffects = WTF::move(acceleratedEffects); }
-#endif
+    bool hasAcceleratedEffects() const;
 
 private:
     void startAcceleratedAnimationsIfPossible();
     void stopAcceleratedAnimations();
 
     Vector<WeakPtr<KeyframeEffect>> m_effects;
-#if ENABLE(THREADED_ANIMATIONS)
-    WeakListHashSet<AcceleratedEffect> m_acceleratedEffects;
-#endif
     HashSet<String> m_invalidCSSAnimationNames;
     HashSet<AnimatableCSSProperty> m_acceleratedPropertiesOverriddenByCascade;
     std::optional<Style::Animations> m_cssAnimationList;

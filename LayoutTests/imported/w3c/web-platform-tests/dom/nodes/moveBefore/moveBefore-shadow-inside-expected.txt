@@ -1,0 +1,3 @@
+
+FAIL moveBefore-shadow-inside promise_test: Unhandled rejection with value: object "TypeError: document.querySelector("#section2").moveBefore is not a function. (In 'document.querySelector("#section2").moveBefore(item, null)', 'document.querySelector("#section2").moveBefore' is undefined)"
+

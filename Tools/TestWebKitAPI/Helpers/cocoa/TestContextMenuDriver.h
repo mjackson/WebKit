@@ -23,14 +23,29 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifdef __cplusplus
+
 #if USE(UICONTEXTMENU)
 
 #import <wtf/WeakObjCPtr.h>
+
+#if USE(APPLE_INTERNAL_SDK)
+#import <UIKit/_UIClickInteractionDriving.h>
+#import <UIKit/UIEvent_Private.h>
+#else
+
+typedef NS_ENUM(NSUInteger, _UIInputPrecision) {
+    _UIInputPrecisionUnknown,
+    _UIInputPrecisionLow,
+    _UIInputPrecisionHigh,
+};
 
 @protocol _UIClickInteractionDriverDelegate;
 @protocol _UIClickInteractionDriving <NSObject>
 @property (nonatomic, weak) id<_UIClickInteractionDriverDelegate> delegate;
 @end
+
+#endif
 
 @interface TestContextMenuDriver : NSObject <_UIClickInteractionDriving> {
     WeakObjCPtr<id<_UIClickInteractionDriverDelegate>> _delegate;
@@ -41,6 +56,13 @@
     BOOL _cancelsTouchesInView;
 }
 
+@property (nonatomic, class, readonly) BOOL requiresForceCapability;
+@property (nonatomic, readonly) BOOL hasExceededAllowableMovement;
+@property (nonatomic, readonly) BOOL isCurrentlyAcceleratedByForce;
+@property (nonatomic, readonly) BOOL clicksUpAutomaticallyAfterTimeout;
+@property (nonatomic, readonly) CGFloat maximumEffectProgress;
+@property (nonatomic, readonly) _UIInputPrecision inputPrecision;
+
 - (void)begin:(void(^)(BOOL))completionHandler;
 - (void)clickDown;
 - (void)clickUp;
@@ -49,3 +71,5 @@
 @end
 
 #endif // USE(UICONTEXTMENU)
+
+#endif // __cplusplus

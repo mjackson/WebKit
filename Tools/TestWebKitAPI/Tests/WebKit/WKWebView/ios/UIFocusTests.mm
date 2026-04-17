@@ -52,13 +52,13 @@ namespace TestWebKitAPI {
 
 TEST(UIFocusTests, ContentViewCanBecomeFocused)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadTestPageNamed:@"simple-form"];
 
     auto contentView = [webView textInputContentView];
     EXPECT_FALSE(contentView.canBecomeFocused);
 
-    auto delegate = adoptNS([[UIFocusDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UIFocusDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [delegate setCanBecomeFocused:YES];
     EXPECT_TRUE(contentView.canBecomeFocused);

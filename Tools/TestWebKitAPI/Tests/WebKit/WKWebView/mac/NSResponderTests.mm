@@ -34,7 +34,7 @@ namespace TestWebKitAPI {
 
 TEST(NSResponderTests, ValidRequestorForSendAndReturnTypes)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] init]);
     [webView _setEditable:YES];
     [webView synchronouslyLoadTestPageNamed:@"simple"];
     [webView selectAll:nil];

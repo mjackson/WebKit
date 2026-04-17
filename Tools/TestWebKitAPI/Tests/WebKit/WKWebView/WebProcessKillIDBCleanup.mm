@@ -90,8 +90,8 @@ TEST(IndexedDB, WebProcessKillIDBCleanup)
 
 TEST(IndexedDB, KillWebProcessWithOpenConnection)
 {
-    auto handler = adoptNS([[IndexedDBWebProcessKillMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[IndexedDBWebProcessKillMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
 
     __block bool readyToContinue = false;
@@ -100,13 +100,13 @@ TEST(IndexedDB, KillWebProcessWithOpenConnection)
     }];
     TestWebKitAPI::Util::run(&readyToContinue);
 
-    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     NSURLRequest *request1 = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"KillWebProcessWithOpenConnection-1" withExtension:@"html"]];
     [webView1 loadRequest:request1];
     auto string1 = RetainPtr { getNextMessage().body };
     EXPECT_WK_STREQ(@"Open Succeeded", string1.get());
 
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     NSURLRequest *request2 = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"KillWebProcessWithOpenConnection-2" withExtension:@"html"]];
     [webView2 loadRequest:request2];
     auto string2 = RetainPtr { getNextMessage().body };

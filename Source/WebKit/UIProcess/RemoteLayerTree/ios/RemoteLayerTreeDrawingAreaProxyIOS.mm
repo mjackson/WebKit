@@ -152,7 +152,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (void)invalidate
 {
     RetainPtr displayLink = _displayLink;
-    [displayLink.get().display removeObserver:self forKeyPath:@"refreshRate" context:displayRefreshRateObservationContext];
+    [displayLink removeObserver:self forKeyPath:@"display.refreshRate" context:displayRefreshRateObservationContext];
     [displayLink invalidate];
     _displayLink = nullptr;
 
@@ -296,7 +296,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     }
 
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
-    [[_displayLink display] addObserver:self forKeyPath:@"refreshRate" options:NSKeyValueObservingOptionNew context:displayRefreshRateObservationContext];
+    [_displayLink addObserver:self forKeyPath:@"display.refreshRate" options:NSKeyValueObservingOptionNew context:displayRefreshRateObservationContext];
     [_displayLink setPaused:YES];
 }
 

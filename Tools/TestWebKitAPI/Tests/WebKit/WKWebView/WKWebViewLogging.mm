@@ -32,26 +32,26 @@
 
 TEST(WKWebView, LoggingEnabledByDefault)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero]);
 
     EXPECT_TRUE([webView _isLoggerEnabledForTesting]);
 }
 
 TEST(WKWebView, LoggingDisabledInNonPersistentDataStore)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:WKWebsiteDataStore.nonPersistentDataStore];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     EXPECT_FALSE([webView _isLoggerEnabledForTesting]);
 }
 
 TEST(WKWebView, LoggingEnabledInNonPersistentDataStoreWhenAllowed)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:WKWebsiteDataStore.nonPersistentDataStore];
     [configuration preferences]._allowPrivacySensitiveOperationsInNonPersistentDataStores = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     EXPECT_TRUE([webView _isLoggerEnabledForTesting]);
 }

@@ -32,19 +32,8 @@
 (define (lockdown-mode)
     (signing-identifier "com.apple.WebKit.WebContent.CaptivePortal"))
 
-#define TRUE #t
-#define FALSE #f
-
 (define webcontent_gpu_sandbox_extensions_blocking?
 #if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 140400 && defined(RC_XBS) && RC_XBS == 1
-    (equal? (param "CPU") "arm64")
-#else
-    FALSE
-#endif
-)
-
-(define have_message_filtering?
-#if PLATFORM(MAC) && USE(APPLE_INTERNAL_SDK)
     TRUE
 #else
     FALSE
@@ -583,54 +572,46 @@
     (deny iokit-get-properties (with no-report)
         (iokit-property "APTDevice")))
 
-(if (equal? (param "CPU") "arm64")
-    (with-filter (iokit-registry-entry-class "AppleARMIODevice")
-        (deny iokit-get-properties (with no-report)
-            (iokit-property "supports-apt"))))
+(with-filter (iokit-registry-entry-class "AppleARMIODevice")
+    (deny iokit-get-properties (with no-report)
+        (iokit-property "supports-apt")))
 
-(if (equal? (param "CPU") "arm64")
-    (with-filter (iokit-registry-entry-class "AppleJPEGDriver")
-        (deny iokit-get-properties (with no-report)
-            (iokit-property "AppleJPEGNumCores"))))
+(with-filter (iokit-registry-entry-class "AppleJPEGDriver")
+    (deny iokit-get-properties (with no-report)
+        (iokit-property "AppleJPEGNumCores")))
 
 ;; <rdar://problem/60088861>
-(if (equal? (param "CPU") "arm64")
+(allow iokit-get-properties
+    (iokit-property "ADSSupported")
+    (iokit-property "IOAVDHEVCDecodeCapabilities")
+    (iokit-property "IOGLESBundleName") ;; <rdar://problem/67473780>
+    (iokit-property "MetalPluginClassName") ;; <rdar://problem/67473780>
+    (iokit-property "MetalPluginName") ;; <rdar://problem/67473780>
+    (iokit-property "IOSurfaceAcceleratorCapabilitiesDict") ;; <rdar://problem/63696732>
+    (iokit-property "acoustic-id")) ;; <rdar://problem/65290967>
+
+(with-filter (iokit-registry-entry-class "IOService")
     (allow iokit-get-properties
-        (iokit-property "ADSSupported")
-        (iokit-property "IOAVDHEVCDecodeCapabilities")
-        (iokit-property "IOGLESBundleName") ;; <rdar://problem/67473780>
-        (iokit-property "MetalPluginClassName") ;; <rdar://problem/67473780>
-        (iokit-property "MetalPluginName") ;; <rdar://problem/67473780>
-        (iokit-property "IOSurfaceAcceleratorCapabilitiesDict") ;; <rdar://problem/63696732>
-        (iokit-property "acoustic-id") ;; <rdar://problem/65290967>
-    ))
+        (iokit-property "IORegistryEntryPropertyKeys")))
 
-(if (equal? (param "CPU") "arm64")
-    (with-filter (iokit-registry-entry-class "IOService")
-        (allow iokit-get-properties
-            (iokit-property "IORegistryEntryPropertyKeys"))))
+(with-filter (iokit-registry-entry-class "IOMobileFramebuffer")
+    (allow iokit-get-properties
+        (iokit-property "AppleTV"
+                        "DisplayPipePlaneBaseAlignment"
+                        "DisplayPipeStrideRequirements"
+                        "dfr"
+                        "external"
+                        "hdcp-hoover-protocol")))
 
-(if (equal? (param "CPU") "arm64")
-    (with-filter (iokit-registry-entry-class "IOMobileFramebuffer")
-        (allow iokit-get-properties
-            (iokit-property "AppleTV"
-                            "DisplayPipePlaneBaseAlignment"
-                            "DisplayPipeStrideRequirements"
-                            "dfr"
-                            "external"
-                            "hdcp-hoover-protocol"))))
+(with-filter (iokit-registry-entry-class "IOPlatformDevice")
+    (allow iokit-get-properties
+        (iokit-property "soc-generation")))
 
-(if (equal? (param "CPU") "arm64")
-    (with-filter (iokit-registry-entry-class "IOPlatformDevice")
-        (allow iokit-get-properties
-            (iokit-property "soc-generation"))))
-
-(if (equal? (param "CPU") "arm64")
-    (with-filter (iokit-registry-entry-class "IOService")
-        (allow iokit-get-properties
-            (iokit-property "chip-id"
-                            "display-rotation"
-                            "display-scale"))))
+(with-filter (iokit-registry-entry-class "IOService")
+    (allow iokit-get-properties
+        (iokit-property "chip-id"
+                        "display-rotation"
+                        "display-scale")))
 
 (deny mach-lookup (xpc-service-name-prefix ""))
 
@@ -813,11 +794,12 @@
 (deny mach-lookup (with telemetry-backtrace)
     (global-name "com.apple.mobileassetd.v2"))
 
-(with-filter (require-not (state-flag "BlockMobileAssetInWebContentSandbox"))
-    (allow mach-lookup
-        (require-all
-            (extension "com.apple.webkit.extension.mach")
-            (global-name "com.apple.mobileassetd.v2"))))
+#if !ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
+(allow mach-lookup
+    (require-all
+        (extension "com.apple.webkit.extension.mach")
+        (global-name "com.apple.mobileassetd.v2")))
+#endif
 
 #if !ENABLE(TRUSTD_BLOCKING_IN_WEBCONTENT)
 (allow mach-lookup
@@ -896,15 +878,15 @@
        (global-name "com.apple.system.opendirectoryd.membership"))
 )
 
-(with-filter (require-not (state-flag "BlockOpenDirectoryInWebContentSandbox"))
-    (allow mach-lookup (with telemetry-backtrace)
-        (require-all
-            (extension "com.apple.webkit.extension.mach")
-            (global-name "com.apple.system.opendirectoryd.libinfo"))))
-
-(with-filter (state-flag "BlockOpenDirectoryInWebContentSandbox")
-    (deny mach-lookup (with telemetry-backtrace)
+#if ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
+(deny mach-lookup (with telemetry-backtrace)
+    (global-name "com.apple.system.opendirectoryd.libinfo"))
+#else
+(allow mach-lookup (with telemetry-backtrace)
+    (require-all
+        (extension "com.apple.webkit.extension.mach")
         (global-name "com.apple.system.opendirectoryd.libinfo")))
+#endif
 
 (allow file-read*
        (subpath "/private/var/db/mds")
@@ -1074,19 +1056,19 @@
         "com.apple.iconservices"
         "com.apple.iconservices.store"))
 
-(with-filter (require-not (state-flag "BlockIconServicesInWebContentSandbox"))
-    (allow mach-lookup (with telemetry-backtrace)
-        (require-all
-            (extension "com.apple.webkit.extension.mach")
-            (global-name
-                "com.apple.iconservices"
-                "com.apple.iconservices.store"))))
-
-(with-filter (state-flag "BlockIconServicesInWebContentSandbox")
-    (deny mach-lookup (with telemetry-backtrace)
+#if ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
+(deny mach-lookup (with telemetry-backtrace)
+    (global-name
+        "com.apple.iconservices"
+        "com.apple.iconservices.store"))
+#else
+(allow mach-lookup (with telemetry-backtrace)
+    (require-all
+        (extension "com.apple.webkit.extension.mach")
         (global-name
             "com.apple.iconservices"
             "com.apple.iconservices.store")))
+#endif
 
 #if !ENABLE(LAUNCHSERVICES_SANDBOX_EXTENSION_BLOCKING)
 (allow mach-lookup
@@ -1359,8 +1341,7 @@
 
 (with-filter (require-not (lockdown-mode))
     (allow syscall-unix (syscall-unix-blocked-in-lockdown-mode))
-    (when (equal? (param "CPU") "arm64")
-        (allow syscall-unix (syscall-unix-apple-silicon)))
+    (allow syscall-unix (syscall-unix-apple-silicon))
     (allow syscall-unix (with report) (with telemetry) (syscalls-rarely-used-blocked-in-lockdown-mode)))
 
 (when (defined? 'SYS_objc_bp_assist_cfg_np)
@@ -1379,8 +1360,7 @@
 (with-filter (lockdown-mode)
     (deny syscall-unix (with telemetry) (syscall-unix-blocked-in-lockdown-mode))
     (deny syscall-unix (with telemetry) (syscalls-rarely-used-blocked-in-lockdown-mode))
-    (when (equal? (param "CPU") "arm64")
-        (deny syscall-unix (with telemetry) (syscall-unix-apple-silicon))))
+    (deny syscall-unix (with telemetry) (syscall-unix-apple-silicon)))
 
 #if HAVE(SANDBOX_MESSAGE_FILTERING)
 (define (mach-bootstrap-message-numbers)
@@ -1491,12 +1471,10 @@
 
 (define (allow-mach-exceptions operation)
 #if HAVE(HARDENED_MACH_EXCEPTIONS)
-    (when (equal? (param "CPU") "arm64")
+    (when (defined? 'task_register_hardened_exception_handler)
         (with-filter (require-not (webcontent-process-launched))
             (allow operation (kernel-mig-routine task_register_hardened_exception_handler)))
-        (allow operation (kernel-mig-routine thread_adopt_exception_handler)))
-    (when (not (equal? (param "CPU") "arm64"))
-        (allow operation (kernel-mig-routine thread_set_exception_ports))))
+        (allow operation (kernel-mig-routine thread_adopt_exception_handler))))
 #else
     (allow operation (kernel-mig-routine thread_set_exception_ports)))
 #endif

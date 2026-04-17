@@ -35,7 +35,13 @@ if (window.accessibilityController) {
 
         // Web area -> iframe -> paragraph -> static text.
         await waitFor(() => {
-            text = webArea.childAtIndex(0).childAtIndex(0).childAtIndex(0);
+            var iframe = webArea.childAtIndex(0);
+            if (!iframe)
+                return false;
+            var paragraph = iframe.childAtIndex(0);
+            if (!paragraph)
+                return false;
+            text = paragraph.childAtIndex(0);
             return text;
         });
 

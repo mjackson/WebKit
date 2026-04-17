@@ -50,6 +50,7 @@
 #include "Settings.h"
 #include "SubframeLoader.h"
 #include "Text.h"
+#include "TypedElementDescendantIteratorInlines.h"
 #include "Widget.h"
 #include <wtf/Ref.h>
 #include <wtf/TZoneMallocInlines.h>

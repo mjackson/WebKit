@@ -91,7 +91,7 @@
 
 static RetainPtr<FontManagerTestWKWebView> webViewForFontManagerTesting(NSFontManager *fontManager, NSString *markup)
 {
-    auto webView = adoptNS([[FontManagerTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[FontManagerTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:markup];
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
     [webView _setEditable:YES];
@@ -109,8 +109,8 @@ static RetainPtr<FontManagerTestWKWebView> webViewForFontManagerTesting(NSFontMa
 
 static RetainPtr<NSMenuItemCell> menuItemCellForFontAction(NSUInteger tag)
 {
-    auto menuItem = adoptNS([[NSMenuItem alloc] init]);
-    auto menuItemCell = adoptNS([[NSMenuItemCell alloc] init]);
+    RetainPtr menuItem = adoptNS([[NSMenuItem alloc] init]);
+    RetainPtr menuItemCell = adoptNS([[NSMenuItemCell alloc] init]);
     [menuItemCell setMenuItem:menuItem.get()];
     [menuItemCell setTag:tag];
     return menuItemCell;
@@ -214,8 +214,8 @@ TEST(FontManagerTests, ChangeFontWithPanel)
     [webView waitForNextPresentationUpdate];
 
     auto expectSameAttributes = [](NSFont *font1, NSFont *font2) {
-        auto fontAttributes1 = adoptNS(font1.fontDescriptor.fontAttributes.mutableCopy);
-        auto fontAttributes2 = adoptNS(font2.fontDescriptor.fontAttributes.mutableCopy);
+        RetainPtr fontAttributes1 = adoptNS(font1.fontDescriptor.fontAttributes.mutableCopy);
+        RetainPtr fontAttributes2 = adoptNS(font2.fontDescriptor.fontAttributes.mutableCopy);
         [fontAttributes1 removeObjectForKey:NSFontVariationAttribute];
         [fontAttributes2 removeObjectForKey:NSFontVariationAttribute];
         BOOL attributesAreEqual = [fontAttributes1 isEqualToDictionary:fontAttributes2.get()];
@@ -427,7 +427,7 @@ TEST(FontManagerTests, ChangeFontColorWithColorPanel)
 TEST(FontManagerTests, ChangeTypingAttributesWithInspectorBar)
 {
     auto webView = webViewForFontManagerTesting(NSFontManager.sharedFontManager);
-    auto inspectorBar = adoptNS([[TestInspectorBar alloc] initWithWebView:webView.get()]);
+    RetainPtr inspectorBar = adoptNS([[TestInspectorBar alloc] initWithWebView:webView.get()]);
     {
         [webView selectAll:nil];
         [webView waitForNextPresentationUpdate];

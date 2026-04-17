@@ -85,7 +85,7 @@ namespace TestWebKitAPI {
 
 static RetainPtr<TestWKWebView> webViewForEditActionTesting(NSString *markup)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:markup];
     [webView _setEditable:YES];
     [webView becomeFirstResponder];
@@ -95,7 +95,7 @@ static RetainPtr<TestWKWebView> webViewForEditActionTesting(NSString *markup)
 
 static RetainPtr<TestWKWebView> webViewForEditActionTestingWithPageNamed(NSString *testPageName)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:testPageName];
     [webView _setEditable:YES];
     [webView becomeFirstResponder];
@@ -358,7 +358,7 @@ TEST(WKWebViewEditActions, SetFontFamily)
 
 TEST(WebKit, CanInvokeTranslateWithTextSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568)]);
     auto translateSelector = ^{
 #if USE(BROWSERENGINEKIT)
         if ([webView hasAsyncTextInput])
@@ -414,8 +414,8 @@ TEST(WKWebViewEditActions, CopyFontAtCaretSelection)
     [webView objectByEvaluatingJavaScript:@"getSelection().setPosition(source.childNodes[0], 3)"];
 
     auto validateAndPerformAction = [](TestWKWebView *webView, SEL action) {
-        auto menu = adoptNS([NSMenu new]);
-        auto item = adoptNS([NSMenuItem new]);
+        RetainPtr menu = adoptNS([NSMenu new]);
+        RetainPtr item = adoptNS([NSMenuItem new]);
         [item setTarget:webView];
         [item setAction:action];
         [menu addItem:item.get()];

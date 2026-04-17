@@ -26,8 +26,6 @@
 #ifndef HOTBIT_HEAP_H
 #define HOTBIT_HEAP_H
 
-#include "pas_reallocate_free_mode.h"
-#include "pas_allocation_mode.h"
 
 #if PAS_ENABLE_HOTBIT
 

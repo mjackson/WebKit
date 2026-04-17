@@ -59,19 +59,19 @@ namespace WebCore {
 template<typename Character>
 constexpr std::optional<int> NODELETE consumeNumber(StringParsingBuffer<Character>& input)
 {
-    // Parse the digits until there is no more input left or a non-ASCII digit character has been encountered.
-    Checked<int, RecordOverflow> value;
-    do {
-        auto c = input.consume();
-        int digitValue = c - '0';
-        value = (value * 10) + digitValue;
-    } while (!input.atEnd() && WTF::isASCIIDigit(*input));
+    static constexpr size_t maximumNumberOfDigits = 3;
 
-    if (value.hasOverflowed())
-        return std::nullopt;
+    int value = 0;
+    for (size_t i = 0; !input.atEnd() && isASCIIDigit(*input); ++i) {
+        if (i >= maximumNumberOfDigits)
+            return std::nullopt;
 
-    ASSERT(value.value() > 0);
-    return value.value();
+        value = (value * 10) + (input.consume() - '0');
+    }
+
+    ASSERT(value > 0 && value < std::pow(10, maximumNumberOfDigits));
+
+    return value;
 }
 
 template<typename Character>
@@ -102,7 +102,7 @@ std::optional<TextList> tryConsumeUnorderedDashTextList(StringParsingBuffer<Char
 
     if (WTF::skipExactly(input, WTF::Unicode::hyphenMinus)) {
         if (input.atEnd())
-            return { { Style::ListStyleType { AtomString { std::span { marker } } }, 0, false } };
+            return { { Style::ListStyleType { Style::String { WTF::String { std::span { marker } } } }, 0, false } };
 
         skipToEnd(input);
     }

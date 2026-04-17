@@ -416,7 +416,8 @@ std::optional<ExceptionOr<void>> XMLHttpRequest::prepareToSend()
         return ExceptionOr<void> { };
 
     Ref context = *scriptExecutionContext();
-    if (RefPtr contextDocument = dynamicDowncast<Document>(context); contextDocument && contextDocument->shouldIgnoreSyncXHRs()) {
+    RefPtr contextDocument = dynamicDowncast<Document>(context);
+    if (contextDocument && contextDocument->shouldIgnoreSyncXHRs()) {
         logConsoleError(contextDocument.get(), makeString("Ignoring XMLHttpRequest.send() call for '"_s, m_url.url().string(), "' because the maximum number of synchronous failures was reached."_s));
         return ExceptionOr<void> { };
     }
@@ -426,8 +427,11 @@ std::optional<ExceptionOr<void>> XMLHttpRequest::prepareToSend()
     ASSERT(!m_loadingActivity);
 
     // FIXME: Convert this to check the isolated world's Content Security Policy once webkit.org/b/104520 is solved.
-    if (context->requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::NetworkRequests)
-        || (!context->shouldBypassMainWorldContentSecurityPolicy() && !protect(context->contentSecurityPolicy())->allowConnectToSource(m_url))) {
+    std::optional<TextPosition> sourcePosition;
+    if (contextDocument)
+        sourcePosition = contextDocument->currentParserSourcePosition();
+
+    if (!context->shouldBypassMainWorldContentSecurityPolicy() && !protect(context->contentSecurityPolicy())->allowConnectToSource(m_url, WTF::move(sourcePosition))) {
         if (!m_async)
             return ExceptionOr<void> { Exception { ExceptionCode::NetworkError } };
         m_timeoutTimer.stop();

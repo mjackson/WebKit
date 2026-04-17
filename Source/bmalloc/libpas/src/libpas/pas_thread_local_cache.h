@@ -28,7 +28,6 @@
 
 #include "pas_allocator_index.h"
 #include "pas_allocator_scavenge_action.h"
-#include "pas_darwin_spi.h"
 #include "pas_deallocator_scavenge_action.h"
 #include "pas_decommit_exclusion_range.h"
 #include "pas_fast_tls.h"
@@ -38,7 +37,6 @@
 #include "pas_malloc_stack_logging.h"
 #include "pas_segregated_page_config_kind_and_role.h"
 #include "pas_utils.h"
-#include "pas_zero_memory.h"
 
 #include "pas_thread.h"
 

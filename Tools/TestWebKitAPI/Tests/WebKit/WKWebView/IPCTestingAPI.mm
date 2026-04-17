@@ -88,9 +88,9 @@ static RetainPtr<NSString> promptResult;
 
 TEST(IPCTestingAPI, IsDisabledByDefault)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -152,7 +152,7 @@ TEST(IPCTestingAPI, CanDetectNilReplyBlocks)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     _WKRemoteObjectInterface *interface = remoteObjectInterface();
@@ -204,7 +204,7 @@ TEST(IPCTestingAPI, CanSendAlert)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -219,7 +219,7 @@ TEST(IPCTestingAPI, AlertIsSyncMessage)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -233,7 +233,7 @@ TEST(IPCTestingAPI, CanSendInvalidAsyncMessageToUIProcessWithoutTermination)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -249,7 +249,7 @@ TEST(IPCTestingAPI, CanSendInvalidSyncMessageToUIProcessWithoutTermination)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -267,7 +267,7 @@ TEST(IPCTestingAPI, CanSendSyncMessageToGPUProcess)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -283,7 +283,7 @@ TEST(IPCTestingAPI, CanSendAsyncMessageToGPUProcess)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -303,7 +303,7 @@ TEST(IPCTestingAPI, CanSendInvalidAsyncMessageToGPUProcessWithoutTermination)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -326,7 +326,7 @@ TEST(IPCTestingAPI, CanCreateSharedMemory)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -346,7 +346,7 @@ TEST(IPCTestingAPI, CanSendSharedMemory)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     auto* html = @R"HTML(<!DOCTYPE html>
@@ -375,7 +375,7 @@ TEST(IPCTestingAPI, DecodesReplyArgumentsForPrompt)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -392,7 +392,7 @@ TEST(IPCTestingAPI, DecodesReplyArgumentsForAsyncMessage)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -411,7 +411,7 @@ TEST(IPCTestingAPI, EmptyParametersDeleteCookie)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -455,7 +455,7 @@ TEST(IPCTestingAPI, InvalidURLsDeleteCookie)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -537,7 +537,7 @@ TEST(IPCTestingAPI, DescribesArguments)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -555,7 +555,7 @@ TEST(IPCTestingAPI, CanInterceptAlert)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -580,7 +580,7 @@ TEST(IPCTestingAPI, CanInterceptHasStorageAccess)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -612,13 +612,13 @@ TEST(IPCTestingAPI, CanInterceptFindString)
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><body><p>hello</p><script>messages = []; IPC.addIncomingMessageListener('UI', (message) => messages.push(message));</script>"];
 
     done = false;
-    auto findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr findConfiguration = adoptNS([[WKFindConfiguration alloc] init]);
     [webView findString:@"hello" withConfiguration:findConfiguration.get() completionHandler:^(WKFindResult *result) {
         EXPECT_TRUE(result.matchFound);
         EXPECT_TRUE([webView selectionRangeHasStartOffset:0 endOffset:5]);
@@ -682,7 +682,7 @@ TEST(IPCTestingAPI, LockdownModeDisablesWebGL)
 {
     auto webView = createWebViewWithIPCTestingAPIAndLockdownMode(true);
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -702,7 +702,7 @@ TEST(IPCTestingAPI, LockdownModeDisabledAllowsWebGL)
 {
     auto webView = createWebViewWithIPCTestingAPIAndLockdownMode(false);
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     done = false;
@@ -721,7 +721,7 @@ TEST(IPCTestingAPI, LockdownModeDetection)
     // Test with lockdown mode enabled
     {
         auto webViewLockdown = createWebViewWithIPCTestingAPIAndLockdownMode(true);
-        auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+        RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
         [webViewLockdown setUIDelegate:delegate.get()];
 
         [webViewLockdown synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body>Test</body></html>"];
@@ -752,7 +752,7 @@ TEST(IPCTestingAPI, LockdownModeDetection)
     // Test with lockdown mode disabled
     {
         auto webViewNormal = createWebViewWithIPCTestingAPIAndLockdownMode(false);
-        auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+        RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
         [webViewNormal setUIDelegate:delegate.get()];
 
         [webViewNormal synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body>Test</body></html>"];
@@ -789,16 +789,16 @@ TEST(IPCTestingAPI, SpeechSynthesisWithFeatureFlag)
 {
     // Test 1: Feature flag enabled - message should succeed
     {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         for (_WKFeature *feature in [WKPreferences _features]) {
             if ([feature.key isEqualToString:@"IPCTestingAPIEnabled"])
                 [[configuration preferences] _setEnabled:YES forFeature:feature];
             if ([feature.key isEqualToString:@"SpeechSynthesisAPIEnabled"])
                 [[configuration preferences] _setEnabled:YES forFeature:feature];
         }
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-        auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+        RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
         [webView setUIDelegate:delegate.get()];
 
         NSURL *htmlURL = [NSBundle.test_resourcesBundle URLForResource:@"speechsynthesis_feature_test" withExtension:@"html"];
@@ -815,16 +815,16 @@ TEST(IPCTestingAPI, SpeechSynthesisWithFeatureFlag)
 
     // Test 2: Feature flag disabled - message should fail with cancel error
     {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         for (_WKFeature *feature in [WKPreferences _features]) {
             if ([feature.key isEqualToString:@"IPCTestingAPIEnabled"])
                 [[configuration preferences] _setEnabled:YES forFeature:feature];
             if ([feature.key isEqualToString:@"SpeechSynthesisAPIEnabled"])
                 [[configuration preferences] _setEnabled:NO forFeature:feature];
         }
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-        auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+        RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
         [webView setUIDelegate:delegate.get()];
 
         NSURL *htmlURL = [NSBundle.test_resourcesBundle URLForResource:@"speechsynthesis_feature_test" withExtension:@"html"];
@@ -845,7 +845,7 @@ TEST(IPCTestingAPI, SpeechSynthesisWithLockdownMode)
 {
     [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:YES];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"IPCTestingAPIEnabled"])
             [[configuration preferences] _setEnabled:YES forFeature:feature];
@@ -859,9 +859,9 @@ TEST(IPCTestingAPI, SpeechSynthesisWithLockdownMode)
     [webpagePreferences setLockdownModeEnabled:YES];
     [configuration setDefaultWebpagePreferences:webpagePreferences.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     NSURL *htmlURL = [NSBundle.test_resourcesBundle URLForResource:@"speechsynthesis_lockdown_test" withExtension:@"html"];
@@ -884,13 +884,13 @@ TEST(IPCTestingAPI, SpeechSynthesisWithLockdownMode)
 #if !HAVE(WK_SECURE_CODING_NSURLREQUEST)
 TEST(IPCTestingAPI, CGColorInNSSecureCoding)
 {
-    auto archiver = adoptNS([[NSKeyedArchiver alloc] initRequiringSecureCoding:YES]);
+    RetainPtr archiver = adoptNS([[NSKeyedArchiver alloc] initRequiringSecureCoding:YES]);
 
     RetainPtr<id<NSKeyedArchiverDelegate, NSKeyedUnarchiverDelegate>> delegate = adoptNS([[NSClassFromString(@"WKSecureCodingArchivingDelegate") alloc] init]);
     archiver.get().delegate = delegate.get();
 
     NSString *key = @"SomeString";
-    auto value = adoptCF(CGColorCreateSRGB(0.2, 0.3, 0.4, 0.5));
+    RetainPtr value = adoptCF(CGColorCreateSRGB(0.2, 0.3, 0.4, 0.5));
     auto payload = @{ key : static_cast<id>(value.get()) };
     [archiver encodeObject:payload forKey:NSKeyedArchiveRootObjectKey];
     [archiver finishEncoding];
@@ -898,11 +898,11 @@ TEST(IPCTestingAPI, CGColorInNSSecureCoding)
 
     auto data = [archiver encodedData];
 
-    auto unarchiver = adoptNS([[NSKeyedUnarchiver alloc] initForReadingFromData:data error:nullptr]);
+    RetainPtr unarchiver = adoptNS([[NSKeyedUnarchiver alloc] initForReadingFromData:data error:nullptr]);
     unarchiver.get().decodingFailurePolicy = NSDecodingFailurePolicyRaiseException;
     unarchiver.get().delegate = delegate.get();
 
-    auto allowedClassSet = adoptNS([NSMutableSet new]);
+    RetainPtr allowedClassSet = adoptNS([NSMutableSet new]);
     [allowedClassSet addObject:NSDictionary.class];
     [allowedClassSet addObject:NSString.class];
     [allowedClassSet addObject:NSClassFromString(@"WKSecureCodingCGColorWrapper")];
@@ -915,7 +915,7 @@ TEST(IPCTestingAPI, CGColorInNSSecureCoding)
     CGColorRef resultValue = static_cast<CGColorRef>(result.allValues[0]);
     ASSERT_EQ(CFGetTypeID(resultValue), CGColorGetTypeID());
     RetainPtr resultValueColorSpace = CGColorGetColorSpace(resultValue);
-    auto resultValueColorSpaceName = adoptCF(CGColorSpaceCopyName(resultValueColorSpace.get()));
+    RetainPtr resultValueColorSpaceName = adoptCF(CGColorSpaceCopyName(resultValueColorSpace.get()));
     EXPECT_NE(CFStringFind(resultValueColorSpaceName.get(), CFSTR("SRGB"), 0).location, kCFNotFound);
     ASSERT_EQ(CGColorGetNumberOfComponents(resultValue), CGColorGetNumberOfComponents(value.get()));
     for (size_t i = 0; i < CGColorGetNumberOfComponents(resultValue); ++i)
@@ -926,7 +926,7 @@ TEST(IPCTestingAPI, CGColorInNSSecureCoding)
 
 TEST(IPCTestingAPI, NSURLWithBaseURLInNSSecureCoding)
 {
-    auto archiver = adoptNS([[NSKeyedArchiver alloc] initRequiringSecureCoding:YES]);
+    RetainPtr archiver = adoptNS([[NSKeyedArchiver alloc] initRequiringSecureCoding:YES]);
 
     RetainPtr<id<NSKeyedArchiverDelegate, NSKeyedUnarchiverDelegate>> delegate = adoptNS([[NSClassFromString(@"WKSecureCodingArchivingDelegate") alloc] init]);
     archiver.get().delegate = delegate.get();
@@ -944,11 +944,11 @@ TEST(IPCTestingAPI, NSURLWithBaseURLInNSSecureCoding)
 
     auto data = [archiver encodedData];
 
-    auto unarchiver = adoptNS([[NSKeyedUnarchiver alloc] initForReadingFromData:data error:nullptr]);
+    RetainPtr unarchiver = adoptNS([[NSKeyedUnarchiver alloc] initForReadingFromData:data error:nullptr]);
     unarchiver.get().decodingFailurePolicy = NSDecodingFailurePolicyRaiseException;
     unarchiver.get().delegate = delegate.get();
 
-    auto allowedClassSet = adoptNS([NSMutableSet new]);
+    RetainPtr allowedClassSet = adoptNS([NSMutableSet new]);
     [allowedClassSet addObject:NSDictionary.class];
     [allowedClassSet addObject:NSString.class];
     [allowedClassSet addObject:NSClassFromString(@"WKSecureCodingURLWrapper")];

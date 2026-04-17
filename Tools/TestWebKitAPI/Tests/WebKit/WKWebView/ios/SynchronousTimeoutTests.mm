@@ -40,7 +40,7 @@ namespace TestWebKitAPI {
 
 TEST(SynchronousTimeoutTests, UnresponsivePageDoesNotCausePositionInformationToHangUI)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
     [webView evaluateJavaScript:@"while(1);" completionHandler:nil];

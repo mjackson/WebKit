@@ -163,7 +163,7 @@ static bool laContextRequested = false;
 - (void)panel:(_WKWebAuthenticationPanel *)panel selectAssertionResponse:(NSArray < _WKWebAuthenticationAssertionResponse *> *)responses source:(_WKWebAuthenticationSource)source completionHandler:(void (^)(_WKWebAuthenticationAssertionResponse *))completionHandler
 {
     if (responses.count == 1) {
-        auto laContext = adoptNS([[LAContext alloc] init]);
+        RetainPtr laContext = adoptNS([[LAContext alloc] init]);
         [responses.firstObject setLAContext:laContext.get()];
 
         completionHandler(responses.firstObject);
@@ -175,7 +175,7 @@ static bool laContextRequested = false;
     if (source == _WKWebAuthenticationSourceLocal) {
         auto *object = responses.lastObject;
 
-        auto laContext = adoptNS([[LAContext alloc] init]);
+        RetainPtr laContext = adoptNS([[LAContext alloc] init]);
         [object setLAContext:laContext.get()];
 
         webAuthenticationPanelSelectedCredentialName = object.name;
@@ -364,7 +364,7 @@ bool addKeyToKeychain(const String& privateKeyBase64, const String& rpId, const 
         (id)kSecAttrKeySizeInBits: @256,
     };
     CFErrorRef errorRef = nullptr;
-    auto key = adoptCF(SecKeyCreateWithData(
+    RetainPtr key = adoptCF(SecKeyCreateWithData(
         (__bridge CFDataRef)adoptNS([[NSData alloc] initWithBase64EncodedString:privateKeyBase64.createNSString().get() options:NSDataBase64DecodingIgnoreUnknownCharacters]).get(),
         (__bridge CFDictionaryRef)options,
         &errorRef
@@ -372,8 +372,8 @@ bool addKeyToKeychain(const String& privateKeyBase64, const String& rpId, const 
     if (errorRef)
         return false;
 
-    auto credentialID = adoptNS([[NSData alloc] initWithBase64EncodedString:@"SMSXHngF7hEOsElA73C3RY+8bR4=" options:0]);
-    auto addQuery = adoptNS([[NSMutableDictionary alloc] init]);
+    RetainPtr credentialID = adoptNS([[NSData alloc] initWithBase64EncodedString:@"SMSXHngF7hEOsElA73C3RY+8bR4=" options:0]);
+    RetainPtr addQuery = adoptNS([[NSMutableDictionary alloc] init]);
     [addQuery setDictionary:@{
         (id)kSecValueRef: (id)key.get(),
         (id)kSecClass: (id)kSecClassKey,
@@ -419,7 +419,7 @@ static RetainPtr<TestWKWebView> setUpTestWebViewForTestAuthenticationPanel()
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
     [configuration _setAllowTestOnlyIPC:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect configuration:configuration]);
     return webView;
 }
 
@@ -463,7 +463,7 @@ TEST(WebAuthenticationPanel, PanelHidSuccess1)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -487,7 +487,7 @@ TEST(WebAuthenticationPanel, PanelHidSuccess2)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-hid" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -511,7 +511,7 @@ TEST(WebAuthenticationPanel, PanelRacy1)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-nfc" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [delegate setIsRacy:true];
     [webView setUIDelegate:delegate.get()];
     [webView focus];
@@ -532,7 +532,7 @@ TEST(WebAuthenticationPanel, PanelRacy2)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-nfc" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [delegate setIsRacy:true];
     [webView setUIDelegate:delegate.get()];
     [webView focus];
@@ -558,7 +558,7 @@ TEST(WebAuthenticationPanel, PanelTwice)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -578,7 +578,7 @@ TEST(WebAuthenticationPanel, ReloadHidCancel)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-cancel" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -595,7 +595,7 @@ TEST(WebAuthenticationPanel, LocationChangeHidCancel)
     RetainPtr<NSURL> otherURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -612,7 +612,7 @@ TEST(WebAuthenticationPanel, NewLoadHidCancel)
     RetainPtr<NSURL> otherURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -628,7 +628,7 @@ TEST(WebAuthenticationPanel, CloseHidCancel)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-cancel" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -665,7 +665,7 @@ TEST(WebAuthenticationPanel, SubFrameChangeLocationHidCancel)
     });
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -709,7 +709,7 @@ TEST(WebAuthenticationPanel, SubFrameDestructionHidCancel)
     });
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -725,7 +725,7 @@ TEST(WebAuthenticationPanel, PanelHidCancel)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-cancel" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -751,7 +751,7 @@ TEST(WebAuthenticationPanel, PanelHidCtapNoCredentialsFound)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-no-credentials" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -766,7 +766,7 @@ TEST(WebAuthenticationPanel, PanelU2fCtapNoCredentialsFound)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-u2f-no-credentials" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -786,7 +786,7 @@ TEST(WebAuthenticationPanel, FakePanelHidSuccess)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [delegate setIsFake:true];
     [webView setUIDelegate:delegate.get()];
     [webView focus];
@@ -802,7 +802,7 @@ TEST(WebAuthenticationPanel, FakePanelHidCtapNoCredentialsFound)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-no-credentials" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [delegate setIsFake:true];
     [webView setUIDelegate:delegate.get()];
     [webView focus];
@@ -823,7 +823,7 @@ TEST(WebAuthenticationPanel, NullPanelHidSuccess)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [delegate setIsNull:true];
     [webView setUIDelegate:delegate.get()];
     [webView focus];
@@ -839,7 +839,7 @@ TEST(WebAuthenticationPanel, NullPanelHidCtapNoCredentialsFound)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-no-credentials" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [delegate setIsNull:true];
     [webView setUIDelegate:delegate.get()];
     [webView focus];
@@ -856,7 +856,7 @@ TEST(WebAuthenticationPanel, PanelMultipleNFCTagsPresent)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-nfc-multiple-tags" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -872,7 +872,7 @@ TEST(WebAuthenticationPanel, PanelHidCancelReloadNoCrash)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-cancel" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -894,7 +894,7 @@ TEST(WebAuthenticationPanel, PanelHidSuccessCancelNoCrash)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
     webAuthenticationPanelCancelImmediately = true;
@@ -914,7 +914,7 @@ TEST(WebAuthenticationPanel, PanelHidCtapNoCredentialsFoundCancelNoCrash)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-no-credentials" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
     webAuthenticationPanelCancelImmediately = true;
@@ -962,7 +962,7 @@ TEST(WebAuthenticationPanel, PinRequestPinErrorNullDelegate)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-hid-pin" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [delegate setIsNull:true];
     [webView setUIDelegate:delegate.get()];
     [webView focus];
@@ -977,7 +977,7 @@ TEST(WebAuthenticationPanel, PinRequestPinError)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-hid-pin-get-pin-token-fake-pin-invalid-error-retry" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -994,7 +994,7 @@ TEST(WebAuthenticationPanel, PinGetPinTokenPinBlockedError)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-hid-pin-get-pin-token-pin-blocked-error" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1011,7 +1011,7 @@ TEST(WebAuthenticationPanel, PinGetPinTokenPinAuthBlockedError)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-hid-pin-get-pin-token-pin-auth-blocked-error" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1028,7 +1028,7 @@ TEST(WebAuthenticationPanel, PinGetPinTokenPinInvalidErrorAndRetry)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-hid-pin-get-pin-token-pin-invalid-error-retry" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1044,7 +1044,7 @@ TEST(WebAuthenticationPanel, PinGetPinTokenPinAuthInvalidErrorAndRetry)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-hid-pin-get-pin-token-pin-auth-invalid-error-retry" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1060,7 +1060,7 @@ TEST(WebAuthenticationPanel, MakeCredentialInternalUV)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-hid-internal-uv" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1074,7 +1074,7 @@ TEST(WebAuthenticationPanel, MakeCredentialPin)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-hid-pin" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1089,7 +1089,7 @@ TEST(WebAuthenticationPanel, MakeCredentialPinAuthBlockedError)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-hid-pin-auth-blocked-error" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1105,7 +1105,7 @@ TEST(WebAuthenticationPanel, MakeCredentialPinInvalidErrorAndRetry)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-hid-pin-invalid-error-retry" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1126,7 +1126,7 @@ TEST(WebAuthenticationPanel, GetAssertionPin)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-pin" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1146,7 +1146,7 @@ TEST(WebAuthenticationPanel, GetAssertionInternalUV)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-internal-uv" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1165,7 +1165,7 @@ TEST(WebAuthenticationPanel, GetAssertionInternalUVPinFallback)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-internal-uv-pin-fallback" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1185,7 +1185,7 @@ TEST(WebAuthenticationPanel, GetAssertionPinAuthBlockedError)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-pin-auth-blocked-error" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1206,7 +1206,7 @@ TEST(WebAuthenticationPanel, GetAssertionPinInvalidErrorAndRetry)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-pin-invalid-error-retry" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1223,7 +1223,7 @@ TEST(WebAuthenticationPanel, NfcPinCachedDisconnect)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-nfc-pin-disconnect" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
 
     [webView setUIDelegate:delegate.get()];
     [webView focus];
@@ -1240,7 +1240,7 @@ TEST(WebAuthenticationPanel, MultipleAccountsNullDelegate)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-multiple-accounts" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [delegate setIsNull:true];
     [webView setUIDelegate:delegate.get()];
     [webView focus];
@@ -1260,7 +1260,7 @@ TEST(WebAuthenticationPanel, MultipleAccounts)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-hid-multiple-accounts" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1279,7 +1279,7 @@ TEST(WebAuthenticationPanel, LAError)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-la-error" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1293,7 +1293,7 @@ TEST(WebAuthenticationPanel, LADuplicateCredential)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-la-duplicate-credential" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1312,7 +1312,7 @@ TEST(WebAuthenticationPanel, LADuplicateCredentialWithConsent)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-la-duplicate-credential" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1334,7 +1334,7 @@ TEST(WebAuthenticationPanel, LANoCredential)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-la" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1353,7 +1353,7 @@ TEST(WebAuthenticationPanel, LAMakeCredentialAllowLocalAuthenticator)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-make-credential-la" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1375,7 +1375,7 @@ TEST(WebAuthenticationPanel, LAGetAssertion)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-la" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1395,7 +1395,7 @@ TEST(WebAuthenticationPanel, LAGetAssertionMultipleCredentialStore)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-la" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1426,7 +1426,7 @@ TEST(WebAuthenticationPanel, LAGetAssertionNoMockNoUserGesture)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-la-no-mock" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1447,7 +1447,7 @@ TEST(WebAuthenticationPanel, LAGetAssertionMultipleOrder)
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"web-authentication-get-assertion-la" withExtension:@"html"];
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -1473,13 +1473,13 @@ TEST(WebAuthenticationPanel, PublicKeyCredentialCreationOptionsMinimum)
 {
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ parameters.get() ];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
     auto result = [_WKWebAuthenticationPanel convertToCoreCreationOptionsWithOptions:options.get()];
 
     EXPECT_WK_STREQ(result.rp.name, "example.com");
@@ -1506,17 +1506,17 @@ TEST(WebAuthenticationPanel, PublicKeyCredentialCreationOptionsMaximumDefault)
 {
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto parameters1 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
-    auto parameters2 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
-    auto descriptor = adoptNS([[_WKPublicKeyCredentialDescriptor alloc] initWithIdentifier:nsIdentifier.get()]);
+    RetainPtr parameters1 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr parameters2 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
+    RetainPtr descriptor = adoptNS([[_WKPublicKeyCredentialDescriptor alloc] initWithIdentifier:nsIdentifier.get()]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ parameters1.get(), parameters2.get() ];
-    auto authenticatorSelection = adoptNS([[_WKAuthenticatorSelectionCriteria alloc] init]);
-    auto extensions = adoptNS([[_WKAuthenticationExtensionsClientInputs alloc] init]);
+    RetainPtr authenticatorSelection = adoptNS([[_WKAuthenticatorSelectionCriteria alloc] init]);
+    RetainPtr extensions = adoptNS([[_WKAuthenticationExtensionsClientInputs alloc] init]);
 
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
     [options setTimeout:@120];
     [options setExcludeCredentials:@[ descriptor.get() ]];
     [options setAuthenticatorSelection:authenticatorSelection.get()];
@@ -1557,19 +1557,19 @@ TEST(WebAuthenticationPanel, PublicKeyCredentialCreationOptionsMaximum1)
 {
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto parameters1 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
-    auto parameters2 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
+    RetainPtr parameters1 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr parameters2 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
     [rp setIcon:@"https//www.example.com/icon.jpg"];
     [rp setIdentifier:@"example.com"];
 
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     [user setIcon:@"https//www.example.com/icon.jpg"];
 
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ parameters1.get(), parameters2.get() ];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
     [options setTimeout:@120];
 
     RetainPtr usb = [NSNumber numberWithInt:_WKWebAuthenticationTransportUSB];
@@ -1580,7 +1580,7 @@ TEST(WebAuthenticationPanel, PublicKeyCredentialCreationOptionsMaximum1)
     [credential setTransports:@[ usb.get(), nfc.get(), internal.get(), hybrid.get() ]];
     [options setExcludeCredentials:@[ credential.get(), credential.get() ]];
 
-    auto authenticatorSelection = adoptNS([[_WKAuthenticatorSelectionCriteria alloc] init]);
+    RetainPtr authenticatorSelection = adoptNS([[_WKAuthenticatorSelectionCriteria alloc] init]);
     [authenticatorSelection setAuthenticatorAttachment:_WKAuthenticatorAttachmentPlatform];
     [authenticatorSelection setRequireResidentKey:YES];
     [authenticatorSelection setUserVerification:_WKUserVerificationRequirementRequired];
@@ -1627,19 +1627,19 @@ TEST(WebAuthenticationPanel, PublicKeyCredentialCreationOptionsMaximum2)
 {
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto parameters1 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
-    auto parameters2 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
+    RetainPtr parameters1 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr parameters2 = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
     [rp setIcon:@"https//www.example.com/icon.jpg"];
     [rp setIdentifier:@"example.com"];
 
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     [user setIcon:@"https//www.example.com/icon.jpg"];
 
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ parameters1.get(), parameters2.get() ];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
     [options setTimeout:@120];
 
     RetainPtr usb = [NSNumber numberWithInt:_WKWebAuthenticationTransportUSB];
@@ -1649,7 +1649,7 @@ TEST(WebAuthenticationPanel, PublicKeyCredentialCreationOptionsMaximum2)
     [credential setTransports:@[ usb.get(), nfc.get(), internal.get() ]];
     [options setExcludeCredentials:@[ credential.get(), credential.get() ]];
 
-    auto authenticatorSelection = adoptNS([[_WKAuthenticatorSelectionCriteria alloc] init]);
+    RetainPtr authenticatorSelection = adoptNS([[_WKAuthenticatorSelectionCriteria alloc] init]);
     [authenticatorSelection setAuthenticatorAttachment:_WKAuthenticatorAttachmentCrossPlatform]; //
     [authenticatorSelection setRequireResidentKey:YES];
     [authenticatorSelection setUserVerification:_WKUserVerificationRequirementDiscouraged]; //
@@ -1704,15 +1704,15 @@ TEST(WebAuthenticationPanel, MakeCredentialSPITimeout)
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
     RetainPtr nsIdentifier = toNSData(identifier);
     NSData *nsHash = [NSData dataWithBytes:hash length:sizeof(hash)];
-    auto parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ parameters.get() ];
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
     [options setTimeout:@10];
 
-    auto panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
+    RetainPtr panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
     [panel makeCredentialWithChallenge:nsHash origin:@"" options:options.get() completionHandler:^(_WKAuthenticatorAttestationResponse *response, NSError *error) {
         webAuthenticationPanelRan = true;
 
@@ -1733,18 +1733,18 @@ TEST(WebAuthenticationPanel, MakeCredentialLA)
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
-    auto parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
+    RetainPtr parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
     [rp setIdentifier:@"example.com"];
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ parameters.get() ];
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
 
-    auto panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
+    RetainPtr panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
     [panel setMockConfiguration:@{ @"privateKeyBase64": testES256PrivateKeyBase64.createNSString().get() }];
-    auto delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
     [panel setDelegate:delegate.get()];
 
     [panel makeCredentialWithChallenge:nsHash.get() origin:@"https://example.com" options:options.get() completionHandler:^(_WKAuthenticatorAttestationResponse *response, NSError *error) {
@@ -1770,18 +1770,18 @@ TEST(WebAuthenticationPanel, MakeCredentialLAClientDataHashMediation)
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
-    auto parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
+    RetainPtr parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
     [rp setIdentifier:@"example.com"];
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ parameters.get() ];
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
 
-    auto panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
+    RetainPtr panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
     [panel setMockConfiguration:@{ @"privateKeyBase64": testES256PrivateKeyBase64.createNSString().get() }];
-    auto delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
     [panel setDelegate:delegate.get()];
 
     [panel makeCredentialWithMediationRequirement:_WKWebAuthenticationMediationRequirementOptional clientDataHash:nsHash.get() options:options.get() completionHandler:^(_WKAuthenticatorAttestationResponse *response, NSError *error) {
@@ -1807,19 +1807,19 @@ TEST(WebAuthenticationPanel, MakeCredentialLAAttestationFalback)
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
-    auto parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
+    RetainPtr parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
     [rp setIdentifier:@"example.com"];
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ parameters.get() ];
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
     options.get().attestation = _WKAttestationConveyancePreferenceDirect;
 
-    auto panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
+    RetainPtr panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
     [panel setMockConfiguration:@{ @"privateKeyBase64": testES256PrivateKeyBase64.createNSString().get() }];
-    auto delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
     [panel setDelegate:delegate.get()];
 
     [panel makeCredentialWithClientDataHash:nsHash.get() options:options.get() completionHandler:^(_WKAuthenticatorAttestationResponse *response, NSError *error) {
@@ -1836,7 +1836,7 @@ TEST(WebAuthenticationPanel, MakeCredentialLAAttestationFalback)
 
 TEST(WebAuthenticationPanel, PublicKeyCredentialRequestOptionsMinimun)
 {
-    auto options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
     auto result = [_WKWebAuthenticationPanel convertToCoreRequestOptionsWithOptions:options.get()];
 
     EXPECT_EQ(result.timeout, std::nullopt);
@@ -1850,10 +1850,10 @@ TEST(WebAuthenticationPanel, PublicKeyCredentialRequestOptionsMaximumDefault)
 {
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto descriptor = adoptNS([[_WKPublicKeyCredentialDescriptor alloc] initWithIdentifier:nsIdentifier.get()]);
-    auto extensions = adoptNS([[_WKAuthenticationExtensionsClientInputs alloc] init]);
+    RetainPtr descriptor = adoptNS([[_WKPublicKeyCredentialDescriptor alloc] initWithIdentifier:nsIdentifier.get()]);
+    RetainPtr extensions = adoptNS([[_WKAuthenticationExtensionsClientInputs alloc] init]);
 
-    auto options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
     [options setTimeout:@120];
     [options setAllowCredentials:@[ descriptor.get() ]];
     [options setExtensions:extensions.get()];
@@ -1875,7 +1875,7 @@ TEST(WebAuthenticationPanel, PublicKeyCredentialRequestOptionsMaximum)
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     RetainPtr nsIdentifier = toNSData(identifier);
 
-    auto options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
     [options setTimeout:@120];
 
     RetainPtr usb = [NSNumber numberWithInt:_WKWebAuthenticationTransportUSB];
@@ -1914,10 +1914,10 @@ TEST(WebAuthenticationPanel, GetAssertionSPITimeout)
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
     NSData *nsHash = [NSData dataWithBytes:hash length:sizeof(hash)];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
     [options setTimeout:@120];
 
-    auto panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
+    RetainPtr panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
     [panel getAssertionWithChallenge:nsHash origin:@"" options:options.get() completionHandler:^(_WKAuthenticatorAssertionResponse *response, NSError *error) {
         webAuthenticationPanelRan = true;
 
@@ -1934,7 +1934,7 @@ TEST(WebAuthenticationPanel, GetAssertionSPITimeout)
 TEST(WebAuthenticationPanel, GetAssertionLA)
 {
     reset();
-    auto beforeTime = adoptNS([[NSDate alloc] init]);
+    RetainPtr beforeTime = adoptNS([[NSDate alloc] init]);
 
     ASSERT_TRUE(addKeyToKeychain(testES256PrivateKeyBase64, "example.com"_s, testUserEntityBundleBase64));
     
@@ -1948,12 +1948,12 @@ TEST(WebAuthenticationPanel, GetAssertionLA)
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
     NSData *nsHash = [NSData dataWithBytes:hash length:sizeof(hash)];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
     [options setRelyingPartyIdentifier:@"example.com"];
 
-    auto panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
+    RetainPtr panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
     [panel setMockConfiguration:@{ }];
-    auto delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
     [panel setDelegate:delegate.get()];
 
     [panel getAssertionWithChallenge:nsHash origin:@"https://example.com" options:options.get() completionHandler:^(_WKAuthenticatorAssertionResponse *response, NSError *error) {
@@ -2002,12 +2002,12 @@ TEST(WebAuthenticationPanel, GetAssertionLAClientDataHashMediation)
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
     NSData *nsHash = [NSData dataWithBytes:hash length:sizeof(hash)];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
     [options setRelyingPartyIdentifier:@"example.com"];
 
-    auto panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
+    RetainPtr panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
     [panel setMockConfiguration:@{ }];
-    auto delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
     [panel setDelegate:delegate.get()];
 
     [panel getAssertionWithMediationRequirement:_WKWebAuthenticationMediationRequirementOptional clientDataHash:nsHash options:options.get() completionHandler:^(_WKAuthenticatorAssertionResponse *response, NSError *error) {
@@ -2051,12 +2051,12 @@ TEST(WebAuthenticationPanel, GetAssertionNullUserHandle)
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
     NSData *nsHash = [NSData dataWithBytes:hash length:sizeof(hash)];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
     [options setRelyingPartyIdentifier:@"example.com"];
 
-    auto panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
+    RetainPtr panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
     [panel setMockConfiguration:@{ }];
-    auto delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
     [panel setDelegate:delegate.get()];
 
     [panel getAssertionWithClientDataHash:nsHash options:options.get() completionHandler:^(_WKAuthenticatorAssertionResponse *response, NSError *error) {
@@ -2079,14 +2079,14 @@ TEST(WebAuthenticationPanel, GetAssertionCrossPlatform)
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
     NSData *nsHash = [NSData dataWithBytes:hash length:sizeof(hash)];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
     [options setRelyingPartyIdentifier:@""];
     [options setAuthenticatorAttachment:_WKAuthenticatorAttachmentCrossPlatform];
     [options setTimeout:@120];
 
-    auto panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
+    RetainPtr panel = adoptNS([[_WKWebAuthenticationPanel alloc] init]);
     [panel setMockConfiguration:@{ }];
-    auto delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelDelegate alloc] init]);
     [panel setDelegate:delegate.get()];
 
     [panel getAssertionWithChallenge:nsHash origin:@"" options:options.get() completionHandler:^(_WKAuthenticatorAssertionResponse *response, NSError *error) {
@@ -2104,11 +2104,11 @@ TEST(WebAuthenticationPanel, GetAllCredential)
 {
     reset();
 
-    auto before = adoptNS([[NSDate alloc] init]);
+    RetainPtr before = adoptNS([[NSDate alloc] init]);
 
     ASSERT_TRUE(addKeyToKeychain(testES256PrivateKeyBase64, "example.com"_s, testUserEntityBundleBase64));
 
-    auto after = adoptNS([[NSDate alloc] init]);
+    RetainPtr after = adoptNS([[NSDate alloc] init]);
 
     auto *credentials = [_WKWebAuthenticationPanel getAllLocalAuthenticatorCredentialsWithAccessGroup:@"com.apple.TestWebKitAPI"];
     EXPECT_NOT_NULL(credentials);
@@ -2133,7 +2133,7 @@ TEST(WebAuthenticationPanel, GetAllCredentialNullUserHandle)
 
     ASSERT_TRUE(addKeyToKeychain(testES256PrivateKeyBase64, "example.com"_s, testUserEntityBundleNoUserHandleBase64));
 
-    auto after = adoptNS([[NSDate alloc] init]);
+    RetainPtr after = adoptNS([[NSDate alloc] init]);
 
     auto *credentials = [_WKWebAuthenticationPanel getAllLocalAuthenticatorCredentialsWithAccessGroup:@"com.apple.TestWebKitAPI"];
     EXPECT_NOT_NULL(credentials);
@@ -2152,7 +2152,7 @@ TEST(WebAuthenticationPanel, GetAllCredentialWithDisplayName)
     // {"id": h'00010203040506070809', "name": "John", "displayName": "Johnny"}
     ASSERT_TRUE(addKeyToKeychain(testES256PrivateKeyBase64, "example.com"_s, "o2JpZEoAAQIDBAUGBwgJZG5hbWVkSm9obmtkaXNwbGF5TmFtZWZKb2hubnk="_s));
 
-    auto after = adoptNS([[NSDate alloc] init]);
+    RetainPtr after = adoptNS([[NSDate alloc] init]);
 
     auto *credentials = [_WKWebAuthenticationPanel getAllLocalAuthenticatorCredentialsWithAccessGroup:@"com.apple.TestWebKitAPI"];
     EXPECT_NOT_NULL(credentials);
@@ -2221,8 +2221,8 @@ TEST(WebAuthenticationPanel, GetAllCredentialByCredentialID)
 TEST(WebAuthenticationPanel, EncodeCTAPAssertion)
 {
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
-    auto nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
-    auto options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
+    RetainPtr nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialRequestOptions alloc] init]);
 
     auto *command = [_WKWebAuthenticationPanel encodeGetAssertionCommandWithClientDataHash:nsHash.get() options: options.get() userVerificationAvailability:_WKWebAuthenticationUserVerificationAvailabilityNotSupported];
 
@@ -2234,23 +2234,23 @@ TEST(WebAuthenticationPanel, EncodeCTAPAssertion)
 TEST(WebAuthenticationPanel, EncodeClientDataJSONWithTopOrigin)
 {
     uint8_t challenge[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
-    auto nsChallenge = adoptNS([[NSData alloc] initWithBytes:challenge length:sizeof(challenge)]);
+    RetainPtr nsChallenge = adoptNS([[NSData alloc] initWithBytes:challenge length:sizeof(challenge)]);
     EXPECT_WK_STREQ("{\"type\":\"webauthn.get\",\"challenge\":\"AQIDBAECAwQBAgMEAQIDBAECAwQBAgMEAQIDBAECAwQ\",\"origin\":\"https://a.com\",\"crossOrigin\":true,\"topOrigin\":\"https://b.com\"}", [[NSString alloc] initWithData:[_WKWebAuthenticationPanel getClientDataJSONWithTopOrigin:_WKWebAuthenticationTypeGet challenge:nsChallenge.get() origin:@"https://a.com" topOrigin:@"https://b.com" crossOrigin:YES] encoding:NSUTF8StringEncoding]);
 }
 
 TEST(WebAuthenticationPanel, EncodeCTAPCreation)
 {
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
-    auto nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
+    RetainPtr nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ parameters.get() ];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
 
     auto *command = [_WKWebAuthenticationPanel encodeMakeCredentialCommandWithClientDataHash:nsHash.get() options: options.get() userVerificationAvailability:_WKWebAuthenticationUserVerificationAvailabilityNotSupported];
 
@@ -2262,19 +2262,19 @@ TEST(WebAuthenticationPanel, EncodeCTAPCreation)
 TEST(WebAuthenticationPanel, EncodeCTAPCreationTrimmedParametersGetInfoNoneES256)
 {
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
-    auto nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
+    RetainPtr nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto es256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
-    auto rs256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
-    auto ec2Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@2]);
+    RetainPtr es256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr rs256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
+    RetainPtr ec2Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@2]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ es256Parameters.get(), rs256Parameters.get(), ec2Parameters.get()];
     NSArray<_WKPublicKeyCredentialParameters *> *authenticatorSupportedCredentialParamaters = @[];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
 
     auto *command = [_WKWebAuthenticationPanel encodeMakeCredentialCommandWithClientDataHash:nsHash.get() options: options.get() userVerificationAvailability:_WKWebAuthenticationUserVerificationAvailabilityNotSupported authenticatorSupportedCredentialParameters:authenticatorSupportedCredentialParamaters];
 
@@ -2287,18 +2287,18 @@ TEST(WebAuthenticationPanel, EncodeCTAPCreationTrimmedParametersGetInfoNoneES256
 TEST(WebAuthenticationPanel, EncodeCTAPCreationTrimmedParametersGetInfoNoneRS256)
 {
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
-    auto nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
+    RetainPtr nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto rs256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
-    auto ec2Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@2]);
+    RetainPtr rs256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
+    RetainPtr ec2Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@2]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ rs256Parameters.get(), ec2Parameters.get() ];
     NSArray<_WKPublicKeyCredentialParameters *> *authenticatorSupportedCredentialParamaters = @[];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
 
     auto *command = [_WKWebAuthenticationPanel encodeMakeCredentialCommandWithClientDataHash:nsHash.get() options: options.get() userVerificationAvailability:_WKWebAuthenticationUserVerificationAvailabilityNotSupported authenticatorSupportedCredentialParameters:authenticatorSupportedCredentialParamaters];
 
@@ -2311,19 +2311,19 @@ TEST(WebAuthenticationPanel, EncodeCTAPCreationTrimmedParametersGetInfoNoneRS256
 TEST(WebAuthenticationPanel, EncodeCTAPCreationTrimmedParametersGetInfoSupportsEC2)
 {
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
-    auto nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
+    RetainPtr nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto es256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
-    auto rs256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
-    auto ec2Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@2]);
+    RetainPtr es256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr rs256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
+    RetainPtr ec2Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@2]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ es256Parameters.get(), rs256Parameters.get(), ec2Parameters.get()];
     NSArray<_WKPublicKeyCredentialParameters *> *authenticatorSupportedCredentialParamaters = @[ ec2Parameters.get() ];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
 
     auto *command = [_WKWebAuthenticationPanel encodeMakeCredentialCommandWithClientDataHash:nsHash.get() options: options.get() userVerificationAvailability:_WKWebAuthenticationUserVerificationAvailabilityNotSupported authenticatorSupportedCredentialParameters:authenticatorSupportedCredentialParamaters];
 
@@ -2336,19 +2336,19 @@ TEST(WebAuthenticationPanel, EncodeCTAPCreationTrimmedParametersGetInfoSupportsE
 TEST(WebAuthenticationPanel, EncodeCTAPCreationTrimmedParametersGetInfoSupportsDisjoint)
 {
     uint8_t hash[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
-    auto nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
+    RetainPtr nsHash = adoptNS([[NSData alloc] initWithBytes:hash length:sizeof(hash)]);
     auto identifier = std::to_array<uint8_t>({ 0x01, 0x02, 0x03, 0x04 });
     RetainPtr nsIdentifier = toNSData(identifier);
-    auto rs256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
-    auto ec2Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@2]);
-    auto es256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
+    RetainPtr rs256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-257]);
+    RetainPtr ec2Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@2]);
+    RetainPtr es256Parameters = adoptNS([[_WKPublicKeyCredentialParameters alloc] initWithAlgorithm:@-7]);
 
-    auto rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
-    auto user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
+    RetainPtr rp = adoptNS([[_WKPublicKeyCredentialRelyingPartyEntity alloc] initWithName:@"example.com"]);
+    RetainPtr user = adoptNS([[_WKPublicKeyCredentialUserEntity alloc] initWithName:@"jappleseed@example.com" identifier:nsIdentifier.get() displayName:@"J Appleseed"]);
     NSArray<_WKPublicKeyCredentialParameters *> *publicKeyCredentialParamaters = @[ rs256Parameters.get(), ec2Parameters.get()];
     NSArray<_WKPublicKeyCredentialParameters *> *authenticatorSupportedCredentialParamaters = @[ es256Parameters.get() ];
 
-    auto options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
+    RetainPtr options = adoptNS([[_WKPublicKeyCredentialCreationOptions alloc] initWithRelyingParty:rp.get() user:user.get() publicKeyCredentialParamaters:publicKeyCredentialParamaters]);
 
     auto *command = [_WKWebAuthenticationPanel encodeMakeCredentialCommandWithClientDataHash:nsHash.get() options: options.get() userVerificationAvailability:_WKWebAuthenticationUserVerificationAvailabilityNotSupported authenticatorSupportedCredentialParameters:authenticatorSupportedCredentialParamaters];
 
@@ -2564,7 +2564,7 @@ TEST(WebAuthenticationPanel, MakeCredentialPinProtocol2)
     "</script>";
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -2613,7 +2613,7 @@ TEST(WebAuthenticationPanel, GetAssertionPinProtocol2)
     "</script>";
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 
@@ -2681,7 +2681,7 @@ TEST(WebAuthenticationPanel, InvalidAuthenticatorAttachmentDoesNotThrow)
     "</script>";
 
     auto webView = setUpTestWebViewForTestAuthenticationPanel();
-    auto delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestWebAuthenticationPanelUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView focus];
 

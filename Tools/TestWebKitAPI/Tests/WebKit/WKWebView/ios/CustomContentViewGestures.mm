@@ -40,16 +40,16 @@ namespace TestWebKitAPI {
 TEST(CustomContentViewGestures, DoNotCrashWhenCheckingGestureDelegateInNewWebView)
 {
     auto frame = CGRectMake(0, 0, 320, 600);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:frame]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:frame]);
     [webView _close];
 
-    auto hostWindow = adoptNS([[UIWindow alloc] initWithFrame:frame]);
+    RetainPtr hostWindow = adoptNS([[UIWindow alloc] initWithFrame:frame]);
     [hostWindow setHidden:NO];
     [hostWindow addSubview:webView.get()];
 
     auto contentView = static_cast<UIView<UIGestureRecognizerDelegate> *>([webView textInputContentView]);
     auto addGesture = [&] {
-        auto gesture = adoptNS([UITapGestureRecognizer new]);
+        RetainPtr gesture = adoptNS([UITapGestureRecognizer new]);
         [contentView addGestureRecognizer:gesture.get()];
         [gesture setDelegate:contentView];
         return gesture;

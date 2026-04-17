@@ -70,15 +70,15 @@ static constexpr uintptr_t SlowPathExceptionTag = JSValue::InvalidTag;
 
 #if ENABLE(WEBASSEMBLY_BBQJIT)
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(prologue_osr, CallFrame* callFrame);
-WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(loop_osr, CallFrame* callFrame, uint8_t* pc, IPIntLocal* pl);
+WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(loop_osr, CallFrame* callFrame, uint8_t* pc, IPIntStackEntry* sp);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(epilogue_osr, CallFrame* callFrame);
 #endif
 
-WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(retrieve_and_clear_exception, CallFrame*, IPIntStackEntry* stack, IPIntLocal* pl);
-WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(retrieve_clear_and_push_exception, CallFrame*, IPIntStackEntry* stack, IPIntLocal* pl);
-WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(retrieve_clear_and_push_exception_and_arguments, CallFrame*, IPIntStackEntry* stack, IPIntLocal* pl);
+WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(retrieve_and_clear_exception, CallFrame*, IPIntStackEntry* stack);
+WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(retrieve_clear_and_push_exception, CallFrame*, IPIntStackEntry* stack);
+WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(retrieve_clear_and_push_exception_and_arguments, CallFrame*, IPIntStackEntry* stack);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(throw_exception, CallFrame*, IPIntStackEntry* arguments, unsigned exceptionIndex);
-WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(rethrow_exception, CallFrame*, IPIntStackEntry* pl, unsigned tryDepth);
+WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(rethrow_exception, CallFrame*, unsigned tryDepth);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(throw_ref, CallFrame* callFrame, EncodedJSValue exnref);
 
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(ref_func, unsigned index);
@@ -142,6 +142,29 @@ WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(memory_atomic_notify, IPIntStackEntry*);
 
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(check_stack_and_vm_traps, void* candidateNewStackPointer, Wasm::IPIntCallee*, CallFrame*);
 WASM_IPINT_EXTERN_CPP_DECL(handle_debugger_trap_if_needed, CallFrame*, Register*);
+
+
+class FrameAccess {
+public:
+    FrameAccess(CallFrame* callFrame, const Wasm::IPIntCallee* callee)
+        : m_callFrame(callFrame)
+        , m_callee(callee)
+    {
+    }
+
+    IPIntLocal* localSlot(unsigned);
+    IPIntLocal* rethrowSlot(unsigned);
+    // Past-the-end pointer for the expression stack area (= bottom of rethrow/locals area).
+    IPIntStackEntry* stackEnd();
+
+private:
+    // Returns pointer to local[0], matching assembly's CFR - IPIntLocalsBaseOffset.
+    // local[i] = localBase()[-i], rethrow[i] = localBase()[-(localSizeToAlloc + i)].
+    IPIntLocal* localBase();
+
+    CallFrame* m_callFrame;
+    SUPPRESS_UNCOUNTED_MEMBER const Wasm::IPIntCallee* m_callee;
+};
 
 } } // namespace JSC::IPInt
 

@@ -49,8 +49,8 @@ VirtualGamepad::VirtualGamepad(const GamepadMapping& gamepadMapping)
     m_buttonValues = Vector<float>(FillWith { }, m_gamepadMapping.buttonCount, 0.0);
     m_axisValues = Vector<float>(FillWith { }, m_gamepadMapping.axisCount, 0.0);
 
-    auto descriptor = adoptNS([[NSData alloc] initWithBytes:m_gamepadMapping.descriptorData length:m_gamepadMapping.descriptorDataSize]);
-    auto properties = adoptNS([[NSMutableDictionary alloc] init]);
+    RetainPtr descriptor = adoptNS([[NSData alloc] initWithBytes:m_gamepadMapping.descriptorData length:m_gamepadMapping.descriptorDataSize]);
+    RetainPtr properties = adoptNS([[NSMutableDictionary alloc] init]);
 
     properties.get()[@kIOHIDReportDescriptorKey] = descriptor.get();
     properties.get()[@kIOHIDVendorIDKey] = @((uint16_t)m_gamepadMapping.vendorID);

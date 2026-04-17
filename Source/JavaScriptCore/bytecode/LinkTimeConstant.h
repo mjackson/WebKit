@@ -93,7 +93,6 @@ class JSGlobalObject;
     v(Iterator, nullptr) \
     v(min, nullptr) \
     v(Promise, nullptr) \
-    v(InternalPromise, nullptr) \
     v(defaultPromiseThen, nullptr) \
     v(repeatCharacter, nullptr) \
     v(isArray, nullptr) \

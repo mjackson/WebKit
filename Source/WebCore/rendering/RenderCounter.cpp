@@ -447,11 +447,11 @@ String RenderCounter::originalText() const
         return counterStyle()->text(value, writingMode());
     };
     auto text = counterText(value);
-    if (!m_counter.separator.isNull()) {
+    if (!m_counter.separator.value.isNull()) {
         if (!counterNode->actsAsReset())
             counterNode = counterNode->parent();
         while (RefPtr parent = counterNode->parent()) {
-            text = makeString(counterText(counterNode->countInParent()), m_counter.separator, text);
+            text = makeString(counterText(counterNode->countInParent()), m_counter.separator.value, text);
             counterNode = parent;
         }
     }

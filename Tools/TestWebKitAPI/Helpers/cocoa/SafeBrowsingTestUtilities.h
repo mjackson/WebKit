@@ -25,6 +25,8 @@
 
 #pragma once
 
+#ifdef __cplusplus
+
 #import <Foundation/Foundation.h>
 #import <wtf/Seconds.h>
 
@@ -43,3 +45,5 @@
 @interface DelayedLookupContext : NSObject
 @property (nonatomic, class) Seconds delayDuration;
 @end
+
+#endif // __cplusplus

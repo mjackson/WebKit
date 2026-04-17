@@ -28,6 +28,8 @@
 #ifndef PlatformUtilities_h
 #define PlatformUtilities_h
 
+#ifdef __cplusplus
+
 #include <WebKit/WKNativeEvent.h>
 #include <WebKit/WKRetainPtr.h>
 
@@ -120,5 +122,7 @@ extern RetainPtr<CGImageRef> convertToCGImage(PlatformImage *);
 
 } // namespace Util
 } // namespace TestWebKitAPI
+
+#endif // __cplusplus
 
 #endif // PlatformUtilities_h

@@ -26,6 +26,7 @@
 #import <WebKit/WKDownloadDelegatePrivate.h>
 #import <WebKit/WKFoundation.h>
 #import <WebKit/WKHistoryDelegatePrivate.h>
+#import <WebKit/WKImmersiveEnvironmentPrivate.h>
 #import <WebKit/WKNavigationPrivate.h>
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKUIDelegatePrivate.h>
@@ -49,7 +50,6 @@
 #import <WebKit/_WKElementAction.h>
 #import <WebKit/_WKFocusedElementInfo.h>
 #import <WebKit/_WKFormInputSession.h>
-#import <WebKit/_WKImmersiveEnvironmentDelegate.h>
 #import <WebKit/_WKInputDelegate.h>
 #import <WebKit/_WKPageLoadTiming.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>

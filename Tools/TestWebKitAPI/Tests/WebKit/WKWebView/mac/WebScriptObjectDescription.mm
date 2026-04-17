@@ -62,7 +62,7 @@ TEST(WebKitLegacy, WebScriptObjectDescription)
 {
     RetainPtr<WebView> webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
     RetainPtr<WebScriptDescriptionTest> testController = adoptNS([WebScriptDescriptionTest new]);
-    auto object = adoptNS([[NSObject alloc] init]);
+    RetainPtr object = adoptNS([[NSObject alloc] init]);
 
     webView.get().frameLoadDelegate = testController.get();
     [[webView.get() mainFrame] loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle

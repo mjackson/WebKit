@@ -44,7 +44,7 @@ static const CGFloat viewHeight = 500;
 
 static RetainPtr<TestWKWebView> webViewWithAutofocusedInput(const RetainPtr<TestInputDelegate>& inputDelegate)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
 
     bool doneWaiting = false;
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
@@ -61,21 +61,21 @@ static RetainPtr<TestWKWebView> webViewWithAutofocusedInput(const RetainPtr<Test
 
 TEST(ScrollViewScrollabilityTests, ScrollableWithOverflowVisible)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:scrollableDocumentMarkup];
     EXPECT_EQ([[webView scrollView] isScrollEnabled], YES);
 }
 
 TEST(ScrollViewScrollabilityTests, NonScrollableWithOverflowHidden)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:nonScrollableDocumentMarkup];
     EXPECT_EQ([[webView scrollView] isScrollEnabled], NO);
 }
 
 TEST(ScrollViewScrollabilityTests, ScrollableWithOverflowHiddenWhenZoomed)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView synchronouslyLoadHTMLString:nonScrollableDocumentMarkup];
     [[webView scrollView] setZoomScale:1.5 animated:NO];
     [webView waitForNextPresentationUpdate];
@@ -84,9 +84,9 @@ TEST(ScrollViewScrollabilityTests, ScrollableWithOverflowHiddenWhenZoomed)
 
 TEST(ScrollViewScrollabilityTests, ScrollableWithOverflowHiddenAndInputView)
 {
-    auto inputView = adoptNS([[UIView alloc] init]);
-    auto inputAccessoryView = adoptNS([[UIView alloc] init]);
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr inputView = adoptNS([[UIView alloc] init]);
+    RetainPtr inputAccessoryView = adoptNS([[UIView alloc] init]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
     [inputDelegate setWillStartInputSessionHandler:[inputView, inputAccessoryView] (WKWebView *, id<_WKFormInputSession> session) {
         session.customInputView = inputView.get();
         session.customInputAccessoryView = inputAccessoryView.get();
@@ -102,7 +102,7 @@ TEST(ScrollViewScrollabilityTests, ScrollableWithOverflowHiddenAndInputView)
 
 TEST(ScrollViewScrollabilityTests, ScrollableWithOverflowHiddenAndVisibleUI)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
 
     // Simulate portrait phone with:
     // Top bar size: 50
@@ -125,7 +125,7 @@ TEST(ScrollViewScrollabilityTests, ScrollableWithOverflowHiddenAndVisibleUI)
 
 TEST(ScrollViewScrollabilityTests, ScrollableWithOverflowHiddenAndShrunkUI)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, viewHeight, 375)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, viewHeight, 375)]);
 
     // Simulate MobileSafari on landscape iPhone 8 with hidden bars.
     UIEdgeInsets obscuredInsets;
@@ -145,7 +145,7 @@ TEST(ScrollViewScrollabilityTests, ScrollableWithOverflowHiddenAndShrunkUI)
 
 TEST(ScrollViewScrollabilityTests, ScrollableAfterNavigateToPDF)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, viewHeight, 414)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, viewHeight, 414)]);
 
     [webView synchronouslyLoadHTMLString:nonScrollableDocumentMarkup];
     [webView waitForNextPresentationUpdate];
@@ -161,7 +161,7 @@ TEST(ScrollViewScrollabilityTests, ScrollableAfterNavigateToPDF)
 
 TEST(ScrollViewScrollabilityTests, TouchActionPanAPI)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, viewHeight, 414)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, viewHeight, 414)]);
 
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='initial-scale=1'><body style='margin: 0'><div style='width: 100px; height: 100px; display: inline-block;'></div><div style='width: 100px; height: 100px; display: inline-block; touch-action: none;'></div></body>"];
     [webView waitForNextPresentationUpdate];

@@ -125,8 +125,8 @@
 #if !defined(DISABLE_RTC_AV1)
   } else if ([info.name isEqualToString:kRTCVideoCodecAv1Name]) {
     return [RTCVideoDecoderAV1 av1Decoder];
-  }
 #endif
+  }
 
   return nil;
 }

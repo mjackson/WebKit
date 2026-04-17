@@ -1009,9 +1009,9 @@ String DOMWindow::crossDomainAccessErrorMessage(const LocalDOMWindow& activeWind
     return makeString(message, "Protocols, domains, and ports must match."_s);
 }
 
-bool DOMWindow::isInsecureScriptAccess(const LocalDOMWindow& activeWindow, const String& urlString)
+bool DOMWindow::isInsecureScriptAccess(const LocalDOMWindow& activeWindow, const URL& url)
 {
-    if (!WTF::protocolIsJavaScript(urlString))
+    if (!url.protocolIsJavaScript())
         return false;
 
     // If this LocalDOMWindow isn't currently active in the Frame, then there's no
@@ -1051,7 +1051,7 @@ bool DOMWindow::passesSetLocationSecurityChecks(const LocalDOMWindow& activeWind
     if (navigationState == CanNavigateState::Unable)
         return false;
 
-    if (isInsecureScriptAccess(activeWindow, completedURL.string()))
+    if (isInsecureScriptAccess(activeWindow, completedURL))
         return false;
     return true;
 }

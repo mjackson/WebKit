@@ -134,7 +134,7 @@ private:
 
     void setPageIsVisible(bool) final;
     void setVisibleForCanvas(bool) final;
-    void setVisibleInViewport(bool) final;
+    void setViewportVisibility(ViewportVisibility) final;
 
     MediaTime duration() const override;
     MediaTime currentTime() const override;

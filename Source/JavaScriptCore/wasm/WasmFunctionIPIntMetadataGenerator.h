@@ -117,11 +117,16 @@ private:
     };
 
     void addLength(size_t length);
-    void addMemoryIndex(uint8_t memoryIndex);
-    void addLEB128ConstantInt32AndLength(uint32_t value, size_t length);
-    void addLEB128ConstantInt64AndLength(uint64_t value, size_t length);
-    void addLEB128ConstantAndLengthForType(Type, uint64_t value, size_t length);
-    void addLEB128V128Constant(v128_t value, size_t length);
+    void addMemorySize(uint8_t memoryIndex);
+    void addMemoryGrow(uint8_t memoryIndex);
+    void addTableAccess(uint32_t index, size_t length);
+    void addRefFunc(uint32_t index, size_t length);
+    void addElemDrop(uint32_t index, size_t length);
+    void addDataAccess(uint32_t index, size_t length);
+    void addMemoryInit(uint8_t memoryIndex, uint32_t dataIndex, size_t length);
+    void addMemoryFill(uint8_t memoryIndex, size_t length);
+    void addMemoryCopy(uint8_t dstMemoryIndex, uint8_t srcMemoryIndex, size_t length);
+    void addAtomicMemoryAccess(uint8_t memoryIndex, uint64_t offset, size_t length);
     void addReturnData(const FunctionSignature&, const CallInformation&);
 
     FunctionCodeIndex m_functionIndex;

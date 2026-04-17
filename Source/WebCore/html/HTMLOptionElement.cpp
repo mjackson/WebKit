@@ -305,6 +305,12 @@ void HTMLOptionElement::defaultEventHandler(Event& event)
 
         const String& keyIdentifier = keyboardEvent->keyIdentifier();
 
+        // [Shift+]Tab closes the picker; fall through to move focus.
+        if (keyIdentifier == "U+0009"_s) {
+            select->hidePickerPopoverElement();
+            return HTMLElement::defaultEventHandler(event);
+        }
+
         int currentIndex = select->optionToListIndex(index());
         int listIndex = select->computeNavigationIndex(keyIdentifier, currentIndex, select->pickerNavigationKeyIdentifiers());
         if (listIndex >= 0) {

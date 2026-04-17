@@ -25,6 +25,8 @@
 
 #pragma once
 
+#ifdef __cplusplus
+
 #if PLATFORM(COCOA)
 
 #import "Helpers/CoroutineUtilities.h"
@@ -50,3 +52,5 @@ private:
 } // namespace TestWebKitAPI
 
 #endif // PLATFORM(COCOA)
+
+#endif // __cplusplus

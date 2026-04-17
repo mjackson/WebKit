@@ -73,7 +73,7 @@ TEST(WKWebExtensionAPIDeclarativeNetRequest, BlockedLoadTest)
     [manager runUntilTestMessage:@"Load Tab"];
 
     auto webView = manager.get().defaultTab.webView;
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
 
     __block bool receivedActionNotification { false };
     navigationDelegate.get().contentRuleListPerformedAction = ^(WKWebView *, NSString *identifier, _WKContentRuleListAction *action, NSURL *url) {
@@ -133,7 +133,7 @@ TEST(WKWebExtensionAPIDeclarativeNetRequest, BlockedLoadInPrivateBrowsingTest)
     auto privateTab = privateWindow.tabs.firstObject;
     auto webView = privateTab.webView;
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
 
     __block bool receivedActionNotification { false };
     navigationDelegate.get().contentRuleListPerformedAction = ^(WKWebView *, NSString *identifier, _WKContentRuleListAction *action, NSURL *url) {
@@ -298,7 +298,7 @@ TEST(WKWebExtensionAPIDeclarativeNetRequest, UpdateEnabledRulesetsPerformsCompil
     [manager runUntilTestMessage:@"Load Tab"];
 
     auto webView = manager.get().defaultTab.webView;
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
 
     __block bool receivedActionNotification { false };
     navigationDelegate.get().contentRuleListPerformedAction = ^(WKWebView *, NSString *identifier, _WKContentRuleListAction *action, NSURL *url) {
@@ -398,7 +398,7 @@ TEST(WKWebExtensionAPIDeclarativeNetRequest, SetExtensionActionOptions)
 
     auto *defaultTab = manager.get().defaultTab;
     auto *webView = defaultTab.webView;
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
 
     __block bool receivedActionNotification { false };
     navigationDelegate.get().contentRuleListPerformedAction = ^(WKWebView *, NSString *identifier, _WKContentRuleListAction *action, NSURL *url) {
@@ -512,7 +512,7 @@ TEST(WKWebExtensionAPIDeclarativeNetRequest, SessionRules)
     EXPECT_TRUE(manager.get().context.hasContentModificationRules);
 
     auto webView = manager.get().defaultTab.webView;
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
 
     __block bool receivedActionNotification { false };
     navigationDelegate.get().contentRuleListPerformedAction = ^(WKWebView *, NSString *identifier, _WKContentRuleListAction *action, NSURL *url) {
@@ -671,7 +671,7 @@ TEST(WKWebExtensionAPIDeclarativeNetRequest, DynamicRules)
     [manager runUntilTestMessage:@"Load Tab"];
 
     auto webView = manager.get().defaultTab.webView;
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
 
     __block bool receivedActionNotification { false };
     navigationDelegate.get().contentRuleListPerformedAction = ^(WKWebView *, NSString *identifier, _WKContentRuleListAction *action, NSURL *url) {
@@ -854,7 +854,7 @@ static void runRedirectRule(bool useEnhancedSecurity)
 
     auto manager = Util::loadExtension(manifest, resources, extensionConfiguration, useEnhancedSecurity);
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     navigationDelegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *navigationAction, void (^decisionHandler)(WKNavigationActionPolicy)) {
         decisionHandler(WKNavigationActionPolicyAllow);
 
@@ -3947,7 +3947,7 @@ TEST(WKWebExtensionAPIDeclarativeNetRequest, RemoveAllContentRuleListsDoesNotRem
     [manager.get().defaultTab.webView.configuration.userContentController removeAllContentRuleLists];
 
     auto webView = manager.get().defaultTab.webView;
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
 
     __block bool receivedActionNotification { false };
     navigationDelegate.get().contentRuleListPerformedAction = ^(WKWebView *, NSString *identifier, _WKContentRuleListAction *action, NSURL *url) {

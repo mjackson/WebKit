@@ -1134,16 +1134,17 @@ void RenderElement::styleDidChange(Style::Difference diff, const RenderStyle* ol
         issueRepaintForOutlineAuto(hasOutlineAuto ? outlineStyleForRepaint().usedOutlineSize() : oldStyle->usedOutlineSize());
     }
 
-    auto isLayoutDiff = [](Style::DifferenceResult diff) {
-        switch (diff) {
+    auto isLayoutDiff = [](Style::Difference diff) {
+        switch (diff.result) {
         case Style::DifferenceResult::Equal:
-        case Style::DifferenceResult::RecompositeLayer:
         case Style::DifferenceResult::Repaint:
         case Style::DifferenceResult::RepaintIfText:
         case Style::DifferenceResult::RepaintLayer:
-        case Style::DifferenceResult::Overflow:
         case Style::DifferenceResult::NewStyle:
             return false;
+        case Style::DifferenceResult::Overflow:
+        case Style::DifferenceResult::RecompositeLayer:
+            return diff.contextSensitiveProperties.contains(Style::DifferenceContextSensitiveProperty::Transform);
         case Style::DifferenceResult::LayoutOutOfFlowMovementOnly:
         case Style::DifferenceResult::OverflowAndOutOfFlowMovement:
         case Style::DifferenceResult::Layout:
@@ -1152,7 +1153,7 @@ void RenderElement::styleDidChange(Style::Difference diff, const RenderStyle* ol
         return false;
     };
 
-    if (settings().cssScrollAnchoringEnabled() && isLayoutDiff(diff.result) && style().scrollAnchoringSuppressionStyleDidChange(oldStyle)) {
+    if (settings().cssScrollAnchoringEnabled() && isLayoutDiff(diff) && style().scrollAnchoringSuppressionStyleDidChange(oldStyle)) {
         auto findNearestScrollAnchoringController = [](const RenderElement& renderer) -> CheckedPtr<ScrollAnchoringController> {
             // At this point we can't find the appropriate enclosing ScrollAnchoringController, because we haven't done layout.
             // We will, however, have created a ScrollAnchoringController for potentially scrollable ancestors, so store

@@ -419,6 +419,11 @@ bool OutlinePainter::collectFocusRingRectsForBlock(const RenderBlock& renderer, 
     if (renderer.width() && renderer.height())
         rects.append(LayoutRect(additionalOffset, renderer.size()));
 
+    // Table rows share coordinate space with cells; don't recurse into cells
+    // as their bounds may extend beyond the row (e.g. rowspan).
+    if (renderer.isRenderTableRow())
+        return true;
+
     if (!renderer.hasNonVisibleOverflow() && !renderer.hasControlClip()) {
         if (renderer.childrenInline() && is<RenderBlockFlow>(renderer))
             collectFocusRingRectsForInlineChildren(downcast<RenderBlockFlow>(renderer), rects, additionalOffset, paintContainer);

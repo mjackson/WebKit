@@ -54,6 +54,7 @@ Procedure::Procedure(bool usesSIMD)
     : m_cfg(new CFG(*this))
     , m_lastPhaseName("initial")
     , m_byproducts(makeUnique<OpaqueByproducts>())
+    , m_heaps(makeUniqueRef<AbstractHeapRepository>())
 {
     if (usesSIMD)
         setUsessSIMD();

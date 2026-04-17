@@ -36,7 +36,7 @@ namespace TestWebKitAPI {
 
 TEST(WebKitLegacy, DOMNodeFromJSObject)
 {
-    auto webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:nil groupName:nil]);
+    RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:nil groupName:nil]);
 
     [webView stringByEvaluatingJavaScriptFromString:@"document.body.mainWorldProperty = true"];
 

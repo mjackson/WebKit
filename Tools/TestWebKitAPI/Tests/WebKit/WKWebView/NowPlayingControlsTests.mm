@@ -107,9 +107,9 @@ namespace TestWebKitAPI {
 #if PLATFORM(MAC)
 TEST(NowPlayingControlsTests, NowPlayingControlsDoNotShowForForegroundPage)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
-    auto webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadTestPageNamed:@"large-video-test-now-playing"];
     [webView waitForMessage:@"playing"];
 
@@ -128,9 +128,9 @@ TEST(NowPlayingControlsTests, NowPlayingControlsDoNotShowForForegroundPage)
 
 TEST(NowPlayingControlsTests, NowPlayingControlsShowForBackgroundPage)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
-    auto webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadTestPageNamed:@"large-video-test-now-playing"];
     [webView waitForMessage:@"playing"];
 
@@ -146,10 +146,10 @@ TEST(NowPlayingControlsTests, NowPlayingControlsShowForBackgroundPage)
 #if ENABLE(REQUIRES_PAGE_VISIBILITY_FOR_NOW_PLAYING)
 TEST(NowPlayingControlsTests, NowPlayingApplicationNotRegisteredForBackgroundPage)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
     [configuration preferences]._requiresPageVisibilityForVideoToBeNowPlayingForTesting = YES;
-    auto webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadTestPageNamed:@"large-video-test-now-playing"];
     [webView waitForMessage:@"playing"];
 
@@ -171,9 +171,9 @@ TEST(NowPlayingControlsTests, NowPlayingApplicationNotRegisteredForBackgroundPag
 
 TEST(NowPlayingControlsTests, NowPlayingControlsHideAfterShowingKeepsSessionActive)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
-    auto webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadTestPageNamed:@"large-video-test-now-playing"];
     [webView waitForMessage:@"playing"];
 
@@ -194,9 +194,9 @@ TEST(NowPlayingControlsTests, NowPlayingControlsHideAfterShowingKeepsSessionActi
 
 TEST(NowPlayingControlsTests, NowPlayingControlsClearInfoAfterSessionIsNoLongerValid)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
-    auto webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
     [webView loadTestPageNamed:@"large-video-test-now-playing"];
     [webView waitForMessage:@"playing"];
 
@@ -235,9 +235,9 @@ TEST(NowPlayingControlsTests, NowPlayingControlsClearInfoAfterSessionIsNoLongerV
 
 TEST(NowPlayingControlsTests, NowPlayingControlsCheckRegistered)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
-    auto webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadTestPageNamed:@"large-video-test-now-playing"];
     [webView waitForMessage:@"playing"];
     [webView setWindowVisible:NO];
@@ -262,9 +262,9 @@ TEST(NowPlayingControlsTests, NowPlayingControlsCheckRegistered)
 // FIXME: Re-enable this test once <webkit.org/b/175204> is resolved.
 TEST(NowPlayingControlsTests, DISABLED_NowPlayingControlsIOS)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
-    auto webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
     [webView loadTestPageNamed:@"large-video-test-now-playing"];
     [webView waitForMessage:@"playing"];
 
@@ -278,7 +278,7 @@ TEST(NowPlayingControlsTests, DISABLED_NowPlayingControlsIOS)
 TEST(NowPlayingControlsTests, LazyRegisterAsNowPlayingApplication)
 {
     auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES]);
-    auto webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"<body>Hello world</body>"];
 
     auto haveMediaSessionManager = [&] {
@@ -326,7 +326,7 @@ TEST(NowPlayingControlsTests, DISABLED_NowPlayingUpdatesThrottled)
 
     auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES]);
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
-    auto webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[NowPlayingTestWebView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320) configuration:configuration.get()]);
 
     constexpr double internalTestTimout = 20;
     auto waitForMessageOrTimeout = [&] (const char* eventName) -> bool {

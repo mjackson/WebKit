@@ -152,7 +152,7 @@ CommandEncoder::CommandEncoder(id<MTLCommandBuffer> commandBuffer, Device& devic
                     auto& key = keyValuePair.first;
                     auto& value = keyValuePair.second;
                     apiBuffer->takeSlowIndexValidationPath(commandBuffer, key.firstIndex, key.indexCount, key.indexType(), key.primitiveOffset(), value);
-                    commandBuffer.addPostCommitHandler([bufferIdentifier, device = Ref { commandBuffer.device() }](id<MTLCommandBuffer>) {
+                    commandBuffer.addPostCommitHandler([bufferIdentifier, device = protect(commandBuffer.device())](id<MTLCommandBuffer>) {
                         if (auto* apiBuffer = device->lookupBuffer(bufferIdentifier))
                             apiBuffer->clearMustTakeSlowIndexValidationPath();
                     });
@@ -1503,7 +1503,7 @@ void CommandEncoder::addTexture(const Texture& baseTexture)
 
 void CommandEncoder::addSampler(const Sampler& sampler)
 {
-    m_retainedSamplers.add(RefPtr { &sampler });
+    m_retainedSamplers.add(protect(sampler));
 }
 
 void CommandEncoder::makeSubmitInvalid(NSString* errorString)

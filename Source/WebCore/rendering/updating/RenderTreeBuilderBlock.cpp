@@ -273,6 +273,22 @@ RenderPtr<RenderObject> RenderTreeBuilder::Block::detach(RenderBlock& parent, Re
 
     auto takenChild = m_builder.detachFromRenderElement(parent, child, willBeDestroyed);
 
+    if (canCollapseAnonymousBlock == CanCollapseAnonymousBlock::Yes && previousSibling && nextSibling) {
+        // When removing a block between an anonymous block and a float, the float should be reparented into the anonymous block
+        // (matching the attach logic in RenderBlock::addChildIgnoringContinuation).
+        auto moveFloatsUnderAnonymousBlockIfApplicable = [&] {
+            CheckedPtr previousBlock = dynamicDowncast<RenderBlock>(previousSibling.get());
+            if (!previousBlock || !previousBlock->isAnonymousBlock())
+                return;
+            while (nextSibling && nextSibling->isFloating()) {
+                auto* floatToMove = nextSibling.get();
+                nextSibling = floatToMove->nextSibling();
+                m_builder.move(parent, *previousBlock, *floatToMove, RenderTreeBuilder::NormalizeAfterInsertion::No);
+            }
+        };
+        moveFloatsUnderAnonymousBlockIfApplicable();
+    }
+
     if (canMergeAnonymousBlocks && previousSibling && nextSibling) {
         auto& previousBlock = downcast<RenderBlock>(*previousSibling);
         auto& nextBlock = downcast<RenderBlock>(*nextSibling);

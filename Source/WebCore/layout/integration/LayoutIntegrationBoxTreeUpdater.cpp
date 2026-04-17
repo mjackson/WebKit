@@ -230,6 +230,19 @@ void BoxTreeUpdater::adjustStyleIfNeeded(const RenderElement& renderer, RenderSt
         adjustStyle(*firstLineStyle);
 }
 
+static EnumSet<Layout::ElementBox::ListMarkerAttribute> calculateListMarkerAttribute(const RenderListMarker& listMarkerRenderer)
+{
+    auto listMarkerAttributes = EnumSet<Layout::ElementBox::ListMarkerAttribute> { };
+    if (listMarkerRenderer.isImage())
+        listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Image);
+    if (!listMarkerRenderer.isInside())
+        listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Outside);
+    if (listMarkerRenderer.shouldCollapseAnonymousBlockParent())
+        listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::ShouldCollapseAnonymousBlockParent);
+
+    return listMarkerAttributes;
+}
+
 UniqueRef<Layout::Box> BoxTreeUpdater::createLayoutBox(RenderObject& renderer)
 {
     std::unique_ptr<RenderStyle> firstLineStyle = firstLineStyleFor(renderer);
@@ -283,14 +296,8 @@ UniqueRef<Layout::Box> BoxTreeUpdater::createLayoutBox(RenderObject& renderer)
     auto style = RenderStyle::clone(renderElement.style());
     adjustStyleIfNeeded(renderElement, style, firstLineStyle.get());
 
-    if (CheckedPtr listMarkerRenderer = dynamicDowncast<RenderListMarker>(renderElement)) {
-        EnumSet<Layout::ElementBox::ListMarkerAttribute> listMarkerAttributes;
-        if (listMarkerRenderer->isImage())
-            listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Image);
-        if (!listMarkerRenderer->isInside())
-            listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Outside);
-        return makeUniqueRef<Layout::ElementBox>(elementAttributes(renderElement), listMarkerAttributes, WTF::move(style), WTF::move(firstLineStyle));
-    }
+    if (CheckedPtr listMarkerRenderer = dynamicDowncast<RenderListMarker>(renderElement))
+        return makeUniqueRef<Layout::ElementBox>(elementAttributes(renderElement), calculateListMarkerAttribute(*listMarkerRenderer), WTF::move(style), WTF::move(firstLineStyle));
 
     return makeUniqueRef<Layout::ElementBox>(elementAttributes(renderElement), WTF::move(style), WTF::move(firstLineStyle));
 };
@@ -367,17 +374,6 @@ static void updateContentCharacteristic(const RenderText& rendererText, Layout::
     inlineTextBox.setContentCharacteristic(contentCharacteristic);
 }
 
-static void updateListMarkerAttributes(const RenderListMarker& listMarkerRenderer, Layout::ElementBox& layoutBox)
-{
-    auto listMarkerAttributes = EnumSet<Layout::ElementBox::ListMarkerAttribute> { };
-    if (listMarkerRenderer.isImage())
-        listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Image);
-    if (!listMarkerRenderer.isInside())
-        listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Outside);
-
-    layoutBox.setListMarkerAttributes(listMarkerAttributes);
-}
-
 void BoxTreeUpdater::updateStyle(const RenderObject& renderer)
 {
     CheckedPtr layoutBox = const_cast<Layout::Box*>(renderer.layoutBox());
@@ -400,8 +396,10 @@ void BoxTreeUpdater::updateStyle(const RenderObject& renderer)
     auto newStyle = RenderStyle::clone(downcast<RenderElement>(renderer).style());
     adjustStyleIfNeeded(downcast<RenderElement>(renderer), newStyle, firstLineNewStyle.get());
     layoutBox->updateStyle(WTF::move(newStyle), WTF::move(firstLineNewStyle));
-    if (auto* listMarkerRenderer = dynamicDowncast<RenderListMarker>(renderer); listMarkerRenderer && is<Layout::ElementBox>(*layoutBox))
-        updateListMarkerAttributes(*listMarkerRenderer, downcast<Layout::ElementBox>(*layoutBox));
+    if (auto* listMarkerRenderer = dynamicDowncast<RenderListMarker>(renderer)) {
+        if (auto* elementBox = dynamicDowncast<Layout::ElementBox>(*layoutBox))
+            elementBox->setListMarkerAttributes(calculateListMarkerAttribute(*listMarkerRenderer));
+    }
 }
 
 void BoxTreeUpdater::updateContent(const RenderText& textRenderer)

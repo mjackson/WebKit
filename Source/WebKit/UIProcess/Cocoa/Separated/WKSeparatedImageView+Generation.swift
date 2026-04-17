@@ -67,7 +67,7 @@ extension WKSeparatedImageView {
         try await Task.sleep(for: SeparatedImageViewConstants.cancellationDelay)
 
         try await Task { @MainActor [weak self] in
-            // The compiler can't guarantee (yet) this closure won't be called multiple times.
+            // Safety: older compiler versions can't guarantee this closure won't be called multiple times.
             nonisolated(unsafe) let captured = spatial3DImage
             guard let self, let imageHash = self.imageHash else { return }
 
@@ -75,6 +75,7 @@ extension WKSeparatedImageView {
             self.preparePortalEntity()
 
             let start = Date()
+            // FIXME: rdar://173256879
             try await unsafe captured.generate()
             Logger.separatedImage.log("\(self.logPrefix) - Generation took \(Date().timeIntervalSince(start))")
             ImagePresentationCache.shared[imageHash] =

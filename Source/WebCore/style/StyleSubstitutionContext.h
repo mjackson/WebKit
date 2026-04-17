@@ -93,6 +93,15 @@ public:
 
     Guard guard(SubstitutionContext&& context) { return { *this, WTF::move(context) }; }
 
+    void addFunctionContextsFrom(const GuardedSubstitutionContexts& other)
+    {
+        for (auto& context : other.m_guarded) {
+            if (context.key().type == SubstitutionContext::Type::Function)
+                m_guarded.add(context);
+        }
+        m_top = other.m_top;
+    }
+
 private:
     HashSet<GenericHashKey<SubstitutionContext>> m_guarded;
     Guard* m_top { nullptr };

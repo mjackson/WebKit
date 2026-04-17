@@ -61,7 +61,7 @@ static constexpr auto longTextString = "Here's to the crazy ones. The misfits. T
 
 static UIWKDocumentRequest *makeRequest(UIWKDocumentRequestFlags flags, UITextGranularity granularity, NSInteger granularityCount, CGRect documentRect = CGRectZero, id<NSCopying> inputElementIdentifier = nil)
 {
-    auto request = adoptNS([[UIWKDocumentRequest alloc] init]);
+    RetainPtr request = adoptNS([[UIWKDocumentRequest alloc] init]);
     [request setFlags:flags];
     [request setSurroundingGranularity:granularity];
     [request setGranularityCount:granularityCount];
@@ -136,7 +136,7 @@ static UIWKDocumentRequest *makeRequest(UIWKDocumentRequestFlags flags, UITextGr
         return a.first.location < b.first.location;
     });
 
-    auto result = adoptNS([[NSMutableArray alloc] initWithCapacity:rangesAndRects.size()]);
+    RetainPtr result = adoptNS([[NSMutableArray alloc] initWithCapacity:rangesAndRects.size()]);
     for (auto& rangeAndRect : rangesAndRects)
         [result addObject:[NSValue valueWithCGRect:rangeAndRect.second]];
     return result.autorelease();
@@ -348,7 +348,7 @@ TEST(DocumentEditingContext, Simple)
 
 TEST(DocumentEditingContext, RequestMarkedText)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     auto *contentView = [webView textInputContentView];
 
     [webView synchronouslyLoadHTMLString:@"<body style='-webkit-text-size-adjust: none;' contenteditable>"];
@@ -450,7 +450,7 @@ TEST(DocumentEditingContext, DISABLED_RequestMarkedTextRectsAndTextOnly)
 TEST(DocumentEditingContext, RequestMarkedTextRectsAndTextOnly)
 #endif
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"<input />")];
     [webView stringByEvaluatingJavaScript:@"document.querySelector('input').focus()"];
     [webView _synchronouslyExecuteEditCommand:@"InsertText" argument:@"Hello world"];
@@ -460,7 +460,7 @@ TEST(DocumentEditingContext, RequestMarkedTextRectsAndTextOnly)
     [contentView setMarkedText:@"world" selectedRange:NSMakeRange(0, 5)];
     [webView collapseToEnd];
 
-    auto request = adoptNS([[UIWKDocumentRequest alloc] init]);
+    RetainPtr request = adoptNS([[UIWKDocumentRequest alloc] init]);
     [request setFlags:UIWKDocumentRequestMarkedTextRects | UIWKDocumentRequestText];
 
     auto context = retainPtr([webView synchronouslyRequestDocumentContext:request.get()]);
@@ -486,7 +486,7 @@ TEST(DocumentEditingContext, DISABLED_SpatialRequestInTextField)
 TEST(DocumentEditingContext, SpatialRequestInTextField)
 #endif
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     [webView synchronouslyLoadHTMLString:@"<span style='-webkit-text-size-adjust: none;'>Hello<input type='text' value='foo bar' />world</span>"];
     [webView stringByEvaluatingJavaScript:@"document.querySelector('input').focus()"];
@@ -519,7 +519,7 @@ static CGRect CGRectFromJSONEncodedDOMRectJSValue(id jsValue)
 
 TEST(DocumentEditingContext, RectsRequestInContentEditable)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"<p id='text' contenteditable>Test<br><br><br><br></p>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.lastChild, text.lastChild.length, text.lastChild, text.lastChild.length)"]; // Will focus <p>.
@@ -544,7 +544,7 @@ TEST(DocumentEditingContext, RectsRequestInContentEditable)
 
 TEST(DocumentEditingContext, RectsRequestInContentEditableWithDivBreaks)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"<div id='text' contenteditable>Test<div><br></div><div><br></div><div><br></div></div>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.lastChild, text.lastChild.length, text.lastChild, text.lastChild.length)"]; // Will focus <p>.
@@ -569,7 +569,7 @@ TEST(DocumentEditingContext, RectsRequestInContentEditableWithDivBreaks)
 
 TEST(DocumentEditingContext, PasswordFieldRequest)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"<input id='passwordField' type='password' value='testPassword'>")];
     [webView stringByEvaluatingJavaScript:@"passwordField.focus(); passwordField.select();"];
@@ -583,7 +583,7 @@ TEST(DocumentEditingContext, PasswordFieldRequest)
 
 TEST(DocumentEditingContext, SpatialRequest_RectEncompassingInput)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
 
     // Use "padding: 0" as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"before <textarea id='test' style='width: 26em; margin: 200px 0 0 200px; padding: 0;'>The quick brown fox jumps over the lazy dog.</textarea> after")]; // Word wraps "over" onto next line
@@ -599,7 +599,7 @@ TEST(DocumentEditingContext, SpatialRequest_RectEncompassingInput)
 
 TEST(DocumentEditingContext, SpatialRequest_RectBeforeInput)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
 
     // Use "padding: 0" as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"before <textarea id='test' style='width: 26em; margin: 200px 0 0 200px; padding: 0;'>The quick brown fox jumps over the lazy dog.</textarea> after")]; // Word wraps "over" onto next line
@@ -621,7 +621,7 @@ TEST(DocumentEditingContext, SpatialRequest_RectBeforeInput)
 
 TEST(DocumentEditingContext, SpatialRequest_RectInsideInput)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
 
     // Use "padding: 0" as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"before <textarea id='test' style='width: 26em; margin: 200px 0 0 200px; padding: 0;'>The quick brown fox jumps over the lazy dog.</textarea> after")]; // Word wraps "over" onto next line
@@ -643,7 +643,7 @@ TEST(DocumentEditingContext, SpatialRequest_RectInsideInput)
 
 TEST(DocumentEditingContext, SpatialRequest_RectAfterInput)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
 
     // Use "padding: 0" as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"before <textarea id='test' style='width: 26em; margin: 200px 0 0 200px; padding: 0;'>The quick brown fox jumps over the lazy dog.</textarea> after")]; // Word wraps "over" onto next line
@@ -665,7 +665,7 @@ TEST(DocumentEditingContext, SpatialRequest_RectAfterInput)
 
 TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectBeforeRangeSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:DocumentEditingContextTestHelpers::applyAhemStyle(@"<span id='spatialBox'>The</span> quick brown fox <span id='jumps'>jumps</span> over the dog.")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(jumps, 0, jumps, 1)"];
 
@@ -684,7 +684,7 @@ TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectBeforeRangeSe
 
 TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectAfterRangeSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:DocumentEditingContextTestHelpers::applyAhemStyle(@"The quick brown fox <span id='jumps'>jumps</span> over the dog.<span id='spatialBox'></span>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(jumps, 0, jumps, 1)"];
 
@@ -703,7 +703,7 @@ TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectAfterRangeSel
 
 TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectAroundRangeSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:DocumentEditingContextTestHelpers::applyAhemStyle(@"The quick brown <span id='spatialBox'>fox <span id='jumps'>jumps</span> </span>over the dog.")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(jumps, 0, jumps, 1)"];
 
@@ -722,7 +722,7 @@ TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectAroundRangeSe
 
 TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectBeforeCaretSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:DocumentEditingContextTestHelpers::applyAhemStyle(@"<body contenteditable='true'><span id='spatialBox'>The</span> quick brown fox <span id='jumps'>jumps</span> over the dog.</body>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(jumps, 0, jumps, 0)"];
 
@@ -741,7 +741,7 @@ TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectBeforeCaretSe
 
 TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectAfterCaretSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:DocumentEditingContextTestHelpers::applyAhemStyle(@"<body contenteditable='true'>The quick brown fox <span id='jumps'>jumps</span> over the dog.<span id='spatialBox'></span></body>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(jumps, 0, jumps, 0)"];
 
@@ -760,7 +760,7 @@ TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectAfterCaretSel
 
 TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectAroundCaretSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:DocumentEditingContextTestHelpers::applyAhemStyle(@"<body contenteditable='true'>The quick brown <span id='spatialBox'>fox <span id='jumps'>jumps</span> </span>over the dog.</body>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(jumps, 0, jumps, 0)"];
 
@@ -779,7 +779,7 @@ TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectAroundCaretSe
 
 TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectEncompassingInputWithSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
 
     // Use "padding: 0" as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"before <span contenteditable id='test' style='display: inline-block; width: 26em; margin: 200px 0 0 200px;'>The quick brown <span id='fox_jumps_over'>fox jumps over</span> the lazy dog.</span> after")]; // Word wraps "over" onto next line
@@ -796,7 +796,7 @@ TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectEncompassingI
 
 TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectBeforeInputWithSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
 
     // Use "padding: 0" as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"before <span contenteditable id='test' style='display: inline-block; width: 26em; margin: 200px 0 0 200px;'>The quick brown <span id='fox_jumps_over'>fox jumps over</span> the lazy dog.</span> after")]; // Word wraps "over" onto next line
@@ -819,7 +819,7 @@ TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectBeforeInputWi
 
 TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectBeforeSelectionInInput)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
 
     // Use "padding: 0" as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"before <span contenteditable id='test' style='display: inline-block; width: 26em; margin: 200px 0 0 200px;'>The quick brown <span id='fox_jumps_over'>fox jumps over</span> the lazy dog.</span> after")]; // Word wraps "over" onto next line
@@ -844,7 +844,7 @@ TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectBeforeSelecti
 
 TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectAfterSelectionInInput)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
 
     // Use "padding: 0" as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"before <span contenteditable id='test' style='display: inline-block; width: 26em; margin: 200px 0 0 200px;'>The quick brown <span id='fox_jumps_over'>fox jumps over</span> the lazy dog.</span> after")]; // Word wraps "over" onto next line
@@ -869,7 +869,7 @@ TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectAfterSelectio
 
 TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_RectAfterInputWithSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 980, 600)]);
 
     // Use "padding: 0" as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"before <span contenteditable id='test' style='display: inline-block; width: 26em; margin: 200px 0 0 200px;'>The quick brown <span id='fox_jumps_over'>fox jumps over</span> the lazy dog.</span> after")]; // Word wraps "over" onto next line
@@ -963,7 +963,7 @@ TEST(DocumentEditingContext, SpatialAndCurrentSelectionRequest_LimitContextToVis
 
 TEST(DocumentEditingContext, RequestRectsInTextAreaAcrossWordWrappedLine)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     // Use "padding: 0" as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"<textarea id='test' style='width: 26em; padding: 0'>The quick brown fox jumps over the lazy dog.</textarea>")]; // Word wraps "over" onto next line
     [webView stringByEvaluatingJavaScript:@"test.focus(); test.setSelectionRange(25, 25)"]; // Place caret after 's' in "jumps".
@@ -1010,7 +1010,7 @@ TEST(DocumentEditingContext, RequestRectsInTextAreaAcrossWordWrappedLine)
 
 TEST(DocumentEditingContext, RequestRectsInTextAreaInsideIFrame)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     // Use "padding: 0" for the <textarea> as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle([NSString stringWithFormat:@"<iframe srcdoc=\"%@\" style='position: absolute; left: 1em; top: 1em; border: none'></iframe>", DocumentEditingContextTestHelpers::applyAhemStyle(@"<textarea id='test' style='padding: 0'>The quick brown fox jumps over the lazy dog.</textarea><script>let textarea = document.getElementById('test'); textarea.focus(); textarea.setSelectionRange(0, 0); /* Place caret at the beginning of the field. */</script>")])];
 
@@ -1040,7 +1040,7 @@ TEST(DocumentEditingContext, RequestRectsInTextAreaInsideIFrame)
 // FIXME when rdar://107850452 is resolved
 TEST(DocumentEditingContext, RequestRectsInTextAreaInsideScrolledIFrame)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     // Use "padding: 0" for the <textarea> as the default user-agent stylesheet can effect text wrapping.
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle([NSString stringWithFormat:@"<iframe srcdoc=\"%@\" style='position: absolute; left: 1em; top: 1em; border: none' height='200'></iframe>",
         DocumentEditingContextTestHelpers::applyAhemStyle(@"<body style='height: 1000px'><div style='width: 200px; height: 200px'></div><textarea id='test' style='padding: 0'>The quick brown fox jumps over the lazy dog.</textarea>"
@@ -1073,7 +1073,7 @@ TEST(DocumentEditingContext, RequestRectsInTextAreaInsideScrolledIFrame)
 
 TEST(DocumentEditingContext, RequestFirstTwoWords)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"<p id='text' contenteditable>The quick brown fox jumps over the lazy dog.</p>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, 0, text.firstChild, 0)"]; // Will focus <p>.
 
@@ -1110,7 +1110,7 @@ TEST(DocumentEditingContext, RequestFirstTwoWords)
 
 TEST(DocumentEditingContext, RequestFirstTwoWordWithLeadingNonBreakableSpace)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"<p id='text' contenteditable>&nbsp;The quick brown fox jumps over the lazy dog.</p>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, 0, text.firstChild, 0)"]; // Will focus <p>.
 
@@ -1137,7 +1137,7 @@ TEST(DocumentEditingContext, RequestFirstTwoWordWithLeadingNonBreakableSpace)
 
 TEST(DocumentEditingContext, RequestLastWord)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"<p id='text' contenteditable>The quick brown fox jumps over the lazy dog.</p>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, text.firstChild.length, text.firstChild, text.firstChild.length)"]; // Will focus <p>.
 
@@ -1164,7 +1164,7 @@ TEST(DocumentEditingContext, RequestLastWord)
 
 TEST(DocumentEditingContext, RequestLastWordWithTrailingNonBreakableSpace)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"<p id='text' contenteditable>The quick brown fox jumps over the lazy dog.&nbsp;</p>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, text.firstChild.length, text.firstChild, text.firstChild.length)"]; // Will focus <p>.
 
@@ -1193,7 +1193,7 @@ TEST(DocumentEditingContext, RequestLastWordWithTrailingNonBreakableSpace)
 
 TEST(DocumentEditingContext, RequestTwoWordsAroundSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(@"<span id='the'>The</span> quick brown fox <span id='jumps'>jumps</span> over the lazy <span id='dog'>dog.</span>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(jumps, 0, jumps, 1)"];
 
@@ -1206,7 +1206,7 @@ TEST(DocumentEditingContext, RequestTwoWordsAroundSelection)
 
 TEST(DocumentEditingContext, RequestThreeWordsAroundSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(@"<span id='the'>The</span> quick brown fox <span id='jumps'>jumps</span> over the lazy <span id='dog'>dog.</span>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(jumps, 0, jumps, 1)"];
 
@@ -1219,7 +1219,7 @@ TEST(DocumentEditingContext, RequestThreeWordsAroundSelection)
 
 TEST(DocumentEditingContext, RequestBeforeInlinePlaceholder)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(@"<span id='wrapper' contenteditable>hello world</span>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setPosition(wrapper.firstChild, 5)"]; // Place cursor after "hello".
 
@@ -1236,7 +1236,7 @@ TEST(DocumentEditingContext, RequestBeforeInlinePlaceholder)
 
 TEST(DocumentEditingContext, RequestAfterInlinePlaceholder)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(@"<span id='wrapper' contenteditable>hello world</span>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setPosition(wrapper.firstChild, 6)"]; // Place cursor before "world".
 
@@ -1253,7 +1253,7 @@ TEST(DocumentEditingContext, RequestAfterInlinePlaceholder)
 
 TEST(DocumentEditingContext, RequestBeforeBlockPlaceholder)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(@"<span id='wrapper' contenteditable>hello world</span>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setPosition(wrapper.firstChild, 5)"]; // Place cursor after "hello".
 
@@ -1270,7 +1270,7 @@ TEST(DocumentEditingContext, RequestBeforeBlockPlaceholder)
 
 TEST(DocumentEditingContext, RequestAfterBlockPlaceholder)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(@"<span id='wrapper' contenteditable>hello world</span>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setPosition(wrapper.firstChild, 6)"]; // Place cursor before "world".
 
@@ -1291,7 +1291,7 @@ constexpr NSString * const threeSentencesExample = @"<p id='text' contenteditabl
 
 TEST(DocumentEditingContext, RequestFirstTwoSentences)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(threeSentencesExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, 0, text.firstChild, 0)"]; // Will focus <p>.
 
@@ -1304,7 +1304,7 @@ TEST(DocumentEditingContext, RequestFirstTwoSentences)
 
 TEST(DocumentEditingContext, RequestFirstTwoSentencesNoSpaces)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(@"<p id='text' contenteditable>The first sentence.The second sentence.The third sentence.</p>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, 0, text.firstChild, 0)"]; // Will focus <p>.
 
@@ -1317,7 +1317,7 @@ TEST(DocumentEditingContext, RequestFirstTwoSentencesNoSpaces)
 
 TEST(DocumentEditingContext, RequestLastSentence)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(threeSentencesExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, text.firstChild.length, text.firstChild, text.firstChild.length)"]; // Will focus <p>.
 
@@ -1330,7 +1330,7 @@ TEST(DocumentEditingContext, RequestLastSentence)
 
 TEST(DocumentEditingContext, RequestLastTwoSentences)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(threeSentencesExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, text.firstChild.length, text.firstChild, text.firstChild.length)"]; // Will focus <p>.
 
@@ -1347,7 +1347,7 @@ constexpr NSString * const threeParagraphsExample = @"<p id='text' style='width:
 
 TEST(DocumentEditingContext, RequestFirstParagraph)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(threeParagraphsExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, 0, text.firstChild, 0)"]; // Will focus <p>.
 
@@ -1360,7 +1360,7 @@ TEST(DocumentEditingContext, RequestFirstParagraph)
 
 TEST(DocumentEditingContext, RequestFirstTwoParagraphs)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(threeParagraphsExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, 0, text.firstChild, 0)"]; // Will focus <p>.
 
@@ -1373,7 +1373,7 @@ TEST(DocumentEditingContext, RequestFirstTwoParagraphs)
 
 TEST(DocumentEditingContext, RequestLastParagraph)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(threeParagraphsExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, text.firstChild.length, text.firstChild, text.firstChild.length)"]; // Will focus <p>.
 
@@ -1386,7 +1386,7 @@ TEST(DocumentEditingContext, RequestLastParagraph)
 
 TEST(DocumentEditingContext, RequestLastTwoParagraphs)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(threeParagraphsExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, text.firstChild.length, text.firstChild, text.firstChild.length)"]; // Will focus <p>.
 
@@ -1399,7 +1399,7 @@ TEST(DocumentEditingContext, RequestLastTwoParagraphs)
 
 TEST(DocumentEditingContext, RequestLastTwoParagraphsWithSelectiontWithinParagraph)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(@"<span id='the'>The</span> quick brown fox <span id='jumps'>jumps</span> over the lazy <span id='dog'>dog.</span>")];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(jumps, 0, jumps, 1)"]; // Will focus <p>.
 
@@ -1415,7 +1415,7 @@ TEST(DocumentEditingContext, RequestLastTwoParagraphsWithSelectiontWithinParagra
 
 TEST(DocumentEditingContext, RequestFirstCharacter)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(threeParagraphsExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, 0, text.firstChild, 0)"]; // Will focus <p>.
 
@@ -1428,7 +1428,7 @@ TEST(DocumentEditingContext, RequestFirstCharacter)
 
 TEST(DocumentEditingContext, RequestFirstWordUsingCharacterGranularity)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(threeParagraphsExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, 0, text.firstChild, 0)"]; // Will focus <p>.
 
@@ -1441,7 +1441,7 @@ TEST(DocumentEditingContext, RequestFirstWordUsingCharacterGranularity)
 
 TEST(DocumentEditingContext, RequestFirstWordPlusTrailingSpaceUsingCharacterGranularity)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyStyle(threeParagraphsExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, 0, text.firstChild, 0)"]; // Will focus <p>.
 
@@ -1456,7 +1456,7 @@ TEST(DocumentEditingContext, RequestFirstWordPlusTrailingSpaceUsingCharacterGran
 
 TEST(DocumentEditingContext, RequestFirstLine)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(threeParagraphsExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, 0, text.firstChild, 0)"]; // Will focus <p>.
 
@@ -1469,7 +1469,7 @@ TEST(DocumentEditingContext, RequestFirstLine)
 
 TEST(DocumentEditingContext, RequestFirstTwoLines)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(threeParagraphsExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, 0, text.firstChild, 0)"]; // Will focus <p>.
 
@@ -1482,7 +1482,7 @@ TEST(DocumentEditingContext, RequestFirstTwoLines)
 
 TEST(DocumentEditingContext, RequestLastLine)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(threeParagraphsExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, text.firstChild.length, text.firstChild, text.firstChild.length)"]; // Will focus <p>.
 
@@ -1495,7 +1495,7 @@ TEST(DocumentEditingContext, RequestLastLine)
 
 TEST(DocumentEditingContext, RequestLastTwoLines)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:DocumentEditingContextTestHelpers::applyAhemStyle(threeParagraphsExample)];
     [webView stringByEvaluatingJavaScript:@"getSelection().setBaseAndExtent(text.firstChild, text.firstChild.length, text.firstChild, text.firstChild.length)"]; // Will focus <p>.
 
@@ -1508,7 +1508,7 @@ TEST(DocumentEditingContext, RequestLastTwoLines)
 
 TEST(DocumentEditingContext, RequestSentencesAfterTextInsertion)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"simple-editor"];
 
     auto *context = [webView synchronouslyRequestDocumentContext:makeRequest(UIWKDocumentRequestText, UITextGranularitySentence, 1)];
@@ -1547,7 +1547,7 @@ static void checkThatAllCharacterRectsAreConsistentWithSelectionRects(TestWKWebV
 
 TEST(DocumentEditingContext, CharacterRectConsistency)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
     [webView synchronouslyLoadTestPageNamed:@"editable-body-mixed-text"];
 
     checkThatAllCharacterRectsAreConsistentWithSelectionRects(webView.get());
@@ -1555,7 +1555,7 @@ TEST(DocumentEditingContext, CharacterRectConsistency)
 
 TEST(DocumentEditingContext, CharacterRectConsistencyWithRTL)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
     [webView synchronouslyLoadTestPageNamed:@"editable-body-mixed-text"];
     [webView stringByEvaluatingJavaScript:@"document.body.style = 'direction: rtl;'"];
 
@@ -1564,7 +1564,7 @@ TEST(DocumentEditingContext, CharacterRectConsistencyWithRTL)
 
 TEST(DocumentEditingContext, CharacterRectConsistencyWithVerticalText)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
     [webView synchronouslyLoadTestPageNamed:@"editable-body-mixed-text"];
     [webView stringByEvaluatingJavaScript:@"document.body.style = 'writing-mode: vertical-rl;'"];
 
@@ -1573,7 +1573,7 @@ TEST(DocumentEditingContext, CharacterRectConsistencyWithVerticalText)
 
 TEST(DocumentEditingContext, CharacterRectConsistencyWithRTLAndVerticalText)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
     [webView synchronouslyLoadTestPageNamed:@"editable-body-mixed-text"];
     [webView stringByEvaluatingJavaScript:@"document.body.style = 'writing-mode: vertical-rl; direction: rtl;'"];
 
@@ -1582,7 +1582,7 @@ TEST(DocumentEditingContext, CharacterRectConsistencyWithRTLAndVerticalText)
 
 TEST(DocumentEditingContext, CharacterRectsInEditableWebView)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 320, 568)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 320, 568)]);
     [webView _setEditable:YES];
     [webView synchronouslyLoadHTMLString:makeString("<meta name='viewport' content='width=device-width, initial-scale=1'><body>"_s, longTextString, "</body>"_s).createNSString().get()];
     [webView objectByEvaluatingJavaScript:@"getSelection().setPosition(document.body, 0)"];
@@ -1608,9 +1608,9 @@ TEST(DocumentEditingContext, RequestAutocorrectedRanges)
     if (![UIWKDocumentContext instancesRespondToSelector:@selector(autocorrectedRanges)])
         return;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id<_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
@@ -1675,7 +1675,7 @@ TEST(DocumentEditingContext, RequestAutocorrectedRanges)
 
 TEST(DocumentEditingContext, RequestAnnotationsForTextChecking)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     auto loadWebViewAndGetContext = [&] {
         [webView synchronouslyLoadHTMLString:makeString("<body>"_s, longTextString, "</body>"_s).createNSString().get()];
         [webView objectByEvaluatingJavaScript:@"(() => {"

@@ -70,12 +70,8 @@ void WebXRTest::simulateDeviceConnection(ScriptExecutionContext& context, const 
 
         device->setViews(init.views);
 
-        PlatformXR::Device::FeatureList supportedFeatures;
-        if (init.supportedFeatures)
-            supportedFeatures = parseFeatures(init.supportedFeatures.value(), context);
-        PlatformXR::Device::FeatureList enabledFeatures;
-        if (init.enabledFeatures)
-            enabledFeatures = parseFeatures(init.enabledFeatures.value(), context);
+        auto supportedFeatures = parseFeatures(init.supportedFeatures, context);
+        auto enabledFeatures = parseFeatures(init.enabledFeatures, context);
 
         if (init.boundsCoordinates) {
             if (init.boundsCoordinates->size() < 3) {

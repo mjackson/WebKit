@@ -166,8 +166,11 @@ static int s_eventFd = -1;
 static void sigxcpuHandler(int)
 {
     uint64_t value = 1;
-    auto ret = write(s_eventFd, &value, sizeof(value));
-    UNUSED_VARIABLE(ret);
+    while (true) {
+        ssize_t ret = write(s_eventFd, &value, sizeof(value));
+        if (ret != -1 || errno != EINTR) [[likely]]
+            break;
+    }
 }
 
 void RealTimeThreads::setupSignalHandler()

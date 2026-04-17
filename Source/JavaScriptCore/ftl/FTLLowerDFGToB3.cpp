@@ -87,10 +87,10 @@
 #include "JSCellButterfly.h"
 #include "JSGenerator.h"
 #include "JSGeneratorFunction.h"
-#include "JSInternalPromise.h"
 #include "JSIteratorHelper.h"
 #include "JSLexicalEnvironment.h"
 #include "JSMapIterator.h"
+#include "JSPromise.h"
 #include "JSPromiseReaction.h"
 #include "JSRegExpStringIterator.h"
 #include "JSSetIterator.h"
@@ -171,8 +171,9 @@ public:
     LowerDFGToB3(State& state)
         : m_graph(state.graph)
         , m_ftlState(state)
-        , m_out(state)
         , m_proc(*state.proc)
+        , m_heaps(m_proc.heaps())
+        , m_out(state)
         , m_tupleValues(m_graph.m_tupleData.size())
         , m_availabilityCalculator(m_graph)
         , m_state(state.graph)
@@ -9562,12 +9563,8 @@ IGNORE_CLANG_WARNINGS_END
             compileNewInternalFieldObjectImpl<JSAsyncGenerator>(operationNewAsyncGenerator);
             break;
         case JSPromiseType:
-            if (m_node->structure()->classInfoForCells() == JSInternalPromise::info())
-                compileNewInternalFieldObjectImpl<JSInternalPromise>(operationNewInternalPromise);
-            else {
-                ASSERT(m_node->structure()->classInfoForCells() == JSPromise::info());
-                compileNewInternalFieldObjectImpl<JSPromise>(operationNewPromise);
-            }
+            ASSERT(m_node->structure()->classInfoForCells() == JSPromise::info());
+            compileNewInternalFieldObjectImpl<JSPromise>(operationNewPromise);
             break;
         default:
             DFG_CRASH(m_graph, m_node, "Bad structure");
@@ -9996,8 +9993,8 @@ IGNORE_CLANG_WARNINGS_END
         LBasicBlock slowCase = m_out.newBlock();
         LBasicBlock continuation = m_out.newBlock();
 
-        ValueFromBlock promiseStructure = m_out.anchor(weakStructure(m_graph.registerStructure(m_node->isInternalPromise() ? globalObject->internalPromiseStructure() : globalObject->promiseStructure())));
-        m_out.branch(m_out.equal(callee, weakPointer(m_node->isInternalPromise() ? globalObject->internalPromiseConstructor() : globalObject->promiseConstructor())), unsure(fastAllocationCase), unsure(derivedCase));
+        ValueFromBlock promiseStructure = m_out.anchor(weakStructure(m_graph.registerStructure(globalObject->promiseStructure())));
+        m_out.branch(m_out.equal(callee, weakPointer(globalObject->promiseConstructor())), unsure(fastAllocationCase), unsure(derivedCase));
 
         LBasicBlock lastNext = m_out.appendTo(derivedCase, isFunctionBlock);
         m_out.branch(isFunction(callee, provenType(m_node->child1())), usually(isFunctionBlock), rarely(slowCase));
@@ -10013,18 +10010,14 @@ IGNORE_CLANG_WARNINGS_END
 
         m_out.appendTo(hasStructure, checkGlobalObjectCase);
         LValue structure = decodeNonNullStructure(structureID);
-        m_out.branch(m_out.equal(m_out.loadPtr(structure, m_heaps.Structure_classInfo), m_out.constIntPtr(m_node->isInternalPromise() ? JSInternalPromise::info() : JSPromise::info())), usually(checkGlobalObjectCase), rarely(slowCase));
+        m_out.branch(m_out.equal(m_out.loadPtr(structure, m_heaps.Structure_classInfo), m_out.constIntPtr(JSPromise::info())), usually(checkGlobalObjectCase), rarely(slowCase));
 
         m_out.appendTo(checkGlobalObjectCase, fastAllocationCase);
         ValueFromBlock derivedStructure = m_out.anchor(structure);
         m_out.branch(m_out.equal(m_out.loadPtr(structure, m_heaps.Structure_realm), weakPointer(globalObject)), usually(fastAllocationCase), rarely(slowCase));
 
         m_out.appendTo(fastAllocationCase, slowCase);
-        LValue promise;
-        if (m_node->isInternalPromise())
-            promise = allocateObject<JSInternalPromise>(m_out.phi(pointerType(), promiseStructure, derivedStructure), m_out.intPtrZero, slowCase);
-        else
-            promise = allocateObject<JSPromise>(m_out.phi(pointerType(), promiseStructure, derivedStructure), m_out.intPtrZero, slowCase);
+        LValue promise = allocateObject<JSPromise>(m_out.phi(pointerType(), promiseStructure, derivedStructure), m_out.intPtrZero, slowCase);
         m_out.store64(m_out.constInt64(JSValue::encode(jsNumber(static_cast<int32_t>(JSPromise::Status::Pending)))), promise, m_heaps.JSInternalFieldObjectImpl_internalFields[static_cast<unsigned>(JSPromise::Field::Flags)]);
         m_out.store64(m_out.constInt64(JSValue::encode(JSValue())), promise, m_heaps.JSInternalFieldObjectImpl_internalFields[static_cast<unsigned>(JSPromise::Field::ReactionsOrResult)]);
         mutatorFence();
@@ -10032,7 +10025,7 @@ IGNORE_CLANG_WARNINGS_END
         m_out.jump(continuation);
 
         m_out.appendTo(slowCase, continuation);
-        ValueFromBlock slowResult = m_out.anchor(vmCall(Int64, m_node->isInternalPromise() ? operationCreateInternalPromise : operationCreatePromise, weakPointer(globalObject), callee));
+        ValueFromBlock slowResult = m_out.anchor(vmCall(Int64, operationCreatePromise, weakPointer(globalObject), callee));
         m_out.jump(continuation);
 
         m_out.appendTo(continuation, lastNext);
@@ -14895,7 +14888,6 @@ IGNORE_CLANG_WARNINGS_END
     {
         LBasicBlock notInt32 = m_out.newBlock();
         LBasicBlock doubleCase = m_out.newBlock();
-        LBasicBlock doubleNotNanOrInf = m_out.newBlock();
         LBasicBlock continuation = m_out.newBlock();
 
         LValue input = lowJSValue(m_node->child1());
@@ -14909,32 +14901,18 @@ IGNORE_CLANG_WARNINGS_END
         m_out.branch(
             isNotNumber(input, provenType(m_node->child1())), unsure(continuation), unsure(doubleCase));
 
-        m_out.appendTo(doubleCase, doubleNotNanOrInf);
-        LValue doubleAsInt;
-        LValue asDouble = unboxDouble(input, &doubleAsInt);
-        LValue expBits = m_out.bitAnd(m_out.lShr(doubleAsInt, m_out.constInt32(52)), m_out.constInt64(0x7ff));
-        m_out.branch(
-            m_out.equal(expBits, m_out.constInt64(0x7ff)),
-            unsure(continuation), unsure(doubleNotNanOrInf));
-
-        m_out.appendTo(doubleNotNanOrInf, continuation);
-        PatchpointValue* patchpoint = m_out.patchpoint(Int32);
-        patchpoint->appendSomeRegister(asDouble);
-        patchpoint->numFPScratchRegisters = 1;
-        patchpoint->effects = Effects::none();
-        patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
-            JIT_COMMENT(jit, "NumberIsInteger");
-            GPRReg result = params[0].gpr();
-            FPRReg input = params[1].fpr();
-            FPRReg temp = params.fpScratch(0);
-            jit.roundTowardZeroDouble(input, temp);
-            jit.compareDouble(MacroAssembler::DoubleEqualAndOrdered, input, temp, result);
-        });
-        ValueFromBlock patchpointResult = m_out.anchor(patchpoint);
+        // Use value - trunc(value) == 0.0 which rejects NaN and Infinity
+        // without an explicit check since NaN - NaN and Inf - Inf both
+        // produce NaN.
+        m_out.appendTo(doubleCase, continuation);
+        LValue asDouble = unboxDouble(input);
+        LValue diff = m_out.doubleSub(asDouble, m_out.doubleTrunc(asDouble));
+        LValue isInt = m_out.doubleEqual(diff, m_out.constDouble(0.0));
+        ValueFromBlock doubleResult = m_out.anchor(isInt);
         m_out.jump(continuation);
 
         m_out.appendTo(continuation, lastNext);
-        setBoolean(m_out.phi(Int32, trueResult, falseResult, patchpointResult));
+        setBoolean(m_out.phi(Int32, trueResult, falseResult, doubleResult));
     }
 
     void compileGlobalIsNaN()
@@ -15072,10 +15050,6 @@ IGNORE_CLANG_WARNINGS_END
         case DoubleRepUse: {
             LValue argument = lowDouble(m_node->child1());
 
-            // check if the value is finite
-            LValue diff = m_out.doubleSub(argument, argument);
-            LValue isFinite = m_out.doubleEqual(diff, diff);
-
             // check if the value is an integer
             LValue isInteger = m_out.doubleEqual(argument, m_out.doubleTrunc(argument));
 
@@ -15083,8 +15057,7 @@ IGNORE_CLANG_WARNINGS_END
             LValue limit = m_out.constDouble(maxSafeInteger());
             LValue isInRange = m_out.doubleLessThanOrEqual(m_out.doubleAbs(argument), limit);
 
-            LValue isValid = m_out.bitAnd(isFinite, isInteger);
-            LValue result = m_out.bitAnd(isValid, isInRange);
+            LValue result = m_out.bitAnd(isInteger, isInRange);
 
             setBoolean(result);
             break;
@@ -18330,12 +18303,8 @@ IGNORE_CLANG_WARNINGS_END
             compileMaterializeNewInternalFieldObjectImpl<JSAsyncGenerator>(operationNewAsyncGenerator);
             break;
         case JSPromiseType:
-            if (m_node->structure()->classInfoForCells() == JSInternalPromise::info())
-                compileMaterializeNewInternalFieldObjectImpl<JSInternalPromise>(operationNewInternalPromise);
-            else {
-                ASSERT(m_node->structure()->classInfoForCells() == JSPromise::info());
-                compileMaterializeNewInternalFieldObjectImpl<JSPromise>(operationNewPromise);
-            }
+            ASSERT(m_node->structure()->classInfoForCells() == JSPromise::info());
+            compileMaterializeNewInternalFieldObjectImpl<JSPromise>(operationNewPromise);
             break;
         default:
             DFG_CRASH(m_graph, m_node, "Bad structure");
@@ -25962,9 +25931,9 @@ IGNORE_CLANG_WARNINGS_END
 
     Graph& m_graph;
     State& m_ftlState;
-    AbstractHeapRepository m_heaps;
-    Output m_out;
     Procedure& m_proc;
+    AbstractHeapRepository& m_heaps;
+    Output m_out;
 
     LBasicBlock m_handleExceptions;
     UncheckedKeyHashMap<DFG::BasicBlock*, LBasicBlock> m_blocks;

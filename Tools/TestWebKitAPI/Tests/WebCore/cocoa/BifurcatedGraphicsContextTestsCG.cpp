@@ -50,7 +50,7 @@ constexpr CGFloat contextHeight = 1;
 TEST(BifurcatedGraphicsContextTests, Basic)
 {
     auto colorSpace = DestinationColorSpace::SRGB();
-    auto primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
+    RetainPtr primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
 
     GraphicsContextCG primaryContext(primaryCGContext.get());
     RecorderImpl secondaryContext({ }, FloatRect(0, 0, contextWidth, contextHeight), { });
@@ -117,8 +117,8 @@ TEST(BifurcatedGraphicsContextTests, Text)
 TEST(BifurcatedGraphicsContextTests, DrawTiledGradientImage)
 {
     auto colorSpace = DestinationColorSpace::SRGB();
-    auto primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
-    auto secondaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
+    RetainPtr primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
+    RetainPtr secondaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
 
     GraphicsContextCG primaryContext(primaryCGContext.get());
     GraphicsContextCG secondaryContext(secondaryCGContext.get());
@@ -149,8 +149,8 @@ TEST(BifurcatedGraphicsContextTests, DrawTiledGradientImage)
 TEST(BifurcatedGraphicsContextTests, DrawGradientImage)
 {
     auto colorSpace = DestinationColorSpace::SRGB();
-    auto primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
-    auto secondaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
+    RetainPtr primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
+    RetainPtr secondaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
 
     GraphicsContextCG primaryContext(primaryCGContext.get());
     GraphicsContextCG secondaryContext(secondaryCGContext.get());
@@ -181,7 +181,7 @@ TEST(BifurcatedGraphicsContextTests, DrawGradientImage)
 TEST(BifurcatedGraphicsContextTests, Borders)
 {
     auto colorSpace = DestinationColorSpace::SRGB();
-    auto primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
+    RetainPtr primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
 
     GraphicsContextCG primaryContext(primaryCGContext.get());
     RecorderImpl secondaryContext({ }, FloatRect(0, 0, contextWidth, contextHeight), { });
@@ -205,7 +205,7 @@ TEST(BifurcatedGraphicsContextTests, Borders)
 TEST(BifurcatedGraphicsContextTests, TransformedClip)
 {
     auto colorSpace = DestinationColorSpace::SRGB();
-    auto primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, 100, 100, 8, 4 * 100, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
+    RetainPtr primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, 100, 100, 8, 4 * 100, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
 
     GraphicsContextCG primaryContextCG(primaryCGContext.get());
     GraphicsContext& primaryContext = primaryContextCG;
@@ -263,7 +263,7 @@ TEST(BifurcatedGraphicsContextTests, TransformedClip)
 TEST(BifurcatedGraphicsContextTests, ApplyDeviceScaleFactor)
 {
     auto colorSpace = DestinationColorSpace::SRGB();
-    auto primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, 100, 100, 8, 4 * 100, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
+    RetainPtr primaryCGContext = adoptCF(CGBitmapContextCreate(nullptr, 100, 100, 8, 4 * 100, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
 
     GraphicsContextCG primaryContextCG(primaryCGContext.get());
     GraphicsContext& primaryContext = primaryContextCG;

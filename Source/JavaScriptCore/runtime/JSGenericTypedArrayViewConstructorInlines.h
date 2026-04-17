@@ -37,6 +37,7 @@
 #include "JSGlobalObject.h"
 #include "JSTypedArrays.h"
 #include "StructureInlines.h"
+#include <wtf/text/ASCIILiteral.h>
 
 namespace JSC {
 
@@ -111,6 +112,8 @@ inline JSObject* constructGenericTypedArrayViewFromIterator(JSGlobalObject* glob
     return result;
 }
 
+constinit const ASCIILiteral typedArrayErrorMessageBufferIsAlreadyDetached = "Buffer is already detached"_s;
+
 template<typename ViewClass>
 inline JSObject* constructGenericTypedArrayViewWithArguments(JSGlobalObject* globalObject, Structure* structure, JSValue firstValue, size_t offset, std::optional<size_t> lengthOpt)
 {
@@ -121,7 +124,7 @@ inline JSObject* constructGenericTypedArrayViewWithArguments(JSGlobalObject* glo
     if (JSArrayBuffer* jsBuffer = jsDynamicCast<JSArrayBuffer*>(firstValue)) {
         RefPtr<ArrayBuffer> buffer = jsBuffer->impl();
         if (buffer->isDetached()) {
-            throwTypeError(globalObject, scope, "Buffer is already detached"_s);
+            throwTypeError(globalObject, scope, typedArrayErrorMessageBufferIsAlreadyDetached);
             return nullptr;
         }
 
@@ -275,6 +278,11 @@ ALWAYS_INLINE EncodedJSValue constructGenericTypedArrayViewImpl(JSGlobalObject* 
 
             if constexpr (ViewClass::TypedArrayStorageType == TypeDataView) {
                 RefPtr<ArrayBuffer> buffer = arrayBuffer->impl();
+                if (buffer->isDetached()) [[unlikely]] {
+                    throwVMTypeError(globalObject, scope, typedArrayErrorMessageBufferIsAlreadyDetached);
+                    RETURN_IF_EXCEPTION(scope, { });
+                }
+
                 if (offset > buffer->byteLength()) [[unlikely]] {
                     throwRangeError(globalObject, scope, "byteOffset exceeds source ArrayBuffer byteLength"_s);
                     RETURN_IF_EXCEPTION(scope, { });

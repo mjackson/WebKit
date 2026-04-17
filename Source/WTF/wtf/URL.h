@@ -307,16 +307,16 @@ WTF_EXPORT_PRIVATE bool NODELETE isEqualIgnoringQueryAndFragments(const URL&, co
 WTF_EXPORT_PRIVATE Vector<String> removeQueryParameters(URL&, const HashSet<String>&);
 WTF_EXPORT_PRIVATE Vector<String> removeQueryParameters(URL&, NOESCAPE const Function<bool(const String&, const String&)>&);
 
-WTF_EXPORT_PRIVATE const URL& aboutBlankURL();
-WTF_EXPORT_PRIVATE const URL& aboutSrcDocURL();
+WTF_EXPORT_PRIVATE const URL& NODELETE aboutBlankURL();
+WTF_EXPORT_PRIVATE const URL& NODELETE aboutSrcDocURL();
+
+WTF_EXPORT_PRIVATE bool isValidJavaScriptURL(StringView url);
 
 // Functions to do URL operations on strings.
 // These are operations that aren't faster on a parsed URL.
 // These are also different from the WTF::URL functions in that they don't require the string to be a valid and parsable URL.
-// This is especially important because valid javascript URLs are not necessarily considered valid by WTF::URL.
 
 WTF_EXPORT_PRIVATE bool protocolIs(StringView url, ASCIILiteral protocol);
-WTF_EXPORT_PRIVATE bool protocolIsJavaScript(StringView url);
 WTF_EXPORT_PRIVATE bool NODELETE protocolIsInHTTPFamily(StringView url);
 
 WTF_EXPORT_PRIVATE std::optional<uint16_t> defaultPortForProtocol(StringView protocol);

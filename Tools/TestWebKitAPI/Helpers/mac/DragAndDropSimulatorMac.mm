@@ -465,7 +465,7 @@ static BOOL getFilePathsAndTypeIdentifiers(NSArray<NSURL *> *fileURLs, NSArray<N
 
 - (NSArray<NSURL *> *)receivePromisedFiles
 {
-    auto destinationURLs = adoptNS([NSMutableArray new]);
+    RetainPtr destinationURLs = adoptNS([NSMutableArray new]);
     for (NSFilePromiseProvider *provider in _filePromiseProviders.get()) {
         if (!provider.delegate)
             continue;

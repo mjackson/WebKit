@@ -71,7 +71,7 @@ static RetainPtr<NSURL> lastEchoedURL;
     lastEchoedURL = requestURL;
 
     NSData *data = [requestURL.absoluteString dataUsingEncoding:NSASCIIStringEncoding];
-    auto response = adoptNS([[NSURLResponse alloc] initWithURL:self.request.URL MIMEType:@"text/html" expectedContentLength:[data length] textEncodingName:nil]);
+    RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:self.request.URL MIMEType:@"text/html" expectedContentLength:[data length] textEncodingName:nil]);
     [self.client URLProtocol:self didReceiveResponse:response.get() cacheStoragePolicy:NSURLCacheStorageNotAllowed];
     [self.client URLProtocol:self didLoadData:data];
     [self.client URLProtocolDidFinishLoading:self];
@@ -112,13 +112,13 @@ TEST(WebKit, RegisterAsCanDisplayOnlyIfCanRequest_SameOriginLoad)
         [NSURLProtocol registerClass:[EchoURLProtocol class]];
         [WKBrowsingContextController registerSchemeForCustomProtocol:echoScheme];
 
-        auto processPool = adoptNS([[WKProcessPool alloc] init]);
+        RetainPtr processPool = adoptNS([[WKProcessPool alloc] init]);
         [processPool _registerURLSchemeAsCanDisplayOnlyIfCanRequest:echoScheme];
 
-        auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
         [webViewConfiguration setProcessPool:processPool.get()];
 
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:webViewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:webViewConfiguration.get()]);
 
         NSString *htmlString = @"<!DOCTYPE html><body><script src='echo://A/A_1'></script>";
         [webView loadHTMLString:htmlString baseURL:[NSURL URLWithString:@"echo://A"]];
@@ -137,13 +137,13 @@ TEST(WebKit, RegisterAsCanDisplayOnlyIfCanRequest_CrossOriginLoad)
         [NSURLProtocol registerClass:[EchoURLProtocol class]];
         [WKBrowsingContextController registerSchemeForCustomProtocol:echoScheme];
 
-        auto processPool = adoptNS([[WKProcessPool alloc] init]);
+        RetainPtr processPool = adoptNS([[WKProcessPool alloc] init]);
         [processPool _registerURLSchemeAsCanDisplayOnlyIfCanRequest:echoScheme];
 
-        auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
         [webViewConfiguration setProcessPool:processPool.get()];
 
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:webViewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:webViewConfiguration.get()]);
 
         NSString *htmlString = @"<!DOCTYPE html><body><script src='echo://A/A_1'></script>";
         [webView loadHTMLString:htmlString baseURL:[NSURL URLWithString:@"echo://B"]];
@@ -162,7 +162,7 @@ TEST(WebKit, LoadAlternateHTMLStringAllowsFirstPartyForCookies)
         [NSURLProtocol registerClass:[EchoURLProtocol class]];
         [WKBrowsingContextController registerSchemeForCustomProtocol:echoScheme];
 
-        auto webView = adoptNS([WKWebView new]);
+        RetainPtr webView = adoptNS([WKWebView new]);
 
         NSString *htmlString = @"<link rel=stylesheet type='text/css' href='echo://base/page-load-errors.css'>";
         [webView _loadAlternateHTMLString:htmlString baseURL:[NSURL URLWithString:@"echo://base/"] forUnreachableURL:[NSURL URLWithString:@"echo://unreachable/"]];
@@ -186,7 +186,7 @@ TEST(WebKit, WKContextRegisterURLSchemeAsCanDisplayOnlyIfCanRequest_SameOriginLo
         WKContextRegisterURLSchemeAsCanDisplayOnlyIfCanRequest(context.get(), Util::toWK(echoScheme.UTF8String).get());
 
         PlatformWebView webView { context.get() };
-        auto loadDelegate = adoptNS([[WKContextRegisterURLSchemeAsCanDisplayOnlyIfCanRequestLoadDelegate alloc] init]);
+        RetainPtr loadDelegate = adoptNS([[WKContextRegisterURLSchemeAsCanDisplayOnlyIfCanRequestLoadDelegate alloc] init]);
         webView.platformView().navigationDelegate = loadDelegate.get();
         [webView.platformView() loadHTMLString:@"<!DOCTYPE html><body><script src='echo://A/A_1'></script>" baseURL:[NSURL URLWithString:@"echo://A"]];
         Util::run(&didFinishLoad);
@@ -210,7 +210,7 @@ TEST(WebKit, WKContextRegisterURLSchemeAsCanDisplayOnlyIfCanRequest_CrossOriginL
         WKContextRegisterURLSchemeAsCanDisplayOnlyIfCanRequest(context.get(), Util::toWK(echoScheme.UTF8String).get());
 
         PlatformWebView webView { context.get() };
-        auto loadDelegate = adoptNS([[WKContextRegisterURLSchemeAsCanDisplayOnlyIfCanRequestLoadDelegate alloc] init]);
+        RetainPtr loadDelegate = adoptNS([[WKContextRegisterURLSchemeAsCanDisplayOnlyIfCanRequestLoadDelegate alloc] init]);
         webView.platformView().navigationDelegate = loadDelegate.get();
         [webView.platformView() loadHTMLString:@"<!DOCTYPE html><body><script src='echo://A/A_1'></script>" baseURL:[NSURL URLWithString:@"echo://B"]];
         Util::run(&didFinishLoad);

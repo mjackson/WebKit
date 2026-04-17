@@ -981,7 +981,7 @@ TEST(WKWebExtensionAPITabs, SendMessageFromBackgroundToOpenedWindow)
 
     __block RetainPtr<TestWebExtensionWindow> testWindow;
 
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().createWebViewWithConfiguration = ^WKWebView *(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
         testWindow = [manager openNewWindowUsingPrivateBrowsing:NO];
         testWindow.get().activeTab.webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]).get();

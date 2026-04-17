@@ -48,6 +48,8 @@
 typedef enum : NSUInteger {
     NSTextFinderAsynchronousDocumentFindOptionsBackwards = 1 << 0,
     NSTextFinderAsynchronousDocumentFindOptionsWrap = 1 << 1,
+    NSTextFinderAsynchronousDocumentFindOptionsCaseInsensitive = 1 << 2,
+    NSTextFinderAsynchronousDocumentFindOptionsStartsWith = 1 << 3,
 } NSTextFinderAsynchronousDocumentFindOptions;
 
 constexpr auto noFindOptions = (NSTextFinderAsynchronousDocumentFindOptions)0;
@@ -157,7 +159,7 @@ TEST(WebKit, FindInPage)
 
 TEST(WebKit, FindInPageSelectMatch)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 200, 200)]);
     auto request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"lots-of-text" withExtension:@"html"]];
     [webView _setUsePlatformFindUI:NO];
     [webView loadRequest:request];
@@ -299,7 +301,7 @@ TEST(WebKit, FindInPageWrappingSubframe)
 
 TEST(WebKit, FindAndReplace)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<body contenteditable><input id='first' value='hello'>hello world<input id='second' value='world'></body>"];
 
     auto result = findMatches(webView.get(), @"hello");
@@ -324,12 +326,203 @@ TEST(WebKit, FindAndReplace)
     EXPECT_WK_STREQ("hi hi", [webView stringByEvaluatingJavaScript:@"document.body.textContent"]);
 }
 
+TEST(WebKit, FindMatchesWithDifferentOptionsInSuccession)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    [webView synchronouslyLoadHTMLString:
+        @"<p>findme</p>"
+        "<p>findme</p>"
+        "<p>FINDME</p>"
+        "<p>findme</p>"
+        "<p>foobarFINDME</p>"
+    ];
+
+    {
+        auto result = findMatches(webView.get(), @"findme", noFindOptions);
+        EXPECT_EQ(3U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"findme", (NSTextFinderAsynchronousDocumentFindOptions)(noFindOptions | NSTextFinderAsynchronousDocumentFindOptionsCaseInsensitive));
+        EXPECT_EQ(5U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"findme", (NSTextFinderAsynchronousDocumentFindOptions)(noFindOptions | NSTextFinderAsynchronousDocumentFindOptionsStartsWith | NSTextFinderAsynchronousDocumentFindOptionsCaseInsensitive));
+        EXPECT_EQ(4U, [result.matches count]);
+    }
+}
+
+TEST(WebKit, FindMatchesInShadowRoots)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    [webView synchronouslyLoadHTMLString:
+        @"<p>hello</p>"
+        "<div id='host'></div>"
+        "<p>hello</p>"
+        "<script>"
+        "  const host = document.getElementById('host');"
+        "  const shadow = host.attachShadow({ mode: 'open' });"
+        "  shadow.innerHTML = '<p>hello</p><p>shadow-only</p>';"
+        "</script>"
+    ];
+
+    {
+        auto result = findMatches(webView.get(), @"hello");
+        EXPECT_EQ(3U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"shadow-only");
+        EXPECT_EQ(1U, [result.matches count]);
+    }
+}
+
+TEST(WebKit, FindMatchesCrossShadowBoundary)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+
+    [webView synchronouslyLoadHTMLString:
+        @"<span id='host'>slotted</span>"
+        "<script>"
+        "  const shadow = document.getElementById('host').attachShadow({ mode: 'open' });"
+        "  shadow.innerHTML = 'before <slot></slot> after';"
+        "</script>"
+    ];
+
+    {
+        auto result = findMatches(webView.get(), @"before slotted");
+        EXPECT_EQ(1U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"slotted after");
+        EXPECT_EQ(1U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"before slotted after");
+        EXPECT_EQ(1U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"slotted");
+        EXPECT_EQ(1U, [result.matches count]);
+    }
+}
+
+TEST(WebKit, FindMatchesCrossNestedShadowBoundary)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+
+    [webView synchronouslyLoadHTMLString:
+        @"<span id='outer-host'>"
+        "  <span id='inner-host'>deep</span>"
+        "</span>"
+        "<script>"
+        "  const outerShadow = document.getElementById('outer-host').attachShadow({ mode: 'open' });"
+        "  outerShadow.innerHTML = 'outer-start <slot></slot> outer-end';"
+        "  const innerShadow = document.getElementById('inner-host').attachShadow({ mode: 'open' });"
+        "  innerShadow.innerHTML = 'inner-start <slot></slot> inner-end';"
+        "</script>"
+    ];
+
+    {
+        auto result = findMatches(webView.get(), @"outer-start inner-start deep");
+        EXPECT_EQ(1U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"deep inner-end outer-end");
+        EXPECT_EQ(1U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"outer-start inner-start deep inner-end outer-end");
+        EXPECT_EQ(1U, [result.matches count]);
+    }
+}
+
+TEST(WebKit, FindMatchesNotFoundAcrossNonAdjacentFlatTreeContent)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+
+    [webView synchronouslyLoadHTMLString:
+        @"before <span id='host'>middle</span> after"
+        "<script>"
+        "  const shadow = document.getElementById('host').attachShadow({ mode: 'open' });"
+        "  shadow.innerHTML = 'shadow-start <slot></slot> shadow-end';"
+        "</script>"
+    ];
+
+    {
+        auto result = findMatches(webView.get(), @"before middle");
+        EXPECT_EQ(0U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"middle after");
+        EXPECT_EQ(0U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"before shadow-start");
+        EXPECT_EQ(1U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"shadow-end after");
+        EXPECT_EQ(1U, [result.matches count]);
+    }
+}
+
+TEST(WebKit, FindMatchesUnslottedContentNotFound)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+
+    [webView synchronouslyLoadHTMLString:
+        @"<span id='host'>unslotted-text</span>"
+        "<script>"
+        "  const shadow = document.getElementById('host').attachShadow({ mode: 'open' });"
+        "  shadow.innerHTML = 'shadow-only';"
+        "</script>"
+    ];
+
+    {
+        auto result = findMatches(webView.get(), @"unslotted-text");
+        EXPECT_EQ(0U, [result.matches count]);
+    }
+
+    {
+        auto result = findMatches(webView.get(), @"shadow-only");
+        EXPECT_EQ(1U, [result.matches count]);
+    }
+}
+
+TEST(WebKit, FindMatchesAfterDOMMutation)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    [webView synchronouslyLoadHTMLString:@"<p>findme</p><p>findme</p>"];
+
+    {
+        auto result = findMatches(webView.get(), @"findme");
+        EXPECT_EQ(2U, [result.matches count]);
+    }
+
+    [webView stringByEvaluatingJavaScript:@"document.body.appendChild(document.createElement('p')).textContent = 'findme'"];
+
+    {
+        auto result = findMatches(webView.get(), @"findme");
+        EXPECT_EQ(3U, [result.matches count]);
+    }
+}
+
 #if ENABLE(IMAGE_ANALYSIS)
 
 TEST(WebKit, FindTextInImageOverlay)
 {
     auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"simple-image-overlay"];
     {
         auto [matches, didWrap] = findMatches(webView.get(), @"foobar");
@@ -406,7 +599,7 @@ static size_t overlayCount(WKWebView *webView)
 
 TEST(WebKit, FindInPage)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"lots-of-text" withExtension:@"html"]];
     [webView loadRequest:request];
@@ -418,7 +611,7 @@ TEST(WebKit, FindInPage)
 
 TEST(WebKit, FindInPageCaseInsensitive)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"lots-of-text" withExtension:@"html"]];
     [webView loadRequest:request];
@@ -433,7 +626,7 @@ TEST(WebKit, FindInPageCaseInsensitive)
 
 TEST(WebKit, FindInPageStartsWith)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"lots-of-text" withExtension:@"html"]];
     [webView loadRequest:request];
@@ -452,7 +645,7 @@ TEST(WebKit, FindInPageStartsWith)
 
 TEST(WebKit, FindInPageFullWord)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"lots-of-text" withExtension:@"html"]];
     [webView loadRequest:request];
@@ -470,7 +663,7 @@ TEST(WebKit, FindInPageFullWord)
 
 TEST(WebKit, FindInPageDoNotCrashWhenUsingMutableString)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"lots-of-text" withExtension:@"html"]];
     [webView loadRequest:request];
@@ -500,7 +693,7 @@ TEST(WebKit, FindAndReplace)
     NSString *replacementString = @"colour";
     NSString *replacedContent = [originalContent stringByReplacingOccurrencesOfString:searchString withString:replacementString];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView _setFindInteractionEnabled:YES];
     [webView synchronouslyLoadHTMLString:[NSString stringWithFormat:@"<p>%@</p>", originalContent]];
 
@@ -525,7 +718,7 @@ TEST(WebKit, FindAndReplace)
 
 TEST(WebKit, FindInteraction)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
 
     EXPECT_NULL([webView _findInteraction]);
 
@@ -547,7 +740,7 @@ TEST(WebKit, FindInteraction)
 TEST(WebKit, FindAndHighlightDifferentWebViews)
 {
     auto createAndSetUpWebView = []() {
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
         [webView setFindInteractionEnabled:YES];
         [webView synchronouslyLoadHTMLString:[NSString stringWithFormat:@"<p>Test</p><iframe src='data:text/html,<p>Test</p>'></iframe>"]];
         return webView;
@@ -575,7 +768,7 @@ TEST(WebKit, FindAndHighlightDifferentWebViews)
 
 TEST(WebKit, RequestRectForFoundTextRange)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:@"<iframe srcdoc='<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Tellus in metus vulputate eu scelerisque felis imperdiet. Mi quis hendrerit dolor magna eget est lorem ipsum dolor. In cursus turpis massa tincidunt dui ut ornare. Sapien et ligula ullamcorper malesuada. Maecenas volutpat blandit aliquam etiam erat. Turpis egestas integer eget aliquet nibh praesent tristique. Ipsum dolor sit amet consectetur adipiscing. Tellus cras adipiscing enim eu turpis egestas pretium aenean pharetra. Sem fringilla ut morbi tincidunt augue interdum velit euismod. Habitant morbi tristique senectus et netus. Aenean euismod elementum nisi quis. Facilisi nullam vehicula ipsum a. Elementum facilisis leo vel fringilla. Molestie nunc non blandit massa enim. Orci ac auctor augue mauris. Pellentesque pulvinar pellentesque habitant morbi tristique senectus et. Magnis dis parturient montes nascetur ridiculus mus mauris vitae. Id leo in vitae turpis massa sed. Netus et malesuada fames ac turpis egestas sed tempus. Morbi quis commodo odio aenean sed adipiscing diam donec. Sit amet purus gravida quis blandit turpis. Odio euismod lacinia at quis risus sed vulputate. Varius duis at consectetur lorem donec massa. Sit amet consectetur adipiscing elit pellentesque habitant. Feugiat in fermentum posuere urna nec tincidunt praesent.</p>'></iframe>"];
 
     auto ranges = textRangesForQueryString(webView.get(), @"Sapien");
@@ -607,11 +800,11 @@ TEST(WebKit, RequestRectForFoundTextRange)
 
 TEST(WebKit, ScrollToFoundRangeWithExistingSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width,initial-scale=1'><div contenteditable><p>Top</p><p style='margin-top: 800px'>Bottom</p></div>"];
     [webView objectByEvaluatingJavaScript:@"let p = document.querySelector('p'); document.getSelection().setBaseAndExtent(p, 0, p, 1)"];
 
-    auto scrollViewDelegate = adoptNS([[TestScrollViewDelegate alloc] init]);
+    RetainPtr scrollViewDelegate = adoptNS([[TestScrollViewDelegate alloc] init]);
     [webView scrollView].delegate = scrollViewDelegate.get();
 
     auto ranges = textRangesForQueryString(webView.get(), @"Bottom");
@@ -623,15 +816,15 @@ TEST(WebKit, ScrollToFoundRangeWithExistingSelection)
 
 TEST(WebKit, ScrollToFoundRangeDoesNotFocusElement)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width,initial-scale=1'><input id='input'><div id='editor' contenteditable><p>Top</p><p style='margin-top: 800px'>Bottom</p></div>"];
 
-    auto scrollViewDelegate = adoptNS([[TestScrollViewDelegate alloc] init]);
+    RetainPtr scrollViewDelegate = adoptNS([[TestScrollViewDelegate alloc] init]);
     [webView scrollView].delegate = scrollViewDelegate.get();
 
     bool inputFocused = false;
 
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&inputFocused] (WKWebView *, id<_WKFocusedElementInfo> focusedElementInfo) -> _WKFocusStartsInputSessionPolicy {
         switch (focusedElementInfo.type) {
         case WKInputTypeText:
@@ -657,11 +850,11 @@ TEST(WebKit, ScrollToFoundRangeDoesNotFocusElement)
 
 TEST(WebKit, ScrollToFoundRangeRepeated)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width,initial-scale=1'><div contenteditable><p>Top</p><p style='margin-top: 800px'>Bottom</p></div>"];
     [webView objectByEvaluatingJavaScript:@"let p = document.querySelector('p'); document.getSelection().setBaseAndExtent(p, 0, p, 1)"];
 
-    auto scrollViewDelegate = adoptNS([[TestScrollViewDelegate alloc] init]);
+    RetainPtr scrollViewDelegate = adoptNS([[TestScrollViewDelegate alloc] init]);
     [webView scrollView].delegate = scrollViewDelegate.get();
 
     auto ranges = textRangesForQueryString(webView.get(), @"Bottom");
@@ -680,7 +873,7 @@ TEST(WebKit, ScrollToFoundRangeRepeated)
 
 TEST(WebKit, ScrollToFoundRangeAtTopWithContentInsets)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
     [webView scrollView].contentInset = UIEdgeInsetsMake(30, 0, 0, 0);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width,initial-scale=1'><div contenteditable><p>Top</p><p style='margin-top: 800px'>Bottom</p></div>"];
     [webView objectByEvaluatingJavaScript:@"let p = document.querySelector('p'); document.getSelection().setBaseAndExtent(p, 0, p, 1)"];
@@ -696,7 +889,7 @@ TEST(WebKit, ScrollToFoundRangeAtTopWithObscuredContentInsets)
 {
     UIEdgeInsets obscuredInsets = UIEdgeInsetsMake(30, 0, 0, 0);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
     [webView scrollView].contentInset = obscuredInsets;
     [webView _setObscuredInsets:obscuredInsets];
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width,initial-scale=1'><div contenteditable><p>Top</p><p style='margin-top: 800px'>Bottom</p></div>"];
@@ -739,7 +932,7 @@ TEST(WebKit, ScrollToUserSelectNoneFoundRange)
     "<p style='-webkit-user-select: none; height:500px'>findme</p>"
     ];
 
-    auto scrollViewDelegate = adoptNS([[TestScrollViewDelegate alloc] init]);
+    RetainPtr scrollViewDelegate = adoptNS([[TestScrollViewDelegate alloc] init]);
     [webView scrollView].delegate = scrollViewDelegate.get();
 
     EXPECT_TRUE(CGPointEqualToPoint([webView scrollView].contentOffset, CGPointMake(0, 0)));
@@ -754,7 +947,7 @@ TEST(WebKit, ScrollToUserSelectNoneFoundRange)
 
 TEST(WebKit, CannotHaveMultipleFindOverlays)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"lots-of-text" withExtension:@"html"]];
     [webView loadRequest:request];
@@ -782,7 +975,7 @@ TEST(WebKit, CannotHaveMultipleFindOverlays)
 
 TEST(WebKit, FindOverlayCloseWebViewCrash)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
     [webView setFindInteractionEnabled:YES];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"lots-of-text" withExtension:@"html"]];
@@ -805,9 +998,9 @@ TEST(WebKit, FindOverlayCloseWebViewCrash)
 
 TEST(WebKit, FindOverlaySPI)
 {
-    auto findDelegate = adoptNS([[TestFindDelegate alloc] init]);
+    RetainPtr findDelegate = adoptNS([[TestFindDelegate alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
     [webView _setFindDelegate:findDelegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"lots-of-text" withExtension:@"html"]];
@@ -916,7 +1109,7 @@ TEST(WebKit, FindInUnifiedPDFAfterFindInPage)
 
 TEST(WebKit, FindInteractionSupportsTextReplacement)
 {
-    auto webView = adoptNS([[FindInPageTestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[FindInPageTestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
     [webView synchronouslyLoadTestPageNamed:@"lots-of-text"];
 
     auto findSessionSupportsReplacement = [&] {

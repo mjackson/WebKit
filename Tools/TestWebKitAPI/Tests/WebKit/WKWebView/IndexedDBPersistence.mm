@@ -121,7 +121,7 @@ TEST(IndexedDB, IndexedDBPersistencePrivate)
     auto ephemeralStore = [WKWebsiteDataStore nonPersistentDataStore];
     configuration.get().websiteDataStore = ephemeralStore;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"IndexedDBPersistence-1" withExtension:@"html"]];
     [webView loadRequest:request];
@@ -150,7 +150,7 @@ TEST(IndexedDB, IndexedDBPersistencePrivate)
 
 TEST(IndexedDB, IndexedDBDataRemoval)
 {
-    auto websiteDataTypes = adoptNS([[NSSet alloc] initWithArray:@[WKWebsiteDataTypeIndexedDBDatabases]]);
+    RetainPtr websiteDataTypes = adoptNS([[NSSet alloc] initWithArray:@[WKWebsiteDataTypeIndexedDBDatabases]]);
 
     readyToContinue = false;
     [[WKWebsiteDataStore defaultDataStore] removeDataOfTypes:websiteDataTypes.get() modifiedSince:[NSDate distantPast] completionHandler:^() {
@@ -166,10 +166,10 @@ TEST(IndexedDB, IndexedDBDataRemoval)
     TestWebKitAPI::Util::run(&readyToContinue);
 
     receivedScriptMessage = false;
-    auto handler = adoptNS([[IndexedDBMessageHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[IndexedDBMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"IndexedDBPersistence-1" withExtension:@"html"]];
     [webView loadRequest:request];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
@@ -255,22 +255,22 @@ static void loadThirdPartyPageInWebView(WKWebView *webView, NSString *expectedRe
 
 TEST(IndexedDB, IndexedDBThirdPartyFrameHasAccess)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([[IndexedDBMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[IndexedDBMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[NSData dataWithBytes:iframeBytesPersistence length:strlen(iframeBytesPersistence)]];
         [task didFinish];
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"iframe"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     loadThirdPartyPageInWebView(webView.get(), @"database is created - put item success");
 
-    auto secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     loadThirdPartyPageInWebView(secondWebView.get(), @"database exists - get item success: TestValue");
 
     webView = nil;
@@ -278,13 +278,13 @@ TEST(IndexedDB, IndexedDBThirdPartyFrameHasAccess)
     [configuration.get().websiteDataStore _terminateNetworkProcess];
 
     // Third-party IDB storage is stored in the memory of network process.
-    auto thirdWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr thirdWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     loadThirdPartyPageInWebView(thirdWebView.get(), @"database is created - put item success");
 }
 
 TEST(IndexedDB, IndexedDBThirdPartyDataRemoval)
 {
-    auto websiteDataTypes = adoptNS([[NSSet alloc] initWithArray:@[WKWebsiteDataTypeIndexedDBDatabases]]);
+    RetainPtr websiteDataTypes = adoptNS([[NSSet alloc] initWithArray:@[WKWebsiteDataTypeIndexedDBDatabases]]);
     readyToContinue = false;
     [[WKWebsiteDataStore defaultDataStore] removeDataOfTypes:websiteDataTypes.get() modifiedSince:[NSDate distantPast] completionHandler:^() {
         readyToContinue = true;
@@ -293,22 +293,22 @@ TEST(IndexedDB, IndexedDBThirdPartyDataRemoval)
 
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([[IndexedDBMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[IndexedDBMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[NSData dataWithBytes:iframeBytesPersistence length:strlen(iframeBytesPersistence)]];
         [task didFinish];
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"iframe"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     loadThirdPartyPageInWebView(webView.get(), @"database is created - put item success");
 
-    auto secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [secondWebView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"iframe://"]]];
     EXPECT_WK_STREQ( @"database is created - put item success", (NSString *)[getNextMessage() body]);
 
@@ -326,7 +326,7 @@ TEST(IndexedDB, IndexedDBThirdPartyDataRemoval)
     }];
     TestWebKitAPI::Util::run(&readyToContinue);
 
-    auto thirdWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr thirdWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     loadThirdPartyPageInWebView(thirdWebView.get(), @"database is created - put item success");
 }
 
@@ -404,25 +404,25 @@ TEST(IndexedDB, MigrateThirdPartyDataToGeneralStorageDirectory)
     [fileManager createDirectoryAtURL:oldWebkitIframeDatabaseDirectory withIntermediateDirectories:YES attributes:nil error:nil];
     [fileManager copyItemAtURL:resourceDatabase toURL:oldWebkitIframeDatabaseFile error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([[IndexedDBMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[IndexedDBMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[NSData dataWithBytes:iframeBytesPersistence length:strlen(iframeBytesPersistence)]];
         [task didFinish];
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"iframe"];
     [[configuration preferences] _setStorageBlockingPolicy:_WKStorageBlockingPolicyAllowAll];
-    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     websiteDataStoreConfiguration.get()._indexedDBDatabaseDirectory = idbDirectory;
     websiteDataStoreConfiguration.get().generalStorageDirectory = generalStorageDirectory;
     websiteDataStoreConfiguration.get().unifiedOriginStorageLevel = _WKUnifiedOriginStorageLevelBasic;
-    auto websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+    RetainPtr websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
     [configuration setWebsiteDataStore:websiteDataStore.get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     // Ensure opening first-party database does not migrate third-party data.
     NSString *firstPartyHTMLString = @"<script> \
@@ -479,10 +479,10 @@ static const char* workerFrameBytes = R"TESTRESOURCE(
 
 TEST(IndexedDB, IndexedDBThirdPartyWorkerHasAccess)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([[IndexedDBMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[IndexedDBMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         RetainPtr<NSURLResponse> response;
         RetainPtr<NSData> data;
@@ -501,17 +501,17 @@ TEST(IndexedDB, IndexedDBThirdPartyWorkerHasAccess)
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"iframe"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     loadThirdPartyPageInWebView(webView.get(), @"database is created");
 
-    auto secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr secondWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     loadThirdPartyPageInWebView(webView.get(), @"database exists");
 
     webView = nil;
     secondWebView = nil;
     [configuration.get().websiteDataStore _terminateNetworkProcess];
 
-    auto thirdWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr thirdWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     loadThirdPartyPageInWebView(thirdWebView.get(), @"database is created");
 }
 
@@ -708,7 +708,7 @@ TEST(IndexedDB, GetFileByIndex)
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
-    auto uiDelegate = adoptNS([[IndexedDBOpenPanelUIDelegate alloc] init]);
+    RetainPtr uiDelegate = adoptNS([[IndexedDBOpenPanelUIDelegate alloc] init]);
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:openFileHTMLString baseURL:[NSURL URLWithString:@"https://webkit.org"]];
     EXPECT_WK_STREQ(@"Opened", [getNextMessage() body]);

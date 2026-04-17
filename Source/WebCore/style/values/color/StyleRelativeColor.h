@@ -135,7 +135,7 @@ template<typename D> void serializationForCSSTokenization(StringBuilder& builder
     builder.append(')');
 }
 
-template<typename D> String serializationForCSSTokenization(const CSS::SerializationContext& context, const RelativeColor<D>& relative)
+template<typename D> WTF::String serializationForCSSTokenization(const CSS::SerializationContext& context, const RelativeColor<D>& relative)
 {
     StringBuilder builder;
     serializationForCSSTokenization(builder, context, relative);

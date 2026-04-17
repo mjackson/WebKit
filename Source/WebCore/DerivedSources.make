@@ -441,6 +441,7 @@ JS_BINDING_IDLS := \
     $(WebCore)/Modules/mediasession/MediaSessionAction.idl \
     $(WebCore)/Modules/mediasession/MediaSessionActionDetails.idl \
     $(WebCore)/Modules/mediasession/MediaSessionActionHandler.idl \
+    $(WebCore)/Modules/mediasession/MediaSessionCaptionTrack.idl \
     $(WebCore)/Modules/mediasession/MediaSessionCoordinator.idl \
     $(WebCore)/Modules/mediasession/MediaSessionCoordinatorMixin.idl \
     $(WebCore)/Modules/mediasession/MediaSessionCoordinatorState.idl \
@@ -2342,6 +2343,7 @@ ModernMediaControls.js : $(MODERN_MEDIA_CONTROLS_SCRIPTS)
 
 USER_AGENT_SCRIPTS = \
     ModernMediaControls.js \
+	$(WebCore)/Modules/modern-media-controls/media/YouTubeCaptionQuirk.js \
 #
 
 USER_AGENT_SCRIPTS_FILES = \

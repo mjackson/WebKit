@@ -95,13 +95,13 @@ static void arrowKeyDownWithKeyRepeat(WKWebView *webView, unsigned keyRepeatCoun
 
 TEST(KeyboardEventTests, FunctionKeyCommand)
 {
-    auto menu = adoptNS([[KeyboardTestMenu alloc] initWithTitle:@"Test menu"]);
-    auto menuItem = adoptNS([[KeyboardTestMenuItem alloc] initWithTitle:@"Emojis & Symbols" action:@selector(description) keyEquivalent:@"e"]);
+    RetainPtr menu = adoptNS([[KeyboardTestMenu alloc] initWithTitle:@"Test menu"]);
+    RetainPtr menuItem = adoptNS([[KeyboardTestMenuItem alloc] initWithTitle:@"Emojis & Symbols" action:@selector(description) keyEquivalent:@"e"]);
     [menuItem setKeyEquivalentModifierMask:NSEventModifierFlagFunction];
     [menu setItemArray:@[ menuItem.get() ]];
     NSApp.mainMenu = menu.get();
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<script>addEventListener('load', () => document.body.focus())</script><body contenteditable></body>"];
     [webView typeCharacter:'e' modifiers:NSEventModifierFlagFunction];
     [webView waitForNextPresentationUpdate];
@@ -111,10 +111,10 @@ TEST(KeyboardEventTests, FunctionKeyCommand)
 
 TEST(KeyboardEventTests, SmoothKeyboardScrolling)
 {
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 400, 400) styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskFullSizeContentView) backing:NSBackingStoreBuffered defer:NO]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 400, 400) styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskFullSizeContentView) backing:NSBackingStoreBuffered defer:NO]);
 
-    auto view = adoptNS([[NSViewWithKeyDownOverride alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr view = adoptNS([[NSViewWithKeyDownOverride alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
 
     [view addSubview:webView.get()];
 

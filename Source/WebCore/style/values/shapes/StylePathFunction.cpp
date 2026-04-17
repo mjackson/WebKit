@@ -173,7 +173,7 @@ auto Blending<Path>::blend(const Path& a, const Path& b, const BlendingContext& 
 
 WTF::TextStream& operator<<(WTF::TextStream& ts, const Path::Data& value)
 {
-    String pathString;
+    WTF::String pathString;
     buildStringFromByteStream(value.byteStream, pathString, UnalteredParsing);
     return ts << pathString;
 }

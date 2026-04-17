@@ -32,6 +32,7 @@
 #include "EventNames.h"
 #include "EventTargetInlines.h"
 #include "ExceptionOr.h"
+#include "JSDOMGlobalObject.h"
 #include "Logging.h"
 #include "MessageEvent.h"
 #include "MessagePortChannelProvider.h"
@@ -40,6 +41,7 @@
 #include "WebCoreOpaqueRoot.h"
 #include "WorkerGlobalScope.h"
 #include "WorkerThread.h"
+#include <JavaScriptCore/TopExceptionScope.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/Lock.h>
 #include <wtf/Scope.h>

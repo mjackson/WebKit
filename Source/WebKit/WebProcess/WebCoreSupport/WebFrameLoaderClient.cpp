@@ -70,13 +70,13 @@ std::optional<NavigationActionData> WebFrameLoaderClient::navigationActionData(c
 {
     RefPtr webPage = m_frame->page();
     if (!webPage) {
-        WebFrameLoaderClient_RELEASE_LOG_ERROR(WEBFRAMELOADERCLIENT_NAVIGATIONACTIONDATA_NO_WEBPAGE);
+        WebFrameLoaderClient_RELEASE_LOG_ERROR(WebFrameLoaderClientNavigationActionDataNoWebPage);
         return std::nullopt;
     }
 
     // Always ignore requests with empty URLs.
     if (request.isEmpty()) {
-        WebFrameLoaderClient_RELEASE_LOG_ERROR(WEBFRAMELOADERCLIENT_NAVIGATIONACTIONDATA_EMPTY_REQUEST);
+        WebFrameLoaderClient_RELEASE_LOG_ERROR(WebFrameLoaderClientNavigationActionDataEmptyRequest);
         return std::nullopt;
     }
 
@@ -87,7 +87,7 @@ std::optional<NavigationActionData> WebFrameLoaderClient::navigationActionData(c
 
     auto& requester = *navigationAction.requester();
     if (!requester.frameID) {
-        WebFrameLoaderClient_RELEASE_LOG_ERROR(WEBFRAMELOADERCLIENT_NAVIGATIONACTIONDATA_NO_FRAME);
+        WebFrameLoaderClient_RELEASE_LOG_ERROR(WebFrameLoaderClientNavigationActionDataNoFrame);
         return std::nullopt;
     }
 
@@ -199,13 +199,13 @@ void WebFrameLoaderClient::dispatchDecidePolicyForNavigationAction(const Navigat
         if (navigationAction.processingUserGesture() || !linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::AsyncFragmentNavigationPolicyDecision)) {
             auto sendResult = webPage->sendSync(Messages::WebPageProxy::DecidePolicyForNavigationActionSync(*navigationActionData));
             if (!sendResult.succeeded()) {
-                WebFrameLoaderClient_RELEASE_LOG_ERROR(WEBFRAMELOADERCLIENT_DISPATCHDECIDEPOLICYFORNAVIGATIONACTION_SYNC_IPC_FAILED, (uint8_t)sendResult.error());
+                WebFrameLoaderClient_RELEASE_LOG_ERROR(WebFrameLoaderClientDispatchDecidePolicyForNavigationActionSyncIpcFailed, (uint8_t)sendResult.error());
                 m_frame->didReceivePolicyDecision(listenerID, PolicyDecision { });
                 return;
             }
 
             auto [policyDecision] = sendResult.takeReply();
-            WebFrameLoaderClient_RELEASE_LOG(WEBFRAMELOADERCLIENT_DISPATCHDECIDEPOLICYFORNAVIGATIONACTION_GOT_POLICYACTION_FROM_SYNC_IPC, toString(policyDecision.policyAction).characters());
+            WebFrameLoaderClient_RELEASE_LOG(WebFrameLoaderClientDispatchDecidePolicyForNavigationActionGotPolicyActionFromSyncIpc, toString(policyDecision.policyAction).characters());
             m_frame->didReceivePolicyDecision(listenerID, PolicyDecision { policyDecision.isNavigatingToAppBoundDomain, policyDecision.policyAction, { }, policyDecision.downloadID });
             return;
         }
@@ -221,7 +221,7 @@ void WebFrameLoaderClient::dispatchDecidePolicyForNavigationAction(const Navigat
         if (!frame)
             return;
 
-        RELEASE_LOG_FORWARDABLE(Network, WEBFRAMELOADERCLIENT_DISPATCHDECIDEPOLICYFORNAVIGATIONACTION_GOT_POLICYACTION_FROM_ASYNC_IPC, frame->frameID().toUInt64(), webPageID, toString(policyDecision.policyAction).characters());
+        RELEASE_LOG_FORWARDABLE(Network, WebFrameLoaderClientDispatchDecidePolicyForNavigationActionGotPolicyActionFromAsyncIpc, frame->frameID().toUInt64(), webPageID, toString(policyDecision.policyAction).characters());
 
         frame->didReceivePolicyDecision(listenerID, WTF::move(policyDecision));
     });

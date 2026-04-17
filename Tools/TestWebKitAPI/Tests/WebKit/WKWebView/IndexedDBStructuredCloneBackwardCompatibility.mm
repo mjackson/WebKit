@@ -91,7 +91,7 @@ TEST(IndexedDB, StructuredCloneBackwardCompatibility)
 
     // Run the test
     RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([[StructuredCloneBackwardCompatibilityNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[StructuredCloneBackwardCompatibilityNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"IndexedDBStructuredCloneBackwardCompatibilityRead" withExtension:@"html"]];
     [webView loadRequest:request];

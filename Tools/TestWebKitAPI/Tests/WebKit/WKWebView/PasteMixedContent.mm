@@ -90,7 +90,7 @@ void writeTypesAndDataToPasteboard(id type, ...)
 
 static RetainPtr<TestWKWebView> setUpWebView()
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     WKPreferencesSetCustomPasteboardDataEnabled((__bridge WKPreferencesRef)[webView configuration].preferences, true);
     [webView synchronouslyLoadTestPageNamed:@"DataTransfer"];
     return webView;
@@ -122,8 +122,8 @@ TEST(PasteMixedContent, ImageFileAndWebArchive)
 {
     auto webView = setUpWebView();
     NSURL *mainResourceURL = [NSURL fileURLWithPath:@"/some/nonexistent/file.html"];
-    auto mainResource = adoptNS([[WebResource alloc] initWithData:[markupString() dataUsingEncoding:NSUTF8StringEncoding] URL:mainResourceURL MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
-    auto archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
+    RetainPtr mainResource = adoptNS([[WebResource alloc] initWithData:[markupString() dataUsingEncoding:NSUTF8StringEncoding] URL:mainResourceURL MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
+    RetainPtr archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:nil subframeArchives:nil]);
     writeTypesAndDataToPasteboard(NSFilenamesPboardType, @[ imagePath() ], WebArchivePboardType, [archive data], nil);
     [webView paste:nil];
 
@@ -154,7 +154,7 @@ TEST(PasteMixedContent, ImageFileAndHTML)
 TEST(PasteMixedContent, ImageFileAndRTF)
 {
     auto webView = setUpWebView();
-    auto text = adoptNS([[NSMutableAttributedString alloc] init]);
+    RetainPtr text = adoptNS([[NSMutableAttributedString alloc] init]);
     [text appendAttributedString:adoptNS([[NSAttributedString alloc] initWithString:@"link to "]).get()];
     [text appendAttributedString:adoptNS([[NSAttributedString alloc] initWithString:@"apple" attributes:@{ NSLinkAttributeName: [NSURL URLWithString:@"https://www.apple.com/"] }]).get()];
     NSData *rtfData = [text RTFFromRange:NSMakeRange(0, [text length]) documentAttributes:@{ }];
@@ -246,7 +246,7 @@ TEST(PasteMixedContent, PasteURLWrittenToPasteboardUsingWriteObjects)
 {
     NSString *urlToCopy = @"https://www.webkit.org/";
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<body contenteditable></body><script>document.body.focus()</script>"];
     [[NSPasteboard generalPasteboard] clearContents];
     [[NSPasteboard generalPasteboard] writeObjects:@[ [NSURL URLWithString:urlToCopy] ]];
@@ -354,18 +354,18 @@ TEST(PasteMixedContent, CopyAndPasteWithCustomPasteboardDataOnly)
     NSString *markupForSource = @"<body oncopy=\"event.preventDefault(); event.clipboardData.setData('foo', 'bar')\">hello</body>";
     NSString *markupForDestination = @"<input autofocus onpaste=\"event.preventDefault(); this.value = event.clipboardData.getData('foo')\">";
 
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"same"];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"different"];
     WKPreferencesSetCustomPasteboardDataEnabled((__bridge WKPreferencesRef)[configuration preferences], true);
 
-    auto source = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr source = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
     [source synchronouslyLoadHTMLString:markupForSource baseURL:[NSURL URLWithString:@"same://"]];
     [source selectAll:nil];
     [source _synchronouslyExecuteEditCommand:@"copy" argument:nil];
 
-    auto destination = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr destination = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
     [destination synchronouslyLoadHTMLString:markupForDestination baseURL:[NSURL URLWithString:@"same://"]];
 #if PLATFORM(IOS_FAMILY)
     {

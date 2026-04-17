@@ -95,7 +95,7 @@ namespace TestWebKitAPI {
 
 static RetainPtr<TestWKWebView> createWebViewWithSampledPageTopColorMaxDifference(double sampledPageTopColorMaxDifference, double sampledPageTopColorMinHeight = 0)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setSampledPageTopColorMaxDifference:sampledPageTopColorMaxDifference];
     [configuration _setSampledPageTopColorMinHeight:sampledPageTopColorMinHeight];
 
@@ -105,7 +105,7 @@ static RetainPtr<TestWKWebView> createWebViewWithSampledPageTopColorMaxDifferenc
 static void waitForSampledPageTopColorToChange(TestWKWebView *webView, Function<void()>&& trigger = nullptr)
 {
     bool done = false;
-    auto sampledPageTopColorObserver = adoptNS([[TestKVOWrapper alloc] initWithObservable:webView keyPath:@"_sampledPageTopColor" callback:[&] {
+    RetainPtr sampledPageTopColorObserver = adoptNS([[TestKVOWrapper alloc] initWithObservable:webView keyPath:@"_sampledPageTopColor" callback:[&] {
         done = true;
     }]);
 
@@ -454,7 +454,7 @@ TEST(SampledPageTopColor, MainDocumentChange)
     EXPECT_NULL([webView _sampledPageTopColor]);
 
     size_t notificationCount = 0;
-    auto sampledPageTopColorObserver = adoptNS([[TestKVOWrapper alloc] initWithObservable:webView.get() keyPath:@"_sampledPageTopColor" callback:[&] {
+    RetainPtr sampledPageTopColorObserver = adoptNS([[TestKVOWrapper alloc] initWithObservable:webView.get() keyPath:@"_sampledPageTopColor" callback:[&] {
         ++notificationCount;
     }]);
 

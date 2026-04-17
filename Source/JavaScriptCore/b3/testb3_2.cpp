@@ -2955,6 +2955,53 @@ void testUDivByConstantInt32EdgeCases(uint32_t a)
     }
 }
 
+void testUDivByConstantInt32With33BitMagic(uint32_t a)
+{
+    // Test divisors that trigger the 33-bit magic constant path (magic.add == true).
+    // On 64-bit targets, this exercises the UMulHigh64 optimization from
+    // Mitsunari & Hoshino (2026) where a single umulh/mulq replaces the
+    // 5-operation round-down algorithm.
+    auto testDivisor = [&](uint32_t divisor) {
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<uint32_t>(proc, root);
+
+        Value* argument1 = arguments[0];
+        Value* result = root->appendNew<Value>(
+            proc, UDiv, Origin(), argument1,
+            root->appendNew<Const32Value>(proc, Origin(), divisor));
+        root->appendNew<Value>(proc, Return, Origin(), result);
+
+        CHECK_EQ(compileAndRun<uint32_t>(proc, a), a / divisor);
+    };
+
+    // Odd divisors known to trigger magic.add == true (33-bit magic constant)
+    testDivisor(7);
+    testDivisor(19);
+    testDivisor(23);
+    testDivisor(37);
+    testDivisor(41);
+    testDivisor(43);
+    testDivisor(47);
+    testDivisor(53);
+    testDivisor(59);
+    testDivisor(61);
+    testDivisor(67);
+    testDivisor(71);
+    testDivisor(79);
+    testDivisor(83);
+    testDivisor(89);
+    testDivisor(97);
+    testDivisor(107);
+    testDivisor(109);
+    testDivisor(113);
+
+    // Larger odd divisors that trigger the add path
+    testDivisor(1000000007U);
+    testDivisor(0xFFFFFFFBU);
+    testDivisor(0xFFFFFFFDU);
+}
+
 void testSubArg(int64_t a)
 {
     Procedure proc;

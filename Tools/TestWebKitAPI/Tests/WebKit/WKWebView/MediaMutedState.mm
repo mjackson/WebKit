@@ -97,9 +97,9 @@ namespace TestWebKitAPI {
 
 TEST(WKWebView, MediaMuted)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[AudioStateTestView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
-    auto observer = adoptNS([[AudioStateObserver alloc] initWithWebView:webView.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[AudioStateTestView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr observer = adoptNS([[AudioStateObserver alloc] initWithWebView:webView.get()]);
 
     [webView synchronouslyLoadHTMLString:@"<video src=\"video-with-audio.mp4\" webkit-playsinline loop></video>"];
 

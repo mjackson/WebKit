@@ -93,10 +93,11 @@ static bool isAllowedByContentSecurityPolicy(const URL& url, const Element* owne
 
     auto redirectResponseReceived = didReceiveRedirectResponse ? ContentSecurityPolicy::RedirectResponseReceived::Yes : ContentSecurityPolicy::RedirectResponseReceived::No;
 
-    ASSERT(ownerElement->document().contentSecurityPolicy());
+    Ref ownerElementDocument = ownerElement->document();
+    ASSERT(ownerElementDocument->contentSecurityPolicy());
     if (is<HTMLPlugInElement>(ownerElement))
-        return protect(protect(ownerElement->document())->contentSecurityPolicy())->allowObjectFromSource(url, redirectResponseReceived);
-    return protect(protect(ownerElement->document())->contentSecurityPolicy())->allowChildFrameFromSource(url, redirectResponseReceived);
+        return protect(ownerElementDocument->contentSecurityPolicy())->allowObjectFromSource(url, ownerElementDocument->currentParserSourcePosition(), redirectResponseReceived);
+    return protect(ownerElementDocument->contentSecurityPolicy())->allowChildFrameFromSource(url, ownerElementDocument->currentParserSourcePosition(), redirectResponseReceived);
 }
 
 static bool shouldExecuteJavaScriptURLSynchronously(const URL& url)

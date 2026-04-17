@@ -2438,6 +2438,17 @@ public:
 
     void print(Printer::PrintRecordList*);
 
+    // Checks if src is an integer (whole number), storing the boolean result in
+    // dest. Returns false for NaN and Infinity since src - trunc(src) produces
+    // NaN for those values.
+    void isDoubleInteger(FPRegisterID src, FPRegisterID scratch1, FPRegisterID scratch2, RegisterID dest)
+    {
+        truncDouble(src, scratch1);
+        subDouble(src, scratch1, scratch1);
+        move64ToDouble(TrustedImm64(0), scratch2);
+        compareDouble(DoubleEqualAndOrdered, scratch1, scratch2, dest);
+    }
+
     template<PtrTag tag>
     void nearCallThunk(CodeLocationLabel<tag> label)
     {

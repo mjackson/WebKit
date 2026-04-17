@@ -183,8 +183,8 @@ TEST(WebKit, FormSubmissionLegacyAPI)
 
 TEST(WebKit, FocusedElementInfo)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto delegate = adoptNS([[InputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr delegate = adoptNS([[InputDelegate alloc] init]);
     [webView _setInputDelegate:delegate.get()];
 
     __block RetainPtr<id <_WKFocusedElementInfo>> currentElement;

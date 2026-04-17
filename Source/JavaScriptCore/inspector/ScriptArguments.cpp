@@ -32,6 +32,8 @@
 #include "config.h"
 #include "ScriptArguments.h"
 
+#include "JSCJSValueInlines.h"
+#include "JSGlobalObject.h"
 #include "ProxyObject.h"
 #include "StrongInlines.h"
 #include "TopExceptionScope.h"

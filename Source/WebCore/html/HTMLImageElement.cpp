@@ -365,6 +365,12 @@ void HTMLImageElement::selectImageSource(RelevantMutation relevantMutation)
     Ref document = this->document();
     document->removeDynamicMediaQueryDependentImage(*this);
 
+    // If sizes=auto is active with loading=lazy but the layout width is not
+    // yet available, defer source selection. didAttachRenderers() and
+    // RenderImage::layout() will re-invoke this.
+    if (hasAutoSizes() && isLazyLoadable() && !autoSizesLayoutWidth() && usesSrcsetOrPicture())
+        return;
+
     // First look for the best fit source from our <picture> parent if we have one.
     ImageCandidate candidate = bestFitSourceFromPictureElement();
     if (candidate.isEmpty()) {
@@ -570,6 +576,11 @@ void HTMLImageElement::didAttachRenderers()
     // image height and width for the alt text instead.
     if (!m_imageLoader->image() && !renderImageResource->cachedImage())
         renderImage->setImageSizeForAltText();
+
+    // https://html.spec.whatwg.org/multipage/images.html#relevant-mutations
+    // "If the element allows auto-sizes: the element starts [...] being rendered"
+    if (hasAutoSizes() && isLazyLoadable())
+        scheduleAutoSizesResolution();
 }
 
 Node::NeedsPostConnectionSteps HTMLImageElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)

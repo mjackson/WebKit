@@ -36,6 +36,7 @@
 #include "ComputedEffectTiming.h"
 #include "ContextDestructionObserverInlines.h"
 #include "DOMWrapperWorld.h"
+#include "Document.h"
 #include "DocumentLoader.h"
 #include "Event.h"
 #include "EventTargetInlines.h"
@@ -1383,8 +1384,11 @@ InstrumentingAgents& InspectorInstrumentation::instrumentingAgents(Page& page)
 InstrumentingAgents* InspectorInstrumentation::instrumentingAgents(ScriptExecutionContext& context)
 {
     // Using RefPtr makes us hit the m_inRemovedLastRefFunction assert.
-    if (WeakPtr document = dynamicDowncast<Document>(context))
+    if (WeakPtr document = dynamicDowncast<Document>(context)) {
+        if (auto* frame = document->frame())
+            return &instrumentingAgents(*frame);
         return instrumentingAgents(document->page());
+    }
     if (auto* workerOrWorkletGlobal = dynamicDowncast<WorkerOrWorkletGlobalScope>(context))
         return &instrumentingAgents(*workerOrWorkletGlobal);
     return nullptr;

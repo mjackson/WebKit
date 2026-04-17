@@ -249,29 +249,29 @@ static inline void setVisible(TestWKWebView *webView)
 TEST(WebKit, QuotaDelegateHidden)
 {
     done = false;
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [storeConfiguration setPerOriginStorageQuota:1024 * 400];
     // Ensure quota is not calculated by ratio.
     [storeConfiguration.get() setTotalQuotaRatio:nil];
     [storeConfiguration.get() setOriginQuotaRatio:nil];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [dataStore removeDataOfTypes:[WKWebsiteDataStore allWebsiteDataTypes] modifiedSince:[NSDate distantPast] completionHandler:^() {
         done = true;
     }];
     TestWebKitAPI::Util::run(&done);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto messageHandler = adoptNS([[QuotaMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[QuotaMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"qt"];
 
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { TestHiddenBytes } },
     });
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto delegate = adoptNS([[QuotaDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr delegate = adoptNS([[QuotaDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     setVisible(webView.get());
 
@@ -315,29 +315,29 @@ TEST(WebKit, QuotaDelegate)
 #endif
 {
     done = false;
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [storeConfiguration setPerOriginStorageQuota:1024 * 400];
     // Ensure quota is not calculated by ratio.
     [storeConfiguration.get() setTotalQuotaRatio:nil];
     [storeConfiguration.get() setOriginQuotaRatio:nil];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [dataStore removeDataOfTypes:[WKWebsiteDataStore allWebsiteDataTypes] modifiedSince:[NSDate distantPast] completionHandler:^() {
         done = true;
     }];
     TestWebKitAPI::Util::run(&done);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto messageHandler = adoptNS([[QuotaMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[QuotaMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"qt"];
 
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { TestBytes } },
     });
 
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto delegate1 = adoptNS([[QuotaDelegate alloc] init]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr delegate1 = adoptNS([[QuotaDelegate alloc] init]);
     [webView1 setUIDelegate:delegate1.get()];
     setVisible(webView1.get());
 
@@ -345,8 +345,8 @@ TEST(WebKit, QuotaDelegate)
     [webView1 loadRequest:server.request()];
     Util::run(&receivedQuotaDelegateCalled);
 
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto delegate2 = adoptNS([[QuotaDelegate alloc] init]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr delegate2 = adoptNS([[QuotaDelegate alloc] init]);
     [webView2 setUIDelegate:delegate2.get()];
     setVisible(webView2.get());
 
@@ -377,29 +377,29 @@ TEST(WebKit, QuotaDelegate)
 TEST(WebKit, QuotaDelegateReload)
 {
     done = false;
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [storeConfiguration setPerOriginStorageQuota:1024 * 400];
     // Ensure quota is not calculated by ratio.
     [storeConfiguration.get() setTotalQuotaRatio:nil];
     [storeConfiguration.get() setOriginQuotaRatio:nil];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [dataStore removeDataOfTypes:[WKWebsiteDataStore allWebsiteDataTypes] modifiedSince:[NSDate distantPast] completionHandler:^() {
         done = true;
     }];
     TestWebKitAPI::Util::run(&done);
     
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:dataStore.get()];
     
-    auto messageHandler = adoptNS([[QuotaMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[QuotaMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"qt"];
     
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { TestBytes } },
     });
     
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto delegate = adoptNS([[QuotaDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr delegate = adoptNS([[QuotaDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     setVisible(webView.get());
 
@@ -428,29 +428,29 @@ TEST(WebKit, QuotaDelegateReload)
 TEST(WebKit, QuotaDelegateNavigateFragment)
 {
     done = false;
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [storeConfiguration setPerOriginStorageQuota:1024 * 400];
     // Ensure quota is not calculated by ratio.
     [storeConfiguration.get() setTotalQuotaRatio:nil];
     [storeConfiguration.get() setOriginQuotaRatio:nil];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [dataStore removeDataOfTypes:[WKWebsiteDataStore allWebsiteDataTypes] modifiedSince:[NSDate distantPast] completionHandler:^() {
         done = true;
     }];
     TestWebKitAPI::Util::run(&done);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto messageHandler = adoptNS([[QuotaMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[QuotaMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"qt"];
 
     TestWebKitAPI::HTTPServer server({
         { "/main.html"_s, { TestBytes } },
     });
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto delegate = adoptNS([[QuotaDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr delegate = adoptNS([[QuotaDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     setVisible(webView.get());
 
@@ -488,30 +488,30 @@ TEST(WebKit, QuotaDelegateNavigateFragment)
 TEST(WebKit, DefaultQuota)
 {
     done = false;
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
 
     [dataStore removeDataOfTypes:[WKWebsiteDataStore allWebsiteDataTypes] modifiedSince:[NSDate distantPast] completionHandler:^() {
         done = true;
     }];
     TestWebKitAPI::Util::run(&done);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto messageHandler = adoptNS([[QuotaMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[QuotaMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"qt"];
 
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { TestUrlBytes } },
     });
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto delegate = adoptNS([[QuotaDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr delegate = adoptNS([[QuotaDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     setVisible(webView.get());
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
         didFinishNavigationBoolean = true;
     }];

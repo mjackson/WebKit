@@ -56,8 +56,8 @@ namespace TestWebKitAPI {
 
 TEST(WebKit, ContextMenuImgWithVideo)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
-    auto uiDelegate = adoptNS([[ContextMenuImgWithVideoDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr uiDelegate = adoptNS([[ContextMenuImgWithVideoDelegate alloc] init]);
     webView.get().UIDelegate = uiDelegate.get();
     [webView synchronouslyLoadTestPageNamed:@"ContextMenuImgWithVideo"];
 

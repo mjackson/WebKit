@@ -37,8 +37,8 @@ namespace TestWebKitAPI {
 
 TEST(UserInterfaceIdiomUpdate, SelectPopoverCrash)
 {
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView _setInputDelegate:inputDelegate.get()];
     [webView synchronouslyLoadHTMLString:@"<select id='select'><option selected>foo</option><option>bar</option></select>"];
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {

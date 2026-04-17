@@ -87,12 +87,12 @@ Function<bool()> _decisionHandler;
 enum class DeviceOrientationPermission { GrantedByClient, DeniedByClient, GrantedByUser, DeniedByUser };
 static void runDeviceOrientationTest(DeviceOrientationPermission deviceOrientationPermission)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto messageHandler = adoptNS([[DeviceOrientationMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[DeviceOrientationMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     RetainPtr<DeviceOrientationPermissionUIDelegate> uiDelegate;
     switch (deviceOrientationPermission) {
@@ -174,13 +174,13 @@ TEST(DeviceOrientation, PermissionDeniedByClient)
 
 TEST(DeviceOrientation, RememberPermissionForSession)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = [WKWebsiteDataStore defaultDataStore];
 
-    auto messageHandler = adoptNS([[DeviceOrientationMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[DeviceOrientationMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     RetainPtr<DeviceOrientationPermissionUIDelegate> uiDelegate = adoptNS([[DeviceOrientationPermissionUIDelegate alloc] initWithHandler:[] { return true; }]);
     [webView setUIDelegate:uiDelegate.get()];
 
@@ -269,13 +269,13 @@ TEST(DeviceOrientation, RememberPermissionForSession)
 
 TEST(DeviceOrientation, FireOrientationEventsRightAwayIfPermissionAlreadyGranted)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = [WKWebsiteDataStore defaultDataStore];
 
-    auto messageHandler = adoptNS([[DeviceOrientationMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[DeviceOrientationMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     RetainPtr<DeviceOrientationPermissionUIDelegate> uiDelegate = adoptNS([[DeviceOrientationPermissionUIDelegate alloc] initWithHandler:[] { return true; }]);
     [webView setUIDelegate:uiDelegate.get()];
 
@@ -339,13 +339,13 @@ TEST(DeviceOrientation, PermissionSecureContextCheck)
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { mainBytes } }
     });
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = [WKWebsiteDataStore defaultDataStore];
     
-    auto messageHandler = adoptNS([[DeviceOrientationMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[DeviceOrientationMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
     
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     RetainPtr<DeviceOrientationPermissionUIDelegate> uiDelegate = adoptNS([[DeviceOrientationPermissionUIDelegate alloc] initWithHandler:[] { return true; }]);
     [webView setUIDelegate:uiDelegate.get()];
     
@@ -414,13 +414,13 @@ TEST(WebKit, DeviceOrientationPermissionInIFrame)
         { "/frame"_s, { frameText } },
     }, TestWebKitAPI::HTTPServer::Protocol::Https, nullptr, nullptr, 9091);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto permissionDelegate = adoptNS([[DeviceOrientationPermissionValidationDelegate alloc] init]);
+    RetainPtr permissionDelegate = adoptNS([[DeviceOrientationPermissionValidationDelegate alloc] init]);
     [webView setUIDelegate:permissionDelegate.get()];
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodServerTrust);
         callback(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);

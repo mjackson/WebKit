@@ -28,14 +28,17 @@
 #include "Identifier.h"
 #include "JSGenerator.h"
 #include "JSInternalFieldObjectImpl.h"
+#include "ModuleMap.h"
 #include "ScriptFetchParameters.h"
 #include <wtf/ListHashSet.h>
 
 namespace JSC {
 
+class CyclicModuleRecord;
 class JSModuleEnvironment;
 class JSModuleNamespaceObject;
 class JSMap;
+class JSPromise;
 
 // Based on the Source Text Module Record
 // http://www.ecma-international.org/ecma-262/6.0/#sec-source-text-module-records
@@ -109,8 +112,17 @@ public:
     typedef UncheckedKeyHashMap<RefPtr<UniquedStringImpl>, ExportEntry, IdentifierRepHash, HashTraits<RefPtr<UniquedStringImpl>>> ExportEntries;
 
     struct ModuleRequest {
-        RefPtr<UniquedStringImpl> m_specifier;
+        Identifier m_specifier;
         RefPtr<ScriptFetchParameters> m_attributes;
+
+        ScriptFetchParameters::Type type(ScriptFetchParameters::Type fallback = ScriptFetchParameters::Type::JavaScript) const;
+        bool operator==(const ModuleRequest&) const;
+    };
+
+    struct LoadedModuleRequest : ModuleRequest {
+        LoadedModuleRequest() = default;
+        LoadedModuleRequest(VM&, ModuleRequest, AbstractModuleRecord* loadedModule, JSCell* owner);
+        WriteBarrier<AbstractModuleRecord> m_module;
     };
 
     DECLARE_EXPORT_INFO;
@@ -123,11 +135,49 @@ public:
     std::optional<ImportEntry> NODELETE tryGetImportEntry(UniquedStringImpl* localName);
     std::optional<ExportEntry> NODELETE tryGetExportEntry(UniquedStringImpl* exportName);
 
+    class AsyncEvaluationOrder {
+    public:
+        AsyncEvaluationOrder() = default;
+        AsyncEvaluationOrder(int64_t order);
+
+        bool isDone() const { return m_order == Done; }
+        bool isUnset() const { return m_order == Unset; }
+        bool hasOrder() const { return m_order >= 0; }
+        void setDone() { m_order = Done; }
+
+        int64_t order() const;
+        AsyncEvaluationOrder& order(int64_t);
+
+        static AsyncEvaluationOrder done() { return { Done }; }
+
+    private:
+        static constexpr int64_t Unset = -2;
+        static constexpr int64_t Done = -1;
+        int64_t m_order { Unset };
+    };
+
     const Identifier& moduleKey() const { return m_moduleKey; }
+    ScriptFetchParameters::Type moduleType() const;
     const Vector<ModuleRequest>& requestedModules() const LIFETIME_BOUND { return m_requestedModules; }
+    ModuleMap<LoadedModuleRequest>& loadedModules() LIFETIME_BOUND { return m_loadedModules; }
+    const ModuleMap<LoadedModuleRequest>& loadedModules() const LIFETIME_BOUND { return m_loadedModules; }
     const ExportEntries& exportEntries() const LIFETIME_BOUND { return m_exportEntries; }
     const ImportEntries& importEntries() const LIFETIME_BOUND { return m_importEntries; }
     const OrderedIdentifierSet& starExportEntries() const LIFETIME_BOUND { return m_starExportEntries; }
+    const Vector<WriteBarrier<AbstractModuleRecord>>& asyncParentModules() const LIFETIME_BOUND { return m_asyncParentModules; }
+    CyclicModuleRecord* cycleRoot() const { return m_cycleRoot.get(); }
+    AsyncEvaluationOrder asyncEvaluationOrder() const { return m_asyncEvaluationOrder; }
+    std::optional<int> pendingAsyncDependencies() const { return m_pendingAsyncDependencies; }
+    bool hasTLA() const { return m_hasTLA; }
+
+    JSPromise* topLevelCapability() const { return m_topLevelCapability.get(); }
+    void cycleRoot(VM&, CyclicModuleRecord*);
+    void asyncEvaluationOrder(AsyncEvaluationOrder newOrder) { m_asyncEvaluationOrder = newOrder; }
+    void pendingAsyncDependencies(std::optional<int> newDependencies) { m_pendingAsyncDependencies = newDependencies; }
+
+    void appendAsyncParentModule(VM&, AbstractModuleRecord*);
+    void topLevelCapability(VM&, JSPromise*);
+    void hasTLA(bool);
 
     static size_t estimatedSize(JSCell*, VM&);
 
@@ -152,6 +202,9 @@ public:
     void setImportedModule(JSGlobalObject*, const Identifier& moduleName, AbstractModuleRecord*);
 
     JSModuleNamespaceObject* getModuleNamespace(JSGlobalObject*, bool shouldPreventExtensions = true);
+
+    JSPromise* asyncCapability() const;
+    void asyncCapability(VM&, JSPromise*);
     
     JSModuleEnvironment* moduleEnvironment()
     {
@@ -164,18 +217,27 @@ public:
         return m_moduleEnvironment.get();
     }
 
-    Synchronousness link(JSGlobalObject*, JSValue scriptFetcher);
+    void link(JSGlobalObject*, JSValue scriptFetcher);
     JS_EXPORT_PRIVATE JSValue evaluate(JSGlobalObject*, JSValue sentValue, JSValue resumeMode);
     WriteBarrier<Unknown>& internalField(Field field) { return Base::internalField(static_cast<uint32_t>(field)); }
     WriteBarrier<Unknown> internalField(Field field) const { return Base::internalField(static_cast<uint32_t>(field)); }
 
-    bool m_isTypeScript = false;
+    void evaluateModuleSync(JSGlobalObject*);
+    unsigned innerModuleEvaluation(JSGlobalObject*, Vector<AbstractModuleRecord*, 8>& stack, unsigned index);
+    unsigned innerModuleLinking(JSGlobalObject*, Vector<CyclicModuleRecord*, 8>& stack, unsigned index, JSValue scriptFetcher);
+
     DECLARE_VISIT_CHILDREN;
+
+    JSPromise* evaluate(JSGlobalObject*);
+
+#if USE(BUN_JSC_ADDITIONS)
+    bool m_isTypeScript = false;
+#endif
 
     void setModuleEnvironment(JSGlobalObject*, JSModuleEnvironment*);
 
 protected:
-    AbstractModuleRecord(VM&, Structure*, const Identifier&);
+    AbstractModuleRecord(VM&, Structure*, Identifier);
     void finishCreation(JSGlobalObject*, VM&);
 
 private:
@@ -189,7 +251,7 @@ private:
 
     // Currently, we don't keep the occurrence order of the import / export entries.
     // So, we does not guarantee the order of the errors.
-    // e.g. The import declaration that occurr later than the another import declaration may
+    // e.g. The import declaration that occurs later than another import declaration may
     //      throw the error even if the former import declaration also has the invalid content.
     //
     //      import ... // (1) this has some invalid content.
@@ -197,8 +259,8 @@ private:
     //
     //      In the above case, (2) may throw the error earlier than (1)
     //
-    // But, in all the cases, we will throw the syntax error. So except for the content of the syntax error,
-    // there are no difference.
+    // But, in all cases, we will throw the syntax error. So except for the content of the syntax error,
+    // there are no differences.
 
     // Map localName -> ImportEntry.
     ImportEntries m_importEntries;
@@ -213,11 +275,9 @@ private:
     // http://www.ecma-international.org/ecma-262/6.0/#sec-moduleevaluation
     Vector<ModuleRequest> m_requestedModules;
 
-    WriteBarrier<JSMap> m_dependenciesMap;
-    
     WriteBarrier<JSModuleNamespaceObject> m_moduleNamespaceObject;
 
-    WriteBarrier<JSModuleEnvironment> m_moduleEnvironment;
+    WriteBarrier<JSPromise> m_asyncCapability;
 
     // We assume that all the AbstractModuleRecord are retained by JSModuleLoader's registry.
     // So here, we don't visit each object for GC. The resolution cache map caches the once
@@ -225,6 +285,25 @@ private:
     // and (2) if we cache all the attempts the size of the map becomes infinitely large.
     typedef UncheckedKeyHashMap<RefPtr<UniquedStringImpl>, Resolution, IdentifierRepHash, HashTraits<RefPtr<UniquedStringImpl>>> Resolutions;
     Resolutions m_resolutionCache;
+
+protected:
+    WriteBarrier<JSModuleEnvironment> m_moduleEnvironment;
+
+    ModuleMap<LoadedModuleRequest> m_loadedModules;
+
+    Vector<WriteBarrier<AbstractModuleRecord>> m_asyncParentModules;
+
+    WriteBarrier<CyclicModuleRecord> m_cycleRoot;
+
+    AsyncEvaluationOrder m_asyncEvaluationOrder { };
+
+    HashMap<String, WriteBarrier<AbstractModuleRecord>> m_dependencies;
+
+    WriteBarrier<JSPromise> m_topLevelCapability;
+
+    std::optional<int> m_pendingAsyncDependencies;
+
+    bool m_hasTLA { false };
 };
 
 } // namespace JSC

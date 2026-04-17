@@ -2,6 +2,7 @@
  * (C) 1999-2003 Lars Knoll (knoll@kde.org)
  * Copyright (C) 2004, 2005, 2006, 2008, 2019 Apple Inc. All rights reserved.
  * Copyright (C) 2007 Alexey Proskuryakov <ap@webkit.org>
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -75,9 +76,6 @@ enum class CSSUnitType : uint8_t {
     CSS_HZ,
     CSS_KHZ,
     CSS_DIMENSION,
-    CSS_STRING,
-    CSS_IDENT,
-    CSS_ATTR,
 
     CSS_VW,
     CSS_VH,
@@ -136,9 +134,6 @@ enum class CSSUnitType : uint8_t {
     CSS_CALC_PERCENTAGE_WITH_ANGLE,
     CSS_CALC_PERCENTAGE_WITH_LENGTH,
 
-    CSS_FONT_FAMILY,
-
-    CSS_PROPERTY_ID,
     CSS_VALUE_ID,
     
     // This value is used to handle quirky margins in reflow roots (body, td, and th) like WinIE.

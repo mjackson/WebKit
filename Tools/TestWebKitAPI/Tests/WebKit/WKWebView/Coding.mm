@@ -52,7 +52,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 TEST(Coding, WKPreferences)
 {
-    auto a = adoptNS([[WKPreferences alloc] init]);
+    RetainPtr a = adoptNS([[WKPreferences alloc] init]);
 
     // Change all defaults to something else.
     [a setMinimumFontSize:10];
@@ -100,7 +100,7 @@ TEST(Coding, WKWebsiteDataStore_NonPersistent)
 
 TEST(Coding, WKWebViewConfiguration)
 {
-    auto a = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr a = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     // Change all defaults to something else.
     [a setSuppressesIncrementalRendering:YES];
@@ -132,7 +132,7 @@ TEST(Coding, WKWebViewConfiguration)
 
 TEST(Coding, WKWebView)
 {
-    auto a = adoptNS([[WKWebView alloc] init]);
+    RetainPtr a = adoptNS([[WKWebView alloc] init]);
 
     // Change all defaults to something else.
     [a setAllowsBackForwardNavigationGestures:YES];
@@ -170,10 +170,10 @@ TEST(Coding, WKWebView_SameConfiguration)
     // First, encode two WKWebViews sharing the same configuration.
     RetainPtr<NSData> data;
     {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-        auto a = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-        auto b = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr a = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr b = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
         data = [NSKeyedArchiver archivedDataWithRootObject:@[a.get(), b.get()] requiringSecureCoding:YES error:nullptr];
     }

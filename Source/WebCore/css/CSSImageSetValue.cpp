@@ -31,6 +31,8 @@
 #include "CSSPrimitiveValue.h"
 #include "StyleBuilderState.h"
 #include "StyleImageSet.h"
+#include "StylePrimitiveNumericTypes+Conversions.h"
+#include "StyleString.h"
 #include <numeric>
 #include <wtf/text/StringBuilder.h>
 
@@ -68,8 +70,8 @@ RefPtr<Style::Image> CSSImageSetValue::createStyleImage(const Style::BuilderStat
         RefPtr<const CSSImageSetOptionValue> option = downcast<CSSImageSetOptionValue>(item(i));
         return Style::ImageWithScale {
             .image = state.createStyleImage(option->image()),
-            .scaleFactor = protect(option->resolution())->resolveAsResolution<float>(state.cssToLengthConversionData()),
-            .mimeType = option->type(),
+            .scaleFactor = Style::toStyle(option->resolution(), state),
+            .mimeType = Style::toStyle(option->type(), state),
         };
     });
 
@@ -79,7 +81,7 @@ RefPtr<Style::Image> CSSImageSetValue::createStyleImage(const Style::BuilderStat
     std::iota(sortedIndices.begin(), sortedIndices.end(), 0);
 
     std::stable_sort(sortedIndices.begin(), sortedIndices.end(), [&images](size_t lhs, size_t rhs) {
-        return images[lhs].scaleFactor < images[rhs].scaleFactor;
+        return images[lhs].scaleFactor.value < images[rhs].scaleFactor.value;
     });
 
     return Style::ImageSet::create(WTF::move(images), WTF::move(sortedIndices));

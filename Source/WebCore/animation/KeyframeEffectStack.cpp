@@ -34,7 +34,6 @@
 #include "RenderStyle+GettersInlines.h"
 #include "RotateTransformOperation.h"
 #include "ScaleTransformOperation.h"
-#include "Settings.h"
 #include "StyleInterpolation.h"
 #include "StyleRotate.h"
 #include "StyleScale.h"
@@ -254,7 +253,16 @@ bool KeyframeEffectStack::allowsAcceleration() const
         if (effect->preventsAcceleration())
             return false;
         auto& acceleratedProperties = effect->acceleratedProperties();
-        if (!allAcceleratedProperties.isEmpty()) {
+
+        auto effectSupportsImplicitKeyframesComposition = [&] {
+#if ENABLE(THREADED_ANIMATIONS)
+            return effect->canHaveAcceleratedRepresentation();
+#else
+            return false;
+#endif
+        };
+
+        if (!allAcceleratedProperties.isEmpty() && !effectSupportsImplicitKeyframesComposition()) {
             auto previouslySeenAcceleratedPropertiesAffectingCurrentEffect = allAcceleratedProperties.intersectionWith(acceleratedProperties);
             if (!previouslySeenAcceleratedPropertiesAffectingCurrentEffect.isEmpty()
                 && !effect->acceleratedPropertiesWithImplicitKeyframe().intersectionWith(previouslySeenAcceleratedPropertiesAffectingCurrentEffect).isEmpty()) {
@@ -334,14 +342,8 @@ void KeyframeEffectStack::applyPendingAcceleratedActions() const
     }
 }
 
-bool KeyframeEffectStack::hasAcceleratedEffects(const Settings& settings) const
+bool KeyframeEffectStack::hasAcceleratedEffects() const
 {
-#if ENABLE(THREADED_ANIMATIONS)
-    if (settings.threadedScrollDrivenAnimationsEnabled() || settings.threadedTimeBasedAnimationsEnabled())
-        return !m_acceleratedEffects.isEmptyIgnoringNullReferences();
-#else
-    UNUSED_PARAM(settings);
-#endif
     return hasMatchingEffect([](const auto& effect) {
         return effect.isRunningAccelerated();
     });

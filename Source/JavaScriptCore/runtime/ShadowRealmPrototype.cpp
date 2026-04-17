@@ -31,9 +31,9 @@
 #include "IndirectEvalExecutable.h"
 #include "Interpreter.h"
 #include "JSGlobalObject.h"
-#include "JSInternalPromise.h"
 #include "JSModuleLoader.h"
 #include "JSObjectInlines.h"
+#include "JSPromise.h"
 #include "ShadowRealmObject.h"
 #include "StructureInlines.h"
 
@@ -78,11 +78,11 @@ JSC_DEFINE_HOST_FUNCTION(importInRealm, (JSGlobalObject* globalObject, CallFrame
     RETURN_IF_EXCEPTION(scope, { });
 
     JSGlobalObject* realmGlobalObject = thisRealm->globalObject();
-    auto* internalPromise = realmGlobalObject->moduleLoader()->importModule(realmGlobalObject, specifier, jsUndefined(), sourceOrigin);
+    auto* result = realmGlobalObject->moduleLoader()->importModule(realmGlobalObject, specifier, jsUndefined(), sourceOrigin);
     RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(realmGlobalObject, scope)));
 
     scope.release();
-    promise->resolve(globalObject, vm, internalPromise);
+    promise->resolve(globalObject, vm, result);
     return JSValue::encode(promise);
 }
 

@@ -87,7 +87,7 @@ void RemoteBuffer::mapAsync(WebCore::WebGPU::MapModeFlags mapModeFlags, WebCore:
 
 void RemoteBuffer::getMappedRange(WebCore::WebGPU::Size64 offset, std::optional<WebCore::WebGPU::Size64> size, CompletionHandler<void(std::optional<Vector<uint8_t>>&&)>&& callback)
 {
-    protect(m_backing)->getMappedRange(offset, size, [protectedThis = Ref { *this }, &callback] (auto mappedRange) {
+    protect(m_backing)->getMappedRange(offset, size, [protectedThis = protect(*this), &callback] (auto mappedRange) {
         protectedThis->m_isMapped = true;
         callback(mappedRange);
     });

@@ -182,15 +182,7 @@ bool CoordinatedAcceleratedTileBuffer::tryEnsureSurface()
     if (!PlatformDisplay::sharedDisplay().skiaGLContext()->makeContextCurrent())
         return false;
 
-#if PLATFORM(GTK)
-    // FIXME: there's a deadlock when two rendering threads try to create a texture with MSAA enabled. So, for now
-    // we just disable MSAA for the GTK port to render tiles until we find a solution.
-    unsigned msaaSampleCount = 0;
-#else
-    unsigned msaaSampleCount = PlatformDisplay::sharedDisplay().msaaSampleCount();
-#endif
-
-    m_surface = m_texture->createSkiaSurface(PlatformDisplay::sharedDisplay().skiaGrContext(), kTopLeft_GrSurfaceOrigin, msaaSampleCount);
+    m_surface = m_texture->createSkiaSurface(PlatformDisplay::sharedDisplay().skiaGrContext());
     return true;
 }
 

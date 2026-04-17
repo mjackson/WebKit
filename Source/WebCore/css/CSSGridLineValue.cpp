@@ -63,6 +63,9 @@ String CSSGridLineValue::customCSSText(const CSS::SerializationContext& context)
         std::optional<CSS::CustomIdent>
     >;
 
+    // Only return the numeric value if not 1, or if it provided without a span value.
+    // https://drafts.csswg.org/css-grid-2/#grid-placement-span-int
+
     return CSS::serializationForCSS(context, SerializationType {
         m_span,
         m_numeric && (m_numeric->raw() != 1 || !m_span || !m_gridLineName) ? m_numeric : std::nullopt,

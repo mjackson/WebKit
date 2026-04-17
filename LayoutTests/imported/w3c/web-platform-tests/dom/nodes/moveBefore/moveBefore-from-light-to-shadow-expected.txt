@@ -1,0 +1,4 @@
+Text in light DOM
+
+FAIL moveBefore-from-light-to-shadow host.moveBefore is not a function. (In 'host.moveBefore(span, null)', 'host.moveBefore' is undefined)
+

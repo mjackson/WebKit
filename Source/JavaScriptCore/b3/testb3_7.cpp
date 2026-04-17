@@ -4714,6 +4714,259 @@ void testVectorSwizzleCompositionMultiUse()
         CHECK(vectors[3].u8x16[i] == 0x80 + i);
 }
 
+// Test VectorShr(VectorZip{Lower,Higher}(x, x), 8) → VectorExtend{Low,High}(x, i16x8, Signed)
+void testVectorShrZipToExtend()
+{
+    // Test ExtendLow: VectorShr(VectorZipLower(x, x), 8) → VectorExtendLow(x, i16x8, Signed)
+    {
+        alignas(16) v128_t vectors[2];
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<void*>(proc, root);
+        Value* address = arguments[0];
+        Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+
+        Value* shiftAmount = root->appendNew<Const32Value>(proc, Origin(), 8);
+
+        // VectorZipLower(input, input) on i8x16
+        Value* zipped = root->appendNew<SIMDValue>(proc, Origin(), VectorZipLower, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, input, input);
+        // VectorShr(zipped, 8) on i16x8 Signed
+        Value* shifted = root->appendNew<SIMDValue>(proc, Origin(), VectorShr, B3::V128, SIMDLane::i16x8, SIMDSignMode::Signed, zipped, shiftAmount);
+
+        root->appendNew<MemoryValue>(proc, Store, Origin(), shifted, address, static_cast<int32_t>(sizeof(v128_t)));
+        root->appendNewControlValue(proc, Return, Origin());
+
+        auto code = compileProc(proc);
+
+        // Input i8x16: {-5, 127, -128, 0, 1, -1, 42, -42, 99, 100, 101, 102, 103, 104, 105, 106}
+        vectors[0].u8x16[0] = static_cast<uint8_t>(-5);   // 0xFB → sign-extend to 0xFFFB = -5
+        vectors[0].u8x16[1] = 127;                          // 0x7F → 0x007F = 127
+        vectors[0].u8x16[2] = static_cast<uint8_t>(-128); // 0x80 → 0xFF80 = -128
+        vectors[0].u8x16[3] = 0;                            // 0x00 → 0x0000 = 0
+        vectors[0].u8x16[4] = 1;                            // 0x01 → 0x0001 = 1
+        vectors[0].u8x16[5] = static_cast<uint8_t>(-1);   // 0xFF → 0xFFFF = -1
+        vectors[0].u8x16[6] = 42;                           // 0x2A → 0x002A = 42
+        vectors[0].u8x16[7] = static_cast<uint8_t>(-42);  // 0xD6 → 0xFFD6 = -42
+        // Upper 8 bytes (not used by ExtendLow, but fill them)
+        for (unsigned i = 8; i < 16; ++i)
+            vectors[0].u8x16[i] = 99 + (i - 8);
+
+        invoke<void>(*code, vectors);
+
+        // Result: sign-extended lower 8 i8 values to i16x8
+        CHECK(vectors[1].u16x8[0] == static_cast<uint16_t>(-5));
+        CHECK(vectors[1].u16x8[1] == static_cast<uint16_t>(127));
+        CHECK(vectors[1].u16x8[2] == static_cast<uint16_t>(-128));
+        CHECK(vectors[1].u16x8[3] == static_cast<uint16_t>(0));
+        CHECK(vectors[1].u16x8[4] == static_cast<uint16_t>(1));
+        CHECK(vectors[1].u16x8[5] == static_cast<uint16_t>(-1));
+        CHECK(vectors[1].u16x8[6] == static_cast<uint16_t>(42));
+        CHECK(vectors[1].u16x8[7] == static_cast<uint16_t>(-42));
+    }
+
+    // Test ExtendHigh: VectorShr(VectorZipHigher(x, x), 8) → VectorExtendHigh(x, i16x8, Signed)
+    {
+        alignas(16) v128_t vectors[2];
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<void*>(proc, root);
+        Value* address = arguments[0];
+        Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+
+        Value* shiftAmount = root->appendNew<Const32Value>(proc, Origin(), 8);
+
+        // VectorZipHigher(input, input) on i8x16
+        Value* zipped = root->appendNew<SIMDValue>(proc, Origin(), VectorZipHigher, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, input, input);
+        // VectorShr(zipped, 8) on i16x8 Signed
+        Value* shifted = root->appendNew<SIMDValue>(proc, Origin(), VectorShr, B3::V128, SIMDLane::i16x8, SIMDSignMode::Signed, zipped, shiftAmount);
+
+        root->appendNew<MemoryValue>(proc, Store, Origin(), shifted, address, static_cast<int32_t>(sizeof(v128_t)));
+        root->appendNewControlValue(proc, Return, Origin());
+
+        auto code = compileProc(proc);
+
+        // Input: lower 8 bytes don't matter for ExtendHigh, upper 8 bytes are tested
+        for (unsigned i = 0; i < 8; ++i)
+            vectors[0].u8x16[i] = 0;
+        vectors[0].u8x16[8] = static_cast<uint8_t>(-10);   // 0xF6 → -10
+        vectors[0].u8x16[9] = 50;                            // 0x32 → 50
+        vectors[0].u8x16[10] = static_cast<uint8_t>(-128); // 0x80 → -128
+        vectors[0].u8x16[11] = 127;                          // 0x7F → 127
+        vectors[0].u8x16[12] = 0;                            // 0x00 → 0
+        vectors[0].u8x16[13] = static_cast<uint8_t>(-1);   // 0xFF → -1
+        vectors[0].u8x16[14] = 1;                            // 0x01 → 1
+        vectors[0].u8x16[15] = static_cast<uint8_t>(-100); // 0x9C → -100
+
+        invoke<void>(*code, vectors);
+
+        // Result: sign-extended upper 8 i8 values to i16x8
+        CHECK(vectors[1].u16x8[0] == static_cast<uint16_t>(-10));
+        CHECK(vectors[1].u16x8[1] == static_cast<uint16_t>(50));
+        CHECK(vectors[1].u16x8[2] == static_cast<uint16_t>(-128));
+        CHECK(vectors[1].u16x8[3] == static_cast<uint16_t>(127));
+        CHECK(vectors[1].u16x8[4] == static_cast<uint16_t>(0));
+        CHECK(vectors[1].u16x8[5] == static_cast<uint16_t>(-1));
+        CHECK(vectors[1].u16x8[6] == static_cast<uint16_t>(1));
+        CHECK(vectors[1].u16x8[7] == static_cast<uint16_t>(-100));
+    }
+}
+
+// Test VectorShr(VectorZip{Lower,Higher}(x, x), 16) -> VectorExtend{Low,High}(x, i32x4, Signed)
+void testVectorShrZipToExtendI32()
+{
+    // Test ExtendLow: VectorShr(VectorZipLower(x, x), 16) on i32x4 -> VectorExtendLow(x, i32x4, Signed)
+    {
+        alignas(16) v128_t vectors[2];
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<void*>(proc, root);
+        Value* address = arguments[0];
+        Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+
+        Value* shiftAmount = root->appendNew<Const32Value>(proc, Origin(), 16);
+
+        // VectorZipLower(input, input) on i16x8
+        Value* zipped = root->appendNew<SIMDValue>(proc, Origin(), VectorZipLower, B3::V128, SIMDLane::i16x8, SIMDSignMode::None, input, input);
+        // VectorShr(zipped, 16) on i32x4 Signed
+        Value* shifted = root->appendNew<SIMDValue>(proc, Origin(), VectorShr, B3::V128, SIMDLane::i32x4, SIMDSignMode::Signed, zipped, shiftAmount);
+
+        root->appendNew<MemoryValue>(proc, Store, Origin(), shifted, address, static_cast<int32_t>(sizeof(v128_t)));
+        root->appendNewControlValue(proc, Return, Origin());
+
+        auto code = compileProc(proc);
+
+        // Input i16x8: {-5, 32767, -32768, 0, 1, -1, 42, -42}
+        vectors[0].u16x8[0] = static_cast<uint16_t>(-5);      // 0xFFFB -> sign-extend to 0xFFFFFFFB = -5
+        vectors[0].u16x8[1] = 32767;                            // 0x7FFF -> 0x00007FFF = 32767
+        vectors[0].u16x8[2] = static_cast<uint16_t>(-32768);  // 0x8000 -> 0xFFFF8000 = -32768
+        vectors[0].u16x8[3] = 0;                                // 0x0000 -> 0x00000000 = 0
+        // Upper 4 i16 values (not used by ExtendLow)
+        vectors[0].u16x8[4] = 1;
+        vectors[0].u16x8[5] = static_cast<uint16_t>(-1);
+        vectors[0].u16x8[6] = 42;
+        vectors[0].u16x8[7] = static_cast<uint16_t>(-42);
+
+        invoke<void>(*code, vectors);
+
+        // Result: sign-extended lower 4 i16 values to i32x4
+        CHECK(vectors[1].u32x4[0] == static_cast<uint32_t>(-5));
+        CHECK(vectors[1].u32x4[1] == static_cast<uint32_t>(32767));
+        CHECK(vectors[1].u32x4[2] == static_cast<uint32_t>(-32768));
+        CHECK(vectors[1].u32x4[3] == static_cast<uint32_t>(0));
+    }
+
+    // Test ExtendHigh: VectorShr(VectorZipHigher(x, x), 16) on i32x4 -> VectorExtendHigh(x, i32x4, Signed)
+    {
+        alignas(16) v128_t vectors[2];
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<void*>(proc, root);
+        Value* address = arguments[0];
+        Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+
+        Value* shiftAmount = root->appendNew<Const32Value>(proc, Origin(), 16);
+
+        // VectorZipHigher(input, input) on i16x8
+        Value* zipped = root->appendNew<SIMDValue>(proc, Origin(), VectorZipHigher, B3::V128, SIMDLane::i16x8, SIMDSignMode::None, input, input);
+        // VectorShr(zipped, 16) on i32x4 Signed
+        Value* shifted = root->appendNew<SIMDValue>(proc, Origin(), VectorShr, B3::V128, SIMDLane::i32x4, SIMDSignMode::Signed, zipped, shiftAmount);
+
+        root->appendNew<MemoryValue>(proc, Store, Origin(), shifted, address, static_cast<int32_t>(sizeof(v128_t)));
+        root->appendNewControlValue(proc, Return, Origin());
+
+        auto code = compileProc(proc);
+
+        // Input: lower 4 i16 values don't matter for ExtendHigh
+        for (unsigned i = 0; i < 4; ++i)
+            vectors[0].u16x8[i] = 0;
+        vectors[0].u16x8[4] = static_cast<uint16_t>(-10);     // 0xFFF6 -> -10
+        vectors[0].u16x8[5] = 50;                               // 0x0032 -> 50
+        vectors[0].u16x8[6] = static_cast<uint16_t>(-32768);  // 0x8000 -> -32768
+        vectors[0].u16x8[7] = 32767;                            // 0x7FFF -> 32767
+
+        invoke<void>(*code, vectors);
+
+        // Result: sign-extended upper 4 i16 values to i32x4
+        CHECK(vectors[1].u32x4[0] == static_cast<uint32_t>(-10));
+        CHECK(vectors[1].u32x4[1] == static_cast<uint32_t>(50));
+        CHECK(vectors[1].u32x4[2] == static_cast<uint32_t>(-32768));
+        CHECK(vectors[1].u32x4[3] == static_cast<uint32_t>(32767));
+    }
+}
+
+// Test VectorShr(VectorZip{Lower,Higher}(x, x), 32) -> VectorExtend{Low,High}(x, i64x2, Signed)
+void testVectorShrZipToExtendI64()
+{
+    // Test ExtendLow: VectorShr(VectorZipLower(x, x), 32) on i64x2 -> VectorExtendLow(x, i64x2, Signed)
+    {
+        alignas(16) v128_t vectors[2];
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<void*>(proc, root);
+        Value* address = arguments[0];
+        Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+
+        Value* shiftAmount = root->appendNew<Const32Value>(proc, Origin(), 32);
+
+        // VectorZipLower(input, input) on i32x4
+        Value* zipped = root->appendNew<SIMDValue>(proc, Origin(), VectorZipLower, B3::V128, SIMDLane::i32x4, SIMDSignMode::None, input, input);
+        // VectorShr(zipped, 32) on i64x2 Signed
+        Value* shifted = root->appendNew<SIMDValue>(proc, Origin(), VectorShr, B3::V128, SIMDLane::i64x2, SIMDSignMode::Signed, zipped, shiftAmount);
+
+        root->appendNew<MemoryValue>(proc, Store, Origin(), shifted, address, static_cast<int32_t>(sizeof(v128_t)));
+        root->appendNewControlValue(proc, Return, Origin());
+
+        auto code = compileProc(proc);
+
+        // Input i32x4: {-5, 2147483647}  (lower 2 used by ExtendLow)
+        vectors[0].u32x4[0] = static_cast<uint32_t>(-5);           // 0xFFFFFFFB -> sign-extend to 0xFFFFFFFFFFFFFFFB = -5
+        vectors[0].u32x4[1] = static_cast<uint32_t>(2147483647);   // 0x7FFFFFFF -> 0x000000007FFFFFFF
+        // Upper 2 i32 values (not used by ExtendLow)
+        vectors[0].u32x4[2] = static_cast<uint32_t>(-2147483648LL);
+        vectors[0].u32x4[3] = 0;
+
+        invoke<void>(*code, vectors);
+
+        // Result: sign-extended lower 2 i32 values to i64x2
+        CHECK(vectors[1].u64x2[0] == static_cast<uint64_t>(static_cast<int64_t>(-5)));
+        CHECK(vectors[1].u64x2[1] == static_cast<uint64_t>(static_cast<int64_t>(2147483647)));
+    }
+
+    // Test ExtendHigh: VectorShr(VectorZipHigher(x, x), 32) on i64x2 -> VectorExtendHigh(x, i64x2, Signed)
+    {
+        alignas(16) v128_t vectors[2];
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<void*>(proc, root);
+        Value* address = arguments[0];
+        Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+
+        Value* shiftAmount = root->appendNew<Const32Value>(proc, Origin(), 32);
+
+        // VectorZipHigher(input, input) on i32x4
+        Value* zipped = root->appendNew<SIMDValue>(proc, Origin(), VectorZipHigher, B3::V128, SIMDLane::i32x4, SIMDSignMode::None, input, input);
+        // VectorShr(zipped, 32) on i64x2 Signed
+        Value* shifted = root->appendNew<SIMDValue>(proc, Origin(), VectorShr, B3::V128, SIMDLane::i64x2, SIMDSignMode::Signed, zipped, shiftAmount);
+
+        root->appendNew<MemoryValue>(proc, Store, Origin(), shifted, address, static_cast<int32_t>(sizeof(v128_t)));
+        root->appendNewControlValue(proc, Return, Origin());
+
+        auto code = compileProc(proc);
+
+        // Input: lower 2 i32 values don't matter for ExtendHigh
+        vectors[0].u32x4[0] = 0;
+        vectors[0].u32x4[1] = 0;
+        vectors[0].u32x4[2] = static_cast<uint32_t>(-2147483648LL);  // 0x80000000 -> -2147483648
+        vectors[0].u32x4[3] = static_cast<uint32_t>(-1);             // 0xFFFFFFFF -> -1
+
+        invoke<void>(*code, vectors);
+
+        // Result: sign-extended upper 2 i32 values to i64x2
+        CHECK(vectors[1].u64x2[0] == static_cast<uint64_t>(static_cast<int64_t>(-2147483648LL)));
+        CHECK(vectors[1].u64x2[1] == static_cast<uint64_t>(static_cast<int64_t>(-1)));
+    }
+}
+
 #endif // ENABLE(B3_JIT)
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

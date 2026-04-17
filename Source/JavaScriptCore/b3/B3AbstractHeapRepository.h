@@ -263,6 +263,7 @@ namespace JSC::B3 {
 
 class AbstractHeapRepository {
     WTF_MAKE_NONCOPYABLE(AbstractHeapRepository);
+    WTF_MAKE_TZONE_ALLOCATED(AbstractHeapRepository);
 public:
     AbstractHeapRepository();
     ~AbstractHeapRepository();
@@ -349,6 +350,9 @@ public:
     void decorateFencedAccess(const AbstractHeap*, Value*);
     void decorateWasmStructGet(const AbstractHeap*, Value*);
     void decorateWasmStructSet(const AbstractHeap*, Value*);
+    void decorateWasmArrayGet(const AbstractHeap*, Value*);
+    void decorateWasmArraySet(const AbstractHeap*, Value*);
+    void decorateWasmArrayLength(const AbstractHeap*, Value*);
 
     void computeRangesAndDecorateInstructions();
 
@@ -379,6 +383,9 @@ private:
     Vector<HeapForValue> m_heapForFencedAccess;
     Vector<HeapForValue> m_heapForWasmStructGet;
     Vector<HeapForValue> m_heapForWasmStructSet;
+    Vector<HeapForValue> m_heapForWasmArrayGet;
+    Vector<HeapForValue> m_heapForWasmArraySet;
+    Vector<HeapForValue> m_heapForWasmArrayLength;
 };
 
 } // namespace JSC::B3

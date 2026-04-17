@@ -28,7 +28,6 @@
 
 #include "pas_page_sharing_mode.h"
 #include "pas_segregated_heap_lookup_kind.h"
-#include "pas_segregated_page_config_variant.h"
 #include "pas_utils.h"
 
 PAS_BEGIN_EXTERN_C;

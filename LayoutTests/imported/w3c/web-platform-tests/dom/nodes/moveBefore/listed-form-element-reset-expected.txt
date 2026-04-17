@@ -1,0 +1,4 @@
+
+
+FAIL Listed form element form owner is reset when a new form is moved closer before the listed element document.body.moveBefore is not a function. (In 'document.body.moveBefore(form2, form)', 'document.body.moveBefore' is undefined)
+

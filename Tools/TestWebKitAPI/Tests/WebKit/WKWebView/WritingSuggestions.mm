@@ -79,7 +79,7 @@
 
 TEST(WritingSuggestionsWebAPI, DefaultState)
 {
-    auto webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><div id='div' contenteditable>This is some text.</div></body>"]);
+    RetainPtr webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><div id='div' contenteditable>This is some text.</div></body>"]);
     [webView focusElementAndEnsureEditorStateUpdate:@"document.getElementById('div')"];
 
     EXPECT_EQ(UITextInlinePredictionTypeDefault, [webView effectiveTextInputTraits].inlinePredictionType);
@@ -87,7 +87,7 @@ TEST(WritingSuggestionsWebAPI, DefaultState)
 
 TEST(WritingSuggestionsWebAPI, DefaultStateWithInput)
 {
-    auto webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><input id='input' type='text'></input></body>"]);
+    RetainPtr webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><input id='input' type='text'></input></body>"]);
     [webView focusElementAndEnsureEditorStateUpdate:@"document.getElementById('input')"];
 
     EXPECT_EQ(UITextInlinePredictionTypeDefault, [webView effectiveTextInputTraits].inlinePredictionType);
@@ -95,7 +95,7 @@ TEST(WritingSuggestionsWebAPI, DefaultStateWithInput)
 
 TEST(WritingSuggestionsWebAPI, ExplicitlyEnabled)
 {
-    auto webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><div id='div' contenteditable writingsuggestions='true'>This is some text.</div></body>"]);
+    RetainPtr webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><div id='div' contenteditable writingsuggestions='true'>This is some text.</div></body>"]);
     [webView focusElementAndEnsureEditorStateUpdate:@"document.getElementById('div')"];
 
     EXPECT_EQ(UITextInlinePredictionTypeDefault, [webView effectiveTextInputTraits].inlinePredictionType);
@@ -103,7 +103,7 @@ TEST(WritingSuggestionsWebAPI, ExplicitlyEnabled)
 
 TEST(WritingSuggestionsWebAPI, ExplicitlyDisabled)
 {
-    auto webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><div id='div' contenteditable writingsuggestions='false'>This is some text.</div></body>"]);
+    RetainPtr webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><div id='div' contenteditable writingsuggestions='false'>This is some text.</div></body>"]);
     [webView focusElementAndEnsureEditorStateUpdate:@"document.getElementById('div')"];
 
     EXPECT_EQ(UITextInlinePredictionTypeNo, [webView effectiveTextInputTraits].inlinePredictionType);
@@ -111,7 +111,7 @@ TEST(WritingSuggestionsWebAPI, ExplicitlyDisabled)
 
 TEST(WritingSuggestionsWebAPI, ExplicitlyDisabledOnParent)
 {
-    auto webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><div writingsuggestions='false'><div id='div' contenteditable>This is some text.</div></div></body>"]);
+    RetainPtr webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><div writingsuggestions='false'><div id='div' contenteditable>This is some text.</div></div></body>"]);
     [webView focusElementAndEnsureEditorStateUpdate:@"document.getElementById('div')"];
 
     EXPECT_EQ(UITextInlinePredictionTypeNo, [webView effectiveTextInputTraits].inlinePredictionType);
@@ -119,7 +119,7 @@ TEST(WritingSuggestionsWebAPI, ExplicitlyDisabledOnParent)
 
 TEST(WritingSuggestionsWebAPI, DefaultStateWithDisabledAutocomplete)
 {
-    auto webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><input id='input' type='text' autocomplete='off'></input></body>"]);
+    RetainPtr webView = adoptNS([[WritingSuggestionsWebAPIWKWebView alloc] initWithHTMLString:@"<body><input id='input' type='text' autocomplete='off'></input></body>"]);
     [webView focusElementAndEnsureEditorStateUpdate:@"document.getElementById('input')"];
 
     EXPECT_EQ(UITextInlinePredictionTypeNo, [webView effectiveTextInputTraits].inlinePredictionType);

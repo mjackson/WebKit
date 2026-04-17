@@ -47,6 +47,9 @@
 #include "Settings.h"
 #include "UserScriptTypes.h"
 #include "WindowPostMessageOptions.h"
+#include <JavaScriptCore/JSArrayBuffer.h>
+#include <JavaScriptCore/JSGlobalObjectInlines.h>
+#include <JavaScriptCore/JSString.h>
 #include <JavaScriptCore/ObjectConstructor.h>
 #include <wtf/TZoneMallocInlines.h>
 

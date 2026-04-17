@@ -53,6 +53,10 @@ class LayoutState;
 class LayoutTree;
 }
 
+namespace LayoutIntegration {
+class InlineContent;
+}
+
 enum class LayoutOptions : uint8_t;
 
 struct UpdateScrollInfoAfterLayoutTransaction {
@@ -166,6 +170,9 @@ public:
 
     bool addToDetachedRendererList(RenderPtr<RenderObject>&& renderer) const { return m_detachedRendererList.append(WTF::move(renderer)); }
     void deleteDetachedRenderersNow() const { m_detachedRendererList.clear(); }
+
+    void detachInlineContent(std::unique_ptr<LayoutIntegration::InlineContent>&&) const;
+    void deleteDetachedInlineContentNow() const;
 
     Vector<AnchorScrollAdjuster>& anchorScrollAdjusters() LIFETIME_BOUND { return m_anchorScrollAdjusters; }
     const AnchorScrollAdjuster* anchorScrollAdjusterFor(const RenderBox& anchored) const LIFETIME_BOUND;
@@ -296,6 +303,17 @@ private:
         SegmentedVector<std::unique_ptr<RenderObject>, 50> m_renderers;
     };
     mutable DetachedRendererList m_detachedRendererList;
+
+    class DetachedInlineContentList {
+    public:
+        ~DetachedInlineContentList();
+        void append(std::unique_ptr<LayoutIntegration::InlineContent>&&);
+        void clear();
+
+    private:
+        Vector<std::unique_ptr<LayoutIntegration::InlineContent>> m_inlineContent;
+    };
+    mutable DetachedInlineContentList m_detachedInlineContent;
 };
 
 class RepaintBlocker {

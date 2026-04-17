@@ -1,3 +1,4 @@
+//@ exclusive!
 //@ requireOptions("-e", "let depth=25000") if $memoryLimited
 
 depth = typeof(depth) === 'undefined' ? 50000 : depth;

@@ -29,7 +29,9 @@
 #include "config.h"
 #include "RegExpCache.h"
 
+#include "HeapCellInlines.h"
 #include "StrongInlines.h"
+#include "WeakInlines.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace JSC {

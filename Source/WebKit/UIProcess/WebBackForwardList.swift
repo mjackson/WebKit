@@ -120,7 +120,7 @@ final class WebBackForwardList {
     var messageForwarder: RefWebBackForwardListMessageForwarder?
 
     var entries: [WebKit.WebBackForwardListItem] = []
-    var currentIndex: Array.Index?
+    var currentIndex: Int?
 
     private enum Direction {
         case backward
@@ -374,7 +374,7 @@ final class WebBackForwardList {
         return entries[currentIndex + 1]
     }
 
-    func itemAtIndex(index: Array.Index) -> WebKit.WebBackForwardListItem? {
+    func itemAtDeltaFromCurrentIndex(delta: Int) -> WebKit.WebBackForwardListItem? {
         assertValidIndex()
 
         guard page.__convertToBool() else {
@@ -385,19 +385,26 @@ final class WebBackForwardList {
             return nil
         }
 
-        // Do range checks without doing math on index to avoid overflow.
-        if index < 0 && -index > backListCount() {
+        if currentIndex + delta < 0 {
             return nil
         }
 
-        if index > 0 && index > forwardListCount() {
-            return nil
-        }
-
-        return entries[index + currentIndex]
+        return itemAtIndexWithoutSkipping(index: currentIndex + delta).item
     }
 
-    func backListCount() -> Array.Index {
+    func itemAtIndexWithoutSkipping(index: Int) -> (item: WebKit.WebBackForwardListItem?, index: Int) {
+        guard page.__convertToBool() else {
+            return (nil, index)
+        }
+
+        if index < 0 || index >= entries.count {
+            return (nil, index)
+        }
+
+        return (entries[index], index)
+    }
+
+    func backListCount() -> Int {
         assertValidIndex()
 
         guard page.__convertToBool() else {
@@ -411,7 +418,7 @@ final class WebBackForwardList {
         return currentIndex
     }
 
-    func forwardListCount() -> Array.Index {
+    func forwardListCount() -> Int {
         assertValidIndex()
 
         guard page.__convertToBool() else {
@@ -596,29 +603,30 @@ final class WebBackForwardList {
         #endif
     }
 
-    func goBackItemSkippingItemsWithoutUserGesture() -> WebKit.RefPtrWebBackForwardListItem {
-        itemSkippingBackForwardItemsAddedByJSWithoutUserGesture(direction: Direction.backward)
-    }
-
-    func goForwardItemSkippingItemsWithoutUserGesture() -> WebKit.RefPtrWebBackForwardListItem {
-        itemSkippingBackForwardItemsAddedByJSWithoutUserGesture(direction: Direction.forward)
-    }
-
-    private func itemSkippingBackForwardItemsAddedByJSWithoutUserGesture(direction: Direction) -> WebKit.RefPtrWebBackForwardListItem {
+    private func itemStartingAtIndexSkippingItemsAddedByJSWithoutUserGesture(
+        direction: Direction,
+        startingIndex: Int
+    ) -> (item: WebKit.WebBackForwardListItem?, index: Int) {
+        if direction == .backward && startingIndex == 0 {
+            return (nil, 0)
+        }
         let delta =
             switch direction {
             case .backward: -1
             case .forward: 1
             }
-        var itemIndex = delta
-        let item = itemAtIndex(index: itemIndex)
-        guard var item = item else {
-            return WebKit.RefPtrWebBackForwardListItem()
+        var itemIndex = startingIndex + delta
+        if itemIndex >= entries.count {
+            return (nil, 0)
+        }
+        let maybeItem = itemAtIndexWithoutSkipping(index: itemIndex)
+        if maybeItem.item == nil {
+            assertionFailure("Should have an item by now")
         }
 
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS) || os(visionOS)
         if !WTF.linkedOnOrAfterSDKWithBehavior(WTF.SDKAlignedBehavior.UIBackForwardSkipsHistoryItemsWithoutUserGesture) {
-            return WebKit.RefPtrWebBackForwardListItem(item)
+            return maybeItem
         }
         #endif
 
@@ -628,21 +636,28 @@ final class WebBackForwardList {
         // However, if we're on Yahoo and navigate forward, we do want to skip items and end up on Google#b.
         // swift-format-ignore: NeverForceUnwrap
         if direction == Direction.backward && !currentItem()!.wasCreatedByJSWithoutUserInteraction() {
-            return WebKit.RefPtrWebBackForwardListItem(item)
+            return maybeItem
         }
+
+        let (definiteItem, index) = maybeItem
+        guard let definiteItem else {
+            // Matches C++ by not asserting in release mode until past the above two 'if's
+            preconditionFailure("Should have an item by now")
+        }
+        var item = (item: definiteItem, index: index)
 
         // For example:
         // Yahoo -> Yahoo#a (no userInteraction) -> Google -> Google#a (no user interaction) -> Google#b (no user interaction)
         // If we are on Google#b and navigate backwards, we want to skip over Google#a and Google, to end up on Yahoo#a.
         // If we are on Yahoo#a and navigate forwards, we want to skip over Google and Google#a, to end up on Google#b.
         let originalItem = item
-        while item.wasCreatedByJSWithoutUserInteraction() {
+        while item.item.wasCreatedByJSWithoutUserInteraction() {
             itemIndex += delta
-            let thisItem = itemAtIndex(index: itemIndex)
+            let (thisItem, thisItemIndex) = itemAtIndexWithoutSkipping(index: itemIndex)
             guard let thisItem else {
-                return WebKit.RefPtrWebBackForwardListItem(originalItem)
+                return originalItem
             }
-            item = thisItem
+            item = (thisItem, thisItemIndex)
 
             loadingReleaseLog(
                 "UI Navigation is skipping a WebBackForwardListItem because it was added by JavaScript without user interaction"
@@ -650,17 +665,17 @@ final class WebBackForwardList {
         }
 
         // We are now on the next item that has user interaction.
-        assert(!item.wasCreatedByJSWithoutUserInteraction())
+        assert(!item.item.wasCreatedByJSWithoutUserInteraction())
 
         if direction == Direction.backward {
             // If going backwards, skip over next item with user iteraction since this is the one the user
             // thinks they're on.
             itemIndex -= 1
-            let thisItem = itemAtIndex(index: itemIndex)
+            let (thisItem, thisItemIndex) = itemAtIndexWithoutSkipping(index: itemIndex)
             guard let thisItem else {
-                return WebKit.RefPtrWebBackForwardListItem(originalItem)
+                return originalItem
             }
-            item = thisItem
+            item = (thisItem, thisItemIndex)
 
             loadingReleaseLog(
                 "UI Navigation is skipping a WebBackForwardListItem that has user interaction because we started on an item that didn't have interaction"
@@ -668,14 +683,38 @@ final class WebBackForwardList {
         } else {
             // If going forward and there are items that we created by JS without user interaction, move forward to the last
             // one in the series.
-            var nextItem = itemAtIndex(index: itemIndex + 1)
-            while let unwrappedNextItem = nextItem, unwrappedNextItem.wasCreatedByJSWithoutUserInteraction() {
-                item = unwrappedNextItem
+            var nextItem = itemAtIndexWithoutSkipping(index: itemIndex + 1)
+            while case (let unwrappedNextItem?, let index) = nextItem, unwrappedNextItem.wasCreatedByJSWithoutUserInteraction() {
+                item = (unwrappedNextItem, index)
                 itemIndex += 1
-                nextItem = itemAtIndex(index: itemIndex + 1)
+                nextItem = itemAtIndexWithoutSkipping(index: itemIndex + 1)
             }
         }
-        return WebKit.RefPtrWebBackForwardListItem(item)
+        return item
+    }
+
+    func goBackItemSkippingItemsWithoutUserGesture() -> WebKit.RefPtrWebBackForwardListItem {
+        guard let currentIndex = currentIndex else {
+            return WebKit.RefPtrWebBackForwardListItem()
+        }
+        if currentIndex == 0 {
+            return WebKit.RefPtrWebBackForwardListItem()
+        }
+        return WebKit.RefPtrWebBackForwardListItem(
+            itemStartingAtIndexSkippingItemsAddedByJSWithoutUserGesture(direction: Direction.backward, startingIndex: currentIndex).item
+        )
+    }
+
+    func goForwardItemSkippingItemsWithoutUserGesture() -> WebKit.RefPtrWebBackForwardListItem {
+        guard let currentIndex = currentIndex else {
+            return WebKit.RefPtrWebBackForwardListItem()
+        }
+        if currentIndex >= entries.count {
+            return WebKit.RefPtrWebBackForwardListItem()
+        }
+        return WebKit.RefPtrWebBackForwardListItem(
+            itemStartingAtIndexSkippingItemsAddedByJSWithoutUserGesture(direction: Direction.forward, startingIndex: currentIndex).item
+        )
     }
 
     func findFrameStateInItem(
@@ -955,14 +994,14 @@ final class WebBackForwardList {
         callCompletionHandler(completionHandler, consuming: WebKit.VectorRefFrameState(array: frameStates))
     }
 
-    func backForwardItemAtIndex(
-        index: Int32,
+    func backForwardItemAtIndexForWebContent(
+        delta: Int32,
         frameID: WebCore.FrameIdentifier,
-        completionHandler: CompletionHandlers.WebBackForwardList.BackForwardItemAtIndexCompletionHandler
+        completionHandler: CompletionHandlers.WebBackForwardList.BackForwardItemAtIndexForWebContentCompletionHandler
     ) {
         // FIXME: This should verify that the web process requesting the item hosts the specified frame.
-        let index = Int(index)
-        guard let item = itemAtIndex(index: index) else {
+        let delta = Int(delta)
+        guard let item = itemAtDeltaFromCurrentIndex(delta: delta) else {
             callCompletionHandler(completionHandler, consuming: WebKit.RefPtrFrameState())
             return
         }

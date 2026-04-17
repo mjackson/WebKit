@@ -80,8 +80,8 @@ TEST(WebKit, RespondToPolicyForNavigationResponseAsynchronously)
 {
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
 
-    auto webView = adoptNS([[WKWebView alloc] init]);
-    auto delegate = adoptNS([[TestAsyncNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr delegate = adoptNS([[TestAsyncNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
 
@@ -98,8 +98,8 @@ TEST(WebKit, PolicyForNavigationResponseCancelAsynchronously)
 {
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
 
-    auto webView = adoptNS([[WKWebView alloc] init]);
-    auto delegate = adoptNS([[TestAsyncNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr delegate = adoptNS([[TestAsyncNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
 

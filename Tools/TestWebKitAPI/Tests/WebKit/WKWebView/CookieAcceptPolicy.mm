@@ -60,12 +60,12 @@ TEST(WebKit, CookieAcceptPolicy)
 {
     auto originalCookieAcceptPolicy = [[NSHTTPCookieStorage sharedHTTPCookieStorage] cookieAcceptPolicy];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto handler = adoptNS([[CookieAcceptPolicyMessageHandler alloc] init]);
+    RetainPtr handler = adoptNS([[CookieAcceptPolicyMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"CookieMessage" withExtension:@"html"]];
     __block bool setPolicy = false;
@@ -89,11 +89,11 @@ TEST(WKHTTPCookieStore, CookiePolicy)
     using namespace TestWebKitAPI;
 
     __block bool done { false };
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     auto dataStore = [WKWebsiteDataStore nonPersistentDataStore];
     auto cookieStore = dataStore.httpCookieStore;
     configuration.get().websiteDataStore = dataStore;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     [cookieStore getCookiePolicy:^(WKCookiePolicy policy) {
         EXPECT_EQ(policy, WKCookiePolicyAllow);
@@ -178,13 +178,13 @@ TEST(WKHTTPCookieStore, CookiePolicyAllowIsOnlyFromMainDocumentDomain)
         });
     });
 
-    auto dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [dataStoreConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(server.port())
     }];
     [dataStoreConfiguration setAllowsServerPreconnect:NO];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
     auto cookieStore = dataStore.get().httpCookieStore;
     [cookieStore setCookiePolicy:WKCookiePolicyAllow completionHandler:^{
         done = true;
@@ -192,12 +192,12 @@ TEST(WKHTTPCookieStore, CookiePolicyAllowIsOnlyFromMainDocumentDomain)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:dataStore.get()];
     // Relax WebKit's third-party cookies blocking policy so the WebKit will use cookie storage's policy
     // to decide whether third-party cookeis can be stored.
     [configuration _setShouldRelaxThirdPartyCookieBlocking:true];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://www.webkit.org/"]]];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "fetched");
 

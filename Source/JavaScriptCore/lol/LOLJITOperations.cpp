@@ -58,7 +58,6 @@
 #include "JSCPtrTag.h"
 #include "JSGeneratorFunction.h"
 #include "JSGlobalObjectFunctions.h"
-#include "JSInternalPromise.h"
 #include "JSLexicalEnvironment.h"
 #include "JSRemoteFunction.h"
 #include "JSWithScope.h"

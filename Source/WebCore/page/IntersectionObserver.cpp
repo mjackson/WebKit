@@ -646,6 +646,16 @@ auto IntersectionObserver::updateObservations(const Frame& hostFrame) -> NeedNot
         auto intersectionState = computeIntersectionState(registration, *hostFrameView, target, applyRootMargin);
 
         if (intersectionState.observationChanged) {
+            if (intersectionState.isIntersecting) {
+                if (RefPtr document = dynamicDowncast<Document>(m_callback->scriptExecutionContext())) {
+                    if (RefPtr page = document->page()) {
+                        if (document->quirks().shouldDeferIntersectionObserversDuringResize() && page->isWithinResizeDebounceWindow()) {
+                            registration.previousThresholdIndex = intersectionState.thresholdIndex;
+                            continue;
+                        }
+                    }
+                }
+            }
             FloatRect targetBoundingClientRect;
             FloatRect clientIntersectionRect;
             FloatRect clientRootBounds;
@@ -717,6 +727,16 @@ void IntersectionObserver::notify()
     if (m_queuedEntries.isEmpty()) {
         ASSERT(m_pendingTargets.isEmpty());
         return;
+    }
+
+
+    if (RefPtr context = m_callback->scriptExecutionContext()) {
+        if (RefPtr document = dynamicDowncast<Document>(context.get())) {
+            if (RefPtr page = document->page()) {
+                if (document->quirks().shouldDeferIntersectionObserversDuringResize() && page->isWithinResizeDebounceWindow())
+                    return;
+            }
+        }
     }
 
     auto takenRecords = takeRecords();

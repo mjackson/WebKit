@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024-2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2024-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -105,19 +105,6 @@ template<typename> struct ToStyle;
 
 // Specialize `TreatAsNonConverting` for `Constant<C>`, to indicate that its type does not change from the CSS representation.
 template<CSSValueID C> inline constexpr bool TreatAsNonConverting<Constant<C>> = true;
-
-// Specialize `TreatAsNonConverting` for `PropertyIdentifier`, to indicate that its type does not change from the CSS representation.
-template<> inline constexpr bool TreatAsNonConverting<PropertyIdentifier> = true;
-
-// Specialize `TreatAsNonConverting` for `WTF::AtomString`, to indicate that its type does not change from the CSS representation.
-template<> inline constexpr bool TreatAsNonConverting<WTF::AtomString> = true;
-
-// Specialize `TreatAsNonConverting` for `WTF::String`, to indicate that its type does not change from the CSS representation.
-template<> inline constexpr bool TreatAsNonConverting<WTF::String> = true;
-
-// Specialize `TreatAsNonConverting` for `WTF::URL`, to indicate that its type does not change from the CSS representation.
-template<> inline constexpr bool TreatAsNonConverting<WTF::URL> = true;
-
 
 // MARK: - Conversion from "Style to "CSS"
 
@@ -577,7 +564,7 @@ struct SerializeInvoker {
         Serialize<StyleType>{}(builder, context, style, value, std::forward<Rest>(rest)...);
     }
 
-    template<typename StyleType, typename... Rest> [[nodiscard]] String operator()(const CSS::SerializationContext& context, const RenderStyle& style, const StyleType& value, Rest&&... rest) const
+    template<typename StyleType, typename... Rest> [[nodiscard]] WTF::String operator()(const CSS::SerializationContext& context, const RenderStyle& style, const StyleType& value, Rest&&... rest) const
     {
         StringBuilder builder;
         this->operator()(builder, context, style, value, std::forward<Rest>(rest)...);

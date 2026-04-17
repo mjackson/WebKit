@@ -29,6 +29,7 @@ add_library(Skia STATIC
     src/base/SkDeque.cpp
     src/base/SkFloatingPoint.cpp
     src/base/SkHalf.cpp
+    src/base/SkLog.cpp
     src/base/SkMalloc.cpp
     src/base/SkMathPriv.cpp
     src/base/SkQuads.cpp
@@ -91,8 +92,8 @@ add_library(Skia STATIC
     src/core/SkBlitMask_opts_ssse3.cpp
     src/core/SkBlitRow_D32.cpp
     src/core/SkBlitRow_opts.cpp
-    src/core/SkBlitRow_opts_hsw.cpp
     src/core/SkBlitRow_opts_lasx.cpp
+    src/core/SkBlitRow_opts_ml3.cpp
     src/core/SkBlitter.cpp
     src/core/SkBlitter_A8.cpp
     src/core/SkBlitter_ARGB32.cpp
@@ -204,6 +205,7 @@ add_library(Skia STATIC
     src/core/SkPictureRecord.cpp
     src/core/SkPictureRecorder.cpp
     src/core/SkPixelRef.cpp
+    src/core/SkPixelStorage.cpp
     src/core/SkPixmap.cpp
     src/core/SkPixmapDraw.cpp
     src/core/SkPoint.cpp
@@ -252,7 +254,7 @@ add_library(Skia STATIC
     src/core/SkStrokerPriv.cpp
     src/core/SkSwizzle.cpp
     src/core/SkSwizzler_opts.cpp
-    src/core/SkSwizzler_opts_hsw.cpp
+    src/core/SkSwizzler_opts_ml3.cpp
     src/core/SkSynchronizedResourceCache.cpp
     src/core/SkSwizzler_opts_ssse3.cpp
     src/core/SkSwizzler_opts_lasx.cpp
@@ -272,7 +274,6 @@ add_library(Skia STATIC
     src/core/SkYUVMath.cpp
     src/core/SkYUVPlanesCache.cpp
 
-    src/gpu/AtlasTypes.cpp
     src/gpu/Blend.cpp
     src/gpu/BlendFormula.cpp
     src/gpu/BlurUtils.cpp
@@ -290,6 +291,7 @@ add_library(Skia STATIC
     src/gpu/ganesh/ClipStack.cpp
     src/gpu/ganesh/Device.cpp
     src/gpu/ganesh/Device_drawTexture.cpp
+    src/gpu/ganesh/GrAtlasTypes.cpp
     src/gpu/ganesh/GrAttachment.cpp
     src/gpu/ganesh/GrAuditTrail.cpp
     src/gpu/ganesh/GrBackendSemaphore.cpp
@@ -456,6 +458,7 @@ add_library(Skia STATIC
     src/gpu/ganesh/gradients/GrGradientBitmapCache.cpp
     src/gpu/ganesh/gradients/GrGradientShader.cpp
     src/gpu/ganesh/image/GrImageUtils.cpp
+    src/gpu/ganesh/image/GrMippedBitmap.cpp
     src/gpu/ganesh/image/GrTextureGenerator.cpp
     src/gpu/ganesh/image/SkImage_Ganesh.cpp
     src/gpu/ganesh/image/SkImage_GaneshBase.cpp
@@ -464,6 +467,7 @@ add_library(Skia STATIC
     src/gpu/ganesh/image/SkImage_LazyTexture.cpp
     src/gpu/ganesh/image/SkImage_RasterPinnable.cpp
     src/gpu/ganesh/image/SkSpecialImage_Ganesh.cpp
+    src/gpu/ganesh/mock/GrMockBackendSurface.cpp
     src/gpu/ganesh/mock/GrMockCaps.cpp
     src/gpu/ganesh/mock/GrMockGpu.cpp
     src/gpu/ganesh/mock/GrMockTypes.cpp
@@ -513,8 +517,9 @@ add_library(Skia STATIC
     src/gpu/ganesh/tessellate/GrTessellationShader.cpp
     src/gpu/ganesh/tessellate/PathTessellator.cpp
     src/gpu/ganesh/tessellate/StrokeTessellator.cpp
-    src/gpu/ganesh/text/GaneshVertexFiller.cpp
+    src/gpu/ganesh/text/GlyphData.cpp
     src/gpu/ganesh/text/GrAtlasManager.cpp
+    src/gpu/ganesh/text/TextStrike.cpp
 
     src/gpu/tessellate/FixedCountBufferUtils.cpp
     src/gpu/tessellate/Tessellation.cpp
@@ -787,9 +792,9 @@ add_library(Skia STATIC
     src/utils/SkShadowTessellator.cpp
     src/utils/SkShadowUtils.cpp
 
-    src/opts/SkOpts_hsw.cpp
-    src/opts/SkOpts_skx.cpp
     src/opts/SkOpts_lasx.cpp
+    src/opts/SkOpts_ml3.cpp
+    src/opts/SkOpts_ml4.cpp
 
     src/ports/SkGlobalInitialization_default.cpp
     src/ports/SkMemory_malloc.cpp
@@ -815,6 +820,7 @@ if (WIN32)
         src/utils/win/SkDWrite.cpp
         src/utils/win/SkDWriteFontFileStream.cpp
         src/utils/win/SkDWriteGeometrySink.cpp
+        src/utils/win/SkHRESULT.cpp
     )
 else ()
     target_sources(Skia PRIVATE

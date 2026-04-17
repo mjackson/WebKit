@@ -32,7 +32,7 @@
 #if OS(UNIX)
 #include <signal.h>
 #else
-#include <wtf/Gigacage.h>
+#include <wtf/FastMalloc.h>
 #include <wtf/OSAllocator.h>
 #endif
 

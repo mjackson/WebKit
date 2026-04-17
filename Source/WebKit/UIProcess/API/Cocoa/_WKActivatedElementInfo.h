@@ -43,6 +43,7 @@ WK_CLASS_AVAILABLE(macos(10.10), ios(8.0))
 
 @property (nonatomic, readonly) NSURL *URL;
 @property (nonatomic, readonly) NSURL *imageURL;
+@property (nonatomic, readonly) NSURL *modelURL WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
 @property (nonatomic, readonly) NSString *title;
 @property (nonatomic, readonly) _WKActivatedElementType type;
 @property (nonatomic, readonly) CGRect boundingRect;

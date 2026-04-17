@@ -62,17 +62,18 @@ enum class TextureMapperFlags : uint16_t;
 
 class BitmapTexture final : public ThreadSafeRefCounted<BitmapTexture> {
 public:
-    enum class Flags : uint8_t {
+    enum class Flags : uint16_t {
         SupportsAlpha = 1 << 0,
         DepthBuffer = 1 << 1,
 #if USE(GBM)
         BackedByDMABuf = 1 << 2,
         ForceLinearBuffer = 1 << 3,
         ForceVivanteSuperTiledBuffer = 1 << 4,
+        DeferTextureBinding = 1 << 5,
 #endif
-        UseBGRALayout = 1 << 5,
-        NearestFiltering = 1 << 6,
-        ExternalOESRenderTarget = 1 << 7,
+        UseBGRALayout = 1 << 6,
+        NearestFiltering = 1 << 7,
+        ExternalOESRenderTarget = 1 << 8,
     };
 
     static Ref<BitmapTexture> create(const IntSize& size, OptionSet<Flags> flags = { })
@@ -93,6 +94,15 @@ public:
     size_t sizeInBytes() const;
     OptionSet<Flags> flags() const { return m_flags; }
     bool isOpaque() const { return !m_flags.contains(Flags::SupportsAlpha); }
+
+    bool usesDeferredTextureBinding() const
+    {
+#if USE(GBM)
+        return m_flags.contains(Flags::DeferTextureBinding);
+#else
+        return false;
+#endif
+    }
 
     void bindAsSurface();
     void initializeStencil();
@@ -122,6 +132,7 @@ public:
 
 #if USE(GBM)
     MemoryMappedGPUBuffer* memoryMappedGPUBuffer() const LIFETIME_BOUND { return m_memoryMappedGPUBuffer.get(); }
+    bool bindDMABufToTexture();
     IntSize allocatedSize() const;
 #else
     IntSize allocatedSize() const { return m_size; }

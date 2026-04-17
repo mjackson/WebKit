@@ -104,7 +104,7 @@ static void waitUntilInnerHeightIs(TestWKWebView *webView, CGFloat expectedValue
 
 TEST(ScrollViewInsetTests, InnerHeightWithLargeTopContentInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView scrollView].contentInset = UIEdgeInsetsMake(400, 0, 0, 0);
     [webView synchronouslyLoadHTMLString:veryTallDocumentMarkup];
 
@@ -126,7 +126,7 @@ TEST(ScrollViewInsetTests, InnerHeightWithLargeTopContentInset)
 
 TEST(ScrollViewInsetTests, InnerHeightWithLargeBottomContentInset)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView scrollView].contentInset = UIEdgeInsetsMake(0, 0, 400, 0);
     [webView synchronouslyLoadHTMLString:veryTallDocumentMarkup];
     [webView stringByEvaluatingJavaScript:@"scrollTo(0, 10)"];
@@ -147,7 +147,7 @@ TEST(ScrollViewInsetTests, InnerHeightWithLargeBottomContentInset)
 
 TEST(ScrollViewInsetTests, RestoreInitialContentOffsetAfterNavigation)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView scrollView].contentInset = UIEdgeInsetsMake(400, 0, 0, 0);
     [webView synchronouslyLoadHTMLString:veryTallDocumentMarkup];
     [webView stringByEvaluatingJavaScript:@"scrollTo(0, 1000)"];
@@ -167,8 +167,8 @@ TEST(ScrollViewInsetTests, RestoreInitialContentOffsetAfterNavigation)
 
 TEST(ScrollViewInsetTests, RestoreInitialContentOffsetAfterCrash)
 {
-    auto delegate = adoptNS([[TestNavigationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr delegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView scrollView].contentInset = UIEdgeInsetsMake(400, 0, 0, 0);
     [webView synchronouslyLoadHTMLString:veryTallDocumentMarkup];
     [webView setNavigationDelegate:delegate.get()];
@@ -192,8 +192,8 @@ TEST(ScrollViewInsetTests, RestoreInitialContentOffsetAfterCrash)
 
 TEST(ScrollViewInsetTests, RestoreInitialContentOffsetAfterCrashWithAsyncPolicyDelegates)
 {
-    auto delegate = adoptNS([[AsyncPolicyDelegateForInsetTest alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr delegate = adoptNS([[AsyncPolicyDelegateForInsetTest alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView scrollView].contentInset = UIEdgeInsetsMake(400, 0, 0, 0);
     [webView setNavigationDelegate:delegate.get()];
     delegate->_navigationComplete = false;
@@ -226,7 +226,7 @@ TEST(ScrollViewInsetTests, RestoreInitialContentOffsetAfterCrashWithAsyncPolicyD
 
 TEST(ScrollViewInsetTests, RestoreContentOffsetAfterBackWithInsetChange)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView scrollView].contentInset = UIEdgeInsetsMake(100, 0, 0, 0);
 
     RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"scrollable-page" withExtension:@"html"];
@@ -261,8 +261,8 @@ TEST(ScrollViewInsetTests, ChangeInsetWithoutAutomaticAdjustmentWhileWebProcessI
     constexpr CGFloat initialTopInset = 100;
     constexpr CGFloat updatedTopInset = 70;
 
-    auto scrollViewDelegate = adoptNS([[ScrollViewDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr scrollViewDelegate = adoptNS([[ScrollViewDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView scrollView].scrollEnabled = NO;
     [webView scrollView].delegate = scrollViewDelegate.get();
     [webView _setObscuredInsets:UIEdgeInsetsMake(initialTopInset, 0, 0, 0)];
@@ -294,7 +294,7 @@ TEST(ScrollViewInsetTests, ChangeInsetWithoutAutomaticAdjustmentWhileWebProcessI
 
 TEST(ScrollViewInsetTests, PreserveContentOffsetForRefreshControl)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, viewHeight)]);
     [webView scrollView].refreshControl = adoptNS([[UIRefreshControl alloc] init]).get();
     [webView synchronouslyLoadHTMLString:@""];
 
@@ -310,7 +310,7 @@ TEST(ScrollViewInsetTests, PreserveContentOffsetForRefreshControl)
 
 TEST(ScrollViewInsetTests, ScrollabilityWithInsets)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 320, 500)]);
     [webView scrollView].contentInset = UIEdgeInsetsMake(50, 0, 50, 0);
 
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width, initial-scale=1'><style> body { overflow: hidden; height: 2000px; } </style>"];
@@ -325,7 +325,7 @@ TEST(ScrollViewInsetTests, ScrollabilityWithInsets)
 
 TEST(ScrollViewInsetTests, ScrollabilityWithObscuredInsets)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 390, 844)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 390, 844)]);
     auto insets = UIEdgeInsetsMake(47, 0, 133, 0);
     [webView scrollView].contentInset = insets;
     [webView _setObscuredInsets:insets];
@@ -342,7 +342,7 @@ TEST(ScrollViewInsetTests, ScrollabilityWithObscuredInsets)
 
 TEST(ScrollViewInsetTests, ScrollabilityWithObscuredInsetsAndOverrideSizes)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 390, 844)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 390, 844)]);
     auto insets = UIEdgeInsetsMake(47, 0, 133, 0);
     [webView scrollView].contentInset = insets;
     [webView _setObscuredInsets:insets];
@@ -362,7 +362,7 @@ TEST(ScrollViewInsetTests, ScrollabilityWithObscuredInsetsAndOverrideSizes)
 
 TEST(ScrollViewInsetTests, ScrollabilityWithMaxOverrideSize)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 390, 844)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 390, 844)]);
 
     auto insets = UIEdgeInsetsMake(47, 0, 0, 0);
     [webView scrollView].contentInset = insets;

@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "FilterResults.h"
 #include "GraphicsContextSwitcher.h"
 #include <wtf/TZoneMalloc.h>
 

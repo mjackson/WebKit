@@ -37,6 +37,7 @@
 #include "ReadableStreamDefaultReader.h"
 #include "ScriptExecutionContext.h"
 #include "SharedBuffer.h"
+#include <JavaScriptCore/JSGenericTypedArrayViewInlines.h>
 
 namespace WebCore {
 

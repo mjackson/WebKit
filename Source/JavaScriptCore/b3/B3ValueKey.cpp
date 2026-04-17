@@ -33,6 +33,7 @@
 #include "B3SlotBaseValue.h"
 #include "B3ValueInlines.h"
 #include "B3ValueKeyInlines.h"
+#include "B3WasmArrayLengthValue.h"
 #include "B3WasmRefTypeCheckValue.h"
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -245,6 +246,11 @@ Value* ValueKey::materialize(Procedure& proc, Origin origin) const
             return proc.add<WasmRefTypeCheckValue>(kind(), type(), origin, targetHeapType, flags, WTF::move(targetRTT), child(proc, 0), child(proc, 1));
         return proc.add<WasmRefTypeCheckValue>(kind(), type(), origin, targetHeapType, flags, WTF::move(targetRTT), child(proc, 0));
     }
+    case WasmArrayLength: {
+        auto* v = proc.add<WasmArrayLengthValue>(kind(), type(), origin, child(proc, 0));
+        v->setRange(proc.heaps().JSWebAssemblyArray_size.range());
+        return v;
+    }
     case Nop:
     case Set:
     case Get:
@@ -269,6 +275,9 @@ Value* ValueKey::materialize(Procedure& proc, Origin origin) const
     case WasmStructGet:
     case WasmStructSet:
     case WasmStructNew:
+    case WasmArrayGet:
+    case WasmArraySet:
+    case WasmArrayNew:
     case MemoryCopy:
     case MemoryFill:
     case Fence:

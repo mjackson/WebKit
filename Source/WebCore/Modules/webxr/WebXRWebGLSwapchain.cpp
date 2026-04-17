@@ -186,6 +186,12 @@ static void createAndBindCompositorTexture(GL& gl, WebXRExternalImage& externalI
 static GL::ExternalImageSource makeExternalImageSource(PlatformXR::FrameData::ExternalTexture& imageSource, const IntSize& size)
 {
 #if PLATFORM(GTK) || PLATFORM(WPE)
+#if OS(ANDROID)
+    return GraphicsContextGLExternalImageSource {
+        .hardwareBuffer = RefPtr { imageSource },
+        .size = size,
+    };
+#else
     return GraphicsContextGLExternalImageSource {
         .fds = WTF::move(imageSource.fds),
         .strides = WTF::move(imageSource.strides),
@@ -194,6 +200,7 @@ static GL::ExternalImageSource makeExternalImageSource(PlatformXR::FrameData::Ex
         .modifier = imageSource.modifier,
         .size = size
     };
+#endif // OS(ANDROID)
 #else
     UNUSED_PARAM(imageSource);
     UNUSED_PARAM(size);

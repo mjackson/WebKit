@@ -100,8 +100,8 @@ TEST(WebKitLegacy, JSWrapperForNode)
 TEST(WebKitLegacy, JSDOMWindowWrapperBeforeOriginInitialization)
 {
     [WKProcessPool _setLinkedOnOrBeforeEverythingForTesting];
-    auto webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
-    auto frameLoadDelegate = adoptNS([[JSWrapperForNodeFrameLoadDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
+    RetainPtr frameLoadDelegate = adoptNS([[JSWrapperForNodeFrameLoadDelegate alloc] init]);
 
     webView.get().frameLoadDelegate = frameLoadDelegate.get();
     auto *mainFrame = webView.get().mainFrame;

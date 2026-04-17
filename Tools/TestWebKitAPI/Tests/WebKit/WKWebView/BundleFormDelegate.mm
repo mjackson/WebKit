@@ -76,17 +76,17 @@ static id userObject;
 
 TEST(WebKit, WKWebProcessPlugInWithoutRegisteredCustomClass)
 {
-    auto delegate = adoptNS([[FormInputDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[FormInputDelegate alloc] init]);
 
     auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"BundleFormDelegatePlugIn"]);
     [[configuration processPool] _setObject:@YES forBundleParameter:@"FormDelegateShouldAddCustomClass"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView _setInputDelegate:delegate.get()];
     [webView loadHTMLString:@"<input></input><select><option selected>foo</option><option>bar</option></select>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
 
-    auto object = adoptNS([[BundleFormDelegateRemoteObject alloc] init]);
+    RetainPtr object = adoptNS([[BundleFormDelegateRemoteObject alloc] init]);
     _WKRemoteObjectInterface *interface = [_WKRemoteObjectInterface remoteObjectInterfaceWithProtocol:@protocol(BundleFormDelegateProtocol)];
     [[webView _remoteObjectRegistry] registerExportedObject:object.get() interface:interface];
 
@@ -105,18 +105,18 @@ TEST(WebKit, WKWebProcessPlugInWithoutRegisteredCustomClass)
 
 TEST(WebKit, WKWebProcessPlugInWithRegisteredCustomClass)
 {
-    auto delegate = adoptNS([[FormInputDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[FormInputDelegate alloc] init]);
 
     auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"BundleFormDelegatePlugIn"
         configureJSCForTesting:NO]);
     [[configuration processPool] _setObject:@YES forBundleParameter:@"FormDelegateShouldAddCustomClass"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView _setInputDelegate:delegate.get()];
     [webView loadHTMLString:@"<input></input><select><option selected>foo</option><option>bar</option></select>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
 
-    auto object = adoptNS([[BundleFormDelegateRemoteObject alloc] init]);
+    RetainPtr object = adoptNS([[BundleFormDelegateRemoteObject alloc] init]);
     _WKRemoteObjectInterface *interface = [_WKRemoteObjectInterface remoteObjectInterfaceWithProtocol:@protocol(BundleFormDelegateProtocol)];
     [[webView _remoteObjectRegistry] registerExportedObject:object.get() interface:interface];
 
@@ -133,18 +133,18 @@ TEST(WebKit, WKWebProcessPlugInWithRegisteredCustomClass)
 
 TEST(WebKit, WKWebProcessPlugInWithUnregisteredCustomClass)
 {
-    auto delegate = adoptNS([[FormInputDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[FormInputDelegate alloc] init]);
 
     auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"BundleFormDelegatePlugIn"
         configureJSCForTesting:NO]);
     [[configuration processPool] _setObject:@YES forBundleParameter:@"FormDelegateShouldAddCustomClass"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView _setInputDelegate:delegate.get()];
     [webView loadHTMLString:@"<input></input><select><option selected>foo</option><option>bar</option></select>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
 
-    auto object = adoptNS([[BundleFormDelegateRemoteObject alloc] init]);
+    RetainPtr object = adoptNS([[BundleFormDelegateRemoteObject alloc] init]);
     _WKRemoteObjectInterface *interface = [_WKRemoteObjectInterface remoteObjectInterfaceWithProtocol:@protocol(BundleFormDelegateProtocol)];
     [[webView _remoteObjectRegistry] registerExportedObject:object.get() interface:interface];
 

@@ -42,7 +42,7 @@ static bool canCallMenuTypeForEvent()
 static void buildAndPerformTest(NSEventType buttonEvent, NSEventModifierFlags modifierFlags, WebCore::MouseButton expectedButton, NSMenuType expectedMenu)
 {
     @autoreleasepool {
-        auto webView = adoptNS([[WebView alloc] init]);
+        RetainPtr webView = adoptNS([[WebView alloc] init]);
         NSEvent *event = [NSEvent mouseEventWithType:buttonEvent
                                             location:NSMakePoint(100, 100)
                                        modifierFlags:modifierFlags

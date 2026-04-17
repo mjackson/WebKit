@@ -28,6 +28,7 @@
 #include "CSSMarkup.h"
 #include "CSSParserContext.h"
 #include "CSSSerializationContext.h"
+#include "CSSURLValue.h"
 #include "Document.h"
 
 namespace WebCore {
@@ -67,9 +68,16 @@ void Serialize<URL>::operator()(StringBuilder& builder, const SerializationConte
     builder.append(')');
 }
 
+// MARK: - CSSValueCreation
+
+Ref<CSSValue> CSSValueCreation<URL>::operator()(CSSValuePool&, const URL& value)
+{
+    return CSSURLValue::create(value);
+}
+
 // MARK: Operations
 
-static URL completeURL(const String& string, const WTF::URL& baseURL)
+static URL completeURL(const WTF::String& string, const WTF::URL& baseURL)
 {
     if (string.isEmpty() || string.startsWith('#'))
         return URL { .specified = string, .resolved = WTF::URL { string }, .modifiers = { } };
@@ -78,7 +86,7 @@ static URL completeURL(const String& string, const WTF::URL& baseURL)
     return URL { .specified = string, .resolved = WTF::URL { baseURL, string }, .modifiers = { } };
 }
 
-std::optional<URL> completeURL(const String& string, const CSSParserContext& context)
+std::optional<URL> completeURL(const WTF::String& string, const CSSParserContext& context)
 {
     if (string.isNull())
         return { };
@@ -92,7 +100,7 @@ std::optional<URL> completeURL(const String& string, const CSSParserContext& con
     return result;
 }
 
-std::optional<URL> completeURL(const String& string, const Document& document)
+std::optional<URL> completeURL(const WTF::String& string, const Document& document)
 {
     if (string.isNull())
         return { };

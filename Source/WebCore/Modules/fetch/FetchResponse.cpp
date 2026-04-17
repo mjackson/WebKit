@@ -40,6 +40,7 @@
 #include "ReadableStreamToSharedBufferSink.h"
 #include "ResourceError.h"
 #include "ScriptExecutionContext.h"
+#include <JavaScriptCore/JSCJSValueInlines.h>
 #include <JavaScriptCore/JSONObject.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/TZoneMallocInlines.h>

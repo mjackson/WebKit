@@ -100,6 +100,7 @@ struct InteractionInformationAtPosition {
         WebCore::FloatPoint&& adjustedPointForNodeRespondingToClickEvents,
         URL&&,
         URL&& imageURL,
+        URL&& modelURL,
         String&& imageMIMEType,
         String&& title,
         String&& idAttribute,
@@ -165,6 +166,7 @@ struct InteractionInformationAtPosition {
     WebCore::FloatPoint adjustedPointForNodeRespondingToClickEvents;
     URL url;
     URL imageURL;
+    URL modelURL;
     String imageMIMEType;
     String title;
     String idAttribute;

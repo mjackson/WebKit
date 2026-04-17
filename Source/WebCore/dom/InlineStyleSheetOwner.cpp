@@ -166,6 +166,9 @@ void InlineStyleSheetOwner::createSheet(Element& element, const String& text)
         if (!element.isInShadowTree())
             sheet->setTitle(element.title());
 
+        if (CheckedPtr scope = m_styleScope.get())
+            scope->establishPreferredStylesheetSetName(element, sheet.get());
+
         sheetLoaded(element);
         element.notifyLoadedSheetAndAllCriticalSubresources(false);
         return;
@@ -180,6 +183,9 @@ void InlineStyleSheetOwner::createSheet(Element& element, const String& text)
     sheet->setMediaQueries(WTF::move(mediaQueries));
     if (!element.isInShadowTree())
         sheet->setTitle(element.title());
+
+    if (CheckedPtr scope = m_styleScope.get())
+        scope->establishPreferredStylesheetSetName(element, sheet.get());
 
     contents->parseString(text);
 

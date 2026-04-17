@@ -94,8 +94,8 @@ namespace TestWebKitAPI {
 
 static RetainPtr<EditingTestHarness> setUpEditorStateTestHarness()
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
-    auto testHarness = adoptNS([[EditingTestHarness alloc] initWithWebView:webView.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr testHarness = adoptNS([[EditingTestHarness alloc] initWithWebView:webView.get()]);
     [webView synchronouslyLoadTestPageNamed:@"editor-state-test-harness"];
     return testHarness;
 }
@@ -328,8 +328,8 @@ TEST(EditorStateTests, ContentViewHasTextInContentEditableElement)
 
 TEST(EditorStateTests, ContentViewHasTextInTextarea)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
-    auto testHarness = adoptNS([[EditingTestHarness alloc] initWithWebView:webView.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr testHarness = adoptNS([[EditingTestHarness alloc] initWithWebView:webView.get()]);
     [webView synchronouslyLoadHTMLString:@"<textarea id='textarea'></textarea>"];
     [webView stringByEvaluatingJavaScript:@"textarea.focus()"];
     [webView waitForNextPresentationUpdate];
@@ -354,27 +354,27 @@ TEST(EditorStateTests, ContentViewHasTextInTextarea)
 
 TEST(EditorStateTests, CaretColorInContentEditable)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadHTMLString:@"<body style=\"caret-color: red;\" contenteditable=\"true\"></body>"];
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
     [webView waitForNextPresentationUpdate];
     UIView<UITextInputTraits_Private> *textInput = (UIView<UITextInputTraits_Private> *) [webView textInputContentView];
     UIColor *insertionPointColor = textInput.insertionPointColor;
     UIColor *redColor = [UIColor redColor];
-    auto colorSpace = adoptCF(CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB));
-    auto cgInsertionPointColor = adoptCF(CGColorCreateCopyByMatchingToColorSpace(colorSpace.get(), kCGRenderingIntentDefault, insertionPointColor.CGColor, NULL));
-    auto cgRedColor = adoptCF(CGColorCreateCopyByMatchingToColorSpace(colorSpace.get(), kCGRenderingIntentDefault, redColor.CGColor, NULL));
+    RetainPtr colorSpace = adoptCF(CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB));
+    RetainPtr cgInsertionPointColor = adoptCF(CGColorCreateCopyByMatchingToColorSpace(colorSpace.get(), kCGRenderingIntentDefault, insertionPointColor.CGColor, NULL));
+    RetainPtr cgRedColor = adoptCF(CGColorCreateCopyByMatchingToColorSpace(colorSpace.get(), kCGRenderingIntentDefault, redColor.CGColor, NULL));
     EXPECT_TRUE(CGColorEqualToColor(cgInsertionPointColor.get(), cgRedColor.get()));
 }
 
 TEST(EditorStateTests, ObserveSelectionAttributeChanges)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto editor = adoptNS([[EditingTestHarness alloc] initWithWebView:webView.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr editor = adoptNS([[EditingTestHarness alloc] initWithWebView:webView.get()]);
     [webView _setEditable:YES];
     [webView synchronouslyLoadHTMLString:@"<body></body>"];
 
-    auto observer = adoptNS([[SelectionChangeObserver alloc] initWithWebView:webView.get()]);
+    RetainPtr observer = adoptNS([[SelectionChangeObserver alloc] initWithWebView:webView.get()]);
 
     [webView evaluateJavaScript:@"document.body.focus()" completionHandler:nil];
     [webView waitForNextPresentationUpdate];
@@ -408,13 +408,13 @@ TEST(EditorStateTests, ObserveSelectionAttributeChanges)
 
 TEST(EditorStateTests, ParagraphBoundary)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadHTMLString:@"<body contenteditable><p>Hello world.</p></body>"];
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
     [webView waitForNextPresentationUpdate];
 
     auto textInput = [webView textInputContentView];
-    auto editor = adoptNS([[EditingTestHarness alloc] initWithWebView:webView.get()]);
+    RetainPtr editor = adoptNS([[EditingTestHarness alloc] initWithWebView:webView.get()]);
     [editor selectAll];
 
     EXPECT_TRUE([textInput isPosition:textInput.selectedTextRange.start atBoundary:UITextGranularityParagraph inDirection:UITextStorageDirectionBackward]);
@@ -430,7 +430,7 @@ TEST(EditorStateTests, ParagraphBoundary)
 
 TEST(EditorStateTests, SelectedText)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadTestPageNamed:@"lots-of-text"];
     [webView _synchronouslyExecuteEditCommand:@"SelectAll" argument:nil];
     [webView waitForNextPresentationUpdate];
@@ -490,7 +490,7 @@ TEST(EditorStateTests, MarkedTextRange_HorizontalCaretSelection)
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:EditorStateTests::applyAhemStyle(@"<body contenteditable='true'>.</body>")]; // . is dummy to force Ahem to load
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
 
@@ -511,7 +511,7 @@ TEST(EditorStateTests, MarkedTextRange_HorizontalRangeSelection)
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:EditorStateTests::applyAhemStyle(@"<body contenteditable='true'>.</body>")]; // . is dummy to force Ahem to load
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
     [webView _synchronouslyExecuteEditCommand:@"InsertText" argument:@"Hello world"];
@@ -534,7 +534,7 @@ TEST(EditorStateTests, MarkedTextRange_VerticalCaretSelection)
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:EditorStateTests::applyAhemStyle(@"<body style='writing-mode: vertical-lr' contenteditable='true'>.</body>")]; // . is dummy to force Ahem to load
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
 
@@ -555,7 +555,7 @@ TEST(EditorStateTests, MarkedTextRange_VerticalRangeSelection)
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:EditorStateTests::applyAhemStyle(@"<body style='writing-mode: vertical-lr' contenteditable='true'>.</body>")]; // . is dummy to force Ahem to load
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
     [webView _synchronouslyExecuteEditCommand:@"InsertText" argument:@"Hello world"];

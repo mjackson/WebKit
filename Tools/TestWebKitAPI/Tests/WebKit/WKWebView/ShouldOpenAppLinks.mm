@@ -68,8 +68,8 @@ static TestWebKitAPI::HTTPServer shouldOpenAppLinksTestServer()
 
 TEST(ShouldOpenAppLinks, DisallowAppLinksWhenReloadingAfterWebProcessCrash)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
-    auto delegate = adoptNS([ShouldOpenAppLinksTestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr delegate = adoptNS([ShouldOpenAppLinksTestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     auto server = shouldOpenAppLinksTestServer();
@@ -87,8 +87,8 @@ TEST(ShouldOpenAppLinks, DisallowAppLinksWhenReloadingAfterWebProcessCrash)
 
 TEST(ShouldOpenAppLinks, DisallowAppLinksWhenReloadingAfterWebProcessCrashAfterFollowingLink)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
-    auto delegate = adoptNS([ShouldOpenAppLinksTestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr delegate = adoptNS([ShouldOpenAppLinksTestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
     auto server = shouldOpenAppLinksTestServer();

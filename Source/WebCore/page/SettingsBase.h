@@ -71,6 +71,7 @@ public:
 #endif
 
     static const unsigned defaultMaximumHTMLParserDOMTreeDepth = 512;
+    static const unsigned defaultMaximumXMLParserEntityExpansionCount = 512;
     static const unsigned defaultMaximumRenderTreeDepth = 512;
 
     virtual FontGenericFamilies& fontGenericFamilies() LIFETIME_BOUND = 0;

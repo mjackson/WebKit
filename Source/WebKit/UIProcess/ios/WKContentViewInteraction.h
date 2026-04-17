@@ -368,6 +368,7 @@ struct ImageAnalysisContextMenuActionData {
     RetainPtr<WKTouchEventsGestureRecognizer> _touchEventGestureRecognizer;
 
     BOOL _touchEventsCanPreventNativeGestures;
+    BOOL _touchStartedNearSelectionHandle;
     BOOL _preventsPanningInXAxis;
     BOOL _preventsPanningInYAxis;
 

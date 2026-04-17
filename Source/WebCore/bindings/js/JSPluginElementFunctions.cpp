@@ -22,9 +22,11 @@
 
 #include "BridgeJSC.h"
 #include "DOMTimer.h"
+#include "DOMWrapperWorld.h"
 #include "HTMLNames.h"
 #include "HTMLPlugInElement.h"
 #include "JSHTMLElement.h"
+#include <JavaScriptCore/JSObjectInlines.h>
 
 namespace WebCore {
 using namespace JSC;

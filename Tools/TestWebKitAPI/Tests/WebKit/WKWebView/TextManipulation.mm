@@ -120,8 +120,8 @@ namespace TestWebKitAPI {
 
 TEST(TextManipulation, StartTextManipulationExitEarlyWithoutDelegate)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<html><body>hello<br>world<div>WebKit</div></body></html>"];
@@ -137,8 +137,8 @@ TEST(TextManipulation, StartTextManipulationExitEarlyWithoutDelegate)
 
 TEST(TextManipulation, StartTextManipulationFindSimpleParagraphs)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -164,8 +164,8 @@ TEST(TextManipulation, StartTextManipulationFindSimpleParagraphs)
 
 TEST(TextManipulation, StartTextManipulationFindMultipleParagraphsInSingleTextNode)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -189,8 +189,8 @@ TEST(TextManipulation, StartTextManipulationFindMultipleParagraphsInSingleTextNo
 
 TEST(TextManipulation, StartTextManipulationFindParagraphsWithMultipleTokens)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -215,8 +215,8 @@ TEST(TextManipulation, StartTextManipulationFindParagraphsWithMultipleTokens)
 
 TEST(TextManipulation, StartTextManipulationFindAttributeContent)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><head><title>hey</title></head>"
@@ -249,8 +249,8 @@ TEST(TextManipulation, StartTextManipulationFindAttributeContent)
 
 TEST(TextManipulation, StartTextManipulationSupportsLegacyDelegateCallback)
 {
-    auto delegate = adoptNS([[LegacyTextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[LegacyTextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>hello, <span>world</span></p><p>WebKit</p></body></html>"];
@@ -272,8 +272,8 @@ TEST(TextManipulation, StartTextManipulationSupportsLegacyDelegateCallback)
 
 TEST(TextManipulation, StartTextManipulationFindNewlyInsertedParagraph)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>hello</p></body></html>"];
@@ -307,8 +307,8 @@ TEST(TextManipulation, StartTextManipulationFindNewlyInsertedParagraph)
 
 TEST(TextManipulation, StartTextManipulationFindNewlyDisplayedParagraph)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body>"
@@ -368,8 +368,8 @@ TEST(TextManipulation, StartTextManipulationFindNewlyDisplayedParagraph)
 
 TEST(TextManipulation, StartTextManipulationFindSameParagraphWithNewContent)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>hello</p></body></html>"];
@@ -403,8 +403,8 @@ TEST(TextManipulation, StartTextManipulationFindSameParagraphWithNewContent)
 
 TEST(TextManipulation, StartTextManipulationApplySingleExcluionRuleForElement)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -439,8 +439,8 @@ TEST(TextManipulation, StartTextManipulationApplySingleExcluionRuleForElement)
 
 TEST(TextManipulation, StartTextManipulationApplyInclusionExclusionRulesForAttributes)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -467,14 +467,14 @@ TEST(TextManipulation, StartTextManipulationApplyInclusionExclusionRulesForAttri
 
 TEST(TextManipulation, StartTextManipulationApplyInclusionExclusionRulesForClass)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<html><body>Message: <span class='someClass exclude'><b>hello, </b><span>world</span></span></body></html>"];
 
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
     [configuration setExclusionRules:@[
         adoptNS([[_WKTextManipulationExclusionRule alloc] initExclusion:YES forClass:@"exclude"]).get(),
     ]];
@@ -494,14 +494,14 @@ TEST(TextManipulation, StartTextManipulationApplyInclusionExclusionRulesForClass
 
 TEST(TextManipulation, StartTextManipulationApplyInclusionExclusionRulesForClassAndAttribute)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<html><body><span class='someClass exclude'>Message: <b data-exclude=no>hello, </b><span>world</span></span></body></html>"];
 
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
     [configuration setExclusionRules:@[
         adoptNS([[_WKTextManipulationExclusionRule alloc] initExclusion:YES forAttribute:@"data-exclude" value:@"yes"]).get(),
         adoptNS([[_WKTextManipulationExclusionRule alloc] initExclusion:NO forAttribute:@"data-exclude" value:@"no"]).get(),
@@ -523,8 +523,8 @@ TEST(TextManipulation, StartTextManipulationApplyInclusionExclusionRulesForClass
 
 TEST(TextManipulation, StartTextManipulationBreaksParagraphInBetweenListItems)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -581,8 +581,8 @@ TEST(TextManipulation, StartTextManipulationBreaksParagraphInBetweenListItems)
 
 TEST(TextManipulation, StartTextManipulationBreaksParagraphInBetweenFloatingListItems)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -626,8 +626,8 @@ TEST(TextManipulation, StartTextManipulationBreaksParagraphInBetweenFloatingList
 
 TEST(TextManipulation, StartTextManipulationIncludesFullyClippedText)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -660,8 +660,8 @@ TEST(TextManipulation, StartTextManipulationIncludesFullyClippedText)
 
 TEST(TextManipulation, StartTextManipulationFindsInsertedClippedText)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -714,8 +714,8 @@ TEST(TextManipulation, StartTextManipulationFindsInsertedClippedText)
 
 TEST(TextManipulation, StartTextManipulationTreatsInlineBlockLinksAndButtonsAndSpansAsParagraphs)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -763,8 +763,8 @@ TEST(TextManipulation, StartTextManipulationTreatsInlineBlockLinksAndButtonsAndS
 
 TEST(TextManipulation, StartTextManipulationTreatsLinksInNavigationElementsAsParagraphs)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -808,8 +808,8 @@ TEST(TextManipulation, StartTextManipulationTreatsLinksInNavigationElementsAsPar
 
 TEST(TextManipulation, StartTextManipulationTreatsNestedInlineBlockListItemsAndLinksAsParagraphs)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -844,8 +844,8 @@ TEST(TextManipulation, StartTextManipulationTreatsNestedInlineBlockListItemsAndL
 
 TEST(TextManipulation, StartTextManipulationExtractsUserInfo)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -933,8 +933,8 @@ TEST(TextManipulation, StartTextManipulationExtractsUserInfo)
 
 TEST(TextManipulation, StartTextManipulationExtractsValuesFromButtonInputs)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -962,8 +962,8 @@ TEST(TextManipulation, StartTextManipulationExtractsValuesFromButtonInputs)
 
 TEST(TextManipulation, StartTextManipulationExtractsValuesFromTextInputs)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -999,8 +999,8 @@ TEST(TextManipulation, StartTextManipulationExtractsValuesFromTextInputs)
 
 TEST(TextManipulation, StartTextManipulationDoesNotExtractUserModifiedText)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><body><input id='one'><input id='two'></body>"];
 
@@ -1034,8 +1034,8 @@ TEST(TextManipulation, StartTextManipulationDoesNotExtractUserModifiedText)
 
 TEST(TextManipulation, StartTextManipulationExtractsVisibleLineBreaksInTextAsExcludedTokens)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -1068,11 +1068,11 @@ TEST(TextManipulation, StartTextManipulationExtractsVisibleLineBreaksInTextAsExc
 
 TEST(TextManipulation, StartTextManipulationExtractsPrivateUseCharactersAsExcludedTokens)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<body>foobarbaz</body>"];
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
 
     done = false;
     [webView _startTextManipulationsWithConfiguration:configuration.get() completion:^{
@@ -1099,8 +1099,8 @@ TEST(TextManipulation, StartTextManipulationExtractsPrivateUseCharactersAsExclud
 
 TEST(TextManipulation, StartTextManipulationExtractsValuesByNode)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -1134,8 +1134,8 @@ TEST(TextManipulation, StartTextManipulationExtractsValuesByNode)
 
 TEST(TextManipulation, StartTextManipulationExcludesTextRenderedAsIcons)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<head>"
@@ -1180,8 +1180,8 @@ TEST(TextManipulation, StartTextManipulationExcludesTextRenderedAsIcons)
 
 TEST(TextManipulation, StartTextManipulationAvoidCrashWhenExtractingOrphanedPositions)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<p>hello world</p>"];
@@ -1218,8 +1218,8 @@ TEST(TextManipulation, StartTextManipulationAvoidCrashWhenExtractingOrphanedPosi
 
 TEST(TextManipulation, RemovedElements)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<p>hello world</p>"];
@@ -1261,8 +1261,8 @@ TEST(TextManipulation, RemovedElements)
 
 TEST(TextManipulation, StartTextManipulationExtractsHeadingElementsAsSeparateItems)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -1290,8 +1290,8 @@ TEST(TextManipulation, StartTextManipulationExtractsHeadingElementsAsSeparateIte
 
 TEST(TextManipulation, StartTextManipulationIgnoresSpaces)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -1315,8 +1315,8 @@ TEST(TextManipulation, StartTextManipulationIgnoresSpaces)
 
 TEST(TextManipulation, StartTextManipulationExtractsTableCellsAsSeparateItems)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -1363,10 +1363,10 @@ TEST(TextManipulation, StartTextManipulationExtractsTableCellsAsSeparateItems)
 
 TEST(TextManipulation, StartTextManipulationDoesNotFindContentInIframeIfIncludeSubframeIsNotSet)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
     configuration.get().includeSubframes = YES;
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><div>hello</div><div>world</div><iframe src='data:text/html,<p>WebKit</p>'>"];
 
@@ -1388,10 +1388,10 @@ TEST(TextManipulation, StartTextManipulationDoesNotFindContentInIframeIfIncludeS
 
 TEST(TextManipulation, StartTextManipulationFindsContentInIframeIfIncludeSubframeIsSet)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
     configuration.get().includeSubframes = YES;
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><div>hello</div><div>world</div><iframe src='data:text/html,<p>WebKit</p>'>"];
@@ -1420,10 +1420,10 @@ TEST(TextManipulation, StartTextManipulationFindsContentInIframeIfIncludeSubfram
 
 TEST(TextManipulation, StartTextManipulationFindsContentInIframeInsertedLater)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
     configuration.get().includeSubframes = YES;
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><div>hello</div><div>world</div>"];
@@ -1474,11 +1474,11 @@ TEST(TextManipulation, StartTextManipulationFindsContentInIframeInsertedLater)
 
 TEST(TextManipulation, StartTextManipulationDoesNotFindContentInNewMainFrame)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
     configuration.get().includeSubframes = YES;
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
@@ -1541,8 +1541,8 @@ static RetainPtr<_WKTextManipulationItem> createItem(NSString *itemIdentifier, c
 
 TEST(TextManipulation, CompleteTextManipulationReplaceSimpleSingleParagraph)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -1572,8 +1572,8 @@ TEST(TextManipulation, CompleteTextManipulationReplaceSimpleSingleParagraph)
 
 TEST(TextManipulation, LegacyCompleteTextManipulationReplaceSimpleSingleParagraph)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>helllo, wooorld</p></body></html>"];
@@ -1602,8 +1602,8 @@ TEST(TextManipulation, LegacyCompleteTextManipulationReplaceSimpleSingleParagrap
 
 TEST(TextManipulation, CompleteTextManipulationDisgardsTokens)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -1637,11 +1637,11 @@ TEST(TextManipulation, CompleteTextManipulationDisgardsTokens)
 
 TEST(TextManipulation, CompleteTextManipulationReplaceTwoSimpleParagraphs)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<p>hello</p>world"];
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
 
     done = false;
     [webView _startTextManipulationsWithConfiguration:configuration.get() completion:^{
@@ -1671,8 +1671,8 @@ TEST(TextManipulation, CompleteTextManipulationReplaceTwoSimpleParagraphs)
 
 TEST(TextManipulation, CompleteTextManipulationReplaceMultipleSimpleParagraphs)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -1723,8 +1723,8 @@ TEST(TextManipulation, CompleteTextManipulationReplaceMultipleSimpleParagraphs)
 
 TEST(TextManipulation, CompleteTextManipulationReplaceMultipleSimpleParagraphsAtOnce)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -1766,8 +1766,8 @@ TEST(TextManipulation, CompleteTextManipulationReplaceMultipleSimpleParagraphsAt
 
 TEST(TextManipulation, CompleteTextManipulationReplaceMultipleSimpleParagraphsSeparatedByBR)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -1801,8 +1801,8 @@ TEST(TextManipulation, CompleteTextManipulationReplaceMultipleSimpleParagraphsSe
 
 TEST(TextManipulation, CompleteTextManipulationReplaceParagraphsSeparatedByWrappedBR)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -1838,8 +1838,8 @@ TEST(TextManipulation, CompleteTextManipulationReplaceParagraphsSeparatedByWrapp
 
 TEST(TextManipulation, CompleteTextManipulationPreservesWhitespacesBetweenItems)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><head><style> a { white-space: nowrap; } div { width: 10px; } </style></head>"
@@ -1872,8 +1872,8 @@ TEST(TextManipulation, CompleteTextManipulationPreservesWhitespacesBetweenItems)
 
 TEST(TextManipulation, CompleteTextManipulationFailWhenBRIsInserted)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>helllo, <b>worrld</b></p></body></html>"];
@@ -1910,8 +1910,8 @@ TEST(TextManipulation, CompleteTextManipulationFailWhenBRIsInserted)
 
 TEST(TextManipulation, CompleteTextManipulationAvoidCrashingWhenContentIsRemoved)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
@@ -1953,8 +1953,8 @@ TEST(TextManipulation, CompleteTextManipulationAvoidCrashingWhenContentIsRemoved
 
 TEST(TextManipulation, CompleteTextManipulationShouldPreserveImagesAsExcludedTokens)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><div>hello, <img src=\"apple.gif\"> world</div></body></html>"];
@@ -1991,8 +1991,8 @@ TEST(TextManipulation, CompleteTextManipulationShouldPreserveImagesAsExcludedTok
 
 TEST(TextManipulation, CompleteTextManipulationShouldPreserveSVGAsExcludedTokens)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body>"
@@ -2037,8 +2037,8 @@ TEST(TextManipulation, CompleteTextManipulationShouldPreserveSVGAsExcludedTokens
 
 TEST(TextManipulation, CompleteTextManipulationShouldPreserveOrderOfBlockImage)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><svg viewBox=\"0 0 10 10\" width=\"100\" height=\"100\">"
@@ -2074,8 +2074,8 @@ TEST(TextManipulation, CompleteTextManipulationShouldPreserveOrderOfBlockImage)
 
 TEST(TextManipulation, CompleteTextManipulationShouldReplaceAttributeContent)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><head><title>hey</title></head>"
@@ -2117,8 +2117,8 @@ TEST(TextManipulation, CompleteTextManipulationShouldReplaceAttributeContent)
 
 TEST(TextManipulation, CompleteTextManipulationShouldReplaceContentFollowedAfterImageInCSSTable)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body>"
@@ -2150,8 +2150,8 @@ TEST(TextManipulation, CompleteTextManipulationShouldReplaceContentFollowedAfter
 
 TEST(TextManipulation, CompleteTextManipulationShouldReplaceTextContentWithMultipleTokens)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html>"
@@ -2214,8 +2214,8 @@ TEST(TextManipulation, CompleteTextManipulationShouldReplaceTextContentWithMulti
 
 TEST(TextManipulation, CompleteTextManipulationShouldReplaceContentsAroundParagraphWithJustImage)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><div>heeey</div><div><img src=\"apple.gif\"></div><span>woorld</span>"];
@@ -2247,8 +2247,8 @@ TEST(TextManipulation, CompleteTextManipulationShouldReplaceContentsAroundParagr
 
 TEST(TextManipulation, CompleteTextManipulationShouldBatchItemCallback)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body></body></html>"];
@@ -2276,8 +2276,8 @@ TEST(TextManipulation, CompleteTextManipulationShouldBatchItemCallback)
 
 TEST(TextManipulation, CompleteTextManipulationReordersContent)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -2313,8 +2313,8 @@ TEST(TextManipulation, CompleteTextManipulationReordersContent)
 
 TEST(TextManipulation, CompleteTextManipulationCanSplitContent)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -2351,8 +2351,8 @@ TEST(TextManipulation, CompleteTextManipulationCanSplitContent)
 
 TEST(TextManipulation, CompleteTextManipulationCanMergeContent)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p><b>hello <i>world</i> WebKit</b></p></body></html>"];
@@ -2384,8 +2384,8 @@ TEST(TextManipulation, CompleteTextManipulationCanMergeContent)
 
 TEST(TextManipulation, CompleteTextManipulationFailWhenItemIdentifierIsDuplicated)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>hello, <b>world</b></p></body></html>"];
@@ -2418,8 +2418,8 @@ TEST(TextManipulation, CompleteTextManipulationFailWhenItemIdentifierIsDuplicate
 
 TEST(TextManipulation, CompleteTextManipulationCanHandleSubsetOfItemsToFail)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>hey, <b>dude</b></p><p>this is <b>bad</b></p></body></html>"];
@@ -2455,10 +2455,10 @@ TEST(TextManipulation, CompleteTextManipulationCanHandleSubsetOfItemsToFail)
 
 TEST(TextManipulation, CompleteTextManipulationReplaceContentInIframe)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
     configuration.get().includeSubframes = YES;
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -2498,8 +2498,8 @@ TEST(TextManipulation, CompleteTextManipulationReplaceContentInIframe)
 
 TEST(TextManipulation, CompleteTextManipulationFailWhenContentIsChanged)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -2540,8 +2540,8 @@ TEST(TextManipulation, CompleteTextManipulationFailWhenContentIsChanged)
 
 TEST(TextManipulation, CompleteTextManipulationFailWhenContentIsRemoved)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>hello, world</p></body></html>"];
@@ -2576,8 +2576,8 @@ TEST(TextManipulation, CompleteTextManipulationFailWhenContentIsRemoved)
 
 TEST(TextManipulation, CompleteTextManipulationFailWhenContentIsAdded)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>hello, world</p></body></html>"];
@@ -2618,10 +2618,10 @@ TEST(TextManipulation, CompleteTextManipulationFailWhenContentIsAdded)
 
 TEST(TextManipulation, CompleteTextManipulationFailWhenContentIsChangedInIframe)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
     configuration.get().includeSubframes = YES;
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>helllo</p>"
@@ -2663,8 +2663,8 @@ TEST(TextManipulation, CompleteTextManipulationFailWhenContentIsChangedInIframe)
 
 TEST(TextManipulation, CompleteTextManipulationSuccedsWhenContentOutOfParagraphIsAdded)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<p style='white-space:pre;background-color:blue;'><span>hello world</span><u>   </u></p>"];
@@ -2706,8 +2706,8 @@ TEST(TextManipulation, CompleteTextManipulationSuccedsWhenContentOutOfParagraphI
 
 TEST(TextManipulation, CompleteTextManipulationFailWhenDocumentHasBeenNavigatedAway)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
@@ -2752,8 +2752,8 @@ TEST(TextManipulation, CompleteTextManipulationFailWhenDocumentHasBeenNavigatedA
 
 TEST(TextManipulation, CompleteTextManipulationFailWhenExclusionIsViolated)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
@@ -2797,8 +2797,8 @@ TEST(TextManipulation, CompleteTextManipulationFailWhenExclusionIsViolated)
 
 TEST(TextManipulation, CompleteTextManipulationFailWhenExcludedContentAppearsMoreThanOnce)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
@@ -2843,8 +2843,8 @@ TEST(TextManipulation, CompleteTextManipulationFailWhenExcludedContentAppearsMor
 
 TEST(TextManipulation, CompleteTextManipulationPreservesExcludedContent)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>hi, <em>WebKitten</em> bye</p></body></html>"];
@@ -2883,13 +2883,13 @@ TEST(TextManipulation, CompleteTextManipulationPreservesExcludedContent)
 
 TEST(TextManipulation, CompleteTextManipulationDoesNotCreateMoreTextManipulationItems)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p>Foo <strong>bar</strong> baz</p></body></html>"];
 
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
 
     done = false;
     [webView _startTextManipulationsWithConfiguration:configuration.get() completion:^{
@@ -2927,8 +2927,8 @@ TEST(TextManipulation, CompleteTextManipulationDoesNotCreateMoreTextManipulation
 
 TEST(TextManipulation, CompleteTextManipulationCorrectParagraphRange)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<head><style>ul{display:block}li{display:inline-block}.inline {float: left;}.subframe {height: 42px;}.frame {position: absolute;top: -9999px;}</style></head><body><div class='frame'><div class='subframe'></div></div><style></style><div class='inline'><div><li><a href='#'>holle</a></li><li><a href='#'>wdrlo</a></li></div></div><div class='frame'><div class='subframe'></div></div></body>"];
@@ -2962,8 +2962,8 @@ TEST(TextManipulation, CompleteTextManipulationCorrectParagraphRange)
 
 TEST(TextManipulation, CompleteTextManipulationCanMergeContentAndPreserveLineBreaks)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -3043,8 +3043,8 @@ TEST(TextManipulation, CompleteTextManipulationIgnoreWhiteSpacesBetweenParagraph
 
 TEST(TextManipulation, CompleteTextManipulationDoesNotSkipTabCharacterAtLineWrap)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@""
         "<!DOCTYPE html>"
@@ -3054,7 +3054,7 @@ TEST(TextManipulation, CompleteTextManipulationDoesNotSkipTabCharacterAtLineWrap
             "<strong>If this text is to be translated, then it should be something noteworthy</strong>"
             " (2) A monthly subscription is just&#9;$10.</p>"
         "</div>"];
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
 
     done = false;
     [webView _startTextManipulationsWithConfiguration:configuration.get() completion:^{
@@ -3085,8 +3085,8 @@ TEST(TextManipulation, CompleteTextManipulationDoesNotSkipTabCharacterAtLineWrap
 
 TEST(TextManipulation, CompleteTextManipulationShouldPreserveNodesAfterParagraphRange)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -3125,8 +3125,8 @@ TEST(TextManipulation, CompleteTextManipulationShouldPreserveNodesAfterParagraph
 
 TEST(TextManipulation, CompleteTextManipulationSPreserveNodesBeforeParagraphRange)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
@@ -3163,13 +3163,13 @@ TEST(TextManipulation, CompleteTextManipulationSPreserveNodesBeforeParagraphRang
 
 TEST(TextManipulation, InsertingContentIntoAlreadyManipulatedContentCreatesTextManipulationItem)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body><p><i><b>hey</b></i> dude</p></body></html>"];
 
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
 
     done = false;
     [webView _startTextManipulationsWithConfiguration:configuration.get() completion:^{
@@ -3208,11 +3208,11 @@ TEST(TextManipulation, InsertingContentIntoAlreadyManipulatedContentCreatesTextM
 
 TEST(TextManipulation, CompleteTextManipulationInButtonsAndTextFields)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<input type='text' value='hello1'><input type='submit' value='hello2'>"];
-    auto configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKTextManipulationConfiguration alloc] init]);
 
     done = false;
     [webView _startTextManipulationsWithConfiguration:configuration.get() completion:^{
@@ -3247,8 +3247,8 @@ TEST(TextManipulation, CompleteTextManipulationInButtonsAndTextFields)
 
 TEST(TextManipulation, CompleteTextManipulationForNewlyDisplayedParagraph)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html><body>"
@@ -3308,8 +3308,8 @@ TEST(TextManipulation, CompleteTextManipulationForNewlyDisplayedParagraph)
 
 TEST(TextManipulation, CompleteTextManipulationForNewlyDisplayedText)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<html>"
@@ -3363,8 +3363,8 @@ TEST(TextManipulation, CompleteTextManipulationForNewlyDisplayedText)
 
 TEST(TextManipulation, CompleteTextManipulationForManipulatedTextWithNewContent)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html>"
@@ -3425,8 +3425,8 @@ TEST(TextManipulation, CompleteTextManipulationForManipulatedTextWithNewContent)
 
 TEST(TextManipulation, CompleteTextManipulationForTitleElement)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><html></html>"];
 
@@ -3483,8 +3483,8 @@ TEST(TextManipulation, CompleteTextManipulationForTitleElement)
 
 TEST(TextManipulation, CompleteTextManipulationAvoidExtractingManipulatedTextAfterManipulation)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
 
     [webView synchronouslyLoadHTMLString:@"<p>foo<br>bar</p>"];
@@ -3533,8 +3533,8 @@ TEST(TextManipulation, CompleteTextManipulationAvoidExtractingManipulatedTextAft
 
 TEST(TextManipulation, CompleteTextManipulationAddsOverflowHiddenToAvoidBreakingLayout)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<html>"
@@ -3593,8 +3593,8 @@ TEST(TextManipulation, CompleteTextManipulationAddsOverflowHiddenToAvoidBreaking
 
 TEST(TextManipulation, CompleteTextManipulationParagraphsContainCollapsedSpaces)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<head>"
@@ -3635,8 +3635,8 @@ TEST(TextManipulation, CompleteTextManipulationParagraphsContainCollapsedSpaces)
 
 TEST(TextManipulation, CompleteTextManipulationParagraphContainsCollapsedSpaces)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<body>"
@@ -3684,8 +3684,8 @@ TEST(TextManipulation, CompleteTextManipulationParagraphContainsCollapsedSpaces)
 
 TEST(TextManipulation, CompleteTextManipulationShouldReplaceContentIgnoredByEditing)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<body>"
@@ -3726,8 +3726,8 @@ TEST(TextManipulation, CompleteTextManipulationShouldReplaceContentIgnoredByEdit
 
 TEST(TextManipulation, CompleteTextManipulationShouldOnlyChangeNodesInParagraphRange)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<head>"
@@ -3774,8 +3774,8 @@ TEST(TextManipulation, CompleteTextManipulationShouldOnlyChangeNodesInParagraphR
 
 TEST(TextManipulation, CompleteTextManipulationParagraphBecomesHidden)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<head><style> .hidden { display: none; } </style></head>"
@@ -3814,8 +3814,8 @@ TEST(TextManipulation, CompleteTextManipulationParagraphBecomesHidden)
 
 TEST(TextManipulation, CompleteTextManipulationSkipsEmptyContainers)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<section><a href='#'>Guten<img width='50' src='icon.png'></section>"
         "<section><div id='target'></div><div><a href='#'>Tag</a></div></section>"];
@@ -3854,8 +3854,8 @@ TEST(TextManipulation, CompleteTextManipulationSkipsEmptyContainers)
 
 TEST(TextManipulation, CompleteTextManipulationReplacesShadowDOMContent)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><body><span id='host'><template shadowrootmode='open'>hello</template></span></body>"];
 
@@ -3883,9 +3883,9 @@ TEST(TextManipulation, CompleteTextManipulationReplacesShadowDOMContent)
 
 TEST(TextManipulation, CompleteTextManipulationDoesNotFillAutoFilledField)
 {
-    auto delegate = adoptNS([[TextManipulationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TextManipulationDelegate alloc] init]);
     RetainPtr configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     [webView _setTextManipulationDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><body><input id='textField'></body>"];
 
@@ -3919,7 +3919,7 @@ TEST(TextManipulation, CompleteTextManipulationDoesNotFillAutoFilledField)
 
 TEST(TextManipulation, TextManipulationTokenDebugDescription)
 {
-    auto token = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr token = adoptNS([[_WKTextManipulationToken alloc] init]);
     [token setIdentifier:@"foo_is_the_identifier"];
     [token setContent:@"bar_is_the_content"];
 
@@ -3934,7 +3934,7 @@ TEST(TextManipulation, TextManipulationTokenDebugDescription)
 
 TEST(TextManipulation, TextManipulationTokenNotEqualToNil)
 {
-    auto tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenA setIdentifier:@"A"];
     [tokenA setContent:@"A"];
 
@@ -3949,9 +3949,9 @@ TEST(TextManipulation, TextManipulationTokenNotEqualToNil)
 
 TEST(TextManipulation, TextManipulationTokenEqualityWithEqualIdentifiers)
 {
-    auto token1 = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr token1 = adoptNS([[_WKTextManipulationToken alloc] init]);
     [token1 setIdentifier:@"A"];
-    auto token2 = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr token2 = adoptNS([[_WKTextManipulationToken alloc] init]);
     [token2 setIdentifier:@"A"];
 
     EXPECT_TRUE([token1 isEqualToTextManipulationToken:token2.get() includingContentEquality:YES]);
@@ -3980,9 +3980,9 @@ TEST(TextManipulation, TextManipulationTokenEqualityWithEqualIdentifiers)
 
 TEST(TextManipulation, TextManipulationTokenEqualityWithDifferentIdentifiers)
 {
-    auto tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenA setIdentifier:@"A"];
-    auto tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenB setIdentifier:@"B"];
 
     EXPECT_FALSE([tokenA isEqualToTextManipulationToken:tokenB.get() includingContentEquality:YES]);
@@ -4011,11 +4011,11 @@ TEST(TextManipulation, TextManipulationTokenEqualityWithDifferentIdentifiers)
 
 TEST(TextManipulation, TextManipulationTokenEqualityWithNilIdentifiers)
 {
-    auto tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
     EXPECT_NULL([tokenA identifier]);
-    auto tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenB setIdentifier:@"B"];
-    auto tokenC = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenC = adoptNS([[_WKTextManipulationToken alloc] init]);
     EXPECT_NULL([tokenC identifier]);
 
     EXPECT_FALSE([tokenA isEqualToTextManipulationToken:tokenB.get() includingContentEquality:YES]);
@@ -4044,11 +4044,11 @@ TEST(TextManipulation, TextManipulationTokenEqualityWithNilIdentifiers)
 
 TEST(TextManipulation, TextManipulationTokenEqualityWithEmptyIdentifiers)
 {
-    auto tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenA setIdentifier:@""];
-    auto tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenB setIdentifier:@"B"];
-    auto tokenC = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenC = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenC setIdentifier:@""];
 
     EXPECT_FALSE([tokenA isEqualToTextManipulationToken:tokenB.get() includingContentEquality:YES]);
@@ -4077,9 +4077,9 @@ TEST(TextManipulation, TextManipulationTokenEqualityWithEmptyIdentifiers)
 
 TEST(TextManipulation, TextManipulationTokenWithNilContent)
 {
-    auto tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenA setIdentifier:@"A"];
-    auto tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenB setIdentifier:@"A"];
 
     EXPECT_NULL([tokenA content]);
@@ -4098,10 +4098,10 @@ TEST(TextManipulation, TextManipulationTokenWithNilContent)
 
 TEST(TextManipulation, TextManipulationTokenWithEmptyContent)
 {
-    auto tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenA setIdentifier:@"A"];
     [tokenA setContent:@""];
-    auto tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenB setIdentifier:@"A"];
     [tokenB setContent:@""];
 
@@ -4119,10 +4119,10 @@ TEST(TextManipulation, TextManipulationTokenWithEmptyContent)
 
 TEST(TextManipulation, TextManipulationTokenWithIdenticalContent)
 {
-    auto tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenA setIdentifier:@"A"];
     [tokenA setContent:@"content"];
-    auto tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenB setIdentifier:@"A"];
     [tokenB setContent:@"content"];
 
@@ -4132,9 +4132,9 @@ TEST(TextManipulation, TextManipulationTokenWithIdenticalContent)
 
 TEST(TextManipulation, TextManipulationTokenWithPointerEqualContent)
 {
-    auto tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenA setIdentifier:@"A"];
-    auto tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenB setIdentifier:@"A"];
 
     NSString *contentString = @"content";
@@ -4147,10 +4147,10 @@ TEST(TextManipulation, TextManipulationTokenWithPointerEqualContent)
 
 TEST(TextManipulation, TextManipulationTokenWithTrailingSpace)
 {
-    auto tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenA setIdentifier:@"A"];
     [tokenA setContent:@"content"];
-    auto tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenB setIdentifier:@"A"];
     [tokenB setContent:@"content "];
 
@@ -4160,7 +4160,7 @@ TEST(TextManipulation, TextManipulationTokenWithTrailingSpace)
 
 TEST(TextManipulation, TextManipulationTokenEqualToSelf)
 {
-    auto token = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr token = adoptNS([[_WKTextManipulationToken alloc] init]);
     [token setIdentifier:@"A"];
     [token setContent:@"content"];
 
@@ -4171,13 +4171,13 @@ TEST(TextManipulation, TextManipulationTokenEqualToSelf)
 
 TEST(TextManipulation, TextManipulationTokenNSObjectEqualityWithOtherToken)
 {
-    auto tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenA = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenA setIdentifier:@"A"];
     [tokenA setContent:@"content"];
-    auto tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenB = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenB setIdentifier:@"A"];
     [tokenB setContent:@"content"];
-    auto tokenC = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr tokenC = adoptNS([[_WKTextManipulationToken alloc] init]);
     [tokenC setIdentifier:@"A"];
     [tokenC setContent:@"content "];
 
@@ -4190,7 +4190,7 @@ TEST(TextManipulation, TextManipulationTokenNSObjectEqualityWithOtherToken)
 
 TEST(TextManipulation, TextManipulationTokenNSObjectEqualityWithNonToken)
 {
-    auto token = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr token = adoptNS([[_WKTextManipulationToken alloc] init]);
     [token setIdentifier:@"A"];
     [token setContent:@"content"];
     NSString *string = @"content";
@@ -4201,7 +4201,7 @@ TEST(TextManipulation, TextManipulationTokenNSObjectEqualityWithNonToken)
 
 static RetainPtr<_WKTextManipulationToken> createTextManipulationToken(NSString *identifier, BOOL excluded, NSString *content)
 {
-    auto token = adoptNS([[_WKTextManipulationToken alloc] init]);
+    RetainPtr token = adoptNS([[_WKTextManipulationToken alloc] init]);
     [token setIdentifier:identifier];
     [token setExcluded:excluded];
     [token setContent:content];
@@ -4212,7 +4212,7 @@ TEST(TextManipulation, TextManipulationItemDebugDescription)
 {
     auto tokenA = createTextManipulationToken(@"public_identifier_A", NO, @"private_content_A");
     auto tokenB = createTextManipulationToken(@"public_identifier_B", NO, @"private_content_B");
-    auto item = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"public_item_identifier" tokens:@[ tokenA.get(), tokenB.get() ]]);
+    RetainPtr item = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"public_item_identifier" tokens:@[ tokenA.get(), tokenB.get() ]]);
 
     NSString *debugDescription = [item debugDescription];
     EXPECT_TRUE([debugDescription containsString:@"public_identifier_A"]);
@@ -4231,7 +4231,7 @@ TEST(TextManipulation, TextManipulationItemDebugDescription)
 
 TEST(TextManipulation, TextManipulationItemEqualityToNilItem)
 {
-    auto item = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ ]]);
+    RetainPtr item = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ ]]);
 
     EXPECT_FALSE([item isEqualToTextManipulationItem:nil includingContentEquality:YES]);
     EXPECT_FALSE([item isEqualToTextManipulationItem:nil includingContentEquality:NO]);
@@ -4240,7 +4240,7 @@ TEST(TextManipulation, TextManipulationItemEqualityToNilItem)
 TEST(TextManipulation, TextManipulationItemEqualityToSelf)
 {
     auto token = createTextManipulationToken(@"A", NO, @"token");
-    auto item = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"B" tokens:@[ token.get() ]]);
+    RetainPtr item = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"B" tokens:@[ token.get() ]]);
 
     EXPECT_TRUE([item isEqualToTextManipulationItem:item.get() includingContentEquality:YES]);
     EXPECT_TRUE([item isEqualToTextManipulationItem:item.get() includingContentEquality:NO]);
@@ -4251,8 +4251,8 @@ TEST(TextManipulation, TextManipulationItemBasicEquality)
 {
     auto token1 = createTextManipulationToken(@"1", NO, @"token1");
     auto token2 = createTextManipulationToken(@"1", NO, @"token1");
-    auto itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token1.get() ]]);
-    auto itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token2.get() ]]);
+    RetainPtr itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token1.get() ]]);
+    RetainPtr itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token2.get() ]]);
 
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:YES]);
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:NO]);
@@ -4265,8 +4265,8 @@ TEST(TextManipulation, TextManipulationItemBasicEqualityWithMultipleTokens)
     auto tokenB1 = createTextManipulationToken(@"1", NO, @"token1");
     auto tokenB2 = createTextManipulationToken(@"2", NO, @"token2");
 
-    auto itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA1.get(), tokenA2.get() ]]);
-    auto itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB1.get(), tokenB2.get() ]]);
+    RetainPtr itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA1.get(), tokenA2.get() ]]);
+    RetainPtr itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB1.get(), tokenB2.get() ]]);
 
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:YES]);
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:NO]);
@@ -4276,8 +4276,8 @@ TEST(TextManipulation, TextManipulationItemEqualitySimilarTokensWithDifferentCon
 {
     auto token1 = createTextManipulationToken(@"1", NO, @"token1");
     auto token2 = createTextManipulationToken(@"1", NO, @"token2");
-    auto itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token1.get() ]]);
-    auto itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token2.get() ]]);
+    RetainPtr itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token1.get() ]]);
+    RetainPtr itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token2.get() ]]);
 
     EXPECT_FALSE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:YES]);
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:NO]);
@@ -4290,8 +4290,8 @@ TEST(TextManipulation, TextManipulationItemEqualityWithOutOfOrderTokens)
     auto tokenB1 = createTextManipulationToken(@"1", NO, @"token1");
     auto tokenB2 = createTextManipulationToken(@"2", NO, @"token2");
 
-    auto itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA1.get(), tokenA2.get() ]]);
-    auto itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB2.get(), tokenB1.get() ]]);
+    RetainPtr itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA1.get(), tokenA2.get() ]]);
+    RetainPtr itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB2.get(), tokenB1.get() ]]);
 
     EXPECT_FALSE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:YES]);
     EXPECT_FALSE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:NO]);
@@ -4302,8 +4302,8 @@ TEST(TextManipulation, TextManipulationItemEqualityWithPointerEqualTokens)
     auto token1 = createTextManipulationToken(@"1", NO, @"token1");
     auto token2 = createTextManipulationToken(@"2", NO, @"token2");
 
-    auto itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token1.get(), token2.get() ]]);
-    auto itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token1.get(), token2.get() ]]);
+    RetainPtr itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token1.get(), token2.get() ]]);
+    RetainPtr itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token1.get(), token2.get() ]]);
 
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:YES]);
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:NO]);
@@ -4315,8 +4315,8 @@ TEST(TextManipulation, TextManipulationItemEqualityWithPointerEqualTokenArrays)
     auto token2 = createTextManipulationToken(@"2", NO, @"token2");
     NSArray<_WKTextManipulationToken *> *tokens = @[ token1.get(), token2.get() ];
 
-    auto itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:tokens]);
-    auto itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:tokens]);
+    RetainPtr itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:tokens]);
+    RetainPtr itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:tokens]);
 
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:YES]);
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:NO]);
@@ -4330,8 +4330,8 @@ TEST(TextManipulation, TextManipulationItemEqualityWithMismatchedTokenCounts)
     auto tokenB1 = createTextManipulationToken(@"1", NO, @"token1");
     auto tokenB2 = createTextManipulationToken(@"2", NO, @"token2");
 
-    auto itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA1.get(), tokenA2.get(), tokenA3.get() ]]);
-    auto itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB1.get(), tokenB2.get() ]]);
+    RetainPtr itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA1.get(), tokenA2.get(), tokenA3.get() ]]);
+    RetainPtr itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB1.get(), tokenB2.get() ]]);
 
     EXPECT_FALSE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:YES]);
     EXPECT_FALSE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:NO]);
@@ -4344,8 +4344,8 @@ TEST(TextManipulation, TextManipulationItemEqualityWithDifferentTokenIdentifiers
 {
     auto tokenA = createTextManipulationToken(@"A", NO, @"token");
     auto tokenB = createTextManipulationToken(@"B", NO, @"token");
-    auto itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA.get() ]]);
-    auto itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB.get() ]]);
+    RetainPtr itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA.get() ]]);
+    RetainPtr itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB.get() ]]);
 
     EXPECT_FALSE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:YES]);
     EXPECT_FALSE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:NO]);
@@ -4354,8 +4354,8 @@ TEST(TextManipulation, TextManipulationItemEqualityWithDifferentTokenIdentifiers
 TEST(TextManipulation, TextManipulationItemEqualityWithNilIdentifiers)
 {
     auto token = createTextManipulationToken(@"A", NO, @"token");
-    auto itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:nil tokens:@[ token.get() ]]);
-    auto itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:nil tokens:@[ token.get() ]]);
+    RetainPtr itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:nil tokens:@[ token.get() ]]);
+    RetainPtr itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:nil tokens:@[ token.get() ]]);
 
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:YES]);
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:NO]);
@@ -4365,8 +4365,8 @@ TEST(TextManipulation, TextManipulationItemEqualityWithDifferentTokenExclusions)
 {
     auto tokenA = createTextManipulationToken(@"1", NO, @"token");
     auto tokenB = createTextManipulationToken(@"1", YES, @"token");
-    auto itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA.get() ]]);
-    auto itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB.get() ]]);
+    RetainPtr itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA.get() ]]);
+    RetainPtr itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB.get() ]]);
 
     EXPECT_FALSE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:YES]);
     EXPECT_FALSE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:NO]);
@@ -4379,8 +4379,8 @@ TEST(TextManipulation, TextManipulationItemNSObjectEqualityWithOtherItem)
     auto tokenB1 = createTextManipulationToken(@"1", NO, @"token1");
     auto tokenB2 = createTextManipulationToken(@"2", NO, @"token2");
 
-    auto itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA1.get(), tokenA2.get() ]]);
-    auto itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB1.get(), tokenB2.get() ]]);
+    RetainPtr itemA = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenA1.get(), tokenA2.get() ]]);
+    RetainPtr itemB = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ tokenB1.get(), tokenB2.get() ]]);
 
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:YES]);
     EXPECT_TRUE([itemA isEqualToTextManipulationItem:itemB.get() includingContentEquality:NO]);
@@ -4396,7 +4396,7 @@ TEST(TextManipulation, TextManipulationItemNSObjectEqualityWithOtherItem)
 TEST(TextManipulation, TextManipulationItemNSObjectEqualityWithNonToken)
 {
     auto token = createTextManipulationToken(@"1", NO, @"token1");
-    auto item = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token.get() ]]);
+    RetainPtr item = adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:@"A" tokens:@[ token.get() ]]);
     NSString *string = @"content";
 
     EXPECT_FALSE([token isEqual:string]);

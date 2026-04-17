@@ -41,7 +41,7 @@ TEST(WebKit2, LoadWithEmptyAppName)
 {
     InstanceMethodSwizzler appNameSwizzler { NSRunningApplication.class, @selector(localizedName), reinterpret_cast<IMP>(swizzledAppName) };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
     [webView synchronouslyLoadHTMLString:@"<body>Hello world</body>"];
     EXPECT_TRUE(!![webView _webProcessIdentifier]);
 }

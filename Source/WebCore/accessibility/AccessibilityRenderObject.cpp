@@ -719,6 +719,44 @@ static Path computePathForRenderBox(const RenderBox& renderBox)
     return path;
 }
 
+// Checks if bounding rects span multiple lines by looking for rects at
+// different block-direction positions. For horizontal text, rects on different
+// lines have different Y positions. For vertical text, different columns have
+// different X positions.
+static bool rectsSpanMultipleLines(const Vector<LayoutRect>& rects, bool isHorizontal)
+{
+    for (size_t i = 1; i < rects.size(); ++i) {
+        if (isHorizontal) {
+            if (rects[i].y() != rects[0].y())
+                return true;
+        } else {
+            if (rects[i].x() != rects[0].x())
+                return true;
+        }
+    }
+    return false;
+}
+
+static Path computePathForMultiLineRenderInline(const RenderInline& renderInline)
+{
+    Vector<LayoutRect> rects;
+    renderInline.boundingRects(rects, flooredLayoutPoint(renderInline.localToAbsolute()));
+    // Single-line inlines don't need a path -- the bounding rect is sufficient.
+    if (rects.size() < 2)
+        return { };
+
+    CheckedRef style = renderInline.style();
+    if (!rectsSpanMultipleLines(rects, style->writingMode().isHorizontal()))
+        return { };
+
+    float deviceScaleFactor = renderInline.document().deviceScaleFactor();
+    Vector<FloatRect> pixelSnappedRects;
+    for (auto rect : rects)
+        pixelSnappedRects.append(snapRectToDevicePixels(rect, deviceScaleFactor));
+
+    return PathUtilities::pathWithShrinkWrappedRects(pixelSnappedRects, 0);
+}
+
 Path AccessibilityRenderObject::elementPath() const
 {
     if (!m_renderer)
@@ -726,29 +764,27 @@ Path AccessibilityRenderObject::elementPath() const
 
     if (CheckedPtr renderText = dynamicDowncast<RenderText>(*m_renderer)) {
         Vector<LayoutRect> rects;
-        renderText->boundingRects(rects, flooredLayoutPoint(renderText->localToAbsolute()));
+
+        if (std::optional group = stitchGroupIfRepresentative()) {
+            // Stitch group representatives aggregate rects from all group members.
+            if (CheckedPtr cache = axObjectCache()) {
+                for (AXID memberID : group->members()) {
+                    if (RefPtr member = cache->objectForID(memberID)) {
+                        if (CheckedPtr memberText = dynamicDowncast<RenderText>(member->renderer()))
+                            memberText->boundingRects(rects, flooredLayoutPoint(memberText->localToAbsolute()));
+                    }
+                }
+            }
+        } else
+            renderText->boundingRects(rects, flooredLayoutPoint(renderText->localToAbsolute()));
+
         // If only 1 rect, don't compute path since the bounding rect will be good enough.
         if (rects.size() < 2)
             return { };
 
-        // Compute the path only if this is the last part of a line followed by the beginning of the next line.
+        // Compute the path only if the rects span multiple lines.
         CheckedRef style = renderText->style();
-        bool rightToLeftText = style->writingMode().isBidiRTL();
-        static const auto xTolerance = 5_lu;
-        static const auto yTolerance = 5_lu;
-        bool needsPath = false;
-        auto unionRect = rects[0];
-        for (size_t i = 1; i < rects.size(); ++i) {
-            needsPath = absoluteValue(rects[i].y() - unionRect.maxY()) < yTolerance // This rect is in a new line.
-                && (rightToLeftText ? rects[i].x() - unionRect.x() > xTolerance
-                    : unionRect.x() - rects[i].x() > xTolerance); // And this rect is to right/left of all previous rects.
-
-            if (needsPath)
-                break;
-
-            unionRect.unite(rects[i]);
-        }
-        if (!needsPath)
+        if (!rectsSpanMultipleLines(rects, style->writingMode().isHorizontal()))
             return { };
 
         auto outlineOffset = Style::evaluate<float>(style->usedOutlineOffset(), Style::ZoomNeeded { });
@@ -812,6 +848,9 @@ Path AccessibilityRenderObject::elementPath() const
         if (renderBox->style().border().hasBorderRadius())
             return computePathForRenderBox(*renderBox);
     }
+
+    if (CheckedPtr renderInline = dynamicDowncast<RenderInline>(*m_renderer))
+        return computePathForMultiLineRenderInline(*renderInline);
 
     return { };
 }
@@ -1456,6 +1495,7 @@ AXTextRuns AccessibilityRenderObject::textRuns()
     StringBuilder lineString;
     Vector<uint16_t> characterWidths;
     float distanceFromBoundsInDirection = 0;
+    bool didComputeDistanceFromBounds = false;
     // Used to round an accumulated floating point value into an uint16, which is how we store character widths.
     float accumulatedDistanceFromStart = 0.0;
     float lineHeight = 0.0;
@@ -1483,21 +1523,18 @@ AXTextRuns AccessibilityRenderObject::textRuns()
             return;
         lineHeight = LineSelection::logicalRect(*lineBox).height();
 
-        CheckedPtr renderStyle = style();
-        if (renderStyle && renderStyle->textAlign() != Style::TextAlign::Left) {
-            // To serve the appropriate bounds for text, we need to offset them by a text run's position within its associated RenderText.
-            // Computing this requires the following:
-            //     1. Get the run's logical offset within the containing block (see note below).
-            //     2. Add the containing block's position to get an page-relative position.
-            //     3. Subtract the this object's (RenderText) position to get a distance relative to the RenderText.
-
-            // Note: For horizontal text, the contentLogicalLeft property accurately gets us the offset within the containing block.
-            // ContentLogicalLeft is wrong for vertical orientations, but xPos (only set in vertical mode) provides that same information accurately.
+        // Compute distanceFromBoundsInDirection only for the first text box on each
+        // line. Multiple text boxes can share a line (e.g. due to inline formatting
+        // splits), and we need the offset of the first one, not subsequent ones.
+        // distanceFromBoundsInDirection is reset to 0.0 at each line change, so a
+        // non-zero value indicates it was already set by an earlier text box.
+        if (!didComputeDistanceFromBounds) {
+            didComputeDistanceFromBounds = true;
             float containingBlockOffset = 0;
             if (CheckedPtr containingBlock = renderText->containingBlock())
                 containingBlockOffset = isHorizontal ? containingBlock->absoluteBoundingBoxRect().x() : containingBlock->absoluteBoundingBoxRect().y();
 
-            distanceFromBoundsInDirection = isHorizontal ? lineBox->contentLogicalLeft() + containingBlockOffset - elementRect().x() : -textRun.xPos() + containingBlockOffset - elementRect().y();
+            distanceFromBoundsInDirection = isHorizontal ? textRun.xPos() + lineBox->contentLogicalLeft() + containingBlockOffset - elementRect().x() : -textRun.xPos() + containingBlockOffset - elementRect().y();
         }
 
         // Populate GlyphBuffer with all of the glyphs for the text runs, enabling us to measure character widths.
@@ -1597,6 +1634,7 @@ AXTextRuns AccessibilityRenderObject::textRuns()
             accumulatedDistanceFromStart = 0.0;
             lineHeight = 0.0;
             distanceFromBoundsInDirection = 0.0;
+            didComputeDistanceFromBounds = false;
         }
         appendToLineString(textBox);
 
@@ -2798,7 +2836,7 @@ void AccessibilityRenderObject::updateRoleAfterChildrenCreation()
         if (!hasMenuItemDescendant)
             m_role = AccessibilityRole::Generic;
     }
-    if (role == AccessibilityRole::SVGRoot && unignoredChildren().isEmpty())
+    if (role == AccessibilityRole::SVGRoot && !hasUnignoredChild())
         m_role = AccessibilityRole::Image;
 
     if (isAccessibilityList()) {

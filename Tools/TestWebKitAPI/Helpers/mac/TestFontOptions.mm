@@ -182,11 +182,11 @@ static TestFontOptions *sharedFontOptionsForTesting()
 
 - (NSDictionary *)convertAttributes:(NSDictionary *)attributes
 {
-    auto convertedAttributes = adoptNS([attributes mutableCopy]);
+    RetainPtr convertedAttributes = adoptNS([attributes mutableCopy]);
 
     if (_hasPendingShadowChanges) {
         if (_hasShadow) {
-            auto shadow = adoptNS([[NSShadow alloc] init]);
+            RetainPtr shadow = adoptNS([[NSShadow alloc] init]);
             [shadow setShadowBlurRadius:_shadowBlurRadius];
             [shadow setShadowOffset:_shadowOffset];
             [convertedAttributes setObject:shadow.get() forKey:NSShadowAttributeName];

@@ -29,7 +29,7 @@
 
 #if ENABLE(WEBASSEMBLY)
 
-#include "AbstractModuleRecord.h"
+#include "CyclicModuleRecord.h"
 #include "WasmCreationMode.h"
 #include "WasmModuleInformation.h"
 
@@ -41,10 +41,10 @@ class WebAssemblyFunction;
 
 // Based on the WebAssembly.Instance specification
 // https://github.com/WebAssembly/design/blob/master/JS.md#webassemblyinstance-constructor
-class WebAssemblyModuleRecord final : public AbstractModuleRecord {
+class WebAssemblyModuleRecord final : public CyclicModuleRecord {
     friend class LLIntOffsetsExtractor;
 public:
-    using Base = AbstractModuleRecord;
+    using Base = CyclicModuleRecord;
 
     static constexpr DestructionMode needsDestruction = NeedsDestruction;
     static void destroy(JSCell*);

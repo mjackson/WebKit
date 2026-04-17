@@ -52,7 +52,7 @@ RemoteAdapter::RemoteAdapter(GPUConnectionToWebProcess& gpuConnectionToWebProces
     , m_gpu(gpu)
     , m_identifier(identifier)
 {
-    Ref { m_streamConnection }->startReceivingMessages(*this, Messages::RemoteAdapter::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->startReceivingMessages(*this, Messages::RemoteAdapter::messageReceiverName(), m_identifier.toUInt64());
 }
 
 RemoteAdapter::~RemoteAdapter() = default;
@@ -64,7 +64,7 @@ void RemoteAdapter::destruct()
 
 void RemoteAdapter::stopListeningForIPC()
 {
-    Ref { m_streamConnection }->stopReceivingMessages(Messages::RemoteAdapter::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->stopReceivingMessages(Messages::RemoteAdapter::messageReceiverName(), m_identifier.toUInt64());
 }
 
 void RemoteAdapter::requestDevice(const WebGPU::DeviceDescriptor& descriptor, WebGPUIdentifier identifier, WebGPUIdentifier queueIdentifier, CompletionHandler<void(WebGPU::SupportedFeatures&&, WebGPU::SupportedLimits&&)>&& callback)

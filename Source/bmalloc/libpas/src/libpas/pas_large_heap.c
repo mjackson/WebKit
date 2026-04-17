@@ -46,7 +46,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void pas_large_heap_construct(pas_large_heap* heap, bool is_megapage_heap)
+void pas_large_heap_construct(pas_large_heap* heap, pas_large_map_variant variant, bool is_megapage_heap)
 {
     /* Warning: anything you do here must be duplicated in
        pas_try_allocate_intrinsic.h. */
@@ -54,6 +54,7 @@ void pas_large_heap_construct(pas_large_heap* heap, bool is_megapage_heap)
     pas_fast_large_free_heap_construct(&heap->free_heap);
     heap->table_state = pas_heap_table_state_uninitialized;
     heap->index = 0;
+    heap->variant = variant;
     heap->is_megapage_heap = is_megapage_heap;
 }
 
@@ -240,7 +241,7 @@ pas_large_heap_try_allocate_user_allocation(pas_large_heap* heap,
     entry.begin = result.begin;
     entry.end = result.begin + size;
     entry.heap = heap;
-    pas_large_map_add(entry);
+    pas_large_map_add(&pas_large_maps[heap->variant], entry);
 
     return result;
 }
@@ -354,7 +355,7 @@ bool pas_large_heap_try_shrink(uintptr_t begin,
                                         &config);
 
     map_entry.end = map_entry.begin + new_size;
-    pas_large_map_add(map_entry);
+    pas_large_map_add(&pas_large_maps[map_entry.heap->variant], map_entry);
 
     return true;
 }

@@ -974,6 +974,7 @@
         "com.apple.DiskArbitration.diskarbitrationd"
         "com.apple.ViewBridgeAuxiliary"
         "com.apple.audioanalyticsd"
+        "com.apple.translation.text"
         "com.apple.windowserver.active"))
 
 (allow mach-lookup

@@ -173,6 +173,7 @@ class WebKit::WebTouchEvent : WebKit::WebEvent {
 };
 
 enum class WebKit::GestureWasCancelled : bool;
+enum class WebCore::MouseEventCanInitiateDrag : bool;
 
 class WebKit::WebMouseEvent : WebKit::WebEvent {
     WebKit::WebMouseEventButton button();
@@ -185,6 +186,7 @@ class WebKit::WebMouseEvent : WebKit::WebEvent {
     int32_t clickCount();
     double force();
     WebKit::WebMouseEventInputSource inputSource();
+    WebCore::MouseEventCanInitiateDrag canInitiateDrag();
     WebKit::WebMouseEventSyntheticClickType syntheticClickType();
 #if PLATFORM(MAC)
     int32_t eventNumber();

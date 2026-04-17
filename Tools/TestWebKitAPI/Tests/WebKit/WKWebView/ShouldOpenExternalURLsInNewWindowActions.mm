@@ -71,12 +71,12 @@ static RetainPtr<WKWebView> newWebView;
 
 TEST(WebKit, ShouldOpenExternalURLsInWindowOpen)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[ShouldOpenExternalURLsInNewWindowActionsController alloc] init]);
+    RetainPtr controller = adoptNS([[ShouldOpenExternalURLsInNewWindowActionsController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -132,12 +132,12 @@ TEST(WebKit, ShouldOpenExternalURLsInWindowOpen)
 
 TEST(WebKit, ShouldOpenExternalURLsInTargetedLink)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
 
-    auto controller = adoptNS([[ShouldOpenExternalURLsInNewWindowActionsController alloc] init]);
+    RetainPtr controller = adoptNS([[ShouldOpenExternalURLsInNewWindowActionsController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -209,10 +209,10 @@ TEST(WebKit, ShouldOpenExternalURLsInTargetedLink)
 
 TEST(WebKit, RestoreShouldOpenExternalURLsPolicyAfterCrash)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
-    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
-    auto controller = adoptNS([[ShouldOpenExternalURLsInNewWindowActionsController alloc] init]);
+    RetainPtr controller = adoptNS([[ShouldOpenExternalURLsInNewWindowActionsController alloc] init]);
     [webView setNavigationDelegate:controller.get()];
     [webView setUIDelegate:controller.get()];
 
@@ -271,8 +271,8 @@ function clicked() {
 
 TEST(WebKit, IFrameWithSameOriginAsMainFramePropagates)
 {
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"custom"];
 
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
@@ -284,14 +284,14 @@ TEST(WebKit, IFrameWithSameOriginAsMainFramePropagates)
         else if ([[task request].URL.absoluteString containsString:@"mainframe.html"])
             responseText = [NSString stringWithUTF8String:mainFrameBytes];
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:requestURL MIMEType:@"text/html" expectedContentLength:[responseText length] textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:requestURL MIMEType:@"text/html" expectedContentLength:[responseText length] textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[responseText dataUsingEncoding:NSUTF8StringEncoding]];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"custom://firsthost/mainframe.html"]]];

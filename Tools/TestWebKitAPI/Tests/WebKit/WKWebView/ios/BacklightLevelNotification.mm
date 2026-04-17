@@ -35,9 +35,9 @@
 TEST(WebKit, BacklightLevelNotificationCrash)
 {
     {
-        auto poolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
-        auto pool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:poolConfiguration.get()]);
-        auto viewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr poolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+        RetainPtr pool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:poolConfiguration.get()]);
+        RetainPtr viewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
         [viewConfiguration setProcessPool:pool.get()];
     }
 

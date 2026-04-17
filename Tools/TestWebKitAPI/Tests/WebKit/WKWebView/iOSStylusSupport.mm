@@ -55,7 +55,7 @@ static RetainPtr<TestWKWebView> createWebView(HasStylusDevice hasStylusDevice)
     [stylusDeviceObserver start];
     stylusDeviceObserver.hasStylusDevice = hasStylusDevice == HasStylusDevice::Yes;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:@""];
     return webView;
 }

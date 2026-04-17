@@ -41,6 +41,7 @@
 #include <JavaScriptCore/Exception.h>
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/ScriptCallStack.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {

@@ -31,7 +31,7 @@ namespace WebCore {
 
 class Node;
 
-enum class TextIteratorBehavior : uint16_t;
+enum class TextIteratorBehavior : uint32_t;
 
 // This alternate implementation of HTML conversion doesn't handle as many advanced features,
 // such as tables, and doesn't produce document attributes, but it does use TextIterator so

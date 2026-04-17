@@ -1025,15 +1025,16 @@ bool EventHandler::handleMouseDraggedEvent(const MouseEventWithHitTestResults& e
     if (!m_mousePressed)
         return false;
 
-    // FIXME: Drag-and-drop is not supported for this input source yet,
-    // and text selections are driven by WKTextSelectionController.
-    if (event.event().inputSource() == MouseEventInputSource::Automation)
+    if (event.event().canInitiateDrag() == PlatformMouseEvent::CanInitiateDrag::No)
         return false;
 
     Ref frame = m_frame.get();
 
     if (handleDrag(event, checkDragHysteresis))
         return true;
+
+    if (event.event().inputSource() == MouseEventInputSource::Automation)
+        return false;
 
     RefPtr targetNode = event.targetNode();
     if (event.event().button() != MouseButton::Left || !targetNode)

@@ -30,23 +30,23 @@ PASS Slicing test: slice (0,8).
 PASS Slicing test (1,0).
 PASS Slicing test: slice (1,0).
 PASS Slicing test (1,1).
-FAIL Slicing test: slice (1,1). assert_equals: expected 2 but got 3
+PASS Slicing test: slice (1,1).
 PASS Slicing test (1,2).
 PASS Slicing test: slice (1,2).
 PASS Slicing test (1,3).
-FAIL Slicing test: slice (1,3). assert_equals: expected 0 but got 1
+PASS Slicing test: slice (1,3).
 PASS Slicing test (1,4).
 PASS Slicing test: slice (1,4).
 PASS Slicing test (1,5).
-FAIL Slicing test: slice (1,5). assert_equals: expected 2 but got 1
+PASS Slicing test: slice (1,5).
 PASS Slicing test (1,6).
 PASS Slicing test: slice (1,6).
 PASS Slicing test (1,7).
-FAIL Slicing test: slice (1,7). assert_equals: expected 4 but got 3
+PASS Slicing test: slice (1,7).
 PASS Slicing test (1,8).
-FAIL Slicing test: slice (1,8). assert_equals: expected 0 but got 1
+PASS Slicing test: slice (1,8).
 PASS Slicing test (1,9).
-FAIL Slicing test: slice (1,9). assert_equals: expected "cd" but got "bc"
+PASS Slicing test: slice (1,9).
 PASS Slicing test (2,0).
 PASS Slicing test: slice (2,0).
 PASS Slicing test (2,1).

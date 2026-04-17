@@ -124,7 +124,7 @@ static void publishReportCallback(Vector<float>& buttonValues, Vector<float>& ax
     for (size_t i = 13; i < 17; ++i)
         reportData[i] = (uint8_t)((int8_t)(axisValues[i - 13] * 127));
 
-    auto nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:NimbusInputReportSize]);
+    RetainPtr nsReportData = adoptNS([[NSData alloc] initWithBytes:reportData length:NimbusInputReportSize]);
     [userDevice handleReport:nsReportData.get() error:nil];
 }
 

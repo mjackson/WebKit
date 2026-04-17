@@ -423,7 +423,7 @@ class TestImporter(object):
 
                 mimetype = mimetypes.guess_type(fullpath)
                 if 'html' not in str(mimetype[0]) and 'application/xhtml+xml' not in str(mimetype[0]) and 'application/xml' not in str(mimetype[0]) and 'image/svg+xml' not in str(mimetype[0]):
-                    copy_list.append({'src': fullpath, 'dest': filename})
+                    copy_list.append({'src': fullpath, 'dest': filename, 'is_resource': True})
                     continue
 
                 test_parser = TestParser(vars(self.options), filename=fullpath, host=self.host, source_root_directory=source_root_directory)
@@ -432,7 +432,7 @@ class TestImporter(object):
                     # This is probably a resource file, but we should generate WPT manifest instead and get the list of resource files from it.
                     if not self._is_in_resources_directory(fullpath):
                         self._new_resource_files.add(relpath)
-                    copy_list.append({'src': fullpath, 'dest': filename})
+                    copy_list.append({'src': fullpath, 'dest': filename, 'is_resource': True})
                     continue
                 elif self._is_in_resources_directory(fullpath):
                     _log.warning('%s is a test located in a "resources" folder. This test will be skipped by WebKit test runners.', fullpath)
@@ -647,7 +647,8 @@ class TestImporter(object):
                 # Only html, xml, or css should be converted
                 # FIXME: Eventually, so should js when support is added for this type of conversion
                 mimetype = mimetypes.guess_type(orig_filepath)
-                if should_rewrite_files and ('text/' in str(mimetype[0]) or 'application/' in str(mimetype[0])) \
+                is_resource = file_to_copy.get('is_resource', False)
+                if should_rewrite_files and not is_resource and ('text/' in str(mimetype[0]) or 'application/' in str(mimetype[0])) \
                                         and ('html' in str(mimetype[0]) or 'xml' in str(mimetype[0])  or 'css' in str(mimetype[0]) or 'javascript' in str(mimetype[0])):
                     _log.info("Rewriting: %s" % new_filepath)
                     try:

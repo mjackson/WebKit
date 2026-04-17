@@ -35,19 +35,19 @@
 #include "DOMWrapperWorld.h"
 #include "Document.h"
 #include "FrameConsoleClient.h"
-#include "InspectorPageAgent.h"
+#include "InspectorIdentifierRegistry.h"
 #include "InstrumentingAgents.h"
 #include "JSDOMWindowCustom.h"
 #include "JSExecState.h"
 #include "LocalFrame.h"
 #include "Page.h"
+#include "PageInspectorController.h"
 #include "ScriptController.h"
 #include "SecurityOrigin.h"
 #include "UserGestureEmulationScope.h"
 #include <JavaScriptCore/InjectedScript.h>
 #include <JavaScriptCore/InjectedScriptManager.h>
 #include <JavaScriptCore/InspectorProtocolObjects.h>
-#include <wtf/CheckedPtr.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -101,11 +101,11 @@ void PageRuntimeAgent::frameNavigated(LocalFrame& frame)
 
 void PageRuntimeAgent::didClearWindowObjectInWorld(LocalFrame& frame, DOMWrapperWorld& world)
 {
-    CheckedPtr pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent();
-    if (!pageAgent)
+    auto frameId = m_inspectedPage->inspectorController().identifierRegistry().frameId(&frame);
+    if (frameId.isEmpty())
         return;
 
-    notifyContextCreated(pageAgent->frameId(&frame), frame.script().globalObject(world), world);
+    notifyContextCreated(frameId, frame.script().globalObject(world), world);
 }
 
 InjectedScript PageRuntimeAgent::injectedScriptForEval(Inspector::Protocol::ErrorString& errorString, std::optional<Inspector::Protocol::Runtime::ExecutionContextId>&& executionContextId)
@@ -139,15 +139,13 @@ void PageRuntimeAgent::unmuteConsole()
 
 void PageRuntimeAgent::reportExecutionContextCreation()
 {
-    CheckedPtr pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent();
-    if (!pageAgent)
-        return;
+    Ref identifierRegistry = m_inspectedPage->inspectorController().identifierRegistry();
 
     m_inspectedPage->forEachLocalFrame([&](LocalFrame& frame) {
         if (!frame.script().canExecuteScripts(ReasonForCallingCanExecuteScripts::NotAboutToExecuteScript))
             return;
 
-        auto frameId = pageAgent->frameId(&frame);
+        auto frameId = identifierRegistry->frameId(&frame);
 
         // Always send the main world first.
         auto& mainGlobalObject = mainWorldGlobalObject(frame);

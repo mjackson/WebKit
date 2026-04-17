@@ -145,12 +145,12 @@ TEST(SafeBrowsing, Preference)
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [TestLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
     __block bool done = false;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().didStartProvisionalNavigation = ^(WKWebView *, WKNavigation *) {
         done = true;
     };
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     EXPECT_TRUE([webView configuration].preferences.fraudulentWebsiteWarningEnabled);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
     [webView setNavigationDelegate:delegate.get()];
@@ -169,8 +169,8 @@ static RetainPtr<WKWebView> safeBrowsingView()
 {
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [TestLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    static auto delegate = adoptNS([SafeBrowsingNavigationDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    static RetainPtr delegate = adoptNS([SafeBrowsingNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
@@ -222,15 +222,15 @@ TEST(SafeBrowsing, GoBack)
 
 TEST(SafeBrowsing, GoBackAfterRestoreFromSessionState)
 {
-    auto webView1 = adoptNS([WKWebView new]);
+    RetainPtr webView1 = adoptNS([WKWebView new]);
     [webView1 loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
     [webView1 _test_waitForDidFinishNavigation];
     _WKSessionState *state = [webView1 _sessionState];
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [TestLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto delegate = adoptNS([SafeBrowsingNavigationDelegate new]);
-    auto webView2 = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([SafeBrowsingNavigationDelegate new]);
+    RetainPtr webView2 = adoptNS([WKWebView new]);
     [webView2 configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
     [webView2 setNavigationDelegate:delegate.get()];
     [webView2 setUIDelegate:delegate.get()];
@@ -281,7 +281,7 @@ TEST(SafeBrowsing, ShowWarningSPI)
 {
     __block bool completionHandlerCalled = false;
     __block BOOL shouldContinueValue = NO;
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     auto showWarning = ^{
         completionHandlerCalled = false;
         [webView _showSafeBrowsingWarningWithURL:nil title:@"test title" warning:@"test warning" details:adoptNS([[NSAttributedString alloc] initWithString:@"test details"]).get() completionHandler:^(BOOL shouldContinue) {
@@ -324,11 +324,11 @@ TEST(SafeBrowsing, URLObservation)
 
     RetainPtr<NSURL> simpleURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     RetainPtr<NSURL> simple2URL = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
-    auto observer = adoptNS([SafeBrowsingObserver new]);
+    RetainPtr observer = adoptNS([SafeBrowsingObserver new]);
 
     auto webViewWithWarning = [&] () -> RetainPtr<WKWebView> {
-        auto webView = adoptNS([WKWebView new]);
-        auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+        RetainPtr webView = adoptNS([WKWebView new]);
+        RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
         navigationDelegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^decisionHandler)(WKNavigationActionPolicy)) {
             TestWebKitAPI::Util::runFor(0.01_s);
             decisionHandler(WKNavigationActionPolicyAllow);
@@ -428,8 +428,8 @@ TEST(SafeBrowsing, WKWebViewGoBack)
     phishingResourceName = @"simple3";
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [SimpleLookupContext methodForSelector:@selector(sharedLookupContext)]);
     
-    auto delegate = adoptNS([WKWebViewGoBackNavigationDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([WKWebViewGoBackNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:resourceURL(@"simple")]];
@@ -453,8 +453,8 @@ TEST(SafeBrowsing, WKWebViewGoBackIFrame)
     phishingResourceName = @"simple";
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [SimpleLookupContext methodForSelector:@selector(sharedLookupContext)]);
     
-    auto delegate = adoptNS([TestNavigationDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView configuration].preferences._safeBrowsingEnabled = YES;
 
     __block bool navigationFailed = false;
@@ -497,7 +497,7 @@ TEST(SafeBrowsing, WKWebViewGoBackIFrame)
 TEST(SafeBrowsing, MissingFramework)
 {
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [NullLookupContext methodForSelector:@selector(sharedLookupContext)]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 }
 
@@ -511,9 +511,9 @@ TEST(SafeBrowsing, HangTimeout)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     navigationFinished = false;
     [webView setNavigationDelegate:delegate.get()];
@@ -532,9 +532,9 @@ TEST(SafeBrowsing, PostResponse)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     navigationFinished = false;
     [webView setNavigationDelegate:delegate.get()];
@@ -549,8 +549,8 @@ TEST(SafeBrowsing, PostResponseIframe)
     DelayedLookupContext.delayDuration = 25_ms;
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView configuration].preferences._safeBrowsingEnabled = YES;
 
     __block bool navigationFailed = false;
@@ -580,18 +580,18 @@ TEST(SafeBrowsing, PreresponseSafeBrowsingWarning)
 {
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [TestLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
-    auto handler = adoptNS([[TestURLSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"sb"];
     configuration.get().preferences.fraudulentWebsiteWarningEnabled = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
 
     [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         RunLoop::mainSingleton().dispatchAfter(1000_s, [task = retainPtr(task)] {
-            auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.get().request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
+            RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.get().request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
             [task didReceiveResponse:response.get()];
             [task didReceiveData:[NSData dataWithBytes:mainResource length:strlen(mainResource)]];
             [task didFinish];
@@ -615,9 +615,9 @@ TEST(SafeBrowsing, PostResponseServerSideRedirect)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     navigationFinished = false;
     [webView setNavigationDelegate:delegate.get()];
@@ -639,9 +639,9 @@ TEST(SafeBrowsing, MultipleRedirectsFirstPhishing)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [SimpleLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     navigationFinished = false;
     [webView setNavigationDelegate:delegate.get()];
@@ -663,9 +663,9 @@ TEST(SafeBrowsing, MultipleRedirectsMiddlePhishing)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [SimpleLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     navigationFinished = false;
     [webView setNavigationDelegate:delegate.get()];
@@ -687,9 +687,9 @@ TEST(SafeBrowsing, MultipleRedirectsLastPhishing)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [SimpleLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     navigationFinished = false;
     [webView setNavigationDelegate:delegate.get()];
@@ -709,9 +709,9 @@ TEST(SafeBrowsing, PostResponseInjectedBundleSkipsDecidePolicyForResponse)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     navigationFinished = false;
     [webView setNavigationDelegate:delegate.get()];
@@ -731,9 +731,9 @@ TEST(SafeBrowsing, PostTimeout)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
 
@@ -749,8 +749,8 @@ TEST(SafeBrowsing, PhishingInFrame)
     phishingResourceName = @"simple";
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [SimpleLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     auto configuration = webView.get().configuration;
     auto preferences = configuration.preferences;
     preferences._safeBrowsingEnabled = YES;
@@ -791,8 +791,8 @@ TEST(SafeBrowsing, ModalShownImmediatelyWhenNoCheck)
     phishingResourceName = @"phishing";
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [SimpleLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto delegate = adoptNS([ModalDeferralDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([ModalDeferralDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView configuration].preferences._safeBrowsingEnabled = YES;
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
@@ -818,14 +818,14 @@ TEST(SafeBrowsing, ModalDeferredDuringCheck)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:delegate.get()];
 
-    auto modalDelegate = adoptNS([ModalDeferralDelegate new]);
+    RetainPtr modalDelegate = adoptNS([ModalDeferralDelegate new]);
     [webView setUIDelegate:modalDelegate.get()];
 
     committedNavigation = false;
@@ -858,10 +858,10 @@ TEST(SafeBrowsing, DeferredModalShownWhenProceedingThroughWarning)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
 
-    auto modalDelegate = adoptNS([ModalDeferralDelegate new]);
+    RetainPtr modalDelegate = adoptNS([ModalDeferralDelegate new]);
     __block bool alertCalled = false;
     __block RetainPtr<NSString> alertMessage;
     modalDelegate.get().onAlert = ^(NSString *message) {
@@ -870,7 +870,7 @@ TEST(SafeBrowsing, DeferredModalShownWhenProceedingThroughWarning)
     };
     [webView setUIDelegate:modalDelegate.get()];
 
-    auto navDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navDelegate = adoptNS([TestNavigationDelegate new]);
     [navDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navDelegate.get()];
 
@@ -902,17 +902,17 @@ TEST(SafeBrowsing, DeferredModalSuppressedWhenGoingBack)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
 
-    auto modalDelegate = adoptNS([ModalDeferralDelegate new]);
+    RetainPtr modalDelegate = adoptNS([ModalDeferralDelegate new]);
     __block bool alertCalled = false;
     modalDelegate.get().onAlert = ^(NSString *message) {
         alertCalled = true;
     };
     [webView setUIDelegate:modalDelegate.get()];
 
-    auto navDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navDelegate = adoptNS([TestNavigationDelegate new]);
     [navDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navDelegate.get()];
 
@@ -947,17 +947,17 @@ TEST(SafeBrowsing, MultipleDeferredModalsShownInOrder)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
 
-    auto modalDelegate = adoptNS([ModalDeferralDelegate new]);
+    RetainPtr modalDelegate = adoptNS([ModalDeferralDelegate new]);
     __block Vector<String> modalMessages;
     modalDelegate.get().onAlert = ^(NSString *message) {
         modalMessages.append(String(message));
     };
     [webView setUIDelegate:modalDelegate.get()];
 
-    auto navDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navDelegate = adoptNS([TestNavigationDelegate new]);
     [navDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navDelegate.get()];
 
@@ -994,17 +994,17 @@ TEST(SafeBrowsing, DeferredModalsClearedOnNavigation)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
 
-    auto modalDelegate = adoptNS([ModalDeferralDelegate new]);
+    RetainPtr modalDelegate = adoptNS([ModalDeferralDelegate new]);
     __block bool alertCalled = false;
     modalDelegate.get().onAlert = ^(NSString *message) {
         alertCalled = true;
     };
     [webView setUIDelegate:modalDelegate.get()];
 
-    auto navDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navDelegate = adoptNS([TestNavigationDelegate new]);
     [navDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navDelegate.get()];
 
@@ -1033,13 +1033,13 @@ TEST(SafeBrowsing, ModalShownWhenCheckCompletesClean)
     phishingResourceName = @"different-url";
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [SimpleLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto delegate = adoptNS([ModalDeferralDelegate new]);
+    RetainPtr delegate = adoptNS([ModalDeferralDelegate new]);
     __block bool alertCalled = false;
     delegate.get().onAlert = ^(NSString *message) {
         alertCalled = true;
     };
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView configuration].preferences._safeBrowsingEnabled = YES;
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
@@ -1064,10 +1064,10 @@ TEST(SafeBrowsing, AllModalTypesProperlyDeferred)
 
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView configuration].preferences.fraudulentWebsiteWarningEnabled = YES;
 
-    auto modalDelegate = adoptNS([ModalDeferralDelegate new]);
+    RetainPtr modalDelegate = adoptNS([ModalDeferralDelegate new]);
     __block Vector<String> modalTypes;
     modalDelegate.get().onAlert = ^(NSString *message) {
         modalTypes.append("alert"_s);
@@ -1082,7 +1082,7 @@ TEST(SafeBrowsing, AllModalTypesProperlyDeferred)
     };
     [webView setUIDelegate:modalDelegate.get()];
 
-    auto navDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navDelegate = adoptNS([TestNavigationDelegate new]);
     [navDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navDelegate.get()];
 
@@ -1114,15 +1114,15 @@ TEST(SafeBrowsing, NavigationFromWarningPage)
     phishingResourceName = @"phishing";
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [SimpleLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto delegate = adoptNS([SafeBrowsingNavigationDelegate new]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([SafeBrowsingNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
 
-    auto handler = adoptNS([[TestURLSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"sb"];
     configuration.get().preferences.fraudulentWebsiteWarningEnabled = YES;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView setUIDelegate:delegate.get()];
 
@@ -1135,7 +1135,7 @@ TEST(SafeBrowsing, NavigationFromWarningPage)
             html = @"<html><body>Safe page</body></html>";
         else
             html = @"<html><body>Unknown</body></html>";
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:html.length textEncodingName:@"utf-8"]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:html.length textEncodingName:@"utf-8"]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[html dataUsingEncoding:NSUTF8StringEncoding]];
         [task didFinish];
@@ -1162,15 +1162,15 @@ TEST(SafeBrowsing, SetTimeoutNavigationFromWarningPage)
     phishingResourceName = @"phishing";
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [SimpleLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
-    auto delegate = adoptNS([SafeBrowsingNavigationDelegate new]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([SafeBrowsingNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
 
-    auto handler = adoptNS([[TestURLSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"sb"];
     configuration.get().preferences.fraudulentWebsiteWarningEnabled = YES;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView setUIDelegate:delegate.get()];
 
@@ -1183,7 +1183,7 @@ TEST(SafeBrowsing, SetTimeoutNavigationFromWarningPage)
             html = @"<html><body>Safe page</body></html>";
         else
             html = @"<html><body>Unknown</body></html>";
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:html.length textEncodingName:@"utf-8"]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:html.length textEncodingName:@"utf-8"]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[html dataUsingEncoding:NSUTF8StringEncoding]];
         [task didFinish];

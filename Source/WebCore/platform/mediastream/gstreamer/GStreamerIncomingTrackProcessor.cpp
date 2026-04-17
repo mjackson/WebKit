@@ -41,6 +41,7 @@ GStreamerIncomingTrackProcessor::GStreamerIncomingTrackProcessor()
     std::call_once(debugRegisteredFlag, [] {
         GST_DEBUG_CATEGORY_INIT(webkit_webrtc_incoming_track_processor_debug, "webkitwebrtcincomingtrackprocessor", 0, "WebKit WebRTC Incoming Track Processor");
     });
+    m_ntpCaps = adoptGRef(gst_caps_new_empty_simple("timestamp/x-ntp"));
 }
 
 void GStreamerIncomingTrackProcessor::configure(ThreadSafeWeakPtr<GStreamerMediaEndpoint>&& endPoint, GRefPtr<GstPad>&& pad)
@@ -212,31 +213,41 @@ GRefPtr<GstElement> GStreamerIncomingTrackProcessor::incomingTrackProcessor()
     GRefPtr<GstElement> decodebin = makeGStreamerElement("decodebin3"_s);
     m_isDecoding = true;
 
-    g_signal_connect(decodebin.get(), "deep-element-added", G_CALLBACK(+[](GstBin*, GstBin*, GstElement* element, gpointer userData) {
+    g_signal_connect_data(decodebin.get(), "deep-element-added", G_CALLBACK(+[](GstBin*, GstBin*, GstElement* element, gpointer userData) {
         String elementClass = unsafeSpan(gst_element_get_metadata(element, GST_ELEMENT_METADATA_KLASS));
         auto classifiers = elementClass.split('/');
         if (!classifiers.contains("Depayloader"_s))
             return;
 
+        RefPtr self = reinterpret_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(userData)->get();
+        if (!self)
+            return;
+
         configureVideoRTPDepayloader(element);
-        auto self = reinterpret_cast<GStreamerIncomingTrackProcessor*>(userData);
         auto pad = adoptGRef(gst_element_get_static_pad(element, "sink"));
         self->installRtpBufferPadProbe(pad);
-    }), this);
+    }), new ThreadSafeWeakPtr { *this }, [](gpointer data, GClosure*) {
+        delete static_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(data);
+    }, static_cast<GConnectFlags>(0));
 
-    g_signal_connect(decodebin.get(), "element-added", G_CALLBACK(+[](GstBin*, GstElement* element, gpointer userData) {
+    g_signal_connect_data(decodebin.get(), "element-added", G_CALLBACK(+[](GstBin*, GstElement* element, gpointer userData) {
         String elementClass = unsafeSpan(gst_element_get_metadata(element, GST_ELEMENT_METADATA_KLASS));
         auto classifiers = elementClass.split('/');
         if (!classifiers.contains("Decoder"_s) || !classifiers.contains("Video"_s))
             return;
 
-        auto self = reinterpret_cast<GStreamerIncomingTrackProcessor*>(userData);
+        RefPtr self = reinterpret_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(userData)->get();
+        if (!self)
+            return;
+
         self->m_videoDecoderName = configureMediaStreamVideoDecoder(element);
         webkitGstTraceProcessingTimeForElement(element);
 
         auto sinkPad = adoptGRef(gst_element_get_static_pad(element, "sink"));
         gst_pad_add_probe(sinkPad.get(), static_cast<GstPadProbeType>(GST_PAD_PROBE_TYPE_BUFFER), [](GstPad*, GstPadProbeInfo* info, gpointer userData) -> GstPadProbeReturn {
-            auto self = reinterpret_cast<GStreamerIncomingTrackProcessor*>(userData);
+            RefPtr self = reinterpret_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(userData)->get();
+            if (!self)
+                return GST_PAD_PROBE_REMOVE;
             auto buffer = GST_PAD_PROBE_INFO_BUFFER(info);
             if (!GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT))
                 self->m_decodedKeyFrames++;
@@ -246,7 +257,10 @@ GRefPtr<GstElement> GStreamerIncomingTrackProcessor::incomingTrackProcessor()
 
         auto pad = adoptGRef(gst_element_get_static_pad(element, "src"));
         gst_pad_add_probe(pad.get(), static_cast<GstPadProbeType>(GST_PAD_PROBE_TYPE_BUFFER | GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM), [](GstPad* pad, GstPadProbeInfo* info, gpointer userData) -> GstPadProbeReturn {
-            auto self = reinterpret_cast<GStreamerIncomingTrackProcessor*>(userData);
+            RefPtr self = reinterpret_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(userData)->get();
+            if (!self)
+                return GST_PAD_PROBE_REMOVE;
+
             if (info->type & GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM) {
                 auto event = GST_PAD_PROBE_INFO_EVENT(info);
                 if (GST_EVENT_TYPE(event) == GST_EVENT_CAPS) {
@@ -274,31 +288,45 @@ GRefPtr<GstElement> GStreamerIncomingTrackProcessor::incomingTrackProcessor()
             self->m_totalVideoDecodeTime += processingTime;
             return GST_PAD_PROBE_OK;
         }, userData, nullptr);
-    }), this);
+    }), new ThreadSafeWeakPtr { *this }, [](gpointer data, GClosure*) {
+        delete static_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(data);
+    }, static_cast<GConnectFlags>(0));
 
-    g_signal_connect_swapped(decodebin.get(), "pad-added", G_CALLBACK(+[](GStreamerIncomingTrackProcessor* self, GstPad* pad) {
+    g_signal_connect_data(decodebin.get(), "pad-added", G_CALLBACK(+[](GstElement*, GstPad* pad, gpointer userData) {
+        RefPtr self = reinterpret_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(userData)->get();
+        if (!self)
+            return;
+
         auto queue = adoptGRef(gst_bin_get_by_name(GST_BIN_CAST(self->m_bin.get()), "queue"));
         auto sinkPad = adoptGRef(gst_element_get_static_pad(queue.get(), "sink"));
         gst_pad_link(pad, sinkPad.get());
         self->trackReady();
-    }), this);
+    }), new ThreadSafeWeakPtr { *this }, [](gpointer data, GClosure*) {
+        delete static_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(data);
+    }, static_cast<GConnectFlags>(0));
+
     return decodebin;
 }
 
 GRefPtr<GstElement> GStreamerIncomingTrackProcessor::createParser()
 {
     GRefPtr<GstElement> parsebin = makeGStreamerElement("parsebin"_s);
-    g_signal_connect(parsebin.get(), "element-added", G_CALLBACK(+[](GstBin*, GstElement* element, gpointer userData) {
+    g_signal_connect_data(parsebin.get(), "element-added", G_CALLBACK(+[](GstBin*, GstElement* element, gpointer userData) {
         String elementClass = unsafeSpan(gst_element_get_metadata(element, GST_ELEMENT_METADATA_KLASS));
         auto classifiers = elementClass.split('/');
         if (!classifiers.contains("Depayloader"_s))
             return;
 
+        RefPtr self = reinterpret_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(userData)->get();
+        if (!self)
+            return;
+
         configureVideoRTPDepayloader(element);
-        auto self = reinterpret_cast<GStreamerIncomingTrackProcessor*>(userData);
         auto pad = adoptGRef(gst_element_get_static_pad(element, "sink"));
         self->installRtpBufferPadProbe(pad);
-    }), this);
+    }), new ThreadSafeWeakPtr { *this }, [](gpointer data, GClosure*) {
+        delete static_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(data);
+    }, static_cast<GConnectFlags>(0));
 
     auto& quirksManager = GStreamerQuirksManager::singleton();
     if (quirksManager.isEnabled()) {
@@ -316,42 +344,66 @@ GRefPtr<GstElement> GStreamerIncomingTrackProcessor::createParser()
         }), nullptr);
     }
 
-    g_signal_connect_swapped(parsebin.get(), "pad-added", G_CALLBACK(+[](GStreamerIncomingTrackProcessor* self, GstPad* pad) {
+    g_signal_connect_data(parsebin.get(), "pad-added", G_CALLBACK(+[](GstElement*, GstPad* pad, gpointer userData) {
+        RefPtr self = reinterpret_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(userData)->get();
+        if (!self)
+            return;
         auto queue = adoptGRef(gst_bin_get_by_name(GST_BIN_CAST(self->m_bin.get()), "queue"));
         auto sinkPad = adoptGRef(gst_element_get_static_pad(queue.get(), "sink"));
         gst_pad_link(pad, sinkPad.get());
         self->trackReady();
-    }), this);
+    }), new ThreadSafeWeakPtr { *this }, [](gpointer data, GClosure*) {
+        delete static_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(data);
+    }, static_cast<GConnectFlags>(0));
     return parsebin;
 }
 
 void GStreamerIncomingTrackProcessor::installRtpBufferPadProbe(const GRefPtr<GstPad>& pad)
 {
-    if (m_data.type == RealtimeMediaSource::Type::Audio)
-        return;
-
     gst_pad_add_probe(pad.get(), static_cast<GstPadProbeType>(GST_PAD_PROBE_TYPE_BUFFER), [](GstPad*, GstPadProbeInfo* info, gpointer userData) -> GstPadProbeReturn {
-        VideoFrameTimeMetadata videoFrameTimeMetadata;
-        videoFrameTimeMetadata.receiveTime = MonotonicTime::now().secondsSinceEpoch();
+        RefPtr self = reinterpret_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(userData)->get();
+        if (!self)
+            return GST_PAD_PROBE_REMOVE;
 
+        std::optional<VideoFrameTimeMetadata> videoFrameTimeMetadata;
+
+        bool shouldNotifyFirstPacket = false;
         auto buffer = GST_PAD_PROBE_INFO_BUFFER(info);
         {
             GstMappedRtpBuffer rtpBuffer(buffer, GST_MAP_READ);
             if (!rtpBuffer) [[unlikely]]
                 return GST_PAD_PROBE_OK;
 
-            videoFrameTimeMetadata.rtpTimestamp = gst_rtp_buffer_get_timestamp(rtpBuffer.mappedData());
+            if (!self->m_hasReceivedFirstPacket && gst_rtp_buffer_get_marker(rtpBuffer.mappedData())) {
+                self->m_hasReceivedFirstPacket = true;
+                shouldNotifyFirstPacket = true;
+            }
+
+            if (self->m_data.type == RealtimeMediaSource::Type::Video) {
+                videoFrameTimeMetadata.emplace(VideoFrameTimeMetadata {
+                    .processingDuration { },
+                    .captureTime { },
+                    .receiveTime { MonotonicTime::now().secondsSinceEpoch() },
+                    .rtpTimestamp { gst_rtp_buffer_get_timestamp(rtpBuffer.mappedData()) }
+                });
+                if (auto referenceTimestampMeta = gst_buffer_get_reference_timestamp_meta(buffer, self->m_ntpCaps.get())) {
+                    auto ntpTimestamp = referenceTimestampMeta->timestamp;
+                    videoFrameTimeMetadata->captureTime = Seconds::fromNanoseconds(gst_rtcp_ntp_to_unix(ntpTimestamp));
+                }
+            }
         }
 
-        if (auto referenceTimestampMeta = gst_buffer_get_reference_timestamp_meta(buffer, GST_CAPS_CAST(userData))) {
-            auto ntpTimestamp = referenceTimestampMeta->timestamp;
-            videoFrameTimeMetadata.captureTime = Seconds::fromNanoseconds(gst_rtcp_ntp_to_unix(ntpTimestamp));
+        if (videoFrameTimeMetadata) {
+            auto modifiedBuffer = webkitGstBufferSetVideoFrameMetadata(GRefPtr(buffer), WTF::move(videoFrameTimeMetadata));
+            gst_pad_probe_info_set_buffer(info, modifiedBuffer.leakRef());
         }
+        if (shouldNotifyFirstPacket)
+            self->trackHasReceivedFirstPacket();
 
-        auto modifiedBuffer = webkitGstBufferSetVideoFrameMetadata(GRefPtr(buffer), videoFrameTimeMetadata);
-        gst_pad_probe_info_set_buffer(info, modifiedBuffer.leakRef());
         return GST_PAD_PROBE_OK;
-    }, gst_caps_new_empty_simple("timestamp/x-ntp"), reinterpret_cast<GDestroyNotify>(gst_caps_unref));
+    }, new ThreadSafeWeakPtr { *this }, reinterpret_cast<GDestroyNotify>(+[](gpointer data) {
+        delete static_cast<ThreadSafeWeakPtr<GStreamerIncomingTrackProcessor>*>(data);
+    }));
 }
 
 void GStreamerIncomingTrackProcessor::trackReady()
@@ -366,6 +418,20 @@ void GStreamerIncomingTrackProcessor::trackReady()
         if (endPoint->isStopped())
             return;
         endPoint->connectIncomingTrack(m_data);
+    });
+}
+
+void GStreamerIncomingTrackProcessor::trackHasReceivedFirstPacket()
+{
+    auto endPoint = m_endPoint.get();
+    if (!endPoint || endPoint->isStopped())
+        return;
+
+    GST_DEBUG_OBJECT(m_bin.get(), "MediaStream %s track %s on pad %" GST_PTR_FORMAT " has received its first packet", m_data.mediaStreamId.utf8().data(), m_data.trackId.utf8().data(), m_pad.get());
+    callOnMainThread([endPoint = Ref { *endPoint }, this] {
+        if (endPoint->isStopped())
+            return;
+        endPoint->notifyFirstPacketReceived(m_data);
     });
 }
 

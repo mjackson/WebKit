@@ -55,11 +55,6 @@ enum class CursorSource : bool {
     ObjectStore,
 };
 
-enum class VersionNullness : uint8_t {
-    Null,
-    NonNull,
-};
-
 enum class ObjectStoreOverwriteMode : uint8_t {
     Overwrite,
     OverwriteForCursor,

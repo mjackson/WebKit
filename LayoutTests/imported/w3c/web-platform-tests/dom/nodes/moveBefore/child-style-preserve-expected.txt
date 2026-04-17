@@ -1,0 +1,7 @@
+Test1
+
+Test2
+
+
+FAIL child-style-preserve document.body.moveBefore is not a function. (In 'document.body.moveBefore(container, null)', 'document.body.moveBefore' is undefined)
+

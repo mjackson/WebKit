@@ -33,12 +33,14 @@
 #include "CSSAppleColorFilterValue.h"
 #include "CSSBoxShadowPropertyValue.h"
 #include "CSSCalcValue.h"
+#include "CSSCustomIdentValue.h"
 #include "CSSCustomPropertyValue.h"
 #include "CSSEasingFunctionValue.h"
 #include "CSSFilterValue.h"
 #include "CSSKeywordValue.h"
 #include "CSSNumericFactory.h"
 #include "CSSParser.h"
+#include "CSSPropertyIdentifierValue.h"
 #include "CSSPropertyParser.h"
 #include "CSSSerializationContext.h"
 #include "CSSShorthandSubstitutionValue.h"
@@ -281,7 +283,7 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
             return Ref<CSSStyleValue> { CSSNumericFactory::cqmin(primitiveValue->valueNoConversionDataRequired<double>()) };
         case CSSUnitType::CSS_CQMAX:
             return Ref<CSSStyleValue> { CSSNumericFactory::cqmax(primitiveValue->valueNoConversionDataRequired<double>()) };
-        case CSSUnitType::CSS_IDENT:
+        case CSSUnitType::CSS_VALUE_ID:
             // Per the specification, the CSSKeywordValue's value slot should be set to the serialization
             // of the identifier. As a result, the identifier will be lowercase:
             // https://drafts.css-houdini.org/css-typed-om-1/#reify-ident
@@ -289,15 +291,17 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
         default:
             break;
         }
-    } else if (auto* customIdentValue = dynamicDowncast<CSSCustomIdentValue>(cssValue)) {
+    } else if (auto* customIdentValue = dynamicDowncast<CSSCustomIdentValue>(cssValue))
         return upcast<CSSStyleValue>(CSSKeywordValue::rectifyKeywordish(customIdentValue->cssText(CSS::defaultSerializationContext())));
-    } else if (auto* imageValue = dynamicDowncast<CSSImageValue>(cssValue))
+    else if (auto* propertyIdentifierValue = dynamicDowncast<CSSPropertyIdentifierValue>(cssValue))
+        return upcast<CSSStyleValue>(CSSKeywordValue::rectifyKeywordish(propertyIdentifierValue->cssText(CSS::defaultSerializationContext())));
+    else if (auto* imageValue = dynamicDowncast<CSSImageValue>(cssValue))
         return Ref<CSSStyleValue> { CSSStyleImageValue::create(const_cast<CSSImageValue&>(*imageValue), document) };
-    else if (auto* referenceValue = dynamicDowncast<CSSSubstitutionValue>(cssValue)) {
+    else if (auto* referenceValue = dynamicDowncast<CSSSubstitutionValue>(cssValue))
         return Ref<CSSStyleValue> { CSSUnparsedValue::create(referenceValue->data().tokenRange()) };
-    } else if (auto* substitutionValue = dynamicDowncast<CSSShorthandSubstitutionValue>(cssValue)) {
+    else if (auto* substitutionValue = dynamicDowncast<CSSShorthandSubstitutionValue>(cssValue))
         return Ref<CSSStyleValue> { CSSUnparsedValue::create(substitutionValue->shorthandValue().data().tokenRange()) };
-    } else if (auto* customPropertyValue = dynamicDowncast<CSSCustomPropertyValue>(cssValue)) {
+    else if (auto* customPropertyValue = dynamicDowncast<CSSCustomPropertyValue>(cssValue)) {
         // FIXME: remove CSSStyleValue::create(WTF::move(cssValue)), add reification control flow
         return WTF::switchOn(customPropertyValue->value(),
             [&](const Ref<CSSSubstitutionValue>& value) {

@@ -841,7 +841,7 @@ public:
             case WasmBoundsCheck:
                 VALIDATE(!value->kind().hasExtraBits(), ("At ", *value));
                 VALIDATE(value->numChildren() == 1, ("At ", *value));
-                VALIDATE(value->child(0)->type() == Int32, ("At ", *value));
+                VALIDATE(value->child(0)->type() == Int32 || value->child(0)->type() == Int64, ("At ", *value));
                 switch (value->as<WasmBoundsCheckValue>()->boundsType()) {
                 case WasmBoundsCheckValue::Type::Pinned:
                     VALIDATE(m_procedure.code().isPinned(value->as<WasmBoundsCheckValue>()->bounds().pinnedSize), ("At ", *value));
@@ -864,6 +864,27 @@ public:
                 VALIDATE(!value->kind().hasExtraBits(), ("At ", *value));
                 VALIDATE(value->numChildren() == 2, ("At ", *value));
                 VALIDATE(value->type() == Int64, ("At ", *value)); // returns struct pointer
+                break;
+            case WasmArrayGet:
+                VALIDATE(value->numChildren() == 2, ("At ", *value));
+                VALIDATE(value->child(0)->type() == Int64, ("At ", *value)); // array pointer
+                VALIDATE(value->child(1)->type() == Int32, ("At ", *value)); // index
+                break;
+            case WasmArraySet:
+                VALIDATE(value->numChildren() == 3, ("At ", *value));
+                VALIDATE(value->child(0)->type() == Int64, ("At ", *value)); // array pointer
+                VALIDATE(value->child(1)->type() == Int32, ("At ", *value)); // index
+                VALIDATE(value->type() == Void, ("At ", *value));
+                break;
+            case WasmArrayNew:
+                VALIDATE(!value->kind().hasExtraBits(), ("At ", *value));
+                VALIDATE(value->numChildren() == 3 || value->numChildren() == 4, ("At ", *value));
+                VALIDATE(value->type() == Int64, ("At ", *value)); // returns array pointer
+                break;
+            case WasmArrayLength:
+                VALIDATE(value->numChildren() == 1, ("At ", *value));
+                VALIDATE(value->child(0)->type() == Int64, ("At ", *value)); // array pointer
+                VALIDATE(value->type() == Int32, ("At ", *value)); // returns size
                 break;
             case WasmRefCast:
                 VALIDATE(value->numChildren() == 1 || value->numChildren() == 2, ("At ", *value));

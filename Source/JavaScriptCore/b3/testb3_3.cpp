@@ -4231,6 +4231,7 @@ void addArgTests(const TestConfig* config, Deque<RefPtr<SharedTask<void()>>>& ta
     RUN_UNARY(testUDivByConstantInt32NonPowerOf2, int32Operands());
     RUN_UNARY(testUDivByConstantInt32EvenDivisors, int32Operands());
     RUN_UNARY(testUDivByConstantInt32EdgeCases, int32Operands());
+    RUN_UNARY(testUDivByConstantInt32With33BitMagic, int32Operands());
 
     RUN_UNARY(testModArgDouble, floatingPointOperands<double>());
     RUN_BINARY(testModArgsDouble, floatingPointOperands<double>(), floatingPointOperands<double>());

@@ -100,6 +100,7 @@ static void releaseNoncriticalMemory(MaintainMemoryCache maintainMemoryCache)
             LayoutIntegration::LineLayout::releaseCaches(*renderView);
             Layout::TextBreakingPositionCache::singleton().clear();
             renderView->layoutContext().deleteDetachedRenderersNow();
+            renderView->layoutContext().deleteDetachedInlineContentNow();
         }
     }
 
@@ -151,6 +152,9 @@ static void releaseCriticalMemory(Synchronous synchronous, MaintainBackForwardCa
 
         if (RefPtr pluginDocument = dynamicDowncast<PluginDocument>(document))
             pluginDocument->releaseMemory();
+
+        if (RefPtr localFrame = document->frame())
+            protect(localFrame->editor())->releaseMemory();
     }
 
     if (synchronous == Synchronous::Yes)

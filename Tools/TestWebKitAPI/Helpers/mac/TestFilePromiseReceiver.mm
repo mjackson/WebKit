@@ -88,7 +88,7 @@ static NSString *fileNameWithNumericSuffix(NSString *fileName, NSUInteger suffix
 
 static NSURL *writeToWebLoc(NSURL *webURL, NSURL *destinationDirectory, NSError **outError)
 {
-    auto components = adoptNS([webURL.absoluteString componentsSeparatedByCharactersInSet:NSCharacterSet.letterCharacterSet.invertedSet].mutableCopy);
+    RetainPtr components = adoptNS([webURL.absoluteString componentsSeparatedByCharactersInSet:NSCharacterSet.letterCharacterSet.invertedSet].mutableCopy);
     [components removeObject:@""];
     NSString *fileName = [[components componentsJoinedByString:@"-"] stringByAppendingPathExtension:@"webloc"];
     NSURL *destinationURL = [NSURL fileURLWithPath:fileName relativeToURL:destinationDirectory];

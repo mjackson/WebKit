@@ -584,6 +584,9 @@ void HTMLLinkElement::initializeStyleSheet(Ref<StyleSheetContents>&& styleSheet,
     if (!isInShadowTree())
         m_sheet->setTitle(title());
 
+    if (CheckedPtr styleScope = m_styleScope)
+        styleScope->establishPreferredStylesheetSetName(*this, *m_sheet);
+
     if (!m_sheet->canAccessRules())
         m_sheet->contents().setAsLoadedFromOpaqueSource();
 }

@@ -48,7 +48,7 @@ TEST(WebKit2CustomProtocolsTest, SyncXHR)
     [TestProtocol registerWithScheme:@"http"];
 
     // Allow file URLs to load non-file resources
-    auto wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     wkView.get().configuration.preferences._universalAccessFromFileURLsAllowed = YES;
     RetainPtr<TestBrowsingContextLoadDelegate> delegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
         EXPECT_JS_EQ(wkView.get()._pageRefForTransitionToWKWebView, "window._testResult", "PASS");

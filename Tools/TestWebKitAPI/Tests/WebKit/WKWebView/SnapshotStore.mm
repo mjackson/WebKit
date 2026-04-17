@@ -229,7 +229,7 @@ TEST(SnapshotStore, ClearSiteDataHeader)
         { "/logout.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Clear-Site-Data"_s, "\"cache\""_s } }, "Logged out."_s } },
     }, HTTPServer::Protocol::Https);
 
-    auto webView = adoptNS([[SnapshotTestWKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[SnapshotTestWKWebView alloc] init]);
     for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"ClearSiteDataHTTPHeaderEnabled"]) {
             [[[webView configuration] preferences] _setEnabled:YES forFeature:feature];
@@ -255,7 +255,7 @@ TEST(SnapshotStore, ClearSiteDataHeaderCrossOrigin)
         { "/logout.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Clear-Site-Data"_s, "\"*\""_s } }, "Logged out."_s } },
     }, HTTPServer::Protocol::Https);
 
-    auto webView = adoptNS([[SnapshotTestWKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[SnapshotTestWKWebView alloc] init]);
     for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"ClearSiteDataHTTPHeaderEnabled"]) {
             [[[webView configuration] preferences] _setEnabled:YES forFeature:feature];

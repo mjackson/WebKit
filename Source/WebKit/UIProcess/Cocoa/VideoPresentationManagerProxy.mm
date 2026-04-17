@@ -425,7 +425,7 @@ void VideoPresentationModelContext::returnVideoContentLayer()
 void VideoPresentationModelContext::returnVideoView()
 {
     ALWAYS_LOG_IF_POSSIBLE(LOGIDENTIFIER);
-    if (auto* manager = m_manager.get())
+    if (RefPtr manager = m_manager.get())
         manager->returnVideoView(m_contextId);
 }
 

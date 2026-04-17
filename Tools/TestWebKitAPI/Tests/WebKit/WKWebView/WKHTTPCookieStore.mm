@@ -73,9 +73,9 @@ static void runTestWithWebsiteDataStore(WKWebsiteDataStore* dataStore)
 {
     observerCallbacks = 0;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = dataStore;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView loadHTMLString:@"Oh hello" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView _test_waitForDidFinishNavigation];
@@ -245,9 +245,9 @@ TEST(WKHTTPCookieStore, HttpOnly)
 {
     WKWebsiteDataStore* dataStore = [WKWebsiteDataStore defaultDataStore];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = dataStore;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView loadHTMLString:@"WebKit Test" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView _test_waitForDidFinishNavigation];
@@ -269,7 +269,7 @@ TEST(WKHTTPCookieStore, HttpOnly)
     gotFlag = false;
     ASSERT_EQ([cookies count], 0u);
 
-    auto cookieProperties = adoptNS([[NSMutableDictionary alloc] init]);
+    RetainPtr cookieProperties = adoptNS([[NSMutableDictionary alloc] init]);
     [cookieProperties setObject:@"cookieName" forKey:NSHTTPCookieName];
     [cookieProperties setObject:@"cookieValue" forKey:NSHTTPCookieValue];
     [cookieProperties setObject:@".www.webkit.org" forKey:NSHTTPCookieDomain];
@@ -359,9 +359,9 @@ TEST(WKHTTPCookieStore, HttpOnly)
 TEST(WKHTTPCookieStore, CreationTime)
 {   
     auto dataStore = [WKWebsiteDataStore defaultDataStore];
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = dataStore;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView loadHTMLString:@"WebKit Test" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView _test_waitForDidFinishNavigation];
@@ -374,7 +374,7 @@ TEST(WKHTTPCookieStore, CreationTime)
 
     globalCookieStore = dataStore.httpCookieStore;
 
-    auto cookieProperties = adoptNS([[NSMutableDictionary alloc] init]);
+    RetainPtr cookieProperties = adoptNS([[NSMutableDictionary alloc] init]);
     [cookieProperties setObject:@"cookieName" forKey:NSHTTPCookieName];
     [cookieProperties setObject:@"cookieValue" forKey:NSHTTPCookieValue];
     [cookieProperties setObject:@".www.webkit.org" forKey:NSHTTPCookieDomain];
@@ -434,11 +434,11 @@ TEST(WKHTTPCookieStore, Custom)
     EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:cookieStorageFile.path]);
     EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:idbPath.path]);
 
-    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     websiteDataStoreConfiguration.get()._indexedDBDatabaseDirectory = idbPath;
     websiteDataStoreConfiguration.get()._cookieStorageFile = cookieStorageFile;
 
-    auto customDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+    RetainPtr customDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
     runTestWithWebsiteDataStore(customDataStore.get());
 }
 #endif // PLATFORM(MAC) && __MAC_OS_X_VERSION_MAX_ALLOWED <= 101301
@@ -450,10 +450,10 @@ TEST(WebKit, CookieObserverCrash)
         nonPersistentDataStore = [WKWebsiteDataStore nonPersistentDataStore];
     }
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = nonPersistentDataStore.get();
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView loadHTMLString:@"Oh hello" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView _test_waitForDidFinishNavigation];
@@ -483,17 +483,17 @@ TEST(WKHTTPCookieStore, ObserveCookiesReceivedFromHTTP)
     TestWebKitAPI::HTTPServer server({{ "/"_s, {{{ "Set-Cookie"_s, "testkey=testvalue"_s }}, "hello"_s }}});
 
     auto runTest = [&] (WKWebsiteDataStore *dataStore) {
-        auto configuration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
         configuration.get().websiteDataStore = dataStore;
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-        auto observer = adoptNS([CookieObserver new]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr observer = adoptNS([CookieObserver new]);
         globalCookieStore = webView.get().configuration.websiteDataStore.httpCookieStore;
         clearCookies(dataStore);
         [globalCookieStore addObserver:observer.get()];
 
         // Also observing with an EmptyCookieObserver tests whether or
         // not WebKit makes an unrecognized selector call
-        auto emptyCookieObserver = adoptNS([EmptyCookieObserver new]);
+        RetainPtr emptyCookieObserver = adoptNS([EmptyCookieObserver new]);
         [globalCookieStore addObserver:emptyCookieObserver.get()];
 
         observerCallbacks = 0;
@@ -571,15 +571,15 @@ void runWKHTTPCookieStoreWithoutProcessPool(ShouldEnableProcessPrewarming should
     TestWebKitAPI::Util::run(&finished);
     finished = false;
 
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     processPoolConfiguration.get().prewarmsProcessesAutomatically = shouldEnableProcessPrewarming == ShouldEnableProcessPrewarming::Yes;
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = ephemeralStoreWithCookies.get();
     [configuration setProcessPool:processPool.get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([[CookieUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[CookieUIDelegate alloc] init]);
     webView.get().UIDelegate = delegate.get();
     [webView loadHTMLString:alertCookieHTML baseURL:[NSURL URLWithString:@"http://127.0.0.1"]];
     TestWebKitAPI::Util::run(&finished);
@@ -670,7 +670,7 @@ TEST(WKHTTPCookieStore, WithoutProcessPoolWithPrewarming)
 
 TEST(WebKit, WKHTTPCookieStoreMultipleViews)
 {
-    auto webView1 = adoptNS([TestWKWebView new]);
+    RetainPtr webView1 = adoptNS([TestWKWebView new]);
     [webView1 synchronouslyLoadHTMLString:@"start network process"];
 
     NSHTTPCookie *sessionCookie = [NSHTTPCookie cookieWithProperties:@{
@@ -686,13 +686,13 @@ TEST(WebKit, WKHTTPCookieStoreMultipleViews)
     }];
     TestWebKitAPI::Util::run(&setCookieDone);
 
-    auto delegate = adoptNS([CheckSessionCookieUIDelegate new]);
+    RetainPtr delegate = adoptNS([CheckSessionCookieUIDelegate new]);
     [webView1 setUIDelegate:delegate.get()];
 
     [webView1 loadHTMLString:[delegate alertCookieHTML] baseURL:[NSURL URLWithString:@"http://127.0.0.1"]];
     EXPECT_WK_STREQ([delegate waitForMessage], "SessionCookieName=CookieValue");
 
-    auto webView2 = adoptNS([TestWKWebView new]);
+    RetainPtr webView2 = adoptNS([TestWKWebView new]);
     [webView2 setUIDelegate:delegate.get()];
     [webView2 loadHTMLString:[delegate alertCookieHTML] baseURL:[NSURL URLWithString:@"http://127.0.0.1"]];
     EXPECT_WK_STREQ([delegate waitForMessage], "SessionCookieName=CookieValue");
@@ -702,11 +702,11 @@ TEST(WKHTTPCookieStore, WithoutProcessPoolEphemeralSession)
 {
     RetainPtr<WKWebsiteDataStore> ephemeralStoreWithCookies = [WKWebsiteDataStore nonPersistentDataStore];
     
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = ephemeralStoreWithCookies.get();
     
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([[CheckSessionCookieUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[CheckSessionCookieUIDelegate alloc] init]);
     webView.get().UIDelegate = delegate.get();
     
     RetainPtr<NSHTTPCookie> sessionCookie = [NSHTTPCookie cookieWithProperties:@{
@@ -741,7 +741,7 @@ TEST(WKHTTPCookieStore, WithoutProcessPoolDuplicates)
         NSHTTPCookieDomain: @"127.0.0.1",
     }];
 
-    auto properties = adoptNS([sessionCookie.get().properties mutableCopy]);
+    RetainPtr properties = adoptNS([sessionCookie.get().properties mutableCopy]);
     properties.get()[NSHTTPCookieDomain] = @"localhost";
     RetainPtr<NSHTTPCookie> sessionCookieDifferentDomain = [NSHTTPCookie cookieWithProperties:properties.get()];
     properties.get()[NSHTTPCookieValue] = @"OtherCookieValue";
@@ -800,7 +800,7 @@ TEST(WKHTTPCookieStore, CookiesForURL)
     }];
 
     __block bool done = false;
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadHTMLString:@"start network process"];
     [cookieStore setCookie:webKitCookie completionHandler:^{
         [cookieStore setCookie:albuquerque completionHandler:^{
@@ -820,7 +820,7 @@ TEST(WKHTTPCookieStore, CookiesForURL)
 
 TEST(WKHTTPCookieStore, CookieAccessAfterNetworkProcessTermination)
 {
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadHTMLString:@"start network process" baseURL:[NSURL URLWithString:@"http://example.com/"]];
     kill([WKWebsiteDataStore.defaultDataStore _networkProcessIdentifier], SIGKILL);
     TestWebKitAPI::Util::runFor(Seconds(0.1));
@@ -859,7 +859,7 @@ TEST(WKHTTPCookieStore, WebSocketCookies)
     } });
     serverPort = server.port();
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [[[webView configuration] websiteDataStore] _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/com", serverPort]]]];
     [webView _test_waitForDidFinishNavigation];
@@ -916,7 +916,7 @@ TEST(WKHTTPCookieStore, WebSocketCookiesFromRedirect)
     } });
     serverPort = server.port();
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [[[webView configuration] websiteDataStore] _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/redirect", serverPort]]]];
     [webView _test_waitForDidFinishNavigation];
@@ -968,7 +968,7 @@ TEST(WKHTTPCookieStore, WebSocketCookiesThroughRedirect)
     } });
     serverPort = server.port();
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [[[webView configuration] websiteDataStore] _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/redirect", serverPort]]]];
     Util::run(&receivedWebSocket);
@@ -1010,7 +1010,7 @@ TEST(WKHTTPCookieStore, WebSocketSetCookiesThroughFirstPartyRedirect)
     } });
     serverPort = server.port();
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [[[webView configuration] websiteDataStore] _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/ninja", serverPort]]]];
     Util::run(&receivedWebSocket);
@@ -1065,7 +1065,7 @@ TEST(WKHTTPCookieStore, WebSocketSetCookiesThroughRedirectToThirdParty)
     } });
     serverPort = server.port();
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [[[webView configuration] websiteDataStore] _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/ninja", serverPort]]]];
     Util::run(&receivedWebSocket);
@@ -1190,15 +1190,15 @@ TEST(WKHTTPCookieStore, PartitionedCookieShouldNotHavePartitionProperty)
         { "/"_s, { { { "Content-Type"_s, "text/html"_s }, { "Set-Cookie"_s, "test=value;Secure;SameSite=None;Partitioned"_s } }, ""_s } }
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", server.port()]]];
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:viewConfiguration.get()]);
     [webView setNavigationDelegate:delegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/"]]];

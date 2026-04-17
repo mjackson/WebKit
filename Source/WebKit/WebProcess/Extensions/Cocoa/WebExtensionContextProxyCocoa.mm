@@ -202,6 +202,11 @@ Ref<WebCore::DOMWrapperWorld> WebExtensionContextProxy::toDOMWrapperWorld(WebExt
     }
 }
 
+void WebExtensionContextProxy::didEncounterScriptError(const String& message, const String& sourceURL, unsigned lineNumber, unsigned columnNumber, WebExtensionContentWorldType worldType)
+{
+    WebProcess::singleton().send(Messages::WebExtensionContext::DidEncounterScriptError(message, sourceURL, lineNumber, columnNumber, worldType), identifier());
+}
+
 } // namespace WebKit
 
 #endif // ENABLE(WK_WEB_EXTENSIONS)

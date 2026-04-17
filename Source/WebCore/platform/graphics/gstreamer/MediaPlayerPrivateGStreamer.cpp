@@ -381,7 +381,7 @@ void MediaPlayerPrivateGStreamer::load(const String& urlString)
 
     ASSERT(m_pipeline);
     setPlaybinURL(url);
-    setVisibleInViewport(player->isVisibleInViewport());
+    setViewportVisibility(player->viewportVisibility());
 
     GST_DEBUG_OBJECT(pipeline(), "preload: %s", convertEnumerationToString(m_preload).utf8().data());
     if (m_preload == MediaPlayer::Preload::None && !isMediaSource()) {
@@ -4098,10 +4098,12 @@ void MediaPlayerPrivateGStreamer::flushCurrentBuffer()
 }
 #endif
 
-void MediaPlayerPrivateGStreamer::setVisibleInViewport(bool isVisible)
+void MediaPlayerPrivateGStreamer::setViewportVisibility(ViewportVisibility visibility)
 {
     if (isMediaStreamPlayer())
         return;
+
+    bool isVisible = visibility == ViewportVisibility::VisibleInViewport;
 
     // Some layout tests (webgl) expect playback of invisible videos to not be suspended, so allow
     // this using an environment variable, set from the webkitpy glib port sub-classes.

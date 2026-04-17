@@ -80,12 +80,12 @@ namespace TestWebKitAPI {
 enum class ShouldGrantPermission : bool { No, Yes };
 static void runRequestPermissionTest(ShouldGrantPermission shouldGrantPermission)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto messageHandler = adoptNS([[NotificationPermissionMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr messageHandler = adoptNS([[NotificationPermissionMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto uiDelegate = adoptNS([[NotificationPermissionUIDelegate alloc] initWithHandler:[shouldGrantPermission] { return shouldGrantPermission == ShouldGrantPermission::Yes; }]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr uiDelegate = adoptNS([[NotificationPermissionUIDelegate alloc] initWithHandler:[shouldGrantPermission] { return shouldGrantPermission == ShouldGrantPermission::Yes; }]);
     [webView setUIDelegate:uiDelegate.get()];
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
@@ -128,12 +128,12 @@ TEST(Notification, RequestPermissionGranted)
 
 static void runParallelPermissionRequestsTest(ShouldGrantPermission shouldGrantPermission)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto messageHandler = adoptNS([[NotificationPermissionMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr messageHandler = adoptNS([[NotificationPermissionMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto uiDelegate = adoptNS([[NotificationPermissionUIDelegate alloc] initWithHandler:[shouldGrantPermission] { return shouldGrantPermission == ShouldGrantPermission::Yes; }]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr uiDelegate = adoptNS([[NotificationPermissionUIDelegate alloc] initWithHandler:[shouldGrantPermission] { return shouldGrantPermission == ShouldGrantPermission::Yes; }]);
     [webView setUIDelegate:uiDelegate.get()];
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
@@ -173,8 +173,8 @@ TEST(Notification, ParallelPermissionRequestsGranted)
 #if ENABLE(WEB_ARCHIVE)
 TEST(Notification, WebArchiveNotificationNotSupported)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto messageHandler = adoptNS([[NotificationPermissionMessageHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr messageHandler = adoptNS([[NotificationPermissionMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
 
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);

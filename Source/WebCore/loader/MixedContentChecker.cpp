@@ -37,6 +37,7 @@
 #include "LocalFrameInlines.h"
 #include "LocalFrameLoaderClient.h"
 #include "SecurityOrigin.h"
+#include <wtf/URL.h>
 
 namespace WebCore {
 
@@ -131,10 +132,6 @@ bool MixedContentChecker::canModifyRequest(const URL& url, FetchOptions::Destina
 
 bool MixedContentChecker::shouldBlockRequest(Frame& frame, const URL& url, IsUpgradable isUpgradable)
 {
-    RefPtr<Document> document;
-    if (auto* localFrame = dynamicDowncast<LocalFrame>(frame))
-        document = localFrame->document();
-
 #if ENABLE(CONTENT_FILTERING) && HAVE(WEBCONTENTRESTRICTIONS)
     if (url == ContentFilter::blockedPageURL())
         return false;
@@ -146,6 +143,21 @@ bool MixedContentChecker::shouldBlockRequest(Frame& frame, const URL& url, IsUpg
         return false;
     frame.reportMixedContentViolation(true, url);
     return true;
+}
+
+String MixedContentChecker::mixedContentViolationMessage(bool shouldUpgradeLocalhostAndIPAddressInMixedContent, bool blocked, const URL& current, const URL& target)
+{
+    auto isUpgradingLocalhostDisabled = !shouldUpgradeLocalhostAndIPAddressInMixedContent && shouldTreatAsPotentiallyTrustworthy(target);
+
+    ASCIILiteral errorString = [&] {
+        if (blocked)
+            return "blocked and must"_s;
+        if (isUpgradingLocalhostDisabled)
+            return "not upgraded to HTTPS and must be served from the local host."_s;
+        return "automatically upgraded and should"_s;
+    }();
+
+    return makeString((!blocked ? ""_s : "[blocked] "_s), "The page at "_s, current.stringCenterEllipsizedToLength(), " requested insecure content from "_s, target.stringCenterEllipsizedToLength(), ". This content was "_s, errorString, !isUpgradingLocalhostDisabled ? " be served over HTTPS.\n"_s : "\n"_s);
 }
 
 } // namespace WebCore

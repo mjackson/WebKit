@@ -80,7 +80,7 @@ static bool didReportException = false;
 
 - (void)webView:(WebView *)webView didCreateJavaScriptContext:(JSContext *)context forFrame:(WebFrame *)frame
 {
-    auto myConsole = adoptNS([[MyConsole alloc] init]);
+    RetainPtr myConsole = adoptNS([[MyConsole alloc] init]);
     context[@"myConsole"] = myConsole.get();
     context.exceptionHandler = nil;
 

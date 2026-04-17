@@ -61,7 +61,7 @@ constexpr CGFloat contextHeight = 1;
 RetainPtr<CGImageRef> greenImage()
 {
     auto colorSpace = DestinationColorSpace::SRGB();
-    auto cgContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
+    RetainPtr cgContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
     GraphicsContextCG ctx(cgContext.get());
     ctx.fillRect(FloatRect(0, 0, contextWidth, contextHeight), Color::green);
     return adoptCF(CGBitmapContextCreateImage(cgContext.get()));
@@ -70,7 +70,7 @@ RetainPtr<CGImageRef> greenImage()
 TEST(GraphicsContextTests, DrawNativeImageDoesNotLeakCompositeOperator)
 {
     auto colorSpace = DestinationColorSpace::SRGB();
-    auto cgContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
+    RetainPtr cgContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
     GraphicsContextCG ctx(cgContext.get());
 
     EXPECT_EQ(ctx.compositeOperation(), CompositeOperator::SourceOver);
@@ -99,7 +99,7 @@ TEST(GraphicsContextTests, DrawNativeImageDoesNotLeakCompositeOperator)
 TEST(GraphicsContextTests, CGBitmapRenderingModeIsUnaccelerated)
 {
     auto srgb = DestinationColorSpace::SRGB();
-    auto cgContext = adoptCF(CGBitmapContextCreate(nullptr, 3, 3, 8, 4 * 3, srgb.platformColorSpace(), kCGImageAlphaPremultipliedLast));
+    RetainPtr cgContext = adoptCF(CGBitmapContextCreate(nullptr, 3, 3, 8, 4 * 3, srgb.platformColorSpace(), kCGImageAlphaPremultipliedLast));
     ASSERT_NE(cgContext.get(), nullptr);
     GraphicsContextCG context(cgContext.get());
     EXPECT_EQ(context.renderingMode(), RenderingMode::Unaccelerated);
@@ -114,14 +114,14 @@ TEST(GraphicsContextTests, IOSurfaceRenderingModeIsAccelerated)
     auto bitsPerPixel = 32;
     auto bitsPerComponent = 8;
     auto bitmapInfo = static_cast<CGBitmapInfo>(kCGImageAlphaPremultipliedFirst) | static_cast<CGBitmapInfo>(kCGBitmapByteOrder32Host);
-    auto cgContext = adoptCF(CGIOSurfaceContextCreate(surface->surface(), size.width(), size.height(), bitsPerComponent, bitsPerPixel, srgb.platformColorSpace(), bitmapInfo));
+    RetainPtr cgContext = adoptCF(CGIOSurfaceContextCreate(surface->surface(), size.width(), size.height(), bitsPerComponent, bitsPerPixel, srgb.platformColorSpace(), bitmapInfo));
     GraphicsContextCG context(cgContext.get());
     EXPECT_EQ(context.renderingMode(), RenderingMode::Accelerated);
 }
 
 TEST(GraphicsContextTests, SmallLayerRenderingModeIsUnaccelerated)
 {
-    auto device = adoptNS(MTLCreateSystemDefaultDevice());
+    RetainPtr device = adoptNS(MTLCreateSystemDefaultDevice());
     if (!device)
         return;
 #if !PLATFORM(IOS_FAMILY)
@@ -158,7 +158,7 @@ TEST(GraphicsContextTests, LargeLayerRenderingModeIsExpected)
 #if PLATFORM(IOS_FAMILY_SIMULATOR)
     expected = WebCore::RenderingMode::Unaccelerated;
 #endif
-    auto device = adoptNS(MTLCreateSystemDefaultDevice());
+    RetainPtr device = adoptNS(MTLCreateSystemDefaultDevice());
     if (!device)
         return;
 #if !PLATFORM(IOS_FAMILY)
@@ -198,7 +198,7 @@ TEST(GraphicsContextTests, DrawsReportHasDrawn)
     auto bitsPerPixel = 32;
     auto bitsPerComponent = 8;
     auto bitmapInfo = static_cast<CGBitmapInfo>(kCGImageAlphaPremultipliedFirst) | static_cast<CGBitmapInfo>(kCGBitmapByteOrder32Host);
-    auto cgContext = adoptCF(CGIOSurfaceContextCreate(surface->surface(), size.width(), size.height(), bitsPerComponent, bitsPerPixel, srgb.platformColorSpace(), bitmapInfo));
+    RetainPtr cgContext = adoptCF(CGIOSurfaceContextCreate(surface->surface(), size.width(), size.height(), bitsPerComponent, bitsPerPixel, srgb.platformColorSpace(), bitmapInfo));
     GraphicsContextCG context(cgContext.get());
 
     // Context starts saying has drawn, conservative estimate.
@@ -214,7 +214,7 @@ TEST(GraphicsContextTests, OutOfGamutSRGBNotDrawn)
 {
     auto colorSpace = DestinationColorSpace::ExtendedSRGB();
     auto bitmapInfo = static_cast<CGBitmapInfo>(kCGImageAlphaPremultipliedLast) | static_cast<CGBitmapInfo>(kCGBitmapByteOrder16Host) | static_cast<CGBitmapInfo>(kCGBitmapFloatComponents);
-    auto cgContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 16, 8 * contextWidth, colorSpace.platformColorSpace(), bitmapInfo));
+    RetainPtr cgContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 16, 8 * contextWidth, colorSpace.platformColorSpace(), bitmapInfo));
     GraphicsContextCG ctx(cgContext.get());
 
     // Draw an out of gamut white

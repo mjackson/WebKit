@@ -598,7 +598,12 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         return [UIMenu menuWithTitle:@"" children:strongSelf->_suggestionsMenuElements.get()];
     };
 
-    return [UIContextMenuConfiguration configurationWithIdentifier:nil previewProvider:nil actionProvider:actionMenuProvider];
+    RetainPtr configuration = [UIContextMenuConfiguration configurationWithIdentifier:nil previewProvider:nil actionProvider:actionMenuProvider];
+#if HAVE(UICONTEXTMENUCONFIGURATION_ALLOWTYPESELECT_SUPPORT)
+    if ([configuration respondsToSelector:@selector(setAllowsTypeSelect:)])
+        [configuration setAllowsTypeSelect:NO];
+#endif
+    return configuration.autorelease();
 }
 
 - (void)contextMenuInteraction:(UIContextMenuInteraction *)interaction willDisplayMenuForConfiguration:(UIContextMenuConfiguration *)configuration animator:(id <UIContextMenuInteractionAnimating>)animator

@@ -1343,6 +1343,7 @@ void testUDivByConstantInt32PowerOf2(uint32_t);
 void testUDivByConstantInt32NonPowerOf2(uint32_t);
 void testUDivByConstantInt32EvenDivisors(uint32_t);
 void testUDivByConstantInt32EdgeCases(uint32_t);
+void testUDivByConstantInt32With33BitMagic(uint32_t);
 void testSubArg(int64_t);
 void testSubArgs(int64_t, int64_t);
 void testSubArgImm(int64_t, int64_t);
@@ -1527,6 +1528,9 @@ void testFCCmpNegatedAndDouble(double, double, double, double);
 void testVectorXorRotateRight64();
 void testVectorXor3();
 void testVectorDotProductSplatOne();
+void testVectorShrZipToExtend();
+void testVectorShrZipToExtendI32();
+void testVectorShrZipToExtendI64();
 
 // SIMD VectorUnzip/Zip/Transpose/Reverse B3 opcodes
 void testVectorUnzipEven();

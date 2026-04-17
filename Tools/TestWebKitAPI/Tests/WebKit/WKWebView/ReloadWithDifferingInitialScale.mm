@@ -40,9 +40,9 @@ namespace TestWebKitAPI {
 
 TEST(WebKit, ReloadWithDifferingInitialScale)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 375, 375) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 375, 375) configuration:configuration.get()]);
 
     // It is important that we load from a file, not a HTML string, otherwise we don't
     // get a back-forward list item, and thus don't try to restore state.
@@ -64,7 +64,7 @@ TEST(WebKit, ReloadWithDifferingInitialScale)
 
     // Install the user script, so that the next time we load the page,
     // the document lays out very wide, causing the initial scale to be small.
-    auto userScript = adoptNS([[WKUserScript alloc] initWithSource:@"document.body.style.width = '1500px'; setTimeout(function () { window.webkit.messageHandlers.testHandler.postMessage('ranUserScript'); }, 0)" injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES]);
+    RetainPtr userScript = adoptNS([[WKUserScript alloc] initWithSource:@"document.body.style.width = '1500px'; setTimeout(function () { window.webkit.messageHandlers.testHandler.postMessage('ranUserScript'); }, 0)" injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES]);
     [[webView configuration].userContentController addUserScript:userScript.get()];
 
     // Reload, causing both the user script and the page state restoration code to run.

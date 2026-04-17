@@ -1,0 +1,8 @@
+Button
+
+FAIL focus-within should be updated when reparenting focused element directly new_parent.moveBefore is not a function. (In 'new_parent.moveBefore(button, null)', 'new_parent.moveBefore' is undefined)
+FAIL focus-within should be updated when reparenting an element that has focus within new_parent.moveBefore is not a function. (In 'new_parent.moveBefore(old_parent, null)', 'new_parent.moveBefore' is undefined)
+FAIL focus-within should remain the same when moving to the same parent old_parent.moveBefore is not a function. (In 'old_parent.moveBefore(button, null)', 'old_parent.moveBefore' is undefined)
+FAIL :focus-within should be eventually up to date when moving to an inert subtree promise_test: Unhandled rejection with value: object "TypeError: inert_parent.moveBefore is not a function. (In 'inert_parent.moveBefore(button, null)', 'inert_parent.moveBefore' is undefined)"
+FAIL :focus-within should be eventually up to date when moving to a subtree that would become inert via style promise_test: Unhandled rejection with value: object "TypeError: inert_when_not_empty_parent.moveBefore is not a function. (In 'inert_when_not_empty_parent.moveBefore(button, null)', 'inert_when_not_empty_parent.moveBefore' is undefined)"
+

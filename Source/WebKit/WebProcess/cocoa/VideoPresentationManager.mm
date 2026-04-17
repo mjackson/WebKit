@@ -920,7 +920,7 @@ void VideoPresentationManager::setCurrentVideoFullscreenMode(VideoPresentationIn
 
 void VideoPresentationManager::setVideoLayerFrameFenced(WebCore::MediaPlayerClientIdentifier contextId, WebCore::FloatRect bounds, WTF::MachSendRightAnnotated&& sendRightAnnotated)
 {
-    RELEASE_LOG_FORWARDABLE(Media, VIDEOPRESENTATIONMANAGER_SETVIDEOLAYERFRAMEFENCED, contextId.toUInt64(), sendRightAnnotated.sendRight.sendRight(), static_cast<uint64_t>(sendRightAnnotated.data.size()));
+    RELEASE_LOG_FORWARDABLE(Media, VideoPresentationManagerSetVideoLayerFrameFenced, contextId.toUInt64(), sendRightAnnotated.sendRight.sendRight(), static_cast<uint64_t>(sendRightAnnotated.data.size()));
 
     auto [model, interface] = ensureModelAndInterface(contextId);
 

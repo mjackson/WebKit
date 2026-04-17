@@ -97,10 +97,12 @@ Ref<CSSValue> CursorImage::computedStyleValue(const RenderStyle& style) const
 
 ImageWithScale CursorImage::selectBestFitImage(const Document& document)
 {
+    using namespace CSS::Literals;
+
     if (RefPtr imageSet = dynamicDowncast<ImageSet>(m_image.get()))
         return imageSet->selectBestFitImage(document);
 
-    return { m_image.ptr(), 1, String() };
+    return { m_image.ptr(), 1_css_dppx, std::nullopt };
 }
 
 void CursorImage::setContainerContextForRenderer(const RenderElement& renderer, const FloatSize& containerSize, float containerZoom, const WTF::URL& url)

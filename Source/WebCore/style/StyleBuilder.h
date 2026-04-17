@@ -58,6 +58,7 @@ public:
     RefPtr<const CustomProperty> resolveFunctionResult(const CSSCustomPropertyValue&);
 
     BuilderState& state() { return m_state; }
+    const MatchResult& matchResult() const { return m_cascade.matchResult(); }
 
     ValueOrReference<HashSet<AnimatableCSSProperty>> overriddenAnimatedProperties() const { return m_cascade.overriddenAnimatedProperties(); }
 

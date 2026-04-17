@@ -88,7 +88,7 @@ static RefPtr<CSSValue> consumeCounterContent(CSSParserTokenRange args, CSS::Pro
     if (!args.atEnd())
         return nullptr;
 
-    return CSSCounterValue::create(WTF::move(*customIdent), AtomString { nullAtom() }, WTF::move(*counterStyle));
+    return CSSCounterValue::create(WTF::move(*customIdent), CSS::String { nullString() }, WTF::move(*counterStyle));
 }
 
 static RefPtr<CSSValue> consumeCountersContent(CSSParserTokenRange args, CSS::PropertyParserState& state)
@@ -100,9 +100,12 @@ static RefPtr<CSSValue> consumeCountersContent(CSSParserTokenRange args, CSS::Pr
     if (!customIdent)
         return nullptr;
 
-    if (!consumeCommaIncludingWhitespace(args) || args.peek().type() != StringToken)
+    if (!consumeCommaIncludingWhitespace(args))
         return nullptr;
-    auto separator = args.consumeIncludingWhitespace().value().toAtomString();
+
+    auto separator = consumeUnresolvedString(args);
+    if (!separator)
+        return nullptr;
 
     std::optional<CSS::CounterStyle> counterStyle;
     if (consumeCommaIncludingWhitespace(args)) {
@@ -110,12 +113,12 @@ static RefPtr<CSSValue> consumeCountersContent(CSSParserTokenRange args, CSS::Pr
         if (!counterStyle)
             return nullptr;
     } else
-        counterStyle = CSS::CounterStyle { CSS::CustomIdent { AtomString { nameLiteral(CSSValueDecimal) } } };
+        counterStyle = CSS::CounterStyle { CSSValueDecimal };
 
     if (!args.atEnd())
         return nullptr;
 
-    return CSSCounterValue::create(WTF::move(*customIdent), WTF::move(separator), WTF::move(*counterStyle));
+    return CSSCounterValue::create(WTF::move(*customIdent), WTF::move(*separator), WTF::move(*counterStyle));
 }
 
 RefPtr<CSSValue> consumeContent(CSSParserTokenRange& range, CSS::PropertyParserState& state)
@@ -132,7 +135,7 @@ RefPtr<CSSValue> consumeContent(CSSParserTokenRange& range, CSS::PropertyParserS
     auto consumeContentList = [&](CSSValueListBuilder& values, ContentListType type) -> bool {
         bool shouldEnd = false;
         do {
-            RefPtr<CSSValue> parsedValue = consumeString(range);
+            RefPtr parsedValue = consumeString(range);
             if (type == ContentListType::VisibleContent) {
                 if (!parsedValue)
                     parsedValue = consumeImage(range, state);

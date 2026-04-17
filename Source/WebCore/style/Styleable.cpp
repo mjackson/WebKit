@@ -256,7 +256,7 @@ bool Styleable::isRunningAcceleratedTransformRelatedAnimation() const
 bool Styleable::hasRunningAcceleratedAnimations() const
 {
     if (auto* effectStack = keyframeEffectStack()) {
-        if (effectStack->hasAcceleratedEffects(element.document().settings()))
+        if (effectStack->hasAcceleratedEffects())
             return true;
     }
 

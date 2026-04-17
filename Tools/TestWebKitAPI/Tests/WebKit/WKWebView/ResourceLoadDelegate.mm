@@ -40,9 +40,9 @@
 
 TEST(ResourceLoadDelegate, Basic)
 {
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     __block bool done = false;
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
@@ -50,7 +50,7 @@ TEST(ResourceLoadDelegate, Basic)
     }];
 
     __block RetainPtr<NSURLRequest> requestFromDelegate;
-    auto resourceLoadDelegate = adoptNS([TestResourceLoadDelegate new]);
+    RetainPtr resourceLoadDelegate = adoptNS([TestResourceLoadDelegate new]);
     [webView _setResourceLoadDelegate:resourceLoadDelegate.get()];
     [resourceLoadDelegate setDidSendRequest:^(WKWebView *, _WKResourceLoadInfo *, NSURLRequest *request) {
         requestFromDelegate = request;
@@ -71,12 +71,12 @@ TEST(ResourceLoadDelegate, BeaconAndSyncXHR)
         { "/beaconTarget"_s, { "hi"_s } },
     });
 
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadRequest:server.request()];
 
     __block RetainPtr<NSURLRequest> requestFromDelegate;
     __block bool receivedCallback = false;
-    auto resourceLoadDelegate = adoptNS([TestResourceLoadDelegate new]);
+    RetainPtr resourceLoadDelegate = adoptNS([TestResourceLoadDelegate new]);
     [webView _setResourceLoadDelegate:resourceLoadDelegate.get()];
     [resourceLoadDelegate setDidSendRequest:^(WKWebView *, _WKResourceLoadInfo *info, NSURLRequest *request) {
         requestFromDelegate = request;
@@ -86,7 +86,7 @@ TEST(ResourceLoadDelegate, BeaconAndSyncXHR)
     }];
     
     __block bool receivedAlert = false;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:uiDelegate.get()];
     [uiDelegate setRunJavaScriptAlertPanelWithMessage:^(WKWebView *, NSString *, WKFrameInfo *, void (^completionHandler)(void)) {
         receivedAlert = true;
@@ -117,7 +117,7 @@ TEST(ResourceLoadDelegate, Redirect)
     });
 
     __block bool done = false;
-    auto resourceLoadDelegate = adoptNS([TestResourceLoadDelegate new]);
+    RetainPtr resourceLoadDelegate = adoptNS([TestResourceLoadDelegate new]);
     [resourceLoadDelegate setDidPerformHTTPRedirection:^(WKWebView *, _WKResourceLoadInfo *loadInfo, NSURLResponse *response, NSURLRequest *request) {
         EXPECT_WK_STREQ(response.URL.path, "/");
         EXPECT_WK_STREQ(request.URL.path, "/redirectTarget");
@@ -130,7 +130,7 @@ TEST(ResourceLoadDelegate, Redirect)
         done = true;
     }];
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView _setResourceLoadDelegate:resourceLoadDelegate.get()];
     [webView loadRequest:server.request()];
     TestWebKitAPI::Util::run(&done);
@@ -176,13 +176,13 @@ TEST(ResourceLoadDelegate, ResourceType)
     __block Vector<RetainPtr<_WKResourceLoadInfo>> loadInfos;
 
     __block size_t requestCount = 0;
-    auto delegate = adoptNS([TestResourceLoadDelegate new]);
+    RetainPtr delegate = adoptNS([TestResourceLoadDelegate new]);
     [delegate setDidSendRequest:^(WKWebView *webView, _WKResourceLoadInfo *loadInfo, NSURLRequest *request) {
         loadInfos.append(loadInfo);
         requestCount++;
     }];
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView _setResourceLoadDelegate:delegate.get()];
     [webView loadRequest:server.request()];
 
@@ -229,7 +229,7 @@ TEST(ResourceLoadDelegate, LoadInfo)
     __block Vector<RetainPtr<id>> otherParameters;
 
     __block size_t resourceCompletionCount = 0;
-    auto delegate = adoptNS([TestResourceLoadDelegate new]);
+    RetainPtr delegate = adoptNS([TestResourceLoadDelegate new]);
     [delegate setDidSendRequest:^(WKWebView *webView, _WKResourceLoadInfo *loadInfo, NSURLRequest *request) {
         callbacks.append(Callback::DidSendRequest);
         webViews.append(webView);
@@ -251,7 +251,7 @@ TEST(ResourceLoadDelegate, LoadInfo)
         resourceCompletionCount++;
     }];
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView _setResourceLoadDelegate:delegate.get()];
     [webView loadRequest:server.request()];
     while (resourceCompletionCount < 3)
@@ -354,7 +354,7 @@ TEST(ResourceLoadDelegate, Challenge)
     using namespace TestWebKitAPI;
     HTTPServer server(HTTPServer::respondWithChallengeThenOK);
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodHTTPBasic);
         completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialWithUser:@"testuser" password:@"testpassword" persistence:NSURLCredentialPersistenceNone]);
@@ -362,7 +362,7 @@ TEST(ResourceLoadDelegate, Challenge)
 
     __block bool receivedErrorNotification = false;
     __block bool receivedChallengeNotificiation = false;
-    auto resourceLoadDelegate = adoptNS([TestResourceLoadDelegate new]);
+    RetainPtr resourceLoadDelegate = adoptNS([TestResourceLoadDelegate new]);
     [resourceLoadDelegate setDidReceiveChallenge:^(WKWebView *, _WKResourceLoadInfo *, NSURLAuthenticationChallenge *challenge) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodHTTPBasic);
         receivedChallengeNotificiation = true;
@@ -372,7 +372,7 @@ TEST(ResourceLoadDelegate, Challenge)
         receivedErrorNotification = true;
     }];
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView _setResourceLoadDelegate:resourceLoadDelegate.get()];
     [webView loadRequest:server.request()];
@@ -389,7 +389,7 @@ TEST(ResourceLoadDelegate, LoadTopResourceFromCache)
     __block bool loadedFromCache = false;
     __block bool done = false;
 
-    auto delegate = adoptNS([TestResourceLoadDelegate new]);
+    RetainPtr delegate = adoptNS([TestResourceLoadDelegate new]);
     [delegate setDidCompleteWithError:^(WKWebView *, _WKResourceLoadInfo *loadInfo, NSError *, NSURLResponse *) {
         EXPECT_WK_STREQ(loadInfo.originalURL.path, "/hello.html");
         EXPECT_WK_STREQ(loadInfo.originalHTTPMethod, "GET");
@@ -397,7 +397,7 @@ TEST(ResourceLoadDelegate, LoadTopResourceFromCache)
         done = true;
     }];
 
-    auto webView1 = adoptNS([WKWebView new]);
+    RetainPtr webView1 = adoptNS([WKWebView new]);
     [webView1 _setResourceLoadDelegate:delegate.get()];
     [webView1 loadRequest:server.request("/hello.html"_s)];
 
@@ -407,7 +407,7 @@ TEST(ResourceLoadDelegate, LoadTopResourceFromCache)
     loadedFromCache = false;
 
     // Second load of same resource in a separate web view should come from network cache.
-    auto webView2 = adoptNS([WKWebView new]);
+    RetainPtr webView2 = adoptNS([WKWebView new]);
     [webView2 _setResourceLoadDelegate:delegate.get()];
     [webView2 loadRequest:server.request("/hello.html"_s)];
 

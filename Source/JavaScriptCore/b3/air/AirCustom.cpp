@@ -208,23 +208,37 @@ MacroAssembler::Jump ShuffleCustom::generate(Inst& inst, CCallHelpers&, Generati
 
 bool WasmBoundsCheckCustom::isValidForm(Inst& inst)
 {
-    if (inst.args.size() != 2)
+    if (inst.args.size() < 2 || inst.args.size() > 3)
         return false;
+
     if (!inst.args[0].isTmp() && !inst.args[0].isSomeImm())
         return false;
 
-    return inst.args[1].isReg() || inst.args[1].isTmp() || inst.args[1].isSomeImm();
+    if (!(inst.args[1].isReg() || inst.args[1].isTmp() || inst.args[1].isSomeImm()))
+        return false;
+
+    if (inst.args.size() == 3)
+        return inst.args[2].isTmp() || inst.args[2].isReg();
+
+    return true;
 }
 
 MacroAssembler::Jump WasmBoundsCheckCustom::generate(Inst& inst, CCallHelpers& jit, GenerationContext& context)
 {
     WasmBoundsCheckValue* value = inst.origin->as<WasmBoundsCheckValue>();
+
+    MacroAssembler::Jump overflowOOB { };
+    if (inst.args.size() > 2)
+        overflowOOB = Inst((is32Bit() ? Air::Branch32 : Air::Branch64), value, Arg::relCond(MacroAssembler::Below), inst.args[0], inst.args[2]).generate(jit, context);
+
     MacroAssembler::Jump outOfBounds = Inst((is32Bit() ? Air::Branch32 : Air::Branch64), value, Arg::relCond(MacroAssembler::AboveOrEqual), inst.args[0], inst.args[1]).generate(jit, context);
 
     context.latePaths.append(std::tuple {
         value->origin(),
         createSharedTask<GenerationContext::LatePathFunction>(
-            [outOfBounds, value] (CCallHelpers& jit, Air::GenerationContext& context) {
+            [outOfBounds, overflowOOB, value] (CCallHelpers& jit, Air::GenerationContext& context) {
+                if (overflowOOB.isSet())
+                    overflowOOB.link(&jit);
                 outOfBounds.link(&jit);
                 switch (value->boundsType()) {
                 case WasmBoundsCheckValue::Type::Pinned:

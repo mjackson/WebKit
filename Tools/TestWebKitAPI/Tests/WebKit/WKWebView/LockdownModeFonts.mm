@@ -79,9 +79,9 @@ TEST(LockdownMode, DISABLED_SVGFonts)
 TEST(LockdownMode, SVGFonts)
 #endif
 {
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"SVGFont" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     [webView _test_waitForDidFinishNavigation];
@@ -96,9 +96,9 @@ TEST(LockdownMode, SVGFonts)
 TEST(LockdownMode, NotAllowedFontLoadingAPI)
 {
     @autoreleasepool {
-        auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
         webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
         NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"ImmediateFont" withExtension:@"html"];
         [webView loadRequest:[NSURLRequest requestWithURL:url]];
         [webView _test_waitForDidFinishNavigation];
@@ -129,9 +129,9 @@ TEST(LockdownMode, NotAllowedFontLoadingAPI)
 TEST(LockdownMode, AllowedFontLoadingAPI)
 {
     @autoreleasepool {
-        auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
         webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
         NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"ImmediateFont" withExtension:@"html"];
         [webView loadRequest:[NSURLRequest requestWithURL:url]];
         [webView _test_waitForDidFinishNavigation];
@@ -157,9 +157,9 @@ TEST(LockdownMode, AllowedFontLoadingAPI)
 TEST(LockdownMode, NotSupportedFontLoadingAPI)
 {
     @autoreleasepool {
-        auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
         webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
         NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"ImmediateFont" withExtension:@"html"];
         [webView loadRequest:[NSURLRequest requestWithURL:url]];
         [webView _test_waitForDidFinishNavigation];
@@ -185,9 +185,9 @@ TEST(LockdownMode, NotSupportedFontLoadingAPI)
 TEST(LockdownMode, AllowedFont)
 {
     @autoreleasepool {
-        auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
         webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
         NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"LockdownModeFonts" withExtension:@"html"];
         [webView loadRequest:[NSURLRequest requestWithURL:url]];
         [webView _test_waitForDidFinishNavigation];
@@ -205,9 +205,9 @@ TEST(LockdownMode, AllowedFont)
 TEST(LockdownMode, NotAllowedFont)
 {
     @autoreleasepool {
-        auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
         webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
         NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"LockdownModeFonts" withExtension:@"html"];
         [webView loadRequest:[NSURLRequest requestWithURL:url]];
         [webView _test_waitForDidFinishNavigation];
@@ -234,9 +234,9 @@ TEST(LockdownMode, DISABLED_ImmediateParsedViaSafeFontParser)
 #endif
 {
     @autoreleasepool {
-        auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
         webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
         NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"ImmediateFont" withExtension:@"html"];
         [webView loadRequest:[NSURLRequest requestWithURL:url]];
         [webView _test_waitForDidFinishNavigation];
@@ -293,8 +293,8 @@ TEST(LockdownMode, DISABLED_CanaryFontSucceedsInFontParser)
 #endif
 {
     @autoreleasepool {
-        auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+        RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
         NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"ImmediateFont" withExtension:@"html"];
         [webView loadRequest:[NSURLRequest requestWithURL:url]];
         [webView _test_waitForDidFinishNavigation];
@@ -341,10 +341,10 @@ TEST(LockdownMode, DISABLED_WorkerFontParsedViaSafeFontParser)
         server.addResponse("/Ahem.ttf"_s, { ahemFontData });
         server.addResponse("/SafeFontParser-invalid.ttf"_s, { canaryFontData });
 
-        auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+        RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
         webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
 
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
 
         auto workerTestPageURL = [NSURL URLWithString:[[NSString alloc] initWithFormat:@"http://localhost:%u/SafeFontParserWorker.html", server.port()]];
         [webView loadRequest:[NSURLRequest requestWithURL:workerTestPageURL]];

@@ -38,10 +38,10 @@ TEST(DataDetectorTests, LoadWKWebViewWithDataDetectorTypePhoneNumber)
 {
     NSString *const phoneNumber = @"(555) 867-5309";
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().dataDetectorTypes = WKDataDetectorTypePhoneNumber;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:[NSString stringWithFormat:@"<!DOCTYPE><html><head></head><body><p>Call Jenny at %@</p></body></html>", phoneNumber]];
 
     // Ensure that the phone number is linked by Data Detectors.

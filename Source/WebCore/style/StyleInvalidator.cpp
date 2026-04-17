@@ -279,81 +279,145 @@ void Invalidator::invalidateStyle(Element& element)
 
 void Invalidator::invalidateStyleWithMatchElement(Element& element, MatchElement matchElement)
 {
-    switch (matchElement) {
-    case MatchElement::Subject: {
-        // .changed
-        invalidateIfNeeded(element, nullptr);
-        break;
+    using Relation = MatchElement::Relation;
+    using HasRelation = MatchElement::HasRelation;
+
+    if (!matchElement.hasRelation) {
+        switch (matchElement.relation) {
+        case Relation::Subject:
+            // .changed
+            invalidateIfNeeded(element, nullptr);
+            break;
+        case Relation::Parent:
+            // .changed > .subject
+            for (Ref child : childrenOfType<Element>(element))
+                invalidateIfNeeded(child.get(), nullptr);
+            break;
+        case Relation::Ancestor: {
+            // .changed .subject
+            SelectorMatchingState selectorMatchingState;
+            invalidateStyleForDescendants(element, &selectorMatchingState);
+            break;
+        }
+        case Relation::DirectSibling:
+            // .changed + .subject
+            if (RefPtr sibling = element.nextElementSibling())
+                invalidateIfNeeded(*sibling, nullptr);
+            break;
+        case Relation::IndirectSibling:
+            // .changed ~ .subject
+            for (RefPtr sibling = element.nextElementSibling(); sibling; sibling = sibling->nextElementSibling())
+                invalidateIfNeeded(*sibling, nullptr);
+            break;
+        case Relation::AnySibling:
+            // :nth-last-child(even of .changed)
+            for (Ref parentChild : childrenOfType<Element>(*element.parentNode()))
+                invalidateIfNeeded(parentChild.get(), nullptr);
+            break;
+        case Relation::ParentSibling:
+            // .changed ~ .a > .subject
+            for (RefPtr sibling = element.nextElementSibling(); sibling; sibling = sibling->nextElementSibling()) {
+                for (Ref siblingChild : childrenOfType<Element>(*sibling))
+                    invalidateIfNeeded(siblingChild.get(), nullptr);
+            }
+            break;
+        case Relation::AncestorSibling: {
+            // .changed ~ .a .subject
+            SelectorMatchingState selectorMatchingState;
+            for (RefPtr sibling = element.nextElementSibling(); sibling; sibling = sibling->nextElementSibling()) {
+                selectorMatchingState.selectorFilter.popParentsUntil(element.parentElement());
+                invalidateStyleForDescendants(*sibling, &selectorMatchingState);
+            }
+            break;
+        }
+        case Relation::ParentAnySibling:
+            // :nth-last-child(even of .changed) > .subject
+            for (Ref sibling : childrenOfType<Element>(*element.parentNode())) {
+                for (Ref siblingChild : childrenOfType<Element>(sibling.get()))
+                    invalidateIfNeeded(siblingChild.get(), nullptr);
+            }
+            break;
+        case Relation::AncestorAnySibling: {
+            // :nth-last-child(even of .changed) .subject
+            SelectorMatchingState selectorMatchingState;
+            for (Ref sibling : childrenOfType<Element>(*element.parentNode())) {
+                selectorMatchingState.selectorFilter.popParentsUntil(element.parentElement());
+                invalidateStyleForDescendants(sibling.get(), &selectorMatchingState);
+            }
+            break;
+        }
+        case Relation::Host:
+            // :host(.changed) .subject
+            invalidateInShadowTreeIfNeeded(element);
+            break;
+        case Relation::HostChild:
+            // ::slotted(.changed)
+            if (RefPtr host = element.shadowHost()) {
+                for (Ref hostChild : childrenOfType<Element>(*host))
+                    invalidateIfNeeded(hostChild.get(), nullptr);
+            }
+            break;
+        }
+        return;
     }
-    case MatchElement::Parent: {
-        // .changed > .subject
-        auto children = childrenOfType<Element>(element);
-        for (Ref child : children)
-            invalidateIfNeeded(child.get(), nullptr);
-        break;
-    }
-    case MatchElement::Ancestor: {
-        // .changed .subject
+
+    auto hasRelation = *matchElement.hasRelation;
+
+    // HasScopeBreaking: :has(:is(.changed .a)) — invalidate entire document.
+    if (hasRelation == HasRelation::ScopeBreaking) {
         SelectorMatchingState selectorMatchingState;
-        invalidateStyleForDescendants(element, &selectorMatchingState);
-        break;
+        invalidateStyleForDescendants(*element.document().documentElement(), &selectorMatchingState);
+        return;
     }
-    case MatchElement::DirectSibling:
-        // .changed + .subject
-        if (RefPtr sibling = element.nextElementSibling())
-            invalidateIfNeeded(*sibling, nullptr);
-        break;
-    case MatchElement::IndirectSibling:
-        // .changed ~ .subject
-        for (RefPtr sibling = element.nextElementSibling(); sibling; sibling = sibling->nextElementSibling())
-            invalidateIfNeeded(*sibling, nullptr);
-        break;
-    case MatchElement::AnySibling:
-        // :nth-last-child(even of .changed)
-        for (Ref parentChild : childrenOfType<Element>(*element.parentNode()))
-            invalidateIfNeeded(parentChild.get(), nullptr);
-        break;
-    case MatchElement::ParentSibling:
-        // .changed ~ .a > .subject
-        for (RefPtr sibling = element.nextElementSibling(); sibling; sibling = sibling->nextElementSibling()) {
-            auto siblingChildren = childrenOfType<Element>(*sibling);
-            for (Ref siblingChild : siblingChildren)
-                invalidateIfNeeded(siblingChild.get(), nullptr);
+
+    // :has() in non-subject position.
+    if (matchElement.relation != Relation::Subject) {
+        if (matchElement.relation == Relation::Parent && hasRelation == HasRelation::Child) {
+            // :has(> .changed) > .subject
+            SelectorMatchingState selectorMatchingState;
+            if (RefPtr parent = element.parentElement())
+                selectorMatchingState.selectorFilter.pushParentInitializingIfNeeded(*parent);
+            for (Ref sibling : childrenOfType<Element>(*element.parentNode()))
+                invalidateIfNeeded(sibling.get(), &selectorMatchingState);
+            return;
         }
-        break;
-    case MatchElement::AncestorSibling: {
-        // .changed ~ .a .subject
+        if (matchElement.relation == Relation::Parent && hasRelation == HasRelation::Descendant) {
+            // :has(.changed) > .subject
+            Vector<Element*, 16> ancestors;
+            for (RefPtr parent = element.parentElement(); parent; parent = parent->parentElement())
+                ancestors.append(parent.get());
+
+            SelectorMatchingState selectorMatchingState;
+            selectorMatchingState.selectorFilter.parentStackReserveInitialCapacity(ancestors.size());
+            for (RefPtr ancestor : ancestors | std::views::reverse) {
+                selectorMatchingState.selectorFilter.pushParent(ancestor.get());
+                for (Ref ancestorChild : childrenOfType<Element>(*ancestor))
+                    invalidateIfNeeded(ancestorChild.get(), &selectorMatchingState);
+            }
+            return;
+        }
+        if (matchElement.relation == Relation::Ancestor && hasRelation == HasRelation::Child) {
+            // :has(> .changed) .subject
+            if (CheckedPtr parent = element.parentElement()) {
+                SelectorMatchingState selectorMatchingState;
+                invalidateStyleForDescendants(*parent, &selectorMatchingState);
+            }
+            return;
+        }
+        // FIXME: The remaining non-subject :has() cases could be made more precise with two-step invalidation.
         SelectorMatchingState selectorMatchingState;
-        for (RefPtr sibling = element.nextElementSibling(); sibling; sibling = sibling->nextElementSibling()) {
-            selectorMatchingState.selectorFilter.popParentsUntil(element.parentElement());
-            invalidateStyleForDescendants(*sibling, &selectorMatchingState);
-        }
-        break;
+        invalidateStyleForDescendants(*element.document().documentElement(), &selectorMatchingState);
+        return;
     }
-    case MatchElement::ParentAnySibling:
-        // :nth-last-child(even of .changed) > .subject
-        for (Ref sibling : childrenOfType<Element>(*element.parentNode())) {
-            auto siblingChildren = childrenOfType<Element>(sibling.get());
-            for (Ref siblingChild : siblingChildren)
-                invalidateIfNeeded(siblingChild.get(), nullptr);
-        }
-        break;
-    case MatchElement::AncestorAnySibling: {
-        // :nth-last-child(even of .changed) .subject
-        SelectorMatchingState selectorMatchingState;
-        for (Ref sibling : childrenOfType<Element>(*element.parentNode())) {
-            selectorMatchingState.selectorFilter.popParentsUntil(element.parentElement());
-            invalidateStyleForDescendants(sibling.get(), &selectorMatchingState);
-        }
-        break;
-    }
-    case MatchElement::HasChild: {
+
+    // :has() in subject position.
+    switch (hasRelation) {
+    case HasRelation::Child:
         // :has(> .changed)
         if (RefPtr parent = element.parentElement())
             invalidateIfNeeded(*parent, nullptr);
         break;
-    }
-    case MatchElement::HasDescendant: {
+    case HasRelation::Descendant: {
         // :has(.changed)
         Vector<Element*, 16> ancestors;
         for (RefPtr parent = element.parentElement(); parent; parent = parent->parentElement())
@@ -367,31 +431,23 @@ void Invalidator::invalidateStyleWithMatchElement(Element& element, MatchElement
         }
         break;
     }
-    case MatchElement::HasSibling:
-        // :has(~ .changed)
-        if (RefPtr sibling = element.previousElementSibling()) {
-            SelectorMatchingState selectorMatchingState;
-            if (RefPtr parent = element.parentElement())
-                selectorMatchingState.selectorFilter.pushParentInitializingIfNeeded(*parent);
-
-            for (; sibling; sibling = sibling->previousElementSibling())
-                invalidateIfNeeded(*sibling, &selectorMatchingState);
-        }
+    case HasRelation::DirectSibling:
+        // :has(+ .changed)
+        if (RefPtr sibling = element.previousElementSibling())
+            invalidateIfNeeded(*sibling, nullptr);
         break;
-
-    case MatchElement::HasChildParent:
-        // :has(> .changed) > .subject
-    case MatchElement::HasAnySibling: {
-        // :has(~ :is(.changed ~ .x))
+    case HasRelation::IndirectSibling: {
+        // :has(~ .changed)
         SelectorMatchingState selectorMatchingState;
         if (RefPtr parent = element.parentElement())
             selectorMatchingState.selectorFilter.pushParentInitializingIfNeeded(*parent);
-        for (Ref sibling : childrenOfType<Element>(*element.parentNode()))
-            invalidateIfNeeded(sibling.get(), &selectorMatchingState);
+        for (RefPtr sibling = element.previousElementSibling(); sibling; sibling = sibling->previousElementSibling())
+            invalidateIfNeeded(*sibling, &selectorMatchingState);
         break;
     }
-    case MatchElement::HasSiblingDescendant: {
-        // :has(~ .a .changed)
+    case HasRelation::SiblingChild:
+    case HasRelation::SiblingDescendant: {
+        // :has(~ .a .changed) or :has(~ .a > .changed)
         Vector<Element*, 16> elementAndAncestors;
         elementAndAncestors.append(&element);
         for (RefPtr parent = element.parentElement(); parent; parent = parent->parentElement())
@@ -402,52 +458,15 @@ void Invalidator::invalidateStyleWithMatchElement(Element& element, MatchElement
         for (RefPtr elementOrAncestor : elementAndAncestors | std::views::reverse) {
             for (RefPtr sibling = elementOrAncestor->previousElementSibling(); sibling; sibling = sibling->previousElementSibling())
                 invalidateIfNeeded(*sibling, &selectorMatchingState);
-
             selectorMatchingState.selectorFilter.pushParent(elementOrAncestor.get());
         }
         break;
     }
-    case MatchElement::HasDescendantParent: {
-        // :has(.changed) > .subject
-        Vector<Element*, 16> ancestors;
-        for (RefPtr parent = element.parentElement(); parent; parent = parent->parentElement())
-            ancestors.append(parent.get());
-
-        SelectorMatchingState selectorMatchingState;
-        selectorMatchingState.selectorFilter.parentStackReserveInitialCapacity(ancestors.size());
-        for (RefPtr ancestor : ancestors | std::views::reverse) {
-            selectorMatchingState.selectorFilter.pushParent(ancestor.get());
-            for (Ref ancestorChild : childrenOfType<Element>(*ancestor))
-                invalidateIfNeeded(ancestorChild.get(), &selectorMatchingState);
-        }
+    case HasRelation::ScopeBreaking:
+        ASSERT_NOT_REACHED();
         break;
-    }
-    case MatchElement::HasChildAncestor: {
-        // :has(> .changed) .subject
-        if (CheckedPtr parent = element.parentElement()) {
-            SelectorMatchingState selectorMatchingState;
-            invalidateStyleForDescendants(*parent, &selectorMatchingState);
-        }
-        break;
-    }
-    case MatchElement::HasNonSubject:
-        // :has(.changed) .subject
-    case MatchElement::HasScopeBreaking: {
-        // :has(:is(.changed .a))
-        SelectorMatchingState selectorMatchingState;
-        invalidateStyleForDescendants(*element.document().documentElement(), &selectorMatchingState);
-        break;
-    }
-    case MatchElement::Host:
-        // :host(.changed) .subject
-        invalidateInShadowTreeIfNeeded(element);
-        break;
-    case MatchElement::HostChild:
-        // ::slotted(.changed)
-        if (RefPtr host = element.shadowHost()) {
-            for (Ref hostChild : childrenOfType<Element>(*host))
-                invalidateIfNeeded(hostChild.get(), nullptr);
-        }
+    default:
+        ASSERT_NOT_REACHED();
         break;
     }
 }
@@ -530,7 +549,7 @@ void Invalidator::invalidateWithMatchElementRuleSets(Element& element, const Mat
 
     for (auto& matchElementAndRuleSet : matchElementRuleSets) {
         Invalidator invalidator(matchElementAndRuleSet.value);
-        invalidator.invalidateStyleWithMatchElement(element, matchElementAndRuleSet.key);
+        invalidator.invalidateStyleWithMatchElement(element, matchElementAndRuleSet.key.key());
     }
 }
 
@@ -538,7 +557,9 @@ void Invalidator::invalidateWithScopeBreakingHasPseudoClassRuleSet(Element& elem
 {
     SetForScope isInvalidating(element.styleResolver().ruleSets().isInvalidatingStyleWithRuleSets(), true);
     Invalidator invalidator(InvalidationRuleSetVector { { ruleSet } });
-    invalidator.invalidateStyleWithMatchElement(element, MatchElement::HasScopeBreaking);
+    // Scope-breaking :has() can be affected by changes anywhere, so invalidate all descendants from root.
+    SelectorMatchingState selectorMatchingState;
+    invalidator.invalidateStyleForDescendants(*element.document().documentElement(), &selectorMatchingState);
 }
 
 void Invalidator::invalidateAllStyle(Scope& scope)

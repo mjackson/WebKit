@@ -46,7 +46,7 @@ static RefPtr<Element> findElementForUserAgentPart(Element& host, const AtomStri
     return nullptr;
 }
 
-ResolvedComputedPseudoElement resolveComputedPseudoElement(Element& element, const String& pseudoElement)
+ResolvedComputedPseudoElement resolveComputedPseudoElement(Element& element, const WTF::String& pseudoElement)
 {
     auto identifier = CSSSelectorParser::parsePseudoElement(pseudoElement, CSSSelectorParserContext { protect(element.document()) });
     if (!identifier)

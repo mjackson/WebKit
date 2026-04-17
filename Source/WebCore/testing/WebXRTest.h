@@ -48,8 +48,8 @@ public:
         std::optional<Vector<XRSessionMode>> supportedModes;
         Vector<FakeXRViewInit> views;
 
-        std::optional<Vector<JSC::JSValue>> supportedFeatures;
-        std::optional<Vector<JSC::JSValue>> enabledFeatures;
+        Vector<JSC::JSValue> supportedFeatures;
+        Vector<JSC::JSValue> enabledFeatures;
 
         std::optional<Vector<FakeXRBoundsPoint>> boundsCoordinates;
 

@@ -84,11 +84,11 @@
 TEST(WebKit, WKNavigationResponseJSONMIMEType)
 {
     isDone = false;
-    auto schemeHandler = adoptNS([[WKNavigationResponseTestSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[WKNavigationResponseTestSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
-    auto navigationDelegate = adoptNS([[WKNavigationResponseTestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([[WKNavigationResponseTestNavigationDelegate alloc] init]);
     webView.get().navigationDelegate = navigationDelegate.get();
 
     schemeHandler.get().mimeType = @"application/json";
@@ -102,11 +102,11 @@ TEST(WebKit, WKNavigationResponseJSONMIMEType)
 TEST(WebKit, WKNavigationResponseJSONMIMEType2)
 {
     isDone = false;
-    auto schemeHandler = adoptNS([[WKNavigationResponseTestSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[WKNavigationResponseTestSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
-    auto navigationDelegate = adoptNS([[WKNavigationResponseTestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([[WKNavigationResponseTestNavigationDelegate alloc] init]);
     webView.get().navigationDelegate = navigationDelegate.get();
 
     schemeHandler.get().mimeType = @"application/vnd.api+json";
@@ -120,11 +120,11 @@ TEST(WebKit, WKNavigationResponseJSONMIMEType2)
 TEST(WebKit, WKNavigationResponseUnknownMIMEType)
 {
     isDone = false;
-    auto schemeHandler = adoptNS([[WKNavigationResponseTestSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[WKNavigationResponseTestSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
-    auto navigationDelegate = adoptNS([[WKNavigationResponseTestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([[WKNavigationResponseTestNavigationDelegate alloc] init]);
     webView.get().navigationDelegate = navigationDelegate.get();
 
     schemeHandler.get().mimeType = @"garbage/json";
@@ -238,8 +238,8 @@ TEST(WebKit, WKNavigationResponseDownloadAttribute)
                 });
             });
         });
-        auto delegate = adoptNS([NavigationResponseTestDelegate new]);
-        auto webView = adoptNS([WKWebView new]);
+        RetainPtr delegate = adoptNS([NavigationResponseTestDelegate new]);
+        RetainPtr webView = adoptNS([WKWebView new]);
         [webView setNavigationDelegate:delegate.get()];
 
         [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/", server.port()]]]];
@@ -274,8 +274,8 @@ TEST(WebKit, SkipDecidePolicyForResponse)
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"SkipDecidePolicyForResponsePlugIn"];
     configuration.preferences.fraudulentWebsiteWarningEnabled = NO;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     __block bool responseDelegateCalled { false };
     delegate.get().decidePolicyForNavigationResponse = ^(WKNavigationResponse *, void (^completionHandler)(WKNavigationResponsePolicy)) {
         responseDelegateCalled = true;

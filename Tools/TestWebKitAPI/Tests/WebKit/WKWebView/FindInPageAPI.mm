@@ -45,11 +45,11 @@
 
 TEST(WKWebView, FindAPIForwardsNoMatch)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"word word" baseURL:nil];
 
     // The default find configuration is "forwards, case insensitive, wrapping"
-    auto configuration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKFindConfiguration alloc] init]);
 
     EXPECT_TRUE([webView selectionRangeHasStartOffset:0 endOffset:0]);
 
@@ -66,11 +66,11 @@ TEST(WKWebView, FindAPIForwardsNoMatch)
 
 TEST(WKWebView, FindAPIForwardsWrap)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"word word" baseURL:nil];
 
     // The default find configuration is "forwards, case insensitive, wrapping"
-    auto configuration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKFindConfiguration alloc] init]);
 
     static bool done;
     [webView findString:@"word" withConfiguration:configuration.get() completionHandler:^(WKFindResult *result) {
@@ -103,11 +103,11 @@ TEST(WKWebView, FindAPIForwardsWrap)
 
 TEST(WKWebView, FindAPIForwardsNoWrap)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"word word" baseURL:nil];
 
     // The default find configuration is "forwards, case insensitive, wrapping"
-    auto configuration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKFindConfiguration alloc] init]);
     configuration.get().wraps = NO;
 
     static bool done;
@@ -141,11 +141,11 @@ TEST(WKWebView, FindAPIForwardsNoWrap)
 
 TEST(WKWebView, FindAPIBackwardsWrap)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"word word" baseURL:nil];
 
     // The default find configuration is "forwards, case insensitive, wrapping"
-    auto configuration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKFindConfiguration alloc] init]);
     configuration.get().backwards = YES;
 
     EXPECT_TRUE([webView selectionRangeHasStartOffset:0 endOffset:0]);
@@ -181,11 +181,11 @@ TEST(WKWebView, FindAPIBackwardsWrap)
 
 TEST(WKWebView, FindAPIBackwardsNoWrap)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"word word" baseURL:nil];
 
     // The default find configuration is "forwards, case insensitive, wrapping"
-    auto configuration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKFindConfiguration alloc] init]);
     configuration.get().backwards = YES;
     configuration.get().wraps = NO;
 
@@ -222,11 +222,11 @@ TEST(WKWebView, FindAPIBackwardsNoWrap)
 
 TEST(WKWebView, FindAPIForwardsCaseSensitive)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"word Word word" baseURL:nil];
 
     // The default find configuration is "forwards, case insensitive, wrapping"
-    auto configuration = adoptNS([[WKFindConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKFindConfiguration alloc] init]);
     configuration.get().caseSensitive = YES;
 
     static bool done;
@@ -322,7 +322,7 @@ TEST(WKWebView, FindAPITextInImage)
     auto webView = createWebViewWithImageAnalysisDuringFindInPageEnabled();
     [webView synchronouslyLoadTestPageNamed:@"image-with-text"];
 
-    auto findDelegate = adoptNS([[FindDelegate alloc] init]);
+    RetainPtr findDelegate = adoptNS([[FindDelegate alloc] init]);
     [webView _setFindDelegate:findDelegate.get()];
 
     __block bool done;

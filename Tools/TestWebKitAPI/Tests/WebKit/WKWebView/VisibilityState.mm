@@ -38,8 +38,8 @@
 
 TEST(VisibilityState, InitialHiddenState)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get() addToWindow:NO]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get() addToWindow:NO]);
 
     [webView synchronouslyLoadHTMLString:@"foo"];
 
@@ -53,8 +53,8 @@ TEST(VisibilityState, InitialHiddenState)
 
 TEST(VisibilityState, InitialVisibleState)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get() addToWindow:YES]);
 
     [webView synchronouslyLoadHTMLString:@"foo"];
 
@@ -87,7 +87,7 @@ TEST(VisibilityState, PIPKeepsDocumentVisibleQuirk)
 {
     RetainPtr configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
     [configuration preferences]._allowsPictureInPictureMediaPlayback = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get() addToWindow:YES]);
 
     RetainPtr<PiPUIDelegate> handler = adoptNS([[PiPUIDelegate alloc] init]);
     [webView setUIDelegate:handler.get()];

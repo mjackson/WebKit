@@ -403,12 +403,18 @@ void BlendingKeyframes::analyzeKeyframe(const BlendingKeyframe& keyframe)
             m_hasPropertiesWithRevertRuleOrLayer = true;
     };
 
+    auto analyzeOffsetDistance = [&] {
+        if (!m_animatesOffsetDistanceToPercentOrCalculated && keyframe.animatesProperty(CSSPropertyOffsetDistance))
+            m_animatesOffsetDistanceToPercentOrCalculated = style->offsetDistance().isPercentOrCalculated();
+    };
+
     analyzeSizeDependentTransform();
     analyzeDiscreteTransformInterval();
     analyzeExplicitlyInheritedKeyframeProperty();
     analyzeKeyframeForExplicitProperties();
     analyzeKeyframeRangeOffset();
     analyzeCSSWideKeywords();
+    analyzeOffsetDistance();
 }
 
 void BlendingKeyframes::updatedComputedOffsets(NOESCAPE const Function<double(const BlendingKeyframe::Offset&)>& callback)

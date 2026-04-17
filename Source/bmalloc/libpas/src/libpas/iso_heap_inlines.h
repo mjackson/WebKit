@@ -26,18 +26,6 @@
 #ifndef ISO_HEAP_INLINES_H
 #define ISO_HEAP_INLINES_H
 
-#include "iso_heap.h"
-#include "iso_heap_config.h"
-#include "iso_heap_innards.h"
-#include "pas_deallocate.h"
-#include "pas_get_allocation_size.h"
-#include "pas_get_heap.h"
-#include "pas_has_object.h"
-#include "pas_try_allocate.h"
-#include "pas_try_allocate_array.h"
-#include "pas_try_allocate_intrinsic.h"
-#include "pas_try_allocate_primitive.h"
-#include "pas_try_reallocate.h"
 
 #if PAS_ENABLE_ISO
 

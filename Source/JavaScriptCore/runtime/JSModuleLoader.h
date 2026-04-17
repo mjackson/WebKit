@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2022, 2026 Apple Inc. All rights reserved.
  * Copyright (C) 2016 Yusuke Suzuki <utatane.tea@gmail.com>.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,25 +26,34 @@
 
 #pragma once
 
+#include "AbstractModuleRecord.h"
+#include "ErrorType.h"
 #include "JSObject.h"
+#include "ModuleGraphLoadingState.h"
+#include "ModuleLoaderPayload.h"
+#include "ModuleMap.h"
 
 namespace JSC {
 
-class JSInternalPromise;
+class ErrorInstance;
+class JSPromise;
 class JSModuleNamespaceObject;
 class JSModuleRecord;
-class SourceCode;
+class JSSourceCode;
+class ModuleRegistryEntry;
 
-class JSModuleLoader final : public JSNonFinalObject {
+class JSModuleLoader final : public JSCell {
 public:
-    using Base = JSNonFinalObject;
-    static constexpr unsigned StructureFlags = Base::StructureFlags;
+    using Base = JSCell;
+    static constexpr unsigned StructureFlags = Base::StructureFlags | StructureIsImmortal;
 
-    template<typename CellType, SubspaceAccess>
+    static constexpr DestructionMode needsDestruction = NeedsDestruction;
+    static void destroy(JSCell*);
+
+    template<typename CellType, SubspaceAccess mode>
     static GCClient::IsoSubspace* subspaceFor(VM& vm)
     {
-        STATIC_ASSERT_ISO_SUBSPACE_SHARABLE(JSModuleLoader, Base);
-        return &vm.plainObjectSpace();
+        return vm.moduleLoaderSpace<mode>();
     }
 
     enum Status {
@@ -62,21 +71,27 @@ public:
         return object;
     }
 
+    static JSModuleLoader* create(JSGlobalObject* globalObject, VM& vm)
+    {
+        return create(globalObject, vm, vm.moduleLoaderStructure.get());
+    }
+
     DECLARE_INFO;
 
     inline static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
 
     // APIs to control the module loader.
-    JSValue provideFetch(JSGlobalObject*, JSValue key, const SourceCode&);
-    JSInternalPromise* loadAndEvaluateModule(JSGlobalObject*, JSValue moduleName, JSValue parameters, JSValue scriptFetcher);
-    JSInternalPromise* loadModule(JSGlobalObject*, JSValue moduleName, JSValue parameters, JSValue scriptFetcher);
-    JSValue linkAndEvaluateModule(JSGlobalObject*, JSValue moduleKey, JSValue scriptFetcher);
-    JSInternalPromise* requestImportModule(JSGlobalObject*, const Identifier&, JSValue referrer, JSValue parameters, JSValue scriptFetcher);
+    void provideFetch(JSGlobalObject*, const Identifier& key, ScriptFetchParameters::Type, SourceCode&&);
+    void provideFetch(JSGlobalObject*, const Identifier& key, ScriptFetchParameters::Type, JSSourceCode*);
+    JSPromise* loadModule(JSGlobalObject*, const Identifier& moduleName, JSValue parameters, JSValue scriptFetcher, bool evaluate, bool dynamic, bool useImportMap);
+    JSPromise* linkAndEvaluateModule(JSGlobalObject*, const Identifier& moduleKey, JSValue parameters, JSValue scriptFetcher);
+    JSPromise* requestImportModule(JSGlobalObject*, const Identifier& moduleName, const Identifier& referrer, JSValue parameters, JSValue scriptFetcher);
 
     // Platform dependent hooked APIs.
-    JSInternalPromise* importModule(JSGlobalObject*, JSString* moduleName, JSValue parameters, const SourceOrigin& referrer);
-    Identifier resolve(JSGlobalObject*, JSValue name, JSValue referrer, JSValue scriptFetcher);
-    JSInternalPromise* fetch(JSGlobalObject*, JSValue key, JSValue parameters, JSValue scriptFetcher);
+    JSPromise* importModule(JSGlobalObject*, JSString* moduleName, JSValue parameters, const SourceOrigin& referrer);
+    Identifier resolve(JSGlobalObject*, JSValue name, JSValue referrer, JSValue scriptFetcher, bool useImportMap);
+    Identifier resolve(JSGlobalObject*, const Identifier& name, const Identifier& referrer, JSValue scriptFetcher, bool useImportMap);
+    JSPromise* fetch(JSGlobalObject*, JSValue key, JSValue parameters, JSValue scriptFetcher);
     JSObject* createImportMetaProperties(JSGlobalObject*, JSValue key, JSModuleRecord*, JSValue scriptFetcher);
 
     // Additional platform dependent hooked APIs.
@@ -85,11 +100,103 @@ public:
 
     // Utility functions.
     JSModuleNamespaceObject* getModuleNamespaceObject(JSGlobalObject*, JSValue moduleRecord);
-    JSArray* dependencyKeysIfEvaluated(JSGlobalObject*, JSValue key);
+    JSArray* dependencyKeysIfEvaluated(JSGlobalObject*, const String& key);
+
+    DECLARE_VISIT_CHILDREN;
+
+    static AbstractModuleRecord* getImportedModule(AbstractModuleRecord* referrer, const AbstractModuleRecord::ModuleRequest&);
+    static AbstractModuleRecord* maybeGetImportedModule(AbstractModuleRecord* referrer, const Identifier& moduleKey);
+
+    // Options correspond to Script Records, Cyclic Module Records and Realm Records, in that order.
+    struct ModuleReferrer : Variant<ProgramExecutable*, CyclicModuleRecord*, JSGlobalObject*> {
+        using Variant<ProgramExecutable*, CyclicModuleRecord*, JSGlobalObject*>::Variant;
+        ProgramExecutable* getScript() const;
+        CyclicModuleRecord* getModule() const;
+        JSGlobalObject* getRealm() const;
+        bool isScript() const;
+        bool isModule() const;
+        bool isRealm() const;
+        JSValue toJSValue() const;
+    };
+
+    struct ModuleFailure {
+        enum class Kind {
+            Unknown,
+            Instantiation,
+            Evaluation,
+        };
+
+        ModuleFailure() = default;
+        ModuleFailure(AbstractModuleRecord*, ScriptFetchParameters::Type, Kind);
+        ModuleFailure(Identifier, ScriptFetchParameters::Type, Kind);
+
+        bool isEvaluationError(const Identifier& expectedSpecifier, ScriptFetchParameters::Type expectedType) const;
+
+        operator bool() const;
+
+        AbstractModuleRecord* m_source { nullptr };
+        Identifier m_key;
+        ScriptFetchParameters::Type m_type { ScriptFetchParameters::Type::None };
+        Kind m_kind { Kind::Unknown };
+    };
+
+    using ModuleRequest = AbstractModuleRecord::ModuleRequest;
+    using ModuleCompletion = Variant<AbstractModuleRecord*, Exception*>;
+
+    void innerModuleLoading(JSGlobalObject*, ModuleGraphLoadingState*, AbstractModuleRecord*);
+    void finishLoadingImportedModule(JSGlobalObject*, const ModuleReferrer&, const ModuleRequest&, ModuleLoaderPayload*, ModuleCompletion result, JSValue scriptFetcher);
+
+    JSPromise* hostLoadImportedModule(JSGlobalObject*, const ModuleReferrer&, const ModuleRequest&, ModuleLoaderPayload*, JSValue scriptFetcher, bool useImportMap);
+    JSPromise* loadModule(JSGlobalObject*, const ModuleReferrer&, const ModuleRequest&, ModuleLoaderPayload*, JSValue scriptFetcher, bool evaluate, bool useImportMap);
+    void continueModuleLoading(JSGlobalObject*, ModuleGraphLoadingState*, ModuleCompletion result);
+    void continueDynamicImport(JSGlobalObject*, JSPromise*, ModuleCompletion, JSValue scriptFetcher);
+    JSPromise* loadRequestedModules(JSGlobalObject*, AbstractModuleRecord*, JSValue scriptFetcher);
+
+    static JSPromise* makeModule(JSGlobalObject*, const Identifier& moduleKey, JSSourceCode*);
+
+    static ErrorInstance* duplicateTypeError(JSGlobalObject*, ErrorInstance*);
+    static ErrorInstance* duplicateError(JSGlobalObject*, ErrorInstance*);
+    static ErrorInstance* maybeDuplicateFetchError(JSGlobalObject*, ErrorInstance*);
+    static ModuleFailure getErrorInfo(JSGlobalObject*, ErrorInstance*);
+    static bool isFetchError(JSGlobalObject*, ErrorInstance*);
+    static bool attachErrorInfo(JSGlobalObject*, Exception*, AbstractModuleRecord* source, const Identifier& key, ScriptFetchParameters::Type, ModuleFailure::Kind);
+    static bool attachErrorInfo(JSGlobalObject*, ThrowScope&, AbstractModuleRecord* source, const Identifier& key, ScriptFetchParameters::Type, ModuleFailure::Kind);
+    static void attachErrorInfo(JSGlobalObject*, ErrorInstance*, AbstractModuleRecord* source, const Identifier& key, ScriptFetchParameters::Type, ModuleFailure::Kind);
+
+    ModuleRegistryEntry* ensureRegistered(JSGlobalObject*, const Identifier& key, ScriptFetchParameters::Type);
+
+#if USE(BUN_JSC_ADDITIONS)
+    ModuleRegistryEntry* registryEntry(const Identifier& key, ScriptFetchParameters::Type type = ScriptFetchParameters::Type::JavaScript) { return getRegisteredMayBeNull(key, type); }
+    const ModuleMap<WriteBarrier<ModuleRegistryEntry>>& moduleMap() const { return m_moduleMap; }
+    bool removeEntry(const Identifier& key, ScriptFetchParameters::Type type = ScriptFetchParameters::Type::JavaScript)
+    {
+        m_loadedModules.remove({ key.impl(), type });
+        m_resolutionFailures.removeIf([&](auto& entry) { return entry.key.first == key.impl() || entry.key.second == key.impl(); });
+        return m_moduleMap.remove({ key.impl(), type });
+    }
+    void clearAll()
+    {
+        m_loadedModules.clear();
+        m_moduleMap.clear();
+        m_resolutionFailures.clear();
+    }
+    JS_EXPORT_PRIVATE JSPromise* loadModuleSync(JSGlobalObject*, const Identifier& moduleName, JSValue parameters, JSValue scriptFetcher);
+#endif
 
 private:
     JSModuleLoader(VM&, Structure*);
     void finishCreation(JSGlobalObject*, VM&);
+
+    ModuleRegistryEntry* getRegisteredMayBeNull(const Identifier& key, ScriptFetchParameters::Type);
+
+    void addResolutionFailure(VM&, const ResolutionMapKey&, JSValue error);
+
+    // Corresponds to RealmRecord.[[LoadedModules]].
+    ModuleMap<AbstractModuleRecord::LoadedModuleRequest> m_loadedModules;
+
+    ModuleMap<WriteBarrier<ModuleRegistryEntry>> m_moduleMap;
+
+    ResolutionMap<WriteBarrier<Unknown>> m_resolutionFailures;
 };
 
 } // namespace JSC

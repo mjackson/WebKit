@@ -844,7 +844,7 @@ void WebXRSession::requestHitTestSource(const XRHitTestOptionsInit& init, Reques
             promise.reject(exceptionOrSource.releaseException());
             return;
         }
-        Ref<WebXRHitTestSource> source =  WebXRHitTestSource::create(protectedThis, exceptionOrSource.releaseReturnValue(), *space);
+        Ref source = WebXRHitTestSource::create(protectedThis, exceptionOrSource.releaseReturnValue(), space);
         ASSERT(source->handle());
         protectedThis->m_activeHitTestSources.add(source->handle().value(), source.get());
         promise.resolve(source);

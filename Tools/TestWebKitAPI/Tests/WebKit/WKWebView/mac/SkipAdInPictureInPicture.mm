@@ -66,7 +66,7 @@ static RetainPtr<TestWKWebView> createWebView()
     RetainPtr configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
     [configuration preferences]._allowsPictureInPictureMediaPlayback = YES;
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeAudio];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
     return webView;
 }
 

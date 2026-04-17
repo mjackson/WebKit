@@ -753,9 +753,9 @@ class TestRunner
         @testRunnerType = testRunnerType
         @runnerDir = runnerDir
     end
-    def prepare(runlist, serialPlans, completedPlans, remoteHosts)
+    def prepare(runlist, serialPlans, exclusivePlans, completedPlans, remoteHosts)
         prepareScripts(runlist)
-        prepareRunner(runlist, serialPlans, completedPlans, remoteHosts)
+        prepareRunner(runlist, serialPlans, exclusivePlans, completedPlans, remoteHosts)
     end
     def prepareScripts(runlist)
         Dir.mkdir(@runnerDir) unless @runnerDir.directory?
@@ -806,6 +806,7 @@ end
 COLLECT_CONTINUOUSLY_OPTIONS = shouldCollectContinuously? ? ["--collectContinuously=true", "--useGenerationalGC=false", "--verifyGC=true"] : []
 
 $serialPlans = Set.new
+$exclusivePlans = Set.new
 $runlist = []
 
 def frameworkFromJSCPath(jscPath)
@@ -899,6 +900,8 @@ def addRunCommandConfig(config, *additionalEnv)
         # it in the $runlist for code that dosn't care about
         # scheduling.
         $serialPlans.add(plan)
+    elsif $runCommandOptions[:exclusive]
+        $exclusivePlans.add(plan)
     end
 
     if $numChildProcesses > 1 and $runCommandOptions[:isSlow]
@@ -965,6 +968,17 @@ end
 
 def serial!
     $runCommandOptions[:serial] = true
+end
+
+def exclusive!
+    $runCommandOptions[:exclusive] = true
+end
+
+def memoryHog!
+    exclusive!
+    if $memoryLimited
+        skip
+    end
 end
 
 
@@ -2102,6 +2116,12 @@ def runWebAssemblyTailCallSpecTest(mode)
     runWebAssemblySpecTestBase(mode, "tail-call-spec-harness", nil, "--useWasmTailCalls=true")
 end
 
+def runWebAssemblyMemory64SpecTest(mode)
+    return
+    # FIXME: turn this on once memory64 is implemented
+    # runWebAssemblySpecTestBase(mode, "spec-harness", nil, "--useWasmMemory64=true")
+end
+
 def runWebAssemblyLowExecutableMemory(*optionalTestSpecificOptions)
     return unless $isWasmPlatform
     modules = Dir[WASMTESTS_PATH + "*.js"].map { |f| File.basename(f) }
@@ -3188,7 +3208,7 @@ def runBundle
     raise unless $bundle
 
     testRunner = TestRunner.create($testRunnerType, $runnerDir)
-    evaluator = BundleTestsExecutor.new($runlist, $serialPlans, ITERATION_LIMITS, $treatFailingAsFlaky, testRunner)
+    evaluator = BundleTestsExecutor.new($runlist, $serialPlans, $exclusivePlans, ITERATION_LIMITS, $treatFailingAsFlaky, testRunner)
     evaluator.loop
 end
 
@@ -3197,7 +3217,7 @@ def runTarball
 
     prepareBundle
     testRunner = TestRunner.create($testRunnerType, $runnerDir)
-    testRunner.prepare($runlist, $serialPlans, Set.new, nil)
+    testRunner.prepare($runlist, $serialPlans, $exclusivePlans, Set.new, nil)
     compressBundle
 end
 
@@ -3291,9 +3311,9 @@ class TestRunnerGnuParallel < TestRunner
             }
         }
     end
-    def prepareRunner(runlist, serialPlans, completedPlans, remoteHosts)
-        prepareGnuParallelRunnerJobs("parallel-tests", runlist, completedPlans | serialPlans)
-        prepareGnuParallelRunnerJobs("serial-tests", serialPlans, completedPlans)
+    def prepareRunner(runlist, serialPlans, exclusivePlans, completedPlans, remoteHosts)
+        prepareGnuParallelRunnerJobs("parallel-tests", runlist, completedPlans | serialPlans | exclusivePlans)
+        prepareGnuParallelRunnerJobs("serial-tests", serialPlans | exclusivePlans, completedPlans)
     end
 end
 
@@ -3447,8 +3467,8 @@ ExecutorSelfTests.run
 TestResultEvaluatorSelfTests.run
 
 class NonRemoteTestsExecutor < BasicTestsExecutor
-    def initialize(runlist, serialPlans, maxIterationsBounds, treatFailingAsFlaky, testRunner)
-        super(runlist, serialPlans,
+    def initialize(runlist, serialPlans, exclusivePlans, maxIterationsBounds, treatFailingAsFlaky, testRunner)
+        super(runlist, serialPlans, exclusivePlans,
               nil,
               maxIterationsBounds,
               treatFailingAsFlaky
@@ -3458,11 +3478,11 @@ class NonRemoteTestsExecutor < BasicTestsExecutor
     def prepareExecution(remoteHosts)
         remoteHosts
     end
-    def refreshExecution(runlist, serialPlans, completedTests, remoteHosts)
+    def refreshExecution(runlist, serialPlans, exclusivePlans, completedTests, remoteHosts)
         if not @remoteHosts.nil?
             raise "remoteHosts #{@remoteHosts}, expected nil"
         end
-        @testRunner.prepare(runlist, serialPlans, completedTests, remoteHosts)
+        @testRunner.prepare(runlist, serialPlans, exclusivePlans, completedTests, remoteHosts)
     end
 end
 
@@ -3470,7 +3490,7 @@ class NormalTestsExecutor < NonRemoteTestsExecutor
     def prepareArtifacts(remoteHosts)
         raise "remoteHosts not nil" unless remoteHosts.nil?
         prepareBundle
-        @testRunner.prepare(@runlist, @serialPlans, Set.new, nil)
+        @testRunner.prepare(@runlist, @serialPlans, @exclusivePlans, Set.new, nil)
     end
     def executeTests(remoteHosts)
         runTestRunner(@testRunner, nil, nil)
@@ -3497,21 +3517,21 @@ class BundleTestsExecutor < NonRemoteTestsExecutor
 end
 
 class BaseRemoteTestsExecutor < BasicTestsExecutor
-    def initialize(runlist, serialPlans, remoteHosts, iterationLimits,
+    def initialize(runlist, serialPlans, exclusivePlans, remoteHosts, iterationLimits,
                    treatFailingAsFlaky, testRunner)
-        super(runlist, serialPlans, remoteHosts, iterationLimits, treatFailingAsFlaky)
+        super(runlist, serialPlans, exclusivePlans, remoteHosts, iterationLimits, treatFailingAsFlaky)
         @testRunner = testRunner
     end
     def updateStatusMap(iteration, statusMap)
         return getStatusMap(statusMap)
     end
-    def refreshExecution(runlist, serialPlans, completedTests, remoteHosts)
+    def refreshExecution(runlist, serialPlans, exclusivePlans, completedTests, remoteHosts)
         # Note, when running tests remotely, we always prepare tests
         # for all the hosts when refreshing execution, as even hosts
         # that went away during testing may have come back online in
         # the meantime -- so we don't expect a list of live remote
         # hosts to be passed in.
-        @testRunner.prepare(runlist, serialPlans, completedTests, remoteHosts)
+        @testRunner.prepare(runlist, serialPlans, exclusivePlans, completedTests, remoteHosts)
     end
 end
 
@@ -3525,17 +3545,17 @@ class RemoteTestsExecutor < BaseRemoteTestsExecutor
         # always end up scheduling tests on dead remotes and hamper
         # our progress.
         remoteHosts = getLiveRemoteHosts(remoteHosts)
-        @testRunner.prepare(@runlist, @serialPlans, Set.new, remoteHosts)
+        @testRunner.prepare(@runlist, @serialPlans, @exclusivePlans, Set.new, remoteHosts)
         compressBundle
         remoteHosts
     end
     def prepareExecution(remoteHosts)
         return prepareRemotes(remoteHosts)
     end
-    def refreshExecution(runlist, serialPlans, completedTests, remoteHosts)
+    def refreshExecution(runlist, serialPlans, exclusivePlans, completedTests, remoteHosts)
         # Don't assign tests to remotes that are down.
         remoteHosts = getLiveRemoteHosts(remoteHosts)
-        super(runlist, serialPlans, completedTests, remoteHosts)
+        super(runlist, serialPlans, exclusivePlans, completedTests, remoteHosts)
     end
     def executeTests(remoteHosts)
         forEachRemote(remoteHosts, :dropOnFailure => true) {
@@ -3562,7 +3582,7 @@ end
 class GnuParallelTestsExecutor < BaseRemoteTestsExecutor
     def prepareArtifacts(remoteHosts)
         prepareBundle
-        @testRunner.prepare(@runlist, @serialPlans, Set.new, remoteHosts)
+        @testRunner.prepare(@runlist, @serialPlans, @exclusivePlans, Set.new, remoteHosts)
         compressBundle
     end
     def prepareExecution(remoteHosts)
@@ -3579,7 +3599,7 @@ def runNormal
     raise if $bundle or $tarball
 
     testRunner = TestRunner.create($testRunnerType, $runnerDir)
-    evaluator = NormalTestsExecutor.new($runlist, $serialPlans, ITERATION_LIMITS,
+    evaluator = NormalTestsExecutor.new($runlist, $serialPlans, $exclusivePlans, ITERATION_LIMITS,
                                         $treatFailingAsFlaky, testRunner)
     statusMap = evaluator.loop
     detectFailures(statusMap)
@@ -3590,7 +3610,7 @@ def runRemote
     raise unless $remote
 
     testRunner = TestRunner.create($testRunnerType, $runnerDir)
-    executor = RemoteTestsExecutor.new($runlist, $serialPlans, $remoteHosts, ITERATION_LIMITS, $treatFailingAsFlaky, testRunner)
+    executor = RemoteTestsExecutor.new($runlist, $serialPlans, $exclusivePlans, $remoteHosts, ITERATION_LIMITS, $treatFailingAsFlaky, testRunner)
     statusMap = executor.loop
     detectFailures(statusMap)
 end
@@ -3599,7 +3619,7 @@ def runGnuParallel
     raise "Can only use --gnu-parallel-runner with --remote*" unless $remote
     raise "Can only use --gnu-parallel-runner with the default writer" unless $testWriter == "default"
     testRunner = TestRunner.create($testRunnerType, $runnerDir)
-    executor = GnuParallelTestsExecutor.new($runlist, $serialPlans,
+    executor = GnuParallelTestsExecutor.new($runlist, $serialPlans, $exclusivePlans,
                                             $remoteHosts, ITERATION_LIMITS,
                                             $treatFailingAsFlaky, testRunner)
     statusMap = executor.loop

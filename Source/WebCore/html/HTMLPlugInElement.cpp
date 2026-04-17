@@ -695,7 +695,7 @@ bool HTMLPlugInElement::canLoadPlugInContent(const String& relativeURL, const St
 
     contentSecurityPolicy->upgradeInsecureRequestIfNeeded(completedURL, ContentSecurityPolicy::InsecureRequestType::Load);
 
-    if (!shouldBypassCSPForPDFPlugin(mimeType) && !contentSecurityPolicy->allowObjectFromSource(completedURL))
+    if (!shouldBypassCSPForPDFPlugin(mimeType) && !contentSecurityPolicy->allowObjectFromSource(completedURL, document->currentParserSourcePosition()))
         return false;
 
     RefPtr ownerElement = document->ownerElement();

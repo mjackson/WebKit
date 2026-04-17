@@ -109,7 +109,7 @@ static RetainPtr<SecTrustRef> secTrustFromCertificateChain(NSArray *chain)
 static TestNavigationDelegate *delegateAllowingAllTLS()
 {
     static RetainPtr<TestNavigationDelegate> delegate = [] {
-        auto delegate = adoptNS([TestNavigationDelegate new]);
+        RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
         delegate.get().didReceiveAuthenticationChallenge = ^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
             completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
         };
@@ -125,9 +125,9 @@ static NSURL *exampleURL()
 
 static RetainPtr<WKWebViewConfiguration> configurationWithoutUsingDaemon()
 {
-    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     dataStoreConfiguration.get().pcmMachServiceName = nil;
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     configuration.get().websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]).get();
     return configuration;
 }
@@ -296,10 +296,10 @@ static void signUnlinkableTokenAndSendSecretToken(TokenSigningParty signingParty
     size_t modulusNBytes = cc_ceiling(ccrsa_pubkeylength(rsaPublicKey), 8);
 
     size_t exportSize = ccder_encode_rsa_pub_size(rsaPublicKey);
-    auto publicKey = adoptNS([[NSMutableData alloc] initWithLength:exportSize]);
+    RetainPtr publicKey = adoptNS([[NSMutableData alloc] initWithLength:exportSize]);
     ccder_encode_rsa_pub(rsaPublicKey, static_cast<uint8_t*>([publicKey mutableBytes]), static_cast<uint8_t*>([publicKey mutableBytes]) + [publicKey length]);
 
-    auto secKey = adoptCF(SecKeyCreateWithData((__bridge CFDataRef)publicKey.get(), (__bridge CFDictionaryRef)@{
+    RetainPtr secKey = adoptCF(SecKeyCreateWithData((__bridge CFDataRef)publicKey.get(), (__bridge CFDictionaryRef)@{
         (__bridge id)kSecAttrKeyType: (__bridge id)kSecAttrKeyTypeRSA,
         (__bridge id)kSecAttrKeyClass: (__bridge id)kSecAttrKeyClassPublic
     }, nil));
@@ -336,7 +336,7 @@ static void signUnlinkableTokenAndSendSecretToken(TokenSigningParty signingParty
                         auto blindedMessage = base64URLDecode(token);
 
                         const struct ccrsabssa_ciphersuite *ciphersuite = &ccrsabssa_ciphersuite_rsa4096_sha384;
-                        auto blindedSignature = adoptNS([[NSMutableData alloc] initWithLength:modulusNBytes]);
+                        RetainPtr blindedSignature = adoptNS([[NSMutableData alloc] initWithLength:modulusNBytes]);
                         ccrsabssa_sign_blinded_message(ciphersuite, rsaPrivateKey, blindedMessage->span().data(), blindedMessage->size(), static_cast<uint8_t *>([blindedSignature mutableBytes]), [blindedSignature length], rng);
                         auto unlinkableToken = base64URLEncodeToString(span(blindedSignature.get()));
 
@@ -455,16 +455,16 @@ TEST(PrivateClickMeasurement, DatabaseLocation)
     if ([fileManager fileExistsAtPath:tempDir.path])
         [fileManager removeItemAtURL:tempDir error:nil];
 
-    auto webViewToKeepNetworkProcessAlive = adoptNS([TestWKWebView new]);
+    RetainPtr webViewToKeepNetworkProcessAlive = adoptNS([TestWKWebView new]);
     [webViewToKeepNetworkProcessAlive synchronouslyLoadHTMLString:@"start network process"];
 
     pid_t originalNetworkProcessPid = 0;
     @autoreleasepool {
-        auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+        RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
         dataStoreConfiguration.get()._resourceLoadStatisticsDirectory = tempDir;
         dataStoreConfiguration.get().pcmMachServiceName = nil;
         auto viewConfiguration = configurationWithoutUsingDaemon();
-        auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+        RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
         viewConfiguration.get().websiteDataStore = dataStore.get();
         runBasicPCMTest(viewConfiguration.get(), [](WKWebView *webView, const HTTPServer& server) {
             [webView _addEventAttributionWithSourceID:42 destinationURL:exampleURL() sourceDescription:@"test source description" purchaser:@"test purchaser" reportEndpoint:server.request().URL optionalNonce:nil applicationBundleID:@"test.bundle.id" ephemeral:NO];
@@ -533,7 +533,7 @@ static std::pair<NSURL *, WKWebViewConfiguration *> setUpDaemon(WKWebViewConfigu
 
     registerPlistWithLaunchD(testDaemonPList(tempDir), tempDir);
 
-    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     dataStoreConfiguration.get().pcmMachServiceName = @"org.webkit.pcmtestdaemon.service";
     viewConfiguration.websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]).get();
 
@@ -555,14 +555,14 @@ static void attemptConnectionInProcessWithoutEntitlement()
 #if USE(APPLE_INTERNAL_SDK)
     __block bool done = false;
     // FIXME: This is a false positive. <rdar://164843889>
-    SUPPRESS_RETAINPTR_CTOR_ADOPT auto connection = adoptOSObject(xpc_connection_create_mach_service("org.webkit.pcmtestdaemon.service", mainDispatchQueueSingleton(), 0));
+    SUPPRESS_RETAINPTR_CTOR_ADOPT OSObjectPtr connection = adoptOSObject(xpc_connection_create_mach_service("org.webkit.pcmtestdaemon.service", mainDispatchQueueSingleton(), 0));
     xpc_connection_set_event_handler(connection.get(), ^(xpc_object_t event) {
         EXPECT_EQ(event, XPC_ERROR_CONNECTION_INTERRUPTED);
         done = true;
     });
     xpc_connection_activate(connection.get());
     // FIXME: This is a false positive. <rdar://164843889>
-    SUPPRESS_RETAINPTR_CTOR_ADOPT auto dictionary = adoptOSObject(xpc_dictionary_create(nullptr, nullptr, 0));
+    SUPPRESS_RETAINPTR_CTOR_ADOPT OSObjectPtr dictionary = adoptOSObject(xpc_dictionary_create(nullptr, nullptr, 0));
     xpc_connection_send_message(connection.get(), dictionary.get());
     TestWebKitAPI::Util::run(&done);
 #endif
@@ -587,7 +587,7 @@ TEST(PrivateClickMeasurement, DaemonBasicFunctionality)
 static RetainPtr<TestWKWebView> webViewWithOpenInspector(WKWebViewConfiguration *configuration, id<WKUIDelegate> uiDelegate)
 {
     configuration.preferences._developerExtrasEnabled = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect configuration:configuration]);
     [webView synchronouslyLoadHTMLString:@"start processes"];
     [[webView _inspector] show];
     [webView _test_waitForInspectorToShow];
@@ -600,7 +600,7 @@ TEST(PrivateClickMeasurement, DaemonDebugMode)
     auto [tempDir, configuration] = setUpDaemon(adoptNS([WKWebViewConfiguration new]).autorelease());
     configuration._shouldSendConsoleLogsToUIProcessForTesting = YES;
     __block Vector<String> consoleMessages;
-    auto delegate = adoptNS([TestUIDelegate new]);
+    RetainPtr delegate = adoptNS([TestUIDelegate new]);
     delegate.get().didReceiveConsoleLogForTesting = ^(NSString *log) {
         consoleMessages.append(log);
     };
@@ -621,13 +621,13 @@ static void setupSKAdNetworkTest(Vector<String>& consoleMessages, id<WKNavigatio
 {
     HTTPServer server({ { "/app/id1234567890"_s, { "hello"_s } } }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPSProxyPort: @(server.port())
     }];
 
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     viewConfiguration.get().websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get();
     viewConfiguration.get()._shouldSendConsoleLogsToUIProcessForTesting = YES;
     auto webView = webViewWithOpenInspector(viewConfiguration.get(), uiDelegate);
@@ -659,12 +659,12 @@ static NSString *linkToAppStoreHTML = @"<body><a href='https://apps.apple.com/ap
 TEST(PrivateClickMeasurement, SKAdNetwork)
 {
     __block Vector<String> consoleMessages;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *navigationAction, void (^decisionHandler)(WKNavigationActionPolicy)) {
         decisionHandler(_WKNavigationActionPolicyAllowWithoutTryingAppLink);
     };
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().didReceiveConsoleLogForTesting = ^(NSString *log) {
         consoleMessages.append(log);
     };
@@ -677,8 +677,8 @@ TEST(PrivateClickMeasurement, SKAdNetwork)
 TEST(PrivateClickMeasurement, SKAdNetworkAboutBlank)
 {
     __block Vector<String> consoleMessages;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     __block RetainPtr<TestWKWebView> openedWebView;
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
         openedWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
@@ -704,7 +704,7 @@ TEST(PrivateClickMeasurement, SKAdNetworkAboutBlank)
 TEST(PrivateClickMeasurement, SKAdNetworkWithoutNavigatingToAppStoreLink)
 {
     __block Vector<String> consoleMessages;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate allowAnyTLSCertificate];
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *navigationAction, void (^decisionHandler)(WKNavigationActionPolicy)) {
         decisionHandler(WKNavigationActionPolicyCancel);
@@ -712,7 +712,7 @@ TEST(PrivateClickMeasurement, SKAdNetworkWithoutNavigatingToAppStoreLink)
         EXPECT_EQ(0u, consoleMessages.size());
         [navigationAction _storeSKAdNetworkAttribution];
     };
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().didReceiveConsoleLogForTesting = ^(NSString *log) {
         consoleMessages.append(log);
     };
@@ -725,10 +725,10 @@ TEST(PrivateClickMeasurement, SKAdNetworkWithoutNavigatingToAppStoreLink)
 
 TEST(PrivateClickMeasurement, NetworkProcessDebugMode)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     configuration.get()._shouldSendConsoleLogsToUIProcessForTesting = YES;
     __block Vector<String> consoleMessages;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().didReceiveConsoleLogForTesting = ^(NSString *log) {
         consoleMessages.append(log);
     };
@@ -751,7 +751,7 @@ TEST(PrivateClickMeasurement, NetworkProcessDebugMode)
 TEST(PrivateClickMeasurement, BasicWithIOSSPI)
 {
     runBasicPCMTest(nil, [](WKWebView *webView, const HTTPServer& server) {
-        auto attribution = adoptNS([[MockEventAttribution alloc] initWithReportEndpoint:server.request().URL destinationURL:exampleURL()]);
+        RetainPtr attribution = adoptNS([[MockEventAttribution alloc] initWithReportEndpoint:server.request().URL destinationURL:exampleURL()]);
         webView._uiEventAttribution = (UIEventAttribution *)attribution.get();
         EXPECT_WK_STREQ(webView._uiEventAttribution.sourceDescription, "test source description");
         EXPECT_WK_STREQ(webView._uiEventAttribution.purchaser, "test purchaser");
@@ -761,7 +761,7 @@ TEST(PrivateClickMeasurement, BasicWithIOSSPI)
 TEST(PrivateClickMeasurement, BasicWithEphemeralIOSSPI)
 {
     runBasicPCMTest(nil, [](WKWebView *webView, const HTTPServer& server) {
-        auto attribution = adoptNS([[MockEventAttribution alloc] initWithReportEndpoint:server.request().URL destinationURL:exampleURL()]);
+        RetainPtr attribution = adoptNS([[MockEventAttribution alloc] initWithReportEndpoint:server.request().URL destinationURL:exampleURL()]);
         webView._ephemeralUIEventAttribution = (UIEventAttribution *)attribution.get();
     });
 }

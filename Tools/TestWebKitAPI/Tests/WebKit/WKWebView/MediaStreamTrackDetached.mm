@@ -55,15 +55,15 @@ namespace TestWebKitAPI {
 
 TEST(WebKit, MediaStreamTrackDetached)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     auto preferences = [configuration preferences];
     preferences._mediaCaptureRequiresSecureConnection = NO;
     configuration.get()._mediaCaptureEnabled = YES;
     preferences._mockCaptureDevicesEnabled = YES;
     preferences._getUserMediaRequiresFocus = NO;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[MediaStreamTrackDetachedUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[MediaStreamTrackDetachedUIDelegate alloc] init]);
     webView.get().UIDelegate = delegate.get();
 
     hasReceivedCorrectCaptureState = false;

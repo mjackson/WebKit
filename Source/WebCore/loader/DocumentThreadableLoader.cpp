@@ -707,11 +707,11 @@ bool DocumentThreadableLoader::isAllowedByContentSecurityPolicy(const URL& url, 
     case ContentSecurityPolicyEnforcement::DoNotEnforce:
         return true;
     case ContentSecurityPolicyEnforcement::EnforceWorkerSrcDirective:
-        return protect(contentSecurityPolicy())->allowWorkerFromSource(url, redirectResponseReceived, preRedirectURL);
+        return protect(contentSecurityPolicy())->allowWorkerFromSource(url, protect(m_document)->currentParserSourcePosition(), redirectResponseReceived, preRedirectURL);
     case ContentSecurityPolicyEnforcement::EnforceConnectSrcDirective:
-        return protect(contentSecurityPolicy())->allowConnectToSource(url, redirectResponseReceived, preRedirectURL);
+        return protect(contentSecurityPolicy())->allowConnectToSource(url, protect(m_document)->currentParserSourcePosition(), redirectResponseReceived, preRedirectURL);
     case ContentSecurityPolicyEnforcement::EnforceScriptSrcDirective:
-        return protect(contentSecurityPolicy())->allowScriptFromSource(url, redirectResponseReceived, preRedirectURL, m_options.integrity, m_options.nonce);
+        return protect(contentSecurityPolicy())->allowScriptFromSource(url, protect(m_document)->currentParserSourcePosition(), redirectResponseReceived, preRedirectURL, m_options.integrity, m_options.nonce);
     }
     ASSERT_NOT_REACHED();
     return false;

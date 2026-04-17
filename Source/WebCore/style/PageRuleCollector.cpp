@@ -55,7 +55,7 @@ bool PageRuleCollector::isFirstPage(int pageIndex) const
     return (!pageIndex);
 }
 
-String PageRuleCollector::pageName(int /* pageIndex */) const
+WTF::String PageRuleCollector::pageName(int /* pageIndex */) const
 {
     // FIXME: Implement page index to page name mapping.
     return emptyString();
@@ -63,9 +63,9 @@ String PageRuleCollector::pageName(int /* pageIndex */) const
 
 void PageRuleCollector::matchAllPageRules(int pageIndex)
 {
-    const bool isLeft = isLeftPage(pageIndex);
-    const bool isFirst = isFirstPage(pageIndex);
-    const String page = pageName(pageIndex);
+    auto isLeft = isLeftPage(pageIndex);
+    auto isFirst = isFirstPage(pageIndex);
+    auto page = pageName(pageIndex);
 
     matchPageRules(UserAgentStyle::defaultPrintStyle, isLeft, isFirst, page);
     matchPageRules(m_ruleSets.userStyle(), isLeft, isFirst, page);
@@ -74,7 +74,7 @@ void PageRuleCollector::matchAllPageRules(int pageIndex)
         matchPageRules(&m_ruleSets.authorStyle(), isLeft, isFirst, page);
 }
 
-void PageRuleCollector::matchPageRules(RuleSet* rules, bool isLeftPage, bool isFirstPage, const String& pageName)
+void PageRuleCollector::matchPageRules(RuleSet* rules, bool isLeftPage, bool isFirstPage, const WTF::String& pageName)
 {
     if (!rules)
         return;
@@ -91,7 +91,7 @@ void PageRuleCollector::matchPageRules(RuleSet* rules, bool isLeftPage, bool isF
     });
 }
 
-static bool NODELETE checkPageSelectorComponents(const CSSSelector& selector, bool isLeftPage, bool isFirstPage, const String& pageName)
+static bool NODELETE checkPageSelectorComponents(const CSSSelector& selector, bool isLeftPage, bool isFirstPage, const WTF::String& pageName)
 {
     for (const CSSSelector* component = &selector; component; component = component->precedingInComplexSelector()) {
         if (component->match() == CSSSelector::Match::Tag) {
@@ -111,7 +111,7 @@ static bool NODELETE checkPageSelectorComponents(const CSSSelector& selector, bo
     return true;
 }
 
-void PageRuleCollector::matchPageRulesForList(Vector<StyleRulePage*>& matchedRules, const Vector<StyleRulePage*>& rules, bool isLeftPage, bool isFirstPage, const String& pageName)
+void PageRuleCollector::matchPageRulesForList(Vector<StyleRulePage*>& matchedRules, const Vector<StyleRulePage*>& rules, bool isLeftPage, bool isFirstPage, const WTF::String& pageName)
 {
     for (unsigned i = 0; i < rules.size(); ++i) {
         StyleRulePage* rule = rules[i];

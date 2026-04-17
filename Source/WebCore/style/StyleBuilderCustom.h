@@ -34,6 +34,7 @@
 #include "CSSPrimitiveValueMappings.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "CSSRegisteredCustomProperty.h"
+#include "CSSStringValue.h"
 #include "CSSValuePair.h"
 #include "CSSValuePool.h"
 #include "DocumentQuirks.h"
@@ -514,14 +515,7 @@ inline void BuilderCustom::applyValueLineHeight(BuilderState& builderState, CSSV
 
 inline void BuilderCustom::applyValueWebkitLocale(BuilderState& builderState, CSSValue& value)
 {
-    auto primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
-    if (!primitiveValue)
-        return;
-
-    if (primitiveValue->valueID() == CSSValueAuto)
-        builderState.setFontDescriptionSpecifiedLocale(nullAtom());
-    else
-        builderState.setFontDescriptionSpecifiedLocale(AtomString { primitiveValue->stringValue() });
+    builderState.setFontDescriptionSpecifiedLocale(toStyleFromCSSValue<WebkitLocale>(builderState, value));
 }
 
 inline void BuilderCustom::applyValueWritingMode(BuilderState& builderState, CSSValue& value)

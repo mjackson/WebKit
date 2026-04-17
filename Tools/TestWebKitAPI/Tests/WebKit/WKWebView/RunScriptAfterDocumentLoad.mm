@@ -47,15 +47,15 @@ static const char* markup =
 
 TEST(RunScriptAfterDocumentLoad, ExecutionOrderOfScriptsInDocument)
 {
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"custom"];
     [configuration _setShouldDeferAsynchronousScriptsUntilAfterDocumentLoad:YES];
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         auto responseBlock = [task = retainPtr(task)] {
             NSURL *requestURL = [task request].URL;
             NSString *script = [NSString stringWithFormat:@"webkit.messageHandlers.testHandler.postMessage('Running %@')", requestURL.absoluteString.lastPathComponent];
-            auto response = adoptNS([[NSURLResponse alloc] initWithURL:requestURL MIMEType:@"text/javascript" expectedContentLength:[script length] textEncodingName:nil]);
+            RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:requestURL MIMEType:@"text/javascript" expectedContentLength:[script length] textEncodingName:nil]);
             [task didReceiveResponse:response.get()];
             [task didReceiveData:[script dataUsingEncoding:NSUTF8StringEncoding]];
             [task didFinish];
@@ -72,8 +72,8 @@ TEST(RunScriptAfterDocumentLoad, ExecutionOrderOfScriptsInDocument)
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (0.25_s).nanoseconds()), mainDispatchQueueSingleton(), responseBlock);
     }];
 
-    auto messages = adoptNS([NSMutableArray new]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200) configuration:configuration.get()]);
+    RetainPtr messages = adoptNS([NSMutableArray new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200) configuration:configuration.get()]);
     for (NSString *message in @[ @"Running async.js", @"Running defer.js", @"Running sync.js", @"DOMContentLoaded", @"async.js loaded", @"defer.js loaded", @"sync.js loaded" ]) {
         [webView performAfterReceivingMessage:message action:[message = adoptNS(message.copy), messages] {
             [messages addObject:message.get()];

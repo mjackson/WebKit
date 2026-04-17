@@ -119,7 +119,7 @@ TEST(CopyHTML, SanitizationPreservesCharacterSetInSelectedText)
     EXPECT_TRUE([copiedMarkup containsString:@"我叫謝文昇"]);
     EXPECT_TRUE([copiedMarkup containsString:@"</span>"]);
 
-    auto attributedString = adoptNS([[NSAttributedString alloc] initWithData:readHTMLDataFromPasteboard() options:@{ NSDocumentTypeDocumentOption: NSHTMLTextDocumentType } documentAttributes:nil error:nil]);
+    RetainPtr attributedString = adoptNS([[NSAttributedString alloc] initWithData:readHTMLDataFromPasteboard() options:@{ NSDocumentTypeDocumentOption: NSHTMLTextDocumentType } documentAttributes:nil error:nil]);
     EXPECT_WK_STREQ("我叫謝文昇", [attributedString string]);
 }
 
@@ -159,7 +159,7 @@ TEST(CopyHTML, SanitizationPreservesCharacterSet)
 
         NSError *attributedStringConversionError = nil;
 
-        auto attributedString = adoptNS([[NSAttributedString alloc] initWithData:copiedData.get() options:@{ NSDocumentTypeDocumentOption: NSHTMLTextDocumentType } documentAttributes:nil error:&attributedStringConversionError]);
+        RetainPtr attributedString = adoptNS([[NSAttributedString alloc] initWithData:copiedData.get() options:@{ NSDocumentTypeDocumentOption: NSHTMLTextDocumentType } documentAttributes:nil error:&attributedStringConversionError]);
         EXPECT_WK_STREQ("我叫謝文昇", [attributedString string]);
 
         __block BOOL foundColorAttribute = NO;
@@ -215,7 +215,7 @@ TEST(CopyHTML, SanitizationPreservesRelativeURLInAttributedString)
     [webView stringByEvaluatingJavaScript:@"getSelection().selectAllChildren(document.body)"];
 
     auto [resultString, resultError] = copyAndLoadAttributedStringUsingWebArchive(webView.get());
-    auto links = adoptNS([NSMutableArray<NSURL *> new]);
+    RetainPtr links = adoptNS([NSMutableArray<NSURL *> new]);
     [resultString enumerateAttribute:NSLinkAttributeName inRange:NSMakeRange(0, 5) options:0 usingBlock:^(NSURL *url, NSRange, BOOL*) {
         [links addObject:url];
     }];

@@ -1131,8 +1131,8 @@ TEST(WKWebExtensionAPILocalization, i18nChineseTraditionalFallback)
         @"_locales/zh/messages.json": genericChineseMessages,
     };
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:localizationManifest resources:resources]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:localizationManifest resources:resources]);
+    RetainPtr manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
     [manager loadAndRun];
 }
@@ -1169,8 +1169,8 @@ TEST(WKWebExtensionAPILocalization, i18nChineseSimplifiedFallback)
         @"_locales/zh/messages.json": genericChineseMessages,
     };
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:localizationManifest resources:resources]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:localizationManifest resources:resources]);
+    RetainPtr manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
     [manager loadAndRun];
 }

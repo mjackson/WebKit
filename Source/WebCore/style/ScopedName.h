@@ -26,6 +26,7 @@
 
 #include <WebCore/StyleCustomIdent.h>
 #include <WebCore/StyleScopeOrdinal.h>
+#include <WebCore/StyleString.h>
 #include <WebCore/StyleValueTypes.h>
 #include <wtf/text/AtomString.h>
 
@@ -42,7 +43,7 @@ struct ScopedName {
         auto visitor = WTF::makeVisitor(std::forward<F>(f)...);
         if (isIdentifier)
             return visitor(CustomIdent { name });
-        return visitor(name);
+        return visitor(String { name });
     }
 
     bool operator==(const ScopedName&) const = default;

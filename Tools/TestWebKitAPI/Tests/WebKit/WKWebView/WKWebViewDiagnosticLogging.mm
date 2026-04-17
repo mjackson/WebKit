@@ -55,11 +55,11 @@
 
 TEST(WKWebView, PrivateSessionDiagnosticLoggingDelegate)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     
-    auto testLoggingDelegate = adoptNS([[TestLoggingDelegate alloc] init]);
+    RetainPtr testLoggingDelegate = adoptNS([[TestLoggingDelegate alloc] init]);
     webView.get()._diagnosticLoggingDelegate = testLoggingDelegate.get();
     
     EXPECT_EQ(testLoggingDelegate.get(), webView.get()._diagnosticLoggingDelegate);
@@ -70,9 +70,9 @@ TEST(WKWebView, PrivateSessionDiagnosticLoggingDelegate)
 
 TEST(WKWebView, DiagnosticLoggingDelegateAfterClose)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     
-    auto testLoggingDelegate = adoptNS([[TestLoggingDelegate alloc] init]);
+    RetainPtr testLoggingDelegate = adoptNS([[TestLoggingDelegate alloc] init]);
     webView.get()._diagnosticLoggingDelegate = testLoggingDelegate.get();
     
     EXPECT_EQ(testLoggingDelegate.get(), webView.get()._diagnosticLoggingDelegate);
@@ -86,8 +86,8 @@ TEST(WKWebView, DiagnosticLoggingDelegateAfterClose)
 
 TEST(WKWebView, DiagnosticLoggingDictionary)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:[WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES]]);
-    auto testLoggingDelegate = adoptNS([TestLoggingDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:[WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES]]);
+    RetainPtr testLoggingDelegate = adoptNS([TestLoggingDelegate new]);
     [webView _setDiagnosticLoggingDelegate:testLoggingDelegate.get()];
     [webView configuration].preferences._diagnosticLoggingEnabled = YES;
 

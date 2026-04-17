@@ -29,6 +29,7 @@
 
 #include "BlobRegistry.h"
 #include "ByteArrayPixelBuffer.h"
+#include "CrossOriginMode.h"
 #include "CryptoKeyAES.h"
 #include "CryptoKeyEC.h"
 #include "CryptoKeyHMAC.h"
@@ -36,6 +37,7 @@
 #include "CryptoKeyRSA.h"
 #include "CryptoKeyRSAComponents.h"
 #include "CryptoKeyRaw.h"
+#include "DocumentQuirks.h"
 #include "IDBValue.h"
 #include "ImageBuffer.h"
 #include "JSAudioWorkletGlobalScope.h"
@@ -2170,7 +2172,7 @@ private:
             }
             if (RefPtr arrayBuffer = toPossiblySharedArrayBuffer(vm, obj)) {
                 if (arrayBuffer->isDetached()) {
-                    code = SerializationReturnCode::ValidationError;
+                    code = SerializationReturnCode::DataCloneError;
                     return true;
                 }
                 auto index = m_transferredArrayBuffers.find(obj);
@@ -2182,21 +2184,27 @@ private:
                 if (!addToObjectPoolIfNotDupe<ArrayBufferTag, ResizableArrayBufferTag, SharedArrayBufferTag>(obj))
                     return true;
                 
-                if (arrayBuffer->isShared() && (m_context == SerializationContext::WorkerPostMessage || m_forStorage == SerializationForStorage::Yes)) {
+                if (arrayBuffer->isShared()) {
                     // https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializeinternal
-                    if (!JSC::Options::useSharedArrayBuffer() || m_forStorage == SerializationForStorage::Yes) {
+                    if (m_context == SerializationContext::WorkerPostMessage) {
+                        if (!JSC::Options::useSharedArrayBuffer() || m_forStorage == SerializationForStorage::Yes) {
+                            code = SerializationReturnCode::DataCloneError;
+                            return true;
+                        }
+                        uint32_t index = m_sharedBuffers.size();
+                        ArrayBufferContents contents;
+                        if (arrayBuffer->shareWith(contents)) {
+                            appendObjectPoolTag(SharedArrayBufferTag);
+                            write(SharedArrayBufferTag);
+                            m_sharedBuffers.append(WTF::move(contents));
+                            write(index);
+                            return true;
+                        }
+                    } else if (m_context != SerializationContext::WindowPostMessage || ScriptExecutionContext::crossOriginMode() != CrossOriginMode::Isolated) {
                         code = SerializationReturnCode::DataCloneError;
                         return true;
                     }
-                    uint32_t index = m_sharedBuffers.size();
-                    ArrayBufferContents contents;
-                    if (arrayBuffer->shareWith(contents)) {
-                        appendObjectPoolTag(SharedArrayBufferTag);
-                        write(SharedArrayBufferTag);
-                        m_sharedBuffers.append(WTF::move(contents));
-                        write(index);
-                        return true;
-                    }
+                    // WindowPostMessage in a cross-origin isolated context: fall through to serialize as a non-shared copy.
                 }
                 
                 if (arrayBuffer->isResizableOrGrowableShared()) {
@@ -6473,20 +6481,6 @@ static bool containsDuplicates(const Vector<Ref<ImageBitmap>>& imageBitmaps)
     return false;
 }
 
-#if ENABLE(OFFSCREEN_CANVAS_IN_WORKERS)
-static bool canOffscreenCanvasesDetach(const Vector<Ref<OffscreenCanvas>>& offscreenCanvases)
-{
-    HashSet<Ref<OffscreenCanvas>> visited;
-    for (auto& offscreenCanvas : offscreenCanvases) {
-        if (!offscreenCanvas->canDetach())
-            return false;
-        // Check the return value of add, we should not encounter duplicates.
-        if (!visited.add(offscreenCanvas.get()))
-            return false;
-    }
-    return true;
-}
-#endif
 
 #if ENABLE(WEB_RTC)
 static bool canDetachRTCDataChannels(const Vector<Ref<RTCDataChannel>>& channels)
@@ -6605,46 +6599,31 @@ ExceptionOr<Ref<SerializedScriptValue>> SerializedScriptValue::create(JSGlobalOb
     Vector<Ref<MediaStreamTrackHandle>> transferredMediaStreamTrackHandles;
 #endif
 
+    // Step 1: Check for duplicates and classify transferables into their types.
+    // Per spec, detached/validity checks happen AFTER serialization of the message value.
     HashSet<JSC::Strong<JSC::JSObject>> visited;
     for (auto& transferable : transferList) {
         if (!visited.add(JSC::Strong<JSC::JSObject> { vm, transferable.get() }).isNewEntry)
             return Exception { ExceptionCode::DataCloneError, "Duplicate transferable for structured clone"_s };
 
         if (RefPtr arrayBuffer = toPossiblySharedArrayBuffer(vm, transferable.get())) {
-            if (arrayBuffer->isDetached() || arrayBuffer->isShared())
-                return Exception { ExceptionCode::DataCloneError };
-            if (!arrayBuffer->isDetachable()) {
-                auto scope = DECLARE_THROW_SCOPE(vm);
-                throwVMTypeError(&lexicalGlobalObject, scope, errorMessageForTransfer(arrayBuffer.get()));
-                return Exception { ExceptionCode::ExistingExceptionError };
-            }
             arrayBuffers.append(arrayBuffer.releaseNonNull());
             continue;
         }
         if (RefPtr port = JSMessagePort::toWrapped(vm, transferable.get())) {
-            if (port->isDetached())
-                return Exception { ExceptionCode::DataCloneError, "MessagePort is detached"_s };
             messagePorts.append(port.releaseNonNull());
             continue;
         }
-
         if (RefPtr imageBitmap = JSImageBitmap::toWrapped(vm, transferable.get())) {
-            if (imageBitmap->isDetached())
-                return Exception { ExceptionCode::DataCloneError };
-            if (!imageBitmap->originClean())
-                return Exception { ExceptionCode::DataCloneError };
-
             imageBitmaps.append(imageBitmap.releaseNonNull());
             continue;
         }
-
 #if ENABLE(OFFSCREEN_CANVAS_IN_WORKERS)
         if (RefPtr offscreenCanvas = JSOffscreenCanvas::toWrapped(vm, transferable.get())) {
             offscreenCanvases.append(offscreenCanvas.releaseNonNull());
             continue;
         }
 #endif
-
 #if ENABLE(WEB_RTC)
         if (RefPtr channel = JSRTCDataChannel::toWrapped(vm, transferable.get())) {
             dataChannels.append(channel.releaseNonNull());
@@ -6665,76 +6644,32 @@ ExceptionOr<Ref<SerializedScriptValue>> SerializedScriptValue::create(JSGlobalOb
         }
 #if ENABLE(MEDIA_SOURCE_IN_WORKERS)
         if (RefPtr handle = JSMediaSourceHandle::toWrapped(vm, transferable.get())) {
-            if (handle->isDetached())
-                return Exception { ExceptionCode::DataCloneError };
             mediaSourceHandles.append(handle.releaseNonNull());
             continue;
         }
 #endif
-
 #if ENABLE(WEB_CODECS)
         if (RefPtr videoFrame = JSWebCodecsVideoFrame::toWrapped(vm, transferable.get())) {
-            if (videoFrame->isDetached())
-                return Exception { ExceptionCode::DataCloneError };
             transferredVideoFrames.append(videoFrame.releaseNonNull());
             continue;
         }
         if (RefPtr audioData = JSWebCodecsAudioData::toWrapped(vm, transferable.get())) {
-            if (audioData->isDetached())
-                return Exception { ExceptionCode::DataCloneError };
             transferredAudioData.append(audioData.releaseNonNull());
             continue;
         }
 #endif
-
 #if ENABLE(MEDIA_STREAM)
         if (RefPtr track = JSMediaStreamTrack::toWrapped(vm, transferable.get())) {
-            if (track->isDetached())
-                return Exception { ExceptionCode::DataCloneError };
             transferredMediaStreamTracks.append(track.releaseNonNull());
             continue;
         }
         if (RefPtr handle = JSMediaStreamTrackHandle::toWrapped(vm, transferable.get())) {
-            if (handle->isDetached())
-                return Exception { ExceptionCode::DataCloneError };
             transferredMediaStreamTrackHandles.append(handle.releaseNonNull());
             continue;
         }
 #endif
-
         return Exception { ExceptionCode::DataCloneError };
     }
-
-    if (containsDuplicates(imageBitmaps))
-        return Exception { ExceptionCode::DataCloneError };
-#if ENABLE(OFFSCREEN_CANVAS_IN_WORKERS)
-    if (!canOffscreenCanvasesDetach(offscreenCanvases))
-        return Exception { ExceptionCode::InvalidStateError };
-#endif
-#if ENABLE(WEB_RTC)
-    if (!canDetachRTCDataChannels(dataChannels))
-        return Exception { ExceptionCode::DataCloneError };
-#endif
-    auto readableStreamSet = canTransfer<ReadableStream>(readableStreams);
-    if (!readableStreamSet)
-        return Exception { ExceptionCode::DataCloneError };
-    auto writableStreamSet = canTransfer<WritableStream>(writableStreams);
-    if (!writableStreamSet)
-        return Exception { ExceptionCode::DataCloneError };
-    if (!canTransfer<TransformStream>(transformStreams))
-        return Exception { ExceptionCode::DataCloneError };
-    if (!validateStreams(*readableStreamSet, *writableStreamSet, transformStreams))
-        return Exception { ExceptionCode::DataCloneError };
-#if ENABLE(MEDIA_SOURCE_IN_WORKERS)
-    if (!canDetachMediaSourceHandles(mediaSourceHandles))
-        return Exception { ExceptionCode::DataCloneError };
-#endif
-#if ENABLE(MEDIA_STREAM)
-    if (!canDetachMediaStreamTracks(transferredMediaStreamTracks))
-        return Exception { ExceptionCode::DataCloneError };
-    if (!canDetachMediaStreamTrackHandles(transferredMediaStreamTrackHandles))
-        return Exception { ExceptionCode::DataCloneError };
-#endif
 
     Vector<uint8_t> buffer;
     Vector<URLKeepingBlobAlive> blobHandles;
@@ -6805,6 +6740,72 @@ ExceptionOr<Ref<SerializedScriptValue>> SerializedScriptValue::create(JSGlobalOb
     // other than success, we should exit right now.
     if (code != SerializationReturnCode::SuccessfullyCompleted)
         return exceptionForSerializationFailure(code);
+
+    // Step 2: Now that serialization is done, validate transferable states.
+    // Per spec, detached/validity checks happen after serialization of the message value,
+    // because serialization may run getters that throw or modify transferables.
+    for (auto& arrayBuffer : arrayBuffers) {
+        if (arrayBuffer->isDetached() || arrayBuffer->isShared())
+            return Exception { ExceptionCode::DataCloneError };
+        if (!arrayBuffer->isDetachable()) {
+            throwVMTypeError(&lexicalGlobalObject, scope, errorMessageForTransfer(arrayBuffer.ptr()));
+            return Exception { ExceptionCode::ExistingExceptionError };
+        }
+    }
+    for (size_t i = 0; i < exposedMessagePortsCount; ++i) {
+        if (messagePorts[i]->isDetached())
+            return Exception { ExceptionCode::DataCloneError, "MessagePort is detached"_s };
+    }
+    for (auto& imageBitmap : imageBitmaps) {
+        if (imageBitmap->isDetached())
+            return Exception { ExceptionCode::DataCloneError };
+        if (!imageBitmap->originClean())
+            return Exception { ExceptionCode::DataCloneError };
+    }
+    if (containsDuplicates(imageBitmaps))
+        return Exception { ExceptionCode::DataCloneError };
+#if ENABLE(OFFSCREEN_CANVAS_IN_WORKERS)
+    for (auto& offscreenCanvas : offscreenCanvases) {
+        if (offscreenCanvas->renderingContext())
+            return Exception { ExceptionCode::InvalidStateError };
+        if (offscreenCanvas->isDetached())
+            return Exception { ExceptionCode::DataCloneError };
+    }
+#endif
+#if ENABLE(WEB_RTC)
+    if (!canDetachRTCDataChannels(dataChannels))
+        return Exception { ExceptionCode::DataCloneError };
+#endif
+    auto readableStreamSet = canTransfer<ReadableStream>(readableStreams);
+    if (!readableStreamSet)
+        return Exception { ExceptionCode::DataCloneError };
+    auto writableStreamSet = canTransfer<WritableStream>(writableStreams);
+    if (!writableStreamSet)
+        return Exception { ExceptionCode::DataCloneError };
+    if (!canTransfer<TransformStream>(transformStreams))
+        return Exception { ExceptionCode::DataCloneError };
+    if (!validateStreams(*readableStreamSet, *writableStreamSet, transformStreams))
+        return Exception { ExceptionCode::DataCloneError };
+#if ENABLE(MEDIA_SOURCE_IN_WORKERS)
+    if (!canDetachMediaSourceHandles(mediaSourceHandles))
+        return Exception { ExceptionCode::DataCloneError };
+#endif
+#if ENABLE(WEB_CODECS)
+    for (auto& videoFrame : transferredVideoFrames) {
+        if (videoFrame->isDetached())
+            return Exception { ExceptionCode::DataCloneError };
+    }
+    for (auto& audioData : transferredAudioData) {
+        if (audioData->isDetached())
+            return Exception { ExceptionCode::DataCloneError };
+    }
+#endif
+#if ENABLE(MEDIA_STREAM)
+    if (!canDetachMediaStreamTracks(transferredMediaStreamTracks))
+        return Exception { ExceptionCode::DataCloneError };
+    if (!canDetachMediaStreamTrackHandles(transferredMediaStreamTrackHandles))
+        return Exception { ExceptionCode::DataCloneError };
+#endif
 
     auto arrayBufferContentsArray = transferArrayBuffers(vm, arrayBuffers);
     if (arrayBufferContentsArray.hasException())

@@ -29,6 +29,7 @@
 #include "JSDOMWindow.h"
 #include "LocalDOMWindow.h"
 #include "ScriptExecutionContext.h"
+#include "WebCoreJSClientData.h"
 #include <JavaScriptCore/ErrorHandlingScope.h>
 #include <JavaScriptCore/Exception.h>
 #include <JavaScriptCore/ExceptionHelpers.h>
@@ -133,6 +134,18 @@ void reportException(JSGlobalObject* lexicalGlobalObject, JSC::Exception* except
     }
 
     auto errorMessage = retrieveErrorMessage(*lexicalGlobalObject, vm, exception->value(), scope);
+
+    if (globalObject->hasScriptErrorCallbacks()) {
+        // The call stack may contain masked URLs (e.g. webkit-masked-url://hidden/) for scripts
+        // whose origin is hidden from the page (e.g. extension content scripts in the main world).
+        // Use the unmasked URL from the exception's code blocks for internal reporting.
+        auto unmaskedSourceURL = exceptionSourceURL;
+        if (auto url = unmaskedSourceURLFromException(*exception, vm); !url.isEmpty())
+            unmaskedSourceURL = url;
+
+        globalObject->invokeScriptErrorCallbacks(errorMessage, unmaskedSourceURL, lineNumber, columnNumber);
+    }
+
     protect(globalObject->scriptExecutionContext())->reportException(errorMessage, lineNumber, columnNumber, exceptionSourceURL, exception, callStack->size() ? callStack.ptr() : nullptr, cachedScript, fromModule);
 
     if (exceptionDetails) {

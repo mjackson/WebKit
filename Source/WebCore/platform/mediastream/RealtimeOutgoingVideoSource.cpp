@@ -31,6 +31,7 @@
 
 #if USE(LIBWEBRTC)
 
+#include "LibWebRTCVideoFrameUtilities.h"
 #include "Logging.h"
 
 ALLOW_UNUSED_PARAMETERS_BEGIN
@@ -259,15 +260,19 @@ void RealtimeOutgoingVideoSource::sendBlackFramesIfNeeded()
 void RealtimeOutgoingVideoSource::sendOneBlackFrame()
 {
     ALWAYS_LOG(LOGIDENTIFIER);
-    sendFrame(webrtc::scoped_refptr { m_blackFrame.get() });
+    sendFrame(webrtc::scoped_refptr { m_blackFrame.get() }, { });
 }
 
-void RealtimeOutgoingVideoSource::sendFrame(webrtc::scoped_refptr<webrtc::VideoFrameBuffer>&& buffer)
+void RealtimeOutgoingVideoSource::sendFrame(webrtc::scoped_refptr<webrtc::VideoFrameBuffer>&& buffer, const PlatformVideoColorSpace& colorSpace)
 {
+
     MonotonicTime timestamp = MonotonicTime::now();
     webrtc::VideoFrame frame(buffer, m_isApplyingRotation ? webrtc::kVideoRotation_0 : m_currentRotation, static_cast<int64_t>(timestamp.secondsSinceEpoch().microseconds()));
 
-    // FIXME: set color space based on VideoFrame.
+    if (colorSpace.isValid()) {
+        if (auto webrtColorSpace = toWebRTCColorSpace(colorSpace))
+            frame.set_color_space(*webrtColorSpace);
+    }
 
 #if !RELEASE_LOG_DISABLED
     ++m_frameCount;

@@ -50,11 +50,11 @@
 
 TEST(RenderingProgressTests, DidRenderSignificantAmountOfText)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 156, 195)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 156, 195)]);
     [webView _setObservedRenderingProgressEvents:_WKRenderingProgressEventDidRenderSignificantAmountOfText];
 
     bool observedSignificantRenderedText = false;
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [navigationDelegate setRenderingProgressDidChange:[&] (WKWebView *, _WKRenderingProgressEvents events) {
         if (events & _WKRenderingProgressEventDidRenderSignificantAmountOfText)
             observedSignificantRenderedText = true;
@@ -75,15 +75,15 @@ TEST(RenderingProgressTests, DidRenderSignificantAmountOfText)
 
 TEST(RenderingProgressTests, FirstPaintWithSignificantArea)
 {
-    auto schemeHandler = adoptNS([[MissingResourceSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[MissingResourceSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"missing"];
     // A full-height, but very narrow web view (for instance, a navigation sidebar embedded in an app).
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 160, 568) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 160, 568) configuration:configuration.get()]);
     [webView _setObservedRenderingProgressEvents:_WKRenderingProgressEventFirstPaintWithSignificantArea];
 
     bool observedSignificantPaint = false;
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [navigationDelegate setRenderingProgressDidChange:[&] (WKWebView *, _WKRenderingProgressEvents events) {
         if (events & _WKRenderingProgressEventFirstPaintWithSignificantArea)
             observedSignificantPaint = true;

@@ -71,16 +71,16 @@ namespace TestWebKitAPI {
 
 TEST(WebKit, NoHistoryItemScrollToFragment)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
 
 #if PLATFORM(MAC)
-    auto delegate = adoptNS([[DidScrollToFragmentDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[DidScrollToFragmentDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 #endif
 #if PLATFORM(IOS_FAMILY)
-    auto delegateForScrollView = adoptNS([[DidScrollToFragmentScrollViewDelegate alloc] init]);
+    RetainPtr delegateForScrollView = adoptNS([[DidScrollToFragmentScrollViewDelegate alloc] init]);
     [webView scrollView].delegate = delegateForScrollView.get();
 #endif
 

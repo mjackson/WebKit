@@ -28,7 +28,6 @@
 
 #include "pas_heap_summary.h"
 #include "pas_lock.h"
-#include "pas_log.h"
 #include "pas_range.h"
 #include "pas_segregated_page_config_kind.h"
 #include "pas_segregated_view_kind.h"

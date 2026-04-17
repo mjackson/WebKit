@@ -141,9 +141,9 @@ SourceID StackFrame::sourceID() const
     return noSourceID;
 }
 
-static String processSourceURL(VM& vm, const JSC::StackFrame& frame, const String& sourceURL)
+static String processSourceURL(VM& vm, const JSC::StackFrame& frame, const String& sourceURL, AllowURLOverride allowOverride = AllowURLOverride::Yes)
 {
-    if (vm.clientData && (!protocolIsInHTTPFamily(sourceURL) && !protocolIs(sourceURL, "blob"_s))) {
+    if (allowOverride == AllowURLOverride::Yes && vm.clientData && (!protocolIsInHTTPFamily(sourceURL) && !protocolIs(sourceURL, "blob"_s))) {
         String overrideURL = vm.clientData->overrideSourceURL(frame, sourceURL);
         if (!overrideURL.isNull())
             return overrideURL;
@@ -154,20 +154,20 @@ static String processSourceURL(VM& vm, const JSC::StackFrame& frame, const Strin
     return emptyString();
 }
 
-String StackFrame::sourceURL(VM& vm) const
+String StackFrame::sourceURL(VM& vm, AllowURLOverride allowOverride) const
 {
     return WTF::switchOn(m_frameData,
-        [&vm, this](const JSFrameData& jsFrame) -> String {
+        [&vm, allowOverride, this](const JSFrameData& jsFrame) -> String {
             if (isAsyncFrameWithoutCodeBlock()) {
                 ASSERT(jsFrame.callee);
                 ASSERT(!jsFrame.codeBlock);
                 JSFunction* calleeFn = jsDynamicCast<JSFunction*>(jsFrame.callee.get());
-                return processSourceURL(vm, *this, calleeFn->jsExecutable()->sourceURL());
+                return processSourceURL(vm, *this, calleeFn->jsExecutable()->sourceURL(), allowOverride);
             }
 
             if (!jsFrame.codeBlock)
                 return "[native code]"_s;
-            return processSourceURL(vm, *this, jsFrame.codeBlock->ownerExecutable()->sourceURL());
+            return processSourceURL(vm, *this, jsFrame.codeBlock->ownerExecutable()->sourceURL(), allowOverride);
         },
         [](const WasmFrameData& wasmFrame) -> String {
             auto moduleName = wasmFrame.functionIndexOrName.moduleName();

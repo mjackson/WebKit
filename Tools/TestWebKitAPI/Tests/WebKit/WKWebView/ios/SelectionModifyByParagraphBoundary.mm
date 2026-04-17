@@ -37,8 +37,8 @@ typedef UITextInputArrowKeyHistory *(*MoveParagraphSelectorType)(id, SEL, BOOL, 
 
 TEST(SelectionTests, ModifyByParagraphBoundary)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] init]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] init]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];

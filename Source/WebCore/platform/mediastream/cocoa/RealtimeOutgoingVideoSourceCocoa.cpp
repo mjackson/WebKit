@@ -89,6 +89,14 @@ void RealtimeOutgoingVideoSourceCocoa::videoFrameAvailable(VideoFrame& videoFram
         break;
     }
 
+    auto colorSpace = [&] {
+        if (auto pixelFormat = convertVideoFramePixelFormat(videoFrame.pixelFormat(), true)) {
+            if (isRGBVideoPixelFormat(*pixelFormat))
+                return PlatformVideoColorSpace { PlatformVideoColorPrimaries::Bt709, PlatformVideoTransferCharacteristics::Bt709, PlatformVideoMatrixCoefficients::Bt709, false };
+        }
+        return videoFrame.colorSpace();
+    }();
+
     auto videoFrameScaling = this->videoFrameScaling();
     bool isApplyingRotation = m_isApplyingRotation && m_currentRotation != webrtc::kVideoRotation_0;
     if (!isApplyingRotation) {
@@ -98,14 +106,14 @@ void RealtimeOutgoingVideoSourceCocoa::videoFrameAvailable(VideoFrame& videoFram
             sendFrame(webrtc::toWebRTCVideoFrameBuffer(&remoteVideoFrame.leakRef(),
                 [](auto* pointer) { return static_cast<VideoFrame*>(pointer)->pixelBuffer(); },
                 [](auto* pointer) { static_cast<VideoFrame*>(pointer)->deref(); },
-                static_cast<int>(size.width() * videoFrameScaling), static_cast<int>(size.height() * videoFrameScaling)));
+                static_cast<int>(size.width() * videoFrameScaling), static_cast<int>(size.height() * videoFrameScaling)), colorSpace);
             return;
         }
         if (auto* webrtcVideoFrame = dynamicDowncast<VideoFrameLibWebRTC>(videoFrame)) {
             auto webrtcBuffer = webrtcVideoFrame->buffer();
             if (videoFrameScaling != 1)
                 webrtcBuffer = webrtcBuffer->Scale(webrtcBuffer->width() * videoFrameScaling, webrtcBuffer->height() * videoFrameScaling);
-            sendFrame(WTF::move(webrtcBuffer));
+            sendFrame(WTF::move(webrtcBuffer), colorSpace);
             return;
         }
     }
@@ -128,7 +136,7 @@ void RealtimeOutgoingVideoSourceCocoa::videoFrameAvailable(VideoFrame& videoFram
     if (videoFrameScaling != 1)
         webrtcBuffer = webrtcBuffer->Scale(webrtcBuffer->width() * videoFrameScaling, webrtcBuffer->height() * videoFrameScaling);
 
-    sendFrame(WTF::move(webrtcBuffer));
+    sendFrame(WTF::move(webrtcBuffer), colorSpace);
 }
 
 webrtc::scoped_refptr<webrtc::VideoFrameBuffer> RealtimeOutgoingVideoSourceCocoa::createBlackFrame(size_t  width, size_t  height)

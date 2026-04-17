@@ -81,7 +81,7 @@ public:
 
     NSURL *URLWithFragment(NSString *fragment)
     {
-        auto urlComponents = adoptNS([[NSURLComponents alloc] initWithURL:URL.get() resolvingAgainstBaseURL:NO]);
+        RetainPtr urlComponents = adoptNS([[NSURLComponents alloc] initWithURL:URL.get() resolvingAgainstBaseURL:NO]);
         [urlComponents setFragment:fragment];
         return [urlComponents URL];
     }

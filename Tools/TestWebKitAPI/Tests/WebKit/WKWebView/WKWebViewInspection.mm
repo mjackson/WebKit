@@ -31,7 +31,7 @@
 
 TEST(WKWebViewInspection, UseInspectionAPIAfterClose)
 {
-    auto webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
 
     [webView setInspectable:YES];
 

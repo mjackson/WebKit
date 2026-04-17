@@ -183,7 +183,10 @@ protected:
     FloatSize naturalSize() const override;
     bool hasVideo() const override { return m_cachedHasVideo; }
     bool hasAudio() const override { return m_cachedHasAudio; }
+    bool pageIsVisible() const { return m_pageIsVisible; }
     void setPageIsVisible(bool) final;
+    ViewportVisibility viewportVisibility() const { return m_viewportVisibility; }
+    void setViewportVisibility(ViewportVisibility) final;
     MediaTime duration() const override;
     MediaTime currentTime() const override = 0;
     void seekToTarget(const SeekTarget&) final;
@@ -246,7 +249,8 @@ protected:
     virtual AssetStatus assetStatus() const = 0;
     virtual long assetErrorCode() const = 0;
 
-    virtual void platformSetVisible(bool) = 0;
+    virtual void platformPageIsVisibleChanged(bool) = 0;
+    virtual void platformViewportVisibilityChanged(ViewportVisibility) = 0;
     virtual void platformPlay() = 0;
     virtual void platformPause() = 0;
     virtual bool platformPaused() const { return !rate(); }
@@ -292,7 +296,6 @@ protected:
     void setNetworkState(MediaPlayer::NetworkState);
     void setReadyState(MediaPlayer::ReadyState);
 
-    bool isVisible() const { return m_visible; }
     MediaRenderingMode currentRenderingMode() const;
     MediaRenderingMode preferredRenderingMode() const;
 
@@ -364,7 +367,7 @@ protected:
     int m_delayCharacteristicsChangedNotification;
     bool m_mainThreadCallPending;
     bool m_assetIsPlayable;
-    bool m_visible;
+    bool m_pageIsVisible { false };
     bool m_loadingMetadata;
     bool m_isAllowedToRender;
     bool m_cachedHasAudio;
@@ -376,6 +379,7 @@ protected:
     bool m_shouldMaintainAspectRatio;
     bool m_seeking;
     bool m_needsRenderingModeChanged { false };
+    ViewportVisibility m_viewportVisibility { ViewportVisibility::NotVisible };
 };
 
 String convertEnumerationToString(MediaPlayerPrivateAVFoundation::MediaRenderingMode);

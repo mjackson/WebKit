@@ -49,7 +49,7 @@ TEST(AttributedSubstringForProposedRange, TextAlignmentParagraphStyles)
         "</body>"
         "<script>getSelection().setPosition(document.body)</script>";
 
-    auto webView = adoptNS([[TestWKWebView<NSTextInputClient_Async> alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView<NSTextInputClient_Async> alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:markup];
 
     __block bool finished = false;

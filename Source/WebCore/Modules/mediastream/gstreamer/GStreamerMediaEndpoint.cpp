@@ -1636,6 +1636,27 @@ void GStreamerMediaEndpoint::connectIncomingTrack(WebRTCTrackData& data)
     gst_element_set_state(m_pipeline.get(), GST_STATE_PLAYING);
 }
 
+void GStreamerMediaEndpoint::notifyFirstPacketReceived(WebRTCTrackData& data)
+{
+    auto peerConnectionBackend = this->peerConnectionBackend();
+    if (!peerConnectionBackend)
+        return;
+
+    RefPtr<RTCRtpTransceiver> transceiver = peerConnectionBackend->existingTransceiver([&](auto& backend) -> bool {
+        GUniqueOutPtr<char> mid;
+        g_object_get(backend.rtcTransceiver(), "mid", &mid.outPtr(), nullptr);
+        GST_DEBUG_OBJECT(m_pipeline.get(), "Checking if transceiver with mid %s matches the track mid", mid.get());
+        return data.mid == StringView::fromLatin1(mid.get());
+    });
+    if (!transceiver)
+        return;
+
+    GST_DEBUG_OBJECT(m_pipeline.get(), "Un-muting incoming track with MID %s", data.mid.ascii().data());
+    auto& track = transceiver->receiver().track();
+    auto& source = track.privateTrack().source();
+    source.setMuted(false);
+}
+
 void GStreamerMediaEndpoint::connectPad(GstPad* pad)
 {
     auto caps = adoptGRef(gst_pad_get_current_caps(pad));

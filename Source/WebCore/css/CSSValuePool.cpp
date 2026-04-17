@@ -26,6 +26,7 @@
 #include "config.h"
 #include "CSSValuePool.h"
 
+#include "CSSFontFamilyNameValue.h"
 #include "CSSPrimitiveValueMappings.h"
 #include "CSSPropertyParser.h"
 #include "CSSValueKeywords.h"
@@ -92,16 +93,16 @@ Ref<CSSColorValue> CSSValuePool::createColorValue(const WebCore::Color& color)
     }).iterator->value;
 }
 
-Ref<CSSPrimitiveValue> CSSValuePool::createFontFamilyValue(const AtomString& familyName)
+Ref<CSSValue> CSSValuePool::createFontFamilyNameValue(const AtomString& familyName)
 {
     // Remove one entry at random if the cache grows too large.
     // FIXME: Use TinyLRUCache instead?
     const int maximumFontFamilyCacheSize = 128;
-    if (m_fontFamilyValueCache.size() >= maximumFontFamilyCacheSize)
-        m_fontFamilyValueCache.remove(m_fontFamilyValueCache.random());
+    if (m_fontFamilyNameValueCache.size() >= maximumFontFamilyCacheSize)
+        m_fontFamilyNameValueCache.remove(m_fontFamilyNameValueCache.random());
 
-    return m_fontFamilyValueCache.ensure(familyName, [&familyName] {
-        return CSSPrimitiveValue::createFontFamily(familyName);
+    return m_fontFamilyNameValueCache.ensure(familyName, [&familyName] {
+        return CSSFontFamilyNameValue::create(CSS::FontFamilyName { familyName });
     }).iterator->value;
 }
 
@@ -123,7 +124,7 @@ void CSSValuePool::drain()
 {
     m_colorValueCache.clear();
     m_fontFaceValueCache.clear();
-    m_fontFamilyValueCache.clear();
+    m_fontFamilyNameValueCache.clear();
 }
 
-}
+} // namespace WebCore

@@ -32,6 +32,8 @@
 #include "URLPatternInit.h"
 #include "URLPatternParser.h"
 #include "URLPatternTokenizer.h"
+#include <JavaScriptCore/RegExp.h>
+#include <JavaScriptCore/StrongInlines.h>
 
 namespace WebCore {
 using namespace JSC;

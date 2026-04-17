@@ -81,7 +81,8 @@ PAS_API void pagesize64k_heap_config_activate(void);
     .medium_bitfit_min_align_shift = PAS_MIN_MEDIUM_ALIGN_SHIFT, \
     .use_marge_bitfit = false, \
     .pgm_enabled = false, \
-    .delegate_large_user_allocations = true)
+    .delegate_large_user_allocations = true, \
+    .large_map_variant = pas_default_large_map_variant)
 
 PAS_API extern const pas_heap_config pagesize64k_heap_config;
 

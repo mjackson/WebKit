@@ -2861,6 +2861,11 @@ ExceptionOr<RefPtr<Frame>> LocalDOMWindow::createWindow(const String& urlString,
     if (!newFrame)
         return RefPtr<Frame> { nullptr };
 
+    // https://html.spec.whatwg.org/#the-rules-for-choosing-a-navigable
+    // Consume user activation when a new browsing context is created.
+    if (created == CreatedNewPage::Yes)
+        activeWindow.consumeTransientActivation();
+
     if (!noopener) {
         ASSERT(!newFrame->opener() || newFrame->opener() == &openerFrame);
         if (auto* page = newFrame->page())
@@ -2876,7 +2881,7 @@ ExceptionOr<RefPtr<Frame>> LocalDOMWindow::createWindow(const String& urlString,
     }
 
     RefPtr window = newFrame->window();
-    if (window && window->isInsecureScriptAccess(activeWindow, completedURL.string()))
+    if (window && window->isInsecureScriptAccess(activeWindow, completedURL))
         return noopener ? RefPtr<Frame> { nullptr } : newFrame;
 
     RefPtr localNewFrame = dynamicDowncast<LocalFrame>(newFrame);
@@ -2974,7 +2979,7 @@ ExceptionOr<RefPtr<WindowProxy>> LocalDOMWindow::open(LocalDOMWindow& activeWind
 
         URL completedURL = protect(firstFrame->document())->completeURL(urlString);
 
-        if (protect(targetFrame->window())->isInsecureScriptAccess(activeWindow, completedURL.string()))
+        if (protect(targetFrame->window())->isInsecureScriptAccess(activeWindow, completedURL))
             return &targetFrame->windowProxy();
 
         if (urlString.isEmpty())

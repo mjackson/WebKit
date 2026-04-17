@@ -91,7 +91,10 @@ WI.DOMTreeElement = class DOMTreeElement extends WI.TreeElement
             return WI.DOMTreeElement.BadgeType.SlotAssigned;
         case WI.DOMNode.LayoutFlag.SlotFilled:
             return WI.DOMTreeElement.BadgeType.SlotFilled;
+        case WI.DOMNode.LayoutFlag.Rendered:
+            return null;
         }
+
         console.assert(false, "not reached", layoutFlag);
     }
 
@@ -2112,7 +2115,7 @@ WI.DOMTreeElement = class DOMTreeElement extends WI.TreeElement
     {
         console.assert(!this._elementForBadgeType.has(badgeType), badgeType);
 
-        if (!badgeType || !WI.settings.enabledDOMTreeBadgeTypes.value.includes(badgeType))
+        if (!WI.settings.enabledDOMTreeBadgeTypes.value.includes(badgeType))
             return;
 
         let text = "";
@@ -2193,8 +2196,11 @@ WI.DOMTreeElement = class DOMTreeElement extends WI.TreeElement
             badgeElement.remove();
         this._elementForBadgeType.clear();
 
-        for (let layoutFlag of this.representedObject.layoutFlags)
-            this._createBadge(WI.DOMTreeElement.badgeTypeForLayoutFlag(layoutFlag));
+        for (let layoutFlag of this.representedObject.layoutFlags) {
+            let badgeType = WI.DOMTreeElement.badgeTypeForLayoutFlag(layoutFlag);
+            if (badgeType)
+                this._createBadge(badgeType);
+        }
 
         if (!this._elementForBadgeType.size) {
             if (hadBadge) {

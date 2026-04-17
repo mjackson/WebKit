@@ -262,6 +262,7 @@ public:
         BaseURLAlreadyInUse,
         NoBackgroundContent,
         BackgroundContentFailedToLoad,
+        ScriptExecutionError,
     };
 
     // Keep in sync with WKWebExtensionContextError values
@@ -271,7 +272,8 @@ public:
         NotLoaded,
         BaseURLAlreadyInUse,
         NoBackgroundContent,
-        BackgroundContentFailedToLoad
+        BackgroundContentFailedToLoad,
+        ScriptExecutionError,
     };
 
     enum class PermissionNotification : uint8_t {
@@ -875,6 +877,9 @@ private:
 
     // Extension APIs
     void extensionIsAllowedIncognitoAccess(CompletionHandler<void(bool)>&&);
+
+    // Runtime Error Reporting
+    void didEncounterScriptError(const String& message, const String& sourceURL, uint32_t lineNumber, uint32_t columnNumber, WebExtensionContentWorldType);
 
     // Menus APIs
     bool isMenusMessageAllowed(IPC::Decoder&);

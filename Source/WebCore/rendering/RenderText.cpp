@@ -450,24 +450,26 @@ void RenderText::styleDidChange(Style::Difference diff, const RenderStyle* oldSt
     }
 
     const RenderStyle& newStyle = style();
-    if (!oldStyle)
+    if (!oldStyle) {
         initiateFontLoadingByAccessingGlyphDataAndComputeCanUseSimplifiedTextMeasuring(m_text);
+        m_useBackslashAsYenSymbol = computeUseBackslashAsYenSymbol();
+    } else if (oldStyle->fontCascade().useBackslashAsYenSymbol() != newStyle.fontCascade().useBackslashAsYenSymbol())
+        m_useBackslashAsYenSymbol = computeUseBackslashAsYenSymbol();
+
     if (oldStyle && !oldStyle->fontCascadeEqual(newStyle))
         m_canUseSimplifiedTextMeasuring = { };
 
-    bool needsResetText = false;
-    if (!oldStyle) {
-        m_useBackslashAsYenSymbol = computeUseBackslashAsYenSymbol();
-        needsResetText = m_useBackslashAsYenSymbol;
-    } else if (oldStyle->fontCascade().useBackslashAsYenSymbol() != newStyle.fontCascade().useBackslashAsYenSymbol()) {
-        m_useBackslashAsYenSymbol = computeUseBackslashAsYenSymbol();
-        needsResetText = true;
-    }
-
-    auto oldTransform = oldStyle ? oldStyle->textTransform() : Style::TextTransform { CSS::Keyword::None { } };
-    TextSecurity oldSecurity = oldStyle ? oldStyle->textSecurity() : TextSecurity::None;
-    if (needsResetText || oldTransform != newStyle.textTransform() || oldSecurity != newStyle.textSecurity())
-        RenderText::setText(originalText(), true);
+    auto needsRenderedTextUpdateOnly = [&] {
+        if (!oldStyle)
+            return m_useBackslashAsYenSymbol || !newStyle.textTransform().isNone() || newStyle.textSecurity() != TextSecurity::None;
+        if (oldStyle->fontCascade().useBackslashAsYenSymbol() != newStyle.fontCascade().useBackslashAsYenSymbol())
+            return true;
+        if (oldStyle->textTransform() != newStyle.textTransform())
+            return true;
+        return oldStyle->textSecurity() != newStyle.textSecurity();
+    };
+    if (needsRenderedTextUpdateOnly())
+        updateRenderedText();
 
     // FIXME: First line change on the block comes in as equal on text.
     auto needsLayoutBoxStyleUpdate = layoutBox() && (diff >= Style::DifferenceResult::RecompositeLayer || (&style() != &firstLineStyle()));
@@ -1181,7 +1183,7 @@ void RenderText::computePreferredLogicalWidths(float leadWidth, bool forcedMinMa
 static inline float hyphenWidth(RenderText& renderer, const FontCascade& font)
 {
     const RenderStyle& style = renderer.style();
-    auto textRun = RenderBlock::constructTextRun(style.hyphenString().string(), style);
+    auto textRun = RenderBlock::constructTextRun(style.hyphenString(), style);
     return font.width(textRun);
 }
 
@@ -1823,13 +1825,24 @@ void RenderText::setTextInternal(const String& text, bool force)
         m_originalTextDiffersFromRendered = false;
     }
 
-    setRenderedText(text);
-
-    setNeedsLayoutAndPreferredWidthsUpdate();
-    m_knownToHaveNoOverflowAndNoFallbackFonts = false;
+    updateRenderedText(text);
 
     if (AXObjectCache* cache = document().existingAXObjectCache())
         cache->deferTextChangedIfNeeded(textNode());
+}
+
+void RenderText::updateRenderedText(const String& text)
+{
+    setRenderedText(text);
+    setNeedsLayoutAndPreferredWidthsUpdate();
+    m_knownToHaveNoOverflowAndNoFallbackFonts = false;
+}
+
+void RenderText::updateRenderedText()
+{
+    updateRenderedText(originalText());
+    if (CheckedPtr container = LayoutIntegration::LineLayout::blockContainer(*this))
+        container->invalidateLineLayout(RenderBlockFlow::InvalidationReason::ContentChange);
 }
 
 void RenderText::setText(const String& newContent, bool force)

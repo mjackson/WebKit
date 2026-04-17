@@ -23,6 +23,7 @@
 #pragma once
 
 #include "SVGElement.h"
+#include "SVGParserUtilities.h"
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {

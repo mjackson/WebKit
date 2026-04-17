@@ -144,7 +144,7 @@ public:
 
     const RefPtr<const StyleRulePositionTry> NODELETE positionTryRuleForName(const AtomString&) const;
 
-    String selectorsForDebugging() const;
+    WTF::String selectorsForDebugging() const;
 
 private:
     friend class RuleSetBuilder;

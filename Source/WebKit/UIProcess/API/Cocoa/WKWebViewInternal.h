@@ -225,7 +225,8 @@ enum class PreferSolidColorHardPocketReason : uint8_t {
 @protocol _WKAppHighlightDelegate;
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-@protocol _WKImmersiveEnvironmentDelegate;
+@protocol WKImmersiveEnvironmentDelegate;
+@class WKImmersiveEnvironment;
 #endif
 
 enum class SimilarToOriginalTextTag : uint8_t { Value };
@@ -325,7 +326,8 @@ struct PerWebProcessState {
     WeakObjCPtr<id <_WKAppHighlightDelegate>> _appHighlightDelegate;
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-    WeakObjCPtr<id <_WKImmersiveEnvironmentDelegate>> _immersiveEnvironmentDelegate;
+    WeakObjCPtr<id <WKImmersiveEnvironmentDelegate>> _immersiveEnvironmentDelegate;
+    RetainPtr<WKImmersiveEnvironment> _currentImmersiveEnvironment;
 #endif
 
     RetainPtr<_WKWarningView> _warningView;
@@ -534,6 +536,8 @@ struct PerWebProcessState {
 
     RetainPtr<WKScrollGeometry> _currentScrollGeometry;
 
+    std::pair<String, RetainPtr<NSURL>> _cachedActiveNSURL;
+
     BOOL _allowsMagnification;
 
 #if ENABLE(PDF_PAGE_NUMBER_INDICATOR)
@@ -570,8 +574,8 @@ struct PerWebProcessState {
 #endif
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-- (void)_allowImmersiveElementFromURL:(const URL&)url completion:(CompletionHandler<void(bool)>&&)completion;
-- (void)_presentImmersiveElement:(const WebCore::LayerHostingContextIdentifier)contextID completion:(CompletionHandler<void(bool)>&&)completion;
+- (void)_allowImmersiveElement:(WKFrameInfo *)frameInfo completion:(CompletionHandler<void(bool)>&&)completion;
+- (void)_presentImmersiveElement:(const WebCore::LayerHostingContextIdentifier)contextID frameInfo:(WKFrameInfo *)frameInfo completion:(CompletionHandler<void(bool)>&&)completion;
 - (void)_dismissImmersiveElement:(CompletionHandler<void()>&&)completion;
 #endif
 

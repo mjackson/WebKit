@@ -1,0 +1,15 @@
+
+PASS #1 Reinitialize the default imports
+FAIL #2 Test that WebAssembly compilation succeeds assert_equals: expected (boolean) false but got (string) "table_copy_mixed.wast:2"
+PASS #3 Test that WebAssembly compilation fails
+PASS #4 Test that WebAssembly compilation fails
+PASS #5 Test that WebAssembly compilation fails
+PASS #6 Reinitialize the default imports
+FAIL #7 Test that WebAssembly compilation succeeds assert_true: WebAssembly.compile failed unexpectedly with CompileError: WebAssembly.Module doesn't parse at byte 42: Memory64 is not enabled at {loc} expected true got false
+FAIL #8 Test that WebAssembly instantiation succeeds assert_true: unexpected instantiation error, observed CompileError: WebAssembly.Module doesn't parse at byte 0: expected a module of at least 8 bytes instance@http://web-platform.test:8800/wasm/core/js/harness/async_index.js:183:24
+table_copy_mixed_wast_js@http://web-platform.test:8800/wasm/core/js/memory64/table_copy_mixed.wast.js:7:18
+global code@http://web-platform.test:8800/wasm/core/js/memory64/table_copy_mixed.wast.js:18:3 expected true got false
+PASS #9 Test that WebAssembly compilation fails
+PASS #10 Test that WebAssembly compilation fails
+PASS #11 Test that WebAssembly compilation fails
+

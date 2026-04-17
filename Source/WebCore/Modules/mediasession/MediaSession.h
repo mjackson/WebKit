@@ -45,6 +45,7 @@
 
 namespace WebCore {
 
+class CaptionUserPreferences;
 class Document;
 class HTMLMediaElement;
 class MediaMetadata;
@@ -53,9 +54,12 @@ class MediaSessionCoordinatorPrivate;
 class MediaSessionManagerInterface;
 class Navigator;
 class PlatformMediaSession;
+struct MediaSessionCaptionTrack;
 struct NowPlayingInfo;
 template<typename> class DOMPromiseDeferred;
 template<typename> class ExceptionOr;
+
+enum class CaptionUserPreferencesDisplayMode : uint8_t;
 
 class MediaSessionObserver : public AbstractRefCountedAndCanMakeWeakPtr<MediaSessionObserver> {
 public:
@@ -146,6 +150,16 @@ public:
 
     WEBCORE_EXPORT bool hasActionHandler(const MediaSessionAction) const;
 
+    RefPtr<CaptionUserPreferences> captionPreferences();
+    void captionPreferencesChanged();
+    CaptionUserPreferencesDisplayMode captionDisplayMode();
+
+    void setCaptionTracks(Vector<MediaSessionCaptionTrack>&&);
+    const Vector<MediaSessionCaptionTrack>& captionTracks() const { return m_captionTracks; }
+
+    void setCaptionsEnabled(bool);
+    bool captionsEnabled() const { return m_captionsEnabled; }
+
 private:
     explicit MediaSession(Navigator&);
 
@@ -209,6 +223,10 @@ private:
 #endif
     mutable Lock m_actionHandlersLock;
     mutable bool m_defaultArtworkAttempted { false };
+
+    std::optional<CaptionUserPreferencesDisplayMode> m_captionDisplayMode;
+    Vector<MediaSessionCaptionTrack> m_captionTracks;
+    bool m_captionsEnabled { false };
 };
 
 String convertEnumerationToString(MediaSessionPlaybackState);

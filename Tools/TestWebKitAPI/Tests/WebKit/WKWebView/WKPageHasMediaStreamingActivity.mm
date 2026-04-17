@@ -45,10 +45,10 @@ static const char *WebKitMediaStreamingActivity = "com.apple.WebKit.mediaStreami
 
 TEST(WebKit, MSEHasMediaStreamingActivity)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration preferences] _setMediaSourceEnabled:YES];
     [[configuration preferences] _setAllowFileAccessFromFileURLs:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"file-with-mse"];
 
     // Bail out of the test early if the platform does not support MSE.
@@ -90,10 +90,10 @@ TEST(WebKit, MSEHasMediaStreamingActivity)
 #if ENABLE(MEDIA_SOURCE)
 TEST(WebKit, ManagedMSEHasMediaStreamingActivity)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration preferences] _setManagedMediaSourceEnabled:YES];
     [[configuration preferences] _setAllowFileAccessFromFileURLs:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"file-with-managedmse"];
 
     // Bail out of the test early if the platform does not support Managed MSE.
@@ -134,10 +134,10 @@ TEST(WebKit, ManagedMSEHasMediaStreamingActivity)
 
 TEST(WebKit, ManagedMSEHasMediaStreamingActivityWithPolicy)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration preferences] _setManagedMediaSourceEnabled:YES];
     [[configuration preferences] _setAllowFileAccessFromFileURLs:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"file-with-managedmse"];
 
     // Bail out of the test early if the platform does not support Managed MSE.

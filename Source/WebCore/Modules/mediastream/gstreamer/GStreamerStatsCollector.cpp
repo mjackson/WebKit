@@ -285,10 +285,9 @@ RTCStatsReport::TransportStats RTCStatsReport::TransportStats::convert(const Gst
             return DtlsRole::Server;
         case GST_WEBRTC_DTLS_ROLE_UNKNOWN:
             return DtlsRole::Unknown;
-        }
-#else
-        return std::nullopt;
+        };
 #endif
+        return std::nullopt;
     };
 
     return TransportStats {

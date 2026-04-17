@@ -51,7 +51,7 @@ RemoteMesh::RemoteMesh(GPUConnectionToWebProcess& gpuConnectionToWebProcess, Rem
     , m_gpuConnectionToWebProcess(gpuConnectionToWebProcess)
     , m_gpu(gpu)
 {
-    Ref { m_streamConnection }->startReceivingMessages(*this, Messages::RemoteMesh::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->startReceivingMessages(*this, Messages::RemoteMesh::messageReceiverName(), m_identifier.toUInt64());
 }
 
 RemoteMesh::~RemoteMesh() = default;
@@ -66,7 +66,7 @@ RefPtr<IPC::Connection> RemoteMesh::connection() const
 
 void RemoteMesh::stopListeningForIPC()
 {
-    Ref { m_streamConnection }->stopReceivingMessages(Messages::RemoteMesh::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->stopReceivingMessages(Messages::RemoteMesh::messageReceiverName(), m_identifier.toUInt64());
 }
 
 void RemoteMesh::destruct()

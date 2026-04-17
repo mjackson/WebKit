@@ -33,7 +33,7 @@
 
 TEST(CustomUserAgent, UpdateCachedNavigatorUserAgent)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
 
     [webView _test_waitForDidFinishNavigation];

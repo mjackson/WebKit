@@ -26,7 +26,6 @@
 #ifndef PAS_LARGE_VIRTUAL_RANGE_H
 #define PAS_LARGE_VIRTUAL_RANGE_H
 
-#include "pas_lock.h"
 #include "pas_mmap_capability.h"
 #include "pas_range.h"
 #include "pas_utils.h"

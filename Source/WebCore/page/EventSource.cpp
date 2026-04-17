@@ -36,10 +36,12 @@
 #include "CachedResourceRequestInitiatorTypes.h"
 #include "ContentSecurityPolicy.h"
 #include "ContextDestructionObserverInlines.h"
+#include "Document.h"
 #include "EventLoop.h"
 #include "EventNames.h"
 #include "ExceptionOr.h"
 #include "HTTPStatusCodes.h"
+#include "LocalDOMWindow.h"
 #include "MessageEvent.h"
 #include "ResourceError.h"
 #include "ResourceRequest.h"
@@ -77,7 +79,12 @@ ExceptionOr<Ref<EventSource>> EventSource::create(ScriptExecutionContext& contex
         return Exception { ExceptionCode::SyntaxError };
 
     // FIXME: Convert this to check the isolated world's Content Security Policy once webkit.org/b/104520 is resolved.
-    if (!context.shouldBypassMainWorldContentSecurityPolicy() && !protect(context.contentSecurityPolicy())->allowConnectToSource(fullURL)) {
+    std::optional<TextPosition> sourcePosition;
+    // FIXME(304193): Get source position for workers, too.
+    if (RefPtr document = dynamicDowncast<Document>(context))
+        sourcePosition = document->currentParserSourcePosition();
+
+    if (!context.shouldBypassMainWorldContentSecurityPolicy() && !protect(context.contentSecurityPolicy())->allowConnectToSource(fullURL, WTF::move(sourcePosition))) {
         // FIXME: Should this be throwing an exception?
         return Exception { ExceptionCode::SecurityError };
     }
@@ -271,7 +278,21 @@ void EventSource::didFail(std::optional<ScriptExecutionContextIdentifier>, const
 
     // This is the case where the load gets cancelled on navigating away. We only fire an error event and attempt to reconnect
     // if we end up getting resumed from back/forward cache.
+    // However, if window.stop() was called, we should properly close the connection since we are not navigating away.
     if (error.isCancellation() && !m_isDoingExplicitCancellation) {
+        bool isWindowStopping = [this] {
+            if (auto* document = dynamicDowncast<Document>(scriptExecutionContext())) {
+                if (auto* window = document->window())
+                    return window->isStopping();
+            }
+            return false;
+        }();
+        if (isWindowStopping) {
+            m_state = CLOSED;
+            m_requestInFlight = false;
+            dispatchErrorEvent();
+            return;
+        }
         m_shouldReconnectOnResume = true;
         m_requestInFlight = false;
         return;

@@ -30,8 +30,8 @@
 
 TEST(YoutubeReplacementPlugin, CannotRunScript)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:configuration.get()]);
     NSString *body = @"PASS<object data=\"http://youtu.be/\" type=\"application/futuresplash\"><param name=\"src\" value=\"javascript:top.document.write('FAIL');\"></param></object>";
     [webView synchronouslyLoadHTMLString:body];
     NSString *bodyHTML = [webView stringByEvaluatingJavaScript:@"document.body.innerText"];

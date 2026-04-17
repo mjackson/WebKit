@@ -42,7 +42,7 @@ public:
     }
 
     const CSS::URL& url() const LIFETIME_BOUND { return m_url; }
-    String stringValue() const { return m_url.specified; }
+    WTF::String stringValue() const { return m_url.specified; }
 
     String customCSSText(const CSS::SerializationContext&) const;
     bool equals(const CSSURLValue&) const;

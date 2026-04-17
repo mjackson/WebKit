@@ -54,8 +54,8 @@ namespace TestWebKitAPI {
 
 TEST(WebKitLegacy, SelectionAppearanceUpdatesInEditableWebView)
 {
-    auto webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
-    auto delegate = adoptNS([EditableLegacyWebViewLoadDelegate new]);
+    RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 300)]);
+    RetainPtr delegate = adoptNS([EditableLegacyWebViewLoadDelegate new]);
     [webView setEditable:YES];
     [webView setFrameLoadDelegate:delegate.get()];
     [[webView mainFrame] loadHTMLString:@"<html><body>Hello world.<br>This is a test.</body>" baseURL:nil];

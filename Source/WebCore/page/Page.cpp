@@ -124,11 +124,13 @@
 #include "LoginStatus.h"
 #include "LowPowerModeNotifier.h"
 #include "MediaCanStartListener.h"
+#include "MediaSession.h"
 #include "MemoryCache.h"
 #include "ModelPlayerProvider.h"
 #include "NavigationScheduler.h"
 #include "Navigator.h"
 #include "NavigatorGamepad.h"
+#include "NavigatorMediaSession.h"
 #include "OpportunisticTaskScheduler.h"
 #include "PageColorSampler.h"
 #include "PageConfiguration.h"
@@ -3901,6 +3903,15 @@ void Page::captionPreferencesChanged()
     forEachDocument([] (Document& document) {
         document.captionPreferencesChanged();
     });
+
+#if ENABLE(MEDIA_SESSION)
+    if (RefPtr localMainFrame = this->localMainFrame()) {
+        if (RefPtr window = localMainFrame->window()) {
+            if (RefPtr navigator = window->optionalNavigator())
+                protect(NavigatorMediaSession::mediaSession(*navigator))->captionPreferencesChanged();
+        }
+    }
+#endif
 }
 
 #endif
@@ -5358,6 +5369,7 @@ void Page::deleteRemovedNodesAndDetachedRenderers()
         if (!frameView)
             return;
         protect(frameView->layoutContext())->deleteDetachedRenderersNow();
+        protect(frameView->layoutContext())->deleteDetachedInlineContentNow();
     });
 }
 

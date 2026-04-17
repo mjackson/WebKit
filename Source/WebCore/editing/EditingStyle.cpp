@@ -31,6 +31,7 @@
 #include "ContainerNodeInlines.h"
 #include "CSSColorValue.h"
 #include "CSSComputedStyleDeclaration.h"
+#include "CSSFontFamilyNameValue.h"
 #include "CSSFontStyleWithAngleValue.h"
 #include "CSSParserIdioms.h"
 #include "CSSPropertyParserConsumer+Font.h"
@@ -1443,15 +1444,15 @@ void EditingStyle::mergeStyleFromRules(StyledElement& element)
     m_mutableStyle = WTF::move(styleFromMatchedRules);
 }
 
-static String loneFontFamilyName(const CSSValue& value)
+static AtomString loneFontFamilyName(const CSSValue& value)
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
-        return primitiveValue->stringValue();
+    if (RefPtr fontFamilyNameValue = dynamicDowncast<CSSFontFamilyNameValue>(value))
+        return fontFamilyNameValue->fontFamilyName().value;
     RefPtr list = dynamicDowncast<CSSValueList>(value);
     if (!list || list->length() != 1)
-        return { };
-    RefPtr item = dynamicDowncast<CSSPrimitiveValue>(list->item(0));
-    return item ? item->stringValue() : String();
+        return nullAtom();
+    RefPtr item = dynamicDowncast<CSSFontFamilyNameValue>(list->item(0));
+    return item ? item->fontFamilyName().value : nullAtom();
 }
 
 void EditingStyle::mergeStyleFromRulesForSerialization(StyledElement& element, StandardFontFamilySerializationMode standardFontFamilySerializationMode)

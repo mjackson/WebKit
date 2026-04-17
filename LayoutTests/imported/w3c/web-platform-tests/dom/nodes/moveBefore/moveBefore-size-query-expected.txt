@@ -1,0 +1,4 @@
+This text should be green
+
+FAIL moveBefore() between different size containers invalidates target new_parent.moveBefore is not a function. (In 'new_parent.moveBefore(mv, null)', 'new_parent.moveBefore' is undefined)
+

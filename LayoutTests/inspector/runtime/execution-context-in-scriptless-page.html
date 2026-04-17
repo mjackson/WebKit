@@ -25,14 +25,14 @@ function test()
                 contextInfoPromise = (async function () {
                     let { data: { target } } = await WI.targetManager.awaitEvent(WI.TargetManager.Event.TargetAdded);
                     InspectorTest.assert(target.type === WI.TargetType.Frame);
-                    await target.awaitEvent(WI.FrameTarget.Event.ExecutionContextAdded);
+                    await target.ensureTargetExecutionContext();
                     return { executionContext: target.executionContext, target };
                 })();
             } else {
                 // Without site isolation, execution contexts are reported on Frame objects, not through a target.
                 contextInfoPromise = (async function () {
                     let { data: { childFrame } } = await WI.networkManager.mainFrame.awaitEvent(WI.Frame.Event.ChildFrameWasAdded);
-                    await childFrame.awaitEvent(WI.Frame.Event.ExecutionContextAdded);
+                    await childFrame.ensurePageExecutionContext();
                     return { executionContext: childFrame.pageExecutionContext, target: WI.mainTarget };
                 })();
             }

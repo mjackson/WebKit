@@ -671,6 +671,11 @@ InteractionInformationAtPosition positionInformationForWebPage(WebPage& page, co
         info.isInteractiveModel = modelElement->model() && modelElement->supportsStageModeInteraction();
 #endif
 
+#if ENABLE(MODEL_ELEMENT)
+    if (RefPtr modelElement = dynamicDowncast<WebCore::HTMLModelElement>(hitTestNode); modelElement && !modelElement->currentSrc().isEmpty())
+        info.modelURL = modelElement->currentSrc();
+#endif
+
 #if ENABLE(PDF_PLUGIN) && PLATFORM(IOS_FAMILY)
     if (pluginView) {
         if (auto&& [url, bounds, textIndicator] = pluginView->linkDataAtPoint(request.point); !url.isEmpty()) {

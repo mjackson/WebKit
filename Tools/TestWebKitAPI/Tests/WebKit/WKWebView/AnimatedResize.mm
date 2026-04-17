@@ -75,21 +75,21 @@ static bool didChangeSafeAreaShouldAffectObscuredInsets;
 
 static RetainPtr<AnimatedResizeWebView> createAnimatedResizeWebView()
 {
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     [processPoolConfiguration setIgnoreSynchronousMessagingTimeoutsForTesting:YES];
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
-    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
 
-    auto webView = adoptNS([[AnimatedResizeWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[AnimatedResizeWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
 
     return webView;
 }
 
 static RetainPtr<TestNavigationDelegate> createFirstVisuallyNonEmptyWatchingNavigationDelegate()
 {
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [navigationDelegate setRenderingProgressDidChange:^(WKWebView *, _WKRenderingProgressEvents progressEvents) {
         if (progressEvents & _WKRenderingProgressEventFirstVisuallyNonEmptyLayout)
             didLayout = true;
@@ -104,7 +104,7 @@ TEST(AnimatedResize, DISABLED_ResizeWithHiddenContentDoesNotHang)
 
     auto navigationDelegate = createFirstVisuallyNonEmptyWatchingNavigationDelegate();
     [webView setNavigationDelegate:navigationDelegate.get()];
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
 
@@ -128,7 +128,7 @@ TEST(AnimatedResize, AnimatedResizeDoesNotHang)
 
     auto navigationDelegate = createFirstVisuallyNonEmptyWatchingNavigationDelegate();
     [webView setNavigationDelegate:navigationDelegate.get()];
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
 
@@ -159,7 +159,7 @@ TEST(AnimatedResize, AnimatedResizeBlocksViewportFitChanges)
     [webView loadHTMLString:@"<head></head>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
 
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
 
@@ -205,11 +205,11 @@ TEST(AnimatedResize, OverrideLayoutSizeChangesDuringAnimatedResizeSucceed)
     [webView _overrideLayoutParametersWithMinimumLayoutSize:layoutSize minimumUnobscuredSizeOverride:layoutSize maximumUnobscuredSizeOverride:layoutSize];
 
     [webView loadHTMLString:@"<head><meta name='viewport' content='initial-scale=1'></head>" baseURL:nil];
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     webView.get().navigationDelegate = navigationDelegate.get();
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
 
@@ -249,7 +249,7 @@ TEST(AnimatedResize, OverrideLayoutSizeIsRestoredAfterProcessRelaunch)
     [webView loadHTMLString:@"<head><meta name='viewport' content='initial-scale=1'></head>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
 
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
 
@@ -281,7 +281,7 @@ TEST(AnimatedResize, OverrideLayoutSizeIsRestoredAfterChangingDuringProcessRelau
     [webView loadHTMLString:@"<head><meta name='viewport' content='initial-scale=1'></head>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
 
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
 
@@ -312,11 +312,11 @@ TEST(AnimatedResize, ChangeFrameAndMinimumEffectiveDeviceWidthDuringAnimatedResi
     [webView setUIDelegate:webView.get()];
     [webView loadHTMLString:@"<body>Hello world</body>" baseURL:nil];
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
 
@@ -366,11 +366,11 @@ TEST(AnimatedResize, ResizeWithContentHiddenCompletes)
     [webView setUIDelegate:webView.get()];
     
     [webView loadHTMLString:@"<head><meta name='viewport' content='initial-scale=1'></head>" baseURL:nil];
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     webView.get().navigationDelegate = navigationDelegate.get();
     [navigationDelegate waitForDidFinishNavigation];
     
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
     
@@ -407,11 +407,11 @@ TEST(AnimatedResize, ResizeWithContentHiddenWithSubsequentNoOpResizeCompletes)
     [webView setUIDelegate:webView.get()];
 
     [webView loadHTMLString:@"<head><meta name='viewport' content='initial-scale=1'></head>" baseURL:nil];
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     webView.get().navigationDelegate = navigationDelegate.get();
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
 
@@ -458,7 +458,7 @@ TEST(AnimatedResize, AnimatedResizeBlocksDoAfterNextPresentationUpdate)
     [webView loadHTMLString:@"<head></head>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
 
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
 
@@ -490,11 +490,11 @@ TEST(AnimatedResize, ResizeWithContentHiddenWhileScrolling)
     [webView setUIDelegate:webView.get()];
 
     [webView loadHTMLString:@"<head><meta name='viewport' content='initial-scale=1'></head>" baseURL:nil];
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     webView.get().navigationDelegate = navigationDelegate.get();
     [navigationDelegate waitForDidFinishNavigation];
 
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
 
@@ -524,7 +524,7 @@ TEST(AnimatedResize, ResizeWithContentHiddenWhileScrolling)
 
 TEST(AnimatedResize, CreateWebPageAfterAnimatedResize)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
     [webView synchronouslyLoadTestPageNamed:@"large-red-square-image"];
 
     [webView _beginAnimatedResizeWithUpdates:^{
@@ -554,7 +554,7 @@ TEST(AnimatedResize, CreateWebPageAfterAnimatedResize)
 
 TEST(AnimatedResize, MinimumEffectiveDeviceWidthChangeIsDeferredDuringLiveResize)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='initial-scale=1' />"];
 
     EXPECT_EQ([webView scrollView].zoomScale, 1);
@@ -690,7 +690,7 @@ TEST(AnimatedResize, ChangingWebViewGeometryDuringAnimatedResizeDoesNotHang)
 
 TEST(AnimatedResize, ResizeWithWithSubsequentNoOpResizeIsNotCancelled)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
     [webView synchronouslyLoadHTMLString:@"<head><meta name='viewport' content='initial-scale=1'></head>"];
 
     UIView *scrollView = immediateSubviewOfClass(webView.get(), NSClassFromString(@"WKScrollView"));
@@ -720,7 +720,7 @@ TEST(AnimatedResize, ResizeWithWithSubsequentNoOpResizeIsNotCancelled)
 
 TEST(AnimatedResize, ScaleDuringAnimatedResizeDoesNotMoveContentViewFrameOrigin)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 1024, 768)]);
     [webView synchronouslyLoadTestPageNamed:@"large-red-square-image"];
 
     [webView _beginAnimatedResizeWithUpdates:^{
@@ -750,7 +750,7 @@ TEST(AnimatedResize, AnimatedResizeDoesNotFreezeFixedElements)
     [[webView scrollView] setContentOffset:CGPointMake(0, 5000)];
     [webView waitForNextPresentationUpdate];
 
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 500, 500)]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 500, 500)]);
     [window addSubview:webView.get()];
     [window setHidden:NO];
 

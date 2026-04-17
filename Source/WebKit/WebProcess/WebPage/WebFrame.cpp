@@ -71,6 +71,7 @@
 #include <WebCore/ArchiveResource.h>
 #include <WebCore/CertificateInfo.h>
 #include <WebCore/Chrome.h>
+#include <WebCore/ContainerNodeInlines.h>
 #include <WebCore/ContextMenuController.h>
 #include <WebCore/DOMWrapperWorld.h>
 #include <WebCore/DocumentInlines.h>
@@ -82,6 +83,7 @@
 #include <WebCore/DocumentWindow.h>
 #include <WebCore/Editor.h>
 #include <WebCore/ElementChildIteratorInlines.h>
+#include <WebCore/ElementInlines.h>
 #include <WebCore/ElementTargetingController.h>
 #include <WebCore/EventHandler.h>
 #include <WebCore/File.h>
@@ -1523,9 +1525,20 @@ String WebFrame::frameTextForTesting(bool includeSubframes)
     if (!m_coreFrame)
         return { };
 
+    RefPtr localFrame = dynamicDowncast<LocalFrame>(m_coreFrame.get());
+    if (!localFrame || !localFrame->document() || !localFrame->document()->documentElement())
+        return { };
+
     StringBuilder builder;
 
-    String text = innerText();
+    // Use plainText() directly instead of innerText() to avoid the WHATWG
+    // spec-compliant newline changes (e.g. blank lines around <p>) that
+    // would require rebaselining hundreds of layout tests.
+    Ref documentElement = *protect(protect(localFrame->document())->documentElement());
+    protect(localFrame->document())->updateLayoutIgnorePendingStylesheets();
+    String text = documentElement->renderer()
+        ? plainText(makeRangeSelectingNodeContents(documentElement))
+        : documentElement->textContent(true);
     if (text.isNull())
         return { };
 

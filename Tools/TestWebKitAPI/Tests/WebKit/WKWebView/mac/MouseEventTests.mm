@@ -61,7 +61,7 @@ namespace TestWebKitAPI {
 
 TEST(MouseEventTests, SendMouseMoveEventStream)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<html>"
         "<head>"
@@ -94,7 +94,7 @@ TEST(MouseEventTests, SendMouseMoveEventStream)
 
 TEST(MouseEventTests, CoalesceMouseMoveEvents)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<html>"
         "<head>"
@@ -148,17 +148,17 @@ TEST(MouseEventTests, CoalesceMouseMoveEvents)
 
 TEST(MouseEventTests, ProcessSwapWithDeferredMouseMoveEventCompletion)
 {
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     [processPoolConfiguration setProcessSwapsOnNavigation:YES];
     [processPoolConfiguration setUsesWebProcessCache:YES];
     [processPoolConfiguration setPrewarmsProcessesAutomatically:YES];
     [processPoolConfiguration setProcessSwapsOnNavigationWithinSameNonHTTPFamilyProtocol:YES];
 
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool:processPool.get()];
 
-    auto handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         auto host = task.request.URL.host;
         if ([host isEqualToString:@"www.apple.com"])
@@ -176,8 +176,8 @@ TEST(MouseEventTests, ProcessSwapWithDeferredMouseMoveEventCompletion)
     }];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://webkit.org/index.html"]]];
@@ -404,7 +404,7 @@ TEST(MouseEventTests, WindowChangeShouldNotCauseMouseLeaveEvent)
 
 TEST(MouseEventTests, AutoscrollOnMouseDragBelowWindow)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
         "<html>"
         "<head>"

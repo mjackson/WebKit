@@ -68,14 +68,14 @@ static void isOpaque(TestWKWebView *webView, BOOL opaque)
 
 TEST(WKWebView, IsOpaqueDefault)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect]);
 
     isOpaque(webView.get(), YES);
 }
 
 TEST(WKWebView, SetOpaqueYes)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect]);
 
     [webView setOpaque:YES];
 
@@ -84,7 +84,7 @@ TEST(WKWebView, SetOpaqueYes)
 
 TEST(WKWebView, SetOpaqueNo)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect]);
 
     [webView setOpaque:NO];
 
@@ -93,21 +93,21 @@ TEST(WKWebView, SetOpaqueNo)
 
 TEST(WKWebView, IsOpaqueYesSubclassOverridden)
 {
-    auto webView = adoptNS([[OpaqueTestWKWebView alloc] initWithFrame:NSZeroRect]);
+    RetainPtr webView = adoptNS([[OpaqueTestWKWebView alloc] initWithFrame:NSZeroRect]);
 
     isOpaque(webView.get(), YES);
 }
 
 TEST(WKWebView, IsOpaqueNoSubclassOverridden)
 {
-    auto webView = adoptNS([[NonOpaqueTestWKWebView alloc] initWithFrame:NSZeroRect]);
+    RetainPtr webView = adoptNS([[NonOpaqueTestWKWebView alloc] initWithFrame:NSZeroRect]);
 
     isOpaque(webView.get(), NO);
 }
 
 TEST(WKWebView, IsOpaqueYesDecodedFromArchive)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect]);
 
     [webView setOpaque:YES];
 
@@ -121,7 +121,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 TEST(WKWebView, IsOpaqueNoDecodedFromArchive)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect]);
 
     [webView setOpaque:NO];
 
@@ -135,26 +135,26 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 TEST(WKWebView, IsOpaqueDrawsBackgroundYesConfiguration)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     [configuration _setDrawsBackground:YES];
 
     EXPECT_EQ([configuration _drawsBackground], YES);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
 
     isOpaque(webView.get(), YES);
 }
 
 TEST(WKWebView, IsOpaqueDrawsBackgroundNoConfiguration)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     [configuration _setDrawsBackground:NO];
 
     EXPECT_EQ([configuration _drawsBackground], NO);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
 
     isOpaque(webView.get(), NO);
 }

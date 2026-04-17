@@ -31,9 +31,11 @@
 #include "FrameConsoleClient.h"
 #include "FrameDestructionObserverInlines.h"
 #include "InspectorBackendClient.h"
+#include "InspectorIdentifierRegistry.h"
 #include "InstrumentingAgents.h"
 #include "LocalFrameInlines.h"
 #include "Page.h"
+#include "PageInspectorController.h"
 #include "Settings.h"
 #include "ThreadableWebSocketChannel.h"
 #include "WebSocket.h"
@@ -61,19 +63,15 @@ PageNetworkAgent::~PageNetworkAgent() = default;
 
 Inspector::Protocol::Network::LoaderId PageNetworkAgent::loaderIdentifier(DocumentLoader* loader)
 {
-    if (loader) {
-        if (CheckedPtr pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent())
-            return pageAgent->loaderId(loader);
-    }
+    if (loader)
+        return m_inspectedPage->inspectorController().identifierRegistry().loaderId(loader);
     return { };
 }
 
 Inspector::Protocol::Network::FrameId PageNetworkAgent::frameIdentifier(DocumentLoader* loader)
 {
-    if (loader) {
-        if (CheckedPtr pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent())
-            return pageAgent->frameId(loader->frame());
-    }
+    if (loader)
+        return m_inspectedPage->inspectorController().identifierRegistry().frameId(loader->frame());
     return { };
 }
 
@@ -119,13 +117,7 @@ bool PageNetworkAgent::setEmulatedConditionsInternal(std::optional<int>&& bytesP
 
 ScriptExecutionContext* PageNetworkAgent::scriptExecutionContext(Inspector::Protocol::ErrorString& errorString, const Inspector::Protocol::Network::FrameId& frameId)
 {
-    CheckedPtr pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent();
-    if (!pageAgent) {
-        errorString = "Page domain must be enabled"_s;
-        return nullptr;
-    }
-
-    auto* frame = pageAgent->assertFrame(errorString, frameId);
+    auto* frame = m_inspectedPage->inspectorController().identifierRegistry().assertFrame(errorString, frameId);
     if (!frame)
         return nullptr;
 

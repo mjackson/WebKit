@@ -36,7 +36,7 @@ namespace TestWebKitAPI {
 
 static RetainPtr<WKWebViewConfiguration> autoplayingConfiguration()
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
     configuration.get().allowsInlineMediaPlayback = YES;
     configuration.get()._inlineMediaPlaybackRequiresPlaysInlineAttribute = NO;
@@ -45,7 +45,7 @@ static RetainPtr<WKWebViewConfiguration> autoplayingConfiguration()
 
 TEST(WKWebViewPausePlayingAudioTests, InWindow)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:autoplayingConfiguration().get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:autoplayingConfiguration().get() addToWindow:YES]);
 
     bool isPlaying = false;
     [webView performAfterReceivingMessage:@"playing" action:[&] { isPlaying = true; }];
@@ -71,7 +71,7 @@ TEST(WKWebViewPausePlayingAudioTests, InWindow)
 
 TEST(WKWebViewPausePlayingAudioTests, OutOfWindow)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:autoplayingConfiguration().get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:autoplayingConfiguration().get() addToWindow:YES]);
 
     bool isPlaying = false;
     [webView performAfterReceivingMessage:@"playing" action:[&] { isPlaying = true; }];

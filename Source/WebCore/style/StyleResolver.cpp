@@ -451,10 +451,10 @@ std::unique_ptr<RenderStyle> Resolver::styleForKeyframe(Element& element, const 
     return state.takeStyle();
 }
 
-bool Resolver::isAnimationNameValid(const String& name) const
+bool Resolver::isAnimationNameValid(const AtomString& name) const
 {
-    return m_keyframesRuleMap.find(AtomString(name)) != m_keyframesRuleMap.end()
-        || userAgentKeyframes().find(AtomString(name)) != userAgentKeyframes().end();
+    return m_keyframesRuleMap.find(name) != m_keyframesRuleMap.end()
+        || userAgentKeyframes().find(name) != userAgentKeyframes().end();
 }
 
 Vector<Ref<StyleRuleKeyframe>> Resolver::keyframeRulesForName(const AtomString& animationName, const TimingFunction* defaultTimingFunction) const

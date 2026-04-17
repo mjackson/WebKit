@@ -792,8 +792,10 @@ void SourceBufferPrivateAVFObjC::configureParser(SourceBufferParser& parser)
             protectedThis->didProvideContentKeyRequestInitializationDataForTrackID(WTF::move(initData), trackID);
     });
 
+#if ENABLE(MEDIA_RECORDER_WEBM)
     if (auto* webmParser = dynamicDowncast<SourceBufferParserWebM>(parser); webmParser && m_configuration.supportsLimitedMatroska)
         webmParser->allowLimitedMatroska();
+#endif
 
 #if !RELEASE_LOG_DISABLED
     parser.setLogger(m_logger.get(), m_logIdentifier);

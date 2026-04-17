@@ -28,8 +28,6 @@
 
 #ifdef __APPLE__
 #include <Availability.h>
-#include <AvailabilityMacros.h>
-#include <TargetConditionals.h>
 #endif
 
 /* PAS_CPU() - the target CPU architecture */

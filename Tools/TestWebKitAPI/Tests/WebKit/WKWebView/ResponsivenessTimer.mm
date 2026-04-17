@@ -54,13 +54,13 @@ namespace TestWebKitAPI {
 
 TEST(WebKit, ResponsivenessTimerShouldNotFireAfterTearDown)
 {
-    auto processPoolConfiguration = adoptNS([_WKProcessPoolConfiguration new]);
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
-    auto delegate = adoptNS([ResponsivenessTimerDelegate new]);
+    RetainPtr processPoolConfiguration = adoptNS([_WKProcessPoolConfiguration new]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr delegate = adoptNS([ResponsivenessTimerDelegate new]);
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setProcessPool:processPool.get()];
-    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView1 setNavigationDelegate:delegate.get()];
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]];
     [webView1 loadRequest:request];
@@ -68,7 +68,7 @@ TEST(WebKit, ResponsivenessTimerShouldNotFireAfterTearDown)
 
     EXPECT_FALSE(didBecomeUnresponsive);
 
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView2 setNavigationDelegate:delegate.get()];
 
     didFinishLoad = false;

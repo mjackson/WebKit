@@ -126,6 +126,10 @@ struct WebViewRepresentable {
 
         platformView.onScrollGeometryChange = environment.webViewOnScrollGeometryChange
 
+        #if ENABLE_MODEL_ELEMENT_IMMERSIVE
+        context.coordinator.updateImmersiveEnvironmentContext(environment.webViewImmersiveEnvironmentRequestContext, webView: webView)
+        #endif
+
         context.coordinator.update(platformView, configuration: self, context: context)
 
         #if os(macOS) && !targetEnvironment(macCatalyst)
@@ -175,6 +179,23 @@ final class WebViewCoordinator {
     var configuration: WebViewRepresentable
     #if ENABLE_WEBVIEW_ADDITIONAL_SETUP
     var additionalInformation: Information?
+    #endif
+
+    #if ENABLE_MODEL_ELEMENT_IMMERSIVE
+    var immersiveEnvironmentDelegateAdapter: ImmersiveEnvironmentDelegateAdapter?
+
+    func updateImmersiveEnvironmentContext(_ context: ImmersiveEnvironmentRequestContext?, webView: WebPageWebView) {
+        if let context {
+            if immersiveEnvironmentDelegateAdapter == nil {
+                immersiveEnvironmentDelegateAdapter = ImmersiveEnvironmentDelegateAdapter()
+            }
+            immersiveEnvironmentDelegateAdapter?.context = context
+            webView.immersiveEnvironmentDelegate = immersiveEnvironmentDelegateAdapter
+        } else {
+            immersiveEnvironmentDelegateAdapter = nil
+            webView.immersiveEnvironmentDelegate = nil
+        }
+    }
     #endif
 
     func update(_ view: CocoaWebViewAdapter, configuration: WebViewRepresentable, context: WebViewRepresentable.Context) {
@@ -288,6 +309,32 @@ extension WebViewRepresentable: NSViewRepresentable {
 
     static func dismantleNSView(_ nsView: CocoaWebViewAdapter, coordinator: WebViewCoordinator) {
         dismantlePlatformView(nsView, coordinator: coordinator)
+    }
+}
+#endif
+
+#if ENABLE_MODEL_ELEMENT_IMMERSIVE
+@MainActor
+final class ImmersiveEnvironmentDelegateAdapter: NSObject, WKImmersiveEnvironmentDelegate {
+    var context: ImmersiveEnvironmentRequestContext?
+
+    func webView(_ webView: WKWebView, shouldAllowImmersiveEnvironmentFrom frame: WKFrameInfo) async -> Bool {
+        guard let context else { return false }
+        return await context.shouldAllow(WebPage.FrameInfo(frame))
+    }
+
+    func webView(_ webView: WKWebView, presentImmersiveEnvironment environment: WKImmersiveEnvironment) async throws {
+        guard let context else { throw ImmersiveEnvironmentPresentationError.noContext }
+        try await context.present(WebPage.ImmersiveEnvironment(environment))
+    }
+
+    func webView(_ webView: WKWebView, dismissImmersiveEnvironment environment: WKImmersiveEnvironment) async {
+        guard let context else { return }
+        await context.dismiss(WebPage.ImmersiveEnvironment(environment))
+    }
+
+    enum ImmersiveEnvironmentPresentationError: Error {
+        case noContext
     }
 }
 #endif

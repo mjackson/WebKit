@@ -101,6 +101,7 @@ typedef struct {
     size_t marge_bitfit_page_size;
     bool pgm_enabled;
     bool delegate_large_user_allocations;
+    pas_large_map_variant large_map_variant;
 } pas_basic_heap_config_arguments;
 
 #define PAS_BASIC_HEAP_CONFIG_SEGREGATED_HEAP_FIELDS(name, ...) \
@@ -371,7 +372,8 @@ typedef struct {
         .dump_shared_page_directory_arg = pas_shared_page_directory_by_size_dump_directory_arg, \
         PAS_HEAP_CONFIG_SPECIALIZATIONS(name ## _heap_config), \
         .pgm_enabled = true, \
-        .delegate_large_user_allocations = ((pas_basic_heap_config_arguments){__VA_ARGS__}).delegate_large_user_allocations \
+        .delegate_large_user_allocations = ((pas_basic_heap_config_arguments){__VA_ARGS__}).delegate_large_user_allocations, \
+        .large_map_variant = ((pas_basic_heap_config_arguments){__VA_ARGS__}).large_map_variant \
     })
 
 #define PAS_BASIC_HEAP_CONFIG_SEGREGATED_HEAP_DECLARATIONS(name, upcase_name) \

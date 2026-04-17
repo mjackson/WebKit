@@ -67,8 +67,8 @@ static void loadAlternateTest(Decision decision, DecisionPoint decisionPoint)
         settings.setBlockedString("blocked"_s);
         [TestProtocol registerWithScheme:@"http"];
 
-        auto webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect]);
-        auto frameLoadDelegate = adoptNS([[LoadAlternateFrameLoadDelegate alloc] init]);
+        RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect]);
+        RetainPtr frameLoadDelegate = adoptNS([[LoadAlternateFrameLoadDelegate alloc] init]);
         [webView setFrameLoadDelegate:frameLoadDelegate.get()];
         [[webView mainFrame] loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://redirect/?result"]]];
 

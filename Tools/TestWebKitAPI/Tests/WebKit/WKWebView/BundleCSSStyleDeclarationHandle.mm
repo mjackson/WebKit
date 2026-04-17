@@ -56,9 +56,9 @@ static bool didVerifyStyle;
 TEST(WebKit, WKWebProcessPlugInCSSStyleDeclarationHandle)
 {
     auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"BundleCSSStyleDeclarationHandlePlugIn"]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto object = adoptNS([[BundleCSSStyleDeclarationHandleRemoteObject alloc] init]);
+    RetainPtr object = adoptNS([[BundleCSSStyleDeclarationHandleRemoteObject alloc] init]);
     auto interface = retainPtr([_WKRemoteObjectInterface remoteObjectInterfaceWithProtocol:@protocol(BundleCSSStyleDeclarationHandleProtocol)]);
     [[webView _remoteObjectRegistry] registerExportedObject:object.get() interface:interface.get()];
 

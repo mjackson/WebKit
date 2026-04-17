@@ -66,6 +66,7 @@ class TouchEvent;
 struct InputElementClickState;
 
 enum class AnyStepHandling : bool;
+enum class RangeLimitations : bool;
 enum class DateComponentsType : uint8_t;
 
 // An InputType object represents the type-specific part of an HTMLInputElement.
@@ -412,6 +413,7 @@ protected:
     HTMLInputElement* element() const { return m_element; }
     Chrome* NODELETE chrome() const;
     Decimal parseToNumberOrNaN(StringView) const;
+    Decimal extractStepRangeBound(const QualifiedName& attributeName, const Decimal& defaultValue, RangeLimitations&) const;
 
     // Derive the step base, following the HTML algorithm steps.
     Decimal findStepBase(const Decimal&) const;

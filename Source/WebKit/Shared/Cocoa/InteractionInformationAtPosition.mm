@@ -73,6 +73,7 @@ InteractionInformationAtPosition::InteractionInformationAtPosition(
     WebCore::FloatPoint&& adjustedPointForNodeRespondingToClickEvents,
     URL&& url,
     URL&& imageURL,
+    URL&& modelURL,
     String&& imageMIMEType,
     String&& title,
     String&& idAttribute,
@@ -134,6 +135,7 @@ InteractionInformationAtPosition::InteractionInformationAtPosition(
     , adjustedPointForNodeRespondingToClickEvents(WTF::move(adjustedPointForNodeRespondingToClickEvents))
     , url(WTF::move(url))
     , imageURL(WTF::move(imageURL))
+    , modelURL(WTF::move(modelURL))
     , imageMIMEType(WTF::move(imageMIMEType))
     , title(WTF::move(title))
     , idAttribute(WTF::move(idAttribute))

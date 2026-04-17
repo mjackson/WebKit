@@ -40,8 +40,8 @@ class TimeZoneOverrideTest : public testing::Test {
 public:
     void SetUp() override
     {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-        auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
         [processPoolConfig setTimeZoneOverride:@"Europe/Berlin"];
 
         _webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);

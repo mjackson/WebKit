@@ -866,6 +866,7 @@ void RenderThemeCocoa::purgeCaches()
     m_mediaControlsLocalizedStringsScript.clearImplIfNotShared();
     m_mediaControlsScript.clearImplIfNotShared();
     m_mediaControlsStyleSheet.clearImplIfNotShared();
+    m_youTubeCaptionQuirkScript.clearImplIfNotShared();
 #endif // ENABLE(VIDEO)
 
     RenderTheme::purgeCaches();
@@ -1334,6 +1335,14 @@ String RenderThemeCocoa::mediaControlsFormattedStringForDuration(const double du
     }
     return [m_durationFormatter stringFromTimeInterval:durationInSeconds];
     END_BLOCK_OBJC_EXCEPTIONS
+}
+
+String RenderThemeCocoa::youTubeQuirkScript()
+{
+    if (!m_youTubeCaptionQuirkScript)
+        m_youTubeCaptionQuirkScript = StringImpl::createWithoutCopying(YouTubeCaptionQuirkJavaScript);
+
+    return m_youTubeCaptionQuirkScript;
 }
 
 #endif // ENABLE(VIDEO)

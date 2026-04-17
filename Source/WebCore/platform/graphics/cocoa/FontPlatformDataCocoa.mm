@@ -26,12 +26,10 @@
 
 #import "FontCacheCoreText.h"
 #import "SharedBuffer.h"
-#import <pal/spi/cf/CoreTextSPI.h>
 #import <wtf/Hasher.h>
 
 #if PLATFORM(IOS_FAMILY)
 #import <CoreText/CoreText.h>
-#import <pal/spi/cg/CoreGraphicsSPI.h>
 #endif
 
 namespace WebCore {

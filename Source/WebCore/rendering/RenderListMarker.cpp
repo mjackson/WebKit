@@ -255,7 +255,7 @@ void RenderListMarker::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffse
 
     if (isImage()) {
         if (RefPtr markerImage = m_image->image(this, markerRect.size(), context))
-            context.drawImage(*markerImage, markerRect);
+            context.drawImage(*markerImage, markerRect, { imageOrientation() });
         if (selectionState() != HighlightState::None) {
             LayoutRect selectionRect = localSelectionRect();
             selectionRect.moveBy(boxOrigin);
@@ -415,11 +415,11 @@ void RenderListMarker::updateContent()
                 .textDirection = TextDirection::LTR,
             };
         },
-        [&](const AtomString& identifier) {
+        [&](const Style::String& identifier) {
             m_textContent = {
-                .textWithSuffix = identifier,
-                .textWithoutSuffixLength = identifier.length(),
-                .textDirection = contentTextDirection(StringView { identifier }),
+                .textWithSuffix = identifier.value,
+                .textWithoutSuffixLength = identifier.value.length(),
+                .textDirection = contentTextDirection(StringView { identifier.value }),
             };
         },
         [&](const Style::CounterStyle&) {

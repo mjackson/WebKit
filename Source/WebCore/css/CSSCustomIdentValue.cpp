@@ -57,4 +57,9 @@ IterationStatus CSSCustomIdentValue::customVisitChildren(const Function<Iteratio
     return CSS::visitCSSValueChildren(func, m_customIdent);
 }
 
+String CSSCustomIdentValue::stringValue() const
+{
+    return m_customIdent.value;
+}
+
 } // namespace WebCore

@@ -76,10 +76,10 @@ TEST(WebKit, ResponsivenessTimerDoesntFireEarly)
     WKRetainPtr<WKContextRef> context = adoptWK(Util::createContextForInjectedBundleTest("ResponsivenessTimerDoesntFireEarlyTest"));
     setInjectedBundleClient(context.get());
 
-    auto delegate = adoptNS([ResponsivenessDelegate new]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr delegate = adoptNS([ResponsivenessDelegate new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setProcessPool:(WKProcessPool *)context.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];

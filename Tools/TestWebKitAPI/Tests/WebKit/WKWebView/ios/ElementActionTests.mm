@@ -71,10 +71,10 @@ static void runTest(TestWKWebView *webView, TestNavigationDelegate *navigationDe
 TEST(ElementActionTests, OpenLinkWithHoverMenu)
 {
     auto frame = CGRectMake(0, 0, 320, 500);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:frame]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:frame]);
     [webView synchronouslyLoadTestPageNamed:@"link-with-hover-menu"];
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     runTest(webView.get(), navigationDelegate.get(), @"#link");

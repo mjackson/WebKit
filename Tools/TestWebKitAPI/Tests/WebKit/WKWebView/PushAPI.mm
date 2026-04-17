@@ -142,7 +142,7 @@ static bool waitUntilEvaluatesToTrue(const Function<bool()>& f)
 
 static RetainPtr<WKWebViewConfiguration> createConfigurationWithNotificationsEnabled()
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration preferences] _setNotificationsEnabled:YES];
     [[configuration preferences] _setNotificationEventEnabled:YES];
     return configuration;
@@ -162,13 +162,13 @@ TEST(PushAPI, firePushEvent)
     auto provider = TestWebKitAPI::TestNotificationProvider({ [[configuration processPool] _notificationManagerForTesting], WKNotificationManagerGetSharedServiceWorkerNotificationManager() });
     provider.setPermission(server.origin(), true);
 
-    auto messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
+    RetainPtr messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
     clearWebsiteDataStore([configuration websiteDataStore]);
 
     expectedMessage = "Ready"_s;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadRequest:server.request()];
 
     TestWebKitAPI::Util::run(&done);
@@ -256,7 +256,7 @@ TEST(PushAPI, notificationPermissionsDelegateInvalidResponse)
         @":" : @YES
     };
     [configuration websiteDataStore]._delegate = delegate.get();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:NO]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get() addToWindow:NO]);
 
     // If the WebView completes the page load successfully, the test passes.
     [webView synchronouslyLoadHTMLString:@"Hello"];
@@ -271,7 +271,7 @@ TEST(PushAPI, firePushEventDataStoreDelegate)
 
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
 
-    auto messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
+    RetainPtr messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
     auto configuration = createConfigurationWithNotificationsEnabled();
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
@@ -284,7 +284,7 @@ TEST(PushAPI, firePushEventDataStoreDelegate)
     [configuration websiteDataStore]._delegate = delegate.get();
 
     expectedMessage = "Ready"_s;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadRequest:server.request()];
 
     TestWebKitAPI::Util::run(&done);
@@ -379,7 +379,7 @@ TEST(PushAPI, testSilentFlag)
 
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
 
-    auto messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
+    RetainPtr messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
     auto configuration = createConfigurationWithNotificationsEnabled();
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
@@ -392,7 +392,7 @@ TEST(PushAPI, testSilentFlag)
     [configuration websiteDataStore]._delegate = delegate.get();
 
     expectedMessage = "Ready"_s;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadRequest:server.request()];
 
     TestWebKitAPI::Util::run(&done);
@@ -543,11 +543,11 @@ TEST(PushAPI, firePushEventWithNoPagesSuccessful)
     auto provider = TestWebKitAPI::TestNotificationProvider({ [[configuration processPool] _notificationManagerForTesting], WKNotificationManagerGetSharedServiceWorkerNotificationManager() });
     provider.setPermission(server.origin(), true);
 
-    auto messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
+    RetainPtr messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
     expectedMessage = "Ready"_s;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadRequest:server.request()];
 
     TestWebKitAPI::Util::run(&done);
@@ -591,11 +591,11 @@ TEST(PushAPI, firePushEventWithNoPagesFail)
     auto provider = TestWebKitAPI::TestNotificationProvider({ [[configuration processPool] _notificationManagerForTesting], WKNotificationManagerGetSharedServiceWorkerNotificationManager() });
     provider.setPermission(server.origin(), true);
 
-    auto messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
+    RetainPtr messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
     expectedMessage = "Ready"_s;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadRequest:server.request()];
 
     TestWebKitAPI::Util::run(&done);
@@ -633,9 +633,9 @@ TEST(PushAPI, firePushEventWithNoPagesTimeout)
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
 
     // Disable service worker delay for the purpose of testing, push event should timeout after 1 second.
-    auto dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [dataStoreConfiguration setServiceWorkerProcessTerminationDelayEnabled:NO];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
 
     auto configuration = createConfigurationWithNotificationsEnabled();
     configuration.get().websiteDataStore = dataStore.get();
@@ -644,14 +644,14 @@ TEST(PushAPI, firePushEventWithNoPagesTimeout)
     auto provider = TestWebKitAPI::TestNotificationProvider({ [[configuration processPool] _notificationManagerForTesting], WKNotificationManagerGetSharedServiceWorkerNotificationManager() });
     provider.setPermission(server.origin(), true);
 
-    auto messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
+    RetainPtr messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
     expectedMessage = "Ready"_s;
 
     fprintf(stderr, "totot1\n");
     @autoreleasepool {
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
         [webView loadRequest:server.request()];
         TestWebKitAPI::Util::run(&done);
     }
@@ -734,11 +734,11 @@ TEST(PushAPI, pushEventsAndInspectedServiceWorker)
     auto provider = TestWebKitAPI::TestNotificationProvider({ [[configuration processPool] _notificationManagerForTesting], WKNotificationManagerGetSharedServiceWorkerNotificationManager() });
     provider.setPermission(server.origin(), true);
 
-    auto messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
+    RetainPtr messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
     expectedMessage = "Ready"_s;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadRequest:server.request()];
 
     TestWebKitAPI::Util::run(&done);
@@ -840,9 +840,9 @@ static void testInspectedServiceWorkerWithoutPage(bool enableServiceWorkerInspec
 
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
 
-    auto dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [dataStoreConfiguration setServiceWorkerProcessTerminationDelayEnabled:NO];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
 
     auto configuration = createConfigurationWithNotificationsEnabled();
     configuration.get().websiteDataStore = dataStore.get();
@@ -854,11 +854,11 @@ static void testInspectedServiceWorkerWithoutPage(bool enableServiceWorkerInspec
     auto provider = TestWebKitAPI::TestNotificationProvider({ [[configuration processPool] _notificationManagerForTesting], WKNotificationManagerGetSharedServiceWorkerNotificationManager() });
     provider.setPermission(server.origin(), true);
 
-    auto messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
+    RetainPtr messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
     expectedMessage = "Ready"_s;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadRequest:server.request()];
 
     TestWebKitAPI::Util::run(&done);
@@ -997,13 +997,13 @@ TEST(PushAPI, fireNotificationClickEvent)
     auto provider = TestWebKitAPI::TestNotificationProvider({ [[configuration processPool] _notificationManagerForTesting], WKNotificationManagerGetSharedServiceWorkerNotificationManager() });
     provider.setPermission(server.origin(), true);
 
-    auto messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
+    RetainPtr messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
     clearWebsiteDataStore([configuration websiteDataStore]);
 
     expectedMessage = "Ready"_s;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadRequest:server.request()];
 
     TestWebKitAPI::Util::run(&done);
@@ -1052,13 +1052,13 @@ TEST(PushAPI, fireNotificationCloseEvent)
     auto provider = TestWebKitAPI::TestNotificationProvider({ [[configuration processPool] _notificationManagerForTesting], WKNotificationManagerGetSharedServiceWorkerNotificationManager() });
     provider.setPermission(server.origin(), true);
 
-    auto messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
+    RetainPtr messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
     clearWebsiteDataStore([configuration websiteDataStore]);
 
     expectedMessage = "Ready"_s;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadRequest:server.request()];
 
     TestWebKitAPI::Util::run(&done);
@@ -1167,13 +1167,13 @@ TEST(PushAPI, callNotificationClose)
     auto provider = TestWebKitAPI::TestNotificationProvider({ [[configuration processPool] _notificationManagerForTesting], WKNotificationManagerGetSharedServiceWorkerNotificationManager() });
     provider.setPermission(server.origin(), true);
 
-    auto messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
+    RetainPtr messageHandler = adoptNS([[PushAPIMessageHandlerWithExpectedMessage alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
 
     clearWebsiteDataStore([configuration websiteDataStore]);
 
     expectedMessage = "Ready"_s;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView loadRequest:server.request()];
 
     TestWebKitAPI::Util::run(&done);

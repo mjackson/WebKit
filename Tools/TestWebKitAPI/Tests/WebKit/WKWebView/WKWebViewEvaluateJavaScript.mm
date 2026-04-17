@@ -120,8 +120,8 @@ TEST(WKWebView, EvaluateJavaScriptErrorCases)
         TestWebKitAPI::Util::run(&isDone);
     }
 
-    auto handler = adoptNS([TestScriptMessageHandler new]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr handler = adoptNS([TestScriptMessageHandler new]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     NSString *handlerName = @"testHandler";
     [[webView configuration].userContentController addScriptMessageHandler:handler.get() name:handlerName];
     NSString *postMessages = @""
@@ -248,7 +248,7 @@ TEST(WKWebView, EvaluateJavaScriptInWorlds)
 
     // Add a scriptMessageHandler in a named world.
     RetainPtr<WKContentWorld> namedWorld = [WKContentWorld worldWithName:@"NamedWorld"];
-    auto handler = adoptNS([[DummyMessageHandler alloc] init]);
+    RetainPtr handler = adoptNS([[DummyMessageHandler alloc] init]);
     [webView.get().configuration.userContentController _addScriptMessageHandler:handler.get() name:@"testHandlerName" userContentWorld:namedWorld.get()._userContentWorld];
 
     // Set a variable value in that named world.
@@ -345,7 +345,7 @@ TEST(WKWebView, EvaluateJavaScriptInWorlds)
 TEST(WKWebView, EvaluateJavaScriptInWorldsWithGlobalObjectAvailable)
 {
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"ContentWorldPlugIn"];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView synchronouslyLoadHTMLString:@"<html></html>"];
 
     __block bool done = false;
@@ -359,7 +359,7 @@ TEST(WKWebView, EvaluateJavaScriptInWorldsWithGlobalObjectAvailable)
 TEST(WKWebView, EvaluateJavaScriptInWorldsWithGlobalObjectAvailableInCrossOriginIframe)
 {
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"ContentWorldPlugIn"];
-    auto handler = adoptNS([TestURLSchemeHandler new]);
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
     __block bool childFrameLoaded = false;
     [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
         NSString *responseString = nil;
@@ -373,13 +373,13 @@ TEST(WKWebView, EvaluateJavaScriptInWorldsWithGlobalObjectAvailableInCrossOrigin
         }
 
         ASSERT(responseString);
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:responseString.length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:responseString.length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[responseString dataUsingEncoding:NSUTF8StringEncoding]];
         [task didFinish];
     }];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"frame"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"frame://host1/"]]];
 
     TestWebKitAPI::Util::run(&childFrameLoaded);
@@ -396,7 +396,7 @@ TEST(WKWebView, EvaluateJavaScriptInWorldsWithGlobalObjectAvailableInCrossOrigin
 
 TEST(WebKit, GetFrameInfo_detachedFrame)
 {
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadHTMLString:@"<iframe id='testFrame' src='about:blank'></iframe>"];
 
     __block bool done = false;
@@ -435,7 +435,7 @@ TEST(WebKit, EvaluateJavaScriptInAttachments)
             "Content-Disposition: attachment; filename=fromHeader.txt;\r\n\r\n"
             "Hello world!"_s);
     });
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/", server.port()]]]];
 
     __block bool done = false;
@@ -567,7 +567,7 @@ TEST(WebKit, SPIJavascriptMarkupVsAPIContentJavaScript)
 {
     // There's not a dynamically configuration setting for javascript markup,
     // but it can be configured at WKWebView creation time.
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAllowsJavaScriptMarkup:NO];
     RetainPtr<TestWKWebView> webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
@@ -626,14 +626,14 @@ static NSString *userScriptSource = @"window.webkit.messageHandlers.framesTester
 TEST(EvaluateJavaScript, JavaScriptInFramesFromPostMessage)
 {
     allFrames = adoptNS([[NSMutableSet<WKFrameInfo *> alloc] init]);
-    auto messageHandler = adoptNS([[FramesMessageHandler alloc] init]);
-    auto userScript = adoptNS([[WKUserScript alloc] initWithSource:userScriptSource injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO inContentWorld:WKContentWorld.defaultClientWorld]);
+    RetainPtr messageHandler = adoptNS([[FramesMessageHandler alloc] init]);
+    RetainPtr userScript = adoptNS([[WKUserScript alloc] initWithSource:userScriptSource injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO inContentWorld:WKContentWorld.defaultClientWorld]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addUserScript:userScript.get()];
     [[configuration userContentController] addScriptMessageHandler:messageHandler.get() contentWorld:WKContentWorld.defaultClientWorld name:@"framesTester"];
 
-    auto handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [handler setStartURLSchemeTaskHandler:[&](WKWebView *, id<WKURLSchemeTask> task) {
         if ([task.request.URL.absoluteString isEqualToString:@"framestest://test/index.html"]) {
             NSData *data = [[NSString stringWithFormat:@"%s", framesMainResource] dataUsingEncoding:NSUTF8StringEncoding];
@@ -650,7 +650,7 @@ TEST(EvaluateJavaScript, JavaScriptInFramesFromPostMessage)
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"framestest"];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"otherprotocol"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"framestest://test/index.html"]]];
 
     EXPECT_EQ([allFrames count], 2u);
@@ -700,7 +700,7 @@ TEST(EvaluateJavaScript, JavaScriptInFramesFromNavigationDelegate)
 {
     allFrames = adoptNS([[NSMutableSet<WKFrameInfo *> alloc] init]);
 
-    auto handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [handler setStartURLSchemeTaskHandler:[&](WKWebView *, id<WKURLSchemeTask> task) {
         if ([task.request.URL.absoluteString isEqualToString:@"framestest://test/index.html"]) {
             NSData *data = [[NSString stringWithFormat:@"%s", framesMainResource] dataUsingEncoding:NSUTF8StringEncoding];
@@ -716,13 +716,13 @@ TEST(EvaluateJavaScript, JavaScriptInFramesFromNavigationDelegate)
             ASSERT_NOT_REACHED();
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"framestest"];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"otherprotocol"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
 
     __block bool didFinishNavigation = false;
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
@@ -785,7 +785,7 @@ TEST(EvaluateJavaScript, JavaScriptInMissingFrameError)
 {
     allFrames = adoptNS([[NSMutableSet<WKFrameInfo *> alloc] init]);
 
-    auto handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [handler setStartURLSchemeTaskHandler:[&](WKWebView *, id<WKURLSchemeTask> task) {
         if ([task.request.URL.absoluteString isEqualToString:@"framestest://test/index.html"]) {
             NSData *data = [[NSString stringWithFormat:@"%s", framesMainResource] dataUsingEncoding:NSUTF8StringEncoding];
@@ -801,13 +801,13 @@ TEST(EvaluateJavaScript, JavaScriptInMissingFrameError)
             ASSERT_NOT_REACHED();
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"framestest"];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"otherprotocol"];
 
     RetainPtr<WKWebView> webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
 
     __block bool didFinishNavigation = false;
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
@@ -854,13 +854,13 @@ TEST(EvaluateJavaScript, JavaScriptInMissingFrameError)
 // This test verifies that evaluating JavaScript in a frame from the previous main navigation results in an error
 TEST(EvaluateJavaScript, JavaScriptInMissingFrameAfterNavigationError)
 {
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     processPoolConfiguration.get().processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol = YES;
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
     allFrames = adoptNS([[NSMutableSet<WKFrameInfo *> alloc] init]);
 
-    auto handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [handler setStartURLSchemeTaskHandler:[&](WKWebView *, id<WKURLSchemeTask> task) {
         if ([task.request.URL.absoluteString isEqualToString:@"framestest://test/index.html"]) {
             NSData *data = [[NSString stringWithFormat:@"%s", framesMainResource] dataUsingEncoding:NSUTF8StringEncoding];
@@ -881,14 +881,14 @@ TEST(EvaluateJavaScript, JavaScriptInMissingFrameAfterNavigationError)
             ASSERT_NOT_REACHED();
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool:processPool.get()];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"framestest"];
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"otherprotocol"];
 
     RetainPtr<WKWebView> webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
 
     __block bool didFinishNavigation = false;
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
@@ -940,10 +940,10 @@ TEST(EvaluateJavaScript, JavaScriptInMissingFrameAfterNavigationError)
 
 TEST(EvaluateJavaScript, WindowPersistency)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     __block bool didFinishNavigation = false;
     [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
         didFinishNavigation = true;
@@ -966,8 +966,8 @@ TEST(EvaluateJavaScript, WindowPersistency)
 
 TEST(EvaluateJavaScript, ReturnTypes)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     __block bool didEvaluateJavaScript = false;
     NSString *jsTopLevelReplacedByDict = @"(function(){return /hello/})()";
     // Behaves the same as if sending "(function(){ return {} })()" because of JSValue's containerValueToObject filtering

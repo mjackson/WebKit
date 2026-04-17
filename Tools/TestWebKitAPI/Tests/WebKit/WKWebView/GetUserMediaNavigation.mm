@@ -97,14 +97,14 @@ static void initializeMediaCaptureConfiguration(WKWebViewConfiguration* configur
 
 TEST(WebKit, NavigateDuringGetUserMediaPrompt)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     auto preferences = [configuration preferences];
     preferences._mediaCaptureRequiresSecureConnection = NO;
     configuration.get()._mediaCaptureEnabled = YES;
     preferences._mockCaptureDevicesEnabled = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[NavigationWhileGetUserMediaPromptDisplayedUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[NavigationWhileGetUserMediaPromptDisplayedUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     okToProceed = false;
@@ -114,11 +114,11 @@ TEST(WebKit, NavigateDuringGetUserMediaPrompt)
 
 TEST(WebKit, NavigateDuringDeviceEnumeration)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
     WKWebView *webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]).leakRef();
-    auto delegate = adoptNS([[NavigationWhileGetUserMediaPromptDisplayedUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[NavigationWhileGetUserMediaPromptDisplayedUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     okToProceed = false;
@@ -130,7 +130,7 @@ TEST(WebKit, DefaultDeviceIdHashSaltsDirectory)
 {
     NSFileManager *fileManager = [NSFileManager defaultManager];
 
-    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     auto *path = [websiteDataStoreConfiguration deviceIdHashSaltsStorageDirectory].path;
 
     if ([fileManager fileExistsAtPath:path]) {
@@ -139,12 +139,12 @@ TEST(WebKit, DefaultDeviceIdHashSaltsDirectory)
         EXPECT_FALSE(error);
     }
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]).get()];
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[NavigationWhileGetUserMediaPromptDisplayedUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[NavigationWhileGetUserMediaPromptDisplayedUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
 
     [webView loadTestPageNamed:@"enumerateMediaDevices"];
@@ -163,15 +163,15 @@ TEST(WebKit, DeviceIdHashSaltsDirectory)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     EXPECT_FALSE([fileManager fileExistsAtPath:hashSaltLocation.path]);
     
-    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [websiteDataStoreConfiguration setDeviceIdHashSaltsStorageDirectory:tempDir];
     
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]).get()];
-    auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-    auto delegate = adoptNS([[NavigationWhileGetUserMediaPromptDisplayedUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+    RetainPtr delegate = adoptNS([[NavigationWhileGetUserMediaPromptDisplayedUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     
     [webView loadTestPageNamed:@"enumerateMediaDevices"];
@@ -185,18 +185,18 @@ TEST(WebKit, DeviceIdHashSaltsDirectory)
 
 TEST(WebKit, DeviceIdHashSaltsRemoval)
 {
-    auto dataTypeHashSalt = adoptNS([[NSSet alloc] initWithArray:@[WKWebsiteDataTypeHashSalt]]);
-    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr dataTypeHashSalt = adoptNS([[NSSet alloc] initWithArray:@[WKWebsiteDataTypeHashSalt]]);
+    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     @autoreleasepool {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-        auto websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
         [configuration setWebsiteDataStore:websiteDataStore.get()];
-        auto messageHandler = adoptNS([[GetUserMeidaNavigationMessageHandler alloc] init]);
+        RetainPtr messageHandler = adoptNS([[GetUserMeidaNavigationMessageHandler alloc] init]);
         [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
-        auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+        RetainPtr processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
         initializeMediaCaptureConfiguration(configuration.get());
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
-        auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get() processPoolConfiguration:processPoolConfig.get()]);
+        RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
         [webView setUIDelegate:delegate.get()];
 
         NSString *htmlString = @"<script> \
@@ -218,7 +218,7 @@ TEST(WebKit, DeviceIdHashSaltsRemoval)
     }
 
     // Create a new WebsiteDataStore to ensure DeviceHashSaltStorage receives delete task before storage is loaded from disk.
-    auto websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+    RetainPtr websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
     done = false;
     [websiteDataStore removeDataOfTypes:dataTypeHashSalt.get() modifiedSince:[NSDate distantPast] completionHandler:^() {
         done = true;

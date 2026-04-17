@@ -30,7 +30,9 @@
 
 #import "CMUtilities.h"
 #import "FourCC.h"
+#if USE(LIBWEBRTC)
 #import "LibWebRTCProvider.h"
+#endif
 #import "Logging.h"
 #import "MediaStrategy.h"
 #import "PlatformMediaCapabilitiesInfo.h"
@@ -150,7 +152,9 @@ static ResolutionCategory NODELETE resolutionCategory(const FloatSize& size)
 
 void registerWebKitVP9Decoder()
 {
+#if USE(LIBWEBRTC)
     LibWebRTCProvider::registerWebKitVP9Decoder();
+#endif
 }
 
 static std::optional<bool> s_vp9HardwareDecoderAvailableInProcess = { };

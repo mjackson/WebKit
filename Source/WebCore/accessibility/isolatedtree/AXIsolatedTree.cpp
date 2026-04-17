@@ -117,6 +117,10 @@ Ref<AXIsolatedTree> AXIsolatedTree::createEmpty(AXObjectCache& axObjectCache)
     // Now that the tree is ready to take client requests, add it to the tree maps so that it can be found.
     storeTree(axObjectCache, tree);
 
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    tree->updateFrameGeometryAndScrollPositionIfNeeded(axObjectCache);
+#endif
+
     return tree;
 }
 
@@ -197,11 +201,6 @@ RefPtr<AXIsolatedTree> AXIsolatedTree::create(AXObjectCache& axObjectCache)
     tree->setInitialSortedNonRootWebAreas(axIDs(axObjectCache.sortedNonRootWebAreas()));
     tree->updateLoadingProgress(axObjectCache.loadingProgress());
 
-#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
-    if (std::optional geometry = axObjectCache.getAndUpdateFrameGeometry())
-        tree->setFrameGeometry(AXFrameGeometry { *geometry });
-#endif
-
     auto relations = axObjectCache.relations();
     // Add unconnected nodes for relation origins and targets that are either
     // ignored or have no renderer (e.g., inside display:none containers).
@@ -222,6 +221,10 @@ RefPtr<AXIsolatedTree> AXIsolatedTree::create(AXObjectCache& axObjectCache)
 
     // Now that the tree is ready to take client requests, add it to the tree maps so that it can be found.
     storeTree(axObjectCache, tree);
+
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    tree->updateFrameGeometryAndScrollPositionIfNeeded(axObjectCache);
+#endif
 
     if (AXObjectCache::isAppleInternalInstall()) [[unlikely]]
         WTFEndSignpostAlways(tree.ptr(), InitialAccessibilityIsolatedTreeBuild);
@@ -312,13 +315,6 @@ void AXIsolatedTree::removeTreeForFrameID(FrameIdentifier frameID)
 RefPtr<AXIsolatedTree> AXIsolatedTree::treeForFrameID(FrameIdentifier frameID)
 {
     Locker locker { s_storeLock };
-    return treeFrameCache().get(frameID);
-}
-
-RefPtr<AXIsolatedTree> AXIsolatedTree::treeForFrameIDAlreadyLocked(FrameIdentifier frameID)
-{
-    AX_BROKEN_ASSERT(s_storeLock.isHeld());
-
     return treeFrameCache().get(frameID);
 }
 
@@ -1039,7 +1035,9 @@ void AXIsolatedTree::updateChildren(AccessibilityObject& axObject, ResolveNodeCh
         return;
     }
 
-    // FIXME: This copy out of the hashmap seems unnecessary — can we use HashMap::find instead?
+    // This must be a copy, not a reference via HashMap::find, because collectNodeChangesForSubtree
+    // (called below) can insert into m_nodeMap, potentially triggering a rehash that would
+    // invalidate any iterator or reference into the map.
     auto oldIDs = m_nodeMap.get(axAncestor->objectID());
     auto& oldChildrenIDs = oldIDs.childrenIDs;
 
@@ -1269,10 +1267,21 @@ void AXIsolatedTree::setSelectedTextMarkerRange(AXTextMarkerRange&& range)
 }
 
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
-void AXIsolatedTree::setFrameGeometry(AXFrameGeometry&& geometry)
+void AXIsolatedTree::setFrameGeometry(AXFrameGeometry&& geometry, IntPoint scrollPosition)
 {
     Locker locker { m_changeLogLock };
     m_pendingFrameGeometry = WTF::move(geometry);
+    m_pendingFrameScrollPosition = scrollPosition;
+}
+
+void AXIsolatedTree::updateFrameGeometryAndScrollPositionIfNeeded(AXObjectCache& cache)
+{
+    if (std::optional geometry = cache.getAndUpdateFrameGeometry()) {
+        IntPoint scrollPosition;
+        if (CheckedPtr view = cache.document()->view())
+            scrollPosition = view->scrollPosition();
+        setFrameGeometry(AXFrameGeometry { *geometry }, scrollPosition);
+    }
 }
 #endif
 
@@ -1312,8 +1321,7 @@ void AXIsolatedTree::updateRootScreenRelativePosition()
 
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
         // Sync current cache value to isolated tree and fire async request to keep it up-to-date.
-        if (std::optional geometry = cache->getAndUpdateFrameGeometry())
-            setFrameGeometry(AXFrameGeometry { *geometry });
+        updateFrameGeometryAndScrollPositionIfNeeded(*cache);
 #endif
     }
 }
@@ -1676,6 +1684,8 @@ void AXIsolatedTree::applyPendingChangesLocked()
         m_frameGeometry = std::exchange(m_pendingFrameGeometry, std::nullopt).value();
         m_hasReceivedFrameGeometry = true;
     }
+    if (m_pendingFrameScrollPosition)
+        m_frameScrollPosition = std::exchange(m_pendingFrameScrollPosition, std::nullopt).value();
 #endif
 
     // Do this at the end because it requires looking up the root node by ID, so doing it at the end

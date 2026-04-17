@@ -1,5 +1,5 @@
 //@ skip if $addressBits <= 32
-//@ runDefaultWasm("--useWasmMemory64=1", "--useOMGJIT=0")
+//@ runDefaultWasm("--useWasmMemory64=1")
 
 load("../spec-harness.js", "caller relative");
 

@@ -129,7 +129,9 @@ public:
 
     virtual void setPageIsVisible(bool) = 0;
     virtual void setVisibleForCanvas(bool visible) { setPageIsVisible(visible); }
-    virtual void setVisibleInViewport(bool) { }
+
+    using ViewportVisibility = MediaPlayer::ViewportVisibility;
+    virtual void setViewportVisibility(ViewportVisibility) { }
 
     virtual MediaTime duration() const { return MediaTime::zeroTime(); }
 

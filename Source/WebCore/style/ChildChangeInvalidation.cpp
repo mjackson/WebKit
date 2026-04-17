@@ -62,23 +62,20 @@ void ChildChangeInvalidation::invalidateForChangedElement(Element& changedElemen
 
     bool isChild = changedElement.parentElement() == &parentElement();
 
-    auto canAffectElementsWithStyle = [&](MatchElement matchElement) {
-        switch (matchElement) {
-        case MatchElement::HasSibling:
-        case MatchElement::HasAnySibling:
-        case MatchElement::HasChild:
-        case MatchElement::HasChildAncestor:
-        case MatchElement::HasChildParent:
+    auto canAffectElementsWithStyle = [&](const InvalidationRuleSet& ruleSet) {
+        if (!ruleSet.matchElement.hasRelation)
+            return true;
+        switch (*ruleSet.matchElement.hasRelation) {
+        case MatchElement::HasRelation::Child:
+        case MatchElement::HasRelation::DirectSibling:
+        case MatchElement::HasRelation::IndirectSibling:
             return isChild;
-        case MatchElement::HasDescendant:
-        case MatchElement::HasSiblingDescendant:
-        case MatchElement::HasDescendantParent:
-        case MatchElement::HasNonSubject:
-        case MatchElement::HasScopeBreaking:
+        case MatchElement::HasRelation::Descendant:
+        case MatchElement::HasRelation::SiblingChild:
+        case MatchElement::HasRelation::SiblingDescendant:
             return true;
         default:
-            ASSERT_NOT_REACHED();
-            return false;
+            return true;
         }
     };
 
@@ -119,7 +116,7 @@ void ChildChangeInvalidation::invalidateForChangedElement(Element& changedElemen
         if (!invalidationRuleSets)
             return;
         for (auto& invalidationRuleSet : *invalidationRuleSets) {
-            if (!canAffectElementsWithStyle(invalidationRuleSet.matchElement))
+            if (!canAffectElementsWithStyle(invalidationRuleSet))
                 continue;
             if (!hasMatchingInvalidationSelector(invalidationRuleSet))
                 continue;
@@ -262,10 +259,10 @@ void ChildChangeInvalidation::invalidateForHasAfterMutation()
 
 static bool NODELETE needsDescendantTraversal(const RuleFeatureSet& features)
 {
-    return features.usesMatchElement(MatchElement::HasNonSubject)
-        || features.usesMatchElement(MatchElement::HasScopeBreaking)
-        || features.usesMatchElement(MatchElement::HasDescendant)
-        || features.usesMatchElement(MatchElement::HasSiblingDescendant);
+    // With the bundled MatchElement representation, any :has() with hasRelation=Descendant or SiblingDescendant
+    // needs descendant traversal. Since we don't have per-value tracking for hasRelation,
+    // use the usesHasPseudoClass flag as a conservative check.
+    return features.usesHasPseudoClass;
 };
 
 template<typename Function>

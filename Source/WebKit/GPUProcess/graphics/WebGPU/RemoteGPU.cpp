@@ -84,7 +84,7 @@ RemoteGPU::~RemoteGPU() = default;
 void RemoteGPU::initialize()
 {
     assertIsMainRunLoop();
-    protect(m_workQueue)->dispatch([protectedThis = Ref { *this }]() mutable {
+    protect(m_workQueue)->dispatch([protectedThis = protect(*this)]() mutable {
         protectedThis->workQueueInitialize();
     });
 }
@@ -93,7 +93,7 @@ void RemoteGPU::stopListeningForIPC()
 {
     assertIsMainRunLoop();
     Ref workQueue = m_workQueue;
-    workQueue->dispatch([protectedThis = Ref { *this }]() {
+    workQueue->dispatch([protectedThis = protect(*this)]() {
         protectedThis->workQueueUninitialize();
     });
     workQueue->stopAndWaitForCompletion();
@@ -114,7 +114,7 @@ void RemoteGPU::workQueueInitialize()
     // (because the callbacks handle resource cleanup, etc.).
     // The retain cycle is broken in workQueueUninitialize().
     auto gpuProcessConnection = m_gpuConnectionToWebProcess.get();
-    auto backing = WebCore::WebGPU::create([protectedThis = Ref { *this }](WebCore::WebGPU::WorkItem&& workItem) {
+    auto backing = WebCore::WebGPU::create([protectedThis = protect(*this)](WebCore::WebGPU::WorkItem&& workItem) {
         protect(protectedThis->m_workQueue)->dispatch(WTF::move(workItem));
     }, gpuProcessConnection ? &gpuProcessConnection->webProcessIdentity() : nullptr);
 #else
@@ -135,7 +135,7 @@ void RemoteGPU::workQueueUninitialize()
     streamConnection->invalidate();
     m_streamConnection = nullptr;
     protect(m_objectHeap)->clear();
-    Ref { m_modelObjectHeap }->clear();
+    protect(m_modelObjectHeap)->clear();
     m_backing = nullptr;
 }
 
@@ -163,7 +163,7 @@ void RemoteGPU::requestAdapter(const WebGPU::RequestAdapterOptions& options, Web
         return;
     }
 
-    backing->requestAdapter(*convertedOptions, [callback = WTF::move(callback), objectHeap, streamConnection = Ref { *m_streamConnection }, identifier, gpuConnectionToWebProcess = m_gpuConnectionToWebProcess.get(), gpu = Ref { *this }] (RefPtr<WebCore::WebGPU::Adapter>&& adapter) mutable {
+    backing->requestAdapter(*convertedOptions, [callback = WTF::move(callback), objectHeap, streamConnection = protect(*m_streamConnection), identifier, gpuConnectionToWebProcess = m_gpuConnectionToWebProcess.get(), gpu = protect(*this)] (RefPtr<WebCore::WebGPU::Adapter>&& adapter) mutable {
         if (!adapter) {
             callback(std::nullopt);
             return;
@@ -324,7 +324,7 @@ void RemoteGPU::createModelBacking(unsigned width, unsigned height, const WebMod
     MESSAGE_CHECK(gpuProcessConnection);
 
     auto mesh = createModelBackingInternal(width, height, diffuseTexture, specularTexture, gpuProcessConnection->webProcessIdentity(), WTF::move(callback));
-    auto remoteMesh = RemoteMesh::create(*m_gpuConnectionToWebProcess.get(), *this, *mesh, objectHeap, Ref { *m_streamConnection }, identifier);
+    auto remoteMesh = RemoteMesh::create(*m_gpuConnectionToWebProcess.get(), *this, *mesh, objectHeap, protect(*m_streamConnection), identifier);
     objectHeap->addObject(identifier, remoteMesh);
 #else
     UNUSED_PARAM(width);

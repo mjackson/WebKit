@@ -66,7 +66,7 @@ private:
     bool pageActiveURLDidChangeDuringWaiting() const;
 
     Callback m_callback;
-    String m_waitingPageActiveURL;
+    URL m_waitingPageActiveURL;
 };
 
 } // namespace WebKit

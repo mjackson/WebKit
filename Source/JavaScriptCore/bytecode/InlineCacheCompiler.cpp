@@ -2032,33 +2032,39 @@ void InlineCacheCompiler::generateWithGuard(unsigned index, AccessCase& accessCa
     case AccessCase::ArrayLengthStore: {
         ASSERT(!accessCase.viaGlobalProxy());
 
-        // FIXME: Support DoubleShape by clearing with PNaN instead of empty JSValue.
         jit.load8(CCallHelpers::Address(baseGPR, JSCell::indexingTypeAndMiscOffset()), scratchGPR);
         jit.and32(CCallHelpers::TrustedImm32(IndexingModeMask), scratchGPR);
         auto isInt32 = jit.branch32(CCallHelpers::Equal, scratchGPR, CCallHelpers::TrustedImm32(IsArray | Int32Shape));
-        fallThrough.append(jit.branch32(CCallHelpers::NotEqual, scratchGPR, CCallHelpers::TrustedImm32(IsArray | ContiguousShape)));
+        auto isContiguous = jit.branch32(CCallHelpers::Equal, scratchGPR, CCallHelpers::TrustedImm32(IsArray | ContiguousShape));
+        fallThrough.append(jit.branch32(CCallHelpers::NotEqual, scratchGPR, CCallHelpers::TrustedImm32(IsArray | DoubleShape)));
+        jit.move(CCallHelpers::TrustedImm64(std::bit_cast<int64_t>(PNaN)), scratchGPR);
+        auto holeReady = jit.jump();
         isInt32.link(&jit);
+        isContiguous.link(&jit);
+        jit.move(CCallHelpers::TrustedImm64(JSValue::encode(JSValue())), scratchGPR);
+        holeReady.link(&jit);
 
         m_failAndIgnore.append(jit.branchIfNotInt32(valueRegs));
 
         auto allocator = makeDefaultScratchAllocator(scratchGPR);
         GPRReg scratch2GPR = allocator.allocateScratchGPR();
+        GPRReg scratch3GPR = allocator.allocateScratchGPR();
         ScratchRegisterAllocator::PreservedState preservedState = allocator.preserveReusedRegistersByPushing(jit, ScratchRegisterAllocator::ExtraStackSpace::NoExtraSpace);
 
         CCallHelpers::JumpList failAndIgnore;
 
-        jit.loadPtr(CCallHelpers::Address(baseGPR, JSObject::butterflyOffset()), scratchGPR);
-        jit.load32(CCallHelpers::Address(scratchGPR, Butterfly::offsetOfPublicLength()), scratch2GPR);
-        failAndIgnore.append(jit.branch32(CCallHelpers::Above, valueRegs.payloadGPR(), scratch2GPR));
+        jit.loadPtr(CCallHelpers::Address(baseGPR, JSObject::butterflyOffset()), scratch2GPR);
+        jit.load32(CCallHelpers::Address(scratch2GPR, Butterfly::offsetOfPublicLength()), scratch3GPR);
+        failAndIgnore.append(jit.branch32(CCallHelpers::Above, valueRegs.payloadGPR(), scratch3GPR));
 
         auto loopStart = jit.label();
-        auto loopDone = jit.branch32(CCallHelpers::BelowOrEqual, scratch2GPR, valueRegs.payloadGPR());
-        jit.sub32(CCallHelpers::TrustedImm32(1), scratch2GPR);
-        jit.storeTrustedValue(JSValue(), CCallHelpers::BaseIndex(scratchGPR, scratch2GPR, CCallHelpers::TimesEight));
+        auto loopDone = jit.branch32(CCallHelpers::BelowOrEqual, scratch3GPR, valueRegs.payloadGPR());
+        jit.sub32(CCallHelpers::TrustedImm32(1), scratch3GPR);
+        jit.store64(scratchGPR, CCallHelpers::BaseIndex(scratch2GPR, scratch3GPR, CCallHelpers::TimesEight));
         jit.jump().linkTo(loopStart, &jit);
         loopDone.link(&jit);
 
-        jit.store32(valueRegs.payloadGPR(), CCallHelpers::Address(scratchGPR, Butterfly::offsetOfPublicLength()));
+        jit.store32(valueRegs.payloadGPR(), CCallHelpers::Address(scratch2GPR, Butterfly::offsetOfPublicLength()));
 
         allocator.restoreReusedRegistersByPopping(jit, preservedState);
         succeed();

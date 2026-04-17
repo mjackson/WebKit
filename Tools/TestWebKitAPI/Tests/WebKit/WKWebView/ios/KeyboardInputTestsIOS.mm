@@ -95,7 +95,7 @@ enum class CaretVisibility : bool { Hidden, Visible };
     static dispatch_once_t onceToken;
     static RetainPtr<UIBarButtonItemGroup> sharedItems;
     dispatch_once(&onceToken, ^{
-        auto leadingItem = adoptNS([[UIBarButtonItem alloc] initWithImage:self.barButtonIcon style:UIBarButtonItemStylePlain target:webView action:@selector(fakeLeadingBarButtonItemAction)]);
+        RetainPtr leadingItem = adoptNS([[UIBarButtonItem alloc] initWithImage:self.barButtonIcon style:UIBarButtonItemStylePlain target:webView action:@selector(fakeLeadingBarButtonItemAction)]);
         sharedItems = adoptNS([[UIBarButtonItemGroup alloc] initWithBarButtonItems:@[ leadingItem.get() ] representativeItem:nil]);
     });
     return sharedItems.get();
@@ -106,7 +106,7 @@ enum class CaretVisibility : bool { Hidden, Visible };
     static dispatch_once_t onceToken;
     static RetainPtr<UIBarButtonItemGroup> sharedItems;
     dispatch_once(&onceToken, ^{
-        auto trailingItem = adoptNS([[UIBarButtonItem alloc] initWithImage:self.barButtonIcon style:UIBarButtonItemStylePlain target:webView action:@selector(fakeTrailingBarButtonItemAction)]);
+        RetainPtr trailingItem = adoptNS([[UIBarButtonItem alloc] initWithImage:self.barButtonIcon style:UIBarButtonItemStylePlain target:webView action:@selector(fakeTrailingBarButtonItemAction)]);
         sharedItems = adoptNS([[UIBarButtonItemGroup alloc] initWithBarButtonItems:@[ trailingItem.get() ] representativeItem:nil]);
     });
     return sharedItems.get();
@@ -114,7 +114,7 @@ enum class CaretVisibility : bool { Hidden, Visible };
 
 - (UITextInputAssistantItem *)inputAssistantItem
 {
-    auto assistantItem = adoptNS([[UITextInputAssistantItem alloc] init]);
+    RetainPtr assistantItem = adoptNS([[UITextInputAssistantItem alloc] init]);
     [assistantItem setLeadingBarButtonGroups:@[[InputAssistantItemTestingWebView leadingItemsForWebView:self]]];
     [assistantItem setTrailingBarButtonGroups:@[[InputAssistantItemTestingWebView trailingItemsForWebView:self]]];
     return assistantItem.autorelease();
@@ -249,7 +249,7 @@ static CGRect rounded(CGRect rect)
 
 static RetainPtr<TestWKWebView> webViewWithAutofocusedInput(const RetainPtr<TestInputDelegate>& inputDelegate)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
 
     __block bool doneWaiting = false;
     [inputDelegate setFocusStartsInputSessionPolicyHandler:^_WKFocusStartsInputSessionPolicy(WKWebView *, id <_WKFocusedElementInfo>) {
@@ -266,7 +266,7 @@ static RetainPtr<TestWKWebView> webViewWithAutofocusedInput(const RetainPtr<Test
 
 static std::pair<RetainPtr<TestWKWebView>, RetainPtr<TestInputDelegate>> webViewAndInputDelegateWithAutofocusedInput()
 {
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
     return { webViewWithAutofocusedInput(inputDelegate), inputDelegate };
 }
 
@@ -276,8 +276,8 @@ TEST(KeyboardInputTests, FormNavigationAssistantBarButtonItems)
 {
     IPadUserInterfaceSwizzler iPadUserInterface;
 
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView _setInputDelegate:inputDelegate.get()];
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
@@ -297,8 +297,8 @@ TEST(KeyboardInputTests, FormNavigationAssistantBarButtonItems)
 
 TEST(KeyboardInputTests, ModifyInputAssistantItemBarButtonGroups)
 {
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView _setInputDelegate:inputDelegate.get()];
     [webView synchronouslyLoadHTMLString:@"<body contenteditable>"];
     UITextInputAssistantItem *item = [webView inputAssistantItem];
@@ -327,8 +327,8 @@ TEST(KeyboardInputTests, ModifyInputAssistantItemBarButtonGroups)
 
 TEST(KeyboardInputTests, OverrideInputAssistantItemBarButtonGroups)
 {
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
-    auto webView = adoptNS([[InputAssistantItemTestingWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[InputAssistantItemTestingWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView _setInputDelegate:inputDelegate.get()];
     [webView synchronouslyLoadHTMLString:@"<body contenteditable>"];
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
@@ -353,9 +353,9 @@ TEST(KeyboardInputTests, OverrideInputAssistantItemBarButtonGroups)
 
 TEST(KeyboardInputTests, CustomInputViewAndInputAccessoryView)
 {
-    auto inputView = adoptNS([[UIView alloc] init]);
-    auto inputAccessoryView = adoptNS([[UIView alloc] init]);
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr inputView = adoptNS([[UIView alloc] init]);
+    RetainPtr inputAccessoryView = adoptNS([[UIView alloc] init]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
     [inputDelegate setWillStartInputSessionHandler:[inputView, inputAccessoryView] (WKWebView *, id<_WKFormInputSession> session) {
         session.customInputView = inputView.get();
         session.customInputAccessoryView = inputAccessoryView.get();
@@ -371,8 +371,8 @@ TEST(KeyboardInputTests, CanHandleKeyEventInCompletionHandler)
     auto [webView, inputDelegate] = webViewAndInputDelegateWithAutofocusedInput();
     bool doneWaiting = false;
 
-    auto firstWebEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
-    auto secondWebEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyUp timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
+    RetainPtr firstWebEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
+    RetainPtr secondWebEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyUp timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
     [webView handleKeyEvent:firstWebEvent.get() completion:[&](WebEvent *event, BOOL) {
         EXPECT_TRUE([event isEqual:firstWebEvent.get()]);
         [webView handleKeyEvent:secondWebEvent.get() completion:[&] (WebEvent *event, BOOL) {
@@ -389,7 +389,7 @@ TEST(KeyboardInputTests, CanHandleKeyEventInCompletionHandler)
 TEST(KeyboardInputTests, ResigningFirstResponderCancelsKeyEvents)
 {
     auto [webView, inputDelegate] = webViewAndInputDelegateWithAutofocusedInput();
-    auto keyDownEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
+    RetainPtr keyDownEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
 
     [webView becomeFirstResponder];
     [webView evaluateJavaScript:@"while(1);" completionHandler:nil];
@@ -407,8 +407,8 @@ TEST(KeyboardInputTests, ResigningFirstResponderCancelsKeyEvents)
 
 TEST(KeyboardInputTests, WaitForKeyEventHandlerInFirstResponder)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto keyDownEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr keyDownEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
 
     [webView becomeFirstResponder];
     [webView synchronouslyLoadHTMLString:@"<body></body>"];
@@ -426,9 +426,9 @@ TEST(KeyboardInputTests, WaitForKeyEventHandlerInFirstResponder)
 
 TEST(KeyboardInputTests, HandleKeyEventsInCrashedOrUninitializedWebProcess)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     {
-        auto keyDownEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:65 isTabKey:NO]);
+        RetainPtr keyDownEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:65 isTabKey:NO]);
         bool doneWaiting = false;
         [webView synchronouslyLoadHTMLString:@"<body></body>"];
         [webView evaluateJavaScript:@"while (1);" completionHandler:nil];
@@ -441,7 +441,7 @@ TEST(KeyboardInputTests, HandleKeyEventsInCrashedOrUninitializedWebProcess)
         TestWebKitAPI::Util::run(&doneWaiting);
     }
     {
-        auto keyUpEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyUp timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:65 isTabKey:NO]);
+        RetainPtr keyUpEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyUp timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:65 isTabKey:NO]);
         bool doneWaiting = false;
         [webView _close];
         [webView handleKeyEvent:keyUpEvent.get() completion:[&](WebEvent *event, BOOL handled) {
@@ -457,14 +457,14 @@ TEST(KeyboardInputTests, HandleKeyEventsWhileSwappingWebProcess)
 {
     [TestProtocol registerWithScheme:@"https"];
 
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     [processPoolConfiguration setProcessSwapsOnNavigation:YES];
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool:processPool.get()];
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView loadHTMLString:@"<body>webkit.org</body>" baseURL:[NSURL URLWithString:@"https://webkit.org"]];
     [navigationDelegate waitForDidFinishNavigation];
@@ -473,7 +473,7 @@ TEST(KeyboardInputTests, HandleKeyEventsWhileSwappingWebProcess)
     [navigationDelegate waitForDidStartProvisionalNavigation];
 
     bool done = false;
-    auto keyEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:65 isTabKey:NO]);
+    RetainPtr keyEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:65 isTabKey:NO]);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.01 * NSEC_PER_SEC)), mainDispatchQueueSingleton(), [keyEvent, webView, &done] {
         [webView handleKeyEvent:keyEvent.get() completion:[keyEvent, &done](WebEvent *event, BOOL handled) {
             EXPECT_TRUE([event isEqual:keyEvent.get()]);
@@ -552,8 +552,8 @@ TEST(KeyboardInputTests, RangedSelectionRectAfterRestoringFirstResponder)
 
 TEST(KeyboardInputTests, IsSingleLineDocument)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -574,8 +574,8 @@ TEST(KeyboardInputTests, IsSingleLineDocument)
 
 TEST(KeyboardInputTests, KeyboardTypeForInput)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
 
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
@@ -645,10 +645,10 @@ TEST(KeyboardInputTests, KeyboardTypeForInput)
 
 TEST(KeyboardInputTests, OverrideInputViewAndInputAccessoryView)
 {
-    auto inputView = adoptNS([[UIView alloc] init]);
-    auto inputAccessoryView = adoptNS([[UIView alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[CustomInputWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568) configuration:configuration.get() inputView:inputView.get() inputAccessoryView:inputAccessoryView.get()]);
+    RetainPtr inputView = adoptNS([[UIView alloc] init]);
+    RetainPtr inputAccessoryView = adoptNS([[UIView alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[CustomInputWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568) configuration:configuration.get() inputView:inputView.get() inputAccessoryView:inputAccessoryView.get()]);
     auto contentView = [webView textInputContentView];
 
     EXPECT_EQ(inputAccessoryView.get(), [contentView inputAccessoryView]);
@@ -659,8 +659,8 @@ TEST(KeyboardInputTests, OverrideTextInputTraits)
 {
     UIKeyboardType keyboardType = UIKeyboardTypeNumberPad;
 
-    auto webView = adoptNS([[CustomTextInputTraitsWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) keyboardType:keyboardType]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[CustomTextInputTraitsWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) keyboardType:keyboardType]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id<_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
@@ -674,8 +674,8 @@ TEST(KeyboardInputTests, OverrideTextInputTraits)
 
 TEST(KeyboardInputTests, ClearSelectedTextRange)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id<_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
@@ -694,8 +694,8 @@ TEST(KeyboardInputTests, ClearSelectedTextRange)
 
 TEST(KeyboardInputTests, DisableSpellChecking)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
@@ -728,8 +728,8 @@ TEST(KeyboardInputTests, DisableSpellChecking)
 // FIXME: rdar://163669257 (REGRESSION(iOS26):TestWebKitAPI.KeyboardInputTests.SelectionClipRectsWhenPresentingInputView is a constant failure (301658))
 TEST(KeyboardInputTests, DISABLED_SelectionClipRectsWhenPresentingInputView)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
@@ -752,8 +752,8 @@ TEST(KeyboardInputTests, TestWebViewAdditionalContextForStrongPasswordAssistance
 {
     NSDictionary *expected = @{ @"strongPasswordAdditionalContext" : @"testUUID" };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
 
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
@@ -783,8 +783,8 @@ TEST(KeyboardInputTests, TestWebViewAdditionalContextForStrongPasswordAssistance
 
 TEST(KeyboardInputTests, TestWebViewAdditionalContextForNonAutofillCredentialType)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
 
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id<_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
@@ -807,8 +807,8 @@ TEST(KeyboardInputTests, TestWebViewAdditionalContextForNonAutofillCredentialTyp
 
 TEST(KeyboardInputTests, AsyncFocusRequiresStrongPasswordAssistanceAfterBlurNoStartSession)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
 
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id<_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
@@ -839,8 +839,8 @@ TEST(KeyboardInputTests, AsyncFocusRequiresStrongPasswordAssistanceAfterBlurNoSt
 
 TEST(KeyboardInputTests, TestWebViewAccessoryDoneDuringStrongPasswordAssistance)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
 
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id<_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
@@ -862,11 +862,11 @@ TEST(KeyboardInputTests, TestWebViewAccessoryDoneDuringStrongPasswordAssistance)
 
 TEST(KeyboardInputTests, SuppressSoftwareKeyboard)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView _setSuppressSoftwareKeyboard:YES];
     [[webView window] makeKeyWindow];
 
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&](WKWebView *, id <_WKFocusedElementInfo>) {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
@@ -886,8 +886,8 @@ TEST(KeyboardInputTests, InsertTextSimulatingKeyboardInput)
 {
     InstanceMethodSwizzler overrideShouldSimulateKeyboardInputOnTextInsertion { NSClassFromString(@"WKContentView"), @selector(_shouldSimulateKeyboardInputOnTextInsertion), reinterpret_cast<IMP>(shouldSimulateKeyboardInputOnTextInsertionOverride) };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&](WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -902,8 +902,8 @@ TEST(KeyboardInputTests, InsertDictationAlternativesSimulatingKeyboardInput)
 {
     InstanceMethodSwizzler overrideShouldSimulateKeyboardInputOnTextInsertion { NSClassFromString(@"WKContentView"), @selector(_shouldSimulateKeyboardInputOnTextInsertion), reinterpret_cast<IMP>(shouldSimulateKeyboardInputOnTextInsertionOverride) };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&](WKWebView *, id <_WKFocusedElementInfo>) { return _WKFocusStartsInputSessionPolicyAllow; }];
     [webView _setInputDelegate:inputDelegate.get()];
 
@@ -916,25 +916,25 @@ TEST(KeyboardInputTests, InsertDictationAlternativesSimulatingKeyboardInput)
 
 TEST(KeyboardInputTests, OverrideUndoManager)
 {
-    auto webView = adoptNS([[CustomUndoManagerWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[CustomUndoManagerWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     auto contentView = [webView wkContentView];
     EXPECT_EQ(contentView.undoManager, contentView.undoManagerForWebView);
 
-    auto undoManager = adoptNS([[NSUndoManager alloc] init]);
+    RetainPtr undoManager = adoptNS([[NSUndoManager alloc] init]);
     [webView setCustomUndoManager:undoManager.get()];
     EXPECT_EQ(contentView.undoManager, undoManager);
 }
 
 TEST(KeyboardInputTests, DoNotRegisterActionsInOverriddenUndoManager)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setUndoManagerAPIEnabled:YES];
 
-    auto webView = adoptNS([[CustomUndoManagerWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[CustomUndoManagerWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
     auto contentView = [webView wkContentView];
     EXPECT_FALSE([contentView.undoManagerForWebView canUndo]);
 
-    auto overrideUndoManager = adoptNS([[NSUndoManager alloc] init]);
+    RetainPtr overrideUndoManager = adoptNS([[NSUndoManager alloc] init]);
     [webView setCustomUndoManager:overrideUndoManager.get()];
 
     __block bool doneWaiting = false;
@@ -950,8 +950,8 @@ TEST(KeyboardInputTests, DoNotRegisterActionsInOverriddenUndoManager)
 
 TEST(KeyboardInputTests, NewUndoGroupClosesPreviousTypingCommand)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[](WKWebView *, id<_WKFocusedElementInfo>) {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
@@ -998,8 +998,8 @@ static UIView * nilResizableSnapshotViewFromRect(id, SEL, CGRect, BOOL, UIEdgeIn
 
 TEST(KeyboardInputTests, DoNotCrashWhenFocusingSelectWithoutViewSnapshot)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto delegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr delegate = adoptNS([TestInputDelegate new]);
     [webView _setInputDelegate:delegate.get()];
     [delegate setFocusStartsInputSessionPolicyHandler:[](WKWebView *, id <_WKFocusedElementInfo>) {
         return _WKFocusStartsInputSessionPolicyAllow;
@@ -1021,8 +1021,8 @@ TEST(KeyboardInputTests, EditableWebViewRequiresKeyboardWhenFirstResponder)
     InstanceMethodSwizzler hardwareKeyboardAttachedSwizzler { UIKeyboardImpl.class, @selector(hardwareKeyboardAttached), returnNo };
     ClassMethodSwizzler hardwareKeyboardModeSwizzler { UIKeyboard.class, @selector(isInHardwareKeyboardMode), returnNo };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto delegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr delegate = adoptNS([TestInputDelegate new]);
     [webView _setInputDelegate:delegate.get()];
     [delegate setFocusStartsInputSessionPolicyHandler:[](WKWebView *, id <_WKFocusedElementInfo>) {
         return _WKFocusStartsInputSessionPolicyAllow;
@@ -1044,7 +1044,7 @@ TEST(KeyboardInputTests, EditableWebViewRequiresKeyboardWhenFirstResponder)
 TEST(KeyboardInputTests, InputSessionWhenEvaluatingJavaScript)
 {
     __block bool done = false;
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     bool willStartInputSession = false;
     [inputDelegate setWillStartInputSessionHandler:[&] (WKWebView *, id<_WKFormInputSession>) {
         willStartInputSession = true;
@@ -1054,7 +1054,7 @@ TEST(KeyboardInputTests, InputSessionWhenEvaluatingJavaScript)
         didStartInputSession = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView _setInputDelegate:inputDelegate.get()];
     [webView synchronouslyLoadHTMLString:@"<input value='foo'>"];
 
@@ -1098,15 +1098,15 @@ TEST(KeyboardInputTests, InputSessionWhenEvaluatingJavaScript)
 
 TEST(KeyboardInputTests, NoCrashWhenDiscardingMarkedText)
 {
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     [processPoolConfiguration setProcessSwapsOnNavigation:YES];
 
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool:processPool.get()];
 
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView _setEditable:YES];
 
@@ -1158,8 +1158,8 @@ TEST(KeyboardInputTests, NoCrashWithEmptyAttributedMarkedText)
 
 TEST(KeyboardInputTests, CharactersAroundCaretSelection)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto delegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr delegate = adoptNS([TestInputDelegate new]);
     [webView _setInputDelegate:delegate.get()];
 
     bool focused = false;
@@ -1192,10 +1192,10 @@ TEST(KeyboardInputTests, CharactersAroundCaretSelection)
 TEST(KeyboardInputTests, MarkedTextSegmentsWithUnderlines)
 {
     auto frame = CGRectMake(0, 0, 100, 100);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:frame configuration:configuration.get() addToWindow:NO]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:frame configuration:configuration.get() addToWindow:NO]);
 
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:[webView frame]]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:[webView frame]]);
     [window addSubview:webView.get()];
 
     [webView _setEditable:YES];
@@ -1203,7 +1203,7 @@ TEST(KeyboardInputTests, MarkedTextSegmentsWithUnderlines)
     [webView selectAll:nil];
 
     auto setMarkedTextWithUnderlines = [&](NSUnderlineStyle firstUnderlineStyle, NSUnderlineStyle secondUnderlineStyle) {
-        auto composition = adoptNS([[NSMutableAttributedString alloc] initWithString:@"なんですか？"]);
+        RetainPtr composition = adoptNS([[NSMutableAttributedString alloc] initWithString:@"なんですか？"]);
         [composition addAttributes:@{
             NSMarkedClauseSegmentAttributeName: @(0),
             NSUnderlineStyleAttributeName: @(firstUnderlineStyle),
@@ -1222,7 +1222,7 @@ TEST(KeyboardInputTests, MarkedTextSegmentsWithUnderlines)
     setMarkedTextWithUnderlines(NSUnderlineStyleSingle, NSUnderlineStyleThick);
     [webView waitForNextPresentationUpdate];
 
-    auto snapshotConfiguration = adoptNS([[WKSnapshotConfiguration alloc] init]);
+    RetainPtr snapshotConfiguration = adoptNS([[WKSnapshotConfiguration alloc] init]);
     [snapshotConfiguration setAfterScreenUpdates:YES];
 
     auto takeSnapshot = [&] {
@@ -1258,13 +1258,13 @@ TEST(KeyboardInputTests, MarkedTextSegmentsWithUnderlines)
 
 TEST(KeyboardInputTests, HasTextAfterFocusingTextField)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 600)]);
 
     enum class HasText : bool { No, Yes };
     __block Vector<std::pair<WKInputType, HasText>, 3> results;
     __block bool doneWaitingForInputSession = false;
 
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setDidStartInputSessionHandler:^(WKWebView *webView, id<_WKFormInputSession> session) {
         results.append({
             session.focusedElementInfo.type,
@@ -1310,16 +1310,16 @@ TEST(KeyboardInputTests, HasTextAfterFocusingTextField)
 TEST(KeyboardInputTests, AutocorrectionIndicatorColorNotAffectedByAuthorDefinedAncestorColorProperty)
 {
     auto frame = CGRectMake(0, 0, 320, 568);
-    auto window = adoptNS([[UIWindow alloc] initWithFrame:frame]);
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:frame]);
 
     auto createSnapshotForHTMLString = ^(NSString *HTMLString) {
         auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
 
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:frame configuration:configuration addToWindow:NO]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:frame configuration:configuration addToWindow:NO]);
 
         [window addSubview:webView.get()];
 
-        auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+        RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
         [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id<_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
             return _WKFocusStartsInputSessionPolicyAllow;
         }];
@@ -1352,7 +1352,7 @@ TEST(KeyboardInputTests, AutocorrectionIndicatorColorNotAffectedByAuthorDefinedA
 
         [webView waitForNextPresentationUpdate];
 
-        auto snapshotConfiguration = adoptNS([[WKSnapshotConfiguration alloc] init]);
+        RetainPtr snapshotConfiguration = adoptNS([[WKSnapshotConfiguration alloc] init]);
         [snapshotConfiguration setAfterScreenUpdates:YES];
 
         __block RetainPtr<CGImage> result;
@@ -1445,9 +1445,9 @@ TEST(KeyboardInputTests, DeviceEIDAndIMEIAutoFill)
     };
     [WKWebView _setApplicationBundleIdentifier:@"org.webkit.SomeTelephonyApp"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[](WKWebView *, id<_WKFocusedElementInfo>) {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
@@ -1499,7 +1499,7 @@ TEST(KeyboardInputTests, DeviceEIDAndIMEIAutoFill)
 
 TEST(KeyboardInputTests, ImplementAllOptionalTextInputTraits)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
     auto traits = [webView effectiveTextInputTraits];
     EXPECT_EQ(traits.autocapitalizationType, UITextAutocapitalizationTypeSentences);
     EXPECT_EQ(traits.spellCheckingType, UITextSpellCheckingTypeDefault);

@@ -2075,6 +2075,12 @@
     "imported/w3c/web-platform-tests/dom/nodes/ParentNode-querySelector-All.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/dom/nodes/moveBefore/preserve-render-blocking-script.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/dom/nodes/moveBefore/preserve-render-blocking-style.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/dom/nodes/name-validation.html": [
         "slow"
     ],
@@ -2967,6 +2973,33 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/fetch/api/request/request-keepalive-quota.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/fetch/compression-dictionary/dictionary-clear-site-data-cache.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/fetch/compression-dictionary/dictionary-clear-site-data-cookies.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/fetch/compression-dictionary/dictionary-clear-site-data-storage.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/fetch/compression-dictionary/dictionary-compressed.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/fetch/compression-dictionary/dictionary-decompression.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/fetch/compression-dictionary/dictionary-fetch-no-cors.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/fetch/compression-dictionary/dictionary-fetch-with-link-element.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/fetch/compression-dictionary/dictionary-fetch-with-link-header.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/fetch/compression-dictionary/dictionary-registration.tentative.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/fetch/connection-pool/network-partition-key.html": [
@@ -4091,6 +4124,21 @@
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-4.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-5.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-across-slot.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-form-control.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-inside-shadow-dom.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-inside-slot.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-tabindex.html": [
         "slow"
     ],
@@ -4109,10 +4157,10 @@
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss-hint.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss-with-anchor.tentative.html": [
+    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss.html": [
+    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-shadowhost-focus-navigation.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/scripting-1/the-script-element/async_003.htm": [
@@ -5754,6 +5802,66 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/shadow-dom/declarative/gethtml.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/focus-navigation-slot-nested-2levels.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/focus-navigation-slots-in-slot.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/focus-navigation-with-delegatesFocus.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/focus-navigation.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/carousel-grid-order.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/flex-flow.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/grid-auto-flow-reading-order.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/grid-columns.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/grid-order-pseudo-elements.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/grid-order-with-display-contents.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/grid-order-with-nested-grids.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/grid-order-with-popover.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/grid-order-with-position-absolute.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/grid-order-with-position-fixed.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/grid-order-with-slots.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/grid-order.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/grid-rows.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/normal.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/source-order-invalid.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/shadow-dom/focus-navigation/reading-flow/tentative/source-order-valid.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/speculation-rules/invalid-rules.https.html": [

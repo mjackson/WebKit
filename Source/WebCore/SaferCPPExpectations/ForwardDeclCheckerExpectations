@@ -57,7 +57,6 @@ page/scrolling/ScrollingStateNode.h
 [ Mac ] page/scrolling/ScrollingStateScrollingNode.cpp
 platform/PODRedBlackTree.h
 platform/cocoa/TelephoneNumberDetectorCocoa.cpp
-platform/graphics/ImageBufferContextSwitcher.h
 platform/graphics/ca/PlatformCALayer.h
 platform/graphics/ca/TileController.cpp
 [ iOS ] platform/ios/DeviceMotionClientIOS.h
@@ -71,3 +70,4 @@ style/StyleExtractorState.h
 style/StyleScope.h
 style/values/images/kinds/StyleCachedImage.cpp
 testing/Internals.cpp
+style/StyleBuilderState.h

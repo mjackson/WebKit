@@ -133,20 +133,44 @@ function(GENERATE_BINDINGS target)
         list(APPEND gen_headers ${arg_DESTINATION}/JS${_name}.h)
     endforeach ()
     set(${arg_OUTPUT_SOURCE} ${${arg_OUTPUT_SOURCE}} ${gen_sources} PARENT_SCOPE)
-    set(act_args)
     if (SHOW_BINDINGS_GENERATION_PROGRESS)
         list(APPEND args --showProgress)
     endif ()
-    list(APPEND act_args BYPRODUCTS ${gen_sources} ${gen_headers})
-    if (SHOW_BINDINGS_GENERATION_PROGRESS)
-        list(APPEND act_args USES_TERMINAL)
+
+    # Use a stamp file so the build system only runs the generator when inputs
+    # actually change, instead of on every build (add_custom_target is always
+    # considered out of date).
+    set(_stamp_file ${arg_DESTINATION}/${target}.stamp)
+
+    set(_byproducts ${gen_sources} ${gen_headers})
+    if (arg_PP_EXTRA_OUTPUT)
+        list(APPEND _byproducts ${arg_PP_EXTRA_OUTPUT})
     endif ()
-    add_custom_target(${target}
+    if (arg_SUPPLEMENTAL_DEPFILE)
+        list(APPEND _byproducts ${arg_SUPPLEMENTAL_DEPFILE})
+    endif ()
+
+    set(_uses_terminal)
+    if (SHOW_BINDINGS_GENERATION_PROGRESS)
+        set(_uses_terminal USES_TERMINAL)
+    endif ()
+
+    add_custom_command(
+        OUTPUT ${_stamp_file}
         COMMAND ${PERL_EXECUTABLE} ${binding_generator} ${args}
-        DEPENDS ${arg_INPUT_FILES} ${arg_PP_INPUT_FILES}
+        COMMAND ${CMAKE_COMMAND} -E touch ${_stamp_file}
+        DEPENDS
+            ${arg_INPUT_FILES}
+            ${arg_PP_INPUT_FILES}
+            ${common_generator_dependencies}
+            ${binding_generator}
+            ${idl_attributes_file}
         WORKING_DIRECTORY ${arg_BASE_DIR}
         COMMENT "Generate bindings (${target})"
-        VERBATIM ${act_args})
+        VERBATIM
+        BYPRODUCTS ${_byproducts}
+        ${_uses_terminal})
+    add_custom_target(${target} DEPENDS ${_stamp_file})
 endfunction()
 
 

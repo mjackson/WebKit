@@ -56,8 +56,8 @@ window.webkit.messageHandlers.testHandler.postMessage("done");
 
 TEST(WebArchive, CreateCustomScheme)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
 
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
@@ -69,13 +69,13 @@ TEST(WebArchive, CreateCustomScheme)
         else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:0 textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:[NSData dataWithBytes:bytes length:strlen(bytes)]];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     static bool done = false;
     [webView createWebArchiveDataWithCompletionHandler:^(NSData *result, NSError *error) {
@@ -123,8 +123,8 @@ TEST(WebArchive, CreateCustomScheme)
 static RetainPtr<NSData> webArchiveAccessingCookies()
 {
     HTTPServer server({ { "/"_s, { "<script>document.cookie</script>"_s } } }, HTTPServer::Protocol::HttpsProxy);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:server.httpsProxyConfiguration()]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:server.httpsProxyConfiguration()]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     webView.get().navigationDelegate = navigationDelegate.get();
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://webkit.org/"]]];
@@ -148,7 +148,7 @@ TEST(WebArchive, CookieAccessAfterLoadRequest)
     BOOL success = [webArchive writeToFile:path atomically:YES];
     EXPECT_TRUE(success);
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL fileURLWithPath:path isDirectory:NO]]];
     [webView _test_waitForDidFinishNavigation];
     [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
@@ -157,7 +157,7 @@ TEST(WebArchive, CookieAccessAfterLoadRequest)
 TEST(WebArchive, CookieAccessAfterLoadData)
 {
     auto webArchive = webArchiveAccessingCookies();
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView loadData:webArchive.get() MIMEType:@"application/x-webarchive" characterEncodingName:@"utf-8" baseURL:[NSURL URLWithString:@"http://example.com/"]];
     [webView _test_waitForDidFinishNavigation];
 }
@@ -166,7 +166,7 @@ TEST(WebArchive, ApplicationXWebarchiveMIMETypeDoesNotLoadHTML)
 {
     HTTPServer server({ { "/"_s, { { { "Content-Type"_s, "application/x-webarchive"_s } }, "Not web archive content, should not load"_s } } });
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView loadRequest:server.request()];
     [webView _test_waitForDidFailProvisionalNavigation];
 }
@@ -177,8 +177,8 @@ TEST(WebArchive, SaveResourcesBasic)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [@"<head><script src=\"script.js\"></script></head><img src=\"image.png\" onload=\"onImageLoad()\"><script>function onImageLoad() { notifyTestRunner(); }</script>" dataUsingEncoding:NSUTF8StringEncoding];
     NSData *scriptData = [@"function notifyTestRunner() { window.webkit.messageHandlers.testHandler.postMessage(\"done\"); }" dataUsingEncoding:NSUTF8StringEncoding];
@@ -198,13 +198,13 @@ TEST(WebArchive, SaveResourcesBasic)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -268,8 +268,8 @@ TEST(WebArchive, SaveResourcesIframe)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForIframe length:strlen(htmlDataBytesForIframe)];
     NSData *iframeHTMLData = [NSData dataWithBytes:iframeHTMLDataBytes length:strlen(iframeHTMLDataBytes)];
@@ -293,13 +293,13 @@ TEST(WebArchive, SaveResourcesIframe)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -378,8 +378,8 @@ TEST(WebArchive, SaveResourcesFrame)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForFrame length:strlen(htmlDataBytesForFrame)];
     NSData *frameHTMLData = [NSData dataWithBytes:frameHTMLDataBytes length:strlen(frameHTMLDataBytes)];
@@ -399,13 +399,13 @@ TEST(WebArchive, SaveResourcesFrame)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -459,8 +459,8 @@ TEST(WebArchive, SaveResourcesValidFileName)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
 
     NSMutableString *mutableFileName = [NSMutableString stringWithCapacity:256];
@@ -491,13 +491,13 @@ TEST(WebArchive, SaveResourcesValidFileName)
             mimeType = @"image/png";
             data = imageData;
         }
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -560,8 +560,8 @@ TEST(WebArchive, SaveResourcesBlobURL)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
 
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForBlobURL length:strlen(htmlDataBytesForBlobURL)];
@@ -578,13 +578,13 @@ TEST(WebArchive, SaveResourcesBlobURL)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -671,8 +671,8 @@ TEST(WebArchive, SaveResourcesResponsiveImages)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForResponsiveImages length:strlen(htmlDataBytesForResponsiveImages)];
     NSData *imageData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"400x400-green" withExtension:@"png"]];
@@ -688,13 +688,13 @@ TEST(WebArchive, SaveResourcesResponsiveImages)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -743,8 +743,8 @@ TEST(WebArchive, SaveResourcesDataURL)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
 
     NSData *htmlData = [NSData dataWithBytes:hTMLDataBytesForDataURL length:strlen(hTMLDataBytesForDataURL)];
@@ -761,13 +761,13 @@ TEST(WebArchive, SaveResourcesDataURL)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -844,8 +844,8 @@ TEST(WebArchive, SaveResourcesIframeInIframe)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForIframeInIframe length:strlen(htmlDataBytesForIframeInIframe)];
     NSData *iframe1HTMLData = [NSData dataWithBytes:iframe1HTMLDataBytes length:strlen(iframe1HTMLDataBytes)];
@@ -865,13 +865,13 @@ TEST(WebArchive, SaveResourcesIframeInIframe)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -949,8 +949,8 @@ TEST(WebArchive, SaveResourcesIframesWithSameURL)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForIframesWithSameURL length:strlen(htmlDataBytesForIframesWithSameURL)];
     NSData *iframeHTMLData = [NSData dataWithBytes:iframeHTMLDataBytesForIframesWithSameURL length:strlen(iframeHTMLDataBytesForIframesWithSameURL)];
@@ -966,13 +966,13 @@ TEST(WebArchive, SaveResourcesIframesWithSameURL)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -1040,8 +1040,8 @@ TEST(WebArchive, SaveResourcesShadowDOM)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForShadowDOM length:strlen(htmlDataBytesForShadowDOM)];
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
@@ -1053,13 +1053,13 @@ TEST(WebArchive, SaveResourcesShadowDOM)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"start" action:[&] {
         messageReceived = true;
@@ -1105,8 +1105,8 @@ TEST(WebArchive, SaveResourcesDeclarativeShadowDOM)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForDeclarativeShadowDOM length:strlen(htmlDataBytesForDeclarativeShadowDOM)];
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
@@ -1118,13 +1118,13 @@ TEST(WebArchive, SaveResourcesDeclarativeShadowDOM)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -1172,8 +1172,8 @@ TEST(WebArchive, SaveResourcesStyle)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForStyle length:strlen(htmlDataBytesForStyle)];
     NSData *imageData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"400x400-green" withExtension:@"png"]];
@@ -1193,13 +1193,13 @@ TEST(WebArchive, SaveResourcesStyle)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -1245,8 +1245,8 @@ TEST(WebArchive, SaveResourcesInlineStyle)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForInlineStyle length:strlen(htmlDataBytesForInlineStyle)];
     NSData *imageData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"400x400-green" withExtension:@"png"]];
@@ -1262,13 +1262,13 @@ TEST(WebArchive, SaveResourcesInlineStyle)
         } else
             FAIL();
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -1342,8 +1342,8 @@ TEST(WebArchive, SaveResourcesLink)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForLink length:strlen(htmlDataBytesForLink)];
     NSData *cssData = [NSData dataWithBytes:cssDataBytesForLink length:strlen(cssDataBytesForLink)];
@@ -1370,13 +1370,13 @@ TEST(WebArchive, SaveResourcesLink)
             data = fontData;
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -1510,8 +1510,8 @@ TEST(WebArchive, SaveResourcesLinksWithSameURL)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForLinksWithSameURL length:strlen(htmlDataBytesForLinksWithSameURL)];
     NSData *cssData = [NSData dataWithBytes:cssDataBytesForLinksWithSameURL length:strlen(cssDataBytesForLinksWithSameURL)];
@@ -1526,13 +1526,13 @@ TEST(WebArchive, SaveResourcesLinksWithSameURL)
             data = cssData;
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -1598,8 +1598,8 @@ TEST(WebArchive, SaveResourcesCSSImportRule)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForCSSImportRule length:strlen(htmlDataBytesForCSSImportRule)];
     NSData *cssData = [NSData dataWithBytes:cssDataBytesForLink length:strlen(cssDataBytesForLink)];
@@ -1618,13 +1618,13 @@ TEST(WebArchive, SaveResourcesCSSImportRule)
             data = cssData;
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -1687,8 +1687,8 @@ TEST(WebArchive, SaveResourcesCSSSupportsRule)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForCSSSupportsRule length:strlen(htmlDataBytesForCSSSupportsRule)];
     NSData *imageData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"400x400-green" withExtension:@"png"]];
@@ -1703,13 +1703,13 @@ TEST(WebArchive, SaveResourcesCSSSupportsRule)
             data = imageData;
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -1782,7 +1782,7 @@ TEST(WebArchive, SaveResourcesCSSMediaRule)
             data = imageData.get();
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data];
         [task didFinish];
@@ -1840,8 +1840,8 @@ TEST(WebArchive, SaveResourcesCrossOriginLink)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForCrossOriginLink length:strlen(htmlDataBytesForCrossOriginLink)];
     NSData *cssData = [NSData dataWithBytes:cssDataBytesForCrossOriginLink length:strlen(cssDataBytesForCrossOriginLink)];
@@ -1856,13 +1856,13 @@ TEST(WebArchive, SaveResourcesCrossOriginLink)
             data = cssData;
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -1909,8 +1909,8 @@ TEST(WebArchive, SaveResourcesExcludeBaseElement)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForExcludeBaseElement length:strlen(htmlDataBytesForExcludeBaseElement)];
     NSData *imageData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"400x400-green" withExtension:@"png"]];
@@ -1925,13 +1925,13 @@ TEST(WebArchive, SaveResourcesExcludeBaseElement)
             data = imageData;
         }
 
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -1978,8 +1978,8 @@ TEST(WebArchive, SaveResourcesExclusionRules)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForExclusionRules length:strlen(htmlDataBytesForExclusionRules)];
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
@@ -1991,13 +1991,13 @@ TEST(WebArchive, SaveResourcesExclusionRules)
         }
 
         EXPECT_TRUE(data.get());
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:mimeType expectedContentLength:data.get().length textEncodingName:nil]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -2050,8 +2050,8 @@ TEST(WebArchive, SaveResourcesExcludeCrossOriginAttribute)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForExcludeCrossOriginAttribute length:strlen(htmlDataBytesForExcludeCrossOriginAttribute)];
     NSData *scriptData = [NSData dataWithBytes:scriptDataBytesForExcludeCrossOriginAttribute length:strlen(scriptDataBytesForExcludeCrossOriginAttribute)];
@@ -2081,13 +2081,13 @@ TEST(WebArchive, SaveResourcesExcludeCrossOriginAttribute)
         if (shouldAddAccessControlHeader)
             [headerFields setObject:@"*" forKey:@"Access-Control-Allow-Origin"];
 
-        auto response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:task.request.URL statusCode:200 HTTPVersion:nil headerFields:headerFields.get()]);
+        RetainPtr response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:task.request.URL statusCode:200 HTTPVersion:nil headerFields:headerFields.get()]);
         [task didReceiveResponse:response.get()];
         [task didReceiveData:data.get()];
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;
@@ -2150,8 +2150,8 @@ TEST(WebArchive, SaveResourcesStyleWithUnloadedResources)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     RetainPtr htmlData = [NSData dataWithBytes:htmlDataBytesForUnsavedSubresources length:strlen(htmlDataBytesForUnsavedSubresources)];
     RetainPtr fontData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"Ahem-10000A" withExtension:@"ttf"]];
@@ -2215,8 +2215,8 @@ TEST(WebArchive, SaveResourcesWithUTF8Encoding)
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtURL:directoryURL.get() error:nil];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"webarchivetest"];
     NSData *htmlData = [NSData dataWithBytes:htmlDataBytesForUTF8Encoding length:strlen(htmlDataBytesForUTF8Encoding)];
     [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
@@ -2234,7 +2234,7 @@ TEST(WebArchive, SaveResourcesWithUTF8Encoding)
         [task didFinish];
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     static bool messageReceived = false;
     [webView performAfterReceivingMessage:@"done" action:[&] {
         messageReceived = true;

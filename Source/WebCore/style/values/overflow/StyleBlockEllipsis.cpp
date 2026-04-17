@@ -36,20 +36,21 @@ namespace Style {
 
 auto CSSValueConversion<BlockEllipsis>::operator()(BuilderState& state, const CSSValue& value) -> BlockEllipsis
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return CSS::Keyword::None { };
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
+        switch (primitiveValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        case CSSValueAuto:
+            return CSS::Keyword::Auto { };
+        default:
+            break;
+        }
 
-    switch (primitiveValue->valueID()) {
-    case CSSValueNone:
+        state.setCurrentPropertyInvalidAtComputedValueTime();
         return CSS::Keyword::None { };
-    case CSSValueAuto:
-        return CSS::Keyword::Auto { };
-    default:
-        break;
     }
 
-    return AtomString { primitiveValue->stringValue() };
+    return toStyleFromCSSValue<String>(state, value);
 }
 
 } // namespace Style

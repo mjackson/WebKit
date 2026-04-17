@@ -474,7 +474,7 @@ Navigation::Result Navigation::performTraversal(JSC::JSGlobalObject& globalObjec
         return createErrorResult(WTF::move(committed), WTF::move(finished), ExceptionCode::InvalidStateError, "Invalid state"_s);
 
     if (!hasEntryWithKey(key))
-        createErrorResult(WTF::move(committed), WTF::move(finished), ExceptionCode::AbortError, "Navigation aborted"_s);
+        return createErrorResult(WTF::move(committed), WTF::move(finished), ExceptionCode::AbortError, "Navigation aborted"_s);
 
     RefPtr frame = this->frame();
     if (!frame->isMainFrame() && protect(window->document())->canNavigate(protect(frame->page()->mainFrame()).ptr()) != CanNavigateState::Able)
@@ -1185,8 +1185,10 @@ std::optional<Navigation::DispatchResult> Navigation::handleSameDocumentNavigati
                 auto* navGlobalObject = protect(protectedThis->scriptExecutionContext())->globalObject();
                 protectedThis->dispatchEvent(ErrorEvent::create(*navGlobalObject, eventNames().navigateerrorEvent, errorMessage, errorInformation.sourceURL, errorInformation.line, errorInformation.column, { navGlobalObject->vm(), result }));
 
-                if (apiMethodTracker)
-                    Ref { apiMethodTracker->finishedPromise }->reject<IDLAny>(result, RejectAsHandled::Yes);
+                if (apiMethodTracker) {
+                    protect(apiMethodTracker->finishedPromise)->reject<IDLAny>(result, RejectAsHandled::Yes);
+                    protectedThis->cleanupAPIMethodTracker(apiMethodTracker);
+                }
 
                 if (RefPtr transition = std::exchange(protectedThis->m_transition, nullptr))
                     transition->rejectPromise(result);

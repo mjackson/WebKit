@@ -40,6 +40,8 @@
 
 namespace WebCore {
 
+struct PlatformVideoColorSpace;
+
 class RealtimeOutgoingVideoSource
     : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<RealtimeOutgoingVideoSource, WTF::DestructionThread::Main>
     , public webrtc::VideoTrackSourceInterface
@@ -74,7 +76,7 @@ public:
 protected:
     explicit RealtimeOutgoingVideoSource(Ref<MediaStreamTrackPrivate>&&);
 
-    void sendFrame(webrtc::scoped_refptr<webrtc::VideoFrameBuffer>&&);
+    void sendFrame(webrtc::scoped_refptr<webrtc::VideoFrameBuffer>&&, const PlatformVideoColorSpace&);
     bool isSilenced() const { return m_muted || !m_enabled; }
 
     virtual webrtc::scoped_refptr<webrtc::VideoFrameBuffer> createBlackFrame(size_t width, size_t height) = 0;

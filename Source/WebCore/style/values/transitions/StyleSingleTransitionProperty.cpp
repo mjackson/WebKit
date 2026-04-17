@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,9 +26,8 @@
 #include "config.h"
 #include "StyleSingleTransitionProperty.h"
 
-#include "CSSPropertyParser.h"
+#include "CSSCustomIdentValue.h"
 #include "StyleBuilderChecking.h"
-#include "WebAnimationUtilities.h"
 
 namespace WebCore {
 namespace Style {
@@ -47,14 +46,14 @@ auto CSSValueConversion<SingleTransitionProperty>::operator()(BuilderState& stat
             break;
         }
 
-        auto propertyID = primitiveValue->propertyID();
-        if (propertyID == CSSPropertyInvalid)
-            return CustomIdent { AtomString { primitiveValue->stringValue() } };
-
-        return propertyID;
+        state.setCurrentPropertyInvalidAtComputedValueTime();
+        return CSS::Keyword::All { };
     }
 
-    return toStyleFromCSSValue<CustomIdent>(state, value);
+    if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value))
+        return toStyleFromCSSValue<CustomIdent>(state, *customIdentValue);
+
+    return toStyleFromCSSValue<PropertyIdentifier>(state, value);
 }
 
 } // namespace Style

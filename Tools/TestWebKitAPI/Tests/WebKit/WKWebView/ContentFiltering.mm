@@ -104,7 +104,7 @@ using DecisionPoint = WebCore::MockContentFilterSettings::DecisionPoint;
 static RetainPtr<WKWebViewConfiguration> configurationWithContentFilterSettings(Decision decision, DecisionPoint decisionPoint)
 {
     auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"ContentFilteringPlugIn"]);
-    auto contentFilterEnabler = adoptNS([[MockContentFilterEnabler alloc] initWithDecision:decision decisionPoint:decisionPoint]);
+    RetainPtr contentFilterEnabler = adoptNS([[MockContentFilterEnabler alloc] initWithDecision:decision decisionPoint:decisionPoint]);
     [[configuration processPool] _setObject:contentFilterEnabler.get() forBundleParameter:NSStringFromClass([MockContentFilterEnabler class])];
     return configuration;
 }
@@ -137,8 +137,8 @@ TEST(ContentFiltering, URLAfterServerRedirect)
         [TestProtocol registerWithScheme:@"https"];
 
         auto configuration = configurationWithContentFilterSettings(Decision::Allow, DecisionPoint::AfterAddData);
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-        auto navigationDelegate = adoptNS([[ServerRedirectNavigationDelegate alloc] init]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr navigationDelegate = adoptNS([[ServerRedirectNavigationDelegate alloc] init]);
         [webView setNavigationDelegate:navigationDelegate.get()];
         [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://redirect?pass"]]];
         TestWebKitAPI::Util::run(&isDone);
@@ -189,10 +189,10 @@ static void downloadTest(Decision decision, DecisionPoint decisionPoint)
         [TestProtocol registerWithScheme:@"https"];
 
         auto configuration = configurationWithContentFilterSettings(decision, decisionPoint);
-        auto downloadDelegate = adoptNS([[ContentFilteringDownloadDelegate alloc] init]);
+        RetainPtr downloadDelegate = adoptNS([[ContentFilteringDownloadDelegate alloc] init]);
         [[configuration processPool] _setDownloadDelegate:downloadDelegate.get()];
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-        auto navigationDelegate = adoptNS([[BecomeDownloadDelegate alloc] init]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr navigationDelegate = adoptNS([[BecomeDownloadDelegate alloc] init]);
         [webView setNavigationDelegate:navigationDelegate.get()];
         [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://redirect/?download"]]];
 
@@ -304,8 +304,8 @@ static void loadAlternateTest(Decision decision, DecisionPoint decisionPoint)
         [TestProtocol registerWithScheme:@"https"];
 
         auto configuration = configurationWithContentFilterSettings(decision, decisionPoint);
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-        auto navigationDelegate = adoptNS([[LoadAlternateNavigationDelegate alloc] init]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr navigationDelegate = adoptNS([[LoadAlternateNavigationDelegate alloc] init]);
         [webView setNavigationDelegate:navigationDelegate.get()];
         [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://redirect/?result"]]];
 
@@ -343,7 +343,7 @@ TEST(ContentFiltering, LoadAlternateAfterFinishedAddingDataWK2)
 
 TEST(ContentFiltering, CookieAccessFromReplacementData)
 {
-    auto networkProcessStarter = adoptNS([WKWebView new]);
+    RetainPtr networkProcessStarter = adoptNS([WKWebView new]);
     [networkProcessStarter synchronouslyLoadHTMLString:@"hi"];
     auto pidBefore = networkProcessStarter.get().configuration.websiteDataStore._networkProcessIdentifier;
     loadAlternateTest(Decision::Block, DecisionPoint::AfterWillSendRequest);
@@ -422,7 +422,7 @@ TEST(ContentFiltering, LazilyLoadPlatformFrameworks)
     method_setImplementation(method, reinterpret_cast<IMP>(isManagedSession));
 
     @autoreleasepool {
-        auto controller = adoptNS([[LazilyLoadPlatformFrameworksController alloc] init]);
+        RetainPtr controller = adoptNS([[LazilyLoadPlatformFrameworksController alloc] init]);
         [controller expectParentalControlsLoaded:NO];
 
         isDone = false;
@@ -529,8 +529,8 @@ TEST(ContentFiltering, URLAfterServerRedirectBlocked)
         });
 
         auto configuration = configurationWithContentFilterSettings(Decision::Block, DecisionPoint::AfterAddData);
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-        auto navigationDelegate = adoptNS([[LoadAlternateNavigationDelegate alloc] init]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr navigationDelegate = adoptNS([[LoadAlternateNavigationDelegate alloc] init]);
         [webView setNavigationDelegate:navigationDelegate.get()];
         [webView loadRequest:server.request()];
 

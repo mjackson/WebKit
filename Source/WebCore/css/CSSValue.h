@@ -1,6 +1,7 @@
 /*
  * (C) 1999-2003 Lars Knoll (knoll@kde.org)
  * Copyright (C) 2004-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -92,6 +93,7 @@ public:
     bool isFilterValue() const { return m_classType == ClassType::Filter; }
     bool isFontFaceSrcLocalValue() const { return m_classType == ClassType::FontFaceSrcLocal; }
     bool isFontFaceSrcResourceValue() const { return m_classType == ClassType::FontFaceSrcResource; }
+    bool isFontFamilyNameValue() const { return m_classType == ClassType::FontFamilyName; }
     bool isFontFeatureValue() const { return m_classType == ClassType::FontFeature; }
     bool isFontStyleRangeValue() const { return m_classType == ClassType::FontStyleRange; }
     bool isFontStyleWithAngleValue() const { return m_classType == ClassType::FontStyleWithAngle; }
@@ -116,12 +118,14 @@ public:
     bool isPositionXValue() const { return m_classType == ClassType::PositionX; }
     bool isPositionYValue() const { return m_classType == ClassType::PositionY; }
     bool isPrimitiveValue() const { return m_classType == ClassType::Primitive; }
+    bool isPropertyIdentifierValue() const { return m_classType == ClassType::PropertyIdentifier; }
     bool isQuad() const { return m_classType == ClassType::Quad; }
     bool isRatioValue() const { return m_classType == ClassType::Ratio; }
     bool isRayValue() const { return m_classType == ClassType::Ray; }
     bool isRect() const { return m_classType == ClassType::Rect; }
     bool isReflectValue() const { return m_classType == ClassType::Reflect; }
     bool isScrollValue() const { return m_classType == ClassType::Scroll; }
+    bool isStringValue() const { return m_classType == ClassType::String; }
     bool isSubgridValue() const { return m_classType == ClassType::Subgrid; }
     bool isTextShadowPropertyValue() const { return m_classType == ClassType::TextShadowProperty; }
     bool isTransformListValue() const { return m_classType == ClassType::TransformList; }
@@ -171,9 +175,6 @@ public:
 
     static constexpr size_t ValueSeparatorBits = 2;
     enum ValueSeparator : uint8_t { SpaceSeparator, CommaSeparator, SlashSeparator };
-
-    inline bool isString() const;
-    inline String string() const;
 
     inline bool isInteger() const;
     inline int integer(const CSSToLengthConversionData&) const;
@@ -232,6 +233,7 @@ protected:
         Font,
         FontFaceSrcLocal,
         FontFaceSrcResource,
+        FontFamilyName,
         FontFeature,
         FontStyleRange,
         FontStyleWithAngle,
@@ -245,6 +247,7 @@ protected:
         Position,
         PositionX,
         PositionY,
+        PropertyIdentifier,
         Quad,
         Ratio,
         Ray,
@@ -255,6 +258,7 @@ protected:
         URL,
         UnicodeRange,
         ValuePair,
+        String,
         Substitution,
         View,
 

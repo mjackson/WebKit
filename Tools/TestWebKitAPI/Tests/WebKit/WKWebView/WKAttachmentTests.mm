@@ -85,9 +85,9 @@ using CocoaPasteboard = UIPasteboard;
 #endif
 
 @interface AttachmentUpdateObserver : NSObject <WKUIDelegatePrivate>
-@property (nonatomic, readonly) NSArray *inserted;
-@property (nonatomic, readonly) NSArray *removed;
-@property (nonatomic, readonly) NSArray *dataInvalidated;
+@property (nonatomic, readonly) NSArray<_WKAttachment *> *inserted;
+@property (nonatomic, readonly) NSArray<_WKAttachment *> *removed;
+@property (nonatomic, readonly) NSArray<_WKAttachment *> *dataInvalidated;
 @end
 
 @implementation AttachmentUpdateObserver {
@@ -178,7 +178,7 @@ static NSURL *testDirectoryAttachmentFileURL()
 
 - (void)_webView:(WKWebView *)webView didInsertAttachment:(_WKAttachment *)wkAttachment withSource:(NSString *)source
 {
-    auto fileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testiWorkAttachmentFileURL() options:0 error:NULL]);
+    RetainPtr fileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testiWorkAttachmentFileURL() options:0 error:NULL]);
     [wkAttachment setFileWrapper:fileWrapper.get() contentType:nil completion:nil];
 }
 
@@ -253,7 +253,7 @@ static RetainPtr<TestWKWebView> webViewForTestingAttachments(CGSize webViewSize,
     configuration._attachmentElementEnabled = YES;
     WKPreferencesSetCustomPasteboardDataEnabled((__bridge WKPreferencesRef)[configuration preferences], YES);
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, webViewSize.width, webViewSize.height) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, webViewSize.width, webViewSize.height) configuration:configuration]);
     [webView synchronouslyLoadHTMLString:attachmentEditingTestMarkup];
 
     return webView;
@@ -261,7 +261,7 @@ static RetainPtr<TestWKWebView> webViewForTestingAttachments(CGSize webViewSize,
 
 static RetainPtr<TestWKWebView> webViewForTestingAttachments(CGSize webViewSize)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     return webViewForTestingAttachments(webViewSize, configuration.get());
 }
 
@@ -336,7 +336,7 @@ static NSData *testJPEGData()
 - (_WKAttachment *)synchronouslyInsertAttachmentWithFilename:(NSString *)filename contentType:(NSString *)contentType data:(NSData *)data
 {
     __block bool done = false;
-    auto fileWrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:data]);
+    RetainPtr fileWrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:data]);
     if (filename)
         [fileWrapper setPreferredFilename:filename];
     RetainPtr<_WKAttachment> attachment = [self _insertAttachmentWithFileWrapper:fileWrapper.get() contentType:contentType completion:^(BOOL) {
@@ -348,7 +348,7 @@ static NSData *testJPEGData()
 
 - (NSArray<NSValue *> *)allBoundingClientRects:(NSString *)querySelector
 {
-    auto rects = adoptNS([[NSMutableArray alloc] init]);
+    RetainPtr rects = adoptNS([[NSMutableArray alloc] init]);
     bool doneEvaluatingScript = false;
     NSString *script = [NSString stringWithFormat:@"Array.from(document.querySelectorAll('%@')).map(e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; })", querySelector];
     [self evaluateJavaScript:script completionHandler:[rects, &doneEvaluatingScript] (NSArray<NSArray<NSNumber *> *> *result, NSError *) {
@@ -480,7 +480,7 @@ static NSData *testJPEGData()
 {
     __block RetainPtr<NSError> resultError;
     __block bool done = false;
-    auto fileWrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:data]);
+    RetainPtr fileWrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:data]);
     if (newFilename)
         [fileWrapper setPreferredFilename:newFilename];
 
@@ -551,7 +551,7 @@ static void simulateFolderDragWithURL(DragAndDropSimulator *simulator, NSURL *fo
 #if PLATFORM(MAC)
     [simulator writePromisedFiles:@[ folderURL ]];
 #else
-    auto folderProvider = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr folderProvider = adoptNS([[NSItemProvider alloc] init]);
     [folderProvider setSuggestedName:folderURL.lastPathComponent];
     [folderProvider setPreferredPresentationStyle:UIPreferredPresentationStyleAttachment];
     [folderProvider registerFileRepresentationForTypeIdentifier:UTTypeFolder.identifier fileOptions:0 visibility:NSItemProviderRepresentationVisibilityAll loadHandler:[protectedFolderURL = retainPtr(folderURL)] (void(^completion)(NSURL *, BOOL, NSError *)) -> NSProgress * {
@@ -568,7 +568,7 @@ static void simulateFolderDragWithURL(DragAndDropSimulator *simulator, NSURL *fo
 
 BOOL isCompletelyTransparent(NSImage *image)
 {
-    auto representation = adoptNS([[NSBitmapImageRep alloc] initWithData:image.TIFFRepresentation]);
+    RetainPtr representation = adoptNS([[NSBitmapImageRep alloc] initWithData:image.TIFFRepresentation]);
     for (int row = 0; row < image.size.height; ++row) {
         for (int column = 0; column < image.size.width; ++column) {
             if ([representation colorAtX:column y:row].alphaComponent)
@@ -628,11 +628,11 @@ typedef void(^ItemProviderDataLoadHandler)(NSData *, NSError *);
 
 void platformCopyRichTextWithMultipleAttachments()
 {
-    auto image = adoptNS([[NSTextAttachment alloc] initWithData:testImageData() ofType:UTTypePNG.identifier]);
-    auto pdf = adoptNS([[NSTextAttachment alloc] initWithData:testPDFData() ofType:UTTypePDF.identifier]);
-    auto zip = adoptNS([[NSTextAttachment alloc] initWithData:testZIPData() ofType:UTTypeZIP.identifier]);
+    RetainPtr image = adoptNS([[NSTextAttachment alloc] initWithData:testImageData() ofType:UTTypePNG.identifier]);
+    RetainPtr pdf = adoptNS([[NSTextAttachment alloc] initWithData:testPDFData() ofType:UTTypePDF.identifier]);
+    RetainPtr zip = adoptNS([[NSTextAttachment alloc] initWithData:testZIPData() ofType:UTTypeZIP.identifier]);
 
-    auto richText = adoptNS([[NSMutableAttributedString alloc] init]);
+    RetainPtr richText = adoptNS([[NSMutableAttributedString alloc] init]);
     [richText appendAttributedString:[NSAttributedString attributedStringWithAttachment:image.get()]];
     [richText appendAttributedString:[NSAttributedString attributedStringWithAttachment:pdf.get()]];
     [richText appendAttributedString:[NSAttributedString attributedStringWithAttachment:zip.get()]];
@@ -642,7 +642,7 @@ void platformCopyRichTextWithMultipleAttachments()
     [pasteboard clearContents];
     [pasteboard writeObjects:@[ richText.get() ]];
 #elif PLATFORM(IOS_FAMILY)
-    auto item = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
     [item registerObject:richText.get() visibility:NSItemProviderRepresentationVisibilityAll];
     [UIPasteboard generalPasteboard].itemProviders = @[ item.get() ];
 #endif
@@ -650,8 +650,8 @@ void platformCopyRichTextWithMultipleAttachments()
 
 void platformCopyRichTextWithImage()
 {
-    auto richText = adoptNS([[NSMutableAttributedString alloc] init]);
-    auto image = adoptNS([[NSTextAttachment alloc] initWithData:testImageData() ofType:UTTypePNG.identifier]);
+    RetainPtr richText = adoptNS([[NSMutableAttributedString alloc] init]);
+    RetainPtr image = adoptNS([[NSTextAttachment alloc] initWithData:testImageData() ofType:UTTypePNG.identifier]);
 
     [richText appendAttributedString:adoptNS([[NSAttributedString alloc] initWithString:@"Lorem ipsum "]).get()];
     [richText appendAttributedString:[NSAttributedString attributedStringWithAttachment:image.get()]];
@@ -662,7 +662,7 @@ void platformCopyRichTextWithImage()
     [pasteboard clearContents];
     [pasteboard writeObjects:@[ richText.get() ]];
 #elif PLATFORM(IOS_FAMILY)
-    auto item = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
     [item registerObject:richText.get() visibility:NSItemProviderRepresentationVisibilityAll];
     [UIPasteboard generalPasteboard].itemProviders = @[ item.get() ];
 #endif
@@ -676,7 +676,7 @@ void platformCopyPNG()
     [pasteboard setData:testImageData() forType:NSPasteboardTypePNG];
 #elif PLATFORM(IOS_FAMILY)
     UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
-    auto item = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
     [item setPreferredPresentationStyle:UIPreferredPresentationStyleAttachment];
     [item registerData:testImageData() type:UTTypePNG.identifier];
     pasteboard.itemProviders = @[ item.get() ];
@@ -691,7 +691,7 @@ void platformCopyPDF()
     [pasteboard setData:testPDFData() forType:UTTypePDF.identifier];
 #elif PLATFORM(IOS_FAMILY)
     UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
-    auto item = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
     [item setPreferredPresentationStyle:UIPreferredPresentationStyleAttachment];
     [item registerData:testPDFData() type:UTTypePDF.identifier];
     pasteboard.itemProviders = @[ item.get() ];
@@ -706,7 +706,7 @@ void platformCopyJPEG()
     [pasteboard setData:testJPEGData() forType:UTTypeJPEG.identifier];
 #elif PLATFORM(IOS_FAMILY)
     UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
-    auto item = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
     [item setPreferredPresentationStyle:UIPreferredPresentationStyleAttachment];
     [item registerData:testJPEGData() type:UTTypeJPEG.identifier];
     pasteboard.itemProviders = @[ item.get() ];
@@ -948,10 +948,10 @@ TEST(WKAttachmentTests, AttachmentDataForEmptyFile)
 
 TEST(WKAttachmentTests, DropFolderAsAttachmentAndMoveByDragging)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAttachmentElementEnabled:YES];
 
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     [[simulator webView] synchronouslyLoadHTMLString:attachmentEditingTestMarkup];
 
     runTestWithTemporaryFolder([simulator] (NSURL *folderURL) {
@@ -989,11 +989,11 @@ TEST(WKAttachmentTests, DropFolderAsAttachmentAndMoveByDragging)
 TEST(WKAttachmentTests, InsertFolderAndFileWithUnknownExtension)
 {
     auto webView = webViewForTestingAttachments();
-    auto file = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testHTMLData()]);
+    RetainPtr file = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testHTMLData()]);
     [file setPreferredFilename:@"test.foobar"];
-    auto image = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testImageData()]);
-    auto document = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testPDFData()]);
-    auto folder = adoptNS([[NSFileWrapper alloc] initDirectoryWithFileWrappers:@{ @"image.png": image.get(), @"document.pdf": document.get() }]);
+    RetainPtr image = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testImageData()]);
+    RetainPtr document = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testPDFData()]);
+    RetainPtr folder = adoptNS([[NSFileWrapper alloc] initDirectoryWithFileWrappers:@{ @"image.png": image.get(), @"document.pdf": document.get() }]);
     [folder setPreferredFilename:@"folder"];
 
     RetainPtr<_WKAttachment> firstAttachment;
@@ -1146,9 +1146,9 @@ TEST(WKAttachmentTests, CutAndPastePastedImage)
 
 TEST(WKAttachmentTests, MovePastedImageByDragging)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAttachmentElementEnabled:YES];
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     TestWKWebView *webView = [simulator webView];
     [webView synchronouslyLoadHTMLString:attachmentEditingTestMarkup];
 
@@ -1252,7 +1252,7 @@ TEST(WKAttachmentTests, InsertPastedAttributedStringContainingMultipleAttachment
 
 TEST(WKAttachmentTests, InsertDataURLImagesAsAttachments)
 {
-    auto webContentSourceView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)]);
+    RetainPtr webContentSourceView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)]);
     [webContentSourceView synchronouslyLoadTestPageNamed:@"apple-data-url"];
     [webContentSourceView selectAll:nil];
     [webContentSourceView _synchronouslyExecuteEditCommand:@"Copy" argument:nil];
@@ -1276,7 +1276,7 @@ TEST(WKAttachmentTests, InsertAndRemoveDuplicateAttachment)
 {
     auto webView = webViewForTestingAttachments();
     RetainPtr<NSData> data = testHTMLData();
-    auto fileWrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:data.get()]);
+    RetainPtr fileWrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:data.get()]);
     RetainPtr<_WKAttachment> originalAttachment;
     RetainPtr<_WKAttachment> pastedAttachment;
     {
@@ -1318,7 +1318,7 @@ TEST(WKAttachmentTests, InsertDuplicateAttachmentAndUpdateData)
 {
     auto webView = webViewForTestingAttachments();
     auto originalData = retainPtr(testHTMLData());
-    auto fileWrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:originalData.get()]);
+    RetainPtr fileWrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:originalData.get()]);
     RetainPtr<_WKAttachment> originalAttachment;
     RetainPtr<_WKAttachment> pastedAttachment;
     {
@@ -1352,7 +1352,7 @@ TEST(WKAttachmentTests, InsertDuplicateAttachmentAndUpdateData)
 TEST(WKAttachmentTests, InsertAttachmentUsingFileWrapperWithFilePath)
 {
     auto webView = webViewForTestingAttachments();
-    auto originalFileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testImageFileURL() options:0 error:nil]);
+    RetainPtr originalFileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testImageFileURL() options:0 error:nil]);
     RetainPtr<_WKAttachment> attachment;
     {
         ObserveAttachmentUpdatesForScope observer(webView.get());
@@ -1366,7 +1366,7 @@ TEST(WKAttachmentTests, InsertAttachmentUsingFileWrapperWithFilePath)
     EXPECT_TRUE([originalFileWrapper isEqual:infoBeforeUpdate.fileWrapper]);
     [attachment expectRequestedDataToBe:testImageData()];
 
-    auto newFileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testPDFFileURL() options:0 error:nil]);
+    RetainPtr newFileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testPDFFileURL() options:0 error:nil]);
     {
         ObserveAttachmentUpdatesForScope observer(webView.get());
         BOOL errorOccurred = [attachment synchronouslySetFileWrapper:newFileWrapper.get() newContentType:nil error:nil];
@@ -1428,7 +1428,7 @@ TEST(WKAttachmentTests, InvalidateAttachmentsAfterWebProcessTermination)
     }
 
     __block bool webProcessTerminated = false;
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView *, _WKProcessTerminationReason) {
         webProcessTerminated = true;
@@ -1447,9 +1447,9 @@ TEST(WKAttachmentTests, InvalidateAttachmentsAfterWebProcessTermination)
 
 TEST(WKAttachmentTests, MoveAttachmentElementAsIconByDragging)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAttachmentElementEnabled:YES];
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     TestWKWebView *webView = [simulator webView];
     [webView synchronouslyLoadHTMLString:attachmentEditingTestMarkup];
 
@@ -1480,10 +1480,10 @@ TEST(WKAttachmentTests, PasteWebArchiveContainingImages)
 {
     NSData *markupData = [@"<img src='1.png' alt='foo'><div><br></div><img src='2.gif' alt='bar'>" dataUsingEncoding:NSUTF8StringEncoding];
 
-    auto mainResource = adoptNS([[WebResource alloc] initWithData:markupData URL:[NSURL URLWithString:@"foo.html"] MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
-    auto pngResource = adoptNS([[WebResource alloc] initWithData:testImageData() URL:[NSURL URLWithString:@"1.png"] MIMEType:@"image/png" textEncodingName:nil frameName:nil]);
-    auto gifResource = adoptNS([[WebResource alloc] initWithData:testGIFData() URL:[NSURL URLWithString:@"2.gif"] MIMEType:@"image/gif" textEncodingName:nil frameName:nil]);
-    auto archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:@[ pngResource.get(), gifResource.get() ] subframeArchives:@[ ]]);
+    RetainPtr mainResource = adoptNS([[WebResource alloc] initWithData:markupData URL:[NSURL URLWithString:@"foo.html"] MIMEType:@"text/html" textEncodingName:@"utf-8" frameName:nil]);
+    RetainPtr pngResource = adoptNS([[WebResource alloc] initWithData:testImageData() URL:[NSURL URLWithString:@"1.png"] MIMEType:@"image/png" textEncodingName:nil frameName:nil]);
+    RetainPtr gifResource = adoptNS([[WebResource alloc] initWithData:testGIFData() URL:[NSURL URLWithString:@"2.gif"] MIMEType:@"image/gif" textEncodingName:nil frameName:nil]);
+    RetainPtr archive = adoptNS([[WebArchive alloc] initWithMainResource:mainResource.get() subresources:@[ pngResource.get(), gifResource.get() ] subframeArchives:@[ ]]);
 
 #if PLATFORM(MAC)
     NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
@@ -1525,11 +1525,11 @@ TEST(WKAttachmentTests, ChangeFileWrapperForPastedImage)
     [webView paste:nil];
     [webView waitForImageElementSizeToBecome:CGSizeMake(215, 174)];
 
-    auto attachment = retainPtr(observer.observer().inserted.firstObject);
+    RetainPtr<_WKAttachment> attachment = retainPtr(observer.observer().inserted.firstObject);
     auto originalImageData = retainPtr([attachment info].fileWrapper);
     EXPECT_WK_STREQ([attachment uniqueIdentifier], [webView stringByEvaluatingJavaScript:@"HTMLAttachmentElement.getAttachmentIdentifier(document.querySelector('img'))"]);
 
-    auto newImage = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testGIFData()]);
+    RetainPtr newImage = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testGIFData()]);
     [newImage setPreferredFilename:@"foo.gif"];
     BOOL errorOccurred = [attachment synchronouslySetFileWrapper:newImage.get() newContentType:nil error:nil];
     EXPECT_EQ(NO, errorOccurred);
@@ -1552,8 +1552,8 @@ TEST(WKAttachmentTests, AddAttachmentToConnectedImageElement)
     EXPECT_WK_STREQ(attachmentIdentifier, [webView stringByEvaluatingJavaScript:@"document.querySelector('img').attachmentIdentifier"]);
     observer.expectAttachmentUpdates(@[ ], @[ attachment.get() ]);
 
-    auto firstImage = adoptNS([[NSFileWrapper alloc] initWithURL:testImageFileURL() options:0 error:nil]);
-    auto secondImage = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testGIFData()]);
+    RetainPtr firstImage = adoptNS([[NSFileWrapper alloc] initWithURL:testImageFileURL() options:0 error:nil]);
+    RetainPtr secondImage = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testGIFData()]);
     [secondImage setPreferredFilename:@"foo.gif"];
 
     BOOL errorOccurred = [attachment synchronouslySetFileWrapper:firstImage.get() newContentType:@"image/png" error:nil];
@@ -1575,7 +1575,7 @@ TEST(WKAttachmentTests, ConnectImageWithAttachmentToDocument)
     ObserveAttachmentUpdatesForScope observer(webView.get());
 
     NSString *identifier = [webView stringByEvaluatingJavaScript:@"image = document.createElement('img'); HTMLAttachmentElement.getAttachmentIdentifier(image)"];
-    auto image = adoptNS([[NSFileWrapper alloc] initWithURL:testImageFileURL() options:0 error:nil]);
+    RetainPtr image = adoptNS([[NSFileWrapper alloc] initWithURL:testImageFileURL() options:0 error:nil]);
     auto attachment = retainPtr([webView _attachmentForIdentifier:identifier]);
     BOOL errorOccurred = [attachment synchronouslySetFileWrapper:image.get() newContentType:nil error:nil];
     EXPECT_EQ(NO, errorOccurred);
@@ -1587,7 +1587,7 @@ TEST(WKAttachmentTests, ConnectImageWithAttachmentToDocument)
     EXPECT_TRUE([attachment isConnected]);
     observer.expectAttachmentUpdates(@[ ], @[ attachment.get() ]);
 
-    auto newImage = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testGIFData()]);
+    RetainPtr newImage = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testGIFData()]);
     [newImage setPreferredFilename:@"test.gif"];
     errorOccurred = [attachment synchronouslySetFileWrapper:newImage.get() newContentType:nil error:nil];
     EXPECT_EQ(NO, errorOccurred);
@@ -1596,7 +1596,7 @@ TEST(WKAttachmentTests, ConnectImageWithAttachmentToDocument)
 
 TEST(WKAttachmentTests, CustomFileWrapperSubclass)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAttachmentElementEnabled:YES];
     RetainPtr<NSException> exception;
     @try {
@@ -1621,13 +1621,13 @@ TEST(WKAttachmentTests, CustomFileWrapperSubclass)
 
 TEST(WKAttachmentTests, CopyAndPasteBetweenWebViews)
 {
-    auto file = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testHTMLData()]);
+    RetainPtr file = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testHTMLData()]);
     [file setPreferredFilename:@"test.foobar"];
-    auto image = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testImageData()]);
-    auto document = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testPDFData()]);
-    auto folder = adoptNS([[NSFileWrapper alloc] initDirectoryWithFileWrappers:@{ @"image.png": image.get(), @"document.pdf": document.get() }]);
+    RetainPtr image = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testImageData()]);
+    RetainPtr document = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testPDFData()]);
+    RetainPtr folder = adoptNS([[NSFileWrapper alloc] initDirectoryWithFileWrappers:@{ @"image.png": image.get(), @"document.pdf": document.get() }]);
     [folder setPreferredFilename:@"folder"];
-    auto archive = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testZIPData()]);
+    RetainPtr archive = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testZIPData()]);
     [archive setPreferredFilename:@"archive"];
 
     @autoreleasepool {
@@ -1667,7 +1667,7 @@ TEST(WKAttachmentTests, CopyAndPasteBetweenWebViews)
 
 TEST(WKAttachmentTests, CopyAndPasteImageBetweenWebViews)
 {
-    auto image = adoptNS([[NSFileWrapper alloc] initWithURL:testImageFileURL() options:0 error:nil]);
+    RetainPtr image = adoptNS([[NSFileWrapper alloc] initWithURL:testImageFileURL() options:0 error:nil]);
     [image setPreferredFilename:@"icon.png"];
     RetainPtr originalData = [image regularFileContents];
 
@@ -1781,13 +1781,13 @@ TEST(WKAttachmentTests, SetFileWrapperForPDFImageAttachment)
     NSString *identifier = [webView stringByEvaluatingJavaScript:@"const i = document.createElement('img'); document.body.appendChild(i); HTMLAttachmentElement.getAttachmentIdentifier(i)"];
     auto attachment = retainPtr([webView _attachmentForIdentifier:identifier]);
 
-    auto pdfFile = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testPDFData()]);
+    RetainPtr pdfFile = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testPDFData()]);
     [attachment setFileWrapper:pdfFile.get() contentType:UTTypePDF.identifier completion:nil];
     [webView waitForImageElementSizeToBecome:CGSizeMake(130, 29)];
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
-    auto zipFile = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testZIPData()]);
+    RetainPtr zipFile = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testZIPData()]);
     [attachment setFileWrapper:zipFile.get() contentType:UTTypeZIP.identifier completion:nil];
     EXPECT_FALSE([attachment isConnected]);
 }
@@ -1826,8 +1826,8 @@ TEST(WKAttachmentTests, CopyAndPasteRemoteImages)
     {
         [TestProtocol registerWithScheme:@"https"];
 
-        auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
-        auto sourceView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+        RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+        RetainPtr sourceView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
         [sourceView setNavigationDelegate:navigationDelegate.get()];
         [sourceView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://bundle-file/multiple-images.html"]]];
         [navigationDelegate waitForDidFinishNavigation];
@@ -1901,16 +1901,16 @@ TEST(WKAttachmentTests, CreateAttachmentsFromExistingImage)
 
 TEST(WKAttachmentTests, UserDragNonePreventsDragOnAttachmentElement)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto styleSheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:@"attachment { -webkit-user-drag: none; }" forMainFrameOnly:YES]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr styleSheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:@"attachment { -webkit-user-drag: none; }" forMainFrameOnly:YES]);
     [[configuration userContentController] _addUserStyleSheet:styleSheet.get()];
     [configuration _setAttachmentElementEnabled:YES];
 
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     auto *webView = [simulator webView];
     [webView synchronouslyLoadHTMLString:attachmentEditingTestMarkup];
 
-    auto file = adoptNS([[NSFileWrapper alloc] initWithURL:testPDFFileURL() options:0 error:nil]);
+    RetainPtr file = adoptNS([[NSFileWrapper alloc] initWithURL:testPDFFileURL() options:0 error:nil]);
     [webView synchronouslyInsertAttachmentWithFileWrapper:file.get() contentType:nil];
     [simulator runFrom:NSMakePoint(15, 15) to:NSMakePoint(50, 50)];
 
@@ -2045,9 +2045,9 @@ TEST(WKAttachmentTestsMac, InsertNonExistentImageFileAsAttachment)
 
 TEST(WKAttachmentTestsMac, InsertDroppedFilePromisesAsAttachments)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAttachmentElementEnabled:YES];
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     TestWKWebView *webView = [simulator webView];
     [webView synchronouslyLoadHTMLString:attachmentEditingTestMarkup];
     [simulator writePromisedFiles:@[ testPDFFileURL(), testImageFileURL() ]];
@@ -2083,13 +2083,13 @@ TEST(WKAttachmentTestsMac, InsertDroppedFilePromisesAsAttachments)
 
 TEST(WKAttachmentTestsMac, DragAttachmentAsFilePromise)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAttachmentElementEnabled:YES];
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     TestWKWebView *webView = [simulator webView];
     [webView synchronouslyLoadHTMLString:attachmentEditingTestMarkup];
 
-    auto fileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testPDFFileURL() options:0 error:nil]);
+    RetainPtr fileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testPDFFileURL() options:0 error:nil]);
     auto attachment = retainPtr([webView synchronouslyInsertAttachmentWithFileWrapper:fileWrapper.get() contentType:nil]);
     [simulator runFrom:[webView attachmentElementMidPoint] to:CGPointMake(300, 300)];
 
@@ -2102,9 +2102,9 @@ TEST(WKAttachmentTestsMac, DragAttachmentAsFilePromise)
 
 TEST(WKAttachmentTestsMac, DragAttachmentWithNoTypeShouldNotCrash)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAttachmentElementEnabled:YES];
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     TestWKWebView *webView = [simulator webView];
     [webView synchronouslyLoadHTMLString:attachmentEditingTestMarkup];
 
@@ -2118,10 +2118,10 @@ TEST(WKAttachmentTestsMac, DragAttachmentWithNoTypeShouldNotCrash)
 
 TEST(WKAttachmentTestsMac, DropImageOverImageWithControls)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAttachmentElementEnabled:YES];
     [configuration _setImageControlsEnabled:YES];
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     TestWKWebView *webView = [simulator webView];
     [webView synchronouslyLoadHTMLString:attachmentEditingTestMarkup];
 
@@ -2145,9 +2145,9 @@ static NSImage *_icon(id, SEL)
 TEST(WKAttachmentTestsMac, DragDirectoryAttachment)
 {
     didLoadIcon = false;
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAttachmentElementEnabled:YES];
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     TestWKWebView *webView = [simulator webView];
     [webView synchronouslyLoadHTMLString:attachmentEditingTestMarkup];
 
@@ -2157,7 +2157,7 @@ TEST(WKAttachmentTestsMac, DragDirectoryAttachment)
         reinterpret_cast<IMP>(_icon)
     };
 
-    auto fileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testDirectoryAttachmentFileURL() options:0 error:nil]);
+    RetainPtr fileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testDirectoryAttachmentFileURL() options:0 error:nil]);
     auto attachment = retainPtr([webView synchronouslyInsertAttachmentWithFileWrapper:fileWrapper.get() contentType:nil]);
     [simulator runFrom:[webView attachmentElementMidPoint] to:CGPointMake(300, 300)];
     TestWebKitAPI::Util::run(&didLoadIcon);
@@ -2165,13 +2165,13 @@ TEST(WKAttachmentTestsMac, DragDirectoryAttachment)
 
 TEST(WKAttachmentTestsMac, CallAcceptsFirstMouseWhileDraggingAttachment)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration _setAttachmentElementEnabled:YES];
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
     TestWKWebView *webView = [simulator webView];
     [webView synchronouslyLoadHTMLString:attachmentEditingTestMarkup];
 
-    auto fileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testPDFFileURL() options:0 error:nil]);
+    RetainPtr fileWrapper = adoptNS([[NSFileWrapper alloc] initWithURL:testPDFFileURL() options:0 error:nil]);
     RetainPtr attachment = [webView synchronouslyInsertAttachmentWithFileWrapper:fileWrapper.get() contentType:@"application/pdf"];
     [simulator setWillBeginDraggingHandler:^{
         [webView acceptsFirstMouseAtPoint:NSMakePoint(100, 100)];
@@ -2188,10 +2188,10 @@ TEST(WKAttachmentTestsMac, CallAcceptsFirstMouseWhileDraggingAttachment)
 
 static RetainPtr<UITargetedDragPreview> targetedImageDragPreview(WKWebView *webView, NSData *imageData, CGSize size)
 {
-    auto imageView = adoptNS([[UIImageView alloc] initWithImage:[UIImage imageWithData:imageData]]);
+    RetainPtr imageView = adoptNS([[UIImageView alloc] initWithImage:[UIImage imageWithData:imageData]]);
     [imageView setBounds:CGRectMake(0, 0, size.width, size.height)];
-    auto defaultDropTarget = adoptNS([[UIDragPreviewTarget alloc] initWithContainer:webView center:CGPointMake(450, 450)]);
-    auto parameters = adoptNS([[UIDragPreviewParameters alloc] init]);
+    RetainPtr defaultDropTarget = adoptNS([[UIDragPreviewTarget alloc] initWithContainer:webView center:CGPointMake(450, 450)]);
+    RetainPtr parameters = adoptNS([[UIDragPreviewParameters alloc] init]);
     return adoptNS([[UITargetedDragPreview alloc] initWithView:imageView.get() parameters:parameters.get() target:defaultDropTarget.get()]);
 }
 
@@ -2200,18 +2200,18 @@ TEST(WKAttachmentTestsIOS, TargetedPreviewsWhenDroppingImages)
     auto webView = webViewForTestingAttachments();
     [webView _setEditable:YES];
 
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
 
     // The first item preview should be scaled down by a factor of 2.
     auto firstPreview = targetedImageDragPreview(webView.get(), testImageData(), CGSizeMake(430, 348));
-    auto firstItem = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr firstItem = adoptNS([[NSItemProvider alloc] init]);
     [firstItem registerDataRepresentationForTypeIdentifier:UTTypePNG.identifier withData:testImageData() loadingDelay:0.5];
     [firstItem setPreferredPresentationSize:CGSizeMake(215, 174)];
     [firstItem setSuggestedName:@"icon"];
 
     // The second item preview should be scaled up by a factor of 2.
     auto secondPreview = targetedImageDragPreview(webView.get(), testGIFData(), CGSizeMake(26, 32));
-    auto secondItem = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr secondItem = adoptNS([[NSItemProvider alloc] init]);
     [secondItem registerDataRepresentationForTypeIdentifier:UTTypeGIF.identifier withData:testGIFData() loadingDelay:0.5];
     [secondItem setPreferredPresentationSize:CGSizeMake(52, 64)];
     [secondItem setSuggestedName:@"apple"];
@@ -2247,10 +2247,10 @@ TEST(WKAttachmentTestsIOS, TargetedPreviewIsClippedWhenDroppingTallImage)
     [webView _setEditable:YES];
 
     auto imageData = retainPtr([NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"400x400-green" withExtension:@"png"]]);
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
 
     auto preview = targetedImageDragPreview(webView.get(), imageData.get(), CGSizeMake(100, 100));
-    auto item = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
     [item registerDataRepresentationForTypeIdentifier:UTTypePNG.identifier withData:imageData.get() loadingDelay:0.5];
     [item setPreferredPresentationSize:CGSizeMake(400, 400)];
     [item setSuggestedName:@"green"];
@@ -2273,8 +2273,8 @@ TEST(WKAttachmentTestsIOS, TargetedPreviewIsClippedWhenDroppingTallImage)
 TEST(WKAttachmentTestsIOS, InsertDroppedImageAsAttachment)
 {
     auto webView = webViewForTestingAttachments();
-    auto dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
-    auto item = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
     [item registerData:testImageData() type:UTTypePNG.identifier];
     [dragAndDropSimulator setExternalItemProviders:@[ item.get() ]];
     [dragAndDropSimulator runFrom:CGPointZero to:CGPointMake(50, 50)];
@@ -2296,8 +2296,8 @@ TEST(WKAttachmentTestsIOS, InsertDroppedImageAsAttachment)
 TEST(WKAttachmentTestsIOS, InsertDroppedImageWithPreferredPresentationSize)
 {
     auto webView = webViewForTestingAttachments();
-    auto dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
-    auto item = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
     [item registerData:testImageData() type:UTTypePNG.identifier];
     [item setPreferredPresentationSize:CGSizeMake(200, 100)];
     [dragAndDropSimulator setExternalItemProviders:@[ item.get() ]];
@@ -2311,9 +2311,9 @@ TEST(WKAttachmentTestsIOS, InsertDroppedImageWithPreferredPresentationSize)
 TEST(WKAttachmentTestsIOS, InsertDroppedAttributedStringContainingAttachment)
 {
     auto webView = webViewForTestingAttachments();
-    auto dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
-    auto image = adoptNS([[NSTextAttachment alloc] initWithData:testImageData() ofType:UTTypePNG.identifier]);
-    auto item = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr image = adoptNS([[NSTextAttachment alloc] initWithData:testImageData() ofType:UTTypePNG.identifier]);
+    RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
     [item registerObject:[NSAttributedString attributedStringWithAttachment:image.get()] visibility:NSItemProviderRepresentationVisibilityAll];
 
     [dragAndDropSimulator setExternalItemProviders:@[ item.get() ]];
@@ -2342,19 +2342,19 @@ TEST(WKAttachmentTestsIOS, InsertDroppedRichAndPlainTextFilesAsAttachments)
     // areas in the absence of attachment elements. However, due to the explicitly set attachment presentation style
     // on the item providers, we should instead treat them as dropped files and insert attachment elements.
     // This exercises the scenario of dragging rich and plain text files from Files to Mail.
-    auto richTextItem = adoptNS([[NSItemProvider alloc] init]);
-    auto richText = adoptNS([[NSAttributedString alloc] initWithString:@"Hello world" attributes:@{ NSFontAttributeName: [UIFont boldSystemFontOfSize:12] }]);
+    RetainPtr richTextItem = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr richText = adoptNS([[NSAttributedString alloc] initWithString:@"Hello world" attributes:@{ NSFontAttributeName: [UIFont boldSystemFontOfSize:12] }]);
     [richTextItem setPreferredPresentationStyle:UIPreferredPresentationStyleAttachment];
     [richTextItem registerObject:richText.get() visibility:NSItemProviderRepresentationVisibilityAll];
     [richTextItem setSuggestedName:@"hello.rtf"];
 
-    auto plainTextItem = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr plainTextItem = adoptNS([[NSItemProvider alloc] init]);
     [plainTextItem setPreferredPresentationStyle:UIPreferredPresentationStyleAttachment];
     [plainTextItem registerObject:@"Hello world" visibility:NSItemProviderRepresentationVisibilityAll];
     [plainTextItem setSuggestedName:@"world.txt"];
 
     auto webView = webViewForTestingAttachments();
-    auto dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
     [dragAndDropSimulator setExternalItemProviders:@[ richTextItem.get(), plainTextItem.get() ]];
     [dragAndDropSimulator runFrom:CGPointZero to:CGPointMake(50, 50)];
 
@@ -2377,13 +2377,13 @@ TEST(WKAttachmentTestsIOS, InsertDroppedZipArchiveAsAttachment)
     // Since WebKit doesn't have any default DOM representation for ZIP archives, we should fall back to inserting
     // attachment elements. This exercises the flow of dragging a ZIP file from an app that doesn't specify a preferred
     // presentation style (e.g. Notes) into Mail.
-    auto item = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
     NSData *data = testZIPData();
     [item registerData:data type:UTTypeZIP.identifier];
     [item setSuggestedName:@"archive.zip"];
 
     auto webView = webViewForTestingAttachments();
-    auto dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
     [dragAndDropSimulator setExternalItemProviders:@[ item.get() ]];
     [dragAndDropSimulator runFrom:CGPointZero to:CGPointMake(50, 50)];
 
@@ -2399,21 +2399,21 @@ TEST(WKAttachmentTestsIOS, InsertDroppedItemProvidersInOrder)
 {
     // Tests that item providers are inserted in the order they are specified. In this case, the two inserted attachments
     // should be separated by a link.
-    auto firstAttachmentItem = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr firstAttachmentItem = adoptNS([[NSItemProvider alloc] init]);
     [firstAttachmentItem setPreferredPresentationStyle:UIPreferredPresentationStyleAttachment];
     [firstAttachmentItem registerObject:@"FIRST" visibility:NSItemProviderRepresentationVisibilityAll];
     [firstAttachmentItem setSuggestedName:@"first.txt"];
 
-    auto inlineTextItem = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr inlineTextItem = adoptNS([[NSItemProvider alloc] init]);
     auto appleURL = retainPtr([NSURL URLWithString:@"https://www.apple.com/"]);
     [inlineTextItem registerObject:appleURL.get() visibility:NSItemProviderRepresentationVisibilityAll];
 
-    auto secondAttachmentItem = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr secondAttachmentItem = adoptNS([[NSItemProvider alloc] init]);
     [secondAttachmentItem registerData:testPDFData() type:UTTypePDF.identifier];
     [secondAttachmentItem setSuggestedName:@"second.pdf"];
 
     auto webView = webViewForTestingAttachments();
-    auto dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
     [dragAndDropSimulator setExternalItemProviders:@[ firstAttachmentItem.get(), inlineTextItem.get(), secondAttachmentItem.get() ]];
     [dragAndDropSimulator runFrom:CGPointZero to:CGPointMake(50, 50)];
 
@@ -2435,13 +2435,13 @@ TEST(WKAttachmentTestsIOS, InsertDroppedItemProvidersInOrder)
 
 TEST(WKAttachmentTestsIOS, DragAttachmentInsertedAsFile)
 {
-    auto item = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
     auto data = retainPtr(testPDFData());
     [item registerData:data.get() type:UTTypePDF.identifier];
     [item setSuggestedName:@"document.pdf"];
 
     auto webView = webViewForTestingAttachments();
-    auto dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
     [dragAndDropSimulator setExternalItemProviders:@[ item.get() ]];
     [dragAndDropSimulator runFrom:CGPointZero to:CGPointMake(50, 50)];
 
@@ -2482,7 +2482,7 @@ TEST(WKAttachmentTestsIOS, DragAttachmentInsertedAsData)
     EXPECT_WK_STREQ("application/pdf", [webView valueOfAttribute:@"type" forQuerySelector:@"attachment"]);
 
     [webView evaluateJavaScript:@"getSelection().removeAllRanges()" completionHandler:nil];
-    auto dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
     [dragAndDropSimulator runFrom:CGPointMake(25, 25) to:CGPointMake(-100, -100)];
 
     // Next, verify that dragging the attachment produces an item provider with a PDF attachment.
@@ -2496,11 +2496,11 @@ TEST(WKAttachmentTestsIOS, DragAttachmentInsertedAsData)
 
 static RetainPtr<NSItemProvider> mapItemForTesting()
 {
-    auto placemark = adoptNS([allocMKPlacemarkInstance() initWithCoordinate:CLLocationCoordinate2DMake(37.3327, -122.0053)]);
-    auto mapItem = adoptNS([allocMKMapItemInstance() initWithPlacemark:placemark.get()]);
+    RetainPtr placemark = adoptNS([allocMKPlacemarkInstance() initWithCoordinate:CLLocationCoordinate2DMake(37.3327, -122.0053)]);
+    RetainPtr mapItem = adoptNS([allocMKMapItemInstance() initWithPlacemark:placemark.get()]);
     [mapItem setName:@"Apple Park.vcf"];
 
-    auto itemProvider = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr itemProvider = adoptNS([[NSItemProvider alloc] init]);
     [itemProvider registerObject:mapItem.get() visibility:NSItemProviderRepresentationVisibilityAll];
     [itemProvider setSuggestedName:[mapItem name]];
     return itemProvider;
@@ -2520,11 +2520,11 @@ static RetainPtr<NSItemProvider> calendarInviteForTesting()
 
 static RetainPtr<NSItemProvider> contactItemForTesting()
 {
-    auto contact = adoptNS([allocCNMutableContactInstance() init]);
+    RetainPtr contact = adoptNS([allocCNMutableContactInstance() init]);
     [contact setGivenName:@"Foo"];
     [contact setFamilyName:@"Bar"];
 
-    auto itemProvider = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr itemProvider = adoptNS([[NSItemProvider alloc] init]);
     [itemProvider registerObject:contact.get() visibility:NSItemProviderRepresentationVisibilityAll];
     [itemProvider setSuggestedName:@"Foo Bar.vcf"];
     return itemProvider;
@@ -2534,7 +2534,7 @@ TEST(WKAttachmentTestsIOS, InsertDroppedMapItemAsAttachment)
 {
     auto itemProvider = mapItemForTesting();
     auto webView = webViewForTestingAttachments();
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
     [simulator setExternalItemProviders:@[ itemProvider.get() ]];
     [simulator runFrom:CGPointMake(25, 25) to:CGPointMake(100, 100)];
 
@@ -2553,7 +2553,7 @@ TEST(WKAttachmentTestsIOS, InsertDroppedCalendarInviteAsAttachment)
 {
     auto itemProvider = calendarInviteForTesting();
     auto webView = webViewForTestingAttachments();
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
     [simulator setExternalItemProviders:@[ itemProvider.get() ]];
     [simulator runFrom:CGPointMake(25, 25) to:CGPointMake(100, 100)];
 
@@ -2569,7 +2569,7 @@ TEST(WKAttachmentTestsIOS, InsertDroppedContactAsAttachment)
 {
     auto itemProvider = contactItemForTesting();
     auto webView = webViewForTestingAttachments();
-    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
     [simulator setExternalItemProviders:@[ itemProvider.get() ]];
     [simulator runFrom:CGPointMake(25, 25) to:CGPointMake(100, 100)];
 
@@ -2619,11 +2619,11 @@ TEST(WKAttachmentTestsIOS, InsertPastedMapItemAsAttachment)
 
 TEST(WKAttachmentTestsIOS, InsertPastedFilesAsAttachments)
 {
-    auto pdfItem = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr pdfItem = adoptNS([[NSItemProvider alloc] init]);
     [pdfItem setSuggestedName:@"doc"];
     [pdfItem registerData:testPDFData() type:UTTypePDF.identifier];
 
-    auto textItem = adoptNS([[NSItemProvider alloc] init]);
+    RetainPtr textItem = adoptNS([[NSItemProvider alloc] init]);
     [textItem setSuggestedName:@"hello"];
     [textItem registerData:[@"helloworld" dataUsingEncoding:NSUTF8StringEncoding] type:UTTypePlainText.identifier];
 
@@ -2661,7 +2661,7 @@ TEST(WKAttachmentTestsIOS, InsertPastedFilesAsAttachments)
 TEST(WKAttachmentTestsIOS, InsertDroppedImageWithNonImageFileExtension)
 {
     runTestWithTemporaryImageFile(@"image.hello", ^(NSURL *fileURL) {
-        auto item = adoptNS([[NSItemProvider alloc] init]);
+        RetainPtr item = adoptNS([[NSItemProvider alloc] init]);
         [item setSuggestedName:@"image.hello"];
         [item registerFileRepresentationForTypeIdentifier:UTTypePNG.identifier fileOptions:NSItemProviderFileOptionOpenInPlace visibility:NSItemProviderRepresentationVisibilityAll loadHandler:^NSProgress *(void (^callback)(NSURL *, BOOL, NSError *))
         {
@@ -2670,7 +2670,7 @@ TEST(WKAttachmentTestsIOS, InsertDroppedImageWithNonImageFileExtension)
         }];
 
         auto webView = webViewForTestingAttachments();
-        auto dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
+        RetainPtr dragAndDropSimulator = adoptNS([[DragAndDropSimulator alloc] initWithWebView:webView.get()]);
         [dragAndDropSimulator setExternalItemProviders:@[ item.get() ]];
         [dragAndDropSimulator runFrom:CGPointZero to:CGPointMake(50, 50)];
 
@@ -2692,7 +2692,7 @@ TEST(WKAttachmentTestsIOS, CopyAttachmentUsingElementAction)
     [webView _setEditable:YES];
     [webView synchronouslyLoadHTMLString:@"<body></body><script>document.body.focus();</script>"];
 
-    auto document = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testPDFData()]);
+    RetainPtr document = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:testPDFData()]);
     [document setPreferredFilename:@"hello.pdf"];
 
     auto attachment = retainPtr([webView synchronouslyInsertAttachmentWithFileWrapper:document.get() contentType:UTTypePDF.identifier]);

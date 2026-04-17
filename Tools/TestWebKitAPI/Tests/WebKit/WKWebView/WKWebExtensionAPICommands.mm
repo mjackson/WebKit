@@ -205,8 +205,8 @@ TEST(WKWebExtensionAPICommands, CommandEvent)
 
 TEST(WKWebExtensionAPICommands, CommandForEvent)
 {
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:commandsManifest resources:@{ }]);
-    auto context = adoptNS([[WKWebExtensionContext alloc] initForExtension:extension.get()]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:commandsManifest resources:@{ }]);
+    RetainPtr context = adoptNS([[WKWebExtensionContext alloc] initForExtension:extension.get()]);
 
     auto *keyCommandEvent = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:(NSEventModifierFlagCommand | NSEventModifierFlagOption)
         timestamp:0 windowNumber:0 context:nil characters:@"Ω" charactersIgnoringModifiers:@"z" isARepeat:NO keyCode:kVK_ANSI_Z];

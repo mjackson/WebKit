@@ -566,6 +566,7 @@ $(PROJECT_DIR)/Modules/mediasession/MediaSession.idl
 $(PROJECT_DIR)/Modules/mediasession/MediaSessionAction.idl
 $(PROJECT_DIR)/Modules/mediasession/MediaSessionActionDetails.idl
 $(PROJECT_DIR)/Modules/mediasession/MediaSessionActionHandler.idl
+$(PROJECT_DIR)/Modules/mediasession/MediaSessionCaptionTrack.idl
 $(PROJECT_DIR)/Modules/mediasession/MediaSessionCoordinator.idl
 $(PROJECT_DIR)/Modules/mediasession/MediaSessionCoordinatorMixin.idl
 $(PROJECT_DIR)/Modules/mediasession/MediaSessionCoordinatorState.idl
@@ -764,6 +765,7 @@ $(PROJECT_DIR)/Modules/modern-media-controls/gesture-recognizers/gesture-recogni
 $(PROJECT_DIR)/Modules/modern-media-controls/gesture-recognizers/pinch.js
 $(PROJECT_DIR)/Modules/modern-media-controls/gesture-recognizers/tap.js
 $(PROJECT_DIR)/Modules/modern-media-controls/main.js
+$(PROJECT_DIR)/Modules/modern-media-controls/media/YouTubeCaptionQuirk.js
 $(PROJECT_DIR)/Modules/modern-media-controls/media/airplay-support.js
 $(PROJECT_DIR)/Modules/modern-media-controls/media/audio-support.js
 $(PROJECT_DIR)/Modules/modern-media-controls/media/close-support.js

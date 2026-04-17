@@ -127,7 +127,7 @@ TEST(WKWebExtensionAPIPermissions, Basics)
     WKWebExtensionMatchPattern *matchPattern = [WKWebExtensionMatchPattern matchPatternWithString:@"*://webkit.org/*"];
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forMatchPattern:matchPattern];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
     [manager run];
@@ -151,12 +151,12 @@ TEST(WKWebExtensionAPIPermissions, AcceptPermissionsRequest)
 
     auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
     NSSet<NSString *> *permissions = [NSSet setWithArray:@[ @"declarativeNetRequest" ]];
     NSSet<WKWebExtensionMatchPattern *> *matchPatterns = [NSSet setWithArray:@[ [WKWebExtensionMatchPattern matchPatternWithString:@"*://*.apple.com/*" ]]];
-    auto requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
+    RetainPtr requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
     __block bool requestComplete = false;
 
     // Implement the delegate methods that're called when a call to permissions.request() is made.
@@ -198,10 +198,10 @@ TEST(WKWebExtensionAPIPermissions, DenyPermissionsRequest)
 
     auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
+    RetainPtr requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
     __block bool requestComplete = false;
 
     // Implement the delegate methods, but don't grant the permissions.
@@ -236,10 +236,10 @@ TEST(WKWebExtensionAPIPermissions, AcceptPermissionsDenyMatchPatternsRequest)
 
     auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
+    RetainPtr requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
     __block bool requestComplete = false;
 
     // Grant the requested permissions.
@@ -275,10 +275,10 @@ TEST(WKWebExtensionAPIPermissions, RequestPermissionsOnly)
 
     auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
+    RetainPtr requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
     __block bool requestComplete = false;
 
     // Grant the requested permissions.
@@ -316,10 +316,10 @@ TEST(WKWebExtensionAPIPermissions, RequestMatchPatternsOnly)
 
     auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
+    RetainPtr requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
     __block bool requestComplete = false;
 
     // Permissions method should not be called.
@@ -356,10 +356,10 @@ TEST(WKWebExtensionAPIPermissions, RequestAllURLsMatchPattern)
 
     auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
+    RetainPtr requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
     __block bool requestComplete = false;
 
     // Permissions method should not be called.
@@ -405,7 +405,7 @@ TEST(WKWebExtensionAPIPermissions, ImplicitAllHostsAndURLsPermissions)
     auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forMatchPattern:WKWebExtensionMatchPattern.allHostsAndSchemesMatchPattern];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
     [manager runUntilTestMessage:@"Loaded"];
@@ -443,7 +443,7 @@ TEST(WKWebExtensionAPIPermissions, AllHostsHostPermissions)
     WKWebExtensionMatchPattern *allURLsMatchPattern = [WKWebExtensionMatchPattern allURLsMatchPattern];
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forMatchPattern:allHostsMatchPattern];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
     [manager runUntilTestMessage:@"Loaded"];
@@ -488,7 +488,7 @@ TEST(WKWebExtensionAPIPermissions, AllURLsHostPermissions)
     WKWebExtensionMatchPattern *allURLsMatchPattern = [WKWebExtensionMatchPattern allURLsMatchPattern];
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forMatchPattern:allHostsMatchPattern];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
     [manager runUntilTestMessage:@"Loaded"];
@@ -533,7 +533,7 @@ TEST(WKWebExtensionAPIPermissions, AllHostsOptionalHostPermissions)
     WKWebExtensionMatchPattern *allURLsMatchPattern = [WKWebExtensionMatchPattern allURLsMatchPattern];
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forMatchPattern:allHostsMatchPattern];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
     [manager runUntilTestMessage:@"Loaded"];
@@ -578,7 +578,7 @@ TEST(WKWebExtensionAPIPermissions, AllURLsOptionalHostPermissions)
     WKWebExtensionMatchPattern *allURLsMatchPattern = [WKWebExtensionMatchPattern allURLsMatchPattern];
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forMatchPattern:allHostsMatchPattern];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
     [manager runUntilTestMessage:@"Loaded"];
@@ -623,7 +623,7 @@ TEST(WKWebExtensionAPIPermissions, AllHostsAndURLsHostPermissions)
     WKWebExtensionMatchPattern *allURLsMatchPattern = [WKWebExtensionMatchPattern allURLsMatchPattern];
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forMatchPattern:allHostsMatchPattern];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
     [manager runUntilTestMessage:@"Loaded"];
@@ -668,7 +668,7 @@ TEST(WKWebExtensionAPIPermissions, AllHostsAndURLsOptionalHostPermissions)
     WKWebExtensionMatchPattern *allURLsMatchPattern = [WKWebExtensionMatchPattern allURLsMatchPattern];
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forMatchPattern:allHostsMatchPattern];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
     [manager runUntilTestMessage:@"Loaded"];
@@ -714,7 +714,7 @@ TEST(WKWebExtensionAPIPermissions, AllHostsAndURLsOptionalAndHostPermissions)
     WKWebExtensionMatchPattern *allURLsMatchPattern = [WKWebExtensionMatchPattern allURLsMatchPattern];
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forMatchPattern:allHostsMatchPattern];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
     [manager runUntilTestMessage:@"Loaded"];
@@ -747,10 +747,10 @@ TEST(WKWebExtensionAPIPermissions, GrantOnlySomePermissions)
 
     auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
+    RetainPtr requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
     __block bool requestComplete = false;
 
     // Grant the requested permissions.
@@ -788,10 +788,10 @@ TEST(WKWebExtensionAPIPermissions, GrantOnlySomeMatchPatterns)
 
     auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get().webExtensionController = manager.get().controller;
 
-    auto requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
+    RetainPtr requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
     __block bool requestComplete = false;
 
     // Permissions method should not be called.
@@ -978,7 +978,7 @@ TEST(WKWebExtensionAPIPermissions, ClipboardWriteWithRequest)
 
     auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
-    auto requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
+    RetainPtr requestDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
 
     requestDelegate.get().promptForPermissions = ^(id<WKWebExtensionTab> tab, NSSet<NSString *> *requestedPermissions, void (^callback)(NSSet<NSString *> *, NSDate *)) {
         EXPECT_EQ(requestedPermissions.count, 1ul);

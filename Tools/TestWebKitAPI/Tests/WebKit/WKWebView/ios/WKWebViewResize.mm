@@ -119,7 +119,7 @@ TEST(WKWebView, EnsureUnobscuredContentRectMatchesWebViewBounds)
     CGRect initialFrame = CGRectMake(0, 0, 800, 600);
     CGRect largerFrame = CGRectMake(0, 0, 1200, 800);
     CGRect smallerFrame = CGRectMake(0, 0, 400, 300);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:initialFrame]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:initialFrame]);
     [webView setFrame:largerFrame];
 
     webViewHasExpectedBounds(webView.get(), largerFrame);

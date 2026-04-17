@@ -22,9 +22,6 @@ class TSymbol;
 class TType;
 
 // Returns the fractional part of the given floating-point number.
-#ifdef WK_WORKAROUND_RDAR_145268301_ASAN_STACK_USE_AFTER_SCOPE
-__attribute__((no_sanitize_address))
-#endif
 inline float
 fractionalPart(float f)
 {

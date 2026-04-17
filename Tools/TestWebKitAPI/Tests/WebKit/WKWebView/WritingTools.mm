@@ -346,9 +346,9 @@ static void checkColor(WebCore::CocoaColor *color, std::optional<ColorExpectatio
 
 TEST(WritingTools, ProofreadingAcceptReject)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
 
     constexpr unsigned start = 0;
     constexpr unsigned end = 14;
@@ -390,8 +390,8 @@ TEST(WritingTools, ProofreadingAcceptReject)
 
         // Test `didReceiveSuggestions`.
 
-        auto firstSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(0, 4) replacement:@"ZZZZ"]);
-        auto secondSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(10, 4) replacement:@"YYYY"]);
+        RetainPtr firstSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(0, 4) replacement:@"ZZZZ"]);
+        RetainPtr secondSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(10, 4) replacement:@"YYYY"]);
 
         auto suggestions = [NSMutableArray array];
         [suggestions addObject:firstSuggestion.get()];
@@ -456,9 +456,9 @@ TEST(WritingTools, ProofreadingAcceptReject)
 
 TEST(WritingTools, ProofreadingWithStreamingSuggestions)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>AAAA BBBB CCCC DDDD</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>AAAA BBBB CCCC DDDD</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *originalText = @"AAAA BBBB CCCC DDDD";
@@ -493,9 +493,9 @@ TEST(WritingTools, ProofreadingWithStreamingSuggestions)
 
 TEST(WritingTools, ProofreadingWithLongReplacement)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>I don't thin so. I didn't quite here him.</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>I don't thin so. I didn't quite here him.</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *originalText = @"I don't thin so. I didn't quite here him.";
@@ -532,9 +532,9 @@ TEST(WritingTools, ProofreadingWithLongReplacement)
 
 TEST(WritingTools, ProofreadingShowOriginal)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>I don't thin so. I didn't quite here him.</p><p id='second'>Who's over they're. I could come their.</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>I don't thin so. I didn't quite here him.</p><p id='second'>Who's over they're. I could come their.</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *originalText = @"I don't thin so. I didn't quite here him.\n\nWho's over they're. I could come their.";
@@ -643,9 +643,9 @@ TEST(WritingTools, ProofreadingShowOriginalWithMultiwordSuggestions)
 
 TEST(WritingTools, ProofreadingRevert)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>Look, Ive been really invested on watchin all the dragon ball sagas, i think iv done a prety good job since now.</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>Look, Ive been really invested on watchin all the dragon ball sagas, i think iv done a prety good job since now.</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *originalText = @"Look, Ive been really invested on watchin all the dragon ball sagas, i think iv done a prety good job since now.";
@@ -686,9 +686,9 @@ TEST(WritingTools, ProofreadingRevert)
 
 TEST(WritingTools, ProofreadingRevertWithSuggestionAtEndOfText)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>Hey wanna go to the movies this weekend</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>Hey wanna go to the movies this weekend</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *originalText = @"Hey wanna go to the movies this weekend";
@@ -786,9 +786,9 @@ TEST(WritingTools, ProofreadingRevertWithMultiwordSuggestions)
 
 TEST(WritingTools, ProofreadingWithImage)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p>AAAA BBBB</p><img src='sunset-in-cupertino-200px.png'></img><p>CCCC DDDD</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p>AAAA BBBB</p><img src='sunset-in-cupertino-200px.png'></img><p>CCCC DDDD</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     // FIXME: Figure out which one of these newline positions is correct, and fix the discrepancy;
@@ -900,12 +900,12 @@ TEST(WritingTools, ProofreadingWithLinks)
 
 TEST(WritingTools, ProofreadingWithAttemptedEditing)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
 
     NSString *originalText = @"I frequetly misspell thigs.";
     NSString *proofreadText = @"I frequently misspell things.";
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:[NSString stringWithFormat:@"<body contenteditable><p>%@</p></body>", originalText]]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:[NSString stringWithFormat:@"<body contenteditable><p>%@</p></body>", originalText]]);
 
     [webView focusDocumentBodyAndSelectAll];
 
@@ -945,9 +945,9 @@ TEST(WritingTools, ProofreadingWithAttemptedEditing)
 
 TEST(WritingTools, ProofreadingReview)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>This is a test of system. This is what we are doings.</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>This is a test of system. This is what we are doings.</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *originalText = @"This is a test of system. This is what we are doings.";
@@ -964,8 +964,8 @@ TEST(WritingTools, ProofreadingReview)
         [[webView writingToolsDelegate] didBeginWritingToolsSession:session.get() contexts:contexts];
 
         auto suggestions = [NSMutableArray array];
-        auto firstSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(15, 2) replacement:@"of the"]);
-        auto secondSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(46, 6) replacement:@"doing"]);
+        RetainPtr firstSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(15, 2) replacement:@"of the"]);
+        RetainPtr secondSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(46, 6) replacement:@"doing"]);
 
         [suggestions addObject:firstSuggestion.get()];
         [suggestions addObject:secondSuggestion.get()];
@@ -1006,11 +1006,11 @@ TEST(WritingTools, ProofreadingReview)
 
 TEST(WritingTools, CompositionWithAttemptedEditing)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
     NSString *source = @"<html><head></head><body contenteditable dir=\"auto\" style=\"overflow-wrap: break-word; -webkit-nbsp-mode: space; line-break: after-white-space;\"><div>An NSAttributedString object manage character strings and associated sets of attributes (for example, font and kerning) that apply to individual characters or ranges of characters in the string. An association of characters and their attributes is called an attributed string. The cluster's two public classes, NSAttributedString and NSMutableAttributedString, declare the programmatic interface for read-only attbuted strings and modifiable attributed strings, respectively.</div><div><br></div><div>An attributed string identifies attributes by name, using an NSDictionary object to store a value under the specified name. You can assign any attribute name/value pair you wish to a range of characters—it is up to your application to interpret custom attributes (see Attributed String Programming Guide). If you are using attributed strings with the Core Text framework, you can also use the attribute keys defined by that framework</div></body></html>";
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:source]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:source]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -1024,7 +1024,7 @@ TEST(WritingTools, CompositionWithAttemptedEditing)
 
         [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
 
-        auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"NSAttributedString is a class in the Objective-C programming language that represents a string with attributes. It allows you to set and retrieve attributes for individual characters or ranges of characters in the string. NSAttributedString is a subclass of NSMutableAttributedString, which is a class that allows you to modify the attributes of an attributed string."]);
+        RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"NSAttributedString is a class in the Objective-C programming language that represents a string with attributes. It allows you to set and retrieve attributes for individual characters or ranges of characters in the string. NSAttributedString is a subclass of NSMutableAttributedString, which is a class that allows you to modify the attributes of an attributed string."]);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 476) inContext:contexts.firstObject finished:NO];
         // FIXME: Remove this, and all other delays, once there is testing infrastructure in place to be able to wait for animations to finish.
@@ -1035,7 +1035,7 @@ TEST(WritingTools, CompositionWithAttemptedEditing)
 
         NSString *result = @"NSAttributedString is a class in the Objective-C programming language that represents a string with attributes. It allows you to set and retrieve attributes for individual characters or ranges of characters in the string. NSAttributedString is a subclass of NSMutableAttributedString, which is a class that allows you to modify the attributes of an attributed string.\n\nAn attributed string is a type of string that can contain attributes. Attributes are properties that can be set on a string and can be accessed and manipulated by other code. The attributes can be used to add custom information to a string, such as colors, fonts, or images. The Core Text framework provides a set of attribute keys that can be used to define the attributes that can be used in attributed strings.";
 
-        auto longerAttributedText = adoptNS([[NSAttributedString alloc] initWithString:result]);
+        RetainPtr longerAttributedText = adoptNS([[NSAttributedString alloc] initWithString:result]);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(0, 910) inContext:contexts.firstObject finished:NO];
 
@@ -1060,9 +1060,9 @@ TEST(WritingTools, CompositionWithAttemptedEditing)
 
 TEST(WritingTools, CompositionWithUndoAfterEnding)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>Hey do you wanna go see a movie this weekend</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>Hey do you wanna go see a movie this weekend</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -1075,7 +1075,7 @@ TEST(WritingTools, CompositionWithUndoAfterEnding)
         __auto_type rewrite = ^(NSString *rewrittenText) {
             [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
 
-            auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:rewrittenText]);
+            RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:rewrittenText]);
 
             [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 44) inContext:contexts.firstObject finished:NO];
             TestWebKitAPI::Util::runFor(0.1_s);
@@ -1166,9 +1166,9 @@ TEST(WritingTools, CompositionWithMultipleUndoAfterEndingAfterShowOriginalAndRew
 
 TEST(WritingTools, CompositionWithUndo)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>Hey do you wanna go see a movie this weekend</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>Hey do you wanna go see a movie this weekend</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -1181,7 +1181,7 @@ TEST(WritingTools, CompositionWithUndo)
         __auto_type rewrite = ^(NSString *rewrittenText) {
             [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
 
-            auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:rewrittenText]);
+            RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:rewrittenText]);
 
             [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 44) inContext:contexts.firstObject finished:NO];
             TestWebKitAPI::Util::runFor(0.1_s);
@@ -1251,9 +1251,9 @@ TEST(WritingTools, CompositionWithRestart)
 
 TEST(WritingTools, CompositionWithMultipleUndosAndRestarts)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>Hey do you wanna go see a movie this weekend - start</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>Hey do you wanna go see a movie this weekend - start</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -1266,7 +1266,7 @@ TEST(WritingTools, CompositionWithMultipleUndosAndRestarts)
         __auto_type rewrite = ^(NSString *rewrittenText) {
             [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
 
-            auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:rewrittenText]);
+            RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:rewrittenText]);
 
             [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 52) inContext:contexts.firstObject finished:NO];
             TestWebKitAPI::Util::runFor(0.1_s);
@@ -1298,9 +1298,9 @@ TEST(WritingTools, CompositionWithMultipleUndosAndRestarts)
 
 TEST(WritingTools, CompositionWithUndoAndRestart)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>Hey do you wanna go see a movie this weekend</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>Hey do you wanna go see a movie this weekend</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -1315,7 +1315,7 @@ TEST(WritingTools, CompositionWithUndoAndRestart)
         __auto_type rewrite = ^(NSString *rewrittenText) {
             [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
 
-            auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:rewrittenText]);
+            RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:rewrittenText]);
 
             [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 44) inContext:contexts.firstObject finished:NO];
             TestWebKitAPI::Util::runFor(0.1_s);
@@ -1354,9 +1354,9 @@ TEST(WritingTools, CompositionWithUndoAndRestart)
 
 TEST(WritingTools, Composition)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     constexpr unsigned start = 5;
@@ -1397,14 +1397,14 @@ TEST(WritingTools, Composition)
 
         EXPECT_WK_STREQ(@"AAAA BBBB CCCC", [webView contentsAsStringWithoutNBSP]);
 
-        auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZ"]);
+        RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZ"]);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(5, 4) inContext:contexts.firstObject finished:NO];
 
         [webView waitForContentValue:@"AAAA ZZZZ CCCC"];
         EXPECT_WK_STREQ(@"AAAA ZZZZ CCCC", [webView contentsAsStringWithoutNBSP]);
 
-        auto longerAttributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZX YYY"]);
+        RetainPtr longerAttributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZX YYY"]);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(5, 9) inContext:contexts.firstObject finished:NO];
 
@@ -1437,9 +1437,9 @@ TEST(WritingTools, Composition)
 
 TEST(WritingTools, CompositionRevert)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -1453,7 +1453,7 @@ TEST(WritingTools, CompositionRevert)
 
         EXPECT_WK_STREQ(@"AAAA BBBB CCCC", [webView contentsAsStringWithoutNBSP]);
 
-        auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZ"]);
+        RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZ"]);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(5, 4) inContext:contexts.firstObject finished:NO];
 
@@ -1481,9 +1481,9 @@ TEST(WritingTools, CompositionRevert)
 
 TEST(WritingTools, CompositionWithAttributedStringAttributes)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'><span style=\"color: blue\">AAAA</span> <span style=\"color: red\">BBBB</span> CCCC</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'><span style=\"color: blue\">AAAA</span> <span style=\"color: red\">BBBB</span> CCCC</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     constexpr unsigned start = 0;
@@ -1557,7 +1557,7 @@ TEST(WritingTools, CompositionWithAttributedStringAttributes)
 
         EXPECT_WK_STREQ(@"AAAA BBBB CCCC", [webView contentsAsStringWithoutNBSP]);
 
-        auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZ" attributes:@{ NSForegroundColorAttributeName : [WebCore::CocoaColor greenColor] }]);
+        RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZ" attributes:@{ NSForegroundColorAttributeName : [WebCore::CocoaColor greenColor] }]);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(5, 4) inContext:contexts.firstObject finished:NO];
         TestWebKitAPI::Util::runFor(0.1_s);
@@ -1638,9 +1638,9 @@ TEST(WritingTools, CompositionWithTabCharacters)
 
 TEST(WritingTools, CompositionWithUnderline)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><a href='https://www.webkit.org'>Link</a><br><p>Text</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><a href='https://www.webkit.org'>Link</a><br><p>Text</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -1751,9 +1751,9 @@ TEST(WritingTools, CompositionWithTable)
 
 TEST(WritingTools, CompositionWithList)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p>Broccoli, peas, and carrots</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p>Broccoli, peas, and carrots</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -1799,9 +1799,9 @@ TEST(WritingTools, CompositionWithList)
 
 TEST(WritingTools, CompositionWithTextAttachment)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p>Sunset in Cupertino</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p>Sunset in Cupertino</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -1846,9 +1846,9 @@ RetainPtr<_WKAttachment> synchronouslyInsertAttachmentWithFilename(TestWKWebView
 
 TEST(WritingTools, CompositionWithImageRoundTrip)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<p>AAAA BBBB</p><img src='sunset-in-cupertino-200px.png'></img><p>CCCC DDDD</p>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<p>AAAA BBBB</p><img src='sunset-in-cupertino-200px.png'></img><p>CCCC DDDD</p>"]);
 
     [webView selectAll:nil];
 
@@ -1876,9 +1876,9 @@ TEST(WritingTools, CompositionWithImageRoundTrip)
 
 TEST(WritingTools, CompositionWithImageAttachmentRoundTrip)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<p>AAAA BBBB</p><img src='sunset-in-cupertino-200px.png'></img><p>CCCC DDDD</p>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete attachmentElementEnabled:YES]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<p>AAAA BBBB</p><img src='sunset-in-cupertino-200px.png'></img><p>CCCC DDDD</p>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete attachmentElementEnabled:YES]);
 
     [webView selectAll:nil];
 
@@ -1917,9 +1917,9 @@ TEST(WritingTools, CompositionWithImageAttachmentRoundTrip)
 
 TEST(WritingTools, CompositionWithNonImageAttachmentRoundTrip)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete attachmentElementEnabled:YES]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete attachmentElementEnabled:YES]);
 
     __auto_type modifySelection = ^(unsigned start, unsigned end) {
         NSString *modifySelectionJavascript = [NSString stringWithFormat:@""
@@ -1975,9 +1975,9 @@ TEST(WritingTools, CompositionWithNonImageAttachmentRoundTrip)
 
 TEST(WritingTools, CompositionWithSystemFont)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p style='font: -apple-system-body;'>Early morning in Cupertino</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p style='font: -apple-system-body;'>Early morning in Cupertino</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -2002,11 +2002,11 @@ TEST(WritingTools, CompositionWithSystemFont)
 
 TEST(WritingTools, CompositionWithMultipleChunks)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
     NSString *source = @"<html><head></head><body contenteditable dir=\"auto\" style=\"overflow-wrap: break-word; -webkit-nbsp-mode: space; line-break: after-white-space;\"><div>An NSAttributedString object manage character strings and associated sets of attributes (for example, font and kerning) that apply to individual characters or ranges of characters in the string. An association of characters and their attributes is called an attributed string. The cluster's two public classes, NSAttributedString and NSMutableAttributedString, declare the programmatic interface for read-only attbuted strings and modifiable attributed strings, respectively.</div><div><br></div><div>An attributed string identifies attributes by name, using an NSDictionary object to store a value under the specified name. You can assign any attribute name/value pair you wish to a range of characters—it is up to your application to interpret custom attributes (see Attributed String Programming Guide). If you are using attributed strings with the Core Text framework, you can also use the attribute keys defined by that framework</div></body></html>";
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:source]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:source]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -2017,14 +2017,14 @@ TEST(WritingTools, CompositionWithMultipleChunks)
 
         [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
 
-        auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"NSAttributedString is a class in the Objective-C programming language that represents a string with attributes. It allows you to set and retrieve attributes for individual characters or ranges of characters in the string. NSAttributedString is a subclass of NSMutableAttributedString, which is a class that allows you to modify the attributes of an attributed string."]);
+        RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"NSAttributedString is a class in the Objective-C programming language that represents a string with attributes. It allows you to set and retrieve attributes for individual characters or ranges of characters in the string. NSAttributedString is a subclass of NSMutableAttributedString, which is a class that allows you to modify the attributes of an attributed string."]);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 476) inContext:contexts.firstObject finished:NO];
         TestWebKitAPI::Util::runFor(0.1_s);
 
         NSString *result = @"NSAttributedString is a class in the Objective-C programming language that represents a string with attributes. It allows you to set and retrieve attributes for individual characters or ranges of characters in the string. NSAttributedString is a subclass of NSMutableAttributedString, which is a class that allows you to modify the attributes of an attributed string.\n\nAn attributed string is a type of string that can contain attributes. Attributes are properties that can be set on a string and can be accessed and manipulated by other code. The attributes can be used to add custom information to a string, such as colors, fonts, or images. The Core Text framework provides a set of attribute keys that can be used to define the attributes that can be used in attributed strings.";
 
-        auto longerAttributedText = adoptNS([[NSAttributedString alloc] initWithString:result]);
+        RetainPtr longerAttributedText = adoptNS([[NSAttributedString alloc] initWithString:result]);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(0, 910) inContext:contexts.firstObject finished:NO];
 
@@ -2115,11 +2115,11 @@ TEST(WritingTools, CompositionShowOriginalHasNoTransparentMarkers)
 
 TEST(WritingTools, CompositionWithTrailingNewlines)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
     NSString *source = @"<body contenteditable id='first'><p style=\"margin: 0px;\">Hey wanna go to the movies this weekend</p><p style=\"margin: 0px;\"><br></p><p style=\"margin: 0px;\">A</p></body>";
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:source]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:source]);
     [webView focusDocumentBodyAndSelectAll];
 
     __auto_type modifySelection = ^{
@@ -2153,7 +2153,7 @@ TEST(WritingTools, CompositionWithTrailingNewlines)
         [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
         TestWebKitAPI::Util::runFor(0.1_s);
 
-        auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"Hey, wanna catch a flick this weekend?"]);
+        RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"Hey, wanna catch a flick this weekend?"]);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 39) inContext:contexts.firstObject finished:NO];
 
@@ -2171,11 +2171,11 @@ TEST(WritingTools, CompositionWithTrailingNewlines)
 
 TEST(WritingTools, CompositionWithTrailingBreaks)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
     NSString *source = @"<html><head></head><body contenteditable dir=\"auto\"><div><div>On Mar 5, 224, Bob wrote:</div><div><p>A</p></div><br></div></body></html>";
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:source]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:source]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;
@@ -2184,7 +2184,7 @@ TEST(WritingTools, CompositionWithTrailingBreaks)
         [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
         TestWebKitAPI::Util::runFor(0.1_s);
 
-        auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"On March 5, 224, Bob wrote:\nA\n\n"]);
+        RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"On March 5, 224, Bob wrote:\nA\n\n"]);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 26) inContext:contexts.firstObject finished:NO];
 
@@ -2282,14 +2282,14 @@ TEST(WritingTools, RevealOffScreenSuggestionWhenActive)
 TEST(WritingTools, DISABLED_RevealOffScreenSuggestionWhenActive)
 #endif
 {
-    auto firstSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(0, 4) replacement:@"ZZZZ"]);
-    auto secondSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(12, 4) replacement:@"YYYY"]);
+    RetainPtr firstSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(0, 4) replacement:@"ZZZZ"]);
+    RetainPtr secondSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(12, 4) replacement:@"YYYY"]);
 
     auto suggestions = [NSMutableArray array];
     [suggestions addObject:firstSuggestion.get()];
     [suggestions addObject:secondSuggestion.get()];
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable style='font-size: 40px; line-height: 1000px;'><p id='first'>AAAA</p><p id='second'>BBBB</p><p id='third'>CCCC</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable style='font-size: 40px; line-height: 1000px;'><p id='first'>AAAA</p><p id='second'>BBBB</p><p id='third'>CCCC</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *originalText = @"AAAA\n\nBBBB\n\nCCCC";
@@ -2305,9 +2305,9 @@ TEST(WritingTools, DISABLED_RevealOffScreenSuggestionWhenActive)
     };
 #endif
 
-    auto textViewDelegate = adoptNS([[WKConcreteWTTextViewDelegate alloc] initWithWritingToolsDelegate:[webView writingToolsDelegate] suggestions:suggestions expectedRects:expectedRects]);
+    RetainPtr textViewDelegate = adoptNS([[WKConcreteWTTextViewDelegate alloc] initWithWritingToolsDelegate:[webView writingToolsDelegate] suggestions:suggestions expectedRects:expectedRects]);
 
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:(id<WTTextViewDelegate>)textViewDelegate.get()]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:(id<WTTextViewDelegate>)textViewDelegate.get()]);
     [textViewDelegate setSession:session.get()];
 
     [webView selectAll:nil];
@@ -2352,14 +2352,14 @@ TEST(WritingTools, DISABLED_RevealOffScreenSuggestionWhenActive)
 
 TEST(WritingTools, ShowDetailsForSuggestions)
 {
-    auto firstSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(0, 4) replacement:@"ZZZZ"]);
-    auto secondSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(10, 4) replacement:@"YYYY"]);
+    RetainPtr firstSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(0, 4) replacement:@"ZZZZ"]);
+    RetainPtr secondSuggestion = adoptNS([[WTTextSuggestion alloc] initWithOriginalRange:NSMakeRange(10, 4) replacement:@"YYYY"]);
 
     auto suggestions = [NSMutableArray array];
     [suggestions addObject:firstSuggestion.get()];
     [suggestions addObject:secondSuggestion.get()];
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
 #if PLATFORM(MAC)
@@ -2374,9 +2374,9 @@ TEST(WritingTools, ShowDetailsForSuggestions)
     };
 #endif
 
-    auto textViewDelegate = adoptNS([[WKConcreteWTTextViewDelegate alloc] initWithWritingToolsDelegate:[webView writingToolsDelegate] suggestions:suggestions expectedRects:expectedRects]);
+    RetainPtr textViewDelegate = adoptNS([[WKConcreteWTTextViewDelegate alloc] initWithWritingToolsDelegate:[webView writingToolsDelegate] suggestions:suggestions expectedRects:expectedRects]);
 
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:(id<WTTextViewDelegate>)textViewDelegate.get()]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeProofreading textViewDelegate:(id<WTTextViewDelegate>)textViewDelegate.get()]);
     [textViewDelegate setSession:session.get()];
 
     constexpr unsigned start = 0;
@@ -2444,7 +2444,7 @@ TEST(WritingTools, ShowDetailsForSuggestions)
 
 TEST(WritingTools, WantsInlineEditing)
 {
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable>Hello World</body>" writingToolsBehavior:CocoaWritingToolsBehaviorDefault]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable>Hello World</body>" writingToolsBehavior:CocoaWritingToolsBehaviorDefault]);
 
     [webView _setEditable:NO];
     EXPECT_EQ([webView writingToolsBehaviorForTesting], CocoaWritingToolsBehaviorNone);
@@ -2455,7 +2455,7 @@ TEST(WritingTools, WantsInlineEditing)
 
 TEST(WritingTools, WritingToolsBehaviorNonEditableWithSelection)
 {
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body>Hello World</body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body>Hello World</body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
 
     [webView selectAll:nil];
     [webView waitForNextPresentationUpdate];
@@ -2465,14 +2465,14 @@ TEST(WritingTools, WritingToolsBehaviorNonEditableWithSelection)
 
 TEST(WritingTools, WritingToolsBehaviorWithNoSelection)
 {
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable>Hello World</body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable>Hello World</body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
 
     EXPECT_EQ([webView writingToolsBehaviorForTesting], CocoaWritingToolsBehaviorNone);
 }
 
 TEST(WritingTools, WritingToolsBehaviorEditableWithSelection)
 {
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable>Hello World</body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable>Hello World</body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
     [webView focusDocumentBodyAndSelectAll];
 
     EXPECT_EQ([webView writingToolsBehaviorForTesting], CocoaWritingToolsBehaviorComplete);
@@ -2480,14 +2480,14 @@ TEST(WritingTools, WritingToolsBehaviorEditableWithSelection)
 
 TEST(WritingTools, AllowedInputOptionsNonEditable)
 {
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body></body>"]);
 
     EXPECT_EQ(CocoaWritingToolsResultPlainText | CocoaWritingToolsResultRichText | CocoaWritingToolsResultList | CocoaWritingToolsResultTable, [webView allowedWritingToolsResultOptionsForTesting]);
 }
 
 TEST(WritingTools, AllowedInputOptionsEditable)
 {
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body></body>"]);
     [webView _setEditable:YES];
     [webView focusDocumentBodyAndSelectAll];
 
@@ -2496,7 +2496,7 @@ TEST(WritingTools, AllowedInputOptionsEditable)
 
 TEST(WritingTools, AllowedInputOptionsRichText)
 {
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     EXPECT_EQ(CocoaWritingToolsResultPlainText | CocoaWritingToolsResultRichText | CocoaWritingToolsResultList | CocoaWritingToolsResultTable, [webView allowedWritingToolsResultOptionsForTesting]);
@@ -2504,7 +2504,7 @@ TEST(WritingTools, AllowedInputOptionsRichText)
 
 TEST(WritingTools, AllowedInputOptionsPlainText)
 {
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable=\"plaintext-only\"></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable=\"plaintext-only\"></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     EXPECT_EQ(CocoaWritingToolsResultPlainText, [webView allowedWritingToolsResultOptionsForTesting]);
@@ -2512,7 +2512,7 @@ TEST(WritingTools, AllowedInputOptionsPlainText)
 
 TEST(WritingTools, EphemeralSessionWithDifferingTextLengths)
 {
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<p>AAAA BBBB CCCC DDDD</p><img src='sunset-in-cupertino-200px.png'></img><p>CCCC DDDD</p>" writingToolsBehavior:CocoaWritingToolsBehaviorDefault]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<p>AAAA BBBB CCCC DDDD</p><img src='sunset-in-cupertino-200px.png'></img><p>CCCC DDDD</p>" writingToolsBehavior:CocoaWritingToolsBehaviorDefault]);
     [webView _setEditable:NO];
     [webView selectAll:nil];
 
@@ -2536,7 +2536,7 @@ TEST(WritingTools, EphemeralSessionWithDeeplyNestedContent)
 {
     NSString *text = @"The oceanic whitetip shark is a large requiem shark inhabiting tropical and warm temperate seas. It has a stocky body with long, white-tipped, rounded fins. The species is typically solitary but can congregate around food concentrations.";
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:[NSString stringWithFormat:@"<body><div><div><div><div><div><div><div><div><div><div><p>%@</p></div></div></div></div></div></div></div></div></div></div></body>", text] writingToolsBehavior:CocoaWritingToolsBehaviorDefault]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:[NSString stringWithFormat:@"<body><div><div><div><div><div><div><div><div><div><div><p>%@</p></div></div></div></div></div></div></div></div></div></div></body>", text] writingToolsBehavior:CocoaWritingToolsBehaviorDefault]);
     [webView selectAll:nil];
 
     [webView waitForNextPresentationUpdate];
@@ -2554,7 +2554,7 @@ TEST(WritingTools, EphemeralSessionWithDeeplyNestedContent)
 
 TEST(WritingTools, EphemeralSession)
 {
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>This is the first sentence in a paragraph I want to rewrite. Only this sentence is selected.</p><p id='second'>This is the first sentence of the second paragraph. The previous sentence is selected, but this one is not.</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>This is the first sentence in a paragraph I want to rewrite. Only this sentence is selected.</p><p id='second'>This is the first sentence of the second paragraph. The previous sentence is selected, but this one is not.</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *setSelectionJavaScript = @""
@@ -2644,9 +2644,9 @@ TEST(WritingTools, TransparencyMarkersForInlineEditing)
 
 TEST(WritingTools, NoCrashWhenWebProcessTerminates)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable>Early morning in Cupertino</body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable>Early morning in Cupertino</body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     auto waitForValue = [webView](NSUInteger expectedValue) {
@@ -2674,7 +2674,7 @@ TEST(WritingTools, NoCrashWhenWebProcessTerminates)
     TestWebKitAPI::Util::run(&finished);
 
     __block bool webProcessTerminated = false;
-    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView *, _WKProcessTerminationReason) {
         webProcessTerminated = true;
@@ -2718,7 +2718,7 @@ TEST(WritingTools, APIWithBehaviorNone)
     }));
 #endif
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
 #if PLATFORM(MAC)
     __block RetainPtr<NSMenu> proposedMenu;
@@ -2730,7 +2730,7 @@ TEST(WritingTools, APIWithBehaviorNone)
     }];
 #endif
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorNone]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorNone]);
     [webView setUIDelegate:delegate.get()];
 
     [webView focusDocumentBodyAndSelectAll];
@@ -2768,7 +2768,7 @@ TEST(WritingTools, APIWithBehaviorDefault)
     }));
 #endif
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
 #if PLATFORM(MAC)
     __block RetainPtr<NSMenu> proposedMenu;
@@ -2780,7 +2780,7 @@ TEST(WritingTools, APIWithBehaviorDefault)
     }];
 #endif
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorDefault]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorDefault]);
     [webView setUIDelegate:delegate.get()];
 
     [webView focusDocumentBodyAndSelectAll];
@@ -2818,7 +2818,7 @@ TEST(WritingTools, APIWithBehaviorComplete)
     }));
 #endif
 
-    auto delegate = adoptNS([[TestUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[TestUIDelegate alloc] init]);
 
 #if PLATFORM(MAC)
     __block RetainPtr<NSMenu> proposedMenu;
@@ -2830,7 +2830,7 @@ TEST(WritingTools, APIWithBehaviorComplete)
     }];
 #endif
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
     [webView setUIDelegate:delegate.get()];
 
     [webView focusDocumentBodyAndSelectAll];
@@ -2899,7 +2899,7 @@ TEST(WritingTools, APIWithBehaviorComplete)
 static void waitForIsWritingToolsActiveToChange(TestWKWebView *webView, Function<void()>&& trigger)
 {
     bool done = false;
-    auto isWritingToolsActiveObserver = adoptNS([[IsWritingToolsAvailableKVOWrapper alloc] initWithObservable:webView keyPath:@"writingToolsActive" callback:[&] {
+    RetainPtr isWritingToolsActiveObserver = adoptNS([[IsWritingToolsAvailableKVOWrapper alloc] initWithObservable:webView keyPath:@"writingToolsActive" callback:[&] {
         done = true;
     }]);
 
@@ -2911,9 +2911,9 @@ static void waitForIsWritingToolsActiveToChange(TestWKWebView *webView, Function
 
 TEST(WritingTools, IsWritingToolsActiveAPI)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     EXPECT_FALSE([webView isWritingToolsActive]);
@@ -2933,7 +2933,7 @@ TEST(WritingTools, IsWritingToolsActiveAPI)
 
 TEST(WritingTools, IsWritingToolsActiveAPIWithNoInlineEditing)
 {
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     EXPECT_FALSE([webView isWritingToolsActive]);
@@ -2996,7 +2996,7 @@ TEST(WritingTools, ShowAffordance)
         didCallScheduleShowAffordanceForSelectionRect = true;
     }));
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
     [webView focusDocumentBodyAndSelectAll];
 
     expectScheduleShowAffordanceForSelectionRectCalled(true);
@@ -3043,7 +3043,7 @@ TEST(WritingTools, DISABLED_ShowAffordanceForMultipleLines)
         count++;
     }));
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>AAAA BBBB CCCC</p><p>DDDD</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='first'>AAAA BBBB CCCC</p><p>DDDD</p></body>" writingToolsBehavior:CocoaWritingToolsBehaviorComplete]);
     [webView focusDocumentBodyAndSelectAll];
 
     expectScheduleShowAffordanceForSelectionRectCalled(true);
@@ -3218,7 +3218,7 @@ TEST(WritingTools, FocusWebViewAfterAnimation)
 
         EXPECT_WK_STREQ(@"AAAA BBBB CCCC", [webView contentsAsStringWithoutNBSP]);
 
-        auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZ"]);
+        RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZ"]);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 14) inContext:contexts.firstObject finished:NO];
 
@@ -3555,9 +3555,9 @@ TEST(WritingTools, AppMenuEditableEmpty)
 
 TEST(WritingTools, SmartRepliesMatchStyle)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable style='font-size: 30px;'><p id='p'></p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable style='font-size: 30px;'><p id='p'></p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *setSelectionJavaScript = @""
@@ -3691,9 +3691,9 @@ TEST(WritingTools, ContextRangeWithNoSelection)
 
 TEST(WritingTools, ContextRangeFromCaretSelection)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable id='p'><p>AAAA BBBB CCCC</p><p>XXXX YYYY ZZZZ</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable id='p'><p>AAAA BBBB CCCC</p><p>XXXX YYYY ZZZZ</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *setSelectionJavaScript = @""
@@ -3745,9 +3745,9 @@ TEST(WritingTools, ContextRangeFromCaretSelection)
 
 TEST(WritingTools, ContextRangeFromRangeSelection)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable id='p'><p>AAAA BBBB CCCC</p><p>XXXX YYYY ZZZZ</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable id='p'><p>AAAA BBBB CCCC</p><p>XXXX YYYY ZZZZ</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *setSelectionJavaScript = @""
@@ -3811,10 +3811,10 @@ TEST(WritingTools, ContextRangeFromRangeSelection)
 
 TEST(WritingTools, SuggestedTextIsSelectedAfterSmartReply)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
     [session setCompositionSessionType:WTCompositionSessionTypeSmartReply];
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='p'>AAAA</p><p>BBBB</p></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='p'>AAAA</p><p>BBBB</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     NSString *setSelectionJavaScript = @""
@@ -3933,9 +3933,9 @@ TEST(WritingTools, SuggestedTextIsSelectedAfterCompose)
 
 TEST(WritingTools, BlockquoteAndPreContentsAreIgnored)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p>AAAA</p><blockquote>BBBB</blockquote><p>CCCC</p><pre>DDDD</pre></body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p>AAAA</p><blockquote>BBBB</blockquote><p>CCCC</p><pre>DDDD</pre></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     __block bool finished = false;

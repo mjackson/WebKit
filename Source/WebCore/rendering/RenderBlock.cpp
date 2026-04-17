@@ -2960,11 +2960,20 @@ std::optional<LayoutUnit> RenderBlock::availableLogicalHeightForPercentageComput
             );
         }
 
-        // A positioned element that specified both top/bottom or that specifies
-        // height should be treated as though it has a height explicitly specified
-        // that can be used for any percentage computations.
-        auto isOutOfFlowPositionedWithSpecifiedHeight = isOutOfFlowPositioned() && (!style.logicalHeight().isAuto() || (!style.logicalTop().isAuto() && !style.logicalBottom().isAuto()));
-        if (isOutOfFlowPositionedWithSpecifiedHeight) {
+        auto isOutOfFlowPositionedWithDefiniteHeight = [&] {
+            if (!isOutOfFlowPositioned())
+                return false;
+            // Explicit lengths/percentages are definite (CSS Sizing 3, 3.2.1).
+            if (style.logicalHeight().isSpecified())
+                return true;
+            // Both insets + height:auto -> the constraint equation (CSS2 10.6.4) solves for
+            // height from known values (containing block, insets, margins, borders, padding).
+            // height:auto is the only non-specified case where this works.
+            // Content-dependent values (fit-content, etc.) can't be resolved here - the child is asking for
+            // the containig block's height to size itself, but the containing blokc needs the child's size first.
+            return !style.logicalTop().isAuto() && !style.logicalBottom().isAuto() && style.logicalHeight().isAuto();
+        };
+        if (isOutOfFlowPositionedWithDefiniteHeight()) {
             // Don't allow this to affect the block' size() member variable, since this
             // can get called while the block is still laying out its kids.
             return std::max(0_lu, computeLogicalHeight(logicalHeight(), 0_lu).extent - borderAndPaddingLogicalHeight() - scrollbarLogicalHeight());

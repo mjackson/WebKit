@@ -195,16 +195,6 @@ template<typename... Ts> inline constexpr auto TreatAsVariantLike<Variant<Ts...>
 
 // MARK: - Standard Leaf Types
 
-// Helper type used to represent an arbitrary property identifier.
-struct PropertyIdentifier {
-    CSSPropertyID value;
-
-    bool operator==(const PropertyIdentifier&) const = default;
-};
-TextStream& operator<<(TextStream&, const PropertyIdentifier&);
-
-void NODELETE add(Hasher&, const PropertyIdentifier&);
-
 template<CSSValueID C> TextStream& operator<<(TextStream& ts, const Constant<C>&)
 {
     return ts << nameLiteral(C);

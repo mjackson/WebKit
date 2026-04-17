@@ -61,7 +61,7 @@ namespace TestWebKitAPI {
 static RetainPtr<WKWebViewWithHitTester> createWebViewWithHitTester()
 {
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"InjectedBundleHitTestPlugIn" configureJSCForTesting:YES];
-    auto webView = adoptNS([[WKWebViewWithHitTester alloc] initWithFrame:CGRectMake(0, 0, 500, 500) configuration:configuration]);
+    RetainPtr webView = adoptNS([[WKWebViewWithHitTester alloc] initWithFrame:CGRectMake(0, 0, 500, 500) configuration:configuration]);
 
     auto interface = [_WKRemoteObjectInterface remoteObjectInterfaceWithProtocol:@protocol(InjectedBundleHitTestProtocol)];
     [webView setHitTester:[[webView _remoteObjectRegistry] remoteObjectProxyWithInterface:interface]];

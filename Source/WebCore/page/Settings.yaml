@@ -272,6 +272,12 @@ MaximumSourceBufferSize:
     WebCore:
       default: SettingsBase::defaultMaximumSourceBufferSize()
 
+MaximumXMLParserEntityExpansionCount:
+  type: uint32_t
+  defaultValue:
+    WebCore:
+      default: SettingsBase::defaultMaximumXMLParserEntityExpansionCount
+
 MediaKeysStorageDirectory:
   type: String
   defaultValue:

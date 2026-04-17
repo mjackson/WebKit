@@ -93,6 +93,7 @@ class Text;
 class TextCheckerClient;
 class TextEvent;
 class TextPlaceholderElement;
+class CachedMatchFinder;
 class WritingSuggestionData;
 
 struct CompositionHighlight;
@@ -668,6 +669,8 @@ public:
 
     WEBCORE_EXPORT void closeTyping();
 
+    void releaseMemory();
+
 #if PLATFORM(IOS_FAMILY)
     bool shouldDrawVisuallyContiguousBidiSelection() const;
 #endif
@@ -784,6 +787,8 @@ private:
     bool m_isGettingDictionaryPopupInfo { false };
     bool m_hasHandledAnyEditing { false };
     HashSet<Ref<HTMLImageElement>> m_imageElementsToLoadBeforeRevealingSelection;
+
+    std::unique_ptr<CachedMatchFinder> m_matchFinder;
 };
 
 inline void Editor::setStartNewKillRingSequence(bool flag)

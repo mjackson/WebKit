@@ -429,25 +429,30 @@ void pas_status_reporter_dump_large_heap(pas_stream* stream, pas_large_heap* hea
 
 void pas_status_reporter_dump_large_map(pas_stream* stream)
 {
+    unsigned variant_index;
     pas_stream_printf(stream, "    Large Map:\n");
-    pas_stream_printf(
-        stream,
-        "        Tiny Map: Num Entries: %u, Num Deleted: %u, Table Size: %u\n",
-        pas_tiny_large_map_hashtable_instance.key_count,
-        pas_tiny_large_map_hashtable_instance.deleted_count,
-        pas_tiny_large_map_hashtable_instance.table_size);
-    pas_stream_printf(
-        stream,
-        "        Small Fallback Map: Num Entries: %u, Num Deleted: %u, Table Size: %u\n",
-        pas_small_large_map_hashtable_instance.key_count,
-        pas_small_large_map_hashtable_instance.deleted_count,
-        pas_small_large_map_hashtable_instance.table_size);
-    pas_stream_printf(
-        stream,
-        "        Fallback Map: Num Entries: %u, Num Deleted: %u, Table Size: %u\n",
-        pas_large_map_hashtable_instance.key_count,
-        pas_large_map_hashtable_instance.deleted_count,
-        pas_large_map_hashtable_instance.table_size);
+    for (variant_index = 0; variant_index < PAS_NUM_LARGE_MAP_VARIANTS; variant_index++) {
+        pas_large_map* map = &pas_large_maps[variant_index];
+        pas_stream_printf(stream, "      Variant %u:\n", variant_index);
+        pas_stream_printf(
+            stream,
+            "        Tiny Map: Num Entries: %u, Num Deleted: %u, Table Size: %u\n",
+            map->tiny_large_map_hashtable.key_count,
+            map->tiny_large_map_hashtable.deleted_count,
+            map->tiny_large_map_hashtable.table_size);
+        pas_stream_printf(
+            stream,
+            "        Small Fallback Map: Num Entries: %u, Num Deleted: %u, Table Size: %u\n",
+            map->small_large_map_hashtable.key_count,
+            map->small_large_map_hashtable.deleted_count,
+            map->small_large_map_hashtable.table_size);
+        pas_stream_printf(
+            stream,
+            "        Fallback Map: Num Entries: %u, Num Deleted: %u, Table Size: %u\n",
+            map->large_map_hashtable.key_count,
+            map->large_map_hashtable.deleted_count,
+            map->large_map_hashtable.table_size);
+    }
 }
 
 void pas_status_reporter_dump_heap_table(pas_stream* stream)

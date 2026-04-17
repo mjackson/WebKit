@@ -30,10 +30,15 @@
 #include "Settings.h"
 #include <JavaScriptCore/InspectorProtocolObjects.h>
 #include <wtf/CheckedPtr.h>
+#include <wtf/CheckedRef.h>
 #include <wtf/HashMap.h>
 #include <wtf/JSONValues.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/Vector.h>
+
+namespace Inspector {
+class IdentifierRegistry;
+}
 
 namespace WebCore {
 
@@ -44,7 +49,6 @@ class CSSStyleRule;
 class CSSStyleSheet;
 class Document;
 class Element;
-class InspectorPageAgent;
 class InspectorStyleSheet;
 class ParsedStyleSheet;
 
@@ -161,7 +165,7 @@ public:
 
     using StyleDeclarationOrCSSRule = Variant<CSSStyleDeclaration*, CSSRule*>;
 
-    static Ref<InspectorStyleSheet> create(InspectorPageAgent*, const String& id, RefPtr<CSSStyleSheet>&& pageStyleSheet, Inspector::Protocol::CSS::StyleSheetOrigin, const String& documentURL, Listener*);
+    static Ref<InspectorStyleSheet> create(Inspector::IdentifierRegistry&, const String& id, RefPtr<CSSStyleSheet>&& pageStyleSheet, Inspector::Protocol::CSS::StyleSheetOrigin, const String& documentURL, Listener*);
     static String NODELETE styleSheetURL(CSSStyleSheet* pageStyleSheet);
 
     virtual ~InspectorStyleSheet();
@@ -191,7 +195,7 @@ public:
     InspectorCSSId ruleOrStyleId(StyleDeclarationOrCSSRule) const;
 
 protected:
-    InspectorStyleSheet(InspectorPageAgent*, const String& id, RefPtr<CSSStyleSheet>&& pageStyleSheet, Inspector::Protocol::CSS::StyleSheetOrigin, const String& documentURL, Listener*);
+    InspectorStyleSheet(Inspector::IdentifierRegistry&, const String& id, RefPtr<CSSStyleSheet>&& pageStyleSheet, Inspector::Protocol::CSS::StyleSheetOrigin, const String& documentURL, Listener*);
 
     bool canBind() const { return m_origin != Inspector::Protocol::CSS::StyleSheetOrigin::UserAgent && m_origin != Inspector::Protocol::CSS::StyleSheetOrigin::User; }
     virtual Document* ownerDocument() const;
@@ -225,7 +229,7 @@ private:
     Vector<Ref<CSSStyleRule>> cssStyleRulesSplitFromSameRule(CSSStyleRule&);
     Vector<const CSSSelector*> selectorsForCSSStyleRule(CSSStyleRule&);
 
-    CheckedPtr<InspectorPageAgent> m_pageAgent;
+    WeakRef<Inspector::IdentifierRegistry> m_identifierRegistry;
     String m_id;
     RefPtr<CSSStyleSheet> m_pageStyleSheet;
     Inspector::Protocol::CSS::StyleSheetOrigin m_origin;
@@ -237,7 +241,7 @@ private:
 
 class InspectorStyleSheetForInlineStyle final : public InspectorStyleSheet {
 public:
-    static Ref<InspectorStyleSheetForInlineStyle> create(InspectorPageAgent*, const String& id, Ref<StyledElement>&&, Inspector::Protocol::CSS::StyleSheetOrigin, Listener*);
+    static Ref<InspectorStyleSheetForInlineStyle> create(Inspector::IdentifierRegistry&, const String& id, Ref<StyledElement>&&, Inspector::Protocol::CSS::StyleSheetOrigin, Listener*);
 
     void didModifyElementAttribute();
     ExceptionOr<String> text() final;
@@ -245,7 +249,7 @@ public:
     ExceptionOr<void> setRuleStyleText(const InspectorCSSId&, const String& newStyleDeclarationText, String* outOldStyleDeclarationText, const String* newRuleText, String* outOldRuleText);
 
 private:
-    InspectorStyleSheetForInlineStyle(InspectorPageAgent*, const String& id, Ref<StyledElement>&&, Inspector::Protocol::CSS::StyleSheetOrigin, Listener*);
+    InspectorStyleSheetForInlineStyle(Inspector::IdentifierRegistry&, const String& id, Ref<StyledElement>&&, Inspector::Protocol::CSS::StyleSheetOrigin, Listener*);
 
     Document* ownerDocument() const final;
     RefPtr<CSSRuleSourceData> ruleSourceDataFor(CSSStyleDeclaration* style) const final { ASSERT_UNUSED(style, style == &inlineStyle()); return m_ruleSourceData; }

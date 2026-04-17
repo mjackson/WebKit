@@ -39,7 +39,7 @@ namespace WebCore::Style {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(CanvasImage);
 
-CanvasImage::CanvasImage(String&& name)
+CanvasImage::CanvasImage(CustomIdent&& name)
     : GeneratedImage { Type::CanvasImage, CanvasImage::isFixedSize }
     , m_name { WTF::move(name) }
 {
@@ -62,9 +62,9 @@ bool CanvasImage::equals(const CanvasImage& other) const
     return m_name == other.m_name;
 }
 
-Ref<CSSValue> CanvasImage::computedStyleValue(const RenderStyle&) const
+Ref<CSSValue> CanvasImage::computedStyleValue(const RenderStyle& style) const
 {
-    return CSSCanvasValue::create(m_name);
+    return CSSCanvasValue::create(toCSS(m_name, style));
 }
 
 bool CanvasImage::isPending() const
@@ -146,7 +146,7 @@ void CanvasImage::canvasDestroyed(CanvasBase& canvasBase)
 HTMLCanvasElement* CanvasImage::element(Document& document) const
 {
     if (!m_element) {
-        m_element = document.getCSSCanvasElement(m_name);
+        m_element = document.getCSSCanvasElement(m_name.value);
         m_element->addObserver(const_cast<CanvasImage&>(*this));
     }
     return m_element.get();

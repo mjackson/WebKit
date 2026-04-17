@@ -129,11 +129,11 @@ static RetainPtr<WKContentRuleList> makeContentRuleList(NSString *source, NSStri
 
 TEST(ContentRuleList, NotificationMainResource)
 {
-    auto delegate = adoptNS([[ContentRuleListNotificationDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr delegate = adoptNS([[ContentRuleListNotificationDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addContentRuleList:makeContentRuleList(notificationSource).get()];
     [configuration setURLSchemeHandler:delegate.get() forURLScheme:@"apitest"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"apitest:///match"]]];
     TestWebKitAPI::Util::run(&receivedNotification);
@@ -143,11 +143,11 @@ TEST(ContentRuleList, NotificationMainResource)
 
 TEST(ContentRuleList, NotificationSubresource)
 {
-    auto delegate = adoptNS([[ContentRuleListNotificationDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr delegate = adoptNS([[ContentRuleListNotificationDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addContentRuleList:makeContentRuleList(notificationSource).get()];
     [configuration setURLSchemeHandler:delegate.get() forURLScheme:@"apitest"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
     [webView loadHTMLString:@"<script>fetch('match').then(function(response){alert('fetch complete')})</script>" baseURL:[NSURL URLWithString:@"apitest:///"]];
@@ -169,9 +169,9 @@ TEST(ContentRuleList, LoadHTMLStringDisplayNone)
         "{ \"action\": { \"type\" : \"ignore-previous-rules\" }, \"trigger\": { \"url-filter\": \"example.com\" }}"
     "]");
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:list.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView synchronouslyLoadHTMLString:html];
     EXPECT_WK_STREQ([webView objectByEvaluatingJavaScript:getLinkDisplay], "none");
@@ -185,9 +185,9 @@ TEST(ContentRuleList, LoadHTMLStringDisplayNone)
     auto list2 = makeContentRuleList(@"["
         "{ \"action\": { \"type\" : \"css-display-none\", \"selector\": \"a[href*='apple.com']\" }, \"trigger\": { \"url-filter\": \"webkit.org\" }}"
     "]", @"other extension");
-    auto configuration2 = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration2 = adoptNS([WKWebViewConfiguration new]);
     [[configuration2 userContentController] addContentRuleList:list2.get()];
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration2.get()]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration2.get()]);
 
     [webView2 synchronouslyLoadHTMLString:html baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
     EXPECT_WK_STREQ([webView2 objectByEvaluatingJavaScript:getLinkDisplay], "none");
@@ -204,9 +204,9 @@ TEST(ContentRuleList, DisplayNoneInSrcDocIFrame)
         "{ \"action\": { \"type\" : \"css-display-none\", \"selector\": \".header\" }, \"trigger\": { \"url-filter\": \".*\" }}"
     "]");
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:list.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView synchronouslyLoadHTMLString:html];
 
@@ -234,9 +234,9 @@ TEST(ContentRuleList, DisplayNoneInAboutBlankIFrame)
         "{ \"action\": { \"type\" : \"css-display-none\", \"selector\": \"h1\" }, \"trigger\": { \"url-filter\": \".*\" }}"
     "]");
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:list.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView synchronouslyLoadHTMLString:html];
 
@@ -271,9 +271,9 @@ TEST(ContentRuleList, DisplayNoneAfterIgnoreFollowingRules)
         "{ \"action\": { \"type\" : \"css-display-none\", \"selector\": \"h1[id*='B']\" }, \"trigger\": { \"url-filter\": \".*\" }}"
     "]");
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:list.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView synchronouslyLoadHTMLString:html];
     EXPECT_WK_STREQ([webView objectByEvaluatingJavaScript:headerADisplay], "none");
@@ -288,12 +288,12 @@ TEST(ContentRuleList, PerformedActionForURL)
 {
     NSString *firstList = @"[{\"action\":{\"type\":\"notify\",\"notification\":\"testnotification\"},\"trigger\":{\"url-filter\":\"notify\"}}]";
     NSString *secondList = @"[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"block\"}}]";
-    auto delegate = adoptNS([[ContentRuleListNotificationDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr delegate = adoptNS([[ContentRuleListNotificationDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addContentRuleList:makeContentRuleList(firstList, @"firstList").get()];
     [[configuration userContentController] addContentRuleList:makeContentRuleList(secondList, @"secondList").get()];
     [configuration setURLSchemeHandler:delegate.get() forURLScheme:@"apitest"];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
     [webView loadHTMLString:@"<script>fetch('notify').then(function(){fetch('block').then().catch(function(){alert('test complete')})})</script>" baseURL:[NSURL URLWithString:@"apitest:///"]];
@@ -383,11 +383,11 @@ TEST(ContentRuleList, RequestMethods)
         return makeContentRuleList([NSString stringWithFormat:@"[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\", \"request-method\": \"%@\"}}]", method]);
     };
 
-    auto delegate = adoptNS([[ContentRuleListNotificationDelegate alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr delegate = adoptNS([[ContentRuleListNotificationDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setURLSchemeHandler:delegate.get() forURLScheme:@"apitest"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
 
@@ -593,10 +593,10 @@ TEST(ContentRuleList, CSPReport)
         { "Content-Security-Policy"_s, "frame-src 'none'; report-uri resources/save-report.py"_s }
     }, "<iframe src=\"https://webkit.org/\"></iframe>"_s } } });
 
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     [[configuration userContentController] addContentRuleList:makeContentRuleList(@"[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\",\"resource-type\":[\"csp-report\"]}}]").get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
-    auto delegate = adoptNS([ContentRuleListNotificationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([ContentRuleListNotificationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:server.request()];
     while (notificationList.isEmpty())
@@ -613,14 +613,14 @@ TEST(WebKit, RedirectToPlaintextHTTPSUpgrade)
     HTTPServer plaintextServer({ { "http://download/redirectTarget"_s, { "<script>alert('success!')</script>"_s } } });
     HTTPServer secureServer({ { "/originalRequest"_s, { 302, { { "Location"_s, "http://download/redirectTarget"_s } }, emptyString() } } }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [storeConfiguration setHTTPProxy:[NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/", plaintextServer.port()]]];
     [storeConfiguration setHTTPSProxy:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", secureServer.port()]]];
     [storeConfiguration setAllowsServerPreconnect:NO];
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().didReceiveAuthenticationChallenge = ^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
     };
@@ -639,11 +639,11 @@ TEST(ContentRuleList, RedirectBeforeBlock)
 
     NSString *rules = [NSString stringWithFormat:@"[{\"action\":{\"type\":\"redirect\",\"redirect\":{\"url\":\"%@\"}},\"trigger\":{\"url-filter\":\".*\"}},{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\"}}]", server.request("/redirected"_s).URL.absoluteString];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addContentRuleList:makeContentRuleList(rules).get()];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
         preferences._activeContentRuleListActionPatterns = @{
             @"testidentifier": [NSSet setWithObject:@"*://*/*"]

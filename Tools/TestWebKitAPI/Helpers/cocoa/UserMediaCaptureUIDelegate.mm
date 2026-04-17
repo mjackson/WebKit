@@ -146,7 +146,7 @@
 #if PLATFORM(IOS_FAMILY)
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction preferences:(WKWebpagePreferences *)preferences decisionHandler:(void (^)(WKNavigationActionPolicy, WKWebpagePreferences *))decisionHandler
 {
-    auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
+    RetainPtr websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     [websitePolicies _setPopUpPolicy:_WKWebsitePopUpPolicyAllow];
     decisionHandler(WKNavigationActionPolicyAllow, websitePolicies.get());
 }

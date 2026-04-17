@@ -675,8 +675,7 @@ void MediaPlayer::loadWithNextMediaEngine(const MediaPlayerFactory* current)
 
             if (m_pageIsVisible)
                 playerPrivate->setPageIsVisible(m_pageIsVisible);
-            if (m_visibleInViewport)
-                playerPrivate->setVisibleInViewport(m_visibleInViewport);
+            playerPrivate->setViewportVisibility(m_viewportVisibility);
             if (m_isGatheringVideoFrameMetadata)
                 playerPrivate->startVideoFrameMetadataGathering();
             if (m_processIdentity)
@@ -1197,13 +1196,13 @@ void MediaPlayer::setVisibleForCanvas(bool visible)
     protect(m_private)->setVisibleForCanvas(visible);
 }
 
-void MediaPlayer::setVisibleInViewport(bool visible)
+void MediaPlayer::setViewportVisibility(ViewportVisibility visibility)
 {
-    if (visible == m_visibleInViewport)
+    if (visibility == m_viewportVisibility)
         return;
 
-    m_visibleInViewport = visible;
-    protect(m_private)->setVisibleInViewport(visible);
+    m_viewportVisibility = visibility;
+    protect(m_private)->setViewportVisibility(visibility);
 }
 
 void MediaPlayer::setResourceOwner(const ProcessIdentity& processIdentity)
@@ -2219,6 +2218,20 @@ String convertEnumerationToString(MediaPlayer::BufferingPolicy enumerationValue)
     static_assert(static_cast<size_t>(MediaPlayer::BufferingPolicy::LimitReadAhead) == 1, "MediaPlayer::LimitReadAhead is not 1 as expected");
     static_assert(static_cast<size_t>(MediaPlayer::BufferingPolicy::MakeResourcesPurgeable) == 2, "MediaPlayer::MakeResourcesPurgeable is not 2 as expected");
     static_assert(static_cast<size_t>(MediaPlayer::BufferingPolicy::PurgeResources) == 3, "MediaPlayer::PurgeResources is not 3 as expected");
+    ASSERT(static_cast<size_t>(enumerationValue) < std::size(values));
+    return values[static_cast<size_t>(enumerationValue)];
+}
+
+String convertEnumerationToString(MediaPlayer::ViewportVisibility enumerationValue)
+{
+    static const std::array<NeverDestroyed<String>, 4> values {
+        MAKE_STATIC_STRING_IMPL("NotVisible"),
+        MAKE_STATIC_STRING_IMPL("IntersectingViewport"),
+        MAKE_STATIC_STRING_IMPL("VisibleInViewport"),
+    };
+    static_assert(!static_cast<size_t>(MediaPlayer::ViewportVisibility::NotVisible), "MediaPlayer::NotVisible is not 0 as expected");
+    static_assert(static_cast<size_t>(MediaPlayer::ViewportVisibility::IntersectingViewport) == 1, "MediaPlayer::IntersectingViewport is not 1 as expected");
+    static_assert(static_cast<size_t>(MediaPlayer::ViewportVisibility::VisibleInViewport) == 2, "MediaPlayer::VisibleInViewport is not 2 as expected");
     ASSERT(static_cast<size_t>(enumerationValue) < std::size(values));
     return values[static_cast<size_t>(enumerationValue)];
 }

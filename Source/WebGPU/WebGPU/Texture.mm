@@ -3584,7 +3584,7 @@ void Texture::destroy()
 {
     // https://gpuweb.github.io/gpuweb/#dom-gputexture-destroy
     if (!m_canvasBacking)
-        m_texture = Ref { m_device }->placeholderTexture(format());
+        m_texture = protect(m_device)->placeholderTexture(format());
     m_destroyed = true;
     if (!m_canvasBacking) {
         for (auto& view : m_textureViews) {

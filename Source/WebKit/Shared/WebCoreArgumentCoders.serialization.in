@@ -4283,6 +4283,12 @@ enum class WebCore::MediaPlayerSoundStageSize : uint8_t {
     Large,
 };
 
+enum class WebCore::MediaPlayerViewportVisibility : uint8_t {
+    NotVisible,
+    IntersectingViewport,
+    VisibleInViewport,
+};
+
 class WebCore::GeolocationPositionData {
     double timestamp;
     double latitude;
@@ -5087,8 +5093,8 @@ header: <WebCore/SecurityPolicyViolationEvent.h>
     String sample();
     WebCore::SecurityPolicyViolationEventDisposition disposition();
     unsigned short statusCode();
-    uint64_t lineNumber();
-    uint64_t columnNumber();
+    std::optional<uint64_t> lineNumber();
+    std::optional<uint64_t> columnNumber();
 };
 
 [AdditionalEncoder=StreamConnectionEncoder] class WebCore::SecurityOriginData {
@@ -5494,11 +5500,11 @@ struct WebCore::PlatformVideoTrackConfiguration : WebCore::PlatformTrackConfigur
 
 header: <WebCore/RTCDataChannelHandler.h>
 [CustomHeader] struct WebCore::RTCDataChannelInit {
-    std::optional<bool> ordered;
+    bool ordered;
     std::optional<unsigned short> maxPacketLifeTime;
     std::optional<unsigned short> maxRetransmits;
     String protocol;
-    std::optional<bool> negotiated;
+    bool negotiated;
     std::optional<unsigned short> id;
     WebCore::RTCPriorityType priority;
 };

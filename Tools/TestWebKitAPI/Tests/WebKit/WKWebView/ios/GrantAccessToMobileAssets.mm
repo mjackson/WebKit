@@ -33,7 +33,7 @@
 
 TEST(WebKit, GrantAccessToMobileAssetsCrash)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300)]);
 
     [webView _grantAccessToAssetServices];
     [webView _revokeAccessToAssetServices];

@@ -171,7 +171,7 @@ static bool didRespondToPrompt = false;
 
 TEST(WebKit, SlowBeforeUnloadPromptReject)
 {
-    auto slowBeforeUnloadPromptUIDelegate = adoptNS([[SlowBeforeUnloadPromptUIDelegate alloc] init]);
+    RetainPtr slowBeforeUnloadPromptUIDelegate = adoptNS([[SlowBeforeUnloadPromptUIDelegate alloc] init]);
     RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
     [webView setUIDelegate:slowBeforeUnloadPromptUIDelegate.get()];
@@ -194,7 +194,7 @@ TEST(WebKit, SlowBeforeUnloadPromptReject)
 
 TEST(WebKit, SlowBeforeUnloadPromptAllow)
 {
-    auto slowBeforeUnloadPromptUIDelegate = adoptNS([[SlowBeforeUnloadPromptUIDelegate alloc] init]);
+    RetainPtr slowBeforeUnloadPromptUIDelegate = adoptNS([[SlowBeforeUnloadPromptUIDelegate alloc] init]);
     RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
     [webView setUIDelegate:slowBeforeUnloadPromptUIDelegate.get()];
@@ -216,8 +216,8 @@ TEST(WebKit, SlowBeforeUnloadPromptAllow)
 
 TEST(WebKit, BeforeUnloadPromptRejectOnReload)
 {
-    auto slowBeforeUnloadPromptUIDelegate = adoptNS([[SlowBeforeUnloadPromptUIDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr slowBeforeUnloadPromptUIDelegate = adoptNS([[SlowBeforeUnloadPromptUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setUIDelegate:slowBeforeUnloadPromptUIDelegate.get()];
     [webView synchronouslyLoadTestPageNamed:@"beforeunload"];
 
@@ -241,8 +241,8 @@ TEST(WebKit, BeforeUnloadPromptRejectOnReload)
 
 TEST(WebKit, BeforeUnloadPromptAllowOnReload)
 {
-    auto slowBeforeUnloadPromptUIDelegate = adoptNS([[SlowBeforeUnloadPromptUIDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr slowBeforeUnloadPromptUIDelegate = adoptNS([[SlowBeforeUnloadPromptUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setUIDelegate:slowBeforeUnloadPromptUIDelegate.get()];
     [webView synchronouslyLoadTestPageNamed:@"beforeunload"];
 
@@ -287,8 +287,8 @@ static unsigned viewDidCloseCallCount = 0;
 
 TEST(WebKit, SlowBeforeUnloadHandlerSingleClosePageCall)
 {
-    auto slowBeforeUnloadHandlerUIDelegate = adoptNS([[SlowBeforeUnloadHandlerUIDelegate alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr slowBeforeUnloadHandlerUIDelegate = adoptNS([[SlowBeforeUnloadHandlerUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setUIDelegate:slowBeforeUnloadHandlerUIDelegate.get()];
     [webView synchronouslyLoadTestPageNamed:@"beforeunload-slow"];
 

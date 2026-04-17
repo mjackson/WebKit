@@ -74,11 +74,11 @@ static bool receivedPreferenceNotification = false;
 TEST(WebKit, AccessibilityReduceMotion)
 {
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration addToWindow:YES]);
 
     CFPreferencesSetAppValue(REDUCED_MOTION_PREFERENCE, kCFBooleanFalse, ACCESSIBILITY_DOMAIN);
 
-    auto observer = adoptNS([[WKPreferenceObserverForTesting alloc] init]);
+    RetainPtr observer = adoptNS([[WKPreferenceObserverForTesting alloc] init]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 

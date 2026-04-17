@@ -29,7 +29,6 @@
     EnabledBySetting=PeerConnectionEnabled,
     JSGenerateToJSObject,
     JSGenerateToNativeObject,
-    LegacyNativeDictionaryRequiredInterfaceNullability,
 ] dictionary RTCRtpCodecParameters : RTCRtpCodec {
     required unsigned short payloadType;
 };

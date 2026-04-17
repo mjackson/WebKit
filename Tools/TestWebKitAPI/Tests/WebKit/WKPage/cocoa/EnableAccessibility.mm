@@ -44,9 +44,9 @@ SOFT_LINK_CONSTANT(libAccessibility, kAXSApplicationAccessibilityEnabledNotifica
 TEST(WebKit, EnableAccessibilityCrash)
 {
     {
-        auto poolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
-        auto pool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:poolConfiguration.get()]);
-        auto viewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr poolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+        RetainPtr pool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:poolConfiguration.get()]);
+        RetainPtr viewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
         [viewConfiguration setProcessPool:pool.get()];
     }
 
@@ -57,10 +57,10 @@ TEST(WebKit, EnableAccessibilityCrash)
 
 TEST(WebKit, AccessibilityHasPreferencesServiceAccess)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     configuration.get().processPool = (WKProcessPool *)context.get();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
@@ -84,10 +84,10 @@ TEST(WebKit, AccessibilityHasPreferencesServiceAccess)
 #if ENABLE(CFPREFS_DIRECT_MODE)
 TEST(WebKit, AccessibilityHasNoPreferencesServiceAccessWhenPostingNotification)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     configuration.get().processPool = (WKProcessPool *)context.get();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
@@ -106,10 +106,10 @@ TEST(WebKit, AccessibilityHasNoPreferencesServiceAccessWhenPostingNotification)
 #if PLATFORM(IOS_FAMILY)
 TEST(WebKit, AccessibilityHasFrontboardServiceAccess)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKRetainPtr<WKContextRef> context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     configuration.get().processPool = (WKProcessPool *)context.get();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
@@ -129,8 +129,8 @@ TEST(WebKit, AccessibilityHasFrontboardServiceAccess)
 
 TEST(WebKit, AccessibilityChildrenPreventsProcessSuspensionOnFrontmostTab)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get() addToWindow:YES]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 

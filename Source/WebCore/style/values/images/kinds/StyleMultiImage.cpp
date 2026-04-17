@@ -80,10 +80,10 @@ void MultiImage::load(CachedResourceLoader& loader, const ResourceLoaderOptions&
     }
 
     if (RefPtr styleCachedImage = dynamicDowncast<CachedImage>(bestFitImage.image)) {
-        if (styleCachedImage->imageScaleFactor() == bestFitImage.scaleFactor)
+        if (styleCachedImage->imageScaleFactor() == bestFitImage.scaleFactor.value)
             m_selectedImage = WTF::move(styleCachedImage);
         else
-            m_selectedImage = CachedImage::copyOverridingScaleFactor(*styleCachedImage, bestFitImage.scaleFactor);
+            m_selectedImage = CachedImage::copyOverridingScaleFactor(*styleCachedImage, bestFitImage.scaleFactor.value);
 
         if (m_selectedImage->isPending())
             m_selectedImage->load(loader, options);

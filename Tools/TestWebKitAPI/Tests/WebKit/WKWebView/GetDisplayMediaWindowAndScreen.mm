@@ -135,7 +135,7 @@ namespace TestWebKitAPI {
 
 TEST(WebKit2, GetDisplayMediaWindowAndScreenPrompt)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
 
     configuration.get().processPool = (WKProcessPool *)context.get();
@@ -145,11 +145,11 @@ TEST(WebKit2, GetDisplayMediaWindowAndScreenPrompt)
     preferences._mediaCaptureRequiresSecureConnection = NO;
     preferences._mockCaptureDevicesEnabled = YES;
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
-    auto webView = adoptNS([[WindowAndScreenCaptureTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WindowAndScreenCaptureTestView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
     [webView setUIDelegate:delegate.get()];
 
-    auto observer = adoptNS([[DisplayCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[DisplayCaptureObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:@"_displayCaptureSurfaces" options:NSKeyValueObservingOptionNew context:nil];
     [webView addObserver:observer.get() forKeyPath:@"_displayCaptureState" options:NSKeyValueObservingOptionNew context:nil];
 
@@ -278,7 +278,7 @@ TEST(WebKit2, GetDisplayMediaWindowAndScreenPrompt)
 
 TEST(WebKit2, ToggleScreenshare)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     WKPreferencesSetBoolValueForKeyForTesting((__bridge WKPreferencesRef)[configuration preferences], true, WKStringCreateWithUTF8CString("MediaSessionCaptureToggleAPIEnabled"));
 
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
@@ -289,16 +289,16 @@ TEST(WebKit2, ToggleScreenshare)
     preferences._mediaCaptureRequiresSecureConnection = NO;
     preferences._mockCaptureDevicesEnabled = YES;
 
-    auto messageHandler = adoptNS([[DisplayGUMMessageHandler alloc] init]);
+    RetainPtr messageHandler = adoptNS([[DisplayGUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView _setMediaCaptureReportingDelayForTesting:0];
 
-    auto observer = adoptNS([[DisplayCaptureObserver alloc] init]);
+    RetainPtr observer = adoptNS([[DisplayCaptureObserver alloc] init]);
     [webView addObserver:observer.get() forKeyPath:@"_displayCaptureState" options:NSKeyValueObservingOptionNew context:nil];
 
     messageReceived = false;

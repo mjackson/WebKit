@@ -45,6 +45,7 @@
 #include "ScriptElement.h"
 #include "SecurityPolicy.h"
 #include "Settings.h"
+#include "ShadowRootMode.h"
 #include "SizesAttributeParser.h"
 #include <wtf/MainThread.h>
 #include <wtf/SortedArrayMap.h>
@@ -494,10 +495,8 @@ void TokenPreloadScanner::scan(const HTMLToken& token, Vector<std::unique_ptr<Pr
             bool isDeclarativeShadowRoot = false;
             static constexpr auto shadowRootAsUTF16 = std::to_array<char16_t>({ 's', 'h', 'a', 'd', 'o', 'w', 'r', 'o', 'o', 't', 'm', 'o', 'd', 'e' });
             const auto* shadowRootModeAttribute = findAttribute(token.attributes(), shadowRootAsUTF16);
-            if (shadowRootModeAttribute) {
-                String shadowRootValue(shadowRootModeAttribute->value);
-                isDeclarativeShadowRoot = equalIgnoringASCIICase(shadowRootValue, "open"_s) || equalIgnoringASCIICase(shadowRootValue, "closed"_s);
-            }
+            if (shadowRootModeAttribute)
+                isDeclarativeShadowRoot = !!parseShadowRootMode(StringView(shadowRootModeAttribute->value.span()));
             // If this is a declarative shadow root <template shadowrootmode> element
             // *and* we're not already inside a non-Declartive Shadow DOM (DSD)
             // <template> element, then we leave the template count at zero.

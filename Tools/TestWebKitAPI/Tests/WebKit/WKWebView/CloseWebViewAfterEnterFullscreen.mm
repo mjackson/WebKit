@@ -68,14 +68,18 @@ TEST(CloseWebViewAfterEnterFullscreen, VideoFullscreen)
     [webView synchronouslyLoadHTMLString:@"<video src=\"video-with-audio.mp4\" controls></video>"];
 
     didEnterFullscreen = false;
-    [webView evaluateJavaScript:@"document.querySelector('video').webkitEnterFullscreen()" completionHandler: nil];
+    didExitFullscreen = false;
+
+    [webView evaluateJavaScript:@"document.querySelector('video').webkitEnterFullscreen()" completionHandler:nil];
     TestWebKitAPI::Util::run(&didEnterFullscreen);
-    ASSERT_TRUE(didEnterFullscreen);
 
     // Should not crash:
     [webView _close];
-}
 
+    TestWebKitAPI::Util::run(&didExitFullscreen);
+
+    TestWebKitAPI::Util::runFor(0.5_s);
+}
 
 TEST(CloseWebViewAfterEnterFullscreen, ElementFullscreen)
 {
@@ -88,12 +92,17 @@ TEST(CloseWebViewAfterEnterFullscreen, ElementFullscreen)
     [webView synchronouslyLoadHTMLString:@"<div style=\"width:100px;height:100px;background-color:red;\"></div>"];
 
     didEnterFullscreen = false;
-    [webView evaluateJavaScript:@"document.querySelector('div').webkitRequestFullscreen()" completionHandler: nil];
+    didExitFullscreen = false;
+
+    [webView evaluateJavaScript:@"document.querySelector('div').webkitRequestFullscreen()" completionHandler:nil];
     TestWebKitAPI::Util::run(&didEnterFullscreen);
-    ASSERT_TRUE(didEnterFullscreen);
 
     // Should not crash:
     [webView _close];
+
+    TestWebKitAPI::Util::run(&didExitFullscreen);
+
+    TestWebKitAPI::Util::runFor(0.5_s);
 }
 
 } // namespace TestWebKitAPI

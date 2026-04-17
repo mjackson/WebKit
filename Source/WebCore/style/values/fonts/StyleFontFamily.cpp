@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,6 +26,7 @@
 #include "config.h"
 #include "StyleFontFamily.h"
 
+#include "CSSFontFamilyNameValue.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "Document.h"
 #include "Settings.h"
@@ -43,13 +44,6 @@ auto CSSValueConversion<FontFamilies>::operator()(BuilderState& state, const CSS
     using namespace CSSPropertyParserHelpers;
 
     if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        if (primitiveValue->isFontFamily()) {
-            return {
-                AtomString { primitiveValue->stringValue() },
-                FontFamilyKind::Specified
-            };
-        }
-
         auto valueID = primitiveValue->valueID();
         if (valueID == CSSValueWebkitBody) {
             return {
@@ -79,17 +73,32 @@ auto CSSValueConversion<FontFamilies>::operator()(BuilderState& state, const CSS
         return { nullAtom(), FontFamilyKind::Generic };
     }
 
-    auto valueList = requiredListDowncast<CSSValueList, CSSPrimitiveValue>(state, value);
+    if (RefPtr fontFamilyNameValue = dynamicDowncast<CSSFontFamilyNameValue>(value)) {
+        return {
+            toStyleFromCSSValue<FontFamilyName>(state, *fontFamilyNameValue).value,
+            FontFamilyKind::Specified
+        };
+    }
+
+    auto valueList = requiredListDowncast<CSSValueList, CSSValue>(state, value);
     if (!valueList)
         return { nullAtom(), FontFamilyKind::Generic };
 
     std::optional<FontFamilyKind> firstFontKind;
     auto families = WTF::compactMap(*valueList, [&](auto& contentValue) -> std::optional<WebCore::FontFamily> {
         auto [family, kind] = [&] -> std::pair<AtomString, FontFamilyKind> {
-            if (contentValue.isFontFamily())
-                return { AtomString { contentValue.stringValue() }, FontFamilyKind::Specified };
+            if (RefPtr fontFamilyNameContentValue = dynamicDowncast<CSSFontFamilyNameValue>(contentValue)) {
+                return {
+                    toStyleFromCSSValue<FontFamilyName>(state, *fontFamilyNameContentValue).value,
+                    FontFamilyKind::Specified
+                };
+            }
 
-            auto valueID = contentValue.valueID();
+            RefPtr primitiveContentValue = requiredDowncast<CSSPrimitiveValue>(state, contentValue);
+            if (!primitiveContentValue)
+                return { nullAtom(), FontFamilyKind::Generic };
+
+            auto valueID = primitiveContentValue->valueID();
             if (valueID == CSSValueWebkitBody)
                 return { AtomString { state.document().settings().standardFontFamily() }, FontFamilyKind::Specified };
 

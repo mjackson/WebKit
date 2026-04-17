@@ -260,6 +260,8 @@ class Heap;
     v(iteratorHelperSpace, cellHeapCellType, JSIteratorHelper) \
     v(javaScriptCallFrameSpace, javaScriptCallFrameHeapCellType, Inspector::JSJavaScriptCallFrame) \
     v(jsModuleRecordSpace, jsModuleRecordHeapCellType, JSModuleRecord) \
+    v(moduleRegistryEntrySpace, destructibleCellHeapCellType, ModuleRegistryEntry) \
+    v(moduleLoadingContextSpace, destructibleCellHeapCellType, ModuleLoadingContext) \
     v(syntheticModuleRecordSpace, syntheticModuleRecordHeapCellType, SyntheticModuleRecord) \
     v(jsMicrotaskDispatcherSpace, destructibleCellHeapCellType, JSMicrotaskDispatcher) \
     v(mapIteratorSpace, cellHeapCellType, JSMapIterator) \
@@ -309,6 +311,9 @@ class Heap;
     v(regExpStringIteratorSpace, cellHeapCellType, JSRegExpStringIterator) \
     v(disposableStackSpace, cellHeapCellType, JSDisposableStack) \
     v(asyncDisposableStackSpace, cellHeapCellType, JSAsyncDisposableStack) \
+    v(moduleLoaderSpace, destructibleCellHeapCellType, JSModuleLoader) \
+    v(moduleLoaderPayloadSpace, destructibleCellHeapCellType, ModuleLoaderPayload) \
+    v(moduleGraphLoadingStateSpace, destructibleCellHeapCellType, ModuleGraphLoadingState) \
     \
     FOR_EACH_JSC_WEBASSEMBLY_DYNAMIC_ISO_SUBSPACE(v)
 

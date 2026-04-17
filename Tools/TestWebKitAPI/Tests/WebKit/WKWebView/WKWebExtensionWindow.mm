@@ -42,25 +42,25 @@ namespace TestWebKitAPI {
 
 TEST(WKWebExtensionWindow, OpenWindows)
 {
-    auto testExtensionOne = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:@{ @"manifest_version": @3 }]);
-    auto testContextOne = adoptNS([[WKWebExtensionContext alloc] initForExtension:testExtensionOne.get()]);
+    RetainPtr testExtensionOne = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:@{ @"manifest_version": @3 }]);
+    RetainPtr testContextOne = adoptNS([[WKWebExtensionContext alloc] initForExtension:testExtensionOne.get()]);
 
-    auto testExtensionTwo = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:@{ @"manifest_version": @3 }]);
-    auto testContextTwo = adoptNS([[WKWebExtensionContext alloc] initForExtension:testExtensionTwo.get()]);
+    RetainPtr testExtensionTwo = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:@{ @"manifest_version": @3 }]);
+    RetainPtr testContextTwo = adoptNS([[WKWebExtensionContext alloc] initForExtension:testExtensionTwo.get()]);
 
-    auto testWindowOne = adoptNS([[TestWebExtensionWindow alloc] init]);
-    auto testWindowTwo = adoptNS([[TestWebExtensionWindow alloc] init]);
+    RetainPtr testWindowOne = adoptNS([[TestWebExtensionWindow alloc] init]);
+    RetainPtr testWindowTwo = adoptNS([[TestWebExtensionWindow alloc] init]);
 
     auto *openWindows = @[ testWindowOne.get(), testWindowTwo.get() ];
     auto *reversedOpenWindows = @[ testWindowTwo.get(), testWindowOne.get() ];
 
-    auto controllerDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
+    RetainPtr controllerDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
 
     controllerDelegate.get().openWindows = ^NSArray<id<WKWebExtensionWindow>> *(WKWebExtensionContext *context) {
         return context == testContextOne ? openWindows : reversedOpenWindows;
     };
 
-    auto testController = adoptNS([[WKWebExtensionController alloc] init]);
+    RetainPtr testController = adoptNS([[WKWebExtensionController alloc] init]);
     testController.get().delegate = controllerDelegate.get();
 
     EXPECT_NS_EQUAL(testContextOne.get().openWindows, @[ ]);
@@ -114,16 +114,16 @@ TEST(WKWebExtensionWindow, OpenWindows)
 
 TEST(WKWebExtensionWindow, FocusedWindow)
 {
-    auto testExtensionOne = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:@{ @"manifest_version": @3 }]);
-    auto testContextOne = adoptNS([[WKWebExtensionContext alloc] initForExtension:testExtensionOne.get()]);
+    RetainPtr testExtensionOne = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:@{ @"manifest_version": @3 }]);
+    RetainPtr testContextOne = adoptNS([[WKWebExtensionContext alloc] initForExtension:testExtensionOne.get()]);
 
-    auto testExtensionTwo = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:@{ @"manifest_version": @3 }]);
-    auto testContextTwo = adoptNS([[WKWebExtensionContext alloc] initForExtension:testExtensionTwo.get()]);
+    RetainPtr testExtensionTwo = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:@{ @"manifest_version": @3 }]);
+    RetainPtr testContextTwo = adoptNS([[WKWebExtensionContext alloc] initForExtension:testExtensionTwo.get()]);
 
-    auto testWindowOne = adoptNS([[TestWebExtensionWindow alloc] init]);
-    auto testWindowTwo = adoptNS([[TestWebExtensionWindow alloc] init]);
+    RetainPtr testWindowOne = adoptNS([[TestWebExtensionWindow alloc] init]);
+    RetainPtr testWindowTwo = adoptNS([[TestWebExtensionWindow alloc] init]);
 
-    auto controllerDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
+    RetainPtr controllerDelegate = adoptNS([[TestWebExtensionsDelegate alloc] init]);
 
     controllerDelegate.get().openWindows = ^NSArray<id<WKWebExtensionWindow>> *(WKWebExtensionContext *context) {
         return @[ testWindowOne.get(), testWindowTwo.get() ];
@@ -133,7 +133,7 @@ TEST(WKWebExtensionWindow, FocusedWindow)
         return context == testContextOne ? testWindowTwo.get() : nil;
     };
 
-    auto testController = adoptNS([[WKWebExtensionController alloc] init]);
+    RetainPtr testController = adoptNS([[WKWebExtensionController alloc] init]);
     testController.get().delegate = controllerDelegate.get();
 
     EXPECT_NULL(testContextOne.get().focusedWindow);

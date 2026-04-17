@@ -30,7 +30,6 @@
 #include "CSSCustomIdentValue.h"
 #include "CSSMarkup.h"
 #include "StyleBuilderChecking.h"
-#include "StyleValueTypes.h"
 #include <wtf/text/TextStream.h>
 
 namespace WebCore {
@@ -48,9 +47,9 @@ auto ToStyle<CSS::CustomIdent>::operator()(const CSS::CustomIdent& value, const 
     return { .value = value.value };
 }
 
-Ref<CSSValue> CSSValueCreation<CustomIdent>::operator()(CSSValuePool&, const RenderStyle& style, const CustomIdent& value)
+Ref<CSSValue> CSSValueCreation<CustomIdent>::operator()(CSSValuePool& pool, const RenderStyle& style, const CustomIdent& value)
 {
-    return CSSCustomIdentValue::create(toCSS(value, style));
+    return CSS::createCSSValue(pool, toCSS(value, style));
 }
 
 auto CSSValueConversion<CustomIdent>::operator()(BuilderState& state, const CSSCustomIdentValue& value) -> CustomIdent

@@ -254,13 +254,13 @@ function resolveAlias(argumentType) {
 
     // remove any 'const ' prefix
     if (argumentType.startsWith("const ")) {
-        argumentType = argumentType.slice("const ".length);
+        return resolveAlias(argumentType.slice("const ".length));
     }
 
     return argumentType;
 }
 
-function isPrimtiveType(type) {
+function isPrimitiveType(type) {
     return ["double", "float", "bool","String","uint8_t", "int8_t","uint16_t", "int16_t","uint32_t", "int32_t","uint64_t", "int64_t",].includes(type);
 }
 
@@ -1254,7 +1254,7 @@ class ArgumentParser {
     static untypeResult(typedResult) {
         if (typeof(typedResult)=='object') {
             if ('parsedType' in typedResult) {
-                if (isEnum(typedResult.parsedType) || isPrimtiveType(typedResult.parsedType) || isIdentifier(typedResult.parsedType)) {
+                if (isEnum(typedResult.parsedType) || isPrimitiveType(typedResult.parsedType) || isIdentifier(typedResult.parsedType)) {
                     return typedResult.parsedValue;
                 }
                 return ArgumentParser.untypeResult(typedResult.parsedValue);

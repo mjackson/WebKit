@@ -67,6 +67,7 @@
 #import "WebAuthenticatorCoordinatorProxy.h"
 #import "WebAutocorrectionContext.h"
 #import "WebAutocorrectionData.h"
+#import "WebFrameProxy.h"
 #import "WebPage.h"
 #import "WebPageMessages.h"
 #import "WebPageProxyInternals.h"
@@ -903,9 +904,9 @@ void WebPageProxy::restorePageCenterAndScale(IPC::Connection& connection, std::o
         pageClient->restorePageCenterAndScale(center, scale);
 }
 
-void WebPageProxy::setIsShowingInputViewForFocusedElement(bool showingInputView)
+void WebPageProxy::setIsShowingInputViewForFocusedElement(std::optional<WebCore::FrameIdentifier> frameID, bool showingInputView)
 {
-    protect(legacyMainFrameProcess())->send(Messages::WebPage::SetIsShowingInputViewForFocusedElement(showingInputView), webPageIDInMainFrameProcess());
+    sendToProcessContainingFrame(frameID, Messages::WebPage::SetIsShowingInputViewForFocusedElement(showingInputView));
 }
 
 void WebPageProxy::updateInputContextAfterBlurringAndRefocusingElement()
@@ -929,7 +930,20 @@ void WebPageProxy::elementDidFocus(IPC::Connection& connection, const FocusedEle
         return;
 
     RefPtr userDataObject = WebProcessProxy::fromConnection(connection)->transformHandlesToObjects(protect(userData.object())).get();
-    pageClient->elementDidFocus(information, userIsInteracting, blurPreviousNode, activityStateChanges, userDataObject.get());
+
+    convertFocusedElementInformationRectsToMainFrameCoordinates(information,
+        [weakThis = WeakPtr { *this }, userIsInteracting, blurPreviousNode, activityStateChanges, userDataObject = WTF::move(userDataObject)] (FocusedElementInformation convertedInfo) {
+            RefPtr protectedThis = weakThis.get();
+            if (!protectedThis)
+                return;
+
+            RefPtr pageClient = protectedThis->pageClient();
+            if (!pageClient)
+                return;
+
+            pageClient->elementDidFocus(convertedInfo, userIsInteracting,
+                blurPreviousNode, activityStateChanges, userDataObject.get());
+        });
 }
 
 void WebPageProxy::elementDidBlur()
@@ -941,8 +955,48 @@ void WebPageProxy::elementDidBlur()
 
 void WebPageProxy::updateFocusedElementInformation(const FocusedElementInformation& information)
 {
-    if (RefPtr pageClient = this->pageClient())
-        pageClient->updateFocusedElementInformation(information);
+    convertFocusedElementInformationRectsToMainFrameCoordinates(information,
+        [weakThis = WeakPtr { *this }](FocusedElementInformation convertedInfo) {
+            RefPtr protectedThis = weakThis.get();
+            if (!protectedThis)
+                return;
+
+            if (RefPtr pageClient = protectedThis->pageClient())
+                pageClient->updateFocusedElementInformation(convertedInfo);
+        });
+}
+
+void WebPageProxy::convertFocusedElementInformationRectsToMainFrameCoordinates(FocusedElementInformation information, CompletionHandler<void(FocusedElementInformation)>&& completionHandler)
+{
+    if (!information.frame || information.frame->isMainFrame) {
+        completionHandler(WTF::move(information));
+        return;
+    }
+
+    RefPtr frame = WebFrameProxy::webFrame(information.frame->frameID);
+    if (!frame) {
+        completionHandler(WTF::move(information));
+        return;
+    }
+
+    Vector<FloatRect> rects;
+    rects.append(information.interactionRect);
+    if (information.hasNextNode)
+        rects.append(information.nextNodeRect);
+    if (information.hasPreviousNode)
+        rects.append(information.previousNodeRect);
+
+    convertRectsToMainFrameCoordinates(WTF::move(rects), frame->rootFrame()->frameID(), [information = WTF::move(information), completionHandler = WTF::move(completionHandler)](std::optional<Vector<FloatRect>> convertedRects) mutable {
+        if (convertedRects) {
+            size_t index = 0;
+            information.interactionRect = IntRect(convertedRects->at(index++));
+            if (information.hasNextNode)
+                information.nextNodeRect = IntRect(convertedRects->at(index++));
+            if (information.hasPreviousNode)
+                information.previousNodeRect = IntRect(convertedRects->at(index++));
+        }
+        completionHandler(WTF::move(information));
+    });
 }
 
 void WebPageProxy::focusedElementDidChangeInputMode(WebCore::InputMode mode)

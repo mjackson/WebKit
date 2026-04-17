@@ -473,7 +473,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
                 eventNumber:0
                 clickCount:1
                 pressure:1.0];
-            viewImpl->mouseDown(mouseDown.get(), WebKit::WebMouseEventInputSource::Automation);
+            viewImpl->mouseDown(mouseDown.get(), WebKit::WebMouseEventInputSource::Automation, WebCore::PlatformMouseEvent::CanInitiateDrag::No);
             _mouseTrackingHasSentMouseDown = true;
         }
 
@@ -486,7 +486,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
             eventNumber:0
             clickCount:1
             pressure:1.0];
-        viewImpl->mouseDragged(mouseDragged.get(), WebKit::WebMouseEventInputSource::Automation);
+        viewImpl->mouseDragged(mouseDragged.get(), WebKit::WebMouseEventInputSource::Automation, WebCore::PlatformMouseEvent::CanInitiateDrag::No);
         break;
     }
 
@@ -501,7 +501,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
                 eventNumber:0
                 clickCount:1
                 pressure:0.0];
-            viewImpl->mouseUp(mouseUp.get(), WebKit::WebMouseEventInputSource::Automation);
+            viewImpl->mouseUp(mouseUp.get(), WebKit::WebMouseEventInputSource::Automation, WebCore::PlatformMouseEvent::CanInitiateDrag::No);
         }
         [[fallthrough]];
     }

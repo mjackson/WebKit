@@ -23,6 +23,8 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+// https://w3c.github.io/payment-request/#paymentmethodchangeevent-interface
+
 [
     Conditional=PAYMENT_REQUEST,
     EnabledBySetting=PaymentRequestEnabled,
@@ -38,8 +40,7 @@
 
 [
     Conditional=PAYMENT_REQUEST,
-    LegacyNativeDictionaryRequiredInterfaceNullability,
 ] dictionary PaymentMethodChangeEventInit : PaymentRequestUpdateEventInit {
     DOMString methodName = "";
-    object? methodDetails;
+    object? methodDetails = null;
 };

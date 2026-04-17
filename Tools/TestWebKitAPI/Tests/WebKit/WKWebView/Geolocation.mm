@@ -89,7 +89,7 @@ static bool didShowGeolocationPrompt = false;
     ASSERT(_shouldAuthorizeGeolocation);
     WTF::callOnMainThread([listener = _listener, simulateError = _simulateError] {
         if (!simulateError) {
-            auto location = adoptNS([[CLLocation alloc] initWithLatitude:37.3348 longitude:-122.009]);
+            RetainPtr location = adoptNS([[CLLocation alloc] initWithLatitude:37.3348 longitude:-122.009]);
             [listener positionChanged:[_WKGeolocationPosition positionWithLocation:location.get()]];
         } else
             [listener errorOccurred:@"Error Message"];
@@ -158,13 +158,13 @@ namespace TestWebKitAPI {
 
 TEST(Geolocation, DeniedByLocationProvider)
 {
-    auto uiDelegate = adoptNS([[GeolocationTestUIDelegate alloc] init]);
-    auto coreLocationProvider = adoptNS([[TestCoreLocationProvider alloc] init]);
-    auto processPool = adoptNS([[WKProcessPool alloc] init]);
+    RetainPtr uiDelegate = adoptNS([[GeolocationTestUIDelegate alloc] init]);
+    RetainPtr coreLocationProvider = adoptNS([[TestCoreLocationProvider alloc] init]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] init]);
     processPool.get()._coreLocationProvider = coreLocationProvider.get();
-    auto config = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr config = adoptNS([[WKWebViewConfiguration alloc] init]);
     config.get().processPool = processPool.get();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
     webView.get().UIDelegate = uiDelegate.get();
 
     coreLocationProvider.get().shouldAuthorizeGeolocation = NO;
@@ -182,13 +182,13 @@ TEST(Geolocation, DeniedByLocationProvider)
 
 TEST(Geolocation, DeniedByAPI)
 {
-    auto uiDelegate = adoptNS([[GeolocationTestUIDelegate alloc] init]);
-    auto coreLocationProvider = adoptNS([[TestCoreLocationProvider alloc] init]);
-    auto processPool = adoptNS([[WKProcessPool alloc] init]);
+    RetainPtr uiDelegate = adoptNS([[GeolocationTestUIDelegate alloc] init]);
+    RetainPtr coreLocationProvider = adoptNS([[TestCoreLocationProvider alloc] init]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] init]);
     processPool.get()._coreLocationProvider = coreLocationProvider.get();
-    auto config = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr config = adoptNS([[WKWebViewConfiguration alloc] init]);
     config.get().processPool = processPool.get();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
     webView.get().UIDelegate = uiDelegate.get();
 
     coreLocationProvider.get().shouldAuthorizeGeolocation = YES;
@@ -206,13 +206,13 @@ TEST(Geolocation, DeniedByAPI)
 
 TEST(Geolocation, AllowedByAPI)
 {
-    auto uiDelegate = adoptNS([[GeolocationTestUIDelegate alloc] init]);
-    auto coreLocationProvider = adoptNS([[TestCoreLocationProvider alloc] init]);
-    auto processPool = adoptNS([[WKProcessPool alloc] init]);
+    RetainPtr uiDelegate = adoptNS([[GeolocationTestUIDelegate alloc] init]);
+    RetainPtr coreLocationProvider = adoptNS([[TestCoreLocationProvider alloc] init]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] init]);
     processPool.get()._coreLocationProvider = coreLocationProvider.get();
-    auto config = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr config = adoptNS([[WKWebViewConfiguration alloc] init]);
     config.get().processPool = processPool.get();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
     webView.get().UIDelegate = uiDelegate.get();
 
     coreLocationProvider.get().shouldAuthorizeGeolocation = YES;
@@ -230,13 +230,13 @@ TEST(Geolocation, AllowedByAPI)
 
 TEST(Geolocation, Error)
 {
-    auto uiDelegate = adoptNS([[GeolocationTestUIDelegate alloc] init]);
-    auto coreLocationProvider = adoptNS([[TestCoreLocationProvider alloc] init]);
-    auto processPool = adoptNS([[WKProcessPool alloc] init]);
+    RetainPtr uiDelegate = adoptNS([[GeolocationTestUIDelegate alloc] init]);
+    RetainPtr coreLocationProvider = adoptNS([[TestCoreLocationProvider alloc] init]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] init]);
     processPool.get()._coreLocationProvider = coreLocationProvider.get();
-    auto config = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr config = adoptNS([[WKWebViewConfiguration alloc] init]);
     config.get().processPool = processPool.get();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
     webView.get().UIDelegate = uiDelegate.get();
 
     coreLocationProvider.get().shouldAuthorizeGeolocation = YES;
@@ -255,13 +255,13 @@ TEST(Geolocation, Error)
 
 TEST(Geolocation, DuplicateAuthorizationCallbackCalls)
 {
-    auto uiDelegate = adoptNS([[GeolocationTestUIDelegate alloc] init]);
-    auto coreLocationProvider = adoptNS([[TestCoreLocationProvider alloc] init]);
-    auto processPool = adoptNS([[WKProcessPool alloc] init]);
+    RetainPtr uiDelegate = adoptNS([[GeolocationTestUIDelegate alloc] init]);
+    RetainPtr coreLocationProvider = adoptNS([[TestCoreLocationProvider alloc] init]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] init]);
     processPool.get()._coreLocationProvider = coreLocationProvider.get();
-    auto config = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr config = adoptNS([[WKWebViewConfiguration alloc] init]);
     config.get().processPool = processPool.get();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
     webView.get().UIDelegate = uiDelegate.get();
 
     coreLocationProvider.get().shouldAuthorizeGeolocation = YES;
@@ -280,13 +280,13 @@ TEST(Geolocation, DuplicateAuthorizationCallbackCalls)
 
 TEST(Geolocation, DelegateNotImplemented)
 {
-    auto coreLocationProvider = adoptNS([TestCoreLocationProvider new]);
+    RetainPtr coreLocationProvider = adoptNS([TestCoreLocationProvider new]);
     coreLocationProvider.get().shouldAuthorizeGeolocation = YES;
-    auto processPool = adoptNS([WKProcessPool new]);
+    RetainPtr processPool = adoptNS([WKProcessPool new]);
     processPool.get()._coreLocationProvider = coreLocationProvider.get();
-    auto config = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr config = adoptNS([WKWebViewConfiguration new]);
     config.get().processPool = processPool.get();
-    auto webView = adoptNS([[TestWKWebViewForGeolocation alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebViewForGeolocation alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
     EXPECT_FALSE(didShowGeolocationPrompt);
     [webView loadTestPageNamed:@"GeolocationGetCurrentPositionResult"];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "SUCCESS");

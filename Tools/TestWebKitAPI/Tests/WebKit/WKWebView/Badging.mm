@@ -132,13 +132,13 @@ TEST(Badging, APIWindow)
         { "/"_s, { simpleMainBytes } },
     }, TestWebKitAPI::HTTPServer::Protocol::Http);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     static bool messagesDone = false;
     static int messageCount = 0;
     static const int expectedMessages = 2;
 
-    auto testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
+    RetainPtr testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:testMessageHandler.get() name:@"sw"];
     [testMessageHandler addMessage:@"SUCCEEDED" withHandler:^{
         EXPECT_TRUE(false);
@@ -151,8 +151,8 @@ TEST(Badging, APIWindow)
             messagesDone = true;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto badgeDelegate = adoptNS([BadgeDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr badgeDelegate = adoptNS([BadgeDelegate new]);
     badgeDelegate.get().serverURL = server.request("/"_s).URL;
     badgeDelegate.get().expectedAppBadgeSequence = @[@0, @1, @9007199254740991, [NSNull null], @0];
 
@@ -247,13 +247,13 @@ TEST(Badging, DedicatedWorker)
         { "/worker.js"_s, { { { "Content-Type"_s, "text/javascript"_s } }, workerBytes } }
     });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     static bool workerRunning = false;
     static bool badgingDone = false;
     static bool javascriptDone = false;
 
-    auto testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
+    RetainPtr testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:testMessageHandler.get() name:@"testHandler"];
     [testMessageHandler addMessage:@"RUNNING" withHandler:^{
         workerRunning = true;
@@ -263,8 +263,8 @@ TEST(Badging, DedicatedWorker)
     }];
 
     configuration.get().preferences._appBadgeEnabled = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto badgeDelegate = adoptNS([BadgeDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr badgeDelegate = adoptNS([BadgeDelegate new]);
     badgeDelegate.get().serverURL = server.request("/"_s).URL;
     badgeDelegate.get().expectedAppBadgeSequence = @[@10, @0];
     configuration.get().websiteDataStore._delegate = badgeDelegate.get();
@@ -317,13 +317,13 @@ TEST(Badging, SharedWorker)
         { "/sharedworker.js"_s, { { { "Content-Type"_s, "text/javascript"_s } }, sharedWorkerBytes } }
     });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     static bool workerRunning = false;
     static bool badgingDone = false;
     static bool javascriptDone = false;
 
-    auto testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
+    RetainPtr testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:testMessageHandler.get() name:@"testHandler"];
     [testMessageHandler addMessage:@"RUNNING" withHandler:^{
         workerRunning = true;
@@ -333,8 +333,8 @@ TEST(Badging, SharedWorker)
     }];
 
     configuration.get().preferences._appBadgeEnabled = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto badgeDelegate = adoptNS([BadgeDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr badgeDelegate = adoptNS([BadgeDelegate new]);
     badgeDelegate.get().serverURL = server.request("/"_s).URL;
     badgeDelegate.get().expectedAppBadgeSequence = @[@10, @0];
     configuration.get().websiteDataStore._delegate = badgeDelegate.get();
@@ -402,13 +402,13 @@ TEST(Badging, ServiceWorker)
         { "/sw.js"_s, { { { "Content-Type"_s, "text/javascript"_s } }, serviceWorkerScriptBytes } }
     });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     static bool workerRunning = false;
     static bool badgingDone = false;
     static bool javascriptDone = false;
 
-    auto testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
+    RetainPtr testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:testMessageHandler.get() name:@"testHandler"];
     [testMessageHandler addMessage:@"RUNNING" withHandler:^{
         workerRunning = true;
@@ -418,8 +418,8 @@ TEST(Badging, ServiceWorker)
     }];
 
     configuration.get().preferences._appBadgeEnabled = YES;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto badgeDelegate = adoptNS([BadgeDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr badgeDelegate = adoptNS([BadgeDelegate new]);
     badgeDelegate.get().serverURL = server.request("/"_s).URL;
     badgeDelegate.get().expectedAppBadgeSequence = @[@10, @0];
     configuration.get().websiteDataStore._delegate = badgeDelegate.get();
@@ -450,9 +450,9 @@ window.navigator.setAppBadge(10);
 
 TEST(Badging, Origin)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    auto handler = adoptNS([[TestURLSchemeHandler alloc] init]);
+    RetainPtr handler = adoptNS([[TestURLSchemeHandler alloc] init]);
     handler.get().startURLSchemeTaskHandler = ^(WKWebView *, id<WKURLSchemeTask> task) {
         if ([task.request.URL.scheme isEqualToString:@"origintest1"])
             return respond(task, originMainFrameBytes);
@@ -465,8 +465,8 @@ TEST(Badging, Origin)
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"origintest2"];
     configuration.get().preferences._appBadgeEnabled = YES;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto badgeDelegate = adoptNS([BadgeDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr badgeDelegate = adoptNS([BadgeDelegate new]);
 
     NSURL *url = [NSURL URLWithString:@"origintest1://webkit.org/index.html"];
     badgeDelegate.get().serverURL = url;
@@ -487,13 +487,13 @@ TEST(Badging, ServiceWorkerOverride)
         { "/sw.js"_s, { { { "Content-Type"_s, "text/javascript"_s } }, serviceWorkerScriptBytes } }
     });
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     static bool workerRunning = false;
     static bool badgingDone = false;
     static bool javascriptDone = false;
 
-    auto testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
+    RetainPtr testMessageHandler = adoptNS([[TestMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:testMessageHandler.get() name:@"testHandler"];
     [testMessageHandler addMessage:@"RUNNING" withHandler:^{
         workerRunning = true;
@@ -509,8 +509,8 @@ TEST(Badging, ServiceWorkerOverride)
     serviceWorkerOverride._appBadgeEnabled = YES;
     [configuration.get().websiteDataStore _setServiceWorkerOverridePreferences:serviceWorkerOverride];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
-    auto badgeDelegate = adoptNS([BadgeDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr badgeDelegate = adoptNS([BadgeDelegate new]);
     badgeDelegate.get().expectedAppBadgeSequence = @[@10, @0];
     configuration.get().websiteDataStore._delegate = badgeDelegate.get();
 

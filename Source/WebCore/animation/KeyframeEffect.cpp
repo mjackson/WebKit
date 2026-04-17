@@ -2111,6 +2111,13 @@ void KeyframeEffect::animationDidTick()
     invalidate();
     updateAcceleratedActions();
 
+#if ENABLE(THREADED_ANIMATIONS)
+    if (canHaveAcceleratedRepresentation() && isAboutToRunAccelerated()) {
+        if (getBasicTiming().phase == AnimationEffectPhase::Active)
+            updateAcceleratedAnimationIfNecessary();
+    }
+#endif
+
     if (RefPtr viewTimeline = activeViewTimeline())
         computeMissingKeyframeOffsets(m_parsedKeyframes, viewTimeline.get(), animation());
 }

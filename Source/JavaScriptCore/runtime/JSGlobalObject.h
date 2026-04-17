@@ -94,7 +94,6 @@ class JSCallee;
 class JSCustomGetterFunction;
 class JSCustomSetterFunction;
 class JSGlobalObjectDebuggable;
-class JSInternalPromise;
 class JSIterator;
 class JSIteratorConstructor;
 class JSIteratorHelperPrototype;
@@ -184,7 +183,6 @@ constexpr bool typeExposedByDefault = true;
 
 #define FOR_EACH_SIMPLE_BUILTIN_TYPE(macro) \
     FOR_EACH_SIMPLE_BUILTIN_TYPE_WITH_CONSTRUCTOR(macro) \
-    macro(JSInternalPromise, internalPromise, internalPromise, JSInternalPromise, InternalPromise, object, typeExposedByDefault) \
 
 #define FOR_EACH_LAZY_BUILTIN_TYPE_WITH_DECLARATION(macro) \
     macro(Boolean, boolean, booleanObject, BooleanObject, Boolean, object, typeExposedByDefault) \
@@ -269,7 +267,6 @@ public:
     WriteBarrier<RegExpConstructor> m_regExpConstructor;
     WriteBarrier<FunctionConstructor> m_functionConstructor;
     WriteBarrier<JSPromiseConstructor> m_promiseConstructor;
-    WriteBarrier<JSInternalPromiseConstructor> m_internalPromiseConstructor;
     WriteBarrier<JSIteratorConstructor> m_iteratorConstructor;
     WriteBarrier<StringConstructor> m_stringConstructor;
 
@@ -780,7 +777,6 @@ public:
     ObjectConstructor* objectConstructor() const LIFETIME_BOUND { return m_objectConstructor.get(); }
     FunctionConstructor* functionConstructor() const LIFETIME_BOUND { return m_functionConstructor.get(); }
     JSPromiseConstructor* promiseConstructor() const LIFETIME_BOUND { return m_promiseConstructor.get(); }
-    JSInternalPromiseConstructor* internalPromiseConstructor() const LIFETIME_BOUND { return m_internalPromiseConstructor.get(); }
     JSIteratorConstructor* iteratorConstructor() const LIFETIME_BOUND { return m_iteratorConstructor.get(); }
 
     IntlCollator* defaultCollator() const LIFETIME_BOUND { return m_defaultCollator.get(this); }
@@ -871,7 +867,6 @@ public:
     // Workaround for the name conflict between JSCell::setPrototype.
     JSObject* jsSetPrototype() const LIFETIME_BOUND { return m_setStructure.prototype(this); }
     JSPromisePrototype* promisePrototype() const LIFETIME_BOUND { return m_promisePrototype.get(); }
-    JSInternalPromisePrototype* internalPromisePrototype() const LIFETIME_BOUND { return m_internalPromisePrototype.get(); }
     AsyncGeneratorPrototype* asyncGeneratorPrototype() const LIFETIME_BOUND { return m_asyncGeneratorPrototype.get(); }
     AsyncGeneratorFunctionPrototype* asyncGeneratorFunctionPrototype() const LIFETIME_BOUND { return m_asyncGeneratorFunctionPrototype.get(); }
     JSValue nullPrototype() const { return jsNull(); }

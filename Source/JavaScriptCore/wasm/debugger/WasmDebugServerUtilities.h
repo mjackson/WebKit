@@ -137,11 +137,11 @@ struct Breakpoint {
 struct StopData {
     WTF_MAKE_STRUCT_TZONE_ALLOCATED(StopData);
 
-    StopData(VirtualAddress, uint8_t originalBytecode, uint8_t* pc, uint8_t* mc, IPInt::IPIntLocal*, IPInt::IPIntStackEntry*, IPIntCallee*, JSWebAssemblyInstance*, CallFrame*);
+    StopData(VirtualAddress, uint8_t originalBytecode, uint8_t* pc, uint8_t* mc, IPInt::IPIntStackEntry*, IPIntCallee*, JSWebAssemblyInstance*, CallFrame*);
 
     StopData(IPIntCallee*, JSWebAssemblyInstance*, CallFrame*); // Prologue: no pc/mc
 
-    StopData(IPIntCallee*, JSWebAssemblyInstance*, CallFrame*, uint8_t* pc, uint8_t* mc, IPInt::IPIntLocal*, IPInt::IPIntStackEntry*, Wasm::ExceptionType); // Trap
+    StopData(IPIntCallee*, JSWebAssemblyInstance*, CallFrame*, uint8_t* pc, uint8_t* mc, IPInt::IPIntStackEntry*, Wasm::ExceptionType); // Trap
 
     ~StopData();
 
@@ -151,7 +151,6 @@ struct StopData {
     uint8_t originalBytecode { 0 };
     uint8_t* pc { nullptr };
     uint8_t* mc { nullptr };
-    IPInt::IPIntLocal* locals { nullptr };
     IPInt::IPIntStackEntry* stack { nullptr };
     RefPtr<IPIntCallee> callee;
     JSWebAssemblyInstance* instance { nullptr };
@@ -182,7 +181,7 @@ struct DebugState {
         stopData = makeUnique<StopData>(callee, instance, callFrame);
     }
 
-    void setBreakpointStopData(Breakpoint::Type type, VirtualAddress address, uint8_t originalBytecode, uint8_t* pc, uint8_t* mc, IPInt::IPIntLocal* locals, IPInt::IPIntStackEntry* stack, IPIntCallee* callee, JSWebAssemblyInstance* instance, CallFrame* callFrame)
+    void setBreakpointStopData(Breakpoint::Type type, VirtualAddress address, uint8_t originalBytecode, uint8_t* pc, uint8_t* mc, IPInt::IPIntStackEntry* stack, IPIntCallee* callee, JSWebAssemblyInstance* instance, CallFrame* callFrame)
     {
         switch (type) {
         case Breakpoint::Type::Step:
@@ -192,13 +191,13 @@ struct DebugState {
             stopReason = Reason::Breakpoint;
             break;
         }
-        stopData = makeUnique<StopData>(address, originalBytecode, pc, mc, locals, stack, callee, instance, callFrame);
+        stopData = makeUnique<StopData>(address, originalBytecode, pc, mc, stack, callee, instance, callFrame);
     }
 
-    void setTrapStopData(IPIntCallee* callee, JSWebAssemblyInstance* instance, CallFrame* callFrame, uint8_t* pc, uint8_t* mc, IPInt::IPIntLocal* locals, IPInt::IPIntStackEntry* stack, Wasm::ExceptionType wasmTrapType)
+    void setTrapStopData(IPIntCallee* callee, JSWebAssemblyInstance* instance, CallFrame* callFrame, uint8_t* pc, uint8_t* mc, IPInt::IPIntStackEntry* stack, Wasm::ExceptionType wasmTrapType)
     {
         stopReason = Reason::WasmTrap;
-        stopData = makeUnique<StopData>(callee, instance, callFrame, pc, mc, locals, stack, wasmTrapType);
+        stopData = makeUnique<StopData>(callee, instance, callFrame, pc, mc, stack, wasmTrapType);
     }
 
     // WHERE-based helpers — determined by stopData presence and pc:
@@ -297,7 +296,6 @@ struct FrameInfo {
 
 Vector<FrameInfo> collectCallStack(VirtualAddress stopAddress, CallFrame* startFrame, VM&, unsigned maxFrames = 100);
 
-IPInt::IPIntLocal* localsFromFrame(CallFrame*, const IPIntCallee*);
 
 inline StringView getErrorReply(ProtocolError error)
 {

@@ -754,7 +754,7 @@ void WebBackForwardList::backForwardAllItems(FrameIdentifier frameID, Completion
     }));
 }
 
-void WebBackForwardList::backForwardItemAtIndex(int32_t delta, FrameIdentifier frameID, CompletionHandler<void(RefPtr<FrameState>&&)>&& completionHandler)
+void WebBackForwardList::backForwardItemAtIndexForWebContent(int32_t delta, FrameIdentifier frameID, CompletionHandler<void(RefPtr<FrameState>&&)>&& completionHandler)
 {
     // FIXME: This should verify that the web process requesting the item hosts the specified frame.
     if (RefPtr item = itemAtDeltaFromCurrentIndex(delta)) {
@@ -836,7 +836,7 @@ WebBackForwardListItem* WebBackForwardListWrapper::forwardItem() const
 
 RefPtr<WebBackForwardListItem> WebBackForwardListWrapper::itemAtDeltaFromCurrentIndex(int index) const
 {
-    return m_impl->itemAtIndex(index);
+    return m_impl->itemAtDeltaFromCurrentIndex(index);
 }
 
 unsigned WebBackForwardListWrapper::backListCount() const

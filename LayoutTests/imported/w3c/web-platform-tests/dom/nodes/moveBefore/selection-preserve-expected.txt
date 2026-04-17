@@ -1,0 +1,12 @@
+One
+Two
+Three
+Four
+
+FAIL moveBefore should not reset selection with preceding text promise_test: Unhandled rejection with value: object "TypeError: new_parent.moveBefore is not a function. (In 'new_parent.moveBefore(text, null)', 'new_parent.moveBefore' is undefined)"
+FAIL moveBefore resets selection that enters a subtree, when the whole selection is moved promise_test: Unhandled rejection with value: object "TypeError: grandparentDiv.moveBefore is not a function. (In 'grandparentDiv.moveBefore(parentDiv, grandparentParagraph)', 'grandparentDiv.moveBefore' is undefined)"
+FAIL moveBefore anchor node moved up to expand selection and absorb nodes promise_test: Unhandled rejection with value: object "TypeError: grandparentDiv.moveBefore is not a function. (In 'grandparentDiv.moveBefore(parentParagraph, grandparentParagraph)', 'grandparentDiv.moveBefore' is undefined)"
+FAIL moveBefore move intersecting nodes out of a selection promise_test: Unhandled rejection with value: object "TypeError: grandparentDiv.moveBefore is not a function. (In 'grandparentDiv.moveBefore(childParagraph1, grandparentParagraph)', 'grandparentDiv.moveBefore' is undefined)"
+FAIL moveBefore focus node moved up to shrink selection and exclude nodes; focus node gets reset promise_test: Unhandled rejection with value: object "TypeError: parentDiv.moveBefore is not a function. (In 'parentDiv.moveBefore(childDiv, parentParagraph)', 'parentDiv.moveBefore' is undefined)"
+FAIL moveBefore selection is not preserved, especially when underlying range gets inverted promise_test: Unhandled rejection with value: object "TypeError: list.moveBefore is not a function. (In 'list.moveBefore(i4, i1)', 'list.moveBefore' is undefined)"
+

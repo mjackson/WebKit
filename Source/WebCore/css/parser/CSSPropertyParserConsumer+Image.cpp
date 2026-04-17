@@ -60,6 +60,7 @@
 #include "CSSPropertyParserConsumer+URL.h"
 #include "CSSPropertyParserOptions.h"
 #include "CSSPropertyParserState.h"
+#include "CSSStringValue.h"
 #include "CSSValue.h"
 #include "CSSValueList.h"
 #include "CSSValuePool.h"
@@ -1006,7 +1007,7 @@ static RefPtr<CSSValue> consumeWebkitCanvas(CSSParserTokenRange& args)
 {
     if (args.peek().type() != IdentToken)
         return nullptr;
-    return CSSCanvasValue::create(args.consumeIncludingWhitespace().value().toString());
+    return CSSCanvasValue::create(CSS::CustomIdent { args.consumeIncludingWhitespace().value().toAtomString() });
 }
 
 // MARK: <-webkit-named-image()>
@@ -1015,7 +1016,7 @@ static RefPtr<CSSValue> consumeWebkitNamedImage(CSSParserTokenRange& args)
 {
     if (args.peek().type() != IdentToken)
         return nullptr;
-    return CSSNamedImageValue::create(args.consumeIncludingWhitespace().value().toString());
+    return CSSNamedImageValue::create(CSS::CustomIdent { args.consumeIncludingWhitespace().value().toAtomString() });
 }
 
 // MARK: <filter()>
@@ -1048,7 +1049,7 @@ static RefPtr<CSSValue> consumeCustomPaint(CSSParserTokenRange& args, CSS::Prope
         return nullptr;
     if (args.peek().type() != IdentToken)
         return nullptr;
-    auto name = args.consumeIncludingWhitespace().value().toString();
+    auto name = args.consumeIncludingWhitespace().value().toAtomString();
 
     if (!args.atEnd() && args.peek() != CommaToken)
         return nullptr;
@@ -1056,13 +1057,14 @@ static RefPtr<CSSValue> consumeCustomPaint(CSSParserTokenRange& args, CSS::Prope
         args.consume();
 
     auto argumentList = CSSVariableData::create(args.consumeAll());
-    return CSSPaintImageValue::create(name, WTF::move(argumentList));
+    return CSSPaintImageValue::create(CSS::CustomIdent { WTF::move(name) }, WTF::move(argumentList));
 }
 
 // MARK: <image-set()>
+// https://w3c.github.io/csswg-drafts/css-images-4/#image-set-notation
 
 struct ImageSetTypeFunctionRaw {
-    String value;
+    FunctionNotation<CSSValueType, CSS::String> value;
 
     bool operator==(const ImageSetTypeFunctionRaw&) const = default;
 };
@@ -1079,13 +1081,13 @@ struct ImageSetTypeFunctionRawKnownTokenTypeFunctionConsumer {
 
         auto rangeCopy = range;
         auto typeArg = consumeFunction(rangeCopy);
-        auto result = consumeStringRaw(typeArg);
+        auto result = consumeUnresolvedString(typeArg);
 
-        if (result.isNull() || !typeArg.atEnd())
+        if (!result || !typeArg.atEnd())
             return { };
 
         range = rangeCopy;
-        return { { result.toString() } };
+        return ImageSetTypeFunctionRaw { FunctionNotation<CSSValueType, CSS::String> { WTF::move(*result) } };
     }
 };
 
@@ -1095,61 +1097,47 @@ template<> struct ConsumerDefinition<ImageSetTypeFunction> {
 
 // MARK: Image Set Resolution + Type Function
 
-static RefPtr<CSSPrimitiveValue> consumeImageSetResolutionOrTypeFunction(CSSParserTokenRange& range, CSS::PropertyParserState& state)
-{
-    // [ <resolution> || type(<string>) ]
-    //
-    //   as part of
-    //
-    // <image-set()> = image-set( <image-set-option># )
-    // <image-set-option> = [ <image> | <string> ] [ <resolution> || type(<string>) ]?
-
-    return MetaConsumer<CSS::Resolution<>, ImageSetTypeFunction>::consume(range, state,
-        [&](const ImageSetTypeFunction& typeFunction) -> RefPtr<CSSPrimitiveValue> {
-            return CSSPrimitiveValue::create(typeFunction.value);
-        },
-        [&](const CSS::Resolution<>& resolution) -> RefPtr<CSSPrimitiveValue> {
-            return CSSPrimitiveValueResolverBase::resolve(resolution);
-        }
-    ).value_or(nullptr);
-}
-
-// https://w3c.github.io/csswg-drafts/css-images-4/#image-set-notation
 static RefPtr<CSSImageSetOptionValue> consumeImageSetOption(CSSParserTokenRange& range, CSS::PropertyParserState& state, OptionSet<AllowedImageType> allowedImageTypes)
 {
+    // <image-set()> = image-set( <image-set-option># )
+    // <image-set-option> = [ <image> | <string> ] [ <resolution> || type(<string>) ]?
+    // https://w3c.github.io/csswg-drafts/css-images-4/#image-set-notation
+
     auto image = consumeImage(range, state, allowedImageTypes);
     if (!image)
         return nullptr;
 
-    auto result = CSSImageSetOptionValue::create(image.releaseNonNull());
-
-    RefPtr<CSSPrimitiveValue> resolution;
-    RefPtr<CSSPrimitiveValue> type;
+    std::optional<CSS::Resolution<>> resolution;
+    std::optional<FunctionNotation<CSSValueType, CSS::String>> type;
 
     // Optional resolution and type in any order.
     for (size_t i = 0; i < 2 && !range.atEnd(); ++i) {
-        if (auto optionalArgument = consumeImageSetResolutionOrTypeFunction(range, state)) {
-            if ((resolution && optionalArgument->isResolution()) || (type && optionalArgument->isString()))
+        if (auto optionalArgument = MetaConsumer<CSS::Resolution<>, ImageSetTypeFunction>::consume(range, state)) {
+            bool success = WTF::switchOn(WTF::move(*optionalArgument),
+                [&](CSS::Resolution<>&& parsedResolution) {
+                    if (resolution)
+                        return false;
+                    resolution = WTF::move(parsedResolution);
+                    return true;
+                },
+                [&](ImageSetTypeFunction&& parsedType) {
+                    if (type)
+                        return false;
+                    type = WTF::move(parsedType.value);
+                    return true;
+                }
+            );
+            if (!success)
                 return nullptr;
-
-            if (optionalArgument->isResolution()) {
-                resolution = optionalArgument;
-                result->setResolution(optionalArgument.releaseNonNull());
-                continue;
-            }
-
-            if (optionalArgument->isString()) {
-                type = optionalArgument;
-                result->setType(type->stringValue());
-                continue;
-            }
+            continue;
         }
         break;
     }
 
     if (!range.atEnd() && range.peek().type() != CommaToken)
         return nullptr;
-    return result;
+
+    return CSSImageSetOptionValue::create(image.releaseNonNull(), WTF::move(resolution), WTF::move(type));
 }
 
 

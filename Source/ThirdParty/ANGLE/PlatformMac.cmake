@@ -9,7 +9,7 @@ find_package(ZLIB REQUIRED)
 list(APPEND ANGLE_SOURCES
     ${metal_backend_sources}
 
-    ${angle_translator_lib_metal_sources}
+    ${angle_translator_lib_msl_sources}
 
     ${libangle_gpu_info_util_mac_sources}
     ${libangle_gpu_info_util_sources}

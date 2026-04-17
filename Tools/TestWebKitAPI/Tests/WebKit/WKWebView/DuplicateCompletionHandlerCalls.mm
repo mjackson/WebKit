@@ -124,11 +124,11 @@ static void expectException(void (^completionHandler)())
 
 TEST(WebKit, DuplicateCompletionHandlerCalls)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     auto preferences = (__bridge WKPreferencesRef)[[webView configuration] preferences];
     WKPreferencesSetWebSQLDisabled(preferences, false);
 
-    auto delegate = adoptNS([[DuplicateCompletionHandlerCallsDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[DuplicateCompletionHandlerCallsDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView setUIDelegate:delegate.get()];
     [webView _setInputDelegate:delegate.get()];

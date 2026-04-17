@@ -399,7 +399,7 @@ TEST(RETAIN_PTR_TEST_NAME, HashMapCFTypeDeletedValue)
 {
     HashMap<RetainPtr<CFStringRef>, int> map;
 
-    auto key = adoptCF(CFStringCreateWithCString(nullptr, "hello world", kCFStringEncodingASCII));
+    RetainPtr key = adoptCF(CFStringCreateWithCString(nullptr, "hello world", kCFStringEncodingASCII));
     map.add(key, 1);
     EXPECT_EQ(true, map.contains(key));
     map.remove(key);

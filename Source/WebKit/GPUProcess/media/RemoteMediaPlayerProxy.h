@@ -179,6 +179,9 @@ public:
     void setPitchCorrectionAlgorithm(WebCore::MediaPlayer::PitchCorrectionAlgorithm);
 
     void setPageIsVisible(bool);
+
+    using ViewportVisibility = WebCore::MediaPlayer::ViewportVisibility;
+    void setViewportVisibility(ViewportVisibility);
     void setShouldMaintainAspectRatio(bool);
 #if ENABLE(VIDEO_PRESENTATION_MODE)
     void setVideoFullscreenGravity(WebCore::MediaPlayerEnums::VideoGravity);

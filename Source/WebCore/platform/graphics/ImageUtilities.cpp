@@ -69,7 +69,9 @@ Vector<uint8_t> encodeData(const RefPtr<NativeImage>& image, const String& mimeT
 
 Vector<uint8_t> encodeData(RefPtr<ImageBuffer>&& buffer, const String& mimeType, std::optional<double> quality)
 {
-    return encodeData(ImageBuffer::sinkIntoNativeImage(WTF::move(buffer)), mimeType, quality);
+    if (!buffer)
+        return { };
+    return encodeData(buffer->copyNativeImage(), mimeType, quality);
 }
 
 String encodeDataURL(const NativeImage& image, const String& mimeType, std::optional<double> quality)
@@ -91,7 +93,7 @@ String encodeDataURL(RefPtr<ImageBuffer>&& buffer, const String& mimeType, std::
 {
     if (!buffer)
         return "data:,"_s;
-    return encodeDataURL(ImageBuffer::sinkIntoNativeImage(WTF::move(buffer)), mimeType, quality);
+    return encodeDataURL(buffer->copyNativeImage(), mimeType, quality);
 }
 
 }

@@ -3,11 +3,12 @@ find_library(QUARTZ_LIBRARY Quartz)
 find_library(SECURITYINTERFACE_LIBRARY SecurityInterface)
 add_definitions(-iframework ${QUARTZ_LIBRARY}/Frameworks)
 add_definitions(-iframework ${APPLICATIONSERVICES_LIBRARY}/Versions/Current/Frameworks)
-add_definitions(-DJSC_CLASS_AVAILABLE\\\(...\\\)=)
-add_definitions(-fobjc-weak)
+# FIXME: Remove once source files are fixed. https://bugs.webkit.org/show_bug.cgi?id=312034
+add_compile_options(-Wno-unused-parameter)
 
 list(APPEND WebKitLegacy_PRIVATE_LIBRARIES
     ${SECURITYINTERFACE_LIBRARY}
+    PAL
 )
 
 list(APPEND WebKitLegacy_PRIVATE_INCLUDE_DIRECTORIES
@@ -30,9 +31,15 @@ list(APPEND WebKitLegacy_UNIFIED_SOURCE_LIST_FILES
 WEBKIT_COMPUTE_SOURCES(WebKitLegacy)
 
 list(APPEND WebKitLegacy_SOURCES
+    WebCoreSupport/LegacySocketProvider.cpp
+    WebCoreSupport/LegacyWebPageDebuggable.cpp
+    WebCoreSupport/LegacyWebPageInspectorController.cpp
+    WebCoreSupport/WebCryptoClient.mm
+
     cf/WebCoreSupport/WebInspectorClientCF.cpp
 
     mac/DefaultDelegates/WebDefaultEditingDelegate.m
+    mac/DefaultDelegates/WebDefaultPolicyDelegate.mm
     mac/DefaultDelegates/WebDefaultUIDelegate.mm
 
     mac/History/BackForwardList.mm
@@ -85,6 +92,7 @@ list(APPEND WebKitLegacy_SOURCES
     mac/Storage/WebStorageTrackerClient.mm
 
     mac/WebCoreSupport/CorrectionPanel.mm
+    mac/WebCoreSupport/LegacyHistoryItemClient.mm
     mac/WebCoreSupport/PopupMenuMac.mm
     mac/WebCoreSupport/SearchPopupMenuMac.mm
     mac/WebCoreSupport/WebAlternativeTextClient.mm
@@ -392,7 +400,6 @@ set(WebKitLegacy_LEGACY_FORWARDING_HEADERS_FILES
     mac/Misc/WebNSURLRequestExtras.h
     mac/Misc/WebSharingServicePickerController.h
     mac/Misc/WebLocalizableStringsInternal.h
-    mac/Misc/WebNSDataExtrasPrivate.h
     mac/Misc/WebNSUserDefaultsExtras.h
     mac/Misc/WebNSEventExtras.h
     mac/Misc/WebNSURLExtras.h
@@ -407,7 +414,6 @@ set(WebKitLegacy_LEGACY_FORWARDING_HEADERS_FILES
     mac/Misc/WebUserContentURLPattern.h
     mac/Misc/WebKitVersionChecks.h
     mac/Misc/WebLocalizableStrings.h
-    mac/Misc/WebTypesInternal.h
     mac/Misc/WebCoreStatistics.h
     mac/Misc/WebNSDataExtras.h
     mac/Misc/WebElementDictionary.h
@@ -468,7 +474,6 @@ set(WebKitLegacy_LEGACY_FORWARDING_HEADERS_FILES
     mac/WebCoreSupport/WebGeolocationClient.h
     mac/WebCoreSupport/WebFrameNetworkingContext.h
     mac/WebCoreSupport/PopupMenuMac.h
-    mac/WebCoreSupport/WebDeviceOrientationClient.h
     mac/WebCoreSupport/WebValidationMessageClient.h
     mac/WebCoreSupport/WebCachedFramePlatformData.h
     mac/WebCoreSupport/WebFrameLoaderClient.h
@@ -477,6 +482,7 @@ set(WebKitLegacy_LEGACY_FORWARDING_HEADERS_FILES
     mac/WebCoreSupport/WebOpenPanelResultListener.h
 
     mac/WebView/WebArchive.h
+    mac/WebView/WebFeature.h
     mac/WebView/WebHTMLViewPrivate.h
     mac/WebView/WebFrame.h
     mac/WebView/WebScriptWorld.h
@@ -563,22 +569,15 @@ add_definitions("-include WebKitPrefix.h")
 
 set(C99_FILES
     mac/DefaultDelegates/WebDefaultEditingDelegate.m
-    mac/DefaultDelegates/WebDefaultUIDelegate.m
 
     mac/Misc/WebKitErrors.m
     mac/Misc/WebKitStatistics.m
-    mac/Misc/WebKitSystemBits.m
-    mac/Misc/WebNSArrayExtras.m
     mac/Misc/WebNSControlExtras.m
     mac/Misc/WebNSEventExtras.m
     mac/Misc/WebNSPrintOperationExtras.m
     mac/Misc/WebNSURLRequestExtras.m
     mac/Misc/WebNSViewExtras.m
     mac/Misc/WebNSWindowExtras.m
-
-    mac/Plugins/WebPluginsPrivate.m
-
-    mac/Plugins/Hosted/WebTextInputWindowController.m
 
     mac/WebView/WebFormDelegate.m
 )
@@ -607,10 +606,26 @@ foreach (_file ${WebKitLegacy_LEGACY_FORWARDING_HEADERS_FILES})
     endif ()
 endforeach ()
 
+# WK2 code imports WebKitLegacy headers via <WebKit/...> (e.g. _WKFeature.h -> <WebKit/WebFeature.h>).
+# Symlink WebKit/ -> WebKitLegacy/ so both prefixes resolve from the same headers dir.
+file(CREATE_LINK "${WebKitLegacy_FRAMEWORK_HEADERS_DIR}/WebKitLegacy"
+                 "${WebKitLegacy_FRAMEWORK_HEADERS_DIR}/WebKit" SYMBOLIC)
+
+# WebKit_WEB_PREFERENCES{,_TEMPLATES} are set in WebKit/CMakeLists.txt, but CMakeLists.txt
+# processes WebKitLegacy before WebKit. Define locals so preferences codegen works standalone.
+set(WebKitLegacy_WEB_PREFERENCES_TEMPLATES
+    ${WEBKITLEGACY_DIR}/mac/Scripts/PreferencesTemplates/WebViewPreferencesChangedGenerated.mm.erb
+    ${WEBKITLEGACY_DIR}/mac/Scripts/PreferencesTemplates/WebPreferencesInternalFeatures.mm.erb
+    ${WEBKITLEGACY_DIR}/mac/Scripts/PreferencesTemplates/WebPreferencesExperimentalFeatures.mm.erb
+    ${WEBKITLEGACY_DIR}/mac/Scripts/PreferencesTemplates/WebPreferencesDefinitions.h.erb
+)
+set(WebKitLegacy_WEB_PREFERENCES ${WTF_SCRIPTS_DIR}/Preferences/UnifiedWebPreferences.yaml)
+set_source_files_properties(${WebKitLegacy_WEB_PREFERENCES} PROPERTIES GENERATED TRUE)
+
 add_custom_command(
     OUTPUT ${WebKitLegacy_DERIVED_SOURCES_DIR}/WebViewPreferencesChangedGenerated.mm ${WebKitLegacy_DERIVED_SOURCES_DIR}/WebPreferencesInternalFeatures.mm ${WebKitLegacy_DERIVED_SOURCES_DIR}/WebPreferencesExperimentalFeatures.mm ${WebKitLegacy_DERIVED_SOURCES_DIR}/WebPreferencesDefinitions.h
-    DEPENDS ${WebKit_WEB_PREFERENCES_TEMPLATES} ${WebKit_WEB_PREFERENCES} WTF_CopyPreferences
-    COMMAND ${Ruby_EXECUTABLE} ${WTF_SCRIPTS_DIR}/GeneratePreferences.rb --frontend WebKitLegacy --outputDir "${WebKitLegacy_DERIVED_SOURCES_DIR}" --template "$<JOIN:${WebKit_WEB_PREFERENCES_TEMPLATES},;--template;>" ${WebKit_WEB_PREFERENCES}
+    DEPENDS ${WebKitLegacy_WEB_PREFERENCES_TEMPLATES} ${WebKitLegacy_WEB_PREFERENCES} WTF_CopyPreferences
+    COMMAND ${Ruby_EXECUTABLE} ${WTF_SCRIPTS_DIR}/GeneratePreferences.rb --frontend WebKitLegacy --outputDir "${WebKitLegacy_DERIVED_SOURCES_DIR}" --template "$<JOIN:${WebKitLegacy_WEB_PREFERENCES_TEMPLATES},;--template;>" ${WebKitLegacy_WEB_PREFERENCES}
     COMMAND_EXPAND_LISTS
     VERBATIM
 )

@@ -26,7 +26,6 @@
 #ifndef PAS_FAST_TLS_H
 #define PAS_FAST_TLS_H
 
-#include "pas_heap_lock.h"
 #include "pas_utils.h"
 
 PAS_BEGIN_EXTERN_C;

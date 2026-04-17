@@ -51,6 +51,11 @@
 #include "B3Value.h"
 #include "B3VariableValue.h"
 #include "B3WasmAddressValue.h"
+#include "B3WasmArrayElementValue.h"
+#include "B3WasmArrayGetValue.h"
+#include "B3WasmArrayLengthValue.h"
+#include "B3WasmArrayNewValue.h"
+#include "B3WasmArraySetValue.h"
 #include "B3WasmBoundsCheckValue.h"
 #include "B3WasmRefTypeCheckValue.h"
 #include "B3WasmStructGetValue.h"
@@ -127,6 +132,8 @@ namespace JSC { namespace B3 {
     case EqualOrUnordered: \
     case Select: \
         return MACRO(Value); \
+    case WasmArrayLength: \
+        return MACRO(WasmArrayLengthValue); \
     case ArgumentReg: \
         return MACRO(ArgumentRegValue); \
     case Const32: \
@@ -176,6 +183,12 @@ namespace JSC { namespace B3 {
         return MACRO(WasmStructSetValue); \
     case WasmStructNew: \
         return MACRO(WasmStructNewValue); \
+    case WasmArrayGet: \
+        return MACRO(WasmArrayGetValue); \
+    case WasmArraySet: \
+        return MACRO(WasmArraySetValue); \
+    case WasmArrayNew: \
+        return MACRO(WasmArrayNewValue); \
     case WasmRefCast: \
     case WasmRefTest: \
         return MACRO(WasmRefTypeCheckValue); \

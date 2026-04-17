@@ -25,6 +25,8 @@
 
 #pragma once
 
+#ifdef __cplusplus
+
 #if ENABLE(WK_WEB_EXTENSIONS)
 
 #include "Helpers/cocoa/TestCocoa.h"
@@ -75,6 +77,7 @@
 - (void)run;
 - (void)runForTimeInterval:(NSTimeInterval)interval;
 - (id)runUntilTestMessage:(NSString *)message;
+- (void)runUntilContextError;
 
 - (void)done;
 
@@ -173,3 +176,5 @@ void loadAndRunExtension(NSDictionary *manifest, NSDictionary *resources, WKWebE
 } // namespace TestWebKitAPI::Util
 
 #endif // ENABLE(WK_WEB_EXTENSIONS)
+
+#endif // __cplusplus

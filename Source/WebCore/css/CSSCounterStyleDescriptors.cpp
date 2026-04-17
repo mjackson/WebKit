@@ -30,6 +30,7 @@
 #include "CSSCustomIdentValue.h"
 #include "CSSMarkup.h"
 #include "CSSPrimitiveValue.h"
+#include "CSSStringValue.h"
 #include "CSSValueList.h"
 #include "CSSValuePair.h"
 #include <utility>
@@ -74,8 +75,8 @@ CSSCounterStyleDescriptors::Symbol symbolFromCSSValue(const CSSValue* value)
     if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value))
         return { .isCustomIdent = true, .text = customIdentValue->customIdent().value };
 
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
-        return { .isCustomIdent = false, .text = primitiveValue->stringValue() };
+    if (RefPtr stringValue = dynamicDowncast<CSSStringValue>(value))
+        return { .isCustomIdent = false, .text = stringValue->string().value };
 
     return { };
 }

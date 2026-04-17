@@ -115,7 +115,7 @@ namespace TestWebKitAPI {
 
 TEST(UIWKInteractionViewProtocol, SelectTextWithCharacterGranularity)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<body style='font-size: 20px;'>Hello world</body>"];
     [webView selectTextWithGranularity:UITextGranularityCharacter atPoint:CGPointMake(10, 20)];
     [webView updateSelectionWithExtentPoint:CGPointMake(300, 20) withBoundary:UITextGranularityCharacter];
@@ -124,7 +124,7 @@ TEST(UIWKInteractionViewProtocol, SelectTextWithCharacterGranularity)
 
 TEST(UIWKInteractionViewProtocol, UpdateSelectionWithExtentPoint)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<body contenteditable style='font-size: 20px;'>Hello world</body>"];
 
     RetainPtr mouseTouchGesture = [&] -> UIGestureRecognizer * {
@@ -152,8 +152,8 @@ TEST(UIWKInteractionViewProtocol, SelectPositionAtPointAfterBecomingFirstRespond
 {
     IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
 
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
     [webView _setInputDelegate:inputDelegate.get()];
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
@@ -177,8 +177,8 @@ TEST(UIWKInteractionViewProtocol, SelectPositionAtPointAfterBecomingFirstRespond
 
 TEST(UIWKInteractionViewProtocol, SelectPositionAtPointInFocusedElementStartsInputSession)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
     [webView _setInputDelegate:inputDelegate.get()];
 
     bool didCallDecidePolicyForFocusedElement = false;
@@ -201,8 +201,8 @@ TEST(UIWKInteractionViewProtocol, SelectPositionAtPointInFocusedElementStartsInp
 
 TEST(UIWKInteractionViewProtocol, SelectPositionAtPointInElementInNonFocusedFrame)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
     [webView _setInputDelegate:inputDelegate.get()];
 
     bool didStartInputSession = false;
@@ -222,8 +222,8 @@ TEST(UIWKInteractionViewProtocol, SelectPositionAtPointInElementInNonFocusedFram
 
 static std::pair<RetainPtr<TestWKWebView>, RetainPtr<TestInputDelegate>> setUpEditableWebViewAndWaitForInputSession()
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 320)]);
-    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 320)]);
+    RetainPtr inputDelegate = adoptNS([TestInputDelegate new]);
     [webView _setInputDelegate:inputDelegate.get()];
 
     bool didStartInputSession = false;
@@ -272,7 +272,7 @@ TEST(UIWKInteractionViewProtocol, SuppressSelectionChangesDuringDictation)
     [contentView insertText:@"Hello world"];
     [webView waitForNextPresentationUpdate];
 
-    auto observer = adoptNS([[EditorStateObserver alloc] initWithWebView:webView.get()]);
+    RetainPtr observer = adoptNS([[EditorStateObserver alloc] initWithWebView:webView.get()]);
     [contentView willInsertFinalDictationResult];
     [contentView replaceDictatedText:@"Hello world" withText:@""];
     [contentView insertText:@"Foo"];

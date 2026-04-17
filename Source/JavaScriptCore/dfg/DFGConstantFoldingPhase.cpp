@@ -981,8 +981,8 @@ private:
             case CreatePromise: {
                 JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
                 if (JSValue base = m_state.forNode(node->child1()).m_value) {
-                    if (base == (node->isInternalPromise() ? globalObject->internalPromiseConstructor() : globalObject->promiseConstructor())) {
-                        node->convertToNewInternalFieldObject(m_graph.registerStructure(node->isInternalPromise() ? globalObject->internalPromiseStructure() : globalObject->promiseStructure()));
+                    if (base == globalObject->promiseConstructor()) {
+                        node->convertToNewInternalFieldObject(m_graph.registerStructure(globalObject->promiseStructure()));
                         changed = true;
                         break;
                     }
@@ -991,7 +991,7 @@ private:
                             if (rareData->allocationProfileWatchpointSet().isStillValid() && m_graph.isWatchingStructureCacheClearedWatchpoint(node)) {
                                 Structure* structure = rareData->internalFunctionAllocationStructure();
                                 if (structure
-                                    && structure->classInfoForCells() == (node->isInternalPromise() ? JSInternalPromise::info() : JSPromise::info())
+                                    && structure->classInfoForCells() == JSPromise::info()
                                     && structure->realm() == globalObject) {
                                     m_graph.freeze(rareData);
                                     m_graph.watchpoints().addLazily(rareData->allocationProfileWatchpointSet());

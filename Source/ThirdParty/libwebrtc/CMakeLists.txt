@@ -7,6 +7,10 @@ enable_language(ASM)
 
 add_definitions(-DLIBYUV_DISABLE_SME)
 add_definitions(-DLIBYUV_DISABLE_SVE)
+add_definitions(-DWEBRTC_WEBKIT_BUILD=1)
+
+# Suppress all warnings for third-party libwebrtc code.
+add_compile_options(-w)
 
 if (NOT APPLE)
     find_package(LibEvent)
@@ -48,6 +52,7 @@ set(webrtc_SOURCES
     Source/third_party/abseil-cpp/absl/debugging/failure_signal_handler.cc
     Source/third_party/abseil-cpp/absl/debugging/internal/address_is_readable.cc
     Source/third_party/abseil-cpp/absl/debugging/internal/demangle.cc
+    Source/third_party/abseil-cpp/absl/debugging/internal/demangle_rust.cc
     Source/third_party/abseil-cpp/absl/debugging/internal/elf_mem_image.cc
     Source/third_party/abseil-cpp/absl/debugging/internal/examine_stack.cc
     Source/third_party/abseil-cpp/absl/debugging/internal/stack_consumption.cc
@@ -130,7 +135,10 @@ set(webrtc_SOURCES
     Source/third_party/abseil-cpp/absl/synchronization/blocking_counter.cc
     Source/third_party/abseil-cpp/absl/synchronization/internal/create_thread_identity.cc
     Source/third_party/abseil-cpp/absl/synchronization/internal/graphcycles.cc
+    Source/third_party/abseil-cpp/absl/synchronization/internal/kernel_timeout.cc
     Source/third_party/abseil-cpp/absl/synchronization/internal/per_thread_sem.cc
+    Source/third_party/abseil-cpp/absl/synchronization/internal/pthread_waiter.cc
+    Source/third_party/abseil-cpp/absl/synchronization/internal/waiter_base.cc
     Source/third_party/abseil-cpp/absl/synchronization/mutex.cc
     Source/third_party/abseil-cpp/absl/synchronization/notification.cc
     Source/third_party/abseil-cpp/absl/time/civil_time.cc
@@ -605,10 +613,6 @@ list(APPEND webrtc_SOURCES
     Source/webrtc/modules/audio_device/dummy/file_audio_device.cc
     Source/webrtc/modules/audio_device/dummy/file_audio_device_factory.cc
     Source/webrtc/modules/audio_device/fine_audio_buffer.cc
-    Source/webrtc/modules/audio_device/linux/alsasymboltable_linux.cc
-    Source/webrtc/modules/audio_device/linux/audio_device_alsa_linux.cc
-    Source/webrtc/modules/audio_device/linux/audio_mixer_manager_alsa_linux.cc
-    Source/webrtc/modules/audio_device/linux/latebindingsymboltable_linux.cc
     Source/webrtc/modules/audio_mixer/audio_frame_manipulator.cc
     Source/webrtc/modules/audio_mixer/audio_mixer_impl.cc
     Source/webrtc/modules/audio_mixer/default_output_rate_calculator.cc
@@ -1837,6 +1841,10 @@ macro(append_to_parent_scope var)
 endmacro()
 
 function(add_perlasm_target dest src)
+  get_filename_component(_perlasm_dir ${dest} DIRECTORY)
+  if (_perlasm_dir)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${_perlasm_dir})
+  endif ()
   add_custom_command(
     OUTPUT ${dest}
     COMMAND ${PERL_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${src} ${ARGN}
@@ -2053,16 +2061,16 @@ if (APPLE)
     list(APPEND webrtc_SOURCES
         Source/third_party/libyuv/source/scale.cc
 
-        Source/webrtc/sdk/objc/components/video_codec/RTCVideoDecoderH265.mm
-        Source/webrtc/sdk/objc/components/video_codec/RTCVideoDecoderVTBVP9.mm
-        Source/webrtc/sdk/objc/components/video_codec/RTCCodecSpecificInfoH265.mm
-        Source/webrtc/sdk/objc/api/video_codec/RTCVideoEncoderVP9.mm
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCVideoDecoderH265.mm
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCVideoDecoderVTBVP9.mm
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCVideoFrameReorderQueue.mm
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCCodecSpecificInfoH265.mm
+        Source/webrtc/webkit_sdk/objc/api/video_codec/RTCVideoEncoderVP9.mm
         Source/webrtc/common_video/h265/h265_pps_parser.cc
         Source/webrtc/common_video/h265/h265_vps_parser.cc
         Source/webrtc/common_video/h265/h265_sps_parser.cc
-        Source/webrtc/sdk/objc/components/video_codec/RTCVideoEncoderH265.mm
-        Source/webrtc/sdk/objc/components/video_codec/RTCVideoEncoderH264.mm
-        Source/webrtc/modules/video_coding/h265_vps_sps_pps_tracker.cc
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCVideoEncoderH265.mm
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCVideoEncoderH264.mm
         Source/webrtc/modules/video_coding/codecs/vp9/vp9.cc
         Source/webrtc/common_video/h265/h265_common.cc
         Source/webrtc/modules/audio_device/mac/audio_device_mac.cc
@@ -2070,52 +2078,53 @@ if (APPLE)
 
         Source/webrtc/modules/third_party/portaudio/pa_ringbuffer.c
 
+        Source/webrtc/rtc_base/system/gcd_helpers.m
         Source/webrtc/rtc_base/task_queue_gcd.cc
 
         Source/webrtc/rtc_base/mac_ifaddrs_converter.cc
 
         Source/webrtc/rtc_base/system/cocoa_threading.mm
 
-        Source/webrtc/sdk/WebKit/WebKitUtilities.mm
-        Source/webrtc/sdk/WebKit/WebKitVP9Decoder.cpp
-        Source/webrtc/sdk/WebKit/WebKitDecoder.mm
-        Source/webrtc/sdk/WebKit/WebKitEncoder.mm
-        Source/webrtc/sdk/WebKit/WebKitDecoderReceiver.cpp
+        Source/webrtc/webkit_sdk/WebKit/WebKitUtilities.mm
+        Source/webrtc/webkit_sdk/WebKit/WebKitVP9Decoder.cpp
+        Source/webrtc/webkit_sdk/WebKit/WebKitDecoder.mm
+        Source/webrtc/webkit_sdk/WebKit/WebKitEncoder.mm
+        Source/webrtc/webkit_sdk/WebKit/WebKitDecoderReceiver.cpp
 
-        Source/webrtc/sdk/objc/api/peerconnection/RTCVideoEncoderSettings+Private.mm
-        Source/webrtc/sdk/objc/api/video_codec/RTCVideoCodecConstants.mm
-        Source/webrtc/sdk/objc/api/video_codec/RTCVideoDecoderVP8.mm
-        Source/webrtc/sdk/objc/api/video_codec/RTCVideoDecoderVP9.mm
-        Source/webrtc/sdk/objc/api/video_codec/RTCVideoEncoderVP8.mm
-        Source/webrtc/sdk/objc/api/video_codec/RTCWrappedNativeVideoDecoder.mm
-        Source/webrtc/sdk/objc/api/video_codec/RTCWrappedNativeVideoEncoder.mm
-        Source/webrtc/sdk/objc/api/video_frame_buffer/RTCNativeI420Buffer.mm
-        Source/webrtc/sdk/objc/api/video_frame_buffer/RTCNativeMutableI420Buffer.mm
-        Source/webrtc/sdk/objc/base/RTCEncodedImage.m
-        Source/webrtc/sdk/objc/base/RTCRtpFragmentationHeader.m
-        Source/webrtc/sdk/objc/base/RTCVideoCodecInfo.m
-        Source/webrtc/sdk/objc/base/RTCVideoEncoderQpThresholds.m
-        Source/webrtc/sdk/objc/base/RTCVideoEncoderSettings.m
-        Source/webrtc/sdk/objc/base/RTCVideoFrame.mm
-        Source/webrtc/sdk/objc/components/video_codec/RTCH265ProfileLevelId.mm
-        Source/webrtc/sdk/objc/components/video_codec/helpers.cc
-        Source/webrtc/sdk/objc/components/video_codec/nalu_rewriter.cc
-        Source/webrtc/sdk/objc/components/video_codec/RTCCodecSpecificInfoH264.mm
-        Source/webrtc/sdk/objc/components/video_codec/RTCDefaultVideoDecoderFactory.m
-        Source/webrtc/sdk/objc/components/video_codec/RTCDefaultVideoEncoderFactory.m
-        Source/webrtc/sdk/objc/components/video_codec/RTCH264ProfileLevelId.mm
-        Source/webrtc/sdk/objc/components/video_codec/RTCVideoDecoderFactoryH264.m
-        Source/webrtc/sdk/objc/components/video_codec/RTCVideoDecoderH264.mm
-        Source/webrtc/sdk/objc/components/video_codec/RTCVideoEncoderFactoryH264.m
-        Source/webrtc/sdk/objc/components/video_codec/RTCVideoEncoderH264.mm
-        Source/webrtc/sdk/objc/components/video_frame_buffer/RTCCVPixelBuffer.mm
-        Source/webrtc/sdk/objc/native/api/video_decoder_factory.mm
-        Source/webrtc/sdk/objc/native/api/video_encoder_factory.mm
-        Source/webrtc/sdk/objc/native/api/video_frame.mm
-        Source/webrtc/sdk/objc/native/src/objc_frame_buffer.mm
-        Source/webrtc/sdk/objc/native/src/objc_video_decoder_factory.mm
-        Source/webrtc/sdk/objc/native/src/objc_video_encoder_factory.mm
-        Source/webrtc/sdk/objc/native/src/objc_video_frame.mm
+        Source/webrtc/webkit_sdk/objc/api/peerconnection/RTCVideoEncoderSettings+Private.mm
+        Source/webrtc/webkit_sdk/objc/api/video_codec/RTCVideoCodecConstants.mm
+        Source/webrtc/webkit_sdk/objc/api/video_codec/RTCVideoDecoderVP8.mm
+        Source/webrtc/webkit_sdk/objc/api/video_codec/RTCVideoDecoderVP9.mm
+        Source/webrtc/webkit_sdk/objc/api/video_codec/RTCVideoEncoderVP8.mm
+        Source/webrtc/webkit_sdk/objc/api/video_codec/RTCWrappedNativeVideoDecoder.mm
+        Source/webrtc/webkit_sdk/objc/api/video_codec/RTCWrappedNativeVideoEncoder.mm
+        Source/webrtc/webkit_sdk/objc/api/video_frame_buffer/RTCNativeI420Buffer.mm
+        Source/webrtc/webkit_sdk/objc/api/video_frame_buffer/RTCNativeMutableI420Buffer.mm
+        Source/webrtc/webkit_sdk/objc/base/RTCEncodedImage.m
+        Source/webrtc/webkit_sdk/objc/base/RTCRtpFragmentationHeader.m
+        Source/webrtc/webkit_sdk/objc/base/RTCVideoCodecInfo.m
+        Source/webrtc/webkit_sdk/objc/base/RTCVideoEncoderQpThresholds.m
+        Source/webrtc/webkit_sdk/objc/base/RTCVideoEncoderSettings.m
+        Source/webrtc/webkit_sdk/objc/base/RTCVideoFrame.mm
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCH265ProfileLevelId.mm
+        Source/webrtc/webkit_sdk/objc/components/video_codec/helpers.cc
+        Source/webrtc/webkit_sdk/objc/components/video_codec/nalu_rewriter.cc
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCCodecSpecificInfoH264.mm
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCDefaultVideoDecoderFactory.m
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCDefaultVideoEncoderFactory.m
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCH264ProfileLevelId.mm
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCVideoDecoderFactoryH264.m
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCVideoDecoderH264.mm
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCVideoEncoderFactoryH264.m
+        Source/webrtc/webkit_sdk/objc/components/video_codec/RTCVideoEncoderH264.mm
+        Source/webrtc/webkit_sdk/objc/components/video_frame_buffer/RTCCVPixelBuffer.mm
+        Source/webrtc/webkit_sdk/objc/native/api/video_decoder_factory.mm
+        Source/webrtc/webkit_sdk/objc/native/api/video_encoder_factory.mm
+        Source/webrtc/webkit_sdk/objc/native/api/video_frame.mm
+        Source/webrtc/webkit_sdk/objc/native/src/objc_frame_buffer.mm
+        Source/webrtc/webkit_sdk/objc/native/src/objc_video_decoder_factory.mm
+        Source/webrtc/webkit_sdk/objc/native/src/objc_video_encoder_factory.mm
+        Source/webrtc/webkit_sdk/objc/native/src/objc_video_frame.mm
     )
     if (NOT WTF_CPU_X86_64)
         list(APPEND webrtc_SOURCES
@@ -2130,6 +2139,10 @@ if (APPLE)
         )
     endif ()
 
+    list(APPEND webrtc_SOURCES
+        Source/third_party/boringssl/src/crypto/cpu_aarch64_apple.cc
+    )
+
     set(webm_SOURCES
         Source/third_party/libwebm/m2ts/vpxpes_parser.cc
         Source/third_party/libwebm/m2ts/webm2pes_main.cc
@@ -2139,6 +2152,7 @@ if (APPLE)
         Source/third_party/libwebm/sample_muxer_metadata.cc
         Source/third_party/libwebm/mkvmuxer/mkvmuxerutil.cc
         Source/third_party/libwebm/mkvmuxer/mkvmuxer.cc
+        Source/third_party/libwebm/mkvmuxer/mkvwriter.cc
         Source/third_party/libwebm/vttdemux.cc
         Source/third_party/libwebm/webvtt/webvttparser.cc
         Source/third_party/libwebm/webvtt/vttreader.cc
@@ -2191,21 +2205,27 @@ if (APPLE)
 
     set(webm_PRIVATE_HEADERS_DIR "${CMAKE_BINARY_DIR}/libwebrtc/PrivateHeaders/webm")
     file(MAKE_DIRECTORY ${webm_PRIVATE_HEADERS_DIR})
+    file(MAKE_DIRECTORY ${webm_PRIVATE_HEADERS_DIR}/common)
+    file(MAKE_DIRECTORY ${webm_PRIVATE_HEADERS_DIR}/mkvmuxer)
     file(COPY
-        Source/third_party/libwebm/mkvmuxer/mkvmuxer.h
-        Source/third_party/libwebm/mkvmuxer/mkvmuxertypes.h
-        Source/third_party/libwebm/mkvmuxer/mkvmuxerutil.h
-        Source/third_party/libwebm/mkvmuxer/mkvwriter.h
         Source/third_party/libwebm/webm_parser/include/webm/callback.h
         Source/third_party/libwebm/webm_parser/include/webm/status.h
-        Source/third_party/libwebm/common/vp9_header_parser.h
-        Source/third_party/libwebm/common/webmids.h
         Source/third_party/libwebm/webm_parser/include/webm/dom_types.h
         Source/third_party/libwebm/webm_parser/include/webm/id.h
         Source/third_party/libwebm/webm_parser/include/webm/element.h
         Source/third_party/libwebm/webm_parser/include/webm/reader.h
         Source/third_party/libwebm/webm_parser/include/webm/webm_parser.h
         DESTINATION ${webm_PRIVATE_HEADERS_DIR})
+    file(COPY
+        Source/third_party/libwebm/common/vp9_header_parser.h
+        Source/third_party/libwebm/common/webmids.h
+        DESTINATION ${webm_PRIVATE_HEADERS_DIR}/common)
+    file(COPY
+        Source/third_party/libwebm/mkvmuxer/mkvmuxer.h
+        Source/third_party/libwebm/mkvmuxer/mkvmuxertypes.h
+        Source/third_party/libwebm/mkvmuxer/mkvmuxerutil.h
+        Source/third_party/libwebm/mkvmuxer/mkvwriter.h
+        DESTINATION ${webm_PRIVATE_HEADERS_DIR}/mkvmuxer)
 
     set(libwebrtc_PRIVATE_HEADERS_DIR "${CMAKE_BINARY_DIR}/libwebrtc/PrivateHeaders/libwebrtc")
     file(MAKE_DIRECTORY ${libwebrtc_PRIVATE_HEADERS_DIR})
@@ -2257,7 +2277,6 @@ add_library(webrtc STATIC ${webrtc_SOURCES})
 target_compile_options(webrtc PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:-std=c++2b>"
     "-UHAVE_CONFIG_H"
-    "-w"
 )
 
 set_target_properties(webrtc PROPERTIES CXX_VISIBILITY_PRESET hidden)
@@ -2303,7 +2322,8 @@ target_compile_definitions(webrtc PRIVATE
   WEBRTC_USE_BUILTIN_ISAC_FIX=1
   WEBRTC_USE_BUILTIN_ISAC_FLOAT=0
   WEBRTC_USE_H265=1
-  WEBRTC_WEBKIT_BUILD=1
+  RTC_ENABLE_H265
+  DISABLE_RTC_AV1
   WTF_USE_DYNAMIC_ANNOTATIONS=1
   _GNU_SOURCE
   HWAES
@@ -2361,12 +2381,14 @@ set(webrtc_INCLUDE_DIRECTORIES PRIVATE
 
 if (APPLE)
     list(APPEND webrtc_INCLUDE_DIRECTORIES PRIVATE
+        Source/third_party/libaom/source/libaom
         Source/third_party/libvpx/source/libvpx
-        Source/webrtc/sdk/objc
-        Source/webrtc/sdk/objc/base
-        Source/webrtc/sdk/objc/Framework/Classes
-        Source/webrtc/sdk/objc/Framework/Headers
+        Source/webrtc/webkit_sdk/objc
+        Source/webrtc/webkit_sdk/objc/base
+        Source/webrtc/webkit_sdk/objc/Framework/Classes
+        Source/webrtc/webkit_sdk/objc/Framework/Headers
     )
+    target_link_libraries(webrtc opus vpx yuv libsrtp)
 else ()
     target_link_libraries(webrtc ${LIBEVENT_LIBRARY})
     target_link_libraries(webrtc ${LIBOPUS_LIBRARY})
@@ -2400,10 +2422,6 @@ set(libsrtp_SOURCES
 )
 
 add_library(libsrtp OBJECT ${libsrtp_SOURCES})
-
-target_compile_options(libsrtp PRIVATE
-    "-w"
-)
 
 target_compile_definitions(libsrtp PRIVATE
     GCM
@@ -2444,7 +2462,6 @@ if (APPLE)
         Source/third_party/opus/src/celt/cwrs.c
         Source/third_party/opus/src/celt/modes.c
         Source/third_party/opus/src/celt/celt_decoder.c
-        Source/third_party/opus/src/celt/dump_modes/dump_modes.c
         Source/third_party/opus/src/celt/quant_bands.c
         Source/third_party/opus/src/celt/vq.c
         Source/third_party/opus/src/celt/mathops.c
@@ -2598,6 +2615,7 @@ if (APPLE)
         Source/third_party/opus/src/src/repacketizer.c
         Source/third_party/opus/src/src/opus.c
         Source/third_party/opus/src/src/opus_encoder.c
+        Source/third_party/opus/src/src/extensions.c
         Source/third_party/opus/src/src/mlp_data.c
         Source/third_party/opus/src/src/opus_multistream.c
     )
@@ -2754,6 +2772,7 @@ set(vpx_SOURCES
     Source/third_party/libvpx/source/libvpx/rate_hist.c
     Source/third_party/libvpx/source/libvpx/tools/tiny_ssim.c
     Source/third_party/libvpx/source/libvpx/tools_common.c
+    cmake/usage_exit_stub.c
     Source/third_party/libvpx/source/libvpx/video_reader.c
     Source/third_party/libvpx/source/libvpx/video_writer.c
     Source/third_party/libvpx/source/libvpx/vp8/common/alloccommon.c
@@ -2869,7 +2888,8 @@ set(vpx_SOURCES
     Source/third_party/libvpx/source/libvpx/vp9/encoder/vp9_ethread.c
     Source/third_party/libvpx/source/libvpx/vp9/encoder/vp9_ext_ratectrl.c
     Source/third_party/libvpx/source/libvpx/vp9/encoder/vp9_extend.c
-    Source/third_party/libvpx/source/libvpx/vp9/encoder/vp9_firstpass.c
+    # vp9_firstpass.c calls vp9_encode_fp_row_mt which is excluded by CONFIG_REALTIME_ONLY=1
+    # Source/third_party/libvpx/source/libvpx/vp9/encoder/vp9_firstpass.c
     Source/third_party/libvpx/source/libvpx/vp9/encoder/vp9_frame_scale.c
     Source/third_party/libvpx/source/libvpx/vp9/encoder/vp9_lookahead.c
     Source/third_party/libvpx/source/libvpx/vp9/encoder/vp9_mbgraph.c
@@ -3074,8 +3094,7 @@ if (WTF_CPU_X86_64)
 
 elseif (WTF_CPU_ARM64)
     list(APPEND vpx_SOURCES
-        Source/third_party/libvpx/source/libvpx/third_party/libyuv/source/compare_neon.cc
-        Source/third_party/libvpx/source/libvpx/third_party/libyuv/source/compare_neon64.cc
+        # libyuv NEON sources excluded -- already provided by the webrtc target's libyuv
         Source/third_party/libvpx/source/libvpx/third_party/libyuv/source/row_neon.cc
         Source/third_party/libvpx/source/libvpx/vp8/common/arm/loopfilter_arm.c
         Source/third_party/libvpx/source/libvpx/vp8/common/arm/neon/bilinearpredict_neon.c
@@ -3164,7 +3183,6 @@ elseif (WTF_CPU_ARM64)
         Source/third_party/libvpx/source/libvpx/vpx_dsp/arm/variance_neon.c
         Source/third_party/libvpx/source/libvpx/vpx_dsp/arm/variance_neon_dotprod.c
         Source/third_party/libvpx/source/libvpx/vpx_dsp/arm/vpx_convolve8_neon.c
-        Source/third_party/libvpx/source/libvpx/vpx_dsp/arm/vpx_convolve8_neon_asm.c
         Source/third_party/libvpx/source/libvpx/vpx_dsp/arm/vpx_convolve8_neon_dotprod.c
         Source/third_party/libvpx/source/libvpx/vpx_dsp/arm/vpx_convolve_avg_neon.c
         Source/third_party/libvpx/source/libvpx/vpx_dsp/arm/vpx_convolve_copy_neon.c
@@ -3227,4 +3245,3 @@ endif ()
 
 target_include_directories(vpx PRIVATE ${vpx_INCLUDE_DIRECTORIES})
 target_compile_options(vpx PRIVATE -Wno-cast-align -Wno-incompatible-pointer-types)
-target_compile_definitions(vpx PRIVATE WEBRTC_WEBKIT_BUILD=1)

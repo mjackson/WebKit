@@ -29,6 +29,10 @@
 #include "JSDOMPromise.h"
 #include "JSReadableStream.h"
 #include "WebCoreJSClientData.h"
+#include <JavaScriptCore/CallData.h>
+#include <JavaScriptCore/JSObjectInlines.h>
+#include <JavaScriptCore/MarkedVector.h>
+#include <JavaScriptCore/TopExceptionScope.h>
 
 namespace WebCore {
 

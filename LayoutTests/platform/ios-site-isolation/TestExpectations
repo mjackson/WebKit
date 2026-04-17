@@ -231,8 +231,6 @@ http/tests/security/contentSecurityPolicy/1.1/frame-ancestors/frame-ancestors-se
 http/tests/security/contentSecurityPolicy/1.1/frame-ancestors/frame-ancestors-url-block.html [ Failure ]
 http/tests/security/contentSecurityPolicy/embed-redirect-allowed.html [ Failure ]
 http/tests/security/contentSecurityPolicy/embed-redirect-allowed2.html [ Failure ]
-http/tests/security/contentSecurityPolicy/frame-src-cross-origin-load.html [ Failure ]
-http/tests/security/contentSecurityPolicy/upgrade-insecure-requests/proper-nested-upgrades.html [ Failure ]
 http/tests/security/cross-origin-local-storage.html [ Failure ]
 http/tests/security/video-poster-cross-origin-crash2.html [ Failure ]
 http/tests/security/window-events-clear-domain.html [ Failure ]

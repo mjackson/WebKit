@@ -32,7 +32,7 @@ TEST(IPC, SharedMemoryFallback)
 {
     [WKProcessPool _forceUseSharedMemoryForSendingForTesting:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
     RetainPtr innerHTML = [webView stringByEvaluatingJavaScript:@"document.body.innerHTML"];

@@ -52,7 +52,7 @@ TEST(WebKit, WebProcessTerminate)
 
 TEST(WebKit, TerminateAllProcessesDuringLaunch)
 {
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
 
     // Initiate a load to make sure the process actually launches.
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];

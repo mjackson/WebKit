@@ -452,7 +452,7 @@ void InspectorFrontendHost::killText(const String& text, bool shouldPrependToKil
 
 void InspectorFrontendHost::openURLExternally(const String& url)
 {
-    if (WTF::protocolIsJavaScript(url))
+    if (WTF::isValidJavaScriptURL(url))
         return;
 
     if (m_client)

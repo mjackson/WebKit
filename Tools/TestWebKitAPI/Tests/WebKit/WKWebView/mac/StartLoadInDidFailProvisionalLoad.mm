@@ -55,9 +55,9 @@ namespace TestWebKitAPI {
 
 TEST(WebKitLegacy, StartLoadInDidFailProvisionalLoad)
 {
-    auto webView = adoptNS([[WebView alloc] init]);
+    RetainPtr webView = adoptNS([[WebView alloc] init]);
     testView = webView.get();
-    auto frameLoadDelegate = adoptNS([[StartLoadInDidFailProvisionalLoadDelegate alloc] init]);
+    RetainPtr frameLoadDelegate = adoptNS([[StartLoadInDidFailProvisionalLoadDelegate alloc] init]);
     webView.get().frameLoadDelegate = frameLoadDelegate.get();
     [[webView mainFrame] loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
 

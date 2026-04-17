@@ -619,7 +619,7 @@ void RenderTable::layout()
             computedLogicalHeight = convertStyleLogicalHeightToComputedHeight(logicalHeightLength);
 
         if (auto overridingLogicalHeight = this->overridingBorderBoxLogicalHeight())
-            computedLogicalHeight = std::max(computedLogicalHeight, *overridingLogicalHeight - borderAndPaddingAfter - sumCaptionsLogicalHeight());
+            computedLogicalHeight = std::max(computedLogicalHeight, *overridingLogicalHeight - (borderAndPaddingBefore + borderAndPaddingAfter) - sumCaptionsLogicalHeight());
 
         if (!shouldIgnoreLogicalMinMaxHeightSizes()) {
             auto& logicalMaxHeightLength = style().logicalMaxHeight();
@@ -914,6 +914,26 @@ void RenderTable::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOffs
         paintOutline(paintInfo, LayoutRect(paintOffset, size()));
 }
 
+void RenderTable::paintCollapsedBordersForRow(PaintInfo& paintInfo, RenderTableRow& row, const LayoutPoint& paintOffset)
+{
+    ASSERT(collapseBorders());
+    recalcCollapsedBorders();
+
+    PaintInfo borderPaintInfo(paintInfo);
+    borderPaintInfo.phase = PaintPhase::CollapsedTableBorders;
+
+    for (size_t i = 0; i < m_collapsedBorders.size(); ++i) {
+        m_currentBorder = &m_collapsedBorders[i];
+        for (CheckedPtr cell = row.firstCell(); cell; cell = cell->nextCell()) {
+            if (!cell->hasSelfPaintingLayer()) {
+                auto cellPoint = row.flipForWritingModeForChild(*cell, paintOffset);
+                cell->paintCollapsedBorders(borderPaintInfo, cellPoint);
+            }
+        }
+    }
+    m_currentBorder = { };
+}
+
 void RenderTable::adjustBorderBoxRectForPainting(LayoutRect& rect)
 {
     for (unsigned i = 0; i < m_captions.size(); i++) {
@@ -1044,6 +1064,16 @@ void RenderTable::computePreferredLogicalWidths()
     // FIXME: We should be adding borderAndPaddingLogicalWidth here, but m_tableLayout->computePreferredLogicalWidths already does,
     // so a bunch of tests break doing this naively.
     clearNeedsPreferredWidthsUpdate();
+
+    // Row widths are set by the section, not computed from preferred widths,
+    // so their dirty bit is never cleared by the normal preferred width
+    // computation. Clear it here so it doesn't block subsequent invalidation
+    // from propagating through the row to the table.
+    for (CheckedPtr section = topSection(); section; section = sectionBelow(section)) {
+        section->clearNeedsPreferredWidthsUpdate();
+        for (CheckedPtr row = section->firstRow(); row; row = row->nextRow())
+            row->clearNeedsPreferredWidthsUpdate();
+    }
 }
 
 RenderTableSection* RenderTable::topNonEmptySection() const

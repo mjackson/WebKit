@@ -38,8 +38,8 @@
 
 TEST(WebKit, NoResumeSoundPlayedToTheEndAfterThePageBecomesVisible)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 500, 500) configuration:configuration.get() addToWindow:YES]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 500, 500) configuration:configuration.get() addToWindow:YES]);
 
     bool isEnded = false;
     [webView performAfterReceivingMessage:@"audioEnded" action:[&] { isEnded = true; }];

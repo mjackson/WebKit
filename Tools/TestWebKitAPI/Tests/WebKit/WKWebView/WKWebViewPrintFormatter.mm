@@ -107,13 +107,13 @@ TEST(WKWebView, PrintFormatterHangsIfWebProcessCrashesBeforeWaiting)
 
 TEST(WKWebView, PrintToPDFUsingPrintPageRenderer)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
     [webView waitForNextPresentationUpdate];
 
     CGRect pageRect = CGRectMake(0, 0, 100, 100);
-    auto printPageRenderer = adoptNS([[UIPrintPageRenderer alloc] init]);
+    RetainPtr printPageRenderer = adoptNS([[UIPrintPageRenderer alloc] init]);
     [printPageRenderer addPrintFormatter:[webView viewPrintFormatter] startingAtPageAtIndex:0];
     [printPageRenderer setPaperRect:pageRect];
     [printPageRenderer setPrintableRect:pageRect];
@@ -136,17 +136,17 @@ TEST(WKWebView, PrintToPDFUsingPrintPageRenderer)
 #if HAVE(PDFKIT)
 TEST(WKWebView, PrintToPDFShouldPrintBackgrounds)
 {
-    auto config = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr config = adoptNS([[WKWebViewConfiguration alloc] init]);
     [config preferences].shouldPrintBackgrounds = NO;
     
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:config.get()]);
 
     [webView synchronouslyLoadTestPageNamed:@"red"];
     [webView waitForNextPresentationUpdate];
     
     auto runTest = [&] (BOOL shouldPrintBackgrounds) {
         CGRect pageRect = CGRectMake(0, 0, 100, 100);
-        auto printPageRenderer = adoptNS([[UIPrintPageRenderer alloc] init]);
+        RetainPtr printPageRenderer = adoptNS([[UIPrintPageRenderer alloc] init]);
         [printPageRenderer addPrintFormatter:[webView viewPrintFormatter] startingAtPageAtIndex:0];
         [printPageRenderer setPaperRect:pageRect];
         [printPageRenderer setPrintableRect:pageRect];
@@ -182,15 +182,15 @@ TEST(WKWebView, PrintToPDFShouldPrintBackgrounds)
 
 TEST(WKWebView, PrintToPDFUsingPrintInteractionController)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
     [webView waitForNextPresentationUpdate];
 
-    auto printPageRenderer = adoptNS([[UIPrintPageRenderer alloc] init]);
+    RetainPtr printPageRenderer = adoptNS([[UIPrintPageRenderer alloc] init]);
     [printPageRenderer addPrintFormatter:[webView viewPrintFormatter] startingAtPageAtIndex:0];
 
-    auto printInteractionController = adoptNS([[UIPrintInteractionController alloc] init]);
+    RetainPtr printInteractionController = adoptNS([[UIPrintInteractionController alloc] init]);
     [printInteractionController setPrintPageRenderer:printPageRenderer.get()];
 
     __block NSUInteger pdfDataLength = 0;
@@ -199,7 +199,7 @@ TEST(WKWebView, PrintToPDFUsingPrintInteractionController)
     [printInteractionController _setupPrintPanel:nil];
     [printInteractionController _generatePrintPreview:^(NSURL *pdfURL, BOOL shouldRenderOnChosenPaper) {
         dispatch_async(mainDispatchQueueSingleton(), ^{
-            auto pdfData = adoptNS([[NSData alloc] initWithContentsOfURL:pdfURL]);
+            RetainPtr pdfData = adoptNS([[NSData alloc] initWithContentsOfURL:pdfURL]);
             pdfDataLength = [pdfData length];
 
             [printInteractionController _cleanPrintState];
@@ -213,7 +213,7 @@ TEST(WKWebView, PrintToPDFUsingPrintInteractionController)
 
 TEST(WKWebView, PrintToPDFUsingMultiplePrintInteractionControllers)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
     [webView waitForNextPresentationUpdate];
@@ -221,17 +221,17 @@ TEST(WKWebView, PrintToPDFUsingMultiplePrintInteractionControllers)
     __block NSUInteger numCompleted = 0;
     __block bool done = false;
 
-    auto printPageRenderer = adoptNS([[UIPrintPageRenderer alloc] init]);
+    RetainPtr printPageRenderer = adoptNS([[UIPrintPageRenderer alloc] init]);
     [printPageRenderer addPrintFormatter:[webView viewPrintFormatter] startingAtPageAtIndex:0];
 
-    auto printInteractionController = adoptNS([[UIPrintInteractionController alloc] init]);
+    RetainPtr printInteractionController = adoptNS([[UIPrintInteractionController alloc] init]);
     [printInteractionController setPrintPageRenderer:printPageRenderer.get()];
 
     __block NSUInteger pdfDataLength = 0;
     [printInteractionController _setupPrintPanel:nil];
     [printInteractionController _generatePrintPreview:^(NSURL *pdfURL, BOOL shouldRenderOnChosenPaper) {
         dispatch_async(mainDispatchQueueSingleton(), ^{
-            auto pdfData = adoptNS([[NSData alloc] initWithContentsOfURL:pdfURL]);
+            RetainPtr pdfData = adoptNS([[NSData alloc] initWithContentsOfURL:pdfURL]);
             pdfDataLength = [pdfData length];
 
             [printInteractionController _cleanPrintState];
@@ -241,17 +241,17 @@ TEST(WKWebView, PrintToPDFUsingMultiplePrintInteractionControllers)
         });
     }];
 
-    auto printPageRenderer2 = adoptNS([[UIPrintPageRenderer alloc] init]);
+    RetainPtr printPageRenderer2 = adoptNS([[UIPrintPageRenderer alloc] init]);
     [printPageRenderer2 addPrintFormatter:[webView viewPrintFormatter] startingAtPageAtIndex:0];
 
-    auto printInteractionController2 = adoptNS([[UIPrintInteractionController alloc] init]);
+    RetainPtr printInteractionController2 = adoptNS([[UIPrintInteractionController alloc] init]);
     [printInteractionController2 setPrintPageRenderer:printPageRenderer2.get()];
 
     __block NSUInteger pdfDataLength2 = 0;
     [printInteractionController2 _setupPrintPanel:nil];
     [printInteractionController2 _generatePrintPreview:^(NSURL *pdfURL, BOOL shouldRenderOnChosenPaper) {
         dispatch_async(mainDispatchQueueSingleton(), ^{
-            auto pdfData = adoptNS([[NSData alloc] initWithContentsOfURL:pdfURL]);
+            RetainPtr pdfData = adoptNS([[NSData alloc] initWithContentsOfURL:pdfURL]);
             pdfDataLength2 = [pdfData length];
 
             [printInteractionController2 _cleanPrintState];
@@ -268,15 +268,15 @@ TEST(WKWebView, PrintToPDFUsingMultiplePrintInteractionControllers)
 
 TEST(WKWebView, PrintToPDFUsingPrintInteractionControllerAndPrintPageRenderer)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple"];
     [webView waitForNextPresentationUpdate];
 
-    auto printPageRenderer = adoptNS([[UIPrintPageRenderer alloc] init]);
+    RetainPtr printPageRenderer = adoptNS([[UIPrintPageRenderer alloc] init]);
     [printPageRenderer addPrintFormatter:[webView viewPrintFormatter] startingAtPageAtIndex:0];
 
-    auto printInteractionController = adoptNS([[UIPrintInteractionController alloc] init]);
+    RetainPtr printInteractionController = adoptNS([[UIPrintInteractionController alloc] init]);
     [printInteractionController setPrintPageRenderer:printPageRenderer.get()];
 
     __block bool done = false;
@@ -285,7 +285,7 @@ TEST(WKWebView, PrintToPDFUsingPrintInteractionControllerAndPrintPageRenderer)
     [printInteractionController _setupPrintPanel:nil];
     [printInteractionController _generatePrintPreview:^(NSURL *pdfURL, BOOL shouldRenderOnChosenPaper) {
         dispatch_async(mainDispatchQueueSingleton(), ^{
-            auto pdfData = adoptNS([[NSData alloc] initWithContentsOfURL:pdfURL]);
+            RetainPtr pdfData = adoptNS([[NSData alloc] initWithContentsOfURL:pdfURL]);
             printInteractionControllerPDFDataLength = [pdfData length];
 
             [printInteractionController _cleanPrintState];

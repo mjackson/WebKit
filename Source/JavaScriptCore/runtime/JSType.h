@@ -65,6 +65,11 @@ namespace JSC {
     macro(JSPromiseCombinatorsContextType, SpecCellOther) \
     macro(JSPromiseCombinatorsGlobalContextType, SpecCellOther) \
     macro(JSMicrotaskDispatcherType, SpecCellOther) \
+    macro(ModuleRegistryEntryType, SpecCellOther) \
+    macro(ModuleLoadingContextType, SpecCellOther) \
+    macro(ModuleLoaderPayloadType, SpecCellOther) \
+    macro(ModuleGraphLoadingStateType, SpecCellOther) \
+    macro(JSModuleLoaderType, SpecCellOther) \
     \
     /* The ObjectType value must come before any JSType that is a subclass of JSObject. */ \
     macro(ObjectType, SpecObjectOther) \

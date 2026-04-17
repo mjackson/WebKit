@@ -439,7 +439,7 @@ private:
 OSObjectPtr<xpc_object_t> WebPushXPCConnectionMessageSender::messageDictionaryFromEncoder(TestEncoder&& encoder) const
 {
     // FIXME: This is a false positive. <rdar://164843889>
-    SUPPRESS_RETAINPTR_CTOR_ADOPT auto dictionary = adoptOSObject(xpc_dictionary_create(nullptr, nullptr, 0));
+    SUPPRESS_RETAINPTR_CTOR_ADOPT OSObjectPtr dictionary = adoptOSObject(xpc_dictionary_create(nullptr, nullptr, 0));
 
     uint64_t protocolVersion = WebKit::WebPushD::protocolVersionValue;
     if (m_shouldIncrementProtocolVersionForTesting)
@@ -448,11 +448,11 @@ OSObjectPtr<xpc_object_t> WebPushXPCConnectionMessageSender::messageDictionaryFr
 
     __block auto blockBytes = encoder.takeBytes();
     auto buffer = blockBytes.span();
-    auto dispatchData = adoptOSObject(dispatch_data_create(buffer.data(), buffer.size(), mainDispatchQueueSingleton(), ^{
+    OSObjectPtr dispatchData = adoptOSObject(dispatch_data_create(buffer.data(), buffer.size(), mainDispatchQueueSingleton(), ^{
         blockBytes.clear();
     }));
     // FIXME: This is a false positive. <rdar://164843889>
-    SUPPRESS_RETAINPTR_CTOR_ADOPT auto encoderData = adoptOSObject(xpc_data_create_with_dispatch_data(dispatchData.get()));
+    SUPPRESS_RETAINPTR_CTOR_ADOPT OSObjectPtr encoderData = adoptOSObject(xpc_data_create_with_dispatch_data(dispatchData.get()));
 
     xpc_dictionary_set_value(dictionary.get(), WebKit::WebPushD::protocolEncodedMessageKey, encoderData.get());
 
@@ -517,7 +517,7 @@ static WebKit::WebPushD::WebPushDaemonConnectionConfiguration defaultWebPushDaem
 OSObjectPtr<xpc_connection_t> createAndConfigureConnectionToService(const char* serviceName, std::optional<WebKit::WebPushD::WebPushDaemonConnectionConfiguration> configuration = std::nullopt)
 {
     // FIXME: This is a false positive. <rdar://164843889>
-    SUPPRESS_RETAINPTR_CTOR_ADOPT auto connection = adoptOSObject(xpc_connection_create_mach_service(serviceName, mainDispatchQueueSingleton(), 0));
+    SUPPRESS_RETAINPTR_CTOR_ADOPT OSObjectPtr connection = adoptOSObject(xpc_connection_create_mach_service(serviceName, mainDispatchQueueSingleton(), 0));
     xpc_connection_set_event_handler(connection.get(), ^(xpc_object_t) { });
     xpc_connection_activate(connection.get());
     auto sender = WebPushXPCConnectionMessageSender { connection.get() };
@@ -534,7 +534,7 @@ TEST(WebPushD, BasicCommunication)
     NSURL *tempDir = setUpTestWebPushD();
 
     // FIXME: This is a false positive. <rdar://164843889>
-    SUPPRESS_RETAINPTR_CTOR_ADOPT auto connection = adoptOSObject(xpc_connection_create_mach_service("org.webkit.webpushtestdaemon.service", mainDispatchQueueSingleton(), 0));
+    SUPPRESS_RETAINPTR_CTOR_ADOPT OSObjectPtr connection = adoptOSObject(xpc_connection_create_mach_service("org.webkit.webpushtestdaemon.service", mainDispatchQueueSingleton(), 0));
 
     __block bool done = false;
     __block bool interrupted = false;
@@ -923,7 +923,7 @@ public:
             { "/sw.js"_s, { { { "Content-Type"_s, "application/javascript"_s } }, serviceWorkerScriptSource } }
         }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
 
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         // This step is required early to make sure the first NetworkProcess access has the correct
         // setting in the NetworkProcessInitializationParameters
         if (builtInNotificationsEnabled == BuiltInNotificationsEnabled::Yes)
@@ -992,7 +992,7 @@ public:
 
         [m_webView setUIDelegate:m_delegate.get()];
 
-        auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+        RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
         navigationDelegate.get().didReceiveAuthenticationChallenge = ^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^completionHandler)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
             completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
         };
@@ -1378,8 +1378,8 @@ public:
 
     void SetUp() override
     {
-        auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
-        auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+        RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+        RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
         m_notificationProvider = makeUnique<TestWebKitAPI::TestNotificationProvider>(Vector<WKNotificationManagerRef> { [processPool _notificationManagerForTesting], WKNotificationManagerGetSharedServiceWorkerNotificationManager() });
 
@@ -2683,9 +2683,9 @@ TEST(WebPushD, DeclarativeParsing)
 
     auto utilityConnection = createAndConfigureConnectionToService("org.webkit.webpushtestdaemon.service");
 
-    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     dataStoreConfiguration.get().webPushMachServiceName = @"org.webkit.webpushtestdaemon.service";
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
     clearWebsiteDataStore(dataStore.get());
 
     auto sender = WebPushXPCConnectionMessageSender { utilityConnection.get() };
@@ -2732,13 +2732,13 @@ TEST(WebPushD, DeclarativeWebPushHandling)
 {
     setUpTestWebPushD();
 
-    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     dataStoreConfiguration.get().webPushMachServiceName = @"org.webkit.webpushtestdaemon.service";
     dataStoreConfiguration.get().isDeclarativeWebPushEnabled = YES;
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
     clearWebsiteDataStore(dataStore.get());
 
-    auto delegate = adoptNS([[PushNotificationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[PushNotificationDelegate alloc] init]);
     dataStore.get()._delegate = delegate.get();
 
     auto utilityConnection = createAndConfigureConnectionToService("org.webkit.webpushtestdaemon.service");
@@ -2794,11 +2794,11 @@ TEST(WebPushD, WKWebPushDaemonConnectionRequestPushPermission)
 {
     setUpTestWebPushD();
 
-    auto configuration = adoptNS([[_WKWebPushDaemonConnectionConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKWebPushDaemonConnectionConfiguration alloc] init]);
     configuration.get().machServiceName = @"org.webkit.webpushtestdaemon.service";
     configuration.get().hostApplicationAuditToken = getSelfAuditToken();
-    auto connection = adoptNS([[_WKWebPushDaemonConnection alloc] initWithConfiguration:configuration.get()]);
-    auto url = adoptNS([[NSURL alloc] initWithString:@"https://webkit.org"]);
+    RetainPtr connection = adoptNS([[_WKWebPushDaemonConnection alloc] initWithConfiguration:configuration.get()]);
+    RetainPtr url = adoptNS([[NSURL alloc] initWithString:@"https://webkit.org"]);
 
     __block bool done = false;
     [connection getPushPermissionStateForOrigin:url.get() completionHandler:^(_WKWebPushPermissionState state) {
@@ -2827,13 +2827,13 @@ TEST(WebPushD, WKWebPushDaemonConnectionPushNotifications)
 {
     setUpTestWebPushD();
 
-    auto configuration = adoptNS([[_WKWebPushDaemonConnectionConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKWebPushDaemonConnectionConfiguration alloc] init]);
     configuration.get().machServiceName = @"org.webkit.webpushtestdaemon.service";
     // Bundle identifier is required for making push subscription.
     configuration.get().bundleIdentifierOverrideForTesting = @"com.apple.WebKit.TestWebKitAPI";
     configuration.get().hostApplicationAuditToken = getSelfAuditToken();
-    auto connection = adoptNS([[_WKWebPushDaemonConnection alloc] initWithConfiguration:configuration.get()]);
-    auto url = adoptNS([[NSURL alloc] initWithString:@"https://webkit.org/sw.js"]);
+    RetainPtr connection = adoptNS([[_WKWebPushDaemonConnection alloc] initWithConfiguration:configuration.get()]);
+    RetainPtr url = adoptNS([[NSURL alloc] initWithString:@"https://webkit.org/sw.js"]);
     RetainPtr applicationServerKey = [NSData dataWithBytes:(const void *)validServerKey.characters() length:validServerKey.length()];
 
     __block bool done = false;
@@ -3002,13 +3002,13 @@ TEST(WebPushD, WKWebPushDaemonConnectionSubscribeWithBadIPCVersionRaisesExceptio
     });
     TestWebKitAPI::Util::run(&done);
 
-    auto configuration = adoptNS([[_WKWebPushDaemonConnectionConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[_WKWebPushDaemonConnectionConfiguration alloc] init]);
     configuration.get().machServiceName = @"org.webkit.webpushtestdaemon.service";
     // Bundle identifier is required for making push subscription.
     configuration.get().bundleIdentifierOverrideForTesting = @"com.apple.WebKit.TestWebKitAPI";
     configuration.get().hostApplicationAuditToken = getSelfAuditToken();
-    auto connection = adoptNS([[_WKWebPushDaemonConnection alloc] initWithConfiguration:configuration.get()]);
-    auto url = adoptNS([[NSURL alloc] initWithString:@"https://webkit.org/sw.js"]);
+    RetainPtr connection = adoptNS([[_WKWebPushDaemonConnection alloc] initWithConfiguration:configuration.get()]);
+    RetainPtr url = adoptNS([[NSURL alloc] initWithString:@"https://webkit.org/sw.js"]);
     RetainPtr applicationServerKey = [NSData dataWithBytes:(const void *)validServerKey.characters() length:validServerKey.length()];
 
     done = false;

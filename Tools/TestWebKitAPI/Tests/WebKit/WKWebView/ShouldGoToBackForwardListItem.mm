@@ -54,8 +54,8 @@ namespace TestWebKitAPI {
 
 TEST(WebKit, ShouldGoToBackForwardListItem)
 {
-    auto delegate = adoptNS([BackForwardClient new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([BackForwardClient new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];

@@ -81,6 +81,11 @@ static NSURL *URLFromString(const WTF::String& urlString)
     return URLFromString(_hitTestResult->absoluteMediaURL());
 }
 
+- (NSURL *)absoluteModelURL
+{
+    return URLFromString(_hitTestResult->absoluteModelURL());
+}
+
 - (NSString *)linkLabel
 {
     return _hitTestResult->linkLabel().createNSString().autorelease();

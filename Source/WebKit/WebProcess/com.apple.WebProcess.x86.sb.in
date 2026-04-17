@@ -747,11 +747,12 @@
 (deny mach-lookup (with telemetry-backtrace)
     (global-name "com.apple.mobileassetd.v2"))
 
-(with-filter (require-not (state-flag "BlockMobileAssetInWebContentSandbox"))
-    (allow mach-lookup
-        (require-all
-            (extension "com.apple.webkit.extension.mach")
-            (global-name "com.apple.mobileassetd.v2"))))
+#if !ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
+(allow mach-lookup
+    (require-all
+        (extension "com.apple.webkit.extension.mach")
+        (global-name "com.apple.mobileassetd.v2")))
+#endif
 
 #if !ENABLE(TRUSTD_BLOCKING_IN_WEBCONTENT)
 (allow mach-lookup
@@ -830,15 +831,15 @@
        (global-name "com.apple.system.opendirectoryd.membership"))
 )
 
-(with-filter (require-not (state-flag "BlockOpenDirectoryInWebContentSandbox"))
-    (allow mach-lookup (with telemetry-backtrace)
-        (require-all
-            (extension "com.apple.webkit.extension.mach")
-            (global-name "com.apple.system.opendirectoryd.libinfo"))))
-
-(with-filter (state-flag "BlockOpenDirectoryInWebContentSandbox")
-    (deny mach-lookup (with telemetry-backtrace)
+#if ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
+(deny mach-lookup (with telemetry-backtrace)
+    (global-name "com.apple.system.opendirectoryd.libinfo"))
+#else
+(allow mach-lookup (with telemetry-backtrace)
+    (require-all
+        (extension "com.apple.webkit.extension.mach")
         (global-name "com.apple.system.opendirectoryd.libinfo")))
+#endif
 
 (allow file-read*
        (subpath "/private/var/db/mds")
@@ -1008,19 +1009,19 @@
         "com.apple.iconservices"
         "com.apple.iconservices.store"))
 
-(with-filter (require-not (state-flag "BlockIconServicesInWebContentSandbox"))
-    (allow mach-lookup (with telemetry-backtrace)
-        (require-all
-            (extension "com.apple.webkit.extension.mach")
-            (global-name
-                "com.apple.iconservices"
-                "com.apple.iconservices.store"))))
-
-(with-filter (state-flag "BlockIconServicesInWebContentSandbox")
-    (deny mach-lookup (with telemetry-backtrace)
+#if ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
+(deny mach-lookup (with telemetry-backtrace)
+    (global-name
+        "com.apple.iconservices"
+        "com.apple.iconservices.store"))
+#else
+(allow mach-lookup (with telemetry-backtrace)
+    (require-all
+        (extension "com.apple.webkit.extension.mach")
         (global-name
             "com.apple.iconservices"
             "com.apple.iconservices.store")))
+#endif
 
 #if !ENABLE(LAUNCHSERVICES_SANDBOX_EXTENSION_BLOCKING)
 (allow mach-lookup

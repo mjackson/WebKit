@@ -582,13 +582,23 @@ FloatRect AccessibilityObject::convertFrameToSpace(const FloatRect& frameRect, A
 
         auto scaledRect = geometry.screenTransform.mapRect(FloatRect(snappedFrameRect));
 
+        auto screenPosition = geometry.screenPosition;
+        // The root scroll view represents the viewport, which doesn't account for it scroll.
+        // Undo the scroll component to get the viewport's fixed screen position.
+        if (this == rootScrollView.get()) {
+            if (RefPtr scrollView = rootScrollView->scrollView()) {
+                auto scrollOffset = geometry.screenTransform.mapPoint(FloatPoint(scrollView->scrollPosition()));
+                screenPosition.move(-roundToInt(scrollOffset.x()), -roundToInt(scrollOffset.y()));
+            }
+        }
+
         // macOS uses bottom-left origin, non-macOS assumes top-left origin.
         FloatPoint position = {
-            geometry.screenPosition.x() + scaledRect.x(),
+            screenPosition.x() + scaledRect.x(),
 #if PLATFORM(MAC)
-            geometry.screenPosition.y() - scaledRect.maxY()
+            screenPosition.y() - scaledRect.maxY()
 #else
-            geometry.screenPosition.y() + scaledRect.y()
+            screenPosition.y() + scaledRect.y()
 #endif
         };
         return { position, scaledRect.size() };
@@ -1902,6 +1912,11 @@ VisiblePositionRange AccessibilityObject::lineRangeForPosition(const VisiblePosi
     auto end = visiblePosition;
     while (end.isNotNull() && inSameLine(end, visiblePosition)) {
         auto next = end.next();
+        if (next == end) {
+            // Without this break, we would loop infinitely.
+            break;
+        }
+
         if (stringForVisiblePositionRange({ end, next }).contains("\n"_s)) {
             // Return the range including the line break.
             return { start, next };
@@ -2089,7 +2104,12 @@ VisiblePosition AccessibilityObject::nextLineEndPosition(const VisiblePosition& 
     // we may end up back at the same position we started at. This is never valid, so keep moving forward
     // trying to find the next line end.
     while ((lineEndPosition.isNull() || lineEndPosition == startPosition) && nextPosition.isNotNull()) {
+        auto previousPosition = nextPosition;
         nextPosition = nextPosition.next();
+        if (nextPosition == previousPosition) {
+            // Without this break, we would loop infinitely.
+            break;
+        }
         lineEndPosition = endOfLine(nextPosition);
     }
     return lineEndPosition;
@@ -2110,7 +2130,12 @@ std::optional<VisiblePosition> AccessibilityObject::previousLineStartPositionInt
     // This avoids returning a null position when we shouldn't, like when a position is next to a floating object.
     if (startPosition.isNull()) {
         while (startPosition.isNull() && previousVisiblePosition.isNotNull()) {
+            auto previousPosition = previousVisiblePosition;
             previousVisiblePosition = previousVisiblePosition.previous();
+            if (previousVisiblePosition == previousPosition) {
+                // Without this break, we would loop infinitely.
+                break;
+            }
             startPosition = startOfLine(previousVisiblePosition);
         }
     } else

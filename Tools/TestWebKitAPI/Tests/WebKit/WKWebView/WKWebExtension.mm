@@ -2294,8 +2294,8 @@ TEST(WKWebExtension, LoadFromDirectory)
     auto *extensionURL = [NSBundle.test_resourcesBundle URLForResource:@"web-extension" withExtension:@""];
     EXPECT_NOT_NULL(extensionURL);
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
+    RetainPtr manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
     [manager load];
     [manager runUntilTestMessage:@"Load Tab"];
@@ -2318,8 +2318,8 @@ TEST(WKWebExtension, LoadFromDirectoryWithoutTrailingSlash)
     auto *extensionURL = [NSURL URLWithString:extensionURLAbsoluteStringWithoutTrailingSlash];
     EXPECT_NOT_NULL(extensionURL);
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
+    RetainPtr manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
     [manager load];
     [manager runUntilTestMessage:@"Load Tab"];
@@ -2340,8 +2340,8 @@ TEST(WKWebExtension, LoadFromZipArchiveWithoutParentDirectory)
     auto *extensionURL = [NSBundle.test_resourcesBundle URLForResource:@"web-extension-without-parent-directory" withExtension:@"zip"];
     EXPECT_NOT_NULL(extensionURL);
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
+    RetainPtr manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
     [manager load];
     [manager runUntilTestMessage:@"Load Tab"];
@@ -2362,8 +2362,8 @@ TEST(WKWebExtension, LoadFromZipArchiveWithParentDirectory)
     auto *extensionURL = [NSBundle.test_resourcesBundle URLForResource:@"web-extension-with-parent-directory" withExtension:@"zip"];
     EXPECT_NOT_NULL(extensionURL);
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
+    RetainPtr manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
     [manager load];
     [manager runUntilTestMessage:@"Load Tab"];
@@ -2384,8 +2384,8 @@ TEST(WKWebExtension, LoadFromChromeExtensionArchive)
     auto *extensionURL = [NSBundle.test_resourcesBundle URLForResource:@"web-extension" withExtension:@"crx"];
     EXPECT_NOT_NULL(extensionURL);
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
+    RetainPtr manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
     [manager load];
     [manager runUntilTestMessage:@"Load Tab"];
@@ -2409,8 +2409,8 @@ TEST(WKWebExtension, LoadFromMacAppExtensionBundle)
     auto *extensionBundle = [NSBundle bundleWithURL:extensionBundleURL];
     EXPECT_NOT_NULL(extensionBundle);
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithAppExtensionBundle:extensionBundle error:nullptr]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithAppExtensionBundle:extensionBundle error:nullptr]);
+    RetainPtr manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
     [manager load];
     [manager runUntilTestMessage:@"Load Tab"];
@@ -2434,8 +2434,8 @@ TEST(WKWebExtension, LoadFromiOSAppExtensionBundle)
     auto *extensionBundle = [NSBundle bundleWithURL:extensionBundleURL];
     EXPECT_NOT_NULL(extensionBundle);
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithAppExtensionBundle:extensionBundle error:nullptr]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
+    RetainPtr extension = adoptNS([[WKWebExtension alloc] _initWithAppExtensionBundle:extensionBundle error:nullptr]);
+    RetainPtr manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
     [manager load];
     [manager runUntilTestMessage:@"Load Tab"];

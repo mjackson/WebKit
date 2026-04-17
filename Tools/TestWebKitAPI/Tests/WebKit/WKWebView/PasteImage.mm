@@ -55,9 +55,9 @@ void writeImageDataToPasteboard(NSDictionary <NSString *, NSData *> *typesAndDat
 void writeImageDataToPasteboard(NSArray<NSDictionary <NSString *, NSData *> *> *items)
 {
     [NSPasteboard.generalPasteboard clearContents];
-    auto pasteboardItems = adoptNS([[NSMutableArray alloc] initWithCapacity:items.count]);
+    RetainPtr pasteboardItems = adoptNS([[NSMutableArray alloc] initWithCapacity:items.count]);
     for (NSDictionary<NSString *, NSData *> *typesAndData in items) {
-        auto pasteboardItem = adoptNS([[NSPasteboardItem alloc] init]);
+        RetainPtr pasteboardItem = adoptNS([[NSPasteboardItem alloc] init]);
         for (NSString *type in typesAndData)
             [pasteboardItem setData:typesAndData[type] forType:type];
         [pasteboardItems addObject:pasteboardItem.get()];
@@ -108,7 +108,7 @@ void writeImageDataToPasteboard(NSArray<NSDictionary <NSString *, NSData *> *> *
 
 TEST(PasteImage, PasteGIFImage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"paste-image"];
 
     auto *data = [NSData dataWithContentsOfFile:[NSBundle.test_resourcesBundle pathForResource:@"sunset-in-cupertino-400px" ofType:@"gif"]];
@@ -130,7 +130,7 @@ TEST(PasteImage, PasteGIFImage)
 
 TEST(PasteImage, PasteJPEGImage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"paste-image"];
 
     auto *data = [NSData dataWithContentsOfFile:[NSBundle.test_resourcesBundle pathForResource:@"sunset-in-cupertino-600px" ofType:@"jpg"]];
@@ -152,7 +152,7 @@ TEST(PasteImage, PasteJPEGImage)
 
 TEST(PasteImage, PastePNGImage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"paste-image"];
 
     auto *data = [NSData dataWithContentsOfFile:[NSBundle.test_resourcesBundle pathForResource:@"sunset-in-cupertino-200px" ofType:@"png"]];
@@ -174,7 +174,7 @@ TEST(PasteImage, PastePNGImage)
 
 TEST(PasteImage, PasteImageWithMultipleRepresentations)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"paste-image"];
 
     auto pngData = [NSData dataWithContentsOfFile:[NSBundle.test_resourcesBundle pathForResource:@"sunset-in-cupertino-200px" ofType:@"png"]];
@@ -198,7 +198,7 @@ TEST(PasteImage, PasteImageWithMultipleRepresentations)
 
 TEST(PasteImage, RevealSelectionAfterPastingImage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width, initial-scale=1'><body contenteditable>Hello world</body>"];
     [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
     [webView _synchronouslyExecuteEditCommand:@"InsertText" argument:@"Hello world"];
@@ -220,7 +220,7 @@ void writeBundleFileToPasteboard(id object)
 
 TEST(PasteImage, PasteGIFFile)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"paste-image"];
 
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"sunset-in-cupertino-400px" withExtension:@"gif"];
@@ -241,7 +241,7 @@ TEST(PasteImage, PasteGIFFile)
 
 TEST(PasteImage, PasteJPEGFile)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"paste-image"];
 
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"sunset-in-cupertino-600px" withExtension:@"jpg"];
@@ -262,7 +262,7 @@ TEST(PasteImage, PasteJPEGFile)
 
 TEST(PasteImage, PastePNGFile)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"paste-image"];
 
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"sunset-in-cupertino-200px" withExtension:@"png"];
@@ -283,7 +283,7 @@ TEST(PasteImage, PastePNGFile)
 
 TEST(PasteImage, PasteTIFFFile)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"paste-image"];
 
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"sunset-in-cupertino-100px" withExtension:@"tiff"];
@@ -304,7 +304,7 @@ TEST(PasteImage, PasteTIFFFile)
 
 TEST(PasteImage, PasteLegacyTIFFImage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"paste-image"];
 
     auto *data = [NSData dataWithContentsOfFile:[NSBundle.test_resourcesBundle pathForResource:@"sunset-in-cupertino-100px" ofType:@"tiff"]];
@@ -325,7 +325,7 @@ TEST(PasteImage, PasteLegacyTIFFImage)
 
 TEST(PasteImage, PasteTIFFImage)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
     [webView synchronouslyLoadTestPageNamed:@"paste-image"];
 
     auto *data = [NSData dataWithContentsOfFile:[NSBundle.test_resourcesBundle pathForResource:@"sunset-in-cupertino-100px" ofType:@"tiff"]];

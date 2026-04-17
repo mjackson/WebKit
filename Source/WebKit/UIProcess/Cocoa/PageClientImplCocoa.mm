@@ -26,9 +26,11 @@
 #import "config.h"
 #import "PageClientImplCocoa.h"
 
+#import "APIFrameInfo.h"
 #import "APIUIClient.h"
 #import "RemoteLayerTreeCommitBundle.h"
 #import "RemoteLayerTreeTransaction.h"
+#import "WKFrameInfoInternal.h"
 #import "WKWebViewInternal.h"
 #import "WebFullScreenManagerProxy.h"
 #import "WebPageProxy.h"
@@ -124,14 +126,14 @@ void PageClientImplCocoa::spatialBackdropSourceDidChange()
 #endif
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-void PageClientImplCocoa::allowImmersiveElementFromURL(const URL& url, CompletionHandler<void(bool)>&& completion) const
+void PageClientImplCocoa::allowImmersiveElement(Ref<API::FrameInfo>&& frameInfo, CompletionHandler<void(bool)>&& completion) const
 {
-    [webView() _allowImmersiveElementFromURL:url completion:WTF::move(completion)];
+    [webView() _allowImmersiveElement:wrapper(WTF::move(frameInfo)).get() completion:WTF::move(completion)];
 }
 
-void PageClientImplCocoa::presentImmersiveElement(const WebCore::LayerHostingContextIdentifier contextID, CompletionHandler<void(bool)>&& completion) const
+void PageClientImplCocoa::presentImmersiveElement(const WebCore::LayerHostingContextIdentifier contextID, Ref<API::FrameInfo>&& frameInfo, CompletionHandler<void(bool)>&& completion) const
 {
-    [webView() _presentImmersiveElement:contextID completion:WTF::move(completion)];
+    [webView() _presentImmersiveElement:contextID frameInfo:wrapper(WTF::move(frameInfo)).get() completion:WTF::move(completion)];
 }
 
 void PageClientImplCocoa::dismissImmersiveElement(CompletionHandler<void()>&& completion) const

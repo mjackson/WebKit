@@ -55,8 +55,8 @@ TEST(ServiceWorkers, ModuleUnregisterDuringLoadNoMainThreadCrash)
 
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
 
-    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
 
     // Start with a clean slate data store.
     __block bool cleanDone = false;
@@ -65,10 +65,10 @@ TEST(ServiceWorkers, ModuleUnregisterDuringLoadNoMainThreadCrash)
     }];
     TestWebKitAPI::Util::run(&cleanDone);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     // Use _loadServiceWorker:usingModules: to exercise the production code path
     // (used by Web Extensions / Safari) where the service worker runs on the main

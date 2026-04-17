@@ -55,16 +55,13 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(GStreamerDataChannelHandler);
 
 GUniquePtr<GstStructure> GStreamerDataChannelHandler::fromRTCDataChannelInit(const RTCDataChannelInit& options)
 {
-    GUniquePtr<GstStructure> init(gst_structure_new("options", "protocol", G_TYPE_STRING, options.protocol.utf8().data(), nullptr));
+    GUniquePtr<GstStructure> init(gst_structure_new("options", "protocol", G_TYPE_STRING, options.protocol.utf8().data(),
+        "ordered", G_TYPE_BOOLEAN, options.ordered, "negotiated", G_TYPE_BOOLEAN, options.negotiated, nullptr));
 
-    if (options.ordered)
-        gst_structure_set(init.get(), "ordered", G_TYPE_BOOLEAN, *options.ordered, nullptr);
     if (options.maxPacketLifeTime)
         gst_structure_set(init.get(), "max-packet-lifetime", G_TYPE_INT, *options.maxPacketLifeTime, nullptr);
     if (options.maxRetransmits)
         gst_structure_set(init.get(), "max-retransmits", G_TYPE_INT, *options.maxRetransmits, nullptr);
-    if (options.negotiated)
-        gst_structure_set(init.get(), "negotiated", G_TYPE_BOOLEAN, *options.negotiated, nullptr);
     if (options.id)
         gst_structure_set(init.get(), "id", G_TYPE_INT, *options.id, nullptr);
 

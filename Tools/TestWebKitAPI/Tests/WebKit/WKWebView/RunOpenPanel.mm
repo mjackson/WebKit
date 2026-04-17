@@ -72,8 +72,8 @@ namespace TestWebKitAPI {
 
 TEST(WebKit, RunOpenPanelNonLatin1)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
-    auto uiDelegate = adoptNS([[RunOpenPanelUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
+    RetainPtr uiDelegate = adoptNS([[RunOpenPanelUIDelegate alloc] init]);
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<!DOCTYPE html><input style='width: 100vw; height: 100vh;' id='file' type='file'>" baseURL:nil];
     [webView _test_waitForDidFinishNavigation];
@@ -92,8 +92,8 @@ TEST(WebKit, RunOpenPanelNonLatin1)
 
 TEST(WebKit, FileInputTypeCancelEvent)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
-    auto uiDelegate = adoptNS([[FileInputTypeCancelEventUIDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)]);
+    RetainPtr uiDelegate = adoptNS([[FileInputTypeCancelEventUIDelegate alloc] init]);
     [webView setUIDelegate:uiDelegate.get()];
 
     NSString *markup = @""

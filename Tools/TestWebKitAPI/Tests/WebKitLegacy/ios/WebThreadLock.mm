@@ -41,7 +41,7 @@ TEST(WebKitLegacy, NestedRunLoopUnderRunLoopObserverDoubleUnlock)
     WebThreadLock();
     
     __block BOOL spunInnerRunLoop = NO;
-    auto observer = adoptCF(CFRunLoopObserverCreateWithHandler(NULL, kCFRunLoopBeforeWaiting, NO, 2, ^(CFRunLoopObserverRef observer, CFRunLoopActivity activity) {
+    RetainPtr observer = adoptCF(CFRunLoopObserverCreateWithHandler(NULL, kCFRunLoopBeforeWaiting, NO, 2, ^(CFRunLoopObserverRef observer, CFRunLoopActivity activity) {
         Util::spinRunLoop(1);
         spunInnerRunLoop = YES;
     }));

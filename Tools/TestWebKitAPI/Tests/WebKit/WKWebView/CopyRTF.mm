@@ -62,7 +62,7 @@ static NSData *readRTFDataFromPasteboard()
 
 static RetainPtr<NSAttributedString> copyAttributedStringFromHTML(NSString *htmlString, bool forceDarkMode)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
 
     auto preferences = (__bridge WKPreferencesRef)[[webView configuration] preferences];
     WKPreferencesSetWriteRichTextDataWhenCopyingOrDragging(preferences, true);
@@ -78,7 +78,7 @@ static RetainPtr<NSAttributedString> copyAttributedStringFromHTML(NSString *html
     NSData *rtfData = readRTFDataFromPasteboard();
     EXPECT_NOT_NULL(rtfData);
 
-    auto attributedString = adoptNS([[NSAttributedString alloc] initWithData:rtfData options:@{ } documentAttributes:nil error:nullptr]);
+    RetainPtr attributedString = adoptNS([[NSAttributedString alloc] initWithData:rtfData options:@{ } documentAttributes:nil error:nullptr]);
     EXPECT_NOT_NULL(attributedString.get());
 
     return attributedString;

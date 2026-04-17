@@ -27,6 +27,7 @@
 #include "JSDOMConvertAny.h"
 
 #include "JSValueInWrappedObjectInlines.h"
+#include <JavaScriptCore/JSGlobalObjectInlines.h>
 #include <JavaScriptCore/StrongInlines.h>
 
 namespace WebCore {

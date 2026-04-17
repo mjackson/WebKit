@@ -34,7 +34,7 @@
 namespace WebCore {
 namespace Style {
 
-NamedImage::NamedImage(String&& name)
+NamedImage::NamedImage(CustomIdent&& name)
     : GeneratedImage { Type::NamedImage, NamedImage::isFixedSize }
     , m_name { WTF::move(name) }
 {
@@ -53,9 +53,9 @@ bool NamedImage::equals(const NamedImage& other) const
     return m_name == other.m_name;
 }
 
-Ref<CSSValue> NamedImage::computedStyleValue(const RenderStyle&) const
+Ref<CSSValue> NamedImage::computedStyleValue(const RenderStyle& style) const
 {
-    return CSSNamedImageValue::create(m_name);
+    return CSSNamedImageValue::create(toCSS(m_name, style));
 }
 
 bool NamedImage::isPending() const
@@ -75,7 +75,7 @@ RefPtr<WebCore::Image> NamedImage::image(const RenderElement* renderer, const Fl
     if (size.isEmpty())
         return nullptr;
 
-    return NamedImageGeneratedImage::create(m_name, size);
+    return NamedImageGeneratedImage::create(m_name.value, size);
 }
 
 bool NamedImage::knownToBeOpaque(const RenderElement&) const

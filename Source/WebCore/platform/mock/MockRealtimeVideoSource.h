@@ -160,7 +160,7 @@ private:
 
     unsigned m_frameNumber { 0 };
     const Ref<RunLoop> m_runLoop;
-    RunLoop::Timer m_emitFrameTimer;
+    std::unique_ptr<RunLoop::Timer> m_emitFrameTimer;
     std::optional<RealtimeMediaSourceCapabilities> m_capabilities;
     std::optional<RealtimeMediaSourceSettings> m_currentSettings;
     RealtimeMediaSourceSupportedConstraints m_supportedConstraints;

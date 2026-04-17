@@ -108,6 +108,8 @@ MediaPlayerPrivateMediaSourceAVFObjC::MediaPlayerPrivateMediaSourceAVFObjC(Media
     , m_rendererPrepareSeekRequest(NativePromiseRequest::create())
     , m_rendererFinishSeekRequest(NativePromiseRequest::create())
     , m_networkState(MediaPlayer::NetworkState::Empty)
+    , m_pageIsVisible { player.pageIsVisible() }
+    , m_viewportVisibility { player.viewportVisibility() }
     , m_logger(player.mediaPlayerLogger())
     , m_logIdentifier(player.mediaPlayerLogIdentifier())
 #if HAVE(SPATIAL_TRACKING_LABEL)
@@ -406,12 +408,31 @@ bool MediaPlayerPrivateMediaSourceAVFObjC::hasAudio() const
 void MediaPlayerPrivateMediaSourceAVFObjC::setPageIsVisible(bool visible)
 {
     assertIsMainThread();
-    if (m_visible == visible)
+    if (m_pageIsVisible == visible)
         return;
 
     ALWAYS_LOG(LOGIDENTIFIER, visible);
-    m_visible = visible;
+    m_pageIsVisible = visible;
+    updateRendererVisibility();
+}
+
+void MediaPlayerPrivateMediaSourceAVFObjC::setViewportVisibility(ViewportVisibility visibility)
+{
+    assertIsMainThread();
+    if (m_viewportVisibility == visibility)
+        return;
+
+    ALWAYS_LOG(LOGIDENTIFIER, visibility);
+    m_viewportVisibility = visibility;
+    updateRendererVisibility();
+}
+
+void MediaPlayerPrivateMediaSourceAVFObjC::updateRendererVisibility()
+{
+    assertIsMainThread();
+    bool visible = m_pageIsVisible && m_viewportVisibility != ViewportVisibility::NotVisible;
     m_renderer->setIsVisible(visible);
+    acceleratedRenderingStateChanged();
 }
 
 MediaTime MediaPlayerPrivateMediaSourceAVFObjC::duration() const
@@ -882,8 +903,16 @@ Ref<AudioVideoRenderer> MediaPlayerPrivateMediaSourceAVFObjC::audioVideoRenderer
 
 void MediaPlayerPrivateMediaSourceAVFObjC::acceleratedRenderingStateChanged()
 {
+    assertIsMainThread();
+
     RefPtr player = m_player.get();
-    m_renderer->renderingCanBeAcceleratedChanged(player ? player->renderingCanBeAccelerated() : false);
+
+    // Don't create a layer if the player is not visible:
+    bool canBeAccelerated = m_pageIsVisible
+        && m_viewportVisibility != ViewportVisibility::NotVisible
+        && player
+        && player->renderingCanBeAccelerated();
+    m_renderer->renderingCanBeAcceleratedChanged(canBeAccelerated);
 }
 
 void MediaPlayerPrivateMediaSourceAVFObjC::notifyActiveSourceBuffersChanged()

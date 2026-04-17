@@ -656,6 +656,17 @@ Decimal InputType::parseToNumberOrNaN(StringView string) const
     return parseToNumber(string, Decimal::nan());
 }
 
+Decimal InputType::extractStepRangeBound(const QualifiedName& attributeName, const Decimal& defaultValue, RangeLimitations& rangeLimitations) const
+{
+    ASSERT(element());
+    Decimal valueFromAttribute = parseToNumberOrNaN(element()->attributeWithoutSynchronization(attributeName));
+    if (valueFromAttribute.isFinite()) {
+        rangeLimitations = RangeLimitations::Valid;
+        return valueFromAttribute;
+    }
+    return defaultValue;
+}
+
 String InputType::serialize(const Decimal&) const
 {
     ASSERT_NOT_REACHED();

@@ -2280,7 +2280,6 @@ void dumpBinToDotFile(const GRefPtr<GstElement>& element, const String& filename
     dumpBinToDotFile(GST_BIN_CAST(element.get()), filename, details);
 }
 
-#if !RELEASE_LOG_DISABLED
 GstDebugLevel gstDebugLevelFromWTFLogLevel(WTFLogLevel level)
 {
     switch (level) {
@@ -2296,7 +2295,6 @@ GstDebugLevel gstDebugLevelFromWTFLogLevel(WTFLogLevel level)
     };
     return GST_LEVEL_NONE;
 }
-#endif
 
 #undef GST_CAT_DEFAULT
 

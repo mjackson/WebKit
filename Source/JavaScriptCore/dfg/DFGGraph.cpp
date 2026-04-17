@@ -387,8 +387,6 @@ void Graph::dump(PrintStream& out, const char* prefixStr, Node* node, DumpContex
         out.print(", offset = "_s, data->offset, ", mandatoryMinimum = "_s, data->mandatoryMinimum);
         out.print(", limit = "_s, data->limit);
     }
-    if (node->hasIsInternalPromise())
-        out.print(comma, "isInternalPromise = "_s, node->isInternalPromise());
     if (node->hasInternalFieldIndex())
         out.print(comma, "internalFieldIndex = "_s, node->internalFieldIndex());
     if (node->hasCallDOMGetterData()) {

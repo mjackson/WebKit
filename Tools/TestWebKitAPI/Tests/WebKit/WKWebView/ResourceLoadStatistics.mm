@@ -85,7 +85,7 @@ static bool finishedNavigation = false;
 static void ensureITPFileIsCreated()
 {
     auto *dataStore = [WKWebsiteDataStore defaultDataStore];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
     [dataStore _setResourceLoadStatisticsEnabled:NO];
@@ -94,9 +94,9 @@ static void ensureITPFileIsCreated()
 // FIXME when rdar://172325390 is resolved
 TEST(ResourceLoadStatistics, DISABLED_GrandfatherCallback)
 {
-    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     dataStoreConfiguration.get().pcmMachServiceName = nil;
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
 
     NSURL *statisticsDirectoryURL = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/WebsiteData/ResourceLoadStatistics" stringByExpandingTildeInPath] isDirectory:YES];
     NSURL *fileURL = [statisticsDirectoryURL URLByAppendingPathComponent:@"observations.db"];
@@ -112,7 +112,7 @@ TEST(ResourceLoadStatistics, DISABLED_GrandfatherCallback)
         grandfatheredFlag = true;
     }];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
 
@@ -164,7 +164,7 @@ TEST(ResourceLoadStatistics, ShouldNotGrandfatherOnStartup)
     }];
 
     // We need an active NetworkProcess to perform ResourceLoadStatistics operations.
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
 
@@ -194,7 +194,7 @@ TEST(ResourceLoadStatistics, ChildProcessesNotLaunched)
     }];
 
     // We need an active NetworkProcess to perform ResourceLoadStatistics operations.
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
 
@@ -211,7 +211,7 @@ TEST(ResourceLoadStatistics, IPCAfterStoreDestruction)
 {
     [[WKWebsiteDataStore defaultDataStore] _setResourceLoadStatisticsEnabled:YES];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     // Test page requires window.internals.
 #if WK_HAVE_C_SPI
@@ -219,9 +219,9 @@ TEST(ResourceLoadStatistics, IPCAfterStoreDestruction)
     configuration.get().processPool = (WKProcessPool *)context.get();
 #endif
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto navigationDelegate = adoptNS([[DisableITPDuringNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[DisableITPDuringNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"notify-resourceLoadObserver" withExtension:@"html"]]];
@@ -267,11 +267,11 @@ TEST(ResourceLoadStatistics, EnableDisableITP)
     auto *sharedProcessPool = [WKProcessPool _sharedProcessPool];
     auto *dataStore = [WKWebsiteDataStore defaultDataStore];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool: sharedProcessPool];
     configuration.get().websiteDataStore = dataStore;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     
     [webView loadHTMLString:@"WebKit Test" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView _test_waitForDidFinishNavigation];
@@ -344,11 +344,11 @@ TEST(ResourceLoadStatistics, NetworkProcessRestart)
     auto *sharedProcessPool = [WKProcessPool _sharedProcessPool];
     auto *dataStore = [WKWebsiteDataStore defaultDataStore];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool: sharedProcessPool];
     configuration.get().websiteDataStore = dataStore;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView loadHTMLString:@"WebKit Test" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView _test_waitForDidFinishNavigation];
@@ -409,7 +409,7 @@ TEST(ResourceLoadStatistics, NetworkProcessRestart)
 
     [configuration.get().websiteDataStore _terminateNetworkProcess];
 
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView2 loadHTMLString:@"WebKit Test 2" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView2 _test_waitForDidFinishNavigation];
@@ -442,7 +442,7 @@ TEST(ResourceLoadStatistics, NetworkProcessRestart)
 
     [configuration.get().websiteDataStore _terminateNetworkProcess];
 
-    auto webView3 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView3 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView3 loadHTMLString:@"WebKit Test 3" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView3 _test_waitForDidFinishNavigation];
@@ -523,17 +523,17 @@ TEST(ResourceLoadStatistics, DataTaskIdentifierCollision)
         });
     });
 
-    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     storeConfiguration.get().httpsProxy = [NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", httpsServer.port()]];
     storeConfiguration.get().allowsServerPreconnect = NO;
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr viewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [viewConfiguration setWebsiteDataStore:dataStore.get()];
 
-    auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get() addToWindow:NO]);
+    RetainPtr webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get() addToWindow:NO]);
     [webView1 synchronouslyLoadHTMLString:@"start network process and initialize data store"];
-    auto delegate = adoptNS([DataTaskIdentifierCollisionDelegate new]);
-    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get() addToWindow:NO]);
+    RetainPtr delegate = adoptNS([DataTaskIdentifierCollisionDelegate new]);
+    RetainPtr webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get() addToWindow:NO]);
     [webView1 setUIDelegate:delegate.get()];
     [webView1 setNavigationDelegate:delegate.get()];
     [webView2 setUIDelegate:delegate.get()];
@@ -569,11 +569,11 @@ TEST(ResourceLoadStatistics, DataTaskIdentifierCollision)
 
 TEST(ResourceLoadStatistics, NoMessagesWhenNotTesting)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
     [configuration setWebsiteDataStore:dataStore.get()];
     [dataStore _setResourceLoadStatisticsEnabled:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
     EXPECT_FALSE([WKWebsiteDataStore _defaultDataStoreExists]);
 }
@@ -583,11 +583,11 @@ TEST(ResourceLoadStatistics, FlushObserverWhenWebPageIsClosedByJavaScript)
     auto *sharedProcessPool = [WKProcessPool _sharedProcessPool];
     auto *dataStore = [WKWebsiteDataStore defaultDataStore];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool: sharedProcessPool];
     configuration.get().websiteDataStore = dataStore;
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView loadHTMLString:@"WebKit Test" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView _test_waitForDidFinishNavigation];
@@ -646,13 +646,13 @@ TEST(ResourceLoadStatistics, GetResourceLoadStatisticsDataSummary)
     auto *sharedProcessPool = [WKProcessPool _sharedProcessPool];
     auto *dataStore = [WKWebsiteDataStore defaultDataStore];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool: sharedProcessPool];
     configuration.get().websiteDataStore = dataStore;
 
-    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto webView3 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView3 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView1 loadHTMLString:@"WebKit Test" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView1 _test_waitForDidFinishNavigation];
@@ -907,16 +907,16 @@ TEST(ResourceLoadStatistics, MigrateDataFromIncorrectCreateTableSchema)
     [defaultFileManager copyItemAtPath:newFileURL.path toPath:fileURL.path error:nil];
     EXPECT_TRUE([defaultFileManager fileExistsAtPath:fileURL.path]);
 
-    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     dataStoreConfiguration.get()._resourceLoadStatisticsDirectory = itpRootURL;
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool: sharedProcessPool];
     configuration.get().websiteDataStore = dataStore.get();
 
     // We need an active NetworkProcess to perform ResourceLoadStatistics operations.
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
     [webView loadHTMLString:@"" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView _test_waitForDidFinishNavigation];
@@ -1001,12 +1001,12 @@ TEST(ResourceLoadStatistics, DISABLED_MigrateDataFromMissingTopFrameUniqueRedire
     [defaultFileManager copyItemAtPath:newFileURL.path toPath:fileURL.path error:nil];
     EXPECT_TRUE([defaultFileManager fileExistsAtPath:fileURL.path]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool: sharedProcessPool];
     configuration.get().websiteDataStore = dataStore;
 
     // We need an active NetworkProcess to perform ResourceLoadStatistics operations.
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
 
@@ -1045,9 +1045,9 @@ TEST(ResourceLoadStatistics, CanAccessDataSummaryWithNoProcessPool)
     [defaultFileManager copyItemAtPath:newFileURL.path toPath:fileURL.path error:nil];
     EXPECT_TRUE([defaultFileManager fileExistsAtPath:fileURL.path]);
 
-    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     dataStoreConfiguration.get()._resourceLoadStatisticsDirectory = itpRootURL;
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
 
     static bool doneFlag = false;
@@ -1073,25 +1073,25 @@ TEST(ResourceLoadStatistics, CanAccessDataSummaryWithNoProcessPool)
 TEST(ResourceLoadStatistics, StoreSuspension)
 {
     auto *sharedProcessPool = [WKProcessPool _sharedProcessPool];
-    auto dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     auto customGeneralStorageDirectory = [NSURL fileURLWithPath:[NSString stringWithFormat:@"%@%@", dataStoreConfiguration.get().generalStorageDirectory.path, @"_Custom"]];
-    auto dataStore1 = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore1 = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
     dataStoreConfiguration.get().generalStorageDirectory = customGeneralStorageDirectory;
-    auto dataStore2 = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore2 = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
 
     [dataStore1 _setResourceLoadStatisticsEnabled:YES];
     [dataStore2 _setResourceLoadStatisticsEnabled:YES];
 
-    auto configuration1 = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration1 = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration1 setProcessPool: sharedProcessPool];
     configuration1.get().websiteDataStore = dataStore1.get();
 
-    auto configuration2 = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration2 = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration2 setProcessPool: sharedProcessPool];
     configuration2.get().websiteDataStore = dataStore2.get();
 
-    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration1.get()]);
-    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration2.get()]);
+    RetainPtr webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration1.get()]);
+    RetainPtr webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration2.get()]);
 
     [webView1 loadHTMLString:@"WebKit Test" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView1 _test_waitForDidFinishNavigation];
@@ -1137,12 +1137,12 @@ TEST(ResourceLoadStatistics, StoreSuspension)
 #if PLATFORM(MAC)
 TEST(ResourceLoadStatistics, DataSummaryWithCachedProcess)
 {
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     processPoolConfiguration.get().processSwapsOnNavigation = YES;
     processPoolConfiguration.get().usesWebProcessCache = YES;
     processPoolConfiguration.get().processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol = YES;
     processPoolConfiguration.get().prewarmsProcessesAutomatically = NO;
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
     EXPECT_GT([processPool _maximumSuspendedPageCount], 0u);
     EXPECT_GT([processPool _processCacheCapacity], 0u);
@@ -1150,17 +1150,17 @@ TEST(ResourceLoadStatistics, DataSummaryWithCachedProcess)
     auto *dataStore = [WKWebsiteDataStore defaultDataStore];
     [WKWebsiteDataStore _setCachedProcessSuspensionDelayForTesting:0];
 
-    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
     [webViewConfiguration setWebsiteDataStore:dataStore];
 
-    auto handler = adoptNS([[ResourceLoadStatisticsSchemeHandler alloc] init]);
+    RetainPtr handler = adoptNS([[ResourceLoadStatisticsSchemeHandler alloc] init]);
 
     const unsigned maxSuspendedPageCount = [processPool _maximumSuspendedPageCount];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"resource-load-statistics"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto delegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     for (unsigned i = 0; i < maxSuspendedPageCount + 1; i++) {
@@ -1169,7 +1169,9 @@ TEST(ResourceLoadStatistics, DataSummaryWithCachedProcess)
         [delegate waitForDidFinishNavigation];
 
         EXPECT_EQ(i + 1, [processPool _webProcessCount]);
-        EXPECT_EQ(i + 1, [processPool _webProcessCountIgnoringPrewarmedAndCached]);
+        // FIXME: Remove once the back-forward cache is enabled for site isolation: rdar://161762363.
+        if (isUsingBackForwardCache(webView))
+            EXPECT_EQ(i + 1, [processPool _webProcessCountIgnoringPrewarmedAndCached]);
         EXPECT_FALSE([processPool _hasPrewarmedWebProcess]);
     }
     
@@ -1192,19 +1194,19 @@ TEST(ResourceLoadStatistics, DataSummaryWithCachedProcess)
 
 TEST(ResourceLoadStatistics, BackForwardPerPageData)
 {
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     processPoolConfiguration.get().processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol = YES;
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
     auto *dataStore = [WKWebsiteDataStore defaultDataStore];
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
 
-    auto schemeHandler = adoptNS([[ResourceLoadStatisticsSchemeHandler alloc] init]);
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr schemeHandler = adoptNS([[ResourceLoadStatisticsSchemeHandler alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool:processPool.get()];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"resource-load-statistics"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
 
     static bool doneFlag = false;
@@ -1305,12 +1307,12 @@ TEST(ResourceLoadStatistics, DISABLED_MigrateDistinctDataFromTableWithMissingInd
     [defaultFileManager copyItemAtPath:newFileURL.path toPath:fileURL.path error:nil];
     EXPECT_TRUE([defaultFileManager fileExistsAtPath:fileURL.path]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool: sharedProcessPool];
     configuration.get().websiteDataStore = dataStore;
 
     // We need an active NetworkProcess to perform ResourceLoadStatistics operations.
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
 
@@ -1349,7 +1351,7 @@ static Vector<String> columnsForTable(WebCore::SQLiteDatabase& database, ASCIILi
 
 TEST(ResourceLoadStatistics, DatabaseSchemeUpdate)
 {
-    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
 
     NSError *error = nil;
     [[NSFileManager defaultManager] removeItemAtURL:dataStoreConfiguration.get()._resourceLoadStatisticsDirectory error:&error];
@@ -1372,7 +1374,7 @@ TEST(ResourceLoadStatistics, DatabaseSchemeUpdate)
     EXPECT_TRUE(database->executeCommand(createObservedDomain));
     database->close();
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
     __block bool done { false };
     [dataStore _setPrevalentDomain:[NSURL URLWithString:@"https://example.com/"] completionHandler:^{
@@ -1394,11 +1396,11 @@ TEST(ResourceLoadStatistics, DISABLED_ClientEvaluatedJavaScriptDoesNotLogUserInt
 TEST(ResourceLoadStatistics, ClientEvaluatedJavaScriptDoesNotLogUserInteraction)
 #endif
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
     [configuration setWebsiteDataStore:dataStore.get()];
     [dataStore _setResourceLoadStatisticsEnabled:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
     [webView loadHTMLString:@"" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView _test_waitForDidFinishNavigation];
 
@@ -1430,10 +1432,10 @@ TEST(ResourceLoadStatistics, UserGestureLogsUserInteraction)
 #endif
 {
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
     [configuration setWebsiteDataStore:dataStore.get()];
     [dataStore _setResourceLoadStatisticsEnabled:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration]);
     [webView loadHTMLString:@"" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
     [webView _test_waitForDidFinishNavigation];
 
@@ -1459,12 +1461,12 @@ TEST(ResourceLoadStatistics, UserGestureLogsUserInteraction)
 
 TEST(ResourceLoadStatistics, UserAgentStringForSite)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     auto userAgent = @"NotARealUserAgent";
 
     __block bool done = false;
@@ -1496,8 +1498,8 @@ TEST(ResourceLoadStatistics, UserAgentStringForSite)
 
 TEST(ResourceLoadStatistics, StorageAccessPromptSiteWithQuirk)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
     [dataStore _setResourceLoadStatisticsEnabled:YES];
@@ -1515,12 +1517,12 @@ TEST(ResourceLoadStatistics, StorageAccessPromptSiteWithQuirk)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
     [webView loadHTMLString:@"" baseURL:[NSURL URLWithString:@"http://site1.example"]];
     [webView _test_waitForDidFinishNavigation];
 
     __block bool navigationDelegateDone = false;
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate setDidPromptForStorageAccess:^(WKWebView *, NSString *topFrameDomain, NSString *subFrameDomain, BOOL hasQuirk) {
         EXPECT_TRUE(hasQuirk);
         navigationDelegateDone = true;
@@ -1528,7 +1530,7 @@ TEST(ResourceLoadStatistics, StorageAccessPromptSiteWithQuirk)
 
     [webView setNavigationDelegate:navigationDelegate.get()];
 
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:uiDelegate.get()];
 
     [webView evaluateJavaScript:@"let iframe = document.createElement(\"iframe\"); iframe.src = \"https://www.site2.example\"; document.body.appendChild(iframe);" completionHandler:^(id value, NSError *error) {
@@ -1551,10 +1553,10 @@ TEST(ResourceLoadStatistics, StorageAccessPromptSiteWithTrigger)
         { "/page1c"_s, { "<body><script>if (window.internals) { internals.withUserGesture(() => { document.requestStorageAccess(); }); document.body.innerText = \"Requesting storage access\"; } else document.body.innerText = \"Internals not present\";</script></body>"_s  } },
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     storeConfiguration.get().httpsProxy = [NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", httpServer.port()]];
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
 
     [dataStore _setResourceLoadStatisticsEnabled:YES];
 
@@ -1574,16 +1576,16 @@ TEST(ResourceLoadStatistics, StorageAccessPromptSiteWithTrigger)
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     __block bool gotRequestStorageAccessPanelForQuirksForDomain { false };
     uiDelegate.get().requestStorageAccessPanelForQuirksForDomain = ^(WKWebView *, NSString *, NSString *, NSDictionary<NSString *, NSArray<NSString *> *> *, void  (^completionHandler)(BOOL)) {
         gotRequestStorageAccessPanelForQuirksForDomain = true;
         completionHandler(NO);
     };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration]);
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     __block bool didReceiveStorageAccessPrompt = false;
     [navigationDelegate setDidPromptForStorageAccess:^(WKWebView *webview, NSString *topFrameDomain, NSString *subFrameDomain, BOOL hasQuirk) {
@@ -1661,19 +1663,19 @@ TEST(ResourceLoadStatistics, StorageAccessOnRedirectSitesWithOutQuirk)
         { "http://site3.example/page3"_s, { "<body>Done</body>"_s  } },
     });
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [configuration setWebsiteDataStore:dataStore.get()];
     [dataStore _setResourceLoadStatisticsEnabled:YES];
 
     __block bool done = false;
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^decisionHandler)(WKNavigationActionPolicy)) {
         decisionHandler(WKNavigationActionPolicyAllow);
         done = true;
@@ -1684,7 +1686,7 @@ TEST(ResourceLoadStatistics, StorageAccessOnRedirectSitesWithOutQuirk)
         finishedNavigation = true;
     };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://site3.example/page1"]]];
@@ -1741,14 +1743,14 @@ TEST(ResourceLoadStatistics, StorageAccessOnRedirectSitesWithQuirk)
         { "http://site4.example/page2"_s, { "<body>Done</body>"_s  } },
     });
 
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
     [storeConfiguration setProxyConfiguration:@{
         (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
         (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
     }];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [configuration setWebsiteDataStore:dataStore.get()];
     [dataStore _setResourceLoadStatisticsEnabled:YES];
 
@@ -1771,7 +1773,7 @@ TEST(ResourceLoadStatistics, StorageAccessOnRedirectSitesWithQuirk)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^decisionHandler)(WKNavigationActionPolicy)) {
         decisionHandler(WKNavigationActionPolicyAllow);
         done = true;
@@ -1782,7 +1784,7 @@ TEST(ResourceLoadStatistics, StorageAccessOnRedirectSitesWithQuirk)
         finishedNavigation = true;
     };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://site3.example/page1"]]];
@@ -2052,10 +2054,10 @@ TEST(ResourceLoadStatistics, EnableResourceLoadStatisticsAfterNetworkProcessCrea
         TestWebKitAPI::Util::run(&done);
 
         auto *sharedProcessPool = [WKProcessPool _sharedProcessPool];
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
         configuration.get().processPool = sharedProcessPool;
         configuration.get().websiteDataStore = websiteDataStore;
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
         [webView loadHTMLString:@"" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
         [webView _test_waitForDidFinishNavigation];
 
@@ -2124,11 +2126,11 @@ TEST(ResourceLoadStatistics, StorageAccessSupportMultipleSubFrameDomains)
         }
     }, HTTPServer::Protocol::HttpsProxy };
 
-    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     storeConfiguration.get().httpsProxy = [NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", httpServer.port()]];
 
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [configuration setWebsiteDataStore:dataStore.get()];
     [dataStore _setResourceLoadStatisticsEnabled:YES];
 
@@ -2159,7 +2161,7 @@ TEST(ResourceLoadStatistics, StorageAccessSupportMultipleSubFrameDomains)
 
     __block bool gotRequestStorageAccessPanelForDomain { false };
     __block bool gotRequestStorageAccessPanelForQuirksForDomain { false };
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().requestStorageAccessPanelForDomain = ^(WKWebView *, NSString *subFrameDomain, NSString *topFrameDomain, void  (^completionHandler)(BOOL)) {
         EXPECT_NOT_NULL(subFrameDomain);
         EXPECT_NOT_NULL(subFrameDomain);
@@ -2181,8 +2183,8 @@ TEST(ResourceLoadStatistics, StorageAccessSupportMultipleSubFrameDomains)
         completionHandler(YES);
     };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navigationDelegate.get()];
 
@@ -2282,11 +2284,11 @@ TEST(ResourceLoadStatistics, StorageAccessGrantMultipleSubFrameDomains)
         }
     }, HTTPServer::Protocol::HttpsProxy };
 
-    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     storeConfiguration.get().httpsProxy = [NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", httpServer.port()]];
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [configuration.get() setWebsiteDataStore:dataStore.get()];
     [dataStore _setResourceLoadStatisticsEnabled:YES];
 
@@ -2318,7 +2320,7 @@ TEST(ResourceLoadStatistics, StorageAccessGrantMultipleSubFrameDomains)
     __block bool gotRequestStorageAccessPanelForQuirksForDomain { false };
     __block NSString *expectedTopFrameDomain;
     __block NSString *expectedSubFrameDomain;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().requestStorageAccessPanelForQuirksForDomain = ^(WKWebView *, NSString *subFrameDomain, NSString *topFrameDomain, NSDictionary<NSString *, NSArray<NSString *> *> *quirkDomains, void  (^completionHandler)(BOOL)) {
         EXPECT_NOT_NULL(expectedSubFrameDomain);
         EXPECT_NOT_NULL(expectedTopFrameDomain);
@@ -2333,8 +2335,8 @@ TEST(ResourceLoadStatistics, StorageAccessGrantMultipleSubFrameDomains)
         completionHandler(YES);
     };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navigationDelegate.get()];
 
@@ -2442,11 +2444,11 @@ TEST(ResourceLoadStatistics, HasStorageAccessWithDatabaseError)
         { "/has-access"_s, { "<body><script>document.hasStorageAccess().then((result) => alert(result ? 'true' : 'false'), (error) => alert('error'));</script></body>"_s } },
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     storeConfiguration.get().httpsProxy = [NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", httpServer.port()]];
     storeConfiguration.get()._resourceLoadStatisticsDirectory = itpRootURL;
 
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
 
     // Wait for the ResourceLoadStatisticsStore to be created on the
@@ -2460,12 +2462,12 @@ TEST(ResourceLoadStatistics, HasStorageAccessWithDatabaseError)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:dataStore.get()];
 
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView setUIDelegate:uiDelegate.get()];

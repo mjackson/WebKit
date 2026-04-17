@@ -88,12 +88,16 @@ void WorkerModuleScriptLoader::load(ScriptExecutionContext& context, URL&& sourc
     bool cspCheckFailed = false;
     ContentSecurityPolicyEnforcement contentSecurityPolicyEnforcement = ContentSecurityPolicyEnforcement::DoNotEnforce;
     if (!context.shouldBypassMainWorldContentSecurityPolicy()) {
+        std::optional<TextPosition> sourcePosition;
+        if (RefPtr document = dynamicDowncast<Document>(context))
+            sourcePosition = document->currentParserSourcePosition();
+
         CheckedPtr contentSecurityPolicy = context.contentSecurityPolicy();
         if (fetchOptions.destination == FetchOptions::Destination::Script) {
-            cspCheckFailed = contentSecurityPolicy && !contentSecurityPolicy->allowScriptFromSource(m_sourceURL);
+            cspCheckFailed = contentSecurityPolicy && !contentSecurityPolicy->allowScriptFromSource(m_sourceURL, WTF::move(sourcePosition));
             contentSecurityPolicyEnforcement = ContentSecurityPolicyEnforcement::EnforceScriptSrcDirective;
         } else {
-            cspCheckFailed = contentSecurityPolicy && !contentSecurityPolicy->allowWorkerFromSource(m_sourceURL);
+            cspCheckFailed = contentSecurityPolicy && !contentSecurityPolicy->allowWorkerFromSource(m_sourceURL, WTF::move(sourcePosition));
             contentSecurityPolicyEnforcement = ContentSecurityPolicyEnforcement::EnforceWorkerSrcDirective;
         }
     }

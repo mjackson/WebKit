@@ -168,6 +168,35 @@ constexpr T fabsConstExpr(T value)
 inline double roundTowardsPositiveInfinity(double value) { return std::floor(value + 0.5); }
 inline float roundTowardsPositiveInfinity(float value) { return std::floor(value + 0.5f); }
 
+// C23 roundeven polyfill.
+#if CPU(ARM64)
+// On ARM64, __builtin_roundeven(f) inlines to frintn. On x86_64, Clang
+// may emit a library call to roundeven which is C23 and not
+// universally available.
+inline float roundevenf(float value) { return __builtin_roundevenf(value); }
+inline double roundeven(double value) { return __builtin_roundeven(value); }
+#else
+inline float roundevenf(float value)
+{
+    float rounded = std::round(value);
+    if (std::fabs(value - rounded) == 0.5f) {
+        if (std::fmod(rounded, 2.0f) != 0.0f)
+            return rounded - std::copysign(1.0f, value);
+    }
+    return rounded;
+}
+
+inline double roundeven(double value)
+{
+    double rounded = std::round(value);
+    if (std::fabs(value - rounded) == 0.5) {
+        if (std::fmod(rounded, 2.0) != 0.0)
+            return rounded - std::copysign(1.0, value);
+    }
+    return rounded;
+}
+#endif
+
 // std::numeric_limits<T>::min() returns the smallest positive value for floating point types
 template<typename T> consteval T defaultMinimumForClamp() { return std::numeric_limits<T>::min(); }
 template<> consteval float defaultMinimumForClamp() { return -std::numeric_limits<float>::max(); }

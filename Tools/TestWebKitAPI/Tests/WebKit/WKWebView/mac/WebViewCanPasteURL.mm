@@ -34,7 +34,7 @@ namespace TestWebKitAPI {
 
 TEST(WebKitLegacy, WebViewCanPasteURL)
 {
-    auto webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:nil groupName:nil]);
+    RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect frameName:nil groupName:nil]);
     [webView setEditable:YES];
 
     [[NSPasteboard generalPasteboard] declareTypes:@[NSURLPboardType] owner:nil];

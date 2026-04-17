@@ -39,13 +39,13 @@
 
 static std::pair<RetainPtr<TestWKWebView>, RetainPtr<TestInputDelegate>> webViewForTestingFocusPreservation(void(^focusHandler)(id <_WKFocusedElementInfo>))
 {
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[&, focusHandler = makeBlockPtr(focusHandler)] (WKWebView *, id<_WKFocusedElementInfo> info) {
         focusHandler(info);
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView _setInputDelegate:inputDelegate.get()];
     [webView synchronouslyLoadHTMLString:@"<input></input><select><option selected>foo</option><option>bar</option></select>"];
     return { webView, inputDelegate };

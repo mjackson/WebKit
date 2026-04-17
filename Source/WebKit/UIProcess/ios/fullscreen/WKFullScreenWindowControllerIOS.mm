@@ -2244,7 +2244,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     auto animationCompletionBlock = makeBlockPtr([enter, inWindow, targetSceneSize, shouldAnimateResizeScene, resizeCompletionBlock = WTF::move(resizeCompletionBlock)] (BOOL finished) mutable {
         if (!shouldAnimateResizeScene || enter)
-            WebKit::resizeScene([inWindow windowScene], targetSceneSize, 0, shouldAnimateResizeScene, WTF::move(resizeCompletionBlock));
+            WebKit::resizeScene([inWindow windowScene], targetSceneSize, 0, !shouldAnimateResizeScene, WTF::move(resizeCompletionBlock));
         else
             resizeCompletionBlock();
     });
@@ -2318,7 +2318,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (!shouldAnimateResizeScene || enter)
         animationBlock();
     else
-        WebKit::resizeScene([inWindow windowScene], targetSceneSize, 0, shouldAnimateResizeScene, WTF::move(animationBlock));
+        WebKit::resizeScene([inWindow windowScene], targetSceneSize, 0, !shouldAnimateResizeScene, WTF::move(animationBlock));
 }
 
 - (void)toggleSceneDimming

@@ -100,7 +100,7 @@ private:
     virtual bool collectGradientAttributes() = 0;
     virtual Ref<Gradient> buildGradient(const RenderStyle&) const = 0;
 
-    HashMap<RenderObject*, std::unique_ptr<GradientData>> m_gradientMap;
+    HashMap<SingleThreadWeakRef<RenderElement>, std::unique_ptr<GradientData>> m_gradientMap;
 
     std::unique_ptr<GradientApplier> m_gradientApplier;
     bool m_shouldCollectGradientAttributes { true };

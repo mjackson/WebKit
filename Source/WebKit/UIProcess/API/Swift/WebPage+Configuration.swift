@@ -98,6 +98,25 @@ extension WebPage {
         /// If true, they are enabled based on the system setting.
         public var allowsInlinePredictions: Bool = false
 
+        private var backingAllowsImmersiveEnvironments = false
+
+        /// Indicates whether website immersive environments are allowed.
+        ///
+        /// Set this property to `true` to enable support for website immersive environments.
+        /// If `false`, requests to present immersive environments are ignored.
+        /// If `true`, requests are routed through the `onWebViewImmersiveEnvironmentRequest` view modifier callbacks.
+        ///
+        /// The default value is `false`.
+        @available(WK_XROS_TBA, *)
+        @available(iOS, unavailable)
+        @available(macOS, unavailable)
+        @available(watchOS, unavailable)
+        @available(tvOS, unavailable)
+        public var allowsImmersiveEnvironments: Bool {
+            get { backingAllowsImmersiveEnvironments }
+            set { backingAllowsImmersiveEnvironments = newValue }
+        }
+
         /// Indicates whether insertion of adaptive image glyphs is allowed.
         ///
         /// The default value is `false`. If `false`, adaptive image glyphs are inserted as regular images.

@@ -31,9 +31,46 @@ namespace Style {
 
 PropertyAllowlist propertyAllowlistForPseudoElement(PseudoElementType type)
 {
-    if (type == PseudoElementType::Marker)
+    switch (type) {
+    case PseudoElementType::GrammarError:
+    case PseudoElementType::Highlight:
+    case PseudoElementType::Selection:
+    case PseudoElementType::SpellingError:
+    case PseudoElementType::TargetText:
+        return PropertyAllowlist::Highlight;
+    case PseudoElementType::Marker:
         return PropertyAllowlist::Marker;
-    return PropertyAllowlist::None;
+    default:
+        return PropertyAllowlist::None;
+    }
+}
+
+// https://drafts.csswg.org/css-pseudo-4/#highlight-styling
+bool isValidHighlightStyleProperty(CSSPropertyID id)
+{
+    switch (id) {
+    case CSSPropertyBackgroundColor:
+    case CSSPropertyColor:
+    case CSSPropertyCustom:
+    case CSSPropertyFill:
+    case CSSPropertyStroke:
+    case CSSPropertyStrokeColor:
+    case CSSPropertyStrokeWidth:
+    case CSSPropertyTextDecoration:
+    case CSSPropertyTextDecorationColor:
+    case CSSPropertyTextDecorationLine:
+    case CSSPropertyTextDecorationSkip:
+    case CSSPropertyTextDecorationSkipInk:
+    case CSSPropertyTextDecorationStyle:
+    case CSSPropertyTextDecorationThickness:
+    case CSSPropertyTextShadow:
+    case CSSPropertyTextUnderlineOffset:
+    case CSSPropertyTextUnderlinePosition:
+        return true;
+    default:
+        break;
+    }
+    return false;
 }
 
 // https://drafts.csswg.org/css-lists-3/#marker-properties (Editor's Draft, 14 July 2021)

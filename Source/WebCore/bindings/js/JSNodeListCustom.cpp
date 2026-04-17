@@ -32,6 +32,9 @@
 #include "Node.h"
 #include "NodeList.h"
 #include "WebCoreOpaqueRootInlines.h"
+#include <JavaScriptCore/HeapCellInlines.h>
+#include <JavaScriptCore/JSGlobalObjectInlines.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <wtf/text/AtomString.h>
 
 

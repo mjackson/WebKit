@@ -41,9 +41,11 @@
 #include "LocalDOMWindow.h"
 #include "Logging.h"
 #include "MediaMetadata.h"
+#include "MediaSessionCaptionTrack.h"
 #include "MediaSessionCoordinator.h"
 #include "Navigator.h"
 #include "NowPlayingInfo.h"
+#include "PageGroup.h"
 #include "PlatformMediaSessionManager.h"
 #include "Settings.h"
 #include "UserMediaController.h"
@@ -132,6 +134,8 @@ static std::optional<std::pair<PlatformMediaSession::RemoteControlCommandType, P
     case MediaSessionAction::Togglemicrophone:
     case MediaSessionAction::Togglescreenshare:
     case MediaSessionAction::Voiceactivity:
+    case MediaSessionAction::Togglecaptions:
+    case MediaSessionAction::Selectcaptiontrack:
         break;
     }
     if (command == PlatformMediaSession::RemoteControlCommandType::NoCommand)
@@ -661,6 +665,77 @@ std::optional<MediaSessionGroupIdentifier> MediaSession::mediaSessionGroupIdenti
     auto* document = this->document();
     return document && document->page() ? document->page()->mediaSessionGroupIdentifier() : std::nullopt;
 }
+
+RefPtr<CaptionUserPreferences> MediaSession::captionPreferences()
+{
+    if (RefPtr document = this->document()) {
+        if (RefPtr page = document->page())
+            return &protect(page->group())->ensureCaptionPreferences();
+    }
+
+    return nullptr;
+}
+
+void MediaSession::captionPreferencesChanged()
+{
+    RefPtr captionPreferences = this->captionPreferences();
+    if (!captionPreferences)
+        return;
+
+    auto newDisplayMode = captionPreferences->captionDisplayMode();
+    if (newDisplayMode == captionDisplayMode())
+        return;
+    m_captionDisplayMode = newDisplayMode;
+
+    switch (newDisplayMode) {
+    case CaptionUserPreferencesDisplayMode::AlwaysOn:
+        if (!m_captionsEnabled)
+            callActionHandler({ .action = MediaSessionAction::Togglecaptions }, { });
+        break;
+    case CaptionUserPreferencesDisplayMode::ForcedOnly:
+        if (m_captionsEnabled)
+            callActionHandler({ .action = MediaSessionAction::Togglecaptions }, { });
+        break;
+    case CaptionUserPreferencesDisplayMode::Automatic:
+    case CaptionUserPreferencesDisplayMode::Manual:
+        // No-op
+        break;
+    }
+}
+
+CaptionUserPreferencesDisplayMode MediaSession::captionDisplayMode()
+{
+    if (m_captionDisplayMode)
+        return *m_captionDisplayMode;
+
+    if (RefPtr captionPreferences = this->captionPreferences()) {
+        m_captionDisplayMode = captionPreferences->captionDisplayMode();
+        return *m_captionDisplayMode;
+    }
+
+    return CaptionUserPreferencesDisplayMode::ForcedOnly;
+}
+
+void MediaSession::setCaptionTracks(Vector<MediaSessionCaptionTrack>&& tracks)
+{
+    m_captionTracks = WTF::move(tracks);
+    if (RefPtr mediaElement = activeMediaElement())
+        mediaElement->mediaSessionCaptionTracksChanged();
+}
+
+void MediaSession::setCaptionsEnabled(bool enabled)
+{
+    m_captionsEnabled = enabled;
+
+    if (RefPtr captionPreferences = this->captionPreferences()) {
+        auto displayMode = enabled ? CaptionUserPreferences::CaptionDisplayMode::AlwaysOn : CaptionUserPreferences::CaptionDisplayMode::ForcedOnly;
+        captionPreferences->setCaptionDisplayMode(displayMode);
+    }
+
+    if (RefPtr mediaElement = activeMediaElement())
+        mediaElement->mediaSessionCaptionsEnabledChanged();
+}
+
 
 }
 

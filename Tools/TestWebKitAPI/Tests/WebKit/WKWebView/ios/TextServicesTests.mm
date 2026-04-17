@@ -50,7 +50,7 @@ TEST(TextServicesTests, LookUpPresentationRect)
 {
     InstanceMethodSwizzler swizzler { UIWKTextInteractionAssistant.class, @selector(lookup:withRange:fromRect:), reinterpret_cast<IMP>(handleLookup) };
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width'><style>p { font-size: 20px; }</style><p>Foo</p><p>Hello World</p>"];
     [webView stringByEvaluatingJavaScript:@"getSelection().selectAllChildren(document.querySelector('p'))"];
     [webView waitForNextPresentationUpdate];

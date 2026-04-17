@@ -112,10 +112,10 @@ static bool needsPseudoElementForAnimation(const Element& element, PseudoElement
 
 static RenderPtr<RenderObject> createContentRenderer(const Style::Content::Text& value, const String& altText, Document& document, const RenderStyle&)
 {
-    if (value.text.isEmpty() && altText.isEmpty())
+    if (value.text.value.isEmpty() && altText.isEmpty())
         return { };
 
-    auto contentRenderer = createRenderer<RenderTextFragment>(document, value.text);
+    auto contentRenderer = createRenderer<RenderTextFragment>(document, value.text.value);
     contentRenderer->setAltText(altText);
     return contentRenderer;
 }
@@ -143,11 +143,11 @@ static RenderPtr<RenderObject> createContentRenderer(const Style::Content::Quote
 void RenderTreeUpdater::GeneratedContent::createContentRenderers(RenderTreeBuilder& builder, RenderElement& pseudoRenderer, const RenderStyle& style, PseudoElementType pseudoElementType)
 {
     if (auto* contentData = style.content().tryData()) {
-        auto altText = contentData->altText.value_or(String { });
+        auto altText = contentData->altText.value_or(String { nullString() });
         for (auto& contentItem : contentData->list) {
             WTF::switchOn(contentItem,
                 [&](const auto& item) {
-                    if (auto child = createContentRenderer(item, altText, pseudoRenderer.document(), style); child && pseudoRenderer.isChildAllowed(*child, style))
+                    if (auto child = createContentRenderer(item, altText.value, pseudoRenderer.document(), style); child && pseudoRenderer.isChildAllowed(*child, style))
                         builder.attach(pseudoRenderer, WTF::move(child));
                 }
             );

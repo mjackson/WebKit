@@ -40,7 +40,7 @@ TEST(RestoreScrollPositionTests, RestoreScrollPositionWithLargeContentInset)
 {
     auto topInset = 1165;
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 375, 1024)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 375, 1024)]);
     [webView setOverrideSafeAreaInset:UIEdgeInsetsMake(141, 0, 0, 0)];
     
     [webView synchronouslyLoadTestPageNamed:@"simple-tall"];
@@ -64,13 +64,13 @@ TEST(RestoreScrollPositionTests, RestoreScrollPositionWithLargeContentInset)
 
 TEST(RestoreScrollPositionTests, RestoreScrollPositionDuringResize)
 {
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     processPoolConfiguration.get().pageCacheEnabled = NO;
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
-    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:webViewConfiguration.get()]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple-tall"];
     [webView stringByEvaluatingJavaScript:@"scrollTo(0, 1000)"];
@@ -113,7 +113,7 @@ TEST(RestoreScrollPositionTests, RestoreScrollPositionDuringResize)
 
 TEST(RestoreScrollPositionTests, RestoreScrollPositionAfterBack)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 390, 664)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 390, 664)]);
 
     [webView synchronouslyLoadTestPageNamed:@"simple-tall"];
     [webView _setViewScale:1.15]; // Simulate MobileSafari setting view scale on every didCommitNavigation.

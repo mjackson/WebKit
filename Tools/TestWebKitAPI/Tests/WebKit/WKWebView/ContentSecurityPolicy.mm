@@ -77,8 +77,8 @@ TEST(WKWebView, SetOverrideContentSecurityPolicyForPageWithoutCSP)
 TEST(WKWebView, CheckViolationReportDocumentURIForFileProtocol)
 {
     @autoreleasepool {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
         NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"csp-document-uri-report" withExtension:@"html"]];
         [webView loadRequest:request];
 
@@ -89,14 +89,14 @@ TEST(WKWebView, CheckViolationReportDocumentURIForFileProtocol)
 TEST(WKWebView, CheckViolationReportDocumentURIForDataProtocol)
 {
     @autoreleasepool {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
         NSString *path = [NSBundle.test_resourcesBundle pathForResource:@"csp-document-uri-report" ofType:@"html"];
         NSString* content = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL];
 
         NSURLRequest *loadRequest = [NSURLRequest requestWithURL:[NSURL URLWithString:@"data:text/html"]];
         NSData *data = [content dataUsingEncoding:NSUTF8StringEncoding];
-        auto response = adoptNS([[NSURLResponse alloc] initWithURL:[NSURL URLWithString:@"data:text/html"] MIMEType:@"text/HTML" expectedContentLength:[data length] textEncodingName:@"UTF-8"]);
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:[NSURL URLWithString:@"data:text/html"] MIMEType:@"text/HTML" expectedContentLength:[data length] textEncodingName:@"UTF-8"]);
 
         [webView loadSimulatedRequest:loadRequest response:response.get() responseData:data];
         [webView waitForMessage:@"document-uri: data"];
@@ -106,8 +106,8 @@ TEST(WKWebView, CheckViolationReportDocumentURIForDataProtocol)
 TEST(WKWebView, CheckViolationReportDocumentURIForAboutProtocol)
 {
     @autoreleasepool {
-        auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
         NSString *path = [NSBundle.test_resourcesBundle pathForResource:@"csp-document-uri-report" ofType:@"html"];
         NSString* content = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL];
 
@@ -122,7 +122,7 @@ TEST(ContentSecurityPolicy, InvalidRequireTrustedTypesFor)
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "content-security-policy"_s, "require-trusted-types-for 'script html'"_s } }, "hi"_s } }
     });
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView loadRequest:server.request()];
     [webView _test_waitForDidFinishNavigation];
 }

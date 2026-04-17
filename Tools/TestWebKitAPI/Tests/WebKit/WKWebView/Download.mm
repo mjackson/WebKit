@@ -140,7 +140,7 @@ IGNORE_WARNINGS_END
 TEST(_WKDownload, DownloadDelegate)
 {
     RetainPtr<WKProcessPool> processPool = adoptNS([[WKProcessPool alloc] init]);
-    auto downloadDelegate = adoptNS([[DownloadDelegate alloc] init]);
+    RetainPtr downloadDelegate = adoptNS([[DownloadDelegate alloc] init]);
     [processPool _setDownloadDelegate:downloadDelegate.get()];
 
     @autoreleasepool {
@@ -364,10 +364,10 @@ TEST(_WKDownload, DownloadRequestOriginalURLDirectDownload)
 
 TEST(_WKDownload, DownloadRequestOriginalURLDirectDownloadWithLoadedContent)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
-    auto navigationDelegate = adoptNS([[DownloadRequestOriginalURLNavigationDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr navigationDelegate = adoptNS([[DownloadRequestOriginalURLNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
-    auto downloadDelegate = adoptNS([[DownloadRequestOriginalURLDelegate alloc] initWithExpectedOriginalURL:sourceURL]);
+    RetainPtr downloadDelegate = adoptNS([[DownloadRequestOriginalURLDelegate alloc] initWithExpectedOriginalURL:sourceURL]);
     [[[webView configuration] processPool] _setDownloadDelegate:downloadDelegate.get()];
 
     expectedUserInitiatedState = false;
@@ -521,9 +521,9 @@ TEST(_WKDownload, RedirectedDownload)
     redirectCount = 0;
     isDone = false;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
-    auto downloadDelegate = adoptNS([[RedirectedDownloadDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr downloadDelegate = adoptNS([[RedirectedDownloadDelegate alloc] init]);
     [[[webView configuration] processPool] _setDownloadDelegate:downloadDelegate.get()];
 
     // Do 2 loads in the same view to make sure the redirect chain is properly cleared between loads.
@@ -533,7 +533,7 @@ TEST(_WKDownload, RedirectedDownload)
     expectedOriginatingWebView = webView.get();
     expectedUserInitiatedState = true;
 
-    auto navigationDelegate = adoptNS([[DownloadNavigationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[DownloadNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView objectByEvaluatingJavaScriptWithUserGesture:@"document.getElementById('link').click();"];
 
@@ -548,10 +548,10 @@ TEST(_WKDownload, RedirectedLoadConvertedToDownload)
 {
     [TestProtocol registerWithScheme:@"http"];
 
-    auto navigationDelegate = adoptNS([[ConvertResponseToDownloadNavigationDelegate alloc] init]);
-    auto downloadDelegate = adoptNS([[RedirectedDownloadDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[ConvertResponseToDownloadNavigationDelegate alloc] init]);
+    RetainPtr downloadDelegate = adoptNS([[RedirectedDownloadDelegate alloc] init]);
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [[[webView configuration] processPool] _setDownloadDelegate:downloadDelegate.get()];
 
@@ -571,10 +571,10 @@ TEST(_WKDownload, RedirectedSubframeLoadConvertedToDownload)
 {
     [TestProtocol registerWithScheme:@"http"];
 
-    auto navigationDelegate = adoptNS([[ConvertResponseToDownloadNavigationDelegate alloc] init]);
-    auto downloadDelegate = adoptNS([[RedirectedDownloadDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[ConvertResponseToDownloadNavigationDelegate alloc] init]);
+    RetainPtr downloadDelegate = adoptNS([[RedirectedDownloadDelegate alloc] init]);
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [[[webView configuration] processPool] _setDownloadDelegate:downloadDelegate.get()];
 
@@ -626,10 +626,10 @@ TEST(_WKDownload, DownloadCanceledWhileDecidingDestination)
 {
     [TestProtocol registerWithScheme:@"http"];
 
-    auto navigationDelegate = adoptNS([[DownloadNavigationDelegate alloc] init]);
-    auto downloadDelegate = adoptNS([[CancelDownloadWhileDecidingDestinationDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[DownloadNavigationDelegate alloc] init]);
+    RetainPtr downloadDelegate = adoptNS([[CancelDownloadWhileDecidingDestinationDelegate alloc] init]);
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [[[webView configuration] processPool] _setDownloadDelegate:downloadDelegate.get()];
 
@@ -726,11 +726,11 @@ TEST(_WKDownload, SystemPreviewUSDZBlobNaming)
 
 TEST(_WKDownload, DownloadAttributeDoesNotStartDownloads)
 {
-    auto delegate = adoptNS([[DownloadAttributeTestDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[DownloadAttributeTestDelegate alloc] init]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get()._allowTopNavigationToDataURLs = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView setNavigationDelegate:delegate.get()];
     [webView configuration].processPool._downloadDelegate = delegate.get();
@@ -745,11 +745,11 @@ TEST(_WKDownload, DownloadAttributeDoesNotStartDownloads)
 
 TEST(_WKDownload, StartDownloadWithDownloadAttribute)
 {
-    auto delegate = adoptNS([[DownloadAttributeTestDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[DownloadAttributeTestDelegate alloc] init]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     configuration.get()._allowTopNavigationToDataURLs = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     [webView setNavigationDelegate:delegate.get()];
     [webView configuration].processPool._downloadDelegate = delegate.get();
@@ -787,8 +787,8 @@ static bool didDownloadStart;
 
 TEST(_WKDownload, CrashAfterDownloadDidFinishWhenDownloadProxyHoldsTheLastRefOnWebProcessPool)
 {
-    auto navigationDelegate = adoptNS([[DownloadNavigationDelegate alloc] init]);
-    auto downloadDelegate = adoptNS([[WaitUntilDownloadCanceledDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[DownloadNavigationDelegate alloc] init]);
+    RetainPtr downloadDelegate = adoptNS([[WaitUntilDownloadCanceledDelegate alloc] init]);
     WeakObjCPtr<WKProcessPool> processPool;
     @autoreleasepool {
         RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
@@ -877,20 +877,20 @@ void respondSlowly(const Connection& connection, double kbps)
 
 static RetainPtr<DownloadMonitorTestDelegate> monitorDelegate()
 {
-    static auto delegate = adoptNS([DownloadMonitorTestDelegate new]);
+    static RetainPtr delegate = adoptNS([DownloadMonitorTestDelegate new]);
     return delegate;
 }
 
 RetainPtr<WKWebView> webViewWithDownloadMonitorSpeedMultiplier(size_t multiplier)
 {
-    static auto navigationDelegate = adoptNS([DownloadNavigationDelegate new]);
-    auto processPoolConfiguration = adoptNS([_WKProcessPoolConfiguration new]);
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
-    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    static RetainPtr navigationDelegate = adoptNS([DownloadNavigationDelegate new]);
+    RetainPtr processPoolConfiguration = adoptNS([_WKProcessPoolConfiguration new]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     [dataStoreConfiguration setTestSpeedMultiplier:multiplier];
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [webViewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]).get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView configuration].processPool._downloadDelegate = monitorDelegate().get();
     return webView;
@@ -1015,8 +1015,8 @@ TEST(WebKit, DownloadNavigationResponseFromMemoryCache)
     [TestProtocol registerWithScheme:@"http"];
     TestProtocol.additionalResponseHeaders = @{ @"Cache-Control" : @"max-age=3600" };
 
-    auto delegate = adoptNS([[TestDownloadNavigationResponseFromMemoryCacheDelegate alloc] init]);
-    auto webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr delegate = adoptNS([[TestDownloadNavigationResponseFromMemoryCacheDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView configuration].processPool._downloadDelegate = delegate.get();
 
@@ -1183,8 +1183,8 @@ TEST(WKDownload, ResumedDownloadCanHandleAuthenticationChallenge)
         });
     });
 
-    auto webView = adoptNS([WKWebView new]);
-    auto delegate1 = adoptNS([DownloadCancelingDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr delegate1 = adoptNS([DownloadCancelingDelegate new]);
 
     isDone = false;
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/", server.port()]]];
@@ -1194,7 +1194,7 @@ TEST(WKDownload, ResumedDownloadCanHandleAuthenticationChallenge)
 
     Util::run(&isDone);
     isDone = false;
-    auto delegate2 = adoptNS([AuthenticationChallengeHandlingDelegate new]);
+    RetainPtr delegate2 = adoptNS([AuthenticationChallengeHandlingDelegate new]);
     [webView resumeDownloadFromResumeData:[delegate1 resumeData].get() completionHandler:^(WKDownload *download) {
         download.delegate = delegate2.get();
     }];
@@ -1319,7 +1319,7 @@ TEST(WKDownload, Resume)
 
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     navigationDelegate.get().decidePolicyForNavigationResponse = ^(WKNavigationResponse *, void (^completionHandler)(WKNavigationResponsePolicy)) {
         completionHandler(WKNavigationResponsePolicyDownload);
     };
@@ -1332,8 +1332,8 @@ TEST(WKDownload, Resume)
     __block RetainPtr<WKDownload> download;
     __block RetainPtr<NSData> resumeData;
 
-    auto downloadDelegate = adoptNS([TestDownloadDelegate new]);
-    auto observer = adoptNS([DownloadObserver new]);
+    RetainPtr downloadDelegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr observer = adoptNS([DownloadObserver new]);
 
     navigationDelegate.get().navigationResponseDidBecomeDownload = ^(WKNavigationResponse *, WKDownload *downloadFromDelegate) {
         callbacks.append(Callback::Start);
@@ -1360,7 +1360,7 @@ TEST(WKDownload, Resume)
         didFinish = true;
     };
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView loadRequest:server.request()];
     Util::run(&receivedData);
@@ -1445,10 +1445,10 @@ function loaded()
 
 TEST(_WKDownload, SubframeSecurityOrigin)
 {
-    auto navigationDelegate = adoptNS([[DownloadTestSchemeDelegate alloc] init]);
-    auto downloadDelegate = adoptNS([[DownloadSecurityOriginDelegate alloc] init]);
+    RetainPtr navigationDelegate = adoptNS([[DownloadTestSchemeDelegate alloc] init]);
+    RetainPtr downloadDelegate = adoptNS([[DownloadSecurityOriginDelegate alloc] init]);
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [[[webView configuration] processPool] _setDownloadDelegate:downloadDelegate.get()];
 
@@ -1500,8 +1500,8 @@ TEST(WKDownload, FinishSuccessfully)
 {
     auto server = simpleDownloadTestServer();
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     delegate.get().navigationResponseDidBecomeDownload = ^(WKWebView *, WKNavigationResponse *, WKDownload *download) {
@@ -1537,8 +1537,8 @@ static void resumeAndFinishDownload(NSData *resumeData, NSURL *destination)
     @autoreleasepool {
         checkFileContents(destination, longString<5000>('a'));
 
-        auto delegate = adoptNS([TestDownloadDelegate new]);
-        auto webView = adoptNS([WKWebView new]);
+        RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+        RetainPtr webView = adoptNS([WKWebView new]);
 
         [webView resumeDownloadFromResumeData:resumeData completionHandler:^(WKDownload *download) {
             retainedDownload = download;
@@ -1554,7 +1554,7 @@ static void resumeAndFinishDownload(NSData *resumeData, NSURL *destination)
             ASSERT_NOT_REACHED();
         };
 
-        auto observer = adoptNS([DownloadObserver new]);
+        RetainPtr observer = adoptNS([DownloadObserver new]);
         observer.get().progressChangeCallback = ^(int64_t bytesWritten, int64_t totalByteCount) {
             if (bytesWritten == 10000) {
                 EXPECT_EQ(totalByteCount, 10000);
@@ -1589,7 +1589,7 @@ static void waitForFirst5k(RetainPtr<WKDownload>& download)
 {
     __block bool downloadedFirst5k = false;
     
-    auto observer = adoptNS([DownloadObserver new]);
+    RetainPtr observer = adoptNS([DownloadObserver new]);
     observer.get().progressChangeCallback = ^(int64_t bytesWritten, int64_t totalByteCount) {
         if (bytesWritten == 5000) {
             EXPECT_EQ(totalByteCount, 10000);
@@ -1607,8 +1607,8 @@ TEST(WKDownload, CancelAndResume)
 {
     auto server = downloadTestServer();
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block RetainPtr<WKDownload> retainedDownload;
@@ -1646,14 +1646,14 @@ TEST(WKDownload, CancelAndResume)
 
 TEST(WKDownload, FailAndResume)
 {
-    auto delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
     RetainPtr<WKDownload> retainedDownload;
     auto server = downloadTestServer(IncludeETag::Yes, [&] (TestWebKitAPI::Connection connection) {
         waitForFirst5k(retainedDownload);
         connection.terminate();
     });
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     RetainPtr<NSData> retainedResumeData;
@@ -1692,8 +1692,8 @@ TEST(WKDownload, CancelNoResumeData)
 {
     auto server = downloadTestServer(IncludeETag::No);
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block RetainPtr<WKDownload> retainedDownload;
@@ -1727,14 +1727,14 @@ TEST(WKDownload, CancelNoResumeData)
 
 TEST(WKDownload, FailNoResumeData)
 {
-    auto delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
     RetainPtr<WKDownload> retainedDownload;
     auto server = downloadTestServer(IncludeETag::No, [&] (TestWebKitAPI::Connection connection) {
         waitForFirst5k(retainedDownload);
         connection.terminate();
     });
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     bool done = false;
@@ -1802,8 +1802,8 @@ TEST(WKDownload, ResumeAfterZeroBytesReceived)
     });
 
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     webView.navigationDelegate = delegate.get();
 
     delegate.get().navigationResponseDidBecomeDownload = ^(WKWebView *, WKNavigationResponse *, WKDownload *download) {
@@ -1850,8 +1850,8 @@ TEST(WKDownload, ResumeAfterZeroBytesReceived)
 
 void testResumeAfterMutatingDisk(NSURLRequest *serverRequest, NSURL *expectedDownloadFile, void(^mutateFile)(void))
 {
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block RetainPtr<WKDownload> retainedDownload;
@@ -1990,7 +1990,7 @@ TEST(WKDownload, ResumeWithInvalidResumeData)
 {
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
     EXPECT_TRUE([[@"initial data on disk" dataUsingEncoding:NSUTF8StringEncoding] writeToURL:expectedDownloadFile.get() atomically:YES]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     bool caughtException = false;
     @try {
         [webView resumeDownloadFromResumeData:[@"invalid resume data" dataUsingEncoding:NSUTF8StringEncoding] completionHandler:^(WKDownload *download) {
@@ -2007,8 +2007,8 @@ TEST(WKDownload, ResumeCantReconnect)
 {
     auto server = downloadTestServer();
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block RetainPtr<WKDownload> retainedDownload;
@@ -2070,12 +2070,12 @@ TEST(WKDownload, UnknownContentLength)
         });
     });
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool done = false;
-    auto observer = adoptNS([DownloadObserver new]);
+    RetainPtr observer = adoptNS([DownloadObserver new]);
     observer.get().progressChangeCallback = ^(int64_t bytesWritten, int64_t totalByteCount) {
         EXPECT_EQ(totalByteCount, -1);
         if (bytesWritten == 5000)
@@ -2109,10 +2109,10 @@ TEST(WKDownload, UnknownContentLength)
 
 TEST(WKDownload, InvalidArguments)
 {
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     __block bool caughtException = false;
     auto server = downloadTestServer();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
     [webView startDownloadUsingRequest:server.request() completionHandler:^(WKDownload *download) {
         download.delegate = delegate.get();
         delegate.get().decideDestinationUsingResponse = ^(WKDownload *, NSURLResponse *, NSString *, void (^completionHandler)(NSURL *)) {
@@ -2145,11 +2145,11 @@ TEST(WKDownload, RedirectAllow)
 {
     auto server = redirectServer();
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
-    auto serverRequest = adoptNS([server.request() mutableCopy]);
+    RetainPtr serverRequest = adoptNS([server.request() mutableCopy]);
     [serverRequest setHTTPBody:[@"body" dataUsingEncoding:NSUTF8StringEncoding]];
 
     __block bool finishedDownload = false;
@@ -2194,8 +2194,8 @@ TEST(WKDownload, RedirectCancel)
 {
     auto server = redirectServer();
     RetainPtr serverRequest = server.request();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool cancelled = false;
@@ -2229,8 +2229,8 @@ TEST(WKDownload, DownloadRequestFailure)
         connection.terminate();
     });
     RetainPtr serverRequest = server.request();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool failed = false;
@@ -2270,8 +2270,8 @@ TEST(WKDownload, DownloadRequest404)
         { "/"_s, { 404, { }, "http body"_s } }
     });
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool didFinish = false;
@@ -2304,8 +2304,8 @@ TEST(WKDownload, DecidePlaceholderPolicy)
         { "/"_s, { 404, { }, "http body"_s } }
     });
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool didFinish = false;
@@ -2335,8 +2335,8 @@ TEST(WKDownload, PlaceholderPolicyEnable)
         { "/"_s, { 404, { }, "http body"_s } }
     });
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool didFinish = false;
@@ -2373,8 +2373,8 @@ TEST(WKDownload, PlaceholderPolicyDisable)
         { "/"_s, { 404, { }, "http body"_s } }
     });
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     // manually create a placeholder file
@@ -2415,8 +2415,8 @@ TEST(WKDownload, PlaceholderPolicyDisableWithNonExistentPlaceholderURL)
         { "/"_s, { 404, { }, "http body"_s } }
     });
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     // Pass a non-existent file URL as the placeholder. This should not cause
@@ -2453,8 +2453,8 @@ TEST(WKDownload, NetworkProcessCrash)
 {
     auto server = downloadTestServer();
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block RetainPtr<WKDownload> retainedDownload;
@@ -2494,8 +2494,8 @@ TEST(WKDownload, SuggestedFilenameFromHost)
         { "/"_s, { "download content"_s } }
     });
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     delegate.get().navigationResponseDidBecomeDownload = ^(WKWebView *, WKNavigationResponse *, WKDownload *download) {
@@ -2525,9 +2525,9 @@ TEST(WKDownload, SuggestedFilenameFromHost)
 TEST(WKDownload, RequestHTTPBody)
 {
     auto server = downloadTestServer();
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     __block bool done = false;
-    auto request = adoptNS([server.request() mutableCopy]);
+    RetainPtr request = adoptNS([server.request() mutableCopy]);
     [request setHTTPBody:[@"body" dataUsingEncoding:NSUTF8StringEncoding]];
     [webView startDownloadUsingRequest:request.get() completionHandler:^(WKDownload *download) {
         EXPECT_NULL(download.originalRequest.HTTPBody); // FIXME: We probably want to make this non-null.
@@ -2543,8 +2543,8 @@ TEST(WKDownload, PathMustExist)
     NSURL *expectedDownloadFile = [tempDir URLByAppendingPathComponent:@"example.txt"];
 
     auto server = downloadTestServer();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool failed = false;
@@ -2577,8 +2577,8 @@ TEST(WKDownload, FileMustNotExist)
 {
     auto server = downloadTestServer();
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    __block auto retainedDelegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    __block RetainPtr retainedDelegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:retainedDelegate.get()];
 
     EXPECT_TRUE([[@"initial data on disk" dataUsingEncoding:NSUTF8StringEncoding] writeToURL:expectedDownloadFile.get() atomically:YES]);
@@ -2614,8 +2614,8 @@ TEST(WKDownload, FileMustNotExist)
 TEST(WKDownload, DestinationNullString)
 {
     auto server = downloadTestServer();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
     __block bool failed = false;
@@ -2647,8 +2647,8 @@ TEST(WKDownload, DestinationNullString)
 TEST(WKDownload, ChallengeSuccess)
 {
     HTTPServer server({{ "/"_s, { "download content"_s }}}, HTTPServer::Protocol::Https);
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
     __block bool finished = false;
     delegate.get().downloadDidFinish = ^(WKDownload *download) {
@@ -2682,8 +2682,8 @@ TEST(WKDownload, ChallengeSuccess)
 TEST(WKDownload, ChallengeFailure)
 {
     HTTPServer server({ }, HTTPServer::Protocol::Https);
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     __block bool failed = false;
     delegate.get().didFailWithError = ^(WKDownload *download, NSError *error, NSData *resumeData) {
         EXPECT_WK_STREQ(error.domain, NSURLErrorDomain);
@@ -2719,9 +2719,9 @@ void blobTest(bool downloadFromNavigationAction, std::initializer_list<DownloadC
     "}"
     "</script><body onload='downloadBlob()'></body>";
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView loadHTMLString:html baseURL:nil];
-    auto delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         if ([action.request.URL.absoluteString isEqualToString:@"about:blank"])
@@ -2797,9 +2797,9 @@ TEST(WKDownload, BlobResponseNoFilename)
     "    a.click();"
     "}"
     "</script><body onload='downloadBlob()'></body>";
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
-    auto delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
         EXPECT_FALSE(action.shouldPerformDownload);
@@ -2841,9 +2841,9 @@ TEST(WKDownload, BlobDownload)
     auto *script = @"createBlob()";
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
 
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
 
-    auto delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
 
     [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
     [webView _test_waitForDidFinishNavigation];
@@ -2906,10 +2906,10 @@ TEST(WKDownload, SubframeOriginator)
 
     NSString *mainHTML = [NSString stringWithFormat:@"<iframe src='http://127.0.0.1:%d/'></iframe>", childFrameServer.port()];
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView loadHTMLString:mainHTML baseURL:[NSURL URLWithString:@"http://webkit.org/"]];
 
-    auto delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     delegate.get().decidePolicyForNavigationResponse = ^(WKNavigationResponse *response, void (^completionHandler)(WKNavigationResponsePolicy)) {
         if ([response.response.URL.absoluteString isEqualToString:@"http://webkit.org/"]
@@ -2966,10 +2966,10 @@ static TestWebKitAPI::HTTPServer simplePDFTestServer()
 
 TEST(WKDownload, LockdownModePDF)
 {
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     auto server = simplePDFTestServer();
     RetainPtr expectedDownloadFile = tempPDFThatDoesNotExist();
@@ -3021,10 +3021,10 @@ static TestWebKitAPI::HTTPServer simpleUSDZTestServer()
 
 TEST(WKDownload, LockdownModeUSDZ)
 {
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto delegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr delegate = adoptNS([TestDownloadDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     auto server = simpleUSDZTestServer();
     RetainPtr expectedDownloadFile = tempUSDZThatDoesNotExist();
@@ -3064,9 +3064,9 @@ TEST(WKDownload, DecideAfterRedirect)
     } };
     RetainPtr request = server.request();
     RetainPtr redirectedRequest = server.request("/redirectTarget"_s);
-    auto webView = adoptNS([WKWebView new]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
-    auto downloadDelegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr downloadDelegate = adoptNS([TestDownloadDelegate new]);
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
 
     downloadDelegate.get().decideDestinationUsingResponse = ^(WKDownload *, NSURLResponse *, NSString *, void (^completionHandler)(NSURL *)) {
@@ -3100,11 +3100,11 @@ TEST(WKDownload, DecideAfterRedirectLegacyDownloadSPI)
     } };
     RetainPtr request = server.request();
     RetainPtr redirectedRequest = server.request("/redirectTarget"_s);
-    auto webView = adoptNS([WKWebView new]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
 
-    auto downloadDelegate = adoptNS([TestLegacyDownloadDelegate new]);
+    RetainPtr downloadDelegate = adoptNS([TestLegacyDownloadDelegate new]);
     downloadDelegate.get().decideDestinationWithSuggestedFilename = ^(_WKDownload *, NSString *suggestedFilename, void (^completionHandler)(BOOL, NSString *)) {
         completionHandler(YES, expectedDownloadFile.get().path);
     };
@@ -3141,8 +3141,8 @@ TEST(WKDownload, OriginatingFrameAndUserGesture)
     }, HTTPServer::Protocol::HttpsProxy };
 
     RetainPtr configuration = server.httpsProxyConfiguration();
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navigationDelegate.get()];
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]];
@@ -3185,7 +3185,7 @@ TEST(WKDownload, OriginatingFrameAndUserGesture)
     userGesture = YES;
     check();
 
-    auto emptyWebView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr emptyWebView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
     checkedDownload = false;
     [emptyWebView startDownloadUsingRequest:request completionHandler:^(WKDownload *download) {
         EXPECT_NOT_NULL(download.originatingFrame.securityOrigin);
@@ -3201,9 +3201,9 @@ TEST(WKDownload, OriginatingFrameAndUserGesture)
 TEST(WKDownload, DestinationFileAlreadyExists)
 {
     HTTPServer server { { { "/"_s, { "hi"_s } } } };
-    auto webView = adoptNS([WKWebView new]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
-    auto downloadDelegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr downloadDelegate = adoptNS([TestDownloadDelegate new]);
     RetainPtr expectedDownloadFile = tempFileThatDoesNotExist();
     [[NSData data] writeToURL:expectedDownloadFile.get() atomically:YES];
 
@@ -3245,8 +3245,8 @@ TEST(WKDownload, OriginatingFrameWhenConvertingNavigationInNewWindow)
     }, HTTPServer::Protocol::HttpsProxy };
 
     RetainPtr configuration = server.httpsProxyConfiguration();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
@@ -3254,7 +3254,7 @@ TEST(WKDownload, OriginatingFrameWhenConvertingNavigationInNewWindow)
 
     RetainPtr<WKFrameInfo> openerMainFrame = [webView mainFrame].info;
 
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:uiDelegate.get()];
     __block RetainPtr<WKWebView> openedWebView;
     uiDelegate.get().createWebViewWithConfiguration = ^WKWebView *(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
@@ -3325,8 +3325,8 @@ TEST(WKDownload, OriginatingFrameWhenNavigatingToNewDomainWithRedirect)
     }, HTTPServer::Protocol::HttpsProxy);
 
     RetainPtr configuration = server.httpsProxyConfiguration();
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
     [webView setNavigationDelegate:navigationDelegate.get()];
     auto request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/original_page"]];
@@ -3472,8 +3472,8 @@ TEST(WKDownload, SuggestedFilenameCorrectedByContentType)
         });
     });
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
-    auto downloadDelegate = adoptNS([TestDownloadDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr downloadDelegate = adoptNS([TestDownloadDelegate new]);
 
     __block bool downloadDestinationDecided = false;
     __block RetainPtr<NSString> receivedSuggestedFilename;
@@ -3493,7 +3493,7 @@ TEST(WKDownload, SuggestedFilenameCorrectedByContentType)
     };
 
     auto requestURL = makeString("http://127.0.0.1:"_s, server.port(), "/video.gif"_s);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:navigationDelegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:requestURL.createNSString().get()]]];
     Util::run(&downloadDestinationDecided);

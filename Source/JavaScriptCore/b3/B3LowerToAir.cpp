@@ -5885,7 +5885,7 @@ private:
             Tmp pointer = tmp(ptr);
 
             Arg ptrPlusImm = m_code.newTmp(GP);
-            append(Inst(Move32, value, pointer, ptrPlusImm));
+            append(Inst(moveForType(ptr->type()), value, pointer, ptrPlusImm));
             if (value->offset()) {
                 if (imm(value->offset()))
                     append(Add64, imm(value->offset()), ptrPlusImm);
@@ -5911,7 +5911,10 @@ private:
                 break;
             }
 
-            append(Inst(Air::WasmBoundsCheck, value, ptrPlusImm, limit));
+            if (value->offset())
+                append(Inst(Air::WasmBoundsCheck, value, ptrPlusImm, limit, pointer));
+            else
+                append(Inst(Air::WasmBoundsCheck, value, ptrPlusImm, limit));
             return;
         }
 

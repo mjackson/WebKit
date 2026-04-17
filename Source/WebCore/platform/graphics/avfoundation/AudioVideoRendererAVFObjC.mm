@@ -739,9 +739,9 @@ void AudioVideoRendererAVFObjC::setShouldMaintainAspectRatio(bool shouldMaintain
 
 void AudioVideoRendererAVFObjC::renderingCanBeAcceleratedChanged(bool isAccelerated)
 {
+    ALWAYS_LOG(LOGIDENTIFIER, isAccelerated);
     m_renderingCanBeAccelerated = isAccelerated;
-    if (isAccelerated)
-        updateDisplayLayerIfNeeded();
+    updateDisplayLayerIfNeeded();
 }
 
 void AudioVideoRendererAVFObjC::contentBoxRectChanged(const LayoutRect& newRect)

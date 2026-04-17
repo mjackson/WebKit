@@ -26,6 +26,8 @@
 #include "config.h"
 #include "JSDOMConvertBufferSource.h"
 
+#include <JavaScriptCore/JSGenericTypedArrayViewInlines.h>
+
 namespace WebCore {
 
 RefPtr<JSC::Int8Array> toPossiblySharedInt8Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::Int8Adaptor>(vm, value); }

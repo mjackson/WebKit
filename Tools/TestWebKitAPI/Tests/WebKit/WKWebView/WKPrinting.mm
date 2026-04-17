@@ -80,9 +80,9 @@ typedef void (^CallCompletionBlock)();
 
 TEST(Printing, PrintWithDelayedCompletion)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([PrintWithSimulatedPageComputationUIDelegate new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([PrintWithSimulatedPageComputationUIDelegate new]);
     [webView setUIDelegate:delegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]];
@@ -121,7 +121,7 @@ TEST(Printing, PrintWithDelayedCompletion)
 
 - (void)_webView:(WKWebView *)webView printFrame:(_WKFrameHandle *)frame pdfFirstPageSize:(CGSize)size completionHandler:(void (^)(void))completionHandler
 {
-    auto printInfo = adoptNS([[NSPrintInfo alloc] init]);
+    RetainPtr printInfo = adoptNS([[NSPrintInfo alloc] init]);
 
     NSPrintOperation *operation = [webView _printOperationWithPrintInfo:printInfo.get() forFrame:frame];
 
@@ -139,9 +139,9 @@ TEST(Printing, PrintWithDelayedCompletion)
 
 TEST(Printing, PrintPageBorders)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
-    auto webView = adoptNS([[WKPrintPageBordersWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([PrintShowingPrintPanelUIDelegate new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webView = adoptNS([[WKPrintPageBordersWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([PrintShowingPrintPanelUIDelegate new]);
     [webView setUIDelegate:delegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]];

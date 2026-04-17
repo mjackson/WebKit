@@ -122,6 +122,7 @@
 #import <WebCore/ReportingScope.h>
 #import <WebCore/ScriptController.h>
 #import <WebCore/SecurityOrigin.h>
+#import <WebCore/SimpleRange.h>
 #import <WebCore/SmartReplace.h>
 #import <WebCore/SubframeLoader.h>
 #import <WebCore/TextIterator.h>
@@ -2373,6 +2374,23 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     if (RefPtr document = coreFrame->document())
         document->reportingScope().generateTestReport(message, group);
+}
+
+- (NSString *)_plainTextForTesting
+{
+    auto coreFrame = _private->coreFrame;
+    if (!coreFrame)
+        return @"";
+
+    RefPtr document = coreFrame->document();
+    if (!document || !document->documentElement())
+        return @"";
+
+    Ref documentElement = *document->documentElement();
+    document->updateLayoutIgnorePendingStylesheets();
+    if (!documentElement->renderer())
+        return documentElement->textContent(true).createNSString().autorelease();
+    return plainText(makeRangeSelectingNodeContents(documentElement)).createNSString().autorelease();
 }
 
 @end

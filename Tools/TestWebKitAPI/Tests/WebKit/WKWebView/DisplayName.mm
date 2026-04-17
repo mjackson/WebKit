@@ -57,10 +57,10 @@ static void checkUntilDisplayNameIs(WKWebView *webView, NSString *expectedName, 
 #if !ENABLE(SET_WEBCONTENT_PROCESS_INFORMATION_IN_NETWORK_PROCESS) || USE(APPLE_INTERNAL_SDK)
 TEST(WebKit, CustomDisplayName)
 {
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
     NSString *displayNameToSet = @"test display name";
     configuration.get()._processDisplayName = displayNameToSet;
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
     [webView synchronouslyLoadHTMLString:@"start web process"];
 
     bool done = false;
@@ -70,7 +70,7 @@ TEST(WebKit, CustomDisplayName)
 
 TEST(WebKit, DefaultDisplayName)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     [webView synchronouslyLoadHTMLString:@"start web process"];
 
     __block bool done = false;

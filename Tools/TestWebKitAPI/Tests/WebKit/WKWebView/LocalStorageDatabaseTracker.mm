@@ -64,9 +64,9 @@ TEST(WKWebView, LocalStorageFetchDataRecords)
     TestWebKitAPI::Util::run(&readyToContinue);
 
     readyToContinue = false;
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto uiDelegate = adoptNS([[LocalStorageUIDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr uiDelegate = adoptNS([[LocalStorageUIDelegate alloc] init]);
     webView.get().UIDelegate = uiDelegate.get();
     [uiDelegate.get() setExpectedMessage:@"testValue"];
     [webView loadHTMLString:@"<script>localStorage.setItem('testKey', 'testValue');alert(localStorage.getItem('testKey'));</script>" baseURL:[NSURL URLWithString:@"http://localhost"]];
@@ -91,9 +91,9 @@ TEST(WKWebView, LocalStorageNoRecordAfterGetItem)
     }];
     TestWebKitAPI::Util::run(&readyToContinue);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto uiDelegate = adoptNS([[LocalStorageUIDelegate alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr uiDelegate = adoptNS([[LocalStorageUIDelegate alloc] init]);
     webView.get().UIDelegate = uiDelegate.get();
     readyToContinue = false;
     [uiDelegate.get() setExpectedMessage:@"null"];

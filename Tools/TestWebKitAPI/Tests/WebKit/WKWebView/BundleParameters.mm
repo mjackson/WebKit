@@ -39,7 +39,7 @@ TEST(WebKit, BundleParameters)
     @autoreleasepool {
         NSString * const testPlugInClassName = @"BundleParametersPlugIn";
         auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:testPlugInClassName]);
-        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
         [webView evaluateJavaScript:TestWebKitAPI::Util::TestPlugInClassNameParameter completionHandler:^(id result, NSError *error) {
             EXPECT_TRUE([result isKindOfClass:[NSString class]]);
@@ -117,7 +117,7 @@ TEST(WebKit, LoadDataWithUserData)
 {
     NSString * const testPlugInClassName = @"BundleParametersPlugIn";
     auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:testPlugInClassName]);
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
     [webView _loadData:NSData.data MIMEType:@"text/html" characterEncodingName:@"utf-8" baseURL:[NSURL URLWithString:@"https://webkit.org/"] userData:NSData.data];
     [webView _test_waitForDidFinishNavigation];
 }

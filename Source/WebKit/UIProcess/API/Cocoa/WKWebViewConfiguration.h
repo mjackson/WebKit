@@ -249,6 +249,15 @@ on the system setting.
 @property (nonatomic) NSWritingToolsBehavior writingToolsBehavior WK_API_AVAILABLE(macos(15.0));
 #endif
 
+#if defined(TARGET_OS_VISION) && TARGET_OS_VISION
+/*! @abstract A Boolean value that determines whether the web view allows immersive environments.
+ @discussion Set this property to YES to enable support for website-provided immersive environments.
+ If NO, requests to present immersive environments are ignored. If YES, requests are routed to your `WKImmersiveEnvironmentDelegate`.
+ The default value is NO.
+ */
+@property (nonatomic) BOOL allowsImmersiveEnvironments WK_API_AVAILABLE(visionos(WK_XROS_TBA));
+#endif
+
 @end
 
 #if TARGET_OS_IPHONE

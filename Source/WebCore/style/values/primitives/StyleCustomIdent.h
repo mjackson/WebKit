@@ -26,10 +26,13 @@
 
 #pragma once
 
-#include <WebCore/CSSCustomIdent.h>
 #include <WebCore/StyleValueTypes.h>
 
 namespace WebCore {
+
+namespace CSS {
+struct CustomIdent;
+}
 
 class CSSCustomIdentValue;
 
@@ -47,7 +50,6 @@ struct CustomIdent {
 template<> struct ToCSS<CustomIdent> { auto operator()(const CustomIdent&, const RenderStyle&) -> CSS::CustomIdent; };
 template<> struct ToStyle<CSS::CustomIdent> { auto operator()(const CSS::CustomIdent&, const BuilderState&) -> CustomIdent; };
 
-// `CustomIdent` is special-cased to return a `CSSCustomIdentValue`.
 template<> struct CSSValueCreation<CustomIdent> {
     Ref<CSSValue> operator()(CSSValuePool&, const RenderStyle&, const CustomIdent&);
 };

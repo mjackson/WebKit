@@ -40,6 +40,7 @@ enum class InternalMicrotask : uint8_t {
     PromiseResolveThenableJobWithInternalMicrotask,
 
     PromiseResolveWithoutHandlerJob,
+    PromiseFulfillWithoutHandlerJob,
 
     PromiseRaceResolveJob,
     PromiseAllResolveJob,
@@ -47,8 +48,6 @@ enum class InternalMicrotask : uint8_t {
     PromiseAnyResolveJob,
     PromiseFinallyReactionJob,
     PromiseFinallyAwaitJob,
-
-    InternalPromiseAllResolveJob,
 
     PromiseReactionJob,
 
@@ -61,6 +60,24 @@ enum class InternalMicrotask : uint8_t {
     AsyncGeneratorResumeNext,
 
     InvokeFunctionJob,
+    AsyncModuleExecutionResume,
+    AsyncModuleExecutionDone,
+    ModuleRegistryFetchSettled,
+    ModuleRegistryModuleSettled,
+    ModuleGraphLoadingError,
+    ModuleLoadStep,
+    ModuleLoadTopSettled,
+    ModuleLoadTopRejected,
+    ModuleLoadSpecifierTransform,
+    ModuleLoadCombinedLoadSettled,
+    ModuleLoadCombinedStateSettled,
+    ModuleLoadLinkEvaluateSettled,
+    ModuleLoadReturnRecord,
+    ModuleLoadReturnModuleKey,
+    ModuleLoadStoreError,
+    DynamicImportLoadSettled,
+    DynamicImportEvaluateSettled,
+    ImportModuleNamespace,
     Opaque, // Dispatch must handle everything.
 #if USE(BUN_JSC_ADDITIONS)
     BunPerformMicrotaskJob, // Bun's performMicrotask function with async context

@@ -240,7 +240,7 @@ TEST(WebKit, OpenWindowFeatures)
 {
     resetToConsistentState();
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
     sharedCheckWindowFeaturesUIDelegate = adoptNS([[CheckWindowFeaturesUIDelegate alloc] init]);
     [webView setUIDelegate:sharedCheckWindowFeaturesUIDelegate.get()];
@@ -409,9 +409,9 @@ TEST(WebKit, OpenWindowThenDocumentOpen)
 {
     resetToConsistentState();
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto uiDelegate = adoptNS([[OpenWindowThenDocumentOpenUIDelegate alloc] init]);
+    RetainPtr uiDelegate = adoptNS([[OpenWindowThenDocumentOpenUIDelegate alloc] init]);
     [webView setUIDelegate:uiDelegate.get()];
     [webView configuration].preferences.javaScriptCanOpenWindowsAutomatically = YES;
 
@@ -432,9 +432,9 @@ TEST(WebKit, OpenFileURLWithHost)
 {
     resetToConsistentState();
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
 
-    auto uiDelegate = adoptNS([[OpenWindowThenDocumentOpenUIDelegate alloc] init]);
+    RetainPtr uiDelegate = adoptNS([[OpenWindowThenDocumentOpenUIDelegate alloc] init]);
     [webView setUIDelegate:uiDelegate.get()];
     [webView configuration].preferences.javaScriptCanOpenWindowsAutomatically = YES;
 
@@ -450,7 +450,7 @@ TEST(WebKit, OpenFileURLWithHost)
 
 TEST(WebKit, TryClose)
 {
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     [webView synchronouslyLoadHTMLString:@"load something"];
     EXPECT_TRUE([webView _tryClose]);
     [webView synchronouslyLoadHTMLString:@"<body onunload='runScriptThatDoesNotNeedToExist()'/>"];
@@ -464,11 +464,11 @@ TEST(WebKit, TryWindowOpenJavascriptURLInIframeSingleWindowApp)
         { "/subframe"_s, { ""_s } }
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
 
-    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate allowAnyTLSCertificate];
-    auto webView = adoptNS([TestWKWebView new]);
+    RetainPtr webView = adoptNS([TestWKWebView new]);
     webView.get().configuration.preferences.javaScriptCanOpenWindowsAutomatically = YES;
-    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
     [webView setUIDelegate:uiDelegate.get()];
     webView.get().navigationDelegate = navigationDelegate.get();
 
@@ -495,7 +495,7 @@ static void runHasOpenerTest(NSString *js, bool expectsOpener)
     __block bool popupHasOpenerInCreateWebView = false;
     __block bool popupHasOpenerInDecidePolicyForNavigationAction = false;
 
-    __block auto popupNavigationDelegate = adoptNS([TestNavigationDelegate new]);
+    __block RetainPtr popupNavigationDelegate = adoptNS([TestNavigationDelegate new]);
     popupNavigationDelegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^decisionHandler)(WKNavigationActionPolicy)) {
         popupHasOpenerInDecidePolicyForNavigationAction = action._hasOpener;
         decisionHandler(WKNavigationActionPolicyCancel);

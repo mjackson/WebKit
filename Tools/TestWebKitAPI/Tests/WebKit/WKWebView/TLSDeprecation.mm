@@ -143,8 +143,8 @@ const uint16_t tls1_1 = 0x0302;
 TEST(TLSVersion, DefaultBehavior)
 {
     HTTPServer server(HTTPServer::respondWithOK, HTTPServer::Protocol::HttpsWithLegacyTLS);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
     [delegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodServerTrust);
@@ -160,9 +160,9 @@ TEST(TLSVersion, DefaultBehavior)
 
 RetainPtr<WKWebView> makeWebViewWith(WKWebsiteDataStore *store, RetainPtr<TestNavigationDelegate> delegate)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:store];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
     [delegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodServerTrust);
@@ -176,7 +176,7 @@ RetainPtr<WKWebView> makeWebViewWith(WKWebsiteDataStore *store, RetainPtr<TestNa
 TEST(TLSVersion, NetworkSession)
 {
     HTTPServer server(HTTPServer::respondWithOK, HTTPServer::Protocol::HttpsWithLegacyTLS);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     {
         auto webView = makeWebViewWith([WKWebsiteDataStore defaultDataStore], delegate);
         [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", server.port()]]]];
@@ -196,17 +196,17 @@ TEST(TLSVersion, NetworkSession)
 #endif
     }
     {
-        auto configuration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+        RetainPtr configuration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
         [configuration setLegacyTLSEnabled:NO];
-        auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:configuration.get()]);
+        RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:configuration.get()]);
         auto webView = makeWebViewWith(dataStore.get(), delegate);
         [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", server.port()]]]];
         [delegate waitForDidFailProvisionalNavigation];
     }
     {
-        auto configuration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+        RetainPtr configuration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
         [configuration setLegacyTLSEnabled:YES];
-        auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:configuration.get()]);
+        RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:configuration.get()]);
         auto webView = makeWebViewWith(dataStore.get(), delegate);
         [webView loadRequest:server.request()];
         [delegate waitForDidFinishNavigation];
@@ -217,8 +217,8 @@ TEST(TLSVersion, ShouldAllowDeprecatedTLS)
 {
     HTTPServer server(HTTPServer::respondWithOK, HTTPServer::Protocol::HttpsWithLegacyTLS);
     {
-        auto delegate = adoptNS([TLSNavigationDelegate new]);
-        auto webView = adoptNS([WKWebView new]);
+        RetainPtr delegate = adoptNS([TLSNavigationDelegate new]);
+        RetainPtr webView = adoptNS([WKWebView new]);
         [webView setNavigationDelegate:delegate.get()];
         [webView loadRequest:server.request()];
         [delegate waitForDidFailProvisionalNavigation];
@@ -229,16 +229,16 @@ TEST(TLSVersion, ShouldAllowDeprecatedTLS)
 #endif
     }
     {
-        auto delegate = adoptNS([TLSNavigationDelegate new]);
+        RetainPtr delegate = adoptNS([TLSNavigationDelegate new]);
         delegate.get().shouldAllowDeprecatedTLS = YES;
 #if ENABLE(TLS_1_2_DEFAULT_MINIMUM)
-        auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
-        auto configuration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+        RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+        RetainPtr configuration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
         [configuration setLegacyTLSEnabled:YES];
-        auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:configuration.get()]);
+        RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:configuration.get()]);
         auto webView = makeWebViewWith(dataStore.get(), navigationDelegate);
 #else
-        auto webView = adoptNS([WKWebView new]);
+        RetainPtr webView = adoptNS([WKWebView new]);
 #endif
         [webView setNavigationDelegate:delegate.get()];
         [webView loadRequest:server.request()];
@@ -254,10 +254,10 @@ TEST(TLSVersion, Preconnect)
         connectionAttempted = true;
     }, HTTPServer::Protocol::HttpsWithLegacyTLS);
 
-    auto webView = adoptNS([WKWebView new]);
+    RetainPtr webView = adoptNS([WKWebView new]);
     [webView loadHTMLString:makeString("<head><link rel='preconnect' href='https://127.0.0.1:"_s, server.port(), "/'></link></head>"_s).createNSString().get() baseURL:nil];
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
     [delegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_TRUE(false);
@@ -271,14 +271,14 @@ TEST(TLSVersion, Preconnect)
 
 static std::pair<RetainPtr<WKWebView>, RetainPtr<TestNavigationDelegate>> webViewWithNavigationDelegate(RetainPtr<WKWebViewConfiguration> configuration = nullptr)
 {
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
 
 #if ENABLE(TLS_1_2_DEFAULT_MINIMUM)
     RetainPtr<WKWebView> webView;
     if (!configuration) {
-        auto configuration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+        RetainPtr configuration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
         [configuration setLegacyTLSEnabled:YES];
-        auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:configuration.get()]);
+        RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:configuration.get()]);
         webView = makeWebViewWith(dataStore.get(), delegate);
     } else
         webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
@@ -304,7 +304,7 @@ TEST(TLSVersion, NegotiatedLegacyTLS)
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", server.port()]]];
     [webView loadRequest:request];
 
-    auto observer = adoptNS([TLSObserver new]);
+    RetainPtr observer = adoptNS([TLSObserver new]);
     [webView addObserver:observer.get() forKeyPath:@"_negotiatedLegacyTLS" options:NSKeyValueObservingOptionNew context:nil];
     
     EXPECT_FALSE([webView _negotiatedLegacyTLS]);
@@ -333,7 +333,7 @@ TEST(TLSVersion, NavigateBack)
     }, HTTPServer::Protocol::Https);
     
     auto [webView, delegate] = webViewWithNavigationDelegate();
-    auto observer = adoptNS([TLSObserver new]);
+    RetainPtr observer = adoptNS([TLSObserver new]);
     [webView addObserver:observer.get() forKeyPath:@"_negotiatedLegacyTLS" options:NSKeyValueObservingOptionNew context:nil];
 
     [webView loadRequest:legacyTLSServer.request()];
@@ -400,7 +400,7 @@ TEST(TLSVersion, Subresource)
     }, HTTPServer::Protocol::Https);
     
     auto [webView, delegate] = webViewWithNavigationDelegate();
-    auto observer = adoptNS([TLSObserver new]);
+    RetainPtr observer = adoptNS([TLSObserver new]);
     [webView addObserver:observer.get() forKeyPath:@"_negotiatedLegacyTLS" options:NSKeyValueObservingOptionNew context:nil];
 
     EXPECT_FALSE([webView _negotiatedLegacyTLS]);
@@ -426,12 +426,12 @@ TEST(TLSVersion, DidNegotiateModernTLS)
         { "/"_s, { "hello"_s }}
     }, HTTPServer::Protocol::Https);
 
-    auto delegate = adoptNS([TLSNavigationDelegate new]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
-    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    RetainPtr delegate = adoptNS([TLSNavigationDelegate new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     [dataStoreConfiguration setFastServerTrustEvaluationEnabled:YES];
     [configuration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]).get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:server.request()];
     NSURL *url = [delegate waitForDidNegotiateModernTLS];
@@ -451,13 +451,13 @@ TEST(TLSVersion, LegacySubresources)
         { "/"_s, { makeString("<iframe src='https://127.0.0.1:"_s, legacyServer.port(), "/frame'/>"_s) }}
     }, HTTPServer::Protocol::Https);
 
-    auto dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
     [dataStoreConfiguration setFastServerTrustEvaluationEnabled:YES];
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     [webViewConfiguration setWebsiteDataStore:adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]).get()];
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
 
-    auto delegate = adoptNS([TestNavigationDelegate new]);
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
     [delegate setDidReceiveAuthenticationChallenge:^(WKWebView *, NSURLAuthenticationChallenge *challenge, void (^callback)(NSURLSessionAuthChallengeDisposition, NSURLCredential *)) {
         EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodServerTrust);
         callback(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
@@ -470,7 +470,7 @@ TEST(TLSVersion, LegacySubresources)
     EXPECT_EQ(legacyServer.totalRequests(), 0u);
     EXPECT_EQ(modernServer.totalRequests(), 1u);
 
-    auto defaultWebView = adoptNS([WKWebView new]);
+    RetainPtr defaultWebView = adoptNS([WKWebView new]);
     [defaultWebView setNavigationDelegate:delegate.get()];
     [defaultWebView loadRequest:modernServer.request()];
     [delegate waitForDidFinishNavigation];

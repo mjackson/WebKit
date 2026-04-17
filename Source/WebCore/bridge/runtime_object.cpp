@@ -30,6 +30,7 @@
 #include "WebCoreJSClientData.h"
 #include "runtime_method.h"
 #include <JavaScriptCore/Error.h>
+#include <JavaScriptCore/JSCJSValueInlines.h>
 
 using namespace WebCore;
 

@@ -30,6 +30,7 @@
 #include "DocumentPage.h"
 #include "FrameDestructionObserverInlines.h"
 #include "InspectorInstrumentation.h"
+#include "JSRequestAnimationFrameCallback.h"
 #include "Logging.h"
 #include "OpportunisticTaskScheduler.h"
 #include "Page.h"
@@ -169,12 +170,23 @@ void ScriptedAnimationController::serviceRequestAnimationFrameCallbacks(ReducedR
         return;
 
     CheckedRef script = frame->script();
-    if (!script->canExecuteScripts(ReasonForCallingCanExecuteScripts::AboutToExecuteScript) || script->isPaused())
+    if (script->isPaused())
         return;
 
+    bool canExecuteScriptsInAnyWorld = false;
     for (auto& [callback, userGestureTokenToForward, scheduledWorkScope] : callbackDataList) {
         if (callback->m_firedOrCancelled)
             continue;
+
+        DOMWrapperWorld* world = nullptr;
+        if (RefPtr jsCallback = dynamicDowncast<JSRequestAnimationFrameCallback>(callback.get())) {
+            if (auto* globalObject = jsCallback->callbackData()->globalObject())
+                world = &globalObject->world();
+        }
+        if (!script->canExecuteScripts(ReasonForCallingCanExecuteScripts::AboutToExecuteScript, world))
+            continue;
+
+        canExecuteScriptsInAnyWorld = true;
         callback->m_firedOrCancelled = true;
 
         if (userGestureTokenToForward && Ref { *userGestureTokenToForward }->hasExpired(UserGestureToken::maximumIntervalForUserGestureForwarding))
@@ -186,6 +198,9 @@ void ScriptedAnimationController::serviceRequestAnimationFrameCallbacks(ReducedR
         Ref { callback }->invoke(highResNowMs);
         InspectorInstrumentation::didFireAnimationFrame(document, identifier);
     }
+
+    if (!canExecuteScriptsInAnyWorld)
+        return;
 
     // Remove any callbacks we fired from the list of pending callbacks.
     m_callbackDataList.removeAllMatching([](auto& data) {

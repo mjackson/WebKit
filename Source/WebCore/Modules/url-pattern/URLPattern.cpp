@@ -34,6 +34,7 @@
 #include "URLPatternOptions.h"
 #include "URLPatternParser.h"
 #include "URLPatternResult.h"
+#include <JavaScriptCore/JSGlobalObjectInlines.h>
 #include <JavaScriptCore/RegExp.h>
 #include <wtf/RefCounted.h>
 #include <wtf/TZoneMallocInlines.h>

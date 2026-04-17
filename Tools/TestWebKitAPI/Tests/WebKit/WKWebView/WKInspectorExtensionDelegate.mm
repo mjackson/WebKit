@@ -61,7 +61,7 @@ static bool extensionTabDidNavigateWasCalled;
     if (!sharedURLSchemeHandler)
         sharedURLSchemeHandler = adoptNS([[TestInspectorURLSchemeHandler alloc] init]);
 
-    auto inspectorConfiguration = adoptNS([[_WKInspectorConfiguration alloc] init]);
+    RetainPtr inspectorConfiguration = adoptNS([[_WKInspectorConfiguration alloc] init]);
     [inspectorConfiguration setURLSchemeHandler:sharedURLSchemeHandler.get() forURLScheme:@"test-resource"];
     return inspectorConfiguration.autorelease();
 }
@@ -103,10 +103,10 @@ TEST(WKInspectorExtensionDelegate, DISABLED_ShowAndHideTabCallbacks)
 {
     resetGlobalState();
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegateForTestingInspectorExtensionDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr uiDelegate = adoptNS([UIDelegateForTestingInspectorExtensionDelegate new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
@@ -129,7 +129,7 @@ TEST(WKInspectorExtensionDelegate, DISABLED_ShowAndHideTabCallbacks)
     }];
     TestWebKitAPI::Util::run(&pendingCallbackWasCalled);
 
-    auto extensionDelegate = adoptNS([InspectorExtensionDelegateForTesting new]);
+    RetainPtr extensionDelegate = adoptNS([InspectorExtensionDelegateForTesting new]);
     [sharedInspectorExtension setDelegate:extensionDelegate.get()];
 
     // Create an extension tab.
@@ -177,12 +177,12 @@ TEST(WKInspectorExtensionDelegate, DISABLED_InspectedPageNavigatedCallbacks)
     if (!sharedURLSchemeHandler)
         sharedURLSchemeHandler = adoptNS([[TestInspectorURLSchemeHandler alloc] init]);
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
     [webViewConfiguration setURLSchemeHandler:sharedURLSchemeHandler.get() forURLScheme:@"test-resource"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegateForTestingInspectorExtensionDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr uiDelegate = adoptNS([UIDelegateForTestingInspectorExtensionDelegate new]);
 
     [webView setUIDelegate:uiDelegate.get()];
 
@@ -203,7 +203,7 @@ TEST(WKInspectorExtensionDelegate, DISABLED_InspectedPageNavigatedCallbacks)
     }];
     TestWebKitAPI::Util::run(&pendingCallbackWasCalled);
 
-    auto extensionDelegate = adoptNS([InspectorExtensionDelegateForTesting new]);
+    RetainPtr extensionDelegate = adoptNS([InspectorExtensionDelegateForTesting new]);
     [sharedInspectorExtension setDelegate:extensionDelegate.get()];
 
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
@@ -246,12 +246,12 @@ TEST(WKInspectorExtensionDelegate, DISABLED_ExtensionTabNavigatedCallbacks)
     if (!sharedURLSchemeHandler)
         sharedURLSchemeHandler = adoptNS([[TestInspectorURLSchemeHandler alloc] init]);
 
-    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
     [webViewConfiguration setURLSchemeHandler:sharedURLSchemeHandler.get() forURLScheme:@"test-resource"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegateForTestingInspectorExtensionDelegate new]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    RetainPtr uiDelegate = adoptNS([UIDelegateForTestingInspectorExtensionDelegate new]);
 
     [webView setUIDelegate:uiDelegate.get()];
 
@@ -272,7 +272,7 @@ TEST(WKInspectorExtensionDelegate, DISABLED_ExtensionTabNavigatedCallbacks)
     }];
     TestWebKitAPI::Util::run(&pendingCallbackWasCalled);
 
-    auto extensionDelegate = adoptNS([InspectorExtensionDelegateForTesting new]);
+    RetainPtr extensionDelegate = adoptNS([InspectorExtensionDelegateForTesting new]);
     [sharedInspectorExtension setDelegate:extensionDelegate.get()];
 
     auto baseURL = [NSURL URLWithString:@"http://example.com/"];

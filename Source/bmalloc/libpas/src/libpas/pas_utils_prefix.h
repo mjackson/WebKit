@@ -25,7 +25,6 @@
 
 #pragma once
 
-#include "pas_platform.h"
 
 #ifdef __cplusplus
 #define __PAS_BEGIN_EXTERN_C extern "C" { struct __pas_require_semicolon

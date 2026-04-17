@@ -41,6 +41,8 @@
 #include "HTMLNames.h"
 #include "ImageBuffer.h"
 #include "JSDOMPromiseDeferred.h"
+#include "JSVideoFrameRequestCallback.h"
+#include "LazyLoadVideoObserver.h"
 #include "LocalDOMWindow.h"
 #include "LocalFrame.h"
 #include "Logging.h"
@@ -98,7 +100,10 @@ inline HTMLVideoElement::HTMLVideoElement(const QualifiedName& tagName, Document
     m_defaultPosterURL = AtomString { document.settings().defaultVideoPosterURL() };
 }
 
-HTMLVideoElement::~HTMLVideoElement() = default;
+HTMLVideoElement::~HTMLVideoElement()
+{
+    LazyLoadVideoObserver::unobserve(*this, protect(document()));
+}
 
 Ref<HTMLVideoElement> HTMLVideoElement::create(const QualifiedName& tagName, Document& document, bool createdByParser)
 {
@@ -107,6 +112,8 @@ Ref<HTMLVideoElement> HTMLVideoElement::create(const QualifiedName& tagName, Doc
 #if ENABLE(PICTURE_IN_PICTURE_API)
     HTMLVideoElementPictureInPicture::providePictureInPictureTo(videoElement);
 #endif
+
+    LazyLoadVideoObserver::observe(videoElement);
 
     videoElement->suspendIfNeeded();
     return videoElement;
@@ -174,7 +181,7 @@ void HTMLVideoElement::computeAcceleratedRenderingStateAndUpdateMediaPlayer()
     bool isInFullScreen = false;
 #endif
     CheckedPtr renderer = this->renderer();
-    bool canBeAccelerated = player->supportsAcceleratedRendering() && (isInFullScreen || (renderer && protect(renderer->view())->compositor().hasAcceleratedCompositing()));
+    bool canBeAccelerated = player->supportsAcceleratedRendering() && (isInFullScreen || (m_isIntersectingViewport && renderer && protect(renderer->view())->compositor().hasAcceleratedCompositing()));
     if (canBeAccelerated == m_renderingCanBeAccelerated)
         return;
     m_renderingCanBeAccelerated = canBeAccelerated;
@@ -780,6 +787,17 @@ void HTMLVideoElement::stop()
     HTMLMediaElement::stop();
 }
 
+void HTMLVideoElement::viewportIntersectionChanged(bool isIntersecting)
+{
+    if (m_isIntersectingViewport == isIntersecting)
+        return;
+
+    m_isIntersectingViewport = isIntersecting;
+
+    isVisibleInViewportChanged();
+    computeAcceleratedRenderingStateAndUpdateMediaPlayer();
+}
+
 static void processVideoFrameMetadataTimestamps(VideoFrameMetadata& metadata, Performance& performance)
 {
     metadata.presentationTime = performance.relativeTimeFromTimeOriginInReducedResolution(MonotonicTime::fromRawSeconds(metadata.presentationTime));
@@ -810,7 +828,7 @@ void HTMLVideoElement::serviceRequestVideoFrameCallbacks(ReducedResolutionSecond
         return;
 
     CheckedRef script = frame->script();
-    if (!script->canExecuteScripts(ReasonForCallingCanExecuteScripts::AboutToExecuteScript) || script->isPaused())
+    if (script->isPaused())
         return;
 
     processVideoFrameMetadataTimestamps(*videoFrameMetadata, protect(document().window()->performance()));
@@ -819,6 +837,16 @@ void HTMLVideoElement::serviceRequestVideoFrameCallbacks(ReducedResolutionSecond
 
     m_videoFrameRequests.swap(m_servicedVideoFrameRequests);
     for (auto& request : m_servicedVideoFrameRequests) {
+        DOMWrapperWorld* world = nullptr;
+        if (request->callback) {
+            if (RefPtr jsCallback = dynamicDowncast<JSVideoFrameRequestCallback>(*request->callback)) {
+                if (auto* globalObject = jsCallback->callbackData()->globalObject())
+                    world = &globalObject->world();
+            }
+        }
+        if (!script->canExecuteScripts(ReasonForCallingCanExecuteScripts::AboutToExecuteScript, world))
+            continue;
+
         if (RefPtr callback = std::exchange(request->callback, { }))
             callback->invoke(std::round(now.milliseconds()), *videoFrameMetadata);
     }

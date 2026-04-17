@@ -577,7 +577,7 @@ TEST(WKUserContentController, UserStyleSheetAffectingOnlySpecificWebView)
     expectScriptEvaluatesToColor(otherWebView.get(), backgroundColorScript, redInRGB);
 
     RetainPtr<WKContentWorld> world = [WKContentWorld worldWithName:@"TestWorld"];
-    auto styleSheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:styleSheetSource forWKWebView:targetWebView.get() forMainFrameOnly:YES includeMatchPatternStrings:nil excludeMatchPatternStrings:nil baseURL:nil level:_WKUserStyleAuthorLevel contentWorld:world.get()]);
+    RetainPtr styleSheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:styleSheetSource forWKWebView:targetWebView.get() forMainFrameOnly:YES includeMatchPatternStrings:nil excludeMatchPatternStrings:nil baseURL:nil level:_WKUserStyleAuthorLevel contentWorld:world.get()]);
     [[targetWebView configuration].userContentController _addUserStyleSheet:styleSheet.get()];
 
     expectScriptEvaluatesToColor(targetWebView.get(), backgroundColorScript, greenInRGB);
@@ -615,7 +615,7 @@ TEST(WKUserContentController, UserStyleSheetAffectingSpecificWebViewInjectionAnd
 
 TEST(WKUserContentController, UserStyleSheetAffectingOnlySpecificWebViewSharedConfiguration)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     RetainPtr<WKWebView> targetWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     RetainPtr<WKWebView> otherWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
@@ -704,7 +704,7 @@ TEST(WKUserContentController, UserStyleSheetAffectingOnlySpecificWebViewRemovalA
 
 static RetainPtr<_WKProcessPoolConfiguration> psonProcessPoolConfiguration()
 {
-    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    RetainPtr processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     processPoolConfiguration.get().processSwapsOnNavigation = YES;
     processPoolConfiguration.get().usesWebProcessCache = YES;
     processPoolConfiguration.get().prewarmsProcessesAutomatically = YES;
@@ -714,9 +714,9 @@ static RetainPtr<_WKProcessPoolConfiguration> psonProcessPoolConfiguration()
 TEST(WKUserContentController, UserStyleSheetAffectingOnlySpecificWebViewRemovalAfterNavigationPSON)
 {
     auto processPoolConfiguration = psonProcessPoolConfiguration();
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
 
-    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
 
     RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
@@ -806,7 +806,7 @@ TEST(WKUserContentController, UserScriptRemoveAll)
     RetainPtr<WKContentWorld> world = [WKContentWorld worldWithName:@"TestWorld"];
 
     RetainPtr<WKUserScript> userScript = adoptNS([[WKUserScript alloc] initWithSource:@"" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]);
-    auto userScriptAssociatedWithWorld = adoptNS([[WKUserScript alloc] _initWithSource:@"" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO includeMatchPatternStrings:@[] excludeMatchPatternStrings:@[] associatedURL:nil contentWorld:world.get() deferRunningUntilNotification:NO]);
+    RetainPtr userScriptAssociatedWithWorld = adoptNS([[WKUserScript alloc] _initWithSource:@"" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO includeMatchPatternStrings:@[] excludeMatchPatternStrings:@[] associatedURL:nil contentWorld:world.get() deferRunningUntilNotification:NO]);
 
     [userContentController addUserScript:userScript.get()];
     [userContentController addUserScript:userScriptAssociatedWithWorld.get()];
@@ -891,16 +891,16 @@ TEST(WKUserContentController, InjectUserScriptImmediately)
     scriptMessagesVector.clear();
     receivedScriptMessage = false;
 
-    auto handler = adoptNS([[ScriptMessageHandler alloc] init]);
-    auto startAllFrames = adoptNS([[WKUserScript alloc] initWithSource:@"window.webkit.messageHandlers.testHandler.postMessage('start all')" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]);
-    auto endMainFrameOnly = adoptNS([[WKUserScript alloc] initWithSource:@"window.webkit.messageHandlers.testHandler.postMessage('end main')" injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES]);
+    RetainPtr handler = adoptNS([[ScriptMessageHandler alloc] init]);
+    RetainPtr startAllFrames = adoptNS([[WKUserScript alloc] initWithSource:@"window.webkit.messageHandlers.testHandler.postMessage('start all')" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]);
+    RetainPtr endMainFrameOnly = adoptNS([[WKUserScript alloc] initWithSource:@"window.webkit.messageHandlers.testHandler.postMessage('end main')" injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES]);
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
-    auto delegate = adoptNS([[SimpleNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[SimpleNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple-iframe" withExtension:@"html"]];
@@ -925,9 +925,9 @@ TEST(WKUserContentController, AddUserScriptInWorldWithGlobalObjectAvailableInIfr
     RetainPtr<WKContentWorld> testWorld = [WKContentWorld worldWithName:@"testWorld"];
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"ContentWorldPlugIn"];
 
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
 
-    auto delegate = adoptNS([[SimpleNavigationDelegate alloc] init]);
+    RetainPtr delegate = adoptNS([[SimpleNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple-iframe" withExtension:@"html"]];
@@ -936,7 +936,7 @@ TEST(WKUserContentController, AddUserScriptInWorldWithGlobalObjectAvailableInIfr
     [webView loadRequest:request];
     TestWebKitAPI::Util::run(&isDoneWithNavigation);
 
-    auto contentScript = adoptNS([[WKUserScript alloc] _initWithSource:@"window.worldName" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES includeMatchPatternStrings:@[] excludeMatchPatternStrings:@[] associatedURL:nil contentWorld:testWorld.get() deferRunningUntilNotification:NO]);
+    RetainPtr contentScript = adoptNS([[WKUserScript alloc] _initWithSource:@"window.worldName" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES includeMatchPatternStrings:@[] excludeMatchPatternStrings:@[] associatedURL:nil contentWorld:testWorld.get() deferRunningUntilNotification:NO]);
     [[webView configuration].userContentController _addUserScriptImmediately:contentScript.get()];
 
     __block bool done = false;
@@ -997,7 +997,7 @@ TEST(WKUserContentController, AddUserScriptInWorldWithGlobalObjectAvailableInIfr
 TEST(WKUserContentController, MessageHandlerAPI)
 {
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([[AsyncScriptMessageHandler alloc] init]);
+    RetainPtr handler = adoptNS([[AsyncScriptMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandlerWithReply:handler.get() contentWorld:WKContentWorld.pageWorld name:@"testHandler1"];
 
     bool hadException = false;
@@ -1015,7 +1015,7 @@ TEST(WKUserContentController, MessageHandlerAPI)
     [[configuration userContentController] addScriptMessageHandlerWithReply:handler.get() contentWorld:world name:@"testHandler4"];
     [[configuration userContentController] addScriptMessageHandlerWithReply:handler.get() contentWorld:world name:@"testHandler5"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     bool done = false;
     NSString *functionBody = @"var p = window.webkit.messageHandlers[handler].postMessage(arg); await p; return p;";
@@ -1120,10 +1120,10 @@ TEST(WKUserContentController, MessageHandlerAPI)
 TEST(WKUserContentController, AsyncScriptMessageHandlerBasicPost)
 {
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([[AsyncScriptMessageHandler alloc] init]);
+    RetainPtr handler = adoptNS([[AsyncScriptMessageHandler alloc] init]);
     [[configuration userContentController] addScriptMessageHandlerWithReply:handler.get() contentWorld:WKContentWorld.pageWorld name:@"testHandler"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     bool done = false;
     NSString *functionBody = @"var p = window.webkit.messageHandlers.testHandler.postMessage('Fulfill'); await p; return p;";
@@ -1188,11 +1188,11 @@ TEST(WKUserContentController, AsyncScriptMessageHandlerBasicPost)
 TEST(WKUserContentController, WorldLifetime)
 {
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto handler = adoptNS([[AsyncScriptMessageHandler alloc] init]);
+    RetainPtr handler = adoptNS([[AsyncScriptMessageHandler alloc] init]);
 
     RetainPtr<WKContentWorld> world = [WKContentWorld worldWithName:@"otherWorld"];
     [[configuration userContentController] addScriptMessageHandlerWithReply:handler.get() contentWorld:world.get() name:@"testHandler"];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     // Set a variable in the world.
     bool done = false;
@@ -1230,9 +1230,9 @@ TEST(WKUserContentController, WorldLifetime)
 TEST(WKUserContentController, RemoveAllScriptMessageHandlers)
 {
     WeakObjCPtr<ScriptMessageHandler> weakHandler;
-    auto handler = adoptNS([ScriptMessageHandler new]);
+    RetainPtr handler = adoptNS([ScriptMessageHandler new]);
     weakHandler = handler.get();
-    auto controller = adoptNS([WKUserContentController new]);
+    RetainPtr controller = adoptNS([WKUserContentController new]);
     [controller addScriptMessageHandler:handler.get() name:@"testname"];
     handler = nullptr;
     EXPECT_NOT_NULL(weakHandler.get());
@@ -1757,8 +1757,8 @@ TEST(WKUserContentController, AllowAccessToClosedShadowRoots)
 #if PLATFORM(IOS)
 TEST(WKUserContentController, FireUserTextInputEvent)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568)]);
-    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568)]);
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
     [inputDelegate setFocusStartsInputSessionPolicyHandler:[] (WKWebView *, id<_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
         return _WKFocusStartsInputSessionPolicyAllow;
     }];
@@ -1775,8 +1775,8 @@ TEST(WKUserContentController, FireUserTextInputEvent)
     [webView objectByEvaluatingJavaScript:@"window.didFire = false; document.querySelector('input').addEventListener('webkitusertextinput', () => didFire = true);" inFrame:nil inContentWorld:autofillWorld.get()];
 
     bool doneWaiting = false;
-    auto firstWebEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
-    auto secondWebEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyUp timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
+    RetainPtr firstWebEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
+    RetainPtr secondWebEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyUp timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
     [webView handleKeyEvent:firstWebEvent.get() completion:[&](WebEvent *event, BOOL) {
         EXPECT_TRUE([event isEqual:firstWebEvent.get()]);
         [webView handleKeyEvent:secondWebEvent.get() completion:[&] (WebEvent *event, BOOL) {
@@ -1836,7 +1836,7 @@ TEST(WKUserContentController, DisableLegacyBuiltinOverrides)
 
 TEST(WKUserContentController, FormSubmissionWithUserInfo)
 {
-    auto inputDelegate = adoptNS([[InputDelegateForFormSubmission alloc] init]);
+    RetainPtr inputDelegate = adoptNS([[InputDelegateForFormSubmission alloc] init]);
     isDoneWithFormSubmission = false;
 
     RetainPtr contentWorldConfiguration = adoptNS([[_WKContentWorldConfiguration alloc] init]);

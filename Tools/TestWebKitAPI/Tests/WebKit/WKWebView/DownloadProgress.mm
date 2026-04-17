@@ -168,7 +168,7 @@ static void* progressObservingContext = &progressObservingContext;
 {
     m_protocol = protocol;
 
-    auto response = adoptNS([[NSURLResponse alloc] initWithURL:protocol.request.URL MIMEType:@"application/x-test-file" expectedContentLength:m_expectedLength textEncodingName:nullptr]);
+    RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:protocol.request.URL MIMEType:@"application/x-test-file" expectedContentLength:m_expectedLength textEncodingName:nullptr]);
     [m_protocol.get().client URLProtocol:m_protocol.get() didReceiveResponse:response.get() cacheStoragePolicy:NSURLCacheStorageNotAllowed];
 }
 
@@ -243,12 +243,12 @@ static void* progressObservingContext = &progressObservingContext;
     m_startType = startType;
     m_expectedLength = expectedLength;
 
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     m_webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
     m_webView.get().navigationDelegate = self;
     m_webView.get().configuration.processPool._downloadDelegate = self;
 
-    auto request = adoptNS([[NSURLRequest alloc] initWithURL:[NSURL URLWithString:@"http://file"]]);
+    RetainPtr request = adoptNS([[NSURLRequest alloc] initWithURL:[NSURL URLWithString:@"http://file"]]);
 
     switch (startType) {
     case DownloadStartType::ConvertLoadToDownload:
@@ -269,7 +269,7 @@ static void* progressObservingContext = &progressObservingContext;
 
 - (void)receiveData:(NSInteger)length
 {
-    auto data = adoptNS([[NSMutableData alloc] init]);
+    RetainPtr data = adoptNS([[NSMutableData alloc] init]);
     while (length-- > 0) {
         const char byte = 'A';
         [data.get() appendBytes:static_cast<const void*>(&byte) length:1];
@@ -401,7 +401,7 @@ static void* progressObservingContext = &progressObservingContext;
 // progress, and the NSProgress should be unpublished when the download finishes.
 TEST(DownloadProgress, BasicSubscriptionAndProgressUpdates)
 {
-    auto testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
+    RetainPtr testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
 
     [testRunner.get() startDownload:DownloadStartType::ConvertLoadToDownload expectedLength:100];
     [testRunner.get() publishProgress];
@@ -425,7 +425,7 @@ TEST(DownloadProgress, BasicSubscriptionAndProgressUpdates)
 // Similar test as before, but initiating the download before receiving its response.
 TEST(DownloadProgress, StartDownloadFromNavigationAction)
 {
-    auto testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
+    RetainPtr testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
 
     [testRunner.get() startDownload:DownloadStartType::StartFromNavigationAction expectedLength:100];
     [testRunner.get() publishProgress];
@@ -441,7 +441,7 @@ TEST(DownloadProgress, StartDownloadFromNavigationAction)
 // If the download is canceled, the progress should be unpublished.
 TEST(DownloadProgress, LoseProgressWhenDownloadIsCanceled)
 {
-    auto testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
+    RetainPtr testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
 
     [testRunner.get() startDownload:DownloadStartType::ConvertLoadToDownload expectedLength:100];
     [testRunner.get() publishProgress];
@@ -457,7 +457,7 @@ TEST(DownloadProgress, LoseProgressWhenDownloadIsCanceled)
 // If the download fails, the progress should be unpublished.
 TEST(DownloadProgress, LoseProgressWhenDownloadFails)
 {
-    auto testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
+    RetainPtr testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
 
     [testRunner.get() startDownload:DownloadStartType::ConvertLoadToDownload expectedLength:100];
     [testRunner.get() publishProgress];
@@ -473,7 +473,7 @@ TEST(DownloadProgress, LoseProgressWhenDownloadFails)
 // Canceling the progress should cancel the download.
 TEST(DownloadProgress, CancelDownloadWhenProgressIsCanceled)
 {
-    auto testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
+    RetainPtr testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
 
     [testRunner.get() startDownload:DownloadStartType::ConvertLoadToDownload expectedLength:100];
     [testRunner.get() publishProgress];
@@ -489,7 +489,7 @@ TEST(DownloadProgress, CancelDownloadWhenProgressIsCanceled)
 // Publishing progress on a download after it has finished should be a safe no-op.
 TEST(DownloadProgress, PublishProgressAfterDownloadFinished)
 {
-    auto testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
+    RetainPtr testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
 
     [testRunner.get() startDownload:DownloadStartType::ConvertLoadToDownload expectedLength:100];
     [testRunner.get() receiveData:100];
@@ -503,7 +503,7 @@ TEST(DownloadProgress, PublishProgressAfterDownloadFinished)
 // Test the behavior of a download of unknown length.
 TEST(DownloadProgress, IndeterminateDownloadSize)
 {
-    auto testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
+    RetainPtr testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
 
     [testRunner.get() startDownload:DownloadStartType::ConvertLoadToDownload expectedLength:NSURLResponseUnknownLength];
     [testRunner.get() publishProgress];
@@ -525,7 +525,7 @@ TEST(DownloadProgress, IndeterminateDownloadSize)
 // Test the behavior when a download continues returning data beyond its expected length.
 TEST(DownloadProgress, ExtraData)
 {
-    auto testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
+    RetainPtr testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
 
     [testRunner.get() startDownload:DownloadStartType::ConvertLoadToDownload expectedLength:100];
     [testRunner.get() publishProgress];
@@ -545,7 +545,7 @@ TEST(DownloadProgress, ExtraData)
 // Clients should be able to publish progress on a download that has already started.
 TEST(DownloadProgress, PublishProgressOnPartialDownload)
 {
-    auto testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
+    RetainPtr testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
 
     [testRunner.get() startDownload:DownloadStartType::ConvertLoadToDownload expectedLength:100];
     [testRunner.get() receiveData:50];
@@ -570,7 +570,7 @@ TEST(DownloadProgress, PublishProgressOnPartialDownload)
 
 TEST(DownloadProgress, ProgressExtendedAttributeSetAfterPartialDownloadStops)
 {
-    auto testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
+    RetainPtr testRunner = adoptNS([[DownloadProgressTestRunner alloc] init]);
 
     [testRunner.get() startDownload:DownloadStartType::ConvertLoadToDownload expectedLength:100];
     [testRunner.get() publishProgress];

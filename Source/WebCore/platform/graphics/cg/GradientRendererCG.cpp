@@ -66,6 +66,26 @@ GradientRendererCG::GradientRendererCG(ColorInterpolationMethod colorInterpolati
 {
 }
 
+// MARK: - Gradient options.
+
+static CFDictionaryRef gradientInterpolatesPremultipliedOptionsDictionary()
+{
+    static CFTypeRef keys[] = { kCGGradientInterpolatesPremultiplied };
+    static CFTypeRef values[] = { kCFBooleanTrue };
+    static CFDictionaryRef options = CFDictionaryCreate(kCFAllocatorDefault, keys, values, std::size(keys), &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    return options;
+}
+
+static CFDictionaryRef gradientOptionsDictionary(ColorInterpolationMethod colorInterpolationMethod)
+{
+    switch (colorInterpolationMethod.alphaPremultiplication) {
+    case AlphaPremultiplication::Unpremultiplied:
+        return nullptr;
+    case AlphaPremultiplication::Premultiplied:
+        return gradientInterpolatesPremultipliedOptionsDictionary();
+    }
+}
+
 // MARK: - Direct CGGradient strategy (sRGB only).
 
 static bool anyComponentIsNone(const GradientColorStops& stops)
@@ -93,23 +113,6 @@ GradientRendererCG::Gradient GradientRendererCG::makeGradient(ColorInterpolation
 
     if (needsSampling)
         return makeGradientBySampling(colorInterpolationMethod, stops);
-
-    auto gradientInterpolatesPremultipliedOptionsDictionary = [] () -> CFDictionaryRef {
-        static CFTypeRef keys[] = { kCGGradientInterpolatesPremultiplied };
-        static CFTypeRef values[] = { kCFBooleanTrue };
-        static CFDictionaryRef options = CFDictionaryCreate(kCFAllocatorDefault, keys, values, std::size(keys), &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-
-        return options;
-    };
-
-   auto gradientOptionsDictionary = [&] (auto colorInterpolationMethod) -> CFDictionaryRef {
-        switch (colorInterpolationMethod.alphaPremultiplication) {
-        case AlphaPremultiplication::Unpremultiplied:
-            return nullptr;
-        case AlphaPremultiplication::Premultiplied:
-            return gradientInterpolatesPremultipliedOptionsDictionary();
-        }
-   };
 
     auto hasOnlyBoundedSRGBColorStops = [] (const auto& stops) {
         for (const auto& stop : stops) {
@@ -205,7 +208,7 @@ RetainPtr<CGGradientRef> GradientRendererCG::createGradientBySampling(ColorInter
         components[i] = sampled.colorComponents[i];
 
     return adoptCF(CGGradientCreateWithColorComponentsAndOptions(cgColorSpace,
-        components.span().data(), locations.span().data(), locations.size(), nullptr));
+        components.span().data(), locations.span().data(), locations.size(), gradientOptionsDictionary(colorInterpolationMethod)));
 }
 
 // MARK: - Drawing functions.

@@ -39,7 +39,10 @@
 #include "LocalDOMWindow.h"
 #include "NodeDocument.h"
 #include "ScriptExecutionContext.h"
+#include <JavaScriptCore/CallFrameInlines.h>
 #include <JavaScriptCore/InternalFunction.h>
+#include <JavaScriptCore/JSCJSValueInlines.h>
+#include <JavaScriptCore/JSObjectInlines.h>
 #include <JavaScriptCore/JSWithScope.h>
 
 namespace WebCore {

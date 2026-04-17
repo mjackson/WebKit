@@ -91,12 +91,12 @@ TEST_F(WebKit2UserContentTest, AddUserStyleSheetBeforeCreatingView)
 {
     testFinished = false;
     
-    auto sheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:userStyleSheet forMainFrameOnly:YES]);
+    RetainPtr sheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:userStyleSheet forMainFrameOnly:YES]);
 
-    auto wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [wkView.get().configuration.userContentController _addUserStyleSheet:sheet.get()];
     auto backgroundColorQuery = adoptWK(WKStringCreateWithUTF8CString(backgroundColorScript));
-    auto loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
+    RetainPtr loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
         runJavaScriptInMainFrame([wkView _pageRefForTransitionToWKWebView], backgroundColorQuery.get(), ^(WKTypeRef value, WKErrorRef error) {
             expectScriptValueIsString(value, greenInRGB);
             testFinished = true;
@@ -113,9 +113,9 @@ TEST_F(WebKit2UserContentTest, AddUserStyleSheetAfterCreatingView)
 {
     testFinished = false;
     
-    auto wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     auto backgroundColorQuery = adoptWK(WKStringCreateWithUTF8CString(backgroundColorScript));
-    auto loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
+    RetainPtr loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
         runJavaScriptInMainFrame([wkView _pageRefForTransitionToWKWebView], backgroundColorQuery.get(), ^(WKTypeRef result, WKErrorRef error) {
             expectScriptValueIsString(result, greenInRGB);
             testFinished = true;
@@ -123,7 +123,7 @@ TEST_F(WebKit2UserContentTest, AddUserStyleSheetAfterCreatingView)
     }]);
     wkView.get().navigationDelegate = loadDelegate.get();
 
-    auto sheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:userStyleSheet forMainFrameOnly:YES]);
+    RetainPtr sheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:userStyleSheet forMainFrameOnly:YES]);
     [wkView.get().configuration.userContentController _addUserStyleSheet:sheet.get()];
 
     [wkView loadHTMLString:htmlString baseURL:nil];
@@ -134,12 +134,12 @@ TEST_F(WebKit2UserContentTest, AddUserStyleSheetAfterCreatingView)
 TEST_F(WebKit2UserContentTest, RemoveAllUserStyleSheets)
 {
     testFinished = false;
-    auto sheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:userStyleSheet forMainFrameOnly:YES]);
+    RetainPtr sheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:userStyleSheet forMainFrameOnly:YES]);
     
-    auto wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [wkView.get().configuration.userContentController _addUserStyleSheet:sheet.get()];
     auto backgroundColorQuery = adoptWK(WKStringCreateWithUTF8CString(backgroundColorScript));
-    auto loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
+    RetainPtr loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
         runJavaScriptInMainFrame([wkView _pageRefForTransitionToWKWebView], backgroundColorQuery.get(), ^(WKTypeRef result, WKErrorRef error) {
             expectScriptValueIsString(result, redInRGB);
             testFinished = true;
@@ -157,12 +157,12 @@ TEST_F(WebKit2UserContentTest, RemoveAllUserStyleSheets)
 TEST_F(WebKit2UserContentTest, AddUserScriptBeforeCreatingView)
 {
     testFinished = false;
-    auto script = adoptNS([[WKUserScript alloc] initWithSource:[NSString stringWithFormat:@"%s = true;", userScriptTestProperty] injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
+    RetainPtr script = adoptNS([[WKUserScript alloc] initWithSource:[NSString stringWithFormat:@"%s = true;", userScriptTestProperty] injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
 
-    auto wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [wkView.get().configuration.userContentController addUserScript:script.get()];
     auto userScriptTestPropertyString = adoptWK(WKStringCreateWithUTF8CString(userScriptTestProperty));
-    auto loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
+    RetainPtr loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
         runJavaScriptInMainFrame([wkView _pageRefForTransitionToWKWebView], userScriptTestPropertyString.get(), ^(WKTypeRef result, WKErrorRef error) {
             expectScriptValueIsBoolean(result, true);
             testFinished = true;
@@ -179,9 +179,9 @@ TEST_F(WebKit2UserContentTest, AddUserScriptAfterCreatingView)
 {
     testFinished = false;
     
-    auto wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     auto userScriptTestPropertyString = adoptWK(WKStringCreateWithUTF8CString(userScriptTestProperty));
-    auto loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
+    RetainPtr loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
         runJavaScriptInMainFrame([wkView _pageRefForTransitionToWKWebView], userScriptTestPropertyString.get(), ^(WKTypeRef result, WKErrorRef error) {
             expectScriptValueIsBoolean(result, true);
             testFinished = true;
@@ -189,7 +189,7 @@ TEST_F(WebKit2UserContentTest, AddUserScriptAfterCreatingView)
     }]);
     wkView.get().navigationDelegate = loadDelegate.get();
     
-    auto script = adoptNS([[WKUserScript alloc] initWithSource:[NSString stringWithFormat:@"%s = true;", userScriptTestProperty] injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
+    RetainPtr script = adoptNS([[WKUserScript alloc] initWithSource:[NSString stringWithFormat:@"%s = true;", userScriptTestProperty] injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
     [wkView.get().configuration.userContentController addUserScript:script.get()];
     
     [wkView loadHTMLString:@"" baseURL:nil];
@@ -200,12 +200,12 @@ TEST_F(WebKit2UserContentTest, AddUserScriptAfterCreatingView)
 TEST_F(WebKit2UserContentTest, RemoveAllUserScripts)
 {
     testFinished = false;
-    auto script = adoptNS([[WKUserScript alloc] initWithSource:[NSString stringWithFormat:@"%s = true;", userScriptTestProperty] injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
+    RetainPtr script = adoptNS([[WKUserScript alloc] initWithSource:[NSString stringWithFormat:@"%s = true;", userScriptTestProperty] injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
 
-    auto wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr wkView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [wkView.get().configuration.userContentController addUserScript:script.get()];
     auto userScriptTestPropertyString = adoptWK(WKStringCreateWithUTF8CString(userScriptTestProperty));
-    auto loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
+    RetainPtr loadDelegate = adoptNS([[TestBrowsingContextLoadDelegate alloc] initWithBlockToRunOnLoad:^(WKWebView *sender) {
         runJavaScriptInMainFrame([wkView _pageRefForTransitionToWKWebView], userScriptTestPropertyString.get(), ^(WKTypeRef value, WKErrorRef error) {
             expectScriptValueIsUndefined(value);
             testFinished = true;

@@ -30,13 +30,13 @@
 
 TEST(WKWebView, HitTestAfterInitializingFromCoder)
 {
-    auto webViewToEncode = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    RetainPtr webViewToEncode = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     [webViewToEncode synchronouslyLoadTestPageNamed:@"simple"];
 
-    auto archiver = adoptNS([[NSKeyedArchiver alloc] init]);
+    RetainPtr archiver = adoptNS([[NSKeyedArchiver alloc] init]);
     [archiver encodeObject:webViewToEncode.get() forKey:@"WebView"];
 
-    auto unarchiver = adoptNS([[NSKeyedUnarchiver alloc] initForReadingFromData:[archiver encodedData] error:nil]);
+    RetainPtr unarchiver = adoptNS([[NSKeyedUnarchiver alloc] initForReadingFromData:[archiver encodedData] error:nil]);
     [unarchiver setRequiresSecureCoding:NO];
 
     WKWebView *decodedWebView = [unarchiver decodeObjectForKey:@"WebView"];
