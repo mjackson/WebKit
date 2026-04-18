@@ -698,8 +698,43 @@ JSPromise* JSModuleLoader::hostLoadImportedModule(JSGlobalObject* globalObject, 
         mapEntry->status(ModuleRegistryEntry::Status::Fetching);
         mapEntry->ensureFetchPromise(globalObject)->pipeFrom(vm, promise);
     }
-
     JSPromise* modulePromise = mapEntry->ensureModulePromise(globalObject);
+#if USE(BUN_JSC_ADDITIONS)
+    if (vm.m_synchronousModuleQueue && mapEntry->status() == ModuleRegistryEntry::Status::Fetching && modulePromise->status() == JSPromise::Status::Pending) {
+        // require(esm) hit a dependency that the surrounding async graph
+        // already started loading. Force the chain through synchronously so
+        // this graph can complete without yielding; the outer async path will
+        // see the entry as Fetched when it eventually drains and short-circuit.
+        JSPromise* fetchPromise = mapEntry->ensureFetchPromise(globalObject);
+        if (fetchPromise->status() == JSPromise::Status::Pending) {
+            // Transpilation still in flight — re-issue through the embedder's
+            // synchronous fetch. fetchPromise was already pipeFrom()'d by the
+            // async path which set isFirstResolvingFunctionCalledFlag, so use
+            // the unguarded fulfill/reject. The ModuleRegistryFetchSettled
+            // reaction on fetchPromise lands on the sync queue and drives the
+            // rest of the chain.
+            JSPromise* promise = fetch(globalObject, identifierToJSValue(vm, resolved), jsUndefined(), scriptFetcher);
+            RETURN_IF_EXCEPTION(scope, nullptr);
+            if (promise->status() == JSPromise::Status::Fulfilled)
+                fetchPromise->fulfillPromise(vm, globalObject, promise->result());
+            else if (promise->status() == JSPromise::Status::Rejected)
+                fetchPromise->rejectPromise(vm, globalObject, promise->result());
+        } else if (fetchPromise->status() == JSPromise::Status::Fulfilled) {
+            // fetchPromise already settled but its ModuleRegistryFetchSettled
+            // reaction is sitting on the *normal* microtask queue (it fired
+            // before we entered sync mode). Replay that step inline. The
+            // queued normal-microtask copy will see modulePromise already
+            // settled and bail in moduleRegistryFetchSettled's handler.
+            JSPromise* makePromise = makeModule(globalObject, resolved, jsCast<JSSourceCode*>(fetchPromise->result()));
+            RETURN_IF_EXCEPTION(scope, nullptr);
+            if (makePromise->status() == JSPromise::Status::Fulfilled) {
+                mapEntry->fetchComplete(globalObject, jsCast<AbstractModuleRecord*>(makePromise->result()));
+                modulePromise->fulfillPromise(vm, globalObject, makePromise->result());
+            } else if (makePromise->status() == JSPromise::Status::Rejected)
+                modulePromise->rejectPromise(vm, globalObject, makePromise->result());
+        }
+    }
+#endif
     RETURN_IF_EXCEPTION(scope, nullptr);
 
     auto* context = ModuleLoadingContext::create(vm, ModuleLoadingContext::Step::Main, referrer, moduleRequest, payload, mapEntry, scriptFetcher);

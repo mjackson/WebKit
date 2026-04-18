@@ -829,6 +829,12 @@ static void moduleRegistryFetchSettled(JSGlobalObject* globalObject, VM& vm, Thr
     auto* entry = jsCast<ModuleRegistryEntry*>(arguments[2]);
     auto* modulePromise = jsCast<JSPromise*>(arguments[0]);
     auto status = static_cast<JSPromise::Status>(payload);
+#if USE(BUN_JSC_ADDITIONS)
+    // hostLoadImportedModule may have already replayed this step inline while
+    // a synchronous loadModule was active.
+    if (modulePromise->status() != JSPromise::Status::Pending)
+        return;
+#endif
     if (status == JSPromise::Status::Fulfilled) {
         auto* jsSourceCode = jsSecureCast<JSSourceCode*>(arguments[1]);
         JSPromise* makeModulePromise = JSModuleLoader::makeModule(globalObject, entry->key(), jsSourceCode);
@@ -1446,6 +1452,13 @@ void runInternalMicrotask(JSGlobalObject* globalObject, VM& vm, InternalMicrotas
     case InternalMicrotask::PromiseFulfillWithoutHandlerJob: {
         auto* promise = jsCast<JSPromise*>(arguments[0]);
         JSValue resolution = arguments[1];
+#if USE(BUN_JSC_ADDITIONS)
+        // hostLoadImportedModule may have force-settled this promise inline
+        // while a synchronous loadModule was active; the queued pipeFrom job
+        // is now redundant.
+        if (promise->status() != JSPromise::Status::Pending)
+            return;
+#endif
         switch (static_cast<JSPromise::Status>(payload)) {
         case JSPromise::Status::Pending:
             RELEASE_ASSERT_NOT_REACHED();
