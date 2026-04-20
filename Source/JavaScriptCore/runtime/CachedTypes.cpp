@@ -1655,19 +1655,29 @@ public:
 #endif
     }
 
+#if USE(BUN_JSC_ADDITIONS)
+    // The caller (CachedSourceProvider::decode) returns SourceProvider*, so the
+    // BUN reuse path can return the runtime provider as its base type without
+    // any reinterpret_cast through the StringSourceProvider sibling.
+    SourceProvider* decode(Decoder& decoder, SourceProviderSourceType sourceType) const
+#else
     StringSourceProvider* decode(Decoder& decoder, SourceProviderSourceType sourceType) const
+#endif
     {
 #if USE(BUN_JSC_ADDITIONS)
         // Reuse the runtime SourceProvider the Decoder was constructed with rather
         // than allocating a fresh StringSourceProvider holding a heap copy of the
         // source. The decoded key is only used for SourceCodeKey equality, which
         // under BUN_JSC_ADDITIONS does not look at source bytes.
+        //
+        // Base::decode is intentionally skipped: the runtime provider already has
+        // its sourceURLDirective / sourceMappingURLDirective / sourceTaintedOrigin
+        // set, and the decoded key only needs sourceOrigin().url().host() and
+        // length() for equality. CachedSourceProviderShape fields are offset-based
+        // (not stream-based), so leaving them undecoded does not affect later reads.
         if (RefPtr<SourceProvider> provider = decoder.provider()) {
-            if (provider->sourceType() == sourceType && provider->source().length() == m_sourceLength) {
-                Base::decode(decoder, *provider);
-                SourceProvider* raw = provider.leakRef();
-                return reinterpret_cast<StringSourceProvider*>(raw);
-            }
+            if (provider->sourceType() == sourceType && provider->source().length() == m_sourceLength)
+                return provider.leakRef();
         }
         // Fallback for callers that did not supply a provider: decode without source
         // bytes. SourceCodeKey::operator== ignores string(), but length() is compared,
