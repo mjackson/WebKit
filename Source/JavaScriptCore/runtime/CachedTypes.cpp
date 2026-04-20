@@ -1644,12 +1644,39 @@ public:
     void encode(Encoder& encoder, const StringSourceProvider& sourceProvider)
     {
         Base::encode(encoder, sourceProvider);
+#if USE(BUN_JSC_ADDITIONS)
+        // SourceCodeKey::operator== under BUN_JSC_ADDITIONS does not compare source
+        // text, so encoding it here only wastes ~source_size bytes of bytecode and
+        // forces a ~source_size heap allocation at decode time. Store length only —
+        // the comparison still validates length() and host().
+        m_sourceLength = sourceProvider.source().length();
+#else
         m_source.encode(encoder, sourceProvider.source().toString());
+#endif
     }
 
     StringSourceProvider* decode(Decoder& decoder, SourceProviderSourceType sourceType) const
     {
+#if USE(BUN_JSC_ADDITIONS)
+        // Reuse the runtime SourceProvider the Decoder was constructed with rather
+        // than allocating a fresh StringSourceProvider holding a heap copy of the
+        // source. The decoded key is only used for SourceCodeKey equality, which
+        // under BUN_JSC_ADDITIONS does not look at source bytes.
+        if (RefPtr<SourceProvider> provider = decoder.provider()) {
+            if (provider->sourceType() == sourceType && provider->source().length() == m_sourceLength) {
+                Base::decode(decoder, *provider);
+                SourceProvider* raw = provider.leakRef();
+                return reinterpret_cast<StringSourceProvider*>(raw);
+            }
+        }
+        // Fallback for callers that did not supply a provider: decode without source
+        // bytes. SourceCodeKey::operator== ignores string(), but length() is compared,
+        // so synthesize a provider whose source() is empty — length() will mismatch
+        // and the cache entry will be rejected, which is the conservative behaviour.
+        String decodedSource;
+#else
         String decodedSource = m_source.decode(decoder);
+#endif
         SourceOrigin decodedSourceOrigin = m_sourceOrigin.decode(decoder);
         String decodedSourceURL = m_sourceURL.decode(decoder);
         TextPosition decodedStartPosition = m_startPosition.decode(decoder);
@@ -1660,7 +1687,11 @@ public:
     }
 
 private:
+#if USE(BUN_JSC_ADDITIONS)
+    unsigned m_sourceLength;
+#else
     CachedString m_source;
+#endif
 };
 
 #if ENABLE(WEBASSEMBLY)
