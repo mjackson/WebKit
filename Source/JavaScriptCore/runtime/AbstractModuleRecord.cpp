@@ -1044,6 +1044,22 @@ unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObjec
         AbstractModuleRecord* requiredModule = JSModuleLoader::getImportedModule(module, request);
         checkSafeToRecurse(globalObject, scope);
         RETURN_IF_EXCEPTION(scope, invalid);
+#if USE(BUN_JSC_ADDITIONS)
+        // Record whether this dep was already mid-TLA before our recursive
+        // visit. The spec (11.c.v) makes us wait on it, which is a guaranteed
+        // deadlock when we're running inside that very dep's TLA continuation
+        // (e.g. Nitro: index.mjs top-level `await fetch()` -> handler ->
+        // `import("./chunk")` -> chunk statically imports index.mjs). The
+        // pre-rewrite JS loader did not track async parents across dynamic
+        // imports, so it evaluated the chunk immediately with the parent's
+        // already-initialised bindings. Preserve that for back-compat: only
+        // skip the wait when the dep was *already* EvaluatingAsync; deps that
+        // *become* EvaluatingAsync during the recursive call below are a
+        // legitimate TLA dependency and must still be awaited.
+        bool depWasAlreadyEvaluatingAsync = false;
+        if (auto* depCyclic = jsDynamicCast<CyclicModuleRecord*>(requiredModule))
+            depWasAlreadyEvaluatingAsync = depCyclic->status() == Status::EvaluatingAsync;
+#endif
         // 11.b. Set index to ? InnerModuleEvaluation(requiredModule, stack, index).
         unsigned result = requiredModule->innerModuleEvaluation(globalObject, stack, index);
         RETURN_IF_EXCEPTION(scope, invalid);
@@ -1073,10 +1089,18 @@ unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObjec
             }
             // 11.c.v. If requiredModule.[[AsyncEvaluationOrder]] is an integer, then
             if (cyclic->asyncEvaluationOrder().hasOrder()) {
+#if USE(BUN_JSC_ADDITIONS)
+                // See note above the recursive call: skip the spec-mandated
+                // wait to avoid self-deadlock and match old-loader behaviour.
+                if (!depWasAlreadyEvaluatingAsync) {
+#endif
                 // 11.c.v.1. Set module.[[PendingAsyncDependencies]] to module.[[PendingAsyncDependencies]] + 1.
                 module->pendingAsyncDependencies(module->pendingAsyncDependencies().value() + 1);
                 // 11.c.v.2. Append module to requiredModule.[[AsyncParentModules]].
                 cyclic->appendAsyncParentModule(vm, module);
+#if USE(BUN_JSC_ADDITIONS)
+                }
+#endif
             }
         }
     }
