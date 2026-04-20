@@ -1063,16 +1063,17 @@ void JSModuleLoader::drainSynchronousModuleQueue(JSGlobalObject* globalObject)
     auto scope = DECLARE_THROW_SCOPE(vm);
     auto* queue = vm.m_synchronousModuleQueue;
     ASSERT(queue);
+    auto& tasks = queue->tasks;
     // FIFO drain. Tasks may append while we iterate, so index by position and
     // never shrink mid-loop. Clear afterwards so the next caller starts fresh.
     size_t i = 0;
-    while (i < queue->size()) {
-        auto t = (*queue)[i++];
+    while (i < tasks.size()) {
+        auto t = tasks[i++];
         std::array<const JSValue, maxMicrotaskArguments> args { { t.arg0, t.arg1, t.arg2, jsUndefined() } };
         runInternalMicrotask(globalObject, vm, t.task, t.payload, args);
         RETURN_IF_EXCEPTION(scope, void());
     }
-    queue->shrink(0);
+    tasks.shrink(0);
 }
 
 JSPromise* JSModuleLoader::loadModuleSync(JSGlobalObject* globalObject, const Identifier& moduleName, JSValue parameters, JSValue scriptFetcher)
@@ -1080,11 +1081,11 @@ JSPromise* JSModuleLoader::loadModuleSync(JSGlobalObject* globalObject, const Id
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    Vector<VM::SynchronousModuleTask> queue;
-    auto* previousQueue = vm.m_synchronousModuleQueue;
+    VM::SynchronousModuleQueue queue;
+    queue.prev = vm.m_synchronousModuleQueue;
     vm.m_synchronousModuleQueue = &queue;
     auto cleanup = WTF::makeScopeExit([&] {
-        vm.m_synchronousModuleQueue = previousQueue;
+        vm.m_synchronousModuleQueue = queue.prev;
     });
 
     JSPromise* result = loadModule(globalObject, moduleName, parameters, scriptFetcher, /* evaluate */ true, /* dynamic */ false, /* useImportMap */ false);

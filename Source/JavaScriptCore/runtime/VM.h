@@ -1384,12 +1384,20 @@ public:
     };
     // While non-null, internal-microtask reactions for already-settled promises
     // are appended here instead of the global microtask queue.
-    // JSModuleLoader::loadModuleSync points this at a stack-allocated vector and
+    // JSModuleLoader::loadModuleSync points this at a stack-allocated frame and
     // drains it in a loop so require(esm) can load+link+evaluate without
     // yielding to user microtasks and without the O(module-count) C++ recursion
-    // that direct re-entry into runInternalMicrotask would cause. The JSValues
-    // live on the C stack, so conservative stack scanning keeps them rooted.
-    Vector<SynchronousModuleTask>* m_synchronousModuleQueue { nullptr };
+    // that direct re-entry into runInternalMicrotask would cause.
+    //
+    // The Vector's heap buffer is NOT covered by conservative stack scanning,
+    // so VM::visitAggregateImpl walks the full prev-linked chain and marks
+    // every queued JSValue. The chain exists because module evaluation can
+    // re-enter loadModuleSync (require(esm) inside an evaluated module).
+    struct SynchronousModuleQueue {
+        Vector<SynchronousModuleTask> tasks;
+        SynchronousModuleQueue* prev { nullptr };
+    };
+    SynchronousModuleQueue* m_synchronousModuleQueue { nullptr };
 private:
 #endif
 

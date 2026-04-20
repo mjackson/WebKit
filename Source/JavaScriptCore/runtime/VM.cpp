@@ -1863,6 +1863,19 @@ void VM::visitAggregateImpl(Visitor& visitor)
     m_microtaskQueues.forEach([&](MicrotaskQueue* microtaskQueue) {
         microtaskQueue->visitAggregate(visitor);
     });
+#if USE(BUN_JSC_ADDITIONS)
+    // The synchronous-module queue's Vector buffer lives on the heap, so
+    // conservative stack scanning does not see the JSValues it holds. Walk the
+    // full prev-linked chain (loadModuleSync can re-enter while a queued
+    // module evaluates) and mark every pending task's arguments.
+    for (auto* q = m_synchronousModuleQueue; q; q = q->prev) {
+        for (auto& t : q->tasks) {
+            visitor.appendUnbarriered(t.arg0);
+            visitor.appendUnbarriered(t.arg1);
+            visitor.appendUnbarriered(t.arg2);
+        }
+    }
+#endif
     numericStrings.visitAggregate(visitor);
     m_builtinExecutables->visitAggregate(visitor);
     m_regExpCache->visitAggregate(visitor);
