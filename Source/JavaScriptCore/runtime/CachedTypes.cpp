@@ -53,6 +53,15 @@
 #include <wtf/text/AtomStringImpl.h>
 #include <wtf/text/ParsingUtilities.h>
 
+#if USE(BUN_JSC_ADDITIONS)
+// Poison platform-varying inputs so a future upstream merge that reintroduces
+// alignof(std::max_align_t) or pageSize() in this file fails to compile rather
+// than silently breaking cross-platform bytecode. Placed after all #includes so
+// system/WTF headers are unaffected; only this TU's body is poisoned.
+#define max_align_t max_align_t_is_platform_dependent_use_Encoder_cachedTypesMaxAlignment
+#define pageSize pageSize_is_platform_dependent_use_Encoder_cachedTypesPageSize
+#endif
+
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
@@ -2948,5 +2957,11 @@ void decodeFunctionCodeBlock(Decoder& decoder, int32_t cachedFunctionCodeBlockOf
 }
 
 } // namespace JSC
+
+#if USE(BUN_JSC_ADDITIONS)
+// Unscope the poison so unified-build siblings compiled after this file are unaffected.
+#undef max_align_t
+#undef pageSize
+#endif
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
