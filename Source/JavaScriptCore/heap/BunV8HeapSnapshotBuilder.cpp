@@ -394,6 +394,9 @@ String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell, bool recurse)
         auto* string = jsCast<JSString*>(cell);
         auto value = string->tryGetValue(true);
         if (!value->isEmpty()) {
+            static constexpr unsigned heapSnapshotStringLimit = 1024;
+            if (value->length() > heapSnapshotStringLimit)
+                return value->left(heapSnapshotStringLimit);
             return value;
         }
         break;
@@ -535,18 +538,23 @@ unsigned BunV8HeapSnapshotBuilder::addString(const String& str)
     if (str.isEmpty())
         return 0;
 
+    // V8 truncates strings to --heap-snapshot-string-limit (default 1024) with no
+    // ellipsis suffix and dedupes on the truncated content.
+    static constexpr unsigned heapSnapshotStringLimit = 1024;
+    String key = str.length() > heapSnapshotStringLimit ? str.left(heapSnapshotStringLimit) : str;
+
     // Check if string already exists
-    unsigned hash = str.hash();
+    unsigned hash = key.hash();
     size_t hashKey = static_cast<size_t>(hash);
     // 32 bits: hash
     // 32 bits: length
-    hashKey |= static_cast<size_t>(str.length()) << (sizeof(size_t) * 8 - 32);
+    hashKey |= static_cast<size_t>(key.length()) << (sizeof(size_t) * 8 - 32);
     auto it = m_stringsLookupTable.find(hashKey);
     if (it != m_stringsLookupTable.end())
         return it->value;
 
     unsigned index = m_strings.size();
-    m_strings.append(str);
+    m_strings.append(WTF::move(key));
     m_stringsLookupTable.set(hashKey, index);
     return index;
 }
