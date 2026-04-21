@@ -40,9 +40,13 @@ public:
     Vector<uint8_t> jsonBytes();
 
 private:
+    static constexpr unsigned kRootNodeIndex = 0;
+    static constexpr unsigned kGcRootsNodeIndex = 1;
+
     String generateV8HeapSnapshot();
     Vector<uint8_t> generateV8HeapSnapshotBytes();
-    unsigned analyzeNodeInternal(JSCell*, void* optionalHashId = nullptr);
+    unsigned analyzeNodeInternal(JSCell*);
+    void appendSyntheticRootEdges();
 
     struct TraceLocation {
     public:
@@ -113,6 +117,7 @@ private:
     Vector<Edge> m_edges;
     Lock m_cellToNodeIdMutex;
     HashMap<JSCell*, unsigned> m_cellToNodeId;
+    Vector<unsigned> m_globalObjectNodeIndices;
 
     // TODO: make this not so inefficient
     Vector<String> m_strings;
@@ -127,7 +132,7 @@ private:
     HashMap<JSCell*, String> m_cellLabels;
 
     // Helper methods
-    unsigned getOrCreateNodeId(JSCell*, void* optionalHashId = nullptr);
+    unsigned getOrCreateNodeId(JSCell*);
     unsigned getNodeTypeIndex(JSCell*);
     unsigned getEdgeTypeIndex(RootMarkReason);
     unsigned getEdgeTypeIndex(const String& type);

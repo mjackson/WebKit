@@ -23,29 +23,6 @@
 #include "DateInstance.h"
 #include "HeapSnapshotBuilder.h"
 #include "RegExpObject.h"
-#include <wtf/text/WYHash.h>
-
-static unsigned generateHashID(JSCell* cell, void* optionalHashId)
-{
-    // Attempt to use the wrapped object as the hash id if it exists
-    // If it doesn't exist, use the cell pointer since that's the best we can do.
-    if (optionalHashId == nullptr) {
-        optionalHashId = cell;
-    }
-
-    // We hash:
-    // - void* optionalHashId
-    // - cell->type()
-    // - cell->classInfo() (pointer)
-    uintptr_t pointerNumber = reinterpret_cast<uintptr_t>(optionalHashId);
-    char bytesToHash[sizeof(uintptr_t) * 2 + 1];
-    std::span<char> span { bytesToHash, sizeof(bytesToHash) };
-    memcpy(span.data(), &pointerNumber, sizeof(uintptr_t));
-    span[sizeof(uintptr_t)] = cell->type();
-    uintptr_t classInfoPtr = reinterpret_cast<uintptr_t>(cell->classInfo());
-    memcpy(&span[sizeof(uintptr_t) + 1], &classInfoPtr, sizeof(uintptr_t));
-    return WTF::WYHash::computeHashAndMaskTop8Bits<char>(span);
-}
 
 namespace JSC {
 
@@ -56,15 +33,27 @@ BunV8HeapSnapshotBuilder::BunV8HeapSnapshotBuilder(HeapProfiler& profiler)
 {
     initializeTypeNames();
 
-    // Initialize with synthetic root node
+    // V8's snapshot has a synthetic "(root)" with a "(GC roots)" child; DevTools'
+    // calculateDistances BFS uses shortcut edges from root as user roots
+    // (distance=1) and assigns baseSystemDistance to anything reachable only
+    // through (GC roots). Node id is 2*index+1 to match V8's odd-ID convention.
     m_nodes.append({
-        .id = 0,
+        .id = 1,
         .typeIndex = static_cast<unsigned>(V8NodeType::Synthetic),
-        .name = "(root)"_s,
+        .name = ""_s,
         .selfSize = 0,
         .edges = {},
         .traceLocation = std::nullopt,
         .parentNodeId = std::nullopt,
+    });
+    m_nodes.append({
+        .id = 3,
+        .typeIndex = static_cast<unsigned>(V8NodeType::Synthetic),
+        .name = "(GC roots)"_s,
+        .selfSize = 0,
+        .edges = {},
+        .traceLocation = std::nullopt,
+        .parentNodeId = kRootNodeIndex,
     });
 
     // Add empty string as first string (index 0)
@@ -154,32 +143,18 @@ void BunV8HeapSnapshotBuilder::analyzeNode(JSCell* cell)
 {
     if (!cell)
         return;
-
-    {
-        Locker locker { m_cellToNodeIdMutex };
-        if (m_cellToNodeId.get(cell)) {
-            return;
-        }
-    }
-
-    unsigned id = analyzeNodeInternal(cell, nullptr);
-
-    {
-        Locker locker { m_cellToNodeIdMutex };
-        m_cellToNodeId.set(cell, id);
-    }
+    getOrCreateNodeId(cell);
 }
 
-unsigned BunV8HeapSnapshotBuilder::analyzeNodeInternal(JSCell* cell, void* optionalHashId)
+unsigned BunV8HeapSnapshotBuilder::analyzeNodeInternal(JSCell* cell)
 {
-
     Locker locker { m_buildingNodeMutex };
     auto typeIndex = getNodeTypeIndex(cell);
-    unsigned id = m_nodes.size();
+    unsigned index = m_nodes.size();
 
     m_nodes.append({
         .cell = cell,
-        .id = generateHashID(cell, optionalHashId),
+        .id = 2 * index + 1,
         .typeIndex = typeIndex,
         .selfSize = cell->estimatedSizeInBytes(m_profiler.vm()),
         .edges = {},
@@ -187,7 +162,28 @@ unsigned BunV8HeapSnapshotBuilder::analyzeNodeInternal(JSCell* cell, void* optio
         .parentNodeId = std::nullopt,
     });
 
-    return id;
+    if (cell->type() == GlobalObjectType)
+        m_globalObjectNodeIndices.append(index);
+
+    return index;
+}
+
+void BunV8HeapSnapshotBuilder::appendSyntheticRootEdges()
+{
+    Edge rootToGcRoots {};
+    rootToGcRoots.fromNodeId = kRootNodeIndex;
+    rootToGcRoots.toNodeId = kGcRootsNodeIndex;
+    rootToGcRoots.typeIndex = static_cast<unsigned>(V8EdgeType::Element);
+    rootToGcRoots.index = 0;
+    m_edges.append(WTF::move(rootToGcRoots));
+
+    for (unsigned globalIndex : m_globalObjectNodeIndices) {
+        Edge shortcut {};
+        shortcut.fromNodeId = kRootNodeIndex;
+        shortcut.toNodeId = globalIndex;
+        shortcut.typeIndex = static_cast<unsigned>(V8EdgeType::Shortcut);
+        m_edges.append(WTF::move(shortcut));
+    }
 }
 
 void BunV8HeapSnapshotBuilder::analyzeEdge(JSCell* from, JSCell* to, RootMarkReason reason)
@@ -200,7 +196,7 @@ void BunV8HeapSnapshotBuilder::analyzeEdge(JSCell* from, JSCell* to, RootMarkRea
 
     Locker locker { m_buildingEdgeMutex };
     Edge edge = {};
-    edge.fromNodeId = from ? getOrCreateNodeId(from) : 0;
+    edge.fromNodeId = from ? getOrCreateNodeId(from) : kGcRootsNodeIndex;
     edge.toNodeId = getOrCreateNodeId(to);
 
     // Validate node IDs
@@ -273,14 +269,7 @@ void BunV8HeapSnapshotBuilder::analyzeIndexEdge(JSCell* from, JSCell* to, uint32
 }
 
 void BunV8HeapSnapshotBuilder::setOpaqueRootReachabilityReasonForCell(JSCell*, ASCIILiteral) {}
-void BunV8HeapSnapshotBuilder::setWrappedObjectForCell(JSCell* cell, void* wrappedObject)
-{
-    unsigned id = getOrCreateNodeId(cell, wrappedObject);
-
-    // TODO: make this one lock instead of two.
-    Locker locker { m_buildingNodeMutex };
-    m_nodes[id].id = generateHashID(cell, wrappedObject);
-}
+void BunV8HeapSnapshotBuilder::setWrappedObjectForCell(JSCell*, void*) {}
 
 void BunV8HeapSnapshotBuilder::setLabelForCell(JSCell* cell, const String& label)
 {
@@ -291,17 +280,17 @@ void BunV8HeapSnapshotBuilder::setLabelForCell(JSCell* cell, const String& label
     m_cellLabels.set(cell, label);
 }
 
-unsigned BunV8HeapSnapshotBuilder::getOrCreateNodeId(JSCell* cell, void* optionalHashId)
+unsigned BunV8HeapSnapshotBuilder::getOrCreateNodeId(JSCell* cell)
 {
     if (!cell)
-        return 0; // Only return 0 for root
+        return kRootNodeIndex;
 
     Locker locker { m_cellToNodeIdMutex };
     auto it = m_cellToNodeId.find(cell);
     if (it != m_cellToNodeId.end())
         return it->value;
 
-    unsigned id = analyzeNodeInternal(cell, optionalHashId);
+    unsigned id = analyzeNodeInternal(cell);
     m_cellToNodeId.set(cell, id);
     return id;
 }
@@ -597,9 +586,12 @@ String BunV8HeapSnapshotBuilder::generateV8HeapSnapshot()
 {
     // Extra pass #1: fill in the node names
     for (auto& node : m_nodes) {
-        node.name = getDetailedNodeType(node.cell);
+        if (node.cell)
+            node.name = getDetailedNodeType(node.cell);
         node.edgesCount = 0; // Reset edge counts for deduplication pass
     }
+
+    appendSyntheticRootEdges();
 
     // Sort edges by fromNodeId to ensure they're grouped correctly
     std::sort(m_edges.begin(), m_edges.end(),
@@ -867,9 +859,12 @@ Vector<uint8_t> BunV8HeapSnapshotBuilder::generateV8HeapSnapshotBytes()
 {
     // Extra pass #1: fill in the node names
     for (auto& node : m_nodes) {
-        node.name = getDetailedNodeType(node.cell);
+        if (node.cell)
+            node.name = getDetailedNodeType(node.cell);
         node.edgesCount = 0; // Reset edge counts for deduplication pass
     }
+
+    appendSyntheticRootEdges();
 
     // Sort edges by fromNodeId to ensure they're grouped correctly
     std::sort(m_edges.begin(), m_edges.end(),
