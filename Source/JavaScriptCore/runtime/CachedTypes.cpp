@@ -75,6 +75,18 @@ struct SourceTypeImpl<T, std::enable_if_t<!std::is_fundamental<T>::value && !std
 template<typename T>
 using SourceType = typename SourceTypeImpl<T>::type;
 
+#if USE(BUN_JSC_ADDITIONS)
+// Bytecode portability guard. Every type whose raw struct image is written to
+// disk must have a BUN_CACHED_SIZE(T, N) entry in the table at the bottom of
+// this file. The two allocation choke points — Encoder::malloc<T>() and
+// VariableLengthObject::allocate<T>() — static_assert against this trait, so a
+// type that is encoded but not listed fails to compile with "implicit
+// instantiation of undefined template 'CachedSerializedSize<...>'". The table
+// constant is asserted == sizeof(T) on every platform's build, so any
+// cross-ABI sizeof divergence breaks CI on the divergent platform.
+template<typename T> struct CachedSerializedSize; // primary intentionally undefined
+#endif
+
 class Encoder {
     WTF_MAKE_NONCOPYABLE(Encoder);
     WTF_FORBID_HEAP_ALLOCATION;
@@ -109,6 +121,24 @@ public:
 
     VM& vm() { return m_vm; }
 
+#if USE(BUN_JSC_ADDITIONS)
+    // Bun ships bytecode inside cross-compiled single-file executables, so the
+    // serialized layout must be byte-identical across every 64-bit LE target
+    // (Linux/macOS x64+arm64, Windows x64+arm64). Two encoder inputs vary by
+    // platform and would otherwise shift every offset in the file:
+    //
+    //   alignof(std::max_align_t)  16 on Linux/macOS-x64, 8 on macOS-arm64/Windows
+    //   WTF::pageSize()            4096 on Linux/Windows, 16384 on Apple Silicon
+    //
+    // Pinning both to constants makes the encoder's allocation pattern identical
+    // everywhere. 8 is sufficient: the largest alignment of any Cached* member is
+    // alignof(ptrdiff_t) == 8, asserted below via cachedTypesMaxAlignment.
+    static constexpr size_t cachedTypesMaxAlignment = 8;
+    static constexpr size_t cachedTypesPageSize = 4096;
+#else
+    static constexpr size_t cachedTypesMaxAlignment = alignof(std::max_align_t);
+#endif
+
     Allocation malloc(unsigned size)
     {
         RELEASE_ASSERT(size);
@@ -122,6 +152,12 @@ public:
     template<typename T, typename... Args>
     T* malloc(Args&&... args)
     {
+#if USE(BUN_JSC_ADDITIONS)
+        static_assert(CachedSerializedSize<T>::value == sizeof(T),
+            "Type written to bytecode cache disagrees with (or is missing from) "
+            "the BUN_CACHED_SIZE table at the bottom of CachedTypes.cpp");
+        static_assert(alignof(T) <= cachedTypesMaxAlignment);
+#endif
         return new (malloc(sizeof(T)).buffer()) T(std::forward<Args>(args)...);
     }
 
@@ -215,7 +251,7 @@ private:
 
         bool malloc(size_t size, ptrdiff_t& result)
         {
-            size_t alignment = std::min(alignof(std::max_align_t), static_cast<size_t>(roundUpToPowerOfTwo(size)));
+            size_t alignment = std::min(cachedTypesMaxAlignment, static_cast<size_t>(roundUpToPowerOfTwo(size)));
             ptrdiff_t offset = roundUpToMultipleOf(alignment, m_offset);
             size = roundUpToMultipleOf(alignment, size);
             if (static_cast<size_t>(offset + size) > capacity())
@@ -247,7 +283,7 @@ private:
 
         void NODELETE alignEnd()
         {
-            ptrdiff_t size = roundUpToMultipleOf(alignof(std::max_align_t), m_offset);
+            ptrdiff_t size = roundUpToMultipleOf(cachedTypesMaxAlignment, m_offset);
             if (size == m_offset)
                 return;
             RELEASE_ASSERT(static_cast<size_t>(size) <= capacity());
@@ -263,7 +299,11 @@ private:
 
     void allocateNewPage(size_t size = 0)
     {
+#if USE(BUN_JSC_ADDITIONS)
+        static constexpr size_t minPageSize = cachedTypesPageSize;
+#else
         static size_t minPageSize = pageSize();
+#endif
         if (m_currentPage) {
             m_currentPage->alignEnd();
             m_baseOffset += m_currentPage->size();
@@ -458,6 +498,12 @@ protected:
 #endif
     T* allocate(Encoder& encoder, unsigned size = 1)
     {
+#if USE(BUN_JSC_ADDITIONS)
+        static_assert(CachedSerializedSize<T>::value == sizeof(T),
+            "Type written to bytecode cache disagrees with (or is missing from) "
+            "the BUN_CACHED_SIZE table at the bottom of CachedTypes.cpp");
+        static_assert(alignof(T) <= Encoder::cachedTypesMaxAlignment);
+#endif
         uint8_t* result = allocate(encoder, sizeof(T) * size);
         ASSERT(!(std::bit_cast<uintptr_t>(result) % alignof(T)));
         return new (result) T[size];
@@ -1698,7 +1744,12 @@ public:
 
 private:
 #if USE(BUN_JSC_ADDITIONS)
-    unsigned m_sourceLength;
+    // alignas(8): the base CachedSourceProviderShape ends at byte 89 (uint8_t
+    // m_sourceTaintedOrigin at 88), nvsize=89/sizeof=96. Itanium ABI would tuck
+    // a 4-aligned member into that tail padding at offset 92; MS ABI (clang-cl)
+    // never reuses base tail padding and places it at 96. Forcing 8-alignment
+    // makes both ABIs agree on offset 96, sizeof 104.
+    alignas(8) unsigned m_sourceLength;
 #else
     CachedString m_source;
 #endif
@@ -2595,7 +2646,7 @@ private:
     CachedCodeBlockTag m_tag;
 };
 
-static_assert(alignof(GenericCacheEntry) <= alignof(std::max_align_t));
+static_assert(alignof(GenericCacheEntry) <= Encoder::cachedTypesMaxAlignment);
 
 template<typename UnlinkedCodeBlockType>
 class CacheEntry : public GenericCacheEntry {
@@ -2640,8 +2691,117 @@ private:
     CachedPtr<CachedCodeBlockType<UnlinkedCodeBlockType>> m_codeBlock;
 };
 
-static_assert(alignof(CacheEntry<UnlinkedProgramCodeBlock>) <= alignof(std::max_align_t));
-static_assert(alignof(CacheEntry<UnlinkedModuleProgramCodeBlock>) <= alignof(std::max_align_t));
+static_assert(alignof(CacheEntry<UnlinkedProgramCodeBlock>) <= Encoder::cachedTypesMaxAlignment);
+static_assert(alignof(CacheEntry<UnlinkedModuleProgramCodeBlock>) <= Encoder::cachedTypesMaxAlignment);
+
+#if USE(BUN_JSC_ADDITIONS)
+// ---------------------------------------------------------------------------
+// Cross-platform bytecode layout table.
+//
+// Every T that flows through Encoder::malloc<T>() or
+// VariableLengthObject::allocate<T>() must appear here. The choke-point
+// static_asserts above reference CachedSerializedSize<T>, so a missing entry
+// is a hard compile error. The constant is asserted == sizeof(T) on every
+// platform's build; if a future change makes some T's sizeof differ across
+// ABIs (e.g. MS C++ ABI tail-padding vs Itanium), the divergent platform's
+// build fails here.
+//
+// When adding or updating an entry: confirm the value is identical on
+// Linux, macOS x64, macOS arm64, and Windows before landing.
+// ---------------------------------------------------------------------------
+#define BUN_CACHED_SIZE(T, N) \
+    template<> struct CachedSerializedSize<T> { static constexpr size_t value = (N); }; \
+    static_assert(sizeof(T) == (N), \
+        #T " sizeof changed. The bytecode cache stores raw struct images that " \
+        "must be identical across all 64-bit platforms. Verify the new size " \
+        "matches on Linux/macOS-x64/macOS-arm64/Windows before updating.");
+
+// Root entries (Encoder::malloc<T>).
+BUN_CACHED_SIZE(CacheEntry<UnlinkedProgramCodeBlock>, 88)
+BUN_CACHED_SIZE(CacheEntry<UnlinkedModuleProgramCodeBlock>, 88)
+BUN_CACHED_SIZE(CachedFunctionCodeBlock, 424)
+
+// Code blocks behind CachedPtr.
+BUN_CACHED_SIZE(CachedProgramCodeBlock, 504)
+BUN_CACHED_SIZE(CachedModuleCodeBlock, 432)
+BUN_CACHED_SIZE(CachedCodeBlockRareData, 128)
+BUN_CACHED_SIZE(CachedInstructionStream, 16)
+BUN_CACHED_SIZE(CachedExpressionInfo, 24)
+
+// Function executables.
+BUN_CACHED_SIZE(CachedFunctionExecutable, 120)
+BUN_CACHED_SIZE(CachedFunctionExecutableRareData, 88)
+BUN_CACHED_SIZE(CachedWriteBarrier<CachedFunctionExecutable>, 8)
+BUN_CACHED_SIZE(CachedClassElementDefinition, 56)
+BUN_CACHED_SIZE(CachedJSTextPosition, 12)
+
+// Strings & identifiers.
+BUN_CACHED_SIZE(CachedString, 16)
+BUN_CACHED_SIZE(CachedIdentifier, 24)
+BUN_CACHED_SIZE(CachedUniquedStringImpl, 16)
+BUN_CACHED_SIZE(CachedStringImpl, 16)
+BUN_CACHED_SIZE(CachedOptional<CachedString>, 8)
+BUN_CACHED_SIZE(CachedRefPtr<CachedUniquedStringImpl>, 8)
+using CachedPackedUniquedStringImplRefPtr = CachedRefPtr<CachedUniquedStringImpl, UniquedStringImpl, WTF::PackedPtrTraits<UniquedStringImpl>>;
+BUN_CACHED_SIZE(CachedPackedUniquedStringImplRefPtr, 8)
+
+// Source providers (only struct whose layout would otherwise differ across ABIs;
+// alignas(8) on m_sourceLength keeps it at 104 everywhere).
+BUN_CACHED_SIZE(CachedSourceProvider, 16)
+BUN_CACHED_SIZE(CachedStringSourceProvider, 104)
+#if ENABLE(WEBASSEMBLY)
+BUN_CACHED_SIZE(CachedWebAssemblySourceProvider, 112)
+#endif
+
+// CachedJSValue payload variants.
+BUN_CACHED_SIZE(CachedJSValue, 16)
+BUN_CACHED_SIZE(CachedSymbolTable, 48)
+BUN_CACHED_SIZE(CachedSymbolTableRareData, 24)
+BUN_CACHED_SIZE(CachedScopedArgumentsTable, 16)
+BUN_CACHED_SIZE(CachedImmutableButterfly, 16)
+BUN_CACHED_SIZE(CachedRegExp, 24)
+BUN_CACHED_SIZE(CachedTemplateObjectDescriptor, 40)
+BUN_CACHED_SIZE(CachedBigInt, 16)
+BUN_CACHED_SIZE(CachedBitVector, 16)
+
+// Jump tables / handlers / environments.
+BUN_CACHED_SIZE(CachedSimpleJumpTable, 32)
+BUN_CACHED_SIZE(CachedStringJumpTable, 40)
+BUN_CACHED_SIZE(UnlinkedHandlerInfo, 16)
+BUN_CACHED_SIZE(CachedTDZEnvironmentLink, 16)
+BUN_CACHED_SIZE(CachedCompactTDZEnvironment, 24)
+BUN_CACHED_SIZE(CachedVariableEnvironmentRareData, 24)
+
+// CachedVector / CachedHashMap element types.
+using CachedHashSetRefPtrUSI = CachedHashSet<CachedRefPtr<CachedUniquedStringImpl>, IdentifierRepHash>;
+BUN_CACHED_SIZE(CachedHashSetRefPtrUSI, 16)
+using CachedPairStringImplOffsetLocation = CachedPair<CachedRefPtr<CachedStringImpl>, UnlinkedStringJumpTable::OffsetLocation>;
+BUN_CACHED_SIZE(CachedPairStringImplOffsetLocation, 16)
+using CachedPairRefPtrSymbolTableEntry = CachedPair<CachedRefPtr<CachedUniquedStringImpl>, CachedSymbolTableEntry>;
+BUN_CACHED_SIZE(CachedPairRefPtrSymbolTableEntry, 16)
+using CachedPairPackedRefPtrPrivateName = CachedPair<CachedPackedUniquedStringImplRefPtr, PrivateNameEntry>;
+BUN_CACHED_SIZE(CachedPairPackedRefPtrPrivateName, 16)
+using CachedPairPackedRefPtrVarEnvEntry = CachedPair<CachedPackedUniquedStringImplRefPtr, VariableEnvironmentEntry>;
+BUN_CACHED_SIZE(CachedPairPackedRefPtrVarEnvEntry, 16)
+using CachedPairUnsignedTypeProfilerRange = CachedPair<unsigned, UnlinkedCodeBlock::RareData::TypeProfilerExpressionRange>;
+BUN_CACHED_SIZE(CachedPairUnsignedTypeProfilerRange, 12)
+using CachedPairUnsignedInt = CachedPair<unsigned, int>;
+BUN_CACHED_SIZE(CachedPairUnsignedInt, 8)
+
+// Primitives that flow through CachedArray<T>/CachedJSValue. EncodedJSValue is
+// int64_t, which resolves to long on LP64 and long long on LLP64; specializing
+// via the typedef covers both.
+BUN_CACHED_SIZE(EncodedJSValue, 8)
+BUN_CACHED_SIZE(double, 8)
+BUN_CACHED_SIZE(int, 4)
+BUN_CACHED_SIZE(unsigned, 4)
+BUN_CACHED_SIZE(unsigned char, 1)
+BUN_CACHED_SIZE(ScopeOffset, 4)
+BUN_CACHED_SIZE(SourceCodeRepresentation, 1)
+
+#undef BUN_CACHED_SIZE
+#endif
+
 
 bool GenericCacheEntry::decode(Decoder& decoder, std::pair<SourceCodeKey, UnlinkedCodeBlock*>& result) const
 {
