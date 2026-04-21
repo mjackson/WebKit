@@ -1071,7 +1071,20 @@ void JSModuleLoader::drainSynchronousModuleQueue(JSGlobalObject* globalObject)
         auto t = tasks[i++];
         std::array<const JSValue, maxMicrotaskArguments> args { { t.arg0, t.arg1, t.arg2, jsUndefined() } };
         runInternalMicrotask(globalObject, vm, t.task, t.payload, args);
-        RETURN_IF_EXCEPTION(scope, void());
+        if (scope.exception()) [[unlikely]] {
+            // The remaining entries are reactions that performPromiseThen…/
+            // triggerPromiseReactions diverted off the global microtask queue.
+            // Dropping them would leave their loadPromise/modulePromise pending
+            // forever, so hand them back to the global queue (where they would
+            // have gone without the synchronous diversion) before propagating
+            // the exception. They run on the next normal microtask drain.
+            while (i < tasks.size()) {
+                auto rest = tasks[i++];
+                globalObject->queueMicrotask(vm, rest.task, rest.payload, rest.arg0, rest.arg1, rest.arg2);
+            }
+            tasks.shrink(0);
+            return;
+        }
     }
     tasks.shrink(0);
 }

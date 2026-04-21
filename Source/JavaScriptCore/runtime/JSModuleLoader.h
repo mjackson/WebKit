@@ -168,9 +168,12 @@ public:
 #if USE(BUN_JSC_ADDITIONS)
     ModuleRegistryEntry* registryEntry(const Identifier& key)
     {
-        // Bun's old JS loader keyed the registry by specifier alone, so look
-        // across every (specifier, type) bucket and return the first hit.
+        // Bun's old JS loader keyed the registry by specifier alone. Almost
+        // every entry uses the JavaScript type, so try that O(1) bucket first
+        // before falling back to a full scan for json/HostDefined variants.
         auto* impl = key.impl();
+        if (auto entry = m_moduleMap.get({ impl, ScriptFetchParameters::Type::JavaScript }))
+            return entry.get();
         for (auto& [k, entry] : m_moduleMap) {
             if (k.first == impl)
                 return entry.get();

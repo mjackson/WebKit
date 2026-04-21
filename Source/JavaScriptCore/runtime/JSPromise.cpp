@@ -375,7 +375,7 @@ void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, JSGlobalObject* 
         if (!isHandled())
             globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, this, JSPromiseRejectionOperation::Handle);
 #if USE(BUN_JSC_ADDITIONS)
-        if (vm.m_synchronousModuleQueue) [[unlikely]] {
+        if (vm.m_synchronousModuleQueue && isModuleLoaderInternalMicrotask(task)) [[unlikely]] {
             markAsHandled();
             vm.m_synchronousModuleQueue->tasks.append({ task, static_cast<uint8_t>(Status::Rejected), promise, reactionsOrResult, context });
             break;
@@ -387,7 +387,7 @@ void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, JSGlobalObject* 
     }
     case JSPromise::Status::Fulfilled: {
 #if USE(BUN_JSC_ADDITIONS)
-        if (vm.m_synchronousModuleQueue) [[unlikely]] {
+        if (vm.m_synchronousModuleQueue && isModuleLoaderInternalMicrotask(task)) [[unlikely]] {
             vm.m_synchronousModuleQueue->tasks.append({ task, static_cast<uint8_t>(Status::Fulfilled), promise, reactionsOrResult, context });
             break;
         }
@@ -682,7 +682,7 @@ void JSPromise::triggerPromiseReactions(VM& vm, JSGlobalObject* globalObject, St
             handler = arg;
             arg = context;
 #if USE(BUN_JSC_ADDITIONS)
-            if (vm.m_synchronousModuleQueue) [[unlikely]] {
+            if (vm.m_synchronousModuleQueue && isModuleLoaderInternalMicrotask(task)) [[unlikely]] {
                 vm.m_synchronousModuleQueue->tasks.append({ task, static_cast<uint8_t>(status), promise, handler, arg });
                 return;
             }

@@ -199,7 +199,7 @@ public:
     Resolution resolveImport(JSGlobalObject*, const Identifier& localName);
 
     AbstractModuleRecord* hostResolveImportedModule(JSGlobalObject*, const Identifier& moduleName);
-    void setImportedModule(JSGlobalObject*, const Identifier& moduleName, AbstractModuleRecord*);
+    void setImportedModule(JSGlobalObject*, const ModuleRequest&, AbstractModuleRecord*);
 
     JSModuleNamespaceObject* getModuleNamespace(JSGlobalObject*, bool shouldPreventExtensions = true);
 
