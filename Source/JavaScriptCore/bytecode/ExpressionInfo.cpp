@@ -897,11 +897,15 @@ std::unique_ptr<ExpressionInfo> ExpressionInfo::createUninitialized(unsigned num
 #if USE(BUN_JSC_ADDITIONS)
 std::unique_ptr<ExpressionInfo> ExpressionInfo::createBorrowed(unsigned numberOfChapters, unsigned numberOfEncodedInfo, unsigned numberOfEncodedInfoExtensions, const unsigned* borrowedPayload)
 {
-    // Only the fixed header is allocated; the trailing chapters/encodedInfo
-    // payload lives in caller-owned storage that outlives this object.
-    void* allocation = FastMalloc::malloc(sizeof(ExpressionInfo));
+    // Only the fixed header plus a single trailing pointer is allocated; the
+    // chapters/encodedInfo payload lives in caller-owned storage that outlives
+    // this object. Storing the pointer in trailing storage (rather than as a
+    // header field) keeps sizeof(ExpressionInfo) unchanged for owned instances.
+    static_assert(!(sizeof(ExpressionInfo) % alignof(const unsigned*)), "trailing pointer must be naturally aligned");
+    void* allocation = FastMalloc::malloc(sizeof(ExpressionInfo) + sizeof(const unsigned*));
     auto* info = new (allocation) ExpressionInfo(numberOfChapters, numberOfEncodedInfo, numberOfEncodedInfoExtensions);
-    info->m_borrowedPayload = borrowedPayload;
+    info->m_isBorrowedPayload = true;
+    *std::bit_cast<const unsigned**>(info + 1) = borrowedPayload;
     return std::unique_ptr<ExpressionInfo>(info);
 }
 #endif
@@ -922,6 +926,10 @@ ExpressionInfo::ExpressionInfo(Vector<Chapter>&& chapters, Vector<EncodedInfo>&&
 
 size_t ExpressionInfo::byteSize() const
 {
+#if USE(BUN_JSC_ADDITIONS)
+    if (m_isBorrowedPayload)
+        return sizeof(ExpressionInfo) + sizeof(const unsigned*);
+#endif
     return totalSizeInBytes(m_numberOfChapters, m_numberOfEncodedInfo, m_numberOfEncodedInfoExtensions);
 }
 

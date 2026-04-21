@@ -244,12 +244,12 @@ private:
     unsigned* payload() const
     {
 #if USE(BUN_JSC_ADDITIONS)
-        // When the payload is borrowed (createBorrowed), the trailing storage
-        // after `this` is absent and the chapters/encodedInfo bytes live in
-        // externally-owned memory (the CachedBytecode buffer). The const_cast
-        // mirrors the upstream signature; readers never write through it.
-        if (m_borrowedPayload)
-            return const_cast<unsigned*>(m_borrowedPayload);
+        // When borrowed (createBorrowed), the trailing storage holds a single
+        // const unsigned* to the externally-owned chapters/encodedInfo bytes
+        // (the CachedBytecode buffer) instead of the inline payload itself.
+        // Keeps sizeof(ExpressionInfo) unchanged for the owned case.
+        if (m_isBorrowedPayload)
+            return const_cast<unsigned*>(*std::bit_cast<const unsigned* const*>(this + 1));
 #endif
         return std::bit_cast<unsigned*>(this + 1);
     }
@@ -340,15 +340,23 @@ private:
     using LineColumnMap = UncheckedKeyHashMap<InstPC, LineColumn, WTF::IntHash<InstPC>, WTF::UnsignedWithZeroKeyHashTraits<InstPC>>;
 
     mutable LineColumnMap m_cachedLineColumns;
-#if USE(BUN_JSC_ADDITIONS)
-    const unsigned* m_borrowedPayload { nullptr };
-#endif
     unsigned m_numberOfChapters;
     unsigned m_numberOfEncodedInfo;
+#if USE(BUN_JSC_ADDITIONS)
+    unsigned m_numberOfEncodedInfoExtensions : 31;
+    unsigned m_isBorrowedPayload : 1 { false };
+    // Followed by the following which are allocated but are dynamically sized.
+    //   if !m_isBorrowedPayload:
+    //     Chapter chapters[numberOfChapters];
+    //     EncodedInfo encodedInfo[numberOfEncodedInfo + numberOfEncodedInfoExtensions];
+    //   else:
+    //     const unsigned* (single pointer to the externally-owned payload)
+#else
     unsigned m_numberOfEncodedInfoExtensions;
     // Followed by the following which are allocated but are dynamically sized.
     //   Chapter chapters[numberOfChapters];
     //   EncodedInfo encodedInfo[numberOfEncodedInfo + numberOfEncodedInfoExtensions];
+#endif
 
     friend class CachedExpressionInfo;
 };
