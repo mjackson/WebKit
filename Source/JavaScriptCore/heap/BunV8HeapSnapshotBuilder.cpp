@@ -338,19 +338,11 @@ unsigned BunV8HeapSnapshotBuilder::getNodeTypeIndex(JSCell* cell)
     case JSType::UnlinkedEvalCodeBlockType:
     case JSType::UnlinkedFunctionCodeBlockType:
     case JSType::CodeBlockType:
-    case JSType::StrictEvalActivationType:
-    case JSType::ShadowRealmType:
-    case JSType::WebAssemblyModuleType:
-    case JSType::WebAssemblyInstanceType:
     case JSType::GetterSetterType:
     case JSType::CustomGetterSetterType:
     case JSType::APIValueWrapperType:
     case JSType::JSSourceCodeType:
-    case JSType::JSScriptFetchParametersType:
-    case JSType::WithScopeType:
-    case JSType::GlobalLexicalEnvironmentType:
-    case JSType::LexicalEnvironmentType:
-    case JSType::ModuleEnvironmentType: {
+    case JSType::JSScriptFetchParametersType: {
         return static_cast<unsigned>(V8NodeType::Code);
     }
     case JSType::HeapBigIntType:
@@ -359,9 +351,22 @@ unsigned BunV8HeapSnapshotBuilder::getNodeTypeIndex(JSCell* cell)
         return static_cast<unsigned>(V8NodeType::Symbol);
     case JSType::RegExpObjectType:
         return static_cast<unsigned>(V8NodeType::RegExp);
+    // V8 reserves kArray for internal FixedArray backing stores; user-level
+    // JSArrays are kObject. DevTools' calculateShallowSizes() zeroes kArray
+    // selfSize and reattributes it to the owner, so mis-typing JS arrays here
+    // makes every Array show 0 shallow size.
     case JSType::ArrayType:
     case JSType::DerivedArrayType:
-        return static_cast<unsigned>(V8NodeType::Array);
+    // V8 maps scopes/contexts and Wasm Module/Instance to kObject, not kCode.
+    case JSType::StrictEvalActivationType:
+    case JSType::ShadowRealmType:
+    case JSType::WebAssemblyModuleType:
+    case JSType::WebAssemblyInstanceType:
+    case JSType::WithScopeType:
+    case JSType::GlobalLexicalEnvironmentType:
+    case JSType::LexicalEnvironmentType:
+    case JSType::ModuleEnvironmentType:
+        return static_cast<unsigned>(V8NodeType::Object);
 
     default: {
         if (static_cast<unsigned>(cell->type()) > static_cast<unsigned>(JSType::LastJSCObjectType)) {
@@ -379,7 +384,7 @@ unsigned BunV8HeapSnapshotBuilder::getNodeTypeIndex(JSCell* cell)
     return static_cast<unsigned>(V8NodeType::Native);
 }
 
-String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell, bool recurse)
+String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell)
 {
     if (!cell)
         return "(root)"_s;
@@ -392,6 +397,10 @@ String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell, bool recurse)
     switch (cell->type()) {
     case JSType::StringType: {
         auto* string = jsCast<JSString*>(cell);
+        // V8 names cons/sliced strings with a fixed literal rather than
+        // resolving them; this also avoids flattening large ropes here.
+        if (string->isRope())
+            return "(concatenated string)"_s;
         auto value = string->tryGetValue(true);
         if (!value->isEmpty()) {
             static constexpr unsigned heapSnapshotStringLimit = 1024;
@@ -425,6 +434,15 @@ String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell, bool recurse)
         }
         break;
     }
+    // V8 names contexts "system / Context ..."; the "system / " prefix is what
+    // DevTools keys on to grey these out and exclude them from user-object stats
+    // while still showing them in retainer chains.
+    case JSType::StrictEvalActivationType:
+    case JSType::WithScopeType:
+    case JSType::GlobalLexicalEnvironmentType:
+    case JSType::LexicalEnvironmentType:
+    case JSType::ModuleEnvironmentType:
+        return makeString("system / "_s, cell->className());
     default: {
         break;
     }
@@ -447,31 +465,9 @@ String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell, bool recurse)
         }
     }
 
-    if (JSPromise* promise = jsDynamicCast<JSPromise*>(cell)) {
-        switch (promise->status()) {
-        case JSPromise::Status::Pending:
-            return "Promise (pending)"_s;
-        case JSPromise::Status::Fulfilled: {
-            JSValue result = promise->result();
-            if (result.isCell() && recurse) {
-                // set recurse to false to make sure we don't infinitely expand promises
-                return makeString("Promise (fulfilled: "_s, getDetailedNodeType(result.asCell(), false), ")"_s);
-            }
-            return "Promise (fulfilled)"_s;
-        }
-        case JSPromise::Status::Rejected:
-            return "Promise (rejected)"_s;
-        }
-    }
-
     auto* object = cell->getObject();
 
     if (object) {
-        // For arrays, include the length
-        if (JSArray* array = jsDynamicCast<JSArray*>(cell)) {
-            return makeString("Array ("_s, array->length(), ")"_s);
-        }
-
         // For functions, try to get the display name
         if (JSFunction* function = jsDynamicCast<JSFunction*>(cell)) {
             String displayName = function->nameWithoutGC(m_profiler.vm());
@@ -501,7 +497,10 @@ unsigned BunV8HeapSnapshotBuilder::getEdgeTypeIndex(RootMarkReason reason)
     case RootMarkReason::WeakSets:
         return static_cast<unsigned>(V8EdgeType::Weak);
 
-    // Context-related edges
+    // V8 reserves kContextVariable strictly for closure-captured locals with a
+    // variable name. GC root edges use kInternal/kElement; using kContextVariable
+    // here makes DevTools render conservative-scan/strong-handle roots as if a
+    // closure were retaining the object.
     case RootMarkReason::VMExceptions:
     case RootMarkReason::ExecutableToCodeBlockEdges:
     case RootMarkReason::JITStubRoutines:
@@ -514,7 +513,7 @@ unsigned BunV8HeapSnapshotBuilder::getEdgeTypeIndex(RootMarkReason reason)
     case RootMarkReason::Output:
     case RootMarkReason::ConservativeScan:
     case RootMarkReason::ExternalRememberedSet:
-        return static_cast<unsigned>(V8EdgeType::Context);
+        return static_cast<unsigned>(V8EdgeType::Internal);
 
     case RootMarkReason::Debugger:
         return static_cast<unsigned>(V8EdgeType::Hidden);
@@ -772,21 +771,13 @@ String BunV8HeapSnapshotBuilder::generateV8HeapSnapshot()
     }
     json.append("],\n"_s);
 
-    // Trace function info array
-    // We don't implement this yet
+    // V8's HeapSnapshotJSONSerializer emits these in the order
+    // trace_function_infos, trace_tree, samples, locations. DevTools'
+    // streaming loader assumes that order when trace_function_count > 0.
     json.append("\"trace_function_infos\":[],\n"_s);
-
-    // Samples array
-    // We don't implement this yet
-    json.append("\"samples\":[],\n"_s);
-
-    // Locations array - maps nodes to their source locations
-    // We don't implement this yet
-    json.append("\"locations\":[],\n"_s);
-
-    // Trace tree - represents allocation stack traces
-    // We don't implement this yet
     json.append("\"trace_tree\": [],\n"_s);
+    json.append("\"samples\":[],\n"_s);
+    json.append("\"locations\":[],\n"_s);
 
     // Strings table
     json.append("\"strings\":["_s);
@@ -1028,17 +1019,10 @@ Vector<uint8_t> BunV8HeapSnapshotBuilder::generateV8HeapSnapshotBytes()
     }
     appendASCII(out, "],\n"_s);
 
-    // Trace function info array
     appendASCII(out, "\"trace_function_infos\":[],\n"_s);
-
-    // Samples array
-    appendASCII(out, "\"samples\":[],\n"_s);
-
-    // Locations array
-    appendASCII(out, "\"locations\":[],\n"_s);
-
-    // Trace tree
     appendASCII(out, "\"trace_tree\": [],\n"_s);
+    appendASCII(out, "\"samples\":[],\n"_s);
+    appendASCII(out, "\"locations\":[],\n"_s);
 
     // Strings table
     appendASCII(out, "\"strings\":["_s);
