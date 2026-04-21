@@ -214,7 +214,11 @@ private:
 
     Chapter* chapters() const
     {
+#if USE(BUN_JSC_ADDITIONS)
+        return std::bit_cast<Chapter*>(payload());
+#else
         return std::bit_cast<Chapter*>(this + 1);
+#endif
     }
 
     EncodedInfo* encodedInfo() const
@@ -239,10 +243,26 @@ private:
 
     unsigned* payload() const
     {
+#if USE(BUN_JSC_ADDITIONS)
+        // When the payload is borrowed (createBorrowed), the trailing storage
+        // after `this` is absent and the chapters/encodedInfo bytes live in
+        // externally-owned memory (the CachedBytecode buffer). The const_cast
+        // mirrors the upstream signature; readers never write through it.
+        if (m_borrowedPayload)
+            return const_cast<unsigned*>(m_borrowedPayload);
+#endif
         return std::bit_cast<unsigned*>(this + 1);
     }
 
     static std::unique_ptr<ExpressionInfo> createUninitialized(unsigned numberOfChapters, unsigned numberOfEncodedInfo, unsigned numberOfEncodedInfoExtensions);
+#if USE(BUN_JSC_ADDITIONS)
+    // Allocate only the fixed header (with its mutable LineColumn cache) and
+    // point chapters()/encodedInfo() at an externally-owned payload that the
+    // caller guarantees outlives this object — used by the bytecode-cache
+    // decoder to read straight from the mmapped CachedBytecode instead of
+    // FastMalloc'ing and memcpying totalSizeInBytes().
+    static std::unique_ptr<ExpressionInfo> createBorrowed(unsigned numberOfChapters, unsigned numberOfEncodedInfo, unsigned numberOfEncodedInfoExtensions, const unsigned* borrowedPayload);
+#endif
 
     static constexpr unsigned bitsPerWord = sizeof(unsigned) * CHAR_BIT;
 
@@ -320,6 +340,9 @@ private:
     using LineColumnMap = UncheckedKeyHashMap<InstPC, LineColumn, WTF::IntHash<InstPC>, WTF::UnsignedWithZeroKeyHashTraits<InstPC>>;
 
     mutable LineColumnMap m_cachedLineColumns;
+#if USE(BUN_JSC_ADDITIONS)
+    const unsigned* m_borrowedPayload { nullptr };
+#endif
     unsigned m_numberOfChapters;
     unsigned m_numberOfEncodedInfo;
     unsigned m_numberOfEncodedInfoExtensions;

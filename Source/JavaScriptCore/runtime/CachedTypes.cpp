@@ -488,6 +488,21 @@ public:
         for (unsigned i = 0; i < size; ++i)
             ::JSC::decode(decoder, buffer[i], array[i], args...);
     }
+
+#if USE(BUN_JSC_ADDITIONS)
+    // Direct pointer to the encoded element bytes, valid only for element
+    // types whose Cached form is the value itself (T == SourceType<T>).
+    // Points into the CachedBytecode buffer; caller must already know the
+    // element count (CachedArray does not store it). Returns nullptr when
+    // empty so callers can pass it through without dereferencing.
+    const T* borrowedBuffer(unsigned size) const
+    {
+        static_assert(std::is_same_v<T, SourceType<T>>, "borrowedBuffer requires identity encode/decode");
+        if (!size)
+            return nullptr;
+        return this->template buffer<T>();
+    }
+#endif
 };
 
 template<typename T, typename Source = SourceType<T>>
@@ -1081,9 +1096,23 @@ public:
 
     std::unique_ptr<ExpressionInfo> decode(Decoder& decoder) const
     {
+#if USE(BUN_JSC_ADDITIONS)
+        // The chapters/encodedInfo payload is a CachedArray<unsigned> stored
+        // verbatim, so the decoded ExpressionInfo can read it straight from
+        // the CachedBytecode buffer instead of FastMalloc-ing
+        // totalSizeInBytes() and memcpying. The CachedBytecode outlives every
+        // cache-derived UnlinkedCodeBlock (held by Decoder::m_cachedBytecode
+        // and the runtime SourceProvider; m_isGeneratedFromCache disables
+        // jettisoning), so the borrowed payload is valid for the lifetime of
+        // every reader.
+        UNUSED_PARAM(decoder);
+        unsigned payloadCount = ExpressionInfo::payloadSizeInBytes(m_numberOfChapters, m_numberOfEncodedInfo, m_numberOfEncodedInfoExtensions) / sizeof(unsigned);
+        return ExpressionInfo::createBorrowed(m_numberOfChapters, m_numberOfEncodedInfo, m_numberOfEncodedInfoExtensions, m_storage.borrowedBuffer(payloadCount));
+#else
         auto info = ExpressionInfo::createUninitialized(m_numberOfChapters, m_numberOfEncodedInfo, m_numberOfEncodedInfoExtensions);
         m_storage.decode(decoder, info->payload(), info->payloadSize());
         return info;
+#endif
     }
 
 private:

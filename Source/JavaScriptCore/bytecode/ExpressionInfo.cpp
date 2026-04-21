@@ -894,6 +894,18 @@ std::unique_ptr<ExpressionInfo> ExpressionInfo::createUninitialized(unsigned num
     return std::unique_ptr<ExpressionInfo>(new (allocation) ExpressionInfo(numberOfChapters, numberOfEncodedInfo, numberOfEncodedInfoExtensions));
 }
 
+#if USE(BUN_JSC_ADDITIONS)
+std::unique_ptr<ExpressionInfo> ExpressionInfo::createBorrowed(unsigned numberOfChapters, unsigned numberOfEncodedInfo, unsigned numberOfEncodedInfoExtensions, const unsigned* borrowedPayload)
+{
+    // Only the fixed header is allocated; the trailing chapters/encodedInfo
+    // payload lives in caller-owned storage that outlives this object.
+    void* allocation = FastMalloc::malloc(sizeof(ExpressionInfo));
+    auto* info = new (allocation) ExpressionInfo(numberOfChapters, numberOfEncodedInfo, numberOfEncodedInfoExtensions);
+    info->m_borrowedPayload = borrowedPayload;
+    return std::unique_ptr<ExpressionInfo>(info);
+}
+#endif
+
 ExpressionInfo::ExpressionInfo(unsigned numberOfChapters, unsigned numberOfEncodedInfo, unsigned numberOfEncodedInfoExtensions)
     : m_numberOfChapters(numberOfChapters)
     , m_numberOfEncodedInfo(numberOfEncodedInfo)
