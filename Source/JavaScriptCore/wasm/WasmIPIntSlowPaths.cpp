@@ -1036,13 +1036,11 @@ WASM_IPINT_EXTERN_CPP_DECL(prepare_function_body, CallFrame* callFrame)
 
 /**
  * Given a function index, determine the pointer to its executable code.
- * Return a pair of the target wasm instance and the code pointer (via WASM_CALL_RETURN).
- * For wasm imports, returns the target instance and the real entrypoint (bypassing the
- * wasm_to_wasm wrapper). For JS imports, returns the caller instance and the import stub.
+ * Return a pair of the wasm instance pointer received as the first argument and the code pointer.
  * Additionally, store the following into the 'calleeAndWasmInstanceReturn':
  *
  *  - calleeAndWasmInstanceReturn[0] - the callee to use, goes into the 'callee' slot of the CallFrame.
- *  - calleeAndWasmInstanceReturn[1] - the wasm instance to use, goes into the 'codeBlock' slot of the CallFrame. For JS this is reused for the function info.
+ *  - calleeAndWasmInstanceReturn[1] - the wasm instance to use, goes into the 'codeBlock' slot of the CallFrame.
  */
 WASM_IPINT_EXTERN_CPP_DECL(prepare_call, CallFrame* callFrame, CallMetadata* call, Register* calleeAndWasmInstanceReturn)
 {
@@ -1056,18 +1054,16 @@ WASM_IPINT_EXTERN_CPP_DECL(prepare_call, CallFrame* callFrame, CallMetadata* cal
     Register& calleeReturn = calleeAndWasmInstanceReturn[0];
     Register& wasmInstanceReturn = calleeAndWasmInstanceReturn[1];
     CodePtr<WasmEntryPtrTag> codePtr;
-    JSWebAssemblyInstance* targetInstance = instance;
+    bool isJSCallee = false;
     if (functionIndex < importFunctionCount) {
         auto* functionInfo = instance->importFunctionInfo(functionIndex);
+        codePtr = functionInfo->importFunctionStub;
         calleeReturn = functionInfo->boxedCallee.encodedBits();
         if (functionInfo->isJS()) {
-            codePtr = functionInfo->importFunctionStub;
+            isJSCallee = true;
             wasmInstanceReturn = reinterpret_cast<uintptr_t>(functionInfo);
-        } else {
-            codePtr = *functionInfo->entrypointLoadLocation;
-            targetInstance = functionInfo->targetInstance.get();
-            wasmInstanceReturn = targetInstance;
-        }
+        } else
+            wasmInstanceReturn = functionInfo->targetInstance.get();
     } else {
         // Target is a wasm function within the same instance
         codePtr = *instance->calleeGroup()->entrypointLoadLocationFromFunctionIndexSpace(functionIndex);
@@ -1076,15 +1072,14 @@ WASM_IPINT_EXTERN_CPP_DECL(prepare_call, CallFrame* callFrame, CallMetadata* cal
         wasmInstanceReturn = instance;
     }
 
+    JSWebAssemblyInstance* targetInstance = isJSCallee ? nullptr : jsDynamicCast<JSWebAssemblyInstance*>(wasmInstanceReturn.unboxedCell());
     IPINT_HANDLE_STEP_INTO_CALL(instance->vm(), CalleeBits(calleeReturn.encodedJSValue()), targetInstance);
 
     RELEASE_ASSERT(WTF::isTaggedWith<WasmEntryPtrTag>(codePtr));
 
-    WASM_CALL_RETURN(targetInstance, codePtr);
+    WASM_CALL_RETURN(instance, codePtr);
 }
 
-// Returns the same outputs as prepare_call: entrypoint and target instance
-// via result registers, callee and function-info/instance via the stack slots.
 WASM_IPINT_EXTERN_CPP_DECL(prepare_call_indirect, CallFrame* callFrame, Wasm::FunctionSpaceIndex* functionIndex, CallIndirectMetadata* call)
 {
     auto* callee = IPINT_CALLEE(callFrame);

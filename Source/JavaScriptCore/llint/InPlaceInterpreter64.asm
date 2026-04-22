@@ -11808,6 +11808,7 @@ mintAlign(_tail_call)
 # CallArgumentBytecode::Call (0x1b)
 mintAlign(_call)
     pop wasmInstance, ws0
+    # pop targetInstance, targetEntrypoint
 
     # Save stack pointer, if we tail call someone who changes the frame above's stack argument size.
     # Store its value relative to cfp so stack frames can be easily relocated for JSPI.
@@ -11815,10 +11816,15 @@ mintAlign(_call)
     subp cfr, sc1
     storep sc1, ThisArgumentOffset[cfr]
 
+    # Swap instances
+    # move targetInstance, wasmInstance
+
     # Set up memory
     push t2, t3
     ipintReloadMemory()
     pop t3, t2
+
+    # move targetEntrypoint, ws0
 
     # Make the call
 if ARM64E
