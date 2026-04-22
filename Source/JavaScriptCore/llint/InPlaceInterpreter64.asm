@@ -235,7 +235,7 @@ end
     #############################
 
 ipintOp(_unreachable, macro()
-    jmp _ipint_throw_Unreachable
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(Unreachable)
 end)
 
 ipintOp(_nop, macro()
@@ -364,7 +364,7 @@ end)
 
 ipintOp(_throw_ref, macro()
     popQuad(a2)
-    bieq a2, ValueNull, _ipint_throw_NullExnrefReference
+    bieq a2, ValueNull, .throw_null_ref
 
     saveCallSiteIndex()
 
@@ -375,6 +375,9 @@ ipintOp(_throw_ref, macro()
     move cfr, a1
     operationCall(macro() cCall3(_ipint_extern_throw_ref) end)
     jumpToException()
+
+.throw_null_ref:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(NullExnrefReference)
 end)
 
 macro uintDispatch()
@@ -904,14 +907,14 @@ end
 
 macro atomicMemoryMakePointerAndAdvanceMC(instrLenReg, wasmAddrReg, size, scratch, scratch2)
     loadq IPInt::AtomicMemoryAccessMetadata::offset[MC], scratch2
-    baddpc(scratch2, wasmAddrReg, _ipint_throw_OutOfBoundsMemoryAccess)
+    baddpc(scratch2, wasmAddrReg, .outOfBounds)
 
     move size - 1, scratch2
-    baddpc(wasmAddrReg, scratch2, _ipint_throw_OutOfBoundsMemoryAccess)
+    baddpc(wasmAddrReg, scratch2, .outOfBounds)
 
     loadb IPInt::AtomicMemoryAccessMetadata::memoryIndex[MC], scratch
     btinz scratch, .memoryIsNotZero
-    bpaeq scratch2, boundsCheckingSize, _ipint_throw_OutOfBoundsMemoryAccess # scratch2 contains wasm address + size - 1
+    bpaeq scratch2, boundsCheckingSize, .outOfBounds # scratch2 contains wasm address + size - 1
     addp memoryBase, wasmAddrReg
     jmp .done
 
@@ -920,9 +923,13 @@ macro atomicMemoryMakePointerAndAdvanceMC(instrLenReg, wasmAddrReg, size, scratc
     # FIXME: it's probably worth trying to use a loadpair here, but that requires a separate x86 codepath
     loadp (constexpr (JSWebAssemblyInstance::offsetOfCachedMemoryBaseSizePair(0) + sizeof(void*))) [wasmInstance, scratch], scratch2 # bounds checking size
     subp size - 1, scratch2 # wasmAddrReg + (size-1) >= scratch2 is equivalent to wasmAddrReg >= scratch2 - (size-1)
-    bpaeq wasmAddrReg, scratch2, _ipint_throw_OutOfBoundsMemoryAccess
+    bpaeq wasmAddrReg, scratch2, .outOfBounds
     loadp (constexpr (JSWebAssemblyInstance::offsetOfCachedMemoryBaseSizePair(0))) [wasmInstance, scratch], scratch2 # memory base
     addp scratch2, wasmAddrReg
+    jmp .done
+
+.outOfBounds:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsMemoryAccess)
 .done:
     loadb IPInt::AtomicMemoryAccessMetadata::instructionLength[MC], instrLenReg
     advanceMC(constexpr (sizeof(IPInt::AtomicMemoryAccessMetadata)))
@@ -942,12 +949,17 @@ macro loadStoreMakePointerFast(alignAccess, offsetAccess, wasmAddrReg, size, scr
     bbaeq scratch, 0x80, slowLabel
 
     # Both single-byte, memory index = 0. scratch = offset value.
-    baddpc(scratch, wasmAddrReg, _ipint_throw_OutOfBoundsMemoryAccess)
+    baddpc(scratch, wasmAddrReg, .outOfBounds)
     move size - 1, scratch2
-    baddpc(wasmAddrReg, scratch2, _ipint_throw_OutOfBoundsMemoryAccess)
+    baddpc(wasmAddrReg, scratch2, .outOfBounds)
 
-    bpaeq scratch2, boundsCheckingSize, _ipint_throw_OutOfBoundsMemoryAccess # scratch2 contains wasm address + size - 1
+    bpaeq scratch2, boundsCheckingSize, .outOfBounds # scratch2 contains wasm address + size - 1
     addp memoryBase, wasmAddrReg
+    jmp .done
+
+.outOfBounds:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsMemoryAccess)
+.done:
 end
 
 # Note: wasmAddrReg (t0) is set by the handler's popMemoryIndex before branching here.
@@ -967,12 +979,12 @@ macro loadStoreMakePointerSlow(cursor, wasmAddrReg, size, scratch, scratch2, dec
     # 3. Decode offset
     decodeLEBVarUInt(scratch2, cursor, decodeScratch1, decodeScratch2)
 
-    baddpc(scratch2, wasmAddrReg, _ipint_throw_OutOfBoundsMemoryAccess)
+    baddpc(scratch2, wasmAddrReg, .outOfBounds)
     move size - 1, scratch2
-    baddpc(wasmAddrReg, scratch2, _ipint_throw_OutOfBoundsMemoryAccess)
+    baddpc(wasmAddrReg, scratch2, .outOfBounds)
 
     btinz scratch, .memoryIsNotZero
-    bpaeq scratch2, boundsCheckingSize, _ipint_throw_OutOfBoundsMemoryAccess # scratch2 contains wasm address + size - 1
+    bpaeq scratch2, boundsCheckingSize, .outOfBounds # scratch2 contains wasm address + size - 1
     addp memoryBase, wasmAddrReg
     jmp .done
 
@@ -981,9 +993,13 @@ macro loadStoreMakePointerSlow(cursor, wasmAddrReg, size, scratch, scratch2, dec
     # FIXME: it's probably worth trying to use a loadpair here, but that requires a separate x86 codepath
     loadp (constexpr (JSWebAssemblyInstance::offsetOfCachedMemoryBaseSizePair(0) + sizeof(void*))) [wasmInstance, scratch], scratch2 # bounds checking size
     subp size - 1, scratch2 # wasmAddrReg + (size-1) >= scratch2 is equivalent to wasmAddrReg >= scratch2 - (size-1)
-    bpaeq wasmAddrReg, scratch2, _ipint_throw_OutOfBoundsMemoryAccess
+    bpaeq wasmAddrReg, scratch2, .outOfBounds
     loadp (constexpr (JSWebAssemblyInstance::offsetOfCachedMemoryBaseSizePair(0))) [wasmInstance, scratch], scratch2 # memory base
     addp scratch2, wasmAddrReg
+    jmp .done
+
+.outOfBounds:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsMemoryAccess)
 .done:
 end
 
@@ -1770,10 +1786,10 @@ ipintOp(_i32_div_s, macro()
     # i32.div_s
     popInt32(t1)
     popInt32(t0)
-    btiz t1, _ipint_throw_DivisionByZero
+    btiz t1, .ipint_i32_div_s_throwDivisionByZero
 
     bineq t1, -1, .ipint_i32_div_s_safe
-    bieq t0, constexpr INT32_MIN, _ipint_throw_IntegerOverflow
+    bieq t0, constexpr INT32_MIN, .ipint_i32_div_s_throwIntegerOverflow
 
 .ipint_i32_div_s_safe:
     if X86_64
@@ -1789,13 +1805,19 @@ ipintOp(_i32_div_s, macro()
     pushInt32(t0)
     advancePC(1)
     nextIPIntInstruction()
+
+.ipint_i32_div_s_throwDivisionByZero:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(DivisionByZero)
+
+.ipint_i32_div_s_throwIntegerOverflow:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(IntegerOverflow)
 end)
 
 ipintOp(_i32_div_u, macro()
     # i32.div_u
     popInt32(t1)
     popInt32(t0)
-    btiz t1, _ipint_throw_DivisionByZero
+    btiz t1, .ipint_i32_div_u_throwDivisionByZero
 
     if X86_64
         xori t2, t2
@@ -1808,6 +1830,9 @@ ipintOp(_i32_div_u, macro()
     pushInt32(t0)
     advancePC(1)
     nextIPIntInstruction()
+
+.ipint_i32_div_u_throwDivisionByZero:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(DivisionByZero)
 end)
 
 ipintOp(_i32_rem_s, macro()
@@ -1815,7 +1840,7 @@ ipintOp(_i32_rem_s, macro()
     popInt32(t1)
     popInt32(t0)
 
-    btiz t1, _ipint_throw_DivisionByZero
+    btiz t1, .ipint_i32_rem_s_throwDivisionByZero
 
     bineq t1, -1, .ipint_i32_rem_s_safe
     bineq t0, constexpr INT32_MIN, .ipint_i32_rem_s_safe
@@ -1843,13 +1868,16 @@ ipintOp(_i32_rem_s, macro()
     pushInt32(t2)
     advancePC(1)
     nextIPIntInstruction()
+
+.ipint_i32_rem_s_throwDivisionByZero:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(DivisionByZero)
 end)
 
 ipintOp(_i32_rem_u, macro()
     # i32.rem_u
     popInt32(t1)
     popInt32(t0)
-    btiz t1, _ipint_throw_DivisionByZero
+    btiz t1, .ipint_i32_rem_u_throwDivisionByZero
 
     if X86_64
         xori t2, t2
@@ -1866,6 +1894,9 @@ ipintOp(_i32_rem_u, macro()
     pushInt32(t2)
     advancePC(1)
     nextIPIntInstruction()
+
+.ipint_i32_rem_u_throwDivisionByZero:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(DivisionByZero)
 end)
 
 ipintOp(_i32_and, macro()
@@ -2027,10 +2058,10 @@ ipintOp(_i64_div_s, macro()
     # i64.div_s
     popInt64(t1)
     popInt64(t0)
-    btqz t1, _ipint_throw_DivisionByZero
+    btqz t1, .ipint_i64_div_s_throwDivisionByZero
 
     bqneq t1, -1, .ipint_i64_div_s_safe
-    bqeq t0, constexpr INT64_MIN, _ipint_throw_IntegerOverflow
+    bqeq t0, constexpr INT64_MIN, .ipint_i64_div_s_throwIntegerOverflow
 
 .ipint_i64_div_s_safe:
     if X86_64
@@ -2046,13 +2077,19 @@ ipintOp(_i64_div_s, macro()
     pushInt64(t0)
     advancePC(1)
     nextIPIntInstruction()
+
+.ipint_i64_div_s_throwDivisionByZero:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(DivisionByZero)
+
+.ipint_i64_div_s_throwIntegerOverflow:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(IntegerOverflow)
 end)
 
 ipintOp(_i64_div_u, macro()
     # i64.div_u
     popInt64(t1)
     popInt64(t0)
-    btqz t1, _ipint_throw_DivisionByZero
+    btqz t1, .ipint_i64_div_u_throwDivisionByZero
 
     if X86_64
         xorq t2, t2
@@ -2065,6 +2102,9 @@ ipintOp(_i64_div_u, macro()
     pushInt64(t0)
     advancePC(1)
     nextIPIntInstruction()
+
+.ipint_i64_div_u_throwDivisionByZero:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(DivisionByZero)
 end)
 
 ipintOp(_i64_rem_s, macro()
@@ -2072,7 +2112,7 @@ ipintOp(_i64_rem_s, macro()
     popInt64(t1)
     popInt64(t0)
 
-    btqz t1, _ipint_throw_DivisionByZero
+    btqz t1, .ipint_i64_rem_s_throwDivisionByZero
 
     bqneq t1, -1, .ipint_i64_rem_s_safe
     bqneq t0, constexpr INT64_MIN, .ipint_i64_rem_s_safe
@@ -2100,13 +2140,16 @@ ipintOp(_i64_rem_s, macro()
     pushInt64(t2)
     advancePC(1)
     nextIPIntInstruction()
+
+.ipint_i64_rem_s_throwDivisionByZero:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(DivisionByZero)
 end)
 
 ipintOp(_i64_rem_u, macro()
     # i64.rem_u
     popInt64(t1)
     popInt64(t0)
-    btqz t1, _ipint_throw_DivisionByZero
+    btqz t1, .ipint_i64_rem_u_throwDivisionByZero
 
     if X86_64
         xorq t2, t2
@@ -2123,6 +2166,9 @@ ipintOp(_i64_rem_u, macro()
     pushInt64(t2)
     advancePC(1)
     nextIPIntInstruction()
+
+.ipint_i64_rem_u_throwDivisionByZero:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(DivisionByZero)
 end)
 
 ipintOp(_i64_and, macro()
@@ -2638,67 +2684,76 @@ ipintOp(_i32_trunc_f32_s, macro()
     popFloat32(ft0)
     move 0xcf000000, t0 # INT32_MIN (Note that INT32_MIN - 1.0 in float is the same as INT32_MIN in float).
     fi2f t0, ft1
-    bfltun ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bfltun ft0, ft1, .ipint_trunc_i32_f32_s_outOfBoundsTrunc
 
     move 0x4f000000, t0 # -INT32_MIN
     fi2f t0, ft1
-    bfgtequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bfgtequn ft0, ft1, .ipint_trunc_i32_f32_s_outOfBoundsTrunc
 
     truncatef2is ft0, t0
     pushInt32(t0)
     advancePC(1)
     nextIPIntInstruction()
 
+.ipint_trunc_i32_f32_s_outOfBoundsTrunc:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsTrunc)
 end)
 
 ipintOp(_i32_trunc_f32_u, macro()
     popFloat32(ft0)
     move 0xbf800000, t0 # -1.0
     fi2f t0, ft1
-    bfltequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bfltequn ft0, ft1, .ipint_trunc_i32_f32_u_outOfBoundsTrunc
 
     move 0x4f800000, t0 # INT32_MIN * -2.0
     fi2f t0, ft1
-    bfgtequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bfgtequn ft0, ft1, .ipint_trunc_i32_f32_u_outOfBoundsTrunc
 
     truncatef2i ft0, t0
     pushInt32(t0)
     advancePC(1)
     nextIPIntInstruction()
 
+.ipint_trunc_i32_f32_u_outOfBoundsTrunc:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsTrunc)
 end)
 
 ipintOp(_i32_trunc_f64_s, macro()
     popFloat64(ft0)
     move 0xc1e0000000200000, t0 # INT32_MIN - 1.0
     fq2d t0, ft1
-    bdltequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bdltequn ft0, ft1, .ipint_trunc_i32_f64_s_outOfBoundsTrunc
 
     move 0x41e0000000000000, t0 # -INT32_MIN
     fq2d t0, ft1
-    bdgtequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bdgtequn ft0, ft1, .ipint_trunc_i32_f64_s_outOfBoundsTrunc
 
     truncated2is ft0, t0
     pushInt32(t0)
     advancePC(1)
     nextIPIntInstruction()
 
+.ipint_trunc_i32_f64_s_outOfBoundsTrunc:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsTrunc)
 end)
 
 ipintOp(_i32_trunc_f64_u, macro()
     popFloat64(ft0)
     move 0xbff0000000000000, t0 # -1.0
     fq2d t0, ft1
-    bdltequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bdltequn ft0, ft1, .ipint_trunc_i32_f64_u_outOfBoundsTrunc
 
     move 0x41f0000000000000, t0 # INT32_MIN * -2.0
     fq2d t0, ft1
-    bdgtequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bdgtequn ft0, ft1, .ipint_trunc_i32_f64_u_outOfBoundsTrunc
 
     truncated2i ft0, t0
     pushInt32(t0)
     advancePC(1)
     nextIPIntInstruction()
+
+.ipint_trunc_i32_f64_u_outOfBoundsTrunc:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsTrunc)
 end)
 
 ipintOp(_i64_extend_i32_s, macro()
@@ -2723,68 +2778,76 @@ ipintOp(_i64_trunc_f32_s, macro()
     popFloat32(ft0)
     move 0xdf000000, t0 # INT64_MIN
     fi2f t0, ft1
-    bfltun ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bfltun ft0, ft1, .ipint_trunc_i64_f32_s_outOfBoundsTrunc
 
     move 0x5f000000, t0 # -INT64_MIN
     fi2f t0, ft1
-    bfgtequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bfgtequn ft0, ft1, .ipint_trunc_i64_f32_s_outOfBoundsTrunc
 
     truncatef2qs ft0, t0
     pushInt64(t0)
     advancePC(1)
     nextIPIntInstruction()
 
+.ipint_trunc_i64_f32_s_outOfBoundsTrunc:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsTrunc)
 end)
 
 ipintOp(_i64_trunc_f32_u, macro()
     popFloat32(ft0)
     move 0xbf800000, t0 # -1.0
     fi2f t0, ft1
-    bfltequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bfltequn ft0, ft1, .ipint_i64_f32_u_outOfBoundsTrunc
 
     move 0x5f800000, t0 # INT64_MIN * -2.0
     fi2f t0, ft1
-    bfgtequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bfgtequn ft0, ft1, .ipint_i64_f32_u_outOfBoundsTrunc
 
     truncatef2q ft0, t0
     pushInt64(t0)
     advancePC(1)
     nextIPIntInstruction()
 
+.ipint_i64_f32_u_outOfBoundsTrunc:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsTrunc)
 end)
 
 ipintOp(_i64_trunc_f64_s, macro()
     popFloat64(ft0)
     move 0xc3e0000000000000, t0 # INT64_MIN
     fq2d t0, ft1
-    bdltun ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bdltun ft0, ft1, .ipint_i64_f64_s_outOfBoundsTrunc
 
     move 0x43e0000000000000, t0 # -INT64_MIN
     fq2d t0, ft1
-    bdgtequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bdgtequn ft0, ft1, .ipint_i64_f64_s_outOfBoundsTrunc
 
     truncated2qs ft0, t0
     pushInt64(t0)
     advancePC(1)
     nextIPIntInstruction()
 
+.ipint_i64_f64_s_outOfBoundsTrunc:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsTrunc)
 end)
 
 ipintOp(_i64_trunc_f64_u, macro()
     popFloat64(ft0)
     move 0xbff0000000000000, t0 # -1.0
     fq2d t0, ft1
-    bdltequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bdltequn ft0, ft1, .ipint_i64_f64_u_outOfBoundsTrunc
 
     move 0x43f0000000000000, t0 # INT64_MIN * -2.0
     fq2d t0, ft1
-    bdgtequn ft0, ft1, _ipint_throw_OutOfBoundsTrunc
+    bdgtequn ft0, ft1, .ipint_i64_f64_u_outOfBoundsTrunc
 
     truncated2q ft0, t0
     pushInt64(t0)
     advancePC(1)
     nextIPIntInstruction()
 
+.ipint_i64_f64_u_outOfBoundsTrunc:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsTrunc)
 end)
 
 ipintOp(_f32_convert_i32_s, macro()
@@ -3006,9 +3069,11 @@ end)
 
 ipintOp(_ref_as_non_null, macro()
     loadq [sp], t0
-    bqeq t0, ValueNull, _ipint_throw_NullRefAsNonNull
+    bqeq t0, ValueNull, .ref_as_non_null_nullRef
     advancePC(1)
     nextIPIntInstruction()
+.ref_as_non_null_nullRef:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(NullRefAsNonNull)
 end)
 
 ipintOp(_br_on_null, macro()
@@ -3369,13 +3434,16 @@ end)
 
 ipintOp(_array_len, macro()
     popQuad(t0)  # array into t0
-    bqeq t0, ValueNull, _ipint_throw_NullAccess
+    bqeq t0, ValueNull, .nullArray
     loadi JSWebAssemblyArray::m_size[t0], t0
     pushInt32(t0)
     loadb IPInt::InstructionLengthMetadata::length[MC], t0
     advancePCByReg(t0)
     advanceMC(constexpr (sizeof(IPInt::InstructionLengthMetadata)))
     nextIPIntInstruction()
+
+.nullArray:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(NullAccess)
 end)
 
 ipintOp(_array_fill, macro()
@@ -3553,18 +3621,20 @@ end)
 
 ipintOp(_i31_get_s, macro()
     popQuad(t0)
-    bqeq t0, ValueNull, _ipint_throw_NullI31Get
+    bqeq t0, ValueNull, .i31_get_throw
     pushInt32(t0)
 
     loadb IPInt::InstructionLengthMetadata::length[MC], t0
     advancePCByReg(t0)
     advanceMC(constexpr (sizeof(IPInt::InstructionLengthMetadata)))
     nextIPIntInstruction()
+.i31_get_throw:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(NullI31Get)
 end)
 
 ipintOp(_i31_get_u, macro()
     popQuad(t0)
-    bqeq t0, ValueNull, _ipint_throw_NullI31Get
+    bqeq t0, ValueNull, .i31_get_throw
     andq 0x7fffffff, t0
     pushInt32(t0)
 
@@ -3572,6 +3642,8 @@ ipintOp(_i31_get_u, macro()
     advancePCByReg(t0)
     advanceMC(constexpr (sizeof(IPInt::InstructionLengthMetadata)))
     nextIPIntInstruction()
+.i31_get_throw:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(NullI31Get)
 end)
 
     #############################
@@ -8592,7 +8664,7 @@ ipintAtomicOp(_memory_atomic_notify, macro()
     move sp, a1
 
     operationCall(macro() cCall2(_ipint_extern_memory_atomic_notify) end)
-    bilt r0, 0, _ipint_throw_OutOfBoundsMemoryAccess
+    bilt r0, 0, .atomic_notify_throw
 
     addq (StackValueSize * 4), sp
 
@@ -8601,6 +8673,9 @@ ipintAtomicOp(_memory_atomic_notify, macro()
     advancePCByReg(t0)
     advanceMC(constexpr (sizeof(IPInt::AtomicMemoryAccessMetadata)))
     nextIPIntInstruction()
+
+.atomic_notify_throw:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsMemoryAccess)
 end)
 
 ipintAtomicOp(_memory_atomic_wait32, macro()
@@ -8615,7 +8690,7 @@ ipintAtomicOp(_memory_atomic_wait32, macro()
     move sp, a1
 
     operationCall(macro() cCall2(_ipint_extern_memory_atomic_wait32) end)
-    bilt r0, 0, _ipint_throw_OutOfBoundsMemoryAccess
+    bilt r0, 0, .atomic_wait32_throw
 
     addq (StackValueSize * 4), sp
 
@@ -8624,6 +8699,9 @@ ipintAtomicOp(_memory_atomic_wait32, macro()
     advancePCByReg(t0)
     advanceMC(constexpr (sizeof(IPInt::AtomicMemoryAccessMetadata)))
     nextIPIntInstruction()
+
+.atomic_wait32_throw:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsMemoryAccess)
 end)
 
 ipintAtomicOp(_memory_atomic_wait64, macro()
@@ -8638,7 +8716,7 @@ ipintAtomicOp(_memory_atomic_wait64, macro()
     move sp, a1
 
     operationCall(macro() cCall2(_ipint_extern_memory_atomic_wait64) end)
-    bilt r0, 0, _ipint_throw_OutOfBoundsMemoryAccess
+    bilt r0, 0, .atomic_wait64_throw
 
     addq (StackValueSize * 4), sp
 
@@ -8647,6 +8725,9 @@ ipintAtomicOp(_memory_atomic_wait64, macro()
     advancePCByReg(t0)
     advanceMC(constexpr (sizeof(IPInt::AtomicMemoryAccessMetadata)))
     nextIPIntInstruction()
+
+.atomic_wait64_throw:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsMemoryAccess)
 end)
 
 ipintAtomicOp(_atomic_fence, macro()
@@ -8674,7 +8755,7 @@ reservedAtomicOpcode(atomic_0xf)
 ipintAtomicOp(_i32_atomic_load, macro()
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     if ARM64 or ARM64E or X86_64
         atomicloadi [t0], t2
     else
@@ -8683,12 +8764,14 @@ ipintAtomicOp(_i32_atomic_load, macro()
     pushInt32(t2)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_load, macro()
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
-    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment8(t0, .throwUnaligned)
     if ARM64 or ARM64E or X86_64
         atomicloadq [t0], t2
     else
@@ -8697,12 +8780,14 @@ ipintAtomicOp(_i64_atomic_load, macro()
     pushInt64(t2)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_load8_u, macro()
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     if ARM64 or ARM64E or X86_64
         atomicloadb [t0], t2
     else
@@ -8711,12 +8796,14 @@ ipintAtomicOp(_i32_atomic_load8_u, macro()
     pushInt32(t2)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_load16_u, macro()
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     if ARM64 or ARM64E or X86_64
         atomicloadh [t0], t2
     else
@@ -8725,12 +8812,14 @@ ipintAtomicOp(_i32_atomic_load16_u, macro()
     pushInt32(t2)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_load8_u, macro()
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     if ARM64 or ARM64E or X86_64
         atomicloadb [t0], t2
     else
@@ -8739,12 +8828,14 @@ ipintAtomicOp(_i64_atomic_load8_u, macro()
     pushInt64(t2)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_load16_u, macro()
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     if ARM64 or ARM64E or X86_64
         atomicloadh [t0], t2
     else
@@ -8753,12 +8844,14 @@ ipintAtomicOp(_i64_atomic_load16_u, macro()
     pushInt64(t2)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_load32_u, macro()
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     if ARM64 or ARM64E or X86_64
         atomicloadi [t0], t2
     else
@@ -8767,6 +8860,8 @@ ipintAtomicOp(_i64_atomic_load32_u, macro()
     pushInt64(t2)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 macro weakCASLoopByte(mem, value, scratch1AndOldValue, scratch2, fn)
@@ -8842,7 +8937,7 @@ ipintAtomicOp(_i32_atomic_store, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgi t3, [t2], t3
@@ -8857,13 +8952,15 @@ ipintAtomicOp(_i32_atomic_store, macro()
     end
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_store, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
-    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment8(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgq t3, [t2], t3
@@ -8878,13 +8975,15 @@ ipintAtomicOp(_i64_atomic_store, macro()
     end
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_store8_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgb t3, [t2], t3
@@ -8899,13 +8998,15 @@ ipintAtomicOp(_i32_atomic_store8_u, macro()
     end
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_store16_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgh t3, [t2], t3
@@ -8920,13 +9021,15 @@ ipintAtomicOp(_i32_atomic_store16_u, macro()
     end
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_store8_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgb t3, [t2], t3
@@ -8941,13 +9044,15 @@ ipintAtomicOp(_i64_atomic_store8_u, macro()
     end
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_store16_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgh t3, [t2], t3
@@ -8962,13 +9067,15 @@ ipintAtomicOp(_i64_atomic_store16_u, macro()
     end
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_store32_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgi t3, [t2], t3
@@ -8983,13 +9090,15 @@ ipintAtomicOp(_i64_atomic_store32_u, macro()
     end
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_add, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgaddi t3, [t2], t0
@@ -9006,13 +9115,15 @@ ipintAtomicOp(_i32_atomic_rmw_add, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_add, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
-    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment8(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgaddq t3, [t2], t0
@@ -9029,13 +9140,15 @@ ipintAtomicOp(_i64_atomic_rmw_add, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_add_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgaddb t3, [t2], t0
@@ -9053,13 +9166,15 @@ ipintAtomicOp(_i32_atomic_rmw8_add_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_add_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgaddh t3, [t2], t0
@@ -9077,13 +9192,15 @@ ipintAtomicOp(_i32_atomic_rmw16_add_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_add_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgaddb t3, [t2], t0
@@ -9101,13 +9218,15 @@ ipintAtomicOp(_i64_atomic_rmw8_add_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_add_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgaddh t3, [t2], t0
@@ -9125,13 +9244,15 @@ ipintAtomicOp(_i64_atomic_rmw16_add_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_add_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgaddi t3, [t2], t0
@@ -9149,13 +9270,15 @@ ipintAtomicOp(_i64_atomic_rmw32_add_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_sub, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         negi t3
@@ -9174,13 +9297,15 @@ ipintAtomicOp(_i32_atomic_rmw_sub, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_sub, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
-    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment8(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         negq t3
@@ -9199,13 +9324,15 @@ ipintAtomicOp(_i64_atomic_rmw_sub, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_sub_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         negi t3
@@ -9225,13 +9352,15 @@ ipintAtomicOp(_i32_atomic_rmw8_sub_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_sub_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         negi t3
@@ -9251,13 +9380,15 @@ ipintAtomicOp(_i32_atomic_rmw16_sub_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_sub_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         negq t3
@@ -9277,13 +9408,15 @@ ipintAtomicOp(_i64_atomic_rmw8_sub_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_sub_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         negq t3
@@ -9303,13 +9436,15 @@ ipintAtomicOp(_i64_atomic_rmw16_sub_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_sub_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         negq t3
@@ -9329,13 +9464,15 @@ ipintAtomicOp(_i64_atomic_rmw32_sub_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_and, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         noti t3
@@ -9354,13 +9491,15 @@ ipintAtomicOp(_i32_atomic_rmw_and, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_and, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
-    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment8(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         notq t3
@@ -9379,13 +9518,15 @@ ipintAtomicOp(_i64_atomic_rmw_and, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_and_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         noti t3
@@ -9404,13 +9545,15 @@ ipintAtomicOp(_i32_atomic_rmw8_and_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_and_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         noti t3
@@ -9429,13 +9572,15 @@ ipintAtomicOp(_i32_atomic_rmw16_and_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_and_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         notq t3
@@ -9454,13 +9599,15 @@ ipintAtomicOp(_i64_atomic_rmw8_and_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_and_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         notq t3
@@ -9479,13 +9626,15 @@ ipintAtomicOp(_i64_atomic_rmw16_and_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_and_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         notq t3
@@ -9504,13 +9653,15 @@ ipintAtomicOp(_i64_atomic_rmw32_and_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_or, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgori t3, [t2], t0
@@ -9528,13 +9679,15 @@ ipintAtomicOp(_i32_atomic_rmw_or, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_or, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
-    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment8(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgorq t3, [t2], t0
@@ -9552,13 +9705,15 @@ ipintAtomicOp(_i64_atomic_rmw_or, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_or_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgorb t3, [t2], t0
@@ -9576,13 +9731,15 @@ ipintAtomicOp(_i32_atomic_rmw8_or_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_or_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgorh t3, [t2], t0
@@ -9600,13 +9757,15 @@ ipintAtomicOp(_i32_atomic_rmw16_or_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_or_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgorb t3, [t2], t0
@@ -9624,13 +9783,15 @@ ipintAtomicOp(_i64_atomic_rmw8_or_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_or_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgorh t3, [t2], t0
@@ -9648,13 +9809,15 @@ ipintAtomicOp(_i64_atomic_rmw16_or_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_or_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgori t3, [t2], t0
@@ -9672,13 +9835,15 @@ ipintAtomicOp(_i64_atomic_rmw32_or_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_xor, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgxori t3, [t2], t0
@@ -9696,13 +9861,15 @@ ipintAtomicOp(_i32_atomic_rmw_xor, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_xor, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
-    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment8(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgxorq t3, [t2], t0
@@ -9720,13 +9887,15 @@ ipintAtomicOp(_i64_atomic_rmw_xor, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_xor_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgxorb t3, [t2], t0
@@ -9744,13 +9913,15 @@ ipintAtomicOp(_i32_atomic_rmw8_xor_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_xor_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgxorh t3, [t2], t0
@@ -9768,13 +9939,15 @@ ipintAtomicOp(_i32_atomic_rmw16_xor_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_xor_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgxorb t3, [t2], t0
@@ -9792,13 +9965,15 @@ ipintAtomicOp(_i64_atomic_rmw8_xor_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_xor_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgxorh t3, [t2], t0
@@ -9816,13 +9991,15 @@ ipintAtomicOp(_i64_atomic_rmw16_xor_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_xor_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgxori t3, [t2], t0
@@ -9840,13 +10017,15 @@ ipintAtomicOp(_i64_atomic_rmw32_xor_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_xchg, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgi t3, [t2], t0
@@ -9864,13 +10043,15 @@ ipintAtomicOp(_i32_atomic_rmw_xchg, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_xchg, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
-    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment8(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgq t3, [t2], t0
@@ -9888,13 +10069,15 @@ ipintAtomicOp(_i64_atomic_rmw_xchg, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_xchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgb t3, [t2], t0
@@ -9912,13 +10095,15 @@ ipintAtomicOp(_i32_atomic_rmw8_xchg_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_xchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgh t3, [t2], t0
@@ -9936,13 +10121,15 @@ ipintAtomicOp(_i32_atomic_rmw16_xchg_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_xchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgb t3, [t2], t0
@@ -9960,13 +10147,15 @@ ipintAtomicOp(_i64_atomic_rmw8_xchg_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_xchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgh t3, [t2], t0
@@ -9984,13 +10173,15 @@ ipintAtomicOp(_i64_atomic_rmw16_xchg_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_xchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     if ARM64E
         atomicxchgi t3, [t2], t0
@@ -10008,6 +10199,8 @@ ipintAtomicOp(_i64_atomic_rmw32_xchg_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 macro weakCASExchangeByte(mem, value, expected, scratch, scratch2)
@@ -10097,7 +10290,7 @@ ipintAtomicOp(_i32_atomic_rmw_cmpxchg, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     move t3, t0
     andq 0xffffffff, t0
@@ -10111,6 +10304,8 @@ ipintAtomicOp(_i32_atomic_rmw_cmpxchg, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_cmpxchg, macro()
@@ -10120,7 +10315,7 @@ ipintAtomicOp(_i64_atomic_rmw_cmpxchg, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
-    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment8(t0, .throwUnaligned)
     move t0, t2
     move t3, t0
     if ARM64E or X86_64
@@ -10133,6 +10328,8 @@ ipintAtomicOp(_i64_atomic_rmw_cmpxchg, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_cmpxchg_u, macro()
@@ -10142,7 +10339,7 @@ ipintAtomicOp(_i32_atomic_rmw8_cmpxchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     move t3, t0
     andq 0xff, t0
@@ -10156,6 +10353,8 @@ ipintAtomicOp(_i32_atomic_rmw8_cmpxchg_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_cmpxchg_u, macro()
@@ -10165,7 +10364,7 @@ ipintAtomicOp(_i32_atomic_rmw16_cmpxchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     move t3, t0
     andq 0xffff, t0
@@ -10179,6 +10378,8 @@ ipintAtomicOp(_i32_atomic_rmw16_cmpxchg_u, macro()
     pushInt32(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_cmpxchg_u, macro()
@@ -10188,7 +10389,7 @@ ipintAtomicOp(_i64_atomic_rmw8_cmpxchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
-    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    noAlignmentCheck(t0, .throwUnaligned)
     move t0, t2
     move t3, t0
     andq 0xff, t0
@@ -10202,6 +10403,8 @@ ipintAtomicOp(_i64_atomic_rmw8_cmpxchg_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_cmpxchg_u, macro()
@@ -10211,7 +10414,7 @@ ipintAtomicOp(_i64_atomic_rmw16_cmpxchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
-    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment2(t0, .throwUnaligned)
     move t0, t2
     move t3, t0
     andq 0xffff, t0
@@ -10225,6 +10428,8 @@ ipintAtomicOp(_i64_atomic_rmw16_cmpxchg_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_cmpxchg_u, macro()
@@ -10234,7 +10439,7 @@ ipintAtomicOp(_i64_atomic_rmw32_cmpxchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
     atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
-    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    checkAlignment4(t0, .throwUnaligned)
     move t0, t2
     move t3, t0
     andq 0xffffffff, t0
@@ -10248,6 +10453,8 @@ ipintAtomicOp(_i64_atomic_rmw32_cmpxchg_u, macro()
     pushInt64(t0)
     advancePCByReg(t4)
     nextIPIntInstruction()
+.throwUnaligned:
+    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 end)
 
 #######################################
@@ -11486,36 +11693,6 @@ _ipint_mint_arg_dispatch_err:
 _ipint_mint_ret_dispatch_err:
     move 0x88, a0
     break
-
-_ipint_throw_Unreachable:
-    handleDebuggerTrapIfNeededAndThrowWasmTrap(Unreachable)
-
-_ipint_throw_NullExnrefReference:
-    handleDebuggerTrapIfNeededAndThrowWasmTrap(NullExnrefReference)
-
-_ipint_throw_OutOfBoundsMemoryAccess:
-    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsMemoryAccess)
-
-_ipint_throw_DivisionByZero:
-    handleDebuggerTrapIfNeededAndThrowWasmTrap(DivisionByZero)
-
-_ipint_throw_IntegerOverflow:
-    handleDebuggerTrapIfNeededAndThrowWasmTrap(IntegerOverflow)
-
-_ipint_throw_OutOfBoundsTrunc:
-    handleDebuggerTrapIfNeededAndThrowWasmTrap(OutOfBoundsTrunc)
-
-_ipint_throw_NullRefAsNonNull:
-    handleDebuggerTrapIfNeededAndThrowWasmTrap(NullRefAsNonNull)
-
-_ipint_throw_NullAccess:
-    handleDebuggerTrapIfNeededAndThrowWasmTrap(NullAccess)
-
-_ipint_throw_NullI31Get:
-    handleDebuggerTrapIfNeededAndThrowWasmTrap(NullI31Get)
-
-_ipint_throw_UnalignedMemoryAccess:
-    handleDebuggerTrapIfNeededAndThrowWasmTrap(UnalignedMemoryAccess)
 
 ###########################################
 # uINT: function return value interpreter #
