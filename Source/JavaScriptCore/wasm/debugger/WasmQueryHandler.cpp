@@ -366,12 +366,12 @@ void QueryHandler::handleWasmLocal(StringView packet)
     }
 
     auto& stopData = *state->stopData;
-    CallFrame* localCallFrame = nullptr;
+    IPInt::IPIntLocal* locals = nullptr;
     RefPtr<IPIntCallee> localCallee;
     JSWebAssemblyInstance* instance = nullptr;
 
     if (!frameIndex) {
-        localCallFrame = stopData.callFrame;
+        locals = stopData.locals;
         localCallee = stopData.callee;
         instance = stopData.instance;
     } else {
@@ -381,7 +381,7 @@ void QueryHandler::handleWasmLocal(StringView packet)
             return;
         }
         const auto& frameInfo = frames[frameIndex];
-        localCallFrame = frameInfo.wasmCallFrame;
+        locals = localsFromFrame(frameInfo.wasmCallFrame, frameInfo.wasmCallee.get());
         localCallee = frameInfo.wasmCallee;
         instance = frameInfo.wasmCallFrame->wasmInstance();
     }
@@ -395,8 +395,7 @@ void QueryHandler::handleWasmLocal(StringView packet)
         return;
     }
 
-    IPInt::FrameAccess frame(localCallFrame, localCallee.get());
-    IPInt::IPIntLocal& local = *frame.localSlot(localIndex);
+    IPInt::IPIntLocal& local = locals[localIndex];
     Type localType = localTypes[localIndex];
     logWasmLocalValue(localIndex, local, localType);
 

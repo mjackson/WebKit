@@ -50,11 +50,10 @@
 # - MC: (Metadata Counter) IPInt's metadata pointer. This records the corresponding position in generated metadata.
 # - WI: (Wasm Instance) pointer to the current JSWebAssemblyInstance object. This is used for accessing
 #       function-specific data (callee-save).
+# - PL: (Pointer to Locals) pointer to the address of local 0 in the current function. This is used for accessing
+#       locals quickly.
 # - MB: (Memory Base) pointer to the current Wasm memory base address (callee-save).
 # - BC: (Bounds Check) the size of the current Wasm memory region, for bounds checking (callee-save).
-#
-# Locals are accessed at a constant offset from CFR:
-#   local[i] = CFR - IPIntLocalsBaseOffset - i * LocalSize
 #
 # Finally, we provide four "sc" (safe for call) registers which are guaranteed to not overlap with argument
 # registers (sc0, sc1, sc2, sc3)
@@ -68,6 +67,8 @@ const alignMInt = constexpr JSC::IPInt::alignMInt
 if ARM64 or ARM64E
     const PC = csr7
     const MC = csr6
+    const PL = t6
+    const notPL = t5 # Scratch register that is NOT PL
 
     # Wasm Pinned Registers
     const WI = csr0
@@ -81,6 +82,8 @@ if ARM64 or ARM64E
 elsif X86_64
     const PC = csr2
     const MC = csr1
+    const PL = t5
+    const notPL = t6 # Scratch register that is NOT PL
 
     # Wasm Pinned Registers
     const WI = csr0
@@ -94,6 +97,7 @@ elsif X86_64
 elsif RISCV64
     const PC = csr7
     const MC = csr6
+    const PL = csr10
 
     # Wasm Pinned Registers
     const WI = csr0
@@ -107,6 +111,7 @@ elsif RISCV64
 elsif ARMv7
     const PC = csr1
     const MC = t6
+    const PL = t7
 
     # Wasm Pinned Registers
     const WI = csr0
@@ -120,6 +125,7 @@ elsif ARMv7
 else
     const PC = invalidGPR
     const MC = invalidGPR
+    const PL = invalidGPR
 
     # Wasm Pinned Registers
     const WI = invalidGPR
@@ -166,9 +172,6 @@ const WasmToJSIPIntReturnPCSlot = constexpr Wasm::WasmToJSIPIntReturnPCSlot
 
 const IPIntCalleeSaveSpaceAsVirtualRegisters = constexpr Wasm::numberOfIPIntCalleeSaveRegisters + constexpr Wasm::numberOfIPIntInternalRegisters
 const IPIntCalleeSaveSpaceStackAligned = (IPIntCalleeSaveSpaceAsVirtualRegisters * SlotSize + StackAlignment - 1) & ~StackAlignmentMask
-
-# Offset from CFR to local[0]: local[i] = CFR - IPIntLocalsBaseOffset - i * LocalSize
-const IPIntLocalsBaseOffset = IPIntCalleeSaveSpaceStackAligned + LocalSize
 
 # Must match GPRInfo.h
 if X86_64
@@ -458,14 +461,18 @@ macro operationCall(fn)
     move wasmInstance, a0
     push PC, MC
     if ARM64 or ARM64E
-        # Save ws0 with padding for 16-byte alignment (PC+MC=16, ws0+pad=16, total=32)
-        subp MachineRegisterSize * 2, sp
-        storep ws0, [sp]
+        push PL, ws0
+    elsif X86_64
+        push PL
+        # preserve 16 byte alignment.
+        subq MachineRegisterSize, sp
     end
     fn()
     if ARM64 or ARM64E
-        loadp [sp], ws0
-        addp MachineRegisterSize * 2, sp
+        pop ws0, PL
+    elsif X86_64
+        addq MachineRegisterSize, sp
+        pop PL
     end
     pop MC, PC
 end
@@ -477,8 +484,11 @@ macro operationCallMayThrowImpl(fn, sizeOfExtraRegistersPreserved)
     move wasmInstance, a0
     push PC, MC
     if ARM64 or ARM64E
-        # Save ws0 with padding for 16-byte alignment (PC+MC=16, ws0+ws0=16, total=32)
-        push ws0, ws0
+        push PL, ws0
+    elsif X86_64
+        push PL
+        # preserve 16 byte alignment.
+        subq MachineRegisterSize, sp
     end
     fn()
     bpneq r1, (constexpr JSC::IPInt::SlowPathExceptionTag), .continuation
@@ -488,15 +498,15 @@ macro operationCallMayThrowImpl(fn, sizeOfExtraRegistersPreserved)
         move cfr, a1
         move sp, a2
         operationCall(macro() cCall3(_ipint_extern_handle_debugger_trap_if_needed) end)
-        addp sizeOfExtraRegistersPreserved + (4 * MachineRegisterSize), sp
-    elsif X86_64
-        addp sizeOfExtraRegistersPreserved + (2 * MachineRegisterSize), sp
     end
+    addp sizeOfExtraRegistersPreserved + (4 * MachineRegisterSize), sp
     jmp _wasm_throw_from_slow_path_trampoline
 .continuation:
     if ARM64 or ARM64E
-        loadp [sp], ws0
-        addp MachineRegisterSize * 2, sp
+        pop ws0, PL
+    elsif X86_64
+        addq MachineRegisterSize, sp
+        pop PL
     end
     pop MC, PC
 end
@@ -576,7 +586,7 @@ if JIT and not ARMv7
     move PC, a2
     # Add 1 to the index due to WTF::UncheckedKeyHashMap not supporting 0 as a key
     addq 1, a2
-    move sp, a3
+    move PL, a3
     operationCall(macro() cCall4(_ipint_extern_loop_osr) end)
     btpz r1, .recover
     restoreIPIntRegisters()
@@ -1269,9 +1279,9 @@ end
 
 macro handleDebuggerTrapIfNeeded()
     push PC, MC
-    push ws0, ws0   # sp[0]=ws0 (unused), sp[1]=ws0 (IPIntCallee*), sp[2]=PC, sp[3]=MC
+    push PL, ws0    # sp[0]=PL, sp[1]=ws0 (IPIntCallee*), sp[2]=PC, sp[3]=MC
     move cfr, a1
-    move sp, a2     # a2 = pointer to saved [ws0, ws0, PC, MC]
+    move sp, a2     # a2 = pointer to saved [PL, ws0, PC, MC]
     operationCall(macro() cCall3(_ipint_extern_handle_debugger_trap_if_needed) end)
     addp 4 * MachineRegisterSize, sp
 end
@@ -1320,7 +1330,7 @@ end)
 op(wasm_throw_from_fault_handler_trampoline_reg_instance, macro ()
     # enableWasmDebugger disables BBQ/OMG, so this trampoline is only
     # reached from IPInt when the debugger is active. The signal handler only patches
-    # the machine PC, so IPInt registers (PC, MC, ws0, cfr) are still live.
+    # the machine PC, so IPInt registers (PC, MC, PL, ws0, cfr) are still live.
     # Exception type comes from instance->m_exception; copy to CFR slot for handle_debugger_trap_if_needed.
     loadi JSWebAssemblyInstance::m_exception[wasmInstance], t0
     storei t0, ArgumentCountIncludingThis + PayloadOffset[cfr]
@@ -1375,6 +1385,7 @@ end
     operationCall(macro() cCall2(_ipint_extern_prepare_function_body) end)
     move r0, ws0
 
+    move sp, PL
     loadp Wasm::IPIntCallee::m_bytecode[ws0], PC
     loadp Wasm::IPIntCallee::m_metadata + VectorBufferOffset[ws0], MC
 
@@ -1423,9 +1434,18 @@ end
     loadp Wasm::IPIntCallee::m_metadata + VectorBufferOffset[ws0], t1
     addp t1, MC
 
-    # Recompute SP from catch metadata. [MC] contains localSizeToAlloc + stackValues.
-    # Add rethrowSlots to get the total frame size below callee-save space.
-    loadi Wasm::IPIntCallee::m_numRethrowSlotsToAlloc[ws0], t1
+    # Recompute PL
+    if ARM64 or ARM64E
+        loadpairi Wasm::IPIntCallee::m_localSizeToAlloc[ws0], t0, t1
+    else
+        loadi Wasm::IPIntCallee::m_numRethrowSlotsToAlloc[ws0], t1
+        loadi Wasm::IPIntCallee::m_localSizeToAlloc[ws0], t0
+    end
+    addp t1, t0
+    mulp LocalSize, t0
+    addp IPIntCalleeSaveSpaceStackAligned, t0
+    subp cfr, t0, PL
+
     loadi [MC], t0
     addp t1, t0
     mulp StackValueSize, t0
@@ -1448,7 +1468,8 @@ if WEBASSEMBLY and (ARM64 or ARM64E or X86_64)
 
     move cfr, a1
     move sp, a2
-    operationCall(macro() cCall3(_ipint_extern_retrieve_and_clear_exception) end)
+    move PL, a3
+    operationCall(macro() cCall4(_ipint_extern_retrieve_and_clear_exception) end)
 
     ipintReloadMemory()
     advanceMC(4)
@@ -1464,7 +1485,8 @@ if WEBASSEMBLY and (ARM64 or ARM64E or X86_64)
 
     move cfr, a1
     move 0, a2
-    operationCall(macro() cCall3(_ipint_extern_retrieve_and_clear_exception) end)
+    move PL, a3
+    operationCall(macro() cCall4(_ipint_extern_retrieve_and_clear_exception) end)
 
     ipintReloadMemory()
     advanceMC(4)
@@ -1482,7 +1504,8 @@ if WEBASSEMBLY and (ARM64 or ARM64E or X86_64 or ARMv7)
 
     move cfr, a1
     move sp, a2
-    operationCall(macro() cCall3(_ipint_extern_retrieve_and_clear_exception) end)
+    move PL, a3
+    operationCall(macro() cCall4(_ipint_extern_retrieve_and_clear_exception) end)
 
     ipintReloadMemory()
     advanceMC(4)
@@ -1500,7 +1523,8 @@ if WEBASSEMBLY and (ARM64 or ARM64E or X86_64 or ARMv7)
 
     move cfr, a1
     move sp, a2
-    operationCall(macro() cCall3(_ipint_extern_retrieve_clear_and_push_exception_and_arguments) end)
+    move PL, a3
+    operationCall(macro() cCall4(_ipint_extern_retrieve_clear_and_push_exception_and_arguments) end)
 
     ipintReloadMemory()
     advanceMC(4)
@@ -1518,7 +1542,8 @@ if WEBASSEMBLY and (ARM64 or ARM64E or X86_64 or ARMv7)
 
     move cfr, a1
     move 0, a2
-    operationCall(macro() cCall3(_ipint_extern_retrieve_and_clear_exception) end)
+    move PL, a3
+    operationCall(macro() cCall4(_ipint_extern_retrieve_and_clear_exception) end)
 
     ipintReloadMemory()
     advanceMC(4)
@@ -1536,7 +1561,8 @@ if WEBASSEMBLY and (ARM64 or ARM64E or X86_64 or ARMv7)
 
     move cfr, a1
     move sp, a2
-    operationCall(macro() cCall3(_ipint_extern_retrieve_clear_and_push_exception) end)
+    move PL, a3
+    operationCall(macro() cCall4(_ipint_extern_retrieve_clear_and_push_exception) end)
 
     ipintReloadMemory()
     advanceMC(4)

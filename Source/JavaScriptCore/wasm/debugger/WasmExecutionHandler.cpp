@@ -134,13 +134,13 @@ void ExecutionHandler::stopTheWorld(VM& debuggee, StopTheWorldEvent event)
     VMManager::singleton().notifyVMStop(debuggee, event);
 }
 
-DebuggerTrapStatus ExecutionHandler::handleDebuggerTrapIfNeeded(CallFrame* callFrame, JSWebAssemblyInstance* instance, IPIntCallee* callee, uint8_t* pc, uint8_t* mc, IPInt::IPIntStackEntry* stack, Wasm::ExceptionType exceptionType)
+DebuggerTrapStatus ExecutionHandler::handleDebuggerTrapIfNeeded(CallFrame* callFrame, JSWebAssemblyInstance* instance, IPIntCallee* callee, uint8_t* pc, uint8_t* mc, IPInt::IPIntLocal* locals, IPInt::IPIntStackEntry* stack, Wasm::ExceptionType exceptionType)
 {
     VM& debuggee = instance->vm();
     if (exceptionType == Wasm::ExceptionType::Unreachable && hasBreakpoints()) {
         VirtualAddress address = VirtualAddress::toVirtual(instance, callee->functionIndex(), pc);
         if (auto* breakpoint = m_breakpointManager->findBreakpoint(address)) {
-            debuggee.debugState()->setBreakpointStopData(breakpoint->type, address, breakpoint->originalBytecode, pc, mc, stack, callee, instance, callFrame);
+            debuggee.debugState()->setBreakpointStopData(breakpoint->type, address, breakpoint->originalBytecode, pc, mc, locals, stack, callee, instance, callFrame);
             dataLogLnIf(Options::verboseWasmDebugger(), "[Code][handleDebuggerTrapIfNeeded] Breakpoint at ", *breakpoint, " with ", *debuggee.debugState()->stopData);
             stopTheWorld(debuggee, StopTheWorldEvent::WasmProgramStop);
             return DebuggerTrapStatus::ResolvedByDebugger; // Don't throw; resume execution at this breakpoint
@@ -157,7 +157,7 @@ DebuggerTrapStatus ExecutionHandler::handleDebuggerTrapIfNeeded(CallFrame* callF
         debuggee.debugState()->stopReason = DebugState::Reason::WasmTrap;
         debuggee.debugState()->stopData->wasmTrapType = exceptionType;
     } else
-        debuggee.debugState()->setTrapStopData(callee, instance, callFrame, pc, mc, stack, exceptionType);
+        debuggee.debugState()->setTrapStopData(callee, instance, callFrame, pc, mc, locals, stack, exceptionType);
     dataLogLnIf(Options::verboseWasmDebugger(), "[Code][handleDebuggerTrapIfNeeded] Wasm trap at ", *debuggee.debugState()->stopData);
     stopTheWorld(debuggee, StopTheWorldEvent::WasmProgramStop);
     return DebuggerTrapStatus::NotResolvedByDebugger; // Throw; trap was reported, now propagate it
