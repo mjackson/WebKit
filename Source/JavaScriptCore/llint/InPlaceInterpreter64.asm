@@ -902,6 +902,31 @@ macro baddpc(src, dst, label)
     bpb dst, src, label # unsigned overflow check
 end
 
+macro atomicMemoryMakePointerAndAdvanceMC(instrLenReg, wasmAddrReg, size, scratch, scratch2)
+    loadq IPInt::AtomicMemoryAccessMetadata::offset[MC], scratch2
+    baddpc(scratch2, wasmAddrReg, _ipint_throw_OutOfBoundsMemoryAccess)
+
+    move size - 1, scratch2
+    baddpc(wasmAddrReg, scratch2, _ipint_throw_OutOfBoundsMemoryAccess)
+
+    loadb IPInt::AtomicMemoryAccessMetadata::memoryIndex[MC], scratch
+    btinz scratch, .memoryIsNotZero
+    bpaeq scratch2, boundsCheckingSize, _ipint_throw_OutOfBoundsMemoryAccess # scratch2 contains wasm address + size - 1
+    addp memoryBase, wasmAddrReg
+    jmp .done
+
+.memoryIsNotZero:
+    mulp constexpr (sizeof(JSWebAssemblyInstance::WasmMemoryBaseAndSize)), scratch
+    # FIXME: it's probably worth trying to use a loadpair here, but that requires a separate x86 codepath
+    loadp (constexpr (JSWebAssemblyInstance::offsetOfCachedMemoryBaseSizePair(0) + sizeof(void*))) [wasmInstance, scratch], scratch2 # bounds checking size
+    subp size - 1, scratch2 # wasmAddrReg + (size-1) >= scratch2 is equivalent to wasmAddrReg >= scratch2 - (size-1)
+    bpaeq wasmAddrReg, scratch2, _ipint_throw_OutOfBoundsMemoryAccess
+    loadp (constexpr (JSWebAssemblyInstance::offsetOfCachedMemoryBaseSizePair(0))) [wasmInstance, scratch], scratch2 # memory base
+    addp scratch2, wasmAddrReg
+.done:
+    loadb IPInt::AtomicMemoryAccessMetadata::instructionLength[MC], instrLenReg
+    advanceMC(constexpr (sizeof(IPInt::AtomicMemoryAccessMetadata)))
+end
 
 macro loadStoreMakePointerFast(alignAccess, offsetAccess, wasmAddrReg, size, scratch, scratch2, slowLabel)
     # overwrites wasmAddrReg with computed pointer.
@@ -8557,1119 +8582,6 @@ macro checkAlignment8(mem, label)
     btpnz mem, 7, label
 end
 
-macro weakCASLoopByte(mem, value, scratch1AndOldValue, scratch2, fn)
-    validateOpcodeConfig(scratch1AndOldValue)
-    if X86_64
-        loadb [mem], scratch1AndOldValue
-    .loop:
-        move scratch1AndOldValue, scratch2
-        fn(value, scratch2)
-        batomicweakcasb scratch1AndOldValue, scratch2, [mem], .loop
-    else
-    .loop:
-        loadlinkacqb [mem], scratch1AndOldValue
-        fn(value, scratch1AndOldValue, scratch2)
-        storecondrelb ws2, scratch2, [mem]
-        bineq ws2, 0, .loop
-    end
-end
-
-macro weakCASLoopHalf(mem, value, scratch1AndOldValue, scratch2, fn)
-    validateOpcodeConfig(scratch1AndOldValue)
-    if X86_64
-        loadh [mem], scratch1AndOldValue
-    .loop:
-        move scratch1AndOldValue, scratch2
-        fn(value, scratch2)
-        batomicweakcash scratch1AndOldValue, scratch2, [mem], .loop
-    else
-    .loop:
-        loadlinkacqh [mem], scratch1AndOldValue
-        fn(value, scratch1AndOldValue, scratch2)
-        storecondrelh ws2, scratch2, [mem]
-        bineq ws2, 0, .loop
-    end
-end
-
-macro weakCASLoopInt(mem, value, scratch1AndOldValue, scratch2, fn)
-    validateOpcodeConfig(scratch1AndOldValue)
-    if X86_64
-        loadi [mem], scratch1AndOldValue
-    .loop:
-        move scratch1AndOldValue, scratch2
-        fn(value, scratch2)
-        batomicweakcasi scratch1AndOldValue, scratch2, [mem], .loop
-    else
-    .loop:
-        loadlinkacqi [mem], scratch1AndOldValue
-        fn(value, scratch1AndOldValue, scratch2)
-        storecondreli ws2, scratch2, [mem]
-        bineq ws2, 0, .loop
-    end
-end
-
-macro weakCASLoopQuad(mem, value, scratch1AndOldValue, scratch2, fn)
-    validateOpcodeConfig(scratch1AndOldValue)
-    if X86_64
-        loadq [mem], scratch1AndOldValue
-    .loop:
-        move scratch1AndOldValue, scratch2
-        fn(value, scratch2)
-        batomicweakcasq scratch1AndOldValue, scratch2, [mem], .loop
-    else
-    .loop:
-        loadlinkacqq [mem], scratch1AndOldValue
-        fn(value, scratch1AndOldValue, scratch2)
-        storecondrelq ws2, scratch2, [mem]
-        bineq ws2, 0, .loop
-    end
-end
-
-macro doI32AtomicLoad(mem, dst)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    if ARM64 or ARM64E or X86_64
-        atomicloadi [mem], dst
-    else
-        error
-    end
-end
-
-macro doI64AtomicLoad(mem, dst)
-    checkAlignment8(mem, _ipint_throw_UnalignedMemoryAccess)
-    if ARM64 or ARM64E or X86_64
-        atomicloadq [mem], dst
-    else
-        error
-    end
-end
-
-macro doI32AtomicLoad8(mem, dst)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    if ARM64 or ARM64E or X86_64
-        atomicloadb [mem], dst
-    else
-        error
-    end
-end
-
-macro doI32AtomicLoad16(mem, dst)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    if ARM64 or ARM64E or X86_64
-        atomicloadh [mem], dst
-    else
-        error
-    end
-end
-
-macro doI64AtomicLoad8(mem, dst)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    if ARM64 or ARM64E or X86_64
-        atomicloadb [mem], dst
-    else
-        error
-    end
-end
-
-macro doI64AtomicLoad16(mem, dst)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    if ARM64 or ARM64E or X86_64
-        atomicloadh [mem], dst
-    else
-        error
-    end
-end
-
-macro doI64AtomicLoad32(mem, dst)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    if ARM64 or ARM64E or X86_64
-        atomicloadi [mem], dst
-    else
-        error
-    end
-end
-
-macro doI32AtomicStore(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgi val, [memCopy], val
-    elsif X86_64
-        atomicxchgi val, [memCopy]
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicStore(mem, val, memCopy, scratch)
-    checkAlignment8(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgq val, [memCopy], val
-    elsif X86_64
-        atomicxchgq val, [memCopy]
-    elsif ARM64
-        weakCASLoopQuad(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicStore8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgb val, [memCopy], val
-    elsif X86_64
-        atomicxchgb val, [memCopy]
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicStore16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgh val, [memCopy], val
-    elsif X86_64
-        atomicxchgh val, [memCopy]
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicStore8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgb val, [memCopy], val
-    elsif X86_64
-        atomicxchgb val, [memCopy]
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicStore16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgh val, [memCopy], val
-    elsif X86_64
-        atomicxchgh val, [memCopy]
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicStore32(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgi val, [memCopy], val
-    elsif X86_64
-        atomicxchgi val, [memCopy]
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwAdd(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgaddi val, [memCopy], mem
-    elsif X86_64
-        atomicxchgaddi val, [memCopy]
-        move val, mem
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            addi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwAdd(mem, val, memCopy, scratch)
-    checkAlignment8(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgaddq val, [memCopy], mem
-    elsif X86_64
-        atomicxchgaddq val, [memCopy]
-        move val, mem
-    elsif ARM64
-        weakCASLoopQuad(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            addq value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwAdd8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgaddb val, [memCopy], mem
-    elsif X86_64
-        atomicxchgaddb val, [memCopy]
-        move val, mem
-        andi 0xff, mem
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            addi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwAdd16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgaddh val, [memCopy], mem
-    elsif X86_64
-        atomicxchgaddh val, [memCopy]
-        move val, mem
-        andi 0xffff, mem
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            addi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwAdd8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgaddb val, [memCopy], mem
-    elsif X86_64
-        atomicxchgaddb val, [memCopy]
-        move val, mem
-        andi 0xff, mem
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            addi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwAdd16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgaddh val, [memCopy], mem
-    elsif X86_64
-        atomicxchgaddh val, [memCopy]
-        move val, mem
-        andi 0xffff, mem
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            addi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwAdd32(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgaddi val, [memCopy], mem
-    elsif X86_64
-        atomicxchgaddi val, [memCopy]
-        move val, mem
-        ori 0, mem
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            addi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwSub(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        negi val
-        atomicxchgaddi val, [memCopy], mem
-    elsif X86_64
-        negi val
-        atomicxchgaddi val, [memCopy]
-        move val, mem
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            subi oldValue, value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwSub(mem, val, memCopy, scratch)
-    checkAlignment8(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        negq val
-        atomicxchgaddq val, [memCopy], mem
-    elsif X86_64
-        negq val
-        atomicxchgaddq val, [memCopy]
-        move val, mem
-    elsif ARM64
-        weakCASLoopQuad(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            subq oldValue, value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwSub8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        negi val
-        atomicxchgaddb val, [memCopy], mem
-    elsif X86_64
-        negi val
-        atomicxchgaddb val, [memCopy]
-        move val, mem
-        andi 0xff, mem
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            subi oldValue, value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwSub16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        negi val
-        atomicxchgaddh val, [memCopy], mem
-    elsif X86_64
-        negi val
-        atomicxchgaddh val, [memCopy]
-        move val, mem
-        andi 0xffff, mem
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            subi oldValue, value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwSub8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        negq val
-        atomicxchgaddb val, [memCopy], mem
-    elsif X86_64
-        negq val
-        atomicxchgaddb val, [memCopy]
-        move val, mem
-        andi 0xff, mem
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            subi oldValue, value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwSub16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        negq val
-        atomicxchgaddh val, [memCopy], mem
-    elsif X86_64
-        negq val
-        atomicxchgaddh val, [memCopy]
-        move val, mem
-        andi 0xffff, mem
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            subi oldValue, value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwSub32(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        negq val
-        atomicxchgaddi val, [memCopy], mem
-    elsif X86_64
-        negq val
-        atomicxchgaddi val, [memCopy]
-        move val, mem
-        ori 0, mem
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            subi oldValue, value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwAnd(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        noti val
-        atomicxchgcleari val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro (value, dst)
-            andq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            andi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwAnd(mem, val, memCopy, scratch)
-    checkAlignment8(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        notq val
-        atomicxchgclearq val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopQuad(memCopy, val, mem, scratch, macro (value, dst)
-            andq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopQuad(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            andq value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwAnd8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        noti val
-        atomicxchgclearb val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro (value, dst)
-            andq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            andi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwAnd16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        noti val
-        atomicxchgclearh val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro (value, dst)
-            andq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            andi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwAnd8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        notq val
-        atomicxchgclearb val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro (value, dst)
-            andq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            andi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwAnd16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        notq val
-        atomicxchgclearh val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro (value, dst)
-            andq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            andi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwAnd32(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        notq val
-        atomicxchgcleari val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro (value, dst)
-            andq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            andi value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwOr(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgori val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro (value, dst)
-            ori value, dst
-        end)
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            ori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwOr(mem, val, memCopy, scratch)
-    checkAlignment8(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgorq val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopQuad(memCopy, val, mem, scratch, macro (value, dst)
-            orq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopQuad(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            orq value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwOr8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgorb val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro (value, dst)
-            orq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            ori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwOr16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgorh val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro (value, dst)
-            orq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            ori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwOr8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgorb val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro (value, dst)
-            orq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            ori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwOr16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgorh val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro (value, dst)
-            orq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            ori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwOr32(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgori val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro (value, dst)
-            orq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            ori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwXor(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgxori val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro (value, dst)
-            xorq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            xori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwXor(mem, val, memCopy, scratch)
-    checkAlignment8(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgxorq val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopQuad(memCopy, val, mem, scratch, macro (value, dst)
-            xorq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopQuad(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            xorq value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwXor8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgxorb val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro (value, dst)
-            xorq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            xori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwXor16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgxorh val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro (value, dst)
-            xorq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            xori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwXor8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgxorb val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro (value, dst)
-            xorq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            xori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwXor16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgxorh val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro (value, dst)
-            xorq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            xori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwXor32(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgxori val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro (value, dst)
-            xorq value, dst
-        end)
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            xori value, oldValue, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwXchg(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgi val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro (value, dst)
-            move value, dst
-        end)
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwXchg(mem, val, memCopy, scratch)
-    checkAlignment8(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgq val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopQuad(memCopy, val, mem, scratch, macro (value, dst)
-            move value, dst
-        end)
-    elsif ARM64
-        weakCASLoopQuad(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwXchg8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgb val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro (value, dst)
-            move value, dst
-        end)
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicRmwXchg16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgh val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro (value, dst)
-            move value, dst
-        end)
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwXchg8(mem, val, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgb val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro (value, dst)
-            move value, dst
-        end)
-    elsif ARM64
-        weakCASLoopByte(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwXchg16(mem, val, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgh val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro (value, dst)
-            move value, dst
-        end)
-    elsif ARM64
-        weakCASLoopHalf(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI64AtomicRmwXchg32(mem, val, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    if ARM64E
-        atomicxchgi val, [memCopy], mem
-    elsif X86_64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro (value, dst)
-            move value, dst
-        end)
-    elsif ARM64
-        weakCASLoopInt(memCopy, val, mem, scratch, macro(value, oldValue, newValue)
-            move value, newValue
-        end)
-    else
-        error
-    end
-end
-
-macro doI32AtomicCmpxchg(mem, expected, newVal, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    move expected, mem
-    andq 0xffffffff, mem
-    if ARM64E or X86_64
-        atomicweakcasi mem, newVal, [memCopy]
-    elsif ARM64
-        weakCASExchangeInt(memCopy, newVal, mem, scratch, expected)
-    else
-        error
-    end
-end
-
-macro doI64AtomicCmpxchg(mem, expected, newVal, memCopy, scratch)
-    checkAlignment8(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    move expected, mem
-    if ARM64E or X86_64
-        atomicweakcasq mem, newVal, [memCopy]
-    elsif ARM64
-        weakCASExchangeQuad(memCopy, newVal, mem, scratch, expected)
-    else
-        error
-    end
-end
-
-macro doI32AtomicCmpxchg8(mem, expected, newVal, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    move expected, mem
-    andq 0xff, mem
-    if ARM64E or X86_64
-        atomicweakcasb mem, newVal, [memCopy]
-    elsif ARM64
-        weakCASExchangeByte(memCopy, newVal, mem, scratch, expected)
-    else
-        error
-    end
-end
-
-macro doI32AtomicCmpxchg16(mem, expected, newVal, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    move expected, mem
-    andq 0xffff, mem
-    if ARM64E or X86_64
-        atomicweakcash mem, newVal, [memCopy]
-    elsif ARM64
-        weakCASExchangeHalf(memCopy, newVal, mem, scratch, expected)
-    else
-        error
-    end
-end
-
-macro doI64AtomicCmpxchg8(mem, expected, newVal, memCopy, scratch)
-    noAlignmentCheck(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    move expected, mem
-    andq 0xff, mem
-    if ARM64E or X86_64
-        atomicweakcasb mem, newVal, [memCopy]
-    elsif ARM64
-        weakCASExchangeByte(memCopy, newVal, mem, scratch, expected)
-    else
-        error
-    end
-end
-
-macro doI64AtomicCmpxchg16(mem, expected, newVal, memCopy, scratch)
-    checkAlignment2(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    move expected, mem
-    andq 0xffff, mem
-    if ARM64E or X86_64
-        atomicweakcash mem, newVal, [memCopy]
-    elsif ARM64
-        weakCASExchangeHalf(memCopy, newVal, mem, scratch, expected)
-    else
-        error
-    end
-end
-
-macro doI64AtomicCmpxchg32(mem, expected, newVal, memCopy, scratch)
-    checkAlignment4(mem, _ipint_throw_UnalignedMemoryAccess)
-    move mem, memCopy
-    move expected, mem
-    andq 0xffffffff, mem
-    if ARM64E or X86_64
-        atomicweakcasi mem, newVal, [memCopy]
-    elsif ARM64
-        weakCASExchangeInt(memCopy, newVal, mem, scratch, expected)
-    else
-        error
-    end
-end
-
 ipintAtomicOp(_memory_atomic_notify, macro()
     # starting at sp: count, pointer
     loadb IPInt::AtomicMemoryAccessMetadata::memoryIndex[MC], t0
@@ -9739,7 +8651,10 @@ end)
 
 ipintAtomicOp(_atomic_fence, macro()
     fence
-    leap 1[t4], PC
+
+    loadb IPInt::InstructionLengthMetadata::length[MC], t0
+    advancePCByReg(t0)
+    advanceMC(constexpr (sizeof(IPInt::InstructionLengthMetadata)))
     nextIPIntInstruction()
 end)
 
@@ -9758,547 +8673,1340 @@ reservedAtomicOpcode(atomic_0xf)
 
 ipintAtomicOp(_i32_atomic_load, macro()
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i32_atomic_load_slow_path)
-    doI32AtomicLoad(t0, t2)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    if ARM64 or ARM64E or X86_64
+        atomicloadi [t0], t2
+    else
+        error
+    end
     pushInt32(t2)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_load, macro()
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 8, t1, t2, .ipint_i64_atomic_load_slow_path)
-    doI64AtomicLoad(t0, t2)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
+    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    if ARM64 or ARM64E or X86_64
+        atomicloadq [t0], t2
+    else
+        error
+    end
     pushInt64(t2)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_load8_u, macro()
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i32_atomic_load8_u_slow_path)
-    doI32AtomicLoad8(t0, t2)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    if ARM64 or ARM64E or X86_64
+        atomicloadb [t0], t2
+    else
+        error
+    end
     pushInt32(t2)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_load16_u, macro()
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i32_atomic_load16_u_slow_path)
-    doI32AtomicLoad16(t0, t2)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    if ARM64 or ARM64E or X86_64
+        atomicloadh [t0], t2
+    else
+        error
+    end
     pushInt32(t2)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_load8_u, macro()
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i64_atomic_load8_u_slow_path)
-    doI64AtomicLoad8(t0, t2)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    if ARM64 or ARM64E or X86_64
+        atomicloadb [t0], t2
+    else
+        error
+    end
     pushInt64(t2)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_load16_u, macro()
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i64_atomic_load16_u_slow_path)
-    doI64AtomicLoad16(t0, t2)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    if ARM64 or ARM64E or X86_64
+        atomicloadh [t0], t2
+    else
+        error
+    end
     pushInt64(t2)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_load32_u, macro()
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i64_atomic_load32_u_slow_path)
-    doI64AtomicLoad32(t0, t2)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    if ARM64 or ARM64E or X86_64
+        atomicloadi [t0], t2
+    else
+        error
+    end
     pushInt64(t2)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
+
+macro weakCASLoopByte(mem, value, scratch1AndOldValue, scratch2, fn)
+    validateOpcodeConfig(scratch1AndOldValue)
+    if X86_64
+        loadb [mem], scratch1AndOldValue
+    .loop:
+        move scratch1AndOldValue, scratch2
+        fn(value, scratch2)
+        batomicweakcasb scratch1AndOldValue, scratch2, [mem], .loop
+    else
+    .loop:
+        loadlinkacqb [mem], scratch1AndOldValue
+        fn(value, scratch1AndOldValue, scratch2)
+        storecondrelb ws2, scratch2, [mem]
+        bineq ws2, 0, .loop
+    end
+end
+
+macro weakCASLoopHalf(mem, value, scratch1AndOldValue, scratch2, fn)
+    validateOpcodeConfig(scratch1AndOldValue)
+    if X86_64
+        loadh [mem], scratch1AndOldValue
+    .loop:
+        move scratch1AndOldValue, scratch2
+        fn(value, scratch2)
+        batomicweakcash scratch1AndOldValue, scratch2, [mem], .loop
+    else
+    .loop:
+        loadlinkacqh [mem], scratch1AndOldValue
+        fn(value, scratch1AndOldValue, scratch2)
+        storecondrelh ws2, scratch2, [mem]
+        bineq ws2, 0, .loop
+    end
+end
+
+macro weakCASLoopInt(mem, value, scratch1AndOldValue, scratch2, fn)
+    validateOpcodeConfig(scratch1AndOldValue)
+    if X86_64
+        loadi [mem], scratch1AndOldValue
+    .loop:
+        move scratch1AndOldValue, scratch2
+        fn(value, scratch2)
+        batomicweakcasi scratch1AndOldValue, scratch2, [mem], .loop
+    else
+    .loop:
+        loadlinkacqi [mem], scratch1AndOldValue
+        fn(value, scratch1AndOldValue, scratch2)
+        storecondreli ws2, scratch2, [mem]
+        bineq ws2, 0, .loop
+    end
+end
+
+macro weakCASLoopQuad(mem, value, scratch1AndOldValue, scratch2, fn)
+    validateOpcodeConfig(scratch1AndOldValue)
+    if X86_64
+        loadq [mem], scratch1AndOldValue
+    .loop:
+        move scratch1AndOldValue, scratch2
+        fn(value, scratch2)
+        batomicweakcasq scratch1AndOldValue, scratch2, [mem], .loop
+    else
+    .loop:
+        loadlinkacqq [mem], scratch1AndOldValue
+        fn(value, scratch1AndOldValue, scratch2)
+        storecondrelq ws2, scratch2, [mem]
+        bineq ws2, 0, .loop
+    end
+end
+
 
 ipintAtomicOp(_i32_atomic_store, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i32_atomic_store_slow_path)
-    doI32AtomicStore(t0, t3, t2, t1)
-    leap 2[t4], PC
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgi t3, [t2], t3
+    elsif X86_64
+        atomicxchgi t3, [t2]
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_store, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 8, t1, t2, .ipint_i64_atomic_store_slow_path)
-    doI64AtomicStore(t0, t3, t2, t1)
-    leap 2[t4], PC
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
+    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgq t3, [t2], t3
+    elsif X86_64
+        atomicxchgq t3, [t2]
+    elsif ARM64
+        weakCASLoopQuad(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_store8_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i32_atomic_store8_u_slow_path)
-    doI32AtomicStore8(t0, t3, t2, t1)
-    leap 2[t4], PC
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgb t3, [t2], t3
+    elsif X86_64
+        atomicxchgb t3, [t2]
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_store16_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i32_atomic_store16_u_slow_path)
-    doI32AtomicStore16(t0, t3, t2, t1)
-    leap 2[t4], PC
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgh t3, [t2], t3
+    elsif X86_64
+        atomicxchgh t3, [t2]
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_store8_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i64_atomic_store8_u_slow_path)
-    doI64AtomicStore8(t0, t3, t2, t1)
-    leap 2[t4], PC
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgb t3, [t2], t3
+    elsif X86_64
+        atomicxchgb t3, [t2]
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_store16_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i64_atomic_store16_u_slow_path)
-    doI64AtomicStore16(t0, t3, t2, t1)
-    leap 2[t4], PC
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgh t3, [t2], t3
+    elsif X86_64
+        atomicxchgh t3, [t2]
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_store32_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i64_atomic_store32_u_slow_path)
-    doI64AtomicStore32(t0, t3, t2, t1)
-    leap 2[t4], PC
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgi t3, [t2], t3
+    elsif X86_64
+        atomicxchgi t3, [t2]
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_add, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i32_atomic_rmw_add_slow_path)
-    doI32AtomicRmwAdd(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgaddi t3, [t2], t0
+    elsif X86_64
+        atomicxchgaddi t3, [t2]
+        move t3, t0
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            addi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_add, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 8, t1, t2, .ipint_i64_atomic_rmw_add_slow_path)
-    doI64AtomicRmwAdd(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
+    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgaddq t3, [t2], t0
+    elsif X86_64
+        atomicxchgaddq t3, [t2]
+        move t3, t0
+    elsif ARM64
+        weakCASLoopQuad(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            addq value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_add_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i32_atomic_rmw8_add_u_slow_path)
-    doI32AtomicRmwAdd8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgaddb t3, [t2], t0
+    elsif X86_64
+        atomicxchgaddb t3, [t2]
+        move t3, t0
+        andi 0xff, t0
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            addi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_add_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i32_atomic_rmw16_add_u_slow_path)
-    doI32AtomicRmwAdd16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgaddh t3, [t2], t0
+    elsif X86_64
+        atomicxchgaddh t3, [t2]
+        move t3, t0
+        andi 0xffff, t0
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            addi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_add_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i64_atomic_rmw8_add_u_slow_path)
-    doI64AtomicRmwAdd8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgaddb t3, [t2], t0
+    elsif X86_64
+        atomicxchgaddb t3, [t2]
+        move t3, t0
+        andi 0xff, t0
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            addi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_add_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i64_atomic_rmw16_add_u_slow_path)
-    doI64AtomicRmwAdd16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgaddh t3, [t2], t0
+    elsif X86_64
+        atomicxchgaddh t3, [t2]
+        move t3, t0
+        andi 0xffff, t0
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            addi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_add_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i64_atomic_rmw32_add_u_slow_path)
-    doI64AtomicRmwAdd32(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgaddi t3, [t2], t0
+    elsif X86_64
+        atomicxchgaddi t3, [t2]
+        move t3, t0
+        ori 0, t0
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            addi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_sub, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i32_atomic_rmw_sub_slow_path)
-    doI32AtomicRmwSub(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        negi t3
+        atomicxchgaddi t3, [t2], t0
+    elsif X86_64
+        negi t3
+        atomicxchgaddi t3, [t2]
+        move t3, t0
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            subi oldValue, value, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_sub, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 8, t1, t2, .ipint_i64_atomic_rmw_sub_slow_path)
-    doI64AtomicRmwSub(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
+    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        negq t3
+        atomicxchgaddq t3, [t2], t0
+    elsif X86_64
+        negq t3
+        atomicxchgaddq t3, [t2]
+        move t3, t0
+    elsif ARM64
+        weakCASLoopQuad(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            subq oldValue, value, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_sub_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i32_atomic_rmw8_sub_u_slow_path)
-    doI32AtomicRmwSub8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        negi t3
+        atomicxchgaddb t3, [t2], t0
+    elsif X86_64
+        negi t3
+        atomicxchgaddb t3, [t2]
+        move t3, t0
+        andi 0xff, t0
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            subi oldValue, value, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_sub_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i32_atomic_rmw16_sub_u_slow_path)
-    doI32AtomicRmwSub16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        negi t3
+        atomicxchgaddh t3, [t2], t0
+    elsif X86_64
+        negi t3
+        atomicxchgaddh t3, [t2]
+        move t3, t0
+        andi 0xffff, t0
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            subi oldValue, value, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_sub_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i64_atomic_rmw8_sub_u_slow_path)
-    doI64AtomicRmwSub8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        negq t3
+        atomicxchgaddb t3, [t2], t0
+    elsif X86_64
+        negq t3
+        atomicxchgaddb t3, [t2]
+        move t3, t0
+        andi 0xff, t0
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            subi oldValue, value, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_sub_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i64_atomic_rmw16_sub_u_slow_path)
-    doI64AtomicRmwSub16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        negq t3
+        atomicxchgaddh t3, [t2], t0
+    elsif X86_64
+        negq t3
+        atomicxchgaddh t3, [t2]
+        move t3, t0
+        andi 0xffff, t0
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            subi oldValue, value, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_sub_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i64_atomic_rmw32_sub_u_slow_path)
-    doI64AtomicRmwSub32(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        negq t3
+        atomicxchgaddi t3, [t2], t0
+    elsif X86_64
+        negq t3
+        atomicxchgaddi t3, [t2]
+        move t3, t0
+        ori 0, t0
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            subi oldValue, value, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_and, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i32_atomic_rmw_and_slow_path)
-    doI32AtomicRmwAnd(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        noti t3
+        atomicxchgcleari t3, [t2], t0
+    elsif X86_64
+        weakCASLoopInt(t2, t3, t0, t1, macro (value, dst)
+            andq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            andi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_and, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 8, t1, t2, .ipint_i64_atomic_rmw_and_slow_path)
-    doI64AtomicRmwAnd(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
+    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        notq t3
+        atomicxchgclearq t3, [t2], t0
+    elsif X86_64
+        weakCASLoopQuad(t2, t3, t0, t1, macro (value, dst)
+            andq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopQuad(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            andq value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_and_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i32_atomic_rmw8_and_u_slow_path)
-    doI32AtomicRmwAnd8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        noti t3
+        atomicxchgclearb t3, [t2], t0
+    elsif X86_64
+        weakCASLoopByte(t2, t3, t0, t1, macro (value, dst)
+            andq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            andi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_and_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i32_atomic_rmw16_and_u_slow_path)
-    doI32AtomicRmwAnd16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        noti t3
+        atomicxchgclearh t3, [t2], t0
+    elsif X86_64
+        weakCASLoopHalf(t2, t3, t0, t1, macro (value, dst)
+            andq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            andi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_and_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i64_atomic_rmw8_and_u_slow_path)
-    doI64AtomicRmwAnd8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        notq t3
+        atomicxchgclearb t3, [t2], t0
+    elsif X86_64
+        weakCASLoopByte(t2, t3, t0, t1, macro (value, dst)
+            andq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            andi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_and_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i64_atomic_rmw16_and_u_slow_path)
-    doI64AtomicRmwAnd16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        notq t3
+        atomicxchgclearh t3, [t2], t0
+    elsif X86_64
+        weakCASLoopHalf(t2, t3, t0, t1, macro (value, dst)
+            andq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            andi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_and_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i64_atomic_rmw32_and_u_slow_path)
-    doI64AtomicRmwAnd32(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        notq t3
+        atomicxchgcleari t3, [t2], t0
+    elsif X86_64
+        weakCASLoopInt(t2, t3, t0, t1, macro (value, dst)
+            andq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            andi value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_or, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i32_atomic_rmw_or_slow_path)
-    doI32AtomicRmwOr(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgori t3, [t2], t0
+    elsif X86_64
+        weakCASLoopInt(t2, t3, t0, t1, macro (value, dst)
+            ori value, dst
+        end)
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            ori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_or, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 8, t1, t2, .ipint_i64_atomic_rmw_or_slow_path)
-    doI64AtomicRmwOr(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
+    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgorq t3, [t2], t0
+    elsif X86_64
+        weakCASLoopQuad(t2, t3, t0, t1, macro (value, dst)
+            orq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopQuad(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            orq value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_or_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i32_atomic_rmw8_or_u_slow_path)
-    doI32AtomicRmwOr8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgorb t3, [t2], t0
+    elsif X86_64
+        weakCASLoopByte(t2, t3, t0, t1, macro (value, dst)
+            orq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            ori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_or_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i32_atomic_rmw16_or_u_slow_path)
-    doI32AtomicRmwOr16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgorh t3, [t2], t0
+    elsif X86_64
+        weakCASLoopHalf(t2, t3, t0, t1, macro (value, dst)
+            orq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            ori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_or_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i64_atomic_rmw8_or_u_slow_path)
-    doI64AtomicRmwOr8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgorb t3, [t2], t0
+    elsif X86_64
+        weakCASLoopByte(t2, t3, t0, t1, macro (value, dst)
+            orq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            ori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_or_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i64_atomic_rmw16_or_u_slow_path)
-    doI64AtomicRmwOr16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgorh t3, [t2], t0
+    elsif X86_64
+        weakCASLoopHalf(t2, t3, t0, t1, macro (value, dst)
+            orq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            ori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_or_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i64_atomic_rmw32_or_u_slow_path)
-    doI64AtomicRmwOr32(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgori t3, [t2], t0
+    elsif X86_64
+        weakCASLoopInt(t2, t3, t0, t1, macro (value, dst)
+            orq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            ori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_xor, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i32_atomic_rmw_xor_slow_path)
-    doI32AtomicRmwXor(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgxori t3, [t2], t0
+    elsif X86_64
+        weakCASLoopInt(t2, t3, t0, t1, macro (value, dst)
+            xorq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            xori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_xor, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 8, t1, t2, .ipint_i64_atomic_rmw_xor_slow_path)
-    doI64AtomicRmwXor(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
+    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgxorq t3, [t2], t0
+    elsif X86_64
+        weakCASLoopQuad(t2, t3, t0, t1, macro (value, dst)
+            xorq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopQuad(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            xorq value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_xor_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i32_atomic_rmw8_xor_u_slow_path)
-    doI32AtomicRmwXor8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgxorb t3, [t2], t0
+    elsif X86_64
+        weakCASLoopByte(t2, t3, t0, t1, macro (value, dst)
+            xorq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            xori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_xor_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i32_atomic_rmw16_xor_u_slow_path)
-    doI32AtomicRmwXor16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgxorh t3, [t2], t0
+    elsif X86_64
+        weakCASLoopHalf(t2, t3, t0, t1, macro (value, dst)
+            xorq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            xori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_xor_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i64_atomic_rmw8_xor_u_slow_path)
-    doI64AtomicRmwXor8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgxorb t3, [t2], t0
+    elsif X86_64
+        weakCASLoopByte(t2, t3, t0, t1, macro (value, dst)
+            xorq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            xori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_xor_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i64_atomic_rmw16_xor_u_slow_path)
-    doI64AtomicRmwXor16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgxorh t3, [t2], t0
+    elsif X86_64
+        weakCASLoopHalf(t2, t3, t0, t1, macro (value, dst)
+            xorq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            xori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_xor_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i64_atomic_rmw32_xor_u_slow_path)
-    doI64AtomicRmwXor32(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgxori t3, [t2], t0
+    elsif X86_64
+        weakCASLoopInt(t2, t3, t0, t1, macro (value, dst)
+            xorq value, dst
+        end)
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            xori value, oldValue, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw_xchg, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i32_atomic_rmw_xchg_slow_path)
-    doI32AtomicRmwXchg(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgi t3, [t2], t0
+    elsif X86_64
+        weakCASLoopInt(t2, t3, t0, t1, macro (value, dst)
+            move value, dst
+        end)
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw_xchg, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 8, t1, t2, .ipint_i64_atomic_rmw_xchg_slow_path)
-    doI64AtomicRmwXchg(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
+    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgq t3, [t2], t0
+    elsif X86_64
+        weakCASLoopQuad(t2, t3, t0, t1, macro (value, dst)
+            move value, dst
+        end)
+    elsif ARM64
+        weakCASLoopQuad(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw8_xchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i32_atomic_rmw8_xchg_u_slow_path)
-    doI32AtomicRmwXchg8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgb t3, [t2], t0
+    elsif X86_64
+        weakCASLoopByte(t2, t3, t0, t1, macro (value, dst)
+            move value, dst
+        end)
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i32_atomic_rmw16_xchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i32_atomic_rmw16_xchg_u_slow_path)
-    doI32AtomicRmwXchg16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgh t3, [t2], t0
+    elsif X86_64
+        weakCASLoopHalf(t2, t3, t0, t1, macro (value, dst)
+            move value, dst
+        end)
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw8_xchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i64_atomic_rmw8_xchg_u_slow_path)
-    doI64AtomicRmwXchg8(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgb t3, [t2], t0
+    elsif X86_64
+        weakCASLoopByte(t2, t3, t0, t1, macro (value, dst)
+            move value, dst
+        end)
+    elsif ARM64
+        weakCASLoopByte(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw16_xchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i64_atomic_rmw16_xchg_u_slow_path)
-    doI64AtomicRmwXchg16(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgh t3, [t2], t0
+    elsif X86_64
+        weakCASLoopHalf(t2, t3, t0, t1, macro (value, dst)
+            move value, dst
+        end)
+    elsif ARM64
+        weakCASLoopHalf(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
 ipintAtomicOp(_i64_atomic_rmw32_xchg_u, macro()
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i64_atomic_rmw32_xchg_u_slow_path)
-    doI64AtomicRmwXchg32(t0, t3, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    if ARM64E
+        atomicxchgi t3, [t2], t0
+    elsif X86_64
+        weakCASLoopInt(t2, t3, t0, t1, macro (value, dst)
+            move value, dst
+        end)
+    elsif ARM64
+        weakCASLoopInt(t2, t3, t0, t1, macro(value, oldValue, newValue)
+            move value, newValue
+        end)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
@@ -10388,10 +10096,20 @@ ipintAtomicOp(_i32_atomic_rmw_cmpxchg, macro()
     popInt64(t7)
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i32_atomic_rmw_cmpxchg_slow_path)
-    doI32AtomicCmpxchg(t0, t3, t7, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    move t3, t0
+    andq 0xffffffff, t0
+    if ARM64E or X86_64
+        atomicweakcasi t0, t7, [t2]
+    elsif ARM64
+        weakCASExchangeInt(t2, t7, t0, t1, t3)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
@@ -10401,10 +10119,19 @@ ipintAtomicOp(_i64_atomic_rmw_cmpxchg, macro()
     popInt64(t7)
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 8, t1, t2, .ipint_i64_atomic_rmw_cmpxchg_slow_path)
-    doI64AtomicCmpxchg(t0, t3, t7, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 8, t1, t2)
+    checkAlignment8(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    move t3, t0
+    if ARM64E or X86_64
+        atomicweakcasq t0, t7, [t2]
+    elsif ARM64
+        weakCASExchangeQuad(t2, t7, t0, t1, t3)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
@@ -10414,10 +10141,20 @@ ipintAtomicOp(_i32_atomic_rmw8_cmpxchg_u, macro()
     popInt64(t7)
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i32_atomic_rmw8_cmpxchg_u_slow_path)
-    doI32AtomicCmpxchg8(t0, t3, t7, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    move t3, t0
+    andq 0xff, t0
+    if ARM64E or X86_64
+        atomicweakcasb t0, t7, [t2]
+    elsif ARM64
+        weakCASExchangeByte(t2, t7, t0, t1, t3)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
@@ -10427,10 +10164,20 @@ ipintAtomicOp(_i32_atomic_rmw16_cmpxchg_u, macro()
     popInt64(t7)
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i32_atomic_rmw16_cmpxchg_u_slow_path)
-    doI32AtomicCmpxchg16(t0, t3, t7, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    move t3, t0
+    andq 0xffff, t0
+    if ARM64E or X86_64
+        atomicweakcash t0, t7, [t2]
+    elsif ARM64
+        weakCASExchangeHalf(t2, t7, t0, t1, t3)
+    else
+        error
+    end
     pushInt32(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
@@ -10440,10 +10187,20 @@ ipintAtomicOp(_i64_atomic_rmw8_cmpxchg_u, macro()
     popInt64(t7)
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 1, t1, t2, .ipint_i64_atomic_rmw8_cmpxchg_u_slow_path)
-    doI64AtomicCmpxchg8(t0, t3, t7, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 1, t1, t2)
+    noAlignmentCheck(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    move t3, t0
+    andq 0xff, t0
+    if ARM64E or X86_64
+        atomicweakcasb t0, t7, [t2]
+    elsif ARM64
+        weakCASExchangeByte(t2, t7, t0, t1, t3)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
@@ -10453,10 +10210,20 @@ ipintAtomicOp(_i64_atomic_rmw16_cmpxchg_u, macro()
     popInt64(t7)
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 2, t1, t2, .ipint_i64_atomic_rmw16_cmpxchg_u_slow_path)
-    doI64AtomicCmpxchg16(t0, t3, t7, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 2, t1, t2)
+    checkAlignment2(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    move t3, t0
+    andq 0xffff, t0
+    if ARM64E or X86_64
+        atomicweakcash t0, t7, [t2]
+    elsif ARM64
+        weakCASExchangeHalf(t2, t7, t0, t1, t3)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
@@ -10466,10 +10233,20 @@ ipintAtomicOp(_i64_atomic_rmw32_cmpxchg_u, macro()
     popInt64(t7)
     popInt64(t3)
     popMemoryIndex(t0)
-    loadStoreMakePointerFast([t4], 1[t4], t0, 4, t1, t2, .ipint_i64_atomic_rmw32_cmpxchg_u_slow_path)
-    doI64AtomicCmpxchg32(t0, t3, t7, t2, t1)
+    atomicMemoryMakePointerAndAdvanceMC(t4, t0, 4, t1, t2)
+    checkAlignment4(t0, _ipint_throw_UnalignedMemoryAccess)
+    move t0, t2
+    move t3, t0
+    andq 0xffffffff, t0
+    if ARM64E or X86_64
+        atomicweakcasi t0, t7, [t2]
+    elsif ARM64
+        weakCASExchangeInt(t2, t7, t0, t1, t3)
+    else
+        error
+    end
     pushInt64(t0)
-    leap 2[t4], PC
+    advancePCByReg(t4)
     nextIPIntInstruction()
 end)
 
@@ -10905,464 +10682,6 @@ end
     addp V128ISize, sp
     storeq t1, [t0]
     leap 1[t4], PC
-    nextIPIntInstruction()
-
-#########################################################
-## Out-of-line slow paths for atomic memory operations ##
-#########################################################
-
-# t0 = wasm address (from popMemoryIndex before branching).
-# t4 = cursor pointing to start of memarg (past atomic sub-opcode, set by atomic_prefix).
-# t3 = data value (for store/RMW ops, survives loadStoreMakePointerSlow).
-# t7 = new value for CAS (must be push/popped around loadStoreMakePointerSlow).
-# After loadStoreMakePointerSlow, t4 points past the memarg.
-
-.ipint_i32_atomic_load_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI32AtomicLoad(t0, t2)
-    pushInt32(t2)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_load_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 8, t1, t2, notPL, t7)
-    doI64AtomicLoad(t0, t2)
-    pushInt64(t2)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_load8_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI32AtomicLoad8(t0, t2)
-    pushInt32(t2)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_load16_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI32AtomicLoad16(t0, t2)
-    pushInt32(t2)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_load8_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI64AtomicLoad8(t0, t2)
-    pushInt64(t2)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_load16_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI64AtomicLoad16(t0, t2)
-    pushInt64(t2)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_load32_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI64AtomicLoad32(t0, t2)
-    pushInt64(t2)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_store_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI32AtomicStore(t0, t3, t2, t1)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_store_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 8, t1, t2, notPL, t7)
-    doI64AtomicStore(t0, t3, t2, t1)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_store8_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI32AtomicStore8(t0, t3, t2, t1)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_store16_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI32AtomicStore16(t0, t3, t2, t1)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_store8_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI64AtomicStore8(t0, t3, t2, t1)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_store16_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI64AtomicStore16(t0, t3, t2, t1)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_store32_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI64AtomicStore32(t0, t3, t2, t1)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw_add_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI32AtomicRmwAdd(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw_add_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 8, t1, t2, notPL, t7)
-    doI64AtomicRmwAdd(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw8_add_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI32AtomicRmwAdd8(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw16_add_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI32AtomicRmwAdd16(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw8_add_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI64AtomicRmwAdd8(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw16_add_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI64AtomicRmwAdd16(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw32_add_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI64AtomicRmwAdd32(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw_sub_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI32AtomicRmwSub(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw_sub_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 8, t1, t2, notPL, t7)
-    doI64AtomicRmwSub(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw8_sub_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI32AtomicRmwSub8(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw16_sub_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI32AtomicRmwSub16(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw8_sub_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI64AtomicRmwSub8(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw16_sub_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI64AtomicRmwSub16(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw32_sub_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI64AtomicRmwSub32(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw_and_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI32AtomicRmwAnd(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw_and_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 8, t1, t2, notPL, t7)
-    doI64AtomicRmwAnd(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw8_and_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI32AtomicRmwAnd8(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw16_and_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI32AtomicRmwAnd16(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw8_and_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI64AtomicRmwAnd8(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw16_and_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI64AtomicRmwAnd16(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw32_and_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI64AtomicRmwAnd32(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw_or_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI32AtomicRmwOr(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw_or_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 8, t1, t2, notPL, t7)
-    doI64AtomicRmwOr(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw8_or_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI32AtomicRmwOr8(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw16_or_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI32AtomicRmwOr16(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw8_or_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI64AtomicRmwOr8(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw16_or_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI64AtomicRmwOr16(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw32_or_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI64AtomicRmwOr32(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw_xor_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI32AtomicRmwXor(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw_xor_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 8, t1, t2, notPL, t7)
-    doI64AtomicRmwXor(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw8_xor_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI32AtomicRmwXor8(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw16_xor_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI32AtomicRmwXor16(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw8_xor_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI64AtomicRmwXor8(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw16_xor_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI64AtomicRmwXor16(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw32_xor_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI64AtomicRmwXor32(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw_xchg_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI32AtomicRmwXchg(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw_xchg_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 8, t1, t2, notPL, t7)
-    doI64AtomicRmwXchg(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw8_xchg_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI32AtomicRmwXchg8(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw16_xchg_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI32AtomicRmwXchg16(t0, t3, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw8_xchg_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    doI64AtomicRmwXchg8(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw16_xchg_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    doI64AtomicRmwXchg16(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw32_xchg_u_slow_path:
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    doI64AtomicRmwXchg32(t0, t3, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw_cmpxchg_slow_path:
-    push t3, t7
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    pop t7, t3
-    doI32AtomicCmpxchg(t0, t3, t7, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw_cmpxchg_slow_path:
-    push t3, t7
-    loadStoreMakePointerSlow(t4, t0, 8, t1, t2, notPL, t7)
-    pop t7, t3
-    doI64AtomicCmpxchg(t0, t3, t7, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw8_cmpxchg_u_slow_path:
-    push t3, t7
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    pop t7, t3
-    doI32AtomicCmpxchg8(t0, t3, t7, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i32_atomic_rmw16_cmpxchg_u_slow_path:
-    push t3, t7
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    pop t7, t3
-    doI32AtomicCmpxchg16(t0, t3, t7, t2, t1)
-    pushInt32(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw8_cmpxchg_u_slow_path:
-    push t3, t7
-    loadStoreMakePointerSlow(t4, t0, 1, t1, t2, notPL, t7)
-    pop t7, t3
-    doI64AtomicCmpxchg8(t0, t3, t7, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw16_cmpxchg_u_slow_path:
-    push t3, t7
-    loadStoreMakePointerSlow(t4, t0, 2, t1, t2, notPL, t7)
-    pop t7, t3
-    doI64AtomicCmpxchg16(t0, t3, t7, t2, t1)
-    pushInt64(t0)
-    move t4, PC
-    nextIPIntInstruction()
-
-.ipint_i64_atomic_rmw32_cmpxchg_u_slow_path:
-    push t3, t7
-    loadStoreMakePointerSlow(t4, t0, 4, t1, t2, notPL, t7)
-    pop t7, t3
-    doI64AtomicCmpxchg32(t0, t3, t7, t2, t1)
-    pushInt64(t0)
-    move t4, PC
     nextIPIntInstruction()
 
 ##################################
