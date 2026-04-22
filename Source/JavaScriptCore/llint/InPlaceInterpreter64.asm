@@ -918,6 +918,15 @@ macro loadStoreMakePointerFast(alignAccess, offsetAccess, wasmAddrReg, size, scr
     # alignAccess/offsetAccess are memory access patterns for the memarg bytes.
     # For non-SIMD: pass (1[PC], 2[PC]). For SIMD: pass ([t4], 1[t4]).
 
+    # === BISECT PROBE: force every load/store through the multi-byte slow path ===
+    # f1975484a1fa replaced the metadata-driven memarg with this single-byte
+    # fast path. pglite/pg-gateway started throwing OutOfBoundsMemoryAccess on
+    # Windows x64 only. If this branch makes the failure disappear, the bug is
+    # in the fast-path bookkeeping (PC advance / register reuse) and not in the
+    # LEB decoder or the bounds-check arithmetic itself, since the slow path
+    # exercises both of those.
+    jmp slowLabel
+
     # Check alignment byte: if >= 0x40, it's multi-memory or unusual alignment
     loadb alignAccess, scratch2          # alignment/flags byte
     bbaeq scratch2, 0x40, slowLabel
