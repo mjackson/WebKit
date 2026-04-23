@@ -183,17 +183,6 @@ std::tuple<void*, void*> Callee::range() const
     return result;
 }
 
-#if ENABLE(JIT)
-Box<PCToCodeOriginMap> Callee::pcToCodeOriginMap() const
-{
-    Box<PCToCodeOriginMap> result;
-    runWithDowncast([&](auto* derived) {
-        result = derived->pcToCodeOriginMapImpl();
-    });
-    return result;
-}
-#endif
-
 const RegisterAtOffsetList* Callee::calleeSaveRegisters()
 {
     const RegisterAtOffsetList* result = nullptr;
@@ -313,12 +302,6 @@ void IPIntCallee::setEntrypoint(CodePtr<WasmEntryPtrTag> entrypoint)
     ASSERT(!m_entrypoint);
     m_entrypoint = entrypoint;
     NativeCalleeRegistry::singleton().registerCallee(this);
-}
-
-void IPIntCallee::setEntrypointWithoutRegistration(CodePtr<WasmEntryPtrTag> entrypoint)
-{
-    ASSERT(!m_entrypoint);
-    m_entrypoint = entrypoint;
 }
 
 const RegisterAtOffsetList* IPIntCallee::calleeSaveRegistersImpl()

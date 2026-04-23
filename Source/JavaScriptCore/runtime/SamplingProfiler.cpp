@@ -152,7 +152,7 @@ protected:
                         if (isInlined)
                             stackTrace[m_depth].wasmIndexOrName = origin;
                     }
-                    stackTrace[m_depth].wasmPCMap = wasmCallee->pcToCodeOriginMap();
+                    stackTrace[m_depth].wasmPCMap = NativeCalleeRegistry::singleton().codeOriginMap(wasmCallee);
 #endif
 #endif
                     break;

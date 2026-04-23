@@ -31,6 +31,7 @@
 #include "HeapCellInlines.h"
 #include "JITCompilation.h"
 #include "LinkBuffer.h"
+#include "NativeCalleeRegistry.h"
 #include "WasmCallee.h"
 #include "WasmFaultSignalHandler.h"
 #include "WasmIRGeneratorHelpers.h"
@@ -144,10 +145,8 @@ void OSREntryPlan::work()
     ASSERT(m_calleeGroup.ptr() == m_module->calleeGroupFor(mode()));
     callee->setEntrypoint(WTF::move(omgEntrypoint), internalFunction->osrEntryScratchBufferSize, WTF::move(unlinkedCalls), WTF::move(internalFunction->stackmaps), WTF::move(internalFunction->exceptionHandlers), WTF::move(exceptionHandlerLocations));
 
-    if (samplingProfilerMap) {
-        WTF::storeStoreFence();
-        callee->setPCToCodeOriginMap(WTF::move(samplingProfilerMap));
-    }
+    if (samplingProfilerMap)
+        NativeCalleeRegistry::singleton().addPCToCodeOriginMap(callee.ptr(), WTF::move(samplingProfilerMap));
 
     {
         Locker locker { m_calleeGroup->m_lock };
