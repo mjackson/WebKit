@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,35 +25,30 @@
 
 #pragma once
 
-#include "AlignedMemoryAllocator.h"
-#include <wtf/Gigacage.h>
+#include <bmalloc/Gigacage.h>
+#include <wtf/FastMalloc.h>
+#include <wtf/StdLibExtras.h>
+#include <wtf/text/ASCIILiteral.h>
 
-#if ENABLE(MALLOC_HEAP_BREAKDOWN)
-#include <wtf/DebugHeap.h>
-#endif
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
-namespace JSC {
+namespace Gigacage {
 
-class GigacageAlignedMemoryAllocator final : public AlignedMemoryAllocator {
-public:
-    GigacageAlignedMemoryAllocator(Gigacage::Kind);
-    ~GigacageAlignedMemoryAllocator() final;
-    
-    void* tryAllocateAlignedMemory(size_t alignment, size_t size) final;
-    void freeAlignedMemory(void*) final;
-    
-    void dump(PrintStream&) const final;
+WTF_EXPORT_PRIVATE void* tryAlignedMalloc(Kind, size_t alignment, size_t size);
+WTF_EXPORT_PRIVATE void* tryMalloc(Kind, size_t);
+WTF_EXPORT_PRIVATE void* tryZeroedMalloc(Kind, size_t);
+WTF_EXPORT_PRIVATE void* tryRealloc(Kind, void*, size_t);
+WTF_EXPORT_PRIVATE void free(Kind, void*);
 
-    void* tryAllocateMemory(size_t) final;
-    void freeMemory(void*) final;
-    void* tryReallocateMemory(void*, size_t) final;
+WTF_EXPORT_PRIVATE void* tryAllocateZeroedVirtualPages(Kind, size_t size);
+WTF_EXPORT_PRIVATE void freeVirtualPages(Kind, void* basePtr, size_t size);
 
-private:
-    Gigacage::Kind m_kind;
-#if ENABLE(MALLOC_HEAP_BREAKDOWN)
-    WTF::DebugHeap m_heap;
-#endif
-};
+WTF_EXPORT_PRIVATE void* tryMallocArray(Kind, size_t numElements, size_t elementSize);
 
-} // namespace JSC
+WTF_EXPORT_PRIVATE void* malloc(Kind, size_t);
+WTF_EXPORT_PRIVATE void* zeroedMalloc(Kind, size_t);
+WTF_EXPORT_PRIVATE void* mallocArray(Kind, size_t numElements, size_t elementSize);
 
+} // namespace Gigacage
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

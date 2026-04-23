@@ -32,7 +32,7 @@
 #include "VM.h"
 #include "VMManager.h"
 #include <wtf/Atomics.h>
-#include <wtf/FastMalloc.h>
+#include <wtf/Gigacage.h>
 
 namespace JSC {
 namespace Integrity {

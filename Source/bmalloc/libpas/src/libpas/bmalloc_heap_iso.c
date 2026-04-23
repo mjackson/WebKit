@@ -45,6 +45,16 @@ PAS_NEVER_INLINE void* bmalloc_iso_allocate_casual(pas_heap_ref* heap_ref, pas_a
     return (void*)bmalloc_iso_allocate_impl_casual_case(heap_ref, allocation_mode).begin;
 }
 
+void* bmalloc_try_iso_allocate(pas_heap_ref* heap_ref, pas_allocation_mode allocation_mode)
+{
+    return bmalloc_try_iso_allocate_inline(heap_ref, allocation_mode);
+}
+
+void* bmalloc_iso_allocate(pas_heap_ref* heap_ref, pas_allocation_mode allocation_mode)
+{
+    return bmalloc_iso_allocate_inline(heap_ref, allocation_mode);
+}
+
 PAS_NEVER_INLINE void* bmalloc_try_allocate_array_by_size_with_alignment_casual(
     pas_heap_ref* heap_ref, size_t size, size_t alignment, pas_allocation_mode allocation_mode)
 {
@@ -57,16 +67,14 @@ PAS_NEVER_INLINE void* bmalloc_allocate_array_by_size_with_alignment_casual(
     return (void*)bmalloc_iso_allocate_array_impl_casual_case(heap_ref, size, alignment, allocation_mode).begin;
 }
 
-#if !(defined(PAS_BMALLOC_HIDDEN) && PAS_BMALLOC_HIDDEN)
-
-void* bmalloc_try_iso_allocate(pas_heap_ref* heap_ref, pas_allocation_mode allocation_mode)
+void* bmalloc_try_iso_allocate_array_by_size(pas_heap_ref* heap_ref, size_t size, pas_allocation_mode allocation_mode)
 {
-    return bmalloc_try_iso_allocate_inline(heap_ref, allocation_mode);
+    return bmalloc_try_iso_allocate_array_by_size_inline(heap_ref, size, allocation_mode);
 }
 
-void* bmalloc_iso_allocate(pas_heap_ref* heap_ref, pas_allocation_mode allocation_mode)
+void* bmalloc_iso_allocate_array_by_size(pas_heap_ref* heap_ref, size_t size, pas_allocation_mode allocation_mode)
 {
-    return bmalloc_iso_allocate_inline(heap_ref, allocation_mode);
+    return bmalloc_iso_allocate_array_by_size_inline(heap_ref, size, allocation_mode);
 }
 
 void* bmalloc_try_iso_allocate_zeroed_array_by_size(pas_heap_ref* heap_ref, size_t size, pas_allocation_mode allocation_mode)
@@ -138,8 +146,6 @@ pas_heap* bmalloc_heap_ref_get_heap(pas_heap_ref* heap_ref)
     return pas_ensure_heap(heap_ref, pas_normal_heap_ref_kind,
                            &bmalloc_heap_config, &bmalloc_typed_runtime_config.base);
 }
-
-#endif /* !PAS_BMALLOC_HIDDEN */
 
 PAS_END_EXTERN_C;
 

@@ -47,8 +47,6 @@ void* bmalloc_allocate_flex_with_alignment_casual(
     return (void*)bmalloc_allocate_flex_impl_casual_case(heap_ref, size, alignment, allocation_mode).begin;
 }
 
-#if !(defined(PAS_BMALLOC_HIDDEN) && PAS_BMALLOC_HIDDEN)
-
 void* bmalloc_try_allocate_flex(pas_primitive_heap_ref* heap_ref, size_t size, pas_allocation_mode allocation_mode)
 {
     return bmalloc_try_allocate_flex_inline(heap_ref, size, allocation_mode);
@@ -96,8 +94,6 @@ pas_heap* bmalloc_flex_heap_ref_get_heap(pas_primitive_heap_ref* heap_ref)
     return pas_ensure_heap(&heap_ref->base, pas_primitive_heap_ref_kind,
                            &bmalloc_heap_config, &bmalloc_flex_runtime_config.base);
 }
-
-#endif /* !PAS_BMALLOC_HIDDEN */
 
 PAS_END_EXTERN_C;
 

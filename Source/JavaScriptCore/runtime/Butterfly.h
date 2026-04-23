@@ -28,7 +28,7 @@
 #include "IndexingHeader.h"
 #include "IndexingType.h"
 #include "PropertyStorage.h"
-#include <wtf/FastMalloc.h>
+#include <wtf/Gigacage.h>
 #include <wtf/Noncopyable.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN

@@ -29,7 +29,7 @@
 #include <bmalloc/BPlatform.h>
 #include <cstring>
 #include <wtf/DateMath.h>
-#include <wtf/FastMalloc.h>
+#include <wtf/Gigacage.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/PrintStream.h>
 #include <wtf/RunLoop.h>
@@ -38,6 +38,10 @@
 #include <wtf/WTFConfig.h>
 #include <wtf/text/AtomString.h>
 #include <wtf/threads/Signals.h>
+
+#if HAVE(QOS_CLASSES)
+#include <bmalloc/bmalloc.h>
+#endif
 
 #if OS(LINUX)
 #include <wtf/linux/RealTimeThreads.h>
@@ -493,7 +497,7 @@ static qos_class_t globalMaxQOSclass { QOS_CLASS_UNSPECIFIED };
 
 void Thread::setGlobalMaxQOSClass(qos_class_t maxClass)
 {
-    fastSetScavengerThreadQOSClass(maxClass);
+    bmalloc::api::setScavengerThreadQOSClass(maxClass);
     globalMaxQOSclass = maxClass;
 }
 

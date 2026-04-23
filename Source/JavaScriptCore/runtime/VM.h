@@ -68,8 +68,8 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "WriteBarrier.h"
 #include <wtf/BumpPointerAllocator.h>
 #include <wtf/CheckedArithmetic.h>
-#include <wtf/FastMalloc.h>
 #include <wtf/Forward.h>
+#include <wtf/Gigacage.h>
 #include <wtf/HashMap.h>
 #include <wtf/LazyRef.h>
 #include <wtf/LazyUniqueRef.h>

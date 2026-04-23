@@ -34,7 +34,7 @@
 #include <mutex>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/DataLog.h>
-#include <wtf/FastMalloc.h>
+#include <wtf/Gigacage.h>
 #include <wtf/Lock.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/OSAllocator.h>
