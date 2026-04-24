@@ -4025,6 +4025,8 @@ public:
         linuxPageFlush(current, end);
 #elif OS(WINDOWS)
         FlushInstructionCache(GetCurrentProcess(), code, size);
+#elif OS(FREEBSD)
+        __builtin___clear_cache(reinterpret_cast<char*>(code), reinterpret_cast<char*>(code) + size);
 #else
 #error "The cacheFlush support is missing on this platform."
 #endif
