@@ -4,7 +4,11 @@ ARG LTO_FLAG=""
 ARG LLVM_VERSION="21"
 ARG FREEBSD_VERSION="14.3"
 ARG FREEBSD_ARCH="x86_64"
-ARG DEFAULT_CFLAGS="-mno-omit-leaf-frame-pointer -g -fno-omit-frame-pointer -ffunction-sections -fdata-sections -faddrsig -fno-unwind-tables -fno-asynchronous-unwind-tables -DU_STATIC_IMPLEMENTATION=1 "
+ARG DEFAULT_CFLAGS="-mno-omit-leaf-frame-pointer -fno-omit-frame-pointer -ffunction-sections -fdata-sections -faddrsig -fno-unwind-tables -fno-asynchronous-unwind-tables -DU_STATIC_IMPLEMENTATION=1 "
+# -g is added per-stage below for Debug only — with -O3 + tmpfs, debug info
+# OOMs the linux-x64-gh runner during Release builds (not seen on Android,
+# but FreeBSD's libc++ headers generate notably more DWARF).
+ARG DEBUG_CFLAGS="-g"
 ARG ICU_VERSION="75_1"
 ARG ICU_RELEASE_TAG="release-75-1"
 ARG ICU_SHA256="cb968df3e4d2e87e8b11c49a5d01c787bd13b9545280fc6642f826527618caef"
@@ -121,11 +125,13 @@ COPY --from=build_icu /output /icu
 
 ENV WEBKIT_OUT_DIR=/webkitbuild
 
+ARG DEBUG_CFLAGS
 RUN --mount=type=tmpfs,target=/webkitbuild \
+    export G=$([ "${WEBKIT_RELEASE_TYPE}" = "Debug" ] && echo "${DEBUG_CFLAGS}" || echo "") && \
     export TARGET_TRIPLE="${FREEBSD_ARCH}-unknown-freebsd${FREEBSD_VERSION}" && \
     export CROSS="--target=${TARGET_TRIPLE} --sysroot=${FREEBSD_SYSROOT}" && \
-    export CFLAGS="${CROSS} ${DEFAULT_CFLAGS} ${MARCH_FLAG} ${LTO_FLAG} -isystem /icu/include -ffile-prefix-map=/webkit/Source=vendor/WebKit/Source -ffile-prefix-map=/webkitbuild/=." && \
-    export CXXFLAGS="${CROSS} -isystem ${FREEBSD_SYSROOT}/usr/include/c++/v1 ${DEFAULT_CFLAGS} ${MARCH_FLAG} ${LTO_FLAG} -isystem /icu/include -fno-c++-static-destructors -ffile-prefix-map=/webkit/Source=vendor/WebKit/Source -ffile-prefix-map=/webkitbuild/=." && \
+    export CFLAGS="${CROSS} ${DEFAULT_CFLAGS} ${G} ${MARCH_FLAG} ${LTO_FLAG} -isystem /icu/include -ffile-prefix-map=/webkit/Source=vendor/WebKit/Source -ffile-prefix-map=/webkitbuild/=." && \
+    export CXXFLAGS="${CROSS} -isystem ${FREEBSD_SYSROOT}/usr/include/c++/v1 ${DEFAULT_CFLAGS} ${G} ${MARCH_FLAG} ${LTO_FLAG} -isystem /icu/include -fno-c++-static-destructors -ffile-prefix-map=/webkit/Source=vendor/WebKit/Source -ffile-prefix-map=/webkitbuild/=." && \
     cd /webkitbuild && \
     cmake \
     -DCMAKE_SYSTEM_NAME=FreeBSD \
