@@ -41,20 +41,26 @@ ENV ANDROID_NDK_ROOT=/opt/android-ndk
 ENV NDK_SYSROOT=/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot
 
 # Symlink NDK compiler-rt builtins + libunwind into host clang's resource dir.
-# clang's driver emits a FULL PATH to <resource-dir>/lib/<triple>/libclang_rt.builtins.a
-# with no -L fallback, so the file must exist there for any link step.
-# Both arches done here so the base layer is arch-independent (cacheable).
+# clang's driver hardcodes the lookup path; apt.llvm.org's clang uses the
+# old-style flat layout (lib/linux/libclang_rt.builtins-<arch>-android.a)
+# while tarball builds use per-triple (lib/<triple>/libclang_rt.builtins.a),
+# so populate BOTH. Both target arches done here so the base layer is
+# arch-independent and cacheable.
 ARG ANDROID_API
 RUN set -eux; \
     RES=$($CC -print-resource-dir); \
     NDK_RT=/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/$(ls /opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/)/lib/linux; \
+    mkdir -p $RES/lib/linux; \
     for A in aarch64 x86_64; do \
+      ln -sf $NDK_RT/libclang_rt.builtins-${A}-android.a $RES/lib/linux/; \
+      mkdir -p $RES/lib/linux/${A}; \
+      ln -sf $NDK_RT/${A}/libunwind.a $RES/lib/linux/${A}/; \
       DIR=$RES/lib/${A}-unknown-linux-android${ANDROID_API}; \
       mkdir -p $DIR; \
       ln -sf $NDK_RT/libclang_rt.builtins-${A}-android.a $DIR/libclang_rt.builtins.a; \
       ln -sf $NDK_RT/${A}/libunwind.a $DIR/libunwind.a; \
     done; \
-    ls -la $RES/lib/*-android*/
+    echo 'int main(){return 0;}' | $CC --target=aarch64-unknown-linux-android${ANDROID_API} --sysroot=$NDK_SYSROOT --rtlib=compiler-rt -fuse-ld=lld -xc - -o /tmp/t && file /tmp/t
 
 RUN mkdir -p /output/lib /output/include /output/include/JavaScriptCore /output/include/wtf /output/include/bmalloc /output/include/unicode
 
@@ -87,7 +93,7 @@ RUN --mount=type=tmpfs,target=/icu \
     export CROSS_FLAGS="--target=${TARGET_TRIPLE} --sysroot=${NDK_SYSROOT}" && \
     export CFLAGS="${CROSS_FLAGS} ${DEFAULT_CFLAGS} ${MARCH_FLAG} -Os -std=c17 ${LTO_FLAG}" && \
     export CXXFLAGS="${CROSS_FLAGS} ${DEFAULT_CFLAGS} ${MARCH_FLAG} -Os -std=c++20 -fno-exceptions ${LTO_FLAG} -fno-c++-static-destructors" && \
-    export LDFLAGS="${CROSS_FLAGS} -fuse-ld=lld" && \
+    export LDFLAGS="${CROSS_FLAGS} --rtlib=compiler-rt -fuse-ld=lld" && \
     cd /icu && tar -xf /icu.tgz --strip-components=1 && rm /icu.tgz && cd source && \
     { ./configure --host=${ANDROID_ARCH}-linux-android \
         --with-cross-build=/icu-host/source \
@@ -151,7 +157,7 @@ RUN --mount=type=tmpfs,target=/webkitbuild \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
     -DALLOW_LINE_AND_COLUMN_NUMBER_IN_BUILTINS=ON \
     -DENABLE_REMOTE_INSPECTOR=ON \
-    -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld" \
+    -DCMAKE_EXE_LINKER_FLAGS="${CROSS} --rtlib=compiler-rt -fuse-ld=lld" \
     -DCMAKE_C_FLAGS="$CFLAGS" \
     -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
     -DICU_ROOT=/icu \
