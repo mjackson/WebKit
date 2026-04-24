@@ -526,7 +526,7 @@ end
 
 # OSR
 macro ipintPrologueOSR(increment)
-if JIT
+if WEBASSEMBLY_BBQJIT
     loadp UnboxedWasmCalleeStackSlot[cfr], ws0
     baddis increment, Wasm::IPIntCallee::m_tierUpCounter + Wasm::IPIntTierUpCounter::m_counter[ws0], .continue
 
@@ -563,11 +563,11 @@ end
     if ARMv7
         break # FIXME: ipint support.
     end # ARMv7
-end # JIT
+end # WEBASSEMBLY_BBQJIT
 end
 
 macro ipintLoopOSR(increment)
-if JIT and not ARMv7
+if WEBASSEMBLY_BBQJIT and not ARMv7
     validateOpcodeConfig(ws0)
     loadp UnboxedWasmCalleeStackSlot[cfr], ws0
     baddis increment, Wasm::IPIntCallee::m_tierUpCounter + Wasm::IPIntTierUpCounter::m_counter[ws0], .continue
@@ -598,7 +598,7 @@ end
 end
 
 macro ipintEpilogueOSR(increment)
-if JIT and not ARMv7
+if WEBASSEMBLY_BBQJIT and not ARMv7
     loadp UnboxedWasmCalleeStackSlot[cfr], ws0
     baddis increment, Wasm::IPIntCallee::m_tierUpCounter + Wasm::IPIntTierUpCounter::m_counter[ws0], .continue
 
@@ -2581,6 +2581,32 @@ unimplementedInstruction(_simd_i32x4_trunc_sat_f64x2_s_zero)
 unimplementedInstruction(_simd_i32x4_trunc_sat_f64x2_u_zero)
 unimplementedInstruction(_simd_f64x2_convert_low_i32x4_s)
 unimplementedInstruction(_simd_f64x2_convert_low_i32x4_u)
+
+    ###################################
+    ## Relaxed SIMD instructions     ##
+    ## Opcodes 0x100 - 0x113         ##
+    ###################################
+
+unimplementedInstruction(_simd_i8x16_relaxed_swizzle)
+unimplementedInstruction(_simd_i32x4_relaxed_trunc_f32x4_s)
+unimplementedInstruction(_simd_i32x4_relaxed_trunc_f32x4_u)
+unimplementedInstruction(_simd_i32x4_relaxed_trunc_f64x2_s_zero)
+unimplementedInstruction(_simd_i32x4_relaxed_trunc_f64x2_u_zero)
+unimplementedInstruction(_simd_f32x4_relaxed_madd)
+unimplementedInstruction(_simd_f32x4_relaxed_nmadd)
+unimplementedInstruction(_simd_f64x2_relaxed_madd)
+unimplementedInstruction(_simd_f64x2_relaxed_nmadd)
+unimplementedInstruction(_simd_i8x16_relaxed_laneselect)
+unimplementedInstruction(_simd_i16x8_relaxed_laneselect)
+unimplementedInstruction(_simd_i32x4_relaxed_laneselect)
+unimplementedInstruction(_simd_i64x2_relaxed_laneselect)
+unimplementedInstruction(_simd_f32x4_relaxed_min)
+unimplementedInstruction(_simd_f32x4_relaxed_max)
+unimplementedInstruction(_simd_f64x2_relaxed_min)
+unimplementedInstruction(_simd_f64x2_relaxed_max)
+unimplementedInstruction(_simd_i16x8_relaxed_q15mulr_s)
+unimplementedInstruction(_simd_i16x8_relaxed_dot_i8x16_i7x16_s)
+unimplementedInstruction(_simd_i32x4_relaxed_dot_i8x16_i7x16_add_s)
 
     #########################
     ## Atomic instructions ##

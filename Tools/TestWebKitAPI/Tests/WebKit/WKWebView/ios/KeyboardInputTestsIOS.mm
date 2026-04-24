@@ -1187,8 +1187,6 @@ TEST(KeyboardInputTests, CharactersAroundCaretSelection)
     testSelection(7, 'a', 'r', '\0');
 }
 
-#if HAVE(REDESIGNED_TEXT_CURSOR)
-
 TEST(KeyboardInputTests, MarkedTextSegmentsWithUnderlines)
 {
     auto frame = CGRectMake(0, 0, 100, 100);
@@ -1386,8 +1384,6 @@ TEST(KeyboardInputTests, AutocorrectionIndicatorColorNotAffectedByAuthorDefinedA
 }
 #endif
 
-#endif // HAVE(REDESIGNED_TEXT_CURSOR)
-
 #if HAVE(UI_CONVERSATION_CONTEXT)
 
 TEST(KeyboardInputTests, SetConversationContext)
@@ -1435,11 +1431,7 @@ static BOOL allowESIMAutoFillForWebKit(id, SEL, NSString *host, NSError **)
 TEST(KeyboardInputTests, DeviceEIDAndIMEIAutoFill)
 {
     InstanceMethodSwizzler swizzler {
-#if HAVE(DELAY_INIT_LINKING)
         CoreTelephonyClient.class,
-#else
-        PAL::getCoreTelephonyClientClassSingleton(),
-#endif
         @selector(isAutofilleSIMIdAllowedForDomain:error:),
         reinterpret_cast<IMP>(allowESIMAutoFillForWebKit)
     };

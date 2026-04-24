@@ -73,7 +73,7 @@ RefPtr<CSSValue> consumePositionTryFallbacks(CSSParserTokenRange& range, CSS::Pr
         if (tryRuleIdent)
             list.append(CSSCustomIdentValue::create(WTF::move(*tryRuleIdent)));
         for (auto tactic : tryTactics)
-            list.append(CSSPrimitiveValue::create(tactic));
+            list.append(CSSKeywordValue::create(tactic));
 
         // At least one @position-try rule ident or tactic must be present.
         if (list.isEmpty())

@@ -31,6 +31,12 @@
 #include "TextureMapperPlatformLayer.h"
 #include <wtf/OptionSet.h>
 
+#if USE(SKIA)
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
+#include <skia/core/SkCanvas.h>
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
+#endif
+
 namespace WebCore {
 
 class CoordinatedPlatformLayerBuffer : public TextureMapperPlatformLayer {
@@ -58,6 +64,10 @@ public:
         if (auto fence = WTF::move(m_fence))
             fence->serverWait();
     }
+
+#if USE(SKIA)
+    virtual void paintToCanvas(SkCanvas&, const FloatRect&, const SkPaint&) { }
+#endif
 
 protected:
     CoordinatedPlatformLayerBuffer(Type type, const IntSize& size, OptionSet<TextureMapperFlags> flags, std::unique_ptr<GLFence>&& fence)

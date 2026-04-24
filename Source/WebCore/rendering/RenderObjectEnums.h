@@ -57,6 +57,7 @@ enum class MapCoordinatesMode : uint8_t {
     UseTransforms       = 1 << 1,
     ApplyContainerFlip  = 1 << 2,
     IgnoreStickyOffsets = 1 << 3,
+    ClampOverscroll     = 1 << 4,
 };
 
 }

@@ -653,8 +653,10 @@ RenderElement* RenderObject::markContainingBlocksForLayout(RenderElement* layout
     return { };
 }
 
-void RenderObject::setNeedsPreferredWidthsUpdate(MarkingBehavior markParents)
+void RenderObject::setNeedsPreferredWidthsUpdate(MarkingBehavior markParents, const RenderBlock* ancestorUpdateBoundary)
 {
+    ASSERT_IMPLIES(ancestorUpdateBoundary, markParents == MarkingBehavior::MarkContainingBlockChain);
+
     if (needsPreferredLogicalWidthsUpdate() && (!hasRareData() || !rareData().preferredLogicalWidthsNeedUpdateIsMarkOnlyThis)) {
         // Both this and our ancestor chain are already marked dirty.
         return;
@@ -671,17 +673,19 @@ void RenderObject::setNeedsPreferredWidthsUpdate(MarkingBehavior markParents)
         return;
     }
 
-    invalidateContainerPreferredLogicalWidths();
+    invalidateContainerPreferredLogicalWidths(ancestorUpdateBoundary);
     if (hasRareData())
         ensureRareData().preferredLogicalWidthsNeedUpdateIsMarkOnlyThis = false;
 }
 
-void RenderObject::invalidateContainerPreferredLogicalWidths()
+void RenderObject::invalidateContainerPreferredLogicalWidths(const RenderBlock* ancestorUpdateBoundary)
 {
     // In order to avoid pathological behavior when inlines are deeply nested, we do include them
     // in the chain that we mark dirty (even though they're kind of irrelevant).
     CheckedPtr ancestor = isRenderTableCell() ? containingBlock() : container();
     while (ancestor) {
+        if (ancestor.get() == ancestorUpdateBoundary)
+            break;
         if (ancestor->needsPreferredLogicalWidthsUpdate() && (!ancestor->hasRareData() || !ancestor->rareData().preferredLogicalWidthsNeedUpdateIsMarkOnlyThis))
             break;
         // Don't invalidate the outermost object of an unrooted subtree. That object will be

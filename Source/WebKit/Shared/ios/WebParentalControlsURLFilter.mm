@@ -70,8 +70,9 @@ bool WebParentalControlsURLFilter::isEnabledImpl() const
     return [BEWebContentFilter shouldEvaluateURLs];
 }
 
-void WebParentalControlsURLFilter::isURLAllowedImpl(const URL& mainDocumentURL, const URL& url, CompletionHandler<void(bool, NSData *)>&& completionHandler)
+void WebParentalControlsURLFilter::isURLAllowedImpl(WebCore::IsMainFrameLoad isMainFrame, const URL& mainDocumentURL, const URL& url, CompletionHandler<void(bool, NSData *)>&& completionHandler)
 {
+    UNUSED_PARAM(isMainFrame);
     workQueueSingleton().dispatch([this, protectedThis = Ref { *this }, currentIsEnabled = isEnabled(), mainDocumentURL = crossThreadCopy(mainDocumentURL), url = crossThreadCopy(url), completionHandler = WTF::move(completionHandler)]() mutable {
         if (!currentIsEnabled) {
             completionHandler(true, nullptr);
@@ -116,10 +117,8 @@ void WebParentalControlsURLFilter::setSharedParentalControlsURLFilterIfNecessary
 {
 #if !HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
     ASSERT(isMainRunLoop());
-    static bool initialized = false;
-    if (!initialized) {
+    if (!WebCore::ParentalControlsURLFilter::hasGlobalFilter()) {
         WebCore::ParentalControlsURLFilter::setGlobalFilter(WebParentalControlsURLFilter::create());
-        initialized = true;
     }
 #endif
 }

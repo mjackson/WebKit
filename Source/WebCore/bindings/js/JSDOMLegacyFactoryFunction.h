@@ -20,6 +20,7 @@
 #pragma once
 
 #include "JSDOMConstructorWithDocument.h"
+#include <JavaScriptCore/StructureCreateInlines.h>
 
 namespace WebCore {
 

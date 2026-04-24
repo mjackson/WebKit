@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestStringifierAnonymousOperation : public JSDOMWrapper<TestStringifierAnonymousOperation> {
 public:
     using Base = JSDOMWrapper<TestStringifierAnonymousOperation>;
-    static JSTestStringifierAnonymousOperation* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestStringifierAnonymousOperation>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestStringifierAnonymousOperation* ptr = new (NotNull, JSC::allocateCell<JSTestStringifierAnonymousOperation>(vm)) JSTestStringifierAnonymousOperation(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestStringifierAnonymousOperation* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestStringifierAnonymousOperation>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

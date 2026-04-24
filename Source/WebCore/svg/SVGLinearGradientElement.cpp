@@ -112,13 +112,13 @@ RenderPtr<RenderElement> SVGLinearGradientElement::createElementRenderer(RenderS
 
 static void setGradientAttributes(SVGGradientElement& element, LinearGradientAttributes& attributes, bool isLinear = true)
 {
-    if (!attributes.hasSpreadMethod() && element.hasAttributeOrIsAnimatingProperty(SVGNames::spreadMethodAttr))
+    if (!attributes.hasSpreadMethod() && element.hasAttribute(SVGNames::spreadMethodAttr))
         attributes.setSpreadMethod(element.spreadMethod());
 
-    if (!attributes.hasGradientUnits() && element.hasAttributeOrIsAnimatingProperty(SVGNames::gradientUnitsAttr))
+    if (!attributes.hasGradientUnits() && element.hasAttribute(SVGNames::gradientUnitsAttr))
         attributes.setGradientUnits(element.gradientUnits());
 
-    if (!attributes.hasGradientTransform() && element.hasAttributeOrIsAnimatingProperty(SVGNames::gradientTransformAttr))
+    if (!attributes.hasGradientTransform() && element.hasAttribute(SVGNames::gradientTransformAttr))
         attributes.setGradientTransform(element.gradientTransform().concatenate().value_or(identity));
 
     if (!attributes.hasStops())
@@ -127,16 +127,16 @@ static void setGradientAttributes(SVGGradientElement& element, LinearGradientAtt
     if (isLinear) {
         SVGLinearGradientElement& linear = downcast<SVGLinearGradientElement>(element);
 
-        if (!attributes.hasX1() && element.hasAttributeOrIsAnimatingProperty(SVGNames::x1Attr))
+        if (!attributes.hasX1() && element.hasAttribute(SVGNames::x1Attr))
             attributes.setX1(linear.x1());
 
-        if (!attributes.hasY1() && element.hasAttributeOrIsAnimatingProperty(SVGNames::y1Attr))
+        if (!attributes.hasY1() && element.hasAttribute(SVGNames::y1Attr))
             attributes.setY1(linear.y1());
 
-        if (!attributes.hasX2() && element.hasAttributeOrIsAnimatingProperty(SVGNames::x2Attr))
+        if (!attributes.hasX2() && element.hasAttribute(SVGNames::x2Attr))
             attributes.setX2(linear.x2());
 
-        if (!attributes.hasY2() && element.hasAttributeOrIsAnimatingProperty(SVGNames::y2Attr))
+        if (!attributes.hasY2() && element.hasAttribute(SVGNames::y2Attr))
             attributes.setY2(linear.y2());
     }
 }

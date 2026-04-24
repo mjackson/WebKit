@@ -29,6 +29,9 @@
 
 #if PAS_ENABLE_HOTBIT
 
+#include "pas_allocation_mode.h"
+#include "pas_reallocate_free_mode.h"
+
 PAS_BEGIN_EXTERN_C;
 
 PAS_API void* hotbit_try_allocate(size_t size, pas_allocation_mode allocation_mode);
@@ -50,4 +53,3 @@ PAS_END_EXTERN_C;
 #endif /* PAS_ENABLE_HOTBIT */
 
 #endif /* HOTBIT_HEAP_H */
-

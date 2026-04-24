@@ -51,6 +51,14 @@
 namespace WebCore {
 using namespace JSC;
 
+RefPtr<DeferredPromise> DeferredPromise::create(JSDOMGlobalObject& globalObject, Mode mode)
+{
+    JSC::VM& vm = JSC::getVM(&globalObject);
+    auto* promise = JSC::JSPromise::create(vm, globalObject.promiseStructure());
+    ASSERT(promise);
+    return adoptRef(new DeferredPromise(globalObject, *promise, mode));
+}
+
 JSC::JSValue DeferredPromise::promise() const
 {
     if (isEmpty())
@@ -70,7 +78,7 @@ void DeferredPromise::callFunction(JSGlobalObject& lexicalGlobalObject, ResolveM
 
     auto handleExceptionIfNeeded = makeScopeExit([&] {
         if (scope.exception()) [[unlikely]]
-            handleUncaughtException(scope, *jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject));
+            handleUncaughtException(scope, uncheckedDowncast<JSDOMGlobalObject>(lexicalGlobalObject));
     });
 
     if (activeDOMObjectsAreSuspended() || !ScriptDisallowedScope::isScriptAllowedInMainThread()) {
@@ -260,7 +268,7 @@ JSC::EncodedJSValue createRejectedPromiseWithTypeError(JSC::JSGlobalObject& lexi
 {
     auto& globalObject = lexicalGlobalObject;
 
-    auto* rejectionValue = jsCast<ErrorInstance*>(createTypeError(&lexicalGlobalObject, errorMessage));
+    auto* rejectionValue = uncheckedDowncast<ErrorInstance>(createTypeError(&lexicalGlobalObject, errorMessage));
     if (cause == RejectedPromiseWithTypeErrorCause::NativeGetter)
         rejectionValue->setNativeGetterTypeError();
 
@@ -339,7 +347,7 @@ void DeferredPromise::handleUncaughtException(TopExceptionScope& scope, JSDOMGlo
 
 std::pair<Ref<DOMPromise>, Ref<DeferredPromise>> createPromiseAndWrapper(Document& document)
 {
-    auto& globalObject = *JSC::jsCast<JSDOMGlobalObject*>(document.globalObject());
+    auto& globalObject = *uncheckedDowncast<JSDOMGlobalObject>(document.globalObject());
     return createPromiseAndWrapper(globalObject);
 }
 
@@ -347,7 +355,7 @@ std::pair<Ref<DOMPromise>, Ref<DeferredPromise>> createPromiseAndWrapper(JSDOMGl
 {
     JSC::JSLockHolder lock(globalObject.vm());
     RefPtr deferredPromise = DeferredPromise::create(globalObject);
-    Ref domPromise = DOMPromise::create(globalObject, *JSC::jsCast<JSC::JSPromise*>(deferredPromise->promise()));
+    Ref domPromise = DOMPromise::create(globalObject, *uncheckedDowncast<JSC::JSPromise>(deferredPromise->promise()));
     return { WTF::move(domPromise), deferredPromise.releaseNonNull() };
 }
 

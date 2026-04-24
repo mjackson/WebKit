@@ -26,6 +26,7 @@
 #include "config.h"
 #include "StyleSingleAnimationRange.h"
 
+#include "CSSKeywordValue.h"
 #include "CSSNumericFactory.h"
 #include "StyleBuilderChecking.h"
 #include "StyleLengthWrapper+CSSValueConversion.h"
@@ -96,8 +97,8 @@ SingleAnimationRange SingleAnimationRange::defaultForViewTimeline()
 
 template<typename Edge> static Edge convertSingleAnimationRangeEdge(BuilderState& state, const CSSValue& value)
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueNormal:
             return CSS::Keyword::Normal { };
         case CSSValueCover:
@@ -118,10 +119,14 @@ template<typename Edge> static Edge convertSingleAnimationRangeEdge(BuilderState
             break;
         }
 
-        return toStyleFromCSSValue<SingleAnimationRangeLength>(state, *primitiveValue);
+        state.setCurrentPropertyInvalidAtComputedValueTime();
+        return CSS::Keyword::Normal { };
     }
 
-    auto pair = requiredPairDowncast<CSSPrimitiveValue>(state, value);
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
+        return toStyleFromCSSValue<SingleAnimationRangeLength>(state, *primitiveValue);
+
+    auto pair = requiredPairDowncast<CSSKeywordValue, CSSPrimitiveValue>(state, value);
     if (!pair)
         return CSS::Keyword::Normal { };
 
@@ -164,8 +169,8 @@ auto CSSValueConversion<SingleAnimationRangeEnd>::operator()(BuilderState& state
 
 template<typename Edge> static std::optional<Edge> deprecatedConvertSingleAnimationRangeEdge(const RefPtr<Element>& element, const CSSValue& value)
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueCover:
             return { CSS::Keyword::Cover { } };
         case CSSValueContain:
@@ -184,6 +189,10 @@ template<typename Edge> static std::optional<Edge> deprecatedConvertSingleAnimat
             break;
         }
 
+        return { };
+    }
+
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
         auto offset = deprecatedToStyleFromCSSValue<SingleAnimationRangeLength>(element, *primitiveValue);
         if (!offset)
             return { };
@@ -203,7 +212,11 @@ template<typename Edge> static std::optional<Edge> deprecatedConvertSingleAnimat
     if (!offset)
         return { };
 
-    switch (pair->first().valueID()) {
+    RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(pair->first());
+    if (!keywordValue)
+        return { };
+
+    switch (keywordValue->valueID()) {
     case CSSValueCover:
         return { { CSS::Keyword::Cover { }, WTF::move(offset) } };
     case CSSValueContain:

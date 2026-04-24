@@ -40,6 +40,7 @@
 #import "WebProcess.h"
 #import "_WKFrameHandleInternal.h"
 #import <JavaScriptCore/APICast.h>
+#import <JavaScriptCore/JSCellInlines.h>
 #import <JavaScriptCore/JSGlobalObject.h>
 #import <JavaScriptCore/JSValue.h>
 #import <WebCore/CertificateInfo.h>
@@ -87,9 +88,9 @@
     JSC::JSGlobalObject* globalObject = ::toJS(context.JSGlobalContextRef);
     JSC::JSObject* jsObject = ::toJS(globalObject, object).toObject(globalObject);
 
-    if (auto* info = jsDynamicCast<WebCore::JSWebKitJSHandle*>(jsObject)) {
+    if (auto* info = dynamicDowncast<WebCore::JSWebKitJSHandle>(jsObject)) {
         RELEASE_ASSERT(globalObject->template inherits<WebCore::JSDOMGlobalObject>());
-        auto* domGlobalObject = jsCast<WebCore::JSDOMGlobalObject*>(globalObject);
+        auto* domGlobalObject = uncheckedDowncast<WebCore::JSDOMGlobalObject>(globalObject);
         RefPtr document = dynamicDowncast<WebCore::Document>(domGlobalObject->scriptExecutionContext());
         RefPtr frame = WebKit::WebFrame::webFrame(document->frameID());
         RefPtr world = WebKit::InjectedBundleScriptWorld::get(Ref { domGlobalObject->world() });

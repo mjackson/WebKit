@@ -27,7 +27,7 @@
 #include "StyleBorderImageSource.h"
 
 #include "AnimationUtilities.h"
-#include "CSSValue.h"
+#include "CSSKeywordValue.h"
 #include "StyleBuilderState.h"
 
 namespace WebCore {
@@ -37,8 +37,15 @@ namespace Style {
 
 auto CSSValueConversion<BorderImageSource>::operator()(BuilderState& state, const CSSValue& value) -> BorderImageSource
 {
-    if (value.valueID() == CSSValueNone)
-        return CSS::Keyword::None { };
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
+    }
 
     RefPtr image = state.createStyleImage(value);
     if (!image)

@@ -242,12 +242,13 @@ String replaceURLsInSrcsetAttribute(const Element& element, StringView attribute
         if (&candidate != &imageCandidates[0])
             result.append(", "_s);
 
-        auto resolvedURLString = element.resolveURLStringIfNeeded(candidate.string.toString());
+        auto candidateString = candidate.string.toString();
+        auto resolvedURLString = element.resolveURLStringIfNeeded(candidateString);
         auto replacementURLString = context.replacementURLStrings.get(resolvedURLString);
         if (!replacementURLString.isEmpty())
             result.append(replacementURLString);
         else
-            result.append(candidate.string.toString());
+            result.append(WTF::move(candidateString));
         if (candidate.density != UninitializedDescriptor)
             result.append(' ', candidate.density, 'x');
         if (candidate.resourceWidth != UninitializedDescriptor)
@@ -297,7 +298,7 @@ static ImageCandidate pickBestImageCandidate(float deviceScaleFactor, Vector<Ima
     return imageCandidates[winner];
 }
 
-ImageCandidate bestFitSourceForImageAttributes(float deviceScaleFactor, const AtomString& srcAttribute, StringView srcsetAttribute, std::optional<float> sourceSize, NOESCAPE const Function<bool(const ImageCandidate&)>& shouldIgnoreCandidateCallback)
+ImageCandidate bestFitSourceForImageAttributes(float deviceScaleFactor, const String& srcAttribute, StringView srcsetAttribute, std::optional<float> sourceSize, NOESCAPE const Function<bool(const ImageCandidate&)>& shouldIgnoreCandidateCallback)
 {
     if (srcsetAttribute.isNull()) {
         if (srcAttribute.isNull())

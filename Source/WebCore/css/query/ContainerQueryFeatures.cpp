@@ -196,7 +196,7 @@ struct StyleFeatureSchema : public FeatureSchema {
             return toEvaluationResult(customPropertyValue && !customPropertyValue->isGuaranteedInvalid());
 
         auto resolvedFeatureValue = [&] -> RefPtr<const Style::CustomProperty> {
-            auto featureValue = dynamicDowncast<CSSCustomPropertyValue>(feature.rightComparison->value);
+            auto* featureValue = std::get_if<Ref<CSSCustomPropertyValue>>(&*feature.rightComparison->value);
             ASSERT(featureValue);
 
             // Resolve the queried custom property value for var() references, css-wide keywords and registered properties.

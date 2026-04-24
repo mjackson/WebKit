@@ -118,7 +118,7 @@ class VTTCue
 {
     WTF_MAKE_TZONE_ALLOCATED(VTTCue);
 public:
-    static Ref<VTTCue> create(Document&, double start, double end, String&& content);
+    static ExceptionOr<Ref<VTTCue>> create(Document&, double start, double end, String&& content);
     static Ref<VTTCue> create(Document&, Ref<WebVTTCueData>&&);
 
     virtual ~VTTCue();

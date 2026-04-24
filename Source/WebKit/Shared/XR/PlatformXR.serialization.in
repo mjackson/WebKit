@@ -300,12 +300,37 @@ header: <WebCore/PlatformXR.h>
 };
 
 header: <WebCore/PlatformXR.h>
+[Nested] struct PlatformXR::DeviceLayer::QuadLayerData {
+    WebCore::FloatSize worldSize;
+    PlatformXR::FrameData::Pose poseInLocalSpace;
+};
+
+header: <WebCore/PlatformXR.h>
 [CustomHeader] struct PlatformXR::DeviceLayer {
     PlatformXR::LayerHandle handle;
     bool visible;
     Vector<PlatformXR::DeviceLayer::LayerView> views;
     WTF::UnixFileDescriptor fenceFD;
+#if ENABLE(WEBXR_LAYERS)
+    bool blendTextureSourceAlpha;
+    bool forceMonoPresentation;
+    std::optional<PlatformXR::DeviceLayer::QuadLayerData> quadLayerData;
+#endif
 };
+#endif
+
+#if ENABLE(WEBXR_LAYERS)
+[CustomHeader] struct PlatformXR::LayerInfo {
+    PlatformXR::LayerHandle handle;
+    size_t numImages;
+};
+
+enum class PlatformXR::LayerLayout : uint8_t {
+    Mono,
+    StereoLeftRight,
+    StereoTopBottom,
+};
+
 #endif
 
 #endif

@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestStringifierReadOnlyAttribute : public JSDOMWrapper<TestStringifierReadOnlyAttribute> {
 public:
     using Base = JSDOMWrapper<TestStringifierReadOnlyAttribute>;
-    static JSTestStringifierReadOnlyAttribute* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestStringifierReadOnlyAttribute>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestStringifierReadOnlyAttribute* ptr = new (NotNull, JSC::allocateCell<JSTestStringifierReadOnlyAttribute>(vm)) JSTestStringifierReadOnlyAttribute(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestStringifierReadOnlyAttribute* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestStringifierReadOnlyAttribute>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

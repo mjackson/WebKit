@@ -47,6 +47,8 @@ class WebPageProxy;
 struct BackForwardListState;
 struct WebBackForwardListCounts;
 
+enum class AllowSkippingBackForwardItems : bool { No, Yes };
+
 #if !ENABLE(BACK_FORWARD_LIST_SWIFT)
 
 class WebBackForwardList : public API::ObjectImpl<API::Object::Type::BackForwardList>, public IPC::MessageReceiver {
@@ -70,9 +72,10 @@ public:
     void clear();
 
     WebBackForwardListItem* NODELETE currentItem() const;
-    WebBackForwardListItem* NODELETE backItem() const;
-    WebBackForwardListItem* NODELETE forwardItem() const;
-    RefPtr<WebBackForwardListItem> itemAtDeltaFromCurrentIndex(int) const;
+    RefPtr<WebBackForwardListItem> backItem() const;
+    RefPtr<WebBackForwardListItem> forwardItem() const;
+
+    RefPtr<WebBackForwardListItem> itemAtDeltaFromCurrentIndex(int, AllowSkippingBackForwardItems = AllowSkippingBackForwardItems::Yes) const;
 
     RefPtr<WebBackForwardListItem> goBackItemSkippingItemsWithoutUserGesture() const;
     RefPtr<WebBackForwardListItem> goForwardItemSkippingItemsWithoutUserGesture() const;
@@ -157,9 +160,10 @@ public:
     void clear();
 
     WebBackForwardListItem* WTF_NULLABLE currentItem() const;
-    RefPtr<WebBackForwardListItem> itemAtDeltaFromCurrentIndex(int) const;
-    WebBackForwardListItem* WTF_NULLABLE backItem() const;
-    WebBackForwardListItem* WTF_NULLABLE forwardItem() const;
+
+    RefPtr<WebBackForwardListItem> itemAtDeltaFromCurrentIndex(int, AllowSkippingBackForwardItems = AllowSkippingBackForwardItems::Yes) const;
+    RefPtr<WebBackForwardListItem> backItem() const;
+    RefPtr<WebBackForwardListItem> forwardItem() const;
 
     Ref<API::Array> backList() const;
     Ref<API::Array> forwardList() const;

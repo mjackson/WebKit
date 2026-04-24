@@ -116,8 +116,9 @@ private:
     bool setCurrentTimeDidChangeCallback(MediaPlayer::CurrentTimeDidChangeCallback&&) final;
     void setRate(float) final;
     double rate() const final;
-    void setVolume(float) final { }
-    float volume() const final { return 0; }
+    void setVolumeLocked(bool) final;
+    void setVolume(float) final;
+    float volume() const final;
     void setMuted(bool) final { }
     String engineDescription() const final;
 
@@ -144,6 +145,7 @@ private:
     MediaPlayer::ReadyState m_readyState { MediaPlayer::ReadyState::HaveNothing };
     bool m_didLoadingProgress { false };
     bool m_allowsWirelessVideoPlayback { true };
+    bool m_volumeLocked { false };
     ShouldPlayToTarget m_shouldPlayToTarget { ShouldPlayToTarget::Unknown };
     RefPtr<MediaPlaybackTarget> m_playbackTarget;
     MediaPlayer::CurrentTimeDidChangeCallback m_currentTimeDidChangeCallback;

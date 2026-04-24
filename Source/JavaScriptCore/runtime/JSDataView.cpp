@@ -104,6 +104,44 @@ bool JSDataView::setIndex(JSGlobalObject*, size_t, JSValue)
     return false;
 }
 
+RefPtr<DataView> JSDataView::toWrapped(VM&, JSValue value)
+{
+    auto* view = dynamicDowncast<JSDataView>(value);
+    if (!view)
+        return nullptr;
+    if (view->isShared() || view->isResizableOrGrowableShared())
+        return nullptr;
+    return view->unsharedTypedImpl();
+}
+
+RefPtr<DataView> JSDataView::toWrappedAllowResizable(VM&, JSValue value)
+{
+    auto* view = dynamicDowncast<JSDataView>(value);
+    if (!view)
+        return nullptr;
+    if (view->isShared())
+        return nullptr;
+    return view->unsharedTypedImpl();
+}
+
+RefPtr<DataView> JSDataView::toWrappedAllowShared(VM&, JSValue value)
+{
+    auto* view = dynamicDowncast<JSDataView>(value);
+    if (!view)
+        return nullptr;
+    if (view->isResizableOrGrowableShared())
+        return nullptr;
+    return view->possiblySharedTypedImpl();
+}
+
+RefPtr<DataView> JSDataView::toWrappedAllowSharedAndResizable(VM&, JSValue value)
+{
+    auto* view = dynamicDowncast<JSDataView>(value);
+    if (!view)
+        return nullptr;
+    return view->possiblySharedTypedImpl();
+}
+
 RefPtr<DataView> JSDataView::possiblySharedTypedImpl()
 {
     return DataView::create(possiblySharedBuffer(), byteOffsetRaw(), isAutoLength() ? std::nullopt : std::optional { lengthRaw() });

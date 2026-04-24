@@ -117,18 +117,18 @@ template<Replacement replacement = Replacement::None, typename SourceCharacterTy
 ConversionResult<char8_t> convert(std::span<const char16_t> source, std::span<char8_t> buffer)
 {
 #if CPU(BIG_ENDIAN)
-    size_t requiredLength = simdutf::utf8_length_from_utf16be(source.data(), source.size());
+    size_t requiredLength = simdutf::utf8_length_from_utf16be(source);
 #else
-    size_t requiredLength = simdutf::utf8_length_from_utf16le(source.data(), source.size());
+    size_t requiredLength = simdutf::utf8_length_from_utf16le(source);
 #endif
 
     if (buffer.size() < requiredLength)
         return convertInternal(source, buffer);
 
 #if CPU(BIG_ENDIAN)
-    auto result = simdutf::convert_utf16be_to_utf8_with_errors(source.data(), source.size(), reinterpret_cast<char*>(buffer.data()));
+    auto result = simdutf::convert_utf16be_to_utf8_with_errors(source, buffer);
 #else
-    auto result = simdutf::convert_utf16le_to_utf8_with_errors(source.data(), source.size(), reinterpret_cast<char*>(buffer.data()));
+    auto result = simdutf::convert_utf16le_to_utf8_with_errors(source, buffer);
 #endif
 
     if (result.error == simdutf::error_code::SUCCESS) {
@@ -161,17 +161,17 @@ ConversionResult<char16_t> convertReplacingInvalidSequences(std::span<const char
 
 std::span<const char8_t> checkUTF8WithoutUTF16Length(std::span<const char8_t> source)
 {
-    auto result = simdutf::validate_utf8_with_errors(reinterpret_cast<const char*>(source.data()), source.size());
+    auto result = simdutf::validate_utf8_with_errors(source);
     size_t validLength = result.error == simdutf::error_code::SUCCESS ? source.size() : result.count;
     return source.first(validLength);
 }
 
 CheckedUTF8 checkUTF8(std::span<const char8_t> source)
 {
-    auto result = simdutf::validate_utf8_with_errors(reinterpret_cast<const char*>(source.data()), source.size());
+    auto result = simdutf::validate_utf8_with_errors(source);
     size_t validLength = result.error == simdutf::error_code::SUCCESS ? source.size() : result.count;
     auto validSpan = source.first(validLength);
-    size_t lengthUTF16 = simdutf::utf16_length_from_utf8(reinterpret_cast<const char*>(validSpan.data()), validSpan.size());
+    size_t lengthUTF16 = simdutf::utf16_length_from_utf8(validSpan);
     return { validSpan, lengthUTF16, validLength == lengthUTF16 };
 }
 

@@ -39,6 +39,7 @@
 #import "AccessibilityScrollView.h"
 #import "Chrome.h"
 #import "ChromeClient.h"
+#import "CocoaAccessibilityConstants.h"
 #import "FontCascade.h"
 #import "FrameSelection.h"
 #import "HTMLFrameOwnerElement.h"
@@ -2033,6 +2034,29 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
         return nil;
 
     return self.axBackingObject->embeddedImageDescription().createNSString().autorelease();
+}
+
+- (NSValue *)accessibilityImageDataSize
+{
+    if (![self _prepareAccessibilityCall])
+        return nil;
+
+    auto size = self.axBackingObject->imageDataSize();
+    return [NSValue valueWithCGSize:CGSizeMake(size.width(), size.height())];
+}
+
+- (NSData *)accessibilityImageDataWithParameters:(NSDictionary *)dictionary
+{
+    if (![self _prepareAccessibilityCall] || !self.axBackingObject->isImage())
+        return nil;
+
+    auto parameters = imageDataParametersFromDictionary(dictionary);
+    RefPtr buffer = parameters ? self.axBackingObject->imageData(*parameters) : nullptr;
+    if (!buffer)
+        return nil;
+
+    auto span = buffer->span();
+    return [NSData dataWithBytes:span.data() length:span.size()];
 }
 
 - (NSArray *)accessibilityImageOverlayElements

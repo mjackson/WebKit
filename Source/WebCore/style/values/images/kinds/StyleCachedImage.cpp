@@ -253,6 +253,13 @@ bool CachedImage::imageHasRelativeHeight() const
     return m_cachedImage->imageHasRelativeHeight();
 }
 
+bool CachedImage::imageHasNaturalAspectRatio() const
+{
+    if (!m_cachedImage)
+        return false;
+    return m_cachedImage->imageHasNaturalAspectRatio();
+}
+
 void CachedImage::computeIntrinsicDimensions(const RenderElement* renderer, float& intrinsicWidth, float& intrinsicHeight, FloatSize& intrinsicRatio)
 {
     // In case of an SVG resource, we should return the container size.

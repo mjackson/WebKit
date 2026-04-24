@@ -30,6 +30,7 @@
 #include "CSSDynamicRangeLimit.h"
 #include "CSSDynamicRangeLimitMix.h"
 #include "CSSDynamicRangeLimitValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSPrimitiveNumericTypes+Serialization.h"
 #include "PlatformDynamicRangeLimit.h"
 #include "StyleBuilderChecking.h"
@@ -87,8 +88,8 @@ Ref<CSSValue> CSSValueCreation<DynamicRangeLimit>::operator()(CSSValuePool&, con
 
 auto CSSValueConversion<DynamicRangeLimit>::operator()(BuilderState& state, const CSSValue& value) -> DynamicRangeLimit
 {
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueStandard:      return CSS::Keyword::Standard { };
         case CSSValueConstrained:   return CSS::Keyword::Constrained { };
         case CSSValueNoLimit:       return CSS::Keyword::NoLimit { };

@@ -32,28 +32,13 @@ import simd
 @_spi(RealityCoreTextureProcessingAPI) import RealityCoreTextureProcessing
 import USDKit
 @_spi(SwiftAPI) import DirectResource
-import RealityKit
+@_spi(Private) import RealityKit
 @_spi(SGPrivate) import ShaderGraph
 import RealityCoreDeformation
 
 extension _USDKit_RealityKit._Proto_MeshDataUpdate_v1 {
     @_silgen_name("$s18_USDKit_RealityKit24_Proto_MeshDataUpdate_v1V18instanceTransformsSaySo13simd_float4x4aGvg")
     internal func instanceTransformsCompat() -> [simd_float4x4]
-}
-
-extension _USDKit_RealityKit._Proto_DeformationData_v1.SkinningData {
-    @_silgen_name("$s18_USDKit_RealityKit25_Proto_DeformationData_v1V08SkinningF0V21geometryBindTransformSo13simd_float4x4avg")
-    internal func geometryBindTransformCompat() -> simd_float4x4
-}
-
-extension _USDKit_RealityKit._Proto_DeformationData_v1.SkinningData {
-    @_silgen_name("$s18_USDKit_RealityKit25_Proto_DeformationData_v1V08SkinningF0V15jointTransformsSaySo13simd_float4x4aGvg")
-    internal func jointTransformsCompat() -> [simd_float4x4]
-}
-
-extension _USDKit_RealityKit._Proto_DeformationData_v1.SkinningData {
-    @_silgen_name("$s18_USDKit_RealityKit25_Proto_DeformationData_v1V08SkinningF0V16inverseBindPosesSaySo13simd_float4x4aGvg")
-    internal func inverseBindPosesCompat() -> [simd_float4x4]
 }
 
 extension MTLCaptureDescriptor {
@@ -72,46 +57,19 @@ extension MTLCaptureDescriptor {
     }
 }
 
-actor FrameUpdateQueue {
-    private var isProcessing = false
-    private var pendingContinuation: CheckedContinuation<Bool, Never>?
-
-    // Check if there is already a frame update being processed and wait until it finishes, replacing any previous pending update
-    func acquireUpdateSlot() async -> Bool {
-        guard isProcessing else {
-            isProcessing = true
-            return true
-        }
-
-        // Discard any prior pending render and become the latest pending render
-        return await withCheckedContinuation { continuation in
-            pendingContinuation?.resume(returning: false)
-            pendingContinuation = continuation
-        }
-    }
-
-    // If we successfully acquired the update slot above we must release it
-    func releaseUpdateSlot() {
-        let next = pendingContinuation
-        pendingContinuation = nil
-        if next == nil { isProcessing = false }
-
-        next?.resume(returning: true)
-    }
-}
-
 private func makeMTLTextureFromImageAsset(
     _ imageAsset: WKBridgeImageAsset,
     device: any MTLDevice,
     generateMips: Bool,
-    memoryOwner: task_id_token_t
+    memoryOwner: task_id_token_t,
+    layout: [WKBridgeTextureLevelInfo]
 ) -> ((any MTLTexture), Int)? {
     guard let imageAssetData = imageAsset.data else {
         logError("no image data")
         return nil
     }
     logInfo(
-        "imageAssetData = \(imageAssetData)  -  width = \(imageAsset.width)  -  height = \(imageAsset.height)  -  bytesPerPixel = \(imageAsset.bytesPerPixel) imageAsset.pixelFormat:  \(imageAsset.pixelFormat)"
+        "imageAssetData = \(imageAssetData)  -  width = \(imageAsset.width)  -  height = \(imageAsset.height)  - imageAsset.pixelFormat:  \(imageAsset.pixelFormat)"
     )
 
     let pixelFormat = imageAsset.pixelFormat
@@ -150,6 +108,10 @@ private func makeMTLTextureFromImageAsset(
         max(1, base >> level)
     }
 
+    guard let bytesPerPixel = imageAsset.pixelFormat.bytesPerPixel else {
+        fatalError("unexpected pixel format \(imageAsset.pixelFormat)")
+    }
+
     var mipLevelsInData = 0
     unsafe imageAssetData.bytes.withUnsafeBytes { textureBytes in
         guard let baseAddress = textureBytes.baseAddress else {
@@ -157,75 +119,87 @@ private func makeMTLTextureFromImageAsset(
             return
         }
 
-        // ---------------------------------------------------------------
-        // Compute how many mip levels are actually present in the data
-        // by accumulating expected byte counts level by level until we
-        // account for all bytes in the buffer.
-        // ---------------------------------------------------------------
-        var bytesAccounted = 0
-
-        for mipLevel in 0..<mtlTexture.mipmapLevelCount {
+        func uploadSlice(face: Int, mipLevel: Int, bytesOffset: Int, bytesPerRow: Int, bytesPerImage: Int) {
             let mipWidth = mipDimension(imageAsset.width, level: mipLevel)
             let mipHeight = mipDimension(imageAsset.height, level: mipLevel)
-            let mipBytes = mipWidth * imageAsset.bytesPerPixel * mipHeight * sliceCount
-
-            // Stop if adding this level would exceed the available data
-            guard bytesAccounted + mipBytes <= textureBytes.count else { break }
-
-            bytesAccounted += mipBytes
-            mipLevelsInData += 1
-        }
-
-        guard mipLevelsInData > 0 else {
-            logError(
-                "imageAssetData too small: have \(textureBytes.count) bytes, "
-                    + "need at least \(mipDimension(imageAsset.width, level: 0) * imageAsset.bytesPerPixel * mipDimension(imageAsset.height, level: 0) * sliceCount) "
-                    + "for mip level 0"
-            )
-            return
-        }
-
-        if bytesAccounted != textureBytes.count {
-            logError(
-                "imageAssetData has \(textureBytes.count - bytesAccounted) unexpected trailing bytes "
-                    + "after \(mipLevelsInData) mip level(s) — ignoring"
+            unsafe mtlTexture.replace(
+                region: MTLRegionMake2D(0, 0, mipWidth, mipHeight),
+                mipmapLevel: mipLevel,
+                slice: face,
+                withBytes: unsafe baseAddress.advanced(by: bytesOffset),
+                bytesPerRow: bytesPerRow,
+                bytesPerImage: bytesPerImage
             )
         }
 
-        logInfo("uploading \(mipLevelsInData) of \(mtlTexture.mipmapLevelCount) mip level(s) from imageAssetData")
-
-        // ---------------------------------------------------------------
-        // Layout expected in imageAssetData:
-        //
-        //   Face 0 | Mip 0 | Mip 1 | Mip 2 | …
-        //   Face 1 | Mip 0 | Mip 1 | Mip 2 | …
-        //   …
-        // ---------------------------------------------------------------
-        var offset = 0
-
-        for face in 0..<sliceCount {
-            for mipLevel in 0..<mipLevelsInData {
+        if !layout.isEmpty {
+            // Use the pre-computed per-mip layout transmitted over IPC.
+            // layout is indexed by mip level; each entry covers all slices at that level.
+            mipLevelsInData = min(layout.count, mtlTexture.mipmapLevelCount)
+            logInfo("uploading \(mipLevelsInData) of \(mtlTexture.mipmapLevelCount) mip level(s) from imageAssetData (layout-driven)")
+            for face in 0..<sliceCount {
+                for mipLevel in 0..<mipLevelsInData {
+                    let info = layout[mipLevel]
+                    // dataOffset covers all slices; advance by bytesPerImage per face.
+                    uploadSlice(
+                        face: face,
+                        mipLevel: mipLevel,
+                        bytesOffset: info.dataOffset + face * info.byteCountPerImage,
+                        bytesPerRow: info.byteCountPerRow,
+                        bytesPerImage: info.byteCountPerImage
+                    )
+                }
+            }
+        } else {
+            // ---------------------------------------------------------------
+            // No layout provided: compute how many mip levels are present in
+            // the data by accumulating expected byte counts level by level.
+            // ---------------------------------------------------------------
+            var bytesAccounted = 0
+            for mipLevel in 0..<mtlTexture.mipmapLevelCount {
                 let mipWidth = mipDimension(imageAsset.width, level: mipLevel)
                 let mipHeight = mipDimension(imageAsset.height, level: mipLevel)
+                let mipBytes = mipWidth * bytesPerPixel * mipHeight * sliceCount
+                guard bytesAccounted + mipBytes <= textureBytes.count else { break }
+                bytesAccounted += mipBytes
+                mipLevelsInData += 1
+            }
 
-                let mipBytesPerRow = mipWidth * imageAsset.bytesPerPixel
-                let mipBytesPerImage = mipBytesPerRow * mipHeight
-
-                let mipPointer = unsafe baseAddress.advanced(by: offset)
-
-                unsafe mtlTexture.replace(
-                    region: .init(
-                        origin: .init(x: 0, y: 0, z: 0),
-                        size: .init(width: mipWidth, height: mipHeight, depth: 1)
-                    ),
-                    mipmapLevel: mipLevel,
-                    slice: face,
-                    withBytes: mipPointer,
-                    bytesPerRow: mipBytesPerRow,
-                    bytesPerImage: mipBytesPerImage
+            guard mipLevelsInData > 0 else {
+                logError(
+                    "imageAssetData too small: have \(textureBytes.count) bytes, "
+                        + "need at least \(mipDimension(imageAsset.width, level: 0) * bytesPerPixel * mipDimension(imageAsset.height, level: 0) * sliceCount) "
+                        + "for mip level 0"
                 )
+                return
+            }
 
-                offset += mipBytesPerImage
+            if bytesAccounted != textureBytes.count {
+                logError(
+                    "imageAssetData has \(textureBytes.count - bytesAccounted) unexpected trailing bytes "
+                        + "after \(mipLevelsInData) mip level(s) — ignoring"
+                )
+            }
+
+            logInfo("uploading \(mipLevelsInData) of \(mtlTexture.mipmapLevelCount) mip level(s) from imageAssetData")
+
+            // Data is face-major: Face 0 [Mip 0, Mip 1, …], Face 1 [Mip 0, Mip 1, …], …
+            var offset = 0
+            for face in 0..<sliceCount {
+                for mipLevel in 0..<mipLevelsInData {
+                    let mipWidth = mipDimension(imageAsset.width, level: mipLevel)
+                    let mipHeight = mipDimension(imageAsset.height, level: mipLevel)
+                    let bytesPerRow = mipWidth * bytesPerPixel
+                    let bytesPerImage = bytesPerRow * mipHeight
+                    uploadSlice(
+                        face: face,
+                        mipLevel: mipLevel,
+                        bytesOffset: offset,
+                        bytesPerRow: bytesPerRow,
+                        bytesPerImage: bytesPerImage
+                    )
+                    offset += bytesPerImage
+                }
             }
         }
     }
@@ -243,15 +217,17 @@ private func makeTextureFromImageAsset(
     commandQueue: any MTLCommandQueue,
     generateMips: Bool,
     memoryOwner: task_id_token_t,
-    swizzle: MTLTextureSwizzleChannels = .init(red: .red, green: .green, blue: .blue, alpha: .alpha),
-    existingTexture: _Proto_LowLevelTextureResource_v1? = nil
+    swizzle: MTLTextureSwizzleChannels,
+    existingTexture: _Proto_LowLevelTextureResource_v1?,
+    layout: [WKBridgeTextureLevelInfo]
 ) -> _Proto_LowLevelTextureResource_v1? {
     guard
         let (mtlTexture, mipLevelsInData) = makeMTLTextureFromImageAsset(
             imageAsset,
             device: device,
             generateMips: generateMips,
-            memoryOwner: memoryOwner
+            memoryOwner: memoryOwner,
+            layout: layout
         )
     else {
         logError("could not create metal texture")
@@ -299,7 +275,8 @@ private func makeTextureFromImageAsset(
         generateMips: generateMips,
         memoryOwner: memoryOwner,
         swizzle: swizzle,
-        existingTexture: nil
+        existingTexture: nil,
+        layout: []
     )
 }
 
@@ -310,7 +287,8 @@ private func makeTextureFromImageAsset(
     commandQueue: any MTLCommandQueue,
     generateMips: Bool,
     memoryOwner: task_id_token_t,
-    existingTexture: _Proto_LowLevelTextureResource_v1?
+    existingTexture: _Proto_LowLevelTextureResource_v1?,
+    layout: [WKBridgeTextureLevelInfo]
 ) -> _Proto_LowLevelTextureResource_v1? {
     makeTextureFromImageAsset(
         imageAsset,
@@ -320,7 +298,8 @@ private func makeTextureFromImageAsset(
         generateMips: generateMips,
         memoryOwner: memoryOwner,
         swizzle: .init(red: .red, green: .green, blue: .blue, alpha: .alpha),
-        existingTexture: existingTexture
+        existingTexture: existingTexture,
+        layout: layout
     )
 }
 
@@ -409,7 +388,6 @@ extension WKBridgeUSDConfiguration {
         get { appRenderer.renderTargetDescriptor }
     }
 
-    @objc
     init(device: any MTLDevice, memoryOwner: task_id_token_t) {
         self.device = device
         do {
@@ -427,12 +405,6 @@ extension WKBridgeUSDConfiguration {
             fatalError("Exception creating renderer \(error)")
         }
     }
-}
-
-struct DeformationContext {
-    let deformation: _Proto_Deformation_v1
-    var description: _Proto_LowLevelDeformationDescription_v1
-    var dirty: Bool
 }
 
 @objc
@@ -576,11 +548,11 @@ extension WKBridgeReceiver {
         self.fallbackTexture = makeFallBackTextureResource(
             renderContext,
             commandQueue: configuration.commandQueue,
-            device: configuration.device
+            device: configuration.device,
+            memoryOwner: configuration.appRenderer.memoryOwner
         )
     }
 
-    @objc
     func commandBuffer() -> (any MTLCommandBuffer)? {
         // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
         // swift-format-ignore: NeverForceUnwrap
@@ -651,18 +623,11 @@ extension WKBridgeReceiver {
     @objc(updateTexture:)
     func updateTexture(_ datas: [WKBridgeUpdateTexture]) {
         for textureData in datas {
-            guard let asset = textureData.imageAsset else {
-                fatalError("Image asset was nil")
-            }
-
+            let asset = textureData.imageAsset
             let existingTexture = textureHashesAndResources[textureData.identifier]?.1
             let needsNewTexture: Bool
             if let existingTexture {
-                if let descriptor = textureData.imageAsset {
-                    needsNewTexture = existingTexture.descriptor != _Proto_LowLevelTextureResource_v1.Descriptor(from: descriptor)
-                } else {
-                    needsNewTexture = false
-                }
+                needsNewTexture = existingTexture.descriptor != _Proto_LowLevelTextureResource_v1.Descriptor(from: asset)
             } else {
                 needsNewTexture = true
             }
@@ -675,7 +640,8 @@ extension WKBridgeReceiver {
                 commandQueue: commandQueue,
                 generateMips: true,
                 memoryOwner: self.memoryOwner,
-                existingTexture: needsNewTexture ? nil : existingTexture
+                existingTexture: needsNewTexture ? nil : existingTexture,
+                layout: textureData.layout
             ) {
                 textureHashesAndResources[textureData.identifier] = (textureData.hashString, textureResource)
             }
@@ -691,7 +657,7 @@ extension WKBridgeReceiver {
                 let identifier = data.identifier
                 logInfo("updateMaterial \(identifier)")
 
-                guard let shaderGraph = ShaderGraph._Proto_ShaderNodeGraph.fromWKDescriptor(data.materialGraph) else {
+                guard let shaderGraph = _Proto_ShaderNodeGraph.fromWKDescriptor(data.materialGraph) else {
                     fatalError("No materialGraph data provided for material \(identifier)")
                 }
 
@@ -732,6 +698,41 @@ extension WKBridgeReceiver {
         }
     }
 
+    @objc
+    func processRemovals(
+        _ meshRemovals: [WKBridgeTypedResourceId],
+        materialRemovals: [WKBridgeTypedResourceId],
+        textureRemovals: [WKBridgeTypedResourceId]
+    ) -> Bool {
+        do {
+            for meshId in meshRemovals {
+                logInfo("mesh destroyed: \(meshId)")
+                if let meshInstancesToRemove = meshToMeshInstances.removeValue(forKey: meshId) {
+                    for meshInstanceToRemove in meshInstancesToRemove {
+                        try meshInstancePool.remove(meshInstanceToRemove)
+                    }
+                }
+                meshResources.removeValue(forKey: meshId)
+                meshResourceToMaterials.removeValue(forKey: meshId)
+                meshResourceToDeformationContext.removeValue(forKey: meshId)
+            }
+
+            for materialId in materialRemovals {
+                logInfo("material destroyed: \(materialId)")
+                materialsAndParams.removeValue(forKey: materialId)
+            }
+
+            for textureId in textureRemovals {
+                logInfo("texture destroyed: \(textureId)")
+                textureHashesAndResources.removeValue(forKey: textureId)
+            }
+        } catch {
+            logError("\(error)")
+            return false
+        }
+        return true
+    }
+
     @objc(updateMesh:completionHandler:)
     func updateMesh(_ updates: [WKBridgeUpdateMesh]) async {
         do {
@@ -746,9 +747,14 @@ extension WKBridgeReceiver {
                     // swift-format-ignore: NeverForceUnwrap
                     let meshDescriptor = meshData.descriptor!
                     let descriptor = _Proto_LowLevelMeshResource_v1.Descriptor.fromLlmDescriptor(meshDescriptor)
-                    meshResource = try renderContext.makeMeshResource(descriptor: descriptor)
+                    if let cachedMeshResource = meshResources[identifier] {
+                        meshResource = cachedMeshResource
+                    } else {
+                        meshResource = try renderContext.makeMeshResource(descriptor: descriptor)
+                    }
                     meshResource.replaceData(indexData: meshData.indexData, vertexData: meshData.vertexData)
                     meshResources[identifier] = meshResource
+                    meshResourceToDeformationContext.removeValue(forKey: identifier)
                 } else {
                     guard let cachedMeshResource = meshResources[identifier] else {
                         fatalError("Mesh resource should already be created from previous update")
@@ -880,29 +886,27 @@ extension WKBridgeReceiver {
         modelTransform = transform
     }
 
-    @objc
     func setFOV(_ fovY: Float) {
         appRenderer.setFOV(fovY)
     }
 
-    @objc
     func setBackgroundColor(_ color: simd_float3) {
         appRenderer.setBackgroundColor(color)
     }
 
-    @objc
     func setPlaying(_ play: Bool) {
     }
 
-    @objc
-    func setEnvironmentMap(_ imageAsset: WKBridgeImageAsset) {
+    func setEnvironmentMap(_ textureData: WKBridgeUpdateTexture) {
         do {
+            let imageAsset = textureData.imageAsset
             guard
                 let (mtlTextureEquirectangular, _) = makeMTLTextureFromImageAsset(
                     imageAsset,
                     device: device,
-                    generateMips: true,
-                    memoryOwner: self.memoryOwner
+                    generateMips: false,
+                    memoryOwner: self.memoryOwner,
+                    layout: textureData.layout
                 )
             else {
                 fatalError("Could not make metal texture from environment asset data")
@@ -1001,7 +1005,14 @@ private func webUpdateTextureRequestFromUpdateTextureRequest(_ request: _Proto_T
     return WKBridgeUpdateTexture(
         imageAsset: .init(descriptor, data: data),
         identifier: .init(value: request.id.value, path: request.id.path, hashValue: request.id.hashValue),
-        hashString: request.hashString
+        hashString: request.hashString,
+        layout: request.layout.map {
+            WKBridgeTextureLevelInfo(
+                dataOffset: $0.dataOffset,
+                byteCountPerRow: $0.byteCountPerRow,
+                byteCountPerImage: $0.byteCountPerImage
+            )
+        }
     )
 }
 
@@ -1142,21 +1153,19 @@ private func constantValues(_ constant: _Proto_ShaderGraphValue) -> ([WKBridgeVa
             ], .int4
         )
     case .cgColor3(let color3):
-        // Extract RGB components from CGColor
         guard let components = color3.components, components.count >= 3 else {
-            return ([], .asset)
+            fatalError("constantValues: CGColor3 has fewer than 3 components")
         }
         return (
             [
                 WKBridgeValueString(number: NSNumber(value: Float(components[0]))),
                 WKBridgeValueString(number: NSNumber(value: Float(components[1]))),
                 WKBridgeValueString(number: NSNumber(value: Float(components[2]))),
-            ], .color3f
+            ], .cgColor3
         )
     case .cgColor4(let color4):
-        // Extract RGBA components from CGColor
         guard let components = color4.components, components.count >= 4 else {
-            return ([], .asset)
+            fatalError("constantValues: CGColor4 has fewer than 4 components")
         }
         return (
             [
@@ -1164,7 +1173,7 @@ private func constantValues(_ constant: _Proto_ShaderGraphValue) -> ([WKBridgeVa
                 WKBridgeValueString(number: NSNumber(value: Float(components[1]))),
                 WKBridgeValueString(number: NSNumber(value: Float(components[2]))),
                 WKBridgeValueString(number: NSNumber(value: Float(components[3]))),
-            ], .color4f
+            ], .cgColor4
         )
     case .float3x3(let col0, let col1, let col2):
         // Extract 9 float values from the 3x3 matrix (3 columns of 3 rows each)
@@ -1204,26 +1213,22 @@ private func constantValues(_ constant: _Proto_ShaderGraphValue) -> ([WKBridgeVa
             ], .matrix4f
         )
     default:
-        // For any unsupported types, return empty asset
-        return ([], .asset)
+        fatalError("constantValues: unhandled ShaderGraphValue type \(constant)")
     }
 }
 
-private func toWKBridgeConstantContainer(_ node: _Proto_ShaderNodeGraph.Node) -> WKBridgeConstantContainer {
+private func toWKBridgeConstantContainer(
+    _ node: _Proto_ShaderNodeGraph.Node,
+    colorOverride: WKBridgeConstant? = nil
+) -> WKBridgeConstantContainer {
     // Extract constant value if this is a constant node
     switch node.data {
     case .constant(let value):
-        let converted = constantValues(value)
-        return WKBridgeConstantContainer(constant: converted.1, constantValues: converted.0, name: node.name)
+        let (values, defaultType) = constantValues(value)
+        return WKBridgeConstantContainer(constant: colorOverride ?? defaultType, constantValues: values, name: node.name)
     case .definition, .graph:
         return WKBridgeConstantContainer(constant: .asset, constantValues: [], name: node.name)
     default: fatalError("toWKBridgeConstantContainer - unknown _Proto_ShaderNodeGraph.Node.data type")
-    }
-}
-
-private func toWebNodes(_ nodes: [_Proto_ShaderNodeGraph.Node]) -> [WKBridgeNode] {
-    nodes.map { e in
-        WKBridgeNode(bridgeNodeType: toWKBridgeNodeType(e), builtin: toWKBridgeBuiltin(e), constant: toWKBridgeConstantContainer(e))
     }
 }
 
@@ -1256,10 +1261,29 @@ private func toWKBridgeDataType(_ dataType: _Proto_ShaderDataType) -> WKBridgeDa
     case .surfaceShader: .surfaceShader
     case .geometryModifier: .geometryModifier
     case .postLightingShader: .postLightingShader
-    case .cgColor3: .color3f // Assuming float color
-    case .cgColor4: .color4f // Assuming float color
+    case .cgColor3: .cgColor3
+    case .cgColor4: .cgColor4
     case .filename: .asset
     @unknown default: .asset
+    }
+}
+
+// SGDataType rawValues for color variants that _Proto_ShaderDataType collapses.
+private enum SGDataTypeRawValue {
+    static let color3f: UInt = 41
+    static let color3h: UInt = 42
+    static let color4f: UInt = 44
+    static let color4h: UInt = 45
+}
+
+// Maps an SGDataType rawValue to WKBridgeDataType, preserving half-precision color variants
+// (color3h=42, color4h=45) that _Proto_ShaderDataType collapses to cgColor3/cgColor4.
+// Falls back to the proto-level type for all other types.
+private func toWKBridgeDataTypeFromSGRawValue(_ rawValue: UInt, fallback: WKBridgeDataType) -> WKBridgeDataType {
+    switch rawValue {
+    case SGDataTypeRawValue.color3h: .color3h
+    case SGDataTypeRawValue.color4h: .color4h
+    default: fallback
     }
 }
 
@@ -1274,23 +1298,11 @@ private func createInputOutput(
         return WKBridgeConstantContainer(constant: constantType, constantValues: values, name: "")
     }
 
-    let (actualType, hasSemanticType) =
-        semanticType.map { semantic in
-            let semanticName = semantic.name.lowercased()
-            if semanticName.contains("color4") || semanticName == "color4f" {
-                return (WKBridgeDataType.color4f, true)
-            } else if semanticName.contains("color3") || semanticName == "color3f" {
-                return (WKBridgeDataType.color3f, true)
-            } else {
-                return (toWKBridgeDataType(type), true)
-            }
-        } ?? (toWKBridgeDataType(type), false)
-
+    let actualType = toWKBridgeDataType(type)
     return WKBridgeInputOutput(
         type: actualType,
         name: name,
-        semanticType: actualType,
-        hasSemanticType: hasSemanticType,
+        semanticTypeName: semanticType?.name,
         defaultValue: defaultValueContainer
     )
 }
@@ -1317,8 +1329,12 @@ private func toWebOutputs(_ outputs: [_Proto_ShaderGraphNodeDefinition.Output]) 
     }
 }
 
-private func toWebNode(_ e: _Proto_ShaderNodeGraph.Node) -> WKBridgeNode {
-    WKBridgeNode(bridgeNodeType: toWKBridgeNodeType(e), builtin: toWKBridgeBuiltin(e), constant: toWKBridgeConstantContainer(e))
+private func toWebNode(_ e: _Proto_ShaderNodeGraph.Node, colorOverride: WKBridgeConstant? = nil) -> WKBridgeNode {
+    WKBridgeNode(
+        bridgeNodeType: toWKBridgeNodeType(e),
+        builtin: toWKBridgeBuiltin(e),
+        constant: toWKBridgeConstantContainer(e, colorOverride: colorOverride)
+    )
 }
 
 private func toWebEdges(_ edges: [_Proto_ShaderNodeGraph.Edge]) -> [WKBridgeEdge] {
@@ -1332,10 +1348,39 @@ private func toWebEdges(_ edges: [_Proto_ShaderNodeGraph.Edge]) -> [WKBridgeEdge
     }
 }
 
+private func texcoordName(for coord: _Proto_TextureCoordinate) -> String {
+    switch coord {
+    case .uv0: "UV0"
+    case .uv1: "UV1"
+    case .uv2: "UV2"
+    case .uv3: "UV3"
+    case .uv4: "UV4"
+    case .uv5: "UV5"
+    case .uv6: "UV6"
+    case .uv7: "UV7"
+    @unknown default: "UV0"
+    }
+}
+
+private func textureCoordinate(from name: String) -> _Proto_TextureCoordinate? {
+    switch name {
+    case "UV0": .uv0
+    case "UV1": .uv1
+    case "UV2": .uv2
+    case "UV3": .uv3
+    case "UV4": .uv4
+    case "UV5": .uv5
+    case "UV6": .uv6
+    case "UV7": .uv7
+    default: nil
+    }
+}
+
 private func toWebMaterialGraph(_ material: _Proto_ShaderNodeGraph?) -> WKBridgeMaterialGraph {
     guard let material else {
         // Return empty material graph if nil
         return WKBridgeMaterialGraph(
+            graphName: "",
             nodes: [],
             edges: [],
             arguments: WKBridgeNode(
@@ -1349,12 +1394,32 @@ private func toWebMaterialGraph(_ material: _Proto_ShaderNodeGraph?) -> WKBridge
                 constant: WKBridgeConstantContainer(constant: .asset, constantValues: [], name: "")
             ),
             inputs: [],
-            outputs: []
+            outputs: [],
+            primvarMappingPrimvarNames: [],
+            primvarMappingTexcoordNames: [],
+            functionConstantInputNames: []
         )
     }
 
+    // Pre-compute color type overrides for constant nodes by inspecting the sgGraph.
+    // The proto layer collapses color4f/color4h/color3f/color3h to float4/float3, losing
+    // the exact SGDataType. Read it back from the sgGraph's output type for each constant node.
+    var constantColorOverrides: [String: WKBridgeConstant] = [:]
+    let sgNodesByName = Dictionary(uniqueKeysWithValues: material.sgGraph.childNodes.map { ($0.name, $0) })
+    for (nodeName, node) in material.nodes {
+        guard case .constant(let value) = node.data else { continue }
+        guard let rawValue = sgNodesByName[nodeName]?.outputs.first?.type.rawValue else { continue }
+        switch rawValue {
+        case SGDataTypeRawValue.color4f: if case .float4 = value { constantColorOverrides[nodeName] = .color4f }
+        case SGDataTypeRawValue.color4h: if case .float4 = value { constantColorOverrides[nodeName] = .color4h }
+        case SGDataTypeRawValue.color3f: if case .float3 = value { constantColorOverrides[nodeName] = .color3f }
+        case SGDataTypeRawValue.color3h: if case .float3 = value { constantColorOverrides[nodeName] = .color3h }
+        default: break
+        }
+    }
+
     // Convert nodes dictionary to array
-    let nodes = material.nodes.values.map(toWebNode)
+    let nodes = material.nodes.values.map { toWebNode($0, colorOverride: constantColorOverrides[$0.name]) }
 
     // Convert edges
     let edges = toWebEdges(material.edges)
@@ -1369,13 +1434,23 @@ private func toWebMaterialGraph(_ material: _Proto_ShaderNodeGraph?) -> WKBridge
     // Convert outputs
     let outputs = toWebOutputs(material.outputs)
 
+    // Serialize primvarMappings as parallel arrays (sorted for determinism).
+    // _Proto_TextureCoordinate.name is internal so we map to the canonical UV name string.
+    let sortedPrimvarKeys = material.primvarMappings.keys.sorted()
+    let primvarPrimvarNames = sortedPrimvarKeys
+    let primvarTexcoordNames = sortedPrimvarKeys.map { texcoordName(for: material.primvarMappings[$0]!) }
+
     return WKBridgeMaterialGraph(
+        graphName: material.sgGraph.name,
         nodes: nodes,
         edges: edges,
         arguments: argumentsNode,
         results: resultsNode,
         inputs: inputs,
-        outputs: outputs
+        outputs: outputs,
+        primvarMappingPrimvarNames: primvarPrimvarNames,
+        primvarMappingTexcoordNames: primvarTexcoordNames,
+        functionConstantInputNames: material.functionConstantInputs
     )
 }
 
@@ -1383,209 +1458,211 @@ func webUpdateMaterialRequestFromUpdateMaterialRequest(
     _ request: _Proto_MaterialDataUpdate_v1
 ) -> WKBridgeUpdateMaterial {
     let bridgeMaterialGraph = toWebMaterialGraph(request.shaderGraph)
+
     return WKBridgeUpdateMaterial(
         materialGraph: bridgeMaterialGraph,
         identifier: .init(value: request.id.value, path: request.id.path, hashValue: request.id.hashValue)
     )
 }
 
-extension ShaderGraph._Proto_ShaderNodeGraph {
+extension _Proto_ShaderNodeGraph {
+    // Reconstructs the graph from the IPC bridge representation using the SGGraph API directly.
+    // This bypasses _Proto_ShaderDataType (which collapses color3h/color4h to cgColor3/cgColor4)
+    // and instead uses SGNode.create(nodeDefName:name:) for builtin nodes (preserving MaterialX
+    // half-precision color types: color3h/color4h) and SGNode.create(value:type:) for constant
+    // nodes (preserving the exact SGDataType transmitted over IPC, e.g. color4f).
     static func fromWKDescriptor(_ descriptor: WKBridgeMaterialGraph?) -> _Proto_ShaderNodeGraph? {
         guard let descriptor else { return nil }
 
         do {
-            // Create the shader graph with name, inputs, and outputs
             let graph = try _Proto_ShaderNodeGraph(
-                named: "MaterialGraph",
-                inputs: descriptor.inputs.map { input in
-                    // Create SemanticType if hasSemanticType is true
-                    let semanticType: _Proto_ShaderGraphNodeDefinition.SemanticType?
-                    let actualType: _Proto_ShaderDataType
-
-                    if input.hasSemanticType {
-                        // Determine the semantic type name from the WKBridgeDataType
-                        let semanticName: String
-                        switch input.semanticType {
-                        case .color3f, .color3h:
-                            semanticName = "color3f"
-                            actualType = .cgColor3
-                        case .color4f, .color4h:
-                            semanticName = "color4f"
-                            actualType = .cgColor4
-                        default:
-                            semanticName = "\(input.semanticType)"
-                            actualType = fromWKBridgeDataType(input.type)
-                        }
-                        semanticType = _Proto_ShaderGraphNodeDefinition.SemanticType(name: semanticName, values: nil)
-                    } else {
-                        semanticType = nil
-                        actualType = fromWKBridgeDataType(input.type)
-                    }
-
-                    let defaultValue: _Proto_ShaderGraphValue?
-                    if let container = input.defaultValue {
-                        defaultValue = fromWKBridgeConstant(container)
-                    } else {
-                        defaultValue = nil
-                    }
-
-                    return _Proto_ShaderGraphNodeDefinition.Input(
-                        name: input.name,
-                        type: actualType,
-                        semanticType: semanticType,
-                        defaultValue: defaultValue
+                named: descriptor.graphName.isEmpty ? "MaterialGraph" : descriptor.graphName,
+                inputs: descriptor.inputs.map {
+                    _Proto_ShaderGraphNodeDefinition.Input(
+                        name: $0.name,
+                        type: fromWKBridgeDataType($0.type),
+                        semanticType: $0.semanticTypeName.map { .init(name: $0) }
                     )
                 },
-                outputs: descriptor.outputs.map { output in
-                    // Create SemanticType if hasSemanticType is true
-                    let semanticType: _Proto_ShaderGraphNodeDefinition.SemanticType?
-                    let actualType: _Proto_ShaderDataType
-
-                    if output.hasSemanticType {
-                        // Determine the semantic type name from the WKBridgeDataType
-                        let semanticName: String
-                        switch output.semanticType {
-                        case .color3f, .color3h:
-                            semanticName = "color3f"
-                            actualType = .cgColor3
-                        case .color4f, .color4h:
-                            semanticName = "color4f"
-                            actualType = .cgColor4
-                        default:
-                            semanticName = "\(output.semanticType)"
-                            actualType = fromWKBridgeDataType(output.type)
-                        }
-                        semanticType = _Proto_ShaderGraphNodeDefinition.SemanticType(name: semanticName, values: nil)
-                    } else {
-                        semanticType = nil
-                        actualType = fromWKBridgeDataType(output.type)
-                    }
-
-                    let defaultValue: _Proto_ShaderGraphValue?
-                    if let container = output.defaultValue {
-                        defaultValue = fromWKBridgeConstant(container)
-                    } else {
-                        defaultValue = nil
-                    }
-
-                    return _Proto_ShaderGraphNodeDefinition.Output(
-                        name: output.name,
-                        type: actualType,
-                        semanticType: semanticType,
-                        defaultValue: defaultValue
+                outputs: descriptor.outputs.map {
+                    _Proto_ShaderGraphNodeDefinition.Output(
+                        name: $0.name,
+                        type: fromWKBridgeDataType($0.type),
+                        semanticType: $0.semanticTypeName.map { .init(name: $0) }
                     )
                 }
             )
 
-            // Get the shared shader graph library for looking up builtin definitions
-            let library = _Proto_ShaderNodeGraphLibrary.shared
-            // First pass: build a map to look up which edges connect to which inputs
-            // This helps us determine the expected type for constant nodes
-            var constantToInputType: [String: _Proto_ShaderDataType] = [:]
-            for edge in descriptor.edges {
-                // Find the definition of the input node to get the expected input type
-                if let inputNodeBridge = descriptor.nodes.first(where: { ($0.builtin?.name ?? $0.constant?.name) == edge.inputNode }),
-                    let builtin = inputNodeBridge.builtin,
-                    !builtin.definition.isEmpty,
-                    let definition = library.definition(named: builtin.definition)
-                {
-                    // Find the input port in the definition
-                    if let input = definition.inputs.first(where: { $0.name == edge.inputPort }) {
-                        constantToInputType[edge.outputNode] = input.type
-                    }
-                }
-            }
+            let sgGraph = graph.sgGraph
+            let argumentsName = graph.arguments.name
+            let resultsName = graph.results.name
 
-            // Convert bridge nodes to a dictionary of nodes
-            var nodesDictionary: [String: _Proto_ShaderNodeGraph.Node] = [:]
+            // Build nodes using the SGGraph API to preserve MaterialX type precision.
+            var sgNodes: [SGNode] = []
             for bridgeNode in descriptor.nodes {
-                let nodeName = bridgeNode.builtin?.name ?? bridgeNode.constant?.name ?? "unknown"
-
                 switch bridgeNode.bridgeNodeType {
                 case .constant:
-                    // Handle constant nodes
-                    if let constant = bridgeNode.constant {
-                        // Check if this constant feeds into an input that expects a color type
-                        var value = fromWKBridgeConstant(constant)
-                        // If this constant is float4 but connects to a cgColor4 input, convert it
-                        if case .float4(let vec) = value,
-                            let expectedType = constantToInputType[nodeName],
-                            expectedType == .cgColor4
-                        {
-                            value = .cgColor4(
-                                CGColor(
-                                    red: CGFloat(vec.x),
-                                    green: CGFloat(vec.y),
-                                    blue: CGFloat(vec.z),
-                                    alpha: CGFloat(vec.w)
-                                )
-                            )
-                        }
-                        let node = _Proto_ShaderNodeGraph.Node(name: nodeName, data: .constant(value))
-                        nodesDictionary[nodeName] = node
+                    if let constant = bridgeNode.constant,
+                        let sgNode = try? makeConstantSGNode(from: constant)
+                    {
+                        sgNodes.append(sgNode)
                     }
-
-                case .builtin, .arguments, .results:
-                    // Handle builtin, arguments, and results nodes
-                    if let builtin = bridgeNode.builtin, !builtin.definition.isEmpty {
-                        if let definition = library.definition(named: builtin.definition) {
-                            let node = _Proto_ShaderNodeGraph.Node(name: nodeName, data: .definition(definition))
-                            nodesDictionary[nodeName] = node
-                        } else {
-                            logError("Could not find builtin definition named '\(builtin.definition)' for node '\(nodeName)'")
-                            // Don't add this node to the dictionary - it will be filtered out later
-                        }
-                    } else {
-                        // For arguments/results nodes without definitions, skip them
-                        // These are special node types that don't need explicit nodes in the graph
-                        logInfo("Skipping \(bridgeNode.bridgeNodeType) node '\(nodeName)' (no definition)")
+                case .builtin:
+                    if let builtin = bridgeNode.builtin, !builtin.definition.isEmpty,
+                        let sgNode = try? SGNode.create(nodeDefName: builtin.definition, name: builtin.name)
+                    {
+                        sgNodes.append(sgNode)
                     }
-
+                case .arguments, .results:
+                    break
                 @unknown default:
-                    fatalError("Unknown node type for node '\(nodeName)'")
+                    let name = bridgeNode.builtin?.name ?? bridgeNode.constant?.name ?? "unknown"
+                    fatalError("Unknown node type '\(name)'")
                 }
             }
+            try sgGraph.insert(sgNodes)
 
-            // Build a set of valid node names (excluding special nodes like arguments/results)
-            let validNodeNames = Set(nodesDictionary.keys)
-
-            // Get the names of arguments and results nodes from the descriptor fields
-            // These are stored separately in descriptor.arguments and descriptor.results, not in descriptor.nodes
-            let specialNodeNames = Set(
-                [descriptor.arguments, descriptor.results]
-                    .compactMap {
-                        $0.builtin?.name ?? $0.constant?.name
-                    }
-            )
-
-            // Convert bridge edges to edges, filtering out edges that reference truly missing nodes
-            let edges = descriptor.edges.compactMap { bridgeEdge -> _Proto_ShaderNodeGraph.Edge? in
-                let outputExists = validNodeNames.contains(bridgeEdge.outputNode) || specialNodeNames.contains(bridgeEdge.outputNode)
-                let inputExists = validNodeNames.contains(bridgeEdge.inputNode) || specialNodeNames.contains(bridgeEdge.inputNode)
-
-                guard outputExists && inputExists else {
+            // Connect edges via the SGGraph API.
+            let insertedNames = Set(sgNodes.map { $0.name })
+                .union([argumentsName, resultsName])
+            for bridgeEdge in descriptor.edges {
+                guard insertedNames.contains(bridgeEdge.outputNode),
+                    insertedNames.contains(bridgeEdge.inputNode)
+                else { continue }
+                let outputNode =
+                    bridgeEdge.outputNode == argumentsName
+                    ? sgGraph.argumentsNode
+                    : bridgeEdge.outputNode == resultsName ? sgGraph.resultsNode : sgGraph.node(named: bridgeEdge.outputNode)
+                let inputNode =
+                    bridgeEdge.inputNode == argumentsName
+                    ? sgGraph.argumentsNode
+                    : bridgeEdge.inputNode == resultsName ? sgGraph.resultsNode : sgGraph.node(named: bridgeEdge.inputNode)
+                guard let output = outputNode?.outputNamed(bridgeEdge.outputPort),
+                    let input = inputNode?.inputNamed(bridgeEdge.inputPort)
+                else { continue }
+                do {
+                    try sgGraph.connect(output, to: input)
+                } catch {
                     logError(
-                        "Skipping edge from '\(bridgeEdge.outputNode).\(bridgeEdge.outputPort)' to '\(bridgeEdge.inputNode).\(bridgeEdge.inputPort)' - one or both nodes not found"
+                        "Failed to connect \(bridgeEdge.outputNode):\(bridgeEdge.outputPort) -> \(bridgeEdge.inputNode):\(bridgeEdge.inputPort): \(error)"
                     )
-                    return nil
                 }
-
-                return _Proto_ShaderNodeGraph.Edge(
-                    outputNode: bridgeEdge.outputNode,
-                    outputPort: bridgeEdge.outputPort,
-                    inputNode: bridgeEdge.inputNode,
-                    inputPort: bridgeEdge.inputPort
-                )
             }
 
-            // Use replace to set nodes and edges
-            try graph.replace(nodes: nodesDictionary, edges: edges)
+            // Restore primvarMappings so ShaderGraph knows how to resolve UV primvar names
+            // (e.g. "UV0") to actual mesh texture coordinates. Without this the ND_geompropvalue
+            // node can't find UV data and all texture sampling breaks.
+            for (primvarName, texcoordName) in zip(descriptor.primvarMappingPrimvarNames, descriptor.primvarMappingTexcoordNames) {
+                if let texcoord = textureCoordinate(from: texcoordName) {
+                    graph.primvarMappings[primvarName] = texcoord
+                }
+            }
+
+            // Restore functionConstantInputs so runtime-driven inputs are declared correctly.
+            graph.functionConstantInputs = descriptor.functionConstantInputNames
 
             return graph
         } catch {
-            logError("Failed to create ShaderNodeGraph: \(error)")
+            logError("Failed to reconstruct ShaderNodeGraph: \(error)")
             return nil
         }
+    }
+}
+
+// Creates an SGNode for a constant directly with the exact SGDataType, bypassing the lossy
+// _Proto_ShaderGraphValue layer. This preserves color4f (44) vs cgColor4 (56) distinctions.
+private func makeConstantSGNode(from constant: WKBridgeConstantContainer) throws -> SGNode {
+    let values = constant.constantValues
+    let name = constant.name
+
+    // Helpers to build NSNumber arrays and CGColors for the SGNode factory methods.
+    func nums(_ n: Int) -> NSArray { values[0..<n].map { $0.number } as NSArray }
+    func extendedColor(_ n: Int) -> CGColor {
+        let comps =
+            (0..<n).map { CGFloat(values[$0].number.floatValue) }
+            + (n == 3 ? [CGFloat(1.0)] : [])
+        return CGColor(red: comps[0], green: comps[1], blue: comps[2], alpha: comps.count > 3 ? comps[3] : 1)
+    }
+
+    switch constant.constant {
+    case .bool:
+        return try SGNode.create(values.first?.number.boolValue ?? false, name: name)
+    case .uchar:
+        return try SGNode.create(values.first?.number ?? 0, type: .uchar, name: name)
+    case .int:
+        return try SGNode.create(values.first?.number ?? 0, type: .int, name: name)
+    case .uint:
+        return try SGNode.create(values.first?.number ?? 0, type: .uint, name: name)
+    case .half:
+        return try SGNode.create(values.first?.number ?? 0, type: .half, name: name)
+    case .float:
+        return try SGNode.create(values.first?.number ?? 0, type: .float, name: name)
+    case .timecode:
+        return try SGNode.create(values.first?.number ?? 0, type: .timecode, name: name)
+    case .string:
+        return try SGNode.create(value: values.first?.string ?? "", type: .string, name: name)
+    case .token:
+        return try SGNode.create(value: values.first?.string ?? "", type: .token, name: name)
+    case .asset:
+        return try SGNode.create(value: values.first?.string ?? "", type: .asset, name: name)
+    case .float2:
+        return try SGNode.create(nums(2), type: .float2, name: name)
+    case .texCoord2f:
+        return try SGNode.create(nums(2), type: .texCoord2f, name: name)
+    case .texCoord2h:
+        return try SGNode.create(nums(2), type: .texCoord2h, name: name)
+    case .float3:
+        return try SGNode.create(nums(3), type: .float3, name: name)
+    case .vector3f:
+        return try SGNode.create(nums(3), type: .vector3f, name: name)
+    case .point3f:
+        return try SGNode.create(nums(3), type: .point3f, name: name)
+    case .normal3f:
+        return try SGNode.create(nums(3), type: .normal3f, name: name)
+    case .texCoord3f:
+        return try SGNode.create(nums(3), type: .texCoord3f, name: name)
+    case .vector3h:
+        return try SGNode.create(nums(3), type: .vector3h, name: name)
+    case .point3h:
+        return try SGNode.create(nums(3), type: .point3h, name: name)
+    case .normal3h:
+        return try SGNode.create(nums(3), type: .normal3h, name: name)
+    case .half3:
+        return try SGNode.create(nums(3), type: .half3, name: name)
+    case .texCoord3h:
+        return try SGNode.create(nums(3), type: .texCoord3h, name: name)
+    case .float4, .matrix2f:
+        return try SGNode.create(nums(4), type: .float4, name: name)
+    case .half2:
+        return try SGNode.create(nums(2), type: .half2, name: name)
+    case .half4:
+        return try SGNode.create(nums(4), type: .half4, name: name)
+    case .int2:
+        return try SGNode.create(nums(2), type: .int2, name: name)
+    case .int3:
+        return try SGNode.create(nums(3), type: .int3, name: name)
+    case .int4:
+        return try SGNode.create(nums(4), type: .int4, name: name)
+    case .matrix3f:
+        return try SGNode.create(nums(9), type: .matrix3f, name: name)
+    case .matrix4f:
+        return try SGNode.create(nums(16), type: .matrix4f, name: name)
+    case .quatf, .quath:
+        return try SGNode.create(nums(4), type: .quatf, name: name)
+    case .cgColor3:
+        return try SGNode.createColor3(color: extendedColor(3), name: name)
+    case .cgColor4:
+        return try SGNode.createColor4(color: extendedColor(4), name: name)
+    case .color4f:
+        return try SGNode.create(nums(4), type: .color4f, name: name)
+    case .color4h:
+        return try SGNode.create(nums(4), type: .color4h, name: name)
+    case .color3f:
+        return try SGNode.create(nums(3), type: .color3f, name: name)
+    case .color3h:
+        return try SGNode.create(nums(3), type: .color3h, name: name)
+    @unknown default:
+        fatalError("makeConstantSGNode - Unhandled constant type \(constant.constant) for '\(name)'")
     }
 }
 
@@ -1599,10 +1676,8 @@ private func fromWKBridgeDataType(_ dataType: WKBridgeDataType) -> _Proto_Shader
     case .int3: .int3
     case .int4: .int4
     case .float: .float
-    case .color3f: .cgColor3
-    case .color3h: .cgColor3 // Map to cgColor3, closest match
-    case .color4f: .cgColor4
-    case .color4h: .cgColor4 // Map to cgColor4, closest match
+    case .cgColor3: .cgColor3
+    case .cgColor4: .cgColor4
     case .float2: .float2
     case .float3: .float3
     case .float4: .float4
@@ -1632,30 +1707,33 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
 
     switch constant.constant {
     case .bool:
-        return .bool(values.first?.number.boolValue ?? false)
+        guard let v = values.first else { fatalError("fromWKBridgeConstant: missing value for bool constant '\(constant.name)'") }
+        return .bool(v.number.boolValue)
     case .uchar:
-        return .uchar(values.first?.number.uint8Value ?? 0)
+        guard let v = values.first else { fatalError("fromWKBridgeConstant: missing value for uchar constant '\(constant.name)'") }
+        return .uchar(v.number.uint8Value)
     case .int:
-        return .int(Int32(values.first?.number.intValue ?? 0))
+        guard let v = values.first else { fatalError("fromWKBridgeConstant: missing value for int constant '\(constant.name)'") }
+        return .int(Int32(v.number.intValue))
     case .uint:
-        return .uint(UInt32(values.first?.number.uintValue ?? 0))
+        guard let v = values.first else { fatalError("fromWKBridgeConstant: missing value for uint constant '\(constant.name)'") }
+        return .uint(UInt32(v.number.uintValue))
     case .half:
-        return .half(values.first?.number.uint16Value ?? 0)
+        guard let v = values.first else { fatalError("fromWKBridgeConstant: missing value for half constant '\(constant.name)'") }
+        return .half(v.number.uint16Value)
     case .float:
-        return .float(values.first?.number.floatValue ?? 0)
+        guard let v = values.first else { fatalError("fromWKBridgeConstant: missing value for float constant '\(constant.name)'") }
+        return .float(v.number.floatValue)
     case .string, .token, .asset:
-        let stringValue = values.first?.string ?? ""
-        if stringValue.isEmpty && !values.isEmpty {
-            logInfo(
-                "⚠️ DEBUG: String value is empty for node '\(constant.name)'. values.count=\(values.count), first value=\(String(describing: values.first))"
-            )
-        }
-        return .string(stringValue)
+        guard let v = values.first else { fatalError("fromWKBridgeConstant: missing value for string constant '\(constant.name)'") }
+        return .string(v.string)
     case .timecode:
-        // timecode maps to float
-        return .float(Float(values.first?.number.doubleValue ?? 0))
+        guard let v = values.first else { fatalError("fromWKBridgeConstant: missing value for timecode constant '\(constant.name)'") }
+        return .float(Float(v.number.doubleValue))
     case .float2, .texCoord2f:
-        guard values.count >= 2 else { return .float2(.zero) }
+        guard values.count >= 2 else {
+            fatalError("fromWKBridgeConstant: expected 2 values for float2 constant '\(constant.name)', got \(values.count)")
+        }
         return .float2(
             SIMD2<Float>(
                 values[0].number.floatValue,
@@ -1664,7 +1742,9 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
         )
     case .vector3f, .float3, .point3f, .normal3f, .texCoord3f:
         // All float3-based semantic types map to float3
-        guard values.count >= 3 else { return .float3(.zero) }
+        guard values.count >= 3 else {
+            fatalError("fromWKBridgeConstant: expected 3 values for float3 constant '\(constant.name)', got \(values.count)")
+        }
         return .float3(
             SIMD3<Float>(
                 values[0].number.floatValue,
@@ -1673,7 +1753,9 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
             )
         )
     case .float4, .matrix2f:
-        guard values.count >= 4 else { return .float4(.zero) }
+        guard values.count >= 4 else {
+            fatalError("fromWKBridgeConstant: expected 4 values for float4 constant '\(constant.name)', got \(values.count)")
+        }
         return .float4(
             SIMD4<Float>(
                 values[0].number.floatValue,
@@ -1684,7 +1766,9 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
         )
     case .half2, .texCoord2h:
         // half2-based semantic types map to half2
-        guard values.count >= 2 else { return .half2(.zero) }
+        guard values.count >= 2 else {
+            fatalError("fromWKBridgeConstant: expected 2 values for half2 constant '\(constant.name)', got \(values.count)")
+        }
         return .half2(
             SIMD2<UInt16>(
                 values[0].number.uint16Value,
@@ -1693,7 +1777,9 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
         )
     case .vector3h, .half3, .point3h, .normal3h, .texCoord3h:
         // All half3-based semantic types map to half3
-        guard values.count >= 3 else { return .half3(.zero) }
+        guard values.count >= 3 else {
+            fatalError("fromWKBridgeConstant: expected 3 values for half3 constant '\(constant.name)', got \(values.count)")
+        }
         return .half3(
             SIMD3<UInt16>(
                 values[0].number.uint16Value,
@@ -1702,7 +1788,9 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
             )
         )
     case .half4:
-        guard values.count >= 4 else { return .half4(.zero) }
+        guard values.count >= 4 else {
+            fatalError("fromWKBridgeConstant: expected 4 values for half4 constant '\(constant.name)', got \(values.count)")
+        }
         return .half4(
             SIMD4<UInt16>(
                 values[0].number.uint16Value,
@@ -1712,7 +1800,9 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
             )
         )
     case .int2:
-        guard values.count >= 2 else { return .int2(.zero) }
+        guard values.count >= 2 else {
+            fatalError("fromWKBridgeConstant: expected 2 values for int2 constant '\(constant.name)', got \(values.count)")
+        }
         return .int2(
             SIMD2<Int32>(
                 values[0].number.int32Value,
@@ -1720,7 +1810,9 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
             )
         )
     case .int3:
-        guard values.count >= 3 else { return .int3(.zero) }
+        guard values.count >= 3 else {
+            fatalError("fromWKBridgeConstant: expected 3 values for int3 constant '\(constant.name)', got \(values.count)")
+        }
         return .int3(
             SIMD3<Int32>(
                 values[0].number.int32Value,
@@ -1729,7 +1821,9 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
             )
         )
     case .int4:
-        guard values.count >= 4 else { return .int4(.zero) }
+        guard values.count >= 4 else {
+            fatalError("fromWKBridgeConstant: expected 4 values for int4 constant '\(constant.name)', got \(values.count)")
+        }
         return .int4(
             SIMD4<Int32>(
                 values[0].number.int32Value,
@@ -1741,12 +1835,7 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
     case .matrix3f:
         // matrix3f maps to float3x3 - needs 9 values (3 columns of 3 rows each)
         guard values.count >= 9 else {
-            // Return identity matrix if values are missing
-            return .float3x3(
-                SIMD3<Float>(1, 0, 0),
-                SIMD3<Float>(0, 1, 0),
-                SIMD3<Float>(0, 0, 1)
-            )
+            fatalError("fromWKBridgeConstant: expected 9 values for matrix3f constant '\(constant.name)', got \(values.count)")
         }
         return .float3x3(
             SIMD3<Float>(values[0].number.floatValue, values[1].number.floatValue, values[2].number.floatValue),
@@ -1756,13 +1845,7 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
     case .matrix4f:
         // matrix4f maps to float4x4 - needs 16 values (4 columns of 4 rows each)
         guard values.count >= 16 else {
-            // Return identity matrix if values are missing
-            return .float4x4(
-                SIMD4<Float>(1, 0, 0, 0),
-                SIMD4<Float>(0, 1, 0, 0),
-                SIMD4<Float>(0, 0, 1, 0),
-                SIMD4<Float>(0, 0, 0, 1)
-            )
+            fatalError("fromWKBridgeConstant: expected 16 values for matrix4f constant '\(constant.name)', got \(values.count)")
         }
         return .float4x4(
             SIMD4<Float>(
@@ -1792,7 +1875,9 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
         )
     case .quatf, .quath:
         // quath/quatf don't exist in the enum - map to float4
-        guard values.count >= 4 else { return .float4(.zero) }
+        guard values.count >= 4 else {
+            fatalError("fromWKBridgeConstant: expected 4 values for quat constant '\(constant.name)', got \(values.count)")
+        }
         return .float4(
             SIMD4<Float>(
                 values[0].number.floatValue,
@@ -1801,29 +1886,60 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
                 values[3].number.floatValue
             )
         )
-    case .color3f, .color3h:
-        // color3f/h map to cgColor3
+    case .cgColor3:
         guard values.count >= 3 else {
-            // Return a default black color if values are missing
-            return .cgColor3(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
+            fatalError("fromWKBridgeConstant: expected 3 values for color3 constant '\(constant.name)', got \(values.count)")
         }
-        let red = CGFloat(values[0].number.floatValue)
-        let green = CGFloat(values[1].number.floatValue)
-        let blue = CGFloat(values[2].number.floatValue)
-        return .cgColor3(CGColor(red: red, green: green, blue: blue, alpha: 1))
-    case .color4f, .color4h:
-        // color4f/h map to cgColor4
+        // Use extendedLinearSRGB to preserve values outside [0,1] (e.g. negative bias, scale > 1).
+        // CGColor(red:green:blue:alpha:) clamps to device RGB [0,1] which corrupts shader constants.
+        let components3: [CGFloat] = [
+            CGFloat(values[0].number.floatValue),
+            CGFloat(values[1].number.floatValue),
+            CGFloat(values[2].number.floatValue),
+            1.0,
+        ]
+        return .cgColor3(CGColor(red: components3[0], green: components3[1], blue: components3[2], alpha: 1.0))
+    case .cgColor4:
         guard values.count >= 4 else {
-            // Return a default transparent black color if values are missing
-            return .cgColor4(CGColor(red: 0, green: 0, blue: 0, alpha: 0))
+            fatalError("fromWKBridgeConstant: expected 4 values for color4 constant '\(constant.name)', got \(values.count)")
         }
-        let red = CGFloat(values[0].number.floatValue)
-        let green = CGFloat(values[1].number.floatValue)
-        let blue = CGFloat(values[2].number.floatValue)
-        let alpha = CGFloat(values[3].number.floatValue)
-        return .cgColor4(CGColor(red: red, green: green, blue: blue, alpha: alpha))
+        // Use extendedLinearSRGB to preserve values outside [0,1] (e.g. negative bias, scale > 1).
+        // CGColor(red:green:blue:alpha:) clamps to device RGB [0,1] which corrupts shader constants.
+        let components4: [CGFloat] = [
+            CGFloat(values[0].number.floatValue),
+            CGFloat(values[1].number.floatValue),
+            CGFloat(values[2].number.floatValue),
+            CGFloat(values[3].number.floatValue),
+        ]
+        return .cgColor4(CGColor(red: components4[0], green: components4[1], blue: components4[2], alpha: components4[3]))
+    case .color4f:
+        // USD/MaterialX color4f or color4h — encoded as 4 raw floats without CGColor clamping.
+        // Decoded as cgColor4 via extendedLinearSRGB to preserve color semantics for MaterialX.
+        guard values.count >= 4 else {
+            fatalError("fromWKBridgeConstant: expected 4 values for color4f constant '\(constant.name)', got \(values.count)")
+        }
+        let components4f: [CGFloat] = [
+            CGFloat(values[0].number.floatValue),
+            CGFloat(values[1].number.floatValue),
+            CGFloat(values[2].number.floatValue),
+            CGFloat(values[3].number.floatValue),
+        ]
+        return .cgColor4(CGColor(red: components4f[0], green: components4f[1], blue: components4f[2], alpha: components4f[3]))
+    case .color3f:
+        // USD/MaterialX color3f or color3h — encoded as 3 raw floats without CGColor clamping.
+        // Decoded as cgColor3 via extendedLinearSRGB to preserve color semantics for MaterialX.
+        guard values.count >= 3 else {
+            fatalError("fromWKBridgeConstant: expected 3 values for color3f constant '\(constant.name)', got \(values.count)")
+        }
+        let components3f: [CGFloat] = [
+            CGFloat(values[0].number.floatValue),
+            CGFloat(values[1].number.floatValue),
+            CGFloat(values[2].number.floatValue),
+            1.0,
+        ]
+        return .cgColor3(CGColor(red: components3f[0], green: components3f[1], blue: components3f[2], alpha: 1.0))
     @unknown default:
-        return .string("")
+        fatalError("fromWKBridgeConstant: unhandled constant type \(constant.constant) for '\(constant.name)'")
     }
 }
 
@@ -1845,17 +1961,14 @@ final class USDModelLoader {
     @nonobjc
     fileprivate var loop: Bool = false
 
-    @nonobjc
-    let frameUpdateQueue: FrameUpdateQueue = .init()
-
-    init(objcInstance: WKBridgeModelLoader) {
+    init(objcInstance: WKBridgeModelLoader, gpuFamily: MTLGPUFamily) {
         objcLoader = objcInstance
-        usdStageSession = _Proto_UsdStageSession_v1.noMetalSessionWithSynchronizedUpdate(gpuFamily: MTLGPUFamily.apple7)
+        usdStageSession = _Proto_UsdStageSession_v1.noMetalSessionWithSynchronizedUpdate(gpuFamily: gpuFamily)
     }
 
     func loadModel(from url: Foundation.URL) {
         do {
-            let stage = try UsdStage(contentsOf: url)
+            let stage = try UsdStage.open(url)
             self.setupTimes(from: stage)
             self.usdStageSession.loadStage(stage)
         } catch {
@@ -1879,10 +1992,22 @@ final class USDModelLoader {
         }
     }
 
+    func loadEnvironmentMap(_ data: Foundation.Data) -> WKBridgeUpdateTexture? {
+        guard
+            let textureData = self.usdStageSession.importCustomIBLTexture(
+                identifier: .init(UUID().uuidString),
+                data: data
+            )
+        else { return nil }
+
+        return webUpdateTextureRequestFromUpdateTextureRequest(textureData)
+    }
+
     func setupTimes(from stage: UsdStage) {
         timeCodePerSecond = stage.timeCodesPerSecond > 0 ? stage.timeCodesPerSecond : 1
         startTime = stage.startTimeCode / timeCodePerSecond
         endTime = stage.endTimeCode / timeCodePerSecond
+        time = 0
     }
 
     func duration() -> Double {
@@ -1900,9 +2025,7 @@ final class USDModelLoader {
     func loadModel(from data: Data) {
     }
 
-    func update(deltaTime: TimeInterval) async {
-        // Fetch all pending prim updates for this frame in one synchronous call,
-        // replacing the delegate callback pattern used in UsdSample.
+    func update(deltaTime: TimeInterval) {
         let frameUpdate = usdStageSession.updateAndFetchFrameData(time: time * timeCodePerSecond)
 
         let newTime = currentTime() + deltaTime
@@ -1939,23 +2062,10 @@ final class USDModelLoader {
         // Each phase completes before the next begins so that:
         //   - textureHashesAndResources is fully populated before makeParameters reads it inside material Tasks
         //   - materialsAndParams has Task entries for all new materials before mesh processing looks them up
-
-        // Acquire an update slot before processing frame update to avoid racing between different updates
-        // If there's already a frame update being processed, discard the current update
-        guard await frameUpdateQueue.acquireUpdateSlot() else {
-            return
-        }
-
-        do {
-            try processRemovals(meshRemovals: meshRemovals, materialRemovals: materialRemovals, textureRemovals: textureRemovals)
-            try processTextureUpdates(textureUpdates)
-            processMaterialUpdates(materialUpdates)
-            try await processMeshUpdates(meshUpdates)
-        } catch {
-            fatalError(error.localizedDescription)
-        }
-
-        await frameUpdateQueue.releaseUpdateSlot()
+        processRemovals(meshRemovals: meshRemovals, materialRemovals: materialRemovals, textureRemovals: textureRemovals)
+        processTextureUpdates(textureUpdates)
+        processMaterialUpdates(materialUpdates)
+        processMeshUpdates(meshUpdates)
     }
 
     private func processErrors(_ errors: _Proto_UsdStageSession_v1.FrameUpdate.Errors) {
@@ -1974,11 +2084,18 @@ final class USDModelLoader {
         meshRemovals: [_Proto_MeshId],
         materialRemovals: [_Proto_MaterialId],
         textureRemovals: [_Proto_TextureId]
-    ) throws {
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=311113
+    ) {
+        self.objcLoader.processRemovals(
+            removals:
+                WKBridgeRemovals(
+                    meshRemovals: meshRemovals.map { .init(value: $0.value, path: $0.path, hashValue: $0.hashValue) },
+                    materialRemovals: materialRemovals.map { .init(value: $0.value, path: $0.path, hashValue: $0.hashValue) },
+                    textureRemovals: textureRemovals.map { .init(value: $0.value, path: $0.path, hashValue: $0.hashValue) }
+                )
+        )
     }
 
-    private func processTextureUpdates(_ updates: [_Proto_TextureDataUpdate_v1]) throws {
+    private func processTextureUpdates(_ updates: [_Proto_TextureDataUpdate_v1]) {
         self.objcLoader.updateTexture(webRequest: updates.map { webUpdateTextureRequestFromUpdateTextureRequest($0) })
     }
 
@@ -1986,7 +2103,7 @@ final class USDModelLoader {
         self.objcLoader.updateMaterial(webRequest: updates.map { webUpdateMaterialRequestFromUpdateMaterialRequest($0) })
     }
 
-    private func processMeshUpdates(_ updates: [_Proto_MeshDataUpdate_v1]) async throws {
+    private func processMeshUpdates(_ updates: [_Proto_MeshDataUpdate_v1]) {
         self.objcLoader.updateMesh(webRequest: updates.map { webUpdateMeshRequestFromUpdateMeshRequest($0) })
     }
 }
@@ -2002,57 +2119,61 @@ extension WKBridgeModelLoader {
     var textureUpdatedCallback: (([WKBridgeUpdateTexture]) -> (Void))?
     @nonobjc
     var materialUpdatedCallback: (([WKBridgeUpdateMaterial]) -> (Void))?
+    @nonobjc
+    var processRemovalsCallback: ((WKBridgeRemovals) -> (Void))?
 
     @nonobjc
     fileprivate var retainedRequests: Set<NSObject> = []
 
-    override init() {
+    @objc(initWithGPUFamily:)
+    init(gpuFamily: MTLGPUFamily) {
         super.init()
 
-        self.loader = USDModelLoader(objcInstance: self)
+        self.loader = USDModelLoader(objcInstance: self, gpuFamily: gpuFamily)
     }
 
     @objc(
         setCallbacksWithModelUpdatedCallback:
         textureUpdatedCallback:
         materialUpdatedCallback:
+        processRemovalsCallback:
     )
     func setCallbacksWithModelUpdatedCallback(
         _ modelUpdatedCallback: @escaping (([WKBridgeUpdateMesh]) -> (Void)),
         textureUpdatedCallback: @escaping (([WKBridgeUpdateTexture]) -> (Void)),
-        materialUpdatedCallback: @escaping (([WKBridgeUpdateMaterial]) -> (Void))
+        materialUpdatedCallback: @escaping (([WKBridgeUpdateMaterial]) -> (Void)),
+        processRemovalsCallback: @escaping ((WKBridgeRemovals) -> (Void))
     ) {
         self.modelUpdated = modelUpdatedCallback
         self.textureUpdatedCallback = textureUpdatedCallback
         self.materialUpdatedCallback = materialUpdatedCallback
+        self.processRemovalsCallback = processRemovalsCallback
     }
 
-    @objc
     func loadModel(from url: Foundation.URL) {
         self.loader?.loadModel(from: url)
     }
 
-    @objc
     func loadModel(_ data: Foundation.Data) {
         self.loader?.loadModel(data: data)
     }
 
-    @objc(update:completionHandler:)
-    func update(_ deltaTime: Double) async {
-        await self.loader?.update(deltaTime: deltaTime)
+    func loadEnvironmentMap(_ data: Foundation.Data) -> WKBridgeUpdateTexture? {
+        self.loader?.loadEnvironmentMap(data)
     }
 
-    @objc
+    func update(_ deltaTime: Double) {
+        self.loader?.update(deltaTime: deltaTime)
+    }
+
     func setLoop(_ loop: Bool) {
         self.loader?.loop = loop
     }
 
-    @objc
     func requestCompleted(_ request: NSObject) {
         retainedRequests.remove(request)
     }
 
-    @objc
     func duration() -> Double {
         guard let loader else {
             return 0.0
@@ -2060,7 +2181,6 @@ extension WKBridgeModelLoader {
         return loader.duration()
     }
 
-    @objc
     func currentTime() -> Double {
         guard let loader else {
             return 0.0
@@ -2068,7 +2188,6 @@ extension WKBridgeModelLoader {
         return loader.currentTime()
     }
 
-    @objc
     func setCurrentTime(_ newTime: Double) {
         loader?.setCurrentTime(newTime)
     }
@@ -2102,12 +2221,23 @@ extension WKBridgeModelLoader {
             materialUpdatedCallback(webRequest)
         }
     }
+    fileprivate func processRemovals(removals: WKBridgeRemovals) {
+        if removals.isEmpty() {
+            return
+        }
+
+        if let processRemovalsCallback {
+            retainedRequests.insert(removals)
+            processRemovalsCallback(removals)
+        }
+    }
 }
 
 private func makeFallBackTextureResource(
     _ renderContext: any _Proto_LowLevelRenderContext_v1,
     commandQueue: any MTLCommandQueue,
-    device: any MTLDevice
+    device: any MTLDevice,
+    memoryOwner: task_id_token_t
 ) -> _Proto_LowLevelTextureResource_v1 {
     // Create 1x1 white fallback texture
     let fallbackDescriptor = _Proto_LowLevelTextureResource_v1.Descriptor(
@@ -2124,11 +2254,7 @@ private func makeFallBackTextureResource(
     // White color: RGBA = (255, 255, 255, 255)
     let whitePixel: [UInt8] = [255, 255, 255, 255]
 
-    // Create staging buffer for white pixel data
-    let stagingBuffer = unsafe whitePixel.withUnsafeBytes { bytes in
-        // swift-format-ignore: NeverForceUnwrap
-        unsafe device.makeBuffer(bytes: bytes.baseAddress!, length: bytes.count, options: .storageModeShared)!
-    }
+    let stagingBuffer = device.makeBuffer(fromSpan: whitePixel.span, length: whitePixel.count, memoryOwner: memoryOwner)
 
     // Create command buffer to upload white pixel data
     // swift-format-ignore: NeverForceUnwrap
@@ -2156,505 +2282,6 @@ private func makeFallBackTextureResource(
     return fallbackTexture
 }
 
-func configureDeformation(
-    identifier: WKBridgeTypedResourceId,
-    deformationData: WKBridgeDeformationData,
-    commandBuffer: any MTLCommandBuffer,
-    device: any MTLDevice,
-    meshResource: _Proto_LowLevelMeshResource_v1,
-    meshResourceToDeformationContext: inout [WKBridgeTypedResourceId: DeformationContext],
-    deformationSystem: _Proto_LowLevelDeformationSystem_v1,
-    memoryOwner: task_id_token_t
-) {
-    meshResourceToDeformationContext[identifier] = buildDeformationContext(
-        meshResource: meshResource,
-        deformationData: deformationData,
-        commandBuffer: commandBuffer,
-        device: device,
-        deformationSystem: deformationSystem,
-        existingContext: meshResourceToDeformationContext[identifier],
-        identifierDescription: identifier.description,
-        memoryOwner: memoryOwner
-    )
-}
-
-func buildDeformationContext(
-    meshResource: _Proto_LowLevelMeshResource_v1,
-    deformationData: WKBridgeDeformationData,
-    commandBuffer: any MTLCommandBuffer,
-    device: any MTLDevice,
-    deformationSystem: _Proto_LowLevelDeformationSystem_v1,
-    existingContext: DeformationContext?,
-    identifierDescription: String,
-    memoryOwner: task_id_token_t
-) -> DeformationContext {
-    var deformers: [any _Proto_LowLevelDeformerDescription_v1] = []
-
-    if let skinningData = deformationData.skinningData {
-        let skinningDeformer = skinningData.makeDeformerDescription(device: device, memoryOwner: memoryOwner)
-        deformers.append(skinningDeformer)
-    }
-
-    if let blendShapeData = deformationData.blendShapeData {
-        do {
-            let blendShapeDeformer = try blendShapeData.makeDeformerDescription(device: device, memoryOwner: memoryOwner)
-            deformers.append(blendShapeDeformer)
-        } catch {
-            print("Error creating blend shape deformer for \(identifierDescription): \(error.localizedDescription)")
-        }
-    }
-
-    // TODO: add tangent frame data to input
-    if let renormalizationData = deformationData.renormalizationData {
-        do {
-            let renormalization = try renormalizationData.makeDeformerDescription(device: device, memoryOwner: memoryOwner)
-            deformers.append(renormalization)
-        } catch {
-            print("Error creating renormalization deformer for \(identifierDescription): \(error.localizedDescription)")
-        }
-    }
-
-    assert(!deformers.isEmpty)
-
-    let inputMeshDescription: _Proto_LowLevelDeformationDescription_v1.MeshDescription?
-    if let existingContext {
-        inputMeshDescription = existingContext.description.input
-    } else {
-        inputMeshDescription = makeInputMeshDescriptionForDeformation(
-            meshResource: meshResource,
-            deformationData: deformationData,
-            commandBuffer: commandBuffer,
-            device: device
-        )
-    }
-
-    let outputMeshDescription = makeOutputMeshDescriptionForDeformation(
-        meshResource: meshResource,
-        deformationData: deformationData,
-        commandBuffer: commandBuffer,
-        device: device
-    )
-
-    // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-    // swift-format-ignore: NeverForceUnwrap
-    let deformationDescription =
-        try? _Proto_LowLevelDeformationDescription_v1.make(
-            input: inputMeshDescription!,
-            deformers: deformers,
-            output: outputMeshDescription!
-        )
-        .get()
-
-    // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-    // swift-format-ignore: NeverForceUnwrap
-    let deformation = try? deformationSystem.make(description: deformationDescription!).get()
-    // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-    // swift-format-ignore: NeverForceUnwrap
-    return DeformationContext(deformation: deformation!, description: deformationDescription!, dirty: true)
-}
-
-struct DeformationMeshDescriptionData {
-    var vertexAttributes: [_Proto_LowLevelDeformationDescription_v1.VertexAttribute] = []
-    var vertexLayouts: [_Proto_LowLevelDeformationDescription_v1.VertexLayout] = []
-    var mtlBuffers: [any MTLBuffer] = []
-}
-
-extension _Proto_LowLevelMeshResource_v1.VertexSemantic {
-    func toDeformationVertexSemantic() -> _Proto_LowLevelDeformationDescription_v1.MeshSemantic? {
-        switch self {
-        case .position:
-            return .position
-        case .normal:
-            return .normal
-        case .tangent:
-            return .tangent
-        case .bitangent:
-            return .bitangent
-        case .uv0:
-            return .uv0
-        case .uv1:
-            return .uv1
-        case .uv2:
-            return .uv2
-        case .uv3:
-            return .uv3
-        case .uv4:
-            return .uv4
-        case .uv5:
-            return .uv5
-        case .uv6:
-            return .uv6
-        case .uv7:
-            return .uv7
-        default:
-            return nil
-        }
-    }
-}
-
-func makeMeshDescriptionForDeformation(
-    meshResource: _Proto_LowLevelMeshResource_v1,
-    deformationData: WKBridgeDeformationData,
-    commandBuffer: any MTLCommandBuffer,
-    isInput: Bool,
-    device: any MTLDevice
-) -> DeformationMeshDescriptionData {
-    var deformationMeshDescriptionData = DeformationMeshDescriptionData()
-
-    // Table to map mesh resource buffer index to deformation buffer index
-    // They can be different because deformation may not require all vertex buffers
-    // e.g. if position data is in mesh resource buffer 1, its deformation buffer index could be 0
-    // if that's the only attribute data require by deformation
-    var meshResourceBufferIndexToDeformationBufferIndex: [Int: Int] = [:]
-    // Similar usage as the buffer index table. See comment above
-    var meshResourceLayoutIndexToDeformationLayoutIndex: [Int: Int] = [:]
-
-    var inputAttributeSemantics: [_Proto_LowLevelMeshResource_v1.VertexSemantic] = [.position]
-    if deformationData.renormalizationData != nil {
-        inputAttributeSemantics.append(contentsOf: [.normal, .tangent, .bitangent])
-    }
-
-    for attribute in meshResource.descriptor.vertexAttributes where inputAttributeSemantics.contains(attribute.semantic) {
-        guard let deformationMeshSemantic = attribute.semantic.toDeformationVertexSemantic() else {
-            fatalError("Invalid semantic for deformation input: \(attribute.semantic)")
-        }
-
-        let layoutIndex = attribute.layoutIndex
-        let layout = meshResource.descriptor.vertexLayouts[layoutIndex]
-        let bufferIndex = layout.bufferIndex
-
-        var deformationBufferIndex = deformationMeshDescriptionData.mtlBuffers.count
-        if let cachedDeformationBufferIndex = meshResourceBufferIndexToDeformationBufferIndex[bufferIndex] {
-            deformationBufferIndex = cachedDeformationBufferIndex
-        } else {
-            meshResourceBufferIndexToDeformationBufferIndex[bufferIndex] = deformationBufferIndex
-
-            // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-            // swift-format-ignore: NeverForceUnwrap
-            let vertexBuffer = meshResource.readVertices(at: bufferIndex, using: commandBuffer)!
-            if isInput {
-                // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-                // swift-format-ignore: NeverForceUnwrap
-                let mtlBuffer = device.makeBuffer(length: vertexBuffer.length, options: .storageModeShared)!
-                // Copy data from vertexPositionsBuffer to inputPositionsBuffer
-                // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-                // swift-format-ignore: NeverForceUnwrap
-                let blitEncoder = commandBuffer.makeBlitCommandEncoder()!
-                blitEncoder.copy(from: vertexBuffer, sourceOffset: 0, to: mtlBuffer, destinationOffset: 0, size: vertexBuffer.length)
-                deformationMeshDescriptionData.mtlBuffers.append(mtlBuffer)
-                blitEncoder.endEncoding()
-            } else {
-                deformationMeshDescriptionData.mtlBuffers.append(vertexBuffer)
-            }
-        }
-
-        var deformationLayoutIndex = deformationMeshDescriptionData.vertexLayouts.count
-        if let cachedDeformationLayoutIndex = meshResourceLayoutIndexToDeformationLayoutIndex[layoutIndex] {
-            deformationLayoutIndex = cachedDeformationLayoutIndex
-        } else {
-            meshResourceLayoutIndexToDeformationLayoutIndex[layoutIndex] = deformationLayoutIndex
-            deformationMeshDescriptionData.vertexLayouts.append(
-                .init(bufferIndex: deformationBufferIndex, bufferOffset: layout.bufferOffset, bufferStride: layout.bufferStride)
-            )
-        }
-
-        // Hardcode elementType for now the inputs could only be position or tangent
-        // frame data which are all .float3
-        // TODO: fix this when uv is required for deformation
-        deformationMeshDescriptionData.vertexAttributes.append(
-            .init(elementType: .float3, offset: attribute.offset, layoutIndex: deformationLayoutIndex, semantic: deformationMeshSemantic)
-        )
-    }
-
-    return deformationMeshDescriptionData
-}
-
-func makeInputMeshDescriptionForDeformation(
-    meshResource: _Proto_LowLevelMeshResource_v1,
-    deformationData: WKBridgeDeformationData,
-    commandBuffer: any MTLCommandBuffer,
-    device: any MTLDevice
-) -> _Proto_LowLevelDeformationDescription_v1.MeshDescription? {
-    var inputMeshDescriptionData = makeMeshDescriptionForDeformation(
-        meshResource: meshResource,
-        deformationData: deformationData,
-        commandBuffer: commandBuffer,
-        isInput: true,
-        device: device
-    )
-
-    if let renormalizationData = deformationData.renormalizationData {
-        let vertexIndices = renormalizationData.vertexIndicesPerTriangle
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let inputIndexBuffer = unsafe device.makeBuffer(
-            bytes: vertexIndices,
-            length: vertexIndices.count * MemoryLayout<UInt32>.stride,
-            options: .storageModeShared
-        )!
-
-        inputMeshDescriptionData.vertexAttributes.append(
-            .init(elementType: .uint, offset: 0, layoutIndex: inputMeshDescriptionData.vertexLayouts.count, semantic: .index)
-        )
-        inputMeshDescriptionData.vertexLayouts.append(
-            .init(bufferIndex: inputMeshDescriptionData.mtlBuffers.count, bufferOffset: 0, bufferStride: MemoryLayout<UInt32>.stride)
-        )
-
-        inputMeshDescriptionData.mtlBuffers.append(inputIndexBuffer)
-    }
-
-    let result = _Proto_LowLevelDeformationDescription_v1.MeshDescription.make(
-        buffers: inputMeshDescriptionData.mtlBuffers,
-        attributes: inputMeshDescriptionData.vertexAttributes,
-        layouts: inputMeshDescriptionData.vertexLayouts,
-        vertexCount: meshResource.descriptor.vertexCapacity,
-        indexCount: meshResource.descriptor.indexCapacity
-    )
-
-    switch result {
-    case .success(let meshDescription):
-        return meshDescription
-    case .failure(let error):
-        print(error)
-        return nil
-    }
-}
-
-func makeOutputMeshDescriptionForDeformation(
-    meshResource: _Proto_LowLevelMeshResource_v1,
-    deformationData: WKBridgeDeformationData,
-    commandBuffer: any MTLCommandBuffer,
-    device: any MTLDevice
-) -> _Proto_LowLevelDeformationDescription_v1.MeshDescription? {
-    let outputMeshDescriptionData = makeMeshDescriptionForDeformation(
-        meshResource: meshResource,
-        deformationData: deformationData,
-        commandBuffer: commandBuffer,
-        isInput: false,
-        device: device
-    )
-
-    let result = _Proto_LowLevelDeformationDescription_v1.MeshDescription.make(
-        buffers: outputMeshDescriptionData.mtlBuffers,
-        attributes: outputMeshDescriptionData.vertexAttributes,
-        layouts: outputMeshDescriptionData.vertexLayouts,
-        vertexCount: meshResource.descriptor.vertexCapacity
-    )
-
-    switch result {
-    case .success(let meshDescription):
-        return meshDescription
-    case .failure(let error):
-        print(error)
-        return nil
-    }
-}
-
-extension WKBridgeSkinningData {
-    fileprivate func makeDeformerDescription(
-        device: any MTLDevice,
-        memoryOwner: task_id_token_t
-    ) -> any _Proto_LowLevelDeformerDescription_v1 {
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let jointTransformsBuffer = unsafe device.makeBuffer(
-            bytes: self.jointTransforms,
-            length: self.jointTransforms.count * MemoryLayout<simd_float4x4>.size,
-            options: .storageModeShared
-        )!
-        jointTransformsBuffer.__setOwnerWithIdentity(memoryOwner)
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let jointTransformsDescription = _Proto_LowLevelDeformationDescription_v1.Buffer.make(
-            jointTransformsBuffer,
-            offset: 0,
-            occupiedLength: jointTransformsBuffer.length,
-            elementType: .float4x4
-        )!
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let inverseBindPosesBuffer = unsafe device.makeBuffer(
-            bytes: self.inverseBindPoses,
-            length: self.inverseBindPoses.count * MemoryLayout<simd_float4x4>.size,
-            options: .storageModeShared
-        )!
-        inverseBindPosesBuffer.__setOwnerWithIdentity(memoryOwner)
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let inverseBindPosesDescription = _Proto_LowLevelDeformationDescription_v1.Buffer.make(
-            inverseBindPosesBuffer,
-            offset: 0,
-            occupiedLength: inverseBindPosesBuffer.length,
-            elementType: .float4x4
-        )!
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let jointIndicesBuffer = unsafe device.makeBuffer(
-            bytes: self.influenceJointIndices,
-            length: self.influenceJointIndices.count * MemoryLayout<UInt32>.size,
-            options: .storageModeShared
-        )!
-        jointIndicesBuffer.__setOwnerWithIdentity(memoryOwner)
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let jointIndicesDescription = _Proto_LowLevelDeformationDescription_v1.Buffer.make(
-            jointIndicesBuffer,
-            offset: 0,
-            occupiedLength: jointIndicesBuffer.length,
-            elementType: .uint
-        )!
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let influenceWeightsBuffer = unsafe device.makeBuffer(
-            bytes: self.influenceWeights,
-            length: self.influenceWeights.count * MemoryLayout<Float>.size,
-            options: .storageModeShared
-        )!
-        influenceWeightsBuffer.__setOwnerWithIdentity(memoryOwner)
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let influenceWeightsDescription = _Proto_LowLevelDeformationDescription_v1.Buffer.make(
-            influenceWeightsBuffer,
-            offset: 0,
-            occupiedLength: influenceWeightsBuffer.length,
-            elementType: .float
-        )!
-
-        let deformerDescription = _Proto_LowLevelSkinningDescription_v1(
-            jointTransforms: jointTransformsDescription,
-            inverseBindPoses: inverseBindPosesDescription,
-            influenceJointIndices: jointIndicesDescription,
-            influenceWeights: influenceWeightsDescription,
-            geometryBindTransform: self.geometryBindTransform,
-            influencePerVertexCount: self.influencePerVertexCount
-        )
-
-        return deformerDescription
-    }
-}
-
-extension WKBridgeBlendShapeData {
-    func makeDeformerDescription(device: any MTLDevice, memoryOwner: task_id_token_t) throws -> any _Proto_LowLevelDeformerDescription_v1 {
-        var weights: [Float] = []
-
-        var debugWeights = self.weights
-        var debugPositionOffsets = self.positionOffsets
-
-        let blendTargetCount = self.weights.count
-        let positionCount = self.positionOffsets[0].count
-        for i in 0..<blendTargetCount {
-            weights += Array(repeating: debugWeights[i], count: positionCount)
-        }
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let blendWeightsBuffer = unsafe device.makeBuffer(
-            bytes: weights,
-            length: weights.count * MemoryLayout<Float>.size,
-            options: .storageModeShared
-        )!
-        blendWeightsBuffer.__setOwnerWithIdentity(memoryOwner)
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let blendWeightsDescription = _Proto_LowLevelDeformationDescription_v1.Buffer.make(
-            blendWeightsBuffer,
-            offset: 0,
-            occupiedLength: blendWeightsBuffer.length,
-            elementType: .float
-        )!
-
-        let positionOffsets = debugPositionOffsets.flatMap(\.self)
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let positionOffsetsBuffer = unsafe device.makeBuffer(
-            bytes: positionOffsets,
-            length: positionOffsets.count * MemoryLayout<SIMD3<Float>>.size,
-            options: .storageModeShared
-        )!
-        positionOffsetsBuffer.__setOwnerWithIdentity(memoryOwner)
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let positionOffsetsDescription = _Proto_LowLevelDeformationDescription_v1.Buffer.make(
-            positionOffsetsBuffer,
-            offset: 0,
-            occupiedLength: positionOffsetsBuffer.length,
-            elementType: .float3
-        )!
-
-        let deformerDescriptionResult = _Proto_LowLevelBlendShapeDescription_v1.make(
-            weights: blendWeightsDescription,
-            positionOffsets: positionOffsetsDescription,
-            sparseIndices: nil,
-            normalOffsets: nil,
-            tangentOffsets: nil,
-            blendBitangents: false
-        )
-
-        return try deformerDescriptionResult.get()
-    }
-}
-
-extension WKBridgeRenormalizationData {
-    func makeDeformerDescription(device: any MTLDevice, memoryOwner: task_id_token_t) throws -> any _Proto_LowLevelDeformerDescription_v1 {
-        // Create adjacency buffer
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let adjacenciesMetalBuffer = unsafe device.makeBuffer(
-            bytes: vertexAdjacencies,
-            length: vertexAdjacencies.count * MemoryLayout<UInt32>.size,
-            options: .storageModeShared
-        )!
-        adjacenciesMetalBuffer.__setOwnerWithIdentity(memoryOwner)
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let adjacenciesBuffer = _Proto_LowLevelDeformationDescription_v1.Buffer.make(
-            adjacenciesMetalBuffer,
-            offset: 0,
-            occupiedLength: adjacenciesMetalBuffer.length,
-            elementType: .uint
-        )!
-
-        // Create adjacency end indices buffer
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let adjacencyEndIndicesMetalBuffer = unsafe device.makeBuffer(
-            bytes: vertexAdjacencyEndIndices,
-            length: vertexAdjacencyEndIndices.count * MemoryLayout<UInt32>.size,
-            options: .storageModeShared
-        )!
-        adjacencyEndIndicesMetalBuffer.__setOwnerWithIdentity(memoryOwner)
-
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-        // swift-format-ignore: NeverForceUnwrap
-        let adjacencyEndIndicesBuffer = _Proto_LowLevelDeformationDescription_v1.Buffer.make(
-            adjacencyEndIndicesMetalBuffer,
-            offset: 0,
-            occupiedLength: adjacencyEndIndicesMetalBuffer.length,
-            elementType: .uint
-        )!
-
-        let deformerDescription = _Proto_LowLevelRenormalizationDescription_v1.make(
-            recalculateNormals: true,
-            recalculateTangents: false,
-            recalculateBitangents: false,
-            adjacencies: adjacenciesBuffer,
-            adjacencyEndIndices: adjacencyEndIndicesBuffer
-        )
-
-        return deformerDescription
-    }
-}
-
 #else
 @objc
 @implementation
@@ -2677,7 +2304,6 @@ extension WKBridgeReceiver {
     ) throws {
     }
 
-    @objc
     func commandBuffer() -> (any MTLCommandBuffer)? {
         nil
     }
@@ -2698,31 +2324,37 @@ extension WKBridgeReceiver {
     func updateMesh(_ data: [WKBridgeUpdateMesh]) async {
     }
 
+    @objc
+    func processRemovals(
+        _ meshRemovals: [WKBridgeTypedResourceId],
+        materialRemovals: [WKBridgeTypedResourceId],
+        textureRemovals: [WKBridgeTypedResourceId]
+    ) -> Bool {
+        false
+    }
+
     @objc(setTransform:)
     func setTransform(_ transform: simd_float4x4) {
     }
 
-    @objc
     func setFOV(_ fovY: Float) {
     }
 
-    @objc
     func setBackgroundColor(_ color: simd_float3) {
     }
 
-    @objc
     func setPlaying(_ play: Bool) {
     }
 
-    @objc
-    func setEnvironmentMap(_ imageAsset: WKBridgeImageAsset) {
+    func setEnvironmentMap(_ imageAsset: WKBridgeUpdateTexture) {
     }
 }
 
 @objc
 @implementation
 extension WKBridgeModelLoader {
-    override init() {
+    @objc(initWithGPUFamily:)
+    init(gpuFamily: MTLGPUFamily) {
         super.init()
     }
 
@@ -2730,45 +2362,43 @@ extension WKBridgeModelLoader {
         setCallbacksWithModelUpdatedCallback:
         textureUpdatedCallback:
         materialUpdatedCallback:
+        processRemovalsCallback:
     )
     func setCallbacksWithModelUpdatedCallback(
         _ modelUpdatedCallback: @escaping (([WKBridgeUpdateMesh]) -> (Void)),
         textureUpdatedCallback: @escaping (([WKBridgeUpdateTexture]) -> (Void)),
-        materialUpdatedCallback: @escaping (([WKBridgeUpdateMaterial]) -> (Void))
+        materialUpdatedCallback: @escaping (([WKBridgeUpdateMaterial]) -> (Void)),
+        processRemovalsCallback: @escaping ((WKBridgeRemovals) -> (Void))
     ) {
     }
 
-    @objc
     func loadModel(from url: Foundation.URL) {
     }
 
-    @objc
     func loadModel(_ data: Foundation.Data) {
     }
 
-    @objc
-    func update(_ deltaTime: Double) async {
+    func loadEnvironmentMap(_ data: Foundation.Data) -> WKBridgeUpdateTexture? {
+        nil
     }
 
-    @objc
+    func update(_ deltaTime: Double) {
+    }
+
     func setLoop(_ loop: Bool) {
     }
 
-    @objc
     func requestCompleted(_ request: NSObject) {
     }
 
-    @objc
     func duration() -> Double {
         0.0
     }
 
-    @objc
     func currentTime() -> Double {
         0.0
     }
 
-    @objc
     func setCurrentTime(_ newTime: Double) {
     }
 }

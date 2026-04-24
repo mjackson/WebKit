@@ -33,7 +33,7 @@
 namespace WebKit {
 using namespace WebCore;
 
-void NetworkResourceLoadParameters::createSandboxExtensionHandlesIfNecessary()
+bool NetworkResourceLoadParameters::createSandboxExtensionHandlesIfNecessary()
 {
     if (RefPtr httpBody = request.httpBody()) {
         for (const FormDataElement& element : httpBody->elements()) {
@@ -57,7 +57,9 @@ void NetworkResourceLoadParameters::createSandboxExtensionHandlesIfNecessary()
             if (auto handle = SandboxExtension::createHandle(request.url().fileSystemPath(), SandboxExtension::Type::ReadOnly))
                 resourceSandboxExtension = WTF::move(*handle);
         }
+        return resourceSandboxExtension.has_value();
     }
+    return true;
 }
 
 RefPtr<SecurityOrigin> NetworkResourceLoadParameters::parentOrigin() const

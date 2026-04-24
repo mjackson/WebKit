@@ -748,7 +748,7 @@ class StyleProcessor_CodeCoverageTest(LoggingTestCase):
             self.min_confidence = min_confidence
             self.style_error_handler = style_error_handler
 
-        def check(self, lines):
+        def check(self, lines, line_numbers=None):
             self.lines = lines
 
     class MockDispatcher(object):

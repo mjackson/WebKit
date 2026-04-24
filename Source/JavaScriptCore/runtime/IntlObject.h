@@ -27,7 +27,8 @@
 
 #pragma once
 
-#include "JSCJSValueInlines.h"
+#include "JSCJSValue.h"
+#include "JSCTimeZone.h"
 #include "JSObject.h"
 #include <wtf/RobinHoodHashSet.h>
 
@@ -115,12 +116,29 @@ inline CalendarID iso8601CalendarID()
     return value;
 }
 
-using TimeZoneID = unsigned;
-const Vector<String>& intlAvailableTimeZones();
+// Resolve any accepted time zone string (case-insensitive; accepts IANA primary
+// identifiers, IANA Backward links such as "Asia/Calcutta", and UTC-equivalent
+// aliases such as "GMT" / "Etc/UTC") to the TimeZoneID of its IANA primary,
+// or std::nullopt if the input is not a recognized IANA zone. Multiple input
+// forms collapse to the same TimeZoneID.
+JS_EXPORT_PRIVATE std::optional<TimeZoneID> intlResolveTimeZoneID(StringView);
 
-extern TimeZoneID utcTimeZoneIDStorage;
-TimeZoneID utcTimeZoneIDSlow();
-CalendarID utcTimeZoneID();
+// Same lookup as intlResolveTimeZoneID, but additionally returns the
+// case-normalized accepted identifier (the [[Identifier]] in spec terms — for
+// Backward links such as "Asia/Calcutta" this is "Asia/Calcutta", not the
+// primary "Asia/Kolkata"). The identifier is an immortal static string.
+struct AvailableNamedTimeZone {
+    TimeZoneID id;
+    String identifier;
+};
+JS_EXPORT_PRIVATE std::optional<AvailableNamedTimeZone> intlAvailableNamedTimeZone(StringView);
+
+// Map a known-valid IANA time zone ID to its primary IANA zone identifier,
+// using ICU 74's ucal_getIanaTimeZoneID when available and falling back to
+// ucal_getCanonicalTimeZoneID otherwise. UTC-equivalent zones are normalized
+// to "UTC" per ECMA-402.
+JS_EXPORT_PRIVATE String toPrimaryIanaTimeZoneIdentifier(std::span<const char16_t> timeZone);
+JS_EXPORT_PRIVATE String toPrimaryIanaTimeZoneIdentifier(StringView timeZone);
 
 TriState intlBooleanOption(JSGlobalObject*, JSObject* options, PropertyName);
 String intlStringOption(JSGlobalObject*, JSObject* options, PropertyName, std::initializer_list<ASCIILiteral> values, ASCIILiteral notFound, ASCIILiteral fallback);
@@ -170,14 +188,5 @@ struct UFieldPositionIteratorDeleter {
 std::optional<String> mapICUCollationKeywordToBCP47(const String&);
 std::optional<String> mapICUCalendarKeywordToBCP47(const String&);
 std::optional<String> mapBCP47ToICUCalendarKeyword(const String&);
-
-
-inline CalendarID utcTimeZoneID()
-{
-    unsigned value = utcTimeZoneIDStorage;
-    if (value == std::numeric_limits<TimeZoneID>::max())
-        return utcTimeZoneIDSlow();
-    return value;
-}
 
 } // namespace JSC

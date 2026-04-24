@@ -31,7 +31,7 @@
 // (BigIntPrototype.h, StringPrototype.h, SymbolPrototype.h, BrandedStructure.h,
 // WebAssemblyGCStructure.h, JSArrayBufferView.h, PropertyTable.h, etc.).
 
-#include <JavaScriptCore/JSCJSValueCellInlines.h>
+#include <JavaScriptCore/JSCJSValueStructure.h>
 #include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSGlobalProxy.h>
 #include <JavaScriptCore/Structure.h>
@@ -48,7 +48,7 @@ inline void JSObject::didBecomePrototype(VM& vm)
     }
 
     if (type() == GlobalProxyType) [[unlikely]]
-        jsCast<JSGlobalProxy*>(this)->target()->didBecomePrototype(vm);
+        uncheckedDowncast<JSGlobalProxy>(this)->target()->didBecomePrototype(vm);
 }
 
 template<typename CellType, SubspaceAccess>

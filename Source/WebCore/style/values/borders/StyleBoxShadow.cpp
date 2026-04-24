@@ -26,6 +26,7 @@
 #include "StyleBoxShadow.h"
 
 #include "CSSBoxShadowPropertyValue.h"
+#include "CSSKeywordValue.h"
 #include "ColorBlending.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleBuilderChecking.h"
@@ -78,8 +79,15 @@ Ref<CSSValue> CSSValueCreation<BoxShadowList>::operator()(CSSValuePool&, const R
 
 auto CSSValueConversion<BoxShadows>::operator()(BuilderState& state, const CSSValue& value) -> BoxShadows
 {
-    if (value.valueID() == CSSValueNone)
-        return CSS::Keyword::None { };
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
+    }
 
     RefPtr shadow = requiredDowncast<CSSBoxShadowPropertyValue>(state, value);
     if (!shadow)

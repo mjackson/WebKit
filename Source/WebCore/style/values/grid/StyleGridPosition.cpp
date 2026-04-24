@@ -34,9 +34,9 @@
 
 #include "CSSCustomIdentValue.h"
 #include "CSSGridLineValue.h"
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValueInlines.h"
 #include "StyleBuilderChecking.h"
-#include "StylePrimitiveKeyword+Logging.h"
+#include "StyleKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 #include <wtf/text/TextStream.h>
@@ -116,15 +116,17 @@ auto CSSValueConversion<GridPosition>::operator()(BuilderState& state, const CSS
 {
     using namespace CSS::Literals;
 
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        if (isValueID(*primitiveValue, CSSValueAuto))
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueAuto:
             return CSS::Keyword::Auto { };
-
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return CSS::Keyword::Auto { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::Auto { };
+        }
     }
 
-    if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value))
+    if (auto* customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value))
         return toStyleFromCSSValue<CustomIdent>(state, *customIdentValue);
 
     RefPtr gridLineValue = requiredDowncast<CSSGridLineValue>(state, value);

@@ -38,6 +38,7 @@
 #include "GraphicsContext.h"
 #include "GraphicsLayerCoordinated.h"
 #include "NativeImage.h"
+#include "NotImplemented.h"
 #include "TextureMapperLayer.h"
 #include <wtf/MainThread.h>
 
@@ -47,6 +48,7 @@
 #endif
 
 #if USE(SKIA)
+#include "SkiaCompositingLayer.h"
 #include "SkiaPaintingEngine.h"
 #include "SkiaRecordingResult.h"
 #endif
@@ -110,11 +112,19 @@ TextureMapperLayer& CoordinatedPlatformLayer::ensureTarget()
     return *m_target;
 }
 
-TextureMapperLayer* CoordinatedPlatformLayer::target() const
+#if USE(SKIA)
+SkiaCompositingLayer& CoordinatedPlatformLayer::ensureSkiaTarget()
 {
     ASSERT(!isMainThread());
-    return m_target.get();
+    if (!m_skiaTarget)
+        m_skiaTarget = SkiaCompositingLayer::create();
+#if ENABLE(DAMAGE_TRACKING)
+    if (m_damagePropagationEnabled)
+        m_skiaTarget->setSharedFrameDamage(m_damageInGlobalCoordinateSpace);
+#endif
+    return *m_skiaTarget;
 }
+#endif
 
 static bool shouldReleaseBuffer(CoordinatedPlatformLayerBuffer* buffer)
 {
@@ -141,6 +151,12 @@ void CoordinatedPlatformLayer::invalidateTarget()
             m_contentsBuffer.committed = nullptr;
     }
     m_target = nullptr;
+#if USE(SKIA)
+    if (m_skiaTarget) {
+        m_skiaTarget->invalidate();
+        m_skiaTarget = nullptr;
+    }
+#endif
 }
 
 void CoordinatedPlatformLayer::invalidateClient()
@@ -408,6 +424,17 @@ void CoordinatedPlatformLayer::setOpacity(float opacity)
     notifyCompositionRequired();
 }
 
+void CoordinatedPlatformLayer::setBlendMode(BlendMode blendMode)
+{
+    ASSERT(m_lock.isHeld());
+    if (m_blendMode == blendMode)
+        return;
+
+    m_blendMode = blendMode;
+    m_pendingChanges.add(Change::BlendMode);
+    notifyCompositionRequired();
+}
+
 void CoordinatedPlatformLayer::setContentsVisible(bool contentsVisible)
 {
     ASSERT(m_lock.isHeld());
@@ -481,10 +508,21 @@ void CoordinatedPlatformLayer::setContentsScale(float contentsScale)
     notifyCompositionRequired();
 }
 
+bool CoordinatedPlatformLayer::hasCommittedContentsBuffer() const
+{
+    ASSERT(m_lock.isHeld());
+#if USE(SKIA)
+    if (m_skiaTarget)
+        return !!m_skiaTarget->contentsBuffer();
+#endif
+
+    return !!m_contentsBuffer.committed;
+}
+
 void CoordinatedPlatformLayer::setContentsBuffer(std::unique_ptr<CoordinatedPlatformLayerBuffer>&& buffer, std::optional<Damage>&& dirtyRegion, RequireComposition requireComposition)
 {
     ASSERT(m_lock.isHeld());
-    if (!buffer && !m_contentsBuffer.pending && !m_contentsBuffer.committed)
+    if (!buffer && !m_contentsBuffer.pending && !hasCommittedContentsBuffer())
         return;
 
     m_contentsBuffer.pending = WTF::move(buffer);
@@ -503,10 +541,21 @@ void CoordinatedPlatformLayer::setContentsBuffer(std::unique_ptr<CoordinatedPlat
 void CoordinatedPlatformLayer::replaceCurrentContentsBufferWithCopy()
 {
     Locker locker { m_lock };
-    if (!m_contentsBuffer.committed)
+    if (!hasCommittedContentsBuffer())
         return;
 
     m_contentsBuffer.pending = nullptr;
+
+#if USE(SKIA)
+    if (m_skiaTarget) {
+        if (auto* buffer = m_skiaTarget->contentsBuffer()) {
+            if (is<CoordinatedPlatformLayerBufferVideo>(*buffer))
+                m_contentsBuffer.pending = downcast<CoordinatedPlatformLayerBufferVideo>(*buffer).copyBuffer();
+            m_skiaTarget->setContentsBuffer(WTF::move(m_contentsBuffer.pending));
+        }
+        return;
+    }
+#endif
     if (is<CoordinatedPlatformLayerBufferVideo>(*m_contentsBuffer.committed))
         m_contentsBuffer.pending = downcast<CoordinatedPlatformLayerBufferVideo>(*m_contentsBuffer.committed).copyBuffer();
     m_contentsBuffer.committed = WTF::move(m_contentsBuffer.pending);
@@ -630,6 +679,12 @@ void CoordinatedPlatformLayer::setBackdrop(CoordinatedPlatformLayer* backdrop)
         return;
 
     m_backdrop = backdrop;
+    notifyBackdropFiltersChanged();
+}
+
+void CoordinatedPlatformLayer::notifyBackdropFiltersChanged()
+{
+    ASSERT(m_lock.isHeld());
     m_pendingChanges.add(Change::Backdrop);
     notifyCompositionRequired();
 }
@@ -642,6 +697,17 @@ void CoordinatedPlatformLayer::setBackdropRect(const FloatRoundedRect& backdropR
 
     m_backdropRect = backdropRect;
     m_pendingChanges.add(Change::BackdropRect);
+    notifyCompositionRequired();
+}
+
+void CoordinatedPlatformLayer::setIsBackdropRoot(bool isBackdropRoot)
+{
+    ASSERT(m_lock.isHeld());
+    if (m_isBackdropRoot == isBackdropRoot)
+        return;
+
+    m_isBackdropRoot = isBackdropRoot;
+    m_pendingChanges.add(Change::BackdropRoot);
     notifyCompositionRequired();
 }
 
@@ -682,10 +748,12 @@ const EventRegion& CoordinatedPlatformLayer::eventRegion() const
     return m_eventRegion;
 }
 
-const EventRegion& CoordinatedPlatformLayer::eventRegion() const
+void CoordinatedPlatformLayer::setClipPath(const Path& path, WindRule windRule)
 {
     ASSERT(m_lock.isHeld());
-    return m_eventRegion;
+    m_clipPath.path = path;
+    m_clipPath.windRule = windRule;
+    m_pendingChanges.add(Change::ClipPath);
 }
 
 void CoordinatedPlatformLayer::setDebugBorder(Color&& borderColor, float borderWidth)
@@ -899,14 +967,27 @@ void CoordinatedPlatformLayer::waitUntilPaintingComplete()
         m_backingStoreProxy->waitUntilPaintingComplete();
 }
 
-void CoordinatedPlatformLayer::flushCompositingState(const OptionSet<CompositionReason>& reasons)
+void CoordinatedPlatformLayer::flushCompositingState(const OptionSet<CompositionReason>& reasons, bool useSkiaTarget)
 {
     ASSERT(!isMainThread());
     Locker locker { m_lock };
     if (m_pendingChanges.isEmpty() && (!reasons.contains(CompositionReason::RenderingUpdate) || !m_backingStoreProxy))
         return;
 
-    auto& layer = ensureTarget();
+#if USE(SKIA)
+    if (useSkiaTarget) {
+        flushCompositingStateOnSkiaTarget(reasons, ensureSkiaTarget());
+        return;
+    }
+#else
+    UNUSED_PARAM(useSkiaTarget);
+#endif
+
+    flushCompositingStateOnTarget(reasons, ensureTarget());
+}
+
+void CoordinatedPlatformLayer::flushCompositingStateOnTarget(const OptionSet<CompositionReason>& reasons, TextureMapperLayer& layer)
+{
     if (reasons.containsAny({ CompositionReason::RenderingUpdate, CompositionReason::AsyncScrolling })) {
         if (m_pendingChanges.contains(Change::Position)) {
             layer.setPosition(m_position);
@@ -1102,6 +1183,199 @@ void CoordinatedPlatformLayer::flushCompositingState(const OptionSet<Composition
             layer.setContentsLayer(nullptr);
     }
 }
+
+#if USE(SKIA)
+void CoordinatedPlatformLayer::flushCompositingStateOnSkiaTarget(const OptionSet<CompositionReason>& reasons, SkiaCompositingLayer& layer)
+{
+    if (reasons.containsAny({ CompositionReason::RenderingUpdate, CompositionReason::AsyncScrolling })) {
+        if (m_pendingChanges.contains(Change::Position)) {
+            layer.setPosition(m_position);
+            m_pendingChanges.remove(Change::Position);
+        }
+
+        if (m_pendingChanges.contains(Change::BoundsOrigin)) {
+            layer.setBoundsOrigin(m_boundsOrigin);
+            m_pendingChanges.remove(Change::BoundsOrigin);
+        }
+
+        if (m_pendingChanges.contains(Change::ContentsRect)) {
+            layer.setContentsRect(m_contentsRect);
+            m_pendingChanges.remove(Change::ContentsRect);
+        }
+
+        if (m_pendingChanges.contains(Change::ContentsClippingRect)) {
+            layer.setContentsClippingRect(m_contentsClippingRect);
+            m_pendingChanges.remove(Change::ContentsClippingRect);
+        }
+
+        if (m_pendingChanges.contains(Change::ContentsImage)) {
+            layer.setImageBackingStore(m_imageBackingStore.current);
+            m_pendingChanges.remove(Change::ContentsImage);
+        }
+    }
+
+    if (reasons.contains(CompositionReason::RenderingUpdate)) {
+        if (m_pendingChanges.contains(Change::AnchorPoint)) {
+            layer.setAnchorPoint(m_anchorPoint);
+            m_pendingChanges.remove(Change::AnchorPoint);
+        }
+
+        if (m_pendingChanges.contains(Change::Size)) {
+            layer.setSize(m_size);
+            m_pendingChanges.remove(Change::Size);
+        }
+
+        if (m_pendingChanges.contains(Change::Transform)) {
+            layer.setTransform(m_transform);
+            m_pendingChanges.remove(Change::Transform);
+        }
+
+        if (m_pendingChanges.contains(Change::ChildrenTransform)) {
+            layer.setChildrenTransform(m_childrenTransform);
+            m_pendingChanges.remove(Change::ChildrenTransform);
+        }
+
+        if (m_pendingChanges.contains(Change::Preserves3D)) {
+            layer.setPreserves3D(m_preserves3D);
+            m_pendingChanges.remove(Change::Preserves3D);
+        }
+
+        if (m_pendingChanges.contains(Change::MasksToBounds)) {
+            layer.setMasksToBounds(m_masksToBounds);
+            m_pendingChanges.remove(Change::MasksToBounds);
+        }
+
+        if (m_pendingChanges.contains(Change::BackfaceVisibility)) {
+            layer.setBackfaceVisibility(m_backfaceVisibility);
+            m_pendingChanges.remove(Change::BackfaceVisibility);
+        }
+
+        if (m_pendingChanges.contains(Change::Opacity)) {
+            layer.setOpacity(m_opacity);
+            m_pendingChanges.remove(Change::Opacity);
+        }
+
+        if (m_pendingChanges.contains(Change::BlendMode)) {
+            layer.setBlendMode(m_blendMode);
+            m_pendingChanges.remove(Change::BlendMode);
+        }
+
+        if (m_pendingChanges.contains(Change::BackingStore)) {
+            layer.setUseBackingStore(!!m_backingStoreProxy, m_backingStoreProxy && m_animatedBackingStoreClient ? m_animatedBackingStoreClient.get() : nullptr);
+            m_pendingChanges.remove(Change::BackingStore);
+        }
+
+        if (m_pendingChanges.contains(Change::ContentsVisible)) {
+            layer.setContentsVisible(m_contentsVisible);
+            m_pendingChanges.remove(Change::ContentsVisible);
+        }
+
+        if (m_pendingChanges.contains(Change::ContentsOpaque)) {
+            // FIXME: do we need this in SkiaCompositingLayer?
+            notImplemented();
+            m_pendingChanges.remove(Change::ContentsOpaque);
+        }
+
+        if (m_pendingChanges.contains(Change::ContentsRectClipsDescendants)) {
+            layer.setContentsRectClipsDescendants(m_contentsRectClipsDescendants);
+            m_pendingChanges.remove(Change::ContentsRectClipsDescendants);
+        }
+
+        if (m_pendingChanges.contains(Change::ContentsTiling)) {
+            layer.setContentsTiling(m_contentsTileSize, m_contentsTilePhase);
+            m_pendingChanges.remove(Change::ContentsTiling);
+        }
+
+        if (m_pendingChanges.contains(Change::ContentsColor)) {
+            layer.setContentsSolidColor(m_contentsColor);
+            m_pendingChanges.remove(Change::ContentsColor);
+        }
+
+#if ENABLE(DAMAGE_TRACKING)
+        if (m_pendingChanges.contains(Change::Damage)) {
+            ASSERT(m_damage.has_value());
+            layer.addDamage(*std::exchange(m_damage, std::nullopt));
+            m_pendingChanges.remove(Change::Damage);
+        }
+#endif
+        if (m_pendingChanges.contains(Change::ClipPath)) {
+            auto clipPath = *m_clipPath.path.platformPath();
+            clipPath.setFillType(m_clipPath.windRule == WindRule::EvenOdd ? SkPathFillType::kEvenOdd : SkPathFillType::kWinding);
+            layer.setClipPath(WTF::move(clipPath));
+        }
+
+        if (m_pendingChanges.contains(Change::Filters)) {
+            layer.setFilters(m_filters);
+            m_pendingChanges.remove(Change::Filters);
+        }
+
+        if (m_pendingChanges.contains(Change::Mask)) {
+            layer.setMask(m_mask ? RefPtr { &m_mask->ensureSkiaTarget() } : nullptr);
+            m_pendingChanges.remove(Change::Mask);
+        }
+
+        if (m_pendingChanges.contains(Change::Replica)) {
+            layer.setReplica(m_replica ? RefPtr { &m_replica->ensureSkiaTarget() } : nullptr);
+            m_pendingChanges.remove(Change::Replica);
+        }
+
+        if (m_pendingChanges.contains(Change::Backdrop) || (m_backdrop && m_backdrop->m_pendingChanges.contains(Change::Filters))) {
+            // FIXME: stop creating a layer for backdrop filters when switching to SkiaCompositingLayer.
+            layer.setBackdropFilters(m_backdrop ? m_backdrop->m_filters : FilterOperations());
+            m_pendingChanges.remove(Change::Backdrop);
+            if (m_backdrop)
+                m_backdrop->m_pendingChanges.remove(Change::Filters);
+        }
+
+        if (m_pendingChanges.contains(Change::BackdropRect)) {
+            layer.setBackdropFiltersRect(m_backdropRect);
+            m_pendingChanges.remove(Change::BackdropRect);
+        }
+
+        if (m_pendingChanges.contains(Change::BackdropRoot)) {
+            layer.setIsBackdropRoot(m_isBackdropRoot);
+            m_pendingChanges.remove(Change::BackdropRoot);
+        }
+
+        if (m_pendingChanges.contains(Change::Animations)) {
+            layer.setAnimations(m_animations);
+            m_pendingChanges.remove(Change::Animations);
+        }
+
+        if (m_pendingChanges.contains(Change::DebugIndicators)) {
+            Color color;
+            std::optional<float> width;
+            if (m_debugBorderColor.isVisible()) {
+                color = m_debugBorderColor;
+                width = m_debugBorderWidth;
+            }
+            std::optional<unsigned> repaintCount;
+            if (m_repaintCount != -1)
+                repaintCount = m_repaintCount;
+
+            layer.setDebugIndicators(WTF::move(color), width, repaintCount);
+            m_pendingChanges.remove(Change::DebugIndicators);
+        }
+
+        if (m_pendingChanges.contains(Change::Children)) {
+            layer.setChildren(WTF::map(m_children, [](auto& child) {
+                return Ref { child->ensureSkiaTarget() };
+            }));
+            m_pendingChanges.remove(Change::Children);
+        }
+
+        if (m_backingStoreProxy)
+            layer.updateBackingStore(m_backingStoreProxy->takePendingUpdate(), m_contentsScale);
+    }
+
+    if (reasons.containsAny({ CompositionReason::RenderingUpdate, CompositionReason::VideoFrame, CompositionReason::AsyncScrolling })) {
+        if (m_pendingChanges.contains(Change::ContentsBuffer)) {
+            layer.setContentsBuffer(WTF::move(m_contentsBuffer.pending));
+            m_pendingChanges.remove(Change::ContentsBuffer);
+        }
+    }
+}
+#endif // USE(SKIA)
 
 } // namespace WebCore
 

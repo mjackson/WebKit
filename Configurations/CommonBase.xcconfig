@@ -80,21 +80,15 @@ WK_DEFAULT_WK_AUDIT_SPI[sdk=iphoneos*] = $(WK_NOT_$(WK_OR_$(WK_ANY_SANITIZER_ENA
 WK_DEFAULT_WK_AUDIT_SPI[sdk=appletvos*] = ;
 WK_DEFAULT_WK_AUDIT_SPI[sdk=watchos*] = ;
 WK_DEFAULT_WK_AUDIT_SPI[sdk=xros*] = ;
-// Disable auditing on internal builds of already-shipped releases.
-WK_DEFAULT_WK_AUDIT_SPI[sdk=iphoneos18*.internal] = ;
-WK_DEFAULT_WK_AUDIT_SPI[sdk=iphoneos26.0.internal] = ;
 
 WK_AUDIT_SPI = $(WK_DEFAULT_WK_AUDIT_SPI);
 
 WK_OTHER_AUDIT_SPI_FLAGS = $(WK_OTHER_AUDIT_SPI_FLAGS_148943382) $(WK_OTHER_AUDIT_SPI_FLAGS_164901718) $(WK_OTHER_AUDIT_SPI_FLAGS_$(CONFIGURATION));
 WK_OTHER_AUDIT_SPI_FLAGS_Release = -DNDEBUG;
 WK_OTHER_AUDIT_SPI_FLAGS_Production = -DNDEBUG;
-WK_OTHER_AUDIT_SPI_FLAGS_148943382[sdk=iphoneos26.0.internal] = -DSDKDB_HAS_148943382;
-WK_OTHER_AUDIT_SPI_FLAGS_148943382[sdk=iphoneos26.1.internal] = -DSDKDB_HAS_148943382;
 WK_OTHER_AUDIT_SPI_FLAGS_148943382[sdk=iphoneos26.2.internal] = -DSDKDB_HAS_148943382;
 WK_OTHER_AUDIT_SPI_FLAGS_148943382[sdk=iphoneos26.3.internal] = -DSDKDB_HAS_148943382;
 WK_OTHER_AUDIT_SPI_FLAGS_164901718[sdk=iphoneos26.*.internal] = -DSDKDB_HAS_164901718;
-WK_OTHER_AUDIT_SPI_FLAGS_148943382[sdk=iphoneos18*] = ;
 
 GCC_WARN_NON_VIRTUAL_DESTRUCTOR = YES;
 GCC_THREADSAFE_STATICS = YES;
@@ -109,8 +103,6 @@ WK_SWIFT_MEMORY_SAFETY_FLAGS = -strict-memory-safety -enable-experimental-featur
 
 // Treat memory safety warnings as errors.
 WK_SWIFT_MEMORY_SAFETY_ERROR_FLAGS = -Werror StrictMemorySafety -Werror ForeignReferenceType;
-// Keep it turned off on VisionOS until rdar://164555610 and rdar://164559261 are fixed.
-WK_SWIFT_MEMORY_SAFETY_ERROR_FLAGS[sdk=xr*] = ;
 // rdar://164903024: Work around false positives in some SDK versions.
 WK_SWIFT_MEMORY_SAFETY_ERROR_FLAGS[sdk=*26.3*] = ;
 

@@ -2122,6 +2122,10 @@ def runWebAssemblyMemory64SpecTest(mode)
     # runWebAssemblySpecTestBase(mode, "spec-harness", nil, "--useWasmMemory64=true")
 end
 
+def runWebAssemblyMultiMemorySpecTest(mode)
+    runWebAssemblySpecTestBase(mode, "multi-memory-spec-harness", nil, "--useWasmMultiMemory=true")
+end
+
 def runWebAssemblyLowExecutableMemory(*optionalTestSpecificOptions)
     return unless $isWasmPlatform
     modules = Dir[WASMTESTS_PATH + "*.js"].map { |f| File.basename(f) }

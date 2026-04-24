@@ -79,7 +79,7 @@ RefPtr<CSSValue> consumeCounterStyle(CSSParserTokenRange& range, CSS::PropertyPa
 
     // FIXME: Implement support for `symbols()`.
     if (isPredefinedCounterStyle(range.peek().id()))
-        return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+        return CSSKeywordValue::create(range.consumeIncludingWhitespace().id());
 
     return consumeCustomIdentExcluding(range, state, { CSSValueNone });
 }
@@ -116,7 +116,7 @@ RefPtr<CSSValue> consumeCounterStyleName(CSSParserTokenRange& range, CSS::Proper
 
     // If the value is an ASCII case-insensitive match for any of the predefined counter styles, lowercase it.
     if (isPredefinedCounterStyle(valueID))
-        return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+        return CSSKeywordValue::create(range.consumeIncludingWhitespace().id());
 
     return consumeCustomIdentExcluding(range, state, { CSSValueNone });
 }
@@ -169,7 +169,7 @@ RefPtr<CSSValue> consumeCounterStyleRange(CSSParserTokenRange& range, CSS::Prope
     // <'range'> = [ [ <integer> | infinite ]{2} ]# | auto
     // https://drafts.csswg.org/css-counter-styles-3/#counter-style-range
 
-    auto consumeCounterStyleRangeBound = [&](CSSParserTokenRange& range) -> RefPtr<CSSPrimitiveValue> {
+    auto consumeCounterStyleRangeBound = [&](CSSParserTokenRange& range) -> RefPtr<CSSValue> {
         if (auto infinite = consumeIdent<CSSValueInfinite>(range))
             return infinite;
         if (auto integer = CSSPrimitiveValueResolver<CSS::Integer<>>::consumeAndResolve(range, state))
@@ -188,9 +188,11 @@ RefPtr<CSSValue> consumeCounterStyleRange(CSSParserTokenRange& range, CSS::Prope
         if (!upperBound)
             return nullptr;
 
-        // If the lower bound of any range is higher than the upper bound, the entire descriptor is invalid and must be
-        // ignored.
-        if (lowerBound->isInteger() && upperBound->isInteger() && lowerBound->resolveAsIntegerDeprecated() > upperBound->resolveAsIntegerDeprecated())
+        // If the lower bound of any range is higher than the upper bound, the entire descriptor is invalid and must be ignored.
+        // NOTE: `infinity` means negative infinity when used for the lower bound and positive infinity when used for the upper bound, so if either value was `infinity`, the bound is valid.
+        RefPtr primitiveValueLowerBound = dynamicDowncast<CSSPrimitiveValue>(lowerBound);
+        RefPtr primitiveValueUpperBound = dynamicDowncast<CSSPrimitiveValue>(upperBound);
+        if (primitiveValueLowerBound && primitiveValueUpperBound && primitiveValueLowerBound->resolveAsIntegerDeprecated() > primitiveValueUpperBound->resolveAsIntegerDeprecated())
             return nullptr;
 
         return CSSValuePair::createNoncoalescing(lowerBound.releaseNonNull(), upperBound.releaseNonNull());

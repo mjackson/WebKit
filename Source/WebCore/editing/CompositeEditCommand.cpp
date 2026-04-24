@@ -716,6 +716,13 @@ void CompositeEditCommand::splitElement(Element& element, Node& atChild)
     applyCommandToComposite(SplitElementCommand::create(element, atChild));
 }
 
+void CompositeEditCommand::splitListElement(Element& listNode, Node& listChild)
+{
+    splitElement(listNode, *splitTreeToNode(listChild, listNode));
+    if (listNode.hasTagName(olTag) && listNode.hasAttribute(startAttr))
+        setNodeAttribute(listNode, startAttr, AtomString::number(1));
+}
+
 void CompositeEditCommand::mergeIdenticalElements(Element& first, Element& second)
 {
     Ref<Element> protectedFirst = first;
@@ -1649,7 +1656,7 @@ bool CompositeEditCommand::breakOutOfEmptyListItem()
     if ((nextListNode && isListItem(*nextListNode)) || isListHTMLElement(nextListNode.get())) {
         // If emptyListItem follows another list item or nested list, split the list node.
         if (previousListNode && (isListItem(*previousListNode) || isListHTMLElement(previousListNode.get())))
-            splitElement(downcast<Element>(*listNode), *emptyListItem);
+            splitListElement(downcast<Element>(*listNode), *emptyListItem);
 
         // If emptyListItem is followed by other list item or nested list, then insert newBlock before the list node.
         // Because we have splitted the element, emptyListItem is the first element in the list node.

@@ -36,6 +36,7 @@
 #include "RenderCounter.h"
 #include "RenderDescendantIterator.h"
 #include "RenderElementInlines.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderImage.h"
 #include "RenderQuote.h"
 #include "RenderStyle+GettersInlines.h"
@@ -62,7 +63,29 @@ void RenderTreeUpdater::GeneratedContent::updateRemainingQuotes()
         return;
     updateQuotesUpTo(nullptr);
     m_previousUpdatedQuote = nullptr;
+    m_quoteScopeStack.clear();
     m_updater.renderView().setHasQuotesNeedingUpdate(false);
+}
+
+static RenderElement* findQuoteScopeRoot(const RenderObject& renderer)
+{
+    for (auto* ancestor = renderer.parent(); ancestor; ancestor = ancestor->parent()) {
+        if (ancestor->shouldApplyStyleContainment())
+            return ancestor;
+    }
+    return nullptr;
+}
+
+RenderElement* RenderTreeUpdater::GeneratedContent::popExitedQuoteScopes(const RenderQuote& quote)
+{
+    auto* scopeRoot = findQuoteScopeRoot(quote);
+    auto isCurrentScopeAncestorOfQuote = [&] {
+        auto* topScope = m_quoteScopeStack.last().scopeRoot.get();
+        return topScope == scopeRoot || (topScope && quote.isDescendantOf(topScope));
+    };
+    while (m_quoteScopeStack.size() > 1 && !isCurrentScopeAncestorOfQuote())
+        m_quoteScopeStack.removeLast();
+    return scopeRoot;
 }
 
 void RenderTreeUpdater::GeneratedContent::updateQuotesUpTo(RenderQuote* lastQuote)
@@ -70,10 +93,21 @@ void RenderTreeUpdater::GeneratedContent::updateQuotesUpTo(RenderQuote* lastQuot
     auto quoteRenderers = descendantsOfType<RenderQuote>(m_updater.renderView());
     auto it = m_previousUpdatedQuote ? ++quoteRenderers.at(*m_previousUpdatedQuote) : quoteRenderers.begin();
     auto end = quoteRenderers.end();
+
+    if (m_quoteScopeStack.isEmpty())
+        m_quoteScopeStack.append({ nullptr, m_previousUpdatedQuote.get() });
+
     for (; it != end; ++it) {
         auto& quote = *it;
-        // Quote character depends on quote depth so we chain the updates.
-        quote.updateRenderer(m_updater.m_builder, m_previousUpdatedQuote.get());
+        auto* scopeRoot = popExitedQuoteScopes(quote);
+
+        bool hasEnteredNewContainmentScope = scopeRoot != m_quoteScopeStack.last().scopeRoot.get();
+        if (hasEnteredNewContainmentScope)
+            m_quoteScopeStack.append({ scopeRoot, m_quoteScopeStack.last().lastQuote.get() });
+
+        quote.updateRenderer(m_updater.m_builder, m_quoteScopeStack.last().lastQuote.get());
+        m_quoteScopeStack.last().lastQuote = quote;
+
         m_previousUpdatedQuote = quote;
         if (&quote == lastQuote)
             return;

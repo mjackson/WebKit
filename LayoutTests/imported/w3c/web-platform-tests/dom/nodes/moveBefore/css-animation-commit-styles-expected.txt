@@ -1,3 +1,3 @@
 
-FAIL Calling commitStyles after Node.moveBefore should commit mid-transition value promise_test: Unhandled rejection with value: object "TypeError: document.body.querySelector("#new-parent").moveBefore is not a function. (In 'document.body.querySelector("#new-parent").moveBefore(item, null)', 'document.body.querySelector("#new-parent").moveBefore' is undefined)"
+PASS Calling commitStyles after Node.moveBefore should commit mid-transition value
 

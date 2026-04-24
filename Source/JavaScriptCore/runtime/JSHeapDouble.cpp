@@ -29,7 +29,6 @@
 
 #include "JSCJSValueInlines.h"
 #include "JSObjectInlines.h"
-#include "StructureInlines.h"
 
 #include "VMManager.h"
 #include <mutex>

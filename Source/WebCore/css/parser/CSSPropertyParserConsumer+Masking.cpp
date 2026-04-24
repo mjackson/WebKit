@@ -26,6 +26,7 @@
 #include "config.h"
 #include "CSSPropertyParserConsumer+Masking.h"
 
+#include "CSSKeywordValueInlines.h"
 #include "CSSParserContext.h"
 #include "CSSParserTokenRange.h"
 #include "CSSPrimitiveValue.h"
@@ -55,7 +56,7 @@ RefPtr<CSSValue> consumeClipRectFunction(CSSParserTokenRange& range, CSS::Proper
 
     CSSParserTokenRange args = consumeFunction(range);
 
-    auto consumeClipComponent = [&] -> RefPtr<CSSPrimitiveValue> {
+    auto consumeClipComponent = [&] -> RefPtr<CSSValue> {
         if (args.peek().id() == CSSValueAuto)
             return consumeIdent(args);
         return CSSPrimitiveValueResolver<CSS::Length<>>::consumeAndResolve(args, state);
@@ -134,7 +135,7 @@ RefPtr<CSSValue> consumeClipPath(CSSParserTokenRange& range, CSS::PropertyParser
     if (shape)
         list.append(shape.releaseNonNull());
     // Default value is border-box.
-    if (box && (box->valueID() != CSSValueBorderBox || !hasShape))
+    if (box && (!isValueID(*box, CSSValueBorderBox) || !hasShape))
         list.append(box.releaseNonNull());
 
     if (list.isEmpty())

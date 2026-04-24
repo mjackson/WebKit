@@ -1805,6 +1805,8 @@ public:
     void compileResolvePromiseFirstResolving(Node*);
     void compileRejectPromiseFirstResolving(Node*);
     void compileFulfillPromiseFirstResolving(Node*);
+    void compileNewResolvedPromise(Node*);
+    void compileNewRejectedPromise(Node*);
     void compilePromiseResolve(Node*);
     void compilePromiseReject(Node*);
     void compilePromiseThen(Node*);

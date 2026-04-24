@@ -30,7 +30,9 @@
 #include "JSInternalFieldObjectImpl.h"
 #include "ModuleMap.h"
 #include "ScriptFetchParameters.h"
+#include "ScriptFetcher.h"
 #include <wtf/ListHashSet.h>
+#include <wtf/RefPtr.h>
 
 namespace JSC {
 
@@ -217,14 +219,14 @@ public:
         return m_moduleEnvironment.get();
     }
 
-    void link(JSGlobalObject*, JSValue scriptFetcher);
+    void link(JSGlobalObject*, RefPtr<ScriptFetcher> = nullptr);
     JS_EXPORT_PRIVATE JSValue evaluate(JSGlobalObject*, JSValue sentValue, JSValue resumeMode);
     WriteBarrier<Unknown>& internalField(Field field) { return Base::internalField(static_cast<uint32_t>(field)); }
     WriteBarrier<Unknown> internalField(Field field) const { return Base::internalField(static_cast<uint32_t>(field)); }
 
     void evaluateModuleSync(JSGlobalObject*);
     unsigned innerModuleEvaluation(JSGlobalObject*, Vector<AbstractModuleRecord*, 8>& stack, unsigned index);
-    unsigned innerModuleLinking(JSGlobalObject*, Vector<CyclicModuleRecord*, 8>& stack, unsigned index, JSValue scriptFetcher);
+    unsigned innerModuleLinking(JSGlobalObject*, Vector<CyclicModuleRecord*, 8>& stack, unsigned index, RefPtr<ScriptFetcher>);
 
     DECLARE_VISIT_CHILDREN;
 
@@ -297,7 +299,7 @@ protected:
 
     AsyncEvaluationOrder m_asyncEvaluationOrder { };
 
-    HashMap<String, WriteBarrier<AbstractModuleRecord>> m_dependencies;
+    UncheckedKeyHashMap<String, WriteBarrier<AbstractModuleRecord>> m_dependencies;
 
     WriteBarrier<JSPromise> m_topLevelCapability;
 

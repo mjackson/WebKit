@@ -107,6 +107,7 @@ public:
     void pushInline(JSGlobalObject*, JSValue);
     JS_EXPORT_PRIVATE void push(JSGlobalObject*, JSValue);
     JS_EXPORT_PRIVATE JSValue pop(JSGlobalObject*);
+    JSValue fastShift(VM&);
 
     static JSArray* fastSlice(JSGlobalObject*, JSObject* source, uint64_t startIndex, uint64_t count);
 
@@ -179,7 +180,7 @@ protected:
     void finishCreation(VM& vm)
     {
         Base::finishCreation(vm);
-        ASSERT(jsDynamicCast<JSArray*>(this));
+        ASSERT(is<JSArray>(this));
         ASSERT_WITH_MESSAGE(type() == ArrayType || type() == DerivedArrayType, "Instance inheriting JSArray should have either ArrayType or DerivedArrayType");
     }
 #endif
@@ -351,7 +352,7 @@ JSArray* asArray(JSValue);
 inline JSArray* asArray(JSCell* cell)
 {
     ASSERT(cell->inherits<JSArray>());
-    return jsCast<JSArray*>(cell);
+    return uncheckedDowncast<JSArray>(cell);
 }
 
 inline JSArray* asArray(JSValue value)

@@ -51,6 +51,7 @@ struct QuirksData {
     bool isOutlook : 1 { false };
     bool isSoundCloud : 1 { false };
     bool isThesaurus : 1 { false };
+    bool isTikTok : 1 { false };
     bool isVimeo : 1 { false };
     bool isWalmart : 1 { false };
     bool isWebEx : 1 { false };
@@ -88,7 +89,8 @@ struct QuirksData {
         NeedsDeferKeyDownAndKeyPressTimersUntilNextEditingCommandQuirk,
 #endif
         NeedsFacebookRemoveNotSupportedQuirk,
-#if PLATFORM(MAC)
+#if PLATFORM(COCOA)
+        NeedsAnchorToBeMouseFocusableQuirk,
         NeedsFormControlToBeMouseFocusableQuirk,
 #endif
 #if PLATFORM(IOS_FAMILY)
@@ -99,7 +101,7 @@ struct QuirksData {
         NeedsGoogleTranslateScrollingQuirk,
 #endif
         NeedsGeforcenowWarningDisplayNoneQuirk,
-        NeedsHotelsAnimationQuirk,
+        NeedsExpediaGroupAnimationQuirk,
         NeedsMediaRewriteRangeRequestQuirk,
         NeedsMozillaFileTypeForDataTransferQuirk,
         NeedsNavigatorUserAgentDataQuirk,
@@ -376,7 +378,7 @@ struct QuirksData {
     enum class ShouldDispatchSimulatedMouseEvents : uint8_t {
         Unknown,
         No,
-        DependingOnTargetForFacebook,
+        DependingOnTargetWithSliderRole,
         DependingOnTargetFor_mybinder_org,
         Yes,
     };

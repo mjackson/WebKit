@@ -31,7 +31,7 @@ namespace CSS {
 
 // MARK: Primitive Numeric or Keyword
 
-template<Numeric NumericType, PrimitiveKeyword... Ks> struct PrimitiveNumericOrKeyword {
+template<Numeric NumericType, SpecificKeyword... Ks> struct PrimitiveNumericOrKeyword {
     using Raw = typename NumericType::Raw;
     using Calc = typename NumericType::Calc;
     using UnitType = typename NumericType::UnitType;

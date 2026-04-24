@@ -633,6 +633,147 @@ What component in 'WebKit' should the bug be associated with?:
                 self.assertEqual(issue.references[0].link, 'rdar://1')
                 self.assertEqual(issue.references[0].title, 'Example issue 1')
 
+    def test_cc_radar_importer_already_cced_with_explicit_radar(self):
+        """When the importer is already CC'd (e.g. auto-CC on Security product) and
+        an explicit radar is provided, cc_radar should add InRadar + comment without
+        prompting.  This tests the fix for the unwanted Terminal.choose prompt."""
+        # Use issue data where the importer is already in watchers
+        issues_with_importer = [dict(
+            title='Security bug',
+            timestamp=1639536160,
+            opened=True,
+            creator=mocks.USERS['Tim Contributor'],
+            assignee=mocks.USERS['Tim Contributor'],
+            description='A security issue',
+            project='WebKit',
+            component='Text',
+            version='Other',
+            keywords=['InRadar'],
+            comments=[],
+            watchers=[
+                mocks.USERS['Tim Contributor'],
+                mocks.USERS['Radar WebKit Bug Importer'],  # Already CC'd
+            ],
+        )]
+        with OutputCapture(level=logging.INFO) as captured, mocks.Bugzilla(
+            self.URL.split('://')[1], environment=wkmocks.Environment(
+                BUGS_EXAMPLE_COM_USERNAME='tcontributor@example.com',
+                BUGS_EXAMPLE_COM_PASSWORD='password',
+            ), users=mocks.USERS, issues=issues_with_importer, projects=mocks.PROJECTS,
+        ), mocks.Radar(
+            users=mocks.USERS, issues=mocks.ISSUES, projects=mocks.PROJECTS,
+        ), wkmocks.Time:
+            radar_tracker = radar.Tracker()
+            bugzilla_tracker = bugzilla.Tracker(self.URL, radar_importer=mocks.USERS['Radar WebKit Bug Importer'])
+
+            with patch('webkitbugspy.Tracker._trackers', [radar_tracker, bugzilla_tracker]):
+                issue = bugzilla_tracker.issue(1)
+                # Importer is already a watcher
+                self.assertIn(mocks.USERS['Radar WebKit Bug Importer'], issue.watchers)
+                # cc_radar should succeed without prompting
+                result = issue.cc_radar(block=True, radar=Tracker.from_string('<rdar://1>'))
+                self.assertIsNotNone(result)
+                # Should have added the rdar comment
+                self.assertEqual(issue.comments[-1].content, '<rdar://problem/1>')
+                # Should NOT have prompted (no Terminal.choose in output)
+                self.assertNotIn('Would you like to CC', captured.stderr.getvalue())
+                self.assertNotIn('Would you like to CC', captured.stdout.getvalue())
+
+    def test_cc_radar_importer_already_cced_no_inradar_prompts(self):
+        """When the importer is already CC'd, no radar is tracked, and InRadar
+        is NOT in keywords, cc_radar should prompt and proceed when user says Yes."""
+        issues_with_importer = [dict(
+            title='Bug without InRadar',
+            timestamp=1639536160,
+            opened=True,
+            creator=mocks.USERS['Tim Contributor'],
+            assignee=mocks.USERS['Tim Contributor'],
+            description='A test issue',
+            project='WebKit',
+            component='Text',
+            version='Other',
+            keywords=[],
+            comments=[],
+            watchers=[
+                mocks.USERS['Tim Contributor'],
+                mocks.USERS['Radar WebKit Bug Importer'],
+            ],
+        )]
+        with wkmocks.Terminal.input('Yes'), OutputCapture(level=logging.INFO) as captured, mocks.Bugzilla(
+            self.URL.split('://')[1], environment=wkmocks.Environment(
+                BUGS_EXAMPLE_COM_USERNAME='tcontributor@example.com',
+                BUGS_EXAMPLE_COM_PASSWORD='password',
+            ), users=mocks.USERS, issues=issues_with_importer, projects=mocks.PROJECTS,
+        ), mocks.Radar(
+            users=mocks.USERS, issues=mocks.ISSUES, projects=mocks.PROJECTS,
+        ), wkmocks.Time:
+            radar_tracker = radar.Tracker()
+            bugzilla_tracker = bugzilla.Tracker(self.URL, radar_importer=mocks.USERS['Radar WebKit Bug Importer'])
+
+            with patch('webkitbugspy.Tracker._trackers', [radar_tracker, bugzilla_tracker]):
+                issue = bugzilla_tracker.issue(1)
+                result = issue.cc_radar(block=True, radar=Tracker.from_string('<rdar://1>'))
+                self.assertIsNotNone(result)
+                self.assertEqual(issue.comments[-1].content, '<rdar://problem/1>')
+                # Should have prompted
+                self.assertIn('already CCed but no Radar was imported', captured.stderr.getvalue())
+
+    def test_cc_radar_importer_already_cced_different_tracked_bug(self):
+        """When the importer is already CC'd and a different bug is already
+        tracked, cc_radar should prompt to overwrite and proceed when user says Yes."""
+        issues_with_tracked = [
+            dict(
+                title='Bug with tracked reference',
+                timestamp=1639536160,
+                opened=True,
+                creator=mocks.USERS['Tim Contributor'],
+                assignee=mocks.USERS['Tim Contributor'],
+                description='A test issue',
+                project='WebKit',
+                component='Text',
+                version='Other',
+                keywords=[],
+                comments=[],
+                watchers=[
+                    mocks.USERS['Tim Contributor'],
+                    mocks.USERS['Radar WebKit Bug Importer'],
+                ],
+                references=[2],
+            ),
+            dict(
+                title='Referenced bug',
+                timestamp=1639536160,
+                opened=True,
+                creator=mocks.USERS['Tim Contributor'],
+                assignee=mocks.USERS['Tim Contributor'],
+                description='Referenced',
+                project='WebKit',
+                component='Text',
+                version='Other',
+                keywords=[],
+                comments=[],
+                watchers=[mocks.USERS['Tim Contributor']],
+            ),
+        ]
+        with wkmocks.Terminal.input('Yes'), OutputCapture(level=logging.INFO) as captured, mocks.Bugzilla(
+            self.URL.split('://')[1], environment=wkmocks.Environment(
+                BUGS_EXAMPLE_COM_USERNAME='tcontributor@example.com',
+                BUGS_EXAMPLE_COM_PASSWORD='password',
+            ), users=mocks.USERS, issues=issues_with_tracked, projects=mocks.PROJECTS,
+        ), mocks.Radar(
+            users=mocks.USERS, issues=mocks.ISSUES, projects=mocks.PROJECTS,
+        ), wkmocks.Time:
+            radar_tracker = radar.Tracker()
+            bugzilla_tracker = bugzilla.Tracker(self.URL, radar_importer=mocks.USERS['Radar WebKit Bug Importer'])
+
+            with patch('webkitbugspy.Tracker._trackers', [radar_tracker, bugzilla_tracker]):
+                issue = bugzilla_tracker.issue(1)
+                result = issue.cc_radar(block=True, radar=Tracker.from_string('<rdar://1>'))
+                self.assertIsNotNone(result)
+                self.assertEqual(issue.comments[-1].content, '<rdar://problem/1>')
+                # Should have prompted about overwriting
+                self.assertIn('tracking a different bug', captured.stderr.getvalue())
+
     def test_milestone(self):
         with mocks.Bugzilla(self.URL.split('://')[1], issues=mocks.ISSUES):
             tracker = bugzilla.Tracker(self.URL)

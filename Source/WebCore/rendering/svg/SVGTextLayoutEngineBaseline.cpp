@@ -62,6 +62,13 @@ AlignmentBaseline SVGTextLayoutEngineBaseline::dominantBaselineToAlignmentBaseli
 
     DominantBaseline baseline = textRenderer.style().dominantBaseline();
     if (baseline == DominantBaseline::Auto) {
+        // Per SVG2 and CSS Inline 3, auto maps to alphabetic in horizontal writing
+        // modes and to central in vertical writing modes. The CSS Inline 3 spec
+        // distinguishes text-orientation values for vertical text, but SVG2 says
+        // "the origin point of glyphs is always handled as for central in vertical
+        // writing modes" for backwards compatibility.
+        // https://drafts.csswg.org/css-inline-3/#propdef-dominant-baseline
+        // https://w3c.github.io/svgwg/svg2-draft/text.html#DominantBaselineProperty
         if (isVerticalText)
             baseline = DominantBaseline::Central;
         else

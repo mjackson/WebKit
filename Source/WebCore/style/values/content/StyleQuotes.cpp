@@ -23,6 +23,7 @@
 #include "config.h"
 #include "StyleQuotes.h"
 
+#include "CSSKeywordValue.h"
 #include "CSSStringValue.h"
 #include "StyleBuilderChecking.h"
 
@@ -65,8 +66,8 @@ const WTF::String& Quotes::closeQuote(unsigned index) const
 
 auto CSSValueConversion<Quotes>::operator()(BuilderState& state, const CSSValue& value) -> Quotes
 {
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueAuto:
             return CSS::Keyword::Auto { };
         case CSSValueNone:

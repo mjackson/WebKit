@@ -200,7 +200,7 @@ bool isCustomPropertyName(StringView propertyName)
 
 // MARK: - CSS-wide keyword value consumer
 
-static RefPtr<CSSPrimitiveValue> consumeCSSWideKeywordValue(CSSParserTokenRange& range)
+static RefPtr<CSSValue> consumeCSSWideKeywordValue(CSSParserTokenRange& range)
 {
     auto rangeCopy = range;
     auto valueID = rangeCopy.consumeIncludingWhitespace().id();
@@ -211,7 +211,7 @@ static RefPtr<CSSPrimitiveValue> consumeCSSWideKeywordValue(CSSParserTokenRange&
         return nullptr;
 
     range = rangeCopy;
-    return CSSPrimitiveValue::create(valueID);
+    return CSSKeywordValue::create(valueID);
 }
 
 static std::optional<CSSWideKeyword> consumeCSSWideKeyword(CSSParserTokenRange& range)

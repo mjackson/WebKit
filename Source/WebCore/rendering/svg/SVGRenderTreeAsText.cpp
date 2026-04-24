@@ -461,7 +461,7 @@ void writeSVGResourceContainer(TextStream& ts, const LegacyRenderSVGResourceCont
                 .referenceBox = { },
                 .filterRegion = { },
                 .scale = { 1, 1},
-            }, FilterRenderingMode::Software, NullGraphicsContext());
+            }, FilterRenderingMode::Software, { }, NullGraphicsContext());
         if (placeholderFilter) {
             TextStream::IndentScope indentScope(ts);
             placeholderFilter->externalRepresentation(ts, FilterRepresentation::TestOutput);

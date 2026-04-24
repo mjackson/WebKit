@@ -29,51 +29,20 @@
 
 #pragma once
 
-#include "ArrayProfile.h"
-#include "BytecodeConventions.h"
-#include "CallLinkInfo.h"
 #include "CodeBlockHash.h"
-#include "CodeOrigin.h"
-#include "CodeType.h"
-#include "CompilationResult.h"
-#include "ConcurrentJSLock.h"
-#include "DFGCodeOriginPool.h"
-#include "DFGCommon.h"
 #include "DirectEvalCodeCache.h"
-#include "EvalExecutable.h"
-#include "ExecutionCounter.h"
-#include "ExpressionInfo.h"
-#include "FunctionExecutable.h"
-#include "HandlerInfo.h"
 #include "ICStatusMap.h"
-#include "Instruction.h"
-#include "InstructionStream.h"
-#include "JITCode.h"
-#include "JITCodeMap.h"
-#include "JITMathICForwards.h"
-#include "JSCast.h"
-#include "JumpTable.h"
-#include "LazyValueProfile.h"
+#include "JSCell.h"
 #include "MetadataTable.h"
-#include "ModuleProgramExecutable.h"
-#include "ObjectAllocationProfile.h"
-#include "Options.h"
+#include "Operands.h"
 #include "Printer.h"
-#include "ProfilerJettisonReason.h"
-#include "ProgramExecutable.h"
-#include "PutPropertySlot.h"
-#include "RegisterAtOffsetList.h"
-#include "ValueProfile.h"
-#include "VirtualRegister.h"
-#include "Watchpoint.h"
-#include <wtf/ApproximateTime.h>
-#include <wtf/FastMalloc.h>
-#include <wtf/FixedVector.h>
-#include <wtf/HashSet.h>
-#include <wtf/RefPtr.h>
-#include <wtf/SegmentedVector.h>
-#include <wtf/Vector.h>
-#include <wtf/text/WTFString.h>
+#include "ScriptExecutable.h"
+#include "UnlinkedCodeBlock.h"
+
+#if ENABLE(DFG_JIT)
+#include "DFGCodeOriginPool.h"
+#include "LazyValueProfile.h"
+#endif
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
@@ -85,19 +54,37 @@ class JITData;
 } // namespace DFG
 #endif
 
-class UnaryArithProfile;
+class BaselineJITCode;
+class BaselineJITData;
 class BinaryArithProfile;
 class BytecodeLivenessAnalysis;
+class CallLinkInfoBase;
 class CodeBlockSet;
+class JITCodeMap;
 class JSModuleEnvironment;
 class LLIntOffsetsExtractor;
 class LLIntPrototypeLoadAdaptiveStructureWatchpoint;
 class MetadataTable;
+class PropertyInlineCache;
 class RegisterAtOffsetList;
 class ScriptExecutable;
-class PropertyInlineCache;
-class BaselineJITCode;
-class BaselineJITData;
+class UnaryArithProfile;
+class UnlinkedCodeBlock;
+
+struct OpCatch;
+struct SimpleJumpTable;
+struct StringJumpTable;
+
+enum class AccessType : int8_t;
+enum class CompilationResult : uint8_t;
+enum class JITType : uint8_t;
+enum ReoptimizationMode { DontCountReoptimization, CountReoptimization };
+
+#if ENABLE(JIT)
+namespace DFG {
+enum CapabilityLevel : uint8_t;
+}
+#endif
 
 #if PLATFORM(MAC) || PLATFORM(MACCATALYST)
 #define ENABLE_CODEBLOCK_CRASH_ANALYSIS 1 // FIXME: rdar://149223818
@@ -106,12 +93,6 @@ class BaselineJITData;
 #endif
 
 DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(CodeBlockRareData);
-
-enum class AccessType : int8_t;
-
-struct OpCatch;
-
-enum ReoptimizationMode { DontCountReoptimization, CountReoptimization };
 
 class CodeBlock : public JSCell {
     typedef JSCell Base;
@@ -1073,14 +1054,14 @@ void ScriptExecutable::prepareForExecution(VM& vm, JSFunction* function, JSScope
 {
     if (hasJITCodeFor(kind)) {
         if constexpr (std::same_as<ExecutableType, EvalExecutable>)
-            resultCodeBlock = jsCast<CodeBlock*>(jsCast<ExecutableType*>(this)->codeBlock());
+            resultCodeBlock = uncheckedDowncast<ExecutableType>(this)->codeBlock();
         else if constexpr (std::same_as<ExecutableType, ProgramExecutable>)
-            resultCodeBlock = jsCast<CodeBlock*>(jsCast<ExecutableType*>(this)->codeBlock());
+            resultCodeBlock = uncheckedDowncast<ExecutableType>(this)->codeBlock();
         else if constexpr (std::same_as<ExecutableType, ModuleProgramExecutable>)
-            resultCodeBlock = jsCast<CodeBlock*>(jsCast<ExecutableType*>(this)->codeBlock());
+            resultCodeBlock = uncheckedDowncast<ExecutableType>(this)->codeBlock();
         else {
             static_assert(std::same_as<ExecutableType, FunctionExecutable>);
-            resultCodeBlock = jsCast<CodeBlock*>(jsCast<ExecutableType*>(this)->codeBlockFor(kind));
+            resultCodeBlock = uncheckedDowncast<ExecutableType>(this)->codeBlockFor(kind);
         }
         return;
     }

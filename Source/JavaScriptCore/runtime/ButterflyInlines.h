@@ -27,6 +27,7 @@
 
 #include "ArrayStorageInlines.h"
 #include "Butterfly.h"
+#include "HeapCellInlines.h"
 #include "JSObject.h"
 #include "Structure.h"
 #include "VM.h"

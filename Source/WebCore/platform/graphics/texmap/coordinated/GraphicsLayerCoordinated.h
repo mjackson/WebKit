@@ -71,6 +71,7 @@ private:
     void setPreserves3D(bool) override;
     void setBackfaceVisibility(bool) override;
     void setOpacity(float) override;
+    void setBlendMode(BlendMode) override;
     void setContentsVisible(bool) override;
     void setContentsOpaque(bool) override;
     void setContentsRect(const FloatRect&) override;
@@ -97,6 +98,9 @@ private:
 
     void setEventRegion(EventRegion&&) override;
 
+    void setShapeLayerPath(const Path&) override;
+    void setShapeLayerWindRule(WindRule) override;
+
     void deviceOrPageScaleFactorChanged() override;
 
     float rootRelativeScaleFactor() const { return m_rootRelativeScaleFactor; }
@@ -108,6 +112,7 @@ private:
     void setReplicatedByLayer(RefPtr<GraphicsLayer>&&) override;
     bool setBackdropFilters(const FilterOperations&) override;
     void setBackdropFiltersRect(const FloatRoundedRect&) override;
+    void setIsBackdropRoot(bool) override;
 
     bool addAnimation(const GraphicsLayerKeyframeValueList&, const GraphicsLayerAnimation*, const String&, double) override;
     void removeAnimation(const String&, std::optional<AnimatedProperty>) override;
@@ -129,39 +134,42 @@ private:
     void setShowRepaintCounter(bool) override;
     void dumpAdditionalProperties(TextStream&, OptionSet<LayerTreeAsTextOptions>) const override;
 
-    enum class Change : uint32_t {
-        Geometry                     = 1 << 0,
-        Transform                    = 1 << 1,
-        ChildrenTransform            = 1 << 2,
-        DrawsContent                 = 1 << 3,
-        MasksToBounds                = 1 << 4,
-        Preserves3D                  = 1 << 5,
-        BackfaceVisibility           = 1 << 6,
-        Opacity                      = 1 << 7,
-        Children                     = 1 << 8,
-        ContentsVisible              = 1 << 9,
-        ContentsOpaque               = 1 << 10,
-        ContentsRect                 = 1 << 11,
-        ContentsRectClipsDescendants = 1 << 12,
-        ContentsClippingRect         = 1 << 13,
-        ContentsScale                = 1 << 14,
-        ContentsTiling               = 1 << 15,
-        ContentsBuffer               = 1 << 16,
-        ContentsBufferNeedsDisplay   = 1 << 17,
-        ContentsImage                = 1 << 18,
-        ContentsColor                = 1 << 19,
-        DirtyRegion                  = 1 << 20,
-        EventRegion                  = 1 << 21,
-        Filters                      = 1 << 22,
-        Mask                         = 1 << 23,
-        Replica                      = 1 << 24,
-        Backdrop                     = 1 << 25,
-        BackdropRect                 = 1 << 26,
-        Animations                   = 1 << 27,
-        TileCoverage                 = 1 << 28,
-        DebugIndicators              = 1 << 29,
+    enum class Change : uint64_t {
+        Geometry                     = 1LLU << 0,
+        Transform                    = 1LLU << 1,
+        ChildrenTransform            = 1LLU << 2,
+        DrawsContent                 = 1LLU << 3,
+        MasksToBounds                = 1LLU << 4,
+        Preserves3D                  = 1LLU << 5,
+        BackfaceVisibility           = 1LLU << 6,
+        Opacity                      = 1LLU << 7,
+        BlendMode                    = 1LLU << 8,
+        Children                     = 1LLU << 9,
+        ContentsVisible              = 1LLU << 10,
+        ContentsOpaque               = 1LLU << 11,
+        ContentsRect                 = 1LLU << 12,
+        ContentsRectClipsDescendants = 1LLU << 13,
+        ContentsClippingRect         = 1LLU << 14,
+        ContentsScale                = 1LLU << 15,
+        ContentsTiling               = 1LLU << 16,
+        ContentsBuffer               = 1LLU << 17,
+        ContentsBufferNeedsDisplay   = 1LLU << 18,
+        ContentsImage                = 1LLU << 19,
+        ContentsColor                = 1LLU << 20,
+        DirtyRegion                  = 1LLU << 21,
+        EventRegion                  = 1LLU << 22,
+        Shape                        = 1LLU << 23,
+        Filters                      = 1LLU << 24,
+        Mask                         = 1LLU << 25,
+        Replica                      = 1LLU << 26,
+        Backdrop                     = 1LLU << 27,
+        BackdropRect                 = 1LLU << 28,
+        BackdropRoot                 = 1LLU << 29,
+        Animations                   = 1LLU << 30,
+        TileCoverage                 = 1LLU << 31,
+        DebugIndicators              = 1LLU << 32,
 #if ENABLE(SCROLLING_THREAD)
-        ScrollingNode                = 1 << 30
+        ScrollingNode                = 1LLU << 33
 #endif
     };
 

@@ -25,13 +25,13 @@
 #include "config.h"
 #include "StyleViewFunction.h"
 
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSViewValue.h"
 #include "StyleBuilderChecking.h"
+#include "StyleKeyword+CSSValueConversion.h"
+#include "StyleKeyword+CSSValueCreation.h"
+#include "StyleKeyword+Logging.h"
+#include "StyleKeyword+Serialization.h"
 #include "StyleLengthWrapper+CSSValueConversion.h"
-#include "StylePrimitiveKeyword+CSSValueCreation.h"
-#include "StylePrimitiveKeyword+Logging.h"
-#include "StylePrimitiveKeyword+Serialization.h"
 #include "StylePrimitiveNumericTypes+CSSValueCreation.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 #include "StylePrimitiveNumericTypes+Serialization.h"
@@ -60,7 +60,7 @@ auto CSSValueConversion<ViewFunction>::operator()(BuilderState& state, const CSS
 {
     auto axis = [&] {
         if (auto* axisValue = value.axis())
-            return fromCSSValueID<ScrollAxis>(axisValue->valueID());
+            return toStyleFromCSSValue<ScrollAxis>(state, *axisValue);
         return ScrollAxis::Block;
     }();
 

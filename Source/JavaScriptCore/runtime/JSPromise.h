@@ -29,6 +29,8 @@
 
 namespace JSC {
 
+enum class InternalMicrotask : uint8_t;
+
 class JSPromiseConstructor;
 class JSPromise : public JSInternalFieldObjectImpl<2> {
 public:

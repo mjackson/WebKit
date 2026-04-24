@@ -28,11 +28,10 @@
 #include "ClassInfo.h"
 #include "Concurrency.h"
 #include "ConcurrentJSLock.h"
-#include "DeletePropertySlot.h"
 #include "IndexingType.h"
 #include "JSCJSValue.h"
+#include "JSCJSValueCell.h"
 #include "JSCast.h"
-#include "JSType.h"
 #include "JSTypeInfo.h"
 #include "PropertyName.h"
 #include "PropertyNameArray.h"
@@ -46,7 +45,6 @@
 #include <wtf/CompactPointerTuple.h>
 #include <wtf/CompactPtr.h>
 #include <wtf/CompactRefPtr.h>
-#include <wtf/PrintStream.h>
 
 namespace WTF {
 
@@ -510,67 +508,16 @@ public:
         return rareData();
     }
     
-    Structure* previousID() const
-    {
-        ASSERT(structure()->classInfoForCells() == info());
-        // This is so written because it's used concurrently. We only load from m_previousOrRareData
-        // once, and this load is guaranteed atomic.
-        JSCell* cell = m_previousOrRareData.get();
-        if (isRareData(cell))
-            return static_cast<StructureRareData*>(cell)->previousID();
-        return static_cast<Structure*>(cell);
-    }
-    bool transitivelyTransitionedFrom(Structure* structureToFind);
+    inline Structure* previousID() const; // Defined below
+    inline bool transitivelyTransitionedFrom(Structure* structureToFind); // Defined below
 
-    PropertyOffset maxOffset() const
-    {
-        uint16_t maxOffset = m_maxOffset;
-        if (maxOffset == shortInvalidOffset)
-            return invalidOffset;
-        if (maxOffset == useRareDataFlag)
-            return rareData()->m_maxOffset;
-        return maxOffset;
-    }
+    inline PropertyOffset maxOffset() const; // Defined below
 
-    void setMaxOffset(VM& vm, PropertyOffset offset)
-    {
-        if (offset == invalidOffset)
-            m_maxOffset = shortInvalidOffset;
-        else if (offset < useRareDataFlag && offset < shortInvalidOffset)
-            m_maxOffset = offset;
-        else if (m_maxOffset == useRareDataFlag)
-            rareData()->m_maxOffset = offset;
-        else {
-            ensureRareData(vm)->m_maxOffset = offset;
-            WTF::storeStoreFence();
-            m_maxOffset = useRareDataFlag;
-        }
-    }
+    inline void setMaxOffset(VM&, PropertyOffset); // Defined below
 
-    PropertyOffset transitionOffset() const
-    {
-        uint16_t transitionOffset = m_transitionOffset;
-        if (transitionOffset == shortInvalidOffset)
-            return invalidOffset;
-        if (transitionOffset == useRareDataFlag)
-            return rareData()->m_transitionOffset;
-        return transitionOffset;
-    }
+    inline PropertyOffset transitionOffset() const; // Defined below
 
-    void setTransitionOffset(VM& vm, PropertyOffset offset)
-    {
-        if (offset == invalidOffset)
-            m_transitionOffset = shortInvalidOffset;
-        else if (offset < useRareDataFlag && offset < shortInvalidOffset)
-            m_transitionOffset = offset;
-        else if (m_transitionOffset == useRareDataFlag)
-            rareData()->m_transitionOffset = offset;
-        else {
-            ensureRareData(vm)->m_transitionOffset = offset;
-            WTF::storeStoreFence();
-            m_transitionOffset = useRareDataFlag;
-        }
-    }
+    inline void setTransitionOffset(VM&, PropertyOffset); // Defined below
 
     static unsigned outOfLineCapacity(PropertyOffset maxOffset)
     {
@@ -642,13 +589,17 @@ public:
     }
     
     bool hasIndexingHeader(const JSCell*) const;    
-    bool masqueradesAsUndefined(JSGlobalObject* lexicalGlobalObject);
+    bool masqueradesAsUndefined(JSGlobalObject* lexicalGlobalObject)
+    {
+        return typeInfo().masqueradesAsUndefined() && realm() == lexicalGlobalObject;
+    }
 
     PropertyOffset get(VM&, PropertyName);
     PropertyOffset get(VM&, PropertyName, unsigned& attributes);
 
-    bool canPerformFastPropertyEnumerationCommon() const;
-    bool canPerformFastPropertyEnumeration() const;
+    inline bool canPerformFastPropertyEnumerationCommon() const; // Defined below
+
+    inline bool canPerformFastPropertyEnumeration() const; // Defined below
 
     // This is a somewhat internalish method. It will call your functor while possibly holding the
     // Structure's lock. There is no guarantee whether the lock is held or not in any particular
@@ -686,7 +637,11 @@ public:
     }
     IGNORE_RETURN_TYPE_WARNINGS_END
     
-    PropertyOffset getConcurrently(UniquedStringImpl* uid);
+    PropertyOffset getConcurrently(UniquedStringImpl* uid)
+    {
+        unsigned attributesIgnored;
+        return getConcurrently(uid, attributesIgnored);
+    }
     PropertyOffset getConcurrently(UniquedStringImpl* uid, unsigned& attributes);
     
     Vector<PropertyTableEntry> getPropertiesConcurrently();
@@ -706,10 +661,29 @@ public:
     bool NODELETE canCachePropertyNameEnumerator(VM&) const;
     bool NODELETE canAccessPropertiesQuicklyForEnumeration() const;
 
-    JSCellButterfly* cachedPropertyNames(CachedPropertyNamesKind) const;
-    JSCellButterfly* cachedPropertyNamesIgnoringSentinel(CachedPropertyNamesKind) const;
+    JSCellButterfly* cachedPropertyNames(CachedPropertyNamesKind kind) const
+    {
+        if (!hasRareData())
+            return nullptr;
+        return rareData()->cachedPropertyNames(kind);
+    }
+    JSCellButterfly* cachedPropertyNamesIgnoringSentinel(CachedPropertyNamesKind kind) const
+    {
+        if (!hasRareData())
+            return nullptr;
+        return rareData()->cachedPropertyNamesIgnoringSentinel(kind);
+    }
     void setCachedPropertyNames(VM&, CachedPropertyNamesKind, JSCellButterfly*);
-    bool canCacheOwnPropertyNames() const;
+    bool canCacheOwnPropertyNames() const
+    {
+        if (isDictionary())
+            return false;
+        if (hasIndexedProperties(indexingType()))
+            return false;
+        if (typeInfo().overridesAnyFormOfGetOwnPropertyNames())
+            return false;
+        return true;
+    }
 
     void getPropertyNamesFromStructure(VM&, PropertyNameArrayBuilder&, DontEnumPropertiesMode);
 
@@ -842,7 +816,12 @@ public:
     WatchpointSet* propertyReplacementWatchpointSet(PropertyOffset);
     WatchpointSet* firePropertyReplacementWatchpointSet(VM&, PropertyOffset, const char* reason);
 
-    void didReplaceProperty(PropertyOffset);
+    void didReplaceProperty(PropertyOffset offset)
+    {
+        if (!isWatchingReplacement()) [[likely]]
+            return;
+        didReplacePropertySlow(offset);
+    }
     void didCachePropertyReplacement(VM&, PropertyOffset);
     
     void startWatchingInternalPropertiesIfNecessary(VM& vm)
@@ -1001,7 +980,7 @@ private:
     PropertyOffset attributeChange(VM&, PropertyName, unsigned attributes);
 
 #if ASSERT_ENABLED
-    void checkConsistency();
+    JS_EXPORT_PRIVATE void checkConsistency();
 #else
     ALWAYS_INLINE void checkConsistency() { }
 #endif
@@ -1059,15 +1038,21 @@ private:
         return cell && cell->type() != StructureType;
     }
 
+    JS_EXPORT_PRIVATE void allocateRareData(VM&);
+
     template<typename DetailsFunc>
     void checkOffsetConsistency(PropertyTable*, const DetailsFunc&) const;
     void checkOffsetConsistency() const;
 
-    JS_EXPORT_PRIVATE void allocateRareData(VM&);
-    
     void startWatchingInternalProperties(VM&);
 
-    void clearCachedPrototypeChain();
+    void clearCachedPrototypeChain()
+    {
+        m_cachedPrototypeChain.clear();
+        if (!hasRareData())
+            return;
+        rareData()->clearCachedPropertyNameEnumerator();
+    }
 
     bool NODELETE holesMustForwardToPrototypeSlow(JSObject*) const;
 
@@ -1142,6 +1127,103 @@ template<typename Target>
 inline bool JSCell::inherits() const
 {
     return JSCastingHelpers::inherits<Target>(this);
+}
+
+inline Structure* Structure::previousID() const
+{
+    ASSERT(structure()->classInfoForCells() == info());
+    // This is so written because it's used concurrently. We only load from m_previousOrRareData
+    // once, and this load is guaranteed atomic.
+    JSCell* cell = m_previousOrRareData.get();
+    if (isRareData(cell))
+        return static_cast<StructureRareData*>(cell)->previousID();
+    return static_cast<Structure*>(cell);
+}
+
+inline bool Structure::transitivelyTransitionedFrom(Structure* structureToFind)
+{
+    for (Structure* current = this; current; current = current->previousID()) {
+        if (current == structureToFind)
+            return true;
+    }
+    return false;
+}
+
+inline PropertyOffset Structure::maxOffset() const
+{
+    uint16_t maxOffset = m_maxOffset;
+    if (maxOffset == shortInvalidOffset)
+        return invalidOffset;
+    if (maxOffset == useRareDataFlag)
+        return rareData()->m_maxOffset;
+    return maxOffset;
+}
+
+inline void Structure::setMaxOffset(VM& vm, PropertyOffset offset)
+{
+    if (offset == invalidOffset)
+        m_maxOffset = shortInvalidOffset;
+    else if (offset < useRareDataFlag && offset < shortInvalidOffset)
+        m_maxOffset = offset;
+    else if (m_maxOffset == useRareDataFlag)
+        rareData()->m_maxOffset = offset;
+    else {
+        ensureRareData(vm)->m_maxOffset = offset;
+        WTF::storeStoreFence();
+        m_maxOffset = useRareDataFlag;
+    }
+}
+
+inline PropertyOffset Structure::transitionOffset() const
+{
+    uint16_t transitionOffset = m_transitionOffset;
+    if (transitionOffset == shortInvalidOffset)
+        return invalidOffset;
+    if (transitionOffset == useRareDataFlag)
+        return rareData()->m_transitionOffset;
+    return transitionOffset;
+}
+
+inline void Structure::setTransitionOffset(VM& vm, PropertyOffset offset)
+{
+    if (offset == invalidOffset)
+        m_transitionOffset = shortInvalidOffset;
+    else if (offset < useRareDataFlag && offset < shortInvalidOffset)
+        m_transitionOffset = offset;
+    else if (m_transitionOffset == useRareDataFlag)
+        rareData()->m_transitionOffset = offset;
+    else {
+        ensureRareData(vm)->m_transitionOffset = offset;
+        WTF::storeStoreFence();
+        m_transitionOffset = useRareDataFlag;
+    }
+}
+
+inline bool Structure::canPerformFastPropertyEnumerationCommon() const
+{
+    if (typeInfo().overridesGetOwnPropertySlot())
+        return false;
+    if (typeInfo().overridesAnyFormOfGetOwnPropertyNames())
+        return false;
+    if (hasAnyKindOfGetterSetterProperties())
+        return false;
+    if (isUncacheableDictionary())
+        return false;
+    // Cannot perform fast [[Put]] to |target| if the property names of the |source| contain "__proto__".
+    if (hasUnderscoreProtoPropertyExcludingOriginalProto())
+        return false;
+    return true;
+}
+
+inline bool Structure::canPerformFastPropertyEnumeration() const
+{
+    if (!canPerformFastPropertyEnumerationCommon())
+        return false;
+    // FIXME: Indexed properties can be handled.
+    // https://bugs.webkit.org/show_bug.cgi?id=185358
+    if (hasIndexedProperties(indexingType()))
+        return false;
+    return true;
 }
 
 } // namespace JSC

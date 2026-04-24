@@ -34,7 +34,7 @@
 #include "LayoutIntegrationBoxTreeUpdater.h"
 #include "RenderGrid.h"
 #include "RenderView.h"
-#include "StylePrimitiveKeyword+Logging.h"
+#include "StyleKeyword+Logging.h"
 #include "UsedTrackSizes.h"
 #include <wtf/CheckedPtr.h>
 #include <wtf/CheckedRef.h>
@@ -48,6 +48,13 @@ GridLayout::GridLayout(RenderGrid& renderGrid)
     : m_gridBox(BoxTreeUpdater { renderGrid }.build())
     , m_layoutState(renderGrid.view().layoutState())
 {
+}
+
+GridLayout::~GridLayout()
+{
+    CheckedRef renderer = gridBoxRenderer();
+    const_cast<CheckedPtr<Layout::ElementBox>&>(m_gridBox) = nullptr;
+    BoxTreeUpdater { renderer }.tearDown();
 }
 
 void GridLayout::updateFormattingContextGeometries()

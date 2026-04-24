@@ -1,55 +1,36 @@
 
-FAIL If node is a host-including inclusive ancestor of parent, then throw a HierarchyRequestError DOMException. assert_throws_dom: function "() => insert(doc.body, doc.body)" threw object "TypeError: undefined is not an object (evaluating 'parent[methodName].length')" that is not a DOMException HierarchyRequestError: property "code" is equal to undefined, expected 3
-FAIL If node is not a DocumentFragment, DocumentType, Element, Text, ProcessingInstruction, or Comment node, then throw a HierarchyRequestError DOMException. assert_throws_dom: function "() => insert(doc, doc2)" threw object "TypeError: undefined is not an object (evaluating 'parent[methodName].length')" that is not a DOMException HierarchyRequestError: property "code" is equal to undefined, expected 3
-FAIL If node is a Text node and parent is a document, then throw a HierarchyRequestError DOMException. assert_throws_dom: function "() => insert(doc, doc.createTextNode("text"))" threw object "TypeError: undefined is not an object (evaluating 'parent[methodName].length')" that is not a DOMException HierarchyRequestError: property "code" is equal to undefined, expected 3
-FAIL If node is a doctype and parent is not a document, then throw a HierarchyRequestError DOMException. assert_throws_dom: function "() => insert(doc.createElement("a"), doctype)" threw object "TypeError: undefined is not an object (evaluating 'parent[methodName].length')" that is not a DOMException HierarchyRequestError: property "code" is equal to undefined, expected 3
-FAIL If node is a DocumentFragment with multiple elements and parent is a document, then throw a HierarchyRequestError DOMException. assert_throws_dom: function "() => insert(doc, df)" threw object "TypeError: undefined is not an object (evaluating 'parent[methodName].length')" that is not a DOMException HierarchyRequestError: property "code" is equal to undefined, expected 3
-FAIL If node is a DocumentFragment with an element and parent is a document with another element, then throw a HierarchyRequestError DOMException. assert_throws_dom: function "() => insert(doc, df)" threw object "TypeError: undefined is not an object (evaluating 'parent[methodName].length')" that is not a DOMException HierarchyRequestError: property "code" is equal to undefined, expected 3
-FAIL If node is an Element and parent is a document with another element, then throw a HierarchyRequestError DOMException. assert_throws_dom: function "() => insert(doc, el)" threw object "TypeError: undefined is not an object (evaluating 'parent[methodName].length')" that is not a DOMException HierarchyRequestError: property "code" is equal to undefined, expected 3
-FAIL If node is a doctype and parent is a document with another doctype, then throw a HierarchyRequestError DOMException. assert_throws_dom: function "() => insert(doc, doctype)" threw object "TypeError: undefined is not an object (evaluating 'parent[methodName].length')" that is not a DOMException HierarchyRequestError: property "code" is equal to undefined, expected 3
-FAIL If node is a doctype and parent is a document with an element, then throw a HierarchyRequestError DOMException. assert_throws_dom: function "() => insert(doc, doctype)" threw object "TypeError: undefined is not an object (evaluating 'parent[methodName].length')" that is not a DOMException HierarchyRequestError: property "code" is equal to undefined, expected 3
+PASS If node is a host-including inclusive ancestor of parent, then throw a HierarchyRequestError DOMException.
+PASS If node is not a DocumentFragment, DocumentType, Element, Text, ProcessingInstruction, or Comment node, then throw a HierarchyRequestError DOMException.
+PASS If node is a Text node and parent is a document, then throw a HierarchyRequestError DOMException.
+PASS If node is a doctype and parent is not a document, then throw a HierarchyRequestError DOMException.
+PASS If node is a DocumentFragment with multiple elements and parent is a document, then throw a HierarchyRequestError DOMException.
+PASS If node is a DocumentFragment with an element and parent is a document with another element, then throw a HierarchyRequestError DOMException.
+PASS If node is an Element and parent is a document with another element, then throw a HierarchyRequestError DOMException.
+PASS If node is a doctype and parent is a document with another doctype, then throw a HierarchyRequestError DOMException.
+PASS If node is a doctype and parent is a document with an element, then throw a HierarchyRequestError DOMException.
 PASS Calling moveBefore with a non-Node first argument must throw TypeError.
 PASS Calling moveBefore with second argument missing, or other than Node, null, or undefined, must throw TypeError.
 PASS moveBefore() method does not exist on non-ParentNode Nodes
-FAIL moveBefore() on disconnected parent throws a HierarchyRequestError assert_throws_dom: function "() => {
-    disconnectedDestination.moveBefore(connectedTarget, null);
-  }" threw object "TypeError: disconnectedDestination.moveBefore is not a function. (In 'disconnectedDestination.moveBefore(connectedTarget, null)', 'disconnectedDestination.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
-FAIL moveBefore() with disconnected target node throws a HierarchyRequestError assert_throws_dom: function "() => {
-    connectedDestination.moveBefore(disconnectedTarget, null);
-  }" threw object "TypeError: connectedDestination.moveBefore is not a function. (In 'connectedDestination.moveBefore(disconnectedTarget, null)', 'connectedDestination.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
-FAIL moveBefore() on a cross-document target node throws a HierarchyRequestError assert_throws_dom: function "() => {
-    connectedLocalParent.moveBefore(connectedCrossDocChild, null);
-  }" threw object "TypeError: connectedLocalParent.moveBefore is not a function. (In 'connectedLocalParent.moveBefore(connectedCrossDocChild, null)', 'connectedLocalParent.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
-FAIL moveBefore() into a Document throws a HierarchyRequestError assert_throws_dom: function "() => {
-    // Moving the body into the same place that it already is, which is a valid
-    // action in the normal case, when moving an Element directly under the
-    // document. This is not `moveBefore()`-specific behavior; it is consistent
-    // with traditional Document insertion rules, just like `insertBefore()`.
-    iframe.contentDocument.moveBefore(innerBody, null);
-  }" threw object "TypeError: iframe.contentDocument.moveBefore is not a function. (In 'iframe.contentDocument.moveBefore(innerBody, null)', 'iframe.contentDocument.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
-FAIL moveBefore() CharacterData into a Document iframe.contentDocument.moveBefore is not a function. (In 'iframe.contentDocument.moveBefore(comment, null)', 'iframe.contentDocument.moveBefore' is undefined)
-FAIL moveBefore() with node being an inclusive ancestor of parent throws a HierarchyRequestError assert_throws_dom: parent moving itself function "() => {
-    parentDiv.moveBefore(parentDiv, null);
-  }" threw object "TypeError: parentDiv.moveBefore is not a function. (In 'parentDiv.moveBefore(parentDiv, null)', 'parentDiv.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
-FAIL moveBefore() with a non-{Element, CharacterData} throws a HierarchyRequestError assert_throws_dom: DocumentType throws function "() => {
-    document.body.moveBefore(document.doctype, null);
-  }" threw object "TypeError: document.body.moveBefore is not a function. (In 'document.body.moveBefore(document.doctype, null)', 'document.body.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
-FAIL moveBefore with an Element or CharacterData succeeds promise_test: Unhandled rejection with value: object "TypeError: document.body.moveBefore is not a function. (In 'document.body.moveBefore(text, null)', 'document.body.moveBefore' is undefined)"
-FAIL moveBefore on a paragraph's Text node child document.body.moveBefore is not a function. (In 'document.body.moveBefore(p.firstChild, null)', 'document.body.moveBefore' is undefined)
-FAIL moveBefore with reference child whose parent is NOT the destination parent (context node) throws a NotFoundError. assert_throws_dom: function "() => {
-    a.moveBefore(b, c);
-  }" threw object "TypeError: a.moveBefore is not a function. (In 'a.moveBefore(b, c)', 'a.moveBefore' is undefined)" that is not a DOMException NotFoundError: property "code" is equal to undefined, expected 8
-FAIL moveBefore() returns undefined a.moveBefore is not a function. (In 'a.moveBefore(c, b)', 'a.moveBefore' is undefined)
-FAIL Moving a node before itself should not move the node a.moveBefore is not a function. (In 'a.moveBefore(b, b)', 'a.moveBefore' is undefined)
-FAIL Moving a node from a disconnected container to a disconnected new parent without a shared ancestor throws a HIERARCHY_REQUEST_ERR assert_throws_dom: function "() => {
-    disconnectedDestination.moveBefore(p, null);
-  }" threw object "TypeError: disconnectedDestination.moveBefore is not a function. (In 'disconnectedDestination.moveBefore(p, null)', 'disconnectedDestination.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
-FAIL Moving a node from a disconnected container to a disconnected new parent in the same tree succeeds disconnectedDestination.moveBefore is not a function. (In 'disconnectedDestination.moveBefore(p, null)', 'disconnectedDestination.moveBefore' is undefined)
-FAIL Moving a node from a disconnected container to a disconnected new parent in the same tree succeeds,also across shadow-roots disconnectedDestination.moveBefore is not a function. (In 'disconnectedDestination.moveBefore(p, null)', 'disconnectedDestination.moveBefore' is undefined)
-FAIL Moving a node from disconnected->connected throws a HIERARCHY_REQUEST_ERR assert_throws_dom: function "() => connectedDestination.moveBefore(p, null)" threw object "TypeError: connectedDestination.moveBefore is not a function. (In 'connectedDestination.moveBefore(p, null)', 'connectedDestination.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
-FAIL Moving a node from connected->disconnected throws a HIERARCHY_REQUEST_ERR assert_throws_dom: function "() => disconnectedDestination.moveBefore(p, null)" threw object "TypeError: disconnectedDestination.moveBefore is not a function. (In 'disconnectedDestination.moveBefore(p, null)', 'disconnectedDestination.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
-FAIL No custom element callbacks are run during disconnected moveBefore() promise_test: Unhandled rejection with value: object "TypeError: newParent.moveBefore is not a function. (In 'newParent.moveBefore(element, null)', 'newParent.moveBefore' is undefined)"
-FAIL Invalid node hierarchy with null old parent does not crash assert_throws_dom: function "() => div.moveBefore(outer, null)" threw object "TypeError: div.moveBefore is not a function. (In 'div.moveBefore(outer, null)', 'div.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
-FAIL Move disconnected iframe does not crash outerDiv.moveBefore is not a function. (In 'outerDiv.moveBefore(iframe, null)', 'outerDiv.moveBefore' is undefined)
+PASS moveBefore() on disconnected parent throws a HierarchyRequestError
+PASS moveBefore() with disconnected target node throws a HierarchyRequestError
+PASS moveBefore() on a cross-document target node throws a HierarchyRequestError
+PASS moveBefore() into a Document throws a HierarchyRequestError
+FAIL moveBefore() CharacterData into a Document assert_equals: expected Document node with 1 child but got Element node <body><!--comment--></body>
+PASS moveBefore() with node being an inclusive ancestor of parent throws a HierarchyRequestError
+PASS moveBefore() with a non-{Element, CharacterData} throws a HierarchyRequestError
+FAIL moveBefore with an Element or CharacterData succeeds assert_equals: expected Text node "child text" but got Text node "
+"
+FAIL moveBefore on a paragraph's Text node child assert_equals: expected Text node "Some content" but got Element node <iframe></iframe>
+PASS moveBefore with reference child whose parent is NOT the destination parent (context node) throws a NotFoundError.
+FAIL moveBefore() returns undefined assert_array_equals: expected property 0 to be Element node <div></div> but got Element node <div></div> (expected array [Element node <div></div>, Element node <div></div>] got object "[object NodeList]")
+PASS Moving a node before itself should not move the node
+PASS Moving a node from a disconnected container to a disconnected new parent without a shared ancestor throws a HIERARCHY_REQUEST_ERR
+FAIL Moving a node from a disconnected container to a disconnected new parent in the same tree succeeds assert_equals: <p> Was successfully moved expected Element node <p></p> but got null
+FAIL Moving a node from a disconnected container to a disconnected new parent in the same tree succeeds,also across shadow-roots assert_equals: <p> Was successfully moved expected Element node <p></p> but got null
+PASS Moving a node from disconnected->connected throws a HIERARCHY_REQUEST_ERR
+PASS Moving a node from connected->disconnected throws a HIERARCHY_REQUEST_ERR
+PASS No custom element callbacks are run during disconnected moveBefore()
+PASS Invalid node hierarchy with null old parent does not crash
+PASS Move disconnected iframe does not crash
 
 

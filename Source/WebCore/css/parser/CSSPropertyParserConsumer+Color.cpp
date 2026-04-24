@@ -47,7 +47,6 @@
 #include "CSSParserIdioms.h"
 #include "CSSParserTokenRange.h"
 #include "CSSPrimitiveNumericTypes+EvaluateCalc.h"
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSPropertyParserConsumer+AngleDefinitions.h"
 #include "CSSPropertyParserConsumer+ColorInterpolationMethod.h"
 #include "CSSPropertyParserConsumer+Ident.h"
@@ -64,6 +63,7 @@
 #include "CSSValuePool.h"
 #include "Color.h"
 #include "ColorLuminance.h"
+#include "StyleKeyword+Mappings.h"
 #include <wtf/SortedArrayMap.h>
 #include <wtf/text/MakeString.h>
 
@@ -863,7 +863,7 @@ RefPtr<CSSValue> consumeColor(CSSParserTokenRange& range, CSS::PropertyParserSta
         // Special case top level color keywords, hex (SRGBA<uint8_t>) and absolute color values to maintain
         // backwards compatibility and existing optimizations.
         if (auto keyword = color->keyword())
-            return CSSPrimitiveValue::create(keyword->valueID);
+            return CSSKeywordValue::create(keyword->valueID);
         if (auto hex = color->hex())
             return propertyParserState.pool.createColorValue(Color { hex->value });
         if (auto resolved = color->resolved())

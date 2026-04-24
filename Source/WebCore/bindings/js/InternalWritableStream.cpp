@@ -31,6 +31,7 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/HeapCellInlines.h>
 #include <JavaScriptCore/JSArrayBufferViewInlines.h>
+#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSObjectInlines.h>
 
 namespace WebCore {

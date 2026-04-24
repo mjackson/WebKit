@@ -42,6 +42,7 @@
 #include "SourceCode.h"
 #include "SourceOrigin.h"
 #include "Structure.h"
+#include "StructureCreateInlines.h"
 #include "StructureInlines.h"
 #include "TestScripts.h"
 #include "VM.h"

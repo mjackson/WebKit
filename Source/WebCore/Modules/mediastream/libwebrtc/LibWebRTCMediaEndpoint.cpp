@@ -317,8 +317,8 @@ webrtc::scoped_refptr<LibWebRTCStatsCollector> LibWebRTCMediaEndpoint::createSta
         if (protectedThis->isStopped())
             return;
 
-        ActiveDOMObject::queueTaskKeepingObjectAlive(protectedThis->m_peerConnectionBackend->connection(), TaskSource::Networking, [promise = WTF::move(promise), rtcReport](auto&) {
-            promise->resolve<IDLInterface<RTCStatsReport>>(LibWebRTCStatsCollector::createReport(rtcReport));
+        ActiveDOMObject::queueTaskKeepingObjectAlive(protectedThis->m_peerConnectionBackend->connection(), TaskSource::Networking, [promise = WTF::move(promise), rtcReport = WTF::move(rtcReport), trackIds = protectedThis->m_peerConnectionBackend->trackIds()](auto&) mutable {
+            promise->resolve<IDLInterface<RTCStatsReport>>(LibWebRTCStatsCollector::createReport(WTF::move(rtcReport), WTF::move(trackIds)));
         });
     });
 }

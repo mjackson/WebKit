@@ -215,6 +215,7 @@ static id attributeValue(id element, NSString *attribute)
         @"AXIsMultiSelectable",
         @"AXIsOnScreen",
         @"AXIsRemoteFrame",
+        @"AXImageDataSize",
         @"AXLabelFor",
         @"AXLabelledBy",
         @"AXLineRectsAndText",
@@ -2157,6 +2158,61 @@ JSRetainPtr<JSStringRef> AccessibilityUIElementMac::embeddedImageDescription() c
     return nullptr;
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElementMac::imageDataSize() const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto value = descriptionOfValue(attributeValue(@"AXImageDataSize").get());
+    return concatenateAttributeAndValue(@"AXImageDataSize", value.get());
+    END_AX_OBJC_EXCEPTIONS
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementMac::imageDataForParameters(int resizeWidth, int resizeHeight) const
+{
+    return imageDataForParametersWithFormat(resizeWidth, resizeHeight, nullptr);
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementMac::imageDataForParametersWithFormat(int resizeWidth, int resizeHeight, JSStringRef format) const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    NSString *formatString = format ? [NSString stringWithJSStringRef:format] : @"RGBA";
+    NSDictionary *dictionary = @{
+        @"AXImageDataResizeWidth" : @(resizeWidth),
+        @"AXImageDataResizeHeight" : @(resizeHeight),
+        @"AXImageDataFormat" : formatString
+    };
+    auto value = attributeValueForParameter(@"AXImageData", dictionary);
+    if (!value)
+        return adopt(JSStringCreateWithUTF8CString("(null)"));
+    NSData *data = (NSData *)value.get();
+    RetainPtr description = adoptNS([[NSString alloc] initWithFormat:@"AXImageData: %lu bytes", (unsigned long)[data length]]);
+    return adopt(JSStringCreateWithCFString((__bridge CFStringRef)description.get()));
+    END_AX_OBJC_EXCEPTIONS
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementMac::imageDataForSubrect(int resizeWidth, int resizeHeight, int left, int top, int width, int height) const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    NSDictionary *dictionary = @{
+        @"AXImageDataResizeWidth" : @(resizeWidth),
+        @"AXImageDataResizeHeight" : @(resizeHeight),
+        @"AXImageDataFormat" : @"RGBA",
+        @"AXImageDataLeft" : @(left),
+        @"AXImageDataTop" : @(top),
+        @"AXImageDataWidth" : @(width),
+        @"AXImageDataHeight" : @(height)
+    };
+    auto value = attributeValueForParameter(@"AXImageData", dictionary);
+    if (!value)
+        return adopt(JSStringCreateWithUTF8CString("(null)"));
+    NSData *data = (NSData *)value.get();
+    RetainPtr description = adoptNS([[NSString alloc] initWithFormat:@"AXImageData: %lu bytes", (unsigned long)[data length]]);
+    return adopt(JSStringCreateWithCFString((__bridge CFStringRef)description.get()));
+    END_AX_OBJC_EXCEPTIONS
+    return nullptr;
+}
+
 JSValueRef AccessibilityUIElementMac::imageOverlayElements(JSContextRef context)
 {
     BEGIN_AX_OBJC_EXCEPTIONS
@@ -3130,6 +3186,20 @@ JSRetainPtr<JSStringRef> AccessibilityUIElementMac::pathDescription() const
     }
 
     return [result createJSStringRef];
+    END_AX_OBJC_EXCEPTIONS
+
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementMac::pathAsBounds() const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto bezierPath = attributeValue(NSAccessibilityPathAttribute);
+    if (!bezierPath)
+        return nullptr;
+
+    NSRect bounds = [bezierPath bounds];
+    return [[NSString stringWithFormat:@"{{%f, %f}, {%f, %f}}", bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height] createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
 
     return nullptr;

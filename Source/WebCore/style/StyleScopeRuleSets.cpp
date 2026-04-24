@@ -30,6 +30,7 @@
 #include "StyleScopeRuleSets.h"
 
 #include "CSSPropertyParser.h"
+#include "CSSSelectorParser.h"
 #include "CSSStyleSheet.h"
 #include "CSSViewTransitionRule.h"
 #include "DeclarationOrigin.h"
@@ -313,54 +314,64 @@ static Vector<InvalidationRuleSet>* ensureInvalidationRuleSets(const KeyType& ke
         if (!features)
             return nullptr;
 
-        struct Builder {
-            RefPtr<RuleSet> ruleSet;
-            Vector<const CSSSelectorList*> invalidationSelectors;
+        struct RuleSetKey {
             MatchElement matchElement;
             IsNegation isNegation;
-        };
-        using BuilderKey = std::tuple<GenericHashKey<MatchElement>, bool>;
+            const CSSSelectorList* invalidationSelector { nullptr };
+            const CSSSelectorList* scopeSelector { nullptr };
 
-        HashMap<BuilderKey, Builder> builderMap;
+            unsigned hash() const
+            {
+                Hasher hasher;
+                add(hasher, matchElement.relation, matchElement.hasRelation, isNegation);
+                if (invalidationSelector)
+                    add(hasher, *invalidationSelector);
+                if (scopeSelector)
+                    add(hasher, *scopeSelector);
+                return hasher.hash();
+            }
+            bool operator==(const RuleSetKey& other) const
+            {
+                return matchElement == other.matchElement
+                    && isNegation == other.isNegation
+                    && arePointingToEqualData(invalidationSelector, other.invalidationSelector)
+                    && arePointingToEqualData(scopeSelector, other.scopeSelector);
+            }
+        };
+
+        HashMap<GenericHashKey<RuleSetKey>, RefPtr<RuleSet>> ruleSetMap;
 
         for (auto& feature : *features) {
-            auto key = BuilderKey { feature.matchElement, static_cast<bool>(feature.isNegation) };
+            auto key = [&] {
+                if constexpr (std::is_same_v<typename RuleFeatureVectorType::ValueType, RuleFeatureWithInvalidationSelector>)
+                    return GenericHashKey<RuleSetKey> { { feature.matchElement, feature.isNegation, &feature.invalidationSelector, &feature.scopeSelector } };
+                else
+                    return GenericHashKey<RuleSetKey> { { feature.matchElement, feature.isNegation } };
+            }();
 
-            auto& builder = builderMap.ensure(key, [&] {
-                return Builder {
-                    RuleSet::create(),
-                    { },
-                    feature.matchElement,
-                    feature.isNegation,
-                };
+            auto& ruleSet = ruleSetMap.ensure(key, [] {
+                return RuleSet::create();
             }).iterator->value;
 
-            builder.ruleSet->addRule(*feature.styleRule, feature.selectorIndex, feature.selectorListIndex);
-
-            if constexpr (std::is_same<typename RuleFeatureVectorType::ValueType, RuleFeatureWithInvalidationSelector>::value) {
-                auto alreadyContains = [&](const CSSSelectorList& invalidationSelector) {
-                    constexpr auto maximumSearchCount = 8;
-                    auto count = 0;
-                    for (auto& existing : builder.invalidationSelectors | std::views::reverse) {
-                        if (++count > maximumSearchCount)
-                            break;
-                        if (invalidationSelector == *existing)
-                            return true;
-                    }
-                    return false;
-                };
-                if (!alreadyContains(feature.invalidationSelector))
-                    builder.invalidationSelectors.append(&feature.invalidationSelector);
-            }
+            ruleSet->addRule(*feature.styleRule, feature.selectorIndex, feature.selectorListIndex);
         }
 
-        return makeUnique<Vector<InvalidationRuleSet>>(WTF::map(builderMap.values(), [](auto&& builder) {
-            builder.ruleSet->shrinkToFit();
+        return makeUnique<Vector<InvalidationRuleSet>>(WTF::map(ruleSetMap, [](auto& entry) {
+            auto& key = entry.key.key();
+            entry.value->shrinkToFit();
+            auto invalidationSelector = [&] {
+                if (key.invalidationSelector && key.scopeSelector && !key.scopeSelector->isEmpty())
+                    return CSSSelectorParser::makeHasArgumentWithScope(key.invalidationSelector->first(), key.scopeSelector->first());
+                if (key.invalidationSelector)
+                    return CSSSelectorList { *key.invalidationSelector };
+                return CSSSelectorList { };
+            }();
             return InvalidationRuleSet {
-                WTF::move(builder.ruleSet),
-                CSSSelectorList::makeJoining(builder.invalidationSelectors),
-                builder.matchElement,
-                builder.isNegation
+                WTF::move(entry.value),
+                WTF::move(invalidationSelector),
+                key.matchElement,
+                key.isNegation,
+                key.scopeSelector ? *key.scopeSelector : CSSSelectorList { }
             };
         }));
     }).iterator->value.get();

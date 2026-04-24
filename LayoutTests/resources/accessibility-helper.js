@@ -324,6 +324,18 @@ function pathSegmentCountOfID(id, segmentType) {
     return (element.pathDescription.match(new RegExp(segmentType, "g")) || []).length;
 }
 
+// Parses a pathAsBounds string "{{x, y}, {w, h}}" into an object {x, y, width, height}.
+// Returns null if the element has no path or the string can't be parsed.
+function pathAsBoundsOfID(id) {
+    var element = accessibilityController.accessibleElementById(id);
+    if (!element || !element.pathAsBounds)
+        return null;
+    var match = element.pathAsBounds.match(/\{\{([^,]+),\s*([^}]+)\},\s*\{([^,]+),\s*([^}]+)\}\}/);
+    if (!match)
+        return null;
+    return { x: parseFloat(match[1]), y: parseFloat(match[2]), width: parseFloat(match[3]), height: parseFloat(match[4]) };
+}
+
 // Executes the operation and waits until an accessibility notification of the provided
 // `notificationName` is received. A notification listener is added to the passed
 // AccessibilityUIElement if not null, or a global listener is installed, before

@@ -450,6 +450,7 @@ platform/graphics/cocoa/AV1UtilitiesCocoa.mm @nonARC @no-unify
 platform/graphics/cocoa/AudioTrackPrivateWebM.cpp
 platform/graphics/cocoa/CMUtilities.mm @nonARC @no-unify
 platform/graphics/cocoa/ColorCocoa.mm @nonARC
+platform/graphics/cocoa/CVPixelBufferUtilities.cpp
 platform/graphics/cocoa/FloatRectCocoa.mm @nonARC
 platform/graphics/cocoa/FontCacheCocoa.mm @nonARC
 platform/graphics/cocoa/FontCacheCoreText.cpp
@@ -472,6 +473,8 @@ platform/graphics/cocoa/MediaPlayerCocoa.mm @nonARC
 platform/graphics/cocoa/MediaPlayerPrivateWebM.mm @nonARC @no-unify
 platform/graphics/cocoa/PlatformMediaEngineConfigurationFactoryCocoa.cpp
 platform/graphics/cocoa/PlatformTimeRangesCocoa.mm @nonARC @no-unify
+platform/graphics/cocoa/ShareableCVPixelBuffer.cpp
+platform/graphics/cocoa/ShareableCVPixelFormat.cpp
 platform/graphics/cocoa/SourceBufferParser.cpp
 platform/graphics/cocoa/SourceBufferParserWebM.cpp
 platform/graphics/cocoa/SystemFontDatabaseCocoa.mm @nonARC

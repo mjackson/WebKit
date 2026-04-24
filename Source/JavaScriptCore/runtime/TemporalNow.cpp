@@ -85,7 +85,7 @@ JSC_DEFINE_HOST_FUNCTION(temporalNowFuncInstant, (JSGlobalObject* globalObject, 
 JSC_DEFINE_HOST_FUNCTION(temporalNowFuncTimeZoneId, (JSGlobalObject* globalObject, CallFrame*))
 {
     VM& vm = globalObject->vm();
-    return JSValue::encode(jsNontrivialString(vm, vm.dateCache.defaultTimeZone()));
+    return JSValue::encode(jsNontrivialString(vm, vm.dateCache.defaultTimeZone().toString()));
 }
 
 } // namespace JSC

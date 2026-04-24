@@ -206,7 +206,6 @@ constexpr NumericIdentity toNumericIdentity(const NonCanonicalDimension& dimensi
     case CSSUnitType::CSS_DIMENSION:
     case CSSUnitType::CSS_QUIRKY_EM:
     case CSSUnitType::CSS_UNKNOWN:
-    case CSSUnitType::CSS_VALUE_ID:
         break;
     }
 

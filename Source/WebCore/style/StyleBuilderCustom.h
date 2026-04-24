@@ -31,7 +31,6 @@
 #include "CSSCounterStyleRegistry.h"
 #include "CSSCounterStyleRule.h"
 #include "CSSCounterValue.h"
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "CSSRegisteredCustomProperty.h"
 #include "CSSStringValue.h"
@@ -56,8 +55,8 @@
 #include "StyleComputedStyle+InitialInlines.h"
 #include "StyleComputedStyle+SettersInlines.h"
 #include "StyleFontSizeFunctions.h"
+#include "StyleKeyword+CSSValueConversion.h"
 #include "StyleLengthWrapper+CSSValueConversion.h"
-#include "StylePrimitiveKeyword+CSSValueConversion.h"
 #include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StyleResolveForFont.h"
@@ -295,7 +294,7 @@ void applyValueCoordinatedValueListProperty(BuilderState& builderState, CSSValue
     auto& list = (builderState.style().*listMutableGetter)();
 
     auto set = [&](auto i, auto& item) {
-        if (item.valueID() == CSSValueInitial)
+        if (isValueID(item, CSSValueInitial))
             PropertyAccessor { list[i] }.set(PropertyAccessor::initial());
         else
             PropertyAccessor { list[i] }.set(toStyleFromCSSValue<ItemType>(builderState, item));
@@ -342,21 +341,24 @@ inline void BuilderCustom::applyInheritZoom(BuilderState& builderState)
 
 inline void BuilderCustom::applyValueZoom(BuilderState& builderState, CSSValue& value)
 {
-    auto primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
-    if (!primitiveValue)
-        return;
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNormal:
+            resetUsedZoom(builderState);
+            builderState.setZoom(Style::ComputedStyle::initialZoom());
+            return;
 
-    if (primitiveValue->valueID() == CSSValueNormal) {
-        resetUsedZoom(builderState);
-        builderState.setZoom(Style::ComputedStyle::initialZoom());
-    } else {
-        resetUsedZoom(builderState);
-
-        auto zoom = toStyleFromCSSValue<Zoom>(builderState, *primitiveValue);
-        // FIXME: The spec says that zoom values of 0 should be treated as 1, not ignored entirely. https://drafts.csswg.org/css-viewport/#valdef-zoom-number
-        if (!isZero(zoom))
-            builderState.setZoom(zoom);
+        default:
+            builderState.setCurrentPropertyInvalidAtComputedValueTime();
+            return;
+        }
     }
+
+    resetUsedZoom(builderState);
+    auto zoom = toStyleFromCSSValue<Zoom>(builderState, value);
+    // FIXME: The spec says that zoom values of 0 should be treated as 1, not ignored entirely. https://drafts.csswg.org/css-viewport/#valdef-zoom-number
+    if (!isZero(zoom))
+        builderState.setZoom(zoom);
 }
 
 void maybeUpdateFontForLetterSpacingOrWordSpacing(BuilderState& builderState, CSSValue& value)
@@ -451,11 +453,11 @@ static inline float computeBaseSpecifiedFontSize(const Document& document, const
     return result;
 }
 
-static inline float computeLineHeightMultiplierDueToFontSize(const Document& document, const ComputedStyle& style, const CSSPrimitiveValue& value)
+static inline float computeLineHeightMultiplierDueToFontSize(const Document& document, const ComputedStyle& style, const CSSValue& value)
 {
     bool percentageAutosizingEnabled = document.settings().textAutosizingEnabled() && style.textSizeAdjust().isPercentage();
 
-    if (value.isLength()) {
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value); primitiveValue && primitiveValue->isLength()) {
         auto minimumFontSize = document.settings().minimumFontSize();
         if (minimumFontSize > 0) {
             auto specifiedFontSize = computeBaseSpecifiedFontSize(document, style, percentageAutosizingEnabled);
@@ -485,26 +487,22 @@ static inline float computeLineHeightMultiplierDueToFontSize(const Document& doc
 
 inline void BuilderCustom::applyValueLineHeight(BuilderState& builderState, CSSValue& value)
 {
-    if (CSSPropertyParserHelpers::isSystemFontShorthand(value.valueID())) {
+    if (CSSPropertyParserHelpers::isSystemFontShorthand(valueID(value))) {
         applyInitialLineHeight(builderState);
         return;
     }
 
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
-    if (!primitiveValue)
-        return;
-
-    auto lineHeight = toStyleFromCSSValue<LineHeight>(builderState, *primitiveValue, 1.0f);
+    auto lineHeight = toStyleFromCSSValue<LineHeight>(builderState, value, 1.0f);
 
     auto computedLineHeight = [&] -> LineHeight {
         if (lineHeight.isNormal())
             return lineHeight;
 
-        auto multiplier = computeLineHeightMultiplierDueToFontSize(builderState.document(), builderState.style(), *primitiveValue);
+        auto multiplier = computeLineHeightMultiplierDueToFontSize(builderState.document(), builderState.style(), value);
         if (multiplier == 1)
             return lineHeight;
 
-        return toStyleFromCSSValue<LineHeight>(builderState, *primitiveValue, multiplier);
+        return toStyleFromCSSValue<LineHeight>(builderState, value, multiplier);
     }();
 
     builderState.style().setLineHeight(WTF::move(computedLineHeight));
@@ -539,14 +537,7 @@ inline void BuilderCustom::applyValueWebkitTextSizeAdjust(BuilderState& builderS
 
 inline void BuilderCustom::applyValueWebkitTextZoom(BuilderState& builderState, CSSValue& value)
 {
-    auto primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
-    if (!primitiveValue)
-        return;
-
-    if (primitiveValue->valueID() == CSSValueNormal)
-        builderState.style().setTextZoom(TextZoom::Normal);
-    else if (primitiveValue->valueID() == CSSValueReset)
-        builderState.style().setTextZoom(TextZoom::Reset);
+    builderState.style().setTextZoom(toStyleFromCSSValue<TextZoom>(builderState, value));
     builderState.setFontDirty();
 }
 
@@ -744,12 +735,9 @@ inline void BuilderCustom::applyValueFontSize(BuilderState& builderState, CSSVal
     float parentSize = builderState.parentStyle().fontDescription().specifiedSize();
     bool parentIsAbsoluteSize = builderState.parentStyle().fontDescription().isAbsoluteSize();
 
-    auto primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
-    if (!primitiveValue)
-        return;
-
     float size = 0;
-    if (CSSValueID ident = primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        auto ident = keywordValue->valueID();
         builderState.setFontDescriptionIsAbsoluteSize((parentIsAbsoluteSize && (ident == CSSValueLarger || ident == CSSValueSmaller || ident == CSSValueWebkitRubyText || ident == CSSValueMath)) || CSSPropertyParserHelpers::isSystemFontShorthand(ident));
 
         if (CSSPropertyParserHelpers::isSystemFontShorthand(ident))
@@ -782,7 +770,7 @@ inline void BuilderCustom::applyValueFontSize(BuilderState& builderState, CSSVal
         default:
             break;
         }
-    } else {
+    } else if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
         builderState.setFontDescriptionIsAbsoluteSize(parentIsAbsoluteSize || !primitiveValue->isParentFontRelativeLength());
         auto conversionData = builderState.cssToLengthConversionData().copyForFontSize();
         if (primitiveValue->isLength())
@@ -793,6 +781,9 @@ inline void BuilderCustom::applyValueFontSize(BuilderState& builderState, CSSVal
             size = primitiveValue->cssCalcValue()->createCalculationValue(conversionData, CSSCalcSymbolTable { })->evaluate(parentSize, Style::ZoomNeeded { });
         else
             return;
+    } else {
+        builderState.setCurrentPropertyInvalidAtComputedValueTime();
+        return;
     }
 
     if (size < 0)

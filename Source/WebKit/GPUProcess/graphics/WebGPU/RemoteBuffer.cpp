@@ -160,6 +160,11 @@ void RemoteBuffer::destroy()
     protect(m_backing)->destroy();
 }
 
+void RemoteBuffer::generateAValidationError()
+{
+    protect(m_backing)->generateAValidationError();
+}
+
 void RemoteBuffer::destruct()
 {
     protect(m_objectHeap)->removeObject(m_identifier);

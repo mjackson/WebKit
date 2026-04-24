@@ -138,11 +138,6 @@ uint32_t GPUSupportedLimits::maxVertexBufferArrayStride() const
     return m_backing->maxVertexBufferArrayStride();
 }
 
-uint32_t GPUSupportedLimits::maxInterStageShaderComponents() const
-{
-    return m_backing->maxInterStageShaderComponents();
-}
-
 uint32_t GPUSupportedLimits::maxInterStageShaderVariables() const
 {
     return m_backing->maxInterStageShaderVariables();

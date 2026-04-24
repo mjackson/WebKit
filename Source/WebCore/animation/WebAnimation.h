@@ -28,8 +28,8 @@
 #include <WebCore/ActiveDOMObject.h>
 #include <WebCore/AnimationFrameRate.h>
 #include <WebCore/AnimationFrameRatePreset.h>
-#include <WebCore/CSSKeywordValue.h>
 #include <WebCore/CSSNumericValue.h>
+#include <WebCore/CSSOMKeywordValue.h>
 #include <WebCore/EventTarget.h>
 #include <WebCore/EventTargetInterfaces.h>
 #include <WebCore/ExceptionOr.h>

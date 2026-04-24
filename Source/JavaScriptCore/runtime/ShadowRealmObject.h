@@ -26,7 +26,7 @@
 
 #pragma once
 
-#include "JSCJSValueInlines.h"
+#include "JSCJSValue.h"
 #include "JSObject.h"
 
 namespace JSC {

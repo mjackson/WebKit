@@ -26,6 +26,7 @@ var module = new WebAssembly.Module(wasm);
 var instance = new WebAssembly.Instance(module);
 let triggerTrap = instance.exports.triggerTrap;
 
+print("DEBUGGER_READY");
 let iteration = 0;
 for (;;) {
     try {

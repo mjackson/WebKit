@@ -541,7 +541,7 @@ TEST(WebKit, InjectedBundleNodeHandleIsSelectElement)
     TestWebKitAPI::Util::run(&done);
 }
 
-#if (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 160000) || PLATFORM(VISION)
+#if PLATFORM(IOS) || PLATFORM(VISION)
 
 static int presentViewControllerCallCount = 0;
 
@@ -696,7 +696,7 @@ TEST(WebKit, LockdownModeAskAgainFirstUseMessage)
     [[NSUserDefaults standardUserDefaults] removeObjectForKey:WebKitLockdownModeAlertShownKey];
 }
 
-#endif // (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 160000) || PLATFORM(VISION)
+#endif // PLATFORM(IOS) || PLATFORM(VISION)
 
 INSTANTIATE_TEST_SUITE_P(WebKit, ScreenWakeLockTests, testing::Values(
     ScreenWakeLockTestsConfig::CrossSite::No,

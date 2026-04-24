@@ -139,7 +139,7 @@ namespace WebCore {
     macro(CSSHSL) \
     macro(CSSHWB) \
     macro(CSSImageValue) \
-    macro(CSSKeywordValue) \
+    macro(CSSOMKeywordValue) \
     macro(CSSLCH) \
     macro(CSSLab) \
     macro(CSSMathClamp) \

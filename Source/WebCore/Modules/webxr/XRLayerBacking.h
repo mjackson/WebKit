@@ -62,6 +62,8 @@ public:
     PlatformXR::LayerHandle handle() { return m_handle; }
     void setHandle(PlatformXR::LayerHandle handle) { m_handle = handle; }
 
+    virtual bool allColorTexturesAreBound() const = 0;
+
 private:
     PlatformXR::LayerHandle m_handle;
 };

@@ -28,47 +28,22 @@
 #include "BigIntPrototype.h"
 #include "BrandedStructure.h"
 #include "JSArrayBufferView.h"
-#include "JSCJSValueInlines.h"
 #include "JSGlobalObject.h"
 #include "JSObjectInlines.h"
 #include "PropertyTable.h"
 #include "StringPrototype.h"
-#include "Structure.h"
+#include "StructureArrayStorageInlines.h"
 #include "StructureChain.h"
+#include "StructureCreateInlines.h"
 #include "StructureRareDataInlines.h"
 #include "SymbolPrototype.h"
-#include "Watchpoint.h"
 #include "WebAssemblyGCStructure.h"
 #include "WriteBarrierInlines.h"
-#include <wtf/CompactRefPtr.h>
 #include <wtf/Threading.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
-
-inline Structure* Structure::create(VM& vm, JSGlobalObject* globalObject, JSValue prototype, const TypeInfo& typeInfo, const ClassInfo* classInfo, IndexingType indexingModeIncludingHistory, unsigned inlineCapacity)
-{
-    ASSERT(vm.structureStructure);
-    ASSERT(classInfo);
-    if (auto* object = prototype.getObject()) {
-        ASSERT(!object->anyObjectInChainMayInterceptIndexedAccesses() || hasSlowPutArrayStorage(indexingModeIncludingHistory) || !hasIndexedProperties(indexingModeIncludingHistory));
-        object->didBecomePrototype(vm);
-    }
-
-    Structure* structure = new (NotNull, allocateCell<Structure>(vm)) Structure(vm, globalObject, prototype, typeInfo, classInfo, indexingModeIncludingHistory, inlineCapacity);
-    structure->finishCreation(vm);
-    ASSERT(structure->type() == StructureType);
-    return structure;
-}
-
-inline Structure* Structure::createStructure(VM& vm)
-{
-    ASSERT(!vm.structureStructure);
-    Structure* structure = new (NotNull, allocateCell<Structure>(vm)) Structure(vm, CreatingEarlyCell);
-    structure->finishCreation(vm, CreatingEarlyCell);
-    return structure;
-}
 
 inline Structure* Structure::create(VM& vm, Structure* previous, DeferredStructureTransitionWatchpointFire* deferred)
 {
@@ -80,7 +55,7 @@ inline Structure* Structure::create(VM& vm, Structure* previous, DeferredStructu
         return result;
     }
     case StructureVariant::Branded: {
-        auto* result = new (NotNull, allocateCell<BrandedStructure>(vm)) BrandedStructure(vm, jsCast<BrandedStructure*>(previous));
+        auto* result = new (NotNull, allocateCell<BrandedStructure>(vm)) BrandedStructure(vm, uncheckedDowncast<BrandedStructure>(previous));
         result->finishCreation(vm, previous, deferred);
         return result;
     }
@@ -91,58 +66,6 @@ inline Structure* Structure::create(VM& vm, Structure* previous, DeferredStructu
         RELEASE_ASSERT_NOT_REACHED();
         return nullptr;
     }
-}
-
-template<typename CellType, SubspaceAccess>
-inline GCClient::IsoSubspace* Structure::subspaceFor(VM& vm)
-{
-    return &vm.structureSpace();
-}
-
-inline void Structure::finishCreation(VM& vm, CreatingEarlyCellTag)
-{
-    Base::finishCreation(vm, this, CreatingEarlyCell);
-    ASSERT(m_prototype);
-    ASSERT(m_prototype.isNull());
-    ASSERT(!vm.structureStructure);
-}
-
-inline bool Structure::mayInterceptIndexedAccesses() const
-{
-    if (indexingModeIncludingHistory() & MayHaveIndexedAccessors)
-        return true;
-
-    // Consider a scenario where object O (of global G1)'s prototype is set to A
-    // (of global G2), and G2 is already having a bad time. If an object B with
-    // indexed accessors is then set as the prototype of A:
-    //      O -> A -> B
-    // Then, O should be converted to SlowPutArrayStorage (because it now has an
-    // object with indexed accessors in its prototype chain). But it won't be
-    // converted because this conversion is done by JSGlobalObject::haveAbadTime(),
-    // but G2 is already having a bad time. We solve this by conservatively
-    // treating A as potentially having indexed accessors if its global is already
-    // having a bad time. Hence, when A is set as O's prototype, O will be
-    // converted to SlowPutArrayStorage.
-
-    JSGlobalObject* globalObject = this->realm();
-    if (!globalObject)
-        return false;
-    return globalObject->isHavingABadTime();
-}
-
-inline bool Structure::holesMustForwardToPrototype(JSObject* base) const
-{
-    ASSERT(base->structure() == this);
-    if (typeInfo().type() == ArrayType) {
-        JSGlobalObject* globalObject = this->realm();
-        if (globalObject->isOriginalArrayStructure(const_cast<Structure*>(this)) && globalObject->arrayPrototypeChainIsSane()) [[likely]]
-            return false;
-    }
-
-    if (this->mayInterceptIndexedAccesses())
-        return true;
-
-    return holesMustForwardToPrototypeSlow(base);
 }
 
 inline JSObject* Structure::storedPrototypeObject() const
@@ -279,12 +202,6 @@ void Structure::forEachProperty(VM& vm, const Functor& functor)
     }
 }
 
-inline PropertyOffset Structure::getConcurrently(UniquedStringImpl* uid)
-{
-    unsigned attributesIgnored;
-    return getConcurrently(uid, attributesIgnored);
-}
-
 inline bool Structure::hasIndexingHeader(const JSCell* cell) const
 {
     if (hasIndexedProperties(indexingType()))
@@ -293,52 +210,13 @@ inline bool Structure::hasIndexingHeader(const JSCell* cell) const
     if (!isTypedView(m_blob.type()))
         return false;
 
-    TypedArrayMode mode = jsCast<const JSArrayBufferView*>(cell)->mode();
+    TypedArrayMode mode = uncheckedDowncast<JSArrayBufferView>(cell)->mode();
     return isWastefulTypedArray(mode);
-}
-
-inline bool Structure::masqueradesAsUndefined(JSGlobalObject* lexicalGlobalObject)
-{
-    return typeInfo().masqueradesAsUndefined() && realm() == lexicalGlobalObject;
-}
-
-inline bool Structure::transitivelyTransitionedFrom(Structure* structureToFind)
-{
-    for (Structure* current = this; current; current = current->previousID()) {
-        if (current == structureToFind)
-            return true;
-    }
-    return false;
 }
 
 inline void Structure::setCachedPropertyNames(VM& vm, CachedPropertyNamesKind kind, JSCellButterfly* cached)
 {
     ensureRareData(vm)->setCachedPropertyNames(vm, kind, cached);
-}
-
-inline JSCellButterfly* Structure::cachedPropertyNames(CachedPropertyNamesKind kind) const
-{
-    if (!hasRareData())
-        return nullptr;
-    return rareData()->cachedPropertyNames(kind);
-}
-
-inline JSCellButterfly* Structure::cachedPropertyNamesIgnoringSentinel(CachedPropertyNamesKind kind) const
-{
-    if (!hasRareData())
-        return nullptr;
-    return rareData()->cachedPropertyNamesIgnoringSentinel(kind);
-}
-
-inline bool Structure::canCacheOwnPropertyNames() const
-{
-    if (isDictionary())
-        return false;
-    if (hasIndexedProperties(indexingType()))
-        return false;
-    if (typeInfo().overridesAnyFormOfGetOwnPropertyNames())
-        return false;
-    return true;
 }
 
 ALWAYS_INLINE JSValue prototypeForLookupPrimitiveImpl(JSGlobalObject* globalObject, const Structure* structure)
@@ -399,13 +277,6 @@ inline bool Structure::isValid(JSGlobalObject* globalObject, StructureChain* cac
     return prototype.isNull() && !*cachedStructure;
 }
 
-inline void Structure::didReplaceProperty(PropertyOffset offset)
-{
-    if (!isWatchingReplacement()) [[likely]]
-        return;
-    didReplacePropertySlow(offset);
-}
-
 inline void Structure::didCachePropertyReplacement(VM& vm, PropertyOffset offset)
 {
     ASSERT(isValidOffset(offset));
@@ -422,55 +293,6 @@ inline WatchpointSet* Structure::propertyReplacementWatchpointSet(PropertyOffset
         return rareData->m_replacementWatchpointSets.get(offset);
     return nullptr;
 }
-
-template<typename DetailsFunc>
-ALWAYS_INLINE void Structure::checkOffsetConsistency(PropertyTable* propertyTable, const DetailsFunc& detailsFunc) const
-{
-    // We cannot reliably assert things about the property table in the concurrent
-    // compilation thread. It is possible for the table to be stolen and then have
-    // things added to it, which leads to the offsets being all messed up. We could
-    // get around this by grabbing a lock here, but I think that would be overkill.
-    if (isCompilationThread())
-        return;
-    
-    unsigned totalSize = propertyTable->propertyStorageSize();
-    unsigned inlineOverflowAccordingToTotalSize = totalSize < m_inlineCapacity ? 0 : totalSize - m_inlineCapacity;
-
-    auto fail = [&] (const char* description) {
-        dataLog("Detected offset inconsistency: ", description, "!\n");
-        dataLog("this = ", RawPointer(this), "\n");
-        dataLog("transitionOffset = ", transitionOffset(), "\n");
-        dataLog("maxOffset = ", maxOffset(), "\n");
-        dataLog("m_inlineCapacity = ", m_inlineCapacity, "\n");
-        dataLog("propertyTable = ", RawPointer(propertyTable), "\n");
-        dataLog("numberOfSlotsForMaxOffset = ", numberOfSlotsForMaxOffset(maxOffset(), m_inlineCapacity), "\n");
-        dataLog("totalSize = ", totalSize, "\n");
-        dataLog("inlineOverflowAccordingToTotalSize = ", inlineOverflowAccordingToTotalSize, "\n");
-        dataLog("numberOfOutOfLineSlotsForMaxOffset = ", numberOfOutOfLineSlotsForMaxOffset(maxOffset()), "\n");
-        detailsFunc();
-        UNREACHABLE_FOR_PLATFORM();
-    };
-    
-    if (numberOfSlotsForMaxOffset(maxOffset(), m_inlineCapacity) != totalSize)
-        fail("numberOfSlotsForMaxOffset doesn't match totalSize");
-    if (inlineOverflowAccordingToTotalSize != numberOfOutOfLineSlotsForMaxOffset(maxOffset()))
-        fail("inlineOverflowAccordingToTotalSize doesn't match numberOfOutOfLineSlotsForMaxOffset");
-}
-
-ALWAYS_INLINE void Structure::checkOffsetConsistency() const
-{
-    if (auto* propertyTable = propertyTableOrNull())
-        checkOffsetConsistency(propertyTable, [] { });
-    else
-        ASSERT(!isPinnedPropertyTable());
-}
-
-#if ASSERT_ENABLED
-inline void Structure::checkConsistency()
-{
-    checkOffsetConsistency();
-}
-#endif
 
 inline size_t nextOutOfLineStorageCapacity(size_t currentCapacity)
 {
@@ -871,42 +693,6 @@ inline void StructureTransitionTable::finalizeUnconditionally(VM& vm, Collection
         if (!vm.heap.isMarked(transition))
             m_data = UsingSingleSlotFlag;
     }
-}
-
-inline void Structure::clearCachedPrototypeChain()
-{
-    m_cachedPrototypeChain.clear();
-    if (!hasRareData())
-        return;
-    rareData()->clearCachedPropertyNameEnumerator();
-}
-
-ALWAYS_INLINE bool Structure::canPerformFastPropertyEnumerationCommon() const
-{
-    if (typeInfo().overridesGetOwnPropertySlot())
-        return false;
-    if (typeInfo().overridesAnyFormOfGetOwnPropertyNames())
-        return false;
-    if (hasAnyKindOfGetterSetterProperties())
-        return false;
-    if (isUncacheableDictionary())
-        return false;
-    // Cannot perform fast [[Put]] to |target| if the property names of the |source| contain "__proto__".
-    if (hasUnderscoreProtoPropertyExcludingOriginalProto())
-        return false;
-    return true;
-}
-
-ALWAYS_INLINE bool Structure::canPerformFastPropertyEnumeration() const
-{
-    if (!canPerformFastPropertyEnumerationCommon())
-        return false;
-    // FIXME: Indexed properties can be handled.
-    // https://bugs.webkit.org/show_bug.cgi?id=185358
-
-    if (hasIndexedProperties(indexingType()))
-        return false;
-    return true;
 }
 
 } // namespace JSC

@@ -34,7 +34,7 @@
 #include "StyleTransformFunction.h"
 
 #include "CSSFunctionValue.h"
-#include "CSSPrimitiveValueMappings.h"
+#include "CSSKeywordValue.h"
 #include "CSSTransformListValue.h"
 #include "CSSValueList.h"
 #include "StylePrimitiveNumericTypes+CSSValueConversion.h"
@@ -42,6 +42,7 @@
 #include "StyleBuilderChecking.h"
 #include "StyleCalculationValue.h"
 #include "StyleInterpolationContext.h"
+#include "StyleKeyword+CSSValueConversion.h"
 #include "StyleLengthWrapper+Blending.h"
 #include "StyleMatrix3DTransformFunction.h"
 #include "StyleMatrixTransformFunction.h"
@@ -447,23 +448,32 @@ static RefPtr<const TransformFunctionBase> createPerspectiveTransformFunction(co
     // https://drafts.csswg.org/css-transforms-2/#funcdef-perspective
     // perspective() = perspective( [ <length [0,∞]> | none ] )
 
-    auto function = requiredFunctionDowncast<CSSValuePerspective, CSSPrimitiveValue, 1>(state, value);
+    auto function = requiredFunctionDowncast<CSSValuePerspective, CSSValue, 1>(state, value);
     if (!function)
         return { };
 
     Ref parameter = function->item(0);
-    if (parameter->isValueID()) {
-        ASSERT(parameter->valueID() == CSSValueNone);
-        return PerspectiveTransformFunction::create(CSS::Keyword::None { });
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(parameter)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return PerspectiveTransformFunction::create(CSS::Keyword::None { });
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return { };
+        }
     }
 
-    if (parameter->isLength())
-        return PerspectiveTransformFunction::create(toStyleFromCSSValue<Length<CSS::Nonnegative>>(state, parameter.get()));
+    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, parameter);
+    if (!primitiveValue)
+        return { };
+
+    if (primitiveValue->isLength())
+        return PerspectiveTransformFunction::create(toStyleFromCSSValue<Length<CSS::Nonnegative>>(state, *primitiveValue));
 
     // FIXME: Support for <number> parameters for `perspective` is a quirk that should go away when 3d transforms are finalized.
     return PerspectiveTransformFunction::create(
         Length<CSS::Nonnegative> {
-            static_cast<float>(toStyleFromCSSValue<Number<CSS::Nonnegative>>(state, parameter.get()).value)
+            static_cast<float>(toStyleFromCSSValue<Number<CSS::Nonnegative>>(state, *primitiveValue).value)
         }
     );
 }

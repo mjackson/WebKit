@@ -56,6 +56,7 @@
 #include "JSTestDefaultToJSONInheritFinal.h"
 #include "JSTestDelegateToSharedSyntheticAttribute.h"
 #include "JSTestDomainSecurity.h"
+#include "JSTestEmbedderArrayLike.h"
 #include "JSTestEventConstructor.h"
 #include "JSTestEventTarget.h"
 #include "JSTestException.h"
@@ -113,6 +114,7 @@
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/HeapAnalyzer.h>
 #include <JavaScriptCore/JSCInlines.h>
+#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/StructureInlines.h>
@@ -193,6 +195,7 @@ static JSC_DECLARE_CUSTOM_GETTER(jsTestGlobalObject_TestDefaultToJSONInheritCons
 static JSC_DECLARE_CUSTOM_GETTER(jsTestGlobalObject_TestDefaultToJSONInheritFinalConstructor);
 static JSC_DECLARE_CUSTOM_GETTER(jsTestGlobalObject_TestDelegateToSharedSyntheticAttributeConstructor);
 static JSC_DECLARE_CUSTOM_GETTER(jsTestGlobalObject_TestDomainSecurityConstructor);
+static JSC_DECLARE_CUSTOM_GETTER(jsTestGlobalObject_TestEmbedderArrayLikeConstructor);
 static JSC_DECLARE_CUSTOM_GETTER(jsTestGlobalObject_TestEventConstructorConstructor);
 static JSC_DECLARE_CUSTOM_GETTER(jsTestGlobalObject_TestEventTargetConstructor);
 static JSC_DECLARE_CUSTOM_GETTER(jsTestGlobalObject_TestExceptionConstructor);
@@ -260,30 +263,30 @@ using JSTestGlobalObjectDOMConstructor = JSDOMConstructorNotConstructable<JSTest
 
 static const struct CompactHashIndex JSTestGlobalObjectTableIndex[264] = {
     { -1, -1 },
-    { 68, -1 },
+    { 69, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 18, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
+    { 19, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
+    { 17, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 44, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 50, -1 },
+    { 45, -1 },
     { -1, -1 },
-    { 26, -1 },
     { -1, -1 },
-    { 38, 262 },
+    { 51, -1 },
+    { -1, -1 },
+    { 27, -1 },
+    { -1, -1 },
+    { 39, 262 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
@@ -291,59 +294,59 @@ static const struct CompactHashIndex JSTestGlobalObjectTableIndex[264] = {
     { -1, -1 },
     { -1, -1 },
     { 0, -1 },
-    { 65, -1 },
+    { 66, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 46, -1 },
+    { 47, -1 },
     { -1, -1 },
-    { -1, -1 },
-    { 31, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { 52, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { 42, -1 },
-    { 33, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { 57, -1 },
-    { 48, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { 71, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { 20, -1 },
     { -1, -1 },
     { 32, -1 },
-    { 14, 259 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 53, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 43, -1 },
+    { 34, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 58, -1 },
     { 49, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 37, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 72, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 21, -1 },
+    { -1, -1 },
+    { 33, -1 },
+    { 14, 259 },
+    { 50, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 38, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
@@ -361,11 +364,11 @@ static const struct CompactHashIndex JSTestGlobalObjectTableIndex[264] = {
     { -1, -1 },
     { 13, -1 },
     { -1, -1 },
-    { 51, -1 },
+    { 52, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 25, -1 },
+    { 26, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
@@ -375,71 +378,71 @@ static const struct CompactHashIndex JSTestGlobalObjectTableIndex[264] = {
     { 8, -1 },
     { -1, -1 },
     { 12, -1 },
-    { 55, -1 },
-    { 60, 263 },
+    { 56, -1 },
+    { 61, 263 },
     { -1, -1 },
     { -1, -1 },
     { 9, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 41, -1 },
+    { 42, -1 },
     { -1, -1 },
-    { 24, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { 69, -1 },
-    { 28, -1 },
-    { -1, -1 },
-    { 43, -1 },
+    { 25, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { 56, -1 },
-    { 66, -1 },
-    { -1, -1 },
-    { 17, -1 },
-    { -1, -1 },
-    { 62, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { 58, -1 },
-    { -1, -1 },
-    { 10, -1 },
-    { 35, -1 },
-    { -1, -1 },
-    { 22, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { 64, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { 36, -1 },
     { -1, -1 },
     { 70, -1 },
+    { 29, -1 },
+    { -1, -1 },
+    { 44, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 57, -1 },
+    { 67, -1 },
+    { -1, -1 },
+    { 18, -1 },
+    { -1, -1 },
+    { 63, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 59, -1 },
+    { -1, -1 },
+    { 10, -1 },
+    { 36, -1 },
+    { -1, -1 },
+    { 23, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 65, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 37, -1 },
+    { -1, -1 },
+    { 71, -1 },
     { 3, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 21, -1 },
+    { 22, -1 },
     { -1, -1 },
-    { 61, -1 },
+    { 62, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
@@ -454,20 +457,20 @@ static const struct CompactHashIndex JSTestGlobalObjectTableIndex[264] = {
     { -1, -1 },
     { 16, -1 },
     { 1, 261 },
-    { 53, -1 },
+    { 54, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 29, -1 },
+    { 30, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 67, -1 },
+    { 68, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
@@ -482,12 +485,12 @@ static const struct CompactHashIndex JSTestGlobalObjectTableIndex[264] = {
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 45, -1 },
+    { 46, -1 },
     { -1, -1 },
     { 11, 258 },
     { -1, -1 },
     { -1, -1 },
-    { 40, -1 },
+    { 41, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
@@ -502,31 +505,31 @@ static const struct CompactHashIndex JSTestGlobalObjectTableIndex[264] = {
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 39, -1 },
+    { 40, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 23, -1 },
+    { 24, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 30, -1 },
-    { 19, -1 },
+    { 31, -1 },
+    { 20, -1 },
     { 7, -1 },
-    { 27, -1 },
-    { 34, -1 },
-    { 47, -1 },
-    { 54, -1 },
-    { 59, -1 },
-    { 63, -1 },
-    { 72, -1 },
+    { 28, -1 },
+    { 35, -1 },
+    { 48, -1 },
+    { 55, -1 },
+    { 60, -1 },
+    { 64, -1 },
+    { 73, -1 },
 };
 
 
-static const std::array<HashTableValue, 73> JSTestGlobalObjectTableValues {
+static const std::array<HashTableValue, 74> JSTestGlobalObjectTableValues {
     HashTableValue { "regularAttribute"_s, static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor), NoIntrinsic, { HashTableValue::GetterSetterType, jsTestGlobalObject_regularAttribute, setJSTestGlobalObject_regularAttribute } },
     HashTableValue { "publicAndPrivateAttribute"_s, static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor), NoIntrinsic, { HashTableValue::GetterSetterType, jsTestGlobalObject_publicAndPrivateAttribute, setJSTestGlobalObject_publicAndPrivateAttribute } },
 #if ENABLE(TEST_FEATURE)
@@ -552,6 +555,7 @@ static const std::array<HashTableValue, 73> JSTestGlobalObjectTableValues {
     HashTableValue { "TestDefaultToJSONInheritFinal"_s, static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { HashTableValue::GetterSetterType, jsTestGlobalObject_TestDefaultToJSONInheritFinalConstructor, 0 } },
     HashTableValue { "TestDelegateToSharedSyntheticAttribute"_s, static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { HashTableValue::GetterSetterType, jsTestGlobalObject_TestDelegateToSharedSyntheticAttributeConstructor, 0 } },
     HashTableValue { "TestDomainSecurity"_s, static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { HashTableValue::GetterSetterType, jsTestGlobalObject_TestDomainSecurityConstructor, 0 } },
+    HashTableValue { "TestEmbedderArrayLike"_s, static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { HashTableValue::GetterSetterType, jsTestGlobalObject_TestEmbedderArrayLikeConstructor, 0 } },
     HashTableValue { "TestEventConstructor"_s, static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { HashTableValue::GetterSetterType, jsTestGlobalObject_TestEventConstructorConstructor, 0 } },
     HashTableValue { "TestEventTarget"_s, static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { HashTableValue::GetterSetterType, jsTestGlobalObject_TestEventTargetConstructor, 0 } },
     HashTableValue { "TestException"_s, static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { HashTableValue::GetterSetterType, jsTestGlobalObject_TestExceptionConstructor, 0 } },
@@ -618,7 +622,7 @@ static const std::array<HashTableValue, 73> JSTestGlobalObjectTableValues {
     HashTableValue { "regularOperation"_s, static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { HashTableValue::NativeFunctionType, jsTestGlobalObjectInstanceFunction_regularOperation, 1 } },
 };
 
-static const HashTable JSTestGlobalObjectTable = { 73, 255, static_cast<uint8_t>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::Function), JSTestGlobalObject::info(), JSTestGlobalObjectTableValues.data(), JSTestGlobalObjectTableIndex };
+static const HashTable JSTestGlobalObjectTable = { 74, 255, static_cast<uint8_t>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::Function), JSTestGlobalObject::info(), JSTestGlobalObjectTableValues.data(), JSTestGlobalObjectTableIndex };
 /* Hash table for constructor */
 
 static const std::array<HashTableValue, 1> JSTestGlobalObjectConstructorTableValues {
@@ -662,6 +666,11 @@ static const std::array<HashTableValue, 1> JSTestGlobalObjectPrototypeTableValue
 static const HashTable JSTestGlobalObjectPrototypeTable = { 1, 1, static_cast<uint8_t>(static_cast<unsigned>(PropertyAttribute::DontEnum)), JSTestGlobalObject::info(), JSTestGlobalObjectPrototypeTableValues.data(), JSTestGlobalObjectPrototypeTableIndex };
 const ClassInfo JSTestGlobalObjectPrototype::s_info = { "TestGlobalObject"_s, &Base::s_info, &JSTestGlobalObjectPrototypeTable, nullptr, CREATE_METHOD_TABLE(JSTestGlobalObjectPrototype) };
 
+JSC::Structure* JSTestGlobalObjectPrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
+{
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+}
+
 void JSTestGlobalObjectPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
@@ -686,7 +695,7 @@ void JSTestGlobalObject::finishCreation(VM& vm)
     if (DeprecatedGlobalSettings::testFeatureEnabled())
         putDirectCustomAccessor(vm, builtinNames(vm).enabledAtRuntimeAttributePublicName(), CustomGetterSetter::create(vm, jsTestGlobalObject_enabledAtRuntimeAttribute, setJSTestGlobalObject_enabledAtRuntimeAttribute), attributesForStructure(static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor)));
 #endif
-    if (jsCast<JSDOMGlobalObject*>(realm())->scriptExecutionContext()->isSecureContext())
+    if (realm()->scriptExecutionContext()->isSecureContext())
         putDirectCustomAccessor(vm, builtinNames(vm).TestInterfaceNamePublicName(), CustomGetterSetter::create(vm, jsTestGlobalObject_TestInterfaceNameConstructor, nullptr), attributesForStructure(static_cast<unsigned>(JSC::PropertyAttribute::DontEnum)));
     putDirectCustomAccessor(vm, builtinNames(vm).publicAndPrivateAttributePrivateName(), CustomGetterSetter::create(vm, jsTestGlobalObject_publicAndPrivateAttribute, nullptr), attributesForStructure(JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly));
 #if ENABLE(TEST_FEATURE)
@@ -714,14 +723,22 @@ void JSTestGlobalObject::finishCreation(VM& vm)
     if (DeprecatedGlobalSettings::testFeatureEnabled())
         putDirectBuiltinFunction(vm, this, builtinNames(vm).testJSBuiltinFunctionPublicName(), testGlobalObjectTestJSBuiltinFunctionCodeGenerator(vm), attributesForStructure(static_cast<unsigned>(JSC::PropertyAttribute::Builtin)));
 #endif
-    if (jsCast<JSDOMGlobalObject*>(realm())->scriptExecutionContext()->isSecureContext())
+    if (realm()->scriptExecutionContext()->isSecureContext())
         putDirectNativeFunction(vm, this, builtinNames(vm).calculateSecretResultPublicName(), 0, jsTestGlobalObjectInstanceFunction_calculateSecretResult, ImplementationVisibility::Public, NoIntrinsic, attributesForStructure(static_cast<unsigned>(JSC::PropertyAttribute::Function)));
-    if (jsCast<JSDOMGlobalObject*>(realm())->scriptExecutionContext()->isSecureContext())
+    if (realm()->scriptExecutionContext()->isSecureContext())
         putDirectNativeFunction(vm, this, builtinNames(vm).getSecretBooleanPublicName(), 0, jsTestGlobalObjectInstanceFunction_getSecretBoolean, ImplementationVisibility::Public, NoIntrinsic, attributesForStructure(static_cast<unsigned>(JSC::PropertyAttribute::Function)));
 #if ENABLE(TEST_FEATURE)
-    if ((jsCast<JSDOMGlobalObject*>(realm())->scriptExecutionContext()->isSecureContext() && DeprecatedGlobalSettings::testFeatureEnabled()))
+    if ((realm()->scriptExecutionContext()->isSecureContext() && DeprecatedGlobalSettings::testFeatureEnabled()))
         putDirectNativeFunction(vm, this, builtinNames(vm).testFeatureGetSecretBooleanPublicName(), 0, jsTestGlobalObjectInstanceFunction_testFeatureGetSecretBoolean, ImplementationVisibility::Public, NoIntrinsic, attributesForStructure(static_cast<unsigned>(JSC::PropertyAttribute::Function)));
 #endif
+}
+
+JSTestGlobalObject* JSTestGlobalObject::create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestGlobalObject>&& impl)
+{
+    SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
+    JSTestGlobalObject* ptr = new (NotNull, JSC::allocateCell<JSTestGlobalObject>(vm)) JSTestGlobalObject(structure, *globalObject, WTF::move(impl));
+    ptr->finishCreation(vm);
+    return ptr;
 }
 
 JSC::Structure* JSTestGlobalObject::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
@@ -731,7 +748,7 @@ JSC::Structure* JSTestGlobalObject::createStructure(JSC::VM& vm, JSC::JSGlobalOb
 
 JSValue JSTestGlobalObject::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestGlobalObjectDOMConstructor, DOMConstructorID::TestGlobalObject>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestGlobalObjectDOMConstructor, DOMConstructorID::TestGlobalObject>(vm, *uncheckedDowncast<JSDOMGlobalObject>(globalObject));
 }
 
 void JSTestGlobalObject::destroy(JSC::JSCell* cell)
@@ -744,7 +761,7 @@ JSC_DEFINE_CUSTOM_GETTER(jsTestGlobalObjectConstructor, (JSGlobalObject* lexical
 {
     SUPPRESS_UNCOUNTED_LOCAL auto& vm = JSC::getVM(lexicalGlobalObject);
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicCast<JSTestGlobalObjectPrototype*>(JSValue::decode(thisValue));
+    auto* prototype = dynamicDowncast<JSTestGlobalObjectPrototype>(JSValue::decode(thisValue));
     if (!prototype) [[unlikely]]
         return throwVMTypeError(lexicalGlobalObject, throwScope);
     return JSValue::encode(JSTestGlobalObject::getConstructor(vm, prototype->realm()));
@@ -1049,6 +1066,17 @@ static inline JSValue jsTestGlobalObject_TestDomainSecurityConstructorGetter(JSG
 JSC_DEFINE_CUSTOM_GETTER(jsTestGlobalObject_TestDomainSecurityConstructor, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
     return IDLAttribute<JSTestGlobalObject>::get<jsTestGlobalObject_TestDomainSecurityConstructorGetter>(*lexicalGlobalObject, thisValue, attributeName);
+}
+
+static inline JSValue jsTestGlobalObject_TestEmbedderArrayLikeConstructorGetter(JSGlobalObject& lexicalGlobalObject, JSTestGlobalObject& thisObject)
+{
+    UNUSED_PARAM(lexicalGlobalObject);
+    return JSTestEmbedderArrayLike::getConstructor(JSC::getVM(&lexicalGlobalObject), &thisObject);
+}
+
+JSC_DEFINE_CUSTOM_GETTER(jsTestGlobalObject_TestEmbedderArrayLikeConstructor, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
+{
+    return IDLAttribute<JSTestGlobalObject>::get<jsTestGlobalObject_TestEmbedderArrayLikeConstructorGetter>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 static inline JSValue jsTestGlobalObject_TestEventConstructorConstructorGetter(JSGlobalObject& lexicalGlobalObject, JSTestGlobalObject& thisObject)
@@ -1922,7 +1950,7 @@ JSC::GCClient::IsoSubspace* JSTestGlobalObject::subspaceForImpl(JSC::VM& vm)
 
 void JSTestGlobalObject::analyzeHeap(JSCell* cell, HeapAnalyzer& analyzer)
 {
-    auto* thisObject = jsCast<JSTestGlobalObject*>(cell);
+    auto* thisObject = uncheckedDowncast<JSTestGlobalObject>(cell);
     analyzer.setWrappedObjectForCell(cell, &thisObject->wrapped());
     if (RefPtr context = thisObject->scriptExecutionContext())
         analyzer.setLabelForCell(cell, makeString("url "_s, context->url().string()));
@@ -1946,7 +1974,7 @@ void JSTestGlobalObjectOwner::finalize(JSC::Handle<JSC::Unknown> handle, void* c
 
 TestGlobalObject* JSTestGlobalObject::toWrapped(JSC::VM&, JSC::JSValue value)
 {
-    if (auto* wrapper = jsDynamicCast<JSTestGlobalObject*>(value))
+    if (auto* wrapper = dynamicDowncast<JSTestGlobalObject>(value))
         return &wrapper->wrapped();
     return nullptr;
 }

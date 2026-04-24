@@ -26,6 +26,7 @@
 #include "StyleFilter.h"
 
 #include "CSSFilterValue.h"
+#include "CSSKeywordValue.h"
 #include "Document.h"
 #include "FilterOperations.h"
 #include "StyleBuilderChecking.h"
@@ -129,8 +130,15 @@ auto ToStyle<CSS::FilterValueList>::operator()(const CSS::FilterValueList& value
 
 auto CSSValueConversion<Filter>::operator()(BuilderState& state, const CSSValue& value) -> Filter
 {
-    if (value.valueID() == CSSValueNone)
-        return CSS::Keyword::None { };
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
+    }
 
     RefPtr filter = requiredDowncast<CSSFilterValue>(state, value);
     if (!filter)

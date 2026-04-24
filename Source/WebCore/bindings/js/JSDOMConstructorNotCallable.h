@@ -28,6 +28,7 @@
 
 #include "JSDOMWrapper.h"
 #include "WebCoreJSClientData.h"
+#include <JavaScriptCore/StructureCreateInlines.h>
 
 namespace WebCore {
 

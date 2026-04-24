@@ -30,16 +30,17 @@
 #include "JSCInlines.h"
 #include "ModuleLoaderPayload.h"
 #include "ModuleRegistryEntry.h"
+#include "ProgramExecutable.h"
 
 namespace JSC {
 
 const ClassInfo ModuleLoadingContext::s_info = { "ModuleLoadingContext"_s, nullptr, nullptr, nullptr, CREATE_METHOD_TABLE(ModuleLoadingContext) };
 
-ModuleLoadingContext::ModuleLoadingContext(VM& vm, Structure* structure, Step step, const JSModuleLoader::ModuleReferrer& referrer, AbstractModuleRecord::ModuleRequest&& moduleRequest, ModuleLoaderPayload* payload, ModuleRegistryEntry* entry, JSValue scriptFetcher)
+ModuleLoadingContext::ModuleLoadingContext(VM& vm, Structure* structure, Step step, const JSModuleLoader::ModuleReferrer& referrer, AbstractModuleRecord::ModuleRequest&& moduleRequest, ModuleLoaderPayload* payload, ModuleRegistryEntry* entry, RefPtr<ScriptFetcher> scriptFetcher)
     : Base(vm, structure)
     , m_step(step)
     , m_moduleRequest(WTF::move(moduleRequest))
-    , m_scriptFetcher(scriptFetcher, WriteBarrierEarlyInit)
+    , m_scriptFetcher(WTF::move(scriptFetcher))
     , m_payload(payload, WriteBarrierEarlyInit)
     , m_entry(entry, WriteBarrierEarlyInit)
     , m_referrer(referrer.toJSValue(), WriteBarrierEarlyInit)
@@ -52,28 +53,28 @@ void ModuleLoadingContext::destroy(JSCell* cell)
     thisObject->~ModuleLoadingContext();
 }
 
-ModuleLoadingContext* ModuleLoadingContext::create(VM& vm, Step step, const JSModuleLoader::ModuleReferrer& referrer, const AbstractModuleRecord::ModuleRequest& moduleRequest, ModuleLoaderPayload* payload, ModuleRegistryEntry* entry, JSValue scriptFetcher)
+ModuleLoadingContext* ModuleLoadingContext::create(VM& vm, Step step, const JSModuleLoader::ModuleReferrer& referrer, const AbstractModuleRecord::ModuleRequest& moduleRequest, ModuleLoaderPayload* payload, ModuleRegistryEntry* entry, RefPtr<ScriptFetcher> scriptFetcher)
 {
     AbstractModuleRecord::ModuleRequest requestCopy { moduleRequest };
-    auto* context = new (NotNull, allocateCell<ModuleLoadingContext>(vm)) ModuleLoadingContext(vm, vm.moduleLoadingContextStructure.get(), step, referrer, WTF::move(requestCopy), payload, entry, scriptFetcher);
+    auto* context = new (NotNull, allocateCell<ModuleLoadingContext>(vm)) ModuleLoadingContext(vm, vm.moduleLoadingContextStructure.get(), step, referrer, WTF::move(requestCopy), payload, entry, WTF::move(scriptFetcher));
     context->finishCreation(vm);
     return context;
 }
 
-ModuleLoadingContext::ModuleLoadingContext(VM& vm, Structure* structure, AbstractModuleRecord::ModuleRequest&& moduleRequest, JSValue scriptFetcher, bool evaluate, bool dynamic, bool useImportMap)
+ModuleLoadingContext::ModuleLoadingContext(VM& vm, Structure* structure, AbstractModuleRecord::ModuleRequest&& moduleRequest, RefPtr<ScriptFetcher> scriptFetcher, bool evaluate, bool dynamic, bool useImportMap)
     : Base(vm, structure)
     , m_moduleRequest(WTF::move(moduleRequest))
-    , m_scriptFetcher(scriptFetcher, WriteBarrierEarlyInit)
+    , m_scriptFetcher(WTF::move(scriptFetcher))
     , m_evaluate(evaluate)
     , m_dynamic(dynamic)
     , m_useImportMap(useImportMap)
 {
 }
 
-ModuleLoadingContext* ModuleLoadingContext::create(VM& vm, const AbstractModuleRecord::ModuleRequest& moduleRequest, JSValue scriptFetcher, bool evaluate, bool dynamic, bool useImportMap)
+ModuleLoadingContext* ModuleLoadingContext::create(VM& vm, const AbstractModuleRecord::ModuleRequest& moduleRequest, RefPtr<ScriptFetcher> scriptFetcher, bool evaluate, bool dynamic, bool useImportMap)
 {
     AbstractModuleRecord::ModuleRequest requestCopy { moduleRequest };
-    auto* context = new (NotNull, allocateCell<ModuleLoadingContext>(vm)) ModuleLoadingContext(vm, vm.moduleLoadingContextStructure.get(), WTF::move(requestCopy), scriptFetcher, evaluate, dynamic, useImportMap);
+    auto* context = new (NotNull, allocateCell<ModuleLoadingContext>(vm)) ModuleLoadingContext(vm, vm.moduleLoadingContextStructure.get(), WTF::move(requestCopy), WTF::move(scriptFetcher), evaluate, dynamic, useImportMap);
     context->finishCreation(vm);
     return context;
 }
@@ -81,20 +82,19 @@ ModuleLoadingContext* ModuleLoadingContext::create(VM& vm, const AbstractModuleR
 JSModuleLoader::ModuleReferrer ModuleLoadingContext::referrer() const
 {
     JSValue ref = m_referrer.get();
-    if (auto* module = jsDynamicCast<CyclicModuleRecord*>(ref))
+    if (auto* module = dynamicDowncast<CyclicModuleRecord>(ref))
         return module;
-    if (auto* exec = jsDynamicCast<ProgramExecutable*>(ref))
+    if (auto* exec = dynamicDowncast<ProgramExecutable>(ref))
         return exec;
-    return jsCast<JSGlobalObject*>(ref);
+    return uncheckedDowncast<JSGlobalObject>(ref);
 }
 
 template<typename Visitor>
 void ModuleLoadingContext::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
-    auto* thisObject = jsCast<ModuleLoadingContext*>(cell);
+    auto* thisObject = uncheckedDowncast<ModuleLoadingContext>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
-    visitor.append(thisObject->m_scriptFetcher);
     visitor.append(thisObject->m_payload);
     visitor.append(thisObject->m_entry);
     visitor.append(thisObject->m_referrer);

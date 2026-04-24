@@ -30,6 +30,7 @@
 #include "TemporalObject.h"
 #include <wtf/Int128.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/text/StringBuilder.h>
 
 namespace JSC {
 namespace ISO8601 {
@@ -310,8 +311,6 @@ private:
     int32_t m_day : 6; // Starts with 1.
 };
 static_assert(sizeof(PlainDate) == sizeof(int32_t));
-
-using TimeZone = Variant<TimeZoneID, int64_t>;
 
 class PlainYearMonth final {
     WTF_MAKE_TZONE_ALLOCATED(PlainYearMonth);

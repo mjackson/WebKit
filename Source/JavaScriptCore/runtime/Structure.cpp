@@ -44,6 +44,40 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
+template<typename DetailsFunc>
+void Structure::checkOffsetConsistency(PropertyTable* propertyTable, const DetailsFunc& detailsFunc) const
+{
+    // We cannot reliably assert things about the property table in the concurrent
+    // compilation thread. It is possible for the table to be stolen and then have
+    // things added to it, which leads to the offsets being all messed up. We could
+    // get around this by grabbing a lock here, but I think that would be overkill.
+    if (isCompilationThread())
+        return;
+
+    unsigned totalSize = propertyTable->propertyStorageSize();
+    unsigned inlineOverflowAccordingToTotalSize = totalSize < m_inlineCapacity ? 0 : totalSize - m_inlineCapacity;
+
+    auto fail = [&] (const char* description) {
+        dataLog("Detected offset inconsistency: ", description, "!\n");
+        dataLog("this = ", RawPointer(this), "\n");
+        dataLog("transitionOffset = ", transitionOffset(), "\n");
+        dataLog("maxOffset = ", maxOffset(), "\n");
+        dataLog("m_inlineCapacity = ", m_inlineCapacity, "\n");
+        dataLog("propertyTable = ", RawPointer(propertyTable), "\n");
+        dataLog("numberOfSlotsForMaxOffset = ", numberOfSlotsForMaxOffset(maxOffset(), m_inlineCapacity), "\n");
+        dataLog("totalSize = ", totalSize, "\n");
+        dataLog("inlineOverflowAccordingToTotalSize = ", inlineOverflowAccordingToTotalSize, "\n");
+        dataLog("numberOfOutOfLineSlotsForMaxOffset = ", numberOfOutOfLineSlotsForMaxOffset(maxOffset()), "\n");
+        detailsFunc();
+        UNREACHABLE_FOR_PLATFORM();
+    };
+
+    if (numberOfSlotsForMaxOffset(maxOffset(), m_inlineCapacity) != totalSize)
+        fail("numberOfSlotsForMaxOffset doesn't match totalSize");
+    if (inlineOverflowAccordingToTotalSize != numberOfOutOfLineSlotsForMaxOffset(maxOffset()))
+        fail("inlineOverflowAccordingToTotalSize doesn't match numberOfOutOfLineSlotsForMaxOffset");
+}
+
 #if DUMP_STRUCTURE_ID_STATISTICS
 static UncheckedKeyHashSet<Structure*>& liveStructureSet = *(new UncheckedKeyHashSet<Structure*>);
 #endif
@@ -1362,7 +1396,7 @@ void Structure::didTransitionFromThisStructure(DeferredStructureTransitionWatchp
 template<typename Visitor>
 void Structure::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
-    Structure* thisObject = jsCast<Structure*>(cell);
+    Structure* thisObject = uncheckedDowncast<Structure>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
 
     Base::visitChildren(thisObject, visitor);
@@ -1769,6 +1803,21 @@ void dumpTransitionKind(PrintStream& out, TransitionKind kind)
 
     out.print(kindName);
 }
+
+void Structure::checkOffsetConsistency() const
+{
+    if (auto* propertyTable = propertyTableOrNull())
+        checkOffsetConsistency(propertyTable, [] { });
+    else
+        ASSERT(!isPinnedPropertyTable());
+}
+
+#if ASSERT_ENABLED
+void Structure::checkConsistency()
+{
+    checkOffsetConsistency();
+}
+#endif
 
 } // namespace JSC
 

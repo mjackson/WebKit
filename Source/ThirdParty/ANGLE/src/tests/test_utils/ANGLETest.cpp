@@ -29,9 +29,7 @@
 #    include <VersionHelpers.h>
 #endif  // defined(ANGLE_PLATFORM_WINDOWS)
 
-#if defined(ANGLE_HAS_RAPIDJSON)
-#    include "test_utils/runner/TestSuite.h"
-#endif  // defined(ANGLE_HAS_RAPIDJSON)
+#include "test_utils/runner/TestSuite.h"
 
 namespace angle
 {
@@ -623,8 +621,8 @@ void ANGLETestBase::initOSWindow()
         return;
     }
 
-    // On Linux we must keep the test windows visible. On Windows it doesn't seem to need it.
-    setWindowVisible(getOSWindow(), !IsWindows());
+    // On Linux we must keep the test windows visible. On Windows or Metal it doesn't seem to need it.
+    setWindowVisible(getOSWindow(), !(IsWindows() || IsMac() || IsIOS()));
 
     switch (mCurrentParams->driver)
     {
@@ -712,9 +710,6 @@ void ANGLETestBase::ANGLETestSetUp()
     fullTestNameStr << testInfo->test_suite_name() << "." << testInfo->name();
     std::string fullTestName = fullTestNameStr.str();
 
-    // TODO(b/279980674): TestSuite depends on rapidjson which we don't have in aosp builds,
-    // for now disable both TestSuite and expectations.
-#if defined(ANGLE_HAS_RAPIDJSON)
     TestSuite *testSuite = TestSuite::GetInstance();
     int32_t testExpectation =
         testSuite->getTestExpectationWithConfigAndUpdateTimeout(testConfig, fullTestName);
@@ -723,7 +718,6 @@ void ANGLETestBase::ANGLETestSetUp()
     {
         GTEST_SKIP() << "Test skipped on this config";
     }
-#endif
 
     if (IsWindows())
     {

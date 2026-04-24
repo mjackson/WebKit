@@ -481,6 +481,26 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::embeddedImageDescription() cons
     return nullptr;
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElement::imageDataSize() const
+{
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::imageDataForParameters(int, int) const
+{
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::imageDataForParametersWithFormat(int, int, JSStringRef) const
+{
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::imageDataForSubrect(int, int, int, int, int, int) const
+{
+    return nullptr;
+}
+
 RefPtr<AccessibilityTextMarker> AccessibilityUIElement::endTextMarker()
 {
     return nullptr;
@@ -1025,6 +1045,11 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElement::parentElement()
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::pathDescription() const
+{
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::pathAsBounds() const
 {
     return nullptr;
 }

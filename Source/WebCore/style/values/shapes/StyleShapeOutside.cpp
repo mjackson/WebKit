@@ -27,10 +27,11 @@
 
 #include "AnimationUtilities.h"
 #include "CSSBasicShapeValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSValueList.h"
 #include "CachedImage.h"
 #include "StyleBuilderChecking.h"
-#include "StylePrimitiveKeyword+CSSValueConversion.h"
+#include "StyleKeyword+CSSValueConversion.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
 
 namespace WebCore {
@@ -50,12 +51,14 @@ bool ShapeOutside::Image::isValid() const
 
 auto CSSValueConversion<ShapeOutside>::operator()(BuilderState& state, const CSSValue& value) -> ShapeOutside
 {
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        if (primitiveValue->valueID() == CSSValueNone)
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
             return CSS::Keyword::None { };
-
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
     }
 
     if (value.isImage())

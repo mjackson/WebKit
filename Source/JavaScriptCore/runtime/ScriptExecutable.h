@@ -26,6 +26,7 @@
 #pragma once
 
 #include "ExecutableBase.h"
+#include "Intrinsic.h"
 #include "ParserModes.h"
 #include "ProfilerJettisonReason.h"
 

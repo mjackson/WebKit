@@ -63,6 +63,7 @@
 #if USE(GBM)
 #include <WebCore/DRMDeviceManager.h>
 #include <WebCore/GBMDevice.h>
+#include <WebCore/MemoryMappedGPUBuffer.h>
 #include <gbm.h>
 #include <xf86drm.h>
 #endif
@@ -304,6 +305,8 @@ void WebPage::getRenderProcessInfo(CompletionHandler<void(RenderProcessInfo&&)>&
             };
         });
     }
+    info.dmabufExportStrategy = MemoryMappedGPUBuffer::exportStrategyDescription();
+    info.memoryMappedGPUBufferSupported = MemoryMappedGPUBuffer::isSupported();
 #endif // USE(GBM)
 
     static_cast<DrawingAreaCoordinatedGraphics*>(m_drawingArea.get())->fillGLInformation(WTF::move(info), WTF::move(completionHandler));

@@ -86,7 +86,8 @@ public:
     static ExceptionOr<void> setFloatValue(unsigned short, double) { return Exception { ExceptionCode::NoModificationAllowedError }; }
     static ExceptionOr<void> setStringValue(unsigned short, const String&) { return Exception { ExceptionCode::NoModificationAllowedError }; }
 
-    bool isCSSWideKeyword() const { return WebCore::isCSSWideKeyword(valueID(m_value.get())); }
+    bool isCSSWideKeyword() const;
+
     static unsigned short cssValueType() { return CSS_PRIMITIVE_VALUE; }
 
 private:

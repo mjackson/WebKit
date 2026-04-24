@@ -378,6 +378,7 @@ add_library(Skia STATIC
     src/gpu/ganesh/GrWaitRenderTask.cpp
     src/gpu/ganesh/GrWritePixelsRenderTask.cpp
     src/gpu/ganesh/GrXferProcessor.cpp
+    src/gpu/ganesh/GrYUVABackendTextures.cpp
     src/gpu/ganesh/GrYUVATextureProxies.cpp
     src/gpu/ganesh/PathRenderer.cpp
     src/gpu/ganesh/PathRenderer.cpp
@@ -1104,6 +1105,8 @@ target_compile_definitions(Skia PRIVATE
     SK_CODEC_DECODES_PNG
 
     SK_GAMMA_APPLY_TO_A8
+
+    SK_USER_CONFIG_HEADER=\"./WebKitSkiaConfig.h\"
 )
 
 # SK_DEBUG enables consistency checks. It is enabled by default in Debug

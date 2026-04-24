@@ -101,6 +101,7 @@ for (let i = 0; i < NUM_WORKERS; i++) {
     print(`Started worker ${i + 1}/${NUM_WORKERS} running ${functions[i]}`);
 }
 
+print("DEBUGGER_READY");
 let iteration = 0;
 for (; ;) {
     func1();

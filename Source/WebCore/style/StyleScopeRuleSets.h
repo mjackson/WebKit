@@ -55,6 +55,9 @@ struct InvalidationRuleSet {
     CSSSelectorList invalidationSelectors;
     MatchElement matchElement;
     IsNegation isNegation;
+    // For non-subject :has(), a selector matching the :has() scope element.
+    // Used to bound the invalidation traversal to the scope element's subtree.
+    CSSSelectorList scopeSelector;
 };
 
 enum class SelectorsForStyleAttribute : uint8_t { None, SubjectPositionOnly, NonSubjectPosition };

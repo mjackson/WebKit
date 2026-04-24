@@ -169,6 +169,14 @@ class CreateBug(Command):
         if args.keywords:
             keywords = [k.strip() for k in args.keywords.split(',')]
 
+        # Add InRadar keyword when --radar is provided, to prevent duplicate
+        # radar creation when the Security product auto-CCs the radar importer
+        # before cc_radar() runs.
+        if radar_issue:
+            keywords = keywords or []
+            if 'InRadar' not in keywords:
+                keywords.append('InRadar')
+
         # Create the bug (tracker.create prompts for project/component if not specified)
         try:
             issue = tracker.create(

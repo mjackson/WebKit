@@ -3938,6 +3938,94 @@ void testUbfx64AndShift()
     }
 }
 
+void testUbfx32ArithmeticShiftAnd()
+{
+    // Test Pattern: (src >> lsb) & mask with arithmetic shift.
+    if (JSC::Options::defaultB3OptLevel() < 2)
+        return;
+    Vector<int32_t> srcs = { 0, 1, -1, 0x76543210, static_cast<int32_t>(0xfedcba98) };
+    Vector<uint32_t> lsbs = { 1, 8, 14, 30 };
+    Vector<uint32_t> widths = { 30, 8, 17, 1 };
+
+    auto test = [&] (uint32_t lsb, uint32_t mask, bool expectUbfx) {
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<int32_t>(proc, root);
+
+        Value* srcValue = arguments[0];
+        Value* lsbValue = root->appendNew<Const32Value>(proc, Origin(), lsb);
+        Value* maskValue = root->appendNew<Const32Value>(proc, Origin(), mask);
+
+        Value* left = root->appendNew<Value>(proc, SShr, Origin(), srcValue, lsbValue);
+        root->appendNewControlValue(
+            proc, Return, Origin(),
+            root->appendNew<Value>(proc, BitAnd, Origin(), left, maskValue));
+
+        auto code = compileProc(proc);
+        if (isARM64()) {
+            if (expectUbfx)
+                checkUsesInstruction(*code, "ubfx");
+            else
+                checkDoesNotUseInstruction(*code, "ubfx");
+        }
+        for (auto src : srcs)
+            CHECK_EQ(invoke<int32_t>(*code, src), ((src >> lsb) & static_cast<int32_t>(mask)));
+    };
+
+    auto generateMask = [&] (uint32_t width) -> uint32_t {
+        return (1U << width) - 1U;
+    };
+
+    for (size_t i = 0; i < lsbs.size(); ++i)
+        test(lsbs.at(i), generateMask(widths.at(i)), true);
+
+    // lsb + width > 32: mask reaches sign bits, must not use ubfx.
+    test(8, generateMask(25), false);
+}
+
+void testUbfx64ArithmeticShiftAnd()
+{
+    if (JSC::Options::defaultB3OptLevel() < 2)
+        return;
+    Vector<int64_t> srcs = { 0, 1, -1, 0x123456789abcdef0LL, static_cast<int64_t>(0xfedcba9876543210ULL) };
+    Vector<uint64_t> lsbs = { 1, 8, 30, 62 };
+    Vector<uint64_t> widths = { 62, 8, 33, 1 };
+
+    auto test = [&] (uint64_t lsb, uint64_t mask, bool expectUbfx) {
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<int64_t>(proc, root);
+
+        Value* srcValue = arguments[0];
+        Value* lsbValue = root->appendNew<Const32Value>(proc, Origin(), lsb);
+        Value* maskValue = root->appendNew<Const64Value>(proc, Origin(), mask);
+
+        Value* left = root->appendNew<Value>(proc, SShr, Origin(), srcValue, lsbValue);
+        root->appendNewControlValue(
+            proc, Return, Origin(),
+            root->appendNew<Value>(proc, BitAnd, Origin(), left, maskValue));
+
+        auto code = compileProc(proc);
+        if (isARM64()) {
+            if (expectUbfx)
+                checkUsesInstruction(*code, "ubfx");
+            else
+                checkDoesNotUseInstruction(*code, "ubfx");
+        }
+        for (auto src : srcs)
+            CHECK_EQ(invoke<int64_t>(*code, src), ((src >> lsb) & static_cast<int64_t>(mask)));
+    };
+
+    auto generateMask = [&] (uint64_t width) -> uint64_t {
+        return (1ULL << width) - 1ULL;
+    };
+
+    for (size_t i = 0; i < lsbs.size(); ++i)
+        test(lsbs.at(i), generateMask(widths.at(i)), true);
+
+    test(8, generateMask(57), false);
+}
+
 void testUbfiz32AndShiftValueMask()
 {
     // Test Pattern: d = (n & mask) << lsb 
@@ -7728,6 +7816,8 @@ void addBitTests(const TestConfig* config, Deque<RefPtr<SharedTask<void()>>>& ta
     RUN(testUbfx32AndShift());
     RUN(testUbfx64ShiftAnd());
     RUN(testUbfx64AndShift());
+    RUN(testUbfx32ArithmeticShiftAnd());
+    RUN(testUbfx64ArithmeticShiftAnd());
     RUN(testUbfiz32AndShiftValueMask());
     RUN(testUbfiz32AndShiftMaskValue());
     RUN(testUbfiz32ShiftAnd());

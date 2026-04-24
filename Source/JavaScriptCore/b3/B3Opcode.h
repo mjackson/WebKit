@@ -462,6 +462,11 @@ enum Opcode : uint8_t {
     VectorRelaxedMAdd,
     VectorRelaxedNMAdd,
     VectorRelaxedLaneSelect,
+    VectorRelaxedMin,
+    VectorRelaxedMax,
+    VectorRelaxedQ15Mulr,
+    VectorRelaxedDotI8x16I7x16,
+    VectorRelaxedDotI8x16I7x16Add,
 
     // Currently only some architectures support this.
     // FIXME: Expand this to identical instructions for the other architectures as a macro.

@@ -30,6 +30,7 @@
 
 #include "HTMLModelElement.h"
 #include "RenderStyle.h"
+#include "StyleDifference.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -59,6 +60,16 @@ void RenderModel::updateFromElement()
 {
     RenderReplaced::updateFromElement();
     update();
+}
+
+void RenderModel::styleDidChange(Style::Difference difference, const RenderStyle* oldStyle)
+{
+    RenderReplaced::styleDidChange(difference, oldStyle);
+
+#if HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
+    if (!oldStyle || style().dynamicRangeLimit() != oldStyle->dynamicRangeLimit())
+        protect(modelElement())->dynamicRangeLimitDidChange(style().dynamicRangeLimit().toPlatformDynamicRangeLimit());
+#endif
 }
 
 void RenderModel::update()

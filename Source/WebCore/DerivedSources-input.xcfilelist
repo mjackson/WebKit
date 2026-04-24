@@ -1375,8 +1375,8 @@ $(PROJECT_DIR)/css/scripts/process-css-properties.py
 $(PROJECT_DIR)/css/scripts/process-css-pseudo-selectors.py
 $(PROJECT_DIR)/css/scripts/process-css-values.py
 $(PROJECT_DIR)/css/svg.css
-$(PROJECT_DIR)/css/typedom/CSSKeywordValue.idl
 $(PROJECT_DIR)/css/typedom/CSSNumericValue.idl
+$(PROJECT_DIR)/css/typedom/CSSOMKeywordValue.idl
 $(PROJECT_DIR)/css/typedom/CSSOMVariableReferenceValue.idl
 $(PROJECT_DIR)/css/typedom/CSSStyleImageValue.idl
 $(PROJECT_DIR)/css/typedom/CSSStyleValue.idl

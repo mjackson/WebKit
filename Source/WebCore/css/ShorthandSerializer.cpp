@@ -29,6 +29,7 @@
 #include "CSSCustomIdentValue.h"
 #include "CSSGridLineNamesValue.h"
 #include "CSSGridTemplateAreasValue.h"
+#include "CSSKeywordValueInlines.h"
 #include "CSSParserIdioms.h"
 #include "CSSPropertyInitialValues.h"
 #include "CSSPropertyNames.h"
@@ -1190,10 +1191,9 @@ String ShorthandSerializer::serializeGridTemplate() const
     // Depending on the values of grid-template-rows and grid-template-columns, we may not
     // be able to completely represent them in this version of the grid-template shorthand.
     // We need to make sure that those values map to a value the syntax supports
-    auto isValidTrackSize = [&] (const CSSValue& value) {
-        auto valueID = value.valueID();
-        if (CSSPropertyParserHelpers::identMatches<CSSValueFitContent, CSSValueMinmax>(valueID) || CSSPropertyParserHelpers::isGridBreadthIdent(valueID))
-            return true;
+    auto isValidTrackSize = [&](const CSSValue& value) {
+        if (const auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value))
+            return CSSPropertyParserHelpers::identMatches<CSSValueFitContent, CSSValueMinmax>(keywordValue->valueID()) || CSSPropertyParserHelpers::isGridBreadthIdent(keywordValue->valueID());
         if (const auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
             return primitiveValue->isLength() || primitiveValue->isPercentage() || primitiveValue->isCalculated() || primitiveValue->isFlex();
         return false;
@@ -1330,11 +1330,7 @@ String ShorthandSerializer::serializeTextBox() const
 {
     auto textBoxTrim = longhandValueID(0);
     Ref textBoxEdge = longhandValue(longhandIndex(1, CSSPropertyTextBoxEdge));
-    auto textBoxEdgeIsAuto = [&]() {
-        if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(textBoxEdge.ptr()))
-            return primitiveValue->valueID() == CSSValueAuto;
-        return false;
-    }();
+    auto textBoxEdgeIsAuto = isValueID(textBoxEdge, CSSValueAuto);
 
     if (textBoxTrim == CSSValueNone && textBoxEdgeIsAuto)
         return nameString(CSSValueNormal);
@@ -1363,35 +1359,36 @@ String ShorthandSerializer::serializeTextWrap() const
 
 String ShorthandSerializer::serializeSingleAnimationRange(const CSSValue& value, Style::SingleAnimationRangeType type, CSSValueID startValueID) const
 {
-    auto isDefault = [](auto& value, auto type) {
-        if (!value.isPercentage() || value.isCalculated())
+    auto isDefault = [](const auto& primitiveValue, auto type) {
+        if (!primitiveValue || !primitiveValue->isPercentage() || primitiveValue->isCalculated())
             return false;
-        auto percentageValue = value.resolveAsPercentageNoConversionDataRequired();
+        auto percentageValue = primitiveValue->resolveAsPercentageNoConversionDataRequired();
         if (type == Style::SingleAnimationRangeType::Start)
             return percentageValue == 0;
         return percentageValue == 100;
     };
 
-    auto isRangeOffset = [](auto& value) {
+    auto isRangeOffset = [](const auto& value) {
         return value.isLength() || value.isPercentage() || value.isCalculatedPercentageWithLength();
     };
 
     if (RefPtr pair = dynamicDowncast<CSSValuePair>(value)) {
-        bool isSameNameAsStart = pair->first().valueID() == startValueID;
+        bool isSameNameAsStart = isValueID(pair->first(), startValueID);
         bool isStartValue = type == Style::SingleAnimationRangeType::Start;
-        bool isDefaultValue = isDefault(downcast<CSSPrimitiveValue>(pair->second()), Style::SingleAnimationRangeType::Start);
+        bool isDefaultValue = isDefault(dynamicDowncast<CSSPrimitiveValue>(pair->second()), Style::SingleAnimationRangeType::Start);
         if (isDefaultValue && (isStartValue || !isSameNameAsStart))
-            return nameLiteral(pair->first().valueID());
+            return nameLiteral(valueID(pair->first()));
         return pair->cssText(m_serializationContext);
     }
     if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
         if (isRangeOffset(*primitiveValue))
             return primitiveValue->cssText(m_serializationContext);
-        bool isNormal = primitiveValue->valueID() == CSSValueNormal;
-        bool isSameNameAsStart = primitiveValue->valueID() == startValueID;
+    } else if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        bool isNormal = keywordValue->valueID() == CSSValueNormal;
+        bool isSameNameAsStart = keywordValue->valueID() == startValueID;
         bool isStartValue = type == Style::SingleAnimationRangeType::Start;
         if (isStartValue || (!isNormal && !isSameNameAsStart))
-            return nameLiteral(primitiveValue->valueID());
+            return nameLiteral(keywordValue->valueID());
     }
     return emptyString();
 }
@@ -1410,7 +1407,7 @@ String ShorthandSerializer::serializeAnimationRange() const
         for (unsigned i = 0; i < startList->size(); i++) {
             RefPtr start = startList->item(i);
             RefPtr startPair = dynamicDowncast<const CSSValuePair>(start);
-            auto startID = startPair ? startPair->first().valueID() : start->valueID();
+            auto startID = startPair ? valueID(startPair->first()) : valueID(start);
 
             auto serializedStart = serializeSingleAnimationRange(*start, Style::SingleAnimationRangeType::Start);
             auto serializedEnd = serializeSingleAnimationRange(*endList->item(i), Style::SingleAnimationRangeType::End, startID);
@@ -1423,7 +1420,7 @@ String ShorthandSerializer::serializeAnimationRange() const
     }
 
     RefPtr startPair = dynamicDowncast<CSSValuePair>(startValue.ptr());
-    auto startID = startPair ? startPair->first().valueID() : startValue->valueID();
+    auto startID = startPair ? valueID(startPair->first()) : valueID(startValue);
 
     auto serializedStart = serializeSingleAnimationRange(startValue.get(), Style::SingleAnimationRangeType::Start);
     auto serializedEnd = serializeSingleAnimationRange(endValue.get(), Style::SingleAnimationRangeType::End, startID);

@@ -126,13 +126,6 @@ BitmapTexture::BitmapTexture(const IntSize& size, OptionSet<Flags> flags)
 
         m_memoryMappedGPUBuffer = MemoryMappedGPUBuffer::create(m_size, bufferFlags);
 
-        // Defer EGLImage/GL texture creation until after CPU writes into the
-        // mapped buffer complete, so the GPU only sees final DMA-buf contents.
-        if (m_memoryMappedGPUBuffer && usesDeferredTextureBinding()) {
-            glBindTexture(m_renderTarget, boundTexture);
-            return;
-        }
-
         // Proceed as usual with GL texture creation if the dma-buf creation failed.
         // as we only want to allocate the dma-buf, but neither map it, nor create a texture now - but when we
         // need it (from the thread that needs it!).
@@ -144,7 +137,6 @@ BitmapTexture::BitmapTexture(const IntSize& size, OptionSet<Flags> flags)
         m_flags.remove(Flags::BackedByDMABuf);
         m_flags.remove(Flags::ForceLinearBuffer);
         m_flags.remove(Flags::ForceVivanteSuperTiledBuffer);
-        m_flags.remove(Flags::DeferTextureBinding);
     }
 #endif
 
@@ -206,20 +198,6 @@ bool BitmapTexture::allocateTextureFromMemoryMappedGPUBuffer()
     return false;
 }
 
-bool BitmapTexture::bindDMABufToTexture()
-{
-    ASSERT(usesDeferredTextureBinding());
-    ASSERT(!m_id);
-
-    GLint boundTexture = 0;
-    glGetIntegerv(m_binding, &boundTexture);
-
-    bool result = allocateTextureFromMemoryMappedGPUBuffer();
-
-    glBindTexture(m_renderTarget, boundTexture);
-    return result;
-}
-
 BitmapTexture::BitmapTexture(EGLImage image, const IntSize& size, OptionSet<Flags> flags)
     : m_flags(flags)
     , m_size(size)
@@ -262,13 +240,6 @@ void BitmapTexture::reset(const IntSize& size, OptionSet<Flags> flags)
 #if USE(GBM)
     // We don't support switching from dmabuf backing to regular textures -- there is no use-case for that scenario.
     RELEASE_ASSERT(m_flags.contains(Flags::BackedByDMABuf) == flags.contains(Flags::BackedByDMABuf));
-
-    // When DeferTextureBinding is requested, destroy the existing GL texture so that
-    // a fresh EGLImage will be created.
-    if (flags.contains(Flags::DeferTextureBinding) && m_id) {
-        glDeleteTextures(1, &m_id);
-        m_id = 0;
-    }
 #endif
 
     m_flags = flags;
@@ -316,8 +287,7 @@ void BitmapTexture::reset(const IntSize& size, OptionSet<Flags> flags)
         // Recreate MemoryMappedGPUBuffer with new size.
         m_memoryMappedGPUBuffer = MemoryMappedGPUBuffer::create(m_size, m_memoryMappedGPUBuffer->flags());
 
-        // Defer texture binding if requested -- bindDMABufToTexture() will create the EGLImage later.
-        if (usesDeferredTextureBinding() || allocateTextureFromMemoryMappedGPUBuffer()) {
+        if (allocateTextureFromMemoryMappedGPUBuffer()) {
             glBindTexture(m_renderTarget, boundTexture);
             return;
         }

@@ -1519,6 +1519,7 @@ private:
         consume();
 
         auto type = ParenthesesType::Subpattern;
+        bool isNonCapturingGroup = false;
 
         if (tryConsume('?')) {
             if (atEndOfPattern()) {
@@ -1530,6 +1531,7 @@ private:
             case ':':
                 consume();
                 m_delegate.atomParenthesesSubpatternBegin(false);
+                isNonCapturingGroup = true;
                 break;
             
             case '=':
@@ -1592,6 +1594,7 @@ private:
                 OptionSet<Flags> set;
                 OptionSet<Flags> unset;
                 bool hasHitNegation = false;
+                isNonCapturingGroup = true;
                 char32_t c;
                 while (!atEndOfPattern() && (c = consume()) != ':') {
                     switch (c) {
@@ -1646,7 +1649,7 @@ private:
         } else
             m_delegate.atomParenthesesSubpatternBegin();
 
-        if (type == ParenthesesType::Subpattern)
+        if (type == ParenthesesType::Subpattern && !isNonCapturingGroup)
             ++m_numSubpatterns;
 
         m_parenthesesStack.append(type);

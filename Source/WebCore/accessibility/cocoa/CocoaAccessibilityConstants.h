@@ -186,6 +186,17 @@
 #define NSAccessibilityHasPopupAttribute @"AXHasPopup"
 #define NSAccessibilityHighestEditableAncestorAttribute @"AXHighestEditableAncestor"
 #define NSAccessibilityImageOverlayElementsAttribute @"AXImageOverlayElements"
+#define NSAccessibilityImageDataSizeAttribute @"AXImageDataSize"
+#ifndef NSAccessibilityImageDataParameterizedAttribute
+#define NSAccessibilityImageDataParameterizedAttribute @"AXImageData"
+#endif
+#define NSAccessibilityImageDataResizeWidthKey @"AXImageDataResizeWidth"
+#define NSAccessibilityImageDataResizeHeightKey @"AXImageDataResizeHeight"
+#define NSAccessibilityImageDataFormatKey @"AXImageDataFormat"
+#define NSAccessibilityImageDataLeftKey @"AXImageDataLeft"
+#define NSAccessibilityImageDataTopKey @"AXImageDataTop"
+#define NSAccessibilityImageDataWidthKey @"AXImageDataWidth"
+#define NSAccessibilityImageDataHeightKey @"AXImageDataHeight"
 #define NSAccessibilityInfoStringForTestingAttribute @"AXInfoStringForTesting"
 #define NSAccessibilityInlineTextAttribute @"AXInlineText"
 #define NSAccessibilityInvalidAttribute @"AXInvalid"

@@ -240,6 +240,9 @@
         "ExportToWrappedFunction": {
             "contextsAllowed": ["interface"]
         },
+        "EmbedderArrayLike": {
+            "contextsAllowed": ["interface"]
+        },
         "Exposed": {
             "contextsAllowed": ["interface", "namespace", "attribute", "operation", "constant"],
             "values": ["*"],

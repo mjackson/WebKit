@@ -32,6 +32,7 @@
 #include "StyleSVGPathData.h"
 
 #include "AnimationUtilities.h"
+#include "CSSKeywordValue.h"
 #include "CSSPathValue.h"
 #include "StyleBuilderChecking.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
@@ -43,12 +44,14 @@ namespace Style {
 
 auto CSSValueConversion<SVGPathData>::operator()(BuilderState& state, const CSSValue& value) -> SVGPathData
 {
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        if (primitiveValue->valueID() == CSSValueNone)
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
             return CSS::Keyword::None { };
-
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
     }
 
     RefPtr pathValue = requiredDowncast<CSSPathValue>(state, value);

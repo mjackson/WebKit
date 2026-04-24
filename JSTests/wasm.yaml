@@ -69,6 +69,8 @@
   cmd: runWebAssemblyTailCallSpecTest :normal
 - path: wasm/extended-const-spec-tests
   cmd: runWebAssemblySpecTest :normal unless parseRunCommands
+- path: wasm/multi-memory-spec-tests
+  cmd: runWebAssemblyMultiMemorySpecTest :normal unless parseRunCommands
 
 - path: wasm/modules/run-from-wasm.wasm
   cmd: runWebAssembly

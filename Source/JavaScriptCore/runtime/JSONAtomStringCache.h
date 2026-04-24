@@ -30,6 +30,7 @@
 
 namespace JSC {
 
+class JSString;
 class VM;
 
 class JSONAtomStringCache {
@@ -45,6 +46,7 @@ public:
     static_assert(sizeof(Slot) <= 64);
 
     using Cache = std::array<Slot, capacity>;
+    using JSStringCache = std::array<JSString*, capacity>;
 
     template<typename CharacterType>
     ALWAYS_INLINE Ref<AtomStringImpl> makeIdentifier(std::span<const CharacterType> characters);
@@ -52,23 +54,38 @@ public:
     template<typename CharacterType>
     ALWAYS_INLINE AtomStringImpl* existingIdentifier(std::span<const CharacterType> characters);
 
+    template<typename CharacterType>
+    ALWAYS_INLINE JSString* makeJSString(std::span<const CharacterType> characters);
+
     ALWAYS_INLINE void clear()
     {
         m_cache.fill({ });
+        m_jsStrings.fill(nullptr);
+    }
+
+    ALWAYS_INLINE void clearJSStrings()
+    {
+        m_jsStrings.fill(nullptr);
     }
 
     VM& vm() const;
 
 private:
-    ALWAYS_INLINE Slot& cacheSlot(char16_t firstCharacter, char16_t lastCharacter, char16_t length)
+    ALWAYS_INLINE unsigned cacheIndex(char16_t firstCharacter, char16_t lastCharacter, char16_t length)
     {
         unsigned hash = (firstCharacter << 6) ^ ((lastCharacter << 14) ^ firstCharacter);
         hash += (hash >> 14) + (length << 14);
         hash ^= hash << 14;
-        return m_cache[(hash + (hash >> 6)) % capacity];
+        return (hash + (hash >> 6)) % capacity;
+    }
+
+    ALWAYS_INLINE Slot& cacheSlot(char16_t firstCharacter, char16_t lastCharacter, char16_t length)
+    {
+        return m_cache[cacheIndex(firstCharacter, lastCharacter, length)];
     }
 
     Cache m_cache { };
+    JSStringCache m_jsStrings { };
 };
 
 } // namespace JSC

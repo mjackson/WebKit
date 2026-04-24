@@ -1,4 +1,29 @@
 =================
+WPE WebKit 2.53.1
+=================
+
+What's new in WPE WebKit 2.53.1?
+
+  - Remove the option to use Cairo for 2D rendering.
+  - Implement GPU atlas creation and replay substitution for batched raster
+    image uploads.
+  - Improve handling of real-time threads.
+  - Improve non accelerated composited mode by using the same buffer sharing
+    implementation as accelerated mode.
+  - Add new API for page favicons.
+  - Add webkit_feature_list_find() to the public API.
+  - Add new WPEPlatform API to notify of changes in buffers used to render
+    the contents of a WPEView.
+  - Add WPEPlatform setting to toggle overlay scrollbars.
+  - Fix web view focus handling for touch input in the built-in WPEPlatform
+    Wayland implementation.
+  - Fix V4L2 hardware accelerated media codecs now working due to overly
+    restrictive sandbox device access rules.
+  - Fix linking the WPE Qt binding in some cases due to undefined symbols.
+  - Support PGO features in regular CMake builds.
+  - Fix several crashes and rendering issues.
+
+=================
 WPE WebKit 2.51.4
 =================
 

@@ -27,6 +27,7 @@
 #include "CSSCounterStyleRule.h"
 
 #include "CSSCounterStyleDescriptors.h"
+#include "CSSKeywordValue.h"
 #include "CSSPropertyParser.h"
 #include "CSSPropertyParserConsumer+CounterStyles.h"
 #include "CSSStyleSheet.h"
@@ -57,13 +58,15 @@ CSSCounterStyleDescriptors::System toCounterStyleSystemEnum(const CSSValue* syst
     if (!system)
         return CSSCounterStyleDescriptors::System::Symbolic;
 
-    ASSERT(system->isValueID() || system->isPair());
+    ASSERT(system->isKeywordValue() || system->isPair());
     CSSValueID systemKeyword = CSSValueInvalid;
-    if (system->isValueID())
-        systemKeyword = system->valueID();
+    if (RefPtr systemIdent = dynamicDowncast<CSSKeywordValue>(system))
+        systemKeyword = systemIdent->valueID();
     else if (system->isPair()) {
-        // This value must be `fixed` or `extends`, both of which can or must have an additional component.
-        systemKeyword = system->first().valueID();
+        if (RefPtr systemIdent = dynamicDowncast<CSSKeywordValue>(system->first())) {
+            // This value must be `fixed` or `extends`, both of which can or must have an additional component.
+            systemKeyword = systemIdent->valueID();
+        }
     }
     switch (systemKeyword) {
     case CSSValueCyclic:

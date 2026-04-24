@@ -28,6 +28,7 @@
 #if ENABLE(WEBXR)
 
 #include "XRDeviceIdentifier.h"
+#include <WebCore/IntSize.h>
 #include <WebCore/PlatformXR.h>
 #include <wtf/Ref.h>
 #include <wtf/Vector.h>
@@ -64,7 +65,10 @@ private:
     void initializeReferenceSpace(PlatformXR::ReferenceSpaceType) final { }
     Vector<PlatformXR::Device::ViewData> views(PlatformXR::SessionMode) const final;
     void requestFrame(std::optional<PlatformXR::RequestData>&&, PlatformXR::Device::RequestFrameCallback&&) final;
-    std::optional<PlatformXR::LayerHandle> createLayerProjection(uint32_t, uint32_t, bool) final;
+    std::optional<PlatformXR::LayerInfo> createLayerProjection(uint32_t, uint32_t, bool) final;
+#if ENABLE(WEBXR_LAYERS)
+    std::optional<PlatformXR::LayerInfo> createQuadLayer(WebCore::IntSize, PlatformXR::LayerLayout) final;
+#endif
     void deleteLayer(PlatformXR::LayerHandle) override { };
     void submitFrame(Vector<PlatformXR::DeviceLayer>&&) final;
 

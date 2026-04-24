@@ -82,8 +82,8 @@ static ExceptionOr<std::unique_ptr<WebXROpaqueFramebuffer>> createOpaqueFramebuf
     // 9.4. Allocate and initialize resources compatible with session’s XR device, including GPU accessible memory buffers,
     //      as required to support the compositing of layer.
     // 9.5. If layer’s resources were unable to be created for any reason, throw an OperationError and abort these steps.
-    auto layerHandle = device->createLayerProjection(size.width(), size.height(), init.alpha);
-    if (!layerHandle)
+    auto layerInfo = device->createLayerProjection(size.width(), size.height(), init.alpha);
+    if (!layerInfo)
         return Exception { ExceptionCode::OperationError, "Unable to allocate XRWebGLLayer GPU resources."_s };
 
     WebXROpaqueFramebuffer::Attributes attributes {
@@ -93,7 +93,7 @@ static ExceptionOr<std::unique_ptr<WebXROpaqueFramebuffer>> createOpaqueFramebuf
         .stencil = init.stencil
     };
 
-    auto framebuffer = WebXROpaqueFramebuffer::create(*layerHandle, context, WTF::move(attributes), size);
+    auto framebuffer = WebXROpaqueFramebuffer::create(layerInfo->handle, context, WTF::move(attributes), size);
     if (!framebuffer)
         return Exception { ExceptionCode::OperationError, "Unable to create a framebuffer."_s };
     
@@ -333,7 +333,12 @@ PlatformXR::DeviceLayer WebXRWebGLLayer::endFrame()
         .visible = true,
         .views = WTF::move(views),
 #if USE(OPENXR)
-        .fenceFD = m_framebuffer->takeFenceFD()
+        .fenceFD = m_framebuffer->takeFenceFD(),
+#if ENABLE(WEBXR_LAYERS)
+        .blendTextureSourceAlpha = false,
+        .forceMonoPresentation = false,
+        .quadLayerData = std::nullopt,
+#endif
 #endif
     };
 }

@@ -29,9 +29,10 @@
 
 #include "AnimationUtilities.h"
 #include "CSSFontStyleWithAngleValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "StyleBuilderChecking.h"
-#include "StylePrimitiveKeyword+CSSValueCreation.h"
+#include "StyleKeyword+CSSValueCreation.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
 
@@ -45,11 +46,11 @@ auto CSSValueConversion<FontStyle>::operator()(BuilderState& state, const CSSVal
     if (RefPtr fontStyleValue = dynamicDowncast<CSSFontStyleWithAngleValue>(value))
         return toStyle(fontStyleValue->obliqueAngle(), state);
 
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
+    RefPtr keywordValue = requiredDowncast<CSSKeywordValue>(state, value);
+    if (!keywordValue)
         return CSS::Keyword::Normal { };
 
-    switch (auto valueID = primitiveValue->valueID(); valueID) {
+    switch (auto valueID = keywordValue->valueID(); valueID) {
     case CSSValueNormal:
         return CSS::Keyword::Normal { };
     case CSSValueItalic:

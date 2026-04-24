@@ -54,9 +54,35 @@ namespace JSC { namespace B3 { namespace Air {
 
 namespace Greedy {
 
-static constexpr float unspillableCost = std::numeric_limits<float>::infinity();
-static constexpr float fastTmpSpillCost = std::numeric_limits<float>::max();
-static constexpr float maxSpillableSpillCost = std::numeric_limits<float>::max();
+struct UseDefCostTag { };
+struct SpillCostTag { };
+
+template<typename Tag>
+class Cost {
+public:
+    Cost() = default;
+    explicit constexpr Cost(float value) : m_value(value) { }
+
+    float value() const { return m_value; }
+
+    Cost& operator+=(Cost other) { m_value += other.m_value; return *this; }
+    Cost& operator-=(Cost other) { m_value -= other.m_value; return *this; }
+    Cost& operator*=(float scalar) { m_value *= scalar; return *this; }
+    Cost operator*(float scalar) const { return Cost(m_value * scalar); }
+    Cost operator/(float scalar) const { return Cost(m_value / scalar); }
+
+    friend auto operator<=>(const Cost&, const Cost&) = default;
+
+private:
+    float m_value { 0.0f };
+};
+
+using UseDefCost = Cost<UseDefCostTag>;
+using SpillCost = Cost<SpillCostTag>;
+
+static constexpr SpillCost unspillableCost { std::numeric_limits<float>::infinity() };
+static constexpr SpillCost fastTmpSpillCost { std::numeric_limits<float>::max() };
+static constexpr SpillCost maxSpillableSpillCost { std::numeric_limits<float>::max() };
 static_assert(unspillableCost > fastTmpSpillCost);
 static_assert(unspillableCost > maxSpillableSpillCost);
 
@@ -638,11 +664,11 @@ struct TmpData {
     void dump(PrintStream& out) const
     {
         out.print("{stage = ", stage, " liveRange = ", liveRange, ", preferredReg = ", preferredReg,
-            ", coalescables = ", coalescables, ", useDefCost = ", useDefCost, ", spillability = ", spillability,
+            ", coalescables = ", coalescables, ", useDefCost = ", useDefCost.value(), ", spillability = ", spillability,
             ", assigned = ", assigned, ", spillSlotTableIndex = ", spillSlotTableIndex, ", splitAroundClobbersMetadataIndex = ", splitAroundClobbersMetadataIndex, "}");
     }
 
-    float spillCost()
+    SpillCost spillCost()
     {
         switch (spillability) {
         case Spillability::Unspillable:
@@ -660,7 +686,7 @@ struct TmpData {
         // interference, since the register allocator never directly computes that.
         // The spillCostSizeBias causes the range size penalty to be relatively insignificant
         // for smaller ranges but become significant for very larger ranges.
-        float cost = useDefCost / (liveRange.size() + spillCostSizeBias);
+        SpillCost cost = SpillCost(useDefCost.value() / (liveRange.size() + spillCostSizeBias));
         return std::min(cost, maxSpillableSpillCost);
     }
 
@@ -673,7 +699,7 @@ struct TmpData {
 
     LiveRange liveRange;
     Coalescables coalescables;
-    float useDefCost { 0.0f };
+    UseDefCost useDefCost { 0 };
     uint32_t spillSlotTableIndex { 0 };
     uint32_t splitAroundClobbersMetadataIndex : 31 { 0 };
     uint32_t hasColdUse : 1 { 0 };
@@ -706,15 +732,33 @@ private:
     List m_instPoints;
 };
 
-// SplitMetadata tracks a Tmp that has been split into multiple Tmps in an effort
-// to either allocate the original Tmp or the split Tmps, depending on the split type.
-struct SplitMetadata {
-    enum class Type : uint8_t {
-        Invalid,
-        AroundClobbers,
-        IntraBlock,
+// AroundClobbersSplitMetadata tracks a Tmp that has been split to carry its value
+// across register-clobbering instructions.
+struct AroundClobbersSplitMetadata {
+    struct Split {
+        Tmp tmp;
+
+        void dump(PrintStream& out) const { out.print(tmp); }
     };
 
+    AroundClobbersSplitMetadata() = default;
+
+    AroundClobbersSplitMetadata(Tmp tmp)
+        : originalTmp(tmp) { }
+
+    void dump(PrintStream& out) const
+    {
+        out.print(originalTmp, " : AroundClobbers { ", listDump(splits), " } ");
+    }
+
+    Tmp originalTmp;
+    Vector<Split> splits;
+};
+
+// IntraBlockSplitMetadata tracks a Tmp that has been split into per-cluster Tmps
+// within basic blocks. The original Tmp is spilled and each cluster Tmp may get its
+// own register allocation for the duration of a cluster of uses/defs.
+struct IntraBlockSplitMetadata {
     struct Split {
         Tmp tmp;
         Point lastDefPoint;
@@ -727,19 +771,14 @@ struct SplitMetadata {
         }
     };
 
-    SplitMetadata()
-        : type(Type::Invalid) { }
-
-    SplitMetadata(Type t, Tmp tmp)
-        : type(t)
-        , originalTmp(tmp) { }
+    IntraBlockSplitMetadata(Tmp tmp)
+        : originalTmp(tmp) { }
 
     void dump(PrintStream& out) const
     {
-        out.print(originalTmp, " : ", type, " { ", listDump(splits), " } ");
+        out.print(originalTmp, " : IntraBlock { ", listDump(splits), " } ");
     }
 
-    Type type;
     Tmp originalTmp;
     Vector<Split> splits;
 };
@@ -752,7 +791,7 @@ public:
         , m_tailPoints(code.size())
         , m_map(code)
         , m_useDefLists()
-        , m_splitMetadata(1) // Sacrifice index 0.
+        , m_aroundClobbersMetadata(1) // Sacrifice index 0.
         , m_spillSlotTable(FillWith { }, 1, nullptr) // Sacrifice index 0.
         , m_regRanges(Reg::maxIndex() + 1)
         , m_insertionSets(code.size())
@@ -766,6 +805,8 @@ public:
         m_stats[GP].numTmpsIn = m_code.numTmps(GP);
         m_stats[FP].numTmpsIn = m_code.numTmps(FP);
 
+        dataLogLnIf(verbose() || shouldDumpFunction(), "Greedy register allocator: function ", m_code.proc().name(), " input IR:\n", m_code);
+
         // FIXME: reconsider use of padIntereference, https://bugs.webkit.org/show_bug.cgi?id=288122
         padInterference(m_code);
         buildRegisterSets();
@@ -777,7 +818,7 @@ public:
         coalesceTmps<GP>();
         coalesceTmps<FP>();
 
-        dataLogLnIf(verbose(), "State before greedy register allocation:\n", *this);
+        dataLogLnIf(verbose() || shouldDumpFunction(), "Greedy register allocator: function ", m_code.proc().name(), " state before allocate registers:\n", *this, "IR:\n", m_code);
 
         allocateRegisters<GP>();
         allocateRegisters<FP>();
@@ -787,6 +828,8 @@ public:
         validateAssignments<GP>();
         validateAssignments<FP>();
 
+        dataLogLnIf(verbose() || shouldDumpFunction(), "Greedy register allocator: function ", m_code.proc().name(), " about to assign registers:\n", *this, "IR:\n", m_code);
+
         assignRegisters();
         fixSpillsAfterTerminals(m_code);
 
@@ -794,6 +837,16 @@ public:
         m_stats[FP].didSpill += m_didSpill[FP];
         m_stats[GP].numTmpsOut = m_code.numTmps(GP);
         m_stats[FP].numTmpsOut = m_code.numTmps(FP);
+
+        dataLogLnIf(verbose() || shouldDumpFunction(), "Greedy register allocator: function ", m_code.proc().name(), " output IR:\n", m_code);
+    }
+
+    bool shouldDumpFunction() const
+    {
+        const char* filter = Options::airGreedyRegAllocDumpFunction();
+        if (!filter)
+            return false;
+        return m_code.proc().name().find(String::fromLatin1(filter)) != notFound;
     }
 
     void dump(PrintStream& out) const
@@ -826,7 +879,8 @@ public:
         m_code.forEachTmp([&](Tmp tmp) {
             out.println("    ", tmp, ": ", m_map[tmp], " useWidth=", m_tmpWidth.useWidth(tmp));
         });
-        out.println("Splits:\n", listDump(m_splitMetadata, "\n"));
+        out.println("AroundClobbers splits:\n", listDump(m_aroundClobbersMetadata, "\n"));
+        out.println("IntraBlock splits:\n", listDump(m_intraBlockMetadata, "\n"));
         out.println("SpillSlotTable: ", pointerListDump(m_spillSlotTable));
         out.println("Stats (GP):", m_stats[GP]);
         out.println("Stats (FP):", m_stats[FP]);
@@ -1800,7 +1854,7 @@ private:
                 return a.cost > b.cost;
             if (a.tmp0.tmpIndex(bank) != b.tmp0.tmpIndex(bank))
                 return a.tmp0.tmpIndex(bank) < b.tmp0.tmpIndex(bank);
-            ASSERT(a.tmp1.tmpIndex(bank) != b.tmp1.tmpIndex(bank));
+            ASSERT_IMPLIES(&a != &b, a.tmp1.tmpIndex(bank) != b.tmp1.tmpIndex(bank));
             return a.tmp1.tmpIndex(bank) < b.tmp1.tmpIndex(bank);
         });
 
@@ -1906,7 +1960,7 @@ private:
             Tmp representative = m_code.newTmp(bank);
             Width useWidth = Width8;
             Width defWidth = Width8;
-            float cost = 0;
+            UseDefCost cost(0);
             Reg preferred;
             bool hasColdUse = false;
             for (Tmp member : group.members()) {
@@ -1965,11 +2019,11 @@ private:
                     TmpData& tmpData = m_map.get<bank>(tmp);
                     // Avoid computing NaN which can happen when tmpData.useDefCost is inf and freq or 2*freq is Inf.
                     // And if useDefCost became Inf (usually due high nesting depth) subtracting not necessarily the right thing anyway.
-                    if (std::isfinite(tmpData.useDefCost)) {
-                        tmpData.useDefCost -= freq; // For args[0]
-                        tmpData.useDefCost -= freq; // For args[1]
-                        if (tmpData.useDefCost < 0)
-                            tmpData.useDefCost = 0;
+                    if (std::isfinite(tmpData.useDefCost.value())) {
+                        tmpData.useDefCost -= UseDefCost(freq); // For args[0]
+                        tmpData.useDefCost -= UseDefCost(freq); // For args[1]
+                        if (tmpData.useDefCost < UseDefCost(0))
+                            tmpData.useDefCost = UseDefCost(0);
                     }
                 }
             }
@@ -2007,9 +2061,9 @@ private:
             ASSERT(tmp.bank() == bank);
             ASSERT(!tmp.isReg());
             TmpData& tmpData = m_map.get<bank>(tmp);
-            ASSERT(tmpData.useDefCost == 0.0f);
+            ASSERT(tmpData.useDefCost == UseDefCost(0));
             auto index = AbsoluteTmpMapper<bank>::absoluteIndex(tmp);
-            float useDefCost = m_useCounts.numWarmUsesAndDefs<bank>(index);
+            UseDefCost useDefCost = UseDefCost(m_useCounts.numWarmUsesAndDefs<bank>(index));
             if (m_useCounts.isConstDef<bank>(index))
                 useDefCost *= 0.1; // Can rematerialize rather than spill in many cases.
             tmpData.useDefCost = useDefCost;
@@ -2032,7 +2086,7 @@ private:
 
     // addTmpImpl creates and returns a new tmp that can hold the values of 'from'.
     // Note that all TmpData references invalidated since it may expand/realloc the TmpData map.
-    Tmp addTmpImpl(Tmp from, float useDefCost, Interval interval)
+    Tmp addTmpImpl(Tmp from, UseDefCost useDefCost, Interval interval)
     {
         Tmp tmp = m_code.newTmp(from.bank());
         m_tmpWidth.setWidths(tmp, m_tmpWidth.useWidth(from), m_tmpWidth.defWidth(from));
@@ -2048,7 +2102,7 @@ private:
 
     Tmp addSpillTmpWithInterval(Tmp spilledTmp, Interval interval)
     {
-        Tmp tmp = addTmpImpl(spilledTmp, 0, interval);
+        Tmp tmp = addTmpImpl(spilledTmp, UseDefCost(0), interval);
         TmpData& tmpData = m_map[tmp];
         tmpData.spillability = TmpData::Spillability::Unspillable;
         dataLogLnIf(verbose(), "New spill for ", spilledTmp, " tmp: ", tmp, ": ", tmpData);
@@ -2057,7 +2111,7 @@ private:
         return tmp;
     }
 
-    Tmp addSplitTmp(Tmp originalTmp, float useDefCost, Interval interval)
+    Tmp addSplitTmp(Tmp originalTmp, UseDefCost useDefCost, Interval interval)
     {
         Tmp splitTmp = addTmpImpl(originalTmp, useDefCost, interval);
         // All tmps split from originalTmp share the spill slot to avoid moving between spill slots
@@ -2259,12 +2313,12 @@ private:
         };
 
         Reg bestEvictReg;
-        float minSpillCost = tmpData.spillCost();
+        SpillCost minSpillCost = tmpData.spillCost();
         m_visited.resize(m_code.numTmps(bank));
         LiveRange& liveRange = tmpData.liveRange;
         Width width = widthForConflicts<bank>(tmp);
         for (Reg r : m_allowedRegistersInPriorityOrder[bank]) {
-            float conflictsSpillCost = 0.0f;
+            SpillCost conflictsSpillCost(0);
             m_visited.clear();
             m_regRanges[r].forEachConflict(liveRange, width,
                 [&](auto& conflict) -> IterationStatus {
@@ -2282,9 +2336,8 @@ private:
                         conflictsSpillCost = unspillableCost;
                         return IterationStatus::Done;
                     }
-                    if (cost == std::numeric_limits<float>::max()
-                        || conflictsSpillCost == std::numeric_limits<float>::max()) [[unlikely]]
-                        conflictsSpillCost = std::numeric_limits<float>::max();
+                    if (cost == maxSpillableSpillCost || conflictsSpillCost == maxSpillableSpillCost) [[unlikely]]
+                        conflictsSpillCost = maxSpillableSpillCost;
                     else
                         conflictsSpillCost += cost;
                     return conflictsSpillCost >= minSpillCost ? IterationStatus::Done : IterationStatus::Continue;
@@ -2381,13 +2434,13 @@ private:
         ASSERT(tmpData.spillCost() != unspillableCost); // Should have evicted.
 
         Reg bestSplitReg;
-        constexpr float invalidSplitCost = std::numeric_limits<float>::infinity();
+        constexpr UseDefCost invalidSplitCost(std::numeric_limits<float>::infinity());
         const float splitMultiplier = Options::airGreedyRegAllocSplitMultiplier();
-        const float splitCostLimit = splitMultiplier > 0.0 ? tmpData.useDefCost / splitMultiplier : invalidSplitCost;
-        float minSplitCost = splitCostLimit;
+        const UseDefCost splitCostLimit = splitMultiplier > 0.0 ? tmpData.useDefCost / splitMultiplier : invalidSplitCost;
+        UseDefCost minSplitCost = splitCostLimit;
         Width width = widthForConflicts<bank>(tmp);
         for (Reg r : m_allowedRegistersInPriorityOrder[bank]) {
-            float splitCost = 0.0f;
+            UseDefCost splitCost(0);
             m_regRanges[r].forEachConflict(tmpData.liveRange, width,
                 [&](auto& conflict) -> IterationStatus {
                     if (conflict.tmp.isReg() && conflict.interval.distance() == 1) {
@@ -2403,7 +2456,7 @@ private:
                             return IterationStatus::Done;
                         }
                         // Times 2 for 'MOV tmp, gapTmp' and 'MOV gapTmp, tmp'
-                        splitCost += adjustedBlockFrequency(block) * 2;
+                        splitCost += UseDefCost(adjustedBlockFrequency(block) * 2);
                         if (splitCost >= minSplitCost)
                             return IterationStatus::Done; // Not the best or already over limit, exit early.
                         return IterationStatus::Continue;
@@ -2434,10 +2487,10 @@ private:
             });
 
         tmpData.liveRange = LiveRange::subtract(tmpData.liveRange, holeRange);
-        tmpData.splitAroundClobbersMetadataIndex = m_splitMetadata.size();
+        tmpData.splitAroundClobbersMetadataIndex = m_aroundClobbersMetadata.size();
         setStageAndEnqueue(tmp, tmpData, Stage::TryAllocate);
 
-        SplitMetadata metadata(SplitMetadata::Type::AroundClobbers, tmp);
+        AroundClobbersSplitMetadata metadata(tmp);
         // Create tmps to carry the value across register clobbering instructions. These tmps
         // might spill or be assigned another register.
         for (Interval hole : holeRange.intervals()) {
@@ -2454,12 +2507,12 @@ private:
             // rotation of register assignments) but that would trigger an extra liveness
             // analysis (see lowerAfterRegAlloc()), and that's unlikely to be worth it.
             Interval gapInterval = hole | Interval(hole.begin() - 1);
-            Tmp gapTmp = addSplitTmp(tmp, freq, gapInterval);
-            metadata.splits.append({ gapTmp, 0 });
+            Tmp gapTmp = addSplitTmp(tmp, UseDefCost(freq), gapInterval);
+            metadata.splits.append({ gapTmp });
             setStageAndEnqueue(gapTmp, m_map.get<bank>(gapTmp), Stage::TryAllocate);
         }
-        dataLogLnIf(verbose(), "Split (clobbers): reg = ", bestSplitReg, " spillCost = ", m_map.get<bank>(tmp).spillCost(), " splitCost = ", minSplitCost, " split tmp = ", metadata);
-        m_splitMetadata.append(WTF::move(metadata));
+        dataLogLnIf(verbose(), "Split (clobbers): reg = ", bestSplitReg, " spillCost = ", m_map.get<bank>(tmp).spillCost().value(), " splitCost = ", minSplitCost.value(), " split tmp = ", metadata);
+        m_aroundClobbersMetadata.append(WTF::move(metadata));
         m_stats[bank].numSplitAroundClobbers++;
         return true;
     }
@@ -2540,7 +2593,7 @@ private:
 
         ensureUseDefLists();
 
-        SplitMetadata* metadata = nullptr;
+        IntraBlockSplitMetadata* metadata = nullptr;
         Vector<Tmp*, 8> tmpPtrs;
         Vector<std::pair<Tmp*, Point>, 4> coldUsePtrs;
         size_t cursor = 0;
@@ -2577,8 +2630,8 @@ private:
                 if (tmpPtrs.size() > 1) {
                     ASSERT(cluster);
                     if (!metadata) {
-                        m_splitMetadata.constructAndAppend(SplitMetadata::Type::IntraBlock, tmp);
-                        metadata = &m_splitMetadata.last();
+                        m_intraBlockMetadata.constructAndAppend(tmp);
+                        metadata = &m_intraBlockMetadata.last();
                     }
                     Point pre = pointAtOffset(cluster.begin(), PointOffsets::Pre);
                     // If the Tmp is live into the cluster then cluster range is extended to model the fixup load from
@@ -2591,7 +2644,7 @@ private:
                         cluster |= Interval(pointAtOffset(lastDefPoint, PointOffsets::Post));
 
                     BasicBlock* block = findBlockContainingPoint(cluster.begin());
-                    Tmp clusterTmp = addSplitTmp(tmp, tmpPtrs.size() * adjustedBlockFrequency(block), cluster);
+                    Tmp clusterTmp = addSplitTmp(tmp, UseDefCost(tmpPtrs.size() * adjustedBlockFrequency(block)), cluster);
                     TmpData& clusterData = m_map.get<bank>(clusterTmp);
                     m_stats[bank].numSplitIntraBlockClusterTmps++;
                     for (auto& ptr : tmpPtrs)
@@ -2642,8 +2695,7 @@ private:
         dataLogLnIf(verbose(), "Spilled ", tmp);
 
         if (tmpData.splitAroundClobbersMetadataIndex) {
-            auto& metadata = m_splitMetadata[tmpData.splitAroundClobbersMetadataIndex];
-            ASSERT(metadata.type == SplitMetadata::Type::AroundClobbers);
+            auto& metadata = m_aroundClobbersMetadata[tmpData.splitAroundClobbersMetadataIndex];
             // Splitting didn't prevent originalTmp from spilling after all, so no point assigning
             // registers or stack slots to the gap tmps for this split.
             dataLogLnIf(verbose(), "   evicting tmps created during split");
@@ -2955,25 +3007,18 @@ private:
 
     void insertFixupCode()
     {
-        for (auto& metadata : m_splitMetadata) {
-            switch (metadata.type) {
-            case SplitMetadata::Type::Invalid:
-                break;
-            case SplitMetadata::Type::AroundClobbers:
-                insertSplitAroundClobbersFixupCode(metadata);
-                break;
-            case SplitMetadata::Type::IntraBlock:
-                insertSplitIntraBlockFixupCode(metadata);
-                break;
-            }
-        }
+        // Skip index 0 which is sacrificed so that splitAroundClobbersMetadataIndex == 0 means "none".
+        for (size_t i = 1; i < m_aroundClobbersMetadata.size(); i++)
+            insertSplitAroundClobbersFixupCode(m_aroundClobbersMetadata[i]);
+        for (auto& metadata : m_intraBlockMetadata)
+            insertSplitIntraBlockFixupCode(metadata);
         for (BasicBlock* block : m_code)
             m_insertionSets[block].execute(block);
     }
 
-    void insertSplitAroundClobbersFixupCode(SplitMetadata& metadata)
+    void insertSplitAroundClobbersFixupCode(AroundClobbersSplitMetadata& metadata)
     {
-        ASSERT(metadata.type == SplitMetadata::Type::AroundClobbers);
+        ASSERT(metadata.originalTmp);
 
         if (m_map[metadata.originalTmp].stage == Stage::Spilled) {
             m_stats[metadata.originalTmp.bank()].numSplitAroundClobberSpilled++;
@@ -3003,9 +3048,8 @@ private:
         }
     }
 
-    void insertSplitIntraBlockFixupCode(SplitMetadata& metadata)
+    void insertSplitIntraBlockFixupCode(IntraBlockSplitMetadata& metadata)
     {
-        ASSERT(metadata.type == SplitMetadata::Type::IntraBlock);
 
         Tmp originalTmp = metadata.originalTmp;
         Bank bank = originalTmp.bank();
@@ -3077,7 +3121,6 @@ private:
     void assignRegisters()
     {
         CompilerTimingScope timingScope("Air"_s, "GreedyRegAlloc::assignRegisters"_s);
-        dataLogLnIf(verbose(), "Greedy register allocator about to assign registers:\n", *this, "IR:\n", m_code);
 
         for (BasicBlock* block : m_code) {
             for (Inst& inst : *block) {
@@ -3136,7 +3179,8 @@ private:
     Vector<Point> m_tailPoints;
     TmpMap<TmpData> m_map;
     TmpMap<UseDefList> m_useDefLists;
-    Vector<SplitMetadata> m_splitMetadata;
+    Vector<AroundClobbersSplitMetadata> m_aroundClobbersMetadata;
+    Vector<IntraBlockSplitMetadata> m_intraBlockMetadata;
     Vector<StackSlot*> m_spillSlotTable;
     IndexMap<Reg, RegisterRange> m_regRanges;
     GenerationalSet<uint8_t, SaVector> m_visited;
@@ -3145,7 +3189,7 @@ private:
     BlockWorklist m_fastBlocks;
     UseCounts m_useCounts;
     TmpWidth m_tmpWidth;
-    std::array<AirAllocateRegistersStats, numBanks> m_stats = { GP, FP };
+    std::array<AirAllocateRegistersStats, numBanks> m_stats = { { { GP, m_code.proc().name() }, { FP, m_code.proc().name() } } };
     std::array<bool, numBanks> m_didSpill { };
     bool m_needsEmitSpillCode { false };
     bool m_hasUseDefLists { false };
@@ -3156,10 +3200,8 @@ private:
 void allocateRegistersByGreedy(Code& code)
 {
     PhaseScope phaseScope(code, "allocateRegistersByGreedy"_s);
-    dataLogIf(Greedy::verbose(), "Air before greedy register allocation:\n", code);
     Greedy::GreedyAllocator allocator(code);
     allocator.run();
-    dataLogIf(Greedy::verbose(), "Air after greedy register allocation:\n", code);
 }
 
 } } } // namespace JSC::B3::Air

@@ -31,13 +31,7 @@ namespace WebCore {
 class JSTestOperationConditional : public JSDOMWrapper<TestOperationConditional> {
 public:
     using Base = JSDOMWrapper<TestOperationConditional>;
-    static JSTestOperationConditional* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestOperationConditional>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestOperationConditional* ptr = new (NotNull, JSC::allocateCell<JSTestOperationConditional>(vm)) JSTestOperationConditional(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestOperationConditional* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestOperationConditional>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

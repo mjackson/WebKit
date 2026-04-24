@@ -157,7 +157,6 @@ TEST(WebKit, SOCKS5)
     EXPECT_WK_STREQ([webView _test_waitForAlert], "success!");
 }
 
-#if HAVE(NW_PROXY_CONFIG)
 TEST(WebKit, HTTPSProxyAPI)
 {
     RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)]);
@@ -308,7 +307,6 @@ TEST(WebKit, SOCKS5API)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://example.com/"]]];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "success!");
 }
-#endif // HAVE(NW_PROXY_CONFIG)
 
 static HTTPServer proxyAuthenticationServer()
 {
@@ -344,7 +342,6 @@ TEST(WebKit, HTTPProxyAuthentication)
 }
 
 // rdar://136531022
-#if !PLATFORM(MAC) || __MAC_OS_X_VERSION_MIN_REQUIRED >= 150000
 #if USE(APPLE_INTERNAL_SDK)
 TEST(WebKit, ProxyConfigurationAuthentication)
 #else
@@ -373,7 +370,6 @@ TEST(WebKit, DISABLED_ProxyConfigurationAuthentication)
     EXPECT_WK_STREQ([webView _test_waitForAlert], "success!");
     EXPECT_TRUE(challenged);
 }
-#endif
 
 TEST(WebKit, HTTPProxyAuthenticationCrossOrigin)
 {
@@ -424,11 +420,7 @@ TEST(WebKit, SecureProxyConnection)
     TestWebKitAPI::Util::run(&receivedValidClientHello);
 }
 
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 150000 && __MAC_OS_X_VERSION_MIN_REQUIRED < 150200)
-TEST(WebKit, DISABLED_RelaxThirdPartyCookieBlocking)
-#else
 TEST(WebKit, RelaxThirdPartyCookieBlocking)
-#endif
 {
     __block bool setDefaultCookieAcceptPolicy = false;
     [[WKWebsiteDataStore defaultDataStore].httpCookieStore _setCookieAcceptPolicy:NSHTTPCookieAcceptPolicyOnlyFromMainDocumentDomain completionHandler:^{

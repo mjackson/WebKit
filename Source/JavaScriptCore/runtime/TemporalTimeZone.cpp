@@ -33,16 +33,9 @@ namespace JSC {
 
 const ClassInfo TemporalTimeZone::s_info = { "Object"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(TemporalTimeZone) };
 
-TemporalTimeZone* TemporalTimeZone::createFromID(VM& vm, Structure* structure, TimeZoneID identifier)
+TemporalTimeZone* TemporalTimeZone::create(VM& vm, Structure* structure, TimeZone timeZone)
 {
-    TemporalTimeZone* format = new (NotNull, allocateCell<TemporalTimeZone>(vm)) TemporalTimeZone(vm, structure, TimeZone { WTF::InPlaceIndexT<0>(), identifier });
-    format->finishCreation(vm);
-    return format;
-}
-
-TemporalTimeZone* TemporalTimeZone::createFromUTCOffset(VM& vm, Structure* structure, int64_t utcOffset)
-{
-    TemporalTimeZone* format = new (NotNull, allocateCell<TemporalTimeZone>(vm)) TemporalTimeZone(vm, structure, TimeZone { WTF::InPlaceIndexT<1>(), utcOffset });
+    TemporalTimeZone* format = new (NotNull, allocateCell<TemporalTimeZone>(vm)) TemporalTimeZone(vm, structure, timeZone);
     format->finishCreation(vm);
     return format;
 }
@@ -73,7 +66,7 @@ JSObject* TemporalTimeZone::from(JSGlobalObject* globalObject, JSValue timeZoneL
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     if (timeZoneLike.isObject()) {
-        JSObject* timeZoneLikeObject = jsCast<JSObject*>(timeZoneLike);
+        JSObject* timeZoneLikeObject = uncheckedDowncast<JSObject>(timeZoneLike);
 
         // FIXME: We need to implement code retrieving TimeZone from Temporal Date Like objects. But
         // currently they are not implemented yet.
@@ -85,7 +78,7 @@ JSObject* TemporalTimeZone::from(JSGlobalObject* globalObject, JSValue timeZoneL
 
         timeZoneLike = timeZoneLikeObject->get(globalObject, vm.propertyNames->timeZone);
         if (timeZoneLike.isObject()) {
-            JSObject* timeZoneLikeObject = jsCast<JSObject*>(timeZoneLike);
+            JSObject* timeZoneLikeObject = uncheckedDowncast<JSObject>(timeZoneLike);
             bool hasProperty = timeZoneLikeObject->hasProperty(globalObject, vm.propertyNames->timeZone);
             RETURN_IF_EXCEPTION(scope, { });
             if (!hasProperty)
@@ -98,15 +91,15 @@ JSObject* TemporalTimeZone::from(JSGlobalObject* globalObject, JSValue timeZoneL
 
     std::optional<int64_t> utcOffset = ISO8601::parseUTCOffset(timeZoneString);
     if (utcOffset)
-        return TemporalTimeZone::createFromUTCOffset(vm, globalObject->timeZoneStructure(), utcOffset.value());
+        return TemporalTimeZone::create(vm, globalObject->timeZoneStructure(), TimeZone::fromUTCOffset(utcOffset.value()));
 
     std::optional<TimeZoneID> identifier = ISO8601::parseTimeZoneName(timeZoneString);
     if (identifier)
-        return TemporalTimeZone::createFromID(vm, globalObject->timeZoneStructure(), identifier.value());
+        return TemporalTimeZone::create(vm, globalObject->timeZoneStructure(), TimeZone::fromID(identifier.value()));
 
     std::optional<int64_t> utcOffsetFromInstant = parseTemporalTimeZoneString(timeZoneString);
     if (utcOffsetFromInstant)
-        return TemporalTimeZone::createFromUTCOffset(vm, globalObject->timeZoneStructure(), utcOffsetFromInstant.value());
+        return TemporalTimeZone::create(vm, globalObject->timeZoneStructure(), TimeZone::fromUTCOffset(utcOffsetFromInstant.value()));
 
     throwRangeError(globalObject, scope, "argument needs to be UTC offset string, TimeZone identifier, or temporal Instant string"_s);
     return { };

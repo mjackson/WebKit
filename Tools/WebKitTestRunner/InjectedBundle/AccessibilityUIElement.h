@@ -213,6 +213,10 @@ public:
     virtual JSRetainPtr<JSStringRef> url();
     virtual JSRetainPtr<JSStringRef> classList() const;
     virtual JSRetainPtr<JSStringRef> embeddedImageDescription() const;
+    virtual JSRetainPtr<JSStringRef> imageDataSize() const;
+    virtual JSRetainPtr<JSStringRef> imageDataForParameters(int resizeWidth, int resizeHeight) const;
+    virtual JSRetainPtr<JSStringRef> imageDataForParametersWithFormat(int resizeWidth, int resizeHeight, JSStringRef format) const;
+    virtual JSRetainPtr<JSStringRef> imageDataForSubrect(int resizeWidth, int resizeHeight, int left, int top, int width, int height) const;
     virtual JSValueRef imageOverlayElements(JSContextRef);
 
     // CSS3-speech properties.
@@ -374,6 +378,7 @@ public:
     virtual JSValueRef mathRootRadicand(JSContextRef);
 
     virtual JSRetainPtr<JSStringRef> pathDescription() const;
+    virtual JSRetainPtr<JSStringRef> pathAsBounds() const;
 
     // Notifications
     // Function callback should take one argument, the name of the notification.

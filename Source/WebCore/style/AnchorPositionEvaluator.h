@@ -52,6 +52,7 @@ class LayoutSize;
 class RenderBlock;
 class RenderBox;
 class RenderBoxModelObject;
+class RenderLayerModelObject;
 class RenderElement;
 class RenderStyle;
 class RenderView;
@@ -136,9 +137,8 @@ enum class AnchorPositionResolutionStage : uint8_t {
     // transition to Resolved.
     WaitingForAnchorToBePositioned,
 
-    // The anchor-positioned element has resolved the anchors it refers to.
-    // If we determine any anchor(s) in itself is/are anchor-positioned,
-    // we kick it back to WaitingForAnchorToBePositioned.
+    // The anchor-positioned element has resolved the anchors it refers to, and
+    // the anchors are also at Positioned stage, if they themselves are anchor-positioned.
     Resolved,
 
     // The anchor-positioned element has been laid out and its position determined.
@@ -178,6 +178,10 @@ struct ResolvedAnchor {
 struct AnchorPositionedToAnchorEntry {
     Vector<ResolvedAnchor> anchors;
 
+    // True if all anchors above have been laid out and positioned.
+    // Only then can this anchor-positioned element be positioned.
+    bool allAnchorsPositioned { false };
+
     WTF_MAKE_STRUCT_TZONE_ALLOCATED(AnchorPositionedToAnchorEntry);
 };
 
@@ -197,7 +201,7 @@ public:
     static void updateScrollAdjustments(RenderView&);
     static void updateAnchorPositionedStateForDefaultAnchorAndPositionVisibility(Element&, const RenderStyle&, AnchorPositionedStates&);
 
-    static LayoutRect computeAnchorRectRelativeToContainingBlock(CheckedRef<const RenderBoxModelObject> anchorBox, const RenderElement& containingBlock, const RenderBox& anchoredBox);
+    static LayoutRect computeAnchorRectRelativeToContainingBlock(CheckedRef<const RenderBoxModelObject> anchorBox, const RenderLayerModelObject& containingBlock, const RenderBox& anchoredBox);
     static void captureScrollSnapshots(RenderBox& anchored, bool invalidateStyleForScrollPositionChanges = true);
 
     static AnchorToAnchorPositionedMap makeAnchorPositionedForAnchorMap(AnchorPositionedToAnchorMap&);

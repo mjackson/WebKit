@@ -27,7 +27,7 @@
 
 #include "CSSEasingFunction.h"
 #include "CSSEasingFunctionValue.h"
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValue.h"
 #include "StyleCubicBezierEasingFunction.h"
 #include "StyleLinearEasingFunction.h"
 #include "StylePrimitiveNumericTypes+Serialization.h"
@@ -199,8 +199,8 @@ static RefPtr<TimingFunction> createTimingFunctionFromValueIDDeprecated(CSSValue
 
 RefPtr<TimingFunction> createTimingFunctionDeprecated(const CSSValue& value)
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
-        return createTimingFunctionFromValueIDDeprecated(primitiveValue->valueID());
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value))
+        return createTimingFunctionFromValueIDDeprecated(keywordValue->valueID());
     if (auto easingFunctionValue = dynamicDowncast<CSSEasingFunctionValue>(value))
         return createTimingFunctionDeprecated(easingFunctionValue->easingFunction());
     return { };
@@ -210,8 +210,8 @@ RefPtr<TimingFunction> createTimingFunctionDeprecated(const CSSValue& value)
 
 auto CSSValueConversion<EasingFunction>::operator()(BuilderState& state, const CSSValue& value) -> EasingFunction
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
-        return { createTimingFunctionFromValueID(state, primitiveValue->valueID()) };
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value))
+        return { createTimingFunctionFromValueID(state, keywordValue->valueID()) };
     if (RefPtr easingFunctionValue = dynamicDowncast<CSSEasingFunctionValue>(value))
         return { createTimingFunction(state, easingFunctionValue->easingFunction()) };
 

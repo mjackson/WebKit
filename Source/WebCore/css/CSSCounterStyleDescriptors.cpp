@@ -28,6 +28,7 @@
 
 #include "CSSCounterStyleRule.h"
 #include "CSSCustomIdentValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSMarkup.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSStringValue.h"
@@ -56,13 +57,13 @@ CSSCounterStyleDescriptors::Ranges rangeFromCSSValue(const CSSValue& value)
     for (Ref rangeValue : *list) {
         if (!rangeValue->isPair())
             return { };
-        Ref low = downcast<CSSPrimitiveValue>(rangeValue->first());
-        Ref high = downcast<CSSPrimitiveValue>(rangeValue->second());
+        RefPtr low = dynamicDowncast<CSSPrimitiveValue>(rangeValue->first());
+        RefPtr high = dynamicDowncast<CSSPrimitiveValue>(rangeValue->second());
         int convertedLow { std::numeric_limits<int>::min() };
         int convertedHigh { std::numeric_limits<int>::max() };
-        if (low->isInteger())
+        if (low && low->isInteger())
             convertedLow = low->resolveAsIntegerDeprecated();
-        if (high->isInteger())
+        if (high && high->isInteger())
             convertedHigh = high->resolveAsIntegerDeprecated();
         result.append({ convertedLow, convertedHigh });
     }
@@ -169,8 +170,8 @@ CSSCounterStyleDescriptors::Name fallbackNameFromCSSValue(const CSSValue& value)
 {
     if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value))
         return customIdentValue->customIdent().value;
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value); primitiveValue && primitiveValue->isValueID())
-        return nameStringForSerialization(primitiveValue->valueID());
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value))
+        return nameStringForSerialization(keywordValue->valueID());
     return { };
 }
 
@@ -207,14 +208,14 @@ CSSCounterStyleDescriptors::SystemData extractSystemDataFromCSSValue(const CSSVa
     std::pair<CSSCounterStyleDescriptors::Name, int> result { "decimal"_s, 1 };
     if (!systemValue)
         return result;
-    ASSERT(systemValue->isValueID() || systemValue->isPair());
+    ASSERT(systemValue->isKeywordValue() || systemValue->isPair());
     if (systemValue->isPair()) {
         // This value must be `fixed` or `extends`, both of which can or must have an additional component.
         Ref secondValue = systemValue->second();
         if (system == CSSCounterStyleDescriptors::System::Extends) {
-            ASSERT(secondValue->isValueID() || secondValue->isCustomIdentValue());
-            if (secondValue->isValueID())
-                result.first = nameStringForSerialization(secondValue->valueID());
+            ASSERT(secondValue->isKeywordValue() || secondValue->isCustomIdentValue());
+            if (RefPtr secondValueIdent = dynamicDowncast<CSSKeywordValue>(secondValue))
+                result.first = nameStringForSerialization(secondValueIdent->valueID());
             else
                 result.first = downcast<CSSCustomIdentValue>(secondValue)->customIdent().value;
         } else if (system == CSSCounterStyleDescriptors::System::Fixed) {

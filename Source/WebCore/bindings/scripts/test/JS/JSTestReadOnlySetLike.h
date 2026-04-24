@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestReadOnlySetLike : public JSDOMWrapper<TestReadOnlySetLike> {
 public:
     using Base = JSDOMWrapper<TestReadOnlySetLike>;
-    static JSTestReadOnlySetLike* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestReadOnlySetLike>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestReadOnlySetLike* ptr = new (NotNull, JSC::allocateCell<JSTestReadOnlySetLike>(vm)) JSTestReadOnlySetLike(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestReadOnlySetLike* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestReadOnlySetLike>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

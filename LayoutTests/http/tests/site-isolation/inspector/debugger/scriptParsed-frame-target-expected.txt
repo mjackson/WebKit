@@ -1,8 +1,10 @@
 Test that a frame target receives Debugger.scriptParsed events and scripts are isolated from the main target.
 
+
+
 == Running test suite: SiteIsolation.Debugger.ScriptParsed
 -- Running test case: SiteIsolation.Debugger.ScriptParsed.FrameTargetCreated
-PASS: Added target should have Frame type.
+PASS: Should find a cross-origin frame target.
 PASS: Cross-origin frame target should have a DebuggerAgent.
 
 -- Running test case: SiteIsolation.Debugger.ScriptParsed.FrameTargetHasScripts
@@ -11,7 +13,4 @@ PASS: Frame target should have the debugger-frame-script.js script.
 
 -- Running test case: SiteIsolation.Debugger.ScriptParsed.ScriptsIsolatedFromMainTarget
 PASS: Main target should not have the debugger-frame-script.js script.
-
--- Running test case: SiteIsolation.Debugger.ScriptParsed.RemoveIframe
-PASS: Removed target should have Frame type.
 

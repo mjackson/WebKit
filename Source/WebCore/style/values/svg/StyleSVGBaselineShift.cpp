@@ -26,7 +26,7 @@
 #include "StyleSVGBaselineShift.h"
 
 #include "AnimationUtilities.h"
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 #include "StyleLengthWrapper+Blending.h"
 #include "StyleLengthWrapper+CSSValueConversion.h"
@@ -38,12 +38,8 @@ namespace Style {
 
 auto CSSValueConversion<SVGBaselineShift>::operator()(BuilderState& state, const CSSValue& value) -> SVGBaselineShift
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return CSS::Keyword::Baseline { };
-
-    if (primitiveValue->isValueID()) {
-        switch (primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueBaseline:
             return CSS::Keyword::Baseline { };
         case CSSValueSub:
@@ -58,7 +54,7 @@ auto CSSValueConversion<SVGBaselineShift>::operator()(BuilderState& state, const
         return CSS::Keyword::Baseline { };
     }
 
-    return toStyleFromCSSValue<SVGBaselineShiftLength>(state, *primitiveValue);
+    return toStyleFromCSSValue<SVGBaselineShiftLength>(state, value);
 }
 
 // MARK: - Blending

@@ -21,7 +21,7 @@
 #include "config.h"
 #include "CSSValueList.h"
 
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValueInlines.h"
 #include <wtf/Hasher.h>
 #include <wtf/text/StringBuilder.h>
 

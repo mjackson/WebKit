@@ -89,6 +89,7 @@ private:
     IntSize containerSize() const;
     bool usesContainerSize() const final { return true; }
     void computeIntrinsicDimensions(float& intrinsicWidth, float& intrinsicHeight, FloatSize& intrinsicRatio) final;
+    bool hasNaturalAspectRatio() const final;
 
     void reportApproximateMemoryCost() const;
     EncodedDataStatus dataChanged(bool allDataReceived) final;

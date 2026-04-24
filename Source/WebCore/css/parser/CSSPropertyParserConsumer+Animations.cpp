@@ -65,10 +65,7 @@ Vector<std::pair<CSSValueID, double>> consumeKeyframeKeyList(CSSParserTokenRange
     };
 
     auto timelineRange = [&](CSSParserTokenRange& range, CSSValueID id) -> std::optional<std::pair<CSSValueID, double>> {
-        if (CSSPropertyParserHelpers::isAnimationRangeKeyword(id)) {
-            // "normal" will be considered valid by isAnimationRangeKeyword() but is not valid for a @keyframes rule.
-            if (id == CSSValueNormal)
-                return { };
+        if (CSSPropertyParserHelpers::isTimelineRangeName(id)) {
             if (auto convertedPercentage = consumeAndConvertPercentage(range, RestrictedToZeroToHundredRange::No))
                 return { { id, *convertedPercentage } };
         }

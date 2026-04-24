@@ -127,20 +127,20 @@ auto LegacyRenderSVGResourceFilter::applyResource(RenderElement& renderer, const
     ImageBuffer::sizeNeedsClamping(filterData->sourceImageRect.size(), filterScale);
 
     auto preferredFilterModes = renderer.page().preferredFilterRenderingModes(*context);
+    auto renderingOptions(renderer.settings().showDebugBorders() ? std::make_optional(FilterRenderingOption::ShowDebugOverlay) : std::nullopt);
 
     // Create the SVGFilterRenderer object.
     filterData->filter = SVGFilterRenderer::create(contextElement.get(), filterElement, {
         .referenceBox = targetBoundingBox,
         .filterRegion = filterRegion,
         .scale = filterScale,
-    }, preferredFilterModes, *context, RenderingResourceIdentifier::generate());
+    }, preferredFilterModes, renderingOptions, *context, RenderingResourceIdentifier::generate());
 
     if (!filterData->filter) {
         m_rendererFilterDataMap.remove(renderer);
         return { };
     }
 
-    filterData->filter->setIsShowingDebugOverlay(renderer.settings().showDebugBorders());
     filterData->filter->clampFilterRegionIfNeeded();
 
 #if USE(CAIRO)

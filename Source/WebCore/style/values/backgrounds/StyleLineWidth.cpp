@@ -26,7 +26,7 @@
 #include "config.h"
 #include "StyleLineWidth.h"
 
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValue.h"
 #include "Document.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleBuilderChecking.h"
@@ -67,12 +67,8 @@ LineWidth::Length LineWidth::snapLengthAsBorderWidth(LineWidth::Length length, f
 
 auto CSSValueConversion<LineWidth>::operator()(BuilderState& state, const CSSValue& value) -> LineWidth
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return LineWidth::Length { 3.0f };
-
-    if (primitiveValue->isValueID()) {
-        switch (primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueThin:
             return LineWidth::snapLengthAsBorderWidth(1.0f * state.style().usedZoom(), state.document().deviceScaleFactor());
         case CSSValueMedium:
@@ -85,7 +81,7 @@ auto CSSValueConversion<LineWidth>::operator()(BuilderState& state, const CSSVal
         }
     }
 
-    return LineWidth::snapLengthAsBorderWidth(toStyleFromCSSValue<LineWidth::Length>(state, *primitiveValue), state.document().deviceScaleFactor());
+    return LineWidth::snapLengthAsBorderWidth(toStyleFromCSSValue<LineWidth::Length>(state, value), state.document().deviceScaleFactor());
 }
 
 // MARK: - Blending

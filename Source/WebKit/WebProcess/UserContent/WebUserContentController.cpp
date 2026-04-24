@@ -42,6 +42,7 @@
 #include "WebProcessProxyMessages.h"
 #include "WebUserContentControllerMessages.h"
 #include <JavaScriptCore/APICast.h>
+#include <JavaScriptCore/JSCJSValueInlines.h>
 #include <JavaScriptCore/JSContextRef.h>
 #include <JavaScriptCore/JSRetainPtr.h>
 #include <WebCore/DOMWrapperWorld.h>

@@ -58,7 +58,6 @@ public:
     uint64_t NODELETE maxBufferSize() const;
     uint32_t NODELETE maxVertexAttributes() const;
     uint32_t NODELETE maxVertexBufferArrayStride() const;
-    uint32_t NODELETE maxInterStageShaderComponents() const;
     uint32_t NODELETE maxInterStageShaderVariables() const;
     uint32_t NODELETE maxColorAttachments() const;
     uint32_t NODELETE maxColorAttachmentBytesPerSample() const;

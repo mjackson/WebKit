@@ -47,7 +47,7 @@ class SkiaImageAtlasLayout;
 using ImageToRectMap = HashMap<const SkImage*, SkRect>;
 
 // GPU atlas that uploads raster images into a BitmapTexture.
-// Uses MemoryMappedGPUBuffer directly for DMA-buf (GBM) path and
+// Uses MemoryMappedGPUBuffer directly for dma-buf (GBM) path and
 // BitmapTexture::updateContents() for GL fallback.
 class SkiaGPUAtlas : public ThreadSafeRefCounted<SkiaGPUAtlas, WTF::DestructionThread::Main> {
     WTF_MAKE_TZONE_ALLOCATED(SkiaGPUAtlas);
@@ -55,15 +55,10 @@ class SkiaGPUAtlas : public ThreadSafeRefCounted<SkiaGPUAtlas, WTF::DestructionT
 public:
     static RefPtr<SkiaGPUAtlas> create(const SkiaImageAtlasLayout&, Ref<BitmapTexture>&&);
 
-    // Upload images into the atlas texture. Can run from any thread for DMA-buf backed textures.
-    bool uploadImages();
+    // Upload images into the atlas texture. Can run from any thread for dma-buf backed textures.
+    void uploadImages();
 
     virtual ~SkiaGPUAtlas();
-
-    // Ensures the EGLImage and GrBackendTexture are created. For dma-buf backed textures
-    // with deferred binding, this must be called after the upload is complete — typically
-    // from the upload work queue thread, before signaling the upload condition.
-    bool ensureBackendTexture();
 
     const GrBackendTexture& backendTexture() const LIFETIME_BOUND { return m_backendTexture; }
     const ImageToRectMap& imageToRect() const LIFETIME_BOUND { return m_imageToRect; }

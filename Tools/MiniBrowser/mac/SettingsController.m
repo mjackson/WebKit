@@ -82,6 +82,7 @@ static NSString * const UseRemoteLayerTreeDrawingAreaPreferenceKey = @"WebKit2Us
 
 static NSString * const PerWindowWebProcessesDisabledKey = @"PerWindowWebProcessesDisabled";
 static NSString * const NetworkCacheSpeculativeRevalidationDisabledKey = @"NetworkCacheSpeculativeRevalidationDisabled";
+static NSString * const UseFindDelegatePreferenceKey = @"UseFindDelegate";
 
 typedef NS_ENUM(NSInteger, DebugOverylayMenuItemTag) {
     NonFastScrollableRegionOverlayTag = 100,
@@ -115,6 +116,7 @@ typedef NS_ENUM(NSInteger, AttachmentElementEnabledMenuItemTag) {
         WebViewFillsWindowKey,
         ResourceLoadStatisticsEnabledPreferenceKey,
         AllowsContentJavascriptPreferenceKey,
+        UseFindDelegatePreferenceKey,
     ];
 
     NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
@@ -222,6 +224,7 @@ static NSMenu *addSubmenuToMenu(NSMenu *menu, NSString *title)
     addItem(@"Use GameController.framework on macOS (Restart required)", @selector(toggleUsesGameControllerFramework:));
     addItem(@"Disable network cache speculative revalidation", @selector(toggleNetworkCacheSpeculativeRevalidationDisabled:));
     addItem(@"Allow JavaScript from web content to run", @selector(toggleAllowsContentJavascript:));
+    addItem(@"Use Find Delegate", @selector(toggleUseFindDelegate:));
     indent = NO;
 
     NSMenu *debugOverlaysMenu = addSubmenu(@"Debug Overlays");
@@ -454,6 +457,8 @@ static NSMenu *addSubmenuToMenu(NSMenu *menu, NSString *title)
         [menuItem setState:[self attachmentElementEnabled:menuItem] ? NSControlStateValueOn : NSControlStateValueOff];
     else if (action == @selector(toggleTabFocusesLinksEnabled:))
         [menuItem setState:[self tabFocusesLinksEnabled] ? NSControlStateValueOn : NSControlStateValueOff];
+    else if (action == @selector(toggleUseFindDelegate:))
+        [menuItem setState:[self useFindDelegate] ? NSControlStateValueOn : NSControlStateValueOff];
 
     WKPreferences *defaultPreferences = [[NSApplication sharedApplication] browserAppDelegate].defaultPreferences;
     if (menuItem.tag == ExperimentalFeatureTag) {
@@ -746,6 +751,16 @@ static NSMenu *addSubmenuToMenu(NSMenu *menu, NSString *title)
 - (BOOL)tabFocusesLinksEnabled
 {
     return [[NSUserDefaults standardUserDefaults] boolForKey:TabFocusesLinksEnabledPreferenceKey];
+}
+
+- (void)toggleUseFindDelegate:(id)sender
+{
+    [self _toggleBooleanDefault:UseFindDelegatePreferenceKey];
+}
+
+- (BOOL)useFindDelegate
+{
+    return [[NSUserDefaults standardUserDefaults] boolForKey:UseFindDelegatePreferenceKey];
 }
 
 - (void)togglePunchOutWhiteBackgroundsInDarkMode:(id)sender

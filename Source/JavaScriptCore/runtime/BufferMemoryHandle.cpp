@@ -55,6 +55,10 @@ namespace JSC {
 WTF_MAKE_TZONE_ALLOCATED_IMPL(BufferMemoryHandle);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(BufferMemoryManager);
 
+BufferMemoryManager::BufferMemoryManager()
+    : m_maxFastMemoryCount(Options::maxNumWasmFastMemories())
+{ }
+
 size_t BufferMemoryHandle::fastMappedRedzoneBytes()
 {
     return static_cast<size_t>(PageCount::pageSize) * Options::wasmFastMemoryRedzonePages();

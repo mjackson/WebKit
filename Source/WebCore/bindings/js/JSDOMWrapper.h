@@ -22,6 +22,7 @@
 #pragma once
 
 #include <JavaScriptCore/JSDestructibleObject.h>
+#include <JavaScriptCore/JSEmbedderArrayLike.h>
 #include <WebCore/JSDOMGlobalObject.h>
 #include <WebCore/NodeType.h>
 #include <wtf/Compiler.h>
@@ -44,6 +45,7 @@ class ScriptExecutionContext;
 // offset | 7 | 6 | 5 | 4 | 3   2   1   0  |
 // value  | 1 | 1 | 1 | 1 |    NodeType    |
 
+static constexpr uint8_t JSEmbedderArrayLikeType        = JSC::EmbedderArrayLikeType;
 static constexpr uint8_t JSDOMWrapperType                = 0b11101110;
 static constexpr uint8_t JSEventType                     = 0b11101111;
 static constexpr uint8_t JSNodeType                      = 0b11110000;
@@ -59,6 +61,9 @@ static constexpr uint8_t JSAttrNodeType                  = JSNodeType | std::to_
 static constexpr uint8_t JSElementType                   = 0b11110000 | std::to_underlying(NodeType::Element);
 
 static_assert(JSDOMWrapperType > JSC::LastJSCObjectType, "JSC::JSType offers the highest bit.");
+static_assert(JSEmbedderArrayLikeType > JSC::LastJSCObjectType, "EmbedderArrayLikeType must be above LastJSCObjectType.");
+static_assert(JSEmbedderArrayLikeType != JSDOMWrapperType && JSC::EmbedderArrayLikeType != JSEventType, "EmbedderArrayLikeType must not collide with other WebCore types.");
+static_assert(JSEmbedderArrayLikeType < JSNodeType, "EmbedderArrayLikeType must be below JSNodeType to avoid breaking node range checks.");
 static_assert(lastNodeType <= JSNodeTypeMask, "NodeType should be represented in 4bit.");
 
 class JSDOMObject : public JSC::JSDestructibleObject {
@@ -68,7 +73,7 @@ public:
     template<typename, JSC::SubspaceAccess>
     static void subspaceFor(JSC::VM&) { RELEASE_ASSERT_NOT_REACHED(); }
 
-    JSDOMGlobalObject* realm() const { return JSC::jsCast<JSDOMGlobalObject*>(JSC::JSNonFinalObject::realm()); }
+    JSDOMGlobalObject* realm() const { return uncheckedDowncast<JSDOMGlobalObject>(JSC::JSNonFinalObject::realm()); }
     ScriptExecutionContext* scriptExecutionContext() const { return realm()->scriptExecutionContext(); }
 
 protected:
@@ -97,5 +102,25 @@ private:
 template<typename ImplementationClass> struct JSDOMWrapperConverterTraits;
 
 JSC::JSValue cloneAcrossWorlds(JSC::JSGlobalObject&, const JSDOMObject& owner, JSC::JSValue);
+
+template<typename ImplementationClass>
+class JSDOMEmbedderArrayLikeWrapper : public JSC::JSEmbedderArrayLike {
+public:
+    using Base = JSC::JSEmbedderArrayLike;
+    using DOMWrapped = ImplementationClass;
+
+    template<typename, JSC::SubspaceAccess>
+    static void subspaceFor(JSC::VM&) { RELEASE_ASSERT_NOT_REACHED(); }
+
+    JSDOMGlobalObject* realm() const { return uncheckedDowncast<JSDOMGlobalObject>(JSC::JSNonFinalObject::realm()); }
+    ScriptExecutionContext* scriptExecutionContext() const { return realm()->scriptExecutionContext(); }
+
+    ImplementationClass& wrapped() const { return static_cast<ImplementationClass&>(embeddedArrayLike()); }
+    constexpr static bool hasCustomPtrTraits() { return false; };
+
+protected:
+    JSDOMEmbedderArrayLikeWrapper(JSC::Structure* structure, JSC::JSGlobalObject& globalObject, Ref<ImplementationClass>&& impl)
+        : Base(globalObject.vm(), structure, WTF::move(impl)) { }
+};
 
 } // namespace WebCore

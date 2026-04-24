@@ -3395,8 +3395,14 @@ bool EventHandler::dispatchMouseEvent(const AtomString& eventType, Node* targetN
     // Form control elements are not mouse focusable on some platforms (see HTMLFormControlElement::isMouseFocusable())
     // which makes us behave differently than other browsers when a button is clicked,
     // because the button is not actually focused so we don't set the latest FocusTrigger.
-    if (m_elementUnderMouse && !m_elementUnderMouse->isMouseFocusable() && is<HTMLFormControlElement>(m_elementUnderMouse))
-        frame->document()->setLatestFocusTrigger(FocusTrigger::Click);
+    if (!element && m_elementUnderMouse) {
+        for (auto* ancestor = m_elementUnderMouse.get(); ancestor; ancestor = ancestor->parentElementInComposedTree()) {
+            if (is<HTMLFormControlElement>(*ancestor) && !ancestor->isMouseFocusable()) {
+                frame->document()->setLatestFocusTrigger(FocusTrigger::Click);
+                break;
+            }
+        }
+    }
 #endif
 
     // If focus shift is blocked, we eat the event.

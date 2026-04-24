@@ -1137,12 +1137,6 @@ OptionSet<ActivityState> AXIsolatedTree::pageActivityState() const
     return m_pageActivityState;
 }
 
-OptionSet<ActivityState> AXIsolatedTree::lockedPageActivityState() const
-{
-    AX_ASSERT(s_storeLock.isLocked());
-    return m_pageActivityState;
-}
-
 AXCoreObject::AccessibilityChildrenVector AXIsolatedTree::sortedLiveRegions()
 {
     AX_ASSERT(!isMainThread());
@@ -1729,12 +1723,19 @@ AXTreePtr findAXTree(Function<bool(AXTreePtr)>&& match)
     }
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    Locker locker { AXTreeStore<AXIsolatedTree>::s_storeLock };
-    for (auto it = AXTreeStore<AXIsolatedTree>::isolatedTreeMap().begin(); it != AXTreeStore<AXIsolatedTree>::isolatedTreeMap().end(); ++it) {
-        RefPtr tree = it->value.get();
-        if (!tree)
-            continue;
-
+    // Snapshot all live trees while holding the lock, then release it before
+    // calling the match callback. The callback can trigger applyPendingChanges
+    // (e.g. via focusedNodeID), which can call treeForFrameID via
+    // crossFrameChildObject, which needs to acquire s_storeLock.
+    Vector<RefPtr<AXIsolatedTree>> trees;
+    {
+        Locker locker { AXTreeStore<AXIsolatedTree>::s_storeLock };
+        for (auto& entry : AXTreeStore<AXIsolatedTree>::isolatedTreeMap()) {
+            if (RefPtr tree = entry.value.get())
+                trees.append(WTF::move(tree));
+        }
+    }
+    for (auto& tree : trees) {
         if (match(tree))
             return tree;
     }

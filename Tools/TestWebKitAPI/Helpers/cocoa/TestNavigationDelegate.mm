@@ -192,6 +192,29 @@
     self.didFinishLoadWithRequestInFrame = nil;
 }
 
+- (void)waitForDidFinishNavigationAndLoadInSubframe
+{
+    EXPECT_FALSE(self.didFinishNavigation);
+    EXPECT_FALSE(self.didFinishLoadWithRequestInFrame);
+
+    __block bool navigationFinished = false;
+    __block bool subframeLoaded = false;
+
+    self.didFinishNavigation = ^(WKWebView *, WKNavigation *) {
+        navigationFinished = true;
+    };
+    self.didFinishLoadWithRequestInFrame = ^(WKWebView *, NSURLRequest *, WKFrameInfo *frame) {
+        if (!frame.isMainFrame)
+            subframeLoaded = true;
+    };
+
+    TestWebKitAPI::Util::run(&navigationFinished);
+    TestWebKitAPI::Util::run(&subframeLoaded);
+
+    self.didFinishNavigation = nil;
+    self.didFinishLoadWithRequestInFrame = nil;
+}
+
 - (void)waitForDidSameDocumentNavigation
 {
     EXPECT_FALSE(self.didSameDocumentNavigation);

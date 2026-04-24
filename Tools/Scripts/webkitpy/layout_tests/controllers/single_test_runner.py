@@ -40,6 +40,7 @@ from webkitpy.layout_tests.models import test_expectations, test_failures
 from webkitpy.layout_tests.models.test_results import TestResult
 from webkitpy.port.driver import DriverInput, DriverOutput
 from webkitpy.thirdparty.BeautifulSoup import BeautifulSoup as Parser
+from webkitpy.port.base import Port
 
 _log = logging.getLogger(__name__)
 
@@ -602,7 +603,9 @@ class SingleTestRunner(object):
         return os.path.join(relative_path, reference_file_name)
 
     def _fuzzy_tolerance_for_reference(self, reference_full_path):
-        test_full_path = self._port.abspath_for_test(self._test_name)
+        test_path = Port.test_name_and_variant(self._test_name)[0]
+        test_full_path = self._port.abspath_for_test(test_path)
+
         fuzzy = self._fuzzy_metadata_for_file(test_full_path)
         if not fuzzy:
             return None

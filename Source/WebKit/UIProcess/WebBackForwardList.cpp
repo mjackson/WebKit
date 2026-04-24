@@ -65,6 +65,14 @@ static inline void setBackForwardItemIdentifiers(FrameState& frameState, BackFor
 
 #if !ENABLE(BACK_FORWARD_LIST_SWIFT)
 
+static bool shouldSkipItemsWithoutUserGestureForWebKitAPI()
+{
+#if PLATFORM(COCOA)
+    return linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::AllBackForwardItemsWithoutUserGestureInvisibleToUI);
+#endif
+    return false;
+}
+
 static const unsigned DefaultCapacity = 100;
 
 WebBackForwardList::WebBackForwardList(WebPageProxy& page)
@@ -265,26 +273,53 @@ WebBackForwardListItem* WebBackForwardList::currentItem() const
     return m_page && m_currentIndex ? m_entries[*m_currentIndex].ptr() : nullptr;
 }
 
-WebBackForwardListItem* WebBackForwardList::backItem() const
+RefPtr<WebBackForwardListItem> WebBackForwardList::backItem() const
 {
     ASSERT(!m_currentIndex || *m_currentIndex < m_entries.size());
+    if (!m_page || !m_currentIndex)
+        return nullptr;
 
-    return m_page && m_currentIndex && *m_currentIndex ? m_entries[*m_currentIndex - 1].ptr() : nullptr;
+    if (shouldSkipItemsWithoutUserGestureForWebKitAPI())
+        return itemStartingAtIndexSkippingItemsAddedByJSWithoutUserGesture(NavigationDirection::Backward, *m_currentIndex).first;
+
+    return *m_currentIndex ? m_entries[*m_currentIndex - 1].ptr() : nullptr;
 }
 
-WebBackForwardListItem* WebBackForwardList::forwardItem() const
+RefPtr<WebBackForwardListItem> WebBackForwardList::forwardItem() const
 {
     ASSERT(!m_currentIndex || *m_currentIndex < m_entries.size());
+    if (!m_page || !m_currentIndex)
+        return nullptr;
 
-    return m_page && m_currentIndex && m_entries.size() && *m_currentIndex < m_entries.size() - 1 ? m_entries[*m_currentIndex + 1].ptr() : nullptr;
+    if (shouldSkipItemsWithoutUserGestureForWebKitAPI())
+        return itemStartingAtIndexSkippingItemsAddedByJSWithoutUserGesture(NavigationDirection::Forward, *m_currentIndex).first;
+
+    return m_entries.size() && *m_currentIndex < m_entries.size() - 1 ? m_entries[*m_currentIndex + 1].ptr() : nullptr;
 }
 
-RefPtr<WebBackForwardListItem> WebBackForwardList::itemAtDeltaFromCurrentIndex(int delta) const
+RefPtr<WebBackForwardListItem> WebBackForwardList::itemAtDeltaFromCurrentIndex(int delta, AllowSkippingBackForwardItems allowSkippingBackForwardItems) const
 {
     if (!m_currentIndex || (int)*m_currentIndex + delta < 0)
         return nullptr;
 
-    return itemAtIndexWithoutSkipping(*m_currentIndex + delta).first;
+    // API requests to get the current item will always get the current item without any skipping logic.
+    if (!delta)
+        return itemAtIndexWithoutSkipping(*m_currentIndex).first;
+
+    if (allowSkippingBackForwardItems == AllowSkippingBackForwardItems::No || !shouldSkipItemsWithoutUserGestureForWebKitAPI())
+        return itemAtIndexWithoutSkipping(*m_currentIndex + delta).first;
+
+    auto direction = delta < 0 ? NavigationDirection::Backward : NavigationDirection::Forward;
+    size_t stepsLeft = abs(delta);
+    size_t nextIndex = *m_currentIndex;
+    while (stepsLeft) {
+        auto item = itemStartingAtIndexSkippingItemsAddedByJSWithoutUserGesture(direction, nextIndex);
+        if (!item.first || !--stepsLeft)
+            return item.first;
+        nextIndex = item.second;
+    }
+
+    return nullptr;
 }
 
 std::pair<RefPtr<WebBackForwardListItem>, size_t> WebBackForwardList::itemAtIndexWithoutSkipping(size_t index) const
@@ -340,6 +375,25 @@ Ref<API::Array> WebBackForwardList::backListAsAPIArrayWithLimit(unsigned limit) 
         return API::Array::create();
 
     ASSERT(backListSize >= size);
+
+    if (shouldSkipItemsWithoutUserGestureForWebKitAPI()) {
+        Vector<RefPtr<API::Object>> vector;
+
+        size_t nextStartingIndex = *m_currentIndex;
+        while (backListSize) {
+            auto item = itemStartingAtIndexSkippingItemsAddedByJSWithoutUserGesture(NavigationDirection::Backward, nextStartingIndex);
+            if (item.first)
+                vector.append(item.first);
+
+            if (!item.first || !--backListSize || !item.second)
+                break;
+            nextStartingIndex = item.second;
+        }
+        vector.reverse();
+
+        return API::Array::create(WTF::move(vector));
+    }
+
     size_t startIndex = backListSize - size;
     Vector<RefPtr<API::Object>> vector(size, [&](size_t i) -> RefPtr<API::Object> {
         // FIXME: Remove SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE when the false positive
@@ -360,6 +414,23 @@ Ref<API::Array> WebBackForwardList::forwardListAsAPIArrayWithLimit(unsigned limi
     unsigned size = std::min(static_cast<unsigned>(forwardListCount()), limit);
     if (!size)
         return API::Array::create();
+
+    if (shouldSkipItemsWithoutUserGestureForWebKitAPI()) {
+        Vector<RefPtr<API::Object>> vector;
+
+        size_t nextStartingIndex = *m_currentIndex;
+        while (size) {
+            auto item = itemStartingAtIndexSkippingItemsAddedByJSWithoutUserGesture(NavigationDirection::Forward, nextStartingIndex);
+            if (item.first)
+                vector.append(item.first);
+
+            if (!item.first || !--size || !item.second)
+                break;
+            nextStartingIndex = item.second;
+        }
+
+        return API::Array::create(WTF::move(vector));
+    }
 
     size_t startIndex = *m_currentIndex + 1;
     Vector<RefPtr<API::Object>> vector(size, [&](size_t i) -> RefPtr<API::Object> {
@@ -517,19 +588,44 @@ std::pair<RefPtr<WebBackForwardListItem>, size_t> WebBackForwardList::itemStarti
         return { nullptr, 0 };
 
     auto item = itemAtIndexWithoutSkipping(itemIndex);
-    ASSERT(item.first);
 
 #if PLATFORM(COCOA)
     if (!linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::UIBackForwardSkipsHistoryItemsWithoutUserGesture))
         return item;
 #endif
 
-    // For example:
-    // Yahoo -> Yahoo#a (no userInteraction) -> Google -> Google#a (no user interaction) -> Google#b (no user interaction)
-    // If we're on Google and navigate back, we don't want to skip anything and load Yahoo#a.
-    // However, if we're on Yahoo and navigate forward, we do want to skip items and end up on Google#b.
-    if (direction == NavigationDirection::Backward && !currentItem()->wasCreatedByJSWithoutUserInteraction())
+    if (!item.first)
         return item;
+
+    // For example:
+    // A -> A#a (no userInteraction) -> B -> B#a (no user interaction) -> B#b (no user interaction)
+    // If we're on B and navigate back, we don't want to skip anything and load A#a.
+    // However, if we're on A and navigate forward, we do want to skip items and end up on B#b.
+    if (direction == NavigationDirection::Backward && !currentItem()->wasCreatedByJSWithoutUserInteraction()) {
+        // The exception to the above is that if the entire list of back items is missing user interaction,
+        // they should all be ignored. For example:
+        // A (no userInteraction) -> B (no userInteraction) -> C*
+        // From the API perspective, C should be item 0, and going back is not an option.
+        // This happens e.g. with new windows that undergo a series of JS driven client redirects.
+        // See https://bugs.webkit.org/show_bug.cgi?id=310243
+
+        auto itemToReturn = item;
+        do {
+            if (item.first->wasCreatedByJSWithoutUserInteraction()) {
+                if (item.second)
+                    item = itemAtIndexWithoutSkipping(item.second - 1);
+                else {
+                    // We reached the beginning of the list and still didn't find an item with user interaction,
+                    // therefore we are returning nothing.
+                    itemToReturn = { };
+                    break;
+                }
+            } else
+                break;
+        } while (true);
+
+        return itemToReturn;
+    }
 
     // For example:
     // Yahoo -> Yahoo#a (no userInteraction) -> Google -> Google#a (no user interaction) -> Google#b (no user interaction)
@@ -540,8 +636,14 @@ std::pair<RefPtr<WebBackForwardListItem>, size_t> WebBackForwardList::itemStarti
     while (item.first->wasCreatedByJSWithoutUserInteraction()) {
         itemIndex += delta;
         item = itemAtIndexWithoutSkipping(itemIndex);
-        if (!item.first)
-            return originalitem;
+        if (!item.first) {
+            // If there are no more back items that ever had a user gesture, then we should not enable going back.
+            // This happens when e.g. a new window is created by JavaScript then client redirects occur that create
+            // a sequence of history items, each without user interaction.
+            RELEASE_LOG(Loading, "UI Navigation is disabling going back because no more WebBackForwardListItem items in the back list had user interaction");
+            return { };
+        }
+
         RELEASE_LOG(Loading, "UI Navigation is skipping a WebBackForwardListItem because it was added by JavaScript without user interaction");
     }
 
@@ -703,6 +805,8 @@ void WebBackForwardList::backForwardUpdateItem(IPC::Connection& connection, Ref<
 
         if (oldFrameID && newFrameID && oldFrameID != newFrameID)
             updateFrameIdentifier(*oldFrameID, *newFrameID);
+
+        webPageProxy->updateCanGoBackAndForward();
     }
 }
 
@@ -757,7 +861,7 @@ void WebBackForwardList::backForwardAllItems(FrameIdentifier frameID, Completion
 void WebBackForwardList::backForwardItemAtIndexForWebContent(int32_t delta, FrameIdentifier frameID, CompletionHandler<void(RefPtr<FrameState>&&)>&& completionHandler)
 {
     // FIXME: This should verify that the web process requesting the item hosts the specified frame.
-    if (RefPtr item = itemAtDeltaFromCurrentIndex(delta)) {
+    if (RefPtr item = itemAtDeltaFromCurrentIndex(delta, AllowSkippingBackForwardItems::No)) {
         if (RefPtr frameItem = item->mainFrameItem().childItemForFrameID(frameID))
             return completionHandler(frameItem->copyFrameStateWithChildren());
         completionHandler(item->copyMainFrameStateWithChildren());
@@ -824,19 +928,19 @@ WebBackForwardListItem* WebBackForwardListWrapper::currentItem() const
     return m_impl->currentItem();
 }
 
-WebBackForwardListItem* WebBackForwardListWrapper::backItem() const
+RefPtr<WebBackForwardListItem> WebBackForwardListWrapper::backItem() const
 {
     return m_impl->backItem();
 }
 
-WebBackForwardListItem* WebBackForwardListWrapper::forwardItem() const
+RefPtr<WebBackForwardListItem> WebBackForwardListWrapper::forwardItem() const
 {
     return m_impl->forwardItem();
 }
 
-RefPtr<WebBackForwardListItem> WebBackForwardListWrapper::itemAtDeltaFromCurrentIndex(int index) const
+RefPtr<WebBackForwardListItem> WebBackForwardListWrapper::itemAtDeltaFromCurrentIndex(int index, AllowSkippingBackForwardItems allowSkipping) const
 {
-    return m_impl->itemAtDeltaFromCurrentIndex(index);
+    return m_impl->itemAtDeltaFromCurrentIndex(index, allowSkipping == AllowSkippingBackForwardItems::Yes ? true : false);
 }
 
 unsigned WebBackForwardListWrapper::backListCount() const

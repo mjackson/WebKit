@@ -37,7 +37,7 @@ typedef (WebGLRenderingContext or WebGL2RenderingContext) WebXRWebGLRenderingCon
     readonly attribute boolean usesDepthValues;
 
     [CallWith=CurrentScriptExecutionContext] XRProjectionLayer createProjectionLayer(optional XRProjectionLayerInit init = {});
-    XRQuadLayer createQuadLayer(optional XRQuadLayerInit init = {});
+    [CallWith=CurrentScriptExecutionContext] XRQuadLayer createQuadLayer(optional XRQuadLayerInit init = {});
     XRCylinderLayer createCylinderLayer(optional XRCylinderLayerInit init = {});
     XREquirectLayer createEquirectLayer(optional XREquirectLayerInit init = {});
     XRCubeLayer createCubeLayer(optional XRCubeLayerInit init = {});

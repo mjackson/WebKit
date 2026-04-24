@@ -33,6 +33,8 @@
 
 #include <JavaScriptCore/InspectorAgentRegistry.h>
 #include <JavaScriptCore/InspectorEnvironment.h>
+#include <WebCore/InspectorBackendClient.h>
+#include <WebCore/InspectorFrontendClient.h>
 #include <WebCore/InspectorOverlay.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/Forward.h>
@@ -54,9 +56,7 @@ namespace WebCore {
 
 class DOMWrapperWorld;
 class GraphicsContext;
-class InspectorBackendClient;
 class InspectorDOMAgent;
-class InspectorFrontendClient;
 class InspectorInstrumentation;
 class InspectorPageAgent;
 class InstrumentingAgents;

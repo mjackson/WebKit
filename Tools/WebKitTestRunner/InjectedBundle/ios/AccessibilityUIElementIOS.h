@@ -164,6 +164,10 @@ public:
     JSRetainPtr<JSStringRef> brailleRoleDescription() const override;
 
     JSRetainPtr<JSStringRef> embeddedImageDescription() const override;
+    JSRetainPtr<JSStringRef> imageDataSize() const override;
+    JSRetainPtr<JSStringRef> imageDataForParameters(int resizeWidth, int resizeHeight) const override;
+    JSRetainPtr<JSStringRef> imageDataForParametersWithFormat(int resizeWidth, int resizeHeight, JSStringRef format) const override;
+    JSRetainPtr<JSStringRef> imageDataForSubrect(int resizeWidth, int resizeHeight, int left, int top, int width, int height) const override;
     JSValueRef imageOverlayElements(JSContextRef) override;
 
     bool hasDocumentRoleAncestor() const;
@@ -297,6 +301,7 @@ public:
 
     // Path
     JSRetainPtr<JSStringRef> pathDescription() const override;
+    JSRetainPtr<JSStringRef> pathAsBounds() const override;
 
     // Supported actions
     JSRetainPtr<JSStringRef> supportedActions() const override;

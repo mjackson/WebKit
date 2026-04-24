@@ -39,7 +39,7 @@ use File::Basename;
 use Getopt::Long;
 use Text::ParseWords;
 use Cwd;
-use JSON::PP;
+BEGIN { eval { require JSON::XS; JSON::XS->import(); 1 } or do { require JSON::PP; JSON::PP->import() } }
 
 use IDLParser;
 use CodeGenerator;
@@ -50,7 +50,6 @@ my $generator;
 my $defines;
 my $filename;
 my $prefix;
-my $preprocessor;
 my $writeDependencies;
 my $verbose;
 my $supplementalDependencyFile;
@@ -63,7 +62,6 @@ GetOptions('outputDir=s' => \$outputDirectory,
            'defines=s' => \$defines,
            'filename=s' => \$filename,
            'prefix=s' => \$prefix,
-           'preprocessor=s' => \$preprocessor,
            'verbose' => \$verbose,
            'write-dependencies' => \$writeDependencies,
            'supplementalDependencyFile=s' => \$supplementalDependencyFile,
@@ -106,7 +104,7 @@ my $idlAttributes;
     my $input = <JSON>;
     close(JSON);
 
-    my $jsonDecoder = JSON::PP->new->utf8;
+    my $jsonDecoder = (eval { JSON::XS->new->utf8 } or JSON::PP->new->utf8);
     my $jsonHashRef = $jsonDecoder->decode($input);
     $idlAttributes = $jsonHashRef->{attributes};
 }
@@ -125,9 +123,9 @@ sub generateBindings
 
     # Parse the target IDL file.
     my $targetParser = IDLParser->new(!$verbose);
-    my $targetDocument = $targetParser->Parse($targetIdlFile, $defines, $preprocessor, $idlAttributes);
+    my $targetDocument = $targetParser->Parse($targetIdlFile, $defines, $idlAttributes);
 
     # Generate desired output for the target IDL file.
-    my $codeGen = CodeGenerator->new($generator, $outputDirectory, $outputHeadersDirectory, $preprocessor, $writeDependencies, $verbose, $targetIdlFile, $idlAttributes, \%supplementalDependencies, $idlFileNamesList);
+    my $codeGen = CodeGenerator->new($generator, $outputDirectory, $outputHeadersDirectory, $writeDependencies, $verbose, $targetIdlFile, $idlAttributes, \%supplementalDependencies, $idlFileNamesList);
     $codeGen->ProcessDocument($targetDocument, $defines);
 }

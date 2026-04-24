@@ -31,9 +31,7 @@
 #include "CSSPerspective.h"
 
 #include "CSSFunctionValue.h"
-#include "CSSKeywordValue.h"
 #include "CSSNumericFactory.h"
-#include "CSSNumericValue.h"
 #include "CSSStyleValueFactory.h"
 #include "CSSUnitValue.h"
 #include "DOMMatrix.h"
@@ -47,7 +45,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(CSSPerspective);
 static ExceptionOr<CSSPerspectiveValue> checkLength(CSSPerspectiveValue length)
 {
     // https://drafts.css-houdini.org/css-typed-om/#dom-cssperspective-cssperspective
-    auto checkKeywordValue = [](Ref<CSSKeywordValue> value) -> ExceptionOr<CSSPerspectiveValue> {
+    auto checkKeywordValue = [](Ref<CSSOMKeywordValue> value) -> ExceptionOr<CSSPerspectiveValue> {
         if (!equalLettersIgnoringASCIICase(value->value(), "none"_s))
             return Exception { ExceptionCode::TypeError };
         return { WTF::move(value) };
@@ -59,7 +57,7 @@ static ExceptionOr<CSSPerspectiveValue> checkLength(CSSPerspectiveValue length)
             return { WTF::move(value) };
         },
         [&](String&& value) {
-            return checkKeywordValue(CSSKeywordValue::rectifyKeywordish(WTF::move(value)));
+            return checkKeywordValue(CSSOMKeywordValue::rectifyKeywordish(WTF::move(value)));
         },
         checkKeywordValue
     );
@@ -90,7 +88,7 @@ ExceptionOr<Ref<CSSPerspective>> CSSPerspective::create(Ref<const CSSFunctionVal
         return keywordOrNumeric.releaseException();
     Ref keywordOrNumericValue = keywordOrNumeric.returnValue();
     return [&] -> ExceptionOr<Ref<CSSPerspective>> {
-        if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(keywordOrNumericValue))
+        if (RefPtr keywordValue = dynamicDowncast<CSSOMKeywordValue>(keywordOrNumericValue))
             return CSSPerspective::create(keywordValue.releaseNonNull());
         if (RefPtr numericValue = dynamicDowncast<CSSNumericValue>(keywordOrNumericValue))
             return CSSPerspective::create(numericValue.releaseNonNull());
@@ -137,7 +135,7 @@ void CSSPerspective::serialize(StringBuilder& builder) const
         [&](const String& value) {
             builder.append(value);
         },
-        [&](const Ref<CSSKeywordValue>& value) {
+        [&](const Ref<CSSOMKeywordValue>& value) {
             value->serialize(builder);
         }
     );
@@ -173,7 +171,7 @@ RefPtr<CSSValue> CSSPerspective::toCSSValue() const
             // FIXME: Implement this.
             return nullptr;
         },
-        [](const Ref<CSSKeywordValue>& keywordValue) -> RefPtr<CSSValue> {
+        [](const Ref<CSSOMKeywordValue>& keywordValue) -> RefPtr<CSSValue> {
             return keywordValue->toCSSValue();
         }
     );

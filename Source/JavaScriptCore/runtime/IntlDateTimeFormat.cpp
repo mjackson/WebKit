@@ -92,7 +92,7 @@ IntlDateTimeFormat::IntlDateTimeFormat(VM& vm, Structure* structure)
 template<typename Visitor>
 void IntlDateTimeFormat::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
-    IntlDateTimeFormat* thisObject = jsCast<IntlDateTimeFormat*>(cell);
+    IntlDateTimeFormat* thisObject = uncheckedDowncast<IntlDateTimeFormat>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
 
     Base::visitChildren(thisObject, visitor);
@@ -110,33 +110,6 @@ DEFINE_VISIT_CHILDREN(IntlDateTimeFormat);
 void IntlDateTimeFormat::setBoundFormat(VM& vm, JSBoundFunction* format)
 {
     m_boundFormat.set(vm, this, format);
-}
-
-// https://tc39.es/ecma402/#sec-getavailablenamedtimezoneidentifier
-static String availableNamedTimeZoneIdentifier(StringView timeZoneName)
-{
-    UErrorCode status = U_ZERO_ERROR;
-    auto timeZones = std::unique_ptr<UEnumeration, ICUDeleter<uenum_close>>(ucal_openTimeZones(&status));
-    ASSERT(U_SUCCESS(status));
-
-    do {
-        status = U_ZERO_ERROR;
-        int32_t ianaTimeZoneLength;
-        // Time zone names are represented as char16_t[] in all related ICU APIs.
-        const char16_t* ianaTimeZone = uenum_unext(timeZones.get(), &ianaTimeZoneLength, &status);
-        ASSERT(U_SUCCESS(status));
-
-        // End of enumeration.
-        if (!ianaTimeZone)
-            break;
-
-        StringView ianaTimeZoneView(std::span(ianaTimeZone, ianaTimeZoneLength));
-        if (!equalIgnoringASCIICase(timeZoneName, ianaTimeZoneView) || isNonIANA(ianaTimeZoneView))
-            continue;
-        return ianaTimeZoneView.toString();
-    } while (true);
-
-    return String();
 }
 
 Vector<String> IntlDateTimeFormat::localeData(const String& locale, RelevantExtensionKey key)
@@ -739,33 +712,31 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
         tzValue = options->get(globalObject, vm.propertyNames->timeZone);
         RETURN_IF_EXCEPTION(scope, void());
     }
-    String tz;
-    String timeZoneForICU;
+    TimeZone tz;
+    String tzForResolvedOptions;
     if (!tzValue.isUndefined()) {
         String originalTz = tzValue.toWTFString(globalObject);
         RETURN_IF_EXCEPTION(scope, void());
         if (auto minutesValue = ISO8601::parseUTCOffsetInMinutes(originalTz)) {
-            int64_t minutes = minutesValue.value();
-            int64_t absMinutes = std::abs(minutes);
-            tz = makeString(minutes < 0 ? '-' : '+', pad('0', 2, absMinutes / 60), ':', pad('0', 2, absMinutes % 60));
-            timeZoneForICU = makeString("GMT"_s, minutes < 0 ? '-' : '+', pad('0', 2, absMinutes / 60), pad('0', 2, absMinutes % 60));
+            int64_t nanoseconds = minutesValue.value() * 60LL * 1000 * 1000 * 1000;
+            tz = TimeZone::fromUTCOffset(nanoseconds);
+            tzForResolvedOptions = ISO8601::formatTimeZoneOffsetString(nanoseconds);
+        } else if (auto resolved = intlAvailableNamedTimeZone(originalTz)) {
+            tz = TimeZone::fromID(resolved->id);
+            tzForResolvedOptions = resolved->identifier;
         } else {
-            tz = availableNamedTimeZoneIdentifier(originalTz);
-            if (tz.isNull()) {
-                String message = tryMakeString("invalid time zone: "_s, originalTz);
-                if (!message)
-                    message = "invalid time zone"_s;
-                throwRangeError(globalObject, scope, message);
-                return;
-            }
+            String message = tryMakeString("invalid time zone: "_s, originalTz);
+            if (!message)
+                message = "invalid time zone"_s;
+            throwRangeError(globalObject, scope, message);
+            return;
         }
-    } else
+    } else {
         tz = vm.dateCache.defaultTimeZone();
+        tzForResolvedOptions = tz.toString();
+    }
     m_timeZone = tz;
-    if (!timeZoneForICU.isNull())
-        m_timeZoneForICU = WTF::move(timeZoneForICU);
-    else
-        m_timeZoneForICU = tz;
+    m_timeZoneForResolvedOptions = WTF::move(tzForResolvedOptions);
 
     Weekday weekday = intlOption<Weekday>(globalObject, options, vm.propertyNames->weekday, { { "narrow"_s, Weekday::Narrow }, { "short"_s, Weekday::Short }, { "long"_s, Weekday::Long } }, "weekday must be \"narrow\", \"short\", or \"long\""_s, Weekday::None);
     RETURN_IF_EXCEPTION(scope, void());
@@ -851,7 +822,8 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
         // First, we create UDateFormat via dateStyle and timeStyle. And then convert it to pattern string.
         // After updating this pattern string with hourCycle, we create a final UDateFormat with the updated pattern string.
         UErrorCode status = U_ZERO_ERROR;
-        StringView timeZoneView(m_timeZoneForICU);
+        String timeZoneForICU = m_timeZone.toICUString();
+        StringView timeZoneView(timeZoneForICU);
         auto dateFormatFromStyle = std::unique_ptr<UDateFormat, UDateFormatDeleter>(udat_open(parseUDateFormatStyle(m_timeStyle), parseUDateFormatStyle(m_dateStyle), dataLocaleWithExtensions.data(), timeZoneView.upconvertedCharacters(), timeZoneView.length(), nullptr, -1, &status));
         if (U_FAILURE(status)) {
             throwTypeError(globalObject, scope, "failed to initialize DateTimeFormat"_s);
@@ -951,7 +923,8 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
     dataLogLnIf(IntlDateTimeFormatInternal::verbose, "locale:(", m_locale, "),dataLocale:(", dataLocaleWithExtensions, "),pattern:(", pattern, ")");
 
     UErrorCode status = U_ZERO_ERROR;
-    StringView timeZoneView(m_timeZoneForICU);
+    String timeZoneForICU = m_timeZone.toICUString();
+    StringView timeZoneView(timeZoneForICU);
     m_dateFormat = std::unique_ptr<UDateFormat, UDateFormatDeleter>(udat_open(UDAT_PATTERN, UDAT_PATTERN, dataLocaleWithExtensions.data(), timeZoneView.upconvertedCharacters(), timeZoneView.length(), pattern.upconvertedCharacters(), pattern.length(), &status));
     if (U_FAILURE(status)) {
         throwTypeError(globalObject, scope, "failed to initialize DateTimeFormat"_s);
@@ -1183,7 +1156,7 @@ JSObject* IntlDateTimeFormat::resolvedOptions(JSGlobalObject* globalObject) cons
     options->putDirect(vm, vm.propertyNames->locale, jsNontrivialString(vm, m_locale));
     options->putDirect(vm, vm.propertyNames->calendar, jsNontrivialString(vm, m_calendar));
     options->putDirect(vm, vm.propertyNames->numberingSystem, jsNontrivialString(vm, m_numberingSystem));
-    options->putDirect(vm, vm.propertyNames->timeZone, jsNontrivialString(vm, m_timeZone));
+    options->putDirect(vm, vm.propertyNames->timeZone, jsNontrivialString(vm, m_timeZoneForResolvedOptions));
 
     if (m_hourCycle != HourCycle::None) {
         options->putDirect(vm, vm.propertyNames->hourCycle, jsNontrivialString(vm, hourCycleString(m_hourCycle)));
@@ -1438,7 +1411,8 @@ UDateIntervalFormat* IntlDateTimeFormat::createDateIntervalFormatIfNecessary(JSG
     CString dataLocaleWithExtensions = localeBuilder.toString().utf8();
 
     UErrorCode status = U_ZERO_ERROR;
-    StringView timeZoneView(m_timeZoneForICU);
+    String timeZoneForICU = m_timeZone.toICUString();
+    StringView timeZoneView(timeZoneForICU);
     m_dateIntervalFormat = std::unique_ptr<UDateIntervalFormat, UDateIntervalFormatDeleter>(udtitvfmt_open(dataLocaleWithExtensions.data(), skeleton.span().data(), skeleton.size(), timeZoneView.upconvertedCharacters(), timeZoneView.length(), &status));
     if (U_FAILURE(status)) {
         throwTypeError(globalObject, scope, "failed to initialize DateIntervalFormat"_s);

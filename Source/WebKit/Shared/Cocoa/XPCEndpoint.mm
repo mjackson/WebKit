@@ -49,9 +49,6 @@ XPCEndpoint::XPCEndpoint()
     xpc_connection_set_target_queue(m_connection.get(), mainDispatchQueueSingleton());
     xpc_connection_set_event_handler(m_connection.get(), ^(xpc_object_t message) {
         xpc_type_t type = xpc_get_type(message);
-#if USE(EXIT_XPC_MESSAGE_WORKAROUND)
-        handleXPCExitMessage(message);
-#endif
         if (type == XPC_TYPE_CONNECTION) {
             OSObjectPtr<xpc_connection_t> connection = message;
 #if USE(APPLE_INTERNAL_SDK)

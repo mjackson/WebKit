@@ -25,8 +25,6 @@
 
 #include "config.h"
 
-#if HAVE(CORE_MATERIAL)
-
 #import "Helpers/PlatformUtilities.h"
 #import "Helpers/Test.h"
 #import "Helpers/cocoa/TestWKWebView.h"
@@ -166,5 +164,3 @@ TEST(AppleVisualEffect, NoCrashWhenRemovingLayers)
 #endif // HAVE(MATERIAL_HOSTING)
 
 } // namespace TestWebKitAPI
-
-#endif // HAVE(CORE_MATERIAL)

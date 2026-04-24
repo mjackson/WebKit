@@ -50,6 +50,7 @@ class NativeImage;
 class TextureMapperLayer;
 
 #if USE(SKIA)
+class SkiaCompositingLayer;
 class SkiaPaintingEngine;
 class SkiaRecordingResult;
 #endif
@@ -96,7 +97,9 @@ public:
     GraphicsLayerCoordinated* owner() const;
 
     TextureMapperLayer& ensureTarget();
-    TextureMapperLayer* target() const;
+#if USE(SKIA)
+    SkiaCompositingLayer& ensureSkiaTarget();
+#endif
     void invalidateTarget();
 
 #if ENABLE(DAMAGE_TRACKING)
@@ -139,6 +142,7 @@ public:
     void setPreserves3D(bool);
     void setBackfaceVisibility(bool);
     void setOpacity(float);
+    void setBlendMode(BlendMode);
 
     void setContentsVisible(bool);
     bool contentsVisible() const;
@@ -163,7 +167,9 @@ public:
     void setMask(CoordinatedPlatformLayer*);
     void setReplica(CoordinatedPlatformLayer*);
     void setBackdrop(CoordinatedPlatformLayer*);
+    void notifyBackdropFiltersChanged();
     void setBackdropRect(const FloatRoundedRect&);
+    void setIsBackdropRoot(bool);
 
     void setAnimations(const TextureMapperAnimations&);
 
@@ -173,13 +179,15 @@ public:
     void setEventRegion(const EventRegion&);
     const EventRegion& eventRegion() const;
 
+    void setClipPath(const Path&, WindRule);
+
     void setDebugBorder(Color&&, float);
     void setShowRepaintCounter(bool);
 
     void updateContents(bool affectedByTransformAnimation);
     void updateBackingStore();
 
-    void flushCompositingState(const OptionSet<CompositionReason>&);
+    void flushCompositingState(const OptionSet<CompositionReason>&, bool = false);
 
     bool hasPendingTilesCreation() const { return m_pendingTilesCreation; }
     bool isCompositionRequiredOrOngoing() const;
@@ -204,45 +212,55 @@ private:
     bool needsBackingStore() const;
     void purgeBackingStores();
 
+    bool hasCommittedContentsBuffer() const;
+
 #if ENABLE(DAMAGE_TRACKING)
     void addDamage(Damage&&);
 #endif
 
-    enum class Change : uint32_t {
-        Position                     = 1 << 0,
-        BoundsOrigin                 = 1 << 1,
-        AnchorPoint                  = 1 << 2,
-        Size                         = 1 << 3,
-        Transform                    = 1 << 4,
-        ChildrenTransform            = 1 << 5,
-        DrawsContent                 = 1 << 6,
-        MasksToBounds                = 1 << 7,
-        Preserves3D                  = 1 << 8,
-        BackfaceVisibility           = 1 << 9,
-        Opacity                      = 1 << 10,
-        Children                     = 1 << 11,
-        BackingStore                 = 1 << 12,
-        ContentsVisible              = 1 << 13,
-        ContentsOpaque               = 1 << 14,
-        ContentsRect                 = 1 << 15,
-        ContentsRectClipsDescendants = 1 << 16,
-        ContentsClippingRect         = 1 << 17,
-        ContentsTiling               = 1 << 18,
-        ContentsBuffer               = 1 << 19,
-        ContentsImage                = 1 << 20,
-        ContentsColor                = 1 << 21,
-        Filters                      = 1 << 22,
-        Mask                         = 1 << 23,
-        Replica                      = 1 << 24,
-        Backdrop                     = 1 << 25,
-        BackdropRect                 = 1 << 26,
-        Animations                   = 1 << 27,
-        DebugIndicators              = 1 << 28,
+    void flushCompositingStateOnTarget(const OptionSet<CompositionReason>&, TextureMapperLayer&);
+#if USE(SKIA)
+    void flushCompositingStateOnSkiaTarget(const OptionSet<CompositionReason>&, SkiaCompositingLayer&);
+#endif
+
+    enum class Change : uint64_t {
+        Position                     = 1LLU << 0,
+        BoundsOrigin                 = 1LLU << 1,
+        AnchorPoint                  = 1LLU << 2,
+        Size                         = 1LLU << 3,
+        Transform                    = 1LLU << 4,
+        ChildrenTransform            = 1LLU << 5,
+        DrawsContent                 = 1LLU << 6,
+        MasksToBounds                = 1LLU << 7,
+        Preserves3D                  = 1LLU << 8,
+        BackfaceVisibility           = 1LLU << 9,
+        Opacity                      = 1LLU << 10,
+        BlendMode                    = 1LLU << 11,
+        Children                     = 1LLU << 12,
+        BackingStore                 = 1LLU << 13,
+        ContentsVisible              = 1LLU << 14,
+        ContentsOpaque               = 1LLU << 15,
+        ContentsRect                 = 1LLU << 16,
+        ContentsRectClipsDescendants = 1LLU << 17,
+        ContentsClippingRect         = 1LLU << 18,
+        ContentsTiling               = 1LLU << 19,
+        ContentsBuffer               = 1LLU << 20,
+        ContentsImage                = 1LLU << 21,
+        ContentsColor                = 1LLU << 22,
+        ClipPath                     = 1LLU << 23,
+        Filters                      = 1LLU << 24,
+        Mask                         = 1LLU << 25,
+        Replica                      = 1LLU << 26,
+        Backdrop                     = 1LLU << 27,
+        BackdropRect                 = 1LLU << 28,
+        BackdropRoot                 = 1LLU << 29,
+        Animations                   = 1LLU << 30,
+        DebugIndicators              = 1LLU << 31,
 #if ENABLE(DAMAGE_TRACKING)
-        Damage                       = 1 << 29,
+        Damage                       = 1LLU << 32,
 #endif
 #if ENABLE(SCROLLING_THREAD)
-        ScrollingNode                = 1 << 30
+        ScrollingNode                = 1LLU << 33
 #endif
     };
 
@@ -253,6 +271,9 @@ private:
 
     GraphicsLayerCoordinated* m_owner { nullptr };
     std::unique_ptr<TextureMapperLayer> m_target;
+#if USE(SKIA)
+    RefPtr<SkiaCompositingLayer> m_skiaTarget;
+#endif
     bool m_pendingTilesCreation { false };
     bool m_needsTilesUpdate { false };
 
@@ -277,6 +298,7 @@ private:
     bool m_preserves3D WTF_GUARDED_BY_LOCK(m_lock) { false };
     bool m_backfaceVisibility WTF_GUARDED_BY_LOCK(m_lock) { true };
     float m_opacity WTF_GUARDED_BY_LOCK(m_lock) { 1. };
+    BlendMode m_blendMode WTF_GUARDED_BY_LOCK(m_lock) { BlendMode::Normal };
     bool m_contentsVisible WTF_GUARDED_BY_LOCK(m_lock) { true };
     bool m_contentsOpaque WTF_GUARDED_BY_LOCK(m_lock) { false };
     FloatRect m_contentsRect WTF_GUARDED_BY_LOCK(m_lock);
@@ -297,12 +319,17 @@ private:
         std::unique_ptr<CoordinatedPlatformLayerBuffer> pending;
         std::unique_ptr<CoordinatedPlatformLayerBuffer> committed;
     } m_contentsBuffer WTF_GUARDED_BY_LOCK(m_lock);
+    struct {
+        Path path;
+        WindRule windRule;
+    } m_clipPath WTF_GUARDED_BY_LOCK(m_lock);
     Vector<IntRect, 1> m_dirtyRegion WTF_GUARDED_BY_LOCK(m_lock);
     FilterOperations m_filters WTF_GUARDED_BY_LOCK(m_lock);
     RefPtr<CoordinatedPlatformLayer> m_mask WTF_GUARDED_BY_LOCK(m_lock);
     RefPtr<CoordinatedPlatformLayer> m_replica WTF_GUARDED_BY_LOCK(m_lock);
     RefPtr<CoordinatedPlatformLayer> m_backdrop WTF_GUARDED_BY_LOCK(m_lock);
     FloatRoundedRect m_backdropRect WTF_GUARDED_BY_LOCK(m_lock);
+    bool m_isBackdropRoot WTF_GUARDED_BY_LOCK(m_lock) { false };
     TextureMapperAnimations m_animations WTF_GUARDED_BY_LOCK(m_lock);
     Vector<Ref<CoordinatedPlatformLayer>> m_children WTF_GUARDED_BY_LOCK(m_lock);
     EventRegion m_eventRegion WTF_GUARDED_BY_LOCK(m_lock);

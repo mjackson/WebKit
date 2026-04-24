@@ -29,6 +29,7 @@
 #include "DFGRegisteredStructure.h"
 #include "HeapCell.h"
 #include "PrivateFieldPutKind.h"
+#include <JavaScriptCore/ECMAMode.h>
 #include <wtf/OptionSet.h>
 #include <wtf/StdLibExtras.h>
 

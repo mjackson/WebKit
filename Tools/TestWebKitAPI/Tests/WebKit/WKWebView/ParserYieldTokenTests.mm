@@ -133,6 +133,32 @@ TEST(ParserYieldTokenTests, TakeMultipleParserYieldTokens)
         [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantPast]];
 }
 
+TEST(ParserYieldTokenTests, ReleaseAndRetakeYieldTokenDoesNotCrash)
+{
+    auto webView = [ParserYieldTokenTestWebView webView];
+    [[webView bundle] takeDocumentParserTokenAfterCommittingLoad];
+    [webView loadTestPageNamed:@"simple"];
+
+    waitForDelay(0.5_s);
+    EXPECT_FALSE([webView finishedDocumentLoad]);
+    EXPECT_FALSE([webView finishedLoad]);
+
+    // Release and immediately retake the yield token. This causes
+    // didEndYieldingParser to schedule a 0s resume timer, and then
+    // didBeginYieldingParser to set yield tokens active again. When the
+    // timer fires, the parser must not assert or busy-loop.
+    [[webView bundle] releaseAndRetakeDocumentParserToken];
+
+    waitForDelay(0.5_s);
+    EXPECT_FALSE([webView finishedDocumentLoad]);
+    EXPECT_FALSE([webView finishedLoad]);
+
+    [[webView bundle] releaseDocumentParserToken];
+
+    while (![webView finishedLoad] || ![webView finishedDocumentLoad])
+        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantPast]];
+}
+
 TEST(ParserYieldTokenTests, DeferredScriptExecutesBeforeDocumentLoadWhenTakingParserYieldToken)
 {
     auto webView = [ParserYieldTokenTestWebView webView];

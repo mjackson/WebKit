@@ -69,6 +69,16 @@ void* bmalloc_iso_allocate(pas_heap_ref* heap_ref, pas_allocation_mode allocatio
     return bmalloc_iso_allocate_inline(heap_ref, allocation_mode);
 }
 
+void* bmalloc_try_iso_allocate_array_by_size(pas_heap_ref* heap_ref, size_t size, pas_allocation_mode allocation_mode)
+{
+    return bmalloc_try_iso_allocate_array_by_size_inline(heap_ref, size, allocation_mode);
+}
+
+void* bmalloc_iso_allocate_array_by_size(pas_heap_ref* heap_ref, size_t size, pas_allocation_mode allocation_mode)
+{
+    return bmalloc_iso_allocate_array_by_size_inline(heap_ref, size, allocation_mode);
+}
+
 void* bmalloc_try_iso_allocate_zeroed_array_by_size(pas_heap_ref* heap_ref, size_t size, pas_allocation_mode allocation_mode)
 {
     return bmalloc_try_iso_allocate_zeroed_array_by_size_inline(heap_ref, size, allocation_mode);

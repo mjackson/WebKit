@@ -27,12 +27,13 @@
 #include "StyleFontSizeAdjust.h"
 
 #include "AnimationUtilities.h"
+#include "CSSKeywordValue.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleBuilderChecking.h"
-#include "StylePrimitiveKeyword+CSSValueConversion.h"
-#include "StylePrimitiveKeyword+CSSValueCreation.h"
-#include "StylePrimitiveKeyword+Serialization.h"
+#include "StyleKeyword+CSSValueConversion.h"
+#include "StyleKeyword+CSSValueCreation.h"
+#include "StyleKeyword+Serialization.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
 #include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 #include "StylePrimitiveNumericTypes+CSSValueCreation.h"
@@ -54,8 +55,8 @@ std::optional<float> FontSizeAdjust::resolvedMetricValue(const RenderStyle& styl
 
 auto CSSValueConversion<FontSizeAdjust>::operator()(BuilderState& state, const CSSValue& value) -> FontSizeAdjust
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (auto valueID = primitiveValue->valueID(); valueID) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (auto valueID = keywordValue->valueID(); valueID) {
         case CSSValueNone:
             return CSS::Keyword::None { };
 
@@ -64,9 +65,6 @@ auto CSSValueConversion<FontSizeAdjust>::operator()(BuilderState& state, const C
             // aspect value for from-font to when the primary font is created.
             // See FontCascadeFonts::primaryFont().
             return { defaultMetric, CSS::Keyword::FromFont { } };
-
-        case CSSValueInvalid:
-            return { defaultMetric, toStyleFromCSSValue<FontSizeAdjust::Number>(state, *primitiveValue) };
 
         default:
             if (CSSPropertyParserHelpers::isSystemFontShorthand(valueID))
@@ -77,17 +75,27 @@ auto CSSValueConversion<FontSizeAdjust>::operator()(BuilderState& state, const C
         }
     }
 
-    auto pair = requiredPairDowncast<CSSPrimitiveValue>(state, value);
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
+        return { defaultMetric, toStyleFromCSSValue<FontSizeAdjust::Number>(state, *primitiveValue) };
+
+    auto pair = requiredPairDowncast<CSSValue>(state, value);
     if (!pair)
         return CSS::Keyword::None { };
 
-    auto metric = fromCSSValueID<FontSizeAdjust::Metric>(pair->first->valueID());
+    auto metric = toStyleFromCSSValue<FontSizeAdjust::Metric>(state, pair->first);
 
-    if (pair->second->valueID() == CSSValueFromFont) {
-        // We cannot determine the primary font here, so we defer resolving the
-        // aspect value for from-font to when the primary font is created.
-        // See FontCascadeFonts::primaryFont().
-        return { metric, CSS::Keyword::FromFont { } };
+    if (RefPtr secondIdentValue = dynamicDowncast<CSSKeywordValue>(pair->second)) {
+        switch (secondIdentValue->valueID()) {
+        case CSSValueFromFont:
+            // We cannot determine the primary font here, so we defer resolving the
+            // aspect value for from-font to when the primary font is created.
+            // See FontCascadeFonts::primaryFont().
+            return { metric, CSS::Keyword::FromFont { } };
+
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
     }
 
     return { metric, toStyleFromCSSValue<FontSizeAdjust::Number>(state, pair->second) };

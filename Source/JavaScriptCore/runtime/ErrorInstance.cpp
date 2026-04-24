@@ -274,7 +274,7 @@ String ErrorInstance::sanitizedNameString(JSGlobalObject* globalObject)
     // Error objects may have a name property, and if not, its prototype should have
     // a name property for the type of error e.g. "SyntaxError".
     while (currentObj.isCell() && prototypeDepth++ < 2) {
-        JSObject* obj = jsCast<JSObject*>(currentObj);
+        JSObject* obj = uncheckedDowncast<JSObject>(currentObj);
         if (JSObject::getOwnPropertySlot(obj, globalObject, namePropertName, nameSlot) && nameSlot.isValue()) {
             nameValue = nameSlot.getValue(globalObject, namePropertName);
             break;
@@ -313,7 +313,7 @@ String ErrorInstance::tryGetMessageForDebugging()
     if (JSObject::getOwnNonIndexPropertySlot(vm, structure(), messagePropertName, messageSlot))
         messageValue = messageSlot.getPureResult();
 
-    if (JSString* string = jsDynamicCast<JSString*>(messageValue))
+    if (JSString* string = dynamicDowncast<JSString>(messageValue))
         return string->tryGetValue();
     return emptyString();
 }
@@ -471,7 +471,7 @@ bool ErrorInstance::materializeErrorInfoIfNeeded(VM& vm, PropertyName propertyNa
 bool ErrorInstance::getOwnPropertySlot(JSObject* object, JSGlobalObject* globalObject, PropertyName propertyName, PropertySlot& slot)
 {
     VM& vm = globalObject->vm();
-    ErrorInstance* thisObject = jsCast<ErrorInstance*>(object);
+    ErrorInstance* thisObject = uncheckedDowncast<ErrorInstance>(object);
     thisObject->materializeErrorInfoIfNeeded(vm, propertyName);
     return Base::getOwnPropertySlot(thisObject, globalObject, propertyName, slot);
 }
@@ -479,7 +479,7 @@ bool ErrorInstance::getOwnPropertySlot(JSObject* object, JSGlobalObject* globalO
 void ErrorInstance::getOwnSpecialPropertyNames(JSObject* object, JSGlobalObject* globalObject, PropertyNameArrayBuilder&, DontEnumPropertiesMode mode)
 {
     VM& vm = globalObject->vm();
-    ErrorInstance* thisObject = jsCast<ErrorInstance*>(object);
+    ErrorInstance* thisObject = uncheckedDowncast<ErrorInstance>(object);
     if (mode == DontEnumPropertiesMode::Include)
         thisObject->materializeErrorInfoIfNeeded(vm);
 }
@@ -488,7 +488,7 @@ bool ErrorInstance::defineOwnProperty(JSObject* object, JSGlobalObject* globalOb
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
-    ErrorInstance* thisObject = jsCast<ErrorInstance*>(object);
+    ErrorInstance* thisObject = uncheckedDowncast<ErrorInstance>(object);
     thisObject->materializeErrorInfoIfNeeded(vm, propertyName);
     RETURN_IF_EXCEPTION(scope, {});
     RELEASE_AND_RETURN(scope, Base::defineOwnProperty(thisObject, globalObject, propertyName, descriptor, shouldThrow));
@@ -498,7 +498,7 @@ bool ErrorInstance::put(JSCell* cell, JSGlobalObject* globalObject, PropertyName
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
-    ErrorInstance* thisObject = jsCast<ErrorInstance*>(cell);
+    ErrorInstance* thisObject = uncheckedDowncast<ErrorInstance>(cell);
     bool materializedProperties = thisObject->materializeErrorInfoIfNeeded(vm, propertyName);
     RETURN_IF_EXCEPTION(scope, {});
     if (materializedProperties)
@@ -509,7 +509,7 @@ bool ErrorInstance::put(JSCell* cell, JSGlobalObject* globalObject, PropertyName
 bool ErrorInstance::deleteProperty(JSCell* cell, JSGlobalObject* globalObject, PropertyName propertyName, DeletePropertySlot& slot)
 {
     VM& vm = globalObject->vm();
-    ErrorInstance* thisObject = jsCast<ErrorInstance*>(cell);
+    ErrorInstance* thisObject = uncheckedDowncast<ErrorInstance>(cell);
     bool materializedProperties = thisObject->materializeErrorInfoIfNeeded(vm, propertyName);
     if (materializedProperties)
         slot.disableCaching();

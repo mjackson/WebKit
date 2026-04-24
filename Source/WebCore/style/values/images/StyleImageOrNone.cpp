@@ -28,6 +28,7 @@
 #include "StyleImageOrNone.h"
 
 #include "AnimationUtilities.h"
+#include "CSSKeywordValue.h"
 #include "StyleBuilderState.h"
 
 namespace WebCore {
@@ -37,8 +38,15 @@ namespace Style {
 
 auto CSSValueConversion<ImageOrNone>::operator()(BuilderState& state, const CSSValue& value) -> ImageOrNone
 {
-    if (value.valueID() == CSSValueNone)
-        return CSS::Keyword::None { };
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
+    }
 
     RefPtr image = state.createStyleImage(value);
     if (!image)

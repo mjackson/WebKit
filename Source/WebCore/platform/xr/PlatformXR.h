@@ -53,6 +53,10 @@
 #include <WebCore/ExceptionOr.h>
 #endif
 
+#if ENABLE(WEBXR_LAYERS)
+#include <WebCore/FloatSize.h>
+#endif
+
 namespace PlatformXR {
 class TrackingAndRenderingClient;
 }
@@ -293,6 +297,12 @@ struct RateMapDescription {
     Vector<float> verticalSamples;
 };
 
+struct LayerInfo {
+    LayerHandle handle;
+    size_t numImages { 1 };
+};
+
+
 #if ENABLE(WEBXR_HIT_TEST)
 struct Ray {
     WebCore::FloatPoint3D origin;
@@ -475,6 +485,14 @@ struct FrameData {
     FrameData copy() const;
 };
 
+#if ENABLE(WEBXR_LAYERS)
+enum class LayerLayout : uint8_t {
+    Mono,
+    StereoLeftRight,
+    StereoTopBottom,
+};
+#endif
+
 struct DeviceLayer {
     struct LayerView {
         Eye eye { Eye::None };
@@ -485,6 +503,15 @@ struct DeviceLayer {
     Vector<LayerView> views;
 #if USE(OPENXR)
     WTF::UnixFileDescriptor fenceFD;
+#endif
+#if ENABLE(WEBXR_LAYERS)
+    bool blendTextureSourceAlpha { false };
+    bool forceMonoPresentation { false };
+    struct QuadLayerData {
+        WebCore::FloatSize worldSize;
+        FrameData::Pose poseInLocalSpace;
+    };
+    std::optional<QuadLayerData> quadLayerData;
 #endif
 };
 
@@ -525,7 +552,10 @@ public:
     // when the platform has completed all steps to shut down the XR session.
     virtual bool supportsSessionShutdownNotification() const { return false; }
     virtual void initializeReferenceSpace(ReferenceSpaceType) = 0;
-    virtual std::optional<LayerHandle> createLayerProjection(uint32_t width, uint32_t height, bool alpha) = 0;
+    virtual std::optional<LayerInfo> createLayerProjection(uint32_t width, uint32_t height, bool alpha) = 0;
+#if ENABLE(WEBXR_LAYERS)
+    virtual std::optional<LayerInfo> createQuadLayer(WebCore::IntSize, LayerLayout) = 0;
+#endif
     virtual void deleteLayer(LayerHandle) = 0;
 
 #if ENABLE(WEBXR_HIT_TEST)

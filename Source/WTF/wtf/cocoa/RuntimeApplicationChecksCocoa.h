@@ -140,6 +140,7 @@ enum class SDKAlignedBehavior {
     ScrollColorExtensionGrowsDuringRubberBanding,
     ManagedRefreshControlAppearance,
     EnableUserScriptAndUserStyleInterning,
+    AllBackForwardItemsWithoutUserGestureInvisibleToUI,
 
     NumberOfBehaviors
 };

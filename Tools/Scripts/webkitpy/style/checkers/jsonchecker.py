@@ -39,7 +39,7 @@ class JSONChecker(object):
         self._handle_style_error = handle_style_error
         self._handle_style_error.turn_off_line_filtering()
 
-    def check(self, lines):
+    def check(self, lines, line_numbers=None):
         try:
             json.loads('\n'.join(lines) + '\n')
         except ValueError as e:
@@ -56,7 +56,7 @@ class JSONChecker(object):
 class JSONContributorsChecker(JSONChecker):
     """Processes contributors.json lines"""
 
-    def check(self, lines):
+    def check(self, lines, line_numbers=None):
         super(JSONContributorsChecker, self).check(lines)
         self._handle_style_error(0, 'json/syntax', 5, 'contributors.json should not be modified through the commit queue')
 
@@ -64,7 +64,7 @@ class JSONContributorsChecker(JSONChecker):
 class JSONFeaturesChecker(JSONChecker):
     """Processes the features.json lines"""
 
-    def check(self, lines):
+    def check(self, lines, line_numbers=None):
         super(JSONFeaturesChecker, self).check(lines)
 
         try:
@@ -118,7 +118,7 @@ class JSONFeaturesChecker(JSONChecker):
 class JSONCSSPropertiesChecker(JSONChecker):
     """Processes CSSProperties.json"""
 
-    def check(self, lines):
+    def check(self, lines, line_numbers=None):
         super(JSONCSSPropertiesChecker, self).check(lines)
 
         try:
@@ -503,7 +503,7 @@ class JSONCSSPropertiesChecker(JSONChecker):
 class JSONImportExpectationsChecker(JSONChecker):
     """Processes the import-expectations.json lines"""
 
-    def check(self, lines):
+    def check(self, lines, line_numbers=None):
         super(JSONImportExpectationsChecker, self).check(lines)
 
         try:

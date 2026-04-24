@@ -29,7 +29,6 @@
 #if PLATFORM(IOS_FAMILY)
 
 #import "CSSComputedStyleDeclaration.h"
-#import "CSSPrimitiveValueMappings.h"
 #import "CachedImage.h"
 #import "ContainerNodeInlines.h"
 #import "DataTransfer.h"
@@ -46,6 +45,7 @@
 #import "RenderBlock.h"
 #import "RenderImage.h"
 #import "SharedBuffer.h"
+#import "StyleKeyword+Mappings.h"
 #import "Text.h"
 #import "TypingCommand.h"
 #import "WAKAppKitStubs.h"

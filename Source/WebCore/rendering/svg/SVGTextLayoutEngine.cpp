@@ -633,6 +633,9 @@ void SVGTextLayoutEngine::layoutTextOnLineOrPath(InlineIterator::SVGTextBoxItera
             m_currentTextFragment.metricsListOffset = m_visualMetricsListOffset;
             m_currentTextFragment.x = x;
             m_currentTextFragment.y = y;
+            // Record the baseline shift so query APIs can subtract it to return
+            // the unshifted position (matching Chrome/Firefox behavior).
+            m_currentTextFragment.baselineShift = baselineShift;
 
             // Build fragment transformation.
             if (angle)

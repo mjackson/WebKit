@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestLegacyFactoryFunction : public JSDOMWrapper<TestLegacyFactoryFunction> {
 public:
     using Base = JSDOMWrapper<TestLegacyFactoryFunction>;
-    static JSTestLegacyFactoryFunction* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestLegacyFactoryFunction>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestLegacyFactoryFunction* ptr = new (NotNull, JSC::allocateCell<JSTestLegacyFactoryFunction>(vm)) JSTestLegacyFactoryFunction(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestLegacyFactoryFunction* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestLegacyFactoryFunction>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

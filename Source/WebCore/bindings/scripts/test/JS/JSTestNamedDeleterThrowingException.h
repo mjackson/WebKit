@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestNamedDeleterThrowingException : public JSDOMWrapper<TestNamedDeleterThrowingException> {
 public:
     using Base = JSDOMWrapper<TestNamedDeleterThrowingException>;
-    static JSTestNamedDeleterThrowingException* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestNamedDeleterThrowingException>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestNamedDeleterThrowingException* ptr = new (NotNull, JSC::allocateCell<JSTestNamedDeleterThrowingException>(vm)) JSTestNamedDeleterThrowingException(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestNamedDeleterThrowingException* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestNamedDeleterThrowingException>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

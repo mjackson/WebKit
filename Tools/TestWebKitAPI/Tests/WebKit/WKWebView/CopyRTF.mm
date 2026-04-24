@@ -30,6 +30,7 @@
 
 #import "Helpers/PlatformUtilities.h"
 #import "Helpers/Test.h"
+#import "Helpers/cocoa/TestNavigationDelegate.h"
 #import "Helpers/cocoa/TestWKWebView.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <WebKit/WKPreferencesPrivate.h>
@@ -184,6 +185,31 @@ TEST(CopyRTF, StripsUserSelectNoneQuirks)
         "<div style='-webkit-user-select: none; user-select: none;'>some<br>user-select-none<br>content</div><span inert>foo </span>bar", false);
 
     EXPECT_WK_STREQ([attributedString string].UTF8String, "hello world WebKit\nsome\nuser-select-none\ncontent\nfoo bar");
+}
+
+TEST(CopyRTF, DoesNotCrashWithDirectoryFileWrapperFromImageSrcset)
+{
+    // Regression test: copying an <img> with srcset="." could produce a directory-backed NSFileWrapper.
+    // Calling -regularFileContents on a non-regular file wrapper throws an NSException, which would
+    // terminate the web content process as it propagated through C++ frames in HTMLConverter.
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+
+    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    __block bool terminated = false;
+    navigationDelegate.get().webContentProcessDidTerminate = ^(WKWebView *, _WKProcessTerminationReason) {
+        terminated = true;
+    };
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    auto preferences = (__bridge WKPreferencesRef)[[webView configuration] preferences];
+    WKPreferencesSetWriteRichTextDataWhenCopyingOrDragging(preferences, true);
+
+    [webView synchronouslyLoadHTMLString:@"<img srcset='.'>"];
+    [webView selectAll:nil];
+    [webView _synchronouslyExecuteEditCommand:@"Copy" argument:nil];
+
+    TestWebKitAPI::Util::runFor(&terminated, 0.5_s);
+    EXPECT_FALSE(terminated);
 }
 
 #endif // PLATFORM(COCOA)

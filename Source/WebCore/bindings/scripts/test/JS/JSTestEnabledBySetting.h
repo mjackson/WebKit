@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestEnabledBySetting : public JSDOMWrapper<TestEnabledBySetting> {
 public:
     using Base = JSDOMWrapper<TestEnabledBySetting>;
-    static JSTestEnabledBySetting* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestEnabledBySetting>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestEnabledBySetting* ptr = new (NotNull, JSC::allocateCell<JSTestEnabledBySetting>(vm)) JSTestEnabledBySetting(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestEnabledBySetting* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestEnabledBySetting>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

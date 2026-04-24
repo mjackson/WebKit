@@ -1831,6 +1831,7 @@ trim-all
 no-autospace
 ideograph-alpha
 ideograph-numeric
+insert
 
 // scrollbar-gutter
 // auto
@@ -1939,3 +1940,6 @@ strict-origin
 origin-when-cross-origin
 strict-origin-when-cross-origin
 unsafe-url
+
+// <will-change>
+will-change

@@ -26,6 +26,7 @@
 #pragma once
 
 #include "JSExportMacros.h"
+#include "JSLock.h"
 #include <wtf/CheckedRef.h>
 #include <wtf/HashSet.h>
 #include <wtf/Lock.h>

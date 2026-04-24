@@ -67,6 +67,7 @@ enum LocationKind {
     InvalidationPointLoc,
     IsCallableLoc,
     IsConstructorLoc,
+    ArrayIsArrayLoc,
     TypeOfIsObjectLoc,
     TypeOfIsFunctionLoc,
     NamedPropertyLoc,

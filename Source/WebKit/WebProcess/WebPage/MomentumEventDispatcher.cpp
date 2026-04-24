@@ -192,7 +192,8 @@ void MomentumEventDispatcher::dispatchSyntheticMomentumEvent(WebWheelEvent::Phas
         delta,
         time,
         { },
-        WebWheelEvent::MomentumEndType::Unknown);
+        WebWheelEvent::MomentumEndType::Unknown,
+        initiatingEvent->inputSource());
 
     m_client->handleSyntheticWheelEvent(*m_currentGesture.pageIdentifier, syntheticEvent, m_lastRubberBandableEdges);
 
@@ -211,6 +212,7 @@ void MomentumEventDispatcher::didStartMomentumPhase(WebCore::PageIdentifier page
     tracePoint(SyntheticMomentumStart);
 
     m_currentGesture.active = true;
+    m_currentGesture.momentumCurve = event.inputSource() == WebEventInputSource::Automation ? MomentumCurve::Simple : MomentumCurve::Default;
     m_currentGesture.pageIdentifier = pageIdentifier;
     m_currentGesture.initiatingEvent = event;
     m_currentGesture.currentOffset = { };
@@ -423,9 +425,11 @@ void MomentumEventDispatcher::buildOffsetTableWithInitialDelta(WebCore::FloatSiz
     bool inTail = false;
     WebCore::FloatSize tailCarry;
 
+    bool useSimpleDeceleration = m_currentGesture.momentumCurve == MomentumCurve::Simple;
+
     do {
         WebCore::FloatSize acceleratedDelta;
-        std::tie(unacceleratedDelta, acceleratedDelta) = computeNextDelta(unacceleratedDelta);
+        std::tie(unacceleratedDelta, acceleratedDelta) = useSimpleDeceleration ? computeNextDeltaSimple(unacceleratedDelta) : computeNextDelta(unacceleratedDelta);
 
         const float tailStartUnacceleratedDelta = 6.f;
         if (!inTail && std::abs(unacceleratedDelta.width()) < tailStartUnacceleratedDelta && std::abs(unacceleratedDelta.height()) < tailStartUnacceleratedDelta) {
@@ -648,6 +652,16 @@ std::pair<WebCore::FloatSize, WebCore::FloatSize> MomentumEventDispatcher::compu
 #endif
 
     return { unacceleratedDelta, acceleratedDelta };
+}
+
+std::pair<WebCore::FloatSize, WebCore::FloatSize> MomentumEventDispatcher::computeNextDeltaSimple(WebCore::FloatSize currentUnacceleratedDelta)
+{
+    static constexpr float lnDecelerationRate = -0.00200200267; // log(.998) but log() is not constexpr-able.
+
+    float velocityFactor = exp(lnDecelerationRate * idealCurveFrameInterval.milliseconds());
+    currentUnacceleratedDelta.scale(velocityFactor);
+
+    return { currentUnacceleratedDelta, currentUnacceleratedDelta };
 }
 
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER_TEMPORARY_LOGGING)

@@ -111,6 +111,11 @@ void BufferImpl::destroy()
     wgpuBufferDestroy(m_backing.get());
 }
 
+void BufferImpl::generateAValidationError()
+{
+    wgpuBufferGenerateAValidationError(m_backing.get());
+}
+
 void BufferImpl::setLabelInternal(const String& label)
 {
     wgpuBufferSetLabel(m_backing.get(), label.utf8().data());

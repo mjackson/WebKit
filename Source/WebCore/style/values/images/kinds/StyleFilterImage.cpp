@@ -80,7 +80,7 @@ Ref<CSSValue> FilterImage::computedStyleValue(const RenderStyle& style) const
 {
     RefPtr image = m_image;
     return CSSFilterImageValue::create(
-        image ? image->computedStyleValue(style) : upcast<CSSValue>(CSSPrimitiveValue::create(CSSValueNone)),
+        image ? image->computedStyleValue(style) : upcast<CSSValue>(CSSKeywordValue::create(CSSValueNone)),
         toCSS(m_filter, style)
     );
 }
@@ -140,11 +140,12 @@ RefPtr<WebCore::Image> FilterImage::image(const RenderElement* renderElement, co
     auto preferredFilterRenderingModes = protect(renderer->page())->preferredFilterRenderingModes(destinationContext);
     auto sourceImageRect = FloatRect { { }, size };
 
+    auto renderingOptions(Ref { renderer->settings() }->showDebugBorders() ? std::make_optional(FilterRenderingOption::ShowDebugOverlay) : std::nullopt);
     auto cssFilter = CSSFilterRenderer::create(const_cast<RenderElement&>(*renderer), m_filter, {
             .referenceBox = sourceImageRect,
             .filterRegion = sourceImageRect,
             .scale = { 1, 1 },
-        }, preferredFilterRenderingModes, Ref { renderer->settings() }->showDebugBorders(), NullGraphicsContext());
+        }, preferredFilterRenderingModes, renderingOptions, NullGraphicsContext());
     if (!cssFilter)
         return &WebCore::Image::nullImage();
 

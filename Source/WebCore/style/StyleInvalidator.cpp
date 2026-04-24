@@ -32,6 +32,7 @@
 #include "ElementRuleCollector.h"
 #include "HTMLSlotElement.h"
 #include "RuleSetBuilder.h"
+#include "SelectorChecker.h"
 #include "SelectorMatchingState.h"
 #include "ShadowRoot.h"
 #include "StyleResolver.h"
@@ -161,6 +162,7 @@ static void invalidateAssignedElements(HTMLSlotElement& slot)
 
 Invalidator::CheckDescendants Invalidator::invalidateIfNeeded(Element& element, SelectorMatchingState* selectorMatchingState)
 {
+    ++m_elementTraversalCount;
     invalidateInShadowTreeIfNeeded(element);
 
     if (m_ruleInformation.hasSlottedPseudoElementRules) {
@@ -404,7 +406,35 @@ void Invalidator::invalidateStyleWithMatchElement(Element& element, MatchElement
             }
             return;
         }
-        // FIXME: The remaining non-subject :has() cases could be made more precise with two-step invalidation.
+        if (matchElement.relation == Relation::Ancestor && hasRelation == HasRelation::Descendant) {
+            // .foo:has(.changed) .subject — find outermost ancestor matching any scope selector (.foo) to bound traversal.
+            auto scopeElement = [&] -> RefPtr<Element> {
+                Vector<Element*, 16> ancestors;
+                for (RefPtr ancestor = element.parentElement(); ancestor; ancestor = ancestor->parentElement())
+                    ancestors.append(ancestor.get());
+                SelectorChecker selectorChecker(element.document());
+                SelectorChecker::CheckingContext checkingContext(SelectorChecker::Mode::StyleInvalidation);
+                for (RefPtr ancestor : ancestors | std::views::reverse) {
+                    for (auto& ruleSet : m_ruleSets) {
+                        if (!ruleSet.scopeSelector)
+                            return element.document().documentElement();
+                        for (auto& selector : *ruleSet.scopeSelector) {
+                            if (selectorChecker.match(selector, *ancestor, checkingContext))
+                                return ancestor;
+                        }
+                    }
+                }
+                return element.document().documentElement();
+            }();
+
+            if (scopeElement) {
+                SelectorMatchingState selectorMatchingState;
+                invalidateStyleForDescendants(*scopeElement, &selectorMatchingState);
+                return;
+            }
+        }
+        // Remaining non-subject :has() cases fall back to full document traversal.
+
         SelectorMatchingState selectorMatchingState;
         invalidateStyleForDescendants(*element.document().documentElement(), &selectorMatchingState);
         return;
@@ -531,16 +561,18 @@ void Invalidator::invalidateInShadowTreeIfNeeded(Element& element)
 
 void Invalidator::addToMatchElementRuleSets(Invalidator::MatchElementRuleSets& matchElementRuleSets, const InvalidationRuleSet& invalidationRuleSet)
 {
+    auto& scopeSelector = invalidationRuleSet.scopeSelector;
     matchElementRuleSets.ensure(invalidationRuleSet.matchElement, [] {
         return InvalidationRuleSetVector { };
-    }).iterator->value.append({ invalidationRuleSet.ruleSet.copyRef(), IsNegation::No });
+    }).iterator->value.append({ invalidationRuleSet.ruleSet.copyRef(), IsNegation::No, scopeSelector.isEmpty() ? nullptr : &scopeSelector });
 }
 
 void Invalidator::addToMatchElementRuleSetsRespectingNegation(Invalidator::MatchElementRuleSets& matchElementRuleSets, const InvalidationRuleSet& invalidationRuleSet)
 {
+    auto& scopeSelector = invalidationRuleSet.scopeSelector;
     matchElementRuleSets.ensure(invalidationRuleSet.matchElement, [] {
         return InvalidationRuleSetVector { };
-    }).iterator->value.append({ invalidationRuleSet.ruleSet.copyRef(), invalidationRuleSet.isNegation });
+    }).iterator->value.append({ invalidationRuleSet.ruleSet.copyRef(), invalidationRuleSet.isNegation, scopeSelector.isEmpty() ? nullptr : &scopeSelector });
 }
 
 void Invalidator::invalidateWithMatchElementRuleSets(Element& element, const MatchElementRuleSets& matchElementRuleSets)
@@ -550,6 +582,7 @@ void Invalidator::invalidateWithMatchElementRuleSets(Element& element, const Mat
     for (auto& matchElementAndRuleSet : matchElementRuleSets) {
         Invalidator invalidator(matchElementAndRuleSet.value);
         invalidator.invalidateStyleWithMatchElement(element, matchElementAndRuleSet.key.key());
+        element.document().incrementStyleInvalidationTraversalCountForTesting(invalidator.m_elementTraversalCount);
     }
 }
 

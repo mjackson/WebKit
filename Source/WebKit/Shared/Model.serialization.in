@@ -60,10 +60,18 @@ header: <WebKit/ModelTypes.h>
 };
 
 header: <WebKit/ModelTypes.h>
+[AdditionalEncoder=StreamConnectionEncoder, CustomHeader] struct WebModel::TextureLevelInfo {
+    long dataOffset;
+    long byteCountPerRow;
+    long byteCountPerImage;
+};
+
+header: <WebKit/ModelTypes.h>
 [AdditionalEncoder=StreamConnectionEncoder, CustomHeader] struct WebModel::UpdateTextureDescriptor {
     WebModel::ImageAsset imageAsset;
     WebModel::TypedResourceId identifier;
     String hashString;
+    Vector<WebModel::TextureLevelInfo> layout;
 };
 
 header: <WebKit/ModelTypes.h>
@@ -180,7 +188,6 @@ header: <WebKit/ModelTypes.h>
     long width;
     long height;
     long depth;
-    long bytesPerPixel;
     WebCore::WebGPU::TextureViewDimension textureType;
     WebCore::WebGPU::TextureFormat pixelFormat;
     long mipmapLevelCount;
@@ -311,7 +318,7 @@ header: <WebKit/ModelTypes.h>
 [AdditionalEncoder=StreamConnectionEncoder, CustomHeader] struct WebModel::InputOutput {
     WebModel::DataType type;
     String name;
-    std::optional<WebModel::DataType> semanticType;
+    std::optional<String> semanticTypeName;
     std::optional<WebModel::ConstantContainer> defaultValue;
 };
 
@@ -330,12 +337,16 @@ header: <WebKit/ModelTypes.h>
 
 header: <WebKit/ModelTypes.h>
 [AdditionalEncoder=StreamConnectionEncoder, CustomHeader] struct WebModel::MaterialGraph {
+    String graphName;
     Vector<WebModel::Node> nodes;
     Vector<WebModel::Edge> edges;
     WebModel::Node arguments;
     WebModel::Node results;
     Vector<WebModel::InputOutput> inputs;
     Vector<WebModel::InputOutput> outputs;
+    Vector<String> primvarMappingPrimvarNames;
+    Vector<String> primvarMappingTexcoordNames;
+    Vector<String> functionConstantInputNames;
 };
 #endif
 

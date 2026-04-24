@@ -600,7 +600,7 @@ SpeculatedType speculationFromCell(JSCell* cell)
     }
 
     if (cell->isString()) {
-        JSString* string = jsCast<JSString*>(cell);
+        JSString* string = uncheckedDowncast<JSString>(cell);
         if (const StringImpl* impl = string->tryGetValueImpl()) {
             if (!Integrity::isSanePointer(impl)) [[unlikely]] {
                 ASSERT_NOT_REACHED();

@@ -97,6 +97,8 @@ private:
 
     void collectTransceivers(Vector<Ref<RTCRtpTransceiver>>&&) final;
 
+    const HashMap<String, String>& trackIds() const { return m_trackIds; }
+
 private:
     bool isLocalDescriptionSet() const final { return m_isLocalDescriptionSet; }
 
@@ -124,6 +126,7 @@ private:
     Vector<std::unique_ptr<webrtc::IceCandidate>> m_pendingCandidates;
     Vector<Ref<RTCRtpReceiver>> m_pendingReceivers;
 
+    HashMap<String, String> m_trackIds;
     Function<void(String&&)> m_rtcStatsLogCallback;
 };
 

@@ -273,8 +273,6 @@ class Heap;
     v(rawJSONObjectSpace, cellHeapCellType, JSRawJSONObject) \
     v(remoteFunctionSpace, cellHeapCellType, JSRemoteFunction) \
     v(scopedArgumentsTableSpace, destructibleCellHeapCellType, ScopedArgumentsTable) \
-    v(scriptFetchParametersSpace, destructibleCellHeapCellType, JSScriptFetchParameters) \
-    v(scriptFetcherSpace, destructibleCellHeapCellType, JSScriptFetcher) \
     v(setIteratorSpace, cellHeapCellType, JSSetIterator) \
     v(setSpace, cellHeapCellType, JSSet) \
     v(shadowRealmSpace, cellHeapCellType, ShadowRealmObject) \

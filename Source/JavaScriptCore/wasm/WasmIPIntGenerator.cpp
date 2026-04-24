@@ -2573,6 +2573,15 @@ void IPIntGenerator::convertTryToCatch(ControlType& tryBlock, CatchKind catchKin
 
 [[nodiscard]] PartialResult IPIntGenerator::addThrow(unsigned exceptionIndex, ArgumentList&, Stack&)
 {
+    // IPInt reads throw arguments directly from the operand stack, but BBQ copies
+    // them to a separate callee stack area. Track the size BBQ will need.
+    const auto& signature = *m_info.expandedTypeSignature(m_info.typeSignatureIndexFromExceptionIndexSpace(exceptionIndex)).as<FunctionSignature>();
+    unsigned offset = 0;
+    for (unsigned i = 0; i < signature.argumentCount(); ++i)
+        offset += signature.argumentType(i).kind == TypeKind::V128 ? 2 : 1;
+    unsigned throwCalleeStackSize = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(offset * sizeof(uint64_t));
+    m_metadata->m_maxCalleeStackSize = std::max(throwCalleeStackSize, m_metadata->m_maxCalleeStackSize);
+
     IPInt::ThrowMetadata mdThrow {
         .exceptionIndex = safeCast<uint32_t>(exceptionIndex)
     };
@@ -3039,6 +3048,9 @@ void IPIntGenerator::addTailCallCommonData(const FunctionSignature&, const CallI
         changeStackSize(-signature.argumentCount());
         m_metadata->setTailCall(index, m_info.isImportedFunctionFromFunctionIndexSpace(index));
 
+        Checked<uint32_t> tailCallFrameSize = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(callConvention.headerAndArgumentStackSizeInBytes + sizeof(CallerFrameAndPC));
+        m_metadata->m_maxCalleeStackSize = std::max(static_cast<unsigned>(tailCallFrameSize), m_metadata->m_maxCalleeStackSize);
+
         IPInt::TailCallMetadata functionIndexMetadata {
             .length = safeCast<uint8_t>(getCurrentInstructionLength()),
             .callProfileIndex = callProfileIndex,
@@ -3055,6 +3067,7 @@ void IPIntGenerator::addTailCallCommonData(const FunctionSignature&, const CallI
     changeStackSize(signature.returnCount() - signature.argumentCount());
 
     Checked<uint32_t> frameSize = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(callConvention.headerAndArgumentStackSizeInBytes);
+    m_metadata->m_maxCalleeStackSize = std::max(static_cast<unsigned>(frameSize), m_metadata->m_maxCalleeStackSize);
     IPInt::CallMetadata functionIndexMetadata {
         .length = safeCast<uint8_t>(getCurrentInstructionLength()),
         .callProfileIndex = callProfileIndex,
@@ -3082,6 +3095,9 @@ void IPIntGenerator::addTailCallCommonData(const FunctionSignature&, const CallI
         changeStackSize(-signature.argumentCount() - callIndex);
         m_metadata->setTailCallClobbersInstance();
 
+        Checked<uint32_t> tailCallFrameSize = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(callConvention.headerAndArgumentStackSizeInBytes + sizeof(CallerFrameAndPC));
+        m_metadata->m_maxCalleeStackSize = std::max(static_cast<unsigned>(tailCallFrameSize), m_metadata->m_maxCalleeStackSize);
+
         // on a tail call, we need to:
         // roll back to old SP, shift SP to accommodate arguments
         // put arguments into registers / sp (reutilize mINT)
@@ -3104,6 +3120,7 @@ void IPIntGenerator::addTailCallCommonData(const FunctionSignature&, const CallI
     changeStackSize(signature.returnCount() - signature.argumentCount() - callIndex);
 
     Checked<uint32_t> frameSize = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(callConvention.headerAndArgumentStackSizeInBytes);
+    m_metadata->m_maxCalleeStackSize = std::max(static_cast<unsigned>(frameSize), m_metadata->m_maxCalleeStackSize);
     IPInt::CallIndirectMetadata functionIndexMetadata {
         .length = safeCast<uint8_t>(getCurrentInstructionLength()),
         .callProfileIndex = callProfileIndex,
@@ -3133,6 +3150,9 @@ void IPIntGenerator::addTailCallCommonData(const FunctionSignature&, const CallI
         changeStackSize(-signature.argumentCount() - callIndex);
         m_metadata->setTailCallClobbersInstance();
 
+        Checked<uint32_t> tailCallFrameSize = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(callConvention.headerAndArgumentStackSizeInBytes + sizeof(CallerFrameAndPC));
+        m_metadata->m_maxCalleeStackSize = std::max(static_cast<unsigned>(tailCallFrameSize), m_metadata->m_maxCalleeStackSize);
+
         // on a tail call, we need to:
         // roll back to old SP, shift SP to accommodate arguments
         // put arguments into registers / sp (reutilize mINT)
@@ -3153,6 +3173,7 @@ void IPIntGenerator::addTailCallCommonData(const FunctionSignature&, const CallI
     changeStackSize(signature.returnCount() - signature.argumentCount() - callRef);
 
     Checked<uint32_t> frameSize = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(callConvention.headerAndArgumentStackSizeInBytes);
+    m_metadata->m_maxCalleeStackSize = std::max(static_cast<unsigned>(frameSize), m_metadata->m_maxCalleeStackSize);
     IPInt::CallRefMetadata callMetadata {
         .length = safeCast<uint8_t>(getCurrentInstructionLength()),
         .callProfileIndex = callProfileIndex,
@@ -3192,8 +3213,8 @@ std::unique_ptr<FunctionIPIntMetadataGenerator> IPIntGenerator::finalize()
     if (m_metadata->m_numLocals % 2)
         m_metadata->m_argumINTBytecode.append(0);
 
-    m_metadata->m_maxFrameSizeInV128 = roundUpToMultipleOf<2>(m_metadata->m_numLocals) / 2;
-    m_metadata->m_maxFrameSizeInV128 += m_metadata->m_numAlignedRethrowSlots / 2;
+    m_metadata->m_maxFrameSizeInV128 = m_metadata->m_numLocals;
+    m_metadata->m_maxFrameSizeInV128 += m_metadata->m_numAlignedRethrowSlots;
     m_metadata->m_maxFrameSizeInV128 += m_maxStackSize;
     if (m_metadata->m_callTargets.size() < m_parser->numCallProfiles())
         m_metadata->m_callTargets.insertFill(m_metadata->m_callTargets.size(), FunctionSpaceIndex { }, m_parser->numCallProfiles() - m_metadata->m_callTargets.size());

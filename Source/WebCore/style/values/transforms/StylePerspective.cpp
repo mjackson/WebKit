@@ -25,6 +25,7 @@
 #include "config.h"
 #include "StylePerspective.h"
 
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 
 namespace WebCore::Style {
@@ -33,11 +34,18 @@ namespace WebCore::Style {
 
 auto CSSValueConversion<Perspective>::operator()(BuilderState& state, const CSSValue& value) -> Perspective
 {
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
+    }
+
     RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
     if (!primitiveValue)
-        return CSS::Keyword::None { };
-
-    if (primitiveValue->valueID() == CSSValueNone)
         return CSS::Keyword::None { };
 
     auto& conversionData = state.cssToLengthConversionData();

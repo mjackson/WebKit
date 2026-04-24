@@ -30,13 +30,7 @@ class JSTestDefaultToJSONIndirectInheritance : public JSTestDefaultToJSONInherit
 public:
     using Base = JSTestDefaultToJSONInherit;
     using DOMWrapped = TestDefaultToJSONIndirectInheritance;
-    static JSTestDefaultToJSONIndirectInheritance* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestDefaultToJSONIndirectInheritance>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestDefaultToJSONIndirectInheritance* ptr = new (NotNull, JSC::allocateCell<JSTestDefaultToJSONIndirectInheritance>(vm)) JSTestDefaultToJSONIndirectInheritance(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestDefaultToJSONIndirectInheritance* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestDefaultToJSONIndirectInheritance>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

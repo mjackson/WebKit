@@ -299,14 +299,13 @@ RefPtr<StringImpl> StringImpl::create(std::span<const char8_t> codeUnits)
         return create(byteCast<Latin1Character>(codeUnits));
 
     auto inputLength = codeUnits.size();
-    auto input = reinterpret_cast<const char*>(codeUnits.data());
 
     // We are observing some clients changing the string content while converting!
     // This makes it impossible to use utf16_length_from_utf8 & convert_valid_utf8_to_utf16le
     // because of TOCTOU issue. For now, we use pre-allocated Vector (with maximally possible length)
     // and use convert_utf8_to_utf16 instead.
     Vector<char16_t, 1024> buffer(inputLength);
-    size_t written = simdutf::convert_utf8_to_utf16(input, inputLength, buffer.mutableSpan().data());
+    size_t written = simdutf::convert_utf8_to_utf16(codeUnits, buffer.mutableSpan());
     if (!written)
         return nullptr;
     RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(written <= inputLength);
@@ -1590,11 +1589,10 @@ Expected<size_t, UTF8ConversionError> StringImpl::utf8ForCharactersIntoBuffer(st
 {
     ASSERT(bufferVector.size() == span.size() * 3);
 
-    auto bufferData = bufferVector.mutableSpan().data();
 #if CPU(BIG_ENDIAN)
-    auto conversionResult = simdutf::convert_utf16be_to_utf8_with_errors(span.data(), span.size(), reinterpret_cast<char*>(bufferData));
+    auto conversionResult = simdutf::convert_utf16be_to_utf8_with_errors(span, bufferVector.mutableSpan());
 #else
-    auto conversionResult = simdutf::convert_utf16le_to_utf8_with_errors(span.data(), span.size(), reinterpret_cast<char*>(bufferData));
+    auto conversionResult = simdutf::convert_utf16le_to_utf8_with_errors(span, bufferVector.mutableSpan());
 #endif
 
     if (conversionResult.error == simdutf::error_code::SUCCESS)
@@ -1619,18 +1617,18 @@ Expected<size_t, UTF8ConversionError> StringImpl::utf8ForCharactersIntoBuffer(st
 size_t StringImpl::utf8LengthFromUTF16(std::span<const char16_t> characters)
 {
 #if CPU(BIG_ENDIAN)
-    return simdutf::utf8_length_from_utf16be(characters.data(), characters.size());
+    return simdutf::utf8_length_from_utf16be(characters);
 #else
-    return simdutf::utf8_length_from_utf16le(characters.data(), characters.size());
+    return simdutf::utf8_length_from_utf16le(characters);
 #endif
 }
 
 size_t StringImpl::tryConvertUTF16ToUTF8(std::span<const char16_t> source, std::span<char8_t> destination)
 {
 #if CPU(BIG_ENDIAN)
-    auto result = simdutf::convert_utf16be_to_utf8_with_errors(source.data(), source.size(), reinterpret_cast<char*>(destination.data()));
+    auto result = simdutf::convert_utf16be_to_utf8_with_errors(source, destination);
 #else
-    auto result = simdutf::convert_utf16le_to_utf8_with_errors(source.data(), source.size(), reinterpret_cast<char*>(destination.data()));
+    auto result = simdutf::convert_utf16le_to_utf8_with_errors(source, destination);
 #endif
     if (result.error == simdutf::error_code::SUCCESS)
         return result.count;

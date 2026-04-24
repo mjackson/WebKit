@@ -157,13 +157,6 @@ public:
             swap(i, end);
     }
 
-    void expandLastAdvance(float width)
-    {
-        ASSERT(!isEmpty());
-        GlyphBufferAdvance& lastAdvance = m_advances.last();
-        setWidth(lastAdvance, WebCore::width(lastAdvance) + width);
-    }
-
     void expandAdvance(unsigned index, float width)
     {
         ASSERT(index < size());
@@ -187,14 +180,6 @@ public:
         }
         setWidth(m_advances[index], WebCore::width(m_advances[index]) + width);
         setX(m_origins[index], x(m_origins[index]) + width);
-    }
-
-    void expandLastAdvance(GlyphBufferAdvance expansion)
-    {
-        ASSERT(!isEmpty());
-        GlyphBufferAdvance& lastAdvance = m_advances.last();
-        setWidth(lastAdvance, width(lastAdvance) + width(expansion));
-        setHeight(lastAdvance, height(lastAdvance) + height(expansion));
     }
 
     void shrink(unsigned truncationPoint)

@@ -26,6 +26,8 @@
 #include "config.h"
 #include "MegamorphicCache.h"
 
+#include "ProgramExecutable.h"
+
 #include <wtf/TZoneMallocInlines.h>
 
 namespace JSC {

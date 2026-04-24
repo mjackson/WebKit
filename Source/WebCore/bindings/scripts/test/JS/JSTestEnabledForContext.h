@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestEnabledForContext : public JSDOMWrapper<TestEnabledForContext> {
 public:
     using Base = JSDOMWrapper<TestEnabledForContext>;
-    static JSTestEnabledForContext* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestEnabledForContext>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestEnabledForContext* ptr = new (NotNull, JSC::allocateCell<JSTestEnabledForContext>(vm)) JSTestEnabledForContext(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestEnabledForContext* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestEnabledForContext>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

@@ -58,6 +58,7 @@
 #include <JavaScriptCore/MacroAssembler.h>
 #include <JavaScriptCore/Options.h>
 #include <JavaScriptCore/VM.h>
+#include <array>
 #include <limits>
 #include <wtf/Deque.h>
 #include <wtf/HashSet.h>
@@ -190,11 +191,11 @@ void dumpSelectorOperationStats()
 {
     constexpr bool resetStatsOnDump = true;
 
-    static const char* const selectorNames[] = {
+    static constexpr auto selectorNames = std::to_array<const char*>({
 #define SELECTOR_OPERATION_NAME(selector) #selector,
         FOR_EACH_SELECTOR_OPERATION(SELECTOR_OPERATION_NAME)
 #undef SELECTOR_OPERATION_NAME
-    };
+    });
 
     struct Entry {
         const char* name;

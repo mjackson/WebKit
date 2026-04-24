@@ -379,12 +379,13 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTree(IPC::Connection& connectio
     if (!page)
         return;
 
+    if (bundle.editorState) {
+        if (page->updateEditorState(EditorState { *bundle.editorState }, WebPageProxy::ShouldMergeVisualEditorState::Yes))
+            page->dispatchDidUpdateEditorState();
+    }
+
     if (bundle.mainFrameData) {
         m_activityStateChangeID = bundle.mainFrameData->activityStateChangeID;
-
-        // FIXME(site-isolation): Editor state should be updated for subframes.
-        if (bundle.mainFrameData->editorState && page->updateEditorState(EditorState { *bundle.mainFrameData->editorState }, WebPageProxy::ShouldMergeVisualEditorState::Yes))
-            page->dispatchDidUpdateEditorState();
 
         // Process any callbacks for unhiding content early, so that we
         // set the root node during the same CA transaction.

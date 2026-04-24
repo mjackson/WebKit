@@ -43,9 +43,15 @@ struct NavigationRequester {
     Ref<SecurityOrigin> topOrigin;
     PolicyContainer policyContainer;
     std::optional<FrameIdentifier> frameID;
+    std::optional<FrameIdentifier> topFrameID;
     std::optional<PageIdentifier> pageID;
     ScriptExecutionContextIdentifier documentIdentifier;
     SandboxFlags sandboxFlags;
+    SandboxFlags frameSandboxFlags;
+    bool hasLoadedThirdPartyScript { false };
+    bool hasLoadedThirdPartyFrame { false };
+    bool hasHadUserInteraction { false };
+    RefPtr<SecurityOrigin> parentFrameSecurityOrigin;
 };
 
 } // namespace WebCore

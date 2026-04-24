@@ -422,7 +422,7 @@ void AccessibilityScrollView::addChildren()
 
     updateScrollbars();
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     verifyChildrenIndexInParent();
 #endif
 }

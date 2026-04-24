@@ -45,7 +45,7 @@ public:
     virtual ~OpenXRLayer();
 
     virtual std::optional<PlatformXR::FrameData::LayerData> startFrame() = 0;
-    virtual XrCompositionLayerBaseHeader* endFrame(const PlatformXR::DeviceLayer&, XrSpace, const Vector<XrView>&) = 0;
+    virtual Vector<XrCompositionLayerBaseHeader*> endFrame(const PlatformXR::DeviceLayer&, XrSpace, const Vector<XrView>&) = 0;
 
 #if USE(GBM)
     void setGBMDevice(RefPtr<WebCore::GBMDevice>);
@@ -92,11 +92,30 @@ private:
     explicit OpenXRLayerProjection(UniqueRef<OpenXRSwapchain>&&);
 
     std::optional<PlatformXR::FrameData::LayerData> startFrame() final;
-    XrCompositionLayerBaseHeader* endFrame(const PlatformXR::DeviceLayer&, XrSpace, const Vector<XrView>&) final;
+    Vector<XrCompositionLayerBaseHeader*> endFrame(const PlatformXR::DeviceLayer&, XrSpace, const Vector<XrView>&) final;
 
     XrCompositionLayerProjection m_layerProjection;
     Vector<XrCompositionLayerProjectionView> m_projectionViews;
 };
+
+#if ENABLE(WEBXR_LAYERS)
+
+class OpenXRQuadLayer final: public OpenXRLayer  {
+    WTF_MAKE_TZONE_ALLOCATED(OpenXRQuadLayer);
+    WTF_MAKE_NONCOPYABLE(OpenXRQuadLayer);
+public:
+    static std::unique_ptr<OpenXRQuadLayer> create(std::unique_ptr<OpenXRSwapchain>&&, PlatformXR::LayerLayout);
+private:
+    explicit OpenXRQuadLayer(UniqueRef<OpenXRSwapchain>&&, PlatformXR::LayerLayout);
+
+    std::optional<PlatformXR::FrameData::LayerData> startFrame() final;
+    Vector<XrCompositionLayerBaseHeader*> endFrame(const PlatformXR::DeviceLayer&, XrSpace, const Vector<XrView>&) final;
+
+    Vector<XrCompositionLayerQuad> m_layers;
+    PlatformXR::LayerLayout m_layout;
+};
+
+#endif
 
 } // namespace WebKit
 

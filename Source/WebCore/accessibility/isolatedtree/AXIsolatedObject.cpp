@@ -43,6 +43,7 @@
 #include "Logging.h"
 #include "PathUtilities.h"
 #include "RenderObject.h"
+#include "SharedBuffer.h"
 #include "WebAnimation.h"
 #include <wtf/text/MakeString.h>
 
@@ -308,7 +309,7 @@ const AXCoreObject::AccessibilityChildrenVector& AXIsolatedObject::children(bool
         // exist in tree().objectForID(), so we were never able to hydrate it into an object.
         AX_BROKEN_ASSERT(m_unresolvedChildrenIDs.isEmpty());
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
         verifyChildrenIndexInParent();
 #endif
     }
@@ -454,6 +455,24 @@ void AXIsolatedObject::performDismissActionIgnoringResult()
     performFunctionOnMainThread([] (auto* axObject) {
         axObject->performDismissActionIgnoringResult();
     });
+}
+
+FloatSize AXIsolatedObject::imageDataSize() const
+{
+    return Accessibility::retrieveValueFromMainThreadWithTimeoutAndDefault([context = mainThreadContext()] () -> FloatSize {
+        if (RefPtr axObject = context.axObjectOnMainThread())
+            return axObject->imageDataSize();
+        return { };
+    }, Accessibility::GeneralPropertyTimeout, FloatSize());
+}
+
+RefPtr<SharedBuffer> AXIsolatedObject::imageData(const AXImageDataParameters& parameters) const
+{
+    return Accessibility::retrieveValueFromMainThreadWithTimeoutAndDefault([parameters, context = mainThreadContext()] () -> RefPtr<SharedBuffer> {
+        if (RefPtr axObject = context.axObjectOnMainThread())
+            return axObject->imageData(parameters);
+        return nullptr;
+    }, Accessibility::ImageDataTimeout, nullptr);
 }
 
 void AXIsolatedObject::scrollToMakeVisible() const

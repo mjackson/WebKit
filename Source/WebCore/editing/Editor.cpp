@@ -2054,6 +2054,11 @@ void Editor::toggleSmartLists()
 
 #endif // USE(AUTOMATIC_TEXT_REPLACEMENT)
 
+bool Editor::isAlternativeTextUIActive() const
+{
+    return m_alternativeTextController->isAlternativeTextUIActive();
+}
+
 #if PLATFORM(COCOA)
 bool Editor::isSmartListsEnabled()
 {
@@ -4046,7 +4051,6 @@ std::optional<SimpleRange> Editor::findString(const String& target, FindOptions 
     Ref document = this->document();
     std::optional<SimpleRange> resultRange;
     {
-        document->updateLayoutIgnorePendingStylesheets({ LayoutOptions::TreatContentVisibilityAutoAsVisible, LayoutOptions::TreatRevealedWhenFoundAsVisible });
         Style::PostResolutionCallbackDisabler disabler(document);
         VisibleSelection selection = document->selection().selection();
         auto referenceRange = selection.firstRange();
@@ -4165,7 +4169,6 @@ unsigned Editor::countMatchesForText(const String& target, const std::optional<S
         return 0;
 
     Ref document = this->document();
-    document->updateLayoutIgnorePendingStylesheets({ LayoutOptions::TreatContentVisibilityAutoAsVisible, LayoutOptions::TreatRevealedWhenFoundAsVisible });
 
     std::optional<SimpleRange> searchRange;
     if (range) {

@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <JavaScriptCore/Strong.h>
 #include <JavaScriptCore/VM.h>
 
 #if ENABLE(REFTRACKER)

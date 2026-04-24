@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestIndexedSetterThrowingException : public JSDOMWrapper<TestIndexedSetterThrowingException> {
 public:
     using Base = JSDOMWrapper<TestIndexedSetterThrowingException>;
-    static JSTestIndexedSetterThrowingException* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestIndexedSetterThrowingException>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestIndexedSetterThrowingException* ptr = new (NotNull, JSC::allocateCell<JSTestIndexedSetterThrowingException>(vm)) JSTestIndexedSetterThrowingException(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestIndexedSetterThrowingException* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestIndexedSetterThrowingException>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 #include "StyleLengthWrapper.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
@@ -89,71 +90,77 @@ template<LengthWrapperBaseDerived T> struct CSSValueConversion<T> {
     {
         using namespace CSS::Literals;
 
-        auto convertLengthPercentage = [&] -> T {
-            auto conversionData = selectConversionData(state);
+        auto conversionData = selectConversionData(state);
 
-            if (primitiveValue.isLength()) {
-                return T {
-                    typename T::Fixed {
-                        CSS::clampToRange<T::Fixed::range, float>(primitiveValue.resolveAsLength(conversionData), minValueForCssLength, maxValueForCssLength),
-                    },
-                    primitiveValue.primitiveType() == CSSUnitType::CSS_QUIRKY_EM
-                };
-            }
-
-            if (primitiveValue.isPercentage()) {
-                return T {
-                    typename T::Percentage {
-                        CSS::clampToRange<T::Percentage::range, float>(primitiveValue.resolveAsPercentage(conversionData)),
-                    }
-                };
-            }
-
-            if (primitiveValue.isCalculatedPercentageWithLength()) {
-                return T {
-                    typename T::Calc {
-                        protect(primitiveValue.cssCalcValue())->createCalculationValue(conversionData, CSSCalcSymbolTable { })
-                    }
-                };
-            }
-
-            ASSERT_NOT_REACHED();
-            state.setCurrentPropertyInvalidAtComputedValueTime();
-            return 0_css_px;
-        };
-
-        if constexpr (!T::Keywords::count)
-            return convertLengthPercentage();
-        else {
-            auto valueID = primitiveValue.valueID();
-            if (valueID == CSSValueInvalid)
-                return convertLengthPercentage();
-
-            constexpr auto keywordsTuple = T::Keywords::tuple;
-
-            auto result = std::apply([&](const auto& ...keyword) {
-                std::optional<T> result;
-                (processKeyword(keyword, valueID, result) || ...);
-                return result;
-            }, keywordsTuple);
-
-            if (result)
-                return *result;
-
-            state.setCurrentPropertyInvalidAtComputedValueTime();
-            return 0_css_px;
+        if (primitiveValue.isLength()) {
+            return T {
+                typename T::Fixed {
+                    CSS::clampToRange<T::Fixed::range, float>(primitiveValue.resolveAsLength(conversionData), minValueForCssLength, maxValueForCssLength),
+                },
+                primitiveValue.primitiveType() == CSSUnitType::CSS_QUIRKY_EM
+            };
         }
+
+        if (primitiveValue.isPercentage()) {
+            return T {
+                typename T::Percentage {
+                    CSS::clampToRange<T::Percentage::range, float>(primitiveValue.resolveAsPercentage(conversionData)),
+                }
+            };
+        }
+
+        if (primitiveValue.isCalculatedPercentageWithLength()) {
+            return T {
+                typename T::Calc {
+                    protect(primitiveValue.cssCalcValue())->createCalculationValue(conversionData, CSSCalcSymbolTable { })
+                }
+            };
+        }
+
+        ASSERT_NOT_REACHED();
+        state.setCurrentPropertyInvalidAtComputedValueTime();
+        return 0_css_px;
+    }
+
+    auto operator()(BuilderState& state, const CSSKeywordValue& keywordValue) -> T
+    {
+        using namespace CSS::Literals;
+
+        auto valueID = keywordValue.valueID();
+
+        constexpr auto keywordsTuple = T::Keywords::tuple;
+
+        auto result = std::apply([&](const auto& ...keyword) {
+            std::optional<T> result;
+            (processKeyword(keyword, valueID, result) || ...);
+            return result;
+        }, keywordsTuple);
+
+        if (result)
+            return *result;
+
+        state.setCurrentPropertyInvalidAtComputedValueTime();
+        return 0_css_px;
     }
 
     auto operator()(BuilderState& state, const CSSValue& value) -> T
     {
         using namespace CSS::Literals;
 
-        RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-        if (!primitiveValue)
-            return 0_css_px;
+        if constexpr (!T::Keywords::count) {
+            RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
+            if (!primitiveValue)
+                return 0_css_px;
+            return this->operator()(state, *primitiveValue);
+        } else {
+            if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
+                return this->operator()(state, *primitiveValue);
 
-        return this->operator()(state, *primitiveValue);
+            RefPtr keywordValue = requiredDowncast<CSSKeywordValue>(state, value);
+            if (!keywordValue)
+                return 0_css_px;
+            return this->operator()(state, *keywordValue);
+        }
     }
 };
 

@@ -67,10 +67,7 @@ public:
 
     DECLARE_INFO;
 
-    static JSC::Structure* createStructure(JSC::VM& vm, JSC::JSValue prototype)
-    {
-        return JSC::Structure::create(vm, 0, prototype, JSC::TypeInfo(JSC::GlobalObjectType, StructureFlags), info());
-    }
+    static JSC::Structure* createStructure(JSC::VM&, JSC::JSValue prototype);
 
     static bool supportsRichSourceInfo(const JSC::JSGlobalObject*);
     static bool NODELETE shouldInterruptScript(const JSC::JSGlobalObject*);

@@ -302,6 +302,7 @@ void ScrollingTree::traverseScrollingTreeRecursive(ScrollingTreeNode& node, NOES
 
 void ScrollingTree::scrollingTreeNodeDidScroll(ScrollingTreeScrollingNode& node, ScrollingLayerPositionAction)
 {
+    setNeedsApplyLayerPositions();
     if (node.isRootNode())
         setMainFrameScrollPosition(node.currentScrollPosition());
 }
@@ -458,6 +459,7 @@ bool ScrollingTree::commitTreeStateInternal(std::unique_ptr<ScrollingStateTree>&
     }
 
     didCommitTree();
+    setNeedsApplyLayerPositions();
 
     return succeeded;
 }
@@ -586,6 +588,9 @@ void ScrollingTree::removeAllNodes()
 void ScrollingTree::applyLayerPositions()
 {
     Locker locker { m_treeLock };
+
+    if (!m_needsApplyLayerPositions.exchange(false))
+        return;
 
     applyLayerPositionsInternal();
 }

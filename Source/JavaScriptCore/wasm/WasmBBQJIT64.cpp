@@ -2465,10 +2465,11 @@ void BBQJIT::emitRefTestOrCast(CastKind castKind, const TypedExpression& typedVa
 
 [[nodiscard]] PartialResult BBQJIT::addI64Add128(Value lhsLo, Value lhsHi, Value rhsLo, Value rhsHi, Value& resultLo, Value& resultHi)
 {
-    Location lhsLoLocation = loadIfNecessary(lhsLo);
-    Location lhsHiLocation = loadIfNecessary(lhsHi);
-    Location rhsLoLocation = loadIfNecessary(rhsLo);
-    Location rhsHiLocation = loadIfNecessary(rhsHi);
+    std::optional<ScratchScope<1, 0>> lhsLoScratch, lhsHiScratch, rhsLoScratch, rhsHiScratch;
+    Location lhsLoLocation = materializeToGPR(lhsLo, lhsLoScratch);
+    Location lhsHiLocation = materializeToGPR(lhsHi, lhsHiScratch);
+    Location rhsLoLocation = materializeToGPR(rhsLo, rhsLoScratch);
+    Location rhsHiLocation = materializeToGPR(rhsHi, rhsHiScratch);
     consume(lhsLo);
     consume(lhsHi);
     consume(rhsLo);
@@ -2512,10 +2513,11 @@ void BBQJIT::emitRefTestOrCast(CastKind castKind, const TypedExpression& typedVa
 
 [[nodiscard]] PartialResult BBQJIT::addI64Sub128(Value lhsLo, Value lhsHi, Value rhsLo, Value rhsHi, Value& resultLo, Value& resultHi)
 {
-    Location lhsLoLocation = loadIfNecessary(lhsLo);
-    Location lhsHiLocation = loadIfNecessary(lhsHi);
-    Location rhsLoLocation = loadIfNecessary(rhsLo);
-    Location rhsHiLocation = loadIfNecessary(rhsHi);
+    std::optional<ScratchScope<1, 0>> lhsLoScratch, lhsHiScratch, rhsLoScratch, rhsHiScratch;
+    Location lhsLoLocation = materializeToGPR(lhsLo, lhsLoScratch);
+    Location lhsHiLocation = materializeToGPR(lhsHi, lhsHiScratch);
+    Location rhsLoLocation = materializeToGPR(rhsLo, rhsLoScratch);
+    Location rhsHiLocation = materializeToGPR(rhsHi, rhsHiScratch);
     consume(lhsLo);
     consume(lhsHi);
     consume(rhsLo);
@@ -2563,15 +2565,16 @@ void BBQJIT::emitRefTestOrCast(CastKind castKind, const TypedExpression& typedVa
 
 [[nodiscard]] PartialResult BBQJIT::addI64MulWideU(Value lhs, Value rhs, Value& resultLo, Value& resultHi)
 {
-    Location lhsLocation = loadIfNecessary(lhs);
-    Location rhsLocation = loadIfNecessary(rhs);
-    consume(lhs);
-    consume(rhs);
-
 #if CPU(X86_64)
     for (JSC::Reg reg : clobbersForDivX86())
         clobber(reg);
 #endif
+
+    std::optional<ScratchScope<1, 0>> lhsScratch, rhsScratch;
+    Location lhsLocation = materializeToGPR(lhs, lhsScratch);
+    Location rhsLocation = materializeToGPR(rhs, rhsScratch);
+    consume(lhs);
+    consume(rhs);
 
     resultLo = topValue(TypeKind::I64);
     resultHi = topValue(TypeKind::I64, 1);
@@ -2582,6 +2585,8 @@ void BBQJIT::emitRefTestOrCast(CastKind castKind, const TypedExpression& typedVa
 
 #if CPU(X86_64)
     // x86 mul: rax * src -> rdx:rax
+    if (rhsLocation.asGPR() == X86Registers::eax)
+        std::swap(lhsLocation, rhsLocation);
     m_jit.move(lhsLocation.asGPR(), X86Registers::eax);
     m_jit.x86UMulHigh64(rhsLocation.asGPR(), X86Registers::eax, X86Registers::edx);
     if (resultLoLocation.asGPR() != X86Registers::edx) {
@@ -2611,15 +2616,16 @@ void BBQJIT::emitRefTestOrCast(CastKind castKind, const TypedExpression& typedVa
 
 [[nodiscard]] PartialResult BBQJIT::addI64MulWideS(Value lhs, Value rhs, Value& resultLo, Value& resultHi)
 {
-    Location lhsLocation = loadIfNecessary(lhs);
-    Location rhsLocation = loadIfNecessary(rhs);
-    consume(lhs);
-    consume(rhs);
-
 #if CPU(X86_64)
     for (JSC::Reg reg : clobbersForDivX86())
         clobber(reg);
 #endif
+
+    std::optional<ScratchScope<1, 0>> lhsScratch, rhsScratch;
+    Location lhsLocation = materializeToGPR(lhs, lhsScratch);
+    Location rhsLocation = materializeToGPR(rhs, rhsScratch);
+    consume(lhs);
+    consume(rhs);
 
     resultLo = topValue(TypeKind::I64);
     resultHi = topValue(TypeKind::I64, 1);
@@ -2630,6 +2636,8 @@ void BBQJIT::emitRefTestOrCast(CastKind castKind, const TypedExpression& typedVa
 
 #if CPU(X86_64)
     // x86 imul: rax * src -> rdx:rax (signed)
+    if (rhsLocation.asGPR() == X86Registers::eax)
+        std::swap(lhsLocation, rhsLocation);
     m_jit.move(lhsLocation.asGPR(), X86Registers::eax);
     m_jit.x86MulHigh64(rhsLocation.asGPR(), X86Registers::eax, X86Registers::edx);
     if (resultLoLocation.asGPR() != X86Registers::edx) {
@@ -3178,13 +3186,7 @@ PartialResult BBQJIT::addI32WrapI64(Value operand, Value& result)
 
 void BBQJIT::emitCatchPrologue()
 {
-    m_frameSizeLabels.append(m_jit.moveWithPatch(TrustedImmPtr(nullptr), GPRInfo::nonPreservedNonArgumentGPR0));
-#if CPU(ARM64)
-    m_jit.subPtr(GPRInfo::callFrameRegister, GPRInfo::nonPreservedNonArgumentGPR0, MacroAssembler::stackPointerRegister);
-#else
-    m_jit.subPtr(GPRInfo::callFrameRegister, GPRInfo::nonPreservedNonArgumentGPR0, GPRInfo::nonPreservedNonArgumentGPR0);
-    m_jit.move(GPRInfo::nonPreservedNonArgumentGPR0, CCallHelpers::stackPointerRegister);
-#endif
+    m_jit.subPtr(GPRInfo::callFrameRegister, TrustedImm32(m_frameSize), MacroAssembler::stackPointerRegister);
     if (m_info.memoryCount())
         loadWebAssemblyGlobalState(wasmBaseMemoryPointer, wasmBoundsCheckingSizeRegister);
     static_assert(noOverlap(GPRInfo::nonPreservedNonArgumentGPR0, GPRInfo::returnValueGPR, GPRInfo::returnValueGPR2));
@@ -3521,7 +3523,7 @@ void BBQJIT::restoreWebAssemblyGlobalState()
 
 void BBQJIT::restoreWebAssemblyGlobalStateAfterWasmCall()
 {
-    if (m_info.memoryCount() && (m_mode == MemoryMode::Signaling || m_info.theOnlyMemory().isShared())) {
+    if (m_info.memoryCount() && (m_mode == MemoryMode::Signaling || m_info.memory(0).isShared())) {
         // If memory is signaling or shared, then memoryBase and memorySize will not change. This means that only thing we should check here is GPRInfo::wasmContextInstancePointer is the same or not.
         // Let's consider the case, this was calling a JS function. So it can grow / modify memory whatever. But memoryBase and memorySize are kept the same in this case.
         m_jit.loadPtr(Address(GPRInfo::callFrameRegister, CallFrameSlot::codeBlock * sizeof(Register)), wasmScratchGPR);
@@ -4671,6 +4673,18 @@ void BBQJIT::emitVectorMul(SIMDInfo info, Location left, Location right, Locatio
         m_jit.vectorMin(info, leftLocation.asFPR(), rightLocation.asFPR(), resultLocation.asFPR());
 #endif
         return { };
+    case SIMDLaneOperation::RelaxedMin:
+        m_jit.vectorRelaxedMin(info, leftLocation.asFPR(), rightLocation.asFPR(), resultLocation.asFPR());
+        return { };
+    case SIMDLaneOperation::RelaxedMax:
+        m_jit.vectorRelaxedMax(info, leftLocation.asFPR(), rightLocation.asFPR(), resultLocation.asFPR());
+        return { };
+    case SIMDLaneOperation::RelaxedQ15Mulr:
+        m_jit.vectorRelaxedQ15Mulr(leftLocation.asFPR(), rightLocation.asFPR(), resultLocation.asFPR());
+        return { };
+    case SIMDLaneOperation::RelaxedDotI8x16I7x16:
+        m_jit.vectorRelaxedDotI8x16I7x16(leftLocation.asFPR(), rightLocation.asFPR(), resultLocation.asFPR(), wasmScratchFPR);
+        return { };
     default:
         RELEASE_ASSERT_NOT_REACHED();
         return { };
@@ -4705,6 +4719,9 @@ void BBQJIT::emitVectorMul(SIMDInfo info, Location left, Location right, Locatio
 #else
         m_jit.vectorFusedNegMulAdd(info, mul1Location.asFPR(), mul2Location.asFPR(), addendLocation.asFPR(), resultLocation.asFPR(), wasmScratchFPR);
 #endif
+    } else if (op == SIMDLaneOperation::RelaxedDotI8x16I7x16Add) {
+        ScratchScope<0, 1> scratches(*this, mul1Location, mul2Location, addendLocation, resultLocation);
+        m_jit.vectorRelaxedDotI8x16I7x16Add(mul1Location.asFPR(), mul2Location.asFPR(), addendLocation.asFPR(), resultLocation.asFPR(), wasmScratchFPR, scratches.fpr(0));
     } else
         RELEASE_ASSERT_NOT_REACHED();
     return { };
@@ -5122,7 +5139,8 @@ void BBQJIT::emitMove(StorageType type, Value src, Address dst)
 
     CallInformation callInfo = wasmCallingConvention().callInformationFor(signature, CallRole::Caller);
     Checked<int32_t> calleeStackSize = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(callInfo.headerAndArgumentStackSizeInBytes);
-    m_maxCalleeStackSize = std::max<int>(calleeStackSize, m_maxCalleeStackSize);
+    m_maxCalleeStackSizeForValidation = std::max<uint32_t>(calleeStackSize, m_maxCalleeStackSizeForValidation);
+    ASSERT(static_cast<uint32_t>(alignedFrameSize(m_maxCalleeStackSizeForValidation + m_frameSizeForValidation)) <= m_frameSize);
 
     GPRReg importableFunction = GPRInfo::nonPreservedNonArgumentGPR1;
     {

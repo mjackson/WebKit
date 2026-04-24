@@ -51,7 +51,7 @@ Ref<WorkerModuleScriptLoader> WorkerModuleScriptLoader::create(ModuleScriptLoade
 
 WorkerModuleScriptLoader::WorkerModuleScriptLoader(ModuleScriptLoaderClient& client, DeferredPromise& promise, WorkerScriptFetcher& scriptFetcher, RefPtr<JSC::ScriptFetchParameters>&& parameters)
     : ModuleScriptLoader(client, promise, scriptFetcher, WTF::move(parameters))
-    , m_scriptLoader(WorkerScriptLoader::create(WorkerScriptLoader::AlwaysUseUTF8::Yes))
+    , m_scriptLoader(WorkerScriptLoader::create())
 {
 }
 

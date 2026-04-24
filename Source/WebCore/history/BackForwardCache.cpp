@@ -530,38 +530,40 @@ std::unique_ptr<CachedPage> BackForwardCache::trySuspendPage(Page& page, ForceSu
     return makeUnique<CachedPage>(page);
 }
 
-bool BackForwardCache::addIfCacheable(HistoryItem& item, Page* page)
+bool BackForwardCache::addIfCacheable(BackForwardFrameItemIdentifier identifier, Page& page)
 {
-    if (item.isInBackForwardCache())
+    if (isInBackForwardCache(identifier))
         return false;
 
-    if (!page)
-        return false;
-
-    // FIXME (rdar://173799983): Remove this workaround once the UIProcess has a
-    // mechanism to detach RemotePageProxy objects from the BrowsingContextGroup
-    // during in-process (same-origin) navigations. Cross-process suspension
-    // (suspendPage with ForceSuspension::Yes) already handles this via
-    // BrowsingContextGroup exchange in suspendCurrentPageIfPossible.
-    if (page->settings().siteIsolationEnabled())
-        return false;
-
-    auto cachedPage = trySuspendPage(*page, ForceSuspension::No);
+    auto cachedPage = trySuspendPage(page, ForceSuspension::No);
     if (!cachedPage)
         return false;
 
     {
-        // Make sure we don't fire any JS events in this scope.
         ScriptDisallowedScope::InMainThread scriptDisallowedScope;
-
-        m_cachedPageMap.set(item.frameItemID(), makeUniqueRefFromNonNullUniquePtr(WTF::move(cachedPage)));
-        m_items.add(item.frameItemID());
-        item.notifyChanged();
+        m_cachedPageMap.set(identifier, makeUniqueRefFromNonNullUniquePtr(WTF::move(cachedPage)));
+        m_items.add(identifier);
     }
     prune(PruningReason::ReachedMaxSize);
+    RELEASE_LOG(BackForwardCache, "BackForwardCache::addIfCacheable frameItemID: %s, size: %u / %u", identifier.toString().utf8().data(), pageCount(), maxSize());
+    return true;
+}
 
-    RELEASE_LOG(BackForwardCache, "BackForwardCache::addIfCacheable item: %s, size: %u / %u", item.itemID().toString().utf8().data(), pageCount(), maxSize());
+bool BackForwardCache::addIfCacheable(HistoryItem& item, Page* page)
+{
+    if (!page)
+        return false;
 
+    // Same-site BFCache is not yet supported under Site Isolation — same-origin
+    // navigations can leave stale RemotePageProxy objects in the BCG.
+    // Cross-site (multi-process) BFCache uses the other addIfCacheable overload
+    // which is only called when both SI and multiProcessBackForwardCache are enabled.
+    if (page->settings().siteIsolationEnabled())
+        return false;
+
+    if (!addIfCacheable(item.frameItemID(), *page))
+        return false;
+    item.notifyChanged();
     return true;
 }
 

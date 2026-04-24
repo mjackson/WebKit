@@ -109,16 +109,26 @@ void XRWebGLLayerBacking::endFrame(PlatformXR::DeviceLayer& layerData)
 
 RefPtr<WebGLOpaqueTexture> XRWebGLLayerBacking::currentColorTexture() const
 {
-    return WebGLOpaqueTexture::create(*m_colorSwapchain->context(), m_colorSwapchain->currentTexture());
+    if (auto texture = m_colorSwapchain->currentTexture())
+        return WebGLOpaqueTexture::create(*m_colorSwapchain->context(), texture);
+    return nullptr;
 }
 
 RefPtr<WebGLOpaqueTexture> XRWebGLLayerBacking::currentDepthTexture() const
 {
-    return WebGLOpaqueTexture::create(*m_depthSwapchain->context(), m_depthSwapchain->currentTexture());
+    if (auto texture = m_depthSwapchain->currentTexture())
+        return WebGLOpaqueTexture::create(*m_depthSwapchain->context(), texture);
+    return nullptr;
 }
 
+
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/modules/xr/xr_webgl_binding.cc
-XRWebGLLayerBacking::SwapchainFormats XRWebGLLayerBacking::swapchainFormatsForLayerFormat(GCGLenum layerFormat)
+struct SwapchainFormats {
+    GCGLenum format { 0 };
+    GCGLenum internalFormat { 0 };
+};
+
+static SwapchainFormats swapchainFormatsForLayerFormat(GCGLenum layerFormat)
 {
     switch (layerFormat) {
     case GL::RGBA:
@@ -151,15 +161,38 @@ XRWebGLLayerBacking::SwapchainFormats XRWebGLLayerBacking::swapchainFormatsForLa
     };
 }
 
-bool XRWebGLLayerBacking::formatHasStencil(GCGLenum layerFormat)
+std::unique_ptr<WebXRWebGLSwapchain> XRWebGLLayerBacking::createDepthSwapchain(WebGLRenderingContextBase& context, GCGLenum depthFormat, IntSize size, bool clearOnAccess, size_t imageCount)
 {
-    switch (layerFormat) {
-    case GL::DEPTH_STENCIL:
-    case GL::DEPTH24_STENCIL8:
-        return true;
-    default:
-        return false;
+    ASSERT(depthFormat);
+
+    auto formatHasStencil = [](GCGLenum format) {
+        switch (format) {
+        case GL::DEPTH_STENCIL:
+        case GL::DEPTH24_STENCIL8:
+            return true;
+        default:
+            return false;
+        };
     };
+
+    auto formats = swapchainFormatsForLayerFormat(depthFormat);
+    WebXRSwapchain::SwapchainTargets targets = { WebXRSwapchain::SwapchainTargetFlags::Depth };
+    if (formatHasStencil(depthFormat))
+        targets.add(WebXRSwapchain::SwapchainTargetFlags::Stencil);
+    WebXRWebGLStaticImageSwapchain::StaticImageAttributes attributes = {
+        .format = formats.format,
+        .internalFormat = formats.internalFormat,
+        .size = size,
+        .clearOnAccess = clearOnAccess,
+        .targets = targets,
+        .imageCount = imageCount,
+    };
+    return WebXRWebGLStaticImageSwapchain::create(context, attributes);
+}
+
+bool XRWebGLLayerBacking::allColorTexturesAreBound() const
+{
+    return m_colorSwapchain->allTexturesAreBound();
 }
 
 } // namespace WebCore

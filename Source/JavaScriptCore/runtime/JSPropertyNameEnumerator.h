@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "ExceptionHelpers.h"
 #include "JSCast.h"
 #include "Operations.h"
 #include "PropertyNameArray.h"

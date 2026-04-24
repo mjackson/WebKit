@@ -60,10 +60,9 @@ enum class CertificateInfoPolicy : uint8_t;
 class WorkerScriptLoader final : public RefCounted<WorkerScriptLoader>, public ThreadableLoaderClient {
     WTF_MAKE_TZONE_ALLOCATED(WorkerScriptLoader);
 public:
-    enum class AlwaysUseUTF8 : bool { No, Yes };
-    static Ref<WorkerScriptLoader> create(AlwaysUseUTF8 alwaysUseUTF8 = AlwaysUseUTF8::No)
+    static Ref<WorkerScriptLoader> create()
     {
-        return adoptRef(*new WorkerScriptLoader(alwaysUseUTF8));
+        return adoptRef(*new WorkerScriptLoader);
     }
 
     enum class Source : uint8_t { ClassicWorkerScript, ClassicWorkerImport, ModuleScript };
@@ -135,7 +134,7 @@ private:
     friend class RefCounted<WorkerScriptLoader>;
     friend struct std::default_delete<WorkerScriptLoader>;
 
-    explicit WorkerScriptLoader(AlwaysUseUTF8);
+    WorkerScriptLoader();
     ~WorkerScriptLoader();
 
     std::unique_ptr<ResourceRequest> createResourceRequest(const String& initiatorIdentifier);
@@ -155,7 +154,6 @@ private:
     String m_referrerPolicy;
     CrossOriginEmbedderPolicy m_crossOriginEmbedderPolicy;
     Markable<ResourceLoaderIdentifier> m_identifier;
-    bool m_alwaysUseUTF8 { false };
     bool m_failed { false };
     bool m_finishing { false };
     bool m_isRedirected { false };

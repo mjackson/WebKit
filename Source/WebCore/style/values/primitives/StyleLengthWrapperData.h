@@ -68,14 +68,6 @@ struct LengthWrapperData {
     float value() const { ASSERT(m_kind != LengthWrapperDataKind::Calculation); return m_floatValue; }
     Calculation::Value& calculationValue() const;
 
-    struct IPCData {
-        float value;
-        uint8_t opaqueType;
-        bool hasQuirk;
-    };
-    WEBCORE_EXPORT LengthWrapperData(IPCData&&);
-    WEBCORE_EXPORT IPCData NODELETE ipcData() const;
-
     bool isKnownZero(LengthWrapperDataEvaluationKind) const;
     bool isKnownPositive(LengthWrapperDataEvaluationKind) const;
     bool isKnownNegative(LengthWrapperDataEvaluationKind) const;

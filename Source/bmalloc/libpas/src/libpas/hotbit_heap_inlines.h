@@ -29,6 +29,13 @@
 
 #if PAS_ENABLE_HOTBIT
 
+#include "hotbit_heap.h"
+#include "hotbit_heap_config.h"
+#include "hotbit_heap_innards.h"
+#include "pas_deallocate.h"
+#include "pas_try_allocate_intrinsic.h"
+#include "pas_try_reallocate.h"
+
 PAS_BEGIN_EXTERN_C;
 
 PAS_CREATE_TRY_ALLOCATE_INTRINSIC(

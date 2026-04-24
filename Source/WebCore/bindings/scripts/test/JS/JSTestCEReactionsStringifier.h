@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestCEReactionsStringifier : public JSDOMWrapper<TestCEReactionsStringifier> {
 public:
     using Base = JSDOMWrapper<TestCEReactionsStringifier>;
-    static JSTestCEReactionsStringifier* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestCEReactionsStringifier>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestCEReactionsStringifier* ptr = new (NotNull, JSC::allocateCell<JSTestCEReactionsStringifier>(vm)) JSTestCEReactionsStringifier(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestCEReactionsStringifier* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestCEReactionsStringifier>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

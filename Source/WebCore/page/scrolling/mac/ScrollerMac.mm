@@ -203,7 +203,7 @@ enum class FeatureToAnimate {
 {
     // If we are currently animating,  stop
     if (scrollbarPartAnimation) {
-        [scrollbarPartAnimation stopAnimation];
+        [scrollbarPartAnimation invalidate];
         scrollbarPartAnimation = nil;
     }
 

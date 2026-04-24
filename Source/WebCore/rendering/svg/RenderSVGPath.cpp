@@ -240,7 +240,7 @@ void RenderSVGPath::drawMarkers(PaintInfo& paintInfo)
 
             context.setLineDash(DashArray(), 0);
             auto contentTransform = marker->markerTransformation(markerPosition.origin, markerPosition.angle, strokeWidth);
-            protect(marker->layer())->paintSVGResourceLayer(context, contentTransform);
+            protect(marker->layer())->paintResourceLayerForSVG(context, contentTransform);
         }
     }
 }

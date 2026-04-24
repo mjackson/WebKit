@@ -27,11 +27,11 @@
 #include "StyleCursor.h"
 
 #include "CSSCursorImageValue.h"
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSValueList.h"
 #include "StyleBuilderChecking.h"
 #include "StyleCursorImage.h"
 #include "StyleInvalidImage.h"
+#include "StyleKeyword+CSSValueConversion.h"
 
 namespace WebCore {
 namespace Style {
@@ -40,8 +40,8 @@ namespace Style {
 
 auto CSSValueConversion<Cursor>::operator()(BuilderState& state, const CSSValue& value) -> Cursor
 {
-    if (is<CSSPrimitiveValue>(value))
-        return Cursor { fromCSSValue<CursorType>(value) };
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value))
+        return toStyleFromCSSValue<CursorType>(state, *keywordValue);
 
     auto list = requiredListDowncast<CSSValueList, CSSValue, 2>(state, value);
     if (!list)
@@ -65,7 +65,7 @@ auto CSSValueConversion<Cursor>::operator()(BuilderState& state, const CSSValue&
         return CursorImageAndHotSpot { styleImage.releaseNonNull(), hotSpot };
     });
 
-    return { WTF::move(images), fromCSSValue<CursorType>(list->item(list->size() - 1)) };
+    return { WTF::move(images), toStyleFromCSSValue<CursorType>(state, list->item(list->size() - 1)) };
 }
 
 Ref<CSSValue> CSSValueCreation<CursorImageAndHotSpot>::operator()(CSSValuePool&, const RenderStyle& style, const CursorImageAndHotSpot& value)

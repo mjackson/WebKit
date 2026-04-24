@@ -24,6 +24,7 @@
 
 #include "CPU.h"
 #include "CalleeBits.h"
+#include "JSCJSValue.h"
 #include "MacroAssemblerCodeRef.h"
 #include "Register.h"
 #include "StackVisitor.h"
@@ -287,7 +288,7 @@ using JSInstruction = BaseInstruction<JSOpcodeTraits>;
         static constexpr int argumentOffset(int argument) { return (CallFrameSlot::firstArgument + argument); }
         static constexpr int argumentOffsetIncludingThis(int argument) { return (CallFrameSlot::thisArgument + argument); }
 
-        std::span<JSValue> argumentsSpan() { return { addressOfArgumentsStart(), argumentCount() }; }
+        inline std::span<JSValue> argumentsSpan(); // Defined in CallFrameInlines.h
 
         // In the following (argument() and setArgument()), the 'argument'
         // parameter is the index of the arguments of the target function of
@@ -298,39 +299,19 @@ using JSInstruction = BaseInstruction<JSOpcodeTraits>;
         // arguments(0) will not fetch the 'this' value. To get/set 'this',
         // use thisValue() and setThisValue() below.
 
-        JSValue* addressOfArgumentsStart() const { return std::bit_cast<JSValue*>(this + argumentOffset(0)); }
-        JSValue argument(size_t argument) const
-        {
-            if (argument >= argumentCount())
-                 return jsUndefined();
-            return getArgumentUnsafe(argument);
-        }
-        JSValue uncheckedArgument(size_t argument) const
-        {
-            ASSERT(argument < argumentCount());
-            return getArgumentUnsafe(argument);
-        }
-        void setArgument(size_t argument, JSValue value)
-        {
-            this[argumentOffset(argument)] = value;
-        }
+        inline JSValue* addressOfArgumentsStart() const; // Defined in CallFrameInlines.h
+        inline JSValue argument(size_t argument) const; // Defined in CallFrameInlines.h
+        inline JSValue uncheckedArgument(size_t argument) const; // Defined in CallFrameInlines.h
+        inline void setArgument(size_t argument, JSValue); // Defined in CallFrameInlines.h
 
-        JSValue getArgumentUnsafe(size_t argIndex) const
-        {
-            // User beware! This method does not verify that there is a valid
-            // argument at the specified argIndex. This is used for debugging
-            // and verification code only. The caller is expected to know what
-            // he/she is doing when calling this method.
-            return this[argumentOffset(argIndex)].jsValue();
-        }
-
+        inline JSValue getArgumentUnsafe(size_t argIndex) const; // Defined in CallFrameInlines.h
         static int thisArgumentOffset() { return argumentOffsetIncludingThis(0); }
-        JSValue thisValue() const { return this[thisArgumentOffset()].jsValue(); }
-        void setThisValue(JSValue value) { this[thisArgumentOffset()] = value; }
+        inline JSValue thisValue() const; // Defined in CallFrameInlines.h
+        inline void setThisValue(JSValue); // Defined in CallFrameInlines.h
 
         // Under the constructor implemented in C++, thisValue holds the newTarget instead of the automatically constructed value.
         // The result of this function is only effective under the "construct" context.
-        JSValue newTarget() const { return thisValue(); }
+        inline JSValue newTarget() const; // Defined in CallFrameInlines.h
 
         JSValue argumentAfterCapture(size_t argument);
 

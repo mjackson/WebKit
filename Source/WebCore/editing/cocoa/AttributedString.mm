@@ -737,8 +737,10 @@ static std::optional<AttributedString::AttributeValue> extractValue(id value, Ta
         textAttachment.ignoresOrientation = [value ignoresOrientation];
 #endif
         if (auto fileWrapper = retainPtr([value fileWrapper])) {
-            if (auto data = bridge_cast(retainPtr([fileWrapper regularFileContents])))
-                textAttachment.data = data;
+            if ([fileWrapper isRegularFile]) {
+                if (auto data = bridge_cast(retainPtr([fileWrapper regularFileContents])))
+                    textAttachment.data = data;
+            }
             if (auto preferredFilename = retainPtr([fileWrapper preferredFilename]))
                 textAttachment.preferredFilename = preferredFilename.get();
         }

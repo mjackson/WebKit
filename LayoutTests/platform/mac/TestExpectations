@@ -53,6 +53,8 @@ scrollbars/custom-scrollbar-scroller-style-change.html [ Pass ]
 
 http/tests/gzip-content-encoding [ Pass ]
 
+http/tests/security/registerBlobURL.html [ Pass ]
+
 http/tests/xmlhttprequest/gzip-content-type-no-content-encoding.html [ Pass ]
 
 fast/text/mac [ Pass ]
@@ -570,8 +572,6 @@ webkit.org/b/132385 compositing/repaint/repaint-on-layer-grouping-change.html [ 
 fast/dom/rtl-scroll-to-leftmost-and-resize.html [ Failure ]
 
 webkit.org/b/131477 fast/repaint/obscured-background-no-repaint.html [ Pass Failure ]
-
-webkit.org/b/116259 http/tests/cache/willsendrequest-returns-null-for-memory-cache-load.html [ Pass Failure ]
 
 # --- Start media tests ---
 ## --- Start media wontfix tests ---
@@ -1498,8 +1498,6 @@ webkit.org/b/210517 storage/indexeddb/result-request-cycle.html [ Pass Failure ]
 
 webkit.org/b/211856 media/video-poster-set-after-playback.html [ Pass Failure ]
 
-http/tests/frame-throttling/raf-throttle-in-cross-origin-subframe.html [ Pass Failure ]
-
 webkit.org/b/212215 media/video-isplayingtoautomotiveheadunit.html [ Pass Failure ]
 
 webkit.org/b/212219 media/track/track-cue-missing.html [ Pass Failure ]
@@ -2260,7 +2258,7 @@ webkit.org/b/288133 imported/w3c/web-platform-tests/scroll-to-text-fragment/find
 
 webkit.org/b/287990 [ Sonoma+ ] fast/canvas/webgl/drawingbuffer-test.html [ Pass Failure ]
 
-webkit.org/b/260320 imported/w3c/web-platform-tests/css/selectors/invalidation/nth-child-in-shadow-root.html [ ImageOnlyFailure ]
+webkit.org/b/260320 imported/w3c/web-platform-tests/css/selectors/invalidation/nth-child-in-shadow-root.html [ Pass ImageOnlyFailure ]
 
 webkit.org/b/289275 media/media-garbage-collection.html [ Pass Failure Timeout ]
 

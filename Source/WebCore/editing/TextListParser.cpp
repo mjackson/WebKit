@@ -98,7 +98,7 @@ std::optional<TextList> tryConsumeUnorderedDiscTextList(StringParsingBuffer<Char
 template<typename Character>
 std::optional<TextList> tryConsumeUnorderedDashTextList(StringParsingBuffer<Character>& input)
 {
-    static constexpr std::array marker { WTF::Unicode::emDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace };
+    static constexpr std::array marker { WTF::Unicode::enDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace };
 
     if (WTF::skipExactly(input, WTF::Unicode::hyphenMinus)) {
         if (input.atEnd())
@@ -214,7 +214,7 @@ std::optional<TextList> parseTextList(StringView input)
     // The input is parsed to a TextList using these rules:
     //
     //  <U+002A | U+2022>EOF                        |= <U+2022>          (unordered, disc)
-    //  <U+2010>EOF                                 |= <U+2014  >        (unordered, dash)
+    //  <U+2010>EOF                                 |= <U+2013  >        (unordered, dash)
     //  <ordinal><U+002E | U+0029>EOF , ordinal > 0 |= <ordinal><U+002E> (ordered, start=ordinal)
     //  otherwise                                   |= invalid
 

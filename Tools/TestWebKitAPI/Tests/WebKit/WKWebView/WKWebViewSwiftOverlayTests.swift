@@ -21,9 +21,6 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-// FIXME: Remove !SWIFT_WEBKIT_TOOLCHAIN once Swift toolchain is fixed (see webkit.org/b/307344).
-#if canImport(Testing) && !SWIFT_WEBKIT_TOOLCHAIN
-
 import Testing
 import WebKit
 
@@ -40,10 +37,8 @@ struct WKWebViewSwiftOverlayTests {
     @Test(.bug("https://bugs.webkit.org/show_bug.cgi?id=282918"))
     func evaluateJavaScriptWithNilResponse() async throws {
         let webView = WKWebView()
-        
+
         let response: Any? = try await webView.evaluateJavaScript("console.log('hello')")
         #expect(response == nil)
     }
 }
-
-#endif

@@ -27,6 +27,7 @@
 #define APICallbackFunction_h
 
 #include "APICast.h"
+#include "CommonIdentifiers.h"
 #include "Error.h"
 #include "Integrity.h"
 #include "JSCallbackConstructor.h"
@@ -47,7 +48,7 @@ EncodedJSValue APICallbackFunction::callImpl(JSGlobalObject* globalObject, CallF
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSContextRef execRef = toRef(globalObject);
     JSObjectRef functionRef = toRef(callFrame->jsCallee());
-    JSObjectRef thisObjRef = toRef(jsCast<JSObject*>(callFrame->thisValue().toThis(globalObject, ECMAMode::sloppy())));
+    JSObjectRef thisObjRef = toRef(uncheckedDowncast<JSObject>(callFrame->thisValue().toThis(globalObject, ECMAMode::sloppy())));
 
 #if CPU(ADDRESS64)
     auto argumentsSpan = Integrity::audit(callFrame->argumentsSpan());
@@ -66,7 +67,7 @@ EncodedJSValue APICallbackFunction::callImpl(JSGlobalObject* globalObject, CallF
     JSValueRef result;
     {
         JSLock::DropAllLocks dropAllLocks(globalObject);
-        result = jsCast<T*>(toJS(functionRef))->functionCallback()(execRef, functionRef, thisObjRef, argumentsSpan.size(), argumentsSpanData, &exception);
+        result = uncheckedDowncast<T>(toJS(functionRef))->functionCallback()(execRef, functionRef, thisObjRef, argumentsSpan.size(), argumentsSpanData, &exception);
     }
     if (exception) {
         throwException(globalObject, scope, toJS(globalObject, exception));
@@ -86,7 +87,7 @@ EncodedJSValue APICallbackFunction::constructImpl(JSGlobalObject* globalObject, 
     VM& vm = getVM(globalObject);
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSValue callee = callFrame->jsCallee();
-    T* constructor = jsCast<T*>(callFrame->jsCallee());
+    T* constructor = uncheckedDowncast<T>(callFrame->jsCallee());
     JSContextRef ctx = toRef(globalObject);
     JSObjectRef constructorRef = toRef(constructor);
 
@@ -139,7 +140,7 @@ EncodedJSValue APICallbackFunction::constructImpl(JSGlobalObject* globalObject, 
         return JSValue::encode(newObject);
     }
     
-    return JSValue::encode(toJS(JSObjectMake(ctx, jsCast<JSCallbackConstructor*>(callee)->classRef(), nullptr)));
+    return JSValue::encode(toJS(JSObjectMake(ctx, uncheckedDowncast<JSCallbackConstructor>(callee)->classRef(), nullptr)));
 }
 
 } // namespace JSC

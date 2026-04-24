@@ -9250,7 +9250,7 @@
 		41BDE4512E01427700142A13 /* time_zone_libc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = time_zone_libc.h; sourceTree = "<group>"; };
 		41BDE4522E01427700142A13 /* time_zone_libc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = time_zone_libc.cc; sourceTree = "<group>"; };
 		41BDE4552E0142AD00142A13 /* symbolize.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = symbolize.cc; sourceTree = "<group>"; };
-		41BDE4562E0142AD00142A13 /* symbolize_darwin.inc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.pascal; path = symbolize_darwin.inc; sourceTree = "<group>"; };
+		41BDE4562E0142AD00142A13 /* symbolize_darwin.inc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = symbolize_darwin.inc; sourceTree = "<group>"; };
 		41BDE45A2E01430100142A13 /* demangle.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = demangle.h; sourceTree = "<group>"; };
 		41BDE45B2E01430100142A13 /* demangle.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = demangle.cc; sourceTree = "<group>"; };
 		41BDE45E2E01433F00142A13 /* demangle_rust.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = demangle_rust.h; sourceTree = "<group>"; };
@@ -24532,10 +24532,11 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(DERIVED_FILE_DIR)/check-objc-class-names.stamp",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"${ACTION}\" = \"installhdrs\" -o \"${ACTION}\" = \"installapi\" ]; then\n    exit 0;\nfi\n\nif [ -f ../../../Tools/Scripts/check-for-inappropriate-objc-class-names ]; then\n    ../../../Tools/Scripts/check-for-inappropriate-objc-class-names WK_RTC || exit $?\nfi\n";
+			shellScript = "if [ \"${ACTION}\" = \"installhdrs\" -o \"${ACTION}\" = \"installapi\" ]; then\n    touch \"${DERIVED_FILE_DIR}/check-objc-class-names.stamp\"\n    exit 0;\nfi\n\nif [ -f ../../../Tools/Scripts/check-for-inappropriate-objc-class-names ]; then\n    ../../../Tools/Scripts/check-for-inappropriate-objc-class-names WK_RTC || exit $?\nfi\ntouch \"${DERIVED_FILE_DIR}/check-objc-class-names.stamp\"\n";
 		};
 		44C229C02A0AF12E0008308E /* Generate Export Files */ = {
 			isa = PBXShellScriptBuildPhase;

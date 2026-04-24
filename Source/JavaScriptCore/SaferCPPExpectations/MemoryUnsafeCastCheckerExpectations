@@ -96,8 +96,6 @@ runtime/JSModuleNamespaceObject.cpp
 runtime/JSModuleRecord.cpp
 runtime/JSNativeStdFunction.h
 runtime/JSRemoteFunction.cpp
-runtime/JSScriptFetchParameters.cpp
-runtime/JSScriptFetcher.cpp
 runtime/JSSourceCode.cpp
 runtime/JSString.cpp
 runtime/JSString.h

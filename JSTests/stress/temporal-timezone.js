@@ -1,3 +1,4 @@
+//@ skip if $hostOS == "windows" || $hostOS == "linux"
 //@ requireOptions("--useTemporal=1")
 function shouldBe(actual, expected) {
     if (actual !== expected)
@@ -63,7 +64,7 @@ for (let text of failures) {
     }, RangeError);
 }
 
-shouldBe(new Temporal.TimeZone("+00:00").id, `+00:00`);
+shouldBe(new Temporal.TimeZone("+00:00").id, `UTC`);
 shouldBe(new Temporal.TimeZone("+01:00").id, `+01:00`);
 shouldBe(new Temporal.TimeZone("+01:59").id, `+01:59`);
 shouldBe(new Temporal.TimeZone("-01:59").id, `-01:59`);
@@ -88,7 +89,7 @@ shouldBe(new Temporal.TimeZone("UTC").id, `UTC`);
 shouldBe(new Temporal.TimeZone('UTC').id, `UTC`);
 shouldBe(new Temporal.TimeZone('Africa/Cairo').id, `Africa/Cairo`);
 shouldBe(new Temporal.TimeZone('america/VANCOUVER').id, `America/Vancouver`);
-shouldBe(new Temporal.TimeZone('Asia/Katmandu').id, `Asia/Katmandu`);
+shouldBe(new Temporal.TimeZone('Asia/Katmandu').id, `Asia/Kathmandu`);
 shouldBe(new Temporal.TimeZone('-04:00').id, `-04:00`);
 shouldBe(new Temporal.TimeZone('+0645').id, `+06:45`);
 
@@ -97,7 +98,7 @@ shouldBe(Temporal.TimeZone.from('Africa/Cairo').id, `Africa/Cairo`);
 shouldBe(Temporal.TimeZone.from('Africa/Cairo').toString(), `Africa/Cairo`);
 shouldBe(Temporal.TimeZone.from('Africa/Cairo').toJSON(), `Africa/Cairo`);
 shouldBe(Temporal.TimeZone.from('america/VANCOUVER').id, `America/Vancouver`);
-shouldBe(Temporal.TimeZone.from('Asia/Katmandu').id, `Asia/Katmandu`);
+shouldBe(Temporal.TimeZone.from('Asia/Katmandu').id, `Asia/Kathmandu`);
 shouldBe(Temporal.TimeZone.from('-04:00').id, `-04:00`);
 shouldBe(Temporal.TimeZone.from('+0645').id, `+06:45`);
 shouldBe(Temporal.TimeZone.from('+0645').toString(), `+06:45`);

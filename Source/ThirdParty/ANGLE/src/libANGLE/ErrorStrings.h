@@ -68,7 +68,7 @@ inline constexpr const char *kBufferNotMappable = "Attempted to map buffer objec
 inline constexpr const char *kBufferNotMapped = "Buffer is not mapped.";
 inline constexpr const char *kBufferNotUpdatable = "Buffer is not updatable.";
 inline constexpr const char *kBufferOffsetOverflow = "Buffer offset overflow.";
-inline constexpr const char *kBufferSizeLimitation = "Buffer size is too large (artificial limitation).";
+inline constexpr const char *kBufferSizeLimitation = "Buffer total allocation size is too large.";
 inline constexpr const char *kBufferTextureNotAllowed = "Buffer textures are not allowed.";
 inline constexpr const char *kCannotPopDefaultDebugGroup = "Cannot pop the default debug group.";
 inline constexpr const char *kClientBufferInvalid = "Size must not exceed the size of clientbuffer.";
@@ -389,6 +389,7 @@ inline constexpr const char *kInvalidShadingCombinerOp = "Invalid shading Combin
 inline constexpr const char *kInvalidShadingModel = "Invalid shading model.";
 inline constexpr const char *kInvalidShadingRate = "Invalid shading rate.";
 inline constexpr const char *kInvalidSourceTexture = "Source texture is not a valid texture object.";
+inline constexpr const char *kInvalidSourceTextureSameAsDestTexture = "Source texture and destination texture are the same.";
 inline constexpr const char *kInvalidSourceTextureInternalFormat = "Source texture internal format is invalid.";
 inline constexpr const char *kInvalidSourceTextureLevel = "Invalid source texture level.";
 inline constexpr const char *kInvalidSourceTextureSize = "Invalid source texture height or width.";
@@ -622,6 +623,7 @@ inline constexpr const char *kTextureNotBound = "A texture must be bound.";
 inline constexpr const char *kTextureNotPow2 = "The texture is a non-power-of-two texture.";
 inline constexpr const char *kTextureRectangleNotSupported = "Context does not support GL_ANGLE_texture_rectangle.";
 inline constexpr const char *kTextureAttachmentSamplesMismatch = "Samples value must be the same for all texture attachments";
+inline constexpr const char *kTextureSizeLimitation = "Texture total allocation size is too large.";
 inline constexpr const char *kTextureSizeTooSmall = "Texture dimensions must all be greater than zero.";
 inline constexpr const char *kTextureStorageCompressionExtensionRequired = "GL_EXT_texture_storage_compression not enabled.";
 inline constexpr const char *kTextureTargetInvalidForCopyImage = "Texture target is TEXTURE_BUFFER or does not match the type of the texture.";
@@ -686,6 +688,7 @@ inline constexpr const char *kProtectedTexturesExtensionRequired = "GL_EXT_prote
 inline constexpr const char *kTextureCompressionASTCDecodeModeExtensionRequired = "GL_EXT_texture_compression_astc_decode_mode not enabled.";
 inline constexpr const char *kTextureCompressionASTCDecodeModeRGB9E5ExtensionRequired = "GL_EXT_texture_compression_astc_decode_mode_rgb9e5 not enabled.";
 inline constexpr const char *kProgramNotValid = "Program is not a program object.";
+inline constexpr const char *kWebGLBufferTypeMismatch = "Invalid operation between WebGL buffer types.";
 // clang-format on
 
 }  // namespace err

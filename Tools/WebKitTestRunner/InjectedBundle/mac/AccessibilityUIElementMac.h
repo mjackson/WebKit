@@ -186,6 +186,10 @@ public:
     JSRetainPtr<JSStringRef> url() override;
     JSRetainPtr<JSStringRef> classList() const override;
     JSRetainPtr<JSStringRef> embeddedImageDescription() const override;
+    JSRetainPtr<JSStringRef> imageDataSize() const override;
+    JSRetainPtr<JSStringRef> imageDataForParameters(int resizeWidth, int resizeHeight) const override;
+    JSRetainPtr<JSStringRef> imageDataForParametersWithFormat(int resizeWidth, int resizeHeight, JSStringRef format) const override;
+    JSRetainPtr<JSStringRef> imageDataForSubrect(int resizeWidth, int resizeHeight, int left, int top, int width, int height) const override;
     JSValueRef imageOverlayElements(JSContextRef) override;
 
     JSRetainPtr<JSStringRef> speakAs() override;
@@ -325,6 +329,7 @@ public:
     JSValueRef mathRootRadicand(JSContextRef) override;
 
     JSRetainPtr<JSStringRef> pathDescription() const override;
+    JSRetainPtr<JSStringRef> pathAsBounds() const override;
 
     bool addNotificationListener(JSContextRef, JSValueRef functionCallback) override;
     bool removeNotificationListener() override;

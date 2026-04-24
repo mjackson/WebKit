@@ -32,6 +32,7 @@
 #include "CSSCounterValue.h"
 #include "CSSCustomIdentValue.h"
 #include "CSSFontFamilyNameValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSPropertyIdentifierValue.h"
 #include "CSSRectValue.h"
 #include "CSSSerializationContext.h"
@@ -58,7 +59,7 @@ unsigned short DeprecatedCSSOMPrimitiveValue::primitiveType() const
         return CSS_RGBCOLOR;
     if (m_value->isURL())
         return CSS_URI;
-    if (m_value->isCustomIdentValue() || m_value->isPropertyIdentifierValue())
+    if (m_value->isKeywordValue() || m_value->isCustomIdentValue() || m_value->isPropertyIdentifierValue())
         return CSS_IDENT;
     if (m_value->isStringValue() || m_value->isFontFamilyNameValue())
         return CSS_STRING;
@@ -89,7 +90,6 @@ unsigned short DeprecatedCSSOMPrimitiveValue::primitiveType() const
     case CSSUnitType::CSS_PX:                           return CSS_PX;
     case CSSUnitType::CSS_RAD:                          return CSS_RAD;
     case CSSUnitType::CSS_S:                            return CSS_S;
-    case CSSUnitType::CSS_VALUE_ID:                     return CSS_IDENT;
 
     // All other, including newer types, should return UNKNOWN.
     default:                                            return CSS_UNKNOWN;
@@ -138,7 +138,7 @@ ExceptionOr<String> DeprecatedCSSOMPrimitiveValue::getStringValue() const
             return customIdentValue->stringValue();
         if (RefPtr propertyIdentifierValue = dynamicDowncast<CSSPropertyIdentifierValue>(m_value))
             return propertyIdentifierValue->stringValue();
-        return downcast<CSSPrimitiveValue>(m_value.get()).stringValue();
+        return downcast<CSSKeywordValue>(m_value.get()).stringValue();
     case CSS_STRING:
         if (RefPtr fontFamilyNameValue = dynamicDowncast<CSSFontFamilyNameValue>(m_value))
             return fontFamilyNameValue->stringValue();
@@ -182,4 +182,11 @@ ExceptionOr<Ref<DeprecatedCSSOMRGBColor>> DeprecatedCSSOMPrimitiveValue::getRGBC
     return DeprecatedCSSOMRGBColor::create(m_owner, downcast<CSSColorValue>(m_value.get()).color().absoluteColor());
 }
 
+bool DeprecatedCSSOMPrimitiveValue::isCSSWideKeyword() const
+{
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(m_value))
+        return WebCore::isCSSWideKeyword(keywordValue->valueID());
+    return false;
 }
+
+} // namespace WebCore

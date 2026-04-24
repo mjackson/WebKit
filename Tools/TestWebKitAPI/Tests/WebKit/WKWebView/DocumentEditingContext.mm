@@ -43,7 +43,7 @@
 #import <wtf/text/MakeString.h>
 
 // DocumentEditingContext tests broke on iOS 26 https://bugs.webkit.org/show_bug.cgi?id=301019
-#define BUG_301019 (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 260000 && !USE(APPLE_INTERNAL_SDK))
+#define BUG_301019 (PLATFORM(IOS) && !USE(APPLE_INTERNAL_SDK))
 
 static constexpr auto longTextString = "Here's to the crazy ones. The misfits. The rebels. The troublemakers. The round pegs in the square holes. "
     "The ones who see things differently. They're not fond of rules. And they have no respect for the status quo. "

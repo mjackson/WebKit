@@ -138,6 +138,11 @@
 (allow file-map-executable
     (subpath "/System/Library/Frameworks")
     (subpath "/System/Library/PrivateFrameworks")
+    (subpath "/System/Library/SubFrameworks/RealityCoreRenderer.framework")
+    (subpath "/System/Library/SubFrameworks/RealityCoreDeformation.framework")
+    (subpath "/System/Library/SubFrameworks/RealityFoundationCloth.framework")
+    (subpath "/System/Library/SubFrameworks/ShaderGraph.framework")
+    (subpath "/System/Library/SubFrameworks/RealityCoreTextureProcessing.framework")
     (subpath "/usr/lib"))
 
 (allow file-read-metadata

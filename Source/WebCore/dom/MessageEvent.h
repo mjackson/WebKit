@@ -108,3 +108,5 @@ private:
 };
 
 } // namespace WebCore
+
+extern template class mpark::variant<WTF::Ref<WebCore::WindowProxy>, WTF::Ref<WebCore::MessagePort>, WTF::Ref<WebCore::ServiceWorker>>;

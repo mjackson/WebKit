@@ -151,6 +151,8 @@ public:
 
     bool NODELETE isDeferred() const;
 
+    static bool isSupportedImageSourceType(const String& typeAttribute);
+
     bool isDroppedImagePlaceholder() const { return m_isDroppedImagePlaceholder; }
     void setIsDroppedImagePlaceholder() { m_isDroppedImagePlaceholder = true; }
 

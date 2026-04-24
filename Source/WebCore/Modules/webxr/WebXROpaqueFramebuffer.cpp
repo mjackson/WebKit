@@ -83,7 +83,7 @@ static GL::ExternalImageSource makeExternalImageSource(PlatformXR::FrameData::Ex
 {
 #if OS(ANDROID)
     return GraphicsContextGLExternalImageSource {
-        .hardwareBuffer = RefPtr { imageSource },
+        .hardwareBuffer = imageSource,
         .size = size,
     };
 #else

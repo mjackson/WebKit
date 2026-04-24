@@ -27,6 +27,7 @@
 #include "config.h"
 #include "StyleListStyleType.h"
 
+#include "CSSKeywordValue.h"
 #include "CSSPropertyParserConsumer+CounterStyles.h"
 #include "CSSStringValue.h"
 #include "CSSValueKeywords.h"
@@ -107,16 +108,13 @@ bool ListStyleType::isSquare() const
 
 auto CSSValueConversion<ListStyleType>::operator()(BuilderState& state, const CSSValue& value) -> ListStyleType
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        if (primitiveValue->isValueID()) {
-            auto valueID = primitiveValue->valueID();
-            if (valueID == CSSValueNone)
-                return CSS::Keyword::None { };
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (auto valueID = keywordValue->valueID(); valueID) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
             return CounterStyle { CustomIdent { nameStringForSerialization(valueID) } };
         }
-
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return CSS::Keyword::None { };
     }
 
     if (RefPtr stringValue = dynamicDowncast<CSSStringValue>(value))

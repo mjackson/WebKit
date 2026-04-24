@@ -133,7 +133,7 @@ inline T JSObject::getAs(JSGlobalObject* globalObject, PropertyNameType property
     if (vm.exceptionForInspection())
         return nullptr;
 #endif
-    return jsCast<T>(value);
+    return uncheckedDowncast<std::remove_pointer_t<T>>(value);
 }
 
 template<typename CellType, SubspaceAccess>
@@ -220,7 +220,7 @@ ALWAYS_INLINE bool JSObject::getPropertySlot(JSGlobalObject* globalObject, unsig
             return false;
         if (object->type() == ProxyObjectType && slot.internalMethodType() == PropertySlot::InternalMethodType::HasProperty)
             return false;
-        if (isTypedArrayType(object->type()) && propertyName >= jsCast<JSArrayBufferView*>(object)->length())
+        if (isTypedArrayType(object->type()) && propertyName >= uncheckedDowncast<JSArrayBufferView>(object)->length())
             return false;
         JSValue prototype;
         if (!structure->typeInfo().overridesGetPrototype() || slot.internalMethodType() == PropertySlot::InternalMethodType::VMInquiry) [[likely]]
@@ -380,7 +380,7 @@ ALWAYS_INLINE bool JSObject::putInlineForJSObject(JSCell* cell, JSGlobalObject* 
 {
     VM& vm = getVM(globalObject);
 
-    JSObject* thisObject = jsCast<JSObject*>(cell);
+    JSObject* thisObject = uncheckedDowncast<JSObject>(cell);
     ASSERT(value);
     ASSERT(!Heap::heap(value) || Heap::heap(value) == Heap::heap(thisObject));
 
@@ -599,24 +599,12 @@ inline bool JSObject::mayBePrototype() const
     return structure()->mayBePrototype();
 }
 
-inline void JSObject::didBecomePrototype(VM& vm)
-{
-    Structure* oldStructure = structure();
-    if (!oldStructure->mayBePrototype()) [[unlikely]] {
-        DeferredStructureTransitionWatchpointFire deferred(vm, oldStructure);
-        setStructure(vm, Structure::becomePrototypeTransition(vm, oldStructure, &deferred));
-    }
-
-    if (type() == GlobalProxyType) [[unlikely]]
-        jsCast<JSGlobalProxy*>(this)->target()->didBecomePrototype(vm);
-}
-
 inline bool JSObject::canGetIndexQuicklyForTypedArray(unsigned i) const
 {
     switch (type()) {
 #define CASE_TYPED_ARRAY_TYPE(name) \
     case name ## ArrayType :\
-        return jsCast<const JS ## name ## Array *>(this)->canGetIndexQuickly(i);
+        return uncheckedDowncast<JS ## name ## Array>(this)->canGetIndexQuickly(i);
         FOR_EACH_TYPED_ARRAY_TYPE_EXCLUDING_DATA_VIEW(CASE_TYPED_ARRAY_TYPE)
 #undef CASE_TYPED_ARRAY_TYPE
     default:
@@ -636,7 +624,7 @@ inline JSValue JSObject::getIndexQuicklyForTypedArray(unsigned i, ArrayProfile* 
     switch (type()) {
 #define CASE_TYPED_ARRAY_TYPE(name) \
     case name ## ArrayType : {\
-        auto* typedArray = jsCast<const JS ## name ## Array *>(this);\
+        auto* typedArray = uncheckedDowncast<JS ## name ## Array>(this);\
         RELEASE_ASSERT(typedArray->canGetIndexQuickly(i));\
         return typedArray->getIndexQuickly(i);\
     }
@@ -653,7 +641,7 @@ inline void JSObject::setIndexQuicklyForTypedArray(unsigned i, JSValue value)
     switch (type()) {
 #define CASE_TYPED_ARRAY_TYPE(name) \
     case name ## ArrayType : {\
-        auto* typedArray = jsCast<JS ## name ## Array *>(this);\
+        auto* typedArray = uncheckedDowncast<JS ## name ## Array>(this);\
         RELEASE_ASSERT(typedArray->canSetIndexQuickly(i, value));\
         typedArray->setIndexQuickly(i, value);\
         break;\
@@ -694,7 +682,7 @@ inline bool JSObject::trySetIndexQuicklyForTypedArray(unsigned i, JSValue v, Arr
 #endif
 #define CASE_TYPED_ARRAY_TYPE(name) \
     case name ## ArrayType : { \
-        auto* typedArray = jsCast<JS ## name ## Array *>(this);\
+        auto* typedArray = uncheckedDowncast<JS ## name ## Array>(this);\
         if (!typedArray->canSetIndexQuickly(i, v))\
             return false;\
         typedArray->setIndexQuickly(i, v);\
@@ -947,7 +935,7 @@ inline bool JSObject::hasPrivateBrand(JSGlobalObject*, JSValue brand)
 {
     ASSERT(brand.isSymbol() && asSymbol(brand)->uid().isPrivate());
     Structure* structure = this->structure();
-    return structure->isBrandedStructure() && jsCast<BrandedStructure*>(structure)->checkBrand(asSymbol(brand));
+    return structure->isBrandedStructure() && uncheckedDowncast<BrandedStructure>(structure)->checkBrand(asSymbol(brand));
 }
 
 inline void JSObject::checkPrivateBrand(JSGlobalObject* globalObject, JSValue brand)
@@ -957,7 +945,7 @@ inline void JSObject::checkPrivateBrand(JSGlobalObject* globalObject, JSValue br
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     Structure* structure = this->structure();
-    if (!structure->isBrandedStructure() || !jsCast<BrandedStructure*>(structure)->checkBrand(asSymbol(brand)))
+    if (!structure->isBrandedStructure() || !uncheckedDowncast<BrandedStructure>(structure)->checkBrand(asSymbol(brand)))
         throwException(globalObject, scope, createPrivateMethodAccessError(globalObject));
 }
 
@@ -968,7 +956,7 @@ inline void JSObject::setPrivateBrand(JSGlobalObject* globalObject, JSValue bran
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     Structure* structure = this->structure();
-    if (structure->isBrandedStructure() && jsCast<BrandedStructure*>(structure)->checkBrand(asSymbol(brand))) {
+    if (structure->isBrandedStructure() && uncheckedDowncast<BrandedStructure>(structure)->checkBrand(asSymbol(brand))) {
         throwException(globalObject, scope, createReinstallPrivateMethodError(globalObject));
         RELEASE_AND_RETURN(scope, void());
     }

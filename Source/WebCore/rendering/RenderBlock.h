@@ -33,8 +33,10 @@ namespace WebCore {
 
 class LayoutScope;
 class LogicalSelectionOffsetCaches;
+class RelayoutScopeForScrollbarChange;
 class RenderInline;
 class RenderText;
+class ScrollbarUpdateScope;
 
 struct PaintInfo;
 struct RenderBlockRareData;
@@ -55,6 +57,7 @@ typedef unsigned TextRunFlags;
 class RenderBlock : public RenderBox {
     WTF_MAKE_TZONE_ALLOCATED(RenderBlock);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderBlock);
+    friend class RelayoutScopeForScrollbarChange;
 public:
     // FIXME: This is temporary to allow us to move code from RenderBlock into RenderBlockFlow that accesses member variables that we haven't moved out of
     // RenderBlock yet.
@@ -291,7 +294,7 @@ protected:
 
     void removeFromUpdateScrollInfoAfterLayoutTransaction();
 
-    void updateScrollInfoAfterLayout();
+    std::optional<ScrollbarUpdateScope> updateScrollInfoAfterLayout();
 
     void styleWillChange(Style::Difference, const RenderStyle& newStyle) override;
     void styleDidChange(Style::Difference, const RenderStyle* oldStyle) override;

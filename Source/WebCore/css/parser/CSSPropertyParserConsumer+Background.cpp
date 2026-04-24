@@ -185,7 +185,7 @@ RefPtr<CSSValue> consumeBorderImageWidth(CSSParserTokenRange& range, CSS::Proper
     // <'border-image-width'> = [ <length-percentage [0,∞]> | <number [0,∞]> | auto ]{1,4}
     // https://drafts.csswg.org/css-backgrounds/#propdef-border-image-width
 
-    std::array<RefPtr<CSSPrimitiveValue>, 4> widths;
+    std::array<RefPtr<CSSValue>, 4> widths;
 
     bool hasLength = false;
     for (auto& value : widths) {
@@ -273,7 +273,7 @@ template<CSSPropertyID property> static RefPtr<CSSValue> consumeBackgroundSize(C
         return consumeIdent(range);
 
     bool shouldCoalesce = true;
-    RefPtr<CSSPrimitiveValue> horizontal = consumeIdent<CSSValueAuto>(range);
+    RefPtr<CSSValue> horizontal = consumeIdent<CSSValueAuto>(range);
     if (!horizontal) {
         horizontal = CSSPrimitiveValueResolver<CSS::LengthPercentage<CSS::Nonnegative>>::consumeAndResolve(range, state);
         if (!horizontal)
@@ -281,7 +281,7 @@ template<CSSPropertyID property> static RefPtr<CSSValue> consumeBackgroundSize(C
         shouldCoalesce = false;
     }
 
-    RefPtr<CSSPrimitiveValue> vertical;
+    RefPtr<CSSValue> vertical;
     if (!range.atEnd()) {
         vertical = consumeIdent<CSSValueAuto>(range);
         if (!vertical)
@@ -292,7 +292,7 @@ template<CSSPropertyID property> static RefPtr<CSSValue> consumeBackgroundSize(C
             // Legacy syntax: "-webkit-background-size: 10px" is equivalent to "background-size: 10px 10px".
             vertical = horizontal;
         } else if constexpr (property == CSSPropertyBackgroundSize) {
-            vertical = CSSPrimitiveValue::create(CSSValueAuto);
+            vertical = CSSKeywordValue::create(CSSValueAuto);
         } else if constexpr (property == CSSPropertyMaskSize) {
             return horizontal;
         }

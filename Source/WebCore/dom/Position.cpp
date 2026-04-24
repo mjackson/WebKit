@@ -1049,7 +1049,7 @@ bool Position::isCandidate() const
 
 bool Position::isRenderedCharacter() const
 {
-    if (!dynamicDowncast<Text>(deprecatedNode()))
+    if (!is<Text>(deprecatedNode()))
         return false;
     auto [renderText, offset] = resolvedTextRendererAndOffset();
     return renderText && renderText->containsRenderedCharacterOffset(offset);

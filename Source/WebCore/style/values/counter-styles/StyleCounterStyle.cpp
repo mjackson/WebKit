@@ -27,6 +27,7 @@
 #include "StyleCounterStyle.h"
 
 #include "CSSCounterStyle.h"
+#include "CSSKeywordValue.h"
 #include "CSSPropertyParserConsumer+CounterStyles.h"
 #include "CSSValueKeywords.h"
 #include "StyleBuilderChecking.h"
@@ -55,8 +56,8 @@ auto ToStyle<CSS::CounterStyle>::operator()(const CSS::CounterStyle& value, cons
 
 auto CSSValueConversion<CounterStyle>::operator()(BuilderState& state, const CSSValue& value) -> CounterStyle
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        if (auto valueID = primitiveValue->valueID(); CSSPropertyParserHelpers::isPredefinedCounterStyle(valueID))
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        if (auto valueID = keywordValue->valueID(); CSSPropertyParserHelpers::isPredefinedCounterStyle(valueID))
             return { CustomIdent { nameStringForSerialization(valueID) } };
 
         state.setCurrentPropertyInvalidAtComputedValueTime();

@@ -30,12 +30,7 @@ class ShadowRealmGlobalScope;
 class JSShadowRealmGlobalScope : public JSDOMWrapper<ShadowRealmGlobalScope> {
 public:
     using Base = JSDOMWrapper<ShadowRealmGlobalScope>;
-    static JSShadowRealmGlobalScope* create(JSC::VM& vm, JSC::Structure* structure, Ref<ShadowRealmGlobalScope>&& impl, JSC::JSGlobalProxy* proxy)
-    {
-        JSShadowRealmGlobalScope* ptr = new (NotNull, JSC::allocateCell<JSShadowRealmGlobalScope>(vm)) JSShadowRealmGlobalScope(vm, structure, WTF::move(impl));
-        ptr->finishCreation(vm, proxy);
-        return ptr;
-    }
+    static JSShadowRealmGlobalScope* create(JSC::VM&, JSC::Structure*, Ref<ShadowRealmGlobalScope>&&, JSC::JSGlobalProxy*);
 
     static ShadowRealmGlobalScope* toWrapped(JSC::VM&, JSC::JSValue);
     static void destroy(JSC::JSCell*);

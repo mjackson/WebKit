@@ -8,6 +8,7 @@ set(TestWebKitAPI_DISABLED_WARNINGS
 
 macro(WEBKIT_TEST _target)
     WEBKIT_EXECUTABLE(${_target})
+    ADD_WEBKIT_PREFIX_HEADERS(${_target} Helpers/TestWebKitAPIPrefix.h)
     add_test(${_target} ${TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY}/${_target})
     set_tests_properties(${_target} PROPERTIES TIMEOUT 60)
     set_target_properties(${_target} PROPERTIES
@@ -456,6 +457,89 @@ if (ENABLE_WEBKIT)
     endif ()
 
     WEBKIT_EXECUTABLE_DECLARE(TestWebKit)
+
+    if (APPLE)
+        # TestIPC definitions
+        set(TestIPC_SOURCES
+            Helpers/Utilities.cpp
+
+            Runner/TestsController.cpp
+
+            Tests/IPC/ArgumentCoderTests.cpp
+            Tests/IPC/ConnectionTests.cpp
+            Tests/IPC/EventTests.cpp
+            Tests/IPC/IPCTestUtilities.cpp
+            Tests/IPC/MessageLogEndToEndTests.cpp
+            Tests/IPC/MessageLogTests.cpp
+            Tests/IPC/MessageSenderTests.cpp
+            Tests/IPC/StreamConnectionBufferTests.cpp
+            Tests/IPC/StreamConnectionEncoderTests.cpp
+            Tests/IPC/StreamConnectionTests.cpp
+            Tests/IPC/StreamConnectionWorkQueueTests.cpp
+            Tests/IPC/ThreadSafeObjectHeapTests.cpp
+            Tests/IPC/TransferStringTests.cpp
+        )
+
+        set(TestIPC_PRIVATE_INCLUDE_DIRECTORIES
+            ${CMAKE_BINARY_DIR}
+            ${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS_DIR}
+            ${PAL_FRAMEWORK_HEADERS_DIR}
+            ${TESTWEBKITAPI_DIR}
+            ${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}
+            ${WebKit_FRAMEWORK_HEADERS_DIR}
+            ${WEBKIT_DIR}/Platform
+            ${WEBKIT_DIR}/Platform/IPC
+            ${WEBKIT_DIR}/Shared
+            ${WEBKIT_DIR}/Shared/API/c
+            ${WebKit_DERIVED_SOURCES_DIR}
+            ${WebKit_DERIVED_SOURCES_DIR}/IPC
+        )
+
+        set(TestIPC_LIBRARIES
+            WebKit::gtest
+        )
+
+        set(TestIPC_FRAMEWORKS
+            WebKit
+        )
+
+        WEBKIT_EXECUTABLE_DECLARE(TestIPC)
+        target_compile_definitions(TestIPC PRIVATE BUILDING_TEST_IPC GTEST_API_=)
+    endif ()
+endif ()
+
+# TestWGSL definitions
+if (APPLE AND ENABLE_WEBGPU)
+    set(TestWGSL_SOURCES
+        Runner/TestsController.cpp
+
+        Tests/WGSL/ASTStringDumperTests.cpp
+        Tests/WGSL/ConstLiteralTests.cpp
+        Tests/WGSL/LexerTests.cpp
+        Tests/WGSL/MetalGenerationTests.cpp
+        Tests/WGSL/ParserTests.cpp
+        Tests/WGSL/TestWGSLAPI.cpp
+    )
+
+    set(TestWGSL_PRIVATE_INCLUDE_DIRECTORIES
+        ${CMAKE_BINARY_DIR}
+        ${TESTWEBKITAPI_DIR}
+        ${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS_DIR}
+    )
+
+    set(TestWGSL_LIBRARIES
+        WGSLCore
+        WebKit::gtest
+    )
+
+    set(TestWGSL_FRAMEWORKS
+        JavaScriptCore
+        WTF
+        bmalloc
+    )
+
+    WEBKIT_EXECUTABLE_DECLARE(TestWGSL)
+    target_compile_definitions(TestWGSL PRIVATE BUILDING_TEST_WGSL GTEST_API_=)
 endif ()
 
 # Include platform specific files
@@ -481,5 +565,16 @@ endif ()
 
 # TestWebKit target
 if (ENABLE_WEBKIT)
+    if (TestWebKit_UNIFIED_SOURCE_LIST_FILES)
+        WEBKIT_COMPUTE_SOURCES(TestWebKit)
+    endif ()
     WEBKIT_TEST(TestWebKit)
+    if (APPLE)
+        WEBKIT_TEST(TestIPC)
+    endif ()
+endif ()
+
+# TestWGSL target
+if (APPLE AND ENABLE_WEBGPU)
+    WEBKIT_TEST(TestWGSL)
 endif ()

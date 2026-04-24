@@ -27,7 +27,7 @@
 
 namespace JSC {
 
-#include "StructureInlines.h"
+#include "StructureCreateInlines.h"
 #include "UnlinkedModuleProgramCodeBlock.h"
 
 inline Structure* UnlinkedModuleProgramCodeBlock::createStructure(VM& vm, JSGlobalObject* globalObject, JSValue proto)

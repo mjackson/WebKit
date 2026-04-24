@@ -33,6 +33,7 @@
 #include "RealtimeMediaSourceSettings.h"
 #include <VideoFrame.h>
 #include <algorithm>
+#include <array>
 #include <wtf/JSONValues.h>
 #include <wtf/MediaTime.h>
 
@@ -69,9 +70,9 @@ void RealtimeVideoCaptureSource::setSupportedPresets(Vector<VideoPreset>&& prese
         preset.sortFrameRateRanges();
 }
 
-std::span<const IntSize> RealtimeVideoCaptureSource::standardVideoSizes()
+SUPPRESS_NODELETE std::span<const IntSize> RealtimeVideoCaptureSource::standardVideoSizes()
 {
-    static constexpr IntSize sizes[] = {
+    static constexpr auto sizes = std::to_array<IntSize>({
         { 112, 112 },
         { 160, 160 },
         { 160, 120 }, // 4:3, QQVGA
@@ -106,7 +107,7 @@ std::span<const IntSize> RealtimeVideoCaptureSource::standardVideoSizes()
         { 2592, 1936 },
         { 3264, 2448 }, // 3:4
         { 3840, 2160 }, // 16:9, 4K UHD
-    };
+    });
     return sizes;
 }
 

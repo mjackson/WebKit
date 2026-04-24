@@ -664,6 +664,7 @@ static constexpr CGFloat kWindowTranslationDuration = 0.6;
 @property (nonatomic, readonly) Class windowClass;
 @property (nonatomic, readonly) CGSize sceneSize;
 @property (nonatomic, readonly) CGSize sceneMinimumSize;
+@property (nonatomic, readonly) CGSize sceneMaximumSize;
 @property (nonatomic, readonly) RSSSceneChromeOptions sceneChromeOptions;
 @property (nonatomic, readonly) MRUISceneResizingBehavior sceneResizingBehavior;
 @property (nonatomic, readonly) WKSurroundingsEffectType preferredSurroundingsEffect;
@@ -693,6 +694,7 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     _sceneSize = windowScene.coordinateSpace.bounds.size;
 ALLOW_DEPRECATED_DECLARATIONS_END
     _sceneMinimumSize = windowScene.sizeRestrictions.minimumSize;
+    _sceneMaximumSize = windowScene.sizeRestrictions.maximumSize;
     _sceneChromeOptions = windowScene.mrui_placement.preferredChromeOptions;
     _sceneResizingBehavior = windowScene.mrui_placement.preferredResizingBehavior;
 
@@ -2179,14 +2181,10 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     WKFullScreenWindowController *controller = self;
     UIWindow *inWindow = enter ? _window.get() : _lastKnownParentWindow.get();
     UIWindow *outWindow = enter ? _lastKnownParentWindow.get() : _window.get();
-    CGRect inWindowBounds = [inWindow bounds];
-    CGRect outWindowBounds = [outWindow bounds];
     WKFullScreenParentWindowState *originalState = _parentWindowState.get();
 
     const BOOL shouldAnimateResizeScene = [self _shouldAnimateResizeScene];
 
-    CGFloat sceneWidthDifference = inWindowBounds.size.width - outWindowBounds.size.width;
-    CGFloat sceneHeightDifference = inWindowBounds.size.height - outWindowBounds.size.height;
     CGSize targetSceneSize = [inWindow bounds].size;
 
     if (shouldAnimateResizeScene && enter)
@@ -2249,7 +2247,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
             resizeCompletionBlock();
     });
 
-    auto animationBlock = makeBlockPtr([inWindow, outWindow, originalState, enter, allowSceneGeometryUpdates, sceneWidthDifference, sceneHeightDifference, shouldAnimateResizeScene, self, weakSelf = WTF::move(weakSelf), animationCompletionBlock = WTF::move(animationCompletionBlock)] mutable {
+    auto animationBlock = makeBlockPtr([inWindow, outWindow, originalState, enter, allowSceneGeometryUpdates, shouldAnimateResizeScene, self, weakSelf = WTF::move(weakSelf), animationCompletionBlock = WTF::move(animationCompletionBlock)] mutable {
         if (shouldAnimateResizeScene && !enter)
             [self _updateFullscreenWindowOrigin];
 
@@ -2277,23 +2275,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
             inWindow.transform3D = originalState.transform3D;
         } completion:nil];
 
-        if (shouldAnimateResizeScene) {
-            [UIView animateWithDuration:kWindowTranslationDuration delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
-                if (enter) {
-                    for (MRUIPlatterOrnament *ornament in [originalState ornamentProperties]) {
-                        CGPoint originalOffset2D = [[[_parentWindowState ornamentProperties] objectForKey:ornament] offset2D];
-                        ornament.offset2D = CGPointMake(
-                            originalOffset2D.x + sceneWidthDifference * (0.5 - ornament.sceneAnchorPoint.x),
-                            originalOffset2D.y + sceneHeightDifference * (0.5 - ornament.sceneAnchorPoint.y)
-                        );
-                    }
-                } else {
-                    for (MRUIPlatterOrnament *ornament in [originalState ornamentProperties])
-                        ornament.offset2D = [[[originalState ornamentProperties] objectForKey:ornament] offset2D];
-                }
-            } completion:nil];
-        }
-
         for (MRUIPlatterOrnament *ornament in originalState.ornamentProperties) {
             CGFloat originalDepth = [[originalState.ornamentProperties objectForKey:ornament] depthDisplacement];
             CGFloat finalDepth = originalDepth;
@@ -2314,6 +2295,9 @@ ALLOW_DEPRECATED_DECLARATIONS_END
             inWindow.alpha = 1;
         } completion:animationCompletionBlock.get()];
     });
+
+    if (!enter)
+        [inWindow windowScene].sizeRestrictions.maximumSize = [originalState sceneMaximumSize];
 
     if (!shouldAnimateResizeScene || enter)
         animationBlock();
@@ -2349,6 +2333,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         scene.mrui_placement.preferredChromeOptions = [_parentWindowState sceneChromeOptions];
         scene.mrui_placement.preferredResizingBehavior = [_parentWindowState sceneResizingBehavior];
         scene.sizeRestrictions.minimumSize = [_parentWindowState sceneMinimumSize];
+        scene.sizeRestrictions.maximumSize = [_parentWindowState sceneMaximumSize];
 
         _lastKnownParentWindow = nil;
         _parentWindowState = nil;

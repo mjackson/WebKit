@@ -34,11 +34,7 @@ namespace Style {
 
 auto CSSValueConversion<SVGGlyphOrientationHorizontal>::operator()(BuilderState& state, const CSSValue& value) -> SVGGlyphOrientationHorizontal
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return SVGGlyphOrientationHorizontal::Degrees0;
-
-    auto angle = std::abs(std::fmod(toStyleFromCSSValue<Style::Angle<>>(state, *primitiveValue).value, 360.0f));
+    auto angle = std::abs(std::fmod(toStyleFromCSSValue<Style::Angle<>>(state, value).value, 360.0f));
     if (angle <= 45.0f || angle > 315.0f)
         return SVGGlyphOrientationHorizontal::Degrees0;
     if (angle > 45.0f && angle <= 135.0f)

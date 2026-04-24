@@ -189,7 +189,7 @@ public:
         std::optional<uint32_t> fecSsrc;
 
 #if USE(LIBWEBRTC)
-        static InboundRtpStreamStats convert(const webrtc::RTCInboundRtpStreamStats&);
+        static InboundRtpStreamStats convert(const webrtc::RTCInboundRtpStreamStats&, const HashMap<String, String>&);
 #elif USE(GSTREAMER_WEBRTC)
         static InboundRtpStreamStats convert(const GstStructure*);
 #endif

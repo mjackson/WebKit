@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestCEReactions : public JSDOMWrapper<TestCEReactions> {
 public:
     using Base = JSDOMWrapper<TestCEReactions>;
-    static JSTestCEReactions* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestCEReactions>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestCEReactions* ptr = new (NotNull, JSC::allocateCell<JSTestCEReactions>(vm)) JSTestCEReactions(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestCEReactions* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestCEReactions>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

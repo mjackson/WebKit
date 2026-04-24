@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestNamedDeleterWithIdentifier : public JSDOMWrapper<TestNamedDeleterWithIdentifier> {
 public:
     using Base = JSDOMWrapper<TestNamedDeleterWithIdentifier>;
-    static JSTestNamedDeleterWithIdentifier* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestNamedDeleterWithIdentifier>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestNamedDeleterWithIdentifier* ptr = new (NotNull, JSC::allocateCell<JSTestNamedDeleterWithIdentifier>(vm)) JSTestNamedDeleterWithIdentifier(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestNamedDeleterWithIdentifier* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestNamedDeleterWithIdentifier>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

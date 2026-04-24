@@ -257,7 +257,7 @@ id WebProcess::accessibilityFocusedUIElement()
 #else
                     if (typedTree) {
 #endif
-                        OptionSet<ActivityState> state = typedTree->lockedPageActivityState();
+                        OptionSet<ActivityState> state = typedTree->pageActivityState();
                         if (state.containsAll({ ActivityState::IsVisible, ActivityState::IsFocused, ActivityState::WindowIsActive }))
                             foundValidTree = true;
                         else if (state.containsAll({ ActivityState::IsVisible, ActivityState::WindowIsActive })) {

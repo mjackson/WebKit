@@ -89,19 +89,11 @@ JSC_DEFINE_HOST_FUNCTION(temporalTimeZonePrototypeFuncToString, (JSGlobalObject*
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    auto* timeZone = jsDynamicCast<TemporalTimeZone*>(callFrame->thisValue());
+    auto* timeZone = dynamicDowncast<TemporalTimeZone>(callFrame->thisValue());
     if (!timeZone)
         return throwVMTypeError(globalObject, scope, "Temporal.TimeZone.prototype.toString called on value that's not a TimeZone"_s);
 
-    auto variant = timeZone->timeZone();
-    auto string = WTF::switchOn(variant,
-        [](TimeZoneID identifier) -> String {
-            return intlAvailableTimeZones()[identifier];
-        },
-        [](int64_t offset) -> String {
-            return ISO8601::formatTimeZoneOffsetString(offset);
-        });
-    return JSValue::encode(jsString(vm, WTF::move(string)));
+    return JSValue::encode(jsString(vm, timeZone->timeZone().toString()));
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal.timezone.prototype.tojson

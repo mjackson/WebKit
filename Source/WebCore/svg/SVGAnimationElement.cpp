@@ -172,11 +172,13 @@ void SVGAnimationElement::attributeChanged(const QualifiedName& name, const Atom
         // and white space before and after semicolon separators, is allowed and will be ignored.
         // http://www.w3.org/TR/SVG11/animate.html#ValuesAttribute
         m_values.clear();
-        newValue.string().split(';', [this](StringView innerValue) {
-            auto trimmed = innerValue.trim(isASCIIWhitespace<char16_t>).toString();
-            if (!trimmed.isEmpty())
-                m_values.append(WTF::move(trimmed));
+        newValue.string().splitAllowingEmptyEntries(';', [this](StringView innerValue) {
+            m_values.append(innerValue.trim(isASCIIWhitespace<char16_t>).toString());
         });
+        // Per the SMIL specification, if the last semicolon separator is followed by
+        // just white space or no more characters, ignore the trailing empty value.
+        if (!m_values.isEmpty() && m_values.last().isEmpty())
+            m_values.removeLast();
         updateAnimationMode();
         break;
     case AttributeNames::keyTimesAttr:

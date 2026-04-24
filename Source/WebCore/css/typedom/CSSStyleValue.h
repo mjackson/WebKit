@@ -59,7 +59,7 @@ enum class CSSStyleValueType : uint8_t {
     CSSColorRGB,
     CSSUnitValue,
     CSSUnparsedValue,
-    CSSKeywordValue
+    CSSOMKeywordValue
 };
 
 inline bool isCSSNumericValue(CSSStyleValueType type)
@@ -78,7 +78,7 @@ inline bool isCSSNumericValue(CSSStyleValueType type)
     case CSSStyleValueType::CSSStyleImageValue:
     case CSSStyleValueType::CSSTransformValue:
     case CSSStyleValueType::CSSUnparsedValue:
-    case CSSStyleValueType::CSSKeywordValue:
+    case CSSStyleValueType::CSSOMKeywordValue:
     case CSSStyleValueType::CSSColorCSSOMColor:
     case CSSStyleValueType::CSSColorHSL:
     case CSSStyleValueType::CSSColorHWB:
@@ -108,7 +108,7 @@ inline bool isCSSMathValue(CSSStyleValueType type)
     case CSSStyleValueType::CSSStyleImageValue:
     case CSSStyleValueType::CSSTransformValue:
     case CSSStyleValueType::CSSUnparsedValue:
-    case CSSStyleValueType::CSSKeywordValue:
+    case CSSStyleValueType::CSSOMKeywordValue:
     case CSSStyleValueType::CSSColorCSSOMColor:
     case CSSStyleValueType::CSSColorHSL:
     case CSSStyleValueType::CSSColorHWB:
@@ -146,7 +146,7 @@ inline bool isCSSColorValue(CSSStyleValueType type)
     case CSSStyleValueType::CSSStyleImageValue:
     case CSSStyleValueType::CSSTransformValue:
     case CSSStyleValueType::CSSUnparsedValue:
-    case CSSStyleValueType::CSSKeywordValue:
+    case CSSStyleValueType::CSSOMKeywordValue:
         break;
     }
     return false;

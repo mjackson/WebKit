@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestReportExtraMemoryCost : public JSDOMWrapper<TestReportExtraMemoryCost> {
 public:
     using Base = JSDOMWrapper<TestReportExtraMemoryCost>;
-    static JSTestReportExtraMemoryCost* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestReportExtraMemoryCost>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestReportExtraMemoryCost* ptr = new (NotNull, JSC::allocateCell<JSTestReportExtraMemoryCost>(vm)) JSTestReportExtraMemoryCost(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestReportExtraMemoryCost* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestReportExtraMemoryCost>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

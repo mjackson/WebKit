@@ -1,5 +1,3 @@
 
-FAIL Moving an element with a transition to a disconnected document should reset the transitionm state assert_throws_dom: function "() => {
-        doc.body.moveBefore(item, null);
-      }" threw object "TypeError: doc.body.moveBefore is not a function. (In 'doc.body.moveBefore(item, null)', 'doc.body.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
+PASS Moving an element with a transition to a disconnected document should reset the transitionm state
 

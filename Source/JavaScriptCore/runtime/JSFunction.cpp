@@ -118,7 +118,7 @@ void JSFunction::finishCreation(VM& vm)
 {
     ASSERT(type() == JSFunctionType);
     Base::finishCreation(vm);
-    ASSERT(jsDynamicCast<JSFunction*>(this));
+    ASSERT(is<JSFunction>(this));
     // JSCell::{getCallData,getConstructData} relies on the following conditions.
     ASSERT(methodTable()->getConstructData == &JSFunction::getConstructData);
     ASSERT(methodTable()->getCallData == &JSFunction::getCallData);
@@ -220,8 +220,8 @@ String JSFunction::name(VM& vm)
 {
     if (isHostFunction()) {
         if (this->inherits<JSBoundFunction>())
-            return jsCast<JSBoundFunction*>(this)->nameString(vm);
-        NativeExecutable* executable = jsCast<NativeExecutable*>(this->executable());
+            return uncheckedDowncast<JSBoundFunction>(this)->nameString(vm);
+        NativeExecutable* executable = uncheckedDowncast<NativeExecutable>(this->executable());
         return executable->name();
     }
     const Identifier identifier = jsExecutable()->name();
@@ -235,8 +235,8 @@ String JSFunction::nameWithoutGC(VM& vm)
     AssertNoGC assertNoGC;
     if (isHostFunction()) {
         if (this->inherits<JSBoundFunction>())
-            return jsCast<JSBoundFunction*>(this)->nameStringWithoutGC(vm);
-        NativeExecutable* executable = jsCast<NativeExecutable*>(this->executable());
+            return uncheckedDowncast<JSBoundFunction>(this)->nameStringWithoutGC(vm);
+        NativeExecutable* executable = uncheckedDowncast<NativeExecutable>(this->executable());
         return executable->name();
     }
     const Identifier identifier = jsExecutable()->name();
@@ -273,13 +273,13 @@ JSString* JSFunction::toString(JSGlobalObject* globalObject)
 {
     VM& vm = getVM(globalObject);
     if (inherits<JSBoundFunction>()) {
-        JSBoundFunction* function = jsCast<JSBoundFunction*>(this);
+        JSBoundFunction* function = uncheckedDowncast<JSBoundFunction>(this);
         auto scope = DECLARE_THROW_SCOPE(vm);
         JSValue string = jsMakeNontrivialString(globalObject, "function "_s, function->nameString(vm), "() {\n    [native code]\n}"_s);
         RETURN_IF_EXCEPTION(scope, nullptr);
         return asString(string);
     } else if (inherits<JSRemoteFunction>()) {
-        JSRemoteFunction* function = jsCast<JSRemoteFunction*>(this);
+        JSRemoteFunction* function = uncheckedDowncast<JSRemoteFunction>(this);
         auto scope = DECLARE_THROW_SCOPE(vm);
         JSValue string = jsMakeNontrivialString(globalObject, "function "_s, function->nameString(), "() {\n    [native code]\n}"_s);
         RETURN_IF_EXCEPTION(scope, nullptr);
@@ -301,7 +301,7 @@ const SourceCode* JSFunction::sourceCode() const
 template<typename Visitor>
 void JSFunction::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
-    JSFunction* thisObject = jsCast<JSFunction*>(cell);
+    JSFunction* thisObject = uncheckedDowncast<JSFunction>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
 
@@ -340,7 +340,7 @@ bool JSFunction::getOwnPropertySlot(JSObject* object, JSGlobalObject* globalObje
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    JSFunction* thisObject = jsCast<JSFunction*>(object);
+    JSFunction* thisObject = uncheckedDowncast<JSFunction>(object);
 
     if (propertyName == vm.propertyNames->prototype) {
         if (thisObject->mayHaveNonReifiedPrototype()) {
@@ -366,7 +366,7 @@ bool JSFunction::getOwnPropertySlot(JSObject* object, JSGlobalObject* globalObje
 
 void JSFunction::getOwnSpecialPropertyNames(JSObject* object, JSGlobalObject* globalObject, PropertyNameArrayBuilder& propertyNames, DontEnumPropertiesMode mode)
 {
-    JSFunction* thisObject = jsCast<JSFunction*>(object);
+    JSFunction* thisObject = uncheckedDowncast<JSFunction>(object);
     VM& vm = globalObject->vm();
     auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
@@ -409,7 +409,7 @@ bool JSFunction::put(JSCell* cell, JSGlobalObject* globalObject, PropertyName pr
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    JSFunction* thisObject = jsCast<JSFunction*>(cell);
+    JSFunction* thisObject = uncheckedDowncast<JSFunction>(cell);
 
     if (propertyName == vm.propertyNames->prototype) {
         slot.disableCaching();
@@ -439,7 +439,7 @@ bool JSFunction::deleteProperty(JSCell* cell, JSGlobalObject* globalObject, Prop
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
-    JSFunction* thisObject = jsCast<JSFunction*>(cell);
+    JSFunction* thisObject = uncheckedDowncast<JSFunction>(cell);
 
     PropertyStatus propertyType = thisObject->reifyLazyPropertyIfNeeded<>(vm, globalObject, propertyName);
     RETURN_IF_EXCEPTION(scope, false);
@@ -453,7 +453,7 @@ bool JSFunction::defineOwnProperty(JSObject* object, JSGlobalObject* globalObjec
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    JSFunction* thisObject = jsCast<JSFunction*>(object);
+    JSFunction* thisObject = uncheckedDowncast<JSFunction>(object);
 
 
     if (propertyName == vm.propertyNames->prototype) {
@@ -487,7 +487,7 @@ CallData JSFunction::getConstructData(JSCell* cell)
 
 String getCalculatedDisplayName(VM& vm, JSObject* object)
 {
-    if (!jsDynamicCast<JSFunction*>(object) && !jsDynamicCast<InternalFunction*>(object))
+    if (!is<JSFunction>(object) && !is<InternalFunction>(object))
         return emptyString();
 
     Structure* structure = object->structure();
@@ -500,14 +500,14 @@ String getCalculatedDisplayName(VM& vm, JSObject* object)
             return asString(displayName)->tryGetValueWithoutGC();
     }
 
-    if (auto* function = jsDynamicCast<JSFunction*>(object)) {
+    if (auto* function = dynamicDowncast<JSFunction>(object)) {
         String actualName = function->nameWithoutGC(vm);
         if (!actualName.isEmpty() || function->isHostOrBuiltinFunction())
             return actualName;
 
         return function->jsExecutable()->ecmaName().string();
     }
-    if (auto* function = jsDynamicCast<InternalFunction*>(object))
+    if (auto* function = dynamicDowncast<InternalFunction>(object))
         return function->name();
 
     return emptyString();
@@ -685,7 +685,7 @@ JSFunction::PropertyStatus JSFunction::reifyLazyBoundNameIfNeeded(VM& vm, JSGlob
         RELEASE_AND_RETURN(scope, reifyName(vm, globalObject));
     else if (this->inherits<JSBoundFunction>()) {
         FunctionRareData* rareData = this->ensureRareData(vm);
-        JSString* name = jsCast<JSBoundFunction*>(this)->name(vm);
+        JSString* name = uncheckedDowncast<JSBoundFunction>(this)->name(vm);
         JSString* string = jsString(globalObject, vm.smallStrings.boundPrefixString(), name);
         RETURN_IF_EXCEPTION(scope, PropertyStatus::Lazy);
         unsigned initialAttributes = PropertyAttribute::DontEnum | PropertyAttribute::ReadOnly;
@@ -693,7 +693,7 @@ JSFunction::PropertyStatus JSFunction::reifyLazyBoundNameIfNeeded(VM& vm, JSGlob
         putDirect(vm, nameIdent, string, initialAttributes);
     } else if (this->inherits<JSRemoteFunction>()) {
         FunctionRareData* rareData = this->ensureRareData(vm);
-        JSString* name = jsCast<JSRemoteFunction*>(this)->nameMayBeNull();
+        JSString* name = uncheckedDowncast<JSRemoteFunction>(this)->nameMayBeNull();
         if (!name)
             name = jsEmptyString(vm);
         unsigned initialAttributes = PropertyAttribute::DontEnum | PropertyAttribute::ReadOnly;

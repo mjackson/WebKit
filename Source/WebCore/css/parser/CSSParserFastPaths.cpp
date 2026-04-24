@@ -673,7 +673,7 @@ static RefPtr<CSSValue> parseColor(StringView string, const CSSParserContext& co
     if (CSS::isColorKeyword(valueID)) {
         if (!CSSPropertyParserHelpers::isColorKeywordAllowed(valueID, context))
             return nullptr;
-        return CSSPrimitiveValue::create(valueID);
+        return CSSKeywordValue::create(valueID);
     }
     if (auto color = parseNumericColor(string, context))
         return CSSValuePool::singleton().createColorValue(*color);
@@ -761,10 +761,10 @@ static RefPtr<CSSValue> parseKeywordValue(CSSPropertyID property, StringView str
         return nullptr;
 
     if (isCSSWideKeyword(valueID))
-        return CSSPrimitiveValue::create(valueID);
+        return CSSKeywordValue::create(valueID);
 
     if (CSSPropertyParsing::isKeywordValidForStyleProperty(property, valueID, state))
-        return CSSPrimitiveValue::create(valueID);
+        return CSSKeywordValue::create(valueID);
     return nullptr;
 }
 
@@ -1005,10 +1005,10 @@ static RefPtr<CSSValue> parseDisplay(StringView string)
     case CSSValueWebkitBox:
     // No layout support for the full <display-listitem> syntax, so treat it as <display-legacy>
     case CSSValueListItem:
-        return CSSPrimitiveValue::create(valueID);
+        return CSSKeywordValue::create(valueID);
     default:
         if (isCSSWideKeyword(valueID))
-            return CSSPrimitiveValue::create(valueID);
+            return CSSKeywordValue::create(valueID);
         return nullptr;
     }
 }
@@ -1032,7 +1032,7 @@ static RefPtr<CSSValue> parseColorWithAuto(StringView string, const CSSParserCon
 {
     ASSERT(!string.isEmpty());
     if (cssValueKeywordID(string) == CSSValueAuto)
-        return CSSPrimitiveValue::create(CSSValueAuto);
+        return CSSKeywordValue::create(CSSValueAuto);
     return parseColor(string, context);
 }
 

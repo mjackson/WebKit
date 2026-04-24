@@ -37,7 +37,7 @@ namespace CSS {
 
 Ref<CSSValue> makePrimitiveCSSValue(CSSValueID value)
 {
-    return CSSPrimitiveValue::create(value);
+    return CSSKeywordValue::create(value);
 }
 
 Ref<CSSValue> makeFunctionCSSValue(CSSValueID name, Ref<CSSValue>&& value)

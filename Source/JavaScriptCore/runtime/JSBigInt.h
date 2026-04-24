@@ -29,6 +29,7 @@
 #include "CPU.h"
 #include "Error.h"
 #include "ExceptionHelpers.h"
+#include "JSCJSValueCell.h"
 #include "JSObject.h"
 #include "MathCommon.h"
 #include <wtf/CagedUniquePtr.h>
@@ -43,6 +44,18 @@ namespace JSC {
 
 class Int32BigIntImpl;
 class HeapBigIntImpl;
+
+enum class JSBigIntComparisonMode : uint8_t {
+    LessThan,
+    LessThanOrEqual
+};
+
+enum class JSBigIntComparisonResult : uint8_t {
+    Equal,
+    Undefined,
+    GreaterThan,
+    LessThan
+};
 
 class JSBigInt final : public JSCell {
 public:
@@ -150,17 +163,9 @@ public:
     String toString(JSGlobalObject*, unsigned radix);
     JS_EXPORT_PRIVATE size_t toWordsArray(std::span<uint64_t> words);
 
-    enum class ComparisonMode {
-        LessThan,
-        LessThanOrEqual
-    };
+    using ComparisonMode = JSBigIntComparisonMode;
 
-    enum class ComparisonResult {
-        Equal,
-        Undefined,
-        GreaterThan,
-        LessThan
-    };
+    using ComparisonResult = JSBigIntComparisonResult;
 
     JS_EXPORT_PRIVATE static bool NODELETE equals(JSBigInt*, JSBigInt*);
     bool NODELETE equalsToNumber(JSValue);
@@ -534,6 +539,7 @@ private:
     static std::span<Digit> multiplySingle(std::span<const Digit> multiplicand, Digit multiplier, std::span<Digit> result);
     static std::span<Digit> multiplyTextbook(std::span<const Digit> x, std::span<const Digit> y, std::span<Digit> result);
     static void multiplySpecialLow(std::span<const Digit> x, std::span<const Digit> y, std::span<Digit> result);
+    static void multiplySpecialHigh(std::span<const Digit> x, std::span<const Digit> y, std::span<Digit> result, size_t startPosition);
     template<size_t N>
     static std::span<Digit, N * 2> multiplyComba(std::span<const Digit, N> x, std::span<const Digit, N> y, std::span<Digit, N * 2> result);
 
@@ -638,7 +644,7 @@ private:
 inline JSBigInt* asHeapBigInt(JSValue value)
 {
     ASSERT(value.asCell()->isHeapBigInt());
-    return jsCast<JSBigInt*>(value.asCell());
+    return uncheckedDowncast<JSBigInt>(value.asCell());
 }
 
 inline JSBigInt::Digit JSBigInt::digit(unsigned n)

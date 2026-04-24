@@ -28,6 +28,7 @@ print("Available exports:", Object.keys(instance.exports));
 
 let incrementGlobals = instance.exports.increment_globals;
 
+print("DEBUGGER_READY");
 let iteration = 0;
 for (; ;) {
     incrementGlobals(iteration);

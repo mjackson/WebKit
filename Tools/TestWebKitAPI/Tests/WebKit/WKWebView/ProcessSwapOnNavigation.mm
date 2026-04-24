@@ -2397,6 +2397,16 @@ TEST(ProcessSwap, NavigateBackAfterClientSideRedirect)
     EXPECT_FALSE(didPerformClientRedirect);
 }
 
+static constexpr auto webkitMainWithClickableLinkBytes = R"PSONRESOURCE(
+<script>
+window.addEventListener('pageshow', function(event) {
+    if (event.persisted)
+        window.webkit.messageHandlers.pson.postMessage("Was persisted");
+});
+</script>
+<a id="testLink" href="pson://www.apple.com/main.html">Navigate</a>
+)PSONRESOURCE"_s;
+
 static void runNavigationWithLockedHistoryTest(ShouldEnablePSON shouldEnablePSON)
 {
     auto processPoolConfiguration = psonProcessPoolConfiguration();
@@ -2406,7 +2416,7 @@ static void runNavigationWithLockedHistoryTest(ShouldEnablePSON shouldEnablePSON
     RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
     RetainPtr handler = adoptNS([[PSONScheme alloc] init]);
-    [handler addMappingFromURLString:@"pson://www.webkit.org/main.html" toData:navigationWithLockedHistoryBytes];
+    [handler addMappingFromURLString:@"pson://www.webkit.org/main.html" toData:webkitMainWithClickableLinkBytes];
     [handler addMappingFromURLString:@"pson://www.apple.com/main.html" toData:pageCache1Bytes];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"pson"];
 
@@ -2431,7 +2441,8 @@ static void runNavigationWithLockedHistoryTest(ShouldEnablePSON shouldEnablePSON
 
     auto webkitPID = [webView _webProcessIdentifier];
 
-    // Page redirects to apple.com.
+    // Click the link with a user gesture to navigate to apple.com.
+    [webView evaluateJavaScript:@"testLink.click()" completionHandler:nil];
     TestWebKitAPI::Util::run(&done);
     done = false;
 
@@ -6828,7 +6839,6 @@ TEST(ProcessSwap, GoBackToSuspendedPageWithMainFrameIDThatIsNotOne)
     RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
     RetainPtr handler = adoptNS([[PSONScheme alloc] init]);
-    [handler addMappingFromURLString:@"pson://www.webkit.org/main1.html" toData:targetBlankSameSiteNoOpenerTestBytes];
     [handler addMappingFromURLString:@"pson://www.webkit.org/main2.html" toData:linkToAppleTestBytes];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
 
@@ -6845,8 +6855,6 @@ TEST(ProcessSwap, GoBackToSuspendedPageWithMainFrameIDThatIsNotOne)
 
     RetainPtr navigationDelegate = adoptNS([[PSONNavigationDelegate alloc] init]);
     [webView1 setNavigationDelegate:navigationDelegate.get()];
-    RetainPtr uiDelegate = adoptNS([[PSONUIDelegate alloc] initWithNavigationDelegate:navigationDelegate.get()]);
-    [webView1 setUIDelegate:uiDelegate.get()];
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main1.html"]];
 
@@ -6857,9 +6865,14 @@ TEST(ProcessSwap, GoBackToSuspendedPageWithMainFrameIDThatIsNotOne)
     EXPECT_WK_STREQ(@"pson://www.webkit.org/main1.html", [[webView1 URL] absoluteString]);
     auto pid1 = [webView1 _webProcessIdentifier];
 
-    TestWebKitAPI::Util::run(&didCreateWebView);
-    didCreateWebView = false;
+    // Directly create a second web view that is related to the first.
+    // This makes it start out sharing a process with the first, and gives it a main frame ID that is not 1.
+    RetainPtr webView2Configuration = adoptNS([webViewConfiguration copy]);
+    [webView2Configuration _setRelatedWebView:webView1.get()];
+    RetainPtr createdWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webView2Configuration.get()]);
+    [createdWebView setNavigationDelegate:navigationDelegate.get()];
 
+    [createdWebView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main2.html"]]];
     TestWebKitAPI::Util::run(&done);
     done = false;
 
@@ -6867,7 +6880,7 @@ TEST(ProcessSwap, GoBackToSuspendedPageWithMainFrameIDThatIsNotOne)
     EXPECT_WK_STREQ(@"pson://www.webkit.org/main2.html", [[createdWebView URL] absoluteString]);
     auto pid2 = [createdWebView _webProcessIdentifier];
 
-    // Same-site navigations without opener still share the same process.
+    // Same-site navigations still share the same process.
     EXPECT_EQ(pid1, pid2);
 
     // Click link in new WKWebView so that it navigates cross-site to apple.com.
@@ -7427,7 +7440,6 @@ TEST(ProcessSwap, PageOverlayLayerPersistence)
 
 #if PLATFORM(IOS) || PLATFORM(VISION)
 
-#if __IPHONE_OS_VERSION_MIN_REQUIRED > 130400
 TEST(ProcessSwap, QuickLookRequestsPasswordAfterSwap)
 {
     auto processPoolConfiguration = psonProcessPoolConfiguration();
@@ -7461,7 +7473,6 @@ TEST(ProcessSwap, QuickLookRequestsPasswordAfterSwap)
     TestWebKitAPI::Util::run(&didFinishQuickLookLoad);
     didFinishQuickLookLoad = false;
 }
-#endif
 
 static constexpr auto minimumWidthPageBytes = R"PSONRESOURCE(
 <!DOCTYPE html>
@@ -7581,11 +7592,7 @@ TEST(ProcessSwap, PassSandboxExtension)
 #if PLATFORM(MAC)
 
 static constexpr auto pageThatOpensBytes = R"PSONRESOURCE(
-<script>
-window.onload = function() {
-    window.open("pson://www.webkit.org/window.html", "_blank");
-}
-</script>
+<a id="testLink" target="_blank" href="pson://www.webkit.org/window.html">Open</a>
 )PSONRESOURCE"_s;
 
 static constexpr auto openedPage = "Hello World"_s;
@@ -7606,8 +7613,6 @@ TEST(ProcessSwap, SameSiteWindowWithOpenerNavigateToFile)
     RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     RetainPtr navigationDelegate = adoptNS([[PSONNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:navigationDelegate.get()];
-    RetainPtr uiDelegate = adoptNS([[PSONUIDelegate alloc] initWithNavigationDelegate:navigationDelegate.get()]);
-    [webView setUIDelegate:uiDelegate.get()];
 
     numberOfDecidePolicyCalls = 0;
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main.html"]];
@@ -7616,13 +7621,16 @@ TEST(ProcessSwap, SameSiteWindowWithOpenerNavigateToFile)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
-    TestWebKitAPI::Util::run(&didCreateWebView);
-    didCreateWebView = false;
+    // Directly create a second web view that is related to the first.
+    // This makes it start out sharing a process with the first.
+    RetainPtr webView2Configuration = adoptNS([webViewConfiguration copy]);
+    [webView2Configuration _setRelatedWebView:webView.get()];
+    RetainPtr createdWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webView2Configuration.get()]);
+    [createdWebView setNavigationDelegate:navigationDelegate.get()];
 
+    [createdWebView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/window.html"]]];
     TestWebKitAPI::Util::run(&done);
     done = false;
-
-    EXPECT_EQ(2, numberOfDecidePolicyCalls);
 
     auto pid1 = [webView _webProcessIdentifier];
     EXPECT_TRUE(!!pid1);
@@ -7639,7 +7647,6 @@ TEST(ProcessSwap, SameSiteWindowWithOpenerNavigateToFile)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
-    EXPECT_EQ(3, numberOfDecidePolicyCalls);
     auto pid3 = [createdWebView _webProcessIdentifier];
     EXPECT_TRUE(!!pid3);
     EXPECT_NE(pid2, pid3);
@@ -7657,7 +7664,6 @@ TEST(ProcessSwap, SameSiteWindowWithOpenerNavigateToFile)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
-    EXPECT_EQ(4, numberOfDecidePolicyCalls);
     auto pid4 = [createdWebView _webProcessIdentifier];
     EXPECT_NE(pid3, pid4);
 
@@ -7665,7 +7671,6 @@ TEST(ProcessSwap, SameSiteWindowWithOpenerNavigateToFile)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
-    EXPECT_EQ(5, numberOfDecidePolicyCalls);
     auto pid5 = [createdWebView _webProcessIdentifier];
     EXPECT_NE(pid4, pid5);
 }
@@ -7689,7 +7694,7 @@ TEST(ProcessSwap, ResizeWebViewDuringCrossSiteProvisionalNavigation)
     [handler addMappingFromURLString:@"pson://www.apple.com/main.html" toData:responsivePageBytes];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"pson"];
 
-    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 800) configuration:webViewConfiguration.get()]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 800) configuration:webViewConfiguration.get()]);
     RetainPtr delegate = adoptNS([[PSONNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
@@ -7721,14 +7726,14 @@ TEST(ProcessSwap, ResizeWebViewDuringCrossSiteProvisionalNavigation)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
-    [webView _doAfterNextPresentationUpdate:^{
-        [webView evaluateJavaScript:@"window.innerWidth" completionHandler:^(id result, NSError *error) {
-            NSNumber *width = (NSNumber *)result;
-            EXPECT_EQ(200, [width intValue]);
-            finishedRunningScript = true;
-        }];
-        TestWebKitAPI::Util::run(&finishedRunningScript);
+    [webView waitForNextPresentationUpdate];
+
+    [webView evaluateJavaScript:@"window.innerWidth" completionHandler:^(id result, NSError *error) {
+        NSNumber *width = (NSNumber *)result;
+        EXPECT_EQ(200, [width intValue]);
+        finishedRunningScript = true;
     }];
+    TestWebKitAPI::Util::run(&finishedRunningScript);
 }
 
 TEST(WebProcessCache, ClearWhenEnteringCache)

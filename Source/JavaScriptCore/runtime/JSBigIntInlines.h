@@ -26,7 +26,7 @@
 #pragma once
 
 #include "JSBigInt.h"
-#include "JSCJSValueInlines.h"
+#include "JSCJSValueBigInt.h"
 
 namespace JSC {
 
@@ -37,7 +37,7 @@ inline JSValue JSBigInt::toNumber(JSValue bigInt)
     if (bigInt.isBigInt32())
         return jsNumber(bigInt.bigInt32AsInt32());
 #endif
-    return toNumberHeap(jsCast<JSBigInt*>(bigInt));
+    return toNumberHeap(uncheckedDowncast<JSBigInt>(bigInt));
 }
 
 uint64_t JSBigInt::toBigUInt64(JSValue bigInt)

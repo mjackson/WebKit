@@ -27,7 +27,7 @@ import DirectResource
 import Metal
 import USDKit
 @_spi(UsdLoaderAPI) import _USDKit_RealityKit
-@_spi(RealityCoreRendererAPI) import RealityKit
+@_spi(Private) @_spi(RealityCoreRendererAPI) import RealityKit
 @_spi(SGInternal) import RealityKit
 
 final class MeshInstancePool {
@@ -108,31 +108,22 @@ extension _Proto_LowLevelMeshResource_v1.Descriptor {
     }
 }
 
+@_lifetime(buffer: copy buffer)
+private func copyDataIntoBuffer(_ buffer: inout MutableRawSpan, from data: Data) {
+    // unsafe used here as that is the method for populating a MTLBuffer
+    unsafe buffer.withUnsafeMutableBytes { unsafe $0.copyBytes(from: data) }
+}
+
 extension _Proto_LowLevelMeshResource_v1 {
     func replaceVertexData(_ vertexData: [Data]) {
         for (vertexBufferIndex, vertexData) in vertexData.enumerated() {
-            let bufferSizeInByte = vertexData.bytes.byteCount
-            self.replaceVertices(at: vertexBufferIndex) { vertexBytes in
-                // FIXME: (rdar://164559261) understand/document/remove unsafety
-                unsafe vertexBytes.withUnsafeMutableBytes { ptr in
-                    // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-                    // swift-format-ignore: NeverForceUnwrap
-                    unsafe vertexData.copyBytes(to: ptr.baseAddress!.assumingMemoryBound(to: UInt8.self), count: bufferSizeInByte)
-                }
-            }
+            self.replaceVertices(at: vertexBufferIndex) { copyDataIntoBuffer(&$0, from: vertexData) }
         }
     }
 
     func replaceIndexData(_ indexData: Data?) {
         if let indexData = indexData {
-            self.replaceIndices { indicesBytes in
-                // FIXME: (rdar://164559261) understand/document/remove unsafety
-                unsafe indicesBytes.withUnsafeMutableBytes { ptr in
-                    // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
-                    // swift-format-ignore: NeverForceUnwrap
-                    unsafe indexData.copyBytes(to: ptr.baseAddress!.assumingMemoryBound(to: UInt8.self), count: ptr.count)
-                }
-            }
+            self.replaceIndices { copyDataIntoBuffer(&$0, from: indexData) }
         }
     }
 
@@ -294,6 +285,30 @@ internal func debugPrintShaderGraph(_ graph: _Proto_ShaderNodeGraph?, prefix: St
     for (index, edge) in graph.edges.enumerated() {
         logInfo("\(nextIndent)  [\(index)] \(edge.outputNode):\(edge.outputPort) -> \(edge.inputNode):\(edge.inputPort)")
     }
+
+    // Print underlying SGGraph
+    let sgGraph = graph.sgGraph
+    logInfo("\(nextIndent)SGGraph:")
+    let sgIndent = nextIndent + "  "
+    logInfo("\(sgIndent)Name: \(sgGraph.name)")
+    logInfo("\(sgIndent)Inputs (\(sgGraph.inputs.count)):")
+    for (index, input) in sgGraph.inputs.enumerated() {
+        logInfo("\(sgIndent)  [\(index)] name: \(input.name), type: \(input.type)")
+    }
+    logInfo("\(sgIndent)Outputs (\(sgGraph.outputs.count)):")
+    for (index, output) in sgGraph.outputs.enumerated() {
+        logInfo("\(sgIndent)  [\(index)] name: \(output.name), type: \(output.type)")
+    }
+    logInfo("\(sgIndent)Nodes (\(sgGraph.childNodes.count)):")
+    for node in sgGraph.childNodes {
+        let inputNames = node.inputs.map { "\($0.name): \($0.type)" }.joined(separator: ", ")
+        let outputNames = node.outputs.map { "\($0.name): \($0.type)" }.joined(separator: ", ")
+        logInfo("\(sgIndent)  \(node.name) inputs=[\(inputNames)] outputs=[\(outputNames)]")
+    }
+    logInfo("\(sgIndent)Edges (\(sgGraph.edges.count))")
+    if let dot = try? sgGraph.createDotRepresentation() {
+        logInfo("\(sgIndent)DOT representation:\n\(dot)")
+    }
 }
 
 private func debugPrintNode(_ node: _Proto_ShaderNodeGraph.Node, indent: String = "") {
@@ -361,15 +376,15 @@ private func debugPrintValue(_ value: _Proto_ShaderGraphValue, indent: String = 
         logInfo("\(indent)Value: int4(\(val.x), \(val.y), \(val.z), \(val.w))")
     case .cgColor3(let color):
         if let components = color.components {
-            logInfo("\(indent)Value: color3(r:\(components[0]), g:\(components[1]), b:\(components[2]))")
+            logInfo("\(indent)Value: cgColor3(\(components[0]), \(components[1]), \(components[2]))")
         } else {
-            logInfo("\(indent)Value: color3(invalid)")
+            fatalError("\(indent)Value: cgColor3(invalid)")
         }
     case .cgColor4(let color):
         if let components = color.components {
-            logInfo("\(indent)Value: color4(r:\(components[0]), g:\(components[1]), b:\(components[2]), a:\(components[3]))")
+            logInfo("\(indent)Value: cgColor4(\(components[0]), \(components[1]), \(components[2]), \(components[3]))")
         } else {
-            logInfo("\(indent)Value: color4(invalid)")
+            fatalError("\(indent)Value: cgColor4(invalid)")
         }
     case .float2x2(let col0, let col1):
         logInfo("\(indent)Value: float2x2(")
@@ -533,14 +548,101 @@ internal func compareShaderGraphs(
 
 private func nodeDataTypeString(_ data: _Proto_ShaderNodeGraph.Node.NodeData) -> String {
     switch data {
-    case .constant:
-        return "constant"
+    case .constant(let value):
+        return "constant(\(value))"
     case .definition(let def):
         return "definition(\(def.name))"
     case .graph:
         return "graph"
     @unknown default:
         return "unknown"
+    }
+}
+
+extension MTLPixelFormat {
+    var bytesPerPixel: Int? {
+    switch self {
+
+    // MARK: - 8-bit (1 byte)
+    case .a8Unorm,
+         .r8Unorm,
+         .r8Unorm_srgb,
+         .r8Snorm,
+         .r8Uint,
+         .r8Sint,
+         .stencil8:
+        return 1
+
+    // MARK: - 16-bit (2 bytes)
+    case .r16Unorm,
+         .r16Snorm,
+         .r16Uint,
+         .r16Sint,
+         .r16Float,
+         .rg8Unorm,
+         .rg8Unorm_srgb,
+         .rg8Snorm,
+         .rg8Uint,
+         .rg8Sint,
+         .b5g6r5Unorm,
+         .a1bgr5Unorm,
+         .abgr4Unorm,
+         .bgr5A1Unorm,
+         .depth16Unorm:
+        return 2
+
+    // MARK: - 32-bit (4 bytes)
+    case .r32Uint,
+         .r32Sint,
+         .r32Float,
+         .rg16Unorm,
+         .rg16Snorm,
+         .rg16Uint,
+         .rg16Sint,
+         .rg16Float,
+         .rgba8Unorm,
+         .rgba8Unorm_srgb,
+         .rgba8Snorm,
+         .rgba8Uint,
+         .rgba8Sint,
+         .bgra8Unorm,
+         .bgra8Unorm_srgb,
+         .rgb10a2Unorm,
+         .rgb10a2Uint,
+         .rg11b10Float,
+         .rgb9e5Float,
+         .bgr10a2Unorm,
+         .bgr10_xr,
+         .bgr10_xr_srgb,
+         .depth32Float,
+         .x24_stencil8:
+        return 4
+
+    // MARK: - 64-bit (8 bytes)
+    case .rgba16Unorm,
+         .rgba16Snorm,
+         .rgba16Uint,
+         .rgba16Sint,
+         .rgba16Float,
+         .rg32Uint,
+         .rg32Sint,
+         .rg32Float,
+         .bgra10_xr,
+         .bgra10_xr_srgb,
+         .depth32Float_stencil8,
+         .x32_stencil8:
+        return 8
+
+    // MARK: - 128-bit (16 bytes)
+    case .rgba32Uint,
+         .rgba32Sint,
+         .rgba32Float:
+        return 16
+
+    // MARK: - Compressed / Unknown
+    default:
+        return nil // Block-compressed (BCn, ASTC, EAC, PVRTC, etc.) or invalid
+    }
     }
 }
 

@@ -26,6 +26,7 @@
 #include "config.h"
 #include "StyleTextShadow.h"
 
+#include "CSSKeywordValue.h"
 #include "CSSTextShadowPropertyValue.h"
 #include "ColorBlending.h"
 #include "RenderStyle+GettersInlines.h"
@@ -73,8 +74,15 @@ Ref<CSSValue> CSSValueCreation<TextShadowList>::operator()(CSSValuePool&, const 
 
 auto CSSValueConversion<TextShadows>::operator()(BuilderState& state, const CSSValue& value) -> TextShadows
 {
-    if (value.valueID() == CSSValueNone)
-        return CSS::Keyword::None { };
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
+    }
 
     RefPtr shadow = requiredDowncast<CSSTextShadowPropertyValue>(state, value);
     if (!shadow)

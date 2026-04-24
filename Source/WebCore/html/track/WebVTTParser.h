@@ -126,7 +126,7 @@ public:
     static bool collectTimeStamp(const String&, MediaTime&);
 
     // Useful functions for parsing percentage settings.
-    static bool parseFloatPercentageValue(VTTScanner& valueScanner, float&);
+    static bool parseFloatPercentageValue(VTTScanner& valueScanner, double&);
     static bool parseFloatPercentageValuePair(VTTScanner& valueScanner, char, FloatPoint&);
 
     // Input data to the parser to parse.

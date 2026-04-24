@@ -470,7 +470,8 @@ TEST(WKBackForwardList, BackSwipeNavigationSkipsItemsWithoutUserGesture)
     [webView _evaluateJavaScriptWithoutUserGesture:@"history.pushState(null, document.title, location.pathname + '#c');" completionHandler:nil];
     [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
-    EXPECT_EQ([webView backForwardList].backList.count, 4U);
+    // 4 items in the back list, but most should be invisible because of the user gesture flag.
+    EXPECT_EQ([webView backForwardList].backList.count, 1U);
     EXPECT_EQ([webView backForwardList].forwardList.count, 0U);
 
     // Navigating back via a swipe gesture should skip those back/forward list items without a user gesture.
@@ -480,8 +481,9 @@ TEST(WKBackForwardList, BackSwipeNavigationSkipsItemsWithoutUserGesture)
 
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, [url1 absoluteString].UTF8String);
 
+    // 4 items in the forward list, but most should be invisible because of the user gesture flag.
+    EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
     EXPECT_EQ([webView backForwardList].backList.count, 0U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 4U);
 }
 
 TEST(WKBackForwardList, BackSwipeNavigationDoesNotSkipItemsWithUserGesture)
@@ -576,7 +578,7 @@ static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<vo
     // We should go back to url2#c.
     expectedURLString = makeString(String([url2 absoluteString]), "#c"_s).createNSString();
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
-    EXPECT_EQ([webView backForwardList].backList.count, 4U);
+    EXPECT_EQ([webView backForwardList].backList.count, 1U);
     EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
 
     // Let's go back again.
@@ -586,7 +588,7 @@ static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<vo
     // We should have skipped over url2#b, url2#a and url2, to end up on url1.
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, [url1 absoluteString].UTF8String);
     EXPECT_EQ([webView backForwardList].backList.count, 0U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 5U);
+    EXPECT_EQ([webView backForwardList].forwardList.count, 2U);
 
     // Now let's go forward.
     [webView goForward];
@@ -595,7 +597,7 @@ static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<vo
     // We should get to the latest url2 URL, that is url2#c.
     expectedURLString = makeString(String([url2 absoluteString]), "#c"_s).createNSString();
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
-    EXPECT_EQ([webView backForwardList].backList.count, 4U);
+    EXPECT_EQ([webView backForwardList].backList.count, 1U);
     EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
 
     // Let's go forward again.
@@ -613,15 +615,15 @@ static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<vo
 
     expectedURLString = makeString(String([url2 absoluteString]), "#c"_s).createNSString();
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
-    EXPECT_EQ([webView backForwardList].backList.count, 4U);
+    EXPECT_EQ([webView backForwardList].backList.count, 1U);
     EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
 
     [webView _evaluateJavaScriptWithoutUserGesture:@"history.back();" completionHandler:^(id, NSError *) { }];
     [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
     expectedURLString = makeString(String([url2 absoluteString]), "#b"_s).createNSString();
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
-    EXPECT_EQ([webView backForwardList].backList.count, 3U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 2U);
+    EXPECT_EQ([webView backForwardList].backList.count, 1U);
+    EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
 }
 
 TEST(WKBackForwardList, BackForwardNavigationSkipsItemsWithoutUserGesturePushState)
@@ -660,33 +662,51 @@ TEST(WKBackForwardList, BackForwardNavigationSkipsItemsWithoutUserGestureSubfram
         { "/iframe.html"_s, { "<script>onload = () => { setTimeout(() => { history.pushState(null, document.title, '#'); }, 0); };</script>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::Http);
 
-    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] init]);
 
     RetainPtr navigationDelegate = adoptNS([WKBackForwardNavigationDelegate new]);
     webView.get().navigationDelegate = navigationDelegate.get();
 
+    // After this load, the bf list is:
+    // (source)*
     [webView loadRequest:server.request("/source.html"_s)];
     [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
+    // After this load, the bf list is:
+    // (source) - (destination)*
     [webView loadRequest:server.request("/destination.html"_s)];
     [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
-    // Wait for the subframe to call pushState().
-    while ([webView backForwardList].backList.count != 2)
+    // Wait for the subframe to call pushState(). The API-visible backList is filtered
+    // so we poll history.length which reflects the unfiltered count.
+    while ([[webView objectByEvaluatingJavaScript:@"history.length"] integerValue] < 3)
         TestWebKitAPI::Util::spinRunLoop();
+
+    // After the push state without user gesture in the iframe, the bf list is:
+    // (source) - (destination) - [destination`]*
+    // Because the current item has no user gesture, going back would skip the previous item
+    // that *does* have a user gesture. So the back list count should be 1, not 2.
+    EXPECT_EQ([webView backForwardList].backList.count, 1U);
 
     [webView goBack];
     [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
     // We should be back to source.html since we would have ignored the history item
     // added by the subframe without user interaction.
+    // The bf list should look like:
+    // (source)* - (destination) - [destination`]
     EXPECT_EQ([webView backForwardList].backList.count, 0U);
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, server.request("/source.html"_s).URL.absoluteString.UTF8String);
 
     [webView goForward];
     [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
-    EXPECT_EQ([webView backForwardList].backList.count, 2U);
+    // Going forward skips the middle item (which has a user gesture) to the final item.
+    // So the list is once again:
+    // (source) - (destination) - [destination`]*
+    // Like before, vecause the current item has no user gesture, going back would skip the previous item
+    // that *does* have a user gesture. So the back list count should be 1, not 2.
+    EXPECT_EQ([webView backForwardList].backList.count, 1U);
     EXPECT_EQ([webView backForwardList].forwardList.count, 0U);
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, server.request("/destination.html"_s).URL.absoluteString.UTF8String);
 }
@@ -1280,21 +1300,21 @@ TEST(WKBackForwardList, BackwardSkipIteratesThroughConsecutiveJSItems)
     [webView _evaluateJavaScriptWithoutUserGesture:@"history.pushState(null, '', '#b');" completionHandler:nil];
     [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
-    EXPECT_EQ([webView backForwardList].backList.count, 3U);
+    EXPECT_EQ([webView backForwardList].backList.count, 1U);
 
     [webView goBack];
     [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, [url1 absoluteString].UTF8String);
     EXPECT_EQ([webView backForwardList].backList.count, 0U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 3U);
+    EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
 
     [webView goForward];
     [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
     RetainPtr expectedURL = makeString(String([url2 absoluteString]), "#b"_s).createNSString();
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURL.get().UTF8String);
-    EXPECT_EQ([webView backForwardList].backList.count, 3U);
+    EXPECT_EQ([webView backForwardList].backList.count, 1U);
     EXPECT_EQ([webView backForwardList].forwardList.count, 0U);
 }
 
@@ -1373,19 +1393,15 @@ TEST(WKBackForwardList, BackwardSkipReturnsNonJSItemWhenNothingFurtherBack)
 
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, [url1 absoluteString].UTF8String);
     EXPECT_EQ([webView backForwardList].backList.count, 0U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
+    EXPECT_EQ([webView backForwardList].forwardList.count, 0U);
 }
 
 TEST(WKBackForwardList, ForwardSkipReturnsFirstJSItemWhenAllForwardItemsAreJS)
 {
-    // Covers the guard in the main while-loop of
-    // itemSkippingBackForwardItemsAddedByJSWithoutUserGesture for the forward
-    // direction (line 643): runs out of items before finding a non-JS item.
+    // Create a back/forward list with the following state:
+    // url1 -> url1#a(JS) -> url1#b(JS) -> url1#c(JS)
     //
-    // State: url1 -> url1#a(JS) -> url1#b(JS) -> url1#c(JS)
-    //
-    // Navigate to url1, then goForward: all forward items are JS. The while loop
-    // iterates through them all and runs out, returning originalItem (url1#a).
+    // Navigate to url1's item, and verify the API visible forward list is empty.
 
     RetainPtr webView = adoptNS([[WKWebView alloc] init]);
     RetainPtr navigationDelegate = adoptNS([WKBackForwardNavigationDelegate new]);
@@ -1405,20 +1421,14 @@ TEST(WKBackForwardList, ForwardSkipReturnsFirstJSItemWhenAllForwardItemsAreJS)
     [webView _evaluateJavaScriptWithoutUserGesture:@"history.pushState(null, '', '#c');" completionHandler:nil];
     [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
-    // backList is ordered oldest-first; firstObject is url1 (the original loadRequest item).
     WKBackForwardListItem *url1Item = [webView backForwardList].backList.firstObject;
     [webView goToBackForwardListItem:url1Item];
     [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, [url1 absoluteString].UTF8String);
 
-    [webView goForward];
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
-
-    RetainPtr expectedURL = makeString(String([url1 absoluteString]), "#a"_s).createNSString();
-    EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURL.get().UTF8String);
-    EXPECT_EQ([webView backForwardList].backList.count, 1U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 2U);
+    EXPECT_EQ([webView backForwardList].backList.count, 0U);
+    EXPECT_EQ([webView backForwardList].forwardList.count, 0U);
 }
 
 static void runGoBackAfterNavigatingSameSiteIframe2(ShouldEnablePageCache shouldEnablePageCache)
@@ -1509,4 +1519,113 @@ TEST(WKBackForwardList, PageCacheGoBackAfterNavigatingSameSiteIframe2)
 TEST(WKBackForwardList, NoPageCacheGoBackAfterNavigatingSameSiteIframe2)
 {
     runGoBackAfterNavigatingSameSiteIframe2(ShouldEnablePageCache::No);
+}
+
+TEST(WKBackForwardList, BackForwardNavigationSkipsPromiseRedirectWithoutUserInteraction)
+{
+    // When a web page asynchronously adds items to the session history after the load event,
+    // the JavaScript visible session history should see the new entries... But the browser-visible
+    // session history (like what the user sees when looking at the back/forward list buttons) now
+    // hides these entries.
+    //
+    // This test uses both JavaScript and the WKBackForwardList API to verify both views of the
+    // session history are as expected.
+
+    TestWebKitAPI::HTTPServer server({
+        { "/opener"_s, { "<a id='link' href='/pageA' target='_blank'>Open</a>"
+            "<script>function clickLink() { document.getElementById('link').click(); }</script>"_s } },
+        { "/pageA"_s, { "<script>"
+            "window.onload = function() {"
+            "  var data = new TextEncoder().encode('test data for hashing');"
+            "  crypto.subtle.digest('SHA-256', data).then(function(hash) {"
+            "    return crypto.subtle.importKey('raw', hash, { name: 'AES-CBC', length: 256 }, false, ['encrypt']);"
+            "  }).then(function(key) {"
+            "    var iv = new Uint8Array(16);"
+            "    return crypto.subtle.encrypt({ name: 'AES-CBC', iv: iv }, key, data);"
+            "  }).then(function(encrypted) {"
+            "    window.location.href = '/pageB';"
+            "  });"
+            "};"
+            "</script>"_s } },
+        { "/pageB"_s, { "Page B"_s } },
+        { "/pageC"_s, { "Page C"_s } },
+        { "/pageD"_s, { "Page D"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    RetainPtr openerWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero]);
+    [openerWebView configuration].preferences.javaScriptCanOpenWindowsAutomatically = YES;
+
+    __block RetainPtr<TestWKWebView> popupWebView;
+    __block bool popupCreated = false;
+    RetainPtr navigationDelegate = adoptNS([WKBackForwardNavigationDelegate new]);
+
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
+    uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *action, WKWindowFeatures *windowFeatures) {
+        popupWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+        [popupWebView setNavigationDelegate:navigationDelegate.get()];
+        popupCreated = true;
+        return popupWebView.get();
+    };
+    [openerWebView setUIDelegate:uiDelegate.get()];
+
+    RetainPtr openerNavigationDelegate = adoptNS([WKBackForwardNavigationDelegate new]);
+    [openerWebView setNavigationDelegate:openerNavigationDelegate.get()];
+    [openerWebView loadRequest:server.request("/opener"_s)];
+    [openerNavigationDelegate waitForDidFinishNavigation];
+
+    [openerWebView evaluateJavaScript:@"clickLink()" completionHandler:nil];
+    TestWebKitAPI::Util::run(&popupCreated);
+
+    // Wait for two navigations to finish: To page A, then to Page B.
+    [navigationDelegate waitForDidFinishNavigation];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    // Page A did some crypto operations in a promise chain.
+    // At the end of that promise chain it did a JS redirect to page B.
+    // So the session history looks like this:
+    // (A) -> (B)*
+    // Parenthesis indicates the page had no user interaction.
+    // Asterisk indicates the current item.
+    // JavaScript will always see the full session history, so the length there is 2.
+    EXPECT_STREQ([[popupWebView stringByEvaluatingJavaScript:@"history.length"] UTF8String], "2");
+
+    // But the API back/forward list ignores entries without user interaction.
+    // Therefore both the backList and forwardList should be empty.
+    EXPECT_EQ([popupWebView backForwardList].backList.count, 0U);
+    EXPECT_EQ([popupWebView backForwardList].forwardList.count, 0U);
+
+    [popupWebView loadRequest:server.request("/pageC"_s)];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    // The history now looks like this:
+    // (A) -> (B) -> C*
+    // JavaScript sees all 3, but the API back/forward list ignores those first two entries.
+    EXPECT_STREQ([[popupWebView stringByEvaluatingJavaScript:@"history.length"] UTF8String], "3");
+    EXPECT_EQ([popupWebView backForwardList].backList.count, 0U);
+    EXPECT_EQ([popupWebView backForwardList].forwardList.count, 0U);
+    EXPECT_STREQ([popupWebView URL].absoluteString.UTF8String, server.request("/pageC"_s).URL.absoluteString.UTF8String);
+
+    [popupWebView loadRequest:server.request("/pageD"_s)];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    // The history now looks like this:
+    // (A) -> (B) -> C -> D*
+    // JavaScript sees all 4, the API back/forward list should see only 2.
+    EXPECT_STREQ([[popupWebView stringByEvaluatingJavaScript:@"history.length"] UTF8String], "4");
+    EXPECT_EQ([popupWebView backForwardList].backList.count, 1U);
+    EXPECT_EQ([popupWebView backForwardList].forwardList.count, 0U);
+    EXPECT_STREQ([popupWebView URL].absoluteString.UTF8String, server.request("/pageD"_s).URL.absoluteString.UTF8String);
+
+    [popupWebView goBack];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    // The history now looks like this:
+    // (A) -> (B) -> C* -> D
+    EXPECT_EQ([popupWebView backForwardList].backList.count, 0U);
+    EXPECT_EQ([popupWebView backForwardList].forwardList.count, 1U);
+    EXPECT_STREQ([popupWebView URL].absoluteString.UTF8String, server.request("/pageC"_s).URL.absoluteString.UTF8String);
+
+    // Attempting to goBack now should simply fail.
+    auto *navigation = [popupWebView goBack];
+    EXPECT_NULL(navigation);
 }

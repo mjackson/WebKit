@@ -27,7 +27,6 @@
 #include "config.h"
 #include "SVGElement.h"
 
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSPropertyParser.h"
 #include "ContainerNodeInlines.h"
 #include "Document.h"
@@ -69,6 +68,7 @@
 #include "ShadowRoot.h"
 #include "StyleAdjuster.h"
 #include "StyleExtractor.h"
+#include "StyleKeyword+Mappings.h"
 #include "StyleResolver.h"
 #include "XMLNames.h"
 #include <wtf/HashMap.h>
@@ -614,11 +614,6 @@ bool SVGElement::isAnimatedAttribute(const QualifiedName& attributeName) const
 bool SVGElement::isAnimatedStyleAttribute(const QualifiedName& attributeName) const
 {
     return SVGPropertyAnimatorFactory::isKnownAttribute(attributeName) || propertyRegistry().isAnimatedStylePropertyAttribute(attributeName);
-}
-
-bool SVGElement::hasAttributeOrIsAnimatingProperty(const QualifiedName& attributeName) const
-{
-    return hasAttribute(attributeName) || propertyRegistry().isAnimatingProperty(attributeName);
 }
 
 RefPtr<SVGAttributeAnimator> SVGElement::createAnimator(const QualifiedName& attributeName, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)

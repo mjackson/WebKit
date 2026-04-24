@@ -212,6 +212,13 @@ void LibWebRTCProvider::willCreatePeerConnectionFactory()
 #endif
 }
 
+void LibWebRTCProvider::clearCodecsConnectionForTesting()
+{
+#if PLATFORM(COCOA)
+    protect(WebProcess::singleton().libWebRTCCodecs())->clearConnectionForTesting();
+#endif
+}
+
 } // namespace WebKit
 
 #endif // USE(LIBWEBRTC)

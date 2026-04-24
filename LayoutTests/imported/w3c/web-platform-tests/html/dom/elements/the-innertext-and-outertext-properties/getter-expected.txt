@@ -73,8 +73,8 @@ PASS Soft breaks ignored, text-transform applied ("<div style='width:1px; word-b
 PASS <br> returned as newline, following space collapsed ("<div style='width:1px; word-break:break-word'>Hello<br> Kitty</div>")
 PASS <br> returned as newline, preceding space collapsed ("<div style='width:1px; word-break:break-word'>Hello <br>Kitty</div>")
 PASS <br> returned as newline, adjacent spaces collapsed across element boundaries ("<div style='width:1px; word-break:break-word'><x>Hello </x> <br> <x> Kitty</x></div>")
-FAIL ::first-line styles applied ("<div class='first-line-uppercase'>abc") assert_equals: innerText expected "ABC" but got "abc"
-FAIL ::first-line styles applied ("<div class='first-line-uppercase' style='width:0'>abc def") assert_equals: innerText expected "ABC def" but got "abc def"
+PASS ::first-line styles applied ("<div class='first-line-uppercase'>abc")
+PASS ::first-line styles applied ("<div class='first-line-uppercase' style='width:0'>abc def")
 PASS ::first-letter styles applied ("<div class='first-letter-uppercase' style='width:0'>abc def")
 PASS ::first-letter float ignored ("<div class='first-letter-float' style='width:0'>abc def")
 PASS &nbsp; preserved ("<div>&nbsp;")
@@ -129,29 +129,29 @@ PASS <svg> text contents preserved ("<div><svg><text>abc</text></svg></div>")
 FAIL <svg><defs> text contents ignored ("<div><svg><defs><text>abc</text></defs></svg></div>") assert_equals: innerText expected "" but got "abc"
 PASS <svg> non-rendered text ignored ("<div><svg><stop>abc</stop></svg></div>")
 PASS <foreignObject> contents preserved ("<svg><foreignObject><span id='target'>abc</span></foreignObject></svg>")
-FAIL <select size='1'> contents of options preserved ("<select size='1'><option>abc</option><option>def") assert_equals: innerText expected "abc\ndef" but got ""
-FAIL <select size='2'> contents of options preserved ("<select size='2'><option>abc</option><option>def") assert_equals: innerText expected "abc\ndef" but got ""
+PASS <select size='1'> contents of options preserved ("<select size='1'><option>abc</option><option>def")
+PASS <select size='2'> contents of options preserved ("<select size='2'><option>abc</option><option>def")
 PASS <select size='1'> contents of target option preserved ("<select size='1'><option id='target'>abc</option><option>def")
 PASS <select size='2'> contents of target option preserved ("<select size='2'><option id='target'>abc</option><option>def")
 PASS empty <select> ("<div>a<select></select>bc")
-FAIL empty <optgroup> in <select> ("<div>a<select><optgroup></select>bc") assert_equals: innerText expected "a\nbc" but got "abc"
-FAIL empty <option> in <select> ("<div>a<select><option></select>bc") assert_equals: innerText expected "a\nbc" but got "abc"
+PASS empty <optgroup> in <select> ("<div>a<select><optgroup></select>bc")
+PASS empty <option> in <select> ("<div>a<select><option></select>bc")
 PASS <select> containing text node child ("<select class='poke'></select>")
 PASS <optgroup> containing <optgroup> ("<select><optgroup class='poke-optgroup'></select>")
-FAIL <optgroup> containing <option> ("<select><optgroup><option>abc</select>") assert_equals: innerText expected "abc" but got ""
-FAIL <div> in <option> ("<select><option class='poke-div'>123</select>") assert_equals: innerText expected "123\nabc" but got ""
-FAIL empty <optgroup> in <div> ("<div>a<optgroup></optgroup>bc") assert_equals: innerText expected "a\nbc" but got "abc"
-FAIL <optgroup> in <div> ("<div>a<optgroup>123</optgroup>bc") assert_equals: innerText expected "a\nbc" but got "a123bc"
-FAIL empty <option> in <div> ("<div>a<option></option>bc") assert_equals: innerText expected "a\nbc" but got "abc"
-FAIL <option> in <div> ("<div>a<option>123</option>bc") assert_equals: innerText expected "a\n123\nbc" but got "a123bc"
-FAIL undefined ("<select><option>one</option><div><optgroup label=optgroup><div><option><span>two") assert_equals: innerText expected "one\ntwo" but got ""
+PASS <optgroup> containing <option> ("<select><optgroup><option>abc</select>")
+FAIL <div> in <option> ("<select><option class='poke-div'>123</select>") assert_equals: innerText expected "123\nabc" but got "123abc"
+PASS empty <optgroup> in <div> ("<div>a<optgroup></optgroup>bc")
+FAIL <optgroup> in <div> ("<div>a<optgroup>123</optgroup>bc") assert_equals: innerText expected "a\nbc" but got "a\n123\nbc"
+PASS empty <option> in <div> ("<div>a<option></option>bc")
+PASS <option> in <div> ("<div>a<option>123</option>bc")
+PASS undefined ("<select><option>one</option><div><optgroup label=optgroup><div><option><span>two")
 PASS <button> contents preserved ("<div><button>abc")
 PASS <fieldset> contents preserved ("<div><fieldset>abc")
 PASS <fieldset> <legend> contents preserved ("<div><fieldset><legend>abc")
 PASS <input> contents ignored ("<div><input type='text' value='abc'>")
 PASS <textarea> contents ignored ("<div><textarea>abc")
-FAIL <select size='1'> contents of options preserved ("<div><select size='1'><option>abc</option><option>def") assert_equals: innerText expected "abc\ndef" but got ""
-FAIL <select size='2'> contents of options preserved ("<div><select size='2'><option>abc</option><option>def") assert_equals: innerText expected "abc\ndef" but got ""
+PASS <select size='1'> contents of options preserved ("<div><select size='1'><option>abc</option><option>def")
+PASS <select size='2'> contents of options preserved ("<div><select size='2'><option>abc</option><option>def")
 PASS <iframe> contents ignored ("<div><iframe>abc")
 PASS  <iframe> subdocument ignored ("<div><iframe src='data:text/html,abc'>")
 PASS <audio> contents ignored ("<div><audio>abc")

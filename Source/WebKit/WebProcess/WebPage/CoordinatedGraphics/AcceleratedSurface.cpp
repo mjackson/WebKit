@@ -89,9 +89,9 @@ using namespace WebCore;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(AcceleratedSurface);
 
-Ref<AcceleratedSurface> AcceleratedSurface::create(WebPage& webPage, Function<void()>&& frameCompleteHandler, RenderingPurpose renderingPurpose)
+Ref<AcceleratedSurface> AcceleratedSurface::create(WebPage& webPage, Function<void()>&& frameCompleteHandler, RenderingPurpose renderingPurpose, bool useSkia)
 {
-    return adoptRef(*new AcceleratedSurface(webPage, WTF::move(frameCompleteHandler), renderingPurpose));
+    return adoptRef(*new AcceleratedSurface(webPage, WTF::move(frameCompleteHandler), renderingPurpose, useSkia));
 }
 
 static uint64_t generateID()
@@ -107,12 +107,15 @@ static bool useExplicitSync()
     return extensions.ANDROID_native_fence_sync && (display.eglCheckVersion(1, 5) || extensions.KHR_fence_sync);
 }
 
-AcceleratedSurface::AcceleratedSurface(WebPage& webPage, Function<void()>&& frameCompleteHandler, RenderingPurpose renderingPurpose)
+AcceleratedSurface::AcceleratedSurface(WebPage& webPage, Function<void()>&& frameCompleteHandler, RenderingPurpose renderingPurpose, bool useSkia)
     : m_webPage(webPage)
     , m_frameCompleteHandler(WTF::move(frameCompleteHandler))
+    , m_useSkia(useSkia)
     , m_id(generateID())
     , m_renderingPurpose(renderingPurpose)
+#if PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
     , m_hardwareAccelerationEnabled(webPage.corePage()->settings().hardwareAccelerationEnabled())
+#endif
     , m_backgroundColor(webPage.backgroundColor())
     , m_swapChain(*this)
     , m_isVisible(webPage.activityState().contains(ActivityState::IsVisible))
@@ -166,7 +169,7 @@ AcceleratedSurface::RenderTargetShareableBuffer::RenderTargetShareableBuffer(Acc
     : RenderTarget(surface)
     , m_initialSize(size)
 {
-    if (m_surface->renderingPurpose() == RenderingPurpose::NonComposited)
+    if (m_surface->useSkia())
         return;
 
     glGenFramebuffers(1, &m_fbo);
@@ -182,11 +185,13 @@ AcceleratedSurface::RenderTargetShareableBuffer::RenderTargetShareableBuffer(Acc
 
 AcceleratedSurface::RenderTargetShareableBuffer::~RenderTargetShareableBuffer()
 {
-    if (m_fbo)
-        glDeleteFramebuffers(1, &m_fbo);
+    if (!m_surface->useSkia()) {
+        if (m_fbo)
+            glDeleteFramebuffers(1, &m_fbo);
 
-    if (m_depthStencilBuffer)
-        glDeleteRenderbuffers(1, &m_depthStencilBuffer);
+        if (m_depthStencilBuffer)
+            glDeleteRenderbuffers(1, &m_depthStencilBuffer);
+    }
 
     WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::DidDestroyBuffer(m_id), m_surface->surfaceID());
 }
@@ -203,7 +208,7 @@ void AcceleratedSurface::RenderTargetShareableBuffer::willRenderFrame()
             fence->serverWait();
     }
 
-    if (!m_skiaSurface) {
+    if (!m_surface->useSkia()) {
         glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
             LOG_ERROR("AcceleratedSurface was unable to construct a complete framebuffer");
@@ -226,7 +231,7 @@ void AcceleratedSurface::RenderTargetShareableBuffer::sync(bool useExplicitSync)
         m_renderingFenceFD = fence->exportFD();
         if (!m_renderingFenceFD)
             fence->clientWait();
-    } else if (!m_skiaSurface)
+    } else if (!m_surface->useSkia())
         glFlush();
 }
 
@@ -293,7 +298,7 @@ AcceleratedSurface::RenderTargetEGLImage::RenderTargetEGLImage(AcceleratedSurfac
     : RenderTargetShareableBuffer(surface, size)
     , m_image(image)
 {
-    if (m_surface->renderingPurpose() == RenderingPurpose::NonComposited) {
+    if (m_surface->useSkia()) {
         m_texture = BitmapTexture::create(m_image, size);
         createSkiaSurfaceForTexture(*m_texture);
     } else
@@ -366,7 +371,11 @@ AcceleratedSurface::RenderTargetEGLImage::RenderTargetEGLImage(AcceleratedSurfac
     : RenderTargetShareableBuffer(surface, size)
     , m_image(image)
 {
-    initializeColorBuffer();
+    if (m_surface->useSkia()) {
+        m_texture = BitmapTexture::create(m_image, size);
+        createSkiaSurfaceForTexture(*m_texture);
+    } else
+        initializeColorBuffer();
     WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::DidCreateAndroidBuffer(m_id, WTF::move(hardwareBuffer)), m_surface->surfaceID());
 }
 #endif // OS(ANDROID)
@@ -374,6 +383,7 @@ AcceleratedSurface::RenderTargetEGLImage::RenderTargetEGLImage(AcceleratedSurfac
 #if USE(GBM) || OS(ANDROID)
 void AcceleratedSurface::RenderTargetEGLImage::initializeColorBuffer()
 {
+    ASSERT(!m_surface->useSkia());
     glGenRenderbuffers(1, &m_colorBuffer);
     glBindRenderbuffer(GL_RENDERBUFFER, m_colorBuffer);
     glEGLImageTargetRenderbufferStorageOES(GL_RENDERBUFFER, m_image);
@@ -382,8 +392,10 @@ void AcceleratedSurface::RenderTargetEGLImage::initializeColorBuffer()
 
 AcceleratedSurface::RenderTargetEGLImage::~RenderTargetEGLImage()
 {
-    if (m_colorBuffer)
-        glDeleteRenderbuffers(1, &m_colorBuffer);
+    if (!m_surface->useSkia()) {
+        if (m_colorBuffer)
+            glDeleteRenderbuffers(1, &m_colorBuffer);
+    }
 
     if (m_image)
         PlatformDisplay::sharedDisplay().destroyEGLImage(m_image);
@@ -411,9 +423,13 @@ AcceleratedSurface::RenderTargetSHMImage::RenderTargetSHMImage(AcceleratedSurfac
     : RenderTargetShareableBuffer(surface, size)
     , m_bitmap(WTF::move(bitmap))
 {
-    if (m_surface->renderingPurpose() == RenderingPurpose::NonComposited)
-        m_skiaSurface = m_bitmap->createSurface();
-    else {
+    if (m_surface->useSkia()) {
+        if (m_surface->usesGL()) {
+            m_texture = BitmapTexture::create(size);
+            createSkiaSurfaceForTexture(*m_texture);
+        } else
+            m_skiaSurface = m_bitmap->createSurface();
+    } else {
         glGenRenderbuffers(1, &m_colorBuffer);
         glBindRenderbuffer(GL_RENDERBUFFER, m_colorBuffer);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, size.width(), size.height());
@@ -425,15 +441,25 @@ AcceleratedSurface::RenderTargetSHMImage::RenderTargetSHMImage(AcceleratedSurfac
 
 AcceleratedSurface::RenderTargetSHMImage::~RenderTargetSHMImage()
 {
-    if (m_colorBuffer)
-        glDeleteRenderbuffers(1, &m_colorBuffer);
+    if (!m_surface->useSkia()) {
+        if (m_colorBuffer)
+            glDeleteRenderbuffers(1, &m_colorBuffer);
+    }
 }
 
 void AcceleratedSurface::RenderTargetSHMImage::didRenderFrame()
 {
-    if (m_skiaSurface) {
+    if (m_surface->useSkia()) {
+        if (!m_skiaSurface)
+            return;
+
         SkImageInfo info = SkImageInfo::Make(m_bitmap->size().width(), m_bitmap->size().height(), SkColorType::kBGRA_8888_SkColorType, SkAlphaType::kPremul_SkAlphaType);
-        m_skiaSurface->readPixels(info, m_bitmap->mutableSpan().data(), m_bitmap->bytesPerRow(), 0, 0);
+
+        if (m_surface->usesGL()) {
+            GLContext::ScopedGLContextCurrent scopedCurrent(*PlatformDisplay::sharedDisplay().skiaGLContext());
+            m_skiaSurface->readPixels(info, m_bitmap->mutableSpan().data(), m_bitmap->bytesPerRow(), 0, 0);
+        } else
+            m_skiaSurface->readPixels(info, m_bitmap->mutableSpan().data(), m_bitmap->bytesPerRow(), 0, 0);
         return;
     }
 
@@ -487,7 +513,7 @@ AcceleratedSurface::RenderTargetTexture::RenderTargetTexture(AcceleratedSurface&
     : RenderTargetShareableBuffer(surface, size)
     , m_texture(WTF::move(texture))
 {
-    if (m_surface->renderingPurpose() == RenderingPurpose::NonComposited)
+    if (m_surface->useSkia())
         createSkiaSurfaceForTexture(m_texture.get());
     else
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_texture->id(), 0);
@@ -957,8 +983,12 @@ bool AcceleratedSurface::isOpaque() const
 
 SkCanvas* AcceleratedSurface::canvas()
 {
+    if (!m_useSkia)
+        return nullptr;
+
     if (auto* surface = m_target ? m_target->skiaSurface() : nullptr)
         return surface->getCanvas();
+
     return nullptr;
 }
 
@@ -977,7 +1007,7 @@ void AcceleratedSurface::willRenderFrame(const IntSize& size)
     if (m_target)
         m_target->willRenderFrame();
 
-    if (sizeDidChange && !m_target->skiaSurface())
+    if (sizeDidChange && !m_useSkia)
         glViewport(0, 0, size.width(), size.height());
 }
 
@@ -989,11 +1019,13 @@ void AcceleratedSurface::clear(const OptionSet<WebCore::CompositionReason>& reas
         backgroundColor = m_backgroundColor;
     }
 
-    if (auto* canvas = this->canvas()) {
-        if (backgroundColor && !backgroundColor->isOpaque())
-            canvas->clear(SK_ColorTRANSPARENT);
-        else if (reasons.contains(CompositionReason::AsyncScrolling))
-            canvas->clear(backgroundColor ? SkColor(*backgroundColor) : SK_ColorWHITE);
+    if (m_useSkia) {
+        if (auto* canvas = this->canvas()) {
+            if (backgroundColor && !backgroundColor->isOpaque())
+                canvas->clear(SK_ColorTRANSPARENT);
+            else if (reasons.contains(CompositionReason::AsyncScrolling))
+                canvas->clear(backgroundColor ? SkColor(*backgroundColor) : SK_ColorWHITE);
+        }
         return;
     }
 

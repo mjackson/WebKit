@@ -61,6 +61,10 @@
 #include "VisitedLinkStore.h"
 #include <wtf/text/CString.h>
 
+#if PLATFORM(COCOA)
+#import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
+#endif
+
 namespace WebCore {
 
 static inline void addVisitedLink(Page& page, const URL& url)
@@ -565,6 +569,14 @@ void HistoryController::updateForStandardLoad(HistoryUpdateType updateType)
         if (!historyURL.isEmpty()) {
             if (updateType != UpdateAllExceptBackForwardList)
                 updateBackForwardListClippedAtTarget(true);
+
+#if PLATFORM(COCOA)
+            if (linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::AllBackForwardItemsWithoutUserGestureInvisibleToUI)) {
+                if (m_currentItem && m_frame->isMainFrame() && !documentLoader->triggeringAction().processingUserGesture() && !documentLoader->isRequestFromClientOrUserInput())
+                    m_currentItem->setWasCreatedByJSWithoutUserInteraction(true);
+            }
+#endif
+
             if (canRecordHistory) {
                 protect(frameLoader->client())->updateGlobalHistory();
                 documentLoader->setDidCreateGlobalHistoryEntry(true);

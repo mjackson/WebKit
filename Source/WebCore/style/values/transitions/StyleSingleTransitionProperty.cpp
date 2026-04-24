@@ -27,6 +27,7 @@
 #include "StyleSingleTransitionProperty.h"
 
 #include "CSSCustomIdentValue.h"
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 
 namespace WebCore {
@@ -36,24 +37,19 @@ namespace Style {
 
 auto CSSValueConversion<SingleTransitionProperty>::operator()(BuilderState& state, const CSSValue& value) -> SingleTransitionProperty
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueAll:
             return CSS::Keyword::All { };
         case CSSValueNone:
             return CSS::Keyword::None { };
         default:
-            break;
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::All { };
         }
-
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return CSS::Keyword::All { };
     }
 
-    if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value))
-        return toStyleFromCSSValue<CustomIdent>(state, *customIdentValue);
-
-    return toStyleFromCSSValue<PropertyIdentifier>(state, value);
+    return toStyleFromCSSValue<CustomIdent>(state, value);
 }
 
 } // namespace Style

@@ -127,9 +127,18 @@ void RemoteMesh::play(bool playing)
     m_backing->play(playing);
 }
 
-void RemoteMesh::setEnvironmentMap(const WebModel::ImageAsset& imageAsset)
+void RemoteMesh::setEnvironmentMap(const WebModel::UpdateTextureDescriptor& imageAsset)
 {
     m_backing->setEnvironmentMap(imageAsset);
+}
+
+void RemoteMesh::updateContentsHeadroom(float headroom)
+{
+#if HAVE(SUPPORT_HDR_DISPLAY)
+    m_backing->updateContentsHeadroom(headroom);
+#else
+    UNUSED_PARAM(headroom);
+#endif
 }
 
 void RemoteMesh::updateRenderBuffers(unsigned width, unsigned height, CompletionHandler<void(Vector<MachSendRight>&&)>&& completionHandler)
@@ -144,6 +153,11 @@ void RemoteMesh::updateRenderBuffers(unsigned width, unsigned height, Completion
     WebModel::ResizeMeshDescriptor descriptor { width, height, WTF::move(renderBuffers) };
     m_backing->updateRenderBuffers(WTF::move(descriptor));
     completionHandler(m_backing->ioSurfaceHandles());
+}
+
+void RemoteMesh::processRemovals(Vector<WebModel::TypedResourceId>&& meshRemovals, Vector<WebModel::TypedResourceId>&& materialRemovals, Vector<WebModel::TypedResourceId>&& textureRemovals, CompletionHandler<void(bool)>&& completionHandler)
+{
+    m_backing->processRemovals(WTF::move(meshRemovals), WTF::move(materialRemovals), WTF::move(textureRemovals), WTF::move(completionHandler));
 }
 
 } // namespace WebKit

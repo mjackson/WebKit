@@ -28,29 +28,39 @@
 #if ENABLE(WEBXR_LAYERS)
 
 #include "WebXRLayer.h"
+#include "XRLayerInit.h"
 #include "XRLayerLayout.h"
 #include "XRLayerQuality.h"
+#include "XRProjectionLayerInit.h"
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
 
 class WebGLOpaqueTexture;
 class WebXRSession;
+class WebXRSpace;
 class XRLayerBacking;
 
 class XRCompositionLayer : public WebXRLayer {
     WTF_MAKE_TZONE_ALLOCATED(XRCompositionLayer);
+
 public:
     virtual ~XRCompositionLayer();
+
+    using WebXRLayerInit = Variant<
+        XRLayerInit,
+        XRProjectionLayerInit
+    >;
+    const WebXRLayerInit& init() const { return m_init; }
 
     XRLayerLayout layout() const { return m_layout; }
     void setLayout(XRLayerLayout layout) { m_layout = layout; }
 
-    bool blendTextureSourceAlpha() const { return false; }
-    void setBlendTextureSourceAlpha(bool) { }
+    bool blendTextureSourceAlpha() const { return m_blendTextureSourceAlpha; }
+    void setBlendTextureSourceAlpha(bool blendTextureSourceAlpha) { m_blendTextureSourceAlpha = blendTextureSourceAlpha; }
 
-    bool forceMonoPresentation() const { return false; }
-    void setForceMonoPresentation(bool) { }
+    bool forceMonoPresentation() const { return m_forceMonoPresentation; }
+    void setForceMonoPresentation(bool forceMonoPresentation) { m_forceMonoPresentation = forceMonoPresentation; }
 
     float opacity() const { return 1.f; }
     void setOpacity(float) { }
@@ -78,9 +88,12 @@ public:
     void setDepthStencilTextures(Vector<RefPtr<WebGLOpaqueTexture>>&&);
 
 protected:
-    explicit XRCompositionLayer(ScriptExecutionContext*, WebXRSession&, Ref<XRLayerBacking>&&);
+    explicit XRCompositionLayer(ScriptExecutionContext*, WebXRSession&, Ref<XRLayerBacking>&&, const WebXRLayerInit&);
+
+    void fillInCommonDeviceLayerData(PlatformXR::DeviceLayer&) const;
 
     const Ref<XRLayerBacking> m_backing;
+    const WebXRLayerInit m_init;
 
 private:
     bool isXRCompositionLayer() const final { return true; }
@@ -90,6 +103,8 @@ private:
     bool m_isStatic { false };
     bool m_needsRedraw { true };
     XRLayerLayout m_layout { XRLayerLayout::Stereo };
+    bool m_blendTextureSourceAlpha { false };
+    bool m_forceMonoPresentation { false };
 
     Vector<RefPtr<WebGLOpaqueTexture>> m_colorTextures;
     Vector<RefPtr<WebGLOpaqueTexture>> m_depthStencilTextures;

@@ -27,12 +27,14 @@
 
 #if ENABLE(VIDEO)
 
+#include <wtf/RefPtr.h>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
 
 class Document;
 class HTMLVideoElement;
+class IntersectionObserver;
 
 class LazyLoadVideoObserver {
     WTF_MAKE_TZONE_ALLOCATED(LazyLoadVideoObserver);

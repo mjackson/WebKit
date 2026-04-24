@@ -274,11 +274,11 @@ GStreamerInternalAudioDecoder::GStreamerInternalAudioDecoder(const String& codec
 
 Ref<AudioDecoder::DecodePromise> GStreamerInternalAudioDecoder::decode(std::span<const uint8_t> frameData, [[maybe_unused]] bool isKeyFrame, int64_t timestamp, std::optional<uint64_t> duration)
 {
-    GST_DEBUG_OBJECT(m_harness->element(), "Decoding%s frame", isKeyFrame ? " key" : "");
+    GST_DEBUG_OBJECT(m_harness->element(), "Decoding%s frame with size %zu bytes", isKeyFrame ? " key" : "", frameData.size_bytes());
 
     auto encodedData = wrapSpanData(frameData);
     if (!encodedData)
-        return AudioDecoder::DecodePromise::createAndReject("Empty frame"_s);
+        return AudioDecoder::DecodePromise::createAndResolve();
 
     GstSegment segment;
     gst_segment_init(&segment, GST_FORMAT_TIME);
@@ -310,6 +310,12 @@ void GStreamerInternalAudioDecoder::flush()
         return;
     }
 
+    if (!m_harness->isStarted()) {
+        GST_DEBUG_OBJECT(m_harness->element(), "Decoder hasn't started yet, nothing to flush");
+        return;
+    }
+
+    GST_DEBUG_OBJECT(m_harness->element(), "Pushing an empty buffer with discont flag");
     auto buffer = adoptGRef(gst_buffer_new());
     GST_BUFFER_FLAG_SET(buffer.get(), GST_BUFFER_FLAG_DISCONT);
     m_harness->pushBuffer(WTF::move(buffer));

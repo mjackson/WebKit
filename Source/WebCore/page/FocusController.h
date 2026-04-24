@@ -111,6 +111,8 @@ private:
 
     FocusableElementSearchResult findFocusableElementDescendingIntoSubframes(FocusDirection, Element*, const FocusEventData&, ShouldFocusElement);
 
+    FocusableElementSearchResult findFocusableElementContinuingFromOwnerElement(FocusDirection, Element&, const FocusEventData&, ShouldFocusElement);
+
     // Searches through the given tree scope, starting from start node, for the next/previous selectable element that comes after/before start node.
     // The order followed is as specified in section 17.11.1 of the HTML4 spec, which is elements with tab indexes
     // first (from lowest to highest), and then elements without tab indexes (in document order).

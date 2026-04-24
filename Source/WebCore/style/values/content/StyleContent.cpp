@@ -28,6 +28,7 @@
 
 #include "CSSAttrValue.h"
 #include "CSSCounterValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSStringValue.h"
 #include "CSSValueList.h"
@@ -50,8 +51,8 @@ WTF::String Content::altText() const
 
 auto CSSValueConversion<Content>::operator()(BuilderState& state, const CSSValue& value) -> Content
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueNormal:
             return CSS::Keyword::Normal { };
         case CSSValueNone:
@@ -101,8 +102,8 @@ auto CSSValueConversion<Content>::operator()(BuilderState& state, const CSSValue
                 return Content::Text { String { emptyString() } };
             }
 
-            if (RefPtr primitive = dynamicDowncast<CSSPrimitiveValue>(item)) {
-                switch (primitive->valueID()) {
+            if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(item)) {
+                switch (keywordValue->valueID()) {
                 case CSSValueOpenQuote:
                     return Content::Quote { QuoteType::OpenQuote };
                 case CSSValueCloseQuote:
@@ -167,8 +168,7 @@ Ref<CSSValue> CSSValueCreation<Content::Counter>::operator()(CSSValuePool&, cons
     return CSSCounterValue::create(
         toCSS(value.identifier, style),
         toCSS(value.separator, style),
-        toCSS(value.style, style)
-    );
+        toCSS(value.style, style));
 }
 
 } // namespace Style

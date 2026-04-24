@@ -34,8 +34,7 @@
 #import <wtf/RetainPtr.h>
 
 // FIXME: Re-enable this test once webkit.org/b/231459 is resolved.
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 120000) || (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED < 150000)
-TEST(WKWebView, InitializingWebViewWithEphemeralStorageDoesNotLog)
+TEST(WKWebView, DISABLED_InitializingWebViewWithEphemeralStorageDoesNotLog)
 {
     // Replace stderr with a nonblocking pipe that we can read from.
     int p[2];
@@ -58,4 +57,3 @@ TEST(WKWebView, InitializingWebViewWithEphemeralStorageDoesNotLog)
         FAIL();
     }
 }
-#endif

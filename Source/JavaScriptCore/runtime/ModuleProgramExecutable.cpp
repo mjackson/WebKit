@@ -24,6 +24,7 @@
  */
 
 #include "config.h"
+#include "ModuleProgramExecutable.h"
 
 #include "CodeCache.h"
 #include "Debugger.h"
@@ -70,7 +71,7 @@ UnlinkedModuleProgramCodeBlock* ModuleProgramExecutable::getUnlinkedCodeBlock(JS
 
     m_unlinkedCodeBlock.set(vm, this, unlinkedModuleProgramCode);
     VirtualRegister symbolTableReg = VirtualRegister(unlinkedModuleProgramCode->moduleEnvironmentSymbolTableConstantRegisterOffset());
-    SymbolTable* symbolTable = jsCast<SymbolTable*>(unlinkedModuleProgramCode->getConstant(symbolTableReg));
+    SymbolTable* symbolTable = uncheckedDowncast<SymbolTable>(unlinkedModuleProgramCode->getConstant(symbolTableReg));
     m_moduleEnvironmentSymbolTable.set(vm, this, symbolTable->cloneScopePart(vm));
     RELEASE_AND_RETURN(throwScope, unlinkedModuleProgramCode);
 }
@@ -101,7 +102,7 @@ auto ModuleProgramExecutable::ensureTemplateObjectMap(VM&) -> TemplateObjectMap&
 template<typename Visitor>
 void ModuleProgramExecutable::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
-    ModuleProgramExecutable* thisObject = jsCast<ModuleProgramExecutable*>(cell);
+    ModuleProgramExecutable* thisObject = uncheckedDowncast<ModuleProgramExecutable>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_moduleEnvironmentSymbolTable);

@@ -166,21 +166,25 @@ auto MarkedVectorBase::expandCapacity(unsigned newCapacity) -> Status
         return Status::Overflowed;
 #if CPU(ADDRESS32)
     if (m_storageType != StorageType::JSValue) {
+        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
         auto* newPointerBuffer = std::bit_cast<void**>(newBuffer);
         const auto* oldPointerBuffer = std::bit_cast<void**>(m_buffer);
         for (unsigned i = 0; i < m_size; ++i) {
             newPointerBuffer[i] = oldPointerBuffer[i];
             addMarkSet(oldPointerBuffer[i]);
         }
+        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     } else
 #endif
     {
+        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
         auto* newJSValueBuffer = std::bit_cast<EncodedJSValue*>(newBuffer);
         const auto* oldJSValueBuffer = std::bit_cast<EncodedJSValue*>(m_buffer);
         for (unsigned i = 0; i < m_size; ++i) {
             newJSValueBuffer[i] = oldJSValueBuffer[i];
             addMarkSet(JSValue::decode(oldJSValueBuffer[i]));
         }
+        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     }
 
     if (EncodedJSValue* base = mallocBase())

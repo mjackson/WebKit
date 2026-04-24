@@ -53,22 +53,7 @@ public:
         return &vm.clonedArgumentsSpace();
     }
 
-    uint64_t length(JSGlobalObject* globalObject) const
-    {
-        VM& vm = getVM(globalObject);
-        auto scope = DECLARE_THROW_SCOPE(vm);
-
-        JSValue lengthValue;
-        if (!structure()->didTransition()) [[likely]] {
-            lengthValue = getDirect(clonedArgumentsLengthPropertyOffset);
-            if (lengthValue.isInt32()) [[likely]]
-                return std::max(lengthValue.asInt32(), 0);
-        } else {
-            lengthValue = get(globalObject, vm.propertyNames->length);
-            RETURN_IF_EXCEPTION(scope, 0);
-        }
-        RELEASE_AND_RETURN(scope, lengthValue.toLength(globalObject));
-    }
+    uint64_t length(JSGlobalObject*) const;
 
     void copyToArguments(JSGlobalObject*, JSValue* firstElementDest, unsigned offset, unsigned length);
 

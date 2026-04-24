@@ -29,6 +29,7 @@
 namespace JSC {
 namespace B3 {
 class Type;
+enum TypeKind : uint32_t;
 }
 
 namespace Wasm {
@@ -50,7 +51,8 @@ public:
     explicit AddressType(bool is64bit);
 
     AddressType::Kind type() const { return m_type; }
-    TypeKind NODELETE asTypeKind() const;
+    TypeKind NODELETE asWasmTypeKind() const;
+    B3::TypeKind NODELETE asB3TypeKind() const;
 
     friend bool NODELETE operator==(const AddressType& lhs, const AddressType& rhs);
     friend bool operator!=(const AddressType& lhs, const AddressType& rhs);

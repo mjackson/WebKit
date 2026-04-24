@@ -1071,7 +1071,7 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
 #endif
 #endif
 
-    if (documentQuirks.needsHotelsAnimationQuirk(*m_element)) {
+    if (documentQuirks.needsExpediaGroupAnimationQuirk(*m_element)) {
         // We need to reset animation styles that are mistakenly overridden:
         //     animation-delay: 0s, 0.06s;
         //     animation-duration: 0.18s, 0.06s;

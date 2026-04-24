@@ -93,6 +93,11 @@ public:
     
     static constexpr TypedArrayType TypedArrayStorageType = TypeDataView;
 
+    JS_EXPORT_PRIVATE static RefPtr<DataView> toWrapped(VM&, JSValue);
+    JS_EXPORT_PRIVATE static RefPtr<DataView> toWrappedAllowResizable(VM&, JSValue);
+    JS_EXPORT_PRIVATE static RefPtr<DataView> toWrappedAllowShared(VM&, JSValue);
+    JS_EXPORT_PRIVATE static RefPtr<DataView> toWrappedAllowSharedAndResizable(VM&, JSValue);
+
     static Structure* createStructure(VM&, JSGlobalObject*, JSValue prototype);
     
     DECLARE_EXPORT_INFO;

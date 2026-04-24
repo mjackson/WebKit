@@ -28,18 +28,16 @@
 #include "CSSCustomPropertyValue.h"
 #include "CSSParser.h"
 #include "CSSPropertyParser.h"
-#include "CSSPropertyParserConsumer+CSSPrimitiveValueResolver.h"
 #include "CSSPropertyParserConsumer+Ident.h"
 #include "CSSPropertyParserConsumer+IntegerDefinitions.h"
 #include "CSSPropertyParserConsumer+LengthDefinitions.h"
+#include "CSSPropertyParserConsumer+MetaConsumer.h"
 #include "CSSPropertyParserConsumer+NumberDefinitions.h"
 #include "CSSPropertyParserConsumer+Primitives.h"
 #include "CSSPropertyParserConsumer+Ratio.h"
 #include "CSSPropertyParserConsumer+ResolutionDefinitions.h"
 #include "CSSPropertyParserState.h"
-#include "CSSRatioValue.h"
 #include "CSSSubstitutionParser.h"
-#include "CSSValue.h"
 #include "MediaQueryParserContext.h"
 #include <wtf/text/MakeString.h>
 
@@ -66,7 +64,7 @@ std::optional<Feature> FeatureParser::consumeFeature(CSSParserTokenRange& range,
     return consumeRangeFeature(range, context);
 };
 
-static RefPtr<CSSValue> consumeCustomPropertyValue(AtomString propertyName, CSSParserTokenRange& range, const MediaQueryParserContext& context)
+static std::optional<Value> consumeCustomPropertyValue(AtomString propertyName, CSSParserTokenRange& range, const MediaQueryParserContext& context)
 {
     auto valueRange = range;
     range.consumeAll();
@@ -75,9 +73,42 @@ static RefPtr<CSSValue> consumeCustomPropertyValue(AtomString propertyName, CSSP
     CSSParser::consumeTrailingImportantAndWhitespace(valueRange);
 
     if (valueRange.atEnd())
-        return CSSCustomPropertyValue::createEmpty(propertyName);
+        return Value { CSSCustomPropertyValue::createEmpty(propertyName) };
 
-    return CSSSubstitutionParser::parseDeclarationValue(propertyName, valueRange, context.context);
+    auto declaration = CSSSubstitutionParser::parseDeclarationValue(propertyName, valueRange, context.context);
+    if (!declaration)
+        return std::nullopt;
+
+    return Value { declaration.releaseNonNull() };
+}
+
+static std::optional<Value> consumeValue(CSSParserTokenRange& range, const MediaQueryParserContext& context)
+{
+    using namespace CSSPropertyParserHelpers;
+
+    if (range.atEnd())
+        return std::nullopt;
+
+    if (auto value = consumeUnresolvedIdent(range))
+        return Value { WTF::move(*value) };
+
+    auto parserState = CSS::PropertyParserState {
+        .context = context.context,
+    };
+
+    if (auto value = consumeUnresolvedRatioWithBothNumeratorAndDenominator(range, parserState))
+        return Value { WTF::move(*value) };
+    if (auto value = MetaConsumer<CSS::Integer<>>::consume(range, parserState))
+        return Value { WTF::move(*value) };
+    if (auto value = MetaConsumer<CSS::Number<>>::consume(range, parserState))
+        return Value { WTF::move(*value) };
+    // FIXME: Figure out and document why overrideParserMode is explicitly set to HTMLStandardMode here.
+    if (auto value = MetaConsumer<CSS::Length<>>::consume(range, parserState, { .overrideParserMode = HTMLStandardMode }))
+        return Value { WTF::move(*value) };
+    if (auto value = MetaConsumer<CSS::Resolution<>>::consume(range, parserState))
+        return Value { WTF::move(*value) };
+
+    return std::nullopt;
 }
 
 std::optional<Feature> FeatureParser::consumeBooleanOrPlainFeature(CSSParserTokenRange& range, const MediaQueryParserContext& context)
@@ -118,7 +149,7 @@ std::optional<Feature> FeatureParser::consumeBooleanOrPlainFeature(CSSParserToke
 
     range.consumeIncludingWhitespace();
 
-    RefPtr value = isCustomPropertyName(featureName) ? consumeCustomPropertyValue(featureName, range, context) : consumeValue(range, context);
+    auto value = isCustomPropertyName(featureName) ? consumeCustomPropertyValue(featureName, range, context) : consumeValue(range, context);
 
     if (!value)
         return { };
@@ -166,7 +197,7 @@ std::optional<Feature> FeatureParser::consumeRangeFeature(CSSParserTokenRange& r
     auto consumeLeftComparison = [&]() -> std::optional<Comparison> {
         if (range.peek().type() == IdentToken)
             return { };
-        RefPtr value = consumeValue(range, context);
+        auto value = consumeValue(range, context);
         if (!value)
             return { };
         auto op = consumeRangeOperator();
@@ -182,7 +213,7 @@ std::optional<Feature> FeatureParser::consumeRangeFeature(CSSParserTokenRange& r
         auto op = consumeRangeOperator();
         if (!op)
             return { };
-        RefPtr value = consumeValue(range, context);
+        auto value = consumeValue(range, context);
         if (!value) {
             didFailParsing = true;
             return { };
@@ -221,77 +252,88 @@ std::optional<Feature> FeatureParser::consumeRangeFeature(CSSParserTokenRange& r
     return Feature { WTF::move(featureName), Syntax::Range, WTF::move(leftComparison), WTF::move(rightComparison) };
 }
 
-RefPtr<CSSValue> FeatureParser::consumeValue(CSSParserTokenRange& range, const MediaQueryParserContext& context)
-{
-    using namespace CSSPropertyParserHelpers;
-
-    if (range.atEnd())
-        return nullptr;
-
-    if (RefPtr value = consumeIdent(range))
-        return value;
-
-    auto parserState = CSS::PropertyParserState {
-        .context = context.context,
-    };
-
-    if (RefPtr value = consumeRatioWithBothNumeratorAndDenominator(range, parserState))
-        return value;
-    if (RefPtr value = CSSPrimitiveValueResolver<CSS::Integer<>>::consumeAndResolve(range, parserState))
-        return value;
-    if (RefPtr value = CSSPrimitiveValueResolver<CSS::Number<>>::consumeAndResolve(range, parserState))
-        return value;
-    // FIXME: Figure out and document why overrideParserMode is explicitly set to HTMLStandardMode here.
-    if (RefPtr value = CSSPrimitiveValueResolver<CSS::Length<>>::consumeAndResolve(range, parserState, { .overrideParserMode = HTMLStandardMode }))
-        return value;
-    if (RefPtr value = CSSPrimitiveValueResolver<CSS::Resolution<>>::consumeAndResolve(range, parserState))
-        return value;
-
-    return nullptr;
-}
-
 bool FeatureParser::validateFeatureAgainstSchema(Feature& feature, const FeatureSchema& schema)
 {
-    auto validateValue = [&](auto& value) {
-        RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value);
-        switch (schema.valueType) {
-        case FeatureSchema::ValueType::Integer:
-            return primitiveValue && primitiveValue->isInteger();
-
-        case FeatureSchema::ValueType::Number:
-            return primitiveValue && primitiveValue->isNumberOrInteger();
-
-        case FeatureSchema::ValueType::Length:
-            if (!primitiveValue)
-                return false;
-            if (primitiveValue->isInteger() && !primitiveValue->resolveAsIntegerDeprecated())
-                return true;
-            return primitiveValue->isLength();
-
-        case FeatureSchema::ValueType::Resolution:
-            return primitiveValue && primitiveValue->isResolution();
-
-        case FeatureSchema::ValueType::Identifier:
-            return primitiveValue && primitiveValue->isValueID() && schema.valueIdentifiers.contains(primitiveValue->valueID());
-
-        case FeatureSchema::ValueType::Ratio:
-            if (primitiveValue && primitiveValue->isNumberOrInteger()) {
-                auto number = primitiveValue->template resolveAsNumberDeprecated<double>();
-                if (number < 0)
-                    return false;
-                value = CSSRatioValue::create(CSS::Ratio { number, 1.0 });
-                return true;
-            }
-            return is<CSSRatioValue>(value.get());
-
-        case FeatureSchema::ValueType::CustomProperty:
-            return value && value->isCustomPropertyValue();
-        }
-        ASSERT_NOT_REACHED();
-        return false;
-    };
-
     auto isValid = [&] {
+        auto validateValue = [&](std::optional<Value>& value) -> bool {
+            if (!value)
+                return false;
+
+            switch (schema.valueType) {
+            case FeatureSchema::ValueType::Integer:
+                return WTF::holdsAlternative<CSS::Integer<>>(*value);
+
+            case FeatureSchema::ValueType::Number:
+                return WTF::holdsAlternative<CSS::Number<>>(*value)
+                    || WTF::holdsAlternative<CSS::Integer<>>(*value);
+
+            case FeatureSchema::ValueType::Length:
+                if (auto* integerValue = std::get_if<CSS::Integer<>>(&*value)) {
+                    return WTF::switchOn(*integerValue,
+                        [](const CSS::Integer<>::Raw& raw) {
+                            return !raw.value;
+                        },
+                        [](const CSS::Integer<>::Calc&) {
+                            // FIXME: Document why any integer calc() expression is valid for <length> schemas or change this.
+                            return true;
+                        }
+                    );
+                }
+                return WTF::holdsAlternative<CSS::Length<>>(*value);
+
+            case FeatureSchema::ValueType::Resolution:
+                return WTF::holdsAlternative<CSS::Resolution<>>(*value);
+
+            case FeatureSchema::ValueType::Identifier:
+                if (auto* keyword = std::get_if<CSS::Keyword>(&*value))
+                    return keyword && schema.valueIdentifiers.contains(keyword->value);
+                return false;
+
+            case FeatureSchema::ValueType::Ratio:
+                return WTF::switchOn(*value,
+                    [&](const CSS::Ratio&) {
+                        return true;
+                    },
+                    [&](const CSS::Integer<>& integer) {
+                        auto resolved = WTF::switchOn(integer,
+                            [](const CSS::Integer<>::Raw& raw) {
+                                return raw.value;
+                            },
+                            [](const CSS::Integer<>::Calc& calc) {
+                                return protect(calc.calcValue())->doubleValueDeprecated();
+                            }
+                        );
+                        if (resolved < 0)
+                            return false;
+                        value = CSS::Ratio { resolved, 1.0 };
+                        return true;
+                    },
+                    [&](const CSS::Number<>& number) {
+                        double resolved = WTF::switchOn(number,
+                            [](const CSS::Number<>::Raw& raw) {
+                                return raw.value;
+                            },
+                            [](const CSS::Number<>::Calc& calc) {
+                                return protect(calc.calcValue())->doubleValueDeprecated();
+                            }
+                        );
+                        if (resolved < 0)
+                            return false;
+                        value = CSS::Ratio { resolved, 1.0 };
+                        return true;
+                    },
+                    [](const auto&) {
+                        return false;
+                    }
+                );
+
+            case FeatureSchema::ValueType::CustomProperty:
+                return WTF::holdsAlternative<Ref<CSSCustomPropertyValue>>(*value);
+            }
+            ASSERT_NOT_REACHED();
+            return false;
+        };
+
         if (schema.type == FeatureSchema::Type::Discrete) {
             if (feature.syntax == Syntax::Range)
                 return false;

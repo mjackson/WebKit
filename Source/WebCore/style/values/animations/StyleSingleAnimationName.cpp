@@ -26,7 +26,7 @@
 #include "config.h"
 #include "StyleSingleAnimationName.h"
 
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 #include "StyleCustomIdent.h"
 #include "StyleValueTypes+CSSValueConversion.h"
@@ -38,8 +38,8 @@ namespace Style {
 
 auto CSSValueConversion<SingleAnimationName>::operator()(BuilderState& state, const CSSValue& value) -> SingleAnimationName
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        if (primitiveValue->valueID() == CSSValueNone)
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        if (keywordValue->valueID() == CSSValueNone)
             return SingleAnimationName { CSS::Keyword::None { } };
 
         state.setCurrentPropertyInvalidAtComputedValueTime();

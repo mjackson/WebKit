@@ -282,6 +282,11 @@ namespace JSC { namespace B3 {
     case VectorRelaxedMAdd: \
     case VectorRelaxedNMAdd: \
     case VectorRelaxedLaneSelect: \
+    case VectorRelaxedQ15Mulr: \
+    case VectorRelaxedMin: \
+    case VectorRelaxedMax: \
+    case VectorRelaxedDotI8x16I7x16: \
+    case VectorRelaxedDotI8x16I7x16Add: \
         return MACRO(SIMDValue); \
     default: \
         RELEASE_ASSERT_NOT_REACHED(); \

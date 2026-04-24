@@ -28,10 +28,11 @@
 #include "CSSGridAutoRepeatValue.h"
 #include "CSSGridIntegerRepeatValue.h"
 #include "CSSGridLineNamesValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSSubgridValue.h"
 #include "CSSValueList.h"
 #include "RenderStyle+GettersInlines.h"
-#include "StylePrimitiveKeyword+Logging.h"
+#include "StyleKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
 #include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 #include "StylePrimitiveNumericTypes+CSSValueCreation.h"
@@ -126,15 +127,17 @@ auto CSSValueConversion<GridTemplateList>::operator()(BuilderState& state, const
 
     RefPtr subgridValue = dynamicDowncast<CSSSubgridValue>(value);
 
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        if (primitiveValue->valueID() == CSSValueNone)
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        if (keywordValue->valueID() == CSSValueNone)
             return CSS::Keyword::None { };
+        state.setCurrentPropertyInvalidAtComputedValueTime();
+        return CSS::Keyword::None { };
     } else if (subgridValue) {
         valueList = subgridValue;
         trackList.append(GridTrackEntrySubgrid());
     } else if (auto* list = dynamicDowncast<CSSValueList>(value)) {
         valueList = list;
-    } else {
+    } else if (!is<CSSPrimitiveValue>(value)) {
         state.setCurrentPropertyInvalidAtComputedValueTime();
         return CSS::Keyword::None { };
     }

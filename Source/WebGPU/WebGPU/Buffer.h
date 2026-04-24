@@ -81,6 +81,7 @@ public:
     void mapAsync(WGPUMapModeFlags, size_t offset, size_t, CompletionHandler<void(WGPUBufferMapAsyncStatus)>&& callback);
     void unmap();
     void setLabel(String&&);
+    void generateAValidationError(String&&);
 
     bool NODELETE isValid() const;
 

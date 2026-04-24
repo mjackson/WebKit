@@ -393,6 +393,11 @@ bool AlternativeTextController::canEnableAutomaticSpellingCorrection() const
     return true;
 }
 
+bool AlternativeTextController::isAlternativeTextUIActive() const
+{
+    return m_isActive;
+}
+
 bool AlternativeTextController::isAutomaticSpellingCorrectionEnabled()
 {
     CheckedPtr editorClient = this->editorClient();

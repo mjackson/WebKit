@@ -26,6 +26,7 @@
 #include "StyleAspectRatio.h"
 
 #include "AnimationUtilities.h"
+#include "CSSKeywordValueInlines.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSRatioValue.h"
 #include "CSSValueList.h"

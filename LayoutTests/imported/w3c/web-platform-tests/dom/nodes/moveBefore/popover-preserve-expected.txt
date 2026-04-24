@@ -1,4 +1,4 @@
 Popover
 
-FAIL when reparenting an open popover, it shouldn't be closed automatically promise_test: Unhandled rejection with value: object "TypeError: document.querySelector("#new_parent").moveBefore is not a function. (In 'document.querySelector("#new_parent").moveBefore(popover, null)', 'document.querySelector("#new_parent").moveBefore' is undefined)"
+PASS when reparenting an open popover, it shouldn't be closed automatically
 

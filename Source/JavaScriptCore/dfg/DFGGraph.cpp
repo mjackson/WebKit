@@ -58,6 +58,7 @@
 #include "Snippet.h"
 #include "StackAlignment.h"
 #include "StructureInlines.h"
+#include <array>
 #include <wtf/CommaPrinter.h>
 #include <wtf/ListDump.h>
 
@@ -68,11 +69,11 @@ namespace JSC { namespace DFG {
 static constexpr bool dumpOSRAvailabilityData = false;
 
 // Creates an array of stringized names.
-static constexpr ASCIILiteral dfgOpNames[] = {
+static constexpr auto dfgOpNames = std::to_array<ASCIILiteral>({
 #define STRINGIZE_DFG_OP_ENUM(opcode, flags) #opcode ## _s ,
     FOR_EACH_DFG_OP(STRINGIZE_DFG_OP_ENUM)
 #undef STRINGIZE_DFG_OP_ENUM
-};
+});
 
 Graph::Graph(VM& vm, Plan& plan)
     : m_vm(vm)
@@ -103,6 +104,8 @@ Graph::Graph(VM& vm, Plan& plan)
         auto passes = JSON::Array::create();
         m_ionGraphPasses = passes.get();
         m_ionGraphFunction->setString("name"_s, m_codeBlock->inferredNameWithHash());
+        m_ionGraphFunction->setString("tier"_s, m_plan.isFTL() ? "FTL"_s : "DFG"_s);
+        m_ionGraphFunction->setBoolean("osr"_s, m_plan.mode() == JITCompilationMode::FTLForOSREntry);
         m_ionGraphFunction->setArray("passes"_s, WTF::move(passes));
     }
 }
@@ -298,7 +301,7 @@ void Graph::dump(PrintStream& out, const char* prefixStr, Node* node, DumpContex
                 if (ExecutableBase* executable = variant.executable()) {
                     if (executable->isHostFunction())
                         out.print(comma, "<host function>"_s);
-                    else if (FunctionExecutable* functionExecutable = jsDynamicCast<FunctionExecutable*>(executable))
+                    else if (FunctionExecutable* functionExecutable = dynamicDowncast<FunctionExecutable>(executable))
                         out.print(comma, FunctionExecutableDump(functionExecutable));
                     else
                         out.print(comma, "<non-function executable>"_s);
@@ -1459,7 +1462,7 @@ JSValue Graph::tryGetConstantClosureVar(JSValue base, ScopeOffset offset)
     if (!base)
         return JSValue();
     
-    JSLexicalEnvironment* activation = jsDynamicCast<JSLexicalEnvironment*>(base);
+    JSLexicalEnvironment* activation = dynamicDowncast<JSLexicalEnvironment>(base);
     if (!activation)
         return JSValue();
     
@@ -1509,7 +1512,7 @@ JSArrayBufferView* Graph::tryGetFoldableView(JSValue value)
         return nullptr;
     if (!value)
         return nullptr;
-    JSArrayBufferView* view = jsDynamicCast<JSArrayBufferView*>(value);
+    JSArrayBufferView* view = dynamicDowncast<JSArrayBufferView>(value);
     if (!view)
         return nullptr;
     if (!view->length())
@@ -1630,7 +1633,7 @@ FrozenValue* Graph::freeze(JSValue value)
     // point to other CodeBlocks. We don't want to have them be
     // part of the weak pointer set. For example, an optimized CodeBlock
     // having a weak pointer to itself will cause it to get collected.
-    RELEASE_ASSERT(!jsDynamicCast<CodeBlock*>(value));
+    RELEASE_ASSERT(!is<CodeBlock>(value));
     
     auto result = m_frozenValueMap.add(JSValue::encode(value), nullptr);
     if (!result.isNewEntry) [[likely]]
@@ -1932,9 +1935,9 @@ bool Graph::getPrototypeProperty(JSObject* prototype, Structure* prototypeStruct
 
     // We only care about functions and getters at this point. If you want to access other properties
     // you'll have to add code for those types.
-    JSFunction* function = jsDynamicCast<JSFunction*>(value);
+    JSFunction* function = dynamicDowncast<JSFunction>(value);
     if (!function) {
-        GetterSetter* getterSetter = jsDynamicCast<GetterSetter*>(value);
+        GetterSetter* getterSetter = dynamicDowncast<GetterSetter>(value);
 
         if (!getterSetter)
             return false;
@@ -2126,8 +2129,11 @@ void Prefix::dump(PrintStream& out) const
 
 void Graph::dumpAndReleaseIonGraph()
 {
-    if (m_ionGraphFunction) [[unlikely]]
-        ProfilerSupport::dumpIonGraphFunction(m_codeBlock->inferredNameWithHash(), m_ionGraphFunction.releaseNonNull());
+    if (m_ionGraphFunction) [[unlikely]] {
+        ASCIILiteral tier = m_plan.isFTL() ? "FTL"_s : "DFG"_s;
+        bool osr = m_plan.mode() == JITCompilationMode::FTLForOSREntry;
+        ProfilerSupport::dumpIonGraphFunction(m_codeBlock->inferredNameWithHash(), tier, osr, m_ionGraphFunction.releaseNonNull());
+    }
 }
 
 void Graph::appendIonGraphPass(const String& passName)

@@ -239,22 +239,6 @@ template<CSS::DimensionPercentageNumeric CSSType> struct PrimitiveNumeric<CSSTyp
     {
     }
 
-    // NOTE: CalculatedValue is intentionally not part of IPCData.
-    using IPCData = Variant<Dimension, Percentage>;
-    PrimitiveNumeric(IPCData&& data)
-        : m_value { WTF::switchOn(WTF::move(data), [&](auto&& data) -> Representation { return { WTF::move(data) }; }) }
-    {
-    }
-
-    IPCData ipcData() const
-    {
-        return WTF::switchOn(m_value,
-            [](const Dimension& dimension) -> IPCData { return dimension; },
-            [](const Percentage& percentage) -> IPCData { return percentage; },
-            [](const Calc&) -> IPCData { ASSERT_NOT_REACHED(); return Dimension { 0 }; }
-        );
-    }
-
     constexpr size_t index() const { return m_value.index(); }
 
     template<typename T> constexpr bool holdsAlternative() const { return WTF::holdsAlternative<T>(m_value); }

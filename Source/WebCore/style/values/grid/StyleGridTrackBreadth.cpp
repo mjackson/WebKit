@@ -38,11 +38,27 @@ namespace Style {
 
 // MARK: - Conversion
 
+auto CSSValueConversion<GridTrackBreadth>::operator()(BuilderState& state, const CSSValue& value) -> GridTrackBreadth
+{
+    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
+        return this->operator()(state, *primitiveValue);
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value))
+        return this->operator()(state, *keywordValue);
+
+    state.setCurrentPropertyInvalidAtComputedValueTime();
+    return CSS::Keyword::Auto { };
+}
+
 auto CSSValueConversion<GridTrackBreadth>::operator()(BuilderState& state, const CSSPrimitiveValue& primitiveValue) -> GridTrackBreadth
 {
     if (primitiveValue.isFlex())
         return toStyleFromCSSValue<Flex<CSS::Nonnegative>>(state, primitiveValue);
     return toStyleFromCSSValue<GridTrackBreadthLength>(state, primitiveValue);
+}
+
+auto CSSValueConversion<GridTrackBreadth>::operator()(BuilderState& state, const CSSKeywordValue& keywordValue) -> GridTrackBreadth
+{
+    return toStyleFromCSSValue<GridTrackBreadthLength>(state, keywordValue);
 }
 
 // MARK: - Blending

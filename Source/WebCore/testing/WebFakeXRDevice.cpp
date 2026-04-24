@@ -301,14 +301,32 @@ void SimulatedXRDevice::requestFrame(std::optional<PlatformXR::RequestData>&&, R
         m_frameTimer.startOneShot(FakeXRFrameTime);
 }
 
-std::optional<PlatformXR::LayerHandle> SimulatedXRDevice::createLayerProjection(uint32_t width, uint32_t height, bool alpha)
+std::optional<PlatformXR::LayerHandle> SimulatedXRDevice::createLayer(IntSize size)
+{
+    PlatformXR::LayerHandle handle = ++m_layerIndex;
+    m_layers.add(handle, size);
+    return handle;
+}
+
+std::optional<PlatformXR::LayerInfo> SimulatedXRDevice::createLayerProjection(uint32_t width, uint32_t height, bool alpha)
 {
     // TODO: Might need to pass the format type to WebXROpaqueFramebuffer to ensure alpha is handled correctly in tests.
     UNUSED_PARAM(alpha);
-    PlatformXR::LayerHandle handle = ++m_layerIndex;
-    m_layers.add(handle, IntSize { static_cast<int>(width), static_cast<int>(height) });
-    return handle;
+    auto handle = createLayer({ static_cast<int>(width), static_cast<int>(height) });
+    if (!handle)
+        return std::nullopt;
+    return PlatformXR::LayerInfo { *handle, 1 };
 }
+
+#if ENABLE(WEBXR_LAYERS)
+std::optional<PlatformXR::LayerInfo> SimulatedXRDevice::createQuadLayer(IntSize size, PlatformXR::LayerLayout)
+{
+    auto handle = createLayer(size);
+    if (!handle)
+        return std::nullopt;
+    return PlatformXR::LayerInfo { *handle, 1 };
+}
+#endif
 
 void SimulatedXRDevice::deleteLayer(PlatformXR::LayerHandle handle)
 {

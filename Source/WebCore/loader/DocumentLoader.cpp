@@ -83,6 +83,7 @@
 #include "MemoryCache.h"
 #include "MixedContentChecker.h"
 #include "NavigationNavigationType.h"
+#include "NavigationRequester.h"
 #include "NavigationScheduler.h"
 #include "NetworkLoadMetrics.h"
 #include "NetworkStorageSession.h"
@@ -112,6 +113,7 @@
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Ref.h>
 #include <wtf/Scope.h>
+#include <wtf/SetForScope.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/text/WTFString.h>
@@ -477,6 +479,27 @@ void DocumentLoader::notifyFinished(CachedResource& resource, const NetworkLoadM
 
 void DocumentLoader::finishedLoading()
 {
+    // If the prefetch response was not successful, remove the failed prefetch from the memory cache and retry the navigation as a continuing load.
+    if (m_prefetchResponseFailed) {
+        RefPtr frame = m_frame;
+        if (!frame)
+            return;
+        auto request = m_request;
+        request.setCachePolicy(ResourceRequestCachePolicy::DoNotUseAnyCache);
+        request.removeHTTPHeaderField(HTTPHeaderName::SecPurpose);
+        request.removeHTTPHeaderField(HTTPHeaderName::SecSpeculationTags);
+        if (RefPtr page = frame->page()) {
+            if (RefPtr resource = MemoryCache::singleton().resourceForRequest(ResourceRequest { URL { request.url() } }, page->sessionID()))
+                MemoryCache::singleton().remove(*resource);
+        }
+        Ref document = *frame->document();
+        FrameLoadRequest frameLoadRequest { document.copyRef(), document->securityOrigin(), WTF::move(request), { }, InitiatedByMainFrame::Unknown };
+        frameLoadRequest.setIsRequestFromClientOrUserInput();
+        frameLoadRequest.setShouldTreatAsContinuingLoad(ShouldTreatAsContinuingLoad::YesAfterProvisionalLoadStarted);
+        frame->loader().load(WTF::move(frameLoadRequest));
+        return;
+    }
+
     // There is a bug in CFNetwork where callbacks can be dispatched even when loads are deferred.
     // See <rdar://problem/6304600> for more details.
 #if !USE(CF)
@@ -655,20 +678,17 @@ void DocumentLoader::willSendRequest(ResourceRequest&& newRequest, const Resourc
 
     RefPtr frame = m_frame.get();
     if (auto requester = m_triggeringAction.requester(); requester && requester->documentIdentifier) {
-        if (RefPtr requestingDocument = Document::allDocumentsMap().get(requester->documentIdentifier); requestingDocument && requestingDocument->frame()) {
-            if (frame && requestingDocument->isNavigationBlockedByThirdPartyIFrameRedirectBlocking(*frame, newRequest.url())) {
-                DOCUMENTLOADER_RELEASE_LOG("willSendRequest: canceling - cross-site redirect of top frame triggered by third-party iframe");
-                if (RefPtr document = frame->document()) {
-                    auto message = makeString("Unsafe JavaScript attempt to initiate navigation for frame with URL '"_s
-                        , document->url().string()
-                        , "' from frame with URL '"_s
-                        , requestingDocument->url().string()
-                        , "'. The frame attempting navigation of the top-level window is cross-origin or untrusted and the user has never interacted with the frame."_s);
-                    document->addConsoleMessage(MessageSource::Security, MessageLevel::Error, message);
-                }
-                cancelMainResourceLoad(protect(frameLoader())->cancelledError(newRequest));
-                return completionHandler(WTF::move(newRequest));
+        if (frame && Document::isNavigationBlockedByThirdPartyIFrameRedirectBlocking(*requester, *frame, newRequest.url())) {
+            if (RefPtr document = frame->document()) {
+                auto message = makeString("Unsafe JavaScript attempt to initiate navigation for frame with URL '"_s
+                    , document->url().string()
+                    , "' from frame with URL '"_s
+                    , requester->url.string()
+                    , "'. The frame attempting navigation of the top-level window is cross-origin or untrusted and the user has never interacted with the frame."_s);
+                document->addConsoleMessage(MessageSource::Security, MessageLevel::Error, message);
             }
+            cancelMainResourceLoad(protect(frameLoader())->cancelledError(newRequest));
+            return completionHandler(WTF::move(newRequest));
         }
     }
 
@@ -876,6 +896,15 @@ bool DocumentLoader::shouldClearContentSecurityPolicyForResponse(const ResourceR
 void DocumentLoader::responseReceived(const CachedResource& resource, const ResourceResponse& response, CompletionHandler<void()>&& completionHandler)
 {
     ASSERT_UNUSED(resource, m_mainResource == &resource);
+
+    // If we joined an in-flight prefetch and the response is not successful,
+    // set a flag to suppress committing the error response. The retry will be
+    // scheduled in finishedLoading via the NavigationScheduler.
+    if (m_mainResource
+        && m_mainResource->options().cachingPolicy == CachingPolicy::AllowCachingMainResourcePrefetch
+        && !response.isSuccessful()
+        && response.httpStatusCode() > 0)
+        m_prefetchResponseFailed = true;
 
     RefPtr frame = m_frame.get();
     if (shouldClearContentSecurityPolicyForResponse(response))
@@ -1202,6 +1231,11 @@ void DocumentLoader::continueAfterContentPolicy(PolicyAction policy)
 
 void DocumentLoader::commitLoad(const SharedBuffer& data)
 {
+    // Don't commit error responses from failed prefetches. The navigation will
+    // be retried with a fresh request in finishedLoading.
+    if (m_prefetchResponseFailed)
+        return;
+
     // Both unloading the old page and parsing the new page may execute JavaScript which destroys the datasource
     // by starting a new load, so retain temporarily.
     RefPtr protectedFrame { m_frame.get() };
@@ -2059,9 +2093,12 @@ void DocumentLoader::addPlugInStreamLoader(ResourceLoader& loader)
 void DocumentLoader::removePlugInStreamLoader(ResourceLoader& loader)
 {
     ASSERT(m_plugInStreamLoaders.contains(&loader));
-
     m_plugInStreamLoaders.remove(&loader);
-    checkLoadComplete();
+    if (m_frame && m_frame->document()) {
+        protect(m_frame->document())->eventLoop().queueTask(TaskSource::Networking, [protectedThis = Ref { *this }]() {
+            protectedThis->checkLoadComplete();
+        });
+    }
 }
 
 bool DocumentLoader::isMultipartReplacingLoad() const
@@ -2167,7 +2204,7 @@ void DocumentLoader::startLoadingMainResource()
     // Always filter in WK1
     contentFilterInDocumentLoader() = frame && frame->view() && frame->view()->platformWidget();
     if (contentFilterInDocumentLoader())
-        m_contentFilter = !m_substituteData.isValid() ? ContentFilter::create(*this) : nullptr;
+        m_contentFilter = !m_substituteData.isValid() ? ContentFilter::create(*this, IS_MAIN_FRAME ? IsMainFrameLoad::Yes : IsMainFrameLoad::No) : nullptr;
 #endif
 
     auto url = m_request.url();

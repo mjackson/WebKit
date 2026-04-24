@@ -87,12 +87,6 @@ public:
     static Ref<CSSPrimitiveValue> NODELETE createInteger(double);
     static Ref<CSSPrimitiveValue> create(Ref<CSSCalc::Value>);
 
-    static inline Ref<CSSPrimitiveValue> create(CSSValueID);
-    bool isValueID() const { return primitiveUnitType() == CSSUnitType::CSS_VALUE_ID; }
-    CSSValueID valueID() const { return isValueID() ? m_value.valueID : CSSValueInvalid; }
-
-    static inline CSSPrimitiveValue& implicitInitialValue();
-
     ~CSSPrimitiveValue();
 
     WEBCORE_EXPORT CSSUnitType primitiveType() const;
@@ -178,10 +172,7 @@ private:
     CSSPrimitiveValue(double, CSSUnitType);
     explicit CSSPrimitiveValue(Ref<CSSCalc::Value>);
 
-    CSSPrimitiveValue(StaticCSSValueTag, CSSValueID);
     CSSPrimitiveValue(StaticCSSValueTag, double, CSSUnitType);
-    enum ImplicitInitialValueTag { ImplicitInitialValue };
-    CSSPrimitiveValue(StaticCSSValueTag, ImplicitInitialValueTag);
 
     CSSUnitType primitiveUnitType() const { return static_cast<CSSUnitType>(m_primitiveUnitType); }
     void setPrimitiveUnitType(CSSUnitType type) { m_primitiveUnitType = std::to_underlying(type); }
@@ -228,13 +219,10 @@ private:
     static constexpr bool isViewportPercentageLength(CSSUnitType);
 
     union {
-        CSSValueID valueID;
         double number;
         const CSSCalc::Value* calc;
     } m_value;
 };
-
-template<typename TargetType> constexpr TargetType fromCSSValueID(CSSValueID);
 
 constexpr bool CSSPrimitiveValue::isFontIndependentLength(CSSUnitType type)
 {
@@ -639,81 +627,6 @@ template<typename T> T CSSPrimitiveValue::resolveAsLengthDeprecated() const
 {
     ASSERT(isLength());
     return valueDeprecated<T>(CSSUnitType::CSS_PX);
-}
-
-// MARK: valueID(...)
-
-inline CSSValueID valueID(const CSSPrimitiveValue& value)
-{
-    return value.valueID();
-}
-
-inline CSSValueID valueID(const CSSPrimitiveValue* value)
-{
-    return value ? valueID(*value) : CSSValueInvalid;
-}
-
-inline CSSValueID valueID(const CSSValue& value)
-{
-    auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value);
-    return primitiveValue ? valueID(*primitiveValue) : CSSValueInvalid;
-}
-
-inline CSSValueID valueID(const CSSValue* value)
-{
-    return value ? valueID(*value) : CSSValueInvalid;
-}
-
-inline bool isValueID(const CSSPrimitiveValue& value, CSSValueID id)
-{
-    return valueID(value) == id;
-}
-
-inline bool isValueID(const CSSPrimitiveValue* value, CSSValueID id)
-{
-    return valueID(value) == id;
-}
-
-inline bool isValueID(const RefPtr<CSSPrimitiveValue>& value, CSSValueID id)
-{
-    return valueID(value.get()) == id;
-}
-
-inline bool isValueID(const Ref<CSSPrimitiveValue>& value, CSSValueID id)
-{
-    return valueID(value.get()) == id;
-}
-
-inline bool isValueID(const CSSValue& value, CSSValueID id)
-{
-    return valueID(value) == id;
-}
-
-inline bool isValueID(const CSSValue* value, CSSValueID id)
-{
-    return valueID(value) == id;
-}
-
-inline bool isValueID(const RefPtr<CSSValue>& value, CSSValueID id)
-{
-    return isValueID(value.get(), id);
-}
-
-inline bool isValueID(const Ref<CSSValue>& value, CSSValueID id)
-{
-    return isValueID(value.get(), id);
-}
-
-inline bool CSSValue::isValueID() const
-{
-    auto* value = dynamicDowncast<CSSPrimitiveValue>(*this);
-    return value && value->isValueID();
-}
-
-inline CSSValueID CSSValue::valueID() const
-{
-    auto* value = dynamicDowncast<CSSPrimitiveValue>(*this);
-    return value ? value->valueID() : CSSValueInvalid;
 }
 
 inline bool CSSValue::isInteger() const

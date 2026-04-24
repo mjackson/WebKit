@@ -32,6 +32,7 @@
 #include "Error.h"
 #include "FunctionPrototype.h"
 #include "GlobalObjectMethodTable.h"
+#include "ISO8601.h"
 #include "IntlCollator.h"
 #include "IntlCollatorConstructor.h"
 #include "IntlCollatorPrototype.h"
@@ -69,10 +70,12 @@
 #include <unicode/uloc.h>
 #include <unicode/unumsys.h>
 #include <wtf/Assertions.h>
+#include <wtf/HashMap.h>
 #include <wtf/Language.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuilder.h>
+#include <wtf/text/StringHash.h>
 #include <wtf/text/StringImpl.h>
 #include <wtf/text/StringParsingBuffer.h>
 #include <wtf/unicode/icu/ICUHelpers.h>
@@ -88,72 +91,72 @@ static JSC_DECLARE_HOST_FUNCTION(intlObjectFuncSupportedValuesOf);
 
 static JSValue createCollatorConstructor(VM& vm, JSObject* object)
 {
-    IntlObject* intlObject = jsCast<IntlObject*>(object);
+    IntlObject* intlObject = uncheckedDowncast<IntlObject>(object);
     JSGlobalObject* globalObject = intlObject->realm();
-    return IntlCollatorConstructor::create(vm, IntlCollatorConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlCollatorPrototype*>(globalObject->collatorStructure()->storedPrototypeObject()));
+    return IntlCollatorConstructor::create(vm, IntlCollatorConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), uncheckedDowncast<IntlCollatorPrototype>(globalObject->collatorStructure()->storedPrototypeObject()));
 }
 
 static JSValue createDateTimeFormatConstructor(VM&, JSObject* object)
 {
-    IntlObject* intlObject = jsCast<IntlObject*>(object);
+    IntlObject* intlObject = uncheckedDowncast<IntlObject>(object);
     JSGlobalObject* globalObject = intlObject->realm();
     return globalObject->dateTimeFormatConstructor();
 }
 
 static JSValue createDisplayNamesConstructor(VM& vm, JSObject* object)
 {
-    IntlObject* intlObject = jsCast<IntlObject*>(object);
+    IntlObject* intlObject = uncheckedDowncast<IntlObject>(object);
     JSGlobalObject* globalObject = intlObject->realm();
-    return IntlDisplayNamesConstructor::create(vm, IntlDisplayNamesConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlDisplayNamesPrototype*>(globalObject->displayNamesStructure()->storedPrototypeObject()));
+    return IntlDisplayNamesConstructor::create(vm, IntlDisplayNamesConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), uncheckedDowncast<IntlDisplayNamesPrototype>(globalObject->displayNamesStructure()->storedPrototypeObject()));
 }
 
 static JSValue createDurationFormatConstructor(VM& vm, JSObject* object)
 {
-    IntlObject* intlObject = jsCast<IntlObject*>(object);
+    IntlObject* intlObject = uncheckedDowncast<IntlObject>(object);
     JSGlobalObject* globalObject = intlObject->realm();
-    return IntlDurationFormatConstructor::create(vm, IntlDurationFormatConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlDurationFormatPrototype*>(globalObject->durationFormatStructure()->storedPrototypeObject()));
+    return IntlDurationFormatConstructor::create(vm, IntlDurationFormatConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), uncheckedDowncast<IntlDurationFormatPrototype>(globalObject->durationFormatStructure()->storedPrototypeObject()));
 }
 
 static JSValue createListFormatConstructor(VM& vm, JSObject* object)
 {
-    IntlObject* intlObject = jsCast<IntlObject*>(object);
+    IntlObject* intlObject = uncheckedDowncast<IntlObject>(object);
     JSGlobalObject* globalObject = intlObject->realm();
-    return IntlListFormatConstructor::create(vm, IntlListFormatConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlListFormatPrototype*>(globalObject->listFormatStructure()->storedPrototypeObject()));
+    return IntlListFormatConstructor::create(vm, IntlListFormatConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), uncheckedDowncast<IntlListFormatPrototype>(globalObject->listFormatStructure()->storedPrototypeObject()));
 }
 
 static JSValue createLocaleConstructor(VM& vm, JSObject* object)
 {
-    IntlObject* intlObject = jsCast<IntlObject*>(object);
+    IntlObject* intlObject = uncheckedDowncast<IntlObject>(object);
     JSGlobalObject* globalObject = intlObject->realm();
-    return IntlLocaleConstructor::create(vm, IntlLocaleConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlLocalePrototype*>(globalObject->localeStructure()->storedPrototypeObject()));
+    return IntlLocaleConstructor::create(vm, IntlLocaleConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), uncheckedDowncast<IntlLocalePrototype>(globalObject->localeStructure()->storedPrototypeObject()));
 }
 
 static JSValue createNumberFormatConstructor(VM&, JSObject* object)
 {
-    IntlObject* intlObject = jsCast<IntlObject*>(object);
+    IntlObject* intlObject = uncheckedDowncast<IntlObject>(object);
     JSGlobalObject* globalObject = intlObject->realm();
     return globalObject->numberFormatConstructor();
 }
 
 static JSValue createPluralRulesConstructor(VM& vm, JSObject* object)
 {
-    IntlObject* intlObject = jsCast<IntlObject*>(object);
+    IntlObject* intlObject = uncheckedDowncast<IntlObject>(object);
     JSGlobalObject* globalObject = intlObject->realm();
-    return IntlPluralRulesConstructor::create(vm, IntlPluralRulesConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlPluralRulesPrototype*>(globalObject->pluralRulesStructure()->storedPrototypeObject()));
+    return IntlPluralRulesConstructor::create(vm, IntlPluralRulesConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), uncheckedDowncast<IntlPluralRulesPrototype>(globalObject->pluralRulesStructure()->storedPrototypeObject()));
 }
 
 static JSValue createRelativeTimeFormatConstructor(VM& vm, JSObject* object)
 {
-    IntlObject* intlObject = jsCast<IntlObject*>(object);
+    IntlObject* intlObject = uncheckedDowncast<IntlObject>(object);
     JSGlobalObject* globalObject = intlObject->realm();
-    return IntlRelativeTimeFormatConstructor::create(vm, IntlRelativeTimeFormatConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlRelativeTimeFormatPrototype*>(globalObject->relativeTimeFormatStructure()->storedPrototypeObject()));
+    return IntlRelativeTimeFormatConstructor::create(vm, IntlRelativeTimeFormatConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), uncheckedDowncast<IntlRelativeTimeFormatPrototype>(globalObject->relativeTimeFormatStructure()->storedPrototypeObject()));
 }
 
 static JSValue createSegmenterConstructor(VM& vm, JSObject* object)
 {
-    IntlObject* intlObject = jsCast<IntlObject*>(object);
+    IntlObject* intlObject = uncheckedDowncast<IntlObject>(object);
     JSGlobalObject* globalObject = intlObject->realm();
-    return IntlSegmenterConstructor::create(vm, IntlSegmenterConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlSegmenterPrototype*>(globalObject->segmenterStructure()->storedPrototypeObject()));
+    return IntlSegmenterConstructor::create(vm, IntlSegmenterConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), uncheckedDowncast<IntlSegmenterPrototype>(globalObject->segmenterStructure()->storedPrototypeObject()));
 }
 
 }
@@ -789,7 +792,7 @@ Vector<String> canonicalizeLocaleList(JSGlobalObject* globalObject, JSValue loca
 
             String tag;
             if (kValue.inherits<IntlLocale>())
-                tag = jsCast<IntlLocale*>(kValue)->toString();
+                tag = uncheckedDowncast<IntlLocale>(kValue)->toString();
             else {
                 JSString* string = kValue.toString(globalObject);
                 RETURN_IF_EXCEPTION(scope, Vector<String>());
@@ -1909,8 +1912,44 @@ static std::optional<String> canonicalizeTimeZoneNameFromICUTimeZone(String&& ti
     return std::make_optional(WTF::move(timeZoneName));
 }
 
+// Map a known-valid IANA time zone ID to its primary IANA zone identifier. On ICU 74+,
+// ucal_getIanaTimeZoneID honors the IANA "Backward" links and returns up-to-date
+// names (e.g. "Asia/Calcutta" -> "Asia/Kolkata", "America/Buenos_Aires" ->
+// "America/Argentina/Buenos_Aires"). Older ICU falls back to CLDR's canonical
+// form. UTC-equivalent zones are normalized to "UTC" per ECMA-402.
+String toPrimaryIanaTimeZoneIdentifier(std::span<const char16_t> timeZone)
+{
+    Vector<char16_t, 32> buffer;
+#if U_ICU_VERSION_MAJOR_NUM >= 74
+    if (U_SUCCESS(callBufferProducingFunction(ucal_getIanaTimeZoneID, timeZone.data(), static_cast<int32_t>(timeZone.size()), buffer))) {
+        if (isUTCEquivalent(StringView(buffer.span())))
+            return "UTC"_s;
+        return String(buffer);
+    }
+    // ucal_getIanaTimeZoneID returns U_ILLEGAL_ARGUMENT_ERROR for "Etc/Unknown"; fall through.
+    buffer.clear();
+#endif
+    if (U_SUCCESS(callBufferProducingFunction(ucal_getCanonicalTimeZoneID, timeZone.data(), static_cast<int32_t>(timeZone.size()), buffer, nullptr))) {
+        if (isUTCEquivalent(StringView(buffer.span())))
+            return "UTC"_s;
+        return String(buffer);
+    }
+    return String(timeZone);
+}
+
+String toPrimaryIanaTimeZoneIdentifier(StringView timeZone)
+{
+    if (timeZone.is8Bit()) {
+        auto upconverted = timeZone.upconvertedCharacters();
+        return toPrimaryIanaTimeZoneIdentifier(upconverted.span());
+    }
+    return toPrimaryIanaTimeZoneIdentifier(timeZone.span16());
+}
+
 // https://tc39.es/ecma402/#sup-availablenamedtimezoneidentifiers
-const Vector<String>& intlAvailableTimeZones()
+// IANA primary time zone identifiers, indexed by TimeZoneID. This is the list
+// returned by Intl.supportedValuesOf("timeZone").
+static const Vector<String>& intlAvailableTimeZones()
 {
     static LazyNeverDestroyed<Vector<String>> availableTimeZones;
     static std::once_flag initializeOnce;
@@ -1928,10 +1967,15 @@ const Vector<String>& intlAvailableTimeZones()
             const char* pointer = uenum_next(enumeration.get(), &length, &status);
             ASSERT(U_SUCCESS(status));
             String timeZone(unsafeMakeSpan(pointer, static_cast<size_t>(length)));
-            if (isValidTimeZoneNameFromICUTimeZone(timeZone)) {
-                if (auto mapped = canonicalizeTimeZoneNameFromICUTimeZone(WTF::move(timeZone)))
-                    temporary.append(WTF::move(mapped.value()));
-            }
+            if (!isValidTimeZoneNameFromICUTimeZone(timeZone))
+                continue;
+            // UCAL_ZONE_TYPE_CANONICAL yields CLDR canonical IDs, which lag behind the IANA
+            // primary identifiers required by Intl.supportedValuesOf("timeZone")
+            // (e.g. "Asia/Calcutta" instead of "Asia/Kolkata"). Map each one to its IANA
+            // primary; duplicates collapse during the sort+unique step below.
+            String primary = toPrimaryIanaTimeZoneIdentifier(timeZone);
+            if (auto mapped = canonicalizeTimeZoneNameFromICUTimeZone(WTF::move(primary)))
+                temporary.append(WTF::move(mapped.value()));
         }
 
         // The AvailableTimeZones abstract operation returns a List, ordered as if an Array of the same
@@ -1952,15 +1996,125 @@ const Vector<String>& intlAvailableTimeZones()
     return availableTimeZones;
 }
 
+const String& intlTimeZoneIDToString(TimeZoneID id)
+{
+    return intlAvailableTimeZones()[id];
+}
+
+// Index from any accepted time zone string (case-insensitive) to the
+// TimeZoneID of its IANA primary. Multiple input forms (legacy IANA Backward
+// links, UTC-equivalent aliases, the primary itself) collapse onto the same
+// TimeZoneID. Built once on first use; the time zone list is fixed by the
+// linked ICU/CLDR version, so a fixed map is safe. Stored keys must be
+// immortal so the read-only map can be shared across VM threads — same
+// requirement that intlAvailableTimeZones() satisfies via createStaticStringImpl.
+static const HashMap<String, TimeZoneID, ASCIICaseInsensitiveHash>& intlAvailableTimeZoneIndex()
+{
+    static LazyNeverDestroyed<HashMap<String, TimeZoneID, ASCIICaseInsensitiveHash>> index;
+    static std::once_flag onceKey;
+    std::call_once(onceKey, [&] {
+        const auto& primaries = intlAvailableTimeZones();
+        HashMap<String, TimeZoneID, ASCIICaseInsensitiveHash> table;
+
+        // Primary identifiers from intlAvailableTimeZones() are already immortal
+        // static StringImpls, so reuse them directly as keys.
+        for (unsigned i = 0; i < primaries.size(); ++i)
+            table.add(primaries[i], i);
+
+        auto createImmortalThreadSafeString = [](StringView view) -> String {
+            if (view.is8Bit())
+                return StringImpl::createStaticStringImpl(view.span8());
+            return StringImpl::createStaticStringImpl(view.span16());
+        };
+
+        // Walk every ICU-known zone name (canonical + Backward links) so legacy
+        // inputs such as "Asia/Calcutta" or "America/Buenos_Aires" can resolve to
+        // their primary's TimeZoneID. Skip ICU's non-IANA legacy three-letter
+        // aliases ("ACT", "AET", ...) for the same reason availableNamedTimeZone-
+        // Identifier did before.
+        UErrorCode status = U_ZERO_ERROR;
+        auto enumeration = std::unique_ptr<UEnumeration, ICUDeleter<uenum_close>>(ucal_openTimeZones(&status));
+        ASSERT(U_SUCCESS(status));
+        while (true) {
+            status = U_ZERO_ERROR;
+            int32_t length = 0;
+            const char16_t* name = uenum_unext(enumeration.get(), &length, &status);
+            ASSERT(U_SUCCESS(status));
+            if (!name)
+                break;
+            std::span nameSpan { name, static_cast<size_t>(length) };
+            StringView nameView(nameSpan);
+            if (isNonIANA(nameView))
+                continue;
+            // Skip names already keyed as a primary; avoids allocating a
+            // duplicate static string.
+            if (table.find<ASCIICaseInsensitiveStringViewHashTranslator>(nameView) != table.end())
+                continue;
+            String primary = toPrimaryIanaTimeZoneIdentifier(nameSpan);
+            if (primary.isNull())
+                continue;
+            auto primaryEntry = table.find(primary);
+            if (primaryEntry == table.end())
+                continue;
+            table.add(createImmortalThreadSafeString(nameView), primaryEntry->value);
+        }
+
+        index.construct(WTF::move(table));
+    });
+    return index.get();
+}
+
+std::optional<TimeZoneID> intlResolveTimeZoneID(StringView name)
+{
+    const auto& index = intlAvailableTimeZoneIndex();
+    auto entry = index.find<ASCIICaseInsensitiveStringViewHashTranslator>(name);
+    if (entry == index.end())
+        return std::nullopt;
+    return entry->value;
+}
+
+std::optional<AvailableNamedTimeZone> intlAvailableNamedTimeZone(StringView name)
+{
+    const auto& index = intlAvailableTimeZoneIndex();
+    auto entry = index.find<ASCIICaseInsensitiveStringViewHashTranslator>(name);
+    if (entry == index.end())
+        return std::nullopt;
+    return AvailableNamedTimeZone { entry->value, entry->key };
+}
+
+String TimeZone::toString() const
+{
+    if (isID())
+        return intlTimeZoneIDToString(m_id);
+    if (!m_offset)
+        return intlTimeZoneIDToString(utcTimeZoneID());
+    return ISO8601::formatTimeZoneOffsetString(m_offset);
+}
+
+String TimeZone::toICUString() const
+{
+    if (isID())
+        return intlTimeZoneIDToString(m_id);
+    if (!m_offset)
+        return intlTimeZoneIDToString(utcTimeZoneID());
+    // ICU expects offsets in "GMT[+-]HHMM" form, no colon, four digits.
+    int64_t offset = m_offset;
+    bool negative = offset < 0;
+    if (negative)
+        offset = -offset;
+    constexpr int64_t nsPerMinute = 1000LL * 1000 * 1000 * 60;
+    int64_t totalMinutes = offset / nsPerMinute;
+    return makeString("GMT"_s, negative ? '-' : '+', pad('0', 2, totalMinutes / 60), pad('0', 2, totalMinutes % 60));
+}
+
 TimeZoneID utcTimeZoneIDStorage { std::numeric_limits<TimeZoneID>::max() };
 TimeZoneID utcTimeZoneIDSlow()
 {
     static std::once_flag initializeOnce;
     std::call_once(initializeOnce, [&] {
-        auto& timeZones = intlAvailableTimeZones();
-        auto index = timeZones.find("UTC"_s);
-        RELEASE_ASSERT(index != WTF::notFound);
-        utcTimeZoneIDStorage = index;
+        auto id = intlResolveTimeZoneID("UTC"_s);
+        RELEASE_ASSERT(id);
+        utcTimeZoneIDStorage = *id;
     });
     return utcTimeZoneIDStorage;
 }

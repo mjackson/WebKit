@@ -25,9 +25,9 @@
 
 #pragma once
 
+#include "CSSKeywordValue.h"
 #include "CSSParserToken.h"
 #include "CSSParserTokenRange.h"
-#include "CSSPrimitiveValue.h"
 #include "CSSValuePool.h"
 #include <optional>
 #include <wtf/RefPtr.h>
@@ -44,18 +44,23 @@ namespace CSSPropertyParserHelpers {
 // MARK: - Ident
 
 std::optional<CSSValueID> consumeIdentRaw(CSSParserTokenRange&);
-RefPtr<CSSPrimitiveValue> consumeIdent(CSSParserTokenRange&);
+std::optional<CSS::Keyword> consumeUnresolvedIdent(CSSParserTokenRange&);
+RefPtr<CSSKeywordValue> consumeIdent(CSSParserTokenRange&);
 
-RefPtr<CSSPrimitiveValue> consumeIdentRange(CSSParserTokenRange&, CSSValueID lower, CSSValueID upper);
+std::optional<CSSValueID> consumeIdentRangeRaw(CSSParserTokenRange&, CSSValueID lower, CSSValueID upper);
+std::optional<CSS::Keyword> consumeUnresolvedIdentRange(CSSParserTokenRange&, CSSValueID lower, CSSValueID upper);
+RefPtr<CSSKeywordValue> consumeIdentRange(CSSParserTokenRange&, CSSValueID lower, CSSValueID upper);
 
 template<typename... emptyBaseCase> bool identMatches(CSSValueID);
 template<CSSValueID head, CSSValueID... tail> bool identMatches(CSSValueID);
 
 template<CSSValueID... names> std::optional<CSSValueID> consumeIdentRaw(CSSParserTokenRange&);
-template<CSSValueID... names> RefPtr<CSSPrimitiveValue> consumeIdent(CSSParserTokenRange&);
+template<CSSValueID... names> std::optional<CSS::Keyword> consumeUnresolvedIdent(CSSParserTokenRange&);
+template<CSSValueID... names> RefPtr<CSSKeywordValue> consumeIdent(CSSParserTokenRange&);
 
 template<typename Predicate, typename... Args> std::optional<CSSValueID> consumeIdentRaw(CSSParserTokenRange&, Predicate&&, Args&&...);
-template<typename Predicate, typename... Args> RefPtr<CSSPrimitiveValue> consumeIdent(CSSParserTokenRange&, Predicate&&, Args&&...);
+template<typename Predicate, typename... Args> std::optional<CSS::Keyword> consumeUnresolvedRaw(CSSParserTokenRange&, Predicate&&, Args&&...);
+template<typename Predicate, typename... Args> RefPtr<CSSKeywordValue> consumeIdent(CSSParserTokenRange&, Predicate&&, Args&&...);
 
 template<typename Map> std::optional<typename Map::ValueType> consumeIdentUsingMapping(CSSParserTokenRange&, Map&);
 template<typename Map> std::optional<typename Map::ValueType> peekIdentUsingMapping(CSSParserTokenRange&, Map&);
@@ -100,11 +105,18 @@ template<CSSValueID... names> std::optional<CSSValueID> consumeIdentRaw(CSSParse
     return range.consumeIncludingWhitespace().id();
 }
 
-template<CSSValueID... names> RefPtr<CSSPrimitiveValue> consumeIdent(CSSParserTokenRange& range)
+template<CSSValueID... names> std::optional<CSS::Keyword> consumeUnresolvedIdent(CSSParserTokenRange& range)
+{
+    if (range.peek().type() != IdentToken || !identMatches<names...>(range.peek().id()))
+        return std::nullopt;
+    return CSS::Keyword { range.consumeIncludingWhitespace().id() };
+}
+
+template<CSSValueID... names> RefPtr<CSSKeywordValue> consumeIdent(CSSParserTokenRange& range)
 {
     if (range.peek().type() != IdentToken || !identMatches<names...>(range.peek().id()))
         return nullptr;
-    return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+    return CSSKeywordValue::create(CSS::Keyword { range.consumeIncludingWhitespace().id() });
 }
 
 template<typename Predicate, typename... Args> std::optional<CSSValueID> consumeIdentRaw(CSSParserTokenRange& range, Predicate&& predicate, Args&&... args)
@@ -116,11 +128,20 @@ template<typename Predicate, typename... Args> std::optional<CSSValueID> consume
     return std::nullopt;
 }
 
-template<typename Predicate, typename... Args> RefPtr<CSSPrimitiveValue> consumeIdent(CSSParserTokenRange& range, Predicate&& predicate, Args&&... args)
+template<typename Predicate, typename... Args> std::optional<CSS::Keyword> consumeUnresolvedIdent(CSSParserTokenRange& range, Predicate&& predicate, Args&&... args)
 {
     if (auto keyword = range.peek().id(); predicate(keyword, std::forward<Args>(args)...)) {
         range.consumeIncludingWhitespace();
-        return CSSPrimitiveValue::create(keyword);
+        return CSS::Keyword { keyword };
+    }
+    return std::nullopt;
+}
+
+template<typename Predicate, typename... Args> RefPtr<CSSKeywordValue> consumeIdent(CSSParserTokenRange& range, Predicate&& predicate, Args&&... args)
+{
+    if (auto keyword = range.peek().id(); predicate(keyword, std::forward<Args>(args)...)) {
+        range.consumeIncludingWhitespace();
+        return CSSKeywordValue::create(CSS::Keyword { keyword });
     }
     return nullptr;
 }

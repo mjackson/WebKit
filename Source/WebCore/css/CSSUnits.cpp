@@ -117,7 +117,6 @@ CSSUnitCategory unitCategory(CSSUnitType type)
     case CSSUnitType::CSS_DIMENSION:
     case CSSUnitType::CSS_QUIRKY_EM:
     case CSSUnitType::CSS_UNKNOWN:
-    case CSSUnitType::CSS_VALUE_ID:
         return CSSUnitCategory::Other;
     }
     ASSERT_NOT_REACHED();
@@ -248,7 +247,6 @@ TextStream& operator<<(TextStream& ts, CSSUnitType unitType)
     case CSSUnitType::CSS_CALC: ts << "calc"_s; break;
     case CSSUnitType::CSS_CALC_PERCENTAGE_WITH_ANGLE: ts << "calc_percentage_with_angle"_s; break;
     case CSSUnitType::CSS_CALC_PERCENTAGE_WITH_LENGTH: ts << "calc_percentage_with_length"_s; break;
-    case CSSUnitType::CSS_VALUE_ID: ts << "value_id"_s; break;
     case CSSUnitType::CSS_QUIRKY_EM: ts << "quirky_em"_s; break;
     }
     return ts;
@@ -364,7 +362,6 @@ bool conversionToCanonicalUnitRequiresConversionData(CSSUnitType unit)
     case CSSUnitType::CSS_DIMENSION:
     case CSSUnitType::CSS_QUIRKY_EM:
     case CSSUnitType::CSS_UNKNOWN:
-    case CSSUnitType::CSS_VALUE_ID:
         break;
     }
 

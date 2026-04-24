@@ -28,7 +28,6 @@
 
 #include "CSSFontFaceSource.h"
 #include "CSSFontSelector.h"
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "CSSValueList.h"
 #include "CSSValuePool.h"
@@ -36,6 +35,7 @@
 #include "JSDOMConvertInterface.h"
 #include "JSDOMConvertSequences.h"
 #include "JSFontFace.h"
+#include "StyleKeyword+Mappings.h"
 #include "TrustedFonts.h"
 #include <JavaScriptCore/ArrayBuffer.h>
 #include <JavaScriptCore/ArrayBufferView.h>
@@ -185,8 +185,6 @@ FontFace::~FontFace()
 
 ExceptionOr<void> FontFace::setFamily(ScriptExecutionContext& context, const AtomString& family)
 {
-    if (family.isEmpty())
-        return Exception { ExceptionCode::SyntaxError };
     m_backing->setFamily(context.cssValuePool().createFontFamilyNameValue(family));
     return { };
 }

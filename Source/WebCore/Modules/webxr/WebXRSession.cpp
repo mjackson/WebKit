@@ -137,6 +137,11 @@ const Vector<String> WebXRSession::enabledFeatures() const
     return enabledFeatureArray;
 }
 
+bool WebXRSession::supportsFeature(PlatformXR::SessionFeature feature) const
+{
+    return m_requestedFeatures.contains(feature);
+}
+
 // https://immersive-web.github.io/webxr/#dom-xrsession-updaterenderstate
 ExceptionOr<void> WebXRSession::updateRenderState(const XRRenderStateInit& newState)
 {
@@ -451,7 +456,7 @@ void WebXRSession::didCompleteShutdown()
 
     // From https://immersive-web.github.io/webxr/#shut-down-the-session
     // 7. Queue a task that fires an XRSessionEvent named end on session.
-    Ref event = XRSessionEvent::create(eventNames().endEvent, { { false, false, false }, Ref { *this } });
+    Ref event = XRSessionEvent::create(eventNames().endEvent, { { false, false, false }, protect(*this) });
     queueTaskToDispatchEvent(*this, TaskSource::WebXR, WTF::move(event));
 }
 
@@ -527,7 +532,7 @@ void WebXRSession::updateSessionVisibilityState(PlatformXR::VisibilityState visi
     // From https://immersive-web.github.io/webxr/#event-types
     // A user agent MUST dispatch a visibilitychange event on an XRSession each time the
     // visibility state of the XRSession has changed. The event MUST be of type XRSessionEvent.
-    Ref event = XRSessionEvent::create(eventNames().visibilitychangeEvent, { { false, false, false }, Ref { *this } });
+    Ref event = XRSessionEvent::create(eventNames().visibilitychangeEvent, { { false, false, false }, protect(*this) });
     queueTaskToDispatchEvent(*this, TaskSource::WebXR, WTF::move(event));
 }
 
@@ -633,7 +638,7 @@ void WebXRSession::requestFrameIfNeeded()
     if (!device)
         return;
     m_isDeviceFrameRequestPending = true;
-    device->requestFrame(WTF::move(m_requestData), [this, protectedThis = Ref { *this }](auto&& frameData) {
+    device->requestFrame(WTF::move(m_requestData), [this, protectedThis = protect(*this)](auto&& frameData) {
         m_isDeviceFrameRequestPending = false;
         onFrame(WTF::move(frameData));
     });
@@ -839,7 +844,7 @@ void WebXRSession::requestHitTestSource(const XRHitTestOptionsInit& init, Reques
     if (init.offsetRay)
         ray = PlatformXR::Ray { toFloatPoint3D(init.offsetRay->origin()), toFloatPoint3D(init.offsetRay->direction()) };
     PlatformXR::HitTestOptions options = { *WTF::move(maybeNativeOrigin), entityTypesFromOptions(init), WTF::move(ray) };
-    device->requestHitTestSource(options, [protectedThis = Ref { *this }, space = init.space, promise = WTF::move(promise)](ExceptionOr<PlatformXR::HitTestSource> exceptionOrSource) mutable {
+    device->requestHitTestSource(options, [protectedThis = protect(*this), space = init.space, promise = WTF::move(promise)](ExceptionOr<PlatformXR::HitTestSource> exceptionOrSource) mutable {
         if (exceptionOrSource.hasException()) {
             promise.reject(exceptionOrSource.releaseException());
             return;
@@ -874,7 +879,7 @@ void WebXRSession::requestHitTestSourceForTransientInput(const XRTransientInputH
     if (init.offsetRay)
         ray = PlatformXR::Ray { toFloatPoint3D(init.offsetRay->origin()), toFloatPoint3D(init.offsetRay->direction()) };
     PlatformXR::TransientInputHitTestOptions options = { init.profile, entityTypesFromOptions(init), WTF::move(ray) };
-    device->requestTransientInputHitTestSource(options, [protectedThis = Ref { *this }, promise = WTF::move(promise)](ExceptionOr<PlatformXR::TransientInputHitTestSource> exceptionOrSource) mutable {
+    device->requestTransientInputHitTestSource(options, [protectedThis = protect(*this), promise = WTF::move(promise)](ExceptionOr<PlatformXR::TransientInputHitTestSource> exceptionOrSource) mutable {
         if (exceptionOrSource.hasException()) {
             promise.reject(exceptionOrSource.releaseException());
             return;

@@ -28,6 +28,7 @@
 #include <WebCore/AnchorPositionEvaluator.h>
 #include <WebCore/LayoutUnit.h>
 #include <WebCore/RenderLayerModelObject.h>
+#include <WebCore/SubtreeScrollbarChangesState.h>
 #include <WebCore/Timer.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/SegmentedVector.h>
@@ -157,6 +158,13 @@ public:
 #endif
     using LayoutStateStack = Vector<std::unique_ptr<RenderLayoutState>>;
 
+    bool immediateRendererDestructionEnabledForTesting() const { return m_immediateRendererDestructionEnabledForTesting; }
+    void setImmediateRendererDestructionEnabledForTesting(bool enabled) { m_immediateRendererDestructionEnabledForTesting = enabled; }
+
+    std::optional<SubtreeScrollbarChangesState>& subtreeScrollbarChangesState() { return m_subtreeScrollbarChangesState; }
+    const std::optional<SubtreeScrollbarChangesState>& subtreeScrollbarChangesState() const { return m_subtreeScrollbarChangesState; }
+    void setSubtreeScrollbarChangesState(std::optional<SubtreeScrollbarChangesState>);
+
     UpdateScrollInfoAfterLayoutTransaction& updateScrollInfoAfterLayoutTransaction() LIFETIME_BOUND;
     UpdateScrollInfoAfterLayoutTransaction* NODELETE updateScrollInfoAfterLayoutTransactionIfExists() LIFETIME_BOUND { return m_updateScrollInfoAfterLayoutTransaction.get(); }
     void setBoxNeedsTransformUpdateAfterContainerLayout(RenderBox&, RenderBlock& container);
@@ -274,6 +282,8 @@ private:
     SingleThreadWeakHashSet<RenderBox> m_percentHeightIgnoreList;
     Vector<AnchorScrollAdjuster> m_anchorScrollAdjusters;
     std::optional<TextBoxTrim> m_textBoxTrim;
+    std::optional<SubtreeScrollbarChangesState> m_subtreeScrollbarChangesState;
+    bool m_immediateRendererDestructionEnabledForTesting { false };
 
     struct UpdateLayerPositions {
         void merge(const UpdateLayerPositions& other)

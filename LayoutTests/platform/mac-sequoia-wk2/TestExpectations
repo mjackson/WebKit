@@ -13,13 +13,6 @@ http/tests/resourceLoadStatistics/website-data-removal-for-site-navigated-to-wit
 # -- The above has different, expected behavior on Tahoe than Sequoia --
 # -- New failure expectations for Sequoia below this point only!! --
 
-webkit.org/b/271207 http/wpt/webauthn/public-key-credential-create-failure-local-silent.https.html [ Failure Crash ]
-webkit.org/b/271207 http/wpt/webauthn/public-key-credential-create-failure-local.https.html [ Failure Crash ]
-webkit.org/b/271207 http/wpt/webauthn/public-key-credential-create-success-local.https.html [ Failure Crash ]
-webkit.org/b/271207 http/wpt/webauthn/public-key-credential-get-success-local.https.html [ Failure Crash ]
-webkit.org/b/271207 http/wpt/webauthn/public-key-credential-get-failure-local.https.html [ Failure Crash ]
-
-
 ###
 ### NOTICE: Unless you know that the issue for which you're setting expectations specifically only
 ### occurs on Sequoia, you should probably use the platform/mac-wk2/TestExpectations file, NOT this one.

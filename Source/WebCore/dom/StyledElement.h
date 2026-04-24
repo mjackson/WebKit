@@ -54,7 +54,6 @@ public:
     const StyleProperties* inlineStyle() const { return elementData() ? elementData()->m_inlineStyle.get() : nullptr; }
 
     WEBCORE_EXPORT bool setInlineStyleProperty(CSSPropertyID, CSSValueID identifier, IsImportant = IsImportant::No);
-    bool setInlineStyleProperty(CSSPropertyID, CSSPropertyID identifier, IsImportant = IsImportant::No);
     WEBCORE_EXPORT bool setInlineStyleProperty(CSSPropertyID, double value, CSSUnitType, IsImportant = IsImportant::No);
     WEBCORE_EXPORT bool setInlineStyleProperty(CSSPropertyID, const String& value, IsImportant = IsImportant::No, bool* didFailParsing = nullptr);
     bool setInlineStyleCustomProperty(const AtomString& property, const String& value, IsImportant = IsImportant::No);
@@ -98,6 +97,7 @@ protected:
 private:
     void styleAttributeChanged(const AtomString& newStyleString, AttributeModificationReason);
     void synchronizeStyleAttributeInternalImpl();
+    void synchronizeStyleAttributeForSelectorInvalidation();
 
     void inlineStyleChanged();
     CSSStyleProperties* inlineStyleCSSOMWrapper();

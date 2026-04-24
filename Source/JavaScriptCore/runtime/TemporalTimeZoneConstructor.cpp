@@ -91,14 +91,14 @@ JSC_DEFINE_HOST_FUNCTION(constructTemporalTimeZone, (JSGlobalObject* globalObjec
 
     std::optional<int64_t> utcOffset = ISO8601::parseUTCOffset(timeZoneString);
     if (utcOffset)
-        return JSValue::encode(TemporalTimeZone::createFromUTCOffset(vm, structure, utcOffset.value()));
+        return JSValue::encode(TemporalTimeZone::create(vm, structure, TimeZone::fromUTCOffset(utcOffset.value())));
 
     std::optional<TimeZoneID> identifier = ISO8601::parseTimeZoneName(timeZoneString);
     if (!identifier) {
         throwRangeError(globalObject, scope, "argument needs to be UTC offset string or TimeZone identifier"_s);
         return { };
     }
-    return JSValue::encode(TemporalTimeZone::createFromID(vm, structure, identifier.value()));
+    return JSValue::encode(TemporalTimeZone::create(vm, structure, TimeZone::fromID(identifier.value())));
 }
 
 JSC_DEFINE_HOST_FUNCTION(callTemporalTimeZone, (JSGlobalObject* globalObject, CallFrame*))

@@ -25,7 +25,7 @@
 #include "CSSAnimation.h"
 #include "CSSCustomPropertyValue.h"
 #include "CSSKeyframeRule.h"
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSPropertyNames.h"
 #include "CSSValue.h"
 #include "CompositeOperation.h"
@@ -326,9 +326,9 @@ void BlendingKeyframes::updatePropertiesMetadata(const StyleProperties& properti
         if (!m_containsSubstitutionFunctions && cssValue->hasSubstitutionFunctions())
             m_containsSubstitutionFunctions = true;
 
-        if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(cssValue)) {
+        if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(cssValue)) {
             auto propertyID = propertyReference.id();
-            auto valueId = primitiveValue->valueID();
+            auto valueId = keywordValue->valueID();
 
             // FIXME: All these should search inside complex values or be set during style resolution
             if (valueId == CSSValueInherit)
@@ -337,6 +337,8 @@ void BlendingKeyframes::updatePropertiesMetadata(const StyleProperties& properti
                 m_propertiesSetToCurrentColor.add(propertyID);
             else if (!m_usesRelativeFontWeight && propertyID == CSSPropertyFontWeight && (valueId == CSSValueBolder || valueId == CSSValueLighter))
                 m_usesRelativeFontWeight = true;
+        } else if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(cssValue)) {
+            auto propertyID = propertyReference.id();
 
             if (Style::AnchorPositionEvaluator::propertyAllowsAnchorFunction(propertyID) || Style::AnchorPositionEvaluator::propertyAllowsAnchorSizeFunction(propertyID)) {
                 auto dependencies = cssValue->computedStyleDependencies();

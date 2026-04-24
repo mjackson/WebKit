@@ -38,17 +38,32 @@ WEBCORE_EXPORT void AXTreeStore<AXIsolatedTree>::applyPendingChangesForAllIsolat
 {
     AX_ASSERT(!isMainThread());
 
-    Locker locker { AXTreeStore<AXIsolatedTree>::s_storeLock };
-    auto& map = AXTreeStore<AXIsolatedTree>::isolatedTreeMap();
-    Vector<AXTreeID> treesToRemove;
-    for (const auto& axIDToTree : map) {
-        if (RefPtr tree = axIDToTree.value.get()) {
-            if (tree->applyPendingChangesOrTearDown() == DidTearDown::Yes)
-                treesToRemove.append(axIDToTree.key);
+    // Snapshot all live trees while holding the lock, then release it before
+    // calling applyPendingChangesOrTearDown. This is necessary because
+    // applyPendingChangesLocked can call attachPlatformWrapper ->
+    // crossFrameChildObject -> treeForFrameID, which needs to acquire
+    // s_storeLock. Holding s_storeLock across that call would self-deadlock.
+    Vector<std::pair<AXTreeID, Ref<AXIsolatedTree>>> trees;
+    {
+        Locker locker { AXTreeStore<AXIsolatedTree>::s_storeLock };
+        for (auto& entry : AXTreeStore<AXIsolatedTree>::isolatedTreeMap()) {
+            if (RefPtr tree = entry.value.get())
+                trees.append({ entry.key, tree.releaseNonNull() });
         }
     }
-    for (auto& treeID : treesToRemove)
-        map.remove(treeID);
+
+    Vector<AXTreeID> treesToRemove;
+    for (auto& [treeID, tree] : trees) {
+        if (tree->applyPendingChangesOrTearDown() == DidTearDown::Yes)
+            treesToRemove.append(treeID);
+    }
+
+    if (!treesToRemove.isEmpty()) {
+        Locker locker { AXTreeStore<AXIsolatedTree>::s_storeLock };
+        auto& map = AXTreeStore<AXIsolatedTree>::isolatedTreeMap();
+        for (auto& treeID : treesToRemove)
+            map.remove(treeID);
+    }
 
     AXIsolatedTree::clearAnyTreeNeedsTearDown();
 }

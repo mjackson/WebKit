@@ -162,7 +162,7 @@ AccessibilityNodeObject::~AccessibilityNodeObject()
 
 void AccessibilityNodeObject::init()
 {
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     AX_ASSERT(!m_initialized);
     m_initialized = true;
 #endif
@@ -879,7 +879,7 @@ void AccessibilityNodeObject::addChildren()
         addTableChildrenAndCellSlots();
 #endif
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     verifyChildrenIndexInParent();
 #endif
 }
@@ -998,7 +998,7 @@ bool AccessibilityNodeObject::isValidTree() const
 
 bool AccessibilityNodeObject::computeIsIgnored() const
 {
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     // Double-check that an AccessibilityObject is never accessed before
     // it's been initialized.
     AX_ASSERT(m_initialized);

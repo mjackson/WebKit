@@ -83,6 +83,20 @@ class TestResultWriterTest(unittest.TestCase):
         writer = test_result_writer.TestResultWriter(fs, port, port.results_directory(), 'svg/W3C-SVG-1.1/animate-elem-02-t.svg')
         self.assertEqual(fs.join(port.results_directory(), 'svg/W3C-SVG-1.1/animate-elem-02-t-diff.txt'), writer.output_filename('-diff.txt'))
 
+    def test_output_testname(self):
+        host = MockHost()
+        port = TestPort(host)
+        fs = host.filesystem
+
+        writer = test_result_writer.TestResultWriter(fs, port, port.results_directory(), '/fast/dom/foo.html')
+        self.assertEqual(writer._output_testname(''), 'foo')
+
+        writer = test_result_writer.TestResultWriter(fs, port, port.results_directory(), '/fast/backgrounds/box-shadow-radius-generated.html?width=50&height=50&spread=50&radius=1px')
+        self.assertEqual(writer._output_testname(''), 'box-shadow-radius-generated_width=50&height=50&spread=50&radius=1px')
+
+        writer = test_result_writer.TestResultWriter(fs, port, port.results_directory(), '/fast/backgrounds/box-shadow-radius-generated.html?width=200&height=40&spread=50&radius=100px%20/%2020px')
+        self.assertEqual(writer._output_testname(''), 'box-shadow-radius-generated_width=200&height=40&spread=50&radius=100px_20__2020px')
+
     def test_expected_filename(self):
         host = MockHost()
         port = TestPort(host)

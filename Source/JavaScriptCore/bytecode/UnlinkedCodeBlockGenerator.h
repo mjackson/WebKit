@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include "Strong.h"
 #include "UnlinkedCodeBlock.h"
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>

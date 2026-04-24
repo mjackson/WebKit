@@ -26,6 +26,7 @@
 #include "config.h"
 #include "CSSPropertyParserConsumer+Motion.h"
 
+#include "CSSKeywordValueInlines.h"
 #include "CSSOffsetRotateValue.h"
 #include "CSSParserContext.h"
 #include "CSSParserTokenRange.h"
@@ -182,7 +183,7 @@ RefPtr<CSSValue> consumeOffsetPath(CSSParserTokenRange& range, CSS::PropertyPars
         list.append(shapeOrRay.releaseNonNull());
 
     // Default value is border-box.
-    if (box && (box->valueID() != CSSValueBorderBox || !hasShapeOrRay))
+    if (box && (!isValueID(box, CSSValueBorderBox) || !hasShapeOrRay))
         list.append(box.releaseNonNull());
 
     if (list.isEmpty())

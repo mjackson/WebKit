@@ -26,6 +26,7 @@
 #include "config.h"
 #include "StyleGridAutoFlow.h"
 
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 
 namespace WebCore {
@@ -35,8 +36,8 @@ namespace Style {
 
 auto CSSValueConversion<GridAutoFlow>::operator()(BuilderState& state, const CSSValue& value) -> GridAutoFlow
 {
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueNormal:
             return CSS::Keyword::Normal { };
         case CSSValueRow:
@@ -51,7 +52,7 @@ auto CSSValueConversion<GridAutoFlow>::operator()(BuilderState& state, const CSS
         }
     }
 
-    auto list = requiredListDowncast<CSSValueList, CSSPrimitiveValue, 1>(state, value);
+    auto list = requiredListDowncast<CSSValueList, CSSKeywordValue, 1>(state, value);
     if (!list)
         return CSS::Keyword::Normal { };
 

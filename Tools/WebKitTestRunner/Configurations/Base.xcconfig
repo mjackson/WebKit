@@ -23,6 +23,7 @@
 
 #include "../../../Configurations/CommonBase.xcconfig"
 
+ALWAYS_SEARCH_USER_PATHS = NO;
 CLANG_CXX_LANGUAGE_STANDARD = c++2b;
 CLANG_CXX_LIBRARY = libc++;
 CLANG_ENABLE_EXPLICIT_MODULES = NO;

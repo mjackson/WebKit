@@ -25,6 +25,7 @@
 #include "config.h"
 #include "StyleLetterSpacing.h"
 
+#include "CSSKeywordValue.h"
 #include "FrameDestructionObserverInlines.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleBuilderChecking.h"
@@ -42,11 +43,18 @@ auto CSSValueConversion<LetterSpacing>::operator()(BuilderState& state, const CS
         return state.cssToLengthConversionData().copyWithAdjustedZoom(zoom, LetterSpacing::Fixed::range.zoomOptions);
     };
 
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNormal:
+            return CSS::Keyword::Normal { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::Normal { };
+        }
+    }
+
     RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
     if (!primitiveValue)
-        return CSS::Keyword::Normal { };
-
-    if (primitiveValue->valueID() == CSSValueNormal)
         return CSS::Keyword::Normal { };
 
     auto conversionData = state.useSVGZoomRulesForLength()

@@ -31,6 +31,7 @@
 #include "JSWindowProxy.h"
 #include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSObject.h>
+#include <JavaScriptCore/StrongInlines.h>
 #include <JavaScriptCore/Weak.h>
 
 namespace WebCore {
@@ -90,7 +91,7 @@ JSC::JSObject* WebKitJSHandle::objectForIdentifier(JSHandleIdentifier identifier
 
 static Markable<FrameIdentifier> NODELETE windowFrameIdentifier(JSC::JSObject* object)
 {
-    if (auto* window = jsDynamicCast<WebCore::JSWindowProxy*>(object)) {
+    if (auto* window = dynamicDowncast<WebCore::JSWindowProxy>(object)) {
         if (auto* frame = window->wrapped().frame())
             return frame->frameID();
     }

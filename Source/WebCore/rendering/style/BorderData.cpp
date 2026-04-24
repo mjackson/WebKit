@@ -28,7 +28,7 @@
 #include "BorderData.h"
 
 #include "StyleComputedStyle+DifferenceLogging.h"
-#include "StylePrimitiveKeyword+Logging.h"
+#include "StyleKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 
 namespace WebCore {

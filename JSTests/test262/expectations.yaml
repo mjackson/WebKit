@@ -940,6 +940,3 @@ test/staging/sm/misc/future-reserved-words.js:
   default: 'Test262Error: implements: function argument retroactively strict Expected a SyntaxError to be thrown but no exception was thrown at all'
 test/staging/sm/module/await-restricted-nested.js:
   module: 'Test262: This statement should not be evaluated.'
-test/staging/sm/object/defineProperties-order.js:
-  default: 'Test262Error: Expected SameValue(«"ownKeys,getOwnPropertyDescriptor,getOwnPropertyDescriptor,get,get"», «"ownKeys,getOwnPropertyDescriptor,get,getOwnPropertyDescriptor,get"») to be true'
-  strict mode: 'Test262Error: Expected SameValue(«"ownKeys,getOwnPropertyDescriptor,getOwnPropertyDescriptor,get,get"», «"ownKeys,getOwnPropertyDescriptor,get,getOwnPropertyDescriptor,get"») to be true'

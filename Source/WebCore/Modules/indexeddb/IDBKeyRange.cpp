@@ -193,11 +193,11 @@ bool IDBKeyRange::isPotentiallyValidKeyRange(JSC::JSGlobalObject& execState, JSC
         return false;
     if (value.inherits<JSC::DateInstance>())
         return true;
-    if (JSC::jsDynamicCast<JSC::JSArray*>(value))
+    if (is<JSC::JSArray>(value))
         return true;
-    if (JSC::jsDynamicCast<JSC::JSArrayBuffer*>(value))
+    if (is<JSC::JSArrayBuffer>(value))
         return true;
-    if (JSC::jsDynamicCast<JSC::JSArrayBufferView*>(value))
+    if (is<JSC::JSArrayBufferView>(value))
         return true;
     return false;
 }

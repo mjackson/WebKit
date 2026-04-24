@@ -1,3 +1,3 @@
 
-FAIL Document#fullscreenElement promise_test: Unhandled rejection with value: object "TypeError: document.querySelector("#new_parent").moveBefore is not a function. (In 'document.querySelector("#new_parent").moveBefore(item, null)', 'document.querySelector("#new_parent").moveBefore' is undefined)"
+PASS Document#fullscreenElement
 

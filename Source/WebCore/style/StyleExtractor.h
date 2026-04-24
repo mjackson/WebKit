@@ -86,7 +86,7 @@ public:
     // Helper methods for HTML editing.
     Ref<MutableStyleProperties> copyProperties(std::span<const CSSPropertyID>) const;
     Ref<MutableStyleProperties> copyProperties() const;
-    RefPtr<CSSPrimitiveValue> getFontSizeCSSValuePreferringKeyword() const;
+    RefPtr<CSSValue> getFontSizeCSSValuePreferringKeyword() const;
     bool useFixedFontDefaultSize() const;
     bool propertyMatches(CSSPropertyID, const CSSValue*) const;
     bool propertyMatches(CSSPropertyID, CSSValueID) const;

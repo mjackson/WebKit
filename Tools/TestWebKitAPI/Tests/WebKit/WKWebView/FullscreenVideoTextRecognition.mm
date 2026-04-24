@@ -33,6 +33,7 @@
 #import "Helpers/Test.h"
 #import "Helpers/cocoa/TestWKWebView.h"
 #import "Helpers/cocoa/WKWebViewConfigurationExtras.h"
+#import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/_WKFullscreenDelegate.h>
 #import <pal/spi/cocoa/VisionKitCoreSPI.h>
@@ -85,6 +86,19 @@ static void swizzledSetAnalysis(VKCImageAnalysisInteraction *, SEL, VKCImageAnal
 {
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
     configuration.preferences.elementFullscreenEnabled = YES;
+#if PLATFORM(IOS_FAMILY)
+    configuration.allowsInlineMediaPlayback = YES;
+#endif
+    RetainPtr webView = adoptNS([[FullscreenVideoTextRecognitionWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568) configuration:configuration]);
+    [webView synchronouslyLoadTestPageNamed:@"element-fullscreen"];
+    return webView;
+}
+
++ (RetainPtr<FullscreenVideoTextRecognitionWebView>)createForVideoFullscreen
+{
+    auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
+    configuration.preferences.elementFullscreenEnabled = YES;
+    [configuration.preferences _setVideoFullscreenRequiresElementFullscreen:YES];
     RetainPtr webView = adoptNS([[FullscreenVideoTextRecognitionWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568) configuration:configuration]);
     [webView synchronouslyLoadTestPageNamed:@"element-fullscreen"];
     return webView;
@@ -145,12 +159,33 @@ static void swizzledSetAnalysis(VKCImageAnalysisInteraction *, SEL, VKCImageAnal
     [self waitForNextPresentationUpdate];
 }
 
+- (void)enterVideoFullscreen
+{
+    _doneEnteringFullscreen = false;
+    [self evaluateJavaScript:@"enterVideoFullscreen()" completionHandler:nil];
+    TestWebKitAPI::Util::run(&_doneEnteringFullscreen);
+    [self waitForNextPresentationUpdate];
+}
+
 - (void)exitFullscreen
 {
     _doneExitingFullscreen = false;
     [self evaluateJavaScript:@"exitFullscreen()" completionHandler:nil];
     TestWebKitAPI::Util::run(&_doneExitingFullscreen);
     [self waitForNextPresentationUpdate];
+}
+
+- (void)dismissFullscreen
+{
+#if PLATFORM(IOS) || PLATFORM(VISION)
+    [self exitFullscreen];
+#else
+    _doneExitingFullscreen = false;
+    [self sendKey:@"\x1B" code:0x35 isDown:YES modifiers:0];
+    [self sendKey:@"\x1B" code:0x35 isDown:NO modifiers:0];
+    TestWebKitAPI::Util::run(&_doneExitingFullscreen);
+    [self waitForNextPresentationUpdate];
+#endif
 }
 
 - (void)didChangeValueForKey:(NSString *)key
@@ -219,6 +254,11 @@ static void swizzledSetAnalysis(VKCImageAnalysisInteraction *, SEL, VKCImageAnal
     return NO;
 }
 
+- (void)beginSeek:(double)time
+{
+    [self objectByEvaluatingJavaScript:[NSString stringWithFormat:@"video.currentTime = %f", time]];
+}
+
 - (void)waitForImageAnalysisToBegin
 {
     TestWebKitAPI::Util::waitForConditionWithLogging([&] {
@@ -237,13 +277,7 @@ static void swizzledSetAnalysis(VKCImageAnalysisInteraction *, SEL, VKCImageAnal
 
 namespace TestWebKitAPI {
 
-// FIXME: Re-enable this test for iOS once webkit.org/b/248094 is resolved
-// FIXME: Re-enable this test in Sonoma once webkit.org/b/289025 is resolved.
-#if PLATFORM(IOS) || PLATFORM(VISION) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED > 140000 && __MAC_OS_X_VERSION_MIN_REQUIRED < 150000)
-TEST(FullscreenVideoTextRecognition, DISABLED_TogglePlaybackInElementFullscreen)
-#else
 TEST(FullscreenVideoTextRecognition, TogglePlaybackInElementFullscreen)
-#endif
 {
     auto webView = [FullscreenVideoTextRecognitionWebView create];
     [webView loadVideoSource:@"test.mp4"];
@@ -256,12 +290,7 @@ TEST(FullscreenVideoTextRecognition, TogglePlaybackInElementFullscreen)
     [webView waitForImageAnalysisToEnd];
 }
 
-// FIXME: re-enable for iOS when rdar://107476837 is resolved
-#if PLATFORM(IOS) || PLATFORM(VISION)
-TEST(FullscreenVideoTextRecognition, DISABLED_AddVideoAfterEnteringFullscreen)
-#else
 TEST(FullscreenVideoTextRecognition, AddVideoAfterEnteringFullscreen)
-#endif
 {
     auto webView = [FullscreenVideoTextRecognitionWebView create];
     [webView loadVideoSource:@"test.mp4"];
@@ -275,14 +304,7 @@ TEST(FullscreenVideoTextRecognition, AddVideoAfterEnteringFullscreen)
     [webView waitForImageAnalysisToBegin];
 }
 
-// FIXME: Re-enable this test for iOS once webkit.org/b/248094 is resolved
-// FIXME: Re-enable this test once webkit.org/b/248093 is resolved.
-// FIXME: Re-enable this test in Sonoma once webkit.org/b/289025 is resolved.
-#if PLATFORM(IOS) || PLATFORM(VISION) || !defined(NDEBUG) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED > 140000 && __MAC_OS_X_VERSION_MIN_REQUIRED < 150000)
-TEST(FullscreenVideoTextRecognition, DISABLED_DoNotAnalyzeVideoAfterExitingFullscreen)
-#else
 TEST(FullscreenVideoTextRecognition, DoNotAnalyzeVideoAfterExitingFullscreen)
-#endif
 {
     auto webView = [FullscreenVideoTextRecognitionWebView create];
     [webView loadVideoSource:@"test.mp4"];
@@ -304,6 +326,220 @@ TEST(FullscreenVideoTextRecognition, DoNotAnalyzeVideoAfterExitingFullscreen)
     });
     Util::run(&doneWaiting);
 }
+
+TEST(FullscreenVideoTextRecognition, NoOverlayInstalledAfterExitingFullscreenViaEscape)
+{
+    auto webView = [FullscreenVideoTextRecognitionWebView create];
+    [webView loadVideoSource:@"test.mp4"];
+
+    [webView enterFullscreen];
+    [webView waitForVideoFrame];
+
+    // Exit fullscreen. Verify that no image analysis overlay is
+    // installed after fullscreen exit, even if playback state changes during
+    // the exit trigger TextRecognitionRequest::requestTextRecognitionFor.
+    [webView dismissFullscreen];
+
+    // Wait longer than the 250ms text recognition timer to ensure no overlay
+    // is installed after fullscreen exit.
+    bool doneWaiting = false;
+    RunLoop::mainSingleton().dispatchAfter(400_ms, [&] {
+        EXPECT_FALSE([webView hasActiveImageAnalysis]);
+        doneWaiting = true;
+    });
+    Util::run(&doneWaiting);
+}
+
+TEST(FullscreenVideoTextRecognition, NoOverlayInstalledAfterSeekAndExitingFullscreenViaEscape)
+{
+    auto webView = [FullscreenVideoTextRecognitionWebView create];
+    [webView loadVideoSource:@"test.mp4"];
+
+    [webView enterFullscreen];
+    [webView waitForVideoFrame];
+    [webView pause];
+    [webView waitForImageAnalysisToBegin];
+    [webView beginSeek:0.5];
+
+    // Allow the seek to start before exiting fullscreen.
+    bool seekStarted = false;
+    RunLoop::mainSingleton().dispatchAfter(100_ms, [&] {
+        seekStarted = true;
+    });
+    Util::run(&seekStarted);
+
+    // Exit fullscreen while a seek is in progress. Verify that no
+    // image analysis overlay is installed after fullscreen exit.
+    [webView dismissFullscreen];
+
+    // Wait longer than the 250ms text recognition timer to ensure no overlay
+    // is installed after fullscreen exit.
+    bool doneWaiting = false;
+    RunLoop::mainSingleton().dispatchAfter(300_ms, [&] {
+        EXPECT_FALSE([webView hasActiveImageAnalysis]);
+        doneWaiting = true;
+    });
+    Util::run(&doneWaiting);
+}
+
+// FIXME when webkit.org/b/313031 is resolved
+#if PLATFORM(MAC)
+TEST(FullscreenVideoTextRecognition, DISABLED_NoOverlayInstalledAfterExitingVideoFullscreenViaEscape)
+{
+    auto webView = [FullscreenVideoTextRecognitionWebView createForVideoFullscreen];
+    [webView loadVideoSource:@"test.mp4"];
+
+    [webView enterVideoFullscreen];
+    [webView waitForVideoFrame];
+
+    // Exit fullscreen. Verify that no image analysis overlay is
+    // installed after fullscreen exit, even if playback state changes during
+    // the exit trigger TextRecognitionRequest::requestTextRecognitionFor.
+    [webView dismissFullscreen];
+
+    // Wait longer than the 250ms text recognition timer to ensure no overlay
+    // is installed after fullscreen exit.
+    bool doneWaiting = false;
+    RunLoop::mainSingleton().dispatchAfter(400_ms, [&] {
+        EXPECT_FALSE([webView hasActiveImageAnalysis]);
+        doneWaiting = true;
+    });
+    Util::run(&doneWaiting);
+}
+
+// FIXME when webkit.org/b/313031 is resolved
+TEST(FullscreenVideoTextRecognition, DISABLED_NoOverlayInstalledAfterSeekAndExitingVideoFullscreenViaEscape)
+{
+    auto webView = [FullscreenVideoTextRecognitionWebView createForVideoFullscreen];
+    [webView loadVideoSource:@"test.mp4"];
+
+    [webView enterVideoFullscreen];
+    [webView waitForVideoFrame];
+    [webView pause];
+    [webView waitForImageAnalysisToBegin];
+    [webView beginSeek:0.5];
+
+    // Allow the seek to start before exiting fullscreen.
+    bool seekStarted = false;
+    RunLoop::mainSingleton().dispatchAfter(100_ms, [&] {
+        seekStarted = true;
+    });
+    Util::run(&seekStarted);
+
+    // Exit fullscreen while a seek is in progress. Verify that no
+    // image analysis overlay is installed after fullscreen exit.
+    [webView dismissFullscreen];
+
+    // Wait longer than the 250ms text recognition timer to ensure no overlay
+    // is installed after fullscreen exit.
+    bool doneWaiting = false;
+    RunLoop::mainSingleton().dispatchAfter(300_ms, [&] {
+        EXPECT_FALSE([webView hasActiveImageAnalysis]);
+        doneWaiting = true;
+    });
+    Util::run(&doneWaiting);
+}
+
+#endif // PLATFORM(MAC)
+
+// FIXME when webkit.org/b/312934 is resolved for Release.
+#if PLATFORM(IOS_FAMILY) && !defined(NDEBUG)
+TEST(FullscreenVideoTextRecognition, NoOverlayInstalledAfterExitingNativeVideoFullscreen)
+{
+    auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
+    RetainPtr webView = adoptNS([[FullscreenVideoTextRecognitionWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568) configuration:configuration]);
+    [webView synchronouslyLoadTestPageNamed:@"element-fullscreen"];
+    [webView objectByEvaluatingJavaScript:@"window.internals.setMockVideoPresentationModeEnabled(true)"];
+    [webView loadVideoSource:@"test.mp4"];
+
+    // Enter native video fullscreen via mock presentation mode.
+    __block bool enteredFullscreen = false;
+    [webView performAfterReceivingMessage:@"enteredFullscreen" action:^{ enteredFullscreen = true; }];
+    [webView objectByEvaluatingJavaScriptWithUserGesture:@"enterNativeVideoFullscreen()"];
+    Util::run(&enteredFullscreen);
+
+    // Wait for the fullscreen mode change to complete (DidEnterFullscreen IPC round-trip).
+    do {
+        if (![webView stringByEvaluatingJavaScript:@"window.internals.isChangingPresentationMode(document.querySelector('video'))"].boolValue)
+            break;
+        Util::runFor(100_ms);
+    } while (true);
+
+    [webView waitForVideoFrame];
+
+    // Exit native video fullscreen.
+    __block bool exitedFullscreen = false;
+    [webView performAfterReceivingMessage:@"exitedFullscreen" action:^{ exitedFullscreen = true; }];
+    [webView objectByEvaluatingJavaScriptWithUserGesture:@"exitNativeVideoFullscreen()"];
+    Util::run(&exitedFullscreen);
+    [webView waitForNextPresentationUpdate];
+
+    // Wait longer than the 250ms text recognition timer to ensure no overlay
+    // is installed after fullscreen exit.
+    bool doneWaiting = false;
+    RunLoop::mainSingleton().dispatchAfter(400_ms, [&] {
+        EXPECT_FALSE([webView hasActiveImageAnalysis]);
+        doneWaiting = true;
+    });
+    Util::run(&doneWaiting);
+}
+
+// FIXME when webkit.org/b/312934 is resolved for Release.
+#if PLATFORM(IOS) && defined(NDEBUG)
+TEST(FullscreenVideoTextRecognition, DISABLED_NoOverlayInstalledAfterSeekAndExitingNativeVideoFullscreen)
+#else
+TEST(FullscreenVideoTextRecognition, NoOverlayInstalledAfterSeekAndExitingNativeVideoFullscreen)
+#endif
+{
+    auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
+    RetainPtr webView = adoptNS([[FullscreenVideoTextRecognitionWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568) configuration:configuration]);
+    [webView synchronouslyLoadTestPageNamed:@"element-fullscreen"];
+    [webView objectByEvaluatingJavaScript:@"window.internals.setMockVideoPresentationModeEnabled(true)"];
+    [webView loadVideoSource:@"test.mp4"];
+
+    // Enter native video fullscreen via mock presentation mode.
+    __block bool enteredFullscreen = false;
+    [webView performAfterReceivingMessage:@"enteredFullscreen" action:^{ enteredFullscreen = true; }];
+    [webView objectByEvaluatingJavaScriptWithUserGesture:@"enterNativeVideoFullscreen()"];
+    Util::run(&enteredFullscreen);
+
+    // Wait for the fullscreen mode change to complete (DidEnterFullscreen IPC round-trip).
+    do {
+        if (![webView stringByEvaluatingJavaScript:@"window.internals.isChangingPresentationMode(document.querySelector('video'))"].boolValue)
+            break;
+        Util::runFor(100_ms);
+    } while (true);
+
+    [webView waitForVideoFrame];
+    [webView pause];
+    [webView waitForImageAnalysisToBegin];
+    [webView beginSeek:0.5];
+
+    // Allow the seek to start before exiting fullscreen.
+    bool seekStarted = false;
+    RunLoop::mainSingleton().dispatchAfter(100_ms, [&] {
+        seekStarted = true;
+    });
+    Util::run(&seekStarted);
+
+    // Exit native video fullscreen while a seek is in progress.
+    __block bool exitedFullscreen = false;
+    [webView performAfterReceivingMessage:@"exitedFullscreen" action:^{ exitedFullscreen = true; }];
+    [webView objectByEvaluatingJavaScriptWithUserGesture:@"exitNativeVideoFullscreen()"];
+    Util::run(&exitedFullscreen);
+    [webView waitForNextPresentationUpdate];
+
+    // Wait longer than the 250ms text recognition timer to ensure no overlay
+    // is installed after fullscreen exit.
+    bool doneWaiting = false;
+    RunLoop::mainSingleton().dispatchAfter(300_ms, [&] {
+        EXPECT_FALSE([webView hasActiveImageAnalysis]);
+        doneWaiting = true;
+    });
+    Util::run(&doneWaiting);
+}
+
+#endif // PLATFORM(IOS_FAMILY)
 
 } // namespace TestWebKitAPI
 

@@ -25,6 +25,7 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/HeapCellInlines.h>
 #include <JavaScriptCore/JSCInlines.h>
+#include <JavaScriptCore/JSCellInlines.h>
 
 namespace WebCore {
 using namespace JSC;

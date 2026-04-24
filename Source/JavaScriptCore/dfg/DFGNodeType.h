@@ -646,6 +646,8 @@ namespace JSC { namespace DFG {
     macro(ResolvePromiseFirstResolving, NodeMustGenerate) \
     macro(RejectPromiseFirstResolving, NodeMustGenerate) \
     macro(FulfillPromiseFirstResolving, NodeMustGenerate) \
+    macro(NewResolvedPromise, NodeMustGenerate | NodeResultJS) \
+    macro(NewRejectedPromise, NodeMustGenerate | NodeResultJS) \
     macro(PromiseResolve, NodeMustGenerate | NodeResultJS) \
     macro(PromiseReject, NodeMustGenerate | NodeResultJS) \
     macro(PromiseThen, NodeMustGenerate | NodeResultJS) \

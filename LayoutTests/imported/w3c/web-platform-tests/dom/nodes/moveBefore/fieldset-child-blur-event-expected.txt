@@ -1,5 +1,5 @@
 
 
 
-FAIL The 'blur' event is not fired on children of HTMLFieldSetElement during moveBefore() fs.moveBefore is not a function. (In 'fs.moveBefore(L1, null)', 'fs.moveBefore' is undefined)
+PASS The 'blur' event is not fired on children of HTMLFieldSetElement during moveBefore()
 

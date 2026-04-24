@@ -159,9 +159,9 @@ inline bool JSFunction::hasReifiedName() const
 inline double JSFunction::originalLength(VM& vm)
 {
     if (inherits<JSBoundFunction>())
-        return jsCast<JSBoundFunction*>(this)->length(vm);
+        return uncheckedDowncast<JSBoundFunction>(this)->length(vm);
     if (inherits<JSRemoteFunction>())
-        return jsCast<JSRemoteFunction*>(this)->length(vm);
+        return uncheckedDowncast<JSRemoteFunction>(this)->length(vm);
     ASSERT(!isHostFunction());
     return jsExecutable()->parameterCount();
 }
@@ -183,14 +183,14 @@ inline JSString* JSFunction::originalName(JSGlobalObject* globalObject)
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     if (this->inherits<JSBoundFunction>()) {
-        JSString* nameMayBeNull = jsCast<JSBoundFunction*>(this)->nameMayBeNull();
+        JSString* nameMayBeNull = uncheckedDowncast<JSBoundFunction>(this)->nameMayBeNull();
         if (nameMayBeNull)
             RELEASE_AND_RETURN(scope, jsString(globalObject, vm.smallStrings.boundPrefixString(), nameMayBeNull));
         return jsEmptyString(vm);
     }
 
     if (this->inherits<JSRemoteFunction>()) {
-        JSString* nameMayBeNull = jsCast<JSRemoteFunction*>(this)->nameMayBeNull();
+        JSString* nameMayBeNull = uncheckedDowncast<JSRemoteFunction>(this)->nameMayBeNull();
         if (nameMayBeNull)
             return nameMayBeNull;
         return jsEmptyString(vm);
@@ -283,7 +283,7 @@ inline CallData JSFunction::getCallDataInline(JSCell* cell)
     // Keep this function OK for invocation from concurrent compilers.
     CallData callData;
 
-    JSFunction* thisObject = jsCast<JSFunction*>(cell);
+    JSFunction* thisObject = uncheckedDowncast<JSFunction>(cell);
     if (thisObject->isHostFunction()) {
         callData.type = CallData::Type::Native;
         callData.native.function = thisObject->nativeFunction();
@@ -306,10 +306,10 @@ inline CallData JSFunction::getConstructDataInline(JSCell* cell)
     // Keep this function OK for invocation from concurrent compilers.
     CallData constructData;
 
-    JSFunction* thisObject = jsCast<JSFunction*>(cell);
+    JSFunction* thisObject = uncheckedDowncast<JSFunction>(cell);
     if (thisObject->isHostFunction()) {
         if (thisObject->inherits<JSBoundFunction>()) {
-            if (jsCast<JSBoundFunction*>(thisObject)->canConstruct()) {
+            if (uncheckedDowncast<JSBoundFunction>(thisObject)->canConstruct()) {
                 constructData.type = CallData::Type::Native;
                 constructData.native.function = thisObject->nativeConstructor();
                 constructData.native.isBoundFunction = true;

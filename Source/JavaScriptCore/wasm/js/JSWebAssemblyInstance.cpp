@@ -189,7 +189,7 @@ void JSWebAssemblyInstance::destroy(JSCell* cell)
 template<typename Visitor>
 void JSWebAssemblyInstance::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
-    auto* thisObject = jsCast<JSWebAssemblyInstance*>(cell);
+    auto* thisObject = uncheckedDowncast<JSWebAssemblyInstance>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
 
     Base::visitChildren(thisObject, visitor);
@@ -230,7 +230,7 @@ void JSWebAssemblyInstance::initializeImports(JSGlobalObject* globalObject, JSOb
 
     m_moduleRecord->prepareLink(vm, this);
     if (creationMode == CreationMode::FromJS) {
-        m_moduleRecord->link(globalObject, jsNull());
+        m_moduleRecord->link(globalObject, nullptr);
         RETURN_IF_EXCEPTION(scope, void());
         m_moduleRecord->initializeImports(globalObject, importObject, creationMode);
         RETURN_IF_EXCEPTION(scope, void());
@@ -251,10 +251,10 @@ void JSWebAssemblyInstance::finalizeCreation(VM& vm, JSGlobalObject* globalObjec
     // If IPInt is disabled, we instead defer compilation to module evaluation.
     // If the code is already compiled, e.g. the module was already instantiated before, we do not re-initialize.
     if (module().moduleInformation().hasMemoryImport())
-        module().copyInitialCalleeGroupToAllMemoryModes(memoryMode());
+        module().copyInitialCalleeGroupToAllMemoryModes(memory0Mode());
 
 
-    RELEASE_ASSERT(wasmCalleeGroup->isSafeToRun(memoryMode()));
+    RELEASE_ASSERT(wasmCalleeGroup->isSafeToRun(memory0Mode()));
 
     for (unsigned importFunctionNum = 0; importFunctionNum < numImportFunctions(); ++importFunctionNum) {
         auto functionSpaceIndex = FunctionSpaceIndex(importFunctionNum);
@@ -551,7 +551,7 @@ void JSWebAssemblyInstance::initElementSegment(uint32_t tableIndex, const Elemen
                     // If we ever import a WebAssemblyWrapperFunction, we set the import as the unwrapped value.
                     // Because a WebAssemblyWrapperFunction can never wrap another WebAssemblyWrapperFunction,
                     // the only type this could be is WebAssemblyFunction.
-                    WebAssemblyFunction* wasmFunction = jsSecureCast<WebAssemblyFunction*>(functionImport);
+                    WebAssemblyFunction* wasmFunction = downcast<WebAssemblyFunction>(functionImport);
                     jsTable->set(dstIndex, wasmFunction);
                     continue;
                 }
@@ -610,7 +610,7 @@ void JSWebAssemblyInstance::initElementSegment(uint32_t tableIndex, const Elemen
         if (jsTable->table()->isFuncrefTable()) {
             // Validation should guarantee that the table is for funcs, and the value is a func as well.
             if (initValue.isObject())
-                ASSERT(jsDynamicCast<WebAssemblyFunctionBase*>(asObject(initValue)));
+                ASSERT(is<WebAssemblyFunctionBase>(asObject(initValue)));
             else
                 ASSERT(initValue.isNull());
         } else

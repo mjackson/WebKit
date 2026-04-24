@@ -415,7 +415,7 @@ inline void ComposedTreeIterator<ContextInlineCapacity>::traverseNextInShadowTre
             context().slotNodeIndex = 0;
             RefPtr assignedNode = assignedNodes->at(0).get();
             ASSERT(assignedNode);
-            ASSERT(dynamicDowncast<Element>(assignedNode->parentNode()));
+            ASSERT(is<Element>(assignedNode->parentNode()));
             m_contextStack.append(Context(*dynamicDowncast<Element>(assignedNode->parentNode()), *assignedNode, Context::Slotted));
             return;
         }
@@ -453,7 +453,7 @@ inline bool ComposedTreeIterator<ContextInlineCapacity>::advanceInSlot(int direc
 
     RefPtr slotNode = assignedNodes.at(context().slotNodeIndex).get();
     ASSERT(slotNode);
-    ASSERT(dynamicDowncast<Element>(slotNode->parentNode()));
+    ASSERT(is<Element>(slotNode->parentNode()));
     m_contextStack.append(Context(*dynamicDowncast<Element>(slotNode->parentNode()), *slotNode, Context::Slotted));
     return true;
 }

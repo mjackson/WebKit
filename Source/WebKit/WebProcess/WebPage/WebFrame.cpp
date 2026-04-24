@@ -1184,7 +1184,7 @@ String WebFrame::counterValue(JSObjectRef element)
     if (!toJS(element)->inherits<JSElement>())
         return String();
 
-    Ref coreElement = jsCast<JSElement*>(toJS(element))->wrapped();
+    Ref coreElement = uncheckedDowncast<JSElement>(toJS(element))->wrapped();
     return counterValueForElement(coreElement.ptr());
 }
 
@@ -1572,7 +1572,7 @@ static Ref<WebKitJSHandle> createJSHandle(Node& node)
     Ref document = node.document();
     auto* lexicalGlobalObject = document->globalObject();
     RELEASE_ASSERT(lexicalGlobalObject->template inherits<JSDOMGlobalObject>());
-    auto* domGlobalObject = jsCast<JSDOMGlobalObject*>(lexicalGlobalObject);
+    auto* domGlobalObject = uncheckedDowncast<JSDOMGlobalObject>(lexicalGlobalObject);
     JSLockHolder locker { lexicalGlobalObject };
     return WebKitJSHandle::create(toJS(lexicalGlobalObject, domGlobalObject, node).toObject(lexicalGlobalObject));
 }
@@ -1659,7 +1659,7 @@ static RefPtr<Node> NODELETE nodeFromJSHandleIdentifier(JSHandleIdentifier ident
     if (!object)
         return { };
 
-    auto* jsNode = jsDynamicCast<JSNode*>(object);
+    auto* jsNode = dynamicDowncast<JSNode>(object);
     if (!jsNode)
         return { };
 

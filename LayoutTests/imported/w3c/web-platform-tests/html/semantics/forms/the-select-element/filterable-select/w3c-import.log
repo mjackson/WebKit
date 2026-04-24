@@ -19,3 +19,4 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/filterable-select/filterable-select-appearance.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/filterable-select/filterable-select-filtered-pseudo.tentative.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/filterable-select/filterable-select-keyboard-behavior.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/filterable-select/select-beforefilter.tentative.html

@@ -317,6 +317,7 @@ class LayoutTestFinder(object):
         current_layout_tests_path = self.fs.join(self.layout_tests_base_dir, path)
         non_test_files[current_layout_tests_path] = set()
 
+        # FIXME: Skip files like `.DS_Store`
         it = self.fs.scandir(current_layout_tests_path)
         try:
             for entry in it:
@@ -419,7 +420,7 @@ class LayoutTestFinder(object):
                 expected_audio_path,
                 reference_files,
             ) = self._expectations_for_test(
-                basename + variant, non_test_files_by_search_path
+                basename, variant, non_test_files_by_search_path
             )
 
             assert expected_text_path is None or self.fs.isabs(expected_text_path)
@@ -540,11 +541,11 @@ class LayoutTestFinder(object):
             len(variant) > 1 and variant[0] in ("?", "#") and variant != "?#"
         )
 
-    def _expectations_for_test(self, name, non_test_files_by_search_path):
+    def _expectations_for_test(self, basename, variant, non_test_files_by_search_path):
         """Given a test basename, find expectations in non_test_files_by_search_path"""
 
         expected_without_ext = TestResultWriter.expected_filename(
-            name, self.fs, suffix=""
+            basename + variant, self.fs, suffix=""
         )
         assert expected_without_ext[-1] == "."
         expected_without_ext = expected_without_ext[:-1]
@@ -560,15 +561,22 @@ class LayoutTestFinder(object):
         png_name = expected_without_ext + ".png"
         wav_name = expected_without_ext + ".wav"
 
-        match_reference_names = {
-            expected_without_ext + ext for ext in supported_reference_extensions
+        reference_base = TestResultWriter.expected_filename(
+            basename, self.fs, suffix=""
+        )
+        assert reference_base[-1] == "."
+        reference_base = reference_base[:-1]
+
+        match_reference_basenames = {
+            reference_base + ext for ext in supported_reference_extensions
         }
 
-        mismatch_reference_names = {
-            "".join((expected_without_ext, "-mismatch", ext))
+        mismatch_reference_basenames = {
+            "".join((reference_base, "-mismatch", ext))
             for ext in supported_reference_extensions
         }
 
+        # This is inefficient. We search all non-test files in the directory for each variant of each test!
         for dirname, basename_set in reversed(non_test_files_by_search_path.items()):
             if expected_text_path is None and txt_name in basename_set:
                 expected_text_path = self.fs.join(dirname, txt_name)
@@ -583,16 +591,16 @@ class LayoutTestFinder(object):
                 expected_audio_path = self.fs.join(dirname, wav_name)
 
             if reference_files is None:
-                matches = basename_set & match_reference_names
-                mismatches = basename_set & mismatch_reference_names
+                matches = basename_set & match_reference_basenames
+                mismatches = basename_set & mismatch_reference_basenames
                 if matches or mismatches:
                     # For historic reasons, we return matches first, and we sort them by
                     # the filename of the match. This is significant when we currently
                     # only run the first reference
                     # (https://bugs.webkit.org/show_bug.cgi?id=270794).
                     reference_files = [
-                        ("==", self.fs.join(dirname, m)) for m in sorted(matches)
-                    ] + [("!=", self.fs.join(dirname, m)) for m in sorted(mismatches)]
+                        ("==", self.fs.join(dirname, m + variant)) for m in sorted(matches)
+                    ] + [("!=", self.fs.join(dirname, m + variant)) for m in sorted(mismatches)]
 
         return (
             expected_text_path or expected_webarchive_path,

@@ -272,6 +272,8 @@ void SOAuthorizationSession::beginAuthorizationIfReady()
     // rdar://130904577 - Investigate supporting embedded authorization view controller on visionOS.
     if (![[m_page->cocoaView() UIDelegate] respondsToSelector:@selector(_presentingViewControllerForWebView:)] || WTF::IOSApplication::isSafariViewService())
         [m_soAuthorization setEnableEmbeddedAuthorizationViewController:NO];
+
+    m_page->dispatchWillPresentModalUI();
 #endif
 
     RetainPtr nsRequest = m_navigationAction->request().nsURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody);

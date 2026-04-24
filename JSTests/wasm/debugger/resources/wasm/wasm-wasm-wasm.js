@@ -62,6 +62,7 @@ var instance = new WebAssembly.Instance(module);
 
 let test = instance.exports.test;
 
+print("DEBUGGER_READY");
 let iteration = 0;
 for (;;) {
     test();

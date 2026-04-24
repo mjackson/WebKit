@@ -116,26 +116,26 @@ public:
         return profiledEvaluate(lexicalGlobalObject, reason, source, thisValue, unused);
     }
 
-    static JSC::JSPromise* loadModule(JSC::JSGlobalObject& lexicalGlobalObject, const URL& topLevelModuleURL, JSC::JSValue parameters, JSC::JSValue scriptFetcher)
+    static JSC::JSPromise* loadModule(JSC::JSGlobalObject& lexicalGlobalObject, const URL& topLevelModuleURL, RefPtr<JSC::ScriptFetchParameters> parameters, RefPtr<JSC::ScriptFetcher> scriptFetcher)
     {
         JSExecState currentState(&lexicalGlobalObject);
-        return JSC::loadModule(&lexicalGlobalObject, JSC::Identifier::fromString(lexicalGlobalObject.vm(), topLevelModuleURL.string()), parameters, scriptFetcher);
+        return JSC::loadModule(&lexicalGlobalObject, JSC::Identifier::fromString(lexicalGlobalObject.vm(), topLevelModuleURL.string()), WTF::move(parameters), WTF::move(scriptFetcher));
     }
 
-    static JSC::JSPromise* loadModule(JSC::JSGlobalObject& lexicalGlobalObject, JSC::SourceCode sourceCode, JSC::JSValue scriptFetcher)
+    static JSC::JSPromise* loadModule(JSC::JSGlobalObject& lexicalGlobalObject, JSC::SourceCode sourceCode, RefPtr<JSC::ScriptFetcher> scriptFetcher)
     {
         JSExecState currentState(&lexicalGlobalObject);
-        return JSC::loadModule(&lexicalGlobalObject, WTF::move(sourceCode), scriptFetcher);
+        return JSC::loadModule(&lexicalGlobalObject, WTF::move(sourceCode), WTF::move(scriptFetcher));
     }
 
-    static JSC::JSPromise* linkAndEvaluateModule(JSC::JSGlobalObject& lexicalGlobalObject, const JSC::Identifier& moduleKey, JSC::JSValue scriptFetcher, NakedPtr<JSC::Exception>& returnedException)
+    static JSC::JSPromise* linkAndEvaluateModule(JSC::JSGlobalObject& lexicalGlobalObject, const JSC::Identifier& moduleKey, RefPtr<JSC::ScriptFetcher> scriptFetcher, NakedPtr<JSC::Exception>& returnedException)
     {
         JSC::VM& vm = JSC::getVM(&lexicalGlobalObject);
         auto scope = DECLARE_THROW_SCOPE(vm);
         JSC::JSPromise* returnValue;
         {
             JSExecState currentState(&lexicalGlobalObject);
-            returnValue = JSC::linkAndEvaluateModule(&lexicalGlobalObject, moduleKey, scriptFetcher);
+            returnValue = JSC::linkAndEvaluateModule(&lexicalGlobalObject, moduleKey, WTF::move(scriptFetcher));
             if (scope.exception()) [[unlikely]] {
                 returnedException = scope.exception();
                 TRY_CLEAR_EXCEPTION(scope, nullptr);

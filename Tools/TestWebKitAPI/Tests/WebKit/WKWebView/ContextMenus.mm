@@ -35,7 +35,7 @@
 #import <WebKit/WebKit.h>
 
 // ContextMenu tests broke on iOS 26 https://bugs.webkit.org/show_bug.cgi?id=301012
-#define BUG_301012 (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 260000)
+#define BUG_301012 (PLATFORM(IOS))
 
 static bool contextMenuRequested;
 static bool contextMenuSPIRequested;

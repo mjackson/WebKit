@@ -84,6 +84,8 @@ TEST(Signals, SignalsAccessFault)
         handlerRan = true;
 #if CPU(ARM)
         context.Pc += 2;
+#elif CPU(ARM64)
+        context.Pc += 4;
 #elif CPU(X86)
         context.Eip += 3;
 #elif CPU(X86_64)

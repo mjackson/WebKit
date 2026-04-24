@@ -205,6 +205,7 @@
 #include "Navigation.h"
 #include "NavigationActivation.h"
 #include "NavigationDisabler.h"
+#include "NavigationRequester.h"
 #include "NavigationScheduler.h"
 #include "Navigator.h"
 #include "NavigatorMediaSession.h"
@@ -3021,7 +3022,9 @@ auto Document::updateLayout(OptionSet<LayoutOptions> layoutOptions, const Elemen
             if (m_hasNodesWithMissingStyle)
                 scheduleFullStyleRebuild();
         }
-        if (updateRelevancyOfContentVisibilityElements(UpdateLayoutIfContentVisibilityChanged::No) == DidUpdateAnyContentRelevancy::Yes) {
+
+        if (!layoutOptions.containsAny({ LayoutOptions::TreatContentVisibilityAutoAsVisible, LayoutOptions::TreatRevealedWhenFoundAsVisible })
+            && updateRelevancyOfContentVisibilityElements(UpdateLayoutIfContentVisibilityChanged::No) == DidUpdateAnyContentRelevancy::Yes) {
             m_ignorePendingStylesheets = oldIgnore;
             return updateLayout(layoutOptions, context);
         }
@@ -5016,7 +5019,7 @@ CanNavigateState Document::canNavigate(Frame* targetFrame, const URL& destinatio
     if (!canNavigateInternal(*targetFrame))
         return CanNavigateState::Unable;
 
-    if (isNavigationBlockedByThirdPartyIFrameRedirectBlocking(*targetFrame, destinationURL)) {
+    if (isNavigationBlockedByThirdPartyIFrameRedirectBlocking(NavigationRequester::from(*this), *targetFrame, destinationURL)) {
         printNavigationErrorMessage(*this, *targetFrame, url(), "The frame attempting navigation of the top-level window is cross-origin or untrusted and the user has never interacted with the frame."_s);
         DOCUMENT_RELEASE_LOG_ERROR(Loading, "Navigation was prevented because it was triggered by a cross-origin or untrusted iframe");
         return CanNavigateState::Unable;
@@ -5123,32 +5126,30 @@ void Document::willLoadFrameElement(const URL& frameURL)
 }
 
 // Prevent cross-site top-level redirects from third-party iframes unless the user has ever interacted with the frame.
-bool Document::isNavigationBlockedByThirdPartyIFrameRedirectBlocking(Frame& targetFrame, const URL& destinationURL)
+bool Document::isNavigationBlockedByThirdPartyIFrameRedirectBlocking(const NavigationRequester& requester, Frame& targetFrame, const URL& destinationURL)
 {
     // Only prevent top frame navigations by subframes.
-    if (m_frame == &targetFrame || &targetFrame != &m_frame->tree().top())
+    if (requester.frameID == targetFrame.frameID() || requester.topFrameID != targetFrame.frameID())
         return false;
 
     // Only prevent navigations by subframes that the user has not interacted with.
-    if (m_frame->hasHadUserInteraction())
+    if (requester.hasHadUserInteraction)
         return false;
 
     // Only prevent navigations by unsandboxed iframes. Sandboxed iframes would have already been blocked
     // unless "allow-top-navigation" was explicitly set via the element's sandbox attribute (not CSP).
     // Also require the parent that set the sandbox to be same-origin with the target.
-    bool sandboxIsFromElementAttribute = !sandboxFlags().isEmpty() && m_frame->sandboxFlagsFromSandboxAttributeNotCSP() == sandboxFlags();
+    bool sandboxIsFromElementAttribute = !requester.sandboxFlags.isEmpty() && requester.frameSandboxFlags == requester.sandboxFlags;
     if (sandboxIsFromElementAttribute) {
-        RefPtr parentFrame = m_frame->tree().parent();
-        RefPtr parentOrigin = parentFrame ? parentFrame->frameDocumentSecurityOrigin() : nullptr;
         RefPtr targetOrigin = targetFrame.frameDocumentSecurityOrigin();
-        bool parentIsFirstParty = parentOrigin && targetOrigin && parentOrigin->isSameOriginDomain(*targetOrigin);
+        bool parentIsFirstParty = requester.parentFrameSecurityOrigin && targetOrigin && requester.parentFrameSecurityOrigin->isSameOriginDomain(*targetOrigin);
         if (parentIsFirstParty)
             return false;
     }
 
     // Only prevent navigations by third-party iframes or untrusted first-party iframes.
-    bool isUntrustedIframe = m_hasLoadedThirdPartyScript && m_hasLoadedThirdPartyFrame;
-    if (canAccessAncestor(securityOrigin(), &targetFrame) && !isUntrustedIframe)
+    bool isUntrustedIframe = requester.hasLoadedThirdPartyScript && requester.hasLoadedThirdPartyFrame;
+    if (canAccessAncestor(requester.securityOrigin, &targetFrame) && !isUntrustedIframe)
         return false;
 
     // Only prevent cross-site navigations.

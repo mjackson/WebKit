@@ -519,6 +519,7 @@ public:
     void onValidityChange(Element&);
     void onTextCompositionChange(Node&, CompositionState, bool, const String&, size_t, bool);
     void onWidgetVisibilityChanged(RenderWidget&);
+    void onPostRenderingUpdate();
     void valueChanged(Element&);
     void checkedStateChanged(Element&);
     void autofillTypeChanged(HTMLInputElement&);
@@ -941,6 +942,7 @@ private:
     void handleScrollbarUpdate(ScrollView&);
     void handleActiveDescendantChange(Element&, const AtomString&, const AtomString&);
     void handleAriaExpandedChange(Element&);
+    void handleAriaHiddenChange(Element&);
     enum class UpdateModal : bool { No, Yes };
     void handleFocusedUIElementChanged(Element* oldFocus, Element* newFocus, UpdateModal = UpdateModal::Yes);
     void handleRemoteFrameGainedFocus(RemoteFrame&, Element* oldFocusedElement);
@@ -1102,10 +1104,10 @@ private:
     Vector<DeferredNotificationData> m_deferredNotifications;
     Vector<Ref<AccessibilityObject>> m_deferredToggledPopovers;
 
+    const Ref<AXGeometryManager> m_geometryManager;
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     Timer m_buildIsolatedTreeTimer;
     bool m_deferredRegenerateIsolatedTree { false };
-    const Ref<AXGeometryManager> m_geometryManager;
     DeferrableOneShotTimer m_selectedTextRangeTimer;
     Markable<AXID> m_lastDebouncedTextRangeObject;
 
@@ -1114,6 +1116,12 @@ private:
     bool m_isSynchronizingSelection { false };
     bool m_performingDeferredCacheUpdate { false };
     double m_loadingProgress { 0 };
+
+    // Tracks focus landing inside an aria-hidden region. After one rendering update
+    // (giving web developers a chance to move focus in a rAF callback), if focus is
+    // still inside the aria-hidden region, the aria-hidden is permanently overridden.
+    WeakPtr<Element, WeakPtrImplWithEventTargetData> m_pendingAriaHiddenFocusTarget;
+    bool m_needsAriaHiddenFocusCheck { false };
 
     unsigned m_cacheUpdateDeferredCount { 0 };
 

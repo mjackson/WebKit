@@ -28,8 +28,11 @@
 #include "CyclicModuleRecord.h"
 #include "JSCell.h"
 #include "JSPromise.h"
+#include <wtf/RefPtr.h>
 
 namespace JSC {
+
+class ScriptFetcher;
 
 // Table 45
 // https://tc39.es/ecma262/#graphloadingstate-record
@@ -52,16 +55,15 @@ public:
     }
 
     inline static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
-    static ModuleGraphLoadingState* create(VM&, JSPromise*, JSValue scriptFetcher);
+    static ModuleGraphLoadingState* create(VM&, JSPromise*, RefPtr<ScriptFetcher>);
 
     JSPromise* promise() const;
     unsigned pendingModulesCount() const;
     bool isLoading() const;
-    JSValue scriptFetcher() const;
+    ScriptFetcher* scriptFetcher() const;
 
-    void pendingModulesCount(unsigned);
-    void isLoading(bool);
-    void scriptFetcher(VM&, JSValue);
+    void setPendingModulesCount(unsigned);
+    void setIsLoading(bool);
 
     void appendVisited(VM&, CyclicModuleRecord*);
     bool containsVisited(CyclicModuleRecord*) const;
@@ -72,7 +74,7 @@ public:
     }
 
 private:
-    ModuleGraphLoadingState(VM&, Structure*, JSPromise*, JSValue scriptFetcher);
+    ModuleGraphLoadingState(VM&, Structure*, JSPromise*, RefPtr<ScriptFetcher>);
 
     void finishCreation(VM&);
 
@@ -81,13 +83,13 @@ private:
     // [[Visited]]
     Vector<WriteBarrier<CyclicModuleRecord>, 8> m_visited;
     // Contains the same contents as m_visited, so no write barriers needed.
-    HashSet<CyclicModuleRecord*> m_visitedSet;
+    UncheckedKeyHashSet<CyclicModuleRecord*> m_visitedSet;
     // [[PendingModulesCount]]
     unsigned m_pendingModulesCount { 1 };
     // [[IsLoading]]
     bool m_isLoading { true };
     // [[HostDefined]]
-    WriteBarrier<Unknown> m_scriptFetcher;
+    const RefPtr<ScriptFetcher> m_scriptFetcher;
 };
 
 } // namespace JSC

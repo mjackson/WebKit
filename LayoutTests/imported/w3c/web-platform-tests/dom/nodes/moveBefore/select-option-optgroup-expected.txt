@@ -1,4 +1,4 @@
 
 
-FAIL Option selectedness is updated on option and optgroup DOM moves document.body.moveBefore is not a function. (In 'document.body.moveBefore(optionA, null)', 'document.body.moveBefore' is undefined)
+FAIL Option selectedness is updated on option and optgroup DOM moves assert_true: B becomes selected after first move expected true got false
 

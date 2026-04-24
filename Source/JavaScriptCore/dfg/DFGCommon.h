@@ -318,7 +318,7 @@ namespace JSC { namespace DFG {
 
 // Put things here that must be defined even if ENABLE(DFG_JIT) is false.
 
-enum CapabilityLevel {
+enum CapabilityLevel : uint8_t {
     CannotCompile,
     CanCompile,
     CanCompileAndInline,

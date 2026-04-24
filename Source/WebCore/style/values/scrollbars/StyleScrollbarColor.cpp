@@ -28,6 +28,7 @@
 #include "StyleScrollbarColor.h"
 
 #include "AnimationUtilities.h"
+#include "CSSKeywordValueInlines.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSValuePair.h"
 #include "RenderStyle.h"

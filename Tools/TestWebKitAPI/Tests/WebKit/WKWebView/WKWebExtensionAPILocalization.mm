@@ -443,6 +443,47 @@ TEST(WKWebExtensionAPILocalization, Placeholders)
                 },
             },
         },
+        @"key9": @{
+            messageKey: @"v$version$",
+            placeholdersKey: @{
+                @"version": @{
+                    placeholderDictionaryContentKey: @"$1",
+                },
+            },
+        },
+        @"key10": @{
+            messageKey: @"v$major$.$minor$版",
+            placeholdersKey: @{
+                @"major": @{
+                    placeholderDictionaryContentKey: @"$1",
+                },
+                @"minor": @{
+                    placeholderDictionaryContentKey: @"$2",
+                },
+            },
+        },
+        @"key11": @{
+            messageKey: @"$index$ $volume$",
+            placeholdersKey: @{
+                @"index": @{
+                    placeholderDictionaryContentKey: @"$1",
+                },
+                @"volume": @{
+                    placeholderDictionaryContentKey: @"$2",
+                },
+            },
+        },
+        @"key12": @{
+            messageKey: @"$prefix$$suffix$",
+            placeholdersKey: @{
+                @"prefix": @{
+                    placeholderDictionaryContentKey: @"$1",
+                },
+                @"suffix": @{
+                    placeholderDictionaryContentKey: @"$2",
+                },
+            },
+        },
     };
 
     auto *backgroundScript = Util::constructScript(@[
@@ -456,6 +497,12 @@ TEST(WKWebExtensionAPILocalization, Placeholders)
         @"browser.test.assertEq(browser.i18n.getMessage('key4', placeholders), ' with $5')",
         @"browser.test.assertEq(browser.i18n.getMessage('key7', placeholders), '$dontreplaceme or me$ or th$is or $th$at$')",
         @"browser.test.assertEq(browser.i18n.getMessage('key8', placeholders), '1234명, 총 42명')",
+
+        [NSString stringWithFormat:@"var placeholders = %@", Util::constructJSArrayOfStrings(@[ @"3", @"4" ])],
+        @"browser.test.assertEq(browser.i18n.getMessage('key9', placeholders), 'v3')",
+        @"browser.test.assertEq(browser.i18n.getMessage('key10', placeholders), 'v3.4版')",
+        @"browser.test.assertEq(browser.i18n.getMessage('key11', placeholders), '3 4')",
+        @"browser.test.assertEq(browser.i18n.getMessage('key12', placeholders), '34')",
 
         [NSString stringWithFormat:@"placeholders = %@", Util::constructJSArrayOfStrings(@[ @"irrelevant", @"argument value" ])],
         @"browser.test.assertEq(browser.i18n.getMessage('key5', placeholders), ' and argument value')",

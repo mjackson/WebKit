@@ -25,12 +25,12 @@
 #include "config.h"
 #include "StyleTextEmphasisStyle.h"
 
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSValueList.h"
 #include "RenderStyle.h"
 #include "StyleBuilderChecking.h"
-#include "StylePrimitiveKeyword+CSSValueCreation.h"
-#include "StylePrimitiveKeyword+Serialization.h"
+#include "StyleKeyword+CSSValueConversion.h"
+#include "StyleKeyword+CSSValueCreation.h"
+#include "StyleKeyword+Serialization.h"
 #include "WritingMode.h"
 #include <wtf/unicode/CharacterNames.h>
 
@@ -102,6 +102,20 @@ const AtomString& TextEmphasisStyle::markString() const
 
 auto CSSValueConversion<TextEmphasisStyle>::operator()(BuilderState& state, const CSSValue& value) -> TextEmphasisStyle
 {
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (auto valueID = keywordValue->valueID(); valueID) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+
+        case CSSValueFilled:
+        case CSSValueOpen:
+            return defaultTextEmphasisShape(state.style().writingMode(), fromCSSValueID<TextEmphasisFill>(valueID));
+
+        default:
+            return TextEmphasisStyle::Shape { .mark = fromCSSValueID<TextEmphasisMark>(valueID) };
+        }
+    }
+
     if (RefPtr list = dynamicDowncast<CSSValueList>(value)) {
         if (list->size() != 2) [[unlikely]] {
             state.setCurrentPropertyInvalidAtComputedValueTime();
@@ -110,38 +124,26 @@ auto CSSValueConversion<TextEmphasisStyle>::operator()(BuilderState& state, cons
 
         std::optional<TextEmphasisFill> fill;
         std::optional<TextEmphasisMark> mark;
-        for (auto& item : *list) {
-            auto valueID = item.valueID();
-            if (valueID == CSSValueFilled || valueID == CSSValueOpen)
+        for (Ref item : *list) {
+            RefPtr keywordValue = requiredDowncast<CSSKeywordValue>(state, item);
+            if (!keywordValue)
+                return CSS::Keyword::None { };
+
+            switch (auto valueID = keywordValue->valueID(); valueID) {
+            case CSSValueFilled:
+            case CSSValueOpen:
                 fill = fromCSSValueID<TextEmphasisFill>(valueID);
-            else
+                break;
+            default:
                 mark = fromCSSValueID<TextEmphasisMark>(valueID);
+                break;
+            }
         }
         if (!fill || !mark) [[unlikely]] {
             state.setCurrentPropertyInvalidAtComputedValueTime();
             return CSS::Keyword::None { };
         }
         return TextEmphasisStyle::Shape { .fill = *fill, .mark = *mark };
-    }
-
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
-        case CSSValueInvalid:
-            break;
-
-        case CSSValueNone:
-            return CSS::Keyword::None { };
-
-        case CSSValueFilled:
-        case CSSValueOpen:
-            return defaultTextEmphasisShape(state.style().writingMode(), fromCSSValue<TextEmphasisFill>(*primitiveValue));
-
-        default:
-            return TextEmphasisStyle::Shape { .mark = fromCSSValue<TextEmphasisMark>(*primitiveValue) };
-        }
-
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return CSS::Keyword::None { };
     }
 
     return TextEmphasisStyle::CustomMark { AtomString { toStyleFromCSSValue<String>(state, value).value } };

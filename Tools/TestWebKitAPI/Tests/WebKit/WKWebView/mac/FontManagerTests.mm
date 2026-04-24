@@ -241,7 +241,7 @@ TEST(FontManagerTests, ChangeFontWithPanel)
     setOverrideSelectedFaceName(fontPanel, @"Bold");
     [fontManager modifyFontViaPanel:fontPanel];
     EXPECT_WK_STREQ("bar", [webView selectedText]);
-    EXPECT_WK_STREQ("<span id=\"bar\"><font face=\"Times New Roman\" size=\"1\"><b>bar</b></font></span>", [webView stringByEvaluatingJavaScript:@"bar.outerHTML"]);
+    EXPECT_WK_STREQ("<span id=\"bar\" style=\"font-size: 10px;\"><font face=\"Times New Roman\" size=\"1\"><b>bar</b></font></span>", [webView stringByEvaluatingJavaScript:@"bar.outerHTML"]);
     EXPECT_WK_STREQ("\"Times New Roman\"", [webView stringByEvaluatingJavaScript:@"getComputedStyle(bar.firstChild.firstChild)['font-family']"]);
     EXPECT_WK_STREQ("10px", [webView stringByEvaluatingJavaScript:@"getComputedStyle(bar.firstChild.firstChild)['font-size']"]);
     EXPECT_WK_STREQ("700", [webView stringByEvaluatingJavaScript:@"getComputedStyle(bar.firstChild.firstChild)['font-weight']"]);
@@ -266,7 +266,7 @@ TEST(FontManagerTests, ChangeFontWithPanel)
     setOverrideSelectedFaceName(fontPanel, @"Light Oblique");
     [fontManager modifyFontViaPanel:fontPanel];
     EXPECT_WK_STREQ("foo bar baz", [webView selectedText]);
-    EXPECT_WK_STREQ("<font face=\"Avenir-LightOblique\" size=\"5\"><i><span id=\"foo\"><font>foo</font></span> <span id=\"bar\">bar</span> <span id=\"baz\"><font>baz</font></span></i></font>", [webView stringByEvaluatingJavaScript:@"document.body.innerHTML"]);
+    EXPECT_WK_STREQ("<font face=\"Avenir-LightOblique\" size=\"5\"><span style=\"font-size: 24px;\"><i><span id=\"foo\"><font>foo</font></span> <span id=\"bar\">bar</span> <span id=\"baz\"><font>baz</font></span></i></span></font>", [webView stringByEvaluatingJavaScript:@"document.body.innerHTML"]);
     EXPECT_WK_STREQ("Avenir-LightOblique", [webView stringByEvaluatingJavaScript:@"getComputedStyle(foo)['font-family']"]);
     EXPECT_WK_STREQ("24px", [webView stringByEvaluatingJavaScript:@"getComputedStyle(foo)['font-size']"]);
     EXPECT_WK_STREQ("400", [webView stringByEvaluatingJavaScript:@"getComputedStyle(foo)['font-weight']"]);

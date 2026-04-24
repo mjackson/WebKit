@@ -29,13 +29,18 @@
 #pragma once
 
 #include "CPU.h"
-#include "JSCJSValue.h"
-#include "TypedArrayType.h"
-#include <wtf/PrintStream.h>
+#include <wtf/Forward.h>
 
 namespace JSC {
 
+class JSCell;
+class JSValue;
 class Structure;
+
+struct ClassInfo;
+
+enum JSType : uint8_t;
+enum TypedArrayType : uint8_t;
 
 typedef uint64_t SpeculatedType;
 static constexpr SpeculatedType SpecNone                              = 0; // We don't know anything yet.
@@ -519,8 +524,14 @@ inline bool isUntypedSpeculationForBitOps(SpeculatedType value)
 void dumpSpeculation(PrintStream&, SpeculatedType);
 void dumpSpeculationAbbreviated(PrintStream&, SpeculatedType);
 
-MAKE_PRINT_ADAPTOR(SpeculationDump, SpeculatedType, dumpSpeculation);
-MAKE_PRINT_ADAPTOR(AbbreviatedSpeculationDump, SpeculatedType, dumpSpeculationAbbreviated);
+struct SpeculationDump {
+    SpeculatedType t;
+    void dump(PrintStream& out) const { dumpSpeculation(out, t); }
+};
+struct AbbreviatedSpeculationDump {
+    SpeculatedType t;
+    void dump(PrintStream& out) const { dumpSpeculationAbbreviated(out, t); }
+};
 
 // Merge two predictions. Note that currently this just does left | right. It may
 // seem tempting to do so directly, but you would be doing so at your own peril,
@@ -586,3 +597,8 @@ SpeculatedType NODELETE typeOfDoubleUnaryOp(SpeculatedType);
 SpeculatedType speculationFromString(const char*);
 
 } // namespace JSC
+
+namespace WTF {
+inline void printInternal(PrintStream& out, const JSC::SpeculationDump& s) { s.dump(out); }
+inline void printInternal(PrintStream& out, const JSC::AbbreviatedSpeculationDump& s) { s.dump(out); }
+}

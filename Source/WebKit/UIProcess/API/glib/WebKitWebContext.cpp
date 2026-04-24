@@ -1640,10 +1640,10 @@ void webkit_web_context_set_preferred_languages(WebKitWebContext* context, const
 {
     g_return_if_fail(WEBKIT_IS_WEB_CONTEXT(context));
 
-    if (!languageList || !g_strv_length(const_cast<char**>(languageList)))
-        return;
-
     auto languagesSpan = span(const_cast<char**>(languageList));
+
+    if (!languagesSpan.size())
+        return;
 
     Vector<String> languages;
     for (auto language : languagesSpan) {

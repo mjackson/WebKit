@@ -254,8 +254,11 @@ void WebDataListSuggestionsDropdownIOS::didSelectOption(const String& selectedOp
 
 - (void)updateWithInformation:(WebCore::DataListSuggestionInformation&&)information
 {
+    auto activationType = information.activationType;
+
     [super updateWithInformation:WTF::move(information)];
-    if (information.activationType != WebCore::DataListSuggestionActivationType::IndicatorClicked) {
+
+    if (activationType != WebCore::DataListSuggestionActivationType::IndicatorClicked) {
         self.view.dataListTextSuggestionsInputView = nil;
         self.view.dataListTextSuggestions = self.textSuggestions;
         return;

@@ -420,7 +420,6 @@ TEST(WKWebViewMacEditingTests, DoNotRenderInlinePredictionsForRegularMarkedText)
     EXPECT_TRUE(foundNonWhitePixel);
 }
 
-#if HAVE(INLINE_PREDICTIONS)
 TEST(WKWebViewMacEditingTests, InlinePredictionsShouldSuppressAutocorrection)
 {
     auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
@@ -488,7 +487,6 @@ TEST(WKWebViewMacEditingTests, SetMarkedTextWithNoAttributedString)
 
     [webView setMarkedText:@"hello" selectedRange:NSMakeRange(4, 0) replacementRange:NSMakeRange(6, 4)];
 }
-#endif
 
 TEST(WKWebViewMacEditingTests, FirstRectForCharacterRange)
 {
@@ -620,8 +618,7 @@ TEST(WKWebViewMacEditingTests, FirstRectForCharacterRangeWithNewlinesAndWrapping
         { { { 8.f, 556.f }, { 723.f, 18.f } }, { 51, 111 } },
         { { { 8.f, 538.f }, { 774.f, 18.f } }, { 162, 122 } },
         { { { 8.f, 520.f }, { 768.f, 18.f } }, { 284, 125 } },
-        // FIXME: <http://webkit.org/b/278181> The size of the rect for the last line is incorrect.
-        { { { 8.f, 502.f }, { 768.f, 36.f } }, { 409, 36 } }
+        { { { 8.f, 502.f }, { 232.f, 18.f } }, { 409, 36 } }
     };
 
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);

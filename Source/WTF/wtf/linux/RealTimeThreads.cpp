@@ -55,6 +55,34 @@ namespace WTF {
 
 static const int s_realTimeThreadPriority = 5;
 
+#if USE(GLIB) && defined(RLIMIT_RTTIME)
+// Matches rtkit's default RTTimeUSecMax; used on the direct sched_setscheduler
+// path where we don't query rtkit/portal for a value.
+static constexpr rlim_t s_realTimeLimitDefaultUSec = 200000;
+
+// Lower RLIMIT_RTTIME to maxUSec (and its soft limit to 80% of that, so
+// SIGXCPU fires before the hard cap) if the current hard limit is higher.
+static void tightenRealTimeLimit(rlim_t maxUSec)
+{
+    struct rlimit rl;
+    if (getrlimit(RLIMIT_RTTIME, &rl) < 0)
+        return;
+    if (rl.rlim_max <= maxUSec)
+        return;
+    rl.rlim_cur = static_cast<rlim_t>(0.8 * maxUSec);
+    rl.rlim_max = maxUSec;
+    setrlimit(RLIMIT_RTTIME, &rl);
+}
+
+static void ensureRealTimeLimitSet()
+{
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
+        tightenRealTimeLimit(s_realTimeLimitDefaultUSec);
+    });
+}
+#endif
+
 RealTimeThreads& RealTimeThreads::singleton()
 {
     static LazyNeverDestroyed<RealTimeThreads> realTimeThreads;
@@ -117,6 +145,14 @@ void RealTimeThreads::setEnabled(bool enabled)
 void RealTimeThreads::promoteThreadToRealTime(const Thread& thread)
 {
     ASSERT(isMainThread());
+
+#if USE(GLIB) && defined(RLIMIT_RTTIME)
+    // Seed RLIMIT_RTTIME with a sensible default so the direct
+    // sched_setscheduler path below is protected by SIGXCPU. If we
+    // fall back to rtkit/portal, realTimeKitMakeThreadRealTime may
+    // tighten this further using RTTimeUSecMax.
+    ensureRealTimeLimitSet();
+#endif
 
     struct sched_param param;
     param.sched_priority = std::clamp(s_realTimeThreadPriority, sched_get_priority_min(SCHED_RR), sched_get_priority_max(SCHED_RR));
@@ -266,24 +302,16 @@ void RealTimeThreads::realTimeKitMakeThreadRealTime(uint64_t processID, uint64_t
 
 #ifdef RLIMIT_RTTIME
     // RealTimeKit requires the client to have RLIMIT_RTTIME set.
-    struct rlimit rl;
-    if (getrlimit(RLIMIT_RTTIME, &rl) >= 0) {
-        auto rttimeMax = realTimeKitGetProperty(m_realTimeKitProxy->get(), "RTTimeUSecMax", &error.outPtr());
-        if (error) {
-            LOG_ERROR("Failed to get RTTimeUSecMax from RealtimeKit: %s", error->message);
-            if (!g_error_matches(error.get(), G_DBUS_ERROR, G_DBUS_ERROR_UNKNOWN_INTERFACE))
-                m_realTimeKitProxy = nullptr;
+    auto rttimeMax = realTimeKitGetProperty(m_realTimeKitProxy->get(), "RTTimeUSecMax", &error.outPtr());
+    if (error) {
+        LOG_ERROR("Failed to get RTTimeUSecMax from RealtimeKit: %s", error->message);
+        if (!g_error_matches(error.get(), G_DBUS_ERROR, G_DBUS_ERROR_UNKNOWN_INTERFACE))
+            m_realTimeKitProxy = nullptr;
 
-            scheduleDiscardRealTimeKitProxy();
-            return;
-        }
-
-        if (rl.rlim_max > static_cast<uint64_t>(rttimeMax)) {
-            rl.rlim_cur = static_cast<uint64_t>(0.8 * rttimeMax);
-            rl.rlim_max = rttimeMax;
-            setrlimit(RLIMIT_RTTIME, &rl);
-        }
+        scheduleDiscardRealTimeKitProxy();
+        return;
     }
+    tightenRealTimeLimit(static_cast<rlim_t>(rttimeMax));
 #endif
 
     GRefPtr<GVariant> result = adoptGRef(g_dbus_proxy_call_sync(m_realTimeKitProxy->get(), "MakeThreadRealtimeWithPID",

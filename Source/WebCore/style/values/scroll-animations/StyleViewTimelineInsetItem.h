@@ -72,7 +72,6 @@ DEFINE_TYPE_WRAPPER_GET(ViewTimelineInsetItem, value);
 
 template<> struct CSSValueConversion<ViewTimelineInsetItem> {
     auto operator()(BuilderState&, const CSSValue&) -> ViewTimelineInsetItem;
-    auto operator()(BuilderState&, const CSSPrimitiveValue&) -> ViewTimelineInsetItem;
     auto operator()(BuilderState&, const CSSValuePair&) -> ViewTimelineInsetItem;
 };
 

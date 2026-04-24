@@ -157,6 +157,7 @@ class MediaPlaybackTarget;
 class MediaSessionCoordinatorPrivate;
 class MediaSessionManagerInterface;
 class ModelPlayerProvider;
+class NavigationAPIMethodTracker;
 class PageConfiguration;
 class PageGroup;
 class PageInspectorController;
@@ -237,7 +238,6 @@ struct CharacterRange;
 struct ClientOrigin;
 struct DocumentSyncSerializationData;
 struct FixedContainerEdges;
-struct NavigationAPIMethodTracker;
 struct ResolvedCaptionDisplaySettingsOptions;
 struct SpatialBackdropSource;
 struct SystemPreviewInfo;
@@ -1699,7 +1699,7 @@ private:
 
     const std::unique_ptr<PerformanceMonitor> m_performanceMonitor;
     const UniqueRef<LowPowerModeNotifier> m_lowPowerModeNotifier;
-    const UniqueRef<ThermalMitigationNotifier> m_thermalMitigationNotifier;
+    const Ref<ThermalMitigationNotifier> m_thermalMitigationNotifier;
     OptionSet<ThrottlingReason> m_throttlingReasons;
     OptionSet<ThrottlingReason> m_throttlingReasonsOverridenForTesting;
 

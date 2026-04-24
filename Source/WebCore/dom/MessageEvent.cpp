@@ -34,7 +34,10 @@
 #include "JSValueInWrappedObjectInlines.h"
 #include "SecurityOrigin.h"
 #include <JavaScriptCore/JSCInlines.h>
+#include <JavaScriptCore/TopExceptionScope.h>
 #include <wtf/TZoneMallocInlines.h>
+
+template class mpark::variant<WTF::Ref<WebCore::WindowProxy>, WTF::Ref<WebCore::MessagePort>, WTF::Ref<WebCore::ServiceWorker>>;
 
 namespace WebCore {
 
@@ -90,7 +93,7 @@ auto MessageEvent::create(JSC::JSGlobalObject& globalObject, Ref<SerializedScrip
 
     auto& eventType = didFail ? eventNames().messageerrorEvent : eventNames().messageEvent;
     Ref event = adoptRef(*new MessageEvent(eventType, MessageEvent::JSValueTag { }, WTF::move(origin), lastEventId, WTF::move(source), WTF::move(ports)));
-    JSC::Strong<JSC::JSObject> strongWrapper(vm, JSC::jsCast<JSC::JSObject*>(toJS(&globalObject, JSC::jsCast<JSDOMGlobalObject*>(&globalObject), event.get())));
+    JSC::Strong<JSC::JSObject> strongWrapper(vm, uncheckedDowncast<JSC::JSObject>(toJS(&globalObject, uncheckedDowncast<JSDOMGlobalObject>(&globalObject), event.get())));
     event->jsData().set(globalObject, strongWrapper.get(), deserialized);
 
     return MessageEventWithStrongData { event, WTF::move(strongWrapper) };
@@ -153,7 +156,7 @@ void MessageEvent::initMessageEvent(JSC::JSGlobalObject& globalObject, const Ato
         Locker locker { m_concurrentDataAccessLock };
         m_data = JSValueTag { };
     }
-    auto* domGlobalObject = JSC::jsCast<JSDOMGlobalObject*>(&globalObject);
+    auto* domGlobalObject = uncheckedDowncast<JSDOMGlobalObject>(&globalObject);
     auto* wrapper = toJS(&globalObject, domGlobalObject, *this).getObject();
     m_jsData.set(globalObject, wrapper, data);
     m_cachedData.clear();

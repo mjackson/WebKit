@@ -88,8 +88,8 @@ RefPtr<CrossfadeImage> CrossfadeImage::blend(const CrossfadeImage& from, const B
 
 Ref<CSSValue> CrossfadeImage::computedStyleValue(const RenderStyle& style) const
 {
-    auto fromComputedValue = m_from ? m_from->computedStyleValue(style) : upcast<CSSValue>(CSSPrimitiveValue::create(CSSValueNone));
-    auto toComputedValue = m_to ? m_to->computedStyleValue(style) : upcast<CSSValue>(CSSPrimitiveValue::create(CSSValueNone));
+    auto fromComputedValue = m_from ? m_from->computedStyleValue(style) : upcast<CSSValue>(CSSKeywordValue::create(CSSValueNone));
+    auto toComputedValue = m_to ? m_to->computedStyleValue(style) : upcast<CSSValue>(CSSKeywordValue::create(CSSValueNone));
     return CSSCrossfadeValue::create(WTF::move(fromComputedValue), WTF::move(toComputedValue), CSSPrimitiveValue::create(m_percentage), m_isPrefixed);
 }
 

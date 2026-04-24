@@ -39,8 +39,7 @@ SkiaReplayCanvas::SkiaReplayCanvas(const IntSize& size, const RefPtr<SkiaRecordi
     , m_recording(recording)
 {
     // Create atlas wrappers from pre-prepared GPU atlases.
-    // GPU atlases were uploaded (and texture-bound) before signaling the upload condition;
-    // we just rewrap the SkImage for this worker's GrDirectContext.
+    // GPU atlases were uploaded on main thread; we just rewrap for this worker's context.
     if (m_recording && m_recording->hasGPUAtlases()) {
         auto* glContext = PlatformDisplay::sharedDisplay().skiaGLContext();
         if (!glContext || !glContext->makeContextCurrent())

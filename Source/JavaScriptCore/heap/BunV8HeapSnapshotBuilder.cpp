@@ -346,8 +346,7 @@ unsigned BunV8HeapSnapshotBuilder::getNodeTypeIndex(JSCell* cell)
     case JSType::GetterSetterType:
     case JSType::CustomGetterSetterType:
     case JSType::APIValueWrapperType:
-    case JSType::JSSourceCodeType:
-    case JSType::JSScriptFetchParametersType: {
+    case JSType::JSSourceCodeType: {
         return static_cast<unsigned>(V8NodeType::Code);
     }
     case JSType::HeapBigIntType:

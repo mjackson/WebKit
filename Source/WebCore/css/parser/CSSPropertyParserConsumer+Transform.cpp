@@ -27,6 +27,7 @@
 #include "CSSPropertyParserConsumer+Transform.h"
 
 #include "CSSFunctionValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSParserContext.h"
 #include "CSSParserTokenRange.h"
 #include "CSSPrimitiveValue.h"
@@ -273,39 +274,37 @@ RefPtr<CSSValue> consumeRotate(CSSParserTokenRange& range, CSS::PropertyParserSt
 
     CSSValueListBuilder list;
     RefPtr<CSSPrimitiveValue> angle;
-    RefPtr<CSSPrimitiveValue> axisIdentifier;
+    RefPtr<CSSKeywordValue> axisIdentifier;
 
     while (!range.atEnd()) {
         // First, attempt to parse a number, which might be in a series of 3 specifying the rotation axis.
-        auto parsedValue = CSSPrimitiveValueResolver<CSS::Number<>>::consumeAndResolve(range, state);
-        if (parsedValue) {
+        if (auto parsedNumber = CSSPrimitiveValueResolver<CSS::Number<>>::consumeAndResolve(range, state)) {
             // If we've encountered an axis identifier, then this value is invalid.
             if (axisIdentifier)
                 return nullptr;
-            list.append(parsedValue.releaseNonNull());
+            list.append(parsedNumber.releaseNonNull());
             range.consumeWhitespace();
             continue;
         }
 
         // Then, attempt to parse an angle. We try this as a fallback rather than the first option because
         // a unitless 0 angle would be consumed as an angle.
-        parsedValue = CSSPrimitiveValueResolver<CSS::Angle<>>::consumeAndResolve(range, state);
-        if (parsedValue) {
+        if (auto parsedAngle = CSSPrimitiveValueResolver<CSS::Angle<>>::consumeAndResolve(range, state)) {
             // If we had already parsed an angle or numbers but not 3 in a row, this value is invalid.
             if (angle || (!list.isEmpty() && list.size() != 3))
                 return nullptr;
-            angle = WTF::move(parsedValue);
+            angle = WTF::move(parsedAngle);
             range.consumeWhitespace();
             continue;
         }
 
         // Finally, attempt to parse one of the axis identifiers.
-        parsedValue = consumeIdent<CSSValueX, CSSValueY, CSSValueZ>(range);
+        auto parsedIdent = consumeIdent<CSSValueX, CSSValueY, CSSValueZ>(range);
         // If we failed to find one of those identifiers or one was already specified, or we'd previously
         // encountered numbers to specify a rotation axis, then this value is invalid.
-        if (!parsedValue || axisIdentifier || !list.isEmpty())
+        if (!parsedIdent || axisIdentifier || !list.isEmpty())
             return nullptr;
-        axisIdentifier = WTF::move(parsedValue);
+        axisIdentifier = WTF::move(parsedIdent);
         range.consumeWhitespace();
     }
 
@@ -333,9 +332,9 @@ RefPtr<CSSValue> consumeRotate(CSSParserTokenRange& range, CSS::PropertyParserSt
         auto zIsZero = downcast<CSSPrimitiveValue>(list[2].get()).isZero();
 
         if (knownToBeNotZero(xIsZero) && knownToBeZero(yIsZero) && knownToBeZero(zIsZero))
-            return CSSValueList::createSpaceSeparated(CSSPrimitiveValue::create(CSSValueX), angle.releaseNonNull());
+            return CSSValueList::createSpaceSeparated(CSSKeywordValue::create(CSSValueX), angle.releaseNonNull());
         if (knownToBeZero(xIsZero) && knownToBeNotZero(yIsZero) && knownToBeZero(zIsZero))
-            return CSSValueList::createSpaceSeparated(CSSPrimitiveValue::create(CSSValueY), angle.releaseNonNull());
+            return CSSValueList::createSpaceSeparated(CSSKeywordValue::create(CSSValueY), angle.releaseNonNull());
         if (knownToBeZero(xIsZero) && knownToBeZero(yIsZero) && knownToBeNotZero(zIsZero))
             return CSSValueList::createSpaceSeparated(angle.releaseNonNull());
 

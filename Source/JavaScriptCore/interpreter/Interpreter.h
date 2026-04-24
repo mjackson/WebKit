@@ -32,7 +32,6 @@
 #include "BytecodeIndex.h"
 #include "JSCJSValue.h"
 #include "MacroAssemblerCodeRef.h"
-#include "NativeFunction.h"
 #include "Opcode.h"
 #include <wtf/HashMap.h>
 #include <wtf/Platform.h>

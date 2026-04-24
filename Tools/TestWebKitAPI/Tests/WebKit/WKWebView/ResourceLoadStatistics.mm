@@ -1390,7 +1390,7 @@ TEST(ResourceLoadStatistics, DatabaseSchemeUpdate)
 }
 
 // rdar://136525714
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 150000
+#if PLATFORM(MAC)
 TEST(ResourceLoadStatistics, DISABLED_ClientEvaluatedJavaScriptDoesNotLogUserInteraction)
 #else
 TEST(ResourceLoadStatistics, ClientEvaluatedJavaScriptDoesNotLogUserInteraction)
@@ -1425,7 +1425,7 @@ TEST(ResourceLoadStatistics, ClientEvaluatedJavaScriptDoesNotLogUserInteraction)
 }
 
 // rdar://136525714
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 150000
+#if PLATFORM(MAC)
 TEST(ResourceLoadStatistics, DISABLED_UserGestureLogsUserInteraction)
 #else
 TEST(ResourceLoadStatistics, UserGestureLogsUserInteraction)
@@ -1725,7 +1725,7 @@ TEST(ResourceLoadStatistics, StorageAccessOnRedirectSitesWithOutQuirk)
 }
 
 // rdar://136524076
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 150000
+#if PLATFORM(MAC)
 TEST(ResourceLoadStatistics, DISABLED_StorageAccessOnRedirectSitesWithQuirk)
 #else
 TEST(ResourceLoadStatistics, StorageAccessOnRedirectSitesWithQuirk)
@@ -2219,7 +2219,7 @@ TEST(ResourceLoadStatistics, StorageAccessSupportMultipleSubFrameDomains)
 }
 
 // rdar://136524076
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 150000
+#if PLATFORM(MAC)
 TEST(ResourceLoadStatistics, DISABLED_StorageAccessGrantMultipleSubFrameDomains)
 #else
 TEST(ResourceLoadStatistics, StorageAccessGrantMultipleSubFrameDomains)

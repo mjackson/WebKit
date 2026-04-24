@@ -220,4 +220,16 @@ void ModelPlayer::exitImmersivePresentation(CompletionHandler<void()>&& completi
 
 #endif
 
+#if HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
+void ModelPlayer::setDynamicRangeLimit(PlatformDynamicRangeLimit, float, bool)
+{
+}
+
+std::optional<double> ModelPlayer::getEffectiveDynamicRangeLimitValue() const
+{
+    return std::nullopt;
+}
+#endif
+
+
 } // namespace WebCore

@@ -38,6 +38,12 @@
 
 namespace WebCore {
 
+static inline FindOptions matchAffectingOptions(FindOptions options)
+{
+    static constexpr OptionSet matchAffectingFlags { FindOption::CaseInsensitive, FindOption::AtWordStarts, FindOption::TreatMedialCapitalAsWordStart, FindOption::AtWordEnds, FindOption::DoNotTraverseFlatTree };
+    return options & matchAffectingFlags;
+}
+
 WTF_MAKE_TZONE_ALLOCATED_IMPL(CachedMatchFinder);
 
 CachedMatchFinder::CachedMatchFinder(Document& document)
@@ -233,7 +239,7 @@ Vector<SimpleRange> CachedMatchFinder::findMatches(const std::optional<SimpleRan
     m_countCache = results.size();
     m_searchResultCacheKeys.targetString = target;
     m_searchResultCacheKeys.limit = limit;
-    m_searchResultCacheKeys.options = options;
+    m_searchResultCacheKeys.options = matchAffectingOptions(options);
     return results;
 }
 
@@ -257,7 +263,7 @@ unsigned CachedMatchFinder::countMatches(const std::optional<SimpleRange>& searc
     m_countCache = count;
     m_searchResultCacheKeys.targetString = target;
     m_searchResultCacheKeys.limit = limit;
-    m_searchResultCacheKeys.options = options;
+    m_searchResultCacheKeys.options = matchAffectingOptions(options);
     return count;
 }
 
@@ -347,6 +353,7 @@ CachedMatchFinder::TextRunCache& CachedMatchFinder::bufferForOptions(FindOptions
 }
 
 auto CachedMatchFinder::textForScope(ContainerNode& scope, FindOptions options) -> std::pair<String, Vector<TextRun>> {
+    protect(scope.document())->updateLayoutIgnorePendingStylesheets({ LayoutOptions::TreatContentVisibilityAutoAsVisible, LayoutOptions::TreatRevealedWhenFoundAsVisible });
     SimpleRange range = makeRangeSelectingNodeContents(scope);
     TextIterator it(range, findIteratorOptions(options));
 
@@ -354,7 +361,7 @@ auto CachedMatchFinder::textForScope(ContainerNode& scope, FindOptions options) 
     Vector<TextRun> runs;
     for (; !it.atEnd(); it.advance()) {
         auto textRunRange = it.range();
-        runs.append(TextRun { static_cast<unsigned>(builder.length()), textRunRange, &textRunRange.start.container->treeScope().rootNode() });
+        runs.append(TextRun { static_cast<unsigned>(builder.length()), textRunRange });
         auto text = it.text();
         if (text.is8Bit()) {
             for (auto character : text.span8())
@@ -403,7 +410,7 @@ bool CachedMatchFinder::isSearchResultCacheValid(const String& target, FindOptio
     return m_searchResultCacheKeys.targetString
         && target == *m_searchResultCacheKeys.targetString
         && m_searchResultCacheKeys.limit == limit
-        && m_searchResultCacheKeys.options == options;
+        && m_searchResultCacheKeys.options == matchAffectingOptions(options);
 }
 
 } // namespace WebCore

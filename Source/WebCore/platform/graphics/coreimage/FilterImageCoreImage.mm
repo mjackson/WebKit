@@ -94,7 +94,7 @@ ImageBuffer* FilterImage::filterResultImageBuffer(const Filter& filter)
 
     RetainPtr image = m_ciImage;
 
-    if (filter.isShowingDebugOverlay()) {
+    if (filter.renderingOptions().contains(FilterRenderingOption::ShowDebugOverlay)) {
         RetainPtr stripesFilter = [CIFilter stripesGeneratorFilter];
         [stripesFilter setWidth:30];
         [stripesFilter setColor0:[CIColor clearColor]];

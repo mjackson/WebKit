@@ -88,6 +88,7 @@ var instance = new WebAssembly.Instance(module, { js: { callback } });
 wasm_inner_func = instance.exports.wasm_inner;
 let test = instance.exports.test;
 
+print("DEBUGGER_READY");
 let iteration = 0;
 for (;;) {
     js_a();

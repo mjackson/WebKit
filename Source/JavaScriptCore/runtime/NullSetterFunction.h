@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "ECMAMode.h"
 #include "InternalFunction.h"
 
 namespace JSC {

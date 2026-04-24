@@ -256,7 +256,7 @@ protected:
     mutable bool m_containsOnlyStaticTextDirty { false };
     mutable bool m_containsOnlyStaticText { false };
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     bool m_initialized { false };
 #endif
 

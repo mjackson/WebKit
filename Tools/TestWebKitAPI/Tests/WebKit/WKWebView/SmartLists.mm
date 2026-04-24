@@ -244,7 +244,7 @@ TEST(SmartLists, InsertingSpaceAndTextAfterBulletPointGeneratesListWithText)
 
 TEST(SmartLists, InsertingSpaceAndTextAfterHyphenGeneratesDashedList)
 {
-    auto marker = WTF::makeString(WTF::Unicode::emDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
+    auto marker = WTF::makeString(WTF::Unicode::enDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
 
     static constexpr auto expectedHTMLTemplate = R"""(
     <body contenteditable="">
@@ -360,7 +360,7 @@ TEST(SmartLists, InsertingSpaceAfterLargeNumberDoesNotGenerateOrderedList)
 
 TEST(SmartLists, InsertingDifferentListStylesDoesNotMergeLists)
 {
-    auto dashMarker = WTF::makeString(WTF::Unicode::emDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
+    auto dashMarker = WTF::makeString(WTF::Unicode::enDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
 
     static constexpr auto expectedHTMLTemplate = R"""(
     <body contenteditable="">

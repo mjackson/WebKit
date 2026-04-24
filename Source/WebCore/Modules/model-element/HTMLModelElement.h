@@ -51,6 +51,10 @@
 #include <WebCore/StageModeOperations.h>
 #endif
 
+#if HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
+#include <WebCore/PlatformDynamicRangeLimit.h>
+#endif
+
 namespace WebCore {
 
 class CachedResourceRequest;
@@ -197,6 +201,11 @@ public:
     bool isIntersectingViewport() const { return m_isIntersectingViewport; }
     void viewportIntersectionChanged(bool isIntersecting);
 
+#if HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
+    void dynamicRangeLimitDidChange(PlatformDynamicRangeLimit);
+    std::optional<double> getEffectiveDynamicRangeLimitValue() const;
+#endif
+
     WEBCORE_EXPORT String modelElementStateForTesting() const;
 
 private:
@@ -304,6 +313,10 @@ private:
     void updateStageMode();
 #endif
 
+#if HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
+    void updateScreenHeadroom(float currentEDRHeadroom, bool suppressEDR);
+#endif
+
     void modelResourceFinished();
     void sourceRequestResource();
     bool shouldDeferLoading() const;
@@ -328,6 +341,9 @@ private:
     bool m_isDragging { false };
     bool m_shouldCreateModelPlayerUponRendererAttachment { false };
     bool m_isIntersectingViewport { false };
+#if ENABLE(MODEL_PROCESS)
+    bool m_didIncrementModelElementCount { false };
+#endif
 
     RefPtr<ModelPlayer> m_modelPlayer;
     EventLoopTimerHandle m_loadModelTimer;
@@ -356,10 +372,19 @@ private:
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
     bool m_detachedForImmersive { false };
+    unsigned m_immersiveDetachGeneration { 0 };
     void setDetachedForImmersive(bool);
 
     Vector<CompletionHandler<void(ExceptionOr<RefPtr<ModelPlayer>>)>> m_modelPlayerCreationCallbacks;
     void ensureModelPlayer(CompletionHandler<void(ExceptionOr<RefPtr<ModelPlayer>>)>&&);
+#endif
+
+#if HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
+    PlatformDynamicRangeLimit m_dynamicRangeLimit { PlatformDynamicRangeLimit::initialValue() };
+    using ScreenPropertiesChangedObserver = Observer<void(uint32_t)>;
+    RefPtr<ScreenPropertiesChangedObserver> m_screenPropertiesChangedObserver;
+    float m_currentEDRHeadroom { 1.f };
+    bool m_suppressEDR { false };
 #endif
 
     void NODELETE triggerModelPlayerCreationCallbacksIfNeeded(ExceptionOr<RefPtr<ModelPlayer>>&&);

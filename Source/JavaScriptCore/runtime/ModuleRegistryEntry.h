@@ -30,8 +30,11 @@
 #include "JSObject.h"
 #include "JSSourceCode.h"
 #include "ScriptFetchParameters.h"
+#include <wtf/RefPtr.h>
 
 namespace JSC {
+
+class ScriptFetcher;
 
 class ModuleRegistryEntry final : public JSCell {
     friend class LLIntOffsetsExtractor;
@@ -61,8 +64,8 @@ public:
     }
 
     inline static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
-    static ModuleRegistryEntry* create(VM&, Structure*, Identifier key, ScriptFetchParameters::Type, JSValue scriptFetcher);
-    static ModuleRegistryEntry* create(VM&, Identifier key, ScriptFetchParameters::Type, JSValue scriptFetcher);
+    static ModuleRegistryEntry* create(VM&, Structure*, Identifier key, ScriptFetchParameters::Type, RefPtr<ScriptFetcher>);
+    static ModuleRegistryEntry* create(VM&, Identifier key, ScriptFetchParameters::Type, RefPtr<ScriptFetcher>);
 
     const Identifier& key() const;
     ScriptFetchParameters::Type moduleType() const;
@@ -76,25 +79,25 @@ public:
     JSValue evaluationError() const;
     Status status() const;
 
-    void record(VM&, AbstractModuleRecord*);
-    void loadPromise(VM&, JSPromise*);
-    void fetchError(JSGlobalObject*, JSValue);
-    void instantiationError(JSGlobalObject*, JSValue);
-    void evaluationError(JSGlobalObject*, JSValue);
-    void status(Status);
+    void setRecord(VM&, AbstractModuleRecord*);
+    void setLoadPromise(VM&, JSPromise*);
+    void setFetchError(JSGlobalObject*, JSValue);
+    void setInstantiationError(JSGlobalObject*, JSValue);
+    void setEvaluationError(JSGlobalObject*, JSValue);
+    void setStatus(Status);
 
     void provideFetch(JSGlobalObject*, SourceCode&&);
     void provideFetch(JSGlobalObject*, JSSourceCode*);
     void fetchComplete(JSGlobalObject*, AbstractModuleRecord*);
 
 private:
-    ModuleRegistryEntry(VM&, Structure*, Identifier key, ScriptFetchParameters::Type, JSValue scriptFetcher);
+    ModuleRegistryEntry(VM&, Structure*, Identifier key, ScriptFetchParameters::Type, RefPtr<ScriptFetcher>);
 
     void finishCreation(VM&);
 
     const Identifier m_key;
     const ScriptFetchParameters::Type m_type;
-    WriteBarrier<Unknown> m_scriptFetcher;
+    const RefPtr<ScriptFetcher> m_scriptFetcher;
     WriteBarrier<AbstractModuleRecord> m_record;
     WriteBarrier<JSPromise> m_fetchPromise;
     WriteBarrier<JSPromise> m_modulePromise;

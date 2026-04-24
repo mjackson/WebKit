@@ -39,7 +39,6 @@
 #include "RectangleLayoutShape.h"
 #include "StyleBasicShape.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
-#include "WindRule.h"
 
 namespace WebCore {
 

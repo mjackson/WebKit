@@ -7602,6 +7602,27 @@ class WebKitStyleTest(CppStyleTestBase):
         # FIXME: Implement this.
         pass
 
+    def test_line_numbers_filters_errors(self):
+        code = ['void f() {', '\tint x;', '}', '']
+        error_collector = ErrorCollector(self.assertTrue, FilterConfiguration(('-', '+whitespace/tab')))
+        checker = CppChecker('foo.cpp', 'cpp', error_collector, self.min_confidence, {})
+        checker.check(code, line_numbers=[1])
+        self.assertEqual('', error_collector.results())
+
+    def test_line_numbers_reports_errors_on_listed_lines(self):
+        code = ['void f() {', '\tint x;', '}', '']
+        error_collector = ErrorCollector(self.assertTrue, FilterConfiguration(('-', '+whitespace/tab')))
+        checker = CppChecker('foo.cpp', 'cpp', error_collector, self.min_confidence, {})
+        checker.check(code, line_numbers=[2])
+        self.assertNotEqual('', error_collector.results())
+
+    def test_empty_line_numbers_suppresses_all_errors(self):
+        code = ['void f() {', '\tint x;', '}', '']
+        error_collector = ErrorCollector(self.assertTrue, FilterConfiguration(('-', '+whitespace/tab')))
+        checker = CppChecker('foo.cpp', 'cpp', error_collector, self.min_confidence, {})
+        checker.check(code, line_numbers=[])
+        self.assertEqual('', error_collector.results())
+
 
 class CppCheckerTest(unittest.TestCase):
 

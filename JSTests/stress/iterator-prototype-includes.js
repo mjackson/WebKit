@@ -1,4 +1,3 @@
-//@ skip if $architecture == "x86_64" and $hostOS == "linux"
 //@ requireOptions("--useIteratorIncludes=1")
 
 function sameValue(a, b, testname) {

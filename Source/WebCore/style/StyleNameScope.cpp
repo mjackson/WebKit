@@ -27,6 +27,7 @@
 #include "StyleNameScope.h"
 
 #include "CSSCustomIdentValue.h"
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 #include <wtf/text/TextStream.h>
 
@@ -35,8 +36,8 @@ namespace Style {
 
 auto CSSValueConversion<NameScope>::operator()(BuilderState& state, const CSSValue& value) -> NameScope
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueNone:
             return CSS::Keyword::None { };
         case CSSValueAll:

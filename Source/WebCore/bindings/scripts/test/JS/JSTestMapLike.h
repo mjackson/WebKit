@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestMapLike : public JSDOMWrapper<TestMapLike> {
 public:
     using Base = JSDOMWrapper<TestMapLike>;
-    static JSTestMapLike* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestMapLike>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestMapLike* ptr = new (NotNull, JSC::allocateCell<JSTestMapLike>(vm)) JSTestMapLike(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestMapLike* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestMapLike>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

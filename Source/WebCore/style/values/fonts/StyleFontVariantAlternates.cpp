@@ -27,6 +27,7 @@
 #include "StyleFontVariantAlternates.h"
 
 #include "CSSFunctionValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "CSSValueList.h"
 #include "StyleBuilderChecking.h"
@@ -65,8 +66,8 @@ auto CSSValueConversion<FontVariantAlternates>::operator()(BuilderState& state, 
         return true;
     };
 
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueNormal:
             return CSS::Keyword::Normal { };
         case CSSValueHistoricalForms:
@@ -84,8 +85,8 @@ auto CSSValueConversion<FontVariantAlternates>::operator()(BuilderState& state, 
     auto result = FontVariantAlternates::Platform::Normal();
 
     for (Ref item : *list) {
-        if (RefPtr primitive = dynamicDowncast<CSSPrimitiveValue>(item)) {
-            switch (primitive->valueID()) {
+        if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(item)) {
+            switch (keywordValue->valueID()) {
             case CSSValueHistoricalForms:
                 result.valuesRef().historicalForms = true;
                 break;
@@ -93,7 +94,7 @@ auto CSSValueConversion<FontVariantAlternates>::operator()(BuilderState& state, 
                 state.setCurrentPropertyInvalidAtComputedValueTime();
                 return CSS::Keyword::Normal { };
             }
-        } else if (RefPtr function = dynamicDowncast<CSSFunctionValue>(item.get())) {
+        } else if (RefPtr function = dynamicDowncast<CSSFunctionValue>(item)) {
             switch (function->name()) {
             case CSSValueSwash:
                 if (!processSingleItemFunction(*function, result.valuesRef().swash))

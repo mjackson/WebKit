@@ -25,6 +25,7 @@
 #include "config.h"
 #include "CSSPropertyParserConsumer+Overflow.h"
 
+#include "CSSKeywordValueInlines.h"
 #include "CSSParserTokenRange.h"
 #include "CSSPropertyParserConsumer+CSSPrimitiveValueResolver.h"
 #include "CSSPropertyParserConsumer+LengthDefinitions.h"
@@ -70,7 +71,7 @@ RefPtr<CSSValue> consumeOverflowClipMargin(CSSParserTokenRange& range, CSS::Prop
 
     CSSValueListBuilder list;
     // Default value is padding-box
-    if (visualBox && !isValueID(visualBox, CSSValueID::CSSValuePaddingBox))
+    if (visualBox && !isValueID(visualBox, CSSValuePaddingBox))
         list.append(visualBox.releaseNonNull());
 
     // Default value is 0px

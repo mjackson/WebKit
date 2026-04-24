@@ -22,8 +22,7 @@ class TSymbol;
 class TType;
 
 // Returns the fractional part of the given floating-point number.
-inline float
-fractionalPart(float f)
+inline float fractionalPart(float f)
 {
     float intPart = 0.0f;
     return modff(f, &intPart);

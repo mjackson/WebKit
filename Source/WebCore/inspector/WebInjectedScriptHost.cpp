@@ -37,6 +37,7 @@
 #include "JSNodeList.h"
 #include "JSWorker.h"
 #include "Worker.h"
+#include <JavaScriptCore/JSGlobalObjectInlines.h>
 #include <JavaScriptCore/ObjectConstructor.h>
 
 #if ENABLE(PAYMENT_REQUEST)

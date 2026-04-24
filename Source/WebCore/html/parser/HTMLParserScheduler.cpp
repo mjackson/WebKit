@@ -105,6 +105,11 @@ void HTMLParserScheduler::continueNextChunkTimerFired()
     ASSERT(!m_suspended);
     ASSERT(m_parser);
 
+    // If yield tokens are active, don't resume parsing. didEndYieldingParser()
+    // will schedule a new resume when the tokens are released.
+    if (m_documentHasActiveParserYieldTokens)
+        return;
+
     // FIXME: The timer class should handle timer priorities instead of this code.
     // If a layout is scheduled, wait again to let the layout timer run first.
     if (m_parser->document()->isLayoutPending()) {

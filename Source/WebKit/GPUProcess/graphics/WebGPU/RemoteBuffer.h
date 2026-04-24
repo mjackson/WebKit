@@ -93,6 +93,7 @@ private:
     void unmap();
 
     void destroy();
+    void generateAValidationError();
     void destruct();
 
     void setLabel(String&&);

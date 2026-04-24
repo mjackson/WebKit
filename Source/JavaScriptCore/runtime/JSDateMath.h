@@ -44,6 +44,7 @@
 #pragma once
 
 #include "DateInstanceCache.h"
+#include "JSCTimeZone.h"
 #include "JSExportMacros.h"
 #include <wtf/Compiler.h>
 #include <wtf/DateMath.h>
@@ -112,7 +113,7 @@ public:
 
     JS_EXPORT_PRIVATE void resetIfNecessarySlow();
 
-    String defaultTimeZone();
+    TimeZone defaultTimeZone();
     String timeZoneDisplayName(bool isDST);
     Ref<DateInstanceData> NODELETE cachedDateInstanceData(double millisecondsFromEpoch);
 

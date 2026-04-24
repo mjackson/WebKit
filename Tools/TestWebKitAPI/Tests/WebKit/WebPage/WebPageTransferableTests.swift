@@ -21,8 +21,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-// FIXME: Remove !SWIFT_WEBKIT_TOOLCHAIN once Swift toolchain is fixed (see webkit.org/b/307344).
-#if ENABLE_SWIFTUI && canImport(Testing) && !SWIFT_WEBKIT_TOOLCHAIN
+#if ENABLE_SWIFTUI
 
 import Testing
 @_spi(Testing) import WebKit
@@ -30,6 +29,7 @@ import _WebKit_SwiftUI
 import UniformTypeIdentifiers
 import SwiftUI
 import struct Swift.String
+private import TestWebKitAPILibrary
 
 @MainActor
 struct WebPageTransferableTests {
@@ -184,4 +184,4 @@ struct WebPageTransferableTests {
     }
 }
 
-#endif // ENABLE_SWIFTUI && canImport(Testing) && !SWIFT_WEBKIT_TOOLCHAIN
+#endif // ENABLE_SWIFTUI

@@ -195,7 +195,6 @@ static unsigned NODELETE sortPriority(CSSUnitType unit)
     case CSSUnitType::CSS_DIMENSION:
     case CSSUnitType::CSS_QUIRKY_EM:
     case CSSUnitType::CSS_UNKNOWN:
-    case CSSUnitType::CSS_VALUE_ID:
         break;
     }
 

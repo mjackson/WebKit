@@ -57,6 +57,7 @@
 - (void)waitForDidStartProvisionalNavigation;
 - (void)waitForDidFinishNavigation;
 - (void)waitForDidFinishLoadInSubframe;
+- (void)waitForDidFinishNavigationAndLoadInSubframe;
 - (void)waitForDidFinishNavigationWithPreferences:(WKWebpagePreferences *)preferences;
 - (void)waitForDidSameDocumentNavigation;
 - (_WKProcessTerminationReason)waitForWebContentProcessDidTerminate;

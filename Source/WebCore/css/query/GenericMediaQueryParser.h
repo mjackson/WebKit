@@ -42,7 +42,6 @@ struct FeatureParser {
     static std::optional<Feature> consumeFeature(CSSParserTokenRange&, const MediaQueryParserContext&);
     static std::optional<Feature> consumeBooleanOrPlainFeature(CSSParserTokenRange&, const MediaQueryParserContext&);
     static std::optional<Feature> consumeRangeFeature(CSSParserTokenRange&, const MediaQueryParserContext&);
-    static RefPtr<CSSValue> consumeValue(CSSParserTokenRange&, const MediaQueryParserContext&);
 
     static bool validateFeatureAgainstSchema(Feature&, const FeatureSchema&);
 };

@@ -27,6 +27,7 @@
 #include "ViewTimeline.h"
 
 #include "AnimationTimelinesController.h"
+#include "CSSKeywordValueInlines.h"
 #include "CSSNumericFactory.h"
 #include "CSSPropertyParserConsumer+Timeline.h"
 #include "CSSValuePair.h"
@@ -41,8 +42,8 @@
 #include "ScrollAnchoringController.h"
 #include "ScrollingConstraints.h"
 #include "StyleableInlines.h"
+#include "StyleKeyword+Logging.h"
 #include "StyleLengthWrapper+DeprecatedCSSValueConversion.h"
-#include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 #include "StyleScrollPadding.h"
@@ -51,9 +52,17 @@
 
 namespace WebCore {
 
-static bool isValidInset(RefPtr<CSSPrimitiveValue>& inset)
+static bool isValidInset(const RefPtr<CSSValue>& inset)
 {
-    return !inset || inset->valueID() == CSSValueAuto || inset->isLength() || inset->isPercentage();
+    if (!inset)
+        return true;
+
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(*inset))
+        return keywordValue->valueID() == CSSValueAuto;
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(*inset))
+        return primitiveValue->isLength() || primitiveValue->isPercentage();
+
+    return false;
 }
 
 ExceptionOr<Ref<ViewTimeline>> ViewTimeline::create(Document& document, ViewTimelineOptions&& options)
@@ -98,7 +107,7 @@ ExceptionOr<ViewTimeline::SpecifiedViewTimelineInsets> ViewTimeline::validateSpe
 {
     // https://drafts.csswg.org/scroll-animations-1/#dom-viewtimeline-viewtimeline
 
-    // FIXME: note that we use CSSKeywordish instead of CSSKeywordValue to match Chrome,
+    // FIXME: note that we use CSSOMKeywordish instead of CSSOMKeywordValue to match Chrome,
     // issue being tracked at https://github.com/w3c/csswg-drafts/issues/11477.
 
     // If a DOMString value is provided as an inset, parse it as a <'view-timeline-inset'> value;
@@ -109,46 +118,42 @@ ExceptionOr<ViewTimeline::SpecifiedViewTimelineInsets> ViewTimeline::validateSpe
         if (!consumedInset)
             return Exception { ExceptionCode::TypeError };
 
-        if (RefPtr insetPair = dynamicDowncast<CSSValuePair>(consumedInset)) {
-            return { {
-                RefPtr { dynamicDowncast<CSSPrimitiveValue>(insetPair->first()) },
-                RefPtr { dynamicDowncast<CSSPrimitiveValue>(insetPair->second()) }
-            } };
-        } else
-            return { { dynamicDowncast<CSSPrimitiveValue>(consumedInset), nullptr } };
+        if (RefPtr insetPair = dynamicDowncast<CSSValuePair>(consumedInset))
+            return { { insetPair->first(), insetPair->second() } };
+        return { { consumedInset, nullptr } };
     }
 
-    auto cssPrimitiveValueForCSSNumericValue = [&](Ref<CSSNumericValue> numericValue) -> ExceptionOr<RefPtr<CSSPrimitiveValue>> {
+    auto cssValueForCSSNumericValue = [&](Ref<CSSNumericValue> numericValue) -> ExceptionOr<RefPtr<CSSValue>> {
         if (RefPtr insetValue = dynamicDowncast<CSSUnitValue>(numericValue))
-            return dynamicDowncast<CSSPrimitiveValue>(insetValue->toCSSValue());
+            return upcast<CSSValue>(dynamicDowncast<CSSPrimitiveValue>(insetValue->toCSSValue()));
         return nullptr;
     };
 
-    auto cssPrimitiveValueForCSSKeywordValue = [&](Ref<CSSKeywordValue> keywordValue) -> ExceptionOr<RefPtr<CSSPrimitiveValue>> {
+    auto cssValueForCSSKeywordValue = [&](Ref<CSSOMKeywordValue> keywordValue) -> ExceptionOr<RefPtr<CSSValue>> {
         if (keywordValue->value() != "auto"_s)
             return Exception { ExceptionCode::TypeError };
         return nullptr;
     };
 
-    auto cssPrimitiveValueForIndividualInset = [&](ViewTimelineIndividualInset individualInset) -> ExceptionOr<RefPtr<CSSPrimitiveValue>> {
+    auto cssValueForIndividualInset = [&](ViewTimelineIndividualInset individualInset) -> ExceptionOr<RefPtr<CSSValue>> {
         if (auto* numericInset = std::get_if<Ref<CSSNumericValue>>(&individualInset))
-            return cssPrimitiveValueForCSSNumericValue(*numericInset);
+            return cssValueForCSSNumericValue(*numericInset);
         if (auto* stringInset = std::get_if<String>(&individualInset))
-            return cssPrimitiveValueForCSSKeywordValue(CSSKeywordValue::rectifyKeywordish(*stringInset));
-        ASSERT(std::holds_alternative<Ref<CSSKeywordValue>>(individualInset));
-        return cssPrimitiveValueForCSSKeywordValue(CSSKeywordValue::rectifyKeywordish(std::get<Ref<CSSKeywordValue>>(individualInset)));
+            return cssValueForCSSKeywordValue(CSSOMKeywordValue::rectifyKeywordish(*stringInset));
+        ASSERT(std::holds_alternative<Ref<CSSOMKeywordValue>>(individualInset));
+        return cssValueForCSSKeywordValue(CSSOMKeywordValue::rectifyKeywordish(std::get<Ref<CSSOMKeywordValue>>(individualInset)));
     };
 
     // if a sequence is provided, the first value represents the start inset and the second value represents the end inset.
     // If the sequence has only one value, it is duplicated. If it has zero values or more than two values, or if it contains
-    // a CSSKeywordValue whose value is not "auto", throw a TypeError.
+    // a CSSOMKeywordValue whose value is not "auto", throw a TypeError.
     auto insetList = std::get<Vector<ViewTimelineIndividualInset>>(inset);
     auto numberOfInsets = insetList.size();
 
     if (!numberOfInsets || numberOfInsets > 2)
         return Exception { ExceptionCode::TypeError };
 
-    auto startInsetOrException = cssPrimitiveValueForIndividualInset(insetList.at(0));
+    auto startInsetOrException = cssValueForIndividualInset(insetList.at(0));
     if (startInsetOrException.hasException())
         return startInsetOrException.releaseException();
     auto startInset = startInsetOrException.releaseReturnValue();
@@ -156,7 +161,7 @@ ExceptionOr<ViewTimeline::SpecifiedViewTimelineInsets> ViewTimeline::validateSpe
     if (numberOfInsets == 1)
         return { { startInset, startInset } };
 
-    auto endInsetOrException = cssPrimitiveValueForIndividualInset(insetList.at(1));
+    auto endInsetOrException = cssValueForIndividualInset(insetList.at(1));
     if (endInsetOrException.hasException())
         return endInsetOrException.releaseException();
     auto endInset = endInsetOrException.releaseReturnValue();
@@ -342,7 +347,7 @@ void ViewTimeline::cacheCurrentTime()
         if (m_specifiedInsets) {
             RefPtr subjectElement { &subject->element };
 
-            auto computedInset = [&](const CSSPrimitiveValue& specifiedInset) {
+            auto computedInset = [&](const CSSValue& specifiedInset) {
                 return Style::deprecatedToStyleFromCSSValue<Style::ViewTimelineInsetItem::Length>(subjectElement, specifiedInset).value_or(Style::ViewTimelineInsetItem::Length { CSS::Keyword::Auto { } });
             };
 

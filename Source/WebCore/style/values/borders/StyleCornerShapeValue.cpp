@@ -26,10 +26,12 @@
 #include "StyleCornerShapeValue.h"
 
 #include "CSSFunctionValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSValuePool.h"
 #include "StyleBuilderChecking.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
+#include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 #include "StylePrimitiveNumericTypes+CSSValueCreation.h"
 
 namespace WebCore {
@@ -39,8 +41,8 @@ namespace Style {
 
 auto CSSValueConversion<CornerShapeValue>::operator()(BuilderState& state, const CSSValue& value) -> CornerShapeValue
 {
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueRound:
             return CSS::Keyword::Round { };
         case CSSValueScoop:
@@ -61,19 +63,23 @@ auto CSSValueConversion<CornerShapeValue>::operator()(BuilderState& state, const
         return CSS::Keyword::Round { };
     }
 
-    auto superellipseFunction = requiredFunctionDowncast<CSSValueSuperellipse, CSSPrimitiveValue>(state, value);
+    auto superellipseFunction = requiredFunctionDowncast<CSSValueSuperellipse, CSSValue>(state, value);
     if (!superellipseFunction)
         return CSS::Keyword::Round { };
 
     Ref superellipseDescriptor = superellipseFunction->item(0);
-    if (superellipseDescriptor->valueID() == CSSValueInfinity)
-        return { SuperellipseFunction { Number<CSS::Nonnegative>(std::numeric_limits<double>::infinity()) } };
 
-    if (superellipseDescriptor->isNumber())
-        return { SuperellipseFunction { Number<CSS::Nonnegative>(std::max(0.0, superellipseDescriptor->resolveAsNumber<double>(state.cssToLengthConversionData()))) } };
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(superellipseDescriptor)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueInfinity:
+            return { SuperellipseFunction { Number<CSS::Nonnegative>(std::numeric_limits<double>::infinity()) } };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return { SuperellipseFunction { Number<CSS::Nonnegative>(std::numeric_limits<double>::infinity()) } };
+        }
+    }
 
-    state.setCurrentPropertyInvalidAtComputedValueTime();
-    return CSS::Keyword::Round { };
+    return { SuperellipseFunction { toStyleFromCSSValue<Number<CSS::Nonnegative>>(state, superellipseDescriptor) } };
 }
 
 // MARK: - Blending

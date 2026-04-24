@@ -27,6 +27,7 @@
 
 #include "Logging.h"
 #include "SessionState.h"
+#include "WebBackForwardListFrameItem.h"
 #include "WebBackForwardListItem.h"
 #include "WebBackForwardListMessages.h"
 #include "WebProcessProxy.h"
@@ -92,6 +93,12 @@ inline void callCompletionHandler(CompletionHandlers::WebBackForwardList::BackFo
 inline bool filterSpecified(WebBackForwardListItemFilter& fn)
 {
     return bool(*fn);
+}
+
+// Workaround for rdar://168057355
+inline WebKit::FrameState* getFrameState(WebKit::WebBackForwardListFrameItem& item)
+{
+    return &item.frameState();
 }
 
 // Workarounds for rdar://171011011

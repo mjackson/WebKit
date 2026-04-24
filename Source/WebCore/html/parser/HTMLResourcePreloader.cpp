@@ -53,10 +53,12 @@ CachedResourceRequest PreloadRequest::resourceRequest(Document& document)
     ASSERT(isMainThread());
 
     bool skipContentSecurityPolicyCheck = false;
-    if (m_resourceType == CachedResource::Type::Script || m_resourceType == CachedResource::Type::JSON)
-        skipContentSecurityPolicyCheck = protect(document.contentSecurityPolicy())->allowScriptWithNonce(m_nonceAttribute);
-    else if (m_resourceType == CachedResource::Type::CSSStyleSheet)
-        skipContentSecurityPolicyCheck = protect(document.contentSecurityPolicy())->allowStyleWithNonce(m_nonceAttribute);
+    if (!m_nonceAttribute.isEmpty()) {
+        if (m_resourceType == CachedResource::Type::Script || m_resourceType == CachedResource::Type::JSON)
+            skipContentSecurityPolicyCheck = protect(document.contentSecurityPolicy())->allowScriptWithNonce(m_nonceAttribute);
+        else if (m_resourceType == CachedResource::Type::CSSStyleSheet)
+            skipContentSecurityPolicyCheck = protect(document.contentSecurityPolicy())->allowStyleWithNonce(m_nonceAttribute);
+    }
 
     ResourceLoaderOptions options = CachedResourceLoader::defaultCachedResourceOptions();
     if (skipContentSecurityPolicyCheck)

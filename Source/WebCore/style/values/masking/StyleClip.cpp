@@ -26,7 +26,7 @@
 #include "StyleClip.h"
 
 #include "AnimationUtilities.h"
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValueInlines.h"
 #include "CSSRectValue.h"
 #include "StyleBuilderChecking.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
@@ -47,30 +47,17 @@ auto CSSValueConversion<Clip>::operator()(BuilderState& state, const CSSValue& v
     if (!rectValue)
         return CSS::Keyword::Auto { };
 
-    RefPtr primitiveValueTop = requiredDowncast<CSSPrimitiveValue>(state, rectValue->rect().top());
-    if (!primitiveValueTop)
-        return CSS::Keyword::Auto { };
-    RefPtr primitiveValueRight = requiredDowncast<CSSPrimitiveValue>(state, rectValue->rect().right());
-    if (!primitiveValueRight)
-        return CSS::Keyword::Auto { };
-    RefPtr primitiveValueBottom = requiredDowncast<CSSPrimitiveValue>(state, rectValue->rect().bottom());
-    if (!primitiveValueBottom)
-        return CSS::Keyword::Auto { };
-    RefPtr primitiveValueLeft = requiredDowncast<CSSPrimitiveValue>(state, rectValue->rect().left());
-    if (!primitiveValueLeft)
-        return CSS::Keyword::Auto { };
-
-    auto convertEdge = [&](Ref<const CSSPrimitiveValue>&& primitiveValue) -> ClipEdge {
-        if (isValueID(primitiveValue.get(), CSSValueAuto))
+    auto convertEdge = [&](Ref<const CSSValue>&& value) -> ClipEdge {
+        if (isValueID(value.get(), CSSValueAuto))
             return CSS::Keyword::Auto { };
-        return toStyleFromCSSValue<Length<>>(state, primitiveValue);
+        return toStyleFromCSSValue<Length<>>(state, value);
     };
 
     return ClipRect {
-        convertEdge(primitiveValueTop.releaseNonNull()),
-        convertEdge(primitiveValueRight.releaseNonNull()),
-        convertEdge(primitiveValueBottom.releaseNonNull()),
-        convertEdge(primitiveValueLeft.releaseNonNull()),
+        convertEdge(rectValue->rect().top()),
+        convertEdge(rectValue->rect().right()),
+        convertEdge(rectValue->rect().bottom()),
+        convertEdge(rectValue->rect().left()),
     };
 }
 

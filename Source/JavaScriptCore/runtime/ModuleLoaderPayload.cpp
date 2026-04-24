@@ -26,6 +26,7 @@
 #include "config.h"
 #include "ModuleLoaderPayload.h"
 
+#include "JSCellInlines.h"
 #include "JSPromise.h"
 
 namespace JSC {
@@ -59,7 +60,7 @@ void ModuleLoaderPayload::finishCreation(VM& vm)
 template<typename Visitor>
 void ModuleLoaderPayload::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
-    auto* thisObject = jsCast<ModuleLoaderPayload*>(cell);
+    auto* thisObject = uncheckedDowncast<ModuleLoaderPayload>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_fulfillment);

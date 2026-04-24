@@ -109,6 +109,18 @@ bool PositionedLayoutConstraints::containingCoordsAreFlipped() const
     return !m_useStaticPosition && ((isBlockOpposing() && m_containingAxis == LogicalBoxAxis::Block) || (isOrthogonal() && orthogonalOpposing));
 }
 
+bool PositionedLayoutConstraints::isOrthogonalWithParentFlippedAxis() const
+{
+    // Grid items use special static positioning.
+    if (is<RenderGrid>(m_container) && m_container.get() == m_renderer->parent())
+        return false;
+    if (!isOrthogonal())
+        return false;
+    auto parentWritingMode = m_renderer->parent()->writingMode();
+    bool physicalAxisIsParentBlock = parentWritingMode.isHorizontal() != (m_physicalAxis == BoxAxis::Horizontal);
+    return physicalAxisIsParentBlock ? parentWritingMode.isBlockFlipped() : parentWritingMode.isInlineFlipped();
+}
+
 void PositionedLayoutConstraints::captureInsets()
 {
     bool isHorizontal = BoxAxis::Horizontal == m_physicalAxis;
@@ -127,8 +139,9 @@ void PositionedLayoutConstraints::captureInsets()
         m_insetBefore = m_style.logicalLeft();
         m_insetAfter = m_style.logicalRight();
     } else {
-        m_marginBefore = m_style.marginBefore();
-        m_marginAfter = m_style.marginAfter();
+        auto staticPositionIsFromFlippedParent = m_useStaticPosition && isOrthogonalWithParentFlippedAxis();
+        m_marginBefore = staticPositionIsFromFlippedParent ? m_style.marginAfter() : m_style.marginBefore();
+        m_marginAfter = staticPositionIsFromFlippedParent ? m_style.marginBefore() : m_style.marginAfter();
         m_insetBefore = m_style.logicalTop();
         m_insetAfter = m_style.logicalBottom();
     }
@@ -589,8 +602,10 @@ void PositionedLayoutConstraints::computeStaticPosition()
 
     auto staticDistance = m_selfAxis == LogicalBoxAxis::Inline ? computedInlineStaticDistance() : computedBlockStaticDistance();
     auto shouldUseInsetBefore = [&] {
-        if (m_selfAxis == LogicalBoxAxis::Block)
-            return true;
+        if (m_selfAxis == LogicalBoxAxis::Block) {
+            // Static position is at the max edge when the parent's axis direction is reversed (e.g. vertical-rl).
+            return !isOrthogonalWithParentFlippedAxis();
+        }
         auto parentWritingMode = m_renderer->parent()->writingMode();
         auto shouldUseInsetBefore = parentWritingMode.isOrthogonal(selfWritingMode()) || !parentWritingMode.isInlineFlipped(); // This is what trunk has.
         if (!shouldUseInsetBefore) {
@@ -813,6 +828,10 @@ void PositionedLayoutConstraints::adjustLogicalTopWithLogicalHeightIfNeeded(Rend
 {
     if (!m_useStaticPosition || m_selfAxis != LogicalBoxAxis::Block)
         return;
+    if (isOrthogonalWithParentFlippedAxis()) {
+        // When the static position was corrected to insetAfter (orthogonal block-flipped), the position is already the physical start edge — no adjustment needed.
+        return;
+    }
     if (shouldBlockStaticDistanceAdjustedWithBoxHeight(*m_container, *m_renderer->parent(), m_writingMode))
         computedValues.position -= computedValues.extent;
 }

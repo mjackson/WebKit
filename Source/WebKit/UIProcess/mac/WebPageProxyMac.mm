@@ -706,7 +706,7 @@ void WebPageProxy::showPDFContextMenu(const WebKit::PDFContextMenu& contextMenu,
         completionHandler(std::nullopt);
     };
 
-    if (contextMenu.inputSource == WebMouseEventInputSource::Automation) {
+    if (contextMenu.inputSource == WebEventInputSource::Automation) {
 #if HAVE(APPKIT_GESTURES_SUPPORT)
         NSPoint locationInScreenCoordinates = [window convertPointToScreen:locationInWindowCoordinates];
         RetainPtr screenRelativeContext = [_NSViewMenuContext menuContextWithLocation:locationInScreenCoordinates source:ContextMenuRequestSourceForAutomation];
@@ -1167,7 +1167,8 @@ void WebPageProxy::interruptSyntheticMomentumScrolling()
         WebCore::FloatSize { },
         timestamp,
         std::nullopt,
-        WebWheelEvent::MomentumEndType::Interrupted
+        WebWheelEvent::MomentumEndType::Interrupted,
+        WebEventInputSource::Automation
     };
     handleNativeWheelEvent(NativeWebWheelEvent { cancelEvent });
 }

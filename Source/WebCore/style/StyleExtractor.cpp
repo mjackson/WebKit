@@ -98,7 +98,7 @@ Extractor::Extractor(Element* element, bool allowVisitedStyle)
 {
 }
 
-RefPtr<CSSPrimitiveValue> Extractor::getFontSizeCSSValuePreferringKeyword() const
+RefPtr<CSSValue> Extractor::getFontSizeCSSValuePreferringKeyword() const
 {
     RefPtr element = m_element;
     if (!element)
@@ -111,7 +111,7 @@ RefPtr<CSSPrimitiveValue> Extractor::getFontSizeCSSValuePreferringKeyword() cons
         return nullptr;
 
     if (auto sizeIdentifier = style->fontDescription().keywordSizeAsIdentifier())
-        return CSSPrimitiveValue::create(sizeIdentifier);
+        return CSSKeywordValue::create(sizeIdentifier);
 
     return CSSPrimitiveValue::create(adjustFloatForAbsoluteZoom(style->fontDescription().computedSize(), *style), CSSUnitType::CSS_PX);
 }
@@ -545,17 +545,17 @@ bool Extractor::propertyMatches(CSSPropertyID propertyID, const CSSValue* value)
     if (!m_element)
         return false;
     if (propertyID == CSSPropertyFontSize) {
-        if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(*value)) {
+        if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(*value)) {
             protect(m_element->document())->updateLayoutIgnorePendingStylesheets();
             if (auto* style = m_element->computedStyle(m_pseudoElementIdentifier)) {
                 if (CSSValueID sizeIdentifier = style->fontDescription().keywordSizeAsIdentifier()) {
-                    if (primitiveValue->isValueID() && primitiveValue->valueID() == sizeIdentifier)
+                    if (keywordValue->valueID() == sizeIdentifier)
                         return true;
                 }
             }
         }
     }
-    RefPtr<CSSValue> computedValue = propertyValue(propertyID);
+    RefPtr computedValue = propertyValue(propertyID);
     return computedValue && value && computedValue->equals(*value);
 }
 

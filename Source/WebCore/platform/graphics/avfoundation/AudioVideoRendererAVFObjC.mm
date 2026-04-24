@@ -570,7 +570,6 @@ void AudioVideoRendererAVFObjC::setTimeObserver(Seconds interval, Function<void(
                 if (!protectedThis->m_currentTimeDidChangeCallback)
                     return;
 
-                ALWAYS_LOG_WITH_THIS(protectedThis, LOGIDENTIFIER_WITH_THIS(protectedThis), "timeobserver called", PAL::toMediaTime(time));
                 auto clampedTime = CMTIME_IS_NUMERIC(time) ? protectedThis->clampTimeToLastSeekTime(PAL::toMediaTime(time)) : MediaTime::zeroTime();
                 protectedThis->m_currentTimeDidChangeCallback(clampedTime);
             }
@@ -1468,9 +1467,12 @@ Ref<GenericPromise> AudioVideoRendererAVFObjC::stageVideoRenderer(WebSampleBuffe
     }
 
     bool videoTrackChangeOnly = !m_previousRendererConfiguration.hasVideoTrack && newConfiguration.hasVideoTrack;
-    bool flushRequired = std::exchange(m_previousRendererConfiguration, newConfiguration) != newConfiguration && !videoTrackChangeOnly;
+    bool configurationChanged = std::exchange(m_previousRendererConfiguration, newConfiguration) != newConfiguration;
+    bool hasVideoRenderer = videoRenderer && videoRenderer->renderer();
+    bool switchingFromRenderless = renderer && !hasVideoRenderer && !isUsingDecompressionSession();
+    bool flushRequired = (configurationChanged || switchingFromRenderless) && !videoTrackChangeOnly;
     m_readyToRequestVideoData = !flushRequired;
-    ALWAYS_LOG(LOGIDENTIFIER, "renderer: ", !!renderer, " videoTrackChangeOnly: ", videoTrackChangeOnly, " flushRequired: ", flushRequired);
+    ALWAYS_LOG(LOGIDENTIFIER, "renderer: ", !!renderer, " videoTrackChangeOnly: ", videoTrackChangeOnly, " configurationChanged: ", configurationChanged, " switchingFromRenderless: ", switchingFromRenderless, " flushRequired: ", flushRequired);
 
     return videoRenderer->changeRenderer(renderer)->whenSettled(RunLoop::mainSingleton(), [weakThis = ThreadSafeWeakPtr { *this }, rendererToExpire = WTF::move(rendererToExpire), flushRequired]() {
         RefPtr protectedThis = weakThis.get();

@@ -130,7 +130,7 @@ static RepaintMap& NODELETE repaintRectMap()
     return map;
 }
 
-#if !USE(CA)
+#if !USE(CA) && !USE(COORDINATED_GRAPHICS)
 bool GraphicsLayer::supportsLayerType(Type type)
 {
     switch (type) {
@@ -532,7 +532,7 @@ void GraphicsLayer::setVideoGravity(MediaPlayerVideoGravity gravity)
 
 Path GraphicsLayer::shapeLayerPath() const
 {
-#if USE(CA)
+#if USE(CA) || USE(COORDINATED_GRAPHICS)
     return m_shapeLayerPath;
 #else
     return Path();
@@ -541,7 +541,7 @@ Path GraphicsLayer::shapeLayerPath() const
 
 void GraphicsLayer::setShapeLayerPath(const Path& path)
 {
-#if USE(CA)
+#if USE(CA) || USE(COORDINATED_GRAPHICS)
     m_shapeLayerPath = path;
 #else
     UNUSED_PARAM(path);
@@ -550,7 +550,7 @@ void GraphicsLayer::setShapeLayerPath(const Path& path)
 
 WindRule GraphicsLayer::shapeLayerWindRule() const
 {
-#if USE(CA)
+#if USE(CA) || USE(COORDINATED_GRAPHICS)
     return m_shapeLayerWindRule;
 #else
     return WindRule::NonZero;
@@ -559,7 +559,7 @@ WindRule GraphicsLayer::shapeLayerWindRule() const
 
 void GraphicsLayer::setShapeLayerWindRule(WindRule windRule)
 {
-#if USE(CA)
+#if USE(CA) || USE(COORDINATED_GRAPHICS)
     m_shapeLayerWindRule = windRule;
 #else
     UNUSED_PARAM(windRule);

@@ -5766,13 +5766,10 @@ void webkit_web_view_set_cors_allowlist(WebKitWebView* webView, const gchar* con
 {
     g_return_if_fail(WEBKIT_IS_WEB_VIEW(webView));
 
-    Vector<String> allowListVector;
-    if (allowList) {
-        const auto allowListSpan = span(allowList);
-        allowListVector.reserveInitialCapacity(allowListSpan.size());
-        for (const char* str : allowListSpan)
-            allowListVector.append(String::fromUTF8(str));
-    }
+    const auto allowListSpan = span(allowList);
+    Vector<String> allowListVector { allowListSpan.size(), [&allowListSpan](size_t i) {
+        return String::fromUTF8(allowListSpan[i]);
+    }};
 
     getPage(webView).setCORSDisablingPatterns(WTF::move(allowListVector));
 }

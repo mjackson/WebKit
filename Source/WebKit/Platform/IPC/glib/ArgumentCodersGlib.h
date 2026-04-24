@@ -32,14 +32,11 @@ namespace IPC {
 template<> struct ArgumentCoder<GUniquePtr<char*>> {
     static void encode(Encoder& encoder, const GUniquePtr<char*>& strv)
     {
-        auto length = strv.get() ? g_strv_length(strv.get()) : 0;
+        auto strvSpan = span(strv.get());
+        unsigned length = strvSpan.size();
 
         encoder << length;
 
-        if (!length)
-            return;
-
-        auto strvSpan = span(strv.get());
         for (auto str : strvSpan)
             encoder << CString(str);
     }

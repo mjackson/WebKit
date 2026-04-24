@@ -5,7 +5,7 @@ set -eux
 
 # Determine current distro
 if [ -f /etc/os-release ]; then
-    CURRENT_DISTRO="$(grep ^ID= /etc/os-release | cut -d= -f2 | sed 's/"//g' | tr '[:upper:]' '[:lower:]')"
+    CURRENT_DISTRO="$(grep ^ID= /etc/os-release | cut -d= -f2 | tr -d "'\"" | tr '[:upper:]' '[:lower:]')"
 elif [ -f /etc/nix/nix.conf -a -d /nix/store ]; then
     CURRENT_DISTRO="nixos"
 else

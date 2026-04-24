@@ -1349,6 +1349,11 @@ private:
             setPrediction(SpecPromiseObject);
             break;
 
+        case NewResolvedPromise:
+        case NewRejectedPromise:
+            setPrediction(SpecPromiseObject);
+            break;
+
         case CreateGenerator:
         case CreateAsyncGenerator:
             setPrediction(SpecObjectOther);

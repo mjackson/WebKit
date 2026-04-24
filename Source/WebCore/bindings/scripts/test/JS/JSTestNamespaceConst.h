@@ -27,13 +27,7 @@ namespace WebCore {
 class JSTestNamespaceConst : public JSDOMObject {
 public:
     using Base = JSDOMObject;
-    static JSTestNamespaceConst* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestNamespaceConst* ptr = new (NotNull, JSC::allocateCell<JSTestNamespaceConst>(vm)) JSTestNamespaceConst(structure, *globalObject);
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestNamespaceConst* create(JSC::Structure*, JSDOMGlobalObject*);
 
     static void destroy(JSC::JSCell*);
 

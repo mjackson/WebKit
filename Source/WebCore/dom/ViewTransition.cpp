@@ -707,7 +707,7 @@ void ViewTransition::setupDynamicStyleSheet(const AtomString& name, const Captur
     // image pair isolation rule
     {
         Ref props = MutableStyleProperties::create();
-        props->setProperty(CSSPropertyIsolation, CSSPrimitiveValue::create(CSSValueID::CSSValueIsolate));
+        props->setProperty(CSSPropertyIsolation, CSSKeywordValue::create(CSSValueID::CSSValueIsolate));
 
         resolver->setViewTransitionStyles(CSSSelector::PseudoElement::ViewTransitionImagePair, name, props);
     }

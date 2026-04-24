@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
 # Copyright (C) 2022 Apple Inc. All rights reserved.
+# Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -366,12 +367,24 @@ class GenerationContext:
         to.write(f"    constexpr bool operator==(const Constant<C>&) const = default;\n")
         to.write(f"}};\n\n")
 
-        to.write(f"namespace CSS::Keyword {{\n\n")
+        to.write(f"namespace CSS {{\n\n")
 
+        to.write(f"// A predefined keyword value\n")
+        to.write(f"// https://drafts.csswg.org/css-values-4/#keywords\n")
+        to.write(f"struct Keyword {{\n")
+        to.write(f"    CSSValueID value;\n\n")
+
+        to.write(f"    constexpr bool operator==(const Keyword&) const = default;\n")
+        to.write(f"    constexpr bool operator==(CSSValueID other) const {{ return value == other; }};\n\n")
+
+        to.write(f"    // Unique types for each predefined keyword value.\n\n")
         for value in self.values:
-            to.write(f"using {value.id_without_prefix} = Constant<{value.id_without_scope}>;\n")
+            to.write(f"    using {value.id_without_prefix} = Constant<{value.id_without_scope}>;\n")
 
-        to.write(f"\n}} // namespace CSS::Keyword\n")
+        to.write(f"}};\n\n")
+
+        to.write(f"\n}} // namespace CSS\n")
+
         to.write(f"}} // namespace WebCore\n\n")
 
     def _generate_css_value_keywords_h_hash_traits(self, *, to):

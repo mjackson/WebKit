@@ -38,6 +38,7 @@ public:
     ~CoordinatedBackingStore() = default;
 
     void resize(const FloatSize&, float scale);
+    float scale() const { return m_scale; }
 
     void createTile(uint32_t tileID);
     void removeTile(uint32_t tileID);

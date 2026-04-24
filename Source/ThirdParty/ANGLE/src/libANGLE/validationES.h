@@ -87,6 +87,13 @@ bool ValidImageDataSize(const Context *context,
                         GLenum type,
                         const void *pixels,
                         GLsizei imageSize);
+bool ValidImageAllocationSize(const Context *context,
+                              angle::EntryPoint entryPoint,
+                              GLsizei width,
+                              GLsizei height,
+                              GLsizei depth,
+                              GLsizei samples,
+                              GLenum sizedInternalFormat);
 
 bool ValidQueryType(const Context *context, QueryType queryType);
 
@@ -97,6 +104,20 @@ bool ValidateWebGLVertexAttribPointer(const Context *context,
                                       GLsizei stride,
                                       const void *ptr,
                                       bool pureInteger);
+
+bool ValidateWebGLBufferBinding(const Context *context,
+                                angle::EntryPoint entryPoint,
+                                BufferBinding target,
+                                BufferID buffer);
+
+// Validation of transform feedback buffer output size for various DrawArrays calls.
+// `primcounts` can be null for non-instanced calls.
+// If this function returns false, an error has been generated.
+bool ValidateDrawArraysTransformFeedbackBufferSize(const Context *context,
+                                                   angle::EntryPoint entryPoint,
+                                                   const GLsizei *counts,
+                                                   const GLsizei *primcounts,
+                                                   GLsizei drawcount);
 
 // Returns valid program if id is a valid program name
 // Errors INVALID_OPERATION if valid shader is given and returns NULL
@@ -698,7 +719,8 @@ bool ValidateTexStorageMultisample(const Context *context,
                                    GLsizei samples,
                                    GLint internalFormat,
                                    GLsizei width,
-                                   GLsizei height);
+                                   GLsizei height,
+                                   GLsizei depth);
 
 bool ValidateTexStorage2DMultisampleBase(const Context *context,
                                          angle::EntryPoint entryPoint,
@@ -939,18 +961,6 @@ ANGLE_INLINE bool ValidateDrawArraysCommon(const Context *context,
     if (ANGLE_UNLIKELY(!ValidateDrawBase(context, entryPoint, mode)))
     {
         return false;
-    }
-
-    if (ANGLE_UNLIKELY(context->getStateCache().isTransformFeedbackActiveUnpaused()) &&
-        ANGLE_UNLIKELY(!context->supportsGeometryOrTesselation()))
-    {
-        const State &state                      = context->getState();
-        TransformFeedback *curTransformFeedback = state.getCurrentTransformFeedback();
-        if (!curTransformFeedback->checkBufferSpaceForDraw(count, primcount))
-        {
-            ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, err::kTransformFeedbackBufferTooSmall);
-            return false;
-        }
     }
 
     return ValidateDrawArraysAttribs(context, entryPoint, first, count);

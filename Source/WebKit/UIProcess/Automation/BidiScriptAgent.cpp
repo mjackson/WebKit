@@ -382,6 +382,54 @@ void BidiScriptAgent::callFunction(const String& functionDeclaration, bool await
     });
 }
 
+void BidiScriptAgent::disown(Ref<JSON::Array>&& handles, Ref<JSON::Object>&& target, CommandCallback<void>&& callback)
+{
+    // FIXME: WebProcess forwarding to actually release JavaScript objects will be added
+    // once resultOwnership="root" support is implemented. https://bugs.webkit.org/show_bug.cgi?id=288059
+
+    RefPtr session = m_session.get();
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!session, InternalError);
+
+    BrowsingContext browsingContext;
+    String realmID;
+    String sandbox;
+    bool hasBrowsingContext = target->find("context"_s) != target->end();
+    bool hasRealm = target->find("realm"_s) != target->end();
+    bool hasSandbox = target->find("sandbox"_s) != target->end();
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(hasBrowsingContext && !target->getString("context"_s, browsingContext), InvalidParameter);
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(hasRealm && !target->getString("realm"_s, realmID), InvalidParameter);
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(hasSandbox && !target->getString("sandbox"_s, sandbox), InvalidParameter);
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!hasRealm && !hasBrowsingContext, InvalidParameter);
+
+    // Validate realm identifier early, even when context is also provided.
+    std::optional<RealmIdentifier> realmIdentifier;
+    if (hasRealm) {
+        realmIdentifier = parseRealmIdentifier(realmID);
+        ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!realmIdentifier, FrameNotFound);
+    }
+
+    // Resolve target to a valid browsing context.
+    if (!hasBrowsingContext) {
+        auto resolvedBrowsingContext = browsingContextForRealm(*realmIdentifier);
+        ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!resolvedBrowsingContext, FrameNotFound);
+        browsingContext = *resolvedBrowsingContext;
+    }
+
+    auto pageAndFrameHandles = session->extractBrowsingContextHandles(browsingContext);
+    ASYNC_FAIL_IF_UNEXPECTED_RESULT(pageAndFrameHandles);
+
+    // Validate handles array elements.
+    for (size_t i = 0; i < handles->length(); ++i) {
+        String handleString;
+        if (!handles->get(i)->asString(handleString))
+            ASYNC_FAIL_WITH_PREDEFINED_ERROR(InvalidParameter);
+    }
+
+    // FIXME: Implement WebProcess forwarding to release JavaScript objects.
+    // https://bugs.webkit.org/show_bug.cgi?id=288059
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR(NotImplemented);
+}
+
 void BidiScriptAgent::evaluate(const String& expression, bool awaitPromise, Ref<JSON::Object>&& target, std::optional<Inspector::Protocol::BidiScript::ResultOwnership>&&, RefPtr<JSON::Object>&&, std::optional<bool>&&, CommandCallbackOf<Inspector::Protocol::BidiScript::EvaluateResultType, String, RefPtr<Inspector::Protocol::BidiScript::RemoteValue>, RefPtr<Inspector::Protocol::BidiScript::ExceptionDetails>>&& callback)
 {
     RefPtr session = m_session.get();
@@ -969,6 +1017,27 @@ void BidiScriptAgent::emitEventsForActiveRealms(const HashSet<String>& contextFi
         String realmID = makeString("realm-"_s, realmIdentifier.loggingString());
         sendRealmCreatedEvent(realmID, realmInfo.origin, realmInfo.type, realmInfo.context);
     }
+}
+
+std::optional<RealmIdentifier> BidiScriptAgent::parseRealmIdentifier(const String& realmID)
+{
+    if (!realmID.startsWith("realm-"_s))
+        return std::nullopt;
+
+    auto idValue = parseInteger<uint64_t>(realmID.substring(6));
+    if (!idValue || !RealmIdentifier::isValidIdentifier(*idValue))
+        return std::nullopt;
+
+    return RealmIdentifier(*idValue);
+}
+
+std::optional<String> BidiScriptAgent::browsingContextForRealm(RealmIdentifier realmIdentifier) const
+{
+    auto it = m_activeRealms.find(realmIdentifier);
+    if (it == m_activeRealms.end())
+        return std::nullopt;
+
+    return it->value.context;
 }
 
 } // namespace WebKit

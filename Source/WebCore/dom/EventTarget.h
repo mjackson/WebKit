@@ -219,3 +219,6 @@ inline void EventTarget::setEventTargetFlag(EventTargetFlag flag, bool value)
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::ClassName) \
     static bool isType(const WebCore::EventTarget& target) { return target.eventTargetInterface() == WebCore::EventTargetInterfaceType::ClassName; } \
 SPECIALIZE_TYPE_TRAITS_END()
+
+extern template class mpark::variant<WebCore::AddEventListenerOptions, bool>;
+extern template class mpark::variant<WebCore::EventListenerOptions, bool>;

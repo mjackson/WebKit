@@ -583,6 +583,8 @@ public:
     WEBCORE_EXPORT void toggleSmartLists();
 #endif
 
+    WEBCORE_EXPORT bool isAlternativeTextUIActive() const;
+
 #if PLATFORM(COCOA)
     WEBCORE_EXPORT bool isSmartListsEnabled();
 #endif

@@ -25,7 +25,7 @@
 #include "config.h"
 #include "StyleTranslate.h"
 
-#include "CSSPrimitiveValueMappings.h"
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 #include "StyleLengthWrapper+Blending.h"
 #include "StyleLengthWrapper+CSSValueConversion.h"
@@ -58,9 +58,14 @@ auto CSSValueConversion<Translate>::operator()(BuilderState& state, const CSSVal
     // https://drafts.csswg.org/css-transforms-2/#propdef-translate
     // none | <length-percentage> [ <length-percentage> <length>? ]?
 
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        ASSERT_UNUSED(primitiveValue, primitiveValue->valueID() == CSSValueNone);
-        return CSS::Keyword::None { };
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
     }
 
     auto list = requiredListDowncast<CSSValueList, CSSPrimitiveValue>(state, value);

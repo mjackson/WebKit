@@ -191,6 +191,7 @@ protected:
     Position positionOutsideTabSpan(const Position&);
     void setNodeAttribute(Element&, const QualifiedName& attribute, const AtomString& value);
     void splitElement(Element&, Node& atChild);
+    void splitListElement(Element&, Node& atChild);
     void splitTextNode(Text&, unsigned offset);
     void splitTextNodeContainingElement(Text&, unsigned offset);
     void wrapContentsInDummySpan(Element&);

@@ -53,7 +53,6 @@ struct LineHeight : LengthWrapperBase<LengthPercentage<CSS::NonnegativeUnzoomed>
 
 template<> struct CSSValueConversion<LineHeight> {
     auto operator()(BuilderState&, const CSSValue&, float multiplier = 1.0f) -> LineHeight;
-    auto operator()(BuilderState&, const CSSPrimitiveValue&, float multiplier = 1.0f) -> LineHeight;
 };
 
 // MARK: - Blending

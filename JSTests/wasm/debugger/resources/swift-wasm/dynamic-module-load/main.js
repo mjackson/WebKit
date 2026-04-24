@@ -24,6 +24,7 @@ var moduleA = new WebAssembly.Module(read('func-a.wasm', 'binary'));
 var instance1 = new WebAssembly.Instance(moduleA, imports);
 print("Module A (func_a) loaded");
 
+print("DEBUGGER_READY");
 print("Waiting for debugger — attach LLDB and type 'c' to continue.");
 while (!$vm.hasDebuggerContinued()) { }
 print("Debugger continued");

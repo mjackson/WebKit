@@ -57,6 +57,9 @@ public:
     WEBCORE_EXPORT bool selected(AllowStyleInvalidation = AllowStyleInvalidation::Yes) const;
     WEBCORE_EXPORT void setSelected(bool);
 
+    bool selectedForBindings() const;
+    void setSelectedForBindings(bool);
+
     WEBCORE_EXPORT HTMLSelectElement* NODELETE ownerSelectElement() const;
     bool belongsToBaseAppearancePicker() const;
 
@@ -71,6 +74,8 @@ public:
 
     void setSelectedState(bool, AllowStyleInvalidation = AllowStyleInvalidation::Yes);
     bool selectedWithoutUpdate() const { return m_isSelected; }
+
+    void setDirty(bool dirty) { m_isDirty = dirty; }
 
     void cloneIntoSelectedContent(HTMLSelectedContentElement&);
 
@@ -104,6 +109,7 @@ private:
     bool m_disabled { false };
     bool m_isSelected { false };
     bool m_isDefault { false };
+    bool m_isDirty { false };
     bool m_shadowTreeNeedsUpdate { false };
     WeakPtr<HTMLSelectElement, WeakPtrImplWithEventTargetData> m_ownerSelect;
     WeakPtr<HTMLSpanElement, WeakPtrImplWithEventTargetData> m_labelContainer;

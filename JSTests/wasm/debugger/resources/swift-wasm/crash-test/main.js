@@ -28,6 +28,7 @@ print("Available exports:", Object.keys(instance.exports));
 
 let crashOnZero = instance.exports.crash_on_zero;
 
+print("DEBUGGER_READY");
 let iteration = 0;
 for (;;) {
     try {

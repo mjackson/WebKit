@@ -86,7 +86,6 @@ void cleanUp()
 namespace TestWebKitAPI {
 
 // Re-enable this test for Catalina once webkit.org/b/206956 is resolved
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101600
 TEST(WebKitLegacy, CrossPartitionFileSchemeAccess)
 {
     NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"CrossPartitionFileSchemeAccess" withExtension:@"html"];
@@ -109,5 +108,4 @@ TEST(WebKitLegacy, CrossPartitionFileSchemeAccess)
     WTFLogAlways("Cleaning up...");
     cleanUp();
 }
-#endif
 }

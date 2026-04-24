@@ -63,6 +63,8 @@ namespace JSC {
     class JSCellButterfly;
     class Identifier;
     class ForInContext;
+    class UnlinkedModuleProgramCodeBlock;
+    class UnlinkedProgramCodeBlock;
 
     enum ExpectedFunction {
         NoExpectedFunction,

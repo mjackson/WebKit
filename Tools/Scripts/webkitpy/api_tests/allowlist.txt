@@ -321,7 +321,6 @@ TestWebKitAPI.ImageBufferTests/AnyScaleTest
 TestWebKitAPI.ImageBufferTests/AnyTwoImageBufferOptionsTest
 TestWebKitAPI.ImageRotationSessionVT
 TestWebKitAPI.ImmediateActionTests
-TestWebKitAPI.InAppBrowserPrivacy
 TestWebKitAPI.InjectedBundleHitTest
 TestWebKitAPI.InsertTextAlternatives
 TestWebKitAPI.IntPoint
@@ -353,7 +352,6 @@ TestWebKitAPI.NSResponderTests
 TestWebKitAPI.NSTextPlaceholder
 TestWebKitAPI.Navigation
 TestWebKitAPI.Notification
-TestWebKitAPI.NowPlayingControlsTests
 TestWebKitAPI.NowPlayingInfoArtwork
 TestWebKitAPI.OverflowScrollViewTests
 TestWebKitAPI.PAL
@@ -421,7 +419,6 @@ TestWebKitAPI.UseSystemAppearance
 TestWebKitAPI.UserContentWorld
 TestWebKitAPI.UserInterfaceIdiomUpdate
 TestWebKitAPI.VerifyUserGesture
-TestWebKitAPI.VideoPresentationMode
 TestWebKitAPI.VideoQualityDisplayCompositing
 TestWebKitAPI.Viewport
 TestWebKitAPI.VisualViewport
@@ -453,7 +450,6 @@ TestWebKitAPI.WKWebExtensionTab
 TestWebKitAPI.WKWebExtensionWindow
 TestWebKitAPI.WKWebViewAutoFillTests
 TestWebKitAPI.WKWebViewCandidateTests
-TestWebKitAPI.WKWebViewCloseAllMediaPresentationsInternal
 TestWebKitAPI.WKWebViewConfiguration
 TestWebKitAPI.WKWebViewDisableSelection
 TestWebKitAPI.WKWebViewFindString

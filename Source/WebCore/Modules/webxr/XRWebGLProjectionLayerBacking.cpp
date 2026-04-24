@@ -43,10 +43,6 @@ constexpr double MinTextureScalingFactor = 0.2;
 
 ExceptionOr<Ref<XRWebGLProjectionLayerBacking>> XRWebGLProjectionLayerBacking::create(WebXRSession& session, WebGLRenderingContextBase& context, const XRProjectionLayerInit& init)
 {
-    auto colorSwapchain = WebXRWebGLSharedImageSwapchain::create(context, WebXRSwapchain::SwapchainTargetFlags::Color, init.colorFormat, init.clearOnAccess);
-    if (!colorSwapchain)
-        return Exception { ExceptionCode::OperationError, "Failed to create a WebGL swapchain."_s };
-
     auto device = session.device();
     if (!device)
         return Exception { ExceptionCode::OperationError, "Cannot create a projection layer without a valid device."_s };
@@ -55,26 +51,19 @@ ExceptionOr<Ref<XRWebGLProjectionLayerBacking>> XRWebGLProjectionLayerBacking::c
     FloatSize recommendedSize = session.recommendedWebGLFramebufferResolution();
     IntSize size = expandedIntSize(recommendedSize.scaled(scaleFactor));
 
-    auto layerHandle = device->createLayerProjection(size.width(), size.height(), true);
-    if (!layerHandle)
+    auto layerInfo = device->createLayerProjection(size.width(), size.height(), true);
+    if (!layerInfo)
         return Exception { ExceptionCode::OperationError, "Unable to create a projection layer."_s };
 
+    auto colorSwapchain = WebXRWebGLSharedImageSwapchain::create(context, WebXRSwapchain::SwapchainTargetFlags::Color, init.colorFormat, init.clearOnAccess, layerInfo->numImages);
+    if (!colorSwapchain)
+        return Exception { ExceptionCode::OperationError, "Failed to create a WebGL swapchain."_s };
+
     std::unique_ptr<WebXRWebGLSwapchain> depthStencilSwapchain;
-    if (init.depthFormat) {
-        auto formats = XRWebGLLayerBacking::swapchainFormatsForLayerFormat(init.depthFormat);
-        WebXRSwapchain::SwapchainTargets targets = { WebXRSwapchain::SwapchainTargetFlags::Depth };
-        if (XRWebGLLayerBacking::formatHasStencil(init.depthFormat))
-            targets.add(WebXRSwapchain::SwapchainTargetFlags::Stencil);
-        WebXRWebGLStaticImageSwapchain::StaticImageAttributes attributes = {
-            .format = formats.format,
-            .internalFormat = formats.internalFormat,
-            .size = size,
-            .clearOnAccess = init.clearOnAccess,
-            .targets = targets,
-        };
-        depthStencilSwapchain = WebXRWebGLStaticImageSwapchain::create(context, attributes);
-    }
-    return adoptRef(*new XRWebGLProjectionLayerBacking(*layerHandle, WTF::move(colorSwapchain), WTF::move(depthStencilSwapchain)));
+    if (init.depthFormat)
+        depthStencilSwapchain = XRWebGLLayerBacking::createDepthSwapchain(context, init.depthFormat, size, init.clearOnAccess, layerInfo->numImages);
+
+    return adoptRef(*new XRWebGLProjectionLayerBacking(layerInfo->handle, WTF::move(colorSwapchain), WTF::move(depthStencilSwapchain)));
 }
 
 XRWebGLProjectionLayerBacking::XRWebGLProjectionLayerBacking(PlatformXR::LayerHandle handle, std::unique_ptr<WebXRWebGLSwapchain>&& colorSwapchain, std::unique_ptr<WebXRWebGLSwapchain>&& depthSwapchain)

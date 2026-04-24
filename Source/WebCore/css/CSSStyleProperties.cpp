@@ -631,15 +631,16 @@ void InlineCSSStyleProperties::didMutate(MutationType type)
 
     m_cssomValueWrappers.clear();
 
-    if (!m_parentElement)
+    RefPtr parentElement = m_parentElement.get();
+    if (!parentElement)
         return;
 
     // Inline style changes from JavaScript (e.g., element.style.color = 'red') need to set
     // the mutation bit for innerHTML prefix cache invalidation, since they don't go through
     // the normal attribute change notification path.
-    m_parentElement->setDidMutateSubtreeAfterSetInnerHTMLOnAncestors();
-    m_parentElement->invalidateStyleAttribute();
-    InspectorInstrumentation::didInvalidateStyleAttr(*m_parentElement);
+    parentElement->setDidMutateSubtreeAfterSetInnerHTMLOnAncestors();
+    parentElement->invalidateStyleAttribute();
+    InspectorInstrumentation::didInvalidateStyleAttr(*parentElement);
 }
 
 CSSStyleSheet* InlineCSSStyleProperties::parentStyleSheet() const

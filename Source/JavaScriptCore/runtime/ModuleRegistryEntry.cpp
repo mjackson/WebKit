@@ -36,11 +36,11 @@ namespace JSC {
 
 const ClassInfo ModuleRegistryEntry::s_info = { "ModuleRegistryEntry"_s, nullptr, nullptr, nullptr, CREATE_METHOD_TABLE(ModuleRegistryEntry) };
 
-ModuleRegistryEntry::ModuleRegistryEntry(VM& vm, Structure* structure, Identifier key, ScriptFetchParameters::Type type, JSValue scriptFetcher)
+ModuleRegistryEntry::ModuleRegistryEntry(VM& vm, Structure* structure, Identifier key, ScriptFetchParameters::Type type, RefPtr<ScriptFetcher> scriptFetcher)
     : Base(vm, structure)
     , m_key(WTF::move(key))
     , m_type(type)
-    , m_scriptFetcher(scriptFetcher, WriteBarrierEarlyInit)
+    , m_scriptFetcher(WTF::move(scriptFetcher))
 {
 }
 
@@ -59,10 +59,9 @@ void ModuleRegistryEntry::finishCreation(VM& vm)
 template<typename Visitor>
 void ModuleRegistryEntry::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
-    auto* thisObject = jsCast<ModuleRegistryEntry*>(cell);
+    auto* thisObject = uncheckedDowncast<ModuleRegistryEntry>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
-    visitor.append(thisObject->m_scriptFetcher);
     visitor.append(thisObject->m_record);
     visitor.append(thisObject->m_fetchPromise);
     visitor.append(thisObject->m_modulePromise);
@@ -74,16 +73,16 @@ void ModuleRegistryEntry::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 
 DEFINE_VISIT_CHILDREN(ModuleRegistryEntry);
 
-ModuleRegistryEntry* ModuleRegistryEntry::create(VM& vm, Structure* structure, Identifier key, ScriptFetchParameters::Type type, JSValue scriptFetcher)
+ModuleRegistryEntry* ModuleRegistryEntry::create(VM& vm, Structure* structure, Identifier key, ScriptFetchParameters::Type type, RefPtr<ScriptFetcher> scriptFetcher)
 {
-    ModuleRegistryEntry* instance = new (NotNull, allocateCell<ModuleRegistryEntry>(vm)) ModuleRegistryEntry(vm, structure, WTF::move(key), type, scriptFetcher);
+    ModuleRegistryEntry* instance = new (NotNull, allocateCell<ModuleRegistryEntry>(vm)) ModuleRegistryEntry(vm, structure, WTF::move(key), type, WTF::move(scriptFetcher));
     instance->finishCreation(vm);
     return instance;
 }
 
-ModuleRegistryEntry* ModuleRegistryEntry::create(VM& vm, Identifier key, ScriptFetchParameters::Type type, JSValue scriptFetcher)
+ModuleRegistryEntry* ModuleRegistryEntry::create(VM& vm, Identifier key, ScriptFetchParameters::Type type, RefPtr<ScriptFetcher> scriptFetcher)
 {
-    return create(vm, vm.moduleRegistryEntryStructure.get(), WTF::move(key), type, scriptFetcher);
+    return create(vm, vm.moduleRegistryEntryStructure.get(), WTF::move(key), type, WTF::move(scriptFetcher));
 }
 
 const Identifier& ModuleRegistryEntry::key() const
@@ -147,7 +146,7 @@ JSValue ModuleRegistryEntry::error(JSGlobalObject* globalObject) const
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (JSValue fetchError = m_fetchError.get()) {
-        if (auto* errorInstance = jsDynamicCast<ErrorInstance*>(fetchError))
+        if (auto* errorInstance = dynamicDowncast<ErrorInstance>(fetchError))
             RELEASE_AND_RETURN(scope, JSModuleLoader::duplicateError(globalObject, errorInstance));
         RELEASE_AND_RETURN(scope, fetchError);
     }
@@ -156,7 +155,7 @@ JSValue ModuleRegistryEntry::error(JSGlobalObject* globalObject) const
     if (m_evaluationError)
         RELEASE_AND_RETURN(scope, m_evaluationError.get());
     if (m_record) {
-        if (auto* cyclic = jsDynamicCast<CyclicModuleRecord*>(m_record.get()))
+        if (auto* cyclic = dynamicDowncast<CyclicModuleRecord>(m_record.get()))
             RELEASE_AND_RETURN(scope, cyclic->evaluationError());
     }
     return { };
@@ -182,45 +181,45 @@ auto ModuleRegistryEntry::status() const -> Status
     return m_status;
 }
 
-void ModuleRegistryEntry::record(VM& vm, AbstractModuleRecord* record)
+void ModuleRegistryEntry::setRecord(VM& vm, AbstractModuleRecord* record)
 {
-    return m_record.set(vm, this, record);
+    m_record.set(vm, this, record);
 }
 
-void ModuleRegistryEntry::loadPromise(VM& vm, JSPromise* promise)
+void ModuleRegistryEntry::setLoadPromise(VM& vm, JSPromise* promise)
 {
     m_loadPromise.set(vm, this, promise);
 }
 
-void ModuleRegistryEntry::fetchError(JSGlobalObject* globalObject, JSValue error)
+void ModuleRegistryEntry::setFetchError(JSGlobalObject* globalObject, JSValue error)
 {
     ASSERT(error);
     VM& vm = globalObject->vm();
     m_fetchError.set(vm, this, error);
     if (m_status == Status::New && m_fetchPromise)
         m_fetchPromise->reject(vm, globalObject, error);
-    status(Status::FetchFailed);
+    setStatus(Status::FetchFailed);
 }
 
-void ModuleRegistryEntry::instantiationError(JSGlobalObject* globalObject, JSValue error)
+void ModuleRegistryEntry::setInstantiationError(JSGlobalObject* globalObject, JSValue error)
 {
     ASSERT(error);
     VM& vm = globalObject->vm();
     m_instantiationError.set(vm, this, error);
     if (m_status != Status::FetchFailed)
-        status(Status::InstantiationFailed);
+        setStatus(Status::InstantiationFailed);
 }
 
-void ModuleRegistryEntry::evaluationError(JSGlobalObject* globalObject, JSValue error)
+void ModuleRegistryEntry::setEvaluationError(JSGlobalObject* globalObject, JSValue error)
 {
     ASSERT(error);
     VM& vm = globalObject->vm();
     m_evaluationError.set(vm, this, error);
     if (m_status != Status::FetchFailed)
-        status(Status::EvaluationFailed);
+        setStatus(Status::EvaluationFailed);
 }
 
-void ModuleRegistryEntry::status(Status status)
+void ModuleRegistryEntry::setStatus(Status status)
 {
     m_status = status;
 }

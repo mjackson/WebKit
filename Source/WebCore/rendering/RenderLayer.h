@@ -274,11 +274,20 @@ private:
 
     OptionSet<LayerPositionUpdates> m_layerPositionDirtyBits;
 
-protected:
+private:
     explicit RenderLayer(RenderLayerModelObject&);
     void destroy();
 
-private:
+    bool hasVisibleContentForPainting() const
+    {
+        if (!hasVisibleContent())
+            return false;
+        if (!m_svgData) [[likely]]
+            return true;
+        return hasVisibleContentForPaintingForSVG();
+    }
+    bool hasVisibleContentForPaintingForSVG() const; // Defined in RenderLayerSVGAdditions.cpp.
+
     // These flags propagate in paint order (z-order tree).
     enum class Compositing {
         HasDescendantNeedingRequirementsTraversal           = 1 << 0, // Need to do the overlap-testing tree walk because hierarchy or geometry changed.
@@ -455,9 +464,14 @@ public:
             || m_hasAlwaysIncludedInZOrderListsDescendantsStatusDirty;
     }
 
-    bool isPaintingSVGResourceLayer() const { return m_isPaintingSVGResourceLayer; }
-
-    inline RenderSVGHiddenContainer* enclosingSVGHiddenOrResourceContainer() const;
+    // SVG-specific methods -- defined in RenderLayerSVGAdditionsInlines.h / RenderLayerSVGAdditions.cpp.
+    inline bool isPaintingResourceLayerForSVG() const;
+    inline RenderSVGHiddenContainer* enclosingHiddenOrResourceContainerForSVG() const;
+    void paintResourceLayerForSVG(GraphicsContext&, const AffineTransform&);
+    bool shouldSkipRepaintAfterLayoutForSVG() const;
+    bool hasFailedFilterForSVG() const;
+    bool shouldSkipHitTestForSVG() const;
+    void updateAncestorDependentStateForSVG();
 
     void repaintIncludingDescendants();
 
@@ -510,7 +524,7 @@ public:
     bool isPointInResizeControl(IntPoint localPoint) const;
     IntSize offsetFromResizeCorner(const IntPoint& localPoint) const;
 
-    void updateScrollInfoAfterLayout();
+    std::optional<ScrollbarUpdateScope> updateScrollInfoAfterLayout();
     void updateScrollbarSteps();
 
     // Returns true if this RenderLayer is a candidate for scrolling during scrollIntoView operations.
@@ -979,8 +993,6 @@ public:
 
     void setIsHiddenByOverflowTruncation(bool);
 
-    void paintSVGResourceLayer(GraphicsContext&, const AffineTransform& contentTransform);
-
     bool ancestorLayerIsDOMParent(const RenderLayer* ancestor) const;
 
     struct LayerPaintingInfo {
@@ -1012,6 +1024,10 @@ private:
     void setLastChild(RenderLayer* last) { m_last = last; }
 
     void updateAncestorDependentState();
+
+    // SVG-specific methods -- defined in RenderLayerSVGAdditions.cpp.
+    bool setupClipPathIfNeededForSVG(OptionSet<PaintLayerFlag>&);
+    bool paintForegroundForFragmentsForSVG(const LayerFragments&, GraphicsContext&, const LayerPaintingInfo&, OptionSet<PaintBehavior>, RenderObject*);
 
     void dirtyPaintOrderListsOnChildChange(RenderLayer&);
 
@@ -1319,8 +1335,6 @@ private:
 
     void removeClipperClientIfNeeded() const;
 
-    bool hasFailedFilterForSVGRenderer() const;
-
     struct OverflowControlRects {
         IntRect horizontalScrollbar;
         IntRect verticalScrollbar;
@@ -1404,7 +1418,6 @@ private:
 
     bool m_insideSVGForeignObject : 1;
     bool m_isHiddenByOverflowTruncation : 1 { false };
-    bool m_isPaintingSVGResourceLayer : 1 { false };
 
     bool m_hasDescendantNeedingEventRegionUpdate : 1 { false };
 
@@ -1481,14 +1494,18 @@ private:
     // Pointer to the enclosing RenderLayer that caused us to be paginated. It is 0 if we are not paginated.
     InlineWeakPtr<RenderLayer> m_enclosingPaginationLayer;
 
-    // Pointer to the enclosing RenderSVGHiddenContainer or RenderSVGResourceContainer, if present.
-    SingleThreadWeakPtr<RenderSVGHiddenContainer> m_enclosingSVGHiddenOrResourceContainer;
-
     IntRect m_blockSelectionGapsBounds;
 
     RefPtr<RenderLayerFilters> m_filters;
     std::unique_ptr<RenderLayerBacking> m_backing;
     std::unique_ptr<RenderLayerScrollableArea> m_scrollableArea;
+
+    struct SVGData {
+        WTF_MAKE_STRUCT_TZONE_ALLOCATED(SVGData);
+        bool isPaintingResourceLayer { false };
+        SingleThreadWeakPtr<RenderSVGHiddenContainer> enclosingHiddenOrResourceContainer;
+    };
+    std::unique_ptr<SVGData> m_svgData;
 
     PaintFrequencyTracker m_paintFrequencyTracker;
 };

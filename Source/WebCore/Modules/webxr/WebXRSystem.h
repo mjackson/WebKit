@@ -32,6 +32,7 @@
 #include "EventTarget.h"
 #include "EventTargetInterfaces.h"
 #include "HTMLCanvasElement.h"
+#include "IntSize.h"
 #include "JSDOMPromiseDeferredForward.h"
 #include "PlatformXR.h"
 #include "WebGLContextAttributes.h"
@@ -135,7 +136,10 @@ private:
 
         void requestFrame(std::optional<PlatformXR::RequestData>&&, PlatformXR::Device::RequestFrameCallback&&) final;
         Vector<Device::ViewData> views(XRSessionMode) const final;
-        std::optional<PlatformXR::LayerHandle> createLayerProjection(uint32_t, uint32_t, bool) final { return std::nullopt; }
+        std::optional<PlatformXR::LayerInfo> createLayerProjection(uint32_t, uint32_t, bool) final { return std::nullopt; }
+#if ENABLE(WEBXR_LAYERS)
+        std::optional<PlatformXR::LayerInfo> createQuadLayer(IntSize, PlatformXR::LayerLayout) final { return std::nullopt; }
+#endif
         void deleteLayer(PlatformXR::LayerHandle) final { }
 #if ENABLE(WEBXR_HIT_TEST)
         void requestHitTestSource(const PlatformXR::HitTestOptions&, CompletionHandler<void(WebCore::ExceptionOr<PlatformXR::HitTestSource>)>&&) final { };

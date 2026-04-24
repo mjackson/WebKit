@@ -30,13 +30,7 @@ class JSTestDefaultToJSONInheritFinal : public JSTestDefaultToJSONInherit {
 public:
     using Base = JSTestDefaultToJSONInherit;
     using DOMWrapped = TestDefaultToJSONInheritFinal;
-    static JSTestDefaultToJSONInheritFinal* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestDefaultToJSONInheritFinal>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestDefaultToJSONInheritFinal* ptr = new (NotNull, JSC::allocateCell<JSTestDefaultToJSONInheritFinal>(vm)) JSTestDefaultToJSONInheritFinal(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestDefaultToJSONInheritFinal* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestDefaultToJSONInheritFinal>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

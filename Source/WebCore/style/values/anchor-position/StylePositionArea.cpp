@@ -457,16 +457,17 @@ auto CSSValueConversion<PositionArea>::operator()(BuilderState& state, const CSS
 {
     std::pair<CSSValueID, CSSValueID> dimPair;
 
-    if (value.isValueID()) {
-        if (value.valueID() == CSSValueNone)
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        auto valueID = keywordValue->valueID();
+        if (valueID == CSSValueNone)
             return CSS::Keyword::None { };
 
-        dimPair = positionAreaExpandKeyword(value.valueID());
+        dimPair = positionAreaExpandKeyword(valueID);
     } else if (auto* pair = dynamicDowncast<CSSValuePair>(value)) {
-        const auto& first = pair->first();
-        const auto& second = pair->second();
+        RefPtr first = dynamicDowncast<CSSKeywordValue>(pair->first());
+        RefPtr second = dynamicDowncast<CSSKeywordValue>(pair->second());
 
-        if (!first.isValueID() || !second.isValueID()) {
+        if (!first || !second) {
             state.setCurrentPropertyInvalidAtComputedValueTime();
             return CSS::Keyword::None { };
         }
@@ -474,7 +475,7 @@ auto CSSValueConversion<PositionArea>::operator()(BuilderState& state, const CSS
         // The parsing logic guarantees the keyword pair is in the correct order
         // (horizontal/x/block axis before vertical/Y/inline axis)
 
-        dimPair = { first.valueID(), second.valueID() };
+        dimPair = { first->valueID(), second->valueID() };
     } else {
         // value MUST be a single ValueID or a pair of ValueIDs, as returned by the parsing logic.
         state.setCurrentPropertyInvalidAtComputedValueTime();

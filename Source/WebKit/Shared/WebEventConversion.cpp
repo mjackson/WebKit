@@ -78,25 +78,25 @@ WebMouseEventButton kit(WebCore::MouseButton button)
     }
 }
 
-WebCore::MouseEventInputSource platform(WebMouseEventInputSource source)
+WebCore::MouseEventInputSource platform(WebEventInputSource source)
 {
     switch (source) {
-    case WebMouseEventInputSource::UserDriven:
+    case WebEventInputSource::UserDriven:
         return WebCore::MouseEventInputSource::UserDriven;
-    case WebMouseEventInputSource::Automation:
+    case WebEventInputSource::Automation:
         return WebCore::MouseEventInputSource::Automation;
     default:
         RELEASE_ASSERT_NOT_REACHED();
     }
 }
 
-WebMouseEventInputSource kit(WebCore::MouseEventInputSource source)
+WebEventInputSource kit(WebCore::MouseEventInputSource source)
 {
     switch (source) {
     case WebCore::MouseEventInputSource::UserDriven:
-        return WebMouseEventInputSource::UserDriven;
+        return WebEventInputSource::UserDriven;
     case WebCore::MouseEventInputSource::Automation:
-        return WebMouseEventInputSource::Automation;
+        return WebEventInputSource::Automation;
     default:
         RELEASE_ASSERT_NOT_REACHED();
     }
@@ -459,7 +459,7 @@ public:
 WebKit2PlatformTouchPoint(const WebPlatformTouchPoint& webTouchPoint)
     : PlatformTouchPoint(webTouchPoint.identifier(), DoublePoint(webTouchPoint.locationInRootView()), DoublePoint(webTouchPoint.locationInViewport()), touchEventType(webTouchPoint)
 #if ENABLE(IOS_TOUCH_EVENTS)
-        , webTouchPoint.radiusX(), webTouchPoint.radiusY(), webTouchPoint.rotationAngle(), webTouchPoint.twist(), webTouchPoint.force(), webTouchPoint.altitudeAngle(), webTouchPoint.azimuthAngle(), webPlatformTouchTypeToPlatform(webTouchPoint.touchType())
+        , webTouchPoint.radiusX(), webTouchPoint.radiusY(), webTouchPoint.rotationAngle(), webTouchPoint.twist(), webTouchPoint.force(), webTouchPoint.altitudeAngle(), webTouchPoint.azimuthAngle(), webPlatformTouchTypeToPlatform(webTouchPoint.touchType()), DoublePoint(webTouchPoint.previousLocationInRootView())
 #endif
     )
 {

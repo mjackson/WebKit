@@ -36,6 +36,8 @@
 #include "Logging.h"
 #include "WKSharedAPICast.h"
 #include "WebFrame.h"
+#include <JavaScriptCore/JSCJSValuePropertyInlines.h>
+#include <JavaScriptCore/OpaqueJSString.h>
 #include <WebCore/DOMWrapperWorld.h>
 #include <WebCore/Document.h>
 #include <WebCore/ExceptionDetails.h>
@@ -379,9 +381,9 @@ auto JavaScriptEvaluationResult::JSExtractor::jsValueToExtractedValue(JSGlobalCo
     JSC::JSGlobalObject* globalObject = ::toJS(context);
     JSC::JSObject* jsObject = ::toJS(globalObject, object).toObject(globalObject);
 
-    if (auto* info = jsDynamicCast<JSWebKitJSHandle*>(jsObject)) {
+    if (auto* info = dynamicDowncast<JSWebKitJSHandle>(jsObject)) {
         RELEASE_ASSERT(globalObject->template inherits<WebCore::JSDOMGlobalObject>());
-        auto* domGlobalObject = jsCast<WebCore::JSDOMGlobalObject*>(globalObject);
+        auto* domGlobalObject = uncheckedDowncast<WebCore::JSDOMGlobalObject>(globalObject);
         RefPtr document = dynamicDowncast<Document>(domGlobalObject->scriptExecutionContext());
         RefPtr frame = WebFrame::webFrame(document->frameID());
         RefPtr world = InjectedBundleScriptWorld::get(domGlobalObject->world());
@@ -390,7 +392,7 @@ auto JavaScriptEvaluationResult::JSExtractor::jsValueToExtractedValue(JSGlobalCo
         return makeUniqueRef<JSHandleInfo>(ref->identifier(), world->identifier(), frame->info(), ref->windowFrameIdentifier());
     }
 
-    if (auto* node = jsDynamicCast<JSWebKitSerializedNode*>(jsObject)) {
+    if (auto* node = dynamicDowncast<JSWebKitSerializedNode>(jsObject)) {
         Ref serializedNode { node->wrapped() };
         return makeUniqueRef<SerializedNode>(serializedNode->serializedNode());
     }
@@ -425,7 +427,7 @@ JSValueRef JavaScriptEvaluationResult::JSInserter::toJS(JSGlobalContextRef conte
     auto globalObjectTuple = [] (auto context) {
         auto* lexicalGlobalObject = ::toJS(context);
         RELEASE_ASSERT(lexicalGlobalObject->template inherits<WebCore::JSDOMGlobalObject>());
-        auto* domGlobalObject = jsCast<WebCore::JSDOMGlobalObject*>(lexicalGlobalObject);
+        auto* domGlobalObject = uncheckedDowncast<WebCore::JSDOMGlobalObject>(lexicalGlobalObject);
         RefPtr document = dynamicDowncast<WebCore::Document>(domGlobalObject->scriptExecutionContext());
         RELEASE_ASSERT(document);
         return std::make_tuple(lexicalGlobalObject, domGlobalObject, WTF::move(document));

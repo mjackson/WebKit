@@ -680,6 +680,10 @@ public:
         B3_OP_CASE(SubSat)
         B3_OP_CASE(Max)
         B3_OP_CASE(Min)
+        B3_OP_CASE(RelaxedMin)
+        B3_OP_CASE(RelaxedMax)
+        B3_OP_CASE(RelaxedQ15Mulr)
+        B3_OP_CASE(RelaxedDotI8x16I7x16)
 
         if (isX86() && b3Op == B3::VectorSwizzle) {
             result = push(fixupOutOfBoundsIndicesForSwizzle(get(a), get(b)));
@@ -696,6 +700,7 @@ public:
         B3_OP_CASES()
         B3_OP_CASE(RelaxedMAdd)
         B3_OP_CASE(RelaxedNMAdd)
+        B3_OP_CASE(RelaxedDotI8x16I7x16Add)
 
         result = push(m_currentBlock->appendNew<SIMDValue>(m_proc, origin(), b3Op, B3::V128, info,
             get(m1), get(m2), get(add)));
@@ -1075,7 +1080,7 @@ private:
         return set(m_currentBlock, dst, src);
     }
 
-    bool NODELETE useSignalingMemory() const
+    bool NODELETE useSignalingMemory0() const
     {
         return m_mode == MemoryMode::Signaling;
     }
@@ -1095,7 +1100,7 @@ private:
     const ModuleInformation& m_info;
     const IPIntCallee& m_profiledCallee;
     OptimizingJITCallee* m_callee;
-    const MemoryMode m_mode { MemoryMode::BoundsChecking };
+    const MemoryMode m_mode { MemoryMode::BoundsChecking }; // mode for memory 0; all other memories use bounds checking
     const CompilationMode m_compilationMode;
     const FunctionCodeIndex m_functionIndex;
     const unsigned m_loopIndexForOSREntry { UINT_MAX };
@@ -1341,7 +1346,7 @@ OMGIRGenerator::OMGIRGenerator(AbstractHeapRepository& heaps, CompilationContext
         m_vmValue->setReadsMutability(B3::Mutability::Immutable);
 
         if (m_info.memoryCount()) {
-            if (useSignalingMemory() || m_info.theOnlyMemory().isShared()) {
+            if (useSignalingMemory0() || m_info.memory(0).isShared()) {
                 // Capacity and basePointer will not be changed in this case.
                 if (m_mode == MemoryMode::BoundsChecking) {
                     B3::PatchpointValue* getBoundsCheckingSize = m_topLevelBlock->appendNew<B3::PatchpointValue>(m_proc, pointerType(), Origin());
@@ -1424,7 +1429,7 @@ void OMGIRGenerator::restoreWebAssemblyGlobalState(const Vector<MemoryInformatio
     restoreWasmContextInstance(block, instance);
 
     if (memories.size()) {
-        if (useSignalingMemory() || memories[0].isShared()) {
+        if (useSignalingMemory0() || memories[0].isShared()) {
             RegisterSet clobbers;
             clobbers.add(GPRInfo::wasmBaseMemoryPointer, IgnoreVectors);
             if (m_mode == MemoryMode::BoundsChecking)
@@ -2042,7 +2047,7 @@ auto OMGIRGenerator::emitIndirectCall(Value* calleeInstance, Value* calleeCode, 
 
 auto OMGIRGenerator::addGrowMemory(ExpressionType delta, ExpressionType& result, uint8_t memoryIndex) -> PartialResult
 {
-    result = push(callWasmOperation(m_currentBlock, Int32, operationGrowMemory,
+    result = push(callWasmOperation(m_currentBlock, m_info.memory(memoryIndex).addressType().asB3TypeKind(), operationGrowMemory,
         instanceValue(), get(delta), constant(Int32, memoryIndex)));
 
     restoreWebAssemblyGlobalState(m_info.memories, instanceValue(), m_currentBlock);
@@ -2062,9 +2067,12 @@ auto OMGIRGenerator::addCurrentMemory(ExpressionType& result, uint8_t memoryInde
         static_assert(PageCount::pageSize == 1ull << shiftValue, "This must hold for the code below to be correct.");
         Value* numPages = m_currentBlock->appendNew<Value>(m_proc, ZShr, origin(), size, constant(Int32, shiftValue));
 
-        result = push(int32OfPointer(numPages));
+        if (m_info.memory(memoryIndex).isMemory64())
+            result = push(numPages);
+        else
+            result = push(int32OfPointer(numPages));
     } else {
-        Value* resultValue = callWasmOperation(m_currentBlock, toB3Type(Types::I32), operationWasmMemorySizeInPages,
+        Value* resultValue = callWasmOperation(m_currentBlock, m_info.memory(memoryIndex).addressType().asB3TypeKind(), operationWasmMemorySizeInPages,
             instanceValue(), constant(Int32, memoryIndex));
         result = push(resultValue);
     }
@@ -2568,7 +2576,7 @@ inline uint32_t sizeOfLoadOp(LoadOpType op)
 
 inline B3::Kind OMGIRGenerator::memoryKind(B3::Opcode memoryOp)
 {
-    if (useSignalingMemory() || m_info.theOnlyMemory().isShared())
+    if (useSignalingMemory0() || m_info.memory(0).isShared())
         return trapping(memoryOp);
     return memoryOp;
 }
@@ -6049,7 +6057,7 @@ auto OMGIRGenerator::emitDirectCall(unsigned callProfileIndex, FunctionSpaceInde
     emitUnlinkedWasmToWasmCall(patchpoint, handle, prepareForCall);
     // We need to clobber the size register since the IPInt always bounds checks
     // FIXME(wasm-multimemory): is this the right way to handle a memoryCount of 0?
-    if (useSignalingMemory() || (m_info.memoryCount() && m_info.theOnlyMemory().isShared()))
+    if (useSignalingMemory0() || (m_info.memoryCount() && m_info.memory(0).isShared()))
         patchpoint->clobberLate(RegisterSet { GPRInfo::wasmBoundsCheckingSizeRegister });
 
     fillCallResults(patchpoint, signature, results);
@@ -6484,6 +6492,8 @@ Expected<std::unique_ptr<InternalFunction>, String> parseAndCompileOMG(Compilati
         auto passes = JSON::Array::create();
         ionGraphPasses = passes.get();
         ionGraphFunction->setString("name"_s, callee.nameWithHash());
+        ionGraphFunction->setString("tier"_s, "OMG"_s);
+        ionGraphFunction->setBoolean("osr"_s, compilationMode == CompilationMode::OMGForOSREntryMode);
         ionGraphFunction->setArray("passes"_s, WTF::move(passes));
     }
     auto result = makeUnique<InternalFunction>();
@@ -6494,6 +6504,7 @@ Expected<std::unique_ptr<InternalFunction>, String> parseAndCompileOMG(Compilati
     compilationContext.procedure = makeUniqueWithoutFastMallocCheck<Procedure>(info.usesSIMD(functionIndex));
 
     Procedure& procedure = *compilationContext.procedure;
+    procedure.setName(callee.nameWithHash());
     if (shouldDumpIRFor(functionIndex + info.importFunctionCount()))
         procedure.setShouldDumpIR();
 
@@ -6562,7 +6573,7 @@ Expected<std::unique_ptr<InternalFunction>, String> parseAndCompileOMG(Compilati
     }
 
     if (ionGraphFunction) [[unlikely]]
-        ProfilerSupport::dumpIonGraphFunction(makeString("wasm-function-"_s, functionIndexSpace.rawIndex()), ionGraphFunction.releaseNonNull());
+        ProfilerSupport::dumpIonGraphFunction(makeString("wasm-function-"_s, functionIndexSpace.rawIndex()), "OMG"_s, compilationMode == CompilationMode::OMGForOSREntryMode, ionGraphFunction.releaseNonNull());
 
     return result;
 }

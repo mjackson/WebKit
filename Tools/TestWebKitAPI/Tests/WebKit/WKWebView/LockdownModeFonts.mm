@@ -73,7 +73,7 @@ static void waitForFontLoad(WKWebView *webView)
 }
 
 // rdar://136524076
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 150000
+#if PLATFORM(MAC)
 TEST(LockdownMode, DISABLED_SVGFonts)
 #else
 TEST(LockdownMode, SVGFonts)

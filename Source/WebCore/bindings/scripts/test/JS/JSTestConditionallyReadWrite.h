@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestConditionallyReadWrite : public JSDOMWrapper<TestConditionallyReadWrite> {
 public:
     using Base = JSDOMWrapper<TestConditionallyReadWrite>;
-    static JSTestConditionallyReadWrite* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestConditionallyReadWrite>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestConditionallyReadWrite* ptr = new (NotNull, JSC::allocateCell<JSTestConditionallyReadWrite>(vm)) JSTestConditionallyReadWrite(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestConditionallyReadWrite* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestConditionallyReadWrite>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

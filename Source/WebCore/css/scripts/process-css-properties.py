@@ -4780,7 +4780,7 @@ class GenerateStyleBuilderGenerated:
 
         with to.indent():
             if property in self.style_properties.all_by_name["font"].codegen_properties.longhands and "Initial" not in property.codegen_properties.style_builder_custom and property.codegen_properties.style_builder_requires_system_font_shorthand_check:
-                to.write(f"if (CSSPropertyParserHelpers::isSystemFontShorthand(value.valueID())) {{")
+                to.write(f"if (CSSPropertyParserHelpers::isSystemFontShorthand(valueID(value))) {{")
                 with to.indent():
                     to.write(f"applyInitial{property.id_without_prefix}(builderState);")
                     to.write(f"return;")
@@ -4903,13 +4903,13 @@ class GenerateStyleBuilderGenerated:
             self.generation_context.generate_includes(
                 to=writer,
                 headers=[
-                    "CSSPrimitiveValueMappings.h",
                     "CSSProperty.h",
                     "RenderStyle+GettersInlines.h",
                     "RenderStyle+SettersInlines.h",
                     "StyleBuilderCustom.h",
                     "StyleBuilderState.h",
                     "StyleComputedStyle+InitialInlines.h",
+                    "StyleKeyword+Mappings.h",
                     "StylePropertyShorthand.h",
                 ]
             )
@@ -5178,12 +5178,12 @@ class GenerateStyleExtractorGenerated:
             self.generation_context.generate_includes(
                 to=writer,
                 headers=[
-                    "CSSPrimitiveValueMappings.h",
                     "CSSProperty.h",
                     "ColorSerialization.h",
                     "RenderStyle.h",
                     "StyleExtractorCustom.h",
                     "StyleExtractorState.h",
+                    "StyleKeyword+Mappings.h",
                     "StylePropertyShorthand.h",
                 ]
             )
@@ -9559,7 +9559,7 @@ class TermGeneratorNonFastPathKeywordTerm(TermGenerator):
                         to.write(f"{default_string};")
 
                 to.write(f"{range_string}.consumeIncludingWhitespace();")
-                to.write(f"return CSSPrimitiveValue::create({return_expression.return_value});")
+                to.write(f"return CSSKeywordValue::create(CSS::Keyword {{ {return_expression.return_value} }});")
 
         to.write(f"default:")
         with to.indent():

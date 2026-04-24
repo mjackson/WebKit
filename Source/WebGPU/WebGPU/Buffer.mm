@@ -451,6 +451,11 @@ void Buffer::setLabel(String&& label)
     m_buffer.label = label.createNSString().get();
 }
 
+void Buffer::generateAValidationError(String&& message)
+{
+    m_device->generateAValidationError(WTF::move(message));
+}
+
 uint64_t Buffer::initialSize() const
 {
     return m_initialSize;
@@ -838,6 +843,11 @@ void wgpuBufferMapAsyncWithBlock(WGPUBuffer buffer, WGPUMapModeFlags mode, size_
 void wgpuBufferUnmap(WGPUBuffer buffer)
 {
     protect(WebGPU::fromAPI(buffer))->unmap();
+}
+
+void wgpuBufferGenerateAValidationError(WGPUBuffer buffer)
+{
+    protect(WebGPU::fromAPI(buffer))->generateAValidationError("Buffer state was not unmapped"_s);
 }
 
 void wgpuBufferSetLabel(WGPUBuffer buffer, const char* label)

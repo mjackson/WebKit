@@ -41,6 +41,7 @@
 #import "GraphicsContext.h"
 #import "GraphicsLayer.h"
 #import "GraphicsLayerCA.h"
+#import "GraphicsLayerFactory.h"
 #import "LocalFrameInlines.h"
 #import "LocalFrameView.h"
 #import "Logging.h"

@@ -29,6 +29,7 @@
 #if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
 
 #import <pal/avfoundation/MediaTimeAVFoundation.h>
+#import <wtf/darwin/DispatchExtras.h>
 #import <wtf/TZoneMallocInlines.h>
 
 #import <pal/cf/CoreMediaSoftLink.h>
@@ -145,16 +146,18 @@ static void* WebMediaSourceObserverContext = &WebMediaSourceObserverContext;
         return;
     }
 
-    if ([keyPath isEqualToString:@"currentValue"] || [keyPath isEqualToString:@"currentPlaybackPosition"]) {
-        if (RefPtr route = _route.get()) {
-            if (RefPtr client = route->client())
-                client->currentPlaybackPositionDidChange(*route);
+    dispatch_async(mainDispatchQueueSingleton(), ^{
+        if ([keyPath isEqualToString:@"currentValue"] || [keyPath isEqualToString:@"currentPlaybackPosition"]) {
+            if (RefPtr route = _route.get()) {
+                if (RefPtr client = route->client())
+                    client->currentPlaybackPositionDidChange(*route);
+            }
+            return;
         }
-        return;
-    }
 
-    FOR_EACH_KEY_PATH(OBSERVE_VALUE)
-    ASSERT_NOT_REACHED();
+        FOR_EACH_KEY_PATH(OBSERVE_VALUE)
+        ASSERT_NOT_REACHED();
+    });
 }
 
 - (void)dealloc

@@ -53,8 +53,8 @@ public:
 
     void clearChildNodeListCache()
     {
-        if (m_childNodeList)
-            m_childNodeList->invalidateCache();
+        if (RefPtr childNodeList = m_childNodeList.get())
+            childNodeList->invalidateCache();
     }
 
     Ref<ChildNodeList> ensureChildNodeList(ContainerNode& node)

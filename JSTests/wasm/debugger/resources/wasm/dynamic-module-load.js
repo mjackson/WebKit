@@ -32,6 +32,7 @@ var wasm1 = new Uint8Array([
 var inst1 = new WebAssembly.Instance(new WebAssembly.Module(wasm1));
 print("Module1 loaded");
 
+print("DEBUGGER_READY");
 print("Waiting for debugger — attach LLDB and type 'c' to continue.");
 while (!$vm.hasDebuggerContinued()) { }
 print("Debugger continued");

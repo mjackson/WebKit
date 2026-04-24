@@ -1453,8 +1453,10 @@ WI.DOMTreeElement = class DOMTreeElement extends WI.TreeElement
         let attrNameElement = attrSpanElement.createChild("span", "html-attribute-name");
         attrNameElement.textContent = name;
         let attrValueElement = null;
+
+        let quote = value.includes('"') ? "'" : "\"";
         if (hasText)
-            attrSpanElement.append("=\u200B\"");
+            attrSpanElement.append("=\u200B", quote);
 
         if (name === "src" || /\bhref\b/.test(name)) {
             let baseURL = node.frame ? node.frame.url : null;
@@ -1511,7 +1513,7 @@ WI.DOMTreeElement = class DOMTreeElement extends WI.TreeElement
         }
 
         if (hasText)
-            attrSpanElement.append("\"");
+            attrSpanElement.append(quote);
 
         this._createModifiedAnimation(name, value, hasText ? attrValueElement : attrNameElement);
 

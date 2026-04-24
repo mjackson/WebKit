@@ -27,6 +27,7 @@
 #include "StyleJustifySelf.h"
 
 #include "AnchorPositionEvaluator.h"
+#include "CSSKeywordValue.h"
 #include "RenderStyle.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleBuilderChecking.h"
@@ -100,8 +101,8 @@ auto CSSValueConversion<JustifySelf>::operator()(BuilderState& state, const CSSV
         return position;
     };
 
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (applyPositionTryFallbackTactics(state, primitiveValue->valueID())) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (applyPositionTryFallbackTactics(state, keywordValue->valueID())) {
         // auto
         case CSSValueAuto:
             return CSS::Keyword::Auto { };
@@ -141,7 +142,7 @@ auto CSSValueConversion<JustifySelf>::operator()(BuilderState& state, const CSSV
         }
     }
 
-    auto pair = requiredPairDowncast<CSSPrimitiveValue>(state, value);
+    auto pair = requiredPairDowncast<CSSKeywordValue>(state, value);
     if (!pair)
         return CSS::Keyword::Auto { };
 

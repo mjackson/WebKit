@@ -743,9 +743,8 @@ class Tracker(GenericTracker):
         if radar and isinstance(radar.tracker, RadarTracker):
             if radar not in (issue.references or []):
                 comment_to_make = '<rdar://problem/{}>'.format(radar.id)
-            if user_to_cc:
-                keyword_to_add = 'InRadar'
-            elif comment_to_make:
+            keyword_to_add = 'InRadar'
+            if not user_to_cc and comment_to_make:
                 tracked_bug = issue.references[0] if issue.references else None
                 if tracked_bug:
                     sys.stderr.write("{} already CCed '{}' and tracking a different bug\n".format(
@@ -761,7 +760,8 @@ class Tracker(GenericTracker):
                         return None
                     if response == 'No':
                         raise ValueError('Radar is tracking a different bug')
-                else:
+                    user_to_cc = True
+                elif 'InRadar' not in (issue.keywords or []):
                     sys.stderr.write("{} already CCed but no Radar was imported\n".format(
                         self.radar_importer.name,
                     ))
@@ -774,7 +774,7 @@ class Tracker(GenericTracker):
                         return None
                     if response == 'No':
                         raise ValueError("Radar Importer is already CC'd")
-                user_to_cc = True  # Ensure that the user override is respected even if 'InRadar' is applied
+                    user_to_cc = True
 
         did_modify_cc = False
         if user_to_cc or keyword_to_add:

@@ -103,6 +103,19 @@ public:
     AXObjectRareData& ensureRareData();
     bool needsRareData() const { return isTable() || isExposedTableRow(); }
 
+    // Bit flags stored in the uint16_t portion of m_rareDataWithBitfields.
+    static constexpr uint16_t ignoreARIAHiddenBit = 1 << 0;
+    bool shouldIgnoreARIAHidden() const { return m_rareDataWithBitfields.type() & ignoreARIAHiddenBit; }
+    void setShouldIgnoreARIAHidden(bool value)
+    {
+        auto bits = m_rareDataWithBitfields.type();
+        if (value)
+            bits |= ignoreARIAHiddenBit;
+        else
+            bits &= ~ignoreARIAHiddenBit;
+        m_rareDataWithBitfields.setType(bits);
+    }
+
     bool hasDirtySubtree() const { return m_subtreeDirty; }
 
     bool isInDescriptionListDetail() const;
@@ -454,6 +467,8 @@ public:
     String brailleLabel() const override { return getAttribute(HTMLNames::aria_braillelabelAttr); }
     String brailleRoleDescription() const override { return getAttribute(HTMLNames::aria_brailleroledescriptionAttr); }
     String embeddedImageDescription() const final;
+    FloatSize imageDataSize() const final;
+    RefPtr<SharedBuffer> imageData(const AXImageDataParameters&) const final;
     std::optional<AccessibilityChildrenVector> imageOverlayElements() override { return std::nullopt; }
     String extendedDescription() const final;
 
@@ -954,7 +969,7 @@ protected:
     bool allowsTextRanges() const;
     unsigned getLengthForTextRange() const;
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     void verifyChildrenIndexInParent() const final { return AXCoreObject::verifyChildrenIndexInParent(m_children); }
 #endif
     void NODELETE resetChildrenIndexInParent() const;

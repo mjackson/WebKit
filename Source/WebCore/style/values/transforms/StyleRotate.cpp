@@ -25,6 +25,7 @@
 #include "config.h"
 #include "StyleRotate.h"
 
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
 #include "StylePrimitiveNumericTypes+CSSValueConversion.h"
@@ -48,12 +49,17 @@ auto CSSValueConversion<Rotate>::operator()(BuilderState& state, const CSSValue&
     // https://drafts.csswg.org/css-transforms-2/#propdef-rotate
     // none | <angle> | [ x | y | z | <number>{3} ] && <angle>
 
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        ASSERT_UNUSED(primitiveValue, primitiveValue->valueID() == CSSValueNone);
-        return CSS::Keyword::None { };
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
     }
 
-    auto list = requiredListDowncast<CSSValueList, CSSPrimitiveValue>(state, value);
+    auto list = requiredListDowncast<CSSValueList, CSSValue>(state, value);
     if (!list)
         return CSS::Keyword::None { };
 
@@ -63,10 +69,13 @@ auto CSSValueConversion<Rotate>::operator()(BuilderState& state, const CSSValue&
 
     // An axis identifier and angle were specified.
     if (list->size() == 2) {
-        auto axis = list->item(0).valueID();
+        RefPtr keywordValue = requiredDowncast<CSSKeywordValue>(state, list->item(0));
+        if (!keywordValue)
+            return CSS::Keyword::None { };
+
         auto angle = toStyleFromCSSValue<Angle<>>(state, list->item(1));
 
-        switch (axis) {
+        switch (keywordValue->valueID()) {
         case CSSValueX:
             return RotateTransformFunction::create(1_css_number, 0_css_number, 0_css_number, angle, TransformFunctionBase::Type::RotateX);
         case CSSValueY:
@@ -74,10 +83,9 @@ auto CSSValueConversion<Rotate>::operator()(BuilderState& state, const CSSValue&
         case CSSValueZ:
             return RotateTransformFunction::create(0_css_number, 0_css_number, 1_css_number, angle, TransformFunctionBase::Type::RotateZ);
         default:
-            break;
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
         }
-        ASSERT_NOT_REACHED();
-        return RotateTransformFunction::create(angle, TransformFunctionType::Rotate);
     }
 
     ASSERT(list->size() == 4);

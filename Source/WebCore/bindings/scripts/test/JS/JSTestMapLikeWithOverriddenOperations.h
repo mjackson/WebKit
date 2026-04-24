@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestMapLikeWithOverriddenOperations : public JSDOMWrapper<TestMapLikeWithOverriddenOperations> {
 public:
     using Base = JSDOMWrapper<TestMapLikeWithOverriddenOperations>;
-    static JSTestMapLikeWithOverriddenOperations* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestMapLikeWithOverriddenOperations>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestMapLikeWithOverriddenOperations* ptr = new (NotNull, JSC::allocateCell<JSTestMapLikeWithOverriddenOperations>(vm)) JSTestMapLikeWithOverriddenOperations(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestMapLikeWithOverriddenOperations* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestMapLikeWithOverriddenOperations>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

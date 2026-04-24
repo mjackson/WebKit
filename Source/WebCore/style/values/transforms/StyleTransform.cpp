@@ -25,6 +25,7 @@
 #include "config.h"
 #include "StyleTransform.h"
 
+#include "CSSKeywordValue.h"
 #include "CSSTransformListValue.h"
 #include "LayoutSize.h"
 #include "RenderBox.h"
@@ -40,8 +41,15 @@ namespace Style {
 
 auto CSSValueConversion<Transform>::operator()(BuilderState& state, const CSSValue& value) -> Transform
 {
-    if (value.valueID() == CSSValueNone)
-        return CSS::Keyword::None { };
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
+    }
 
     RefPtr transformList = requiredDowncast<CSSTransformListValue>(state, value);
     if (!transformList)

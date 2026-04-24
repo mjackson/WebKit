@@ -722,7 +722,7 @@ static bool shouldTriggerOMGCompile(TierUpCount& tierUp, OMGCallee* replacement,
 
 static void triggerOMGReplacementCompile(TierUpCount& tierUp, JSWebAssemblyInstance* instance, Wasm::CalleeGroup& calleeGroup, FunctionCodeIndex functionIndex)
 {
-    MemoryMode memoryMode = instance->memory()->mode();
+    MemoryMode memoryMode = instance->memory0Mode();
     bool compile = false;
     {
         Locker locker { tierUp.getLock() };
@@ -927,7 +927,7 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationWasmTriggerTierUpNow, void, (CallFram
     ASSERT(callee.compilationMode() == CompilationMode::BBQMode);
 
     Wasm::CalleeGroup& calleeGroup = *instance->calleeGroup();
-    ASSERT(instance->memory()->mode() == calleeGroup.mode());
+    ASSERT(instance->memory0Mode() == calleeGroup.mode());
 
     FunctionSpaceIndex functionIndexInSpace = callee.index();
     FunctionCodeIndex functionIndex = calleeGroup.toCodeIndex(functionIndexInSpace);
@@ -972,7 +972,7 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationWasmTriggerOSREntryNow, void, (Probe:
         return true;
     };
 
-    MemoryMode memoryMode = instance->memory()->mode();
+    MemoryMode memoryMode = instance->memory0Mode();
     ASSERT(memoryMode == calleeGroup.mode());
 
     TierUpCount& tierUp = callee.tierUpCounter();
@@ -1239,7 +1239,7 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationWasmMaterializeBaselineData, void, (C
     ASSERT(callee.compilationMode() == CompilationMode::BBQMode);
 
     Wasm::CalleeGroup& calleeGroup = *instance->calleeGroup();
-    ASSERT(instance->memory()->mode() == calleeGroup.mode());
+    ASSERT(instance->memory0Mode() == calleeGroup.mode());
 
     FunctionSpaceIndex functionIndexInSpace = callee.index();
     FunctionCodeIndex functionIndex = calleeGroup.toCodeIndex(functionIndexInSpace);

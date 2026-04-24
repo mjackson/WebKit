@@ -44,7 +44,7 @@ EXCLUDED_SOURCE_FILE_NAMES[sdk=appletv*] = $(inherited) ios/Launch.storyboard *.
 EXCLUDED_SOURCE_FILE_NAMES[sdk=watch*] = $(inherited) ios/Launch.storyboard *.appex;
 EXCLUDED_SOURCE_FILE_NAMES[sdk=xr*] = $(inherited) *.appex;
 
-TARGETED_DEVICE_FAMILY = 1,2,4,7;
+TARGETED_DEVICE_FAMILY = 1,2,3,4,7;
 
 CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*] = Configurations/WebKitTestRunnerApp-iOS-simulator.entitlements;
 CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*] = Configurations/WebKitTestRunnerApp-iOS.entitlements;

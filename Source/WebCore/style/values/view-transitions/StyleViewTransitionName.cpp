@@ -25,7 +25,7 @@
 #include "config.h"
 #include "StyleViewTransitionName.h"
 
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 
 namespace WebCore {
@@ -35,8 +35,8 @@ namespace Style {
 
 auto CSSValueConversion<ViewTransitionName>::operator()(BuilderState& state, const CSSValue& value) -> ViewTransitionName
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueNone:
             return CSS::Keyword::None { };
         case CSSValueAuto:
@@ -44,11 +44,9 @@ auto CSSValueConversion<ViewTransitionName>::operator()(BuilderState& state, con
         case CSSValueMatchElement:
             return { CSS::Keyword::MatchElement { }, state.styleScopeOrdinal() };
         default:
-            break;
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
         }
-
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return CSS::Keyword::None { };
     }
 
     return { toStyleFromCSSValue<CustomIdent>(state, value), state.styleScopeOrdinal() };

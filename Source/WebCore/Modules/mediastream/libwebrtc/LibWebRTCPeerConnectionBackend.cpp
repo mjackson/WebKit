@@ -286,7 +286,11 @@ Ref<RTCRtpReceiver> LibWebRTCPeerConnectionBackend::createReceiver(LibWebRTCRtpR
 {
     Ref document = downcast<Document>(*m_peerConnection->scriptExecutionContext());
 
-    Ref remoteTrackPrivate = MediaStreamTrackPrivate::create(document->logger(), WTF::move(backendAndSource.source), createVersion4UUIDString());
+    auto sourceId = backendAndSource.source->persistentID();
+    auto trackId = createVersion4UUIDString();
+    m_trackIds.add(WTF::move(sourceId), trackId);
+
+    Ref remoteTrackPrivate = MediaStreamTrackPrivate::create(document->logger(), WTF::move(backendAndSource.source), WTF::move(trackId));
     Ref remoteTrack = MediaStreamTrack::create(document.get(), WTF::move(remoteTrackPrivate));
 
     return RTCRtpReceiver::create(*this, WTF::move(remoteTrack), WTF::move(backendAndSource.backend));

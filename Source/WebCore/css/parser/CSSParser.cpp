@@ -37,6 +37,7 @@
 #include "CSSCustomPropertyValue.h"
 #include "CSSFontFamilyNameValue.h"
 #include "CSSFontFeatureValuesRule.h"
+#include "CSSKeywordValueInlines.h"
 #include "CSSKeyframeRule.h"
 #include "CSSKeyframesRule.h"
 #include "CSSParserEnum.h"
@@ -956,13 +957,21 @@ RefPtr<StyleRuleFontPaletteValues> CSSParser::consumeFontPaletteValuesRule(CSSPa
 
     std::optional<FontPaletteIndex> basePalette;
     if (auto basePaletteValue = properties->getPropertyCSSValue(CSSPropertyBasePalette)) {
-        const auto& primitiveValue = downcast<CSSPrimitiveValue>(*basePaletteValue);
-        if (primitiveValue.isInteger())
-            basePalette = FontPaletteIndex(primitiveValue.resolveAsIntegerDeprecated<unsigned>());
-        else if (primitiveValue.valueID() == CSSValueLight)
-            basePalette = FontPaletteIndex(FontPaletteIndex::Type::Light);
-        else if (primitiveValue.valueID() == CSSValueDark)
-            basePalette = FontPaletteIndex(FontPaletteIndex::Type::Dark);
+        if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(*basePaletteValue)) {
+            if (primitiveValue->isInteger())
+                basePalette = FontPaletteIndex(primitiveValue->resolveAsIntegerDeprecated<unsigned>());
+        } else if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(*basePaletteValue)) {
+            switch (keywordValue->valueID()) {
+            case CSSValueLight:
+                basePalette = FontPaletteIndex(FontPaletteIndex::Type::Light);
+                break;
+            case CSSValueDark:
+                basePalette = FontPaletteIndex(FontPaletteIndex::Type::Dark);
+                break;
+            default:
+                break;
+            }
+        }
     }
 
     Vector<FontPaletteValues::OverriddenColor> overrideColors;
@@ -1390,7 +1399,7 @@ RefPtr<StyleRuleProperty> CSSParser::consumePropertyRule(CSSParserTokenRange pre
             descriptor.syntax = Ref { downcast<CSSStringValue>(*property.value()) }->string().value;
             continue;
         case CSSPropertyInherits:
-            descriptor.inherits = property.value()->valueID() == CSSValueTrue;
+            descriptor.inherits = isValueID(property.value(), CSSValueTrue);
             break;
         case CSSPropertyInitialValue:
             descriptor.initialValue = Ref { downcast<CSSCustomPropertyValue>(*property.value()) }->asVariableData();

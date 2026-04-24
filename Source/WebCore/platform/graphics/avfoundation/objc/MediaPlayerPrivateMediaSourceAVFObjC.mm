@@ -587,6 +587,8 @@ void MediaPlayerPrivateMediaSourceAVFObjC::continueSeek(const MediaTime& seekTim
             protectedThis->reenqueueMediaForTimeAndFinishSeek(seekTime);
             return;
         }
+        if (RefPtr mediaSourcePrivate = protectedThis->m_mediaSourcePrivate)
+            mediaSourcePrivate->clearReenqueuePending();
         protectedThis->completeSeek(*result);
     })->track(m_rendererPrepareSeekRequest);
 }

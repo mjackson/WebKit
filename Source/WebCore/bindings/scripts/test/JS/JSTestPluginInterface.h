@@ -30,13 +30,7 @@ namespace WebCore {
 class JSTestPluginInterface : public JSDOMWrapper<TestPluginInterface> {
 public:
     using Base = JSDOMWrapper<TestPluginInterface>;
-    static JSTestPluginInterface* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestPluginInterface>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestPluginInterface* ptr = new (NotNull, JSC::allocateCell<JSTestPluginInterface>(vm)) JSTestPluginInterface(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestPluginInterface* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestPluginInterface>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

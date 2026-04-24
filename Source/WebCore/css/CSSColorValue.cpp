@@ -25,7 +25,7 @@
 #include "config.h"
 #include "CSSColorValue.h"
 
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValue.h"
 
 namespace WebCore {
 
@@ -61,8 +61,11 @@ WebCore::Color CSSColorValue::absoluteColor(const CSSValue& value)
     if (RefPtr color = dynamicDowncast<CSSColorValue>(value))
         return color->color().absoluteColor();
 
-    if (auto valueID = value.valueID(); CSS::isAbsoluteColorKeyword(valueID))
-        return CSS::colorFromAbsoluteKeyword(valueID);
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        if (auto valueID = keywordValue->valueID(); CSS::isAbsoluteColorKeyword(valueID))
+            return CSS::colorFromAbsoluteKeyword(valueID);
+    }
+
     return { };
 }
 

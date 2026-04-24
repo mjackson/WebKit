@@ -63,11 +63,7 @@ INSTALL_PATH_NO = $(SYSTEM_SECONDARY_CONTENT_PATH)/usr/libexec;
 INSTALL_PATH_YES = $(WEBKIT_FRAMEWORKS_DIR)/WebKit.framework/$(WK_FRAMEWORK_VERSION_PREFIX)Daemons;
 INSTALL_PATH = $(INSTALL_PATH_$(WK_RELOCATABLE_WEBPUSHD));
 
-WK_SKIP_INSTALL_WEBPUSHD[sdk=macosx*] = $(WK_IS_CATALYST);
-// webpushd should not be installed when building for downlevel on <= 12.
-WK_SKIP_INSTALL_WEBPUSHD[sdk=macosx11*] = YES;
-WK_SKIP_INSTALL_WEBPUSHD[sdk=macosx12*] = YES;
-SKIP_INSTALL = $(WK_SKIP_INSTALL_WEBPUSHD)
+SKIP_INSTALL[sdk=macosx*] = $(WK_IS_CATALYST);
 
 LAUNCHD_PLIST_FILE_NAME = com.apple.webkit.webpushd.plist
 

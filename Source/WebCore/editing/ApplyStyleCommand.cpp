@@ -1454,7 +1454,7 @@ void ApplyStyleCommand::applyInlineStyleChange(Node& passedStart, Node& passedEn
         startNode = startNodeFirstChild;
     }
 
-    // Font tags need to go outside of CSS so that CSS font sizes override leagcy font sizes.
+    // Font tags need to go outside of CSS so that CSS font sizes override legacy font sizes.
     if (styleChange.applyFontColor() || styleChange.applyFontFace() || styleChange.applyFontSize()) {
         if (fontContainer) {
             if (styleChange.applyFontColor())
@@ -1516,10 +1516,10 @@ float ApplyStyleCommand::computedFontSize(Node* node)
     if (!node)
         return 0;
 
-    auto value = Style::Extractor(node).propertyValue(CSSPropertyFontSize);
+    RefPtr value = dynamicDowncast<CSSPrimitiveValue>(Style::Extractor(node).propertyValue(CSSPropertyFontSize));
     if (!value)
         return 0;
-    return downcast<CSSPrimitiveValue>(*value).resolveAsLengthDeprecated();
+    return value->resolveAsLengthDeprecated();
 }
 
 void ApplyStyleCommand::joinChildTextNodes(Node* node, const Position& start, const Position& end)

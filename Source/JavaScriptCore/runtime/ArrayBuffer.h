@@ -131,49 +131,10 @@ class ArrayBufferContents final {
     WTF_MAKE_NONCOPYABLE(ArrayBufferContents);
 public:
     ArrayBufferContents() = default;
-    ArrayBufferContents(void* data, size_t sizeInBytes, std::optional<size_t> maxByteLength, ArrayBufferDestructorFunction&& destructor)
-        : m_data(data)
-        , m_destructor(WTF::move(destructor))
-        , m_sizeInBytes(sizeInBytes)
-        , m_maxByteLength(maxByteLength.value_or(sizeInBytes))
-        , m_hasMaxByteLength(!!maxByteLength)
-    {
-        RELEASE_ASSERT(m_sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
-    }
-
-    ArrayBufferContents(std::span<const uint8_t> data, std::optional<size_t> maxByteLength, ArrayBufferDestructorFunction&& destructor)
-        : ArrayBufferContents(const_cast<uint8_t*>(data.data()), data.size(), maxByteLength, WTF::move(destructor))
-    {
-    }
-
-    ArrayBufferContents(Ref<SharedArrayBufferContents>&& shared, bool forceFixedLengthIfWasm = true)
-        : m_shared(WTF::move(shared))
-        , m_memoryHandle(m_shared->memoryHandle())
-        , m_sizeInBytes(m_shared->sizeInBytes(std::memory_order_seq_cst))
-    {
-        RELEASE_ASSERT(m_sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
-        bool adjustedForceFixedLengthIfWasm = forceFixedLengthIfWasm || !Options::useWasmMemoryToBufferAPIs();
-        if (m_shared->mode() == SharedArrayBufferContents::Mode::WebAssembly && adjustedForceFixedLengthIfWasm) {
-            m_hasMaxByteLength = false;
-            m_maxByteLength = m_sizeInBytes;
-        } else {
-            m_hasMaxByteLength = !!m_shared->maxByteLength();
-            m_maxByteLength = m_shared->maxByteLength().value_or(m_sizeInBytes);
-        }
-        // data() cannot destroy m_shared here so the code is safe as is so avoid
-        // refing for performance reasons.
-        SUPPRESS_UNCOUNTED_ARG m_data = DataType { m_shared->data() };
-    }
-
-    ArrayBufferContents(void* data, size_t sizeInBytes, size_t maxByteLength, Ref<BufferMemoryHandle>&& memoryHandle)
-        : m_data(data)
-        , m_memoryHandle(WTF::move(memoryHandle))
-        , m_sizeInBytes(sizeInBytes)
-        , m_maxByteLength(maxByteLength)
-        , m_hasMaxByteLength(true)
-    {
-        RELEASE_ASSERT(m_sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
-    }
+    ArrayBufferContents(void* data, size_t sizeInBytes, std::optional<size_t> maxByteLength, ArrayBufferDestructorFunction&&);
+    ArrayBufferContents(std::span<const uint8_t> data, std::optional<size_t> maxByteLength, ArrayBufferDestructorFunction&&);
+    ArrayBufferContents(Ref<SharedArrayBufferContents>&&, bool forceFixedLengthIfWasm = true);
+    ArrayBufferContents(void* data, size_t sizeInBytes, size_t maxByteLength, Ref<BufferMemoryHandle>&&);
 
     JS_EXPORT_PRIVATE static std::optional<ArrayBufferContents> fromSpan(std::span<const uint8_t>);
 

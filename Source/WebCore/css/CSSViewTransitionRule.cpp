@@ -27,6 +27,7 @@
 #include "CSSViewTransitionRule.h"
 
 #include "CSSCustomIdentValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSPropertyParser.h"
 #include "CSSStyleSheet.h"
 #include "CSSTokenizer.h"
@@ -41,13 +42,11 @@ namespace WebCore {
 
 static std::optional<ViewTransitionNavigation> NODELETE toViewTransitionNavigationEnum(RefPtr<CSSValue> navigation)
 {
-    if (!navigation || !navigation->isPrimitiveValue())
+    RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(navigation);
+    if (!keywordValue)
         return std::nullopt;
 
-    auto& primitiveNavigationValue = downcast<CSSPrimitiveValue>(*navigation);
-    ASSERT(primitiveNavigationValue.isValueID());
-
-    if (primitiveNavigationValue.valueID() == CSSValueAuto)
+    if (keywordValue->valueID() == CSSValueAuto)
         return ViewTransitionNavigation::Auto;
     return ViewTransitionNavigation::None;
 }

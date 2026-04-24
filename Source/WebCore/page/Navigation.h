@@ -49,36 +49,48 @@ class SerializedScriptValue;
 class NavigationActivation;
 class NavigationDestination;
 
-enum class FrameLoadType : uint8_t;
-
-enum class NavigationAPIMethodTrackerType { };
-using NavigationAPIMethodTrackerIdentifier = ObjectIdentifier<NavigationAPIMethodTrackerType>;
-
 // https://html.spec.whatwg.org/multipage/nav-history-apis.html#navigation-api-method-tracker
-struct NavigationAPIMethodTracker : public RefCounted<NavigationAPIMethodTracker> {
-    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(NavigationAPIMethodTracker);
-
+class NavigationAPIMethodTracker : public RefCounted<NavigationAPIMethodTracker> {
+    WTF_MAKE_TZONE_ALLOCATED(NavigationAPIMethodTracker);
+public:
     static Ref<NavigationAPIMethodTracker> create(JSC::JSGlobalObject&, Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue&& info, RefPtr<SerializedScriptValue>&& serializedState);
     ~NavigationAPIMethodTracker();
 
     bool operator==(const NavigationAPIMethodTracker& other) const
     {
         // key is optional so we manually identify each tracker.
-        return identifier == other.identifier;
+        return m_identifier == other.m_identifier;
     }
 
-    bool finishedBeforeCommit { false };
-    String key;
-    JSValueInWrappedObject info;
-    RefPtr<SerializedScriptValue> serializedState;
-    RefPtr<NavigationHistoryEntry> committedToEntry;
-    Ref<DeferredPromise> committedPromise;
-    Ref<DeferredPromise> finishedPromise;
+    const String& key() const { return m_key; }
+    void setKey(const String& key) { m_key = key; }
+    JSValueInWrappedObject& info() { return m_info; }
+    SerializedScriptValue* serializedState() const { return m_serializedState.get(); }
+    void setSerializedState(RefPtr<SerializedScriptValue>&& state) { m_serializedState = WTF::move(state); }
+    RefPtr<SerializedScriptValue> takeSerializedState() { return WTF::move(m_serializedState); }
+    NavigationHistoryEntry* committedToEntry() const { return m_committedToEntry.get(); }
+    void setCommittedToEntry(NavigationHistoryEntry* entry) { m_committedToEntry = entry; }
+    DeferredPromise& committedPromise() { return m_committedPromise; }
+    const DeferredPromise& committedPromise() const { return m_committedPromise; }
+    DeferredPromise& finishedPromise() { return m_finishedPromise; }
+    const DeferredPromise& finishedPromise() const { return m_finishedPromise; }
+    bool finishedBeforeCommit() const { return m_finishedBeforeCommit; }
+    void setFinishedBeforeCommit(bool value) { m_finishedBeforeCommit = value; }
 
 private:
     NavigationAPIMethodTracker(JSC::JSGlobalObject&, Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue&& info, RefPtr<SerializedScriptValue>&& serializedState);
 
-    NavigationAPIMethodTrackerIdentifier identifier;
+    enum class IdentifierType { };
+    using Identifier = ObjectIdentifier<IdentifierType>;
+
+    bool m_finishedBeforeCommit { false };
+    String m_key;
+    JSValueInWrappedObject m_info;
+    RefPtr<SerializedScriptValue> m_serializedState;
+    RefPtr<NavigationHistoryEntry> m_committedToEntry;
+    Ref<DeferredPromise> m_committedPromise;
+    Ref<DeferredPromise> m_finishedPromise;
+    Identifier m_identifier;
 };
 
 enum class ShouldCopyStateObjectFromCurrentEntry : bool { No, Yes };

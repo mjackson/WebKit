@@ -23,6 +23,7 @@
 
 #include "OpenXRExtensions.h"
 #include "PlatformXRCoordinator.h"
+#include <WebCore/IntSize.h>
 #include <WebCore/PageIdentifier.h>
 #include <openxr/openxr.h>
 #include <wtf/Box.h>
@@ -54,7 +55,11 @@ public:
     void getPrimaryDeviceInfo(WebPageProxy&, DeviceInfoCallback&&) override;
     void requestPermissionOnSessionFeatures(WebPageProxy&, const WebCore::SecurityOriginData&, PlatformXR::SessionMode, const PlatformXR::Device::FeatureList&, const PlatformXR::Device::FeatureList&, const PlatformXR::Device::FeatureList&, const PlatformXR::Device::FeatureList&, const PlatformXR::Device::FeatureList&, FeatureListCallback&&) override;
 
-    void createLayerProjection(uint32_t, uint32_t, bool, CompletionHandler<void(std::optional<PlatformXR::LayerHandle>)>&&) override;
+    void createLayerProjection(uint32_t, uint32_t, bool, CompletionHandler<void(std::optional<PlatformXR::LayerInfo>)>&&) override;
+
+#if ENABLE(WEBXR_LAYERS)
+    void createQuadLayer(WebCore::IntSize, PlatformXR::LayerLayout, CreateQuadCallback&&) override;
+#endif
 
     void startSession(WebPageProxy&, WeakPtr<PlatformXRCoordinatorSessionEventClient>&&, const WebCore::SecurityOriginData&, PlatformXR::SessionMode, const PlatformXR::Device::FeatureList&, std::optional<WebCore::XRCanvasConfiguration>&&) override;
     void endSessionIfExists(WebPageProxy&) override;

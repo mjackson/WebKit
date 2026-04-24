@@ -26,6 +26,7 @@
 #include "config.h"
 #include "StyleFontPalette.h"
 
+#include "CSSKeywordValue.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "StyleBuilderChecking.h"
 #include "StyleValueTypes+CSSValueConversion.h"
@@ -37,8 +38,8 @@ namespace Style {
 
 auto CSSValueConversion<FontPalette>::operator()(BuilderState& state, const CSSValue& value) -> FontPalette
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (auto valueID = primitiveValue->valueID(); valueID) {
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (auto valueID = keywordValue->valueID(); valueID) {
         case CSSValueNormal:
             return CSS::Keyword::Normal { };
         case CSSValueLight:

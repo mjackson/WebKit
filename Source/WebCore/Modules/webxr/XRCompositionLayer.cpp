@@ -37,9 +37,10 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(XRCompositionLayer);
 
-XRCompositionLayer::XRCompositionLayer(ScriptExecutionContext* scriptExecutionContext, WebXRSession& session, Ref<XRLayerBacking>&& backing)
+XRCompositionLayer::XRCompositionLayer(ScriptExecutionContext* scriptExecutionContext, WebXRSession& session, Ref<XRLayerBacking>&& backing, const WebXRLayerInit& init)
     : WebXRLayer(scriptExecutionContext)
     , m_backing(WTF::move(backing))
+    , m_init(init)
     , m_session(session)
 {
 }
@@ -66,6 +67,12 @@ void XRCompositionLayer::setDepthStencilTextures(Vector<RefPtr<WebGLOpaqueTextur
     m_depthStencilTextures = WTF::move(depthStencilTextures);
 }
 
+void XRCompositionLayer::fillInCommonDeviceLayerData(PlatformXR::DeviceLayer& data) const
+{
+    data.blendTextureSourceAlpha = m_blendTextureSourceAlpha;
+    data.forceMonoPresentation = m_forceMonoPresentation;
 }
+
+} // namespace WebCore
 
 #endif

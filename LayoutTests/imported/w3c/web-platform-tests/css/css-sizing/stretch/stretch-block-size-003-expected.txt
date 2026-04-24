@@ -21,12 +21,8 @@ PASS .test 1
 PASS .test 2
 PASS .test 3
 PASS .test 4
-FAIL .test 5 assert_equals:
-<div class="test vlr" data-expected-width="41"></div>
-width expected 41 but got 10
-FAIL .test 6 assert_equals:
-<div class="test vrl" data-expected-width="41"></div>
-width expected 41 but got 10
+PASS .test 5
+PASS .test 6
 PASS .test 7
 PASS .test 8
 PASS .test 9
@@ -51,12 +47,8 @@ PASS .test 19
 PASS .test 20
 PASS .test 21
 PASS .test 22
-FAIL .test 23 assert_equals:
-<div class="test vlr" data-expected-width="41" style="box-sizing: border-box;"></div>
-width expected 41 but got 10
-FAIL .test 24 assert_equals:
-<div class="test vrl" data-expected-width="41" style="box-sizing: border-box;"></div>
-width expected 41 but got 10
+PASS .test 23
+PASS .test 24
 PASS .test 25
 PASS .test 26
 PASS .test 27

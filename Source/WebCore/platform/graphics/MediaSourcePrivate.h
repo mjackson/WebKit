@@ -107,6 +107,7 @@ public:
     Ref<MediaTimePromise> waitForTarget(const SeekTarget&);
     Ref<GenericPromise> reenqueueMediaForTime(const MediaTime&);
     bool isReenqueuePending() const { return m_reenqueuePending; }
+    void clearReenqueuePending() { m_reenqueuePending = false; }
 
     virtual void setTimeFudgeFactor(const MediaTime& fudgeFactor) { m_timeFudgeFactor = fudgeFactor; }
     MediaTime timeFudgeFactor() const { return m_timeFudgeFactor; }

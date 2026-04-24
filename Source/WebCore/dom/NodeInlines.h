@@ -202,9 +202,8 @@ ALWAYS_INLINE void Node::clearStyleFlags(OptionSet<NodeStyleFlag> flags)
 
 inline void Node::clearChildNeedsStyleRecalc()
 {
-    auto bitfields = styleBitfields();
-    bitfields.clearDescendantsNeedStyleResolution();
-    setStyleBitfields(bitfields);
+    clearStateFlag(StateFlag::DescendantNeedsStyleResolution);
+    clearStateFlag(StateFlag::DirectChildNeedsStyleResolution);
 }
 
 inline void Node::setHasValidStyle()

@@ -35,6 +35,7 @@
 #include <wtf/DataLog.h>
 #include <wtf/DebugHeap.h>
 #include <wtf/FastBitVector.h>
+#include <wtf/Lock.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/SharedTask.h>
 #include <wtf/Vector.h>

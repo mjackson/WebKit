@@ -1214,6 +1214,8 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/DoublePredictionFuzzerAgent.h
     runtime/DumpContext.h
     runtime/ECMAMode.h
+    runtime/EmbedderArrayLike.h
+    runtime/EncodedValueDescriptor.h
     runtime/EnsureStillAliveHere.h
     runtime/EnumerationMode.h
     runtime/Error.h
@@ -1285,6 +1287,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/IndexingHeader.h
     runtime/IndexingHeaderInlines.h
     runtime/IndexingType.h
+    runtime/IndexingTypeInlines.h
     runtime/IndirectEvalExecutable.h
     runtime/InferredValue.h
     runtime/InferredValueInlines.h
@@ -1365,8 +1368,11 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSCConfig.h
     runtime/JSCInlines.h
     runtime/JSCJSValue.h
+    runtime/JSCJSValueBigInt.h
+    runtime/JSCJSValueCell.h
     runtime/JSCJSValueInlines.h
-    runtime/JSCPtrTag.h
+    runtime/JSCJSValuePropertyInlines.h
+    runtime/JSCJSValueStructure.h
     runtime/JSCallee.h
     runtime/JSCalleeInlines.h
     runtime/JSCast.h
@@ -1374,11 +1380,10 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSCellButterfly.h
     runtime/JSCellButterflyInlines.h
     runtime/JSCellInlines.h
-    runtime/JSCJSValueCellInlines.h
-    runtime/JSCJSValueInlines.h
     runtime/JSPIContext.h
     runtime/JSPIContextInlines.h
     runtime/JSCPtrTag.h
+    runtime/JSCTimeZone.h
     runtime/JSCustomGetterFunction.h
     runtime/JSCustomGetterFunctionInlines.h
     runtime/JSCustomSetterFunction.h
@@ -1391,6 +1396,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSDestructibleObjectHeapCellType.h
     runtime/JSDisposableStack.h
     runtime/JSDisposableStackInlines.h
+    runtime/JSEmbedderArrayLike.h
     runtime/JSExportMacros.h
     runtime/JSFinalizationRegistry.h
     runtime/JSFloat16Array.h
@@ -1468,10 +1474,6 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSRemoteFunctionInlines.h
     runtime/JSRunLoopTimer.h
     runtime/JSScope.h
-    runtime/JSScriptFetchParameters.h
-    runtime/JSScriptFetchParametersInlines.h
-    runtime/JSScriptFetcher.h
-    runtime/JSScriptFetcherInlines.h
     runtime/JSSegmentedVariableObject.h
     runtime/JSSet.h
     runtime/JSSetInlines.h
@@ -1571,6 +1573,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/ObjectPrototype.h
     runtime/ObjectPrototypeInlines.h
     runtime/Operations.h
+    runtime/OperationsInlines.h
     runtime/Options.h
     runtime/OptionsList.h
     runtime/OrderedHashTable.h
@@ -1675,9 +1678,11 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/StringSplitCache.h
     runtime/StringSplitCacheInlines.h
     runtime/Structure.h
+    runtime/StructureArrayStorageInlines.h
     runtime/StructureCache.h
     runtime/StructureChain.h
     runtime/StructureChainInlines.h
+    runtime/StructureCreateInlines.h
     runtime/StructureID.h
     runtime/StructureInlines.h
     runtime/StructureRareData.h
@@ -2251,7 +2256,7 @@ endif()
 WEBKIT_COMPUTE_SOURCES(JavaScriptCore)
 WEBKIT_FRAMEWORK(JavaScriptCore)
 
-target_precompile_headers(JavaScriptCore PRIVATE JavaScriptCorePrefix.h)
+ADD_WEBKIT_PREFIX_HEADERS(JavaScriptCore JavaScriptCorePrefix.h)
 
 if(NOT "${PORT}" STREQUAL "Mac")
     if(${JavaScriptCore_LIBRARY_TYPE} STREQUAL "SHARED")

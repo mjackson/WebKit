@@ -133,6 +133,26 @@
             }
         },
         {
+            "name": "mac-asan",
+            "displayName": "macOS ASan (AddressSanitizer, RelWithDebInfo, ccache)",
+            "inherits": ["mac", "dev"],
+            "binaryDir": "WebKitBuild/cmake-mac/ASan",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": {
+                    "type": "STRING",
+                    "value": "RelWithDebInfo"
+                },
+                "ENABLE_SANITIZERS": {
+                    "type": "STRING",
+                    "value": "address"
+                },
+                "ENABLE_EXPERIMENTAL_FEATURES": {
+                    "type": "BOOL",
+                    "value": "OFF"
+                }
+            }
+        },
+        {
             "name": "wpe",
             "hidden": true,
             "generator": "Ninja",
@@ -191,6 +211,11 @@
             "name": "mac-dev-relwithdebinfo",
             "displayName": "macOS Development RelWithDebInfo",
             "configurePreset": "mac-dev-relwithdebinfo"
+        },
+        {
+            "name": "mac-asan",
+            "displayName": "macOS ASan",
+            "configurePreset": "mac-asan"
         },
         {
             "name": "gtk-release",

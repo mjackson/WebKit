@@ -9,14 +9,14 @@ PASS Property text-autospace value 'ideograph-alpha ideograph-numeric'
 FAIL Property text-autospace value 'punctuation' assert_true: 'punctuation' is a supported value for text-autospace. expected true got false
 FAIL Property text-autospace value 'punctuation ideograph-alpha' assert_true: 'punctuation ideograph-alpha' is a supported value for text-autospace. expected true got false
 FAIL Property text-autospace value 'punctuation ideograph-alpha ideograph-numeric' assert_true: 'punctuation ideograph-alpha ideograph-numeric' is a supported value for text-autospace. expected true got false
-FAIL Property text-autospace value 'ideograph-alpha insert' assert_true: 'ideograph-alpha insert' is a supported value for text-autospace. expected true got false
-FAIL Property text-autospace value 'ideograph-numeric insert' assert_true: 'ideograph-numeric insert' is a supported value for text-autospace. expected true got false
-FAIL Property text-autospace value 'ideograph-alpha ideograph-numeric insert' assert_true: 'ideograph-alpha ideograph-numeric insert' is a supported value for text-autospace. expected true got false
+PASS Property text-autospace value 'ideograph-alpha insert'
+PASS Property text-autospace value 'ideograph-numeric insert'
+PASS Property text-autospace value 'ideograph-alpha ideograph-numeric insert'
 FAIL Property text-autospace value 'punctuation insert' assert_true: 'punctuation insert' is a supported value for text-autospace. expected true got false
 FAIL Property text-autospace value 'punctuation ideograph-alpha insert' assert_true: 'punctuation ideograph-alpha insert' is a supported value for text-autospace. expected true got false
-FAIL Property text-autospace value 'insert ideograph-alpha' assert_true: 'insert ideograph-alpha' is a supported value for text-autospace. expected true got false
-FAIL Property text-autospace value 'insert ideograph-numeric' assert_true: 'insert ideograph-numeric' is a supported value for text-autospace. expected true got false
-FAIL Property text-autospace value 'insert ideograph-alpha ideograph-numeric' assert_true: 'insert ideograph-alpha ideograph-numeric' is a supported value for text-autospace. expected true got false
+PASS Property text-autospace value 'insert ideograph-alpha'
+PASS Property text-autospace value 'insert ideograph-numeric'
+PASS Property text-autospace value 'insert ideograph-alpha ideograph-numeric'
 FAIL Property text-autospace value 'insert punctuation' assert_true: 'insert punctuation' is a supported value for text-autospace. expected true got false
 FAIL Property text-autospace value 'insert punctuation ideograph-alpha' assert_true: 'insert punctuation ideograph-alpha' is a supported value for text-autospace. expected true got false
 FAIL Property text-autospace value 'insert punctuation ideograph-alpha ideograph-numeric' assert_true: 'insert punctuation ideograph-alpha ideograph-numeric' is a supported value for text-autospace. expected true got false

@@ -1,6 +1,4 @@
 
 
-FAIL Moving a transition across documents should reset its state assert_throws_dom: function "() => {
-        document.querySelector("#new-parent").moveBefore(item, null);
-      }" threw object "TypeError: document.querySelector("#new-parent").moveBefore is not a function. (In 'document.querySelector("#new-parent").moveBefore(item, null)', 'document.querySelector("#new-parent").moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
+PASS Moving a transition across documents should reset its state
 

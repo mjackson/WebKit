@@ -144,6 +144,10 @@ public:
     WebCore::HTMLMediaElement* NODELETE mediaElementWithContextId(WebCore::HTMLMediaElementIdentifier) const;
     WebCore::HTMLMediaElement* NODELETE currentPlaybackControlsElement() const;
 
+#if ENABLE(IMAGE_ANALYSIS)
+    void cancelTextRecognition();
+#endif
+
 #if HAVE(PIP_SKIP_PREROLL)
     void actionHandlersChanged() final;
 #endif

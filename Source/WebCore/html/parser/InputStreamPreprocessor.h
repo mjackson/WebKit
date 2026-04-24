@@ -32,14 +32,9 @@
 
 namespace WebCore {
 
-// http://www.whatwg.org/specs/web-apps/current-work/#preprocessing-the-input-stream
-template <typename Tokenizer>
+// https://html.spec.whatwg.org/#preprocessing-the-input-stream
 class InputStreamPreprocessor {
 public:
-    explicit InputStreamPreprocessor(Tokenizer& tokenizer)
-        : m_tokenizer(tokenizer)
-    {
-    }
 
     ALWAYS_INLINE char16_t nextInputCharacter() const { return m_nextInputCharacter; }
     ALWAYS_INLINE bool skipNextNewLine() const { return m_skipNextNewLine; }
@@ -99,7 +94,7 @@ private:
         m_skipNextNewLine = false;
         if (m_nextInputCharacter || isAtEndOfFile(source))
             return true;
-        if (skipNullCharacters && !m_tokenizer.neverSkipNullCharacters()) {
+        if (skipNullCharacters) {
             source.advancePastNonNewline();
             if (source.isEmpty())
                 return false;
@@ -115,9 +110,7 @@ private:
         return source.isClosed() && source.length() == 1;
     }
 
-    Tokenizer& m_tokenizer;
-
-    // http://www.whatwg.org/specs/web-apps/current-work/#next-input-character
+    // https://html.spec.whatwg.org/#next-input-character
     char16_t m_nextInputCharacter { 0 };
     bool m_skipNextNewLine { false };
 };

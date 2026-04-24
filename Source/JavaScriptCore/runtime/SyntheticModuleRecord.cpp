@@ -70,14 +70,14 @@ void SyntheticModuleRecord::finishCreation(JSGlobalObject* globalObject, VM& vm)
 template<typename Visitor>
 void SyntheticModuleRecord::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
-    SyntheticModuleRecord* thisObject = jsCast<SyntheticModuleRecord*>(cell);
+    SyntheticModuleRecord* thisObject = uncheckedDowncast<SyntheticModuleRecord>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
 }
 
 DEFINE_VISIT_CHILDREN(SyntheticModuleRecord);
 
-Synchronousness SyntheticModuleRecord::link(JSGlobalObject*, JSValue)
+Synchronousness SyntheticModuleRecord::link(JSGlobalObject*, RefPtr<ScriptFetcher>)
 {
     return Synchronousness::Sync;
 }

@@ -31,12 +31,7 @@ class JSServiceWorkerGlobalScope : public JSWorkerGlobalScope {
 public:
     using Base = JSWorkerGlobalScope;
     using DOMWrapped = ServiceWorkerGlobalScope;
-    static JSServiceWorkerGlobalScope* create(JSC::VM& vm, JSC::Structure* structure, Ref<ServiceWorkerGlobalScope>&& impl, JSC::JSGlobalProxy* proxy)
-    {
-        JSServiceWorkerGlobalScope* ptr = new (NotNull, JSC::allocateCell<JSServiceWorkerGlobalScope>(vm)) JSServiceWorkerGlobalScope(vm, structure, WTF::move(impl));
-        ptr->finishCreation(vm, proxy);
-        return ptr;
-    }
+    static JSServiceWorkerGlobalScope* create(JSC::VM&, JSC::Structure*, Ref<ServiceWorkerGlobalScope>&&, JSC::JSGlobalProxy*);
 
 
     DECLARE_INFO;
@@ -83,10 +78,7 @@ public:
         STATIC_ASSERT_ISO_SUBSPACE_SHARABLE(JSServiceWorkerGlobalScopePrototype, Base);
         return &vm.plainObjectSpace();
     }
-    static JSC::Structure* createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
-    {
-        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
-    }
+    static JSC::Structure* createStructure(JSC::VM&, JSC::JSGlobalObject*, JSC::JSValue);
 
 private:
     JSServiceWorkerGlobalScopePrototype(JSC::VM& vm, JSC::JSGlobalObject*, JSC::Structure* structure)

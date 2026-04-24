@@ -557,7 +557,7 @@ static NSArray<WKBridgeTypedResourceId *> *convert(const Vector<TypedResourceId>
 }
 
 template<typename T>
-static NSData* convert(const Vector<T>& data)
+static NSData *convert(const Vector<T>& data)
 {
     if (!data.size())
         return nil;
@@ -659,138 +659,15 @@ static MTLTextureSwizzleChannels convert(ImageAssetSwizzle swizzle)
     };
 }
 
-static uint32_t texelBlockSize(MTLPixelFormat format)
-{
-    switch (format) {
-    case MTLPixelFormatR8Unorm:
-    case MTLPixelFormatR8Snorm:
-    case MTLPixelFormatR8Uint:
-    case MTLPixelFormatR8Sint:
-        return 1;
-    case MTLPixelFormatR16Unorm:
-    case MTLPixelFormatR16Snorm:
-    case MTLPixelFormatR16Uint:
-    case MTLPixelFormatR16Sint:
-    case MTLPixelFormatR16Float:
-    case MTLPixelFormatRG8Unorm:
-    case MTLPixelFormatRG8Snorm:
-    case MTLPixelFormatRG8Uint:
-    case MTLPixelFormatRG8Sint:
-        return 2;
-    case MTLPixelFormatR32Float:
-    case MTLPixelFormatR32Uint:
-    case MTLPixelFormatR32Sint:
-    case MTLPixelFormatRG16Unorm:
-    case MTLPixelFormatRG16Snorm:
-    case MTLPixelFormatRG16Uint:
-    case MTLPixelFormatRG16Sint:
-    case MTLPixelFormatRG16Float:
-    case MTLPixelFormatRGBA8Unorm:
-    case MTLPixelFormatRGBA8Unorm_sRGB:
-    case MTLPixelFormatRGBA8Snorm:
-    case MTLPixelFormatRGBA8Uint:
-    case MTLPixelFormatRGBA8Sint:
-    case MTLPixelFormatBGRA8Unorm:
-    case MTLPixelFormatBGRA8Unorm_sRGB:
-    case MTLPixelFormatRGB10A2Unorm:
-    case MTLPixelFormatRG11B10Float:
-    case MTLPixelFormatRGB9E5Float:
-    case MTLPixelFormatRGB10A2Uint:
-        return 4;
-    case MTLPixelFormatRG32Float:
-    case MTLPixelFormatRG32Uint:
-    case MTLPixelFormatRG32Sint:
-    case MTLPixelFormatRGBA16Unorm:
-    case MTLPixelFormatRGBA16Snorm:
-    case MTLPixelFormatRGBA16Uint:
-    case MTLPixelFormatRGBA16Sint:
-    case MTLPixelFormatRGBA16Float:
-        return 8;
-    case MTLPixelFormatRGBA32Float:
-    case MTLPixelFormatRGBA32Uint:
-    case MTLPixelFormatRGBA32Sint:
-        return 16;
-    case MTLPixelFormatStencil8:
-        return 1;
-    case MTLPixelFormatDepth16Unorm:
-        return 2;
-    case MTLPixelFormatDepth32Float:
-        return 4;
-    case MTLPixelFormatDepth32Float_Stencil8:
-        ASSERT_NOT_REACHED();
-        return 0;
-    case MTLPixelFormatBC1_RGBA:
-    case MTLPixelFormatBC1_RGBA_sRGB:
-        return 8;
-    case MTLPixelFormatBC2_RGBA:
-    case MTLPixelFormatBC2_RGBA_sRGB:
-        return 16;
-    case MTLPixelFormatBC3_RGBA:
-    case MTLPixelFormatBC3_RGBA_sRGB:
-        return 16;
-    case MTLPixelFormatBC4_RUnorm:
-    case MTLPixelFormatBC4_RSnorm:
-        return 8;
-    case MTLPixelFormatBC5_RGUnorm:
-    case MTLPixelFormatBC5_RGSnorm:
-        return 16;
-    case MTLPixelFormatBC6H_RGBUfloat:
-    case MTLPixelFormatBC6H_RGBFloat:
-        return 16;
-    case MTLPixelFormatBC7_RGBAUnorm:
-    case MTLPixelFormatBC7_RGBAUnorm_sRGB:
-        return 16;
-    case MTLPixelFormatETC2_RGB8:
-    case MTLPixelFormatETC2_RGB8_sRGB:
-    case MTLPixelFormatETC2_RGB8A1:
-    case MTLPixelFormatETC2_RGB8A1_sRGB:
-        return 8;
-    case MTLPixelFormatEAC_R11Unorm:
-    case MTLPixelFormatEAC_R11Snorm:
-        return 8;
-    case MTLPixelFormatEAC_RGBA8:
-    case MTLPixelFormatEAC_RGBA8_sRGB:
-    case MTLPixelFormatEAC_RG11Unorm:
-    case MTLPixelFormatEAC_RG11Snorm:
-        return 16;
-    case MTLPixelFormatASTC_4x4_sRGB:
-    case MTLPixelFormatASTC_4x4_LDR:
-    case MTLPixelFormatASTC_5x4_sRGB:
-    case MTLPixelFormatASTC_5x4_LDR:
-    case MTLPixelFormatASTC_5x5_sRGB:
-    case MTLPixelFormatASTC_5x5_LDR:
-    case MTLPixelFormatASTC_6x5_sRGB:
-    case MTLPixelFormatASTC_6x5_LDR:
-    case MTLPixelFormatASTC_6x6_sRGB:
-    case MTLPixelFormatASTC_6x6_LDR:
-    case MTLPixelFormatASTC_8x5_sRGB:
-    case MTLPixelFormatASTC_8x5_LDR:
-    case MTLPixelFormatASTC_8x6_sRGB:
-    case MTLPixelFormatASTC_8x6_LDR:
-    case MTLPixelFormatASTC_8x8_sRGB:
-    case MTLPixelFormatASTC_8x8_LDR:
-    case MTLPixelFormatASTC_10x5_sRGB:
-    case MTLPixelFormatASTC_10x5_LDR:
-    case MTLPixelFormatASTC_10x6_sRGB:
-    case MTLPixelFormatASTC_10x6_LDR:
-    case MTLPixelFormatASTC_10x8_sRGB:
-    case MTLPixelFormatASTC_10x8_LDR:
-    case MTLPixelFormatASTC_10x10_sRGB:
-    case MTLPixelFormatASTC_10x10_LDR:
-    case MTLPixelFormatASTC_12x10_sRGB:
-    case MTLPixelFormatASTC_12x10_LDR:
-    case MTLPixelFormatASTC_12x12_sRGB:
-    case MTLPixelFormatASTC_12x12_LDR:
-        return 16;
-    default:
-        RELEASE_ASSERT_NOT_REACHED();
-    }
-}
-
 static WKBridgeImageAsset* convert(const ImageAsset& imageAsset)
 {
     auto mtlPixelFormat = WebModel::toMetal(imageAsset.pixelFormat);
-    return [WebKit::allocWKBridgeImageAssetInstance() initWithData:convert(imageAsset.data) width:imageAsset.width height:imageAsset.height depth:imageAsset.depth bytesPerPixel:imageAsset.bytesPerPixel ?: texelBlockSize(mtlPixelFormat) textureType:toMetal(imageAsset.textureType) pixelFormat:mtlPixelFormat mipmapLevelCount:imageAsset.mipmapLevelCount arrayLength:imageAsset.arrayLength textureUsage:toMetal(imageAsset.textureUsage) swizzle:convert(imageAsset.swizzle)];
+    return [WebKit::allocWKBridgeImageAssetInstance() initWithData:convert(imageAsset.data) width:imageAsset.width height:imageAsset.height depth:imageAsset.depth textureType:toMetal(imageAsset.textureType) pixelFormat:mtlPixelFormat mipmapLevelCount:imageAsset.mipmapLevelCount arrayLength:imageAsset.arrayLength textureUsage:toMetal(imageAsset.textureUsage) swizzle:convert(imageAsset.swizzle)];
+}
+
+static WKBridgeTextureLevelInfo* convert(const TextureLevelInfo& textureLevelInfo)
+{
+    return [WebKit::allocWKBridgeTextureLevelInfoInstance() initWithDataOffset:textureLevelInfo.dataOffset byteCountPerRow:textureLevelInfo.byteCountPerRow byteCountPerImage:textureLevelInfo.byteCountPerImage];
 }
 
 static WKBridgeDataType convert(DataType type)
@@ -813,11 +690,11 @@ static WKBridgeDataType convert(DataType type)
     case DataType::kFloat:
         return WKBridgeDataTypeFloat;
     case DataType::kColor3f:
-        return WKBridgeDataTypeColor3f;
+        return WKBridgeDataTypeCgColor3;
     case DataType::kColor3h:
         return WKBridgeDataTypeColor3h;
     case DataType::kColor4f:
-        return WKBridgeDataTypeColor4f;
+        return WKBridgeDataTypeCgColor4;
     case DataType::kColor4h:
         return WKBridgeDataTypeColor4h;
     case DataType::kFloat2:
@@ -860,6 +737,8 @@ static WKBridgeDataType convert(DataType type)
         return WKBridgeDataTypeToken;
     case DataType::kAsset:
         return WKBridgeDataTypeAsset;
+    default:
+        RELEASE_ASSERT_NOT_REACHED("unknown data type");
     }
 }
 
@@ -886,12 +765,7 @@ static NSArray<WKBridgeInputOutput *> *convert(const Vector<InputOutput>& inputO
 {
     NSMutableArray<WKBridgeInputOutput *> *result = [NSMutableArray array];
     for (const auto& io : inputOutputs) {
-        WKBridgeDataType semanticType = WKBridgeDataTypeAsset;
-        BOOL hasSemanticType = NO;
-        if (io.semanticType) {
-            semanticType = convert(*io.semanticType);
-            hasSemanticType = YES;
-        }
+        NSString *semanticTypeName = io.semanticTypeName ? io.semanticTypeName->createNSString().get() : nil;
 
         WKBridgeConstantContainer *defaultValue = nil;
         if (io.defaultValue)
@@ -899,8 +773,7 @@ static NSArray<WKBridgeInputOutput *> *convert(const Vector<InputOutput>& inputO
 
         [result addObject:[WebKit::allocWKBridgeInputOutputInstance() initWithType:convert(io.type)
             name:io.name.createNSString().get()
-            semanticType:semanticType
-            hasSemanticType:hasSemanticType
+            semanticTypeName:semanticTypeName
             defaultValue:defaultValue]];
     }
 
@@ -952,9 +825,27 @@ static NSArray<WKBridgeNode *> *convert(const Vector<Node>& nodes)
     return result;
 }
 
+static NSArray<NSString *> *convertStrings(const Vector<String>& strings)
+{
+    NSMutableArray<NSString *> *result = [NSMutableArray arrayWithCapacity:strings.size()];
+    for (const auto& s : strings)
+        [result addObject:s.createNSString().get()];
+    return result;
+}
+
 static WKBridgeMaterialGraph *convert(const MaterialGraph& material)
 {
-    return [WebKit::allocWKBridgeMaterialGraphInstance() initWithNodes:convert(material.nodes) edges:convert(material.edges) arguments:convert(material.arguments) results:convert(material.results) inputs:convert(material.inputs) outputs:convert(material.outputs)];
+    return [WebKit::allocWKBridgeMaterialGraphInstance()
+        initWithGraphName:material.graphName.createNSString().get()
+        nodes:convert(material.nodes)
+        edges:convert(material.edges)
+        arguments:convert(material.arguments)
+        results:convert(material.results)
+        inputs:convert(material.inputs)
+        outputs:convert(material.outputs)
+        primvarMappingPrimvarNames:convertStrings(material.primvarMappingPrimvarNames)
+        primvarMappingTexcoordNames:convertStrings(material.primvarMappingTexcoordNames)
+        functionConstantInputNames:convertStrings(material.functionConstantInputNames)];
 }
 
 #endif
@@ -1010,7 +901,6 @@ WebMesh::~WebMesh() = default;
 void WebMesh::render(uint32_t textureIndex, Function<void(bool)>&& completionHandler) const
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    processUpdates();
     if (!m_meshDataExists) {
         completionHandler(false);
         return;
@@ -1050,40 +940,29 @@ static WKBridgeUpdateMesh *convert(const WebModel::UpdateMeshDescriptor& input)
 void WebMesh::update(Vector<WebModel::UpdateMeshDescriptor>&& inputArray)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    if (!m_batchedUpdates)
-        m_batchedUpdates = [NSMutableDictionary dictionary];
-
-    for (auto& input : inputArray) {
-        WKBridgeUpdateMesh *descriptor = convert(input);
-        RELEASE_ASSERT(descriptor);
-        [m_batchedUpdates setObject:descriptor forKey:@(descriptor.identifier.cachedHashValue)];
-    }
-#else
-    UNUSED_PARAM(inputArray);
-#endif
-}
-
-void WebMesh::processUpdates() const
-{
-#if ENABLE(GPU_PROCESS_MODEL)
-    if (![m_batchedUpdates count])
+    if (!inputArray.size())
         return;
 
-    BinarySemaphore completion;
     RELEASE_ASSERT(m_receiver);
-    [m_receiver updateMesh:[m_batchedUpdates allValues] completionHandler:[&] mutable {
+    BinarySemaphore completion;
+    [m_receiver updateMesh:createNSArray(inputArray, [](const WebModel::UpdateMeshDescriptor& desc) {
+        return convert(desc);
+    }) completionHandler:[&] mutable {
         completion.signal();
     }];
     completion.wait();
     m_meshDataExists = true;
-    [m_batchedUpdates removeAllObjects];
+#else
+    UNUSED_PARAM(inputArray);
 #endif
 }
 
 #if ENABLE(GPU_PROCESS_MODEL)
 static WKBridgeUpdateTexture *convert(const WebModel::UpdateTextureDescriptor& input)
 {
-    return [WebKit::allocWKBridgeUpdateTextureInstance() initWithImageAsset:WebModel::convert(input.imageAsset) identifier:convert(input.identifier) hashString:input.hashString.createNSString().get()];
+    return [WebKit::allocWKBridgeUpdateTextureInstance() initWithImageAsset:WebModel::convert(input.imageAsset) identifier:convert(input.identifier) hashString:input.hashString.createNSString().get() layout:createNSArray(input.layout, [](const WebModel::TextureLevelInfo& desc) {
+        return WebModel::convert(desc);
+    })];
 }
 #endif
 
@@ -1150,10 +1029,10 @@ void WebMesh::setBackgroundColor(const simd_float3& color)
 #endif
 }
 
-void WebMesh::setEnvironmentMap(const WebModel::ImageAsset& imageAsset)
+void WebMesh::setEnvironmentMap(const WebModel::UpdateTextureDescriptor& imageAsset)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    [m_receiver setEnvironmentMap:WebModel::convert(imageAsset)];
+    [m_receiver setEnvironmentMap:convert(imageAsset)];
 #else
     UNUSED_PARAM(imageAsset);
 #endif
@@ -1177,6 +1056,18 @@ void WebMesh::updateRenderBuffers(const WebModel::ResizeMeshDescriptor& descript
     m_textures = createMetalTextures(MTLCreateSystemDefaultDevice(), ioSurfaces, descriptor.width, descriptor.height);
 #else
     UNUSED_PARAM(descriptor);
+#endif
+}
+
+void WebMesh::processRemovals(Vector<WebModel::TypedResourceId>&& meshRemovals, Vector<WebModel::TypedResourceId>&& materialRemovals, Vector<WebModel::TypedResourceId>&& textureRemovals, CompletionHandler<void(bool)>&& completionHandler)
+{
+#if ENABLE(GPU_PROCESS_MODEL)
+    completionHandler(!![m_receiver processRemovals:WebModel::convert(meshRemovals) materialRemovals:WebModel::convert(materialRemovals) textureRemovals:WebModel::convert(textureRemovals)]);
+#else
+    UNUSED_PARAM(meshRemovals);
+    UNUSED_PARAM(materialRemovals);
+    UNUSED_PARAM(textureRemovals);
+    completionHandler(false);
 #endif
 }
 

@@ -333,3 +333,9 @@ selectors = [
     { name = "setAllowsTypeSelect:", class = "UIContextMenuConfiguration" },
 ]
 requires = ["HAVE_UICONTEXTMENUCONFIGURATION_ALLOWTYPESELECT_SUPPORT"]
+
+[[not-web-essential]]
+request = "rdar://171940190"
+selectors = [
+    { name = "endSessionWithCompletion:", class = "NFSession" },
+]

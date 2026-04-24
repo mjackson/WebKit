@@ -479,7 +479,7 @@ static void checkCallSequence(Vector<Command>&& commands, ShouldRaiseException s
 }
 
 // FIXME rdar://148379405
-#if (PLATFORM(IOS) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED <= 150000)) && !defined(NDEBUG)
+#if PLATFORM(IOS) && !defined(NDEBUG)
 TEST(URLSchemeHandler, DISABLED_Exceptions)
 #else
 TEST(URLSchemeHandler, Exceptions)

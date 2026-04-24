@@ -886,12 +886,9 @@
                 (deny mach-message-send (with no-report) (message-number 1023))
                 (allow mach-message-send (notifyd-message-numbers))))))
 
-#if ENABLE(NOTIFY_BLOCKING)
-(with-filter (require-not (notify-blocking))
-    (allow-notifyd))
-#else
+#if !ENABLE(NOTIFY_BLOCKING) || !USE(APPLE_INTERNAL_SDK)
 (allow-notifyd)
-#endif // ENABLE(NOTIFY_BLOCKING)
+#endif
 #endif // PLATFORM(MAC)
 
 ;; <rdar://problem/63943836>

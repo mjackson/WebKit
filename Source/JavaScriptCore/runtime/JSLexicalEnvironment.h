@@ -29,6 +29,7 @@
 #pragma once
 
 #include "CodeBlock.h"
+#include "JSGlobalObject.h"
 #include "JSSymbolTableObject.h"
 #include "SymbolTable.h"
 

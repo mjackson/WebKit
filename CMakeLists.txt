@@ -21,6 +21,7 @@ include(WebKitCommon)
 # "project()" line
 #------------------------------------------------------------------------------
 if (SWIFT_REQUIRED)
+    cmake_policy(SET CMP0157 NEW)
     enable_language(Swift)
 
     # Override Swift compiler to a wrapper script to work around the

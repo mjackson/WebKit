@@ -26,16 +26,18 @@
 #include "config.h"
 #include "ModuleGraphLoadingState.h"
 
+#include "JSCellInlines.h"
 #include "JSPromise.h"
+#include "ScriptFetcher.h"
 
 namespace JSC {
 
 const ClassInfo ModuleGraphLoadingState::s_info = { "ModuleGraphLoadingState"_s, nullptr, nullptr, nullptr, CREATE_METHOD_TABLE(ModuleGraphLoadingState) };
 
-ModuleGraphLoadingState::ModuleGraphLoadingState(VM& vm, Structure* structure, JSPromise* promise, JSValue scriptFetcher)
+ModuleGraphLoadingState::ModuleGraphLoadingState(VM& vm, Structure* structure, JSPromise* promise, RefPtr<ScriptFetcher> scriptFetcher)
     : Base(vm, structure)
     , m_promise(promise, WriteBarrierEarlyInit)
-    , m_scriptFetcher(scriptFetcher, WriteBarrierEarlyInit)
+    , m_scriptFetcher(WTF::move(scriptFetcher))
 {
 }
 
@@ -54,20 +56,19 @@ void ModuleGraphLoadingState::finishCreation(VM& vm)
 template<typename Visitor>
 void ModuleGraphLoadingState::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
-    auto* thisObject = jsCast<ModuleGraphLoadingState*>(cell);
+    auto* thisObject = uncheckedDowncast<ModuleGraphLoadingState>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_promise);
-    visitor.append(thisObject->m_scriptFetcher);
     Locker locker { thisObject->cellLock() };
     visitor.append(thisObject->m_visited.begin(), thisObject->m_visited.end());
 }
 
 DEFINE_VISIT_CHILDREN(ModuleGraphLoadingState);
 
-ModuleGraphLoadingState* ModuleGraphLoadingState::create(VM& vm, JSPromise* promise, JSValue scriptFetcher)
+ModuleGraphLoadingState* ModuleGraphLoadingState::create(VM& vm, JSPromise* promise, RefPtr<ScriptFetcher> scriptFetcher)
 {
-    ModuleGraphLoadingState* instance = new (NotNull, allocateCell<ModuleGraphLoadingState>(vm)) ModuleGraphLoadingState(vm, vm.moduleGraphLoadingStateStructure.get(), promise, scriptFetcher);
+    ModuleGraphLoadingState* instance = new (NotNull, allocateCell<ModuleGraphLoadingState>(vm)) ModuleGraphLoadingState(vm, vm.moduleGraphLoadingStateStructure.get(), promise, WTF::move(scriptFetcher));
     instance->finishCreation(vm);
     return instance;
 }
@@ -87,24 +88,19 @@ bool ModuleGraphLoadingState::isLoading() const
     return m_isLoading;
 }
 
-JSValue ModuleGraphLoadingState::scriptFetcher() const
+ScriptFetcher* ModuleGraphLoadingState::scriptFetcher() const
 {
     return m_scriptFetcher.get();
 }
 
-void ModuleGraphLoadingState::pendingModulesCount(unsigned count)
+void ModuleGraphLoadingState::setPendingModulesCount(unsigned count)
 {
     m_pendingModulesCount = count;
 }
 
-void ModuleGraphLoadingState::isLoading(bool loading)
+void ModuleGraphLoadingState::setIsLoading(bool loading)
 {
     m_isLoading = loading;
-}
-
-void ModuleGraphLoadingState::scriptFetcher(VM& vm, JSValue fetcher)
-{
-    m_scriptFetcher.set(vm, this, fetcher);
 }
 
 void ModuleGraphLoadingState::appendVisited(VM& vm, CyclicModuleRecord* cyclic)

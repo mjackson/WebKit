@@ -87,8 +87,10 @@ public:
     virtual void startFrame(PlatformXR::FrameData::LayerData&) = 0;
     virtual void endFrame(PlatformXR::DeviceLayer&) = 0;
 
+    virtual bool allTexturesAreBound() const = 0;
+
 protected:
-    WebXRWebGLSwapchain(WebGLRenderingContextBase&, SwapchainTargets, bool clearOnAccess);
+    WebXRWebGLSwapchain(WebGLRenderingContextBase&, SwapchainTargets, bool clearOnAccess, size_t imageCount);
     void clearCurrentTexture(GraphicsContextGL&);
 
     PlatformXR::LayerHandle m_handle;
@@ -98,13 +100,15 @@ protected:
 
     size_t m_currentImageIndex { 0 };
     IntSize m_texSize;
+
+    size_t m_imageCount { 0 };
 };
 
 // This class represents a swapchain that uses shared images provided by the platform's XR compositor.
 // It manages the lifecycle of these shared images and binds them to the WebGL context for rendering.
 class WebXRWebGLSharedImageSwapchain final : public WebXRWebGLSwapchain {
 public:
-    static std::unique_ptr<WebXRWebGLSharedImageSwapchain> create(WebGLRenderingContextBase&, SwapchainTargets, GCGLenum format, bool clearOnAccess);
+    static std::unique_ptr<WebXRWebGLSharedImageSwapchain> create(WebGLRenderingContextBase&, SwapchainTargets, GCGLenum format, bool clearOnAccess, size_t imageCount);
     ~WebXRWebGLSharedImageSwapchain() override;
 
     PlatformGLObject currentTexture() override;
@@ -112,8 +116,10 @@ public:
     void startFrame(PlatformXR::FrameData::LayerData&) override;
     void endFrame(PlatformXR::DeviceLayer&) override;
 
+    bool allTexturesAreBound() const override;
+
 private:
-    WebXRWebGLSharedImageSwapchain(WebGLRenderingContextBase&, SwapchainTargets, GCGLenum format, bool clearOnAccess);
+    WebXRWebGLSharedImageSwapchain(WebGLRenderingContextBase&, SwapchainTargets, GCGLenum format, bool clearOnAccess, size_t imageCount);
     void setupExternalImage(GraphicsContextGL&, const PlatformXR::FrameData::LayerSetupData&);
 
     const WebXRExternalImages* reusableTextures(const PlatformXR::FrameData::ExternalTextureData&) const;
@@ -140,6 +146,7 @@ public:
         IntSize size;
         bool clearOnAccess { false };
         SwapchainTargets targets;
+        size_t imageCount { 0 };
     };
     static std::unique_ptr<WebXRWebGLStaticImageSwapchain> create(WebGLRenderingContextBase&, StaticImageAttributes);
     ~WebXRWebGLStaticImageSwapchain() override;
@@ -148,6 +155,8 @@ public:
 
     void startFrame(PlatformXR::FrameData::LayerData&) override;
     void endFrame(PlatformXR::DeviceLayer&) override;
+
+    bool allTexturesAreBound() const override;
 
 private:
     WebXRWebGLStaticImageSwapchain(WebGLRenderingContextBase&, StaticImageAttributes);

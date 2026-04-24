@@ -173,16 +173,16 @@ void EnhancedSecurityTracking::trackSameSiteNavigation(const API::Navigation& na
 
 bool EnhancedSecurityTracking::enableIfRequired(const API::Navigation& navigation)
 {
+    if (navigation.isEnhancedSecurityLinkForCurrentSite()) {
+        enableFor(EnhancedSecurityReason::LinkSecurity, navigation);
+        return true;
+    }
+
     auto currentRequestURL = navigation.currentRequest().url();
 
     if (currentRequestURL.protocolIs("http"_s)
         && !SecurityOrigin::isLocalHostOrLoopbackIPAddress(currentRequestURL.host())) {
         enableFor(EnhancedSecurityReason::InsecureProvisional, navigation);
-        return true;
-    }
-
-    if (navigation.isEnhancedSecurityLinkForCurrentSite()) {
-        enableFor(EnhancedSecurityReason::LinkSecurity, navigation);
         return true;
     }
 

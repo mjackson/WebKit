@@ -73,12 +73,14 @@
 #include "NodeInlines.h"
 #include "Page.h"
 #include "PlaceholderModelPlayer.h"
+#include "PlatformScreen.h"
 #include "RenderBoxInlines.h"
 #include "RenderLayer.h"
 #include "RenderLayerBacking.h"
 #include "RenderLayerModelObject.h"
 #include "RenderModel.h"
 #include "RenderReplaced.h"
+#include "ScreenProperties.h"
 #include "ScriptController.h"
 #include "Settings.h"
 #include <JavaScriptCore/ConsoleTypes.h>
@@ -138,7 +140,20 @@ HTMLModelElement::HTMLModelElement(const QualifiedName& tagName, Document& docum
 #if ENABLE(MODEL_ELEMENT_ENVIRONMENT_MAP)
     , m_environmentMapReadyPromise(makeUniqueRef<EnvironmentMapPromise>())
 #endif
+#if HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
+    , m_screenPropertiesChangedObserver(ScreenPropertiesChangedObserver::create([weakThis = WeakPtr { *this }](PlatformDisplayID displayID) {
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return;
+        if (auto* screenData = WebCore::screenData(displayID))
+            protectedThis->updateScreenHeadroom(screenData->currentEDRHeadroom, screenData->suppressEDR);
+    }))
+#endif
 {
+#if HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
+    if (RefPtr screenPropertiesChangedObserver = m_screenPropertiesChangedObserver)
+        document.addScreenPropertiesChangedObserver(*screenPropertiesChangedObserver);
+#endif
 }
 
 HTMLModelElement::~HTMLModelElement()
@@ -330,8 +345,10 @@ RenderPtr<RenderElement> HTMLModelElement::createElementRenderer(RenderStyle&& s
 void HTMLModelElement::didAttachRenderers()
 {
 #if ENABLE(MODEL_PROCESS)
-    if (RefPtr page = document().page())
+    if (RefPtr page = document().page()) {
         page->incrementModelElementCount();
+        m_didIncrementModelElementCount = true;
+    }
 #endif
 
     if (!m_shouldCreateModelPlayerUponRendererAttachment)
@@ -344,8 +361,9 @@ void HTMLModelElement::didAttachRenderers()
 void HTMLModelElement::willDetachRenderers()
 {
 #if ENABLE(MODEL_PROCESS)
-    if (RefPtr page = document().page())
+    if (RefPtr page = document().page(); m_didIncrementModelElementCount && page)
         page->decrementModelElementCount();
+    m_didIncrementModelElementCount = false;
 #endif
 }
 
@@ -583,6 +601,10 @@ void HTMLModelElement::createModelPlayer()
     modelPlayer->setStageMode(stageMode());
 #endif
 
+#if HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
+    modelPlayer->setDynamicRangeLimit(m_dynamicRangeLimit, m_currentEDRHeadroom, m_suppressEDR);
+#endif
+
     // FIXME: We need to tell the player if the size changes as well, so passing this
     // in with load probably doesn't make sense.
     modelPlayer->load(*model, contentSize());
@@ -807,6 +829,10 @@ bool HTMLModelElement::canSetEntityTransform() const
 
 bool HTMLModelElement::supportsStageModeInteraction() const
 {
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    if (m_detachedForImmersive)
+        return false;
+#endif
     return canSetEntityTransform();
 }
 
@@ -1193,7 +1219,7 @@ const URL& HTMLModelElement::environmentMap() const
 
 void HTMLModelElement::setEnvironmentMap(const URL& url)
 {
-    if (url.string() == m_environmentMapURL.string())
+    if (url == m_environmentMapURL)
         return;
 
     m_environmentMapURL = url;
@@ -1571,18 +1597,23 @@ void HTMLModelElement::exitImmersivePresentation(CompletionHandler<void()>&& com
         return;
     }
 
-    modelPlayer->exitImmersivePresentation([weakThis = WeakPtr { *this }, completion = WTF::move(completion)] mutable {
+    auto generation = m_immersiveDetachGeneration;
+    modelPlayer->exitImmersivePresentation([weakThis = WeakPtr { *this }, generation, completion = WTF::move(completion)] mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return completion();
 
-        protectedThis->setDetachedForImmersive(false);
+        // Only reset if no new request has re-armed the flag since this exit started.
+        if (protectedThis->m_immersiveDetachGeneration == generation)
+            protectedThis->setDetachedForImmersive(false);
         completion();
     });
 }
 
 void HTMLModelElement::setDetachedForImmersive(bool detachedForImmersive)
 {
+    if (detachedForImmersive)
+        ++m_immersiveDetachGeneration;
     m_detachedForImmersive = detachedForImmersive;
     visibilityStateChanged();
     invalidateStyleAndLayerComposition();
@@ -1859,6 +1890,38 @@ String HTMLModelElement::modelElementStateForTesting() const
     ASSERT_NOT_REACHED();
     return "Unknown"_s;
 }
+
+#if HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
+void HTMLModelElement::dynamicRangeLimitDidChange(PlatformDynamicRangeLimit dynamicRangeLimit)
+{
+    if (m_dynamicRangeLimit == dynamicRangeLimit)
+        return;
+
+    m_dynamicRangeLimit = dynamicRangeLimit;
+    if (RefPtr modelPlayer = m_modelPlayer)
+        modelPlayer->setDynamicRangeLimit(m_dynamicRangeLimit, m_currentEDRHeadroom, m_suppressEDR);
+}
+
+void HTMLModelElement::updateScreenHeadroom(float currentEDRHeadroom, bool suppressEDR)
+{
+    if (m_suppressEDR == suppressEDR && m_currentEDRHeadroom == currentEDRHeadroom)
+        return;
+
+    m_currentEDRHeadroom = currentEDRHeadroom;
+    m_suppressEDR = suppressEDR;
+
+    if (RefPtr modelPlayer = m_modelPlayer)
+        modelPlayer->setDynamicRangeLimit(m_dynamicRangeLimit, m_currentEDRHeadroom, m_suppressEDR);
+}
+
+std::optional<double> HTMLModelElement::getEffectiveDynamicRangeLimitValue() const
+{
+    if (RefPtr modelPlayer = m_modelPlayer)
+        return modelPlayer->getEffectiveDynamicRangeLimitValue();
+
+    return std::nullopt;
+}
+#endif // HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
 
 } // namespace WebCore
 

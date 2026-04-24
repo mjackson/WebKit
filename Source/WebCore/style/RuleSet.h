@@ -54,6 +54,7 @@ using CascadeLayerPriority = uint16_t;
 struct RuleSetAndNegation {
     RefPtr<const RuleSet> ruleSet;
     IsNegation isNegation { IsNegation::No };
+    const CSSSelectorList* scopeSelector { nullptr };
 };
 using InvalidationRuleSetVector = Vector<RuleSetAndNegation, 1>;
 

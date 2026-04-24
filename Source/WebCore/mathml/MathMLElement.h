@@ -83,6 +83,7 @@ private:
     bool isKeyboardFocusable(const FocusEventData&) const final;
     bool isMouseFocusable() const final;
     bool NODELETE isURLAttribute(const Attribute&) const final;
+    bool NODELETE allowsHref() const;
     bool supportsFocus() const final;
 };
 

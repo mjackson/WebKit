@@ -159,9 +159,6 @@ static BOOL shouldForwardScrollViewDelegateMethodToExternalDelegate(SEL selector
     BOOL _bouncesVerticalInternal;
     std::optional<UIEdgeInsets> _contentScrollInsetFromClient;
     std::optional<UIEdgeInsets> _contentScrollInsetInternal;
-#if ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
-    Vector<CGRect> _overlayRegions;
-#endif
 #if HAVE(LIQUID_GLASS)
     WebCore::RectEdges<RetainPtr<WKUIScrollEdgeEffect>> _edgeEffectWrappers;
     RetainPtr<UIColor> _topPocketColorSetInternally;
@@ -334,11 +331,6 @@ static BOOL shouldForwardScrollViewDelegateMethodToExternalDelegate(SEL selector
         return;
 
     super.decelerationRate = rate;
-}
-
-static inline bool valuesAreWithinOnePixel(CGFloat a, CGFloat b)
-{
-    return CGFAbs(a - b) < 1;
 }
 
 - (void)setContentInset:(UIEdgeInsets)contentInset

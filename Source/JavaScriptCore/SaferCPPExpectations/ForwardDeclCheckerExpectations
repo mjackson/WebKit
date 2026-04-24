@@ -53,7 +53,6 @@ runtime/JSCConfig.h
 runtime/JSGlobalObject.h
 runtime/JSGlobalObjectInlines.h
 runtime/JSLock.h
-runtime/MicrotaskQueue.h
 runtime/NumericStrings.h
 runtime/PropertySlot.h
 runtime/SmallStrings.h

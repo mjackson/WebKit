@@ -34,6 +34,7 @@
 #include <JavaScriptCore/HeapCellInlines.h>
 #include <JavaScriptCore/HeapInlines.h>
 #include <JavaScriptCore/IdentifierInlines.h>
+#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSObjectInlines.h>
 #include <JavaScriptCore/TopExceptionScope.h>
 #include <wtf/TZoneMalloc.h>
@@ -117,7 +118,7 @@ JSC::JSValue JSWritableStreamSink::start(JSC::JSGlobalObject& globalObject, JSC:
     Ref vm = globalObject.vm();
 
     ASSERT(callFrame.argumentCount());
-    JSWritableStreamDefaultController* controller = jsDynamicCast<JSWritableStreamDefaultController*>(callFrame.uncheckedArgument(0));
+    JSWritableStreamDefaultController* controller = dynamicDowncast<JSWritableStreamDefaultController>(callFrame.uncheckedArgument(0));
     ASSERT(controller);
 
     m_controller.set(vm, this, controller);

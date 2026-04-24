@@ -43,6 +43,10 @@ public:
 private:
     void paintToTextureMapper(TextureMapper&, const FloatRect&, const TransformationMatrix& modelViewMatrix = TransformationMatrix(), float opacity = 1.0) override;
 
+#if USE(SKIA)
+    void paintToCanvas(SkCanvas&, const FloatRect&, const SkPaint&) override;
+#endif
+
     bool tryEnsureBuffer();
 
     RefPtr<NativeImage> m_image;

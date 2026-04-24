@@ -381,14 +381,45 @@ void NetworkDataTaskSoup::sendRequestCallback(SoupSession* soupSession, GAsyncRe
         task->didSendRequest(WTF::move(inputStream));
 }
 
+enum class ShouldStartHTTPRedirection {
+    No,
+    Yes,
+    Blocked
+};
+
+static ShouldStartHTTPRedirection shouldStartHTTPRedirection(const WebCore::ResourceResponse& response)
+{
+    auto status = response.httpStatusCode();
+    if (!SOUP_STATUS_IS_REDIRECTION(status))
+        return ShouldStartHTTPRedirection::No;
+
+    // Some 3xx status codes aren't actually redirects.
+    if (status == 300 || status == 304 || status == 305 || status == 306)
+        return ShouldStartHTTPRedirection::No;
+
+    auto location = response.httpHeaderField(HTTPHeaderName::Location);
+    if (location.isEmpty())
+        return ShouldStartHTTPRedirection::No;
+    if (location.startsWith("file:"_s))
+        return ShouldStartHTTPRedirection::Blocked;
+
+    return ShouldStartHTTPRedirection::Yes;
+}
+
 void NetworkDataTaskSoup::didSendRequest(GRefPtr<GInputStream>&& inputStream)
 {
     m_response = ResourceResponse(m_soupMessage.get(), m_sniffedContentType);
 
-    if (shouldStartHTTPRedirection()) {
+    switch (shouldStartHTTPRedirection(m_response)) {
+    case ShouldStartHTTPRedirection::Yes:
         m_inputStream = WTF::move(inputStream);
         skipInputStreamForRedirection();
         return;
+    case ShouldStartHTTPRedirection::Blocked:
+        didFail(blockedError(m_currentRequest));
+        return;
+    case ShouldStartHTTPRedirection::No:
+        break;
     }
 
     if (m_response.isMultipart())
@@ -741,25 +772,6 @@ static bool shouldRedirectAsGET(SoupMessage* message, bool crossOrigin)
         return true;
 
     return false;
-}
-
-bool NetworkDataTaskSoup::shouldStartHTTPRedirection()
-{
-    ASSERT(m_soupMessage);
-    ASSERT(!m_response.isNull());
-
-    auto status = m_response.httpStatusCode();
-    if (!SOUP_STATUS_IS_REDIRECTION(status))
-        return false;
-
-    // Some 3xx status codes aren't actually redirects.
-    if (status == 300 || status == 304 || status == 305 || status == 306)
-        return false;
-
-    if (m_response.httpHeaderField(HTTPHeaderName::Location).isEmpty())
-        return false;
-
-    return true;
 }
 
 void NetworkDataTaskSoup::continueHTTPRedirection()

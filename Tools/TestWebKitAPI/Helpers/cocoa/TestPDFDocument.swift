@@ -30,6 +30,7 @@ import CoreGraphics
 private import pal.spi.cg.CoreGraphicsSPI
 import struct Foundation.URL
 import struct Swift.String
+private import TestWebKitAPILibrary.Helpers.cocoa.TestPDFDocument
 
 #if canImport(UIKit)
 import UIKit

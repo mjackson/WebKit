@@ -45,6 +45,7 @@
 #include "JITLeftShiftGenerator.h"
 #include "JITSizeStatistics.h"
 #include "JITThunks.h"
+#include "JumpTable.h"
 #include "LLIntEntrypoint.h"
 #include "LLIntThunks.h"
 #include "LOLJITOperations.h"
@@ -1784,7 +1785,7 @@ void LOLJIT::emit_op_new_reg_exp(const JSInstruction* currentInstruction)
     constexpr GPRReg globalObjectGPR = preferredArgumentGPR<Operation, 0>();
 
     loadGlobalObject(globalObjectGPR);
-    callOperation(operationNewRegExp, globalObjectGPR, TrustedImmPtr(jsCast<RegExp*>(m_unlinkedCodeBlock->getConstant(regexp))));
+    callOperation(operationNewRegExp, globalObjectGPR, TrustedImmPtr(uncheckedDowncast<RegExp>(m_unlinkedCodeBlock->getConstant(regexp))));
     boxCell(returnValueGPR, returnValueJSR);
     emitPutVirtualRegister(dst, returnValueJSR);
 

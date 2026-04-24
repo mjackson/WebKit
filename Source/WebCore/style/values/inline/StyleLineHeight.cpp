@@ -28,6 +28,7 @@
 
 #include "AnimationUtilities.h"
 
+#include "CSSKeywordValue.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
@@ -42,17 +43,16 @@ namespace Style {
 
 auto CSSValueConversion<LineHeight>::operator()(BuilderState& state, const CSSValue& value, float multiplier) -> LineHeight
 {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        if (auto valueID = keywordValue->valueID(); valueID == CSSValueNormal || CSSPropertyParserHelpers::isSystemFontShorthand(valueID))
+            return CSS::Keyword::Normal { };
+
+        state.setCurrentPropertyInvalidAtComputedValueTime();
+        return CSS::Keyword::Normal { };
+    }
+
     RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
     if (!primitiveValue)
-        return CSS::Keyword::Normal { };
-
-    return operator()(state, *primitiveValue, multiplier);
-}
-
-auto CSSValueConversion<LineHeight>::operator()(BuilderState& state, const CSSPrimitiveValue& primitiveValue, float multiplier) -> LineHeight
-{
-    auto valueID = primitiveValue.valueID();
-    if (valueID == CSSValueNormal || CSSPropertyParserHelpers::isSystemFontShorthand(valueID))
         return CSS::Keyword::Normal { };
 
     auto conversionData = state
@@ -70,12 +70,12 @@ auto CSSValueConversion<LineHeight>::operator()(BuilderState& state, const CSSPr
         return Style::ZoomFactor { conversionData.zoom() };
     };
 
-    if (primitiveValue.isLength() || primitiveValue.isCalculatedPercentageWithLength()) {
+    if (primitiveValue->isLength() || primitiveValue->isCalculatedPercentageWithLength()) {
         double fixedValue = 0;
-        if (primitiveValue.isLength())
-            fixedValue = primitiveValue.resolveAsLength(conversionData);
+        if (primitiveValue->isLength())
+            fixedValue = primitiveValue->resolveAsLength(conversionData);
         else
-            fixedValue = protect(primitiveValue.cssCalcValue())->createCalculationValue(conversionData, CSSCalcSymbolTable { })->evaluate(state.style().fontDescription().computedSizeForRangeZoomOption(conversionData.rangeZoomOption()), zoomFactor());
+            fixedValue = protect(primitiveValue->cssCalcValue())->createCalculationValue(conversionData, CSSCalcSymbolTable { })->evaluate(state.style().fontDescription().computedSizeForRangeZoomOption(conversionData.rangeZoomOption()), zoomFactor());
 
         if (multiplier != 1.0f)
             fixedValue *= multiplier;
@@ -91,17 +91,17 @@ auto CSSValueConversion<LineHeight>::operator()(BuilderState& state, const CSSPr
     // <div style="font-size: 10px; line-height: 1.5;"><div style="font-size: 100px;"></div></div>
     // the inner element should have a line-height of 150px. Therefore, we map percentages to Fixed
     // values and raw numbers to percentages.
-    if (primitiveValue.isPercentage()) {
+    if (primitiveValue->isPercentage()) {
         // FIXME: percentage should not be restricted to an integer here.
         auto textZoom = evaluationTimeZoomEnabled(state) ? conversionData.zoom() : 1.0f;
         return LineHeight::Fixed {
-            CSS::clampToRange<LineHeight::Fixed::range, float>((state.style().fontDescription().computedSizeForRangeZoomOption(conversionData.rangeZoomOption()) * primitiveValue.resolveAsPercentage<int>(conversionData) * textZoom) / 100.0, minValueForCssLength, maxValueForCssLength)
+            CSS::clampToRange<LineHeight::Fixed::range, float>((state.style().fontDescription().computedSizeForRangeZoomOption(conversionData.rangeZoomOption()) * primitiveValue->resolveAsPercentage<int>(conversionData) * textZoom) / 100.0, minValueForCssLength, maxValueForCssLength)
         };
     }
 
-    if (primitiveValue.isNumber()) {
+    if (primitiveValue->isNumber()) {
         return LineHeight::Percentage {
-            CSS::clampToRange<LineHeight::Percentage::range, float>(primitiveValue.resolveAsNumber(conversionData) * 100.0)
+            CSS::clampToRange<LineHeight::Percentage::range, float>(primitiveValue->resolveAsNumber(conversionData) * 100.0)
         };
     }
 

@@ -63,6 +63,7 @@ public:
     int64_t format() const { return m_createInfo.format; }
     PlatformGLObject acquiredTexture() const { return m_acquiredTexture; }
     HasAlpha hasAlpha() const { return m_hasAlpha; }
+    size_t imageCount() const { return m_imageBuffers.size(); }
 
 private:
     OpenXRSwapchain(XrSwapchain, const XrSwapchainCreateInfo&, Vector<XrSwapchainImageOpenGLESKHR>&&, HasAlpha);

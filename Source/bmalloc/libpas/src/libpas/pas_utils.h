@@ -32,6 +32,7 @@
 #include "pas_thread.h"
 #if defined(__has_include)
 #if __has_include(<pthread/tsd_private.h>)
+#include <pthread/tsd_private.h>
 #define PAS_HAVE_PTHREAD_MACHDEP_H 1
 #else
 #define PAS_HAVE_PTHREAD_MACHDEP_H 0

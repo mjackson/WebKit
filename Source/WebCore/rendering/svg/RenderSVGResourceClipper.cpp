@@ -178,7 +178,7 @@ void RenderSVGResourceClipper::applyMaskClipping(PaintInfo& paintInfo, const Ren
         context.setCompositeOperation(CompositeOperator::SourceOver);
     }
 
-    protect(layer())->paintSVGResourceLayer(context, contentTransform);
+    protect(layer())->paintResourceLayerForSVG(context, contentTransform);
 
     if (pushTransparencyLayer)
         context.endTransparencyLayer();

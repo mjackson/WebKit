@@ -1017,7 +1017,7 @@ public:
     {
         if (!isCellConstant())
             return nullptr;
-        return jsDynamicCast<T>(asCell());
+        return dynamicDowncast<std::remove_pointer_t<T>>(asCell());
     }
     
     bool hasLazyJSValue()

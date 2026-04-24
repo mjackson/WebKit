@@ -50,6 +50,9 @@ void UPluralRulesDeleter::operator()(UPluralRules* pluralRules)
 
 const ClassInfo IntlPluralRules::s_info = { "Object"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(IntlPluralRules) };
 
+// Approximate size of UPluralRules for GC memory pressure reporting, measured empirically with uplrules_open + select.
+static constexpr size_t estimatedUPluralRulesSize = 1000;
+
 using UEnumerationDeleter = ICUDeleter<uenum_close>;
 
 IntlPluralRules* IntlPluralRules::create(VM& vm, Structure* structure)
@@ -72,10 +75,17 @@ IntlPluralRules::IntlPluralRules(VM& vm, Structure* structure)
 template<typename Visitor>
 void IntlPluralRules::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
-    IntlPluralRules* thisObject = jsCast<IntlPluralRules*>(cell);
+    IntlPluralRules* thisObject = uncheckedDowncast<IntlPluralRules>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
 
     Base::visitChildren(thisObject, visitor);
+
+    if (thisObject->m_numberFormatter)
+        visitor.reportExtraMemoryVisited(estimatedUNumberFormatterSize);
+    if (thisObject->m_numberRangeFormatter)
+        visitor.reportExtraMemoryVisited(estimatedUNumberRangeFormatterSize);
+    if (thisObject->m_pluralRules)
+        visitor.reportExtraMemoryVisited(estimatedUPluralRulesSize);
 }
 
 DEFINE_VISIT_CHILDREN(IntlPluralRules);
@@ -135,17 +145,23 @@ void IntlPluralRules::initializePluralRules(JSGlobalObject* globalObject, JSValu
         return;
     }
 
+    vm.heap.reportExtraMemoryAllocated(this, estimatedUNumberFormatterSize);
+
     m_numberRangeFormatter = std::unique_ptr<UNumberRangeFormatter, UNumberRangeFormatterDeleter>(unumrf_openForSkeletonWithCollapseAndIdentityFallback(upconverted.get(), skeletonView.length(), UNUM_RANGE_COLLAPSE_NONE, UNUM_IDENTITY_FALLBACK_RANGE, locale.data(), nullptr, &status));
     if (U_FAILURE(status)) {
         throwTypeError(globalObject, scope, "failed to initialize PluralRules"_s);
         return;
     }
 
+    vm.heap.reportExtraMemoryAllocated(this, estimatedUNumberRangeFormatterSize);
+
     m_pluralRules = std::unique_ptr<UPluralRules, UPluralRulesDeleter>(uplrules_openForType(locale.data(), m_type == Type::Ordinal ? UPLURAL_TYPE_ORDINAL : UPLURAL_TYPE_CARDINAL, &status));
     if (U_FAILURE(status)) {
         throwTypeError(globalObject, scope, "failed to initialize PluralRules"_s);
         return;
     }
+
+    vm.heap.reportExtraMemoryAllocated(this, estimatedUPluralRulesSize);
 }
 
 // https://tc39.es/ecma402/#sec-intl.pluralrules.prototype.resolvedoptions

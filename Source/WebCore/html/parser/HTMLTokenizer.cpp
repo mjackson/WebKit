@@ -100,8 +100,7 @@ inline bool HTMLTokenizer::inEndTagBufferingState() const
 }
 
 HTMLTokenizer::HTMLTokenizer(const HTMLParserOptions& options)
-    : m_preprocessor(*this)
-    , m_options(options)
+    : m_options(options)
 {
 }
 
@@ -235,7 +234,7 @@ bool HTMLTokenizer::processToken(SegmentedString& source)
             return true;
     }
 
-    if (!m_preprocessor.peek(source, isNullCharacterSkippingState(m_state)))
+    if (!m_preprocessor.peek(source, isNullCharacterSkippingState(m_state) && !m_forceNullCharacterReplacement))
         return haveBufferedCharacterToken();
     char16_t character = m_preprocessor.nextInputCharacter();
 

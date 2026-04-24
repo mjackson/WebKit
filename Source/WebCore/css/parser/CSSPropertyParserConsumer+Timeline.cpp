@@ -42,9 +42,28 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
-bool isAnimationRangeKeyword(CSSValueID id)
+bool isTimelineRangeName(CSSValueID id)
 {
-    return identMatches<CSSValueNormal, CSSValueCover, CSSValueContain, CSSValueEntry, CSSValueExit, CSSValueEntryCrossing, CSSValueExitCrossing, CSSValueScroll>(id);
+    // <timeline-range-name> = cover | contain | entry | exit | entry-crossing | exit-crossing | scroll
+    // https://drafts.csswg.org/scroll-animations-1/#typedef-timeline-range-name
+    // https://drafts.csswg.org/scroll-animations-1/#view-timelines-ranges
+
+    return identMatches<
+        CSSValueCover,
+        CSSValueContain,
+        CSSValueEntry,
+        CSSValueExit,
+        CSSValueEntryCrossing,
+        CSSValueExitCrossing,
+        CSSValueScroll
+    >(id);
+}
+
+static RefPtr<CSSValue> consumeTimelineRangeName(CSSParserTokenRange& range)
+{
+    if (isTimelineRangeName(range.peek().id()))
+        return CSSKeywordValue::create(CSS::Keyword { range.consumeIncludingWhitespace().id() });
+    return nullptr;
 }
 
 RefPtr<CSSValue> consumeAnimationTimelineScroll(CSSParserTokenRange& range, CSS::PropertyParserState&)
@@ -157,11 +176,10 @@ RefPtr<CSSValue> consumeSingleAnimationRange(CSSParserTokenRange& range, CSS::Pr
         return percentageValue == 100;
     };
 
-    if (auto name = consumeIdent(range)) {
-        if (name->valueID() == CSSValueNormal)
-            return name;
-        if (!isAnimationRangeKeyword(name->valueID()))
-            return nullptr;
+    if (auto normal = consumeIdent<CSSValueNormal>(range))
+        return normal;
+
+    if (auto name = consumeTimelineRangeName(range)) {
         if (auto offset = CSSPrimitiveValueResolver<CSS::LengthPercentage<>>::consumeAndResolve(range, state)) {
             if (isDefault(*offset))
                 return name;

@@ -271,6 +271,14 @@ static String extractMIMETypeFromTypeAttributeForLookup(const String& typeAttrib
     return StringView(typeAttribute).left(semicolonIndex).trim(isASCIIWhitespace<char16_t>).toStringWithoutCopying();
 }
 
+bool HTMLImageElement::isSupportedImageSourceType(const String& typeAttribute)
+{
+    auto type = extractMIMETypeFromTypeAttributeForLookup(typeAttribute);
+    if (type.isEmpty())
+        return true;
+    return MIMETypeRegistry::isSupportedImageVideoOrSVGMIMEType(type);
+}
+
 ImageCandidate HTMLImageElement::bestFitSourceFromPictureElement()
 {
     RefPtr picture = pictureElement();
@@ -290,8 +298,7 @@ ImageCandidate HTMLImageElement::bestFitSourceFromPictureElement()
 
         auto& typeAttribute = source->attributeWithoutSynchronization(typeAttr);
         if (!typeAttribute.isNull()) {
-            auto type = extractMIMETypeFromTypeAttributeForLookup(typeAttribute);
-            if (!type.isEmpty() && !MIMETypeRegistry::isSupportedImageVideoOrSVGMIMEType(type))
+            if (!isSupportedImageSourceType(typeAttribute))
                 continue;
         }
 

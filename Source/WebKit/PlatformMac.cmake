@@ -32,7 +32,6 @@ include(Headers.cmake)
 
 list(APPEND WebKit_PRIVATE_LIBRARIES
     Accessibility
-    WebKitLegacy
     ${APPLICATIONSERVICES_LIBRARY}
     ${CORESERVICES_LIBRARY}
     ${DEVICEIDENTITY_LIBRARY}
@@ -75,10 +74,19 @@ list(APPEND WebKit_SOURCES
     Shared/Cocoa/XPCEndpointClient.mm
 
     UIProcess/API/Cocoa/WKContentWorld.mm
+    UIProcess/API/Cocoa/_WKAuthenticationExtensionsClientInputs.mm
     UIProcess/API/Cocoa/_WKAuthenticationExtensionsClientOutputs.mm
     UIProcess/API/Cocoa/_WKAuthenticatorAssertionResponse.mm
     UIProcess/API/Cocoa/_WKAuthenticatorAttestationResponse.mm
     UIProcess/API/Cocoa/_WKAuthenticatorResponse.mm
+    UIProcess/API/Cocoa/_WKAuthenticatorSelectionCriteria.mm
+    UIProcess/API/Cocoa/_WKPublicKeyCredentialCreationOptions.mm
+    UIProcess/API/Cocoa/_WKPublicKeyCredentialDescriptor.mm
+    UIProcess/API/Cocoa/_WKPublicKeyCredentialEntity.mm
+    UIProcess/API/Cocoa/_WKPublicKeyCredentialParameters.mm
+    UIProcess/API/Cocoa/_WKPublicKeyCredentialRelyingPartyEntity.mm
+    UIProcess/API/Cocoa/_WKPublicKeyCredentialRequestOptions.mm
+    UIProcess/API/Cocoa/_WKPublicKeyCredentialUserEntity.mm
     UIProcess/API/Cocoa/_WKResourceLoadStatisticsFirstParty.mm
     UIProcess/API/Cocoa/_WKResourceLoadStatisticsThirdParty.mm
 
@@ -226,8 +234,6 @@ set(GPUProcess_OUTPUT_NAME com.apple.WebKit.GPU.Development)
 
 set(WebProcess_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR})
 set(NetworkProcess_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR})
-
-add_definitions("-include" "WebKit2Prefix.h")
 
 # Generate a simplified module map for Swift interop.
 # The source-tree module.modulemap includes many C++ submodules with deep header
@@ -539,10 +545,20 @@ list(APPEND WebKit_PRIVATE_LIBRARIES
 list(APPEND WebKit_PRIVATE_LIBRARIES "-Wl,-undefined,dynamic_lookup")
 
 list(APPEND WebKit_PUBLIC_FRAMEWORK_HEADERS
+    Shared/WebPushDaemonConstants.h
+
     Shared/API/Cocoa/RemoteObjectInvocation.h
     Shared/API/Cocoa/RemoteObjectRegistry.h
     Shared/API/Cocoa/WKBrowsingContextHandle.h
     Shared/API/Cocoa/WKDataDetectorTypes.h
+
+    UIProcess/Cocoa/_WKCaptionStyleMenuController.h
+
+    UIProcess/Extensions/Cocoa/_WKWebExtensionDeclarativeNetRequestRule.h
+    UIProcess/Extensions/Cocoa/_WKWebExtensionDeclarativeNetRequestTranslator.h
+
+    WebProcess/Extensions/Cocoa/_WKWebExtensionWebNavigationURLFilter.h
+    WebProcess/Extensions/Cocoa/_WKWebExtensionWebRequestFilter.h
     Shared/API/Cocoa/WKDragDestinationAction.h
     Shared/API/Cocoa/WKFoundation.h
     Shared/API/Cocoa/WKMain.h
@@ -1031,8 +1047,25 @@ set(ObjCForwardingHeaders
     DOMXPathResult.h
 )
 
-set(CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} "-compatibility_version 1 -current_version ${WEBKIT_MAC_VERSION}")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -compatibility_version 1 -current_version ${WEBKIT_MAC_VERSION}")
 target_link_options(WebKit PRIVATE -lsandbox -framework AuthKit)
+
+# Match WebKit.xcconfig REEXPORTED_FRAMEWORK_NAMES / REEXPORTED_LIBRARY_NAMES so
+# the CMake-built framework exports the same ABI as the Xcode build. Without the
+# WebKitLegacy re-export, clients that link WebKit.framework expecting WK1
+# symbols (e.g. _OBJC_CLASS_$_WebView, used by Xcode's view-debugger support
+# dylib) fail at load when DYLD_FRAMEWORK_PATH points at this build.
+#
+# WebKitLegacy is intentionally absent from WebKit_PRIVATE_LIBRARIES above: ld64
+# resolves a dylib's load-command type by its last reference on the link line,
+# and a plain target_link_libraries entry would override this LC_REEXPORT_DYLIB
+# with LC_LOAD_DYLIB. Link it solely via -reexport_library here; the explicit
+# add_dependencies preserves build ordering.
+add_dependencies(WebKit WebKitLegacy)
+target_link_options(WebKit PRIVATE
+    "-Wl,-reexport_library,$<TARGET_LINKER_FILE:WebKitLegacy>"
+    "-Wl,-reexport-lobjc"
+)
 
 set(WebKit_OUTPUT_NAME WebKit)
 
@@ -1120,6 +1153,17 @@ function(WEBKIT_DEFINE_XPC_SERVICES)
     endforeach ()
     if (EXISTS "${CMAKE_BINARY_DIR}/generated-stubs/AppleFeatures/AppleFeatures.h")
         list(APPEND _sb_extra_includes "-isystem" "${CMAKE_BINARY_DIR}/generated-stubs")
+    endif ()
+    # Sandbox profiles gate ASan-required syscalls (SYS_sigaltstack, ...) on
+    # #if ASAN_ENABLED, which wtf/Compiler.h derives from
+    # __has_feature(address_sanitizer). Pass -fsanitize so the preprocessor sees
+    # the same feature set the compiled code does -- mirrors $(SANITIZE_FLAGS) in
+    # DerivedSources.make. Without this the WebContent sandbox blocks
+    # sigaltstack() and ASan CHECK-fails inside __asan_handle_no_return.
+    if (ENABLE_SANITIZERS)
+        foreach (_san IN LISTS ENABLE_SANITIZERS)
+            list(APPEND _sb_extra_includes "-fsanitize=${_san}")
+        endforeach ()
     endif ()
 
     add_custom_command(OUTPUT ${WebKit_RESOURCES_DIR}/com.apple.WebProcess.sb COMMAND

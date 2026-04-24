@@ -210,7 +210,7 @@ void CSSFontSelector::addFontFaceRule(StyleRuleFontFace& fontFaceRule, bool isIn
     if (featureSettings)
         fontFace->setFeatureSettings(*featureSettings);
     if (display)
-        fontFace->setDisplay(downcast<CSSPrimitiveValue>(*display));
+        fontFace->setDisplay(*display);
     if (sizeAdjust)
         fontFace->setSizeAdjust(*sizeAdjust);
 

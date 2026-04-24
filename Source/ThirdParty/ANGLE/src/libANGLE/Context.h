@@ -957,6 +957,7 @@ class Context final : public egl::LabeledObject, angle::NonCopyable, public angl
     void onSwapChainImageChanged() const { mDefaultFramebuffer->onSwapChainImageChanged(); }
     void onBufferChanged(const Buffer *buffer,
                          const angle::SubjectMessage message,
+                         bool isUsedInTransformFeedback,
                          VertexArrayBufferBindingMask vertexArrayBufferBindingMask) const
     {
         // Notify current vertex array of the buffer changed. Note that other vertex arrays of this
@@ -968,6 +969,10 @@ class Context final : public egl::LabeledObject, angle::NonCopyable, public angl
             mState.mVertexArray->onBufferChanged(this, buffer, message,
                                                  vertexArrayBufferBindingMask);
         }
+        if (isUsedInTransformFeedback && message == angle::SubjectMessage::SubjectChanged)
+        {
+            invalidateTransformFeedbackCapacities(buffer);
+        }
     }
 
     AttributesMask getActiveBufferedAttribsMask() const;
@@ -978,6 +983,16 @@ class Context final : public egl::LabeledObject, angle::NonCopyable, public angl
     GLint64 getNonInstancedVertexElementLimit() const;
     GLint64 getInstancedVertexElementLimit() const;
     void onActiveTransformFeedbackChange();
+
+    bool retainIdUntilObjectDestroyed() const;
+
+    void onBufferDestroy(const Buffer *buffer) const;
+    void onTextureDestroy(const Texture *texture) const;
+    void onRenderbufferDestroy(const Renderbuffer *renderBuffer) const;
+    void onSamplerDestroy(const Sampler *sampler) const;
+    void onSyncDestroy(const Sync *sync) const;
+    void onFramebufferDestroy(const Framebuffer *framebuffer) const;
+    void onProgramPipelineDestroy(const ProgramPipeline *programPipeline) const;
 
   private:
     void initializeDefaultResources();
@@ -1042,6 +1057,7 @@ class Context final : public egl::LabeledObject, angle::NonCopyable, public angl
     void updateActiveAttribsMaskIfNeeded() const;
 
     void endTilingImplicit();
+    void invalidateTransformFeedbackCapacities(const Buffer *buffer) const;
 
     State mState;
     bool mShared;
@@ -1146,6 +1162,7 @@ class Context final : public egl::LabeledObject, angle::NonCopyable, public angl
     OverlayType mOverlay;
 
     bool mIsDestroyed;
+    bool mDestroyedManagers;
 
     std::unique_ptr<Framebuffer> mDefaultFramebuffer;
 };

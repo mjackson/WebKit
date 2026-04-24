@@ -56,6 +56,7 @@
 #include <JavaScriptCore/JSValueRef.h>
 #include <JavaScriptCore/JavaScript.h>
 #include <JavaScriptCore/OpaqueJSString.h>
+#include <JavaScriptCore/TopExceptionScope.h>
 #include <WebCore/DOMWrapperWorld.h>
 #include <WebCore/JSDOMGlobalObject.h>
 #include <WebCore/LocalFrame.h>
@@ -3075,7 +3076,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(JSMessageListener);
 JSMessageListener::JSMessageListener(JSIPC& jsIPC, Type type, JSC::JSGlobalObject* globalObject, JSObjectRef callback)
     : m_jsIPC(jsIPC)
     , m_type(type)
-    , m_globalObject(JSC::jsCast<WebCore::JSDOMGlobalObject*>(globalObject))
+    , m_globalObject(uncheckedDowncast<WebCore::JSDOMGlobalObject>(globalObject))
     , m_callback(callback)
 {
     auto& vm = globalObject->vm();

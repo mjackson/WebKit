@@ -723,23 +723,26 @@ public:
     }
     uint32_t sizeInBytes() const { return Base::size(); }
 
-    Segment(size_t sizeInBytes, Kind passedKind, std::optional<I32InitExpr>&& passedOffsetIfActive)
+    Segment(size_t sizeInBytes, Kind passedKind, std::optional<I32InitExpr>&& passedOffsetIfActive, uint32_t memoryIndex = 0)
         : Base(sizeInBytes)
         , m_kind(passedKind)
         , m_offsetIfActive(WTF::move(passedOffsetIfActive))
+        , m_memoryIndex(memoryIndex)
     {
     }
 
-    static std::unique_ptr<Segment> tryCreate(std::optional<I32InitExpr>, uint32_t, Kind);
+    static std::unique_ptr<Segment> tryCreate(std::optional<I32InitExpr>, uint32_t, Kind, uint32_t memoryIndex = 0);
 
     bool isActive() const { return m_kind == Kind::Active; }
     bool isPassive() const { return m_kind == Kind::Passive; }
     Kind kind() const { return m_kind; }
     std::optional<I32InitExpr> offsetIfActive() const { return m_offsetIfActive; }
+    uint32_t memoryIndex() const { return m_memoryIndex; }
 
 private:
     const Kind m_kind;
     const std::optional<I32InitExpr> m_offsetIfActive;
+    const uint32_t m_memoryIndex;
 };
 
 struct Element {

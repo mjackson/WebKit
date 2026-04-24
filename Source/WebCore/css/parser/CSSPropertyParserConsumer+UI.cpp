@@ -67,7 +67,7 @@ RefPtr<CSSValue> consumeCursor(CSSParserTokenRange& range, CSS::PropertyParserSt
     if (id == CSSValueHand) {
         if (state.context.mode != HTMLQuirksMode) // Non-standard behavior
             return nullptr;
-        cursorType = CSSPrimitiveValue::create(CSSValuePointer);
+        cursorType = CSSKeywordValue::create(CSSValuePointer);
         range.consumeIncludingWhitespace();
     } else if ((id >= CSSValueAuto && id <= CSSValueWebkitZoomOut) || id == CSSValueCopy || id == CSSValueNone)
         cursorType = consumeIdent(range);

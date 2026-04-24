@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "CallMode.h"
 #include "CodeBlock.h"
 #include "CodeBlockHash.h"
 #include "CodeOrigin.h"

@@ -28,6 +28,7 @@
 #include <wtf/SystemTracing.h>
 
 #if USE(SKIA)
+#include "BitmapTexture.h"
 #include "SkiaPaintingEngine.h"
 #endif
 

@@ -1923,6 +1923,14 @@ private:
             compileFulfillPromiseFirstResolving();
             break;
 
+        case NewResolvedPromise:
+            compileNewResolvedPromise();
+            break;
+
+        case NewRejectedPromise:
+            compileNewRejectedPromise();
+            break;
+
         case PromiseResolve:
             compilePromiseResolve();
             break;
@@ -12938,7 +12946,7 @@ IGNORE_CLANG_WARNINGS_END
         bool isConstruct = node->op() == DirectConstruct;
 
         ExecutableBase* executable = node->castOperand<ExecutableBase*>();
-        FunctionExecutable* functionExecutable = jsDynamicCast<FunctionExecutable*>(executable);
+        FunctionExecutable* functionExecutable = dynamicDowncast<FunctionExecutable>(executable);
 
         unsigned numPassedArgs = node->numChildren() - 1;
         unsigned numAllocatedArgs = numPassedArgs;
@@ -13001,7 +13009,7 @@ IGNORE_CLANG_WARNINGS_END
         Edge calleeEdge = m_graph.child(node, 0);
         JSGlobalObject* calleeScope = nullptr;
         if (JSValue calleeValue = m_state.forNode(calleeEdge).value()) {
-            if (auto* callee = jsDynamicCast<JSFunction*>(calleeValue)) {
+            if (auto* callee = dynamicDowncast<JSFunction>(calleeValue)) {
                 m_graph.freeze(callee);
                 calleeScope = callee->realm();
             }
@@ -13009,9 +13017,9 @@ IGNORE_CLANG_WARNINGS_END
         TaggedNativeFunction nativeFunction;
         if (executable->isHostFunction() && executable->intrinsic() == NoIntrinsic) {
             if (isConstruct)
-                nativeFunction = jsCast<NativeExecutable*>(executable)->constructor();
+                nativeFunction = uncheckedDowncast<NativeExecutable>(executable)->constructor();
             else
-                nativeFunction = jsCast<NativeExecutable*>(executable)->function();
+                nativeFunction = uncheckedDowncast<NativeExecutable>(executable)->function();
         }
 
         CodeOrigin codeOrigin = codeOriginDescriptionOfCallSite();
@@ -14044,14 +14052,14 @@ IGNORE_CLANG_WARNINGS_END
         auto* instance = wasmFunction->instance();
         arguments.append(ConstrainedValue(frozenPointer(m_graph.freeze(instance)), ValueRep::reg(GPRInfo::wasmContextInstancePointer)));
         if (instance->module().moduleInformation().memoryCount()) {
-            auto mode = instance->memoryMode();
-            if (mode == MemoryMode::Signaling || (mode == MemoryMode::BoundsChecking && instance->memory()->sharingMode() == MemorySharingMode::Shared)) {
+            auto mode = instance->memory0Mode();
+            if (mode == MemoryMode::Signaling || (mode == MemoryMode::BoundsChecking && instance->memory(0)->sharingMode() == MemorySharingMode::Shared)) {
                 // Capacity and basePointer will not be changed.
                 if (mode == MemoryMode::BoundsChecking) {
-                    arguments.append(ConstrainedValue(m_out.constInt64(instance->memory()->mappedCapacity()), ValueRep::reg(GPRInfo::wasmBoundsCheckingSizeRegister)));
+                    arguments.append(ConstrainedValue(m_out.constInt64(instance->memory(0)->mappedCapacity()), ValueRep::reg(GPRInfo::wasmBoundsCheckingSizeRegister)));
                     wasmBoundsCheckingSizeRegisterConfiguredAsInputContraints = true;
                 }
-                arguments.append(ConstrainedValue(m_out.constIntPtr(instance->memory()->basePointer()), ValueRep::reg(GPRInfo::wasmBaseMemoryPointer)));
+                arguments.append(ConstrainedValue(m_out.constIntPtr(instance->memory(0)->basePointer()), ValueRep::reg(GPRInfo::wasmBaseMemoryPointer)));
                 wasmBaseMemoryPointerConfiguredAsInputContraints = true;
             }
         }
@@ -14128,8 +14136,8 @@ IGNORE_CLANG_WARNINGS_END
                 static_assert(noOverlap(GPRInfo::wasmBoundsCheckingSizeRegister, GPRInfo::wasmBaseMemoryPointer, scratchGPR));
                 ASSERT(!RegisterSet::macroClobberedGPRs().contains(scratchGPR, IgnoreVectors));
                 if (instance->module().moduleInformation().memoryCount()) {
-                    auto mode = instance->memoryMode();
-                    if (!(mode == MemoryMode::Signaling || (mode == MemoryMode::BoundsChecking && instance->memory()->sharingMode() == MemorySharingMode::Shared))) {
+                    auto mode = instance->memory0Mode();
+                    if (!(mode == MemoryMode::Signaling || (mode == MemoryMode::BoundsChecking && instance->memory(0)->sharingMode() == MemorySharingMode::Shared))) {
                         // We always clobber GPRInfo::wasmBoundsCheckingSizeRegister regardless of mode. It is OK since patchpoint already said it is clobbered.
                         if (isARM64E())
                             jit.loadPairPtr(GPRInfo::wasmContextInstancePointer, CCallHelpers::TrustedImm32(JSWebAssemblyInstance::offsetOfCachedMemoryBaseSizePair(0)), GPRInfo::wasmBaseMemoryPointer, GPRInfo::wasmBoundsCheckingSizeRegister);
@@ -18424,7 +18432,7 @@ IGNORE_CLANG_WARNINGS_END
 #if ENABLE(YARR_JIT_REGEXP_TEST_INLINE)
     void compileRegExpTestInline()
     {
-        RegExp* regExp = jsCast<RegExp*>(m_node->cellOperand2()->value());
+        RegExp* regExp = uncheckedDowncast<RegExp>(m_node->cellOperand2()->value());
 
         ASSERT(!regExp->globalOrSticky());
 
@@ -18432,7 +18440,7 @@ IGNORE_CLANG_WARNINGS_END
         ASSERT(jitCodeBlock);
         auto inlineCodeStats8Bit = jitCodeBlock->get8BitInlineStats();
 
-        JSGlobalObject* globalObjectConst = jsCast<JSGlobalObject*>(m_node->cellOperand()->value());
+        JSGlobalObject* globalObjectConst = uncheckedDowncast<JSGlobalObject>(m_node->cellOperand()->value());
 
         unsigned alignedFrameSize = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(inlineCodeStats8Bit.stackSize());
 
@@ -20707,6 +20715,44 @@ IGNORE_CLANG_WARNINGS_END
         LValue promise = lowCell(m_node->child1());
         LValue argument = lowJSValue(m_node->child2());
         vmCall(Void, operationFulfillPromiseFirstResolving, weakPointer(globalObject), promise, argument);
+    }
+
+    void compileNewResolvedPromise()
+    {
+        auto* globalObject = m_graph.globalObjectFor(m_origin.semantic);
+
+        if (!(abstractValue(m_node->child1()).m_type & SpecObject)) {
+            LValue argument = lowJSValue(m_node->child1());
+
+            LBasicBlock slowCase = m_out.newBlock();
+            LBasicBlock continuation = m_out.newBlock();
+
+            LValue structure = weakStructure(m_graph.registerStructure(globalObject->promiseStructure()));
+            LValue promise = allocateObject<JSPromise>(structure, m_out.intPtrZero, slowCase);
+            m_out.store64(m_out.constInt64(JSValue::encode(jsNumber(static_cast<int32_t>(JSPromise::Status::Fulfilled)))), promise, m_heaps.JSInternalFieldObjectImpl_internalFields[static_cast<unsigned>(JSPromise::Field::Flags)]);
+            m_out.store64(argument, promise, m_heaps.JSInternalFieldObjectImpl_internalFields[static_cast<unsigned>(JSPromise::Field::ReactionsOrResult)]);
+            mutatorFence();
+            ValueFromBlock fastResult = m_out.anchor(promise);
+            m_out.jump(continuation);
+
+            LBasicBlock lastNext = m_out.appendTo(slowCase, continuation);
+            ValueFromBlock slowResult = m_out.anchor(vmCall(pointerType(), operationNewResolvedPromise, weakPointer(globalObject), argument));
+            m_out.jump(continuation);
+
+            m_out.appendTo(continuation, lastNext);
+            setJSValue(m_out.phi(pointerType(), fastResult, slowResult));
+            return;
+        }
+
+        LValue argument = lowJSValue(m_node->child1());
+        setJSValue(vmCall(pointerType(), operationNewResolvedPromise, weakPointer(globalObject), argument));
+    }
+
+    void compileNewRejectedPromise()
+    {
+        auto* globalObject = m_graph.globalObjectFor(m_origin.semantic);
+        LValue argument = lowJSValue(m_node->child1());
+        setJSValue(vmCall(pointerType(), operationNewRejectedPromise, weakPointer(globalObject), argument));
     }
 
     void compilePromiseResolve()

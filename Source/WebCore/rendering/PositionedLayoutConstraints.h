@@ -95,6 +95,7 @@ public:
 
 private:
     bool NODELETE containingCoordsAreFlipped() const;
+    bool isOrthogonalWithParentFlippedAxis() const;
 
     void captureInsets();
     void captureGridArea();

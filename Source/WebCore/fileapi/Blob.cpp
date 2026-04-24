@@ -50,6 +50,7 @@
 #include "SharedBuffer.h"
 #include "ThreadableBlobRegistry.h"
 #include "WebCoreOpaqueRoot.h"
+#include <JavaScriptCore/JSCJSValueInlines.h>
 #include <wtf/Lock.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
@@ -516,7 +517,7 @@ ExceptionOr<Ref<ReadableStream>> Blob::stream()
         return promise;
     };
 
-    return ReadableStream::createReadableByteStream(*JSC::jsCast<JSDOMGlobalObject*>(globalObject), WTF::move(pullAlgorithm), WTF::move(cancelAlgorithm), {
+    return ReadableStream::createReadableByteStream(*uncheckedDowncast<JSDOMGlobalObject>(globalObject), WTF::move(pullAlgorithm), WTF::move(cancelAlgorithm), {
         .isSourceReachableFromOpaqueRoot = ReadableStream::IsSourceReachableFromOpaqueRoot::Yes
     });
 }

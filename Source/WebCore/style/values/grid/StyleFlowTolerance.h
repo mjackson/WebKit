@@ -41,12 +41,6 @@ struct FlowTolerance : LengthWrapperBase<LengthPercentage<CSS::NonnegativeUnzoom
     ALWAYS_INLINE bool isInfinite() const { return holdsAlternative<CSS::Keyword::Infinite>(); }
 };
 
-// MARK: - Conversion
-
-template<> struct CSSValueConversion<FlowTolerance> {
-    auto operator()(BuilderState&, const CSSValue&) -> FlowTolerance;
-};
-
 // MARK: - Blending
 
 template<> struct Blending<FlowTolerance> {

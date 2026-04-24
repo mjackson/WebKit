@@ -463,10 +463,6 @@ TEST(SafeBrowsing, WKWebViewGoBackIFrame)
         EXPECT_NOT_NULL(error);
         auto failingURL = (NSURL *)[error.userInfo valueForKey:NSURLErrorFailingURLErrorKey];
         EXPECT_TRUE([failingURL.lastPathComponent isEqualToString:@"simple.html"]);
-#if USE(NSURL_ERROR_FAILING_URL_STRING_KEY)
-        auto failingURLString = (NSString *)[error.userInfo valueForKey:NSURLErrorFailingURLStringErrorKey];
-        EXPECT_TRUE([failingURLString hasSuffix:@"/simple.html"]);
-#endif
         navigationFailed = true;
     };
     delegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *navigation) {
@@ -559,10 +555,6 @@ TEST(SafeBrowsing, PostResponseIframe)
         EXPECT_NOT_NULL(error);
         auto failingURL = (NSURL *)[error.userInfo valueForKey:NSURLErrorFailingURLErrorKey];
         EXPECT_TRUE([failingURL.lastPathComponent isEqualToString:@"simple.html"]);
-#if USE(NSURL_ERROR_FAILING_URL_STRING_KEY)
-        auto failingURLString = (NSString *)[error.userInfo valueForKey:NSURLErrorFailingURLStringErrorKey];
-        EXPECT_TRUE([failingURLString hasSuffix:@"/simple.html"]);
-#endif
         navigationFailed = true;
     };
     delegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *navigation) {
@@ -768,10 +760,6 @@ TEST(SafeBrowsing, PhishingInFrame)
         EXPECT_NOT_NULL(error);
         auto failingURL = (NSURL *)[error.userInfo valueForKey:NSURLErrorFailingURLErrorKey];
         EXPECT_TRUE([failingURL.lastPathComponent isEqualToString:@"simple.html"]);
-#if USE(NSURL_ERROR_FAILING_URL_STRING_KEY)
-        auto failingURLString = (NSString *)[error.userInfo valueForKey:NSURLErrorFailingURLStringErrorKey];
-        EXPECT_TRUE([failingURLString hasSuffix:@"/simple.html"]);
-#endif
         navigationFailed = true;
     };
     delegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *navigation) {

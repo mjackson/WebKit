@@ -52,7 +52,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "JSGlobalProxy.h"
 #include "JSObjectInlines.h"
 #include "JSString.h"
-#include "Operations.h"
+#include "OperationsInlines.h"
 #include "SlotVisitorInlines.h"
 #include "StrongInlines.h"
 #include "StructureInlines.h"

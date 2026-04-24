@@ -42,6 +42,10 @@
 #include "SkiaRecordingResult.h"
 #include "SkiaReplayCanvas.h"
 #include "SkiaUtilities.h"
+
+#if USE(GBM)
+#include "MemoryMappedGPUBuffer.h"
+#endif
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkColorSpace.h>
 #include <skia/core/SkPictureRecorder.h>
@@ -125,7 +129,7 @@ Ref<CoordinatedTileBuffer> SkiaPaintingEngine::createBuffer(RenderingMode render
     return CoordinatedUnacceleratedTileBuffer::create(size, contentsOpaque ? CoordinatedTileBuffer::NoFlags : CoordinatedTileBuffer::SupportsAlpha);
 }
 
-RefPtr<SkiaGPUAtlas> SkiaPaintingEngine::createAtlas(const SkiaImageAtlasLayout& layout, AtlasUploadCondition& uploadCondition)
+RefPtr<SkiaGPUAtlas> SkiaPaintingEngine::createAtlas(const SkiaImageAtlasLayout& layout, AtlasUploadCondition& uploadCondition, bool& needsUploadFence)
 {
     const auto& atlasSize = layout.atlasSize();
 
@@ -134,13 +138,13 @@ RefPtr<SkiaGPUAtlas> SkiaPaintingEngine::createAtlas(const SkiaImageAtlasLayout&
 #if USE(GBM)
     if (shouldUseDMABufAtlasTextures()) {
         isDMABufBackedTexture = true;
-        textureFlags.add({ BitmapTexture::Flags::BackedByDMABuf, BitmapTexture::Flags::ForceLinearBuffer, BitmapTexture::Flags::DeferTextureBinding });
+        textureFlags.add({ BitmapTexture::Flags::BackedByDMABuf, BitmapTexture::Flags::ForceLinearBuffer });
     }
 #endif
 
     // Verify the texture actually has DMA-buf backing. BitmapTexture silently
-    // falls back to GL if DMA-buf allocation fails, and we must use the
-    // synchronous GL upload path instead of the DMA-buf work queue path.
+    // falls back to GL if DMA-buf allocation fails, but we must not dispatch
+    // GL operations to the upload worker thread (which has no GL context).
     auto texture = BitmapTexturePool::singleton().acquireTexture(atlasSize, textureFlags);
 #if USE(GBM)
     if (!texture->memoryMappedGPUBuffer())
@@ -152,37 +156,18 @@ RefPtr<SkiaGPUAtlas> SkiaPaintingEngine::createAtlas(const SkiaImageAtlasLayout&
         return nullptr;
 
     // GL path: upload synchronously.
-    if (!isDMABufBackedTexture) {
+    if (!isDMABufBackedTexture) [[unlikely]] {
         atlas->uploadImages();
+        needsUploadFence = true;
         return atlas;
     }
 
     // DMA-buf path: create atlas without uploading, dispatch pixel writes to worker.
-    // After uploading, bind the dma-buf to an EGLImage + GL texture on this single
-    // thread, so replay workers only need to rewrap the SkImage for their context.
     if (!m_uploadWorkQueue)
         m_uploadWorkQueue = WorkQueue::create("AtlasUpload"_s);
     uploadCondition.addPending();
     m_uploadWorkQueue->dispatch([atlas = Ref { *atlas }, condition = Ref { uploadCondition }]() mutable {
         atlas->uploadImages();
-
-        // Use a lightweight GL context (no GrDirectContext / Skia GPU backend)
-        // since we only need raw GL calls for EGLImage texture binding.
-        static thread_local auto glContext = GLContext::createOffscreen(PlatformDisplay::sharedDisplay());
-        if (!glContext || !glContext->makeContextCurrent()) {
-            WTFLogAlways("ERROR: Failed to create/activate GL context on atlas upload thread. Aborting ..."); // NOLINT
-            CRASH();
-        }
-
-        if (!atlas->ensureBackendTexture()) {
-            WTFLogAlways("ERROR: Failed to bind DMA-buf to GL texture on atlas upload thread. Aborting ..."); // NOLINT
-            CRASH();
-        }
-
-        // Flush GL commands so the texture object state (EGLImage binding)
-        // is visible to replay worker contexts in the same share group.
-        glFlush();
-
         condition->signal();
     });
     return atlas;
@@ -266,11 +251,8 @@ Ref<SkiaRecordingResult> SkiaPaintingEngine::record(const GraphicsLayerCoordinat
 
             bool needsUploadFence = false;
             for (const auto& layout : result->atlasLayouts()) {
-                if (auto atlas = createAtlas(layout.get(), uploadCondition.get())) {
-                    if (!atlas->atlasTexture().usesDeferredTextureBinding())
-                        needsUploadFence = true;
+                if (auto atlas = createAtlas(layout.get(), uploadCondition.get(), needsUploadFence))
                     gpuAtlases.append(atlas.releaseNonNull());
-                }
             }
 
             if (!gpuAtlases.isEmpty()) {
@@ -285,9 +267,8 @@ Ref<SkiaRecordingResult> SkiaPaintingEngine::record(const GraphicsLayerCoordinat
                     result->setGPUAtlases(WTF::move(gpuAtlases), WTF::move(uploadCondition));
                 }
 
-                // Flush and fence for the GL upload fallback path, where
+                // Flush and fence only for the GL upload path, where
                 // BitmapTexture::updateContents() issues GL upload commands.
-                // Not needed on the DMA-buf path where uploading is CPU-side (memory-mapped).
                 if (needsUploadFence)
                     result->setUploadFence(SkiaUtilities::flushAndSubmitWithFence(grContext));
             }
@@ -396,6 +377,12 @@ bool SkiaPaintingEngine::shouldUseDMABufAtlasTextures()
             if (envStringView == "1"_s)
                 shouldUseDMABufAtlas = false;
         }
+
+        // On systems where allocating/exporting a gbm_bo succeeds but mmap'ing its dma-buf FD
+        // does not, stay on the pure-OpenGL path from the start rather than tripping the
+        // RELEASE_ASSERT in SkiaGPUAtlas::uploadImages() later.
+        if (shouldUseDMABufAtlas && !MemoryMappedGPUBuffer::isSupported())
+            shouldUseDMABufAtlas = false;
     });
 
     return shouldUseDMABufAtlas;

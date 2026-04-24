@@ -27,13 +27,14 @@
 #include "PropertyCascade.h"
 
 #include "CSSCustomPropertyValue.h"
+#include "CSSKeywordValueInlines.h"
 #include "CSSPaintImageValue.h"
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSValuePool.h"
 #include "ComputedStyleDependencies.h"
 #include "PaintWorkletGlobalScope.h"
 #include "PropertyAllowlist.h"
 #include "StyleBuilderGenerated.h"
+#include "StyleKeyword+Mappings.h"
 #include "StylePropertyShorthand.h"
 #include <ranges>
 #include <wtf/TZoneMallocInlines.h>

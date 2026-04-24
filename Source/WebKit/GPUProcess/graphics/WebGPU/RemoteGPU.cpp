@@ -198,7 +198,6 @@ void RemoteGPU::requestAdapter(const WebGPU::RequestAdapterOptions& options, Web
             limits->maxBufferSize(),
             limits->maxVertexAttributes(),
             limits->maxVertexBufferArrayStride(),
-            limits->maxInterStageShaderComponents(),
             limits->maxInterStageShaderVariables(),
             limits->maxColorAttachments(),
             limits->maxColorAttachmentBytesPerSample(),
@@ -274,7 +273,7 @@ void RemoteGPU::paintNativeImageToImageBuffer(WebCore::NativeImage& nativeImage,
 Vector<UniqueRef<WebCore::IOSurface>> RemoteGPU::createRenderBuffers(unsigned width, unsigned height, const WebCore::ProcessIdentity& processIdentity)
 {
     const auto colorFormat = WebCore::IOSurface::Format::RGBA16F;
-    const auto colorSpace = WebCore::DestinationColorSpace::LinearDisplayP3();
+    const auto colorSpace = WebCore::DestinationColorSpace::ExtendedLinearDisplayP3();
 
     Vector<UniqueRef<WebCore::IOSurface>> ioSurfaces;
 

@@ -52,44 +52,74 @@ endfunction()
 
 # Prepends flags to CMAKE_C_FLAGS if supported by the C compiler. Almost all
 # flags should be prepended to allow the user to override them.
+#
+# Also mirrors the resulting flags into CMAKE_OBJC_FLAGS so that .m sources on
+# Apple ports get the same WebKit-curated flag set as their .c counterparts.
+# This is a no-op on ports where OBJC is not an enabled language.
 macro(WEBKIT_PREPEND_GLOBAL_C_FLAGS)
     WEBKIT_VAR_ADD_COMPILER_FLAGS(C PREPEND CMAKE_C_FLAGS ${ARGN})
+    WEBKIT_VAR_ADD_COMPILER_FLAGS(C PREPEND CMAKE_OBJC_FLAGS ${ARGN})
 endmacro()
 
 # Appends flags to CMAKE_C_FLAGS if supported by the C compiler. This macro
 # should be used sparingly. Only append flags if the user must not be allowed to
 # override them.
+#
+# See WEBKIT_PREPEND_GLOBAL_C_FLAGS for the OBJC mirroring rationale.
 macro(WEBKIT_APPEND_GLOBAL_C_FLAGS)
     WEBKIT_VAR_ADD_COMPILER_FLAGS(C APPEND CMAKE_C_FLAGS ${ARGN})
+    WEBKIT_VAR_ADD_COMPILER_FLAGS(C APPEND CMAKE_OBJC_FLAGS ${ARGN})
 endmacro()
 
 # Prepends flags to CMAKE_CXX_FLAGS if supported by the C++ compiler. Almost all
 # flags should be prepended to allow the user to override them.
+#
+# Also mirrors the resulting flags into CMAKE_OBJCXX_FLAGS so that .mm sources
+# on Apple ports get the same WebKit-curated flag set (warnings, -fno-rtti,
+# -fno-exceptions, etc.) as their .cpp counterparts. Without this mirroring,
+# .mm sources are compiled with default OBJCXX flags (notably *with* RTTI),
+# which produces undefined-symbol errors at link time when ObjC++ subclasses
+# reference RTTI-less C++ base classes' typeinfo. This is a no-op on ports
+# where OBJCXX is not an enabled language.
 macro(WEBKIT_PREPEND_GLOBAL_CXX_FLAGS)
     WEBKIT_VAR_ADD_COMPILER_FLAGS(CXX PREPEND CMAKE_CXX_FLAGS ${ARGN})
+    WEBKIT_VAR_ADD_COMPILER_FLAGS(CXX PREPEND CMAKE_OBJCXX_FLAGS ${ARGN})
 endmacro()
 
 # Appends flags to CMAKE_CXX_FLAGS if supported by the C++ compiler. This macro
 # should be used sparingly. Only append flags if the user must not be allowed to
 # override them.
+#
+# See WEBKIT_PREPEND_GLOBAL_CXX_FLAGS for the OBJCXX mirroring rationale.
 macro(WEBKIT_APPEND_GLOBAL_CXX_FLAGS)
     WEBKIT_VAR_ADD_COMPILER_FLAGS(CXX APPEND CMAKE_CXX_FLAGS ${ARGN})
+    WEBKIT_VAR_ADD_COMPILER_FLAGS(CXX APPEND CMAKE_OBJCXX_FLAGS ${ARGN})
 endmacro()
 
 # Prepends flags to CMAKE_C_FLAGS and CMAKE_CXX_FLAGS if supported by the C
 # or C++ compiler, respectively. Almost all flags should be prepended to allow
 # the user to override them.
+#
+# Also mirrors into CMAKE_OBJC_FLAGS / CMAKE_OBJCXX_FLAGS — see the per-language
+# macros above for rationale.
 macro(WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS)
     WEBKIT_VAR_ADD_COMPILER_FLAGS(C PREPEND CMAKE_C_FLAGS ${ARGN})
+    WEBKIT_VAR_ADD_COMPILER_FLAGS(C PREPEND CMAKE_OBJC_FLAGS ${ARGN})
     WEBKIT_VAR_ADD_COMPILER_FLAGS(CXX PREPEND CMAKE_CXX_FLAGS ${ARGN})
+    WEBKIT_VAR_ADD_COMPILER_FLAGS(CXX PREPEND CMAKE_OBJCXX_FLAGS ${ARGN})
 endmacro()
 
 # Appends flags to CMAKE_C_FLAGS and CMAKE_CXX_FLAGS if supported by the C or
 # C++ compiler, respectively. This macro should be used sparingly. Only append
 # flags if the user must not be allowed to override them.
+#
+# Also mirrors into CMAKE_OBJC_FLAGS / CMAKE_OBJCXX_FLAGS — see the per-language
+# macros above for rationale.
 macro(WEBKIT_APPEND_GLOBAL_COMPILER_FLAGS)
     WEBKIT_VAR_ADD_COMPILER_FLAGS(C APPEND CMAKE_C_FLAGS ${ARGN})
+    WEBKIT_VAR_ADD_COMPILER_FLAGS(C APPEND CMAKE_OBJC_FLAGS ${ARGN})
     WEBKIT_VAR_ADD_COMPILER_FLAGS(CXX APPEND CMAKE_CXX_FLAGS ${ARGN})
+    WEBKIT_VAR_ADD_COMPILER_FLAGS(CXX APPEND CMAKE_OBJCXX_FLAGS ${ARGN})
 endmacro()
 
 # Appends flags to COMPILE_OPTIONS of _subject if supported by the C
@@ -250,6 +280,12 @@ if (COMPILER_IS_GCC_OR_CLANG)
         # https://bugs.webkit.org/show_bug.cgi?id=229867
         WEBKIT_PREPEND_GLOBAL_CXX_FLAGS(-Wno-odr)
 
+        # GCC does not preserve #pragma GCC diagnostic state across precompiled
+        # header boundaries (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=64117).
+        # StdLibExtras.h uses a file-level pragma to suppress this warning but
+        # with PCH enabled the pragma is lost when the PCH is loaded.
+        WEBKIT_PREPEND_GLOBAL_CXX_FLAGS(-Wno-invalid-offsetof)
+
         # Match Clang's behavor and exit after emitting 20 errors.
         # https://bugs.webkit.org/show_bug.cgi?id=244621
         WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-fmax-errors=20)
@@ -320,6 +356,9 @@ endif ()
 if (LTO_MODE AND COMPILER_IS_CLANG AND NOT MSVC)
     set(CMAKE_C_FLAGS "-flto=${LTO_MODE} ${CMAKE_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "-flto=${LTO_MODE} ${CMAKE_CXX_FLAGS}")
+    # Mirror to OBJC/OBJCXX for Apple ports — see compiler-flag macro comments.
+    set(CMAKE_OBJC_FLAGS "-flto=${LTO_MODE} ${CMAKE_OBJC_FLAGS}")
+    set(CMAKE_OBJCXX_FLAGS "-flto=${LTO_MODE} ${CMAKE_OBJCXX_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "-flto=${LTO_MODE} ${CMAKE_EXE_LINKER_FLAGS}")
     set(CMAKE_SHARED_LINKER_FLAGS "-flto=${LTO_MODE} ${CMAKE_SHARED_LINKER_FLAGS}")
     set(CMAKE_MODULE_LINKER_FLAGS "-flto=${LTO_MODE} ${CMAKE_MODULE_LINKER_FLAGS}")
@@ -377,6 +416,10 @@ if (COMPILER_IS_GCC_OR_CLANG)
 
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_COMPILER_FLAGS}")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_COMPILER_FLAGS}")
+        # Apple ports also enable OBJC/OBJCXX so .m/.mm sources need the same flags.
+        # On ports where these languages are not enabled, setting these variables is harmless.
+        set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS} ${SANITIZER_COMPILER_FLAGS}")
+        set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} ${SANITIZER_COMPILER_FLAGS}")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${SANITIZER_LINK_FLAGS}")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${SANITIZER_LINK_FLAGS}")
         set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} ${SANITIZER_LINK_FLAGS}")
@@ -391,13 +434,6 @@ if (UNIX AND NOT APPLE AND NOT ENABLED_COMPILER_SANITIZERS)
     set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined ${CMAKE_SHARED_LINKER_FLAGS}")
 endif ()
 
-if (MSVC)
-    set(CODE_GENERATOR_PREPROCESSOR "\"${CMAKE_CXX_COMPILER}\" /nologo /EP /TP")
-elseif (COMPILER_IS_QCC)
-    set(CODE_GENERATOR_PREPROCESSOR "\"${CMAKE_CXX_COMPILER}\" -E -Wp,-P -x c++")
-else ()
-    set(CODE_GENERATOR_PREPROCESSOR "\"${CMAKE_CXX_COMPILER}\" -E -P -x c++")
-endif ()
 
 # Ensure that the default include system directories are added to the list of CMake implicit includes.
 # This workarounds an issue that happens when using GCC 6 and using system includes (-isystem).
@@ -424,7 +460,7 @@ if (COMPILER_IS_GCC_OR_CLANG)
 endif ()
 
 if (COMPILER_IS_GCC_OR_CLANG)
-    set(ATOMIC_TEST_SOURCE "
+    set(ATOMIC_TEST_SOURCE [=[
 #include <atomic>
 #include <optional>
 #include <stdbool.h>
@@ -450,6 +486,13 @@ if (COMPILER_IS_GCC_OR_CLANG)
 
 #define CPU(_FEATURE) (defined CPU_##_FEATURE && CPU_##_FEATURE)
 
+#if COMPILER(CLANG)
+#pragma clang optimize off
+#endif
+
+#if COMPILER(GCC)
+#pragma GCC optimize("O0")
+#endif
 
 #if COMPILER(GCC_COMPATIBLE)
 /* __LP64__ is not defined on 64bit Windows since it uses LLP64. Using __SIZEOF_POINTER__ is simpler. */
@@ -492,8 +535,9 @@ static inline bool compare_and_swap_uint64_weak(uint64_t* ptr, uint64_t old_valu
 #endif
 }
 
+std::atomic<std::optional<double>> d;
+
 int main() {
-    std::atomic<std::optional<double>> d;
     d = 0.0;
     bool y = false;
     bool expected = true;
@@ -511,7 +555,7 @@ int main() {
                   l) ? 0 : 1;
     return static_cast<int>(result + d.load().value());
 }
-    ")
+    ]=])
     check_cxx_source_compiles("${ATOMIC_TEST_SOURCE}" ATOMICS_ARE_BUILTIN)
     if (NOT ATOMICS_ARE_BUILTIN)
         set(CMAKE_REQUIRED_LIBRARIES atomic)
@@ -584,6 +628,3 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND WTF_CPU_MIPS)
     # (see comment #28 in the link above).
     WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-mno-lxc1-sxc1)
 endif ()
-
-# FIXME: Enable pre-compiled headers for all ports <https://webkit.org/b/139438>
-set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)

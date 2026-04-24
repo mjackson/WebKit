@@ -29,6 +29,7 @@
 
 #include "AirArg.h"
 #include "AirInst.h"
+#include "AirOpcode.h"
 #include <wtf/Vector.h>
 
 namespace JSC { namespace B3 {

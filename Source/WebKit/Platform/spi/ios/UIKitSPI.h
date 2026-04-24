@@ -268,12 +268,6 @@ typedef enum {
     kUIKeyboardInputModifierFlagsChanged   = 1 << 5,
 } UIKeyboardInputFlags;
 
-#if PLATFORM(IOS) && !defined(__IPHONE_13_4)
-typedef NS_OPTIONS(NSInteger, UIEventButtonMask) {
-    UIEventButtonMaskSecondary = 1 << 1,
-};
-#endif
-
 @interface UIEvent ()
 - (void *)_hidEvent;
 - (NSString *)_unmodifiedInput;

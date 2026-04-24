@@ -423,10 +423,10 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
     auto windowNumber = viewImpl->windowNumber();
 
     RetainPtr mouseDown = [NSEvent mouseEventWithType:NSEventTypeRightMouseDown location:location modifierFlags:modifierFlags timestamp:GetCurrentEventTime() windowNumber:windowNumber context:NULL eventNumber:0 clickCount:1 pressure:1.0];
-    viewImpl->mouseDown(mouseDown.get(), WebKit::WebMouseEventInputSource::Automation);
+    viewImpl->mouseDown(mouseDown.get(), WebKit::WebEventInputSource::Automation);
 
     RetainPtr mouseUp = [NSEvent mouseEventWithType:NSEventTypeRightMouseUp location:location modifierFlags:modifierFlags timestamp:GetCurrentEventTime() windowNumber:windowNumber context:NULL eventNumber:0 clickCount:1 pressure:0.0];
-    viewImpl->mouseUp(mouseUp.get(), WebKit::WebMouseEventInputSource::Automation);
+    viewImpl->mouseUp(mouseUp.get(), WebKit::WebEventInputSource::Automation);
 }
 
 - (void)mouseTrackingGestureRecognized:(NSGestureRecognizer *)gesture
@@ -473,7 +473,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
                 eventNumber:0
                 clickCount:1
                 pressure:1.0];
-            viewImpl->mouseDown(mouseDown.get(), WebKit::WebMouseEventInputSource::Automation, WebCore::PlatformMouseEvent::CanInitiateDrag::No);
+            viewImpl->mouseDown(mouseDown.get(), WebKit::WebEventInputSource::Automation, WebCore::PlatformMouseEvent::CanInitiateDrag::No);
             _mouseTrackingHasSentMouseDown = true;
         }
 
@@ -486,7 +486,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
             eventNumber:0
             clickCount:1
             pressure:1.0];
-        viewImpl->mouseDragged(mouseDragged.get(), WebKit::WebMouseEventInputSource::Automation, WebCore::PlatformMouseEvent::CanInitiateDrag::No);
+        viewImpl->mouseDragged(mouseDragged.get(), WebKit::WebEventInputSource::Automation, WebCore::PlatformMouseEvent::CanInitiateDrag::No);
         break;
     }
 
@@ -501,7 +501,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
                 eventNumber:0
                 clickCount:1
                 pressure:0.0];
-            viewImpl->mouseUp(mouseUp.get(), WebKit::WebMouseEventInputSource::Automation, WebCore::PlatformMouseEvent::CanInitiateDrag::No);
+            viewImpl->mouseUp(mouseUp.get(), WebKit::WebEventInputSource::Automation, WebCore::PlatformMouseEvent::CanInitiateDrag::No);
         }
         [[fallthrough]];
     }
@@ -545,7 +545,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
     _isClickHighlightIDValid = true;
     _isExpectingFastClickCommit = ![_doubleClickGestureRecognizer isEnabled];
 
-    page->potentialClickAtPosition(std::nullopt, WebCore::FloatPoint(position), false, *_latestClickID, WebKit::WebMouseEventInputSource::Automation);
+    page->potentialClickAtPosition(std::nullopt, WebCore::FloatPoint(position), false, *_latestClickID, WebKit::WebEventInputSource::Automation);
 }
 
 - (void)_handleClickEnded:(NSGestureRecognizer *)gesture

@@ -12,6 +12,8 @@ framework module WebCore_Private [system] {
 
         requires cplusplus
 
+        exclude header "MockParentalControlsURLFilter.h"
+
         module * {
             export *
         }

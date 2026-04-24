@@ -89,7 +89,7 @@ void AccessibilityMathMLElement::addChildren()
 
     m_subtreeDirty = false;
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     verifyChildrenIndexInParent();
 #endif
 }

@@ -100,9 +100,15 @@ MediaTime MediaSourcePrivate::duration() const
 Ref<MediaTimePromise> MediaSourcePrivate::waitForTarget(const SeekTarget& target)
 {
     assertIsMainThread();
-    m_reenqueuePending = true;
-    if (RefPtr client = this->client())
-        return client->waitForTarget(target);
+    if (RefPtr client = this->client()) {
+        m_reenqueuePending = true;
+        return client->waitForTarget(target)->whenSettled(RunLoop::currentSingleton(), [weakThis = ThreadSafeWeakPtr { *this }](auto&& result) {
+            RefPtr protectedThis = weakThis.get();
+            if (!result && protectedThis)
+                protectedThis->m_reenqueuePending = false;
+            return MediaTimePromise::createAndSettle(WTF::move(result));
+        });
+    }
     return MediaTimePromise::createAndReject(PlatformMediaError::ClientDisconnected);
 }
 

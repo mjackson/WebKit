@@ -26,8 +26,11 @@
 #pragma once
 
 #include <WebCore/FloatSize.h>
+
+#if ENABLE(QUICKLOOK_FULLSCREEN)
 #include <WebCore/ShareableBitmap.h>
 #include <WebCore/ShareableSpatialImage.h>
+#endif
 
 namespace WebKit {
 

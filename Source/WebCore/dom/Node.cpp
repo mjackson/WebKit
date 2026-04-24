@@ -109,6 +109,8 @@
 #include "ContentChangeObserver.h"
 #endif
 
+template class mpark::variant<WTF::Ref<WebCore::Node>, WTF::String>;
+
 namespace WebCore {
 
 WTF_MAKE_PREFERABLY_COMPACT_TZONE_ALLOCATED_IMPL(Node);

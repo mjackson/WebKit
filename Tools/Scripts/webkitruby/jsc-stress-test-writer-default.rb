@@ -247,7 +247,7 @@ class Plan < BasePlan
     end
 
     def failCommand
-        "#{statusCommand(STATUS_FILE_FAIL)}; echo FAIL: #{Shellwords.shellescape(@name)}; " + reproCommand
+        "#{statusCommand(STATUS_FILE_FAIL)}; echo FAIL: #{Shellwords.shellescape(@name)} \\(test_script_#{@index}\\); " + reproCommand
     end
     
     def successCommand

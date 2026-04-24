@@ -385,8 +385,7 @@ void ModelProcessModelPlayer::setLoop(bool loop)
 
 void ModelProcessModelPlayer::setPlaybackRate(double playbackRate, CompletionHandler<void(double effectivePlaybackRate)>&& completionHandler)
 {
-    // FIXME (280081): Support negative playback rate
-    m_requestedPlaybackRate = fmax(playbackRate, 0);
+    m_requestedPlaybackRate = playbackRate;
     sendWithAsyncReply(Messages::ModelProcessModelPlayerProxy::SetPlaybackRate(m_requestedPlaybackRate), WTF::move(completionHandler));
 }
 

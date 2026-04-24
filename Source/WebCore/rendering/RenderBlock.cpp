@@ -54,6 +54,7 @@
 #include "PaintInfo.h"
 #include "PaintInfoInlines.h"
 #include "PositionedLayoutConstraints.h"
+#include "RelayoutScopeForScrollbarChange.h"
 #include "RenderBlockFlow.h"
 #include "RenderBlockInlines.h"
 #include "RenderBoxFragmentInfo.h"
@@ -81,6 +82,7 @@
 #include "RenderTreeBuilder.h"
 #include "RenderTreePosition.h"
 #include "RenderView.h"
+#include "ScrollbarUpdateScope.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "ShapeOutsideInfo.h"
@@ -435,7 +437,7 @@ bool RenderBlock::isSelfCollapsingBlock() const
                 return false;
             }
 #else
-            [](CSS::PrimitiveKeyword auto const&) {
+            [](CSS::SpecificKeyword auto const&) {
                 return false;
             }
 #endif
@@ -477,7 +479,7 @@ void RenderBlock::endAndCommitUpdateScrollInfoAfterLayoutTransaction()
         if (block->hasControlClip() && block->hasRenderOverflow())
             block->clearLayoutOverflow();
         if (block->hasNonVisibleOverflow())
-            block->layer()->updateScrollInfoAfterLayout();
+            RelayoutScopeForScrollbarChange relayoutScope { *block, InOverflowRelayout::No };
     }
 }
 
@@ -491,7 +493,7 @@ static inline bool NODELETE isDelayingUpdateScrollInfoAfterLayout(const RenderBl
     return transaction && transaction->nestedCount && !renderer.writingMode().isBlockFlipped();
 };
 
-void RenderBlock::updateScrollInfoAfterLayout()
+std::optional<ScrollbarUpdateScope> RenderBlock::updateScrollInfoAfterLayout()
 {
     auto hasNonVisibleOverflow = this->hasNonVisibleOverflow();
 
@@ -499,24 +501,48 @@ void RenderBlock::updateScrollInfoAfterLayout()
         auto shouldUpdate = hasNonVisibleOverflow || hasControlClip();
         if (shouldUpdate) {
             view().frameView().layoutContext().updateScrollInfoAfterLayoutTransactionIfExists()->blocks.add(*this);
-            return;
+            return { };
         }
     }
 
     if (hasNonVisibleOverflow && layer())
-        layer()->updateScrollInfoAfterLayout();
+        return layer()->updateScrollInfoAfterLayout();
+
+    return { };
+}
+
+static bool needsToTrackDescendantScrollbarChanges(const RenderBlock& renderBlock, const LocalFrameViewLayoutContext& layoutContext)
+{
+    auto computedLogicalWidth = renderBlock.style().logicalWidth();
+    return computedLogicalWidth.isIntrinsic() && !layoutContext.subtreeScrollbarChangesState();
+}
+
+static bool canContainDescendantScrollbarChanges(const RenderBlock& renderBlock, const LocalFrameViewLayoutContext& layoutContext)
+{
+    return layoutContext.subtreeScrollbarChangesState().has_value() && renderBlock.style().logicalWidth().isFixed();
 }
 
 void RenderBlock::layout()
 {
     StackStats::LayoutCheckPoint layoutCheckPoint;
 
+    auto& layoutContext = this->layoutContext();
+
     // Table cells call layoutBlock directly, so don't add any logic here. Put code into layoutBlock().
     {
+        std::optional<SubtreeScrollbarChangesStateScope> subtreeScrollbarChangesStateScope;
+        if (needsToTrackDescendantScrollbarChanges(*this, layoutContext))
+            subtreeScrollbarChangesStateScope.emplace(layoutContext, *this);
+
+        bool willHandleDescendantScrollbarChanges = subtreeScrollbarChangesStateScope.has_value() || canContainDescendantScrollbarChanges(*this, layoutContext);
         auto scope = LayoutScope { *this };
-        layoutBlock(RelayoutChildren::No);
+        if (willHandleDescendantScrollbarChanges) {
+            SubtreeScrollbarChangesHandler descendantScrollbarChangesHandler(*this);
+            layoutBlock(RelayoutChildren::No);
+        } else
+            layoutBlock(RelayoutChildren::No);
     }
-    
+
     // It's safe to check for control clip here, since controls can never be table cells.
     // If we have a lightweight clip, there can never be any overflow from children.
     if (hasControlClip() && m_overflow && !isDelayingUpdateScrollInfoAfterLayout(*this))
@@ -735,8 +761,9 @@ bool RenderBlock::simplifiedLayout()
 
     updateLayerTransform();
 
-    updateScrollInfoAfterLayout();
-
+    {
+        RelayoutScopeForScrollbarChange relayoutScope { *this, InOverflowRelayout::No };
+    }
     clearNeedsLayout();
     return true;
 }
@@ -775,14 +802,16 @@ LayoutUnit RenderBlock::marginIntrinsicLogicalWidthForChild(RenderBox& child) co
     // A margin has three types: fixed, percentage, and auto (variable).
     // Auto and percentage margins become 0 when computing min/max width.
     // Fixed margins can be added in as is.
+    // For calc() expressions like calc(10% + 100px), the percentage resolves to 0
+    // and only the fixed part contributes.
     auto& marginLeft = child.style().marginStart(writingMode());
     auto& marginRight = child.style().marginEnd(writingMode());
     const auto& zoomFactor = child.style().usedZoomForLength();
     LayoutUnit margin;
-    if (auto fixedMarginLeft = marginLeft.tryFixed(); fixedMarginLeft && !shouldTrimChildMargin(Style::MarginTrimSide::InlineStart, child))
-        margin += fixedMarginLeft->resolveZoom(zoomFactor);
-    if (auto fixedMarginRight = marginRight.tryFixed(); fixedMarginRight && !shouldTrimChildMargin(Style::MarginTrimSide::InlineEnd, child))
-        margin += fixedMarginRight->resolveZoom(zoomFactor);
+    if (!marginLeft.isAuto() && !shouldTrimChildMargin(Style::MarginTrimSide::InlineStart, child))
+        margin += Style::evaluateMinimum<LayoutUnit>(marginLeft, 0_lu, zoomFactor);
+    if (!marginRight.isAuto() && !shouldTrimChildMargin(Style::MarginTrimSide::InlineEnd, child))
+        margin += Style::evaluateMinimum<LayoutUnit>(marginRight, 0_lu, zoomFactor);
     return margin;
 }
 
@@ -2941,8 +2970,23 @@ std::optional<LayoutUnit> RenderBlock::availableLogicalHeightForPercentageComput
 
         auto& style = this->style();
         if (auto fixedLogicalHeight = style.logicalHeight().tryFixed()) {
-            auto contentBoxHeight = adjustContentBoxLogicalHeightForBoxSizing(LayoutUnit { fixedLogicalHeight->resolveZoom(style.usedZoomForLength()) });
-            return std::max(0_lu, constrainContentBoxLogicalHeightByMinMax(contentBoxHeight - scrollbarLogicalHeight(), { }));
+            auto flexBasisOverridesHeight = [&] {
+                if (!isFlexItem())
+                    return false;
+                // When flex-basis is anything other than 'auto', it overrides the
+                // specified main axis size. The logical height should not be
+                // definite for percentage children when it IS the main axis,
+                // because the flex algorithm will use flex-basis, not the CSS
+                // height. logicalHeight is the item's block axis (vertical for
+                // horizontal WM, horizontal for vertical WM). It aligns with the
+                // main axis when they point in different physical directions.
+                auto& flexContainer = downcast<RenderFlexibleBox>(*parent());
+                return !style.flexBasis().isAuto() && flexContainer.isHorizontalFlow() != isHorizontalWritingMode();
+            };
+            if (!flexBasisOverridesHeight()) {
+                auto contentBoxHeight = adjustContentBoxLogicalHeightForBoxSizing(LayoutUnit { fixedLogicalHeight->resolveZoom(style.usedZoomForLength()) });
+                return std::max(0_lu, constrainContentBoxLogicalHeightByMinMax(contentBoxHeight - scrollbarLogicalHeight(), { }));
+            }
         }
 
         if (shouldComputeLogicalHeightFromAspectRatio()) {

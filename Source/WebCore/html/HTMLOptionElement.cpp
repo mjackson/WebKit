@@ -280,11 +280,15 @@ void HTMLOptionElement::setText(String&& text)
 bool HTMLOptionElement::accessKeyAction(bool)
 {
     RefPtr select = ownerSelectElement();
-    if (select) {
+    if (!select)
+        return false;
+
+    if (select->usesBaseAppearancePicker()) {
+        select->optionSelectedByUser(index(), true);
+        select->hidePickerPopoverElement();
+    } else
         select->accessKeySetSelectedIndex(index());
-        return true;
-    }
-    return false;
+    return true;
 }
 
 void HTMLOptionElement::defaultEventHandler(Event& event)
@@ -409,9 +413,8 @@ void HTMLOptionElement::attributeChanged(const QualifiedName& name, const AtomSt
         Style::PseudoClassChangeInvalidation defaultInvalidation(*this, CSSSelector::PseudoClass::Default, !newValue.isNull());
         m_isDefault = !newValue.isNull();
 
-        // FIXME: WebKit still need to implement 'dirtiness'. See: https://bugs.webkit.org/show_bug.cgi?id=258073
         // https://html.spec.whatwg.org/multipage/form-elements.html#concept-option-selectedness
-        if (oldValue.isNull() != newValue.isNull())
+        if (oldValue.isNull() != newValue.isNull() && !m_isDirty)
             setSelected(!newValue.isNull());
         break;
     }
@@ -455,6 +458,26 @@ void HTMLOptionElement::setSelected(bool selected)
 
     if (RefPtr select = ownerSelectElement())
         select->optionSelectionStateChanged(*this, selected);
+}
+
+bool HTMLOptionElement::selectedForBindings() const
+{
+    return selected();
+}
+
+void HTMLOptionElement::setSelectedForBindings(bool selected)
+{
+    bool wasSelected = m_isSelected;
+    setSelected(selected);
+
+    // https://html.spec.whatwg.org/multipage/form-elements.html#concept-option-dirtiness
+    // The spec says dirtiness becomes true unconditionally. However, for web
+    // compatibility, don't set dirtiness if the option is owned by a select
+    // element and selectedness did not actually change.
+    if (ownerSelectElement() && wasSelected == m_isSelected)
+        return;
+
+    m_isDirty = true;
 }
 
 void HTMLOptionElement::setSelectedState(bool selected, AllowStyleInvalidation allowStyleInvalidation)
@@ -514,29 +537,30 @@ String HTMLOptionElement::label() const
     return collectOptionInnerTextCollapsingWhitespace();
 }
 
-// Same as label() but ignores the label content attribute in quirks mode for compatibility with other browsers.
 String HTMLOptionElement::displayLabel() const
 {
-    if (document().inQuirksMode())
+    String label = attributeWithoutSynchronization(labelAttr);
+    if (label.isEmpty())
         return collectOptionInnerTextCollapsingWhitespace();
-    return label();
+    return label;
 }
 
 String HTMLOptionElement::textIndentedToRespectGroupLabel() const
 {
     if (!document().settings().htmlEnhancedSelectParsingEnabled()) {
         if (is<HTMLOptGroupElement>(parentNode()))
-            return makeString("    "_s, label());
-        return label();
+            return makeString("    "_s, displayLabel());
+        return displayLabel();
     }
 
     for (Ref ancestor : ancestorsOfType<HTMLElement>(*this)) {
         if (is<HTMLOptGroupElement>(ancestor))
-            return makeString("    "_s, label());
+            return makeString("    "_s, displayLabel());
+
         if (isAnyOf<HTMLDataListElement, HTMLSelectElement, HTMLOptionElement, HTMLHRElement>(ancestor))
-            return label();
+            return displayLabel();
     }
-    return label();
+    return displayLabel();
 }
 
 bool HTMLOptionElement::isDisabledFormControl() const

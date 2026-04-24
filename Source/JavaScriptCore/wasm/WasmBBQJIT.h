@@ -27,6 +27,7 @@
 
 #if ENABLE(WEBASSEMBLY_BBQJIT)
 
+#include "MathCommon.h"
 #include "PCToCodeOriginMap.h"
 #include "SimpleRegisterAllocator.h"
 #include "WasmCallingConvention.h"
@@ -937,7 +938,7 @@ public:
     using CatchHandler = FunctionParser<BBQJIT>::CatchHandler;
     using ArgumentList = FunctionParser<BBQJIT>::ArgumentList;
 
-    unsigned stackCheckSize() const { return alignedFrameSize(m_maxCalleeStackSize + m_frameSize); }
+    uint32_t stackCheckSize() const { return m_frameSize; }
 
 private:
     unsigned m_loggingIndent = 0;
@@ -1648,7 +1649,10 @@ public:
     template<typename IntType, bool IsMod>
     void emitModOrDiv(Value& lhs, Location lhsLocation, Value& rhs, Location rhsLocation, Value& result, Location resultLocation);
 
-    template<typename IntType>
+    // signed INT_MIN / -1 is the only integer div/rem that can overflow.
+    enum class ConstantDivOverflow { CanOverflow, CannotOverflow };
+
+    template<typename IntType, ConstantDivOverflow = ConstantDivOverflow::CannotOverflow>
     Value checkConstantDivision(const Value& lhs, const Value& rhs);
 
     [[nodiscard]] PartialResult addI32DivS(Value lhs, Value rhs, Value& result);
@@ -1677,17 +1681,12 @@ public:
     void emitFloatingPointMinOrMax(FPRReg left, FPRReg right, FPRReg result);
 
     template<MinOrMax IsMinOrMax, typename FloatType>
-    constexpr FloatType computeFloatingPointMinOrMax(FloatType left, FloatType right)
+    FloatType computeFloatingPointMinOrMax(FloatType left, FloatType right)
     {
-        if (std::isnan(left))
-            return left;
-        if (std::isnan(right))
-            return right;
-
         if constexpr (IsMinOrMax == MinOrMax::Min)
-            return std::min<FloatType>(left, right);
+            return Math::fMin<FloatType>(left, right);
         else
-            return std::max<FloatType>(left, right);
+            return Math::fMax<FloatType>(left, right);
     }
 
     [[nodiscard]] PartialResult addF32Min(Value lhs, Value rhs, Value& result);
@@ -2280,10 +2279,9 @@ private:
     Vector<std::tuple<WasmOrigin, Function<void(BBQJIT&, CCallHelpers&)>>, 8> m_latePaths; // Late paths to emit after the rest of the function body.
     Vector<std::tuple<WasmOrigin, MacroAssembler::JumpList, MacroAssembler::Label, RegisterBindings, Function<void(BBQJIT&, CCallHelpers&)>>> m_slowPaths; // Like a late path but for when we need to make a CCall thus need to restore our state.
 
-    // FIXME: All uses of this are to restore sp, so we should emit these as a patchable sub instruction rather than move.
-    Vector<DataLabelPtr, 1> m_frameSizeLabels;
-    int m_frameSize { 0 };
-    int m_maxCalleeStackSize { 0 };
+    uint32_t m_frameSize { 0 };
+    uint32_t m_frameSizeForValidation { 0 };
+    uint32_t m_maxCalleeStackSizeForValidation { 0 };
     int m_localAndCalleeSaveStorage { 0 }; // Stack offset pointing to the local and callee save with the lowest address.
     bool m_usesSIMD { false }; // Whether the function we are compiling uses SIMD instructions or not.
     bool m_usesExceptions { false };

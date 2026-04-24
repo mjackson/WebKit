@@ -65,7 +65,7 @@ static void loadPictureInPicture(RetainPtr<TestWKWebView> webView)
 
 // FIXME: Re-enable this test for Big Sur once webkit.org/b/245241 is resolved
 // rdar://problem/136528371
-#if ((PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 141000) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 150000))
+#if PLATFORM(MAC)
 TEST(WKWebViewCloseAllMediaPresentations, DISABLED_PictureInPicture)
 #else
 TEST(WKWebViewCloseAllMediaPresentations, PictureInPicture)
@@ -96,7 +96,7 @@ TEST(WKWebViewCloseAllMediaPresentations, PictureInPicture)
 
 // FIXME: Re-enable this test for Big Sur once webkit.org/b/245241 is resolved
 // rdar://problem/136528371
-#if ((PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 141000) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 150000))
+#if PLATFORM(MAC)
 TEST(WKWebViewCloseAllMediaPresentationsInternal, DISABLED_PictureInPicture)
 #else
 TEST(WKWebViewCloseAllMediaPresentationsInternal, PictureInPicture)
@@ -204,7 +204,7 @@ TEST(WKWebViewCloseAllMediaPresentations, ElementFullscreen)
 
 // FIXME: Re-enable this test for Big Sur once webkit.org/b/245241 is resolved
 // rdar://problem/136528371
-#if ((PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 141000) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 150000))
+#if PLATFORM(MAC)
 TEST(WKWebViewCloseAllMediaPresentations, DISABLED_MultipleSequentialCloseAllMediaPresentations)
 #else
 TEST(WKWebViewCloseAllMediaPresentations, MultipleSequentialCloseAllMediaPresentations)

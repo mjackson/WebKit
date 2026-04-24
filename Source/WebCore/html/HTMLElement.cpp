@@ -561,7 +561,7 @@ void HTMLElement::addParsedWidthAndHeightToAspectRatioList(double width, double 
 {
     style.setProperty(CSSPropertyAspectRatio,
         CSSValueList::createSpaceSeparated(
-            CSSPrimitiveValue::create(CSSValueAuto),
+            CSSKeywordValue::create(CSSValueAuto),
             CSSRatioValue::create(CSS::Ratio { width, height })
         )
     );

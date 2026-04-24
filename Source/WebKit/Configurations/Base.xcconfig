@@ -120,11 +120,8 @@ SWIFT_VERSION = 6.0;
 OTHER_SWIFT_FLAGS = $(inherited) -Xfrontend -experimental-spi-only-imports @$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/platform-enabled-swift-args.$(arch).resp @$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/swift-tba-availability-macros.resp;
 
 WK_ENABLE_SWIFTUI = YES;
-WK_ENABLE_SWIFTUI[sdk=macosx15*] = NO;
 WK_ENABLE_SWIFTUI[sdk=watch*] = NO;
 WK_ENABLE_SWIFTUI[sdk=appletv*] = NO;
-WK_ENABLE_SWIFTUI[sdk=xros2.*] = NO;
-WK_ENABLE_SWIFTUI[sdk=xrsimulator2.*] = NO;
 
 SUPPORTS_TEXT_BASED_API = $(OVERRIDE_SUPPORTS_TEXT_BASED_API:default=YES);
 

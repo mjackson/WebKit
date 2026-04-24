@@ -27,6 +27,7 @@
 #include "CSSPropertyParserConsumer+Shapes.h"
 
 #include "CSSBasicShapeValue.h"
+#include "CSSKeywordValueInlines.h"
 #include "CSSParserTokenRange.h"
 #include "CSSPathValue.h"
 #include "CSSPrimitiveValue.h"
@@ -1054,7 +1055,7 @@ RefPtr<CSSValue> consumeShapeOutside(CSSParserTokenRange& range, CSS::PropertyPa
         boxValue = CSSPropertyParsing::consumeShapeBox(range);
 
     // margin-box is the default.
-    if (boxValue && (boxValue->valueID() != CSSValueMarginBox || !hasShapeValue))
+    if (boxValue && (!isValueID(boxValue, CSSValueMarginBox) || !hasShapeValue))
         list.append(boxValue.releaseNonNull());
 
     if (list.isEmpty())

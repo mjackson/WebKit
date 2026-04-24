@@ -173,7 +173,6 @@ Tests/WebKit/WKWebView/IndexedDBInPageCache.mm @nonARC
 Tests/WebKit/WKWebView/IndexedDBMultiProcess.mm @nonARC
 Tests/WebKit/WKWebView/IndexedDBPersistence.mm @nonARC
 Tests/WebKit/WKWebView/IndexedDBStructuredCloneBackwardCompatibility.mm @nonARC
-Tests/WebKit/WKWebView/IndexedDBSuspendImminently.html
 Tests/WebKit/WKWebView/IndexedDBSuspendImminently.mm @nonARC
 Tests/WebKit/WKWebView/IndexedDBTempFileSize.mm @nonARC
 Tests/WebKit/WKWebView/IndexedDBUserDelete.mm @nonARC

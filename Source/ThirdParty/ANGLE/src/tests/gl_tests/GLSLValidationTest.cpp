@@ -11,6 +11,8 @@
 #include "test_utils/CompilerTest.h"
 #include "test_utils/angle_test_configs.h"
 
+#include <sstream>
+
 using namespace angle;
 
 namespace
@@ -2291,6 +2293,36 @@ void main(){f=0.;})";
                   "l-value required (can't modify an input \"f\")");
 }
 
+// Test no mangling collision in structs
+TEST_P(GLSLValidationTest, ManglingCollisionInStruct)
+{
+    constexpr char kFS[] = R"(precision mediump float;
+struct A00B { vec4 y; };
+struct A    { float x; vec4 y; };
+
+void foo(A00B p);
+void foo(A p) {}
+
+void main() {
+    A00B v = A00B(vec4(0));
+    foo(v);
+})";
+    validateError(GL_FRAGMENT_SHADER, kFS, "Function foo() called by main() is undefined");
+}
+
+// Test no mangling collision in function parameters
+TEST_P(GLSLValidationTest, ManglingCollisionInFunctionParams)
+{
+    constexpr char kFS[] = R"(precision mediump float;
+void fooA00B(vec4 y);
+void foo(float x, vec4 y) {}
+
+void main() {
+    fooA00B(vec4(0));
+})";
+    validateError(GL_FRAGMENT_SHADER, kFS, "Function fooA00B() called by main() is undefined");
+}
+
 // Test that infinite loop with while(true) is rejected
 TEST_P(WebGL2GLSLValidationTest, InfiniteLoopWhileTrue)
 {
@@ -2705,6 +2737,132 @@ void main() {
                   "'rr' : Size of declared variable exceeds implementation-defined limit");
 }
 
+// Test that too large array in UBO, where cast to signed int would produce negative sizes, does not
+// crash.
+TEST_P(WebGL2GLSLValidationTest, LargeArrayUintMaxSizeInUBO)
+{
+    constexpr char kFS[] = R"(#version 300 es
+uniform Block
+{
+    int rr[~1U];
+};
+out int o;
+void main() {
+    o = rr[1];
+})";
+    validateError(GL_FRAGMENT_SHADER, kFS,
+                  "'Block' : Size of declared variable exceeds implementation-defined limit");
+}
+
+// Regression test for a 32-bit overflow bug when setting initializer for a large constant.
+TEST_P(WebGL2GLSLValidationTest, LargeConstantVariableWithInitializer)
+{
+    const int N1 = 256;
+    const int N2 = 256;
+    const int N3 = 65537;
+
+    std::ostringstream aInit;
+    const char *delim = "";
+    for (int i = 0; i < N1; i++)
+    {
+        aInit << delim << "1.5";
+        delim = ",";
+    }
+
+    std::ostringstream bInit;
+    delim = "";
+    for (int i = 0; i < N2; i++)
+    {
+        bInit << delim << "sA";
+        delim = ",";
+    }
+
+    std::ostringstream cInit;
+    delim = "";
+    for (int i = 0; i < N3; i++)
+    {
+        cInit << delim << "sB";
+        delim = ",";
+    }
+
+    // Set up a shader with large arrays, overflowing 32-bit math.
+    //
+    // S: 256*sizeof(float) = 1024 bytes
+    // S2: 256*sizeof(S) = 256KB
+    // c: 65537*sizeof(S2) >= 4*4GB
+    std::ostringstream fs;
+    fs << "#version 300 es\n"
+       << "precision highp float;\n"
+       << "struct S { float a[" << N1 << "]; };\n"
+       << "struct S2 { S b[" << N2 << "]; };\n"
+       << "const float a[" << N1 << "] = float[" << N1 << "](" << aInit.str() << ");\n"
+       << "const S sA = S(a);\n"
+       << "const S b[" << N2 << "] = S[" << N2 << "](" << bInit.str() << ");\n"
+       << "const S2 sB = S2(b);\n"
+       << "const S2 c[" << N3 << "] = S2[" << N3 << "](" << cInit.str() << ");\n"
+       << "void main(){}\n";
+
+    validateError(GL_FRAGMENT_SHADER, fs.str().c_str(),
+                  "Size of declared private variable exceeds implementation-defined limit");
+}
+
+// Test using a large constant that is declared inline, without using variable space that would
+// exceed the implementation-defined limit.  Because of the variable limit, the shader would have to
+// either inline an extremely large constant, which would practically take forever to construct and
+// parse, or use near-limit private variables.  In the latter case, the constant array constructor
+// does not cause any 32-bit overflows, so the shader succeeds compilation just fine.  If the large
+// constant is indexed, it can get constant folded, but at that point the constant is small.
+TEST_P(WebGL2GLSLValidationTest, InlineLargeConstant)
+{
+    const int N1 = 256;
+    const int N2 = 32;
+    const int N3 = 65536 * 8 + 1;
+
+    std::ostringstream aInit;
+    const char *delim = "";
+    for (int i = 0; i < N1; i++)
+    {
+        aInit << delim << "1.5";
+        delim = ",";
+    }
+
+    std::ostringstream bInit;
+    delim = "";
+    for (int i = 0; i < N2; i++)
+    {
+        bInit << delim << "sA";
+        delim = ",";
+    }
+
+    std::ostringstream s2;
+    s2 << "S2[" << N3 << "](";
+    delim = "";
+    for (int i = 0; i < N3; i++)
+    {
+        s2 << delim << "sB";
+        delim = ",";
+    }
+    s2 << ")";
+
+    // Set up a shader with large arrays, overflowing 32-bit math.
+    //
+    // S: 256*sizeof(float) = 1024 bytes
+    // S2: 32*sizeof(S) = 32KB
+    // constant: (65536 * 8 + 1)*sizeof(S2) >= 4*4GB
+    std::ostringstream fs;
+    fs << "#version 300 es\n"
+       << "precision highp float;\n"
+       << "struct S { float a[" << N1 << "]; };\n"
+       << "struct S2 { S b[" << N2 << "]; };\n"
+       << "const float a[" << N1 << "] = float[" << N1 << "](" << aInit.str() << ");\n"
+       << "const S sA = S(a);\n"
+       << "const S b[" << N2 << "] = S[" << N2 << "](" << bInit.str() << ");\n"
+       << "const S2 sB = S2(b);\n"
+       << "void main(){ " << s2.str() << "[0].b[0].a[0]; }\n";
+
+    validateSuccess(GL_FRAGMENT_SHADER, fs.str().c_str());
+}
+
 // Test that too large color outputs are rejected
 TEST_P(WebGL2GLSLValidationTest, LargeColorOutput)
 {
@@ -3116,6 +3274,73 @@ in gl_PerVertex{vec4 gl_Position;} gl_in[];
 void main() {})";
         validateSuccess(GL_GEOMETRY_SHADER, kGS);
     }
+}
+
+// Negative test using builtins that can only be used when redefining gl_PerVertex
+TEST_P(GLSLValidationTest_ES31, RedefinePerVertexMembersSeparately)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_geometry_shader"));
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_clip_cull_distance"));
+
+    constexpr char kGS[] = R"(#version 310 es
+#extension GL_EXT_geometry_shader : require
+#extension GL_EXT_clip_cull_distance : require
+
+layout(lines_adjacency, invocations = 3) in;
+layout(points, max_vertices = 16) out;
+
+vec4 gl_Position;
+float gl_ClipDistance[4];
+float gl_CullDistance[4];
+
+void main()
+{
+    for (int n = 0; n < 16; ++n)
+    {
+        gl_Position = vec4(n, 0.0, 0.0, 1.0);
+        EmitVertex();
+    }
+
+    EndPrimitive();
+})";
+
+    validateError(GL_GEOMETRY_SHADER, kGS,
+                  "'gl_Position' : redeclaration of built-in is not allowed");
+}
+
+// Negative test using builtins that can only be used when redefining gl_PerVertex but have the
+// builtins in a differently named struct
+TEST_P(GLSLValidationTest_ES31, RedefinePerVertexMembersInOtherBlock)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_geometry_shader"));
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_clip_cull_distance"));
+
+    constexpr char kGS[] = R"(#version 310 es
+#extension GL_EXT_geometry_shader : require
+#extension GL_EXT_clip_cull_distance : require
+
+layout(lines_adjacency, invocations = 3) in;
+layout(points, max_vertices = 16) out;
+
+out Block {
+    vec4 gl_Position;
+    float gl_ClipDistance[4];
+    float gl_CullDistance[4];
+};
+
+void main()
+{
+    for (int n = 0; n < 16; ++n)
+    {
+        gl_Position = vec4(n, 0.0, 0.0, 1.0);
+        EmitVertex();
+    }
+
+    EndPrimitive();
+})";
+
+    validateError(GL_GEOMETRY_SHADER, kGS,
+                  "'gl_Position' : redefinition in an invalid interface block");
 }
 
 // Regression test case of unary + constant folding of a void struct member.
@@ -4976,6 +5201,114 @@ void main (void)
     validateError(GL_FRAGMENT_SHADER, kFS,
                   "'noncoherent' qualifier must be used when "
                   "GL_EXT_shader_framebuffer_fetch_non_coherent extension is used");
+}
+
+// Redeclare gl_LastFragColorARM with unexpected basic type
+TEST_P(GLSLValidationTest, FramebufferFetchLastFragColorWrongType)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_ARM_shader_framebuffer_fetch"));
+
+    constexpr char kFS[] =
+        R"(#extension GL_ARM_shader_framebuffer_fetch : require
+highp int gl_LastFragColorARM;
+
+void main (void)
+{
+    gl_FragColor = vec4(gl_LastFragColorARM);
+})";
+
+    validateError(GL_FRAGMENT_SHADER, kFS,
+                  "'gl_LastFragColorARM' : redeclaration of built-in with a different type");
+}
+
+// Redeclare gl_LastFragColorARM with unexpected arrayness
+TEST_P(GLSLValidationTest, FramebufferFetchLastFragColorArrayed)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_ARM_shader_framebuffer_fetch"));
+
+    constexpr char kFS[] =
+        R"(#extension GL_ARM_shader_framebuffer_fetch : require
+highp vec4 gl_LastFragColorARM[4];
+
+void main (void)
+{
+    gl_FragColor = vec4(gl_LastFragColorARM[0]);
+})";
+
+    validateError(GL_FRAGMENT_SHADER, kFS,
+                  "'gl_LastFragColorARM' : redeclaration of built-in with a different type");
+}
+
+// Redeclare gl_LastFragDepthARM with unexpected basic type
+TEST_P(GLSLValidationTest, FramebufferFetchLastFragDepthWrongType)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_ARM_shader_framebuffer_fetch_depth_stencil"));
+
+    constexpr char kFS[] =
+        R"(#extension GL_ARM_shader_framebuffer_fetch_depth_stencil : require
+highp int gl_LastFragDepthARM;
+
+void main (void)
+{
+    gl_FragColor = vec4(gl_LastFragDepthARM);
+})";
+
+    validateError(GL_FRAGMENT_SHADER, kFS,
+                  "'gl_LastFragDepthARM' : redeclaration of built-in with a different type");
+}
+
+// Redeclare gl_LastFragDepthARM with unexpected arrayness
+TEST_P(GLSLValidationTest, FramebufferFetchLastFragDepthArrayed)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_ARM_shader_framebuffer_fetch_depth_stencil"));
+
+    constexpr char kFS[] =
+        R"(#extension GL_ARM_shader_framebuffer_fetch_depth_stencil : require
+highp float gl_LastFragDepthARM[4];
+
+void main (void)
+{
+    gl_FragColor = vec4(gl_LastFragDepthARM[0]);
+})";
+
+    validateError(GL_FRAGMENT_SHADER, kFS,
+                  "'gl_LastFragDepthARM' : redeclaration of built-in with a different type");
+}
+
+// Redeclare gl_LastFragStencilARM with unexpected basic type
+TEST_P(GLSLValidationTest, FramebufferFetchLastFragStencilWrongType)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_ARM_shader_framebuffer_fetch_depth_stencil"));
+
+    constexpr char kFS[] =
+        R"(#extension GL_ARM_shader_framebuffer_fetch_depth_stencil : require
+highp float gl_LastFragStencilARM;
+
+void main (void)
+{
+    gl_FragColor = vec4(gl_LastFragStencilARM);
+})";
+
+    validateError(GL_FRAGMENT_SHADER, kFS,
+                  "'gl_LastFragStencilARM' : redeclaration of built-in with a different type");
+}
+
+// Redeclare gl_LastFragStencilARM with unexpected arrayness
+TEST_P(GLSLValidationTest, FramebufferFetchLastFragStencilArrayed)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_ARM_shader_framebuffer_fetch_depth_stencil"));
+
+    constexpr char kFS[] =
+        R"(#extension GL_ARM_shader_framebuffer_fetch_depth_stencil : require
+highp int gl_LastFragStencilARM[4];
+
+void main (void)
+{
+    gl_FragColor = vec4(gl_LastFragStencilARM[0]);
+})";
+
+    validateError(GL_FRAGMENT_SHADER, kFS,
+                  "'gl_LastFragStencilARM' : redeclaration of built-in with a different type");
 }
 
 // Ensure that a negative index after a comma generates an error.
@@ -6969,7 +7302,7 @@ uniform int gl_BaseVertex;
 void main() {
    gl_Position = vec4(float(gl_BaseVertex), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_BaseVertex' : reserved built-in name");
     }
 
     {
@@ -6978,7 +7311,7 @@ uniform int gl_BaseInstance;
 void main() {
    gl_Position = vec4(float(gl_BaseInstance), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_BaseInstance' : reserved built-in name");
     }
 
     {
@@ -6987,7 +7320,7 @@ void main() {
    int gl_BaseVertex = 0;
    gl_Position = vec4(float(gl_BaseVertex), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_BaseVertex' : reserved built-in name");
     }
 
     {
@@ -6996,7 +7329,7 @@ void main() {
    int gl_BaseInstance = 0;
    gl_Position = vec4(float(gl_BaseInstance), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_BaseInstance' : reserved built-in name");
     }
 
     ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance_shader_builtin"));
@@ -7009,7 +7342,7 @@ uniform int gl_BaseVertex;
 void main() {
    gl_Position = vec4(float(gl_BaseVertex), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_BaseVertex' : reserved built-in name");
     }
 
     {
@@ -7019,7 +7352,7 @@ uniform int gl_BaseInstance;
 void main() {
    gl_Position = vec4(float(gl_BaseInstance), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_BaseInstance' : reserved built-in name");
     }
 
     {
@@ -7029,7 +7362,7 @@ void main() {
    int gl_BaseVertex = 0;
    gl_Position = vec4(float(gl_BaseVertex), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_BaseVertex' : reserved built-in name");
     }
 
     {
@@ -7039,7 +7372,7 @@ void main() {
    int gl_BaseInstance = 0;
    gl_Position = vec4(float(gl_BaseInstance), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_BaseInstance' : reserved built-in name");
     }
 }
 
@@ -7055,7 +7388,7 @@ TEST_P(GLSLValidationDrawIDTest, DisallowsUserDefinedGLDrawID)
 void main() {
    gl_Position = vec4(float(gl_DrawID), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_DrawID' : reserved built-in name");
     }
 
     {
@@ -7063,7 +7396,7 @@ void main() {
    int gl_DrawID = 0;
    gl_Position = vec4(float(gl_DrawID), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_DrawID' : reserved built-in name");
     }
 
     ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_ANGLE_multi_draw"));
@@ -7075,7 +7408,7 @@ uniform int gl_DrawID;
 void main() {
    gl_Position = vec4(float(gl_DrawID), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_DrawID' : reserved built-in name");
     }
 
     {
@@ -7084,7 +7417,7 @@ void main() {
    int gl_DrawID = 0;
    gl_Position = vec4(float(gl_DrawID), 0.0, 0.0, 1.0);
 })";
-        validateError(GL_VERTEX_SHADER, kVS, "'gl_' : reserved built-in name");
+        validateError(GL_VERTEX_SHADER, kVS, "'gl_DrawID' : reserved built-in name");
     }
 }
 
@@ -7550,7 +7883,7 @@ void main (void)
     testCompileNeedsExtensionDirective(
         GL_FRAGMENT_SHADER, kFS100Coherent, nullptr, "GL_EXT_shader_framebuffer_fetch", hasCoherent,
         hasCoherent ? hasNonCoherent ? "extension is disabled" : "extension is not supported"
-                    : "'gl_' : reserved built-in name",
+                    : "'gl_LastFragData' : reserved built-in name",
         hasCoherent ? hasNonCoherent ? "extension is disabled" : "extension is not supported"
                     : "extension is not supported");
     testCompileNeedsExtensionDirectiveGenericKeyword(

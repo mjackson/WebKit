@@ -116,6 +116,12 @@ void RemoteBufferProxy::destroy()
     UNUSED_VARIABLE(sendResult);
 }
 
+void RemoteBufferProxy::generateAValidationError()
+{
+    auto sendResult = send(Messages::RemoteBuffer::GenerateAValidationError());
+    UNUSED_VARIABLE(sendResult);
+}
+
 void RemoteBufferProxy::setLabelInternal(const String& label)
 {
     auto sendResult = send(Messages::RemoteBuffer::SetLabel(label));

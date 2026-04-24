@@ -172,13 +172,16 @@
 			files = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/UserInterface",
+				"$(SRCROOT)/Scripts/copy-user-interface-resources.pl",
 			);
 			name = "Copy User Interface Resources";
 			outputPaths = (
+				"$(DERIVED_FILE_DIR)/copy-user-interface-resources.stamp",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [[ \"${ACTION}\" == \"installapi\" || \"${ACTION}\" == \"installhdrs\" ]]; then\n    exit\nfi\n\n/usr/bin/perl \"${SRCROOT}/Scripts/copy-user-interface-resources.pl\"\n";
+			shellScript = "if [[ \"${ACTION}\" == \"installapi\" || \"${ACTION}\" == \"installhdrs\" ]]; then\n    exit\nfi\n\n/usr/bin/perl \"${SRCROOT}/Scripts/copy-user-interface-resources.pl\"\ntouch \"${DERIVED_FILE_DIR}/copy-user-interface-resources.stamp\"\n";
 		};
 		6577FFC9276ACA680011AEC8 /* Create Symlink to Cryptex Path */ = {
 			isa = PBXShellScriptBuildPhase;

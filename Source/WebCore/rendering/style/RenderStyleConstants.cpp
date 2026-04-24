@@ -26,7 +26,7 @@
 #include "config.h"
 #include "RenderStyleConstants.h"
 
-#include "CSSPrimitiveValueMappings.h"
+#include "StyleKeyword+Mappings.h"
 #include <wtf/text/TextStream.h>
 
 namespace WebCore {

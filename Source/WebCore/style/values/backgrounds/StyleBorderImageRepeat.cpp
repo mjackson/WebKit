@@ -27,7 +27,7 @@
 #include "StyleBorderImageRepeat.h"
 
 #include "CSSValuePair.h"
-#include "StylePrimitiveKeyword+CSSValueConversion.h"
+#include "StyleKeyword+CSSValueConversion.h"
 
 namespace WebCore {
 namespace Style {

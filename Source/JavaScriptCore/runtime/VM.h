@@ -28,15 +28,10 @@
 
 #pragma once
 
-#include <wtf/Compiler.h>
-
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
-#include "CalleeBits.h"
-#include "CodeSpecializationKind.h"
 #include "ConcurrentJSLock.h"
 #include "DFGDoesGCCheck.h"
-#include "DeleteAllCodeEffort.h"
 #include "ExceptionEventLocation.h"
 #include "FunctionHasExecutedCache.h"
 #include "Heap.h"
@@ -44,49 +39,37 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "IndexingType.h"
 #include "Integrity.h"
 #include "Interpreter.h"
-#include "Intrinsic.h"
-#include "JSCJSValue.h"
 #include "JSDateMath.h"
-#include "JSLock.h"
 #include "JSONAtomStringCache.h"
 #include "KeyAtomStringCache.h"
-#include "MicrotaskQueue.h"
 #include "NativeFunction.h"
 #include "NumericStrings.h"
-#include "SlotVisitorMacros.h"
 #include "SmallStrings.h"
-#include "SourceTaintedOrigin.h"
 #include "StringReplaceCache.h"
 #include "StringSplitCache.h"
-#include "Strong.h"
-#include "SubspaceAccess.h"
-#include "ThunkGenerator.h"
+#include "StrongForward.h"
 #include "VMThreadContext.h"
 #include "VMTraps.h"
-#include "WasmContext.h"
 #include "WeakGCMap.h"
 #include "WriteBarrier.h"
 #include <wtf/BumpPointerAllocator.h>
 #include <wtf/CheckedArithmetic.h>
-#include <wtf/FastMalloc.h>
-#include <wtf/Forward.h>
-#include <wtf/HashMap.h>
+#include <wtf/Compiler.h>
 #include <wtf/LazyRef.h>
 #include <wtf/LazyUniqueRef.h>
+#include <wtf/Lock.h>
 #include <wtf/MallocPtr.h>
-#include <wtf/SetForScope.h>
-#include <wtf/StackPointer.h>
-#include <wtf/Stopwatch.h>
-#include <wtf/TZoneMalloc.h>
+#include <wtf/ObjectIdentifier.h>
 #include <wtf/ThreadSafeRefCountedWithSuppressingSaferCPPChecking.h>
-#include <wtf/ThreadSafeWeakHashSet.h>
-#include <wtf/UniqueArray.h>
-#include <wtf/WeakRandom.h>
 #include <wtf/text/AdaptiveStringSearcher.h>
-#include <wtf/text/StringImpl.h>
-#include <wtf/text/SymbolImpl.h>
-#include <wtf/text/SymbolRegistry.h>
-#include <wtf/text/UniquedStringImpl.h>
+
+#if ENABLE(WEBASSEMBLY)
+#include <JavaScriptCore/WasmContext.h>
+#endif
+
+#if ENABLE(JIT)
+#include <JavaScriptCore/ThunkGenerator.h>
+#endif
 
 #include "LineColumn.h"
 
@@ -108,6 +91,9 @@ namespace WTF {
 class RunLoop;
 class SimpleStats;
 class StackTrace;
+class Stopwatch;
+class SymbolImpl;
+class UniquedStringImpl;
 } // namespace WTF
 using WTF::SimpleStats;
 using WTF::StackTrace;
@@ -123,6 +109,7 @@ enum class CommonJITThunkID : uint8_t;
 struct CheckpointOSRExitSideState;
 class CodeBlock;
 class CodeCache;
+enum class CodeSpecializationKind : uint8_t;
 class CommonIdentifiers;
 class CompactTDZEnvironmentMap;
 class ConservativeRoots;
@@ -136,8 +123,10 @@ class HasOwnPropertyCache;
 class HeapAnalyzer;
 class HeapProfiler;
 class IntlCache;
+enum Intrinsic : uint8_t;
 class JSDestructibleObjectHeapCellType;
 class JSGlobalObject;
+class JSLock;
 class JSObject;
 struct JSPIContext;
 class JSPromise;
@@ -145,6 +134,7 @@ class JSPropertyNameEnumerator;
 class JITSizeStatistics;
 class JITThunks;
 class MegamorphicCache;
+class MicrotaskQueue;
 class NativeExecutable;
 class Debugger;
 class DeferredWorkTimer;
@@ -159,6 +149,7 @@ class ShadowChicken;
 class SharedJITStubSet;
 class SourceProvider;
 class SourceProviderCache;
+enum class SourceTaintedOrigin : uint8_t;
 class StackFrame;
 class Structure;
 class Symbol;
@@ -203,6 +194,8 @@ struct DebugState;
 #endif
 
 struct EntryFrame;
+
+typedef uint8_t IndexingType;
 
 DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(VM);
 
@@ -278,7 +271,7 @@ public:
     HeapProfiler* heapProfiler() { return m_heapProfiler.getIfExists(); }
     HeapProfiler& ensureHeapProfiler() { return m_heapProfiler.get(*this); }
 
-    AdaptiveStringSearcherTables& adaptiveStringSearcherTables() { return m_stringSearcherTables.get(*this); }
+    WTF::AdaptiveStringSearcherTables& adaptiveStringSearcherTables() { return m_stringSearcherTables.get(*this); }
 
     bool isAnalyzingHeap() const { return m_activeHeapAnalyzer; }
     HeapAnalyzer* activeHeapAnalyzer() const { return m_activeHeapAnalyzer; }
@@ -286,7 +279,7 @@ public:
 
 #if ENABLE(SAMPLING_PROFILER)
     SamplingProfiler* samplingProfiler() { return m_samplingProfiler.get(); }
-    JS_EXPORT_PRIVATE SamplingProfiler& ensureSamplingProfiler(Ref<Stopwatch>&&);
+    JS_EXPORT_PRIVATE SamplingProfiler& ensureSamplingProfiler(Ref<WTF::Stopwatch>&&);
 
     JS_EXPORT_PRIVATE void enableSamplingProfiler();
     JS_EXPORT_PRIVATE void disableSamplingProfiler();
@@ -557,8 +550,6 @@ public:
     std::array<WriteBarrier<Structure>, NumberOfCopyOnWriteIndexingModes> cellButterflyStructures;
     WriteBarrier<Structure> cellButterflyOnlyAtomStringsStructure;
     WriteBarrier<Structure> sourceCodeStructure;
-    WriteBarrier<Structure> scriptFetcherStructure;
-    WriteBarrier<Structure> scriptFetchParametersStructure;
     WriteBarrier<Structure> structureChainStructure;
     WriteBarrier<Structure> sparseArrayValueMapStructure;
     WriteBarrier<Structure> templateObjectDescriptorStructure;
@@ -610,8 +601,8 @@ public:
     const ClassInfo* currentlyDestructingCallbackObjectClassInfo { nullptr };
 
     AtomStringTable* m_atomStringTable;
-    const UniqueRef<SymbolRegistry> m_symbolRegistry;
-    const UniqueRef<SymbolRegistry> m_privateSymbolRegistry;
+    const UniqueRef<WTF::SymbolRegistry> m_symbolRegistry;
+    const UniqueRef<WTF::SymbolRegistry> m_privateSymbolRegistry;
     CommonIdentifiers* propertyNames { nullptr };
     const ArgList* emptyList;
     SmallStrings smallStrings;
@@ -631,8 +622,8 @@ public:
     void setMightBeExecutingTaintedCode(bool value = true) { m_mightBeExecutingTaintedCode = value; }
 
     AtomStringTable* atomStringTable() const { return m_atomStringTable; }
-    SymbolRegistry& symbolRegistry() { return m_symbolRegistry.get(); }
-    SymbolRegistry& privateSymbolRegistry() { return m_privateSymbolRegistry.get(); }
+    WTF::SymbolRegistry& symbolRegistry() { return m_symbolRegistry.get(); }
+    WTF::SymbolRegistry& privateSymbolRegistry() { return m_privateSymbolRegistry.get(); }
 
     WriteBarrier<JSBigInt> heapBigIntConstantOne;
 
@@ -764,7 +755,7 @@ public:
         return promiseAnySlowRejectFunctionExecutableSlow();
     }
 
-    WeakGCMap<SymbolImpl*, Symbol, PtrHash<SymbolImpl*>> symbolImplToSymbolMap;
+    WeakGCMap<WTF::SymbolImpl*, Symbol, PtrHash<WTF::SymbolImpl*>> symbolImplToSymbolMap;
     WeakGCMap<StringImpl*, JSString, PtrHash<StringImpl*>> atomStringToJSStringMap;
 #if ENABLE(WEBASSEMBLY)
     WeakGCMap<const Wasm::RTT*, WebAssemblyGCStructure, PtrHash<const Wasm::RTT*>> wasmGCStructureMap;
@@ -1045,9 +1036,9 @@ public:
     void setInitializingObjectClass(const ClassInfo*);
 #endif
 
-    bool currentThreadIsHoldingAPILock() const { return m_apiLock->currentThreadIsHoldingLock(); }
+    JS_EXPORT_PRIVATE bool currentThreadIsHoldingAPILock() const;
 
-    JSLock& apiLock() { return m_apiLock.get(); }
+    JS_EXPORT_PRIVATE JSLock& apiLock();
     CodeCache* codeCache() LIFETIME_BOUND { return m_codeCache.get(); }
     IntlCache& intlCache() { return *m_intlCache; }
 
@@ -1099,7 +1090,7 @@ public:
         RefPtr<VM> m_vm;
     };
 
-    MicrotaskQueue& defaultMicrotaskQueue() { return m_defaultMicrotaskQueue.get(); }
+    MicrotaskQueue& defaultMicrotaskQueue();
 
     DrainMicrotaskDelayScope drainMicrotaskDelayScope() { return DrainMicrotaskDelayScope { *this }; }
     JS_EXPORT_PRIVATE void drainMicrotasks();
@@ -1154,8 +1145,8 @@ public:
     template<typename Func>
     void logEvent(CodeBlock*, const char* summary, const Func& func);
 
-    std::optional<RefPtr<Thread>> ownerThread() const { return m_apiLock->ownerThread(); }
-    std::optional<uint64_t> ownerThreadUID() const { return m_apiLock->ownerThreadUID(); }
+    inline std::optional<RefPtr<Thread>> ownerThread() const; // Defined in VMInlines.h
+    inline std::optional<uint64_t> ownerThreadUID() const; // Defined in VMInlines.h
 
     ALWAYS_INLINE VMTraps& traps() { return m_threadContext.traps(); }
     ALWAYS_INLINE const VMTraps& traps() const { return m_threadContext.traps(); }
@@ -1280,7 +1271,7 @@ private:
     {
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
         m_needExceptionCheck = false;
-        m_nativeStackTraceOfLastThrow = nullptr;
+        clearNativeStackTraceOfLastThrow();
         m_throwingThread = nullptr;
 #endif
         m_exception = nullptr;
@@ -1295,6 +1286,7 @@ private:
 
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
     void verifyExceptionCheckNeedIsSatisfied(unsigned depth, ExceptionEventLocation&);
+    JS_EXPORT_PRIVATE void clearNativeStackTraceOfLastThrow();
 #endif
     
     static void primitiveGigacageDisabledCallback(void*);

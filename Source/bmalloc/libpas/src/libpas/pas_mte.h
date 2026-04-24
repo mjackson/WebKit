@@ -189,12 +189,12 @@ enum pas_mte_tag_constraint {
 
 typedef enum pas_mte_tag_constraint pas_mte_tag_constraint;
 
-PAS_ALWAYS_INLINE pas_mte_tag_constraint pas_mte_exclude_tag(pas_mte_tag_constraint base, uint8_t tag_value_to_exclude)
+static PAS_ALWAYS_INLINE pas_mte_tag_constraint pas_mte_exclude_tag(pas_mte_tag_constraint base, uint8_t tag_value_to_exclude)
 {
     return (pas_mte_tag_constraint)((unsigned)base | (1u << tag_value_to_exclude));
 }
 
-PAS_ALWAYS_INLINE pas_mte_tag_constraint
+static PAS_ALWAYS_INLINE pas_mte_tag_constraint
 pas_mte_compute_valid_tags_under_adjacent_tag_exclusion(
     uintptr_t ptr,
     size_t size,
@@ -480,7 +480,7 @@ inline __attribute__((always_inline)) void pas_mte_tag_dc_gva_switching(uint8_t*
 
 PAS_IGNORE_WARNINGS_END
 
-PAS_ALWAYS_INLINE void
+static PAS_ALWAYS_INLINE void
 pas_mte_assert_prior_tag_is_disjoint(uintptr_t begin)
 {
     uint8_t* prev_ptr = (uint8_t*)((uintptr_t)begin - 16);
@@ -496,7 +496,7 @@ pas_mte_assert_prior_tag_is_disjoint(uintptr_t begin)
     }
 }
 
-PAS_ALWAYS_INLINE void
+static PAS_ALWAYS_INLINE void
 pas_mte_tag_region_from_pointer(
     uintptr_t begin,
     size_t size,
@@ -579,7 +579,7 @@ pas_mte_tag_region_from_pointer(
 #define PAS_MTE_IS_KNOWN_MEDIUM_PAGE(page_config) 0
 #endif
 
-PAS_ALWAYS_INLINE uintptr_t
+static PAS_ALWAYS_INLINE uintptr_t
 pas_mte_generate_random_tag(
     uintptr_t begin,
     pas_mte_tag_constraint constraint)
@@ -605,7 +605,7 @@ pas_mte_generate_random_tag(
  * that the size passed be the allocation size of the object, not the
  * actual size.
  */
-PAS_ALWAYS_INLINE uintptr_t
+static PAS_ALWAYS_INLINE uintptr_t
 pas_mte_generate_tag_and_tag_region(
     uintptr_t begin,
     size_t size,
@@ -647,7 +647,7 @@ pas_mte_generate_tag_and_tag_region(
     return begin;
 }
 
-PAS_ALWAYS_INLINE void
+static PAS_ALWAYS_INLINE void
 pas_mte_check_tag_for_deallocation(uintptr_t ptr)
 {
     if (!PAS_MTE_FEATURE_ENABLED(PAS_MTE_FEATURE_CHECK_TAG_ON_DEALLOC))
@@ -662,7 +662,7 @@ pas_mte_check_tag_for_deallocation(uintptr_t ptr)
 extern "C" {
 #endif
 
-PAS_ALWAYS_INLINE uintptr_t
+static PAS_ALWAYS_INLINE uintptr_t
 pas_mte_maybe_tag_allocated_region(
     uintptr_t begin,
     size_t size,
@@ -671,7 +671,7 @@ pas_mte_maybe_tag_allocated_region(
     pas_allocation_initiality initiality,
     bool is_known_medium);
 
-PAS_ALWAYS_INLINE uintptr_t
+static PAS_ALWAYS_INLINE uintptr_t
 pas_mte_retag_freed_region_if_tagged(
     uintptr_t begin,
     size_t size,
@@ -741,7 +741,7 @@ pas_mte_retag_freed_region_if_tagged(
  * the point of view of the orderings mentioned above, as scavenging always
  * happens at some point before a subsequent allocation.
  */
-PAS_ALWAYS_INLINE uintptr_t
+static PAS_ALWAYS_INLINE uintptr_t
 pas_mte_maybe_tag_allocated_region(
     uintptr_t begin,
     size_t size,
@@ -768,7 +768,7 @@ pas_mte_maybe_tag_allocated_region(
     return begin;
 }
 
-PAS_ALWAYS_INLINE uintptr_t
+static PAS_ALWAYS_INLINE uintptr_t
 pas_mte_retag_freed_region_if_tagged(
     uintptr_t begin,
     size_t size,

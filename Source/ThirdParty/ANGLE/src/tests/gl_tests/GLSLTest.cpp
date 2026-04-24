@@ -15886,108 +15886,8 @@ void main()
 })";
 
     ANGLE_GL_PROGRAM_WITH_GS(program, kVS, kGS, kFS);
+    EXPECT_NE(0u, program);
     EXPECT_GL_NO_ERROR();
-}
-
-// Negative test using builtins that can only be used when redefining gl_PerVertex
-TEST_P(GLSLTest_ES31, PerVertexNegativeTest)
-{
-    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_geometry_shader"));
-    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_clip_cull_distance"));
-
-    constexpr char kVS[] = R"(#version 310 es
-void main()
-{
-    gl_Position = vec4(1.0, 0.0, 0.0, 1.0);
-})";
-
-    constexpr char kGS[] = R"(#version 310 es
-#extension GL_EXT_geometry_shader : require
-#extension GL_EXT_clip_cull_distance : require
-
-layout(lines_adjacency, invocations = 3) in;
-layout(points, max_vertices = 16) out;
-
-vec4 gl_Position;
-float gl_ClipDistance[4];
-float gl_CullDistance[4];
-
-void main()
-{
-    for (int n = 0; n < 16; ++n)
-    {
-        gl_Position = vec4(n, 0.0, 0.0, 1.0);
-        EmitVertex();
-    }
-
-    EndPrimitive();
-})";
-
-    constexpr char kFS[] = R"(#version 310 es
-precision highp float;
-
-out vec4 result;
-
-void main()
-{
-    result = vec4(1.0);
-})";
-
-    GLuint program = CompileProgramWithGS(kVS, kGS, kFS);
-    EXPECT_EQ(0u, program);
-    glDeleteProgram(program);
-}
-
-// Negative test using builtins that can only be used when redefining gl_PerVertex
-// but have the builtins in a differently named struct
-TEST_P(GLSLTest_ES31, PerVertexRenamedNegativeTest)
-{
-    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_geometry_shader"));
-    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_clip_cull_distance"));
-
-    constexpr char kVS[] = R"(#version 310 es
-void main()
-{
-    gl_Position = vec4(1.0, 0.0, 0.0, 1.0);
-})";
-
-    constexpr char kGS[] = R"(#version 310 es
-#extension GL_EXT_geometry_shader : require
-#extension GL_EXT_clip_cull_distance : require
-
-layout(lines_adjacency, invocations = 3) in;
-layout(points, max_vertices = 16) out;
-
-out Block {
-    vec4 gl_Position;
-    float gl_ClipDistance[4];
-    float gl_CullDistance[4];
-};
-
-void main()
-{
-    for (int n = 0; n < 16; ++n)
-    {
-        gl_Position = vec4(n, 0.0, 0.0, 1.0);
-        EmitVertex();
-    }
-
-    EndPrimitive();
-})";
-
-    constexpr char kFS[] = R"(#version 310 es
-precision highp float;
-
-out vec4 result;
-
-void main()
-{
-    result = vec4(1.0);
-})";
-
-    GLuint program = CompileProgramWithGS(kVS, kGS, kFS);
-    EXPECT_EQ(0u, program);
-    glDeleteProgram(program);
 }
 
 // Test pragma STDGL invariant all with I/O blocks
@@ -22600,12 +22500,12 @@ void main()
 }
 
 // Test that an unused gl_LastFragDepthARM does not lead to errors
-TEST_P(GLSLTest_ES31, UnsedLastFragDepth)
+TEST_P(GLSLTest_ES31, UnusedLastFragDepth)
 {
     ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_ARM_shader_framebuffer_fetch_depth_stencil"));
 
     const char kFS[] = R"(#extension GL_ARM_shader_framebuffer_fetch_depth_stencil:require
-int gl_LastFragDepthARM;
+mediump float gl_LastFragDepthARM;
 void main()
 {
     gl_FragColor = vec4(0, 1, 0, 1);
@@ -24175,6 +24075,27 @@ TEST_P(WebGLGLSLTest, ComplexExpression)
     ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), fs.str().c_str());
     drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f, 1.0f, true);
     EXPECT_PIXEL_COLOR_NEAR(0, 0, GLColor(127, 127, 127, 127), 1);
+    ASSERT_GL_NO_ERROR();
+}
+
+// Regression test for a transformation bug where a function has |return| only in dead code.
+TEST_P(GLSLTest_ES3, EmptyBodyAfterPrunedIfWithReturn)
+{
+    constexpr char kFS[] = R"(#version 300 es
+precision mediump float;
+out vec4 color;
+
+int foo() {
+    if (false) { return 1; }
+}
+
+void main() {
+    color = vec4(float(foo()), 0, 1, 1);
+})";
+
+    ANGLE_GL_PROGRAM(program, essl3_shaders::vs::Simple(), kFS);
+    drawQuad(program, essl3_shaders::PositionAttrib(), 0.0f);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::blue);
     ASSERT_GL_NO_ERROR();
 }
 }  // anonymous namespace

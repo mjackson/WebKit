@@ -166,9 +166,9 @@ RefPtr<CSSValue> consumeGridLine(CSSParserTokenRange& range, CSS::PropertyParser
     return CSSGridLineValue::create(spanKeyword, WTF::move(numericValue), WTF::move(gridLineName));
 }
 
-static bool isGridTrackFixedSized(const CSSPrimitiveValue& primitiveValue)
+static bool isGridTrackFixedSized(const CSSKeywordValue& keywordValue)
 {
-    switch (primitiveValue.valueID()) {
+    switch (keywordValue.valueID()) {
     case CSSValueMinContent:
     case CSSValueWebkitMinContent:
     case CSSValueMaxContent:
@@ -176,23 +176,36 @@ static bool isGridTrackFixedSized(const CSSPrimitiveValue& primitiveValue)
     case CSSValueAuto:
         return false;
     default:
-        return !primitiveValue.isFlex();
+        return true;
     }
+}
+
+static bool isGridTrackFixedSized(const CSSPrimitiveValue& primitiveValue)
+{
+    return !primitiveValue.isFlex();
 }
 
 static bool isGridTrackFixedSized(const CSSValue& value)
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value))
+        return isGridTrackFixedSized(*keywordValue);
+    else if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
         return isGridTrackFixedSized(*primitiveValue);
+
     auto& function = downcast<CSSFunctionValue>(value);
     if (function.name() == CSSValueFitContent || function.length() < 2)
         return false;
 
-    return isGridTrackFixedSized(protect(downcast<CSSPrimitiveValue>(*function.item(0))))
-        || isGridTrackFixedSized(protect(downcast<CSSPrimitiveValue>(*function.item(1))));
+    auto checkParameter = [](const auto& parameter) {
+        if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(parameter))
+            return isGridTrackFixedSized(*keywordValue);
+        return isGridTrackFixedSized(downcast<CSSPrimitiveValue>(parameter));
+    };
+    return checkParameter(protect(*function.item(0)))
+        || checkParameter(protect(*function.item(1)));
 }
 
-static RefPtr<CSSPrimitiveValue> consumeGridBreadth(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+static RefPtr<CSSValue> consumeTrackBreadth(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <track-breadth>       = <length-percentage [0,∞]> | <flex [0,∞]> | min-content | max-content | auto
     // https://drafts.csswg.org/css-grid/#typedef-track-breadth
@@ -205,6 +218,17 @@ static RefPtr<CSSPrimitiveValue> consumeGridBreadth(CSSParserTokenRange& range, 
             return nullptr;
         return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().numericValue(), CSSUnitType::CSS_FR);
     }
+    return CSSPrimitiveValueResolver<CSS::LengthPercentage<CSS::Nonnegative>>::consumeAndResolve(range, state);
+}
+
+static RefPtr<CSSValue> consumeInflexibleBreadth(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    // <inflexible-breadth>  = <length-percentage [0,∞]> | min-content | max-content | auto
+    // https://drafts.csswg.org/css-grid/#typedef-inflexible-breadth
+
+    const CSSParserToken& token = range.peek();
+    if (isGridBreadthIdent(token.id()))
+        return consumeIdent(range);
     return CSSPrimitiveValueResolver<CSS::LengthPercentage<CSS::Nonnegative>>::consumeAndResolve(range, state);
 }
 
@@ -234,10 +258,12 @@ RefPtr<CSSValue> consumeGridTrackSize(CSSParserTokenRange& range, CSS::PropertyP
     if (token.functionId() == CSSValueMinmax) {
         CSSParserTokenRange rangeCopy = range;
         CSSParserTokenRange args = consumeFunction(rangeCopy);
-        auto minTrackBreadth = consumeGridBreadth(args, state);
-        if (!minTrackBreadth || minTrackBreadth->isFlex() || !consumeCommaIncludingWhitespace(args))
+        auto minTrackBreadth = consumeInflexibleBreadth(args, state);
+        if (!minTrackBreadth)
             return nullptr;
-        auto maxTrackBreadth = consumeGridBreadth(args, state);
+        if (!consumeCommaIncludingWhitespace(args))
+            return nullptr;
+        auto maxTrackBreadth = consumeTrackBreadth(args, state);
         if (!maxTrackBreadth || !args.atEnd())
             return nullptr;
         range = rangeCopy;
@@ -247,7 +273,7 @@ RefPtr<CSSValue> consumeGridTrackSize(CSSParserTokenRange& range, CSS::PropertyP
     if (token.functionId() == CSSValueFitContent)
         return consumeFitContent(range, state);
 
-    return consumeGridBreadth(range, state);
+    return consumeTrackBreadth(range, state);
 }
 
 RefPtr<CSSGridLineNamesValue> consumeGridLineNames(CSSParserTokenRange& range, CSS::PropertyParserState& state, AllowEmpty allowEmpty)

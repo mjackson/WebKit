@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestInterfaceLeadingUnderscore : public JSDOMWrapper<TestInterfaceLeadingUnderscore> {
 public:
     using Base = JSDOMWrapper<TestInterfaceLeadingUnderscore>;
-    static JSTestInterfaceLeadingUnderscore* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestInterfaceLeadingUnderscore>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestInterfaceLeadingUnderscore* ptr = new (NotNull, JSC::allocateCell<JSTestInterfaceLeadingUnderscore>(vm)) JSTestInterfaceLeadingUnderscore(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestInterfaceLeadingUnderscore* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestInterfaceLeadingUnderscore>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

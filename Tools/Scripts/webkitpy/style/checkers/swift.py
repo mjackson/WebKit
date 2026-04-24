@@ -84,6 +84,6 @@ class SwiftChecker(object):
             if re.search(r'@safe\b', line) and not re.search(r'@unsafe\b', line):
                 self.handle_style_error(index + 1, 'webkit/unsafe', 5, "Please avoid new use of '@safe' in WebKit. See https://github.com/WebKit/WebKit/wiki/Safer-Swift-Guidelines.")
 
-    def check(self, lines):
+    def check(self, lines, line_numbers=None):
         self._swift_format(self.file_path, lines, self.handle_style_error)
         self._check_unsafe(lines)

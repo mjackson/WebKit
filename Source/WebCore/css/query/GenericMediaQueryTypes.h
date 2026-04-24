@@ -24,11 +24,15 @@
 
 #pragma once
 
+#include <WebCore/CSSCustomPropertyValue.h>
+#include <WebCore/CSSKeyword.h>
+#include <WebCore/CSSPrimitiveNumeric.h>
+#include <WebCore/CSSRatio.h>
 #include <WebCore/CSSToLengthConversionData.h>
-#include <WebCore/CSSValue.h>
 #include <WebCore/CSSValueKeywords.h>
 #include <wtf/CheckedPtr.h>
 #include <wtf/OptionSet.h>
+#include <wtf/Variant.h>
 #include <wtf/text/AtomString.h>
 
 namespace WebCore {
@@ -44,9 +48,19 @@ enum class Syntax : uint8_t { Boolean, Plain, Range };
 struct Condition;
 struct FeatureSchema;
 
+using Value = Variant<
+    CSS::Integer<>,
+    CSS::Number<>,
+    CSS::Length<>,
+    CSS::Resolution<>,
+    CSS::Ratio,
+    CSS::Keyword,
+    Ref<CSSCustomPropertyValue>
+>;
+
 struct Comparison {
     ComparisonOperator op;
-    RefPtr<CSSValue> value;
+    std::optional<Value> value;
 };
 
 struct Feature {

@@ -55,8 +55,8 @@ public:
         RELEASE_ASSERT_NOT_REACHED();
     }
 
-    void initializeEnvironment(JSGlobalObject*, JSValue scriptFetcher);
-    void link(JSGlobalObject*, JSValue scriptFetcher);
+    void initializeEnvironment(JSGlobalObject*, RefPtr<ScriptFetcher>);
+    void link(JSGlobalObject*, RefPtr<ScriptFetcher>);
     JSPromise* evaluate(JSGlobalObject*);
     void execute(JSGlobalObject*, JSPromise* = nullptr);
     void executeAsync(JSGlobalObject*);

@@ -580,7 +580,13 @@ void ScrollAnchoringController::updateBeforeLayout()
     }
 
     CheckedPtr scrollerBox = scrollableAreaBox();
-    if (!hasScrolledFromOriginInBlockDirection(m_owningScrollableArea->scrollPosition(), scrollerBox->writingMode())) {
+
+    auto scrollPosition = m_owningScrollableArea->scrollPosition();
+    auto isRubberBanding = [&]() {
+        return m_owningScrollableArea->constrainedScrollPosition(scrollPosition) != scrollPosition;
+    };
+
+    if (!hasScrolledFromOriginInBlockDirection(scrollPosition, scrollerBox->writingMode()) || isRubberBanding()) {
         clearAnchor();
         return;
     }

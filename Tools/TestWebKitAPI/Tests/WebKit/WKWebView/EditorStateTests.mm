@@ -34,6 +34,7 @@
 #import "Helpers/ios/UserInterfaceSwizzler.h"
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
+#import <WebKit/_WKFeature.h>
 #import <wtf/Vector.h>
 
 #if PLATFORM(IOS_FAMILY)

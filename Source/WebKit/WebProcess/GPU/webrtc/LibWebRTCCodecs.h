@@ -195,6 +195,8 @@ public:
 
     WorkQueue& workQueue() const { return m_queue; }
 
+    void clearConnectionForTesting() { clearConnection(); }
+
 private:
     LibWebRTCCodecs();
     void ensureGPUProcessConnectionAndDispatchToThread(Function<void()>&&);
@@ -212,7 +214,9 @@ private:
     RetainPtr<CVPixelBufferRef> convertToBGRA(CVPixelBufferRef);
 
     // GPUProcessConnection::Client
-    void gpuProcessConnectionDidClose(GPUProcessConnection&);
+    void gpuProcessConnectionDidClose(GPUProcessConnection&) { clearConnection(); }
+
+    void clearConnection();
 
     IPC::Connection* NODELETE encoderConnection(Encoder&) WTF_REQUIRES_LOCK(m_encodersConnectionLock);
     void setEncoderConnection(Encoder&, RefPtr<IPC::Connection>&&) WTF_REQUIRES_LOCK(m_encodersConnectionLock);

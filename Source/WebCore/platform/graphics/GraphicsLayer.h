@@ -696,6 +696,9 @@ protected:
 #if USE(CA)
     Path m_shadowPath;
     MediaPlayerVideoGravity m_videoGravity { MediaPlayerVideoGravity::ResizeAspect };
+#endif
+
+#if USE(CA) || USE(COORDINATED_GRAPHICS)
     WindRule m_shapeLayerWindRule { WindRule::NonZero };
     Path m_shapeLayerPath;
 #endif

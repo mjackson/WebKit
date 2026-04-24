@@ -25,6 +25,8 @@
 
 #pragma once
 
+#ifdef __cplusplus
+
 #import "Helpers/PlatformUtilities.h"
 #import "Helpers/Test.h"
 #import <wtf/text/TextStream.h>
@@ -69,39 +71,4 @@ constexpr CGFloat blueColorComponents[4] = { 0, 0, 1, 1 };
 
 #endif
 
-/**
- A testing hook to be able to easily write a full test in Swift and run it using the existing gtest infrastructure.
-
- To write a Swift test:
-
- 1. Use this macro to define a new test, such as:
-
- ```
- SWIFT_TEST(AppKitGestures, ClickingChangesSelection);
- ```
-
- 2. Create an Objective-C interface named "{Suite}Support" and declare class methods for each test of the form:
-
- ```
- + (void)test{Name}WithCompletionHandler:(NS_SWIFT_UI_ACTOR void(^)(NSError * _Nullable))completionHandler;
- ```
-
- 3. Add an `@objc @implementation` Swift implementation for the interface type, and implement each method.
-
- 4. Use the convenience testing functions in the `Testing` type to write expectations and throw errors.
-
- */
-#define SWIFT_TEST(Suite, Name) \
-TEST(Suite, Name) \
-{ \
-    __block bool done = false; \
-    [Suite##Support test##Name##WithCompletionHandler:^(NSError *error) { \
-        if (error) { \
-            TextStream errorMessage; \
-            errorMessage << error; \
-            EXPECT_NULL(error) << errorMessage.release().utf8().data(); \
-        } \
-        done = true; \
-    }]; \
-    TestWebKitAPI::Util::run(&done); \
-}
+#endif // __cplusplus

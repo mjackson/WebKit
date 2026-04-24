@@ -88,7 +88,7 @@ void MathMLElement::attributeChanged(const QualifiedName& name, const AtomString
 {
     switch (name.nodeName()) {
     case AttributeNames::hrefAttr:
-        setIsLink(!newValue.isNull() && !shouldProhibitLinks(this));
+        setIsLink(!newValue.isNull() && !shouldProhibitLinks(this) && allowsHref());
         break;
     case AttributeNames::columnspanAttr:
     case AttributeNames::rowspanAttr:
@@ -337,7 +337,14 @@ bool MathMLElement::isMouseFocusable() const
 
 bool MathMLElement::isURLAttribute(const Attribute& attribute) const
 {
+    if (!allowsHref())
+        return false;
     return attribute.name().localName() == hrefAttr || StyledElement::isURLAttribute(attribute);
+}
+
+bool MathMLElement::allowsHref() const
+{
+    return !document().settings().mathMLDisableHrefOnNonAnchorElement() || localName() == HTMLNames::aTag;
 }
 
 bool MathMLElement::supportsFocus() const

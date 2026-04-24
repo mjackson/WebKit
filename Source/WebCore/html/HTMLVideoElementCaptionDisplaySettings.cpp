@@ -74,10 +74,10 @@ static void parsePositionAreaString(const String& positionArea, ResolvedCaptionD
     if (!valuePair)
         return;
 
-    RefPtr firstValue = valuePair->first();
-    RefPtr secondValue = valuePair->second();
+    RefPtr firstValue = dynamicDowncast<CSSKeywordValue>(valuePair->first());
+    RefPtr secondValue = dynamicDowncast<CSSKeywordValue>(valuePair->second());
 
-    if (!firstValue->isValueID() || !secondValue->isValueID())
+    if (!firstValue || !secondValue)
         return;
 
     using XPositionArea = ResolvedCaptionDisplaySettingsOptions::XPositionArea;

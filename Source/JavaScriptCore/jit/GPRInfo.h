@@ -915,49 +915,69 @@ class NoOverlapImpl {
         return 1ULL << bit;
     }
 
+    static constexpr unsigned noOverlapImplFPRMask(MacroAssembler::FPRegisterID fpr)
+    {
+        if (fpr == MacroAssembler::FPRegisterID::InvalidFPRReg)
+            return 0ULL;
+        unsigned bit = static_cast<unsigned>(fpr);
+        RELEASE_ASSERT(bit < countOfBits<uint64_t>);
+        return 1ULL << bit;
+    }
+
     // Base case
     template<typename... Args>
-    static constexpr bool noOverlapImpl(uint64_t) { return true; }
+    static constexpr bool noOverlapImpl(uint64_t, uint64_t) { return true; }
 
     // GPRReg case
     template<typename... Args>
-    static constexpr bool noOverlapImpl(uint64_t used, GPRReg gpr, Args... args)
+    static constexpr bool noOverlapImpl(uint64_t usedGPR, uint64_t usedFPR, GPRReg gpr, Args... args)
     {
         unsigned mask = noOverlapImplRegMask(gpr);
-        if (used & mask)
+        if (usedGPR & mask)
             return false;
-        return noOverlapImpl(used | mask, args...);
+        return noOverlapImpl(usedGPR | mask, usedFPR, args...);
+    }
+
+    // FPRegisterID case
+    template<typename... Args>
+    static constexpr bool noOverlapImpl(uint64_t usedGPR, uint64_t usedFPR, MacroAssembler::FPRegisterID fpr, Args... args)
+    {
+        unsigned mask = noOverlapImplFPRMask(fpr);
+        if (usedFPR & mask)
+            return false;
+        return noOverlapImpl(usedGPR, usedFPR | mask, args...);
     }
 
     // JSValueRegs case
     template<typename... Args>
-    static constexpr bool noOverlapImpl(uint64_t used, JSValueRegs jsr, Args... args)
+    static constexpr bool noOverlapImpl(uint64_t usedGPR, uint64_t usedFPR, JSValueRegs jsr, Args... args)
     {
         unsigned mask = noOverlapImplRegMask(jsr.payloadGPR());
 #if USE(JSVALUE32_64)
         mask |= noOverlapImplRegMask(jsr.tagGPR());
 #endif
-        if (used & mask)
+        if (usedGPR & mask)
             return false;
-        return noOverlapImpl(used | mask, args...);
+        return noOverlapImpl(usedGPR | mask, usedFPR, args...);
     }
 
     // NoResultTag case, this happens from templates
     template<typename... Args>
-    static constexpr bool noOverlapImpl(uint64_t used, NoResultTag, Args... args)
+    static constexpr bool noOverlapImpl(uint64_t usedGPR, uint64_t usedFPR, NoResultTag, Args... args)
     {
-        return noOverlapImpl(used, args...);
+        return noOverlapImpl(usedGPR, usedFPR, args...);
     }
 
 public:
     // Entry point
     template <typename... Args>
-    static constexpr bool entry(Args... args) { return noOverlapImpl(0, args...); }
+    static constexpr bool entry(Args... args) { return noOverlapImpl(0, 0, args...); }
 };
 
-// Checks that the given list of GPRRegs and JSValueRegs do not overlap. Use this in static
-// assertions to ensure that register aliases live at the same point do not map to the same
-// architectural register.
+// Checks that the given list of GPRRegs, FPRegisterIDs, and JSValueRegs do not overlap.
+// GPRs and FPRs are tracked independently (a GPR and FPR with the same number do not conflict).
+// Use this in static assertions to ensure that register aliases live at the same point do not
+// map to the same architectural register.
 template <typename... Args>
 constexpr bool noOverlap(Args... args) { return NoOverlapImpl::entry(args...); }
 

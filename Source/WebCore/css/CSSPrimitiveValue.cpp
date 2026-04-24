@@ -29,7 +29,6 @@
 #include "CSSPrimitiveNumericCategory.h"
 #include "CSSPrimitiveNumericTypes+ComputedStyleDependencies.h"
 #include "CSSPrimitiveNumericTypes+Serialization.h"
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSSerializationContext.h"
 #include "CSSToLengthConversionData.h"
 #include "CSSValueKeywords.h"
@@ -127,7 +126,6 @@ static inline bool NODELETE isValidCSSUnitTypeForDoubleConversion(CSSUnitType un
     case CSSUnitType::CSS_CQMAX:
         return true;
     case CSSUnitType::CSS_UNKNOWN:
-    case CSSUnitType::CSS_VALUE_ID:
         return false;
     }
 
@@ -155,24 +153,10 @@ CSSPrimitiveValue::CSSPrimitiveValue(double number, CSSUnitType type)
     m_value.number = number;
 }
 
-CSSPrimitiveValue::CSSPrimitiveValue(StaticCSSValueTag, CSSValueID valueID)
-    : CSSValue(ClassType::Primitive)
-{
-    setPrimitiveUnitType(CSSUnitType::CSS_VALUE_ID);
-    m_value.valueID = valueID;
-    makeStatic();
-}
-
 CSSPrimitiveValue::CSSPrimitiveValue(StaticCSSValueTag, double number, CSSUnitType type)
     : CSSPrimitiveValue(number, type)
 {
     makeStatic();
-}
-
-CSSPrimitiveValue::CSSPrimitiveValue(StaticCSSValueTag, ImplicitInitialValueTag)
-    : CSSPrimitiveValue(StaticCSSValue, CSSValueInitial)
-{
-    m_isImplicitInitialValue = true;
 }
 
 CSSPrimitiveValue::CSSPrimitiveValue(Ref<CSSCalc::Value> value)
@@ -255,7 +239,6 @@ CSSPrimitiveValue::~CSSPrimitiveValue()
     case CSSUnitType::CSS_LH:
     case CSSUnitType::CSS_RLH:
     case CSSUnitType::CSS_UNKNOWN:
-    case CSSUnitType::CSS_VALUE_ID:
     case CSSUnitType::CSS_CQW:
     case CSSUnitType::CSS_CQH:
     case CSSUnitType::CSS_CQI:
@@ -648,16 +631,6 @@ std::optional<double> CSSPrimitiveValue::doubleValueInternalDeprecated(CSSUnitTy
     return convertedValue;
 }
 
-String CSSPrimitiveValue::stringValue() const
-{
-    switch (primitiveUnitType()) {
-    case CSSUnitType::CSS_VALUE_ID:
-        return nameString(m_value.valueID);
-    default:
-        return String();
-    }
-}
-
 NEVER_INLINE String CSSPrimitiveValue::formatNumberValue(ASCIILiteral suffix) const
 {
     return CSS::formatCSSNumberValue(CSS::SerializableNumber { m_value.number, suffix });
@@ -745,7 +718,6 @@ ASCIILiteral CSSPrimitiveValue::unitTypeString(CSSUnitType unitType)
     case CSSUnitType::CSS_NUMBER:
     case CSSUnitType::CSS_QUIRKY_EM:
     case CSSUnitType::CSS_UNKNOWN:
-    case CSSUnitType::CSS_VALUE_ID:
         return ""_s;
     }
     ASSERT_NOT_REACHED();
@@ -833,7 +805,6 @@ ALWAYS_INLINE String CSSPrimitiveValue::serializeInternal(const CSS::Serializati
     case CSSUnitType::CSS_CALC_PERCENTAGE_WITH_ANGLE:
     case CSSUnitType::CSS_CALC_PERCENTAGE_WITH_LENGTH:
     case CSSUnitType::CSS_UNKNOWN:
-    case CSSUnitType::CSS_VALUE_ID:
         break;
     }
     ASSERT_NOT_REACHED();
@@ -845,8 +816,6 @@ String CSSPrimitiveValue::customCSSText(const CSS::SerializationContext& context
     switch (primitiveUnitType()) {
     case CSSUnitType::CSS_UNKNOWN:
         return String();
-    case CSSUnitType::CSS_VALUE_ID:
-        return nameStringForSerialization(m_value.valueID);
     default:
         auto& map = serializedPrimitiveValues();
         ASSERT(map.contains(this) == m_hasCachedCSSText);
@@ -935,8 +904,6 @@ bool CSSPrimitiveValue::equals(const CSSPrimitiveValue& other) const
     case CSSUnitType::CSS_CQMIN:
     case CSSUnitType::CSS_CQMAX:
         return m_value.number == other.m_value.number;
-    case CSSUnitType::CSS_VALUE_ID:
-        return m_value.valueID == other.m_value.valueID;
     case CSSUnitType::CSS_CALC:
         return protect(cssCalcValue())->equals(*protect(other.cssCalcValue()));
     case CSSUnitType::CSS_CALC_PERCENTAGE_WITH_ANGLE:
@@ -1023,9 +990,6 @@ bool CSSPrimitiveValue::addDerivedHash(Hasher& hasher) const
     case CSSUnitType::CSS_CQMIN:
     case CSSUnitType::CSS_CQMAX:
         add(hasher, m_value.number);
-        break;
-    case CSSUnitType::CSS_VALUE_ID:
-        add(hasher, m_value.valueID);
         break;
     case CSSUnitType::CSS_CALC:
         add(hasher, m_value.calc);

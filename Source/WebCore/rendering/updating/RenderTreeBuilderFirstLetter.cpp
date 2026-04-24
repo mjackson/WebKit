@@ -147,8 +147,8 @@ void RenderTreeBuilder::FirstLetter::updateAfterDescendants(RenderBlock& block)
     // to update it — unless the first letter text is stale because a new text node was
     // inserted before it in the DOM. In that case, reset the remaining fragment to its
     // full text (which tears down the old first-letter) and let createRenderers rebuild.
-    if (CheckedPtr anonymousFirstLetterContainer = dynamicDowncast<RenderBoxModelObject>(firstLetter->parent()); anonymousFirstLetterContainer && anonymousFirstLetterContainer->style().pseudoElementType() == PseudoElementType::FirstLetter) {
-        CheckedPtr remainingText = anonymousFirstLetterContainer->firstLetterRemainingText();
+    if (WeakPtr anonymousFirstLetterContainer = dynamicDowncast<RenderBoxModelObject>(firstLetter->parent()); anonymousFirstLetterContainer && anonymousFirstLetterContainer->style().pseudoElementType() == PseudoElementType::FirstLetter) {
+        WeakPtr remainingText = anonymousFirstLetterContainer->firstLetterRemainingText();
         auto isFirstLetterStale = [&] {
             if (!remainingText)
                 return false;
@@ -176,7 +176,7 @@ void RenderTreeBuilder::FirstLetter::updateAfterDescendants(RenderBlock& block)
             auto [newFirstLetter, container] = block.firstLetterAndContainer();
             ASSERT(container == firstLetterContainer);
             ASSERT(is<RenderText>(newFirstLetter));
-            if (CheckedPtr renderer = dynamicDowncast<RenderText>(newFirstLetter))
+            if (WeakPtr renderer = dynamicDowncast<RenderText>(newFirstLetter))
                 createRenderers(*renderer);
             return;
         }

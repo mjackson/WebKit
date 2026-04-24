@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestNamedGetterCallWith : public JSDOMWrapper<TestNamedGetterCallWith> {
 public:
     using Base = JSDOMWrapper<TestNamedGetterCallWith>;
-    static JSTestNamedGetterCallWith* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestNamedGetterCallWith>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestNamedGetterCallWith* ptr = new (NotNull, JSC::allocateCell<JSTestNamedGetterCallWith>(vm)) JSTestNamedGetterCallWith(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestNamedGetterCallWith* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestNamedGetterCallWith>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

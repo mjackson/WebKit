@@ -26,6 +26,7 @@
 #include "StyleAppleColorFilter.h"
 
 #include "CSSAppleColorFilterValue.h"
+#include "CSSKeywordValue.h"
 #include "ColorConversion.h"
 #include "StyleBuilderChecking.h"
 #include "StyleFilterInterpolation.h"
@@ -105,8 +106,15 @@ auto ToStyle<CSS::AppleColorFilterValueList>::operator()(const CSS::AppleColorFi
 
 auto CSSValueConversion<AppleColorFilter>::operator()(BuilderState& state, const CSSValue& value) -> AppleColorFilter
 {
-    if (value.valueID() == CSSValueNone)
-        return CSS::Keyword::None { };
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
+    }
 
     RefPtr filter = requiredDowncast<CSSAppleColorFilterValue>(state, value);
     if (!filter)

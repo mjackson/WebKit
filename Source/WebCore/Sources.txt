@@ -583,6 +583,7 @@ Modules/webxr/XRSessionEvent.cpp
 Modules/webxr/XRSubImage.cpp
 Modules/webxr/XRWebGLLayerBacking.cpp
 Modules/webxr/XRWebGLProjectionLayerBacking.cpp
+Modules/webxr/XRWebGLQuadLayerBacking.cpp
 Modules/webxr/WebXRTransientInputHitTestResult.cpp
 Modules/webxr/WebXRTransientInputHitTestSource.cpp
 Modules/webxr/XRWebGLBinding.cpp
@@ -932,6 +933,7 @@ css/CSSGridLineNamesValue.cpp
 css/CSSGridLineValue.cpp
 css/CSSGridTemplateAreasValue.cpp
 css/CSSGroupingRule.cpp
+css/CSSKeywordValue.cpp
 css/CSSImageSetOptionValue.cpp
 css/CSSImageSetValue.cpp
 css/CSSImageValue.cpp
@@ -1091,12 +1093,10 @@ css/parser/CSSPropertyParserConsumer+Syntax.cpp
 css/parser/CSSPropertyParserConsumer+TextDecoration.cpp
 css/parser/CSSPropertyParserConsumer+Timeline.cpp
 css/parser/CSSPropertyParserConsumer+Transform.cpp
-css/parser/CSSPropertyParserConsumer+Transitions.cpp
 css/parser/CSSPropertyParserConsumer+UI.cpp
 css/parser/CSSPropertyParserConsumer+URL.cpp
 css/parser/CSSPropertyParserConsumer+UnicodeRange.cpp
 css/parser/CSSPropertyParserConsumer+ViewTransition.cpp
-css/parser/CSSPropertyParserConsumer+WillChange.cpp
 css/parser/CSSPropertyParserResult.cpp
 css/parser/CSSSelectorParser.cpp
 css/parser/CSSSelectorParserContext.cpp
@@ -1116,7 +1116,7 @@ css/query/GenericMediaQuerySerialization.cpp
 css/query/MediaQueryEvaluator.cpp
 css/query/MediaQueryFeatures.cpp
 css/query/MediaQueryParser.cpp
-css/typedom/CSSKeywordValue.cpp
+css/typedom/CSSOMKeywordValue.cpp
 css/typedom/CSSNumericFactory.cpp
 css/typedom/CSSNumericValue.cpp
 css/typedom/CSSOMVariableReferenceValue.cpp
@@ -1179,10 +1179,12 @@ css/values/color/CSSLightDarkColor.cpp
 css/values/color/CSSPlatformColorResolutionState.cpp
 css/values/color/CSSResolvedColor.cpp
 css/values/fonts/CSSFontFamilyName.cpp
+css/values/fonts/CSSFontStyleRange.cpp
 css/values/grid/CSSGridNamedAreaMap.cpp
 css/values/images/CSSGradient.cpp
 css/values/motion/CSSRayFunction.cpp
 css/values/primitives/CSSCustomIdent.cpp
+css/values/primitives/CSSKeyword.cpp
 css/values/primitives/CSSPosition.cpp
 css/values/primitives/CSSPrimitiveNumericCategory.cpp
 css/values/primitives/CSSPrimitiveNumericTypes+Canonicalization.cpp
@@ -2902,6 +2904,8 @@ rendering/InlineBoxPainter.cpp
 rendering/LayerAncestorClippingStack.cpp
 rendering/LayerOverlapMap.cpp
 rendering/LayoutScope.cpp
+rendering/RelayoutScopeForScrollbarChange.cpp
+rendering/ScrollbarUpdateScope.cpp
 rendering/LayoutDisallowedScope.cpp
 rendering/LayoutRepainter.cpp
 rendering/LegacyInlineBox.cpp
@@ -2952,6 +2956,7 @@ rendering/RenderLayerBacking.cpp
 rendering/RenderLayerCompositor.cpp
 rendering/RenderLayerFilters.cpp
 rendering/RenderLayerModelObject.cpp
+rendering/RenderLayerSVGAdditions.cpp
 rendering/RenderLayerScrollableArea.cpp
 rendering/RenderLayoutState.cpp
 rendering/RenderLineBoxList.cpp
@@ -3001,6 +3006,7 @@ rendering/RenderVideo.cpp
 rendering/RenderView.cpp
 rendering/RenderViewTransitionCapture.cpp
 rendering/RenderWidget.cpp
+rendering/SubtreeScrollbarChangesState.cpp
 rendering/StyledMarkedText.cpp
 rendering/TableLayout.cpp
 rendering/TextBoxPainter.cpp
@@ -3875,7 +3881,6 @@ JSCSSHWB.cpp
 JSCSSImportRule.cpp
 JSCSSKeyframeRule.cpp
 JSCSSKeyframesRule.cpp
-JSCSSKeywordValue.cpp
 JSCSSLCH.cpp
 JSCSSLab.cpp
 JSCSSLayerBlockRule.cpp
@@ -3902,6 +3907,7 @@ JSCSSOKLCH.cpp
 JSCSSOKLab.cpp
 JSCSSOMColor.cpp
 JSCSSOMColorValue.cpp
+JSCSSOMKeywordValue.cpp
 JSCSSOMVariableReferenceValue.cpp
 JSCSSPageDescriptors.cpp
 JSCSSPageRule.cpp

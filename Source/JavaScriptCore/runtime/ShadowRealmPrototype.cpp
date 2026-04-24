@@ -35,7 +35,6 @@
 #include "JSObjectInlines.h"
 #include "JSPromise.h"
 #include "ShadowRealmObject.h"
-#include "StructureInlines.h"
 
 #include "ShadowRealmPrototype.lut.h"
 
@@ -68,7 +67,7 @@ JSC_DEFINE_HOST_FUNCTION(importInRealm, (JSGlobalObject* globalObject, CallFrame
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     JSValue thisValue = callFrame->uncheckedArgument(0);
-    ShadowRealmObject* thisRealm = jsDynamicCast<ShadowRealmObject*>(thisValue);
+    ShadowRealmObject* thisRealm = dynamicDowncast<ShadowRealmObject>(thisValue);
     ASSERT(thisRealm);
 
     auto* promise = JSPromise::create(vm, globalObject->promiseStructure());
@@ -92,7 +91,7 @@ JSC_DEFINE_HOST_FUNCTION(evalInRealm, (JSGlobalObject* globalObject, CallFrame* 
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     JSValue thisValue = callFrame->argument(0);
-    ShadowRealmObject* thisRealm = jsDynamicCast<ShadowRealmObject*>(thisValue);
+    ShadowRealmObject* thisRealm = dynamicDowncast<ShadowRealmObject>(thisValue);
     ASSERT(thisRealm);
     JSGlobalObject* realmGlobalObject = thisRealm->globalObject();
 
@@ -108,7 +107,7 @@ JSC_DEFINE_HOST_FUNCTION(evalInRealm, (JSGlobalObject* globalObject, CallFrame* 
     EvalExecutable* eval = IndirectEvalExecutable::create(realmGlobalObject, source, lexicallyScopedFeatures, DerivedContextType::None, false, EvalContextType::None, executableError);
     if (executableError) {
         JSValue error = executableError.get();
-        ErrorInstance* errorInstance = jsDynamicCast<ErrorInstance*>(error);
+        ErrorInstance* errorInstance = dynamicDowncast<ErrorInstance>(error);
         if (errorInstance != nullptr && errorInstance->errorType() == ErrorType::SyntaxError) {
             TRY_CLEAR_EXCEPTION(scope, { });
             const String syntaxErrorMessage = errorInstance->sanitizedMessageString(globalObject);
@@ -140,9 +139,9 @@ JSC_DEFINE_HOST_FUNCTION(moveFunctionToRealm, (JSGlobalObject* globalObject, Cal
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     JSValue wrappedFnArg = callFrame->argument(0);
-    JSFunction* wrappedFn = jsDynamicCast<JSFunction*>(wrappedFnArg);
+    JSFunction* wrappedFn = dynamicDowncast<JSFunction>(wrappedFnArg);
     JSValue targetRealmArg = callFrame->argument(1);
-    ShadowRealmObject* targetRealm = jsDynamicCast<ShadowRealmObject*>(targetRealmArg);
+    ShadowRealmObject* targetRealm = dynamicDowncast<ShadowRealmObject>(targetRealmArg);
     ASSERT(targetRealm);
     RETURN_IF_EXCEPTION(scope, { });
 

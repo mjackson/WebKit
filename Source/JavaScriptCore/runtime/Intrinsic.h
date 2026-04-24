@@ -210,6 +210,8 @@ namespace JSC {
     macro(ResolvePromiseWithFirstResolvingFunctionCallCheckIntrinsic) \
     macro(RejectPromiseWithFirstResolvingFunctionCallCheckIntrinsic) \
     macro(FulfillPromiseWithFirstResolvingFunctionCallCheckIntrinsic) \
+    macro(NewResolvedPromiseIntrinsic) \
+    macro(NewRejectedPromiseIntrinsic) \
     macro(PromiseConstructorResolveIntrinsic) \
     macro(PromiseResolveIntrinsic) \
     macro(PromiseConstructorRejectIntrinsic) \

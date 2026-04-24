@@ -18,7 +18,7 @@ namespace gl
 {
 namespace
 {
-constexpr size_t kInvalidContentsObserverIndex            = std::numeric_limits<size_t>::max();
+constexpr size_t kInvalidContentsObserverIndex = std::numeric_limits<size_t>::max();
 }  // anonymous namespace
 
 // VertexArrayBufferBindingMaskAndContext implementation
@@ -95,8 +95,7 @@ BufferState::~BufferState() {}
 
 Buffer::Buffer(rx::GLImplFactory *factory, BufferID id)
     : RefCountObject(factory->generateSerial(), id), mImpl(factory->createBuffer(mState))
-{
-}
+{}
 
 Buffer::~Buffer()
 {
@@ -107,9 +106,16 @@ void Buffer::onDestroy(const Context *context)
 {
     mContentsObservers.clear();
 
+    if (context && context->retainIdUntilObjectDestroyed())
+    {
+        context->onBufferDestroy(this);
+    }
+
     // In tests, mImpl might be null.
     if (mImpl)
+    {
         mImpl->destroy(context);
+    }
 }
 
 void Buffer::onBind(const Context *context, BufferBinding target)
@@ -549,7 +555,9 @@ void Buffer::onStateChange(const Context *context, angle::SubjectMessage message
 
     // Apply the change directly on current context's current vertex array. All other vertex arrays
     // requires a buffer rebind in order to pick up the change.
-    context->onBufferChanged(this, message,
+    bool isUsedInTransformFeedback = mState.mTransformFeedbackGenericBindingCount > 0 ||
+                                     mState.mTransformFeedbackIndexedBindingCount > 0;
+    context->onBufferChanged(this, message, isUsedInTransformFeedback,
                              mVertexArrayBufferBindingMaskAndContext.getBufferBindingMask(context));
 }
 
@@ -561,7 +569,10 @@ void Buffer::onContentsChange(const Context *context)
         static_cast<Texture *>(contentsObserver.observer)->onBufferContentsChange();
     }
 
+    bool isUsedInTransformFeedback = mState.mTransformFeedbackGenericBindingCount > 0 ||
+                                     mState.mTransformFeedbackIndexedBindingCount > 0;
     context->onBufferChanged(this, angle::SubjectMessage::ContentsChanged,
+                             isUsedInTransformFeedback,
                              mVertexArrayBufferBindingMaskAndContext.getBufferBindingMask(context));
 }
 

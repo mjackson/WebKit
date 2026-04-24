@@ -33,9 +33,23 @@
 #endif
 #endif
 
+// Workaround: neon.h contains MSVC-specific workarounds guarded by _MSC_VER < 1938
+// that use intrinsics not available in clang-cl. Temporarily set _MSC_VER >= 1938
+// to skip those workarounds when building with clang-cl.
+// https://developercommunity.visualstudio.com/t/In-arm64_neonh-vsqaddb_u8-vsqaddh_u16/10271747
+#if defined(_MSC_VER) && defined(__clang__)
+#pragma push_macro("_MSC_VER")
+#undef _MSC_VER
+#define _MSC_VER 1938
+#endif
+
 IGNORE_WARNINGS_BEGIN("constant-conversion")
 IGNORE_WARNINGS_BEGIN("uninitialized")
 #include <wtf/simde/arm/neon.h>
 #include <wtf/simde/arm/sve.h>
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
+
+#if defined(_MSC_VER) && defined(__clang__)
+#pragma pop_macro("_MSC_VER")
+#endif

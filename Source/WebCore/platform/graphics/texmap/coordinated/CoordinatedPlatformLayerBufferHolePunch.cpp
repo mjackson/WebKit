@@ -72,6 +72,21 @@ void CoordinatedPlatformLayerBufferHolePunch::paintToTextureMapper(TextureMapper
     textureMapper.drawSolidColor(targetRect, modelViewMatrix, Color::transparentBlack, false);
 }
 
+#if USE(SKIA)
+void CoordinatedPlatformLayerBufferHolePunch::paintToCanvas(SkCanvas& canvas, const FloatRect& targetRect, const SkPaint&)
+{
+#if USE(GSTREAMER)
+    if (m_videoSink && m_quirksManager) {
+        TransformationMatrix matrix = canvas.getLocalToDevice();
+        m_quirksManager->setHolePunchVideoRectangle(m_videoSink.get(), enclosingIntRect(matrix.mapRect(targetRect)));
+    }
+#endif
+    SkPaint paint;
+    paint.setColor(SK_ColorTRANSPARENT);
+    canvas.drawRect(SkRect(targetRect), paint);
+}
+#endif
+
 } // namespace WebCore
 
 #endif // USE(COORDINATED_GRAPHICS) && ENABLE(VIDEO)

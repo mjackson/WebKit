@@ -26,7 +26,7 @@
 #include "config.h"
 #include "StyleSingleAnimationTimeline.h"
 
-#include "CSSPrimitiveValueMappings.h"
+#include "CSSKeywordValue.h"
 #include "CSSScrollValue.h"
 #include "CSSViewValue.h"
 #include "StyleBuilderChecking.h"
@@ -39,8 +39,8 @@ namespace Style {
 
 auto CSSValueConversion<SingleAnimationTimeline>::operator()(BuilderState& state, const CSSValue& value) -> SingleAnimationTimeline
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (value.valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueAuto:
             return CSS::Keyword::Auto { };
         case CSSValueNone:

@@ -91,7 +91,10 @@ TEST(WebKit, IsNavigationActionTrusted)
     }
 }
 
-TEST(WebKitLegacy, IsNavigationActionTrusted)
+// FIXME: Disabled due to ASSERTION FAILED: osVersionSupports(os_script_config_storage)
+// in JSC::LLInt::initialize() on Tahoe debug builds since 302256@main.
+// https://bugs.webkit.org/show_bug.cgi?id=312903
+TEST(WebKitLegacy, DISABLED_IsNavigationActionTrusted)
 {
     @autoreleasepool {
         RetainPtr<WebView> webView = adoptNS([[WebView alloc] init]);

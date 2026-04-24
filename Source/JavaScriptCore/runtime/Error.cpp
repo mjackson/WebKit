@@ -30,6 +30,7 @@
 #include "JSGlobalObject.h"
 #include "SourceCode.h"
 #include "StackFrame.h"
+#include "TopExceptionScope.h"
 #include <wtf/text/MakeString.h>
 
 namespace JSC {
@@ -249,7 +250,7 @@ JSObject* addErrorInfo(VM& vm, JSObject* error, int line, const SourceCode& sour
     // ErrorInstance to materialize whatever it needs to. There's a chance that we get passed some
     // other kind of object, which also has materializable properties. But this code is heuristic-ey
     // enough that if we're wrong in such corner cases, it's not the end of the world.
-    if (ErrorInstance* errorInstance = jsDynamicCast<ErrorInstance*>(error)) {
+    if (ErrorInstance* errorInstance = dynamicDowncast<ErrorInstance>(error)) {
 #if USE(BUN_JSC_ADDITIONS)
 
         if (line != -1) {
@@ -413,7 +414,7 @@ JSObject* createURIError(JSGlobalObject* globalObject, const String& message)
 JSObject* createOutOfMemoryError(JSGlobalObject* globalObject)
 {
     auto* error = createRangeError(globalObject, "Out of memory"_s, nullptr);
-    jsCast<ErrorInstance*>(error)->setOutOfMemoryError();
+    uncheckedDowncast<ErrorInstance>(error)->setOutOfMemoryError();
     return error;
 }
 
@@ -422,7 +423,7 @@ JSObject* createOutOfMemoryError(JSGlobalObject* globalObject, const String& mes
     if (message.isEmpty())
         return createOutOfMemoryError(globalObject);
     auto* error = createRangeError(globalObject, makeString("Out of memory: "_s, message), nullptr);
-    jsCast<ErrorInstance*>(error)->setOutOfMemoryError();
+    uncheckedDowncast<ErrorInstance>(error)->setOutOfMemoryError();
     return error;
 }
 

@@ -185,6 +185,29 @@ class TestCreateBug(testing.PathTestCase):
             if line.startswith('Added CC:'):
                 self.assertNotIn(importer_email, line)
 
+    def test_radar_adds_inradar_keyword(self):
+        """When --radar is provided, InRadar must be in the keywords at creation time
+        to prevent duplicate radar creation when the Security product auto-CCs the importer."""
+        with OutputCapture() as captured, mocks.local.Git(self.path), bmocks.Bugzilla(
+            self.BUGZILLA.split('://')[-1],
+            projects=bmocks.PROJECTS, issues=bmocks.ISSUES,
+            environment=Environment(
+                BUGS_EXAMPLE_COM_USERNAME='tcontributor@example.com',
+                BUGS_EXAMPLE_COM_PASSWORD='password',
+            ),
+        ), bmocks.Radar(users=bmocks.USERS, issues=bmocks.ISSUES, projects=bmocks.PROJECTS), \
+                patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA), radar.Tracker()]):
+            self.assertEqual(0, program.main(
+                args=('create-bug', '--title', 'Test bug', '-F', self.desc_file,
+                      '--component', 'Text', '--project', 'WebKit',
+                      '--radar', 'rdar://1'),
+                path=self.path,
+            ))
+            self.assertIn('Created bug:', captured.stdout.getvalue())
+            # New bug (ID 4, after 3 existing issues) must have InRadar
+            new_issue = Tracker.instance().issue(4)
+            self.assertIn('InRadar', new_issue.keywords or [])
+
 
 class TestCreateBugRadarArgValidation(testing.PathTestCase):
     basepath = 'mock/repository'

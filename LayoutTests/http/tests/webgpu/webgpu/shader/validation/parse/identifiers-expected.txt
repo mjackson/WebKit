@@ -29,7 +29,7 @@ FAIL :module_var_name:ident="binding_array" assert_unreached:
   - (in subcase: ) INFO: subcase ran
   - EXCEPTION: Error: Unexpected validation error occurred: 1 error generated while compiling the shader:
     1:13: Expected a Identifier, but got a ReservedWord
-    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:457:44
+    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:466:44
  Reached unreachable code
 PASS :module_var_name:ident="bf16"
 PASS :module_var_name:ident="bitcast"
@@ -207,7 +207,7 @@ FAIL :module_var_name:ident="non_coherent" assert_unreached:
     var<private> non_coherent : i32;
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 FAIL :module_var_name:ident="noncoherent" assert_unreached:
@@ -220,7 +220,7 @@ FAIL :module_var_name:ident="noncoherent" assert_unreached:
     var<private> noncoherent : i32;
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 PASS :module_var_name:ident="noperspective"
@@ -318,7 +318,7 @@ FAIL :module_const_name:ident="binding_array" assert_unreached:
   - (in subcase: ) INFO: subcase ran
   - EXCEPTION: Error: Unexpected validation error occurred: 1 error generated while compiling the shader:
     1:6: Expected a Identifier, but got a ReservedWord
-    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:457:44
+    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:466:44
  Reached unreachable code
 PASS :module_const_name:ident="bf16"
 PASS :module_const_name:ident="bitcast"
@@ -496,7 +496,7 @@ FAIL :module_const_name:ident="non_coherent" assert_unreached:
     const non_coherent : i32 = 0;
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 FAIL :module_const_name:ident="noncoherent" assert_unreached:
@@ -509,7 +509,7 @@ FAIL :module_const_name:ident="noncoherent" assert_unreached:
     const noncoherent : i32 = 0;
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 PASS :module_const_name:ident="noperspective"
@@ -607,7 +607,7 @@ FAIL :override_name:ident="binding_array" assert_unreached:
   - (in subcase: ) INFO: subcase ran
   - EXCEPTION: Error: Unexpected validation error occurred: 1 error generated while compiling the shader:
     1:9: Expected a Identifier, but got a ReservedWord
-    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:457:44
+    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:466:44
  Reached unreachable code
 PASS :override_name:ident="bf16"
 PASS :override_name:ident="bitcast"
@@ -785,7 +785,7 @@ FAIL :override_name:ident="non_coherent" assert_unreached:
     override non_coherent : i32 = 0;
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 FAIL :override_name:ident="noncoherent" assert_unreached:
@@ -798,7 +798,7 @@ FAIL :override_name:ident="noncoherent" assert_unreached:
     override noncoherent : i32 = 0;
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 PASS :override_name:ident="noperspective"
@@ -896,7 +896,7 @@ FAIL :function_name:ident="binding_array" assert_unreached:
   - (in subcase: ) INFO: subcase ran
   - EXCEPTION: Error: Unexpected validation error occurred: 1 error generated while compiling the shader:
     1:3: Expected a Identifier, but got a ReservedWord
-    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:457:44
+    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:466:44
  Reached unreachable code
 PASS :function_name:ident="bf16"
 PASS :function_name:ident="bitcast"
@@ -1074,7 +1074,7 @@ FAIL :function_name:ident="non_coherent" assert_unreached:
     fn non_coherent() {}
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 FAIL :function_name:ident="noncoherent" assert_unreached:
@@ -1087,7 +1087,7 @@ FAIL :function_name:ident="noncoherent" assert_unreached:
     fn noncoherent() {}
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 PASS :function_name:ident="noperspective"
@@ -1185,7 +1185,7 @@ FAIL :struct_name:ident="binding_array" assert_unreached:
   - (in subcase: ) INFO: subcase ran
   - EXCEPTION: Error: Unexpected validation error occurred: 1 error generated while compiling the shader:
     1:7: Expected a Identifier, but got a ReservedWord
-    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:457:44
+    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:466:44
  Reached unreachable code
 PASS :struct_name:ident="bf16"
 PASS :struct_name:ident="bitcast"
@@ -1363,7 +1363,7 @@ FAIL :struct_name:ident="non_coherent" assert_unreached:
     struct non_coherent { i : i32 }
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 FAIL :struct_name:ident="noncoherent" assert_unreached:
@@ -1376,7 +1376,7 @@ FAIL :struct_name:ident="noncoherent" assert_unreached:
     struct noncoherent { i : i32 }
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 PASS :struct_name:ident="noperspective"
@@ -1474,7 +1474,7 @@ FAIL :alias_name:ident="binding_array" assert_unreached:
   - (in subcase: ) INFO: subcase ran
   - EXCEPTION: Error: Unexpected validation error occurred: 1 error generated while compiling the shader:
     1:6: Expected a Identifier, but got a ReservedWord
-    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:457:44
+    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:466:44
  Reached unreachable code
 PASS :alias_name:ident="bf16"
 PASS :alias_name:ident="bitcast"
@@ -1652,7 +1652,7 @@ FAIL :alias_name:ident="non_coherent" assert_unreached:
     alias non_coherent = i32;
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 FAIL :alias_name:ident="noncoherent" assert_unreached:
@@ -1665,7 +1665,7 @@ FAIL :alias_name:ident="noncoherent" assert_unreached:
     alias noncoherent = i32;
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 PASS :alias_name:ident="noperspective"
@@ -1763,7 +1763,7 @@ FAIL :function_param_name:ident="binding_array" assert_unreached:
   - (in subcase: ) INFO: subcase ran
   - EXCEPTION: Error: Unexpected validation error occurred: 1 error generated while compiling the shader:
     1:5: Expected a Identifier, but got a ReservedWord
-    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:457:44
+    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:466:44
  Reached unreachable code
 PASS :function_param_name:ident="bf16"
 PASS :function_param_name:ident="bitcast"
@@ -1941,7 +1941,7 @@ FAIL :function_param_name:ident="non_coherent" assert_unreached:
     fn F(non_coherent : i32) {}
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 FAIL :function_param_name:ident="noncoherent" assert_unreached:
@@ -1954,7 +1954,7 @@ FAIL :function_param_name:ident="noncoherent" assert_unreached:
     fn F(noncoherent : i32) {}
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 PASS :function_param_name:ident="noperspective"
@@ -2054,7 +2054,7 @@ FAIL :function_const_name:ident="binding_array" assert_unreached:
   - (in subcase: ) INFO: subcase ran
   - EXCEPTION: Error: Unexpected validation error occurred: 1 error generated while compiling the shader:
     2:8: Expected a Identifier, but got a ReservedWord
-    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:457:44
+    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:466:44
  Reached unreachable code
 PASS :function_const_name:ident="bf16"
 PASS :function_const_name:ident="bitcast"
@@ -2234,7 +2234,7 @@ FAIL :function_const_name:ident="non_coherent" assert_unreached:
     }
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 FAIL :function_const_name:ident="noncoherent" assert_unreached:
@@ -2249,7 +2249,7 @@ FAIL :function_const_name:ident="noncoherent" assert_unreached:
     }
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 PASS :function_const_name:ident="noperspective"
@@ -2349,7 +2349,7 @@ FAIL :function_let_name:ident="binding_array" assert_unreached:
   - (in subcase: ) INFO: subcase ran
   - EXCEPTION: Error: Unexpected validation error occurred: 1 error generated while compiling the shader:
     2:6: Expected a Identifier, but got a ReservedWord
-    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:457:44
+    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:466:44
  Reached unreachable code
 PASS :function_let_name:ident="bf16"
 PASS :function_let_name:ident="bitcast"
@@ -2529,7 +2529,7 @@ FAIL :function_let_name:ident="non_coherent" assert_unreached:
     }
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 FAIL :function_let_name:ident="noncoherent" assert_unreached:
@@ -2544,7 +2544,7 @@ FAIL :function_let_name:ident="noncoherent" assert_unreached:
     }
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 PASS :function_let_name:ident="noperspective"
@@ -2644,7 +2644,7 @@ FAIL :function_var_name:ident="binding_array" assert_unreached:
   - (in subcase: ) INFO: subcase ran
   - EXCEPTION: Error: Unexpected validation error occurred: 1 error generated while compiling the shader:
     2:6: Expected a Identifier, but got a ReservedWord
-    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:457:44
+    attemptEndTestScope@http://127.0.0.1:8000/webgpu/webgpu/util/device_pool.js:466:44
  Reached unreachable code
 PASS :function_var_name:ident="bf16"
 PASS :function_var_name:ident="bitcast"
@@ -2824,7 +2824,7 @@ FAIL :function_var_name:ident="non_coherent" assert_unreached:
     }
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 FAIL :function_var_name:ident="noncoherent" assert_unreached:
@@ -2839,7 +2839,7 @@ FAIL :function_var_name:ident="noncoherent" assert_unreached:
     }
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 PASS :function_var_name:ident="noperspective"

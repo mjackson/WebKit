@@ -32,6 +32,7 @@
 #include "RenderElementStyleInlines.h"
 #include "RenderLayer.h"
 #include "RenderLayerInlines.h"
+#include "RenderLayerSVGAdditionsInlines.h"
 #include "RenderObjectDocument.h"
 #include "RenderSVGHiddenContainer.h"
 #include "RenderSVGPath.h"
@@ -288,7 +289,10 @@ void SVGGraphicsElement::invalidateResourceImageBuffersIfNeeded()
     if (!document().settings().layerBasedSVGEngineEnabled())
         return;
     if (CheckedPtr svgRenderer = dynamicDowncast<RenderLayerModelObject>(renderer())) {
-        if (CheckedPtr container = svgRenderer->enclosingLayer()->enclosingSVGHiddenOrResourceContainer()) {
+        CheckedPtr layer = svgRenderer->enclosingLayer();
+        if (!layer)
+            return;
+        if (CheckedPtr container = layer->enclosingHiddenOrResourceContainerForSVG()) {
             if (auto* maskRenderer = dynamicDowncast<RenderSVGResourceMasker>(container.get()))
                 maskRenderer->invalidateMask();
             if (auto* patternRenderer = dynamicDowncast<RenderSVGResourcePattern>(container.get()))

@@ -28,7 +28,7 @@
 #include "StyleTextDecorationThickness.h"
 
 #include "AnimationUtilities.h"
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValue.h"
 #include "FontMetrics.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleBuilderChecking.h"
@@ -59,12 +59,8 @@ float TextDecorationThickness::resolve(const RenderStyle& style) const
 
 auto CSSValueConversion<TextDecorationThickness>::operator()(BuilderState& state, const CSSValue& value) -> TextDecorationThickness
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return CSS::Keyword::Auto { };
-
-    if (primitiveValue->isValueID()) {
-        switch (primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueAuto:
             return CSS::Keyword::Auto { };
         case CSSValueFromFont:
@@ -77,7 +73,7 @@ auto CSSValueConversion<TextDecorationThickness>::operator()(BuilderState& state
         return CSS::Keyword::Auto { };
     }
 
-    return toStyleFromCSSValue<TextDecorationThicknessLength>(state, *primitiveValue);
+    return toStyleFromCSSValue<TextDecorationThicknessLength>(state, value);
 }
 
 // MARK: - Blending

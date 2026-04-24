@@ -28,6 +28,7 @@
 
 #include "AnimationUtilities.h"
 #include "CSSFunctionValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSPrimitiveValue.h"
 #include "StyleBuilderChecking.h"
 #include "StyleLengthWrapper+Blending.h"
@@ -46,10 +47,12 @@ using namespace CSS::Literals;
 
 auto CSSValueConversion<GridTrackSize>::operator()(BuilderState& state, const CSSValue& value) -> GridTrackSize
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
+    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
         return toStyleFromCSSValue<GridTrackSize::Breadth>(state, *primitiveValue);
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value))
+        return toStyleFromCSSValue<GridTrackSize::Breadth>(state, *keywordValue);
 
-    auto function = requiredListDowncast<CSSFunctionValue, CSSPrimitiveValue>(state, value);
+    auto function = requiredListDowncast<CSSFunctionValue, CSSValue>(state, value);
     if (!function)
         return GridTrackSize::Breadth { 0_css_px };
 

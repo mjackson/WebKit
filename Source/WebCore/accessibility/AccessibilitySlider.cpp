@@ -104,7 +104,7 @@ void AccessibilitySlider::addChildren()
     else
         addChild(thumb.get());
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     verifyChildrenIndexInParent();
 #endif
 }

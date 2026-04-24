@@ -1634,8 +1634,7 @@ void RenderPassCommandBufferHelper::fragmentShadingRateImageRead(ImageHelper *im
 
     // Initialize RenderPassAttachment for fragment shading rate attachment.
     mFragmentShadingRateAtachment.init(image, gl::LevelIndex(0), 0, 1, VK_IMAGE_ASPECT_COLOR_BIT);
-    image->getRenderPassUsage().flags(this).set(
-        RenderPassUsage::FragmentShadingRateReadOnlyAttachment);
+    image->getRenderPassUsage().flags(this).set(RenderPassUsage::RenderTargetAttachment);
 }
 
 void RenderPassCommandBufferHelper::onColorAccess(PackedAttachmentIndex packedAttachmentIndex,
@@ -1983,7 +1982,8 @@ void RenderPassCommandBufferHelper::finalizeFragmentShadingRateImageLayout(Conte
 {
     ImageHelper *image      = mFragmentShadingRateAtachment.getImage();
     ImageAccess imageAccess = ImageAccess::FragmentShadingRateAttachmentReadOnly;
-    ASSERT(image && image->valid());
+    ASSERT(image != nullptr);
+    ASSERT(image->valid());
     if (image->isReadBarrierNecessary(context->getRenderer(), imageAccess))
     {
         updateImageLayoutAndBarrier(context, image, VK_IMAGE_ASPECT_COLOR_BIT, imageAccess,
@@ -5186,6 +5186,7 @@ void BufferHelper::recordReadBarrier(Context *context,
         eventBarriers->addEventMemoryBarrier(context->getRenderer(), mCurrentWriteEvent.getEvent(),
                                              mCurrentWriteEvent.getAccessFlags(),
                                              readPipelineStageFlags, readAccessType);
+        eventCollector->emplace_back(mCurrentWriteEvent.getEvent());
     }
 
     // Barrier against prior access that not tracked by VkEvent using pipelineBarrier.
@@ -8413,7 +8414,7 @@ angle::Result ImageHelper::stageSubresourceUpdateImpl(ContextVk *contextVk,
         }
         else if (!stencilOnly)
         {
-            outputRowPitch = storageFormat.pixelBytes * glExtents.width;
+            outputRowPitch = static_cast<size_t>(glExtents.width) * storageFormat.pixelBytes;
         }
         else
         {
@@ -8438,7 +8439,9 @@ angle::Result ImageHelper::stageSubresourceUpdateImpl(ContextVk *contextVk,
             formatInfo.stencilBits > 0)
         {
             // Note: Stencil is always one byte
-            stencilAllocationSize = glExtents.width * glExtents.height * glExtents.depth;
+            stencilAllocationSize = static_cast<size_t>(glExtents.width) *
+                                    static_cast<size_t>(glExtents.height) *
+                                    static_cast<size_t>(glExtents.depth);
             allocationSize += stencilAllocationSize;
         }
     }
@@ -9150,7 +9153,7 @@ angle::Result ImageHelper::stagePartialClear(ContextVk *contextVk,
                                              const gl::Box &clearArea,
                                              const ClearTextureMode clearMode,
                                              gl::TextureType textureType,
-                                             uint32_t levelIndex,
+                                             uint32_t levelIndexGL,
                                              uint32_t layerIndex,
                                              uint32_t layerCount,
                                              GLenum type,
@@ -9219,16 +9222,16 @@ angle::Result ImageHelper::stagePartialClear(ContextVk *contextVk,
                                textureType == gl::TextureType::_2DArray ||
                                textureType == gl::TextureType::_2DMultisampleArray;
         const gl::ImageIndex index = gl::ImageIndex::MakeFromType(
-            textureType, levelIndex, 0, useLayerAsDepth ? clearArea.depth : 1);
+            textureType, levelIndexGL, 0, useLayerAsDepth ? clearArea.depth : 1);
 
-        appendSubresourceUpdate(gl::LevelIndex(levelIndex),
+        appendSubresourceUpdate(gl::LevelIndex(levelIndexGL),
                                 SubresourceUpdate(aspectFlags, clearValue, index));
     }
     else
     {
-        appendSubresourceUpdate(gl::LevelIndex(levelIndex),
-                                SubresourceUpdate(aspectFlags, clearValue, textureType, levelIndex,
-                                                  layerIndex, layerCount, clearArea));
+        appendSubresourceUpdate(gl::LevelIndex(levelIndexGL),
+                                SubresourceUpdate(aspectFlags, clearValue, textureType,
+                                                  levelIndexGL, layerIndex, layerCount, clearArea));
     }
     return angle::Result::Continue;
 }
@@ -9905,7 +9908,7 @@ angle::Result ImageHelper::flushStagedClearEmulatedChannelsUpdates(ContextVk *co
         update->getDestSubresource(mLayerCount, &updateBaseLayer, &updateLayerCount);
 
         const LevelIndex updateMipLevelVk = toVkLevel(updateMipLevelGL);
-        update->data.clear.levelIndex     = updateMipLevelVk.get();
+        update->data.clear.levelIndex     = updateMipLevelGL.get();
         ANGLE_TRY(clearEmulatedChannels(contextVk, update->data.clear.colorMaskFlags,
                                         update->data.clear.value, updateMipLevelVk, updateBaseLayer,
                                         updateLayerCount));
@@ -10127,8 +10130,10 @@ angle::Result ImageHelper::flushStagedUpdatesImpl(ContextVk *contextVk,
                         ANGLE_TRY(contextVk->getUtils().clearTexture(contextVk, this, params));
                     }
                     contextVk->getPerfCounters().fullImageClears++;
-                    // Remember the latest operation is a clear call.
+                    // Remember the latest operation is a clear call.  Note that the tracked level
+                    // is the GL level.
                     mCurrentSingleClearValue = update.data.clear;
+                    mCurrentSingleClearValue.value().levelIndex = updateMipLevelGL.get();
 
                     // Do not call onWrite as it removes mCurrentSingleClearValue, but instead call
                     // setContentDefined directly.
@@ -10334,7 +10339,6 @@ angle::Result ImageHelper::flushStagedUpdates(ContextVk *contextVk,
     if (mSubresourceUpdates.empty())
     {
         ASSERT(mTotalStagedBufferUpdateSize == 0);
-        onStateChange(angle::SubjectMessage::InitializationComplete);
     }
 
     return angle::Result::Continue;
@@ -11458,7 +11462,8 @@ angle::Result ImageHelper::readPixelsImpl(ContextVk *contextVk,
 
     uint8_t *readPixelBuffer   = nullptr;
     VkDeviceSize stagingOffset = 0;
-    size_t allocationSize      = readFormat->pixelBytes * area.width * area.height;
+    size_t allocationSize =
+        static_cast<size_t>(area.width) * static_cast<size_t>(area.height) * readFormat->pixelBytes;
 
     ANGLE_TRY(contextVk->initBufferForImageCopy(stagingBuffer, allocationSize,
                                                 MemoryCoherency::CachedPreferCoherent,

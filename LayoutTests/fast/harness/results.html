@@ -298,24 +298,34 @@ class Utils
         }
         return null;
     }
-
-    static testPrefix(testName)
+    
+    static testNameAndVariant(testName)
     {
         let variant = '';
         let variantSeparatorIndex = testName.indexOf('?');
         if (variantSeparatorIndex >= 0) {
-            variant = testName.substring(variantSeparatorIndex + 1);
+            variant = testName.substring(variantSeparatorIndex);
             testName = testName.substring(0, variantSeparatorIndex);
         }
+        
         variantSeparatorIndex = testName.indexOf('#');
         if (variantSeparatorIndex >= 0) {
-            variant = testName.substring(variantSeparatorIndex + 1);
+            variant = testName.substring(variantSeparatorIndex);
             testName = testName.substring(0, variantSeparatorIndex);
         }
+        
+        return [testName, variant];
+    }
 
-        let prefix = Utils.splitExtension(testName)[0];
-        if (variant.length)
-            prefix += '_' + variant.replace(/[\|\* <>:]/g, '_');
+    static testPrefix(testName)
+    {
+        let [baseName, variant] = Utils.testNameAndVariant(testName);
+
+        let prefix = Utils.splitExtension(baseName)[0];
+        if (variant.length) {
+            variant = variant.slice(1);
+            prefix += '_' + variant.replace(/[\|\* <>:\/\%]/g, '_');
+        }
         return prefix;
     }
 
@@ -323,11 +333,11 @@ class Utils
     {
         // Splits 'foo/bar/boo.html?blah' to ['foo/bar/boo', '.html', '?blah']. Last item can be
         // null if `testName` had no URL fragment or query separator.
-        let filenameIndex = testName.lastIndexOf("/");
-        let buffer = testName.substr(filenameIndex + 1);
-        buffer = buffer.split('?')[0];
-        buffer = buffer.split('#')[0];
-        let parts = buffer.split('.');
+        let [baseName, variant] = Utils.testNameAndVariant(testName);
+
+        let filenameIndex = baseName.lastIndexOf("/");
+        let buffer = baseName.substr(filenameIndex + 1);
+
         let extensionIndex = buffer.lastIndexOf(".");
         let filename = buffer.substr(0, extensionIndex);
         // Test names that are actually process names are treated like they don't have any extension
@@ -335,9 +345,7 @@ class Utils
             return [testName, '', ''];
         }
         let ext = buffer.substr(extensionIndex);
-        let remainsIndex = testName.lastIndexOf(ext);
-        let remains = testName.substr(remainsIndex + ext.length);
-        return [testName.substr(0, filenameIndex) + '/' + filename, ext, remains];
+        return [testName.substr(0, filenameIndex) + '/' + filename, ext, variant];
     }
 
     static forEach(nodeList, handler)
@@ -1460,14 +1468,17 @@ class FailuresSectionBuilder extends SectionBuilder {
     {
         let result = '';
         if (resultToken.indexOf('IMAGE') != -1) {
-            let testExtension = Utils.splitExtension(testResult.name)[1];
-
+            const nameParts = Utils.splitExtension(testResult.name);
+            const testBase = nameParts[0]
+            const testExtension = nameParts[1];
+            const variantParams = nameParts[2];
+            
             if (testResult.isMismatchRefTest()) {
-                result += this._resultsController.resultLink(this._resultsController.layoutTestsBasePath() + testPrefix, '-expected-mismatch' + testExtension, 'ref mismatch');
+                result += this._resultsController.resultLink(this._resultsController.layoutTestsBasePath() + testBase, '-expected-mismatch' + testExtension + variantParams, 'ref mismatch');
                 result += this._resultsController.resultLink(testPrefix, '-actual.png', 'actual');
             } else {
                 if (testResult.isMatchRefTest())
-                    result += this._resultsController.resultLink(this._resultsController.layoutTestsBasePath() + testPrefix, '-expected' + testExtension, 'reference');
+                    result += this._resultsController.resultLink(this._resultsController.layoutTestsBasePath() + testBase, '-expected' + testExtension + variantParams, 'reference');
 
                 if (this._resultsController.shouldToggleImages)
                     result += this._resultsController.resultLink(testPrefix, '-diffs.html', 'images');

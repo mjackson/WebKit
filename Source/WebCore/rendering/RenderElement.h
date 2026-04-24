@@ -66,9 +66,10 @@ public:
     static bool isContentDataSupported(const Style::Content&);
 
     enum class ConstructBlockLevelRendererFor {
-        Inline           = 1 << 0,
-        ListItem         = 1 << 1,
-        TableOrTablePart = 1 << 2
+        Inline              = 1 << 0,
+        ListItem            = 1 << 1,
+        TableOrTablePart    = 1 << 2,
+        DeprecatedFlexBox   = 1 << 3
     };
     static RenderPtr<RenderElement> createFor(Element&, RenderStyle&&, OptionSet<ConstructBlockLevelRendererFor> = { });
 
@@ -319,7 +320,7 @@ public:
     bool hasCachedSVGResource() const { return m_hasCachedSVGResource; }
 
     bool isAnonymousBlock() const;
-    bool isAnonymousForPercentageResolution() const { return isAnonymous() && !isViewTransitionPseudo(); }
+    bool shouldSkipForPercentageResolution() const { return isAnonymous() && !isViewTransitionPseudo() && !isRenderView(); }
     inline bool isBlockBox() const;
     inline bool isBlockLevelBox() const;
     inline bool isBlockContainer() const;

@@ -23,7 +23,6 @@ Modules/WebGPU/Implementation/WebGPUTextureViewImpl.cpp
 Modules/WebGPU/Implementation/WebGPUXRBindingImpl.cpp
 Modules/WebGPU/Implementation/WebGPUXRSubImageImpl.cpp
 Modules/notifications/NotificationController.h
-Modules/webdatabase/DatabaseThread.h
 ReadableStreamInternalsBuiltins.h
 StreamInternalsBuiltins.h
 TransformStreamInternalsBuiltins.h
@@ -44,15 +43,11 @@ html/HTMLMediaElement.cpp
 html/canvas/PlaceholderRenderingContext.cpp
 inspector/InspectorStyleSheet.h
 inspector/InstrumentingAgents.h
-inspector/PageInspectorController.h
 inspector/UserGestureEmulationScope.h
-inspector/agents/InspectorPageAgent.h
 layout/formattingContexts/inline/InlineFormattingContext.h
 layout/formattingContexts/inline/InlineItemsBuilder.cpp
 layout/formattingContexts/inline/InlineLine.h
 [ iOS ] page/cocoa/ContentChangeObserver.h
-[ Mac ] page/mac/ImageOverlayControllerMac.mm
-[ Mac ] page/mac/ServicesOverlayController.mm
 page/scrolling/ScrollingStateNode.h
 [ Mac ] page/scrolling/ScrollingStateScrollingNode.cpp
 platform/PODRedBlackTree.h

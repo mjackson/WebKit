@@ -40,6 +40,7 @@ async function main() {
     );
 
     print("Streaming module loaded (URL path)");
+    print("DEBUGGER_READY");
     print("Waiting for debugger — attach LLDB and type 'c' to continue.");
     while (!$vm.hasDebuggerContinued()) { }
     print("Debugger continued");

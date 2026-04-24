@@ -252,10 +252,7 @@ function mac_process_webcontent_shared_entitlements()
         plistbuddy Add :com.apple.security.cs.disable-library-validation bool YES
     fi
 
-    if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" > 140000 ))
-    then
-        notify_entitlements
-    fi
+    notify_entitlements
 
     if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
     then
@@ -321,10 +318,7 @@ function maccatalyst_process_webcontent_shared_entitlements()
         fi
     fi
 
-    if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" > 150000 ))
-    then
-        plistbuddy Add :com.apple.private.disable-log-mach-ports bool YES
-    fi
+    plistbuddy Add :com.apple.private.disable-log-mach-ports bool YES
 }
 
 function maccatalyst_process_webcontent_entitlements()

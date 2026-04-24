@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSValueList.h"
 #include "StyleBuilderChecking.h"
 #include "StyleValueTypes.h"
@@ -124,8 +124,10 @@ template<typename StyleType> struct CSSValueConversion<CommaSeparatedFixedVector
 template<typename StyleType, typename Keyword, typename StyleTypeMarkableTraits> struct CSSValueConversion<ValueOrKeyword<StyleType, Keyword, StyleTypeMarkableTraits>> {
     template<typename... Rest> ValueOrKeyword<StyleType, Keyword, StyleTypeMarkableTraits> operator()(BuilderState& state, const CSSValue& value, Rest&&... rest)
     {
-        if (value.valueID() == Keyword { }.value)
-            return Keyword { };
+        if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+            if (keywordValue->valueID() == Keyword { }.value)
+                return Keyword { };
+        }
         return toStyleFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
     }
 };
@@ -134,8 +136,10 @@ template<typename StyleType, typename Keyword, typename StyleTypeMarkableTraits>
 template<ValueOrKeywordDerived T> struct CSSValueConversion<T> {
     template<typename... Rest> T operator()(BuilderState& state, const CSSValue& value, Rest&&... rest)
     {
-        if (value.valueID() == typename T::Keyword { }.value)
-            return typename T::Keyword { };
+        if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+            if (keywordValue->valueID() == typename T::Keyword { }.value)
+                return typename T::Keyword { };
+        }
         return toStyleFromCSSValue<typename T::Value>(state, value, std::forward<Rest>(rest)...);
     }
 };
@@ -144,8 +148,10 @@ template<ValueOrKeywordDerived T> struct CSSValueConversion<T> {
 template<typename ListType> struct CSSValueConversion<ListOrNone<ListType>> {
     template<typename... Rest> ListOrNone<ListType> operator()(BuilderState& state, const CSSValue& value, Rest&&... rest)
     {
-        if (value.valueID() == CSSValueNone)
-            return CSS::Keyword::None { };
+        if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+            if (keywordValue->valueID() == CSSValueNone)
+                return CSS::Keyword::None { };
+        }
         return toStyleFromCSSValue<ListType>(state, value, std::forward<Rest>(rest)...);
     }
 };
@@ -154,8 +160,10 @@ template<typename ListType> struct CSSValueConversion<ListOrNone<ListType>> {
 template<ListOrNoneDerived T> struct CSSValueConversion<T> {
     template<typename... Rest> T operator()(BuilderState& state, const CSSValue& value, Rest&&... rest)
     {
-        if (value.valueID() == CSSValueNone)
-            return CSS::Keyword::None { };
+        if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+            if (keywordValue->valueID() == CSSValueNone)
+                return CSS::Keyword::None { };
+        }
         return toStyleFromCSSValue<typename T::List>(state, value, std::forward<Rest>(rest)...);
     }
 };
@@ -180,8 +188,10 @@ template<ListOrDefaultDerived T> struct CSSValueConversion<T> {
 template<EnumSetOrKeywordBaseDerived T> struct CSSValueConversion<T> {
     template<typename... Rest> T operator()(BuilderState& state, const CSSValue& value, Rest&&... rest)
     {
-        if (value.valueID() == typename T::Keyword { }.value)
-            return typename T::Keyword { };
+        if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+            if (keywordValue->valueID() == typename T::Keyword { }.value)
+                return typename T::Keyword { };
+        }
         return toStyleFromCSSValue<typename T::EnumSet>(state, value, std::forward<Rest>(rest)...);
     }
 };

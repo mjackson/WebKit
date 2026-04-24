@@ -875,7 +875,7 @@ static void testInspectedServiceWorkerWithoutPage(bool enableServiceWorkerInspec
     }];
 
     // We delay so that the push message will happen before the unregistration of the service worker client.
-    sleep(0.5);
+    usleep(500000);
 
     // Closing the web view should not terminate the service worker as service worker is inspected.
     [webView _close];

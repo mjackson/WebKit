@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestAsyncIterableWithoutFlags : public JSDOMWrapper<TestAsyncIterableWithoutFlags> {
 public:
     using Base = JSDOMWrapper<TestAsyncIterableWithoutFlags>;
-    static JSTestAsyncIterableWithoutFlags* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestAsyncIterableWithoutFlags>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestAsyncIterableWithoutFlags* ptr = new (NotNull, JSC::allocateCell<JSTestAsyncIterableWithoutFlags>(vm)) JSTestAsyncIterableWithoutFlags(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestAsyncIterableWithoutFlags* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestAsyncIterableWithoutFlags>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

@@ -52,12 +52,7 @@ static constexpr int64_t nsPerMicrosecond = 1000LL;
 
 std::optional<TimeZoneID> parseTimeZoneName(StringView string)
 {
-    const auto& timeZones = intlAvailableTimeZones();
-    for (unsigned index = 0; index < timeZones.size(); ++index) {
-        if (equalIgnoringASCIICase(timeZones[index], string))
-            return index;
-    }
-    return std::nullopt;
+    return intlResolveTimeZoneID(string);
 }
 
 template<typename CharType>

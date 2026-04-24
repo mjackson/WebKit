@@ -25,9 +25,10 @@
 
 #pragma once
 
-#include "TopExceptionScope.h"
 #include "StackAlignment.h"
+#include "TopExceptionScope.h"
 #include "VM.h"
+#include <wtf/SetForScope.h>
 
 namespace JSC {
 

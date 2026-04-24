@@ -29,6 +29,7 @@
 #include <WebCore/CSSColorValue.h>
 #include <WebCore/CSSCustomPropertyValue.h>
 #include <WebCore/CSSGridIntegerRepeatValue.h>
+#include <WebCore/CSSKeywordValueInlines.h>
 #include <WebCore/CSSParser.h>
 #include <WebCore/CSSSerializationContext.h>
 #include <WebCore/CSSValueList.h>
@@ -135,8 +136,8 @@ TEST(CSSParser, ParseTextTransformPropertyWithNewlineBetweenTwoIdentInput)
         auto& valueList = *downcast<CSSValueList>(value);
 
         ASSERT_EQ((size_t)2, valueList.size());
-        EXPECT_EQ(CSSValueCapitalize, valueList[0].valueID());
-        EXPECT_EQ(CSSValueFullWidth, valueList[1].valueID());
+        EXPECT_EQ(CSSValueCapitalize, valueID(valueList[0]));
+        EXPECT_EQ(CSSValueFullWidth, valueID(valueList[1]));
     };
 
     auto properties = MutableStyleProperties::create();

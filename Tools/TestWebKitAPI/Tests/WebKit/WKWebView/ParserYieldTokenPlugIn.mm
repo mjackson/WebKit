@@ -62,6 +62,12 @@
         --_numberOfTokensToTakeAfterComittingLoad;
 }
 
+- (void)releaseAndRetakeDocumentParserToken
+{
+    [self releaseDocumentParserToken];
+    [self takeDocumentParserTokenAfterCommittingLoad];
+}
+
 - (void)webProcessPlugInBrowserContextController:(WKWebProcessPlugInBrowserContextController *)controller didCommitLoadForFrame:(WKWebProcessPlugInFrame *)frame
 {
     _loadCommitted = YES;

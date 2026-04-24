@@ -30,8 +30,11 @@
 #include "MessageReceiver.h"
 #include "XRDeviceIdentifier.h"
 #include "XRDeviceProxy.h"
+#include <WebCore/IntSize.h>
 #include <WebCore/PlatformXR.h>
 #include <wtf/FastMalloc.h>
+#include <wtf/RefPtr.h>
+#include <wtf/WeakRef.h>
 
 namespace WebCore {
 class SecurityOriginData;
@@ -53,7 +56,10 @@ public:
     void shutDownTrackingAndRendering();
     void didCompleteShutdownTriggeredBySystem();
     void requestFrame(std::optional<PlatformXR::RequestData>&&, PlatformXR::Device::RequestFrameCallback&&);
-    std::optional<PlatformXR::LayerHandle> createLayerProjection(uint32_t, uint32_t, bool);
+    std::optional<PlatformXR::LayerInfo> createLayerProjection(uint32_t, uint32_t, bool);
+#if ENABLE(WEBXR_LAYERS)
+    std::optional<PlatformXR::LayerInfo> createQuadLayer(WebCore::IntSize, PlatformXR::LayerLayout);
+#endif
 #if USE(OPENXR)
     void submitFrame(Vector<PlatformXR::DeviceLayer>&&);
 #else

@@ -129,6 +129,8 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (id)_accessibilityLandmarkAncestor;
 - (id)_accessibilityListAncestor;
 - (id)_accessibilityPhotoDescription;
+- (NSValue *)accessibilityImageDataSize;
+- (NSData *)accessibilityImageDataWithParameters:(NSDictionary *)parameters;
 - (NSArray *)accessibilityImageOverlayElements;
 - (NSRange)accessibilityVisibleCharacterRange;
 - (NSString *)_accessibilityWebRoleAsString;
@@ -1277,6 +1279,54 @@ JSRetainPtr<JSStringRef> AccessibilityUIElementIOS::embeddedImageDescription() c
     return concatenateAttributeAndValue(@"AXEmbeddedImageDescription", [m_element _accessibilityPhotoDescription]);
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElementIOS::imageDataSize() const
+{
+    NSValue *sizeValue = [m_element accessibilityImageDataSize];
+    if (!sizeValue)
+        return adopt(JSStringCreateWithUTF8CString("AXImageDataSize: (null)"));
+    CGSize size = [sizeValue CGSizeValue];
+    RetainPtr description = adoptNS([[NSString alloc] initWithFormat:@"NSSize: {%g, %g}", size.width, size.height]);
+    return concatenateAttributeAndValue(@"AXImageDataSize", description.get());
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementIOS::imageDataForParameters(int resizeWidth, int resizeHeight) const
+{
+    return imageDataForParametersWithFormat(resizeWidth, resizeHeight, nullptr);
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementIOS::imageDataForParametersWithFormat(int resizeWidth, int resizeHeight, JSStringRef format) const
+{
+    NSString *formatString = format ? [NSString stringWithJSStringRef:format] : @"RGBA";
+    NSDictionary *dictionary = @{
+        @"AXImageDataResizeWidth" : @(resizeWidth),
+        @"AXImageDataResizeHeight" : @(resizeHeight),
+        @"AXImageDataFormat" : formatString
+    };
+    NSData *data = [m_element accessibilityImageDataWithParameters:dictionary];
+    if (!data)
+        return adopt(JSStringCreateWithUTF8CString("(null)"));
+    RetainPtr description = adoptNS([[NSString alloc] initWithFormat:@"AXImageData: %lu bytes", (unsigned long)[data length]]);
+    return adopt(JSStringCreateWithCFString((__bridge CFStringRef)description.get()));
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementIOS::imageDataForSubrect(int resizeWidth, int resizeHeight, int left, int top, int width, int height) const
+{
+    NSDictionary *dictionary = @{
+        @"AXImageDataResizeWidth" : @(resizeWidth),
+        @"AXImageDataResizeHeight" : @(resizeHeight),
+        @"AXImageDataFormat" : @"RGBA",
+        @"AXImageDataLeft" : @(left),
+        @"AXImageDataTop" : @(top),
+        @"AXImageDataWidth" : @(width),
+        @"AXImageDataHeight" : @(height)
+    };
+    NSData *data = [m_element accessibilityImageDataWithParameters:dictionary];
+    if (!data)
+        return adopt(JSStringCreateWithUTF8CString("(null)"));
+    RetainPtr description = adoptNS([[NSString alloc] initWithFormat:@"AXImageData: %lu bytes", (unsigned long)[data length]]);
+    return adopt(JSStringCreateWithCFString((__bridge CFStringRef)description.get()));
+}
+
 JSValueRef AccessibilityUIElementIOS::imageOverlayElements(JSContextRef context)
 {
     return makeJSArray(context, makeVector<RefPtr<AccessibilityUIElement>>([m_element accessibilityImageOverlayElements]));
@@ -1616,6 +1666,16 @@ JSRetainPtr<JSStringRef> AccessibilityUIElementIOS::pathDescription() const
     CGPathApply(pathRef, result, _CGPathEnumerationIteration);
 
     return [result createJSStringRef];
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementIOS::pathAsBounds() const
+{
+    CGPathRef pathRef = [m_element _accessibilityPath];
+    if (!pathRef)
+        return nullptr;
+
+    CGRect bounds = CGPathGetBoundingBox(pathRef);
+    return [[NSString stringWithFormat:@"{{%f, %f}, {%f, %f}}", bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height] createJSStringRef];
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElementIOS::supportedActions() const

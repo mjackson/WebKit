@@ -581,7 +581,7 @@ Ref<CSSValue> Builder::resolveSubstitutionFunctions(CSSPropertyID propertyID, CS
     // https://drafts.csswg.org/css-variables-2/#invalid-variables
     // ...as if the property’s value had been specified as the unset keyword.
     if (!variableValue || m_state->m_invalidAtComputedValueTimeProperties.get(propertyID))
-        return CSSPrimitiveValue::create(CSSValueUnset);
+        return CSSKeywordValue::create(CSSValueUnset);
 
     return *variableValue;
 }

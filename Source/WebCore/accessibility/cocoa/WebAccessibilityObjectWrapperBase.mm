@@ -40,6 +40,7 @@
 #import "AccessibilitySpinButton.h"
 #import "AccessibilityTableColumn.h"
 #import "BoundaryPointInlines.h"
+#import "CocoaAccessibilityConstants.h"
 #import "ColorMac.h"
 #import "ContextMenuController.h"
 #import "Editing.h"
@@ -1028,3 +1029,42 @@ AccessibilitySearchCriteria accessibilitySearchCriteriaForSearchPredicate(AXCore
 }
 
 @end
+
+namespace WebCore {
+
+std::optional<AXImageDataParameters> imageDataParametersFromDictionary(NSDictionary *dictionary)
+{
+    if (!dictionary)
+        return std::nullopt;
+
+    RetainPtr format = dynamic_objc_cast<NSString>([dictionary objectForKey:NSAccessibilityImageDataFormatKey]);
+    if (!format || ![format isEqualToString:@"RGBA"])
+        return std::nullopt;
+
+    auto validatedValue = [](NSString *key, NSDictionary *dict) -> std::optional<unsigned> {
+        id rawValue = [dict objectForKey:key];
+        if (!rawValue)
+            return 0u;
+        RetainPtr number = dynamic_objc_cast<NSNumber>(rawValue);
+        if (!number)
+            return std::nullopt;
+        int value = [number intValue];
+        if (value < 0 || static_cast<unsigned>(value) > AXImageDataParameters::maxDimension)
+            return std::nullopt;
+        return static_cast<unsigned>(value);
+    };
+
+    auto resizeWidth = validatedValue(NSAccessibilityImageDataResizeWidthKey, dictionary);
+    auto resizeHeight = validatedValue(NSAccessibilityImageDataResizeHeightKey, dictionary);
+    auto left = validatedValue(NSAccessibilityImageDataLeftKey, dictionary);
+    auto top = validatedValue(NSAccessibilityImageDataTopKey, dictionary);
+    auto width = validatedValue(NSAccessibilityImageDataWidthKey, dictionary);
+    auto height = validatedValue(NSAccessibilityImageDataHeightKey, dictionary);
+
+    if (!resizeWidth || !resizeHeight || !left || !top || !width || !height)
+        return std::nullopt;
+
+    return AXImageDataParameters { *resizeWidth, *resizeHeight, *left, *top, *width, *height };
+}
+
+} // namespace WebCore

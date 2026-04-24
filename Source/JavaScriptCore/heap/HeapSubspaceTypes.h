@@ -83,8 +83,6 @@
 #include "JSPromise.h"
 #include "JSPropertyNameEnumerator.h"
 #include "JSRegExpStringIterator.h"
-#include "JSScriptFetchParameters.h"
-#include "JSScriptFetcher.h"
 #include "JSSet.h"
 #include "JSSetIterator.h"
 #include "JSSourceCode.h"

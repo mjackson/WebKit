@@ -88,9 +88,7 @@ static WebCore::IntRect screenRectOfContents(WebCore::Element& element)
         return { };
 
     IntRect contentsRect = renderer->absoluteBoundingBoxRect();
-    if (contentsRect.isEmpty()) {
-        // A zero-height element may contain visible overflow contents. If the element
-        // itself is empty, traverse its children to find its visual content area.
+    if (contentsRect.height() <= 1 || contentsRect.width() <= 1) {
         LayoutRect topLevelRect;
         contentsRect = snappedIntRect(renderer->paintingRootRect(topLevelRect));
     }
@@ -555,6 +553,9 @@ void WebFullScreenManager::exitFullScreenForElement(WebCore::Element* element, C
 #if ENABLE(VIDEO)
     setMainVideoElement(nullptr);
 #endif
+#if ENABLE(IMAGE_ANALYSIS)
+    protect(m_page->playbackSessionManager())->cancelTextRecognition();
+#endif
 }
 
 void WebFullScreenManager::willEnterFullScreen(Element& element, CompletionHandler<void(ExceptionOr<void>)>&& willEnterFullscreenCallback, CompletionHandler<bool(bool)>&& didEnterFullscreenCallback, WebCore::HTMLMediaElementEnums::VideoFullscreenMode mode)
@@ -815,10 +816,8 @@ void WebFullScreenManager::handleEvent(WebCore::ScriptExecutionContext& context,
     if (&context != document.ptr() || !protect(document->fullscreen())->isFullscreen())
         return;
 
-    if (targetElement == m_element) {
+    if (targetElement == m_element)
         updateMainVideoElement();
-        return;
-    }
 
 #if ENABLE(IMAGE_ANALYSIS)
     if (targetElement == m_mainVideoElement.get()) {
@@ -846,8 +845,10 @@ void WebFullScreenManager::mainVideoElementTextRecognitionTimerFired()
     updateMainVideoElement();
 
     RefPtr mainVideoElement = m_mainVideoElement.get();
-    if (!mainVideoElement)
+    if (!mainVideoElement || !mainVideoElement->paused() || mainVideoElement->seeking()) {
+        endTextRecognitionForMainVideoIfNeeded();
         return;
+    }
 
     if (m_isPerformingTextRecognitionInMainVideo)
         m_page->cancelTextRecognitionForVideoInElementFullScreen();

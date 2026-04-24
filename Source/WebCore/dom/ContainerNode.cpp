@@ -31,6 +31,7 @@
 #include "CommonAtomStrings.h"
 #include "CommonVM.h"
 #include "ContainerNodeAlgorithms.h"
+#include "CustomElementReactionQueue.h"
 #include "DocumentInlines.h"
 #include "DocumentQuirks.h"
 #include "Editor.h"
@@ -1421,6 +1422,53 @@ void ContainerNode::replaceChildrenWithoutValidityCheck(NodeVector&& newChildren
     RELEASE_ASSERT(!appendResult.hasException());
     rebuildSVGExtensionsElementsIfNecessary();
     dispatchSubtreeModifiedEvent();
+}
+
+// https://dom.spec.whatwg.org/#dom-parentnode-movebefore
+ExceptionOr<void> ContainerNode::moveBefore(Node& node, RefPtr<Node>&& refChild)
+{
+    if (refChild == &node)
+        refChild = node.nextSibling();
+
+    // From https://dom.spec.whatwg.org/#move
+    if (&shadowIncludingRoot() != &node.shadowIncludingRoot())
+        return Exception { ExceptionCode::HierarchyRequestError };
+
+    if (containsIncludingHostElements(node, *this))
+        return Exception { ExceptionCode::HierarchyRequestError };
+
+    if (refChild && refChild->parentNode() != this)
+        return Exception { ExceptionCode::NotFoundError };
+
+    if (!node.isElementNode() && !node.isCharacterDataNode())
+        return Exception { ExceptionCode::HierarchyRequestError };
+
+    if (is<Text>(node) && is<Document>(*this))
+        return Exception { ExceptionCode::HierarchyRequestError };
+
+    if (is<Document>(*this) && is<Element>(node)) {
+        bool hasElementChild = childElementCount() > 0;
+        bool childIsDoctype = refChild && refChild->isDocumentTypeNode();
+
+        if (hasElementChild || childIsDoctype)
+            return Exception { ExceptionCode::HierarchyRequestError };
+
+        if (refChild) {
+            for (auto* followingSibling = refChild.get(); followingSibling; followingSibling = followingSibling->nextSibling()) {
+                if (followingSibling->isDocumentTypeNode())
+                    return Exception { ExceptionCode::HierarchyRequestError };
+            }
+        }
+    }
+
+    if (isConnected()) {
+        for (RefPtr inclusiveDescendant = &node; inclusiveDescendant; inclusiveDescendant = NodeTraversal::next(*inclusiveDescendant, &node)) {
+            if (RefPtr element = dynamicDowncast<Element>(*inclusiveDescendant); element && element->isDefinedCustomElement())
+                CustomElementReactionQueue::enqueueConnectedMoveCallbackIfNeeded(*element);
+        }
+    }
+
+    return { };
 }
 
 HTMLCollection* ContainerNode::cachedHTMLCollection(CollectionType type)

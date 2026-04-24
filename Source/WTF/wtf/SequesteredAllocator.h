@@ -389,7 +389,7 @@ public:
 
         auto oldDebugKey = reinterpret_cast<uintptr_t>(p);
         auto newDebugKey = reinterpret_cast<uintptr_t>(newP);
-        RELEASE_ASSERT(m_allocationInfos.count(oldDebugKey) > 0);
+        RELEASE_ASSERT(m_allocationInfos.contains(oldDebugKey));
         m_allocationInfos[newDebugKey] = m_allocationInfos[oldDebugKey];
 
         return reallocateInto(p, newP, newSize);
@@ -487,7 +487,7 @@ private:
 
         if constexpr (trackAllocationDebugInfo) {
             auto debugKey = reinterpret_cast<uintptr_t>(p);
-            RELEASE_ASSERT(m_allocationInfos.count(debugKey) > 0);
+            RELEASE_ASSERT(m_allocationInfos.contains(debugKey));
             m_allocationInfos[debugKey].live = false;
             m_allocationInfos.erase(debugKey);
         }
@@ -498,7 +498,7 @@ private:
         if constexpr (trackAllocationDebugInfo) {
             auto oldDebugKey = reinterpret_cast<uintptr_t>(from);
             auto newDebugKey = reinterpret_cast<uintptr_t>(to);
-            RELEASE_ASSERT(m_allocationInfos.count(oldDebugKey) > 0);
+            RELEASE_ASSERT(m_allocationInfos.contains(oldDebugKey));
             m_allocationInfos[newDebugKey] = m_allocationInfos[oldDebugKey];
             m_allocationInfos[oldDebugKey].live = false;
             m_allocationInfos[newDebugKey].size = newSize;

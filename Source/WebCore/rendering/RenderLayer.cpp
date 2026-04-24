@@ -2,7 +2,7 @@
  * Copyright (C) 2006-2024 Apple Inc. All rights reserved.
  * Copyright (C) 2013-2014 Google Inc. All rights reserved.
  * Copyright (C) 2019 Adobe. All rights reserved.
- * Copyright (c) 2020, 2021, 2022 Igalia S.L.
+ * Copyright (c) 2020, 2021, 2022, 2026 Igalia S.L.
  *
  * Portions are Copyright (C) 1998 Netscape Communications Corporation.
  *
@@ -114,6 +114,7 @@
 #include "RenderLayerFilters.h"
 #include "RenderLayerInlines.h"
 #include "RenderLayerModelObjectInlines.h"
+#include "RenderLayerSVGAdditionsInlines.h"
 #include "RenderLayerScrollableArea.h"
 #include "RenderMarquee.h"
 #include "RenderMultiColumnFlow.h"
@@ -124,6 +125,7 @@
 #include "RenderSVGInline.h"
 #include "RenderSVGModelObject.h"
 #include "RenderSVGResourceClipper.h"
+#include "RenderSVGResourceContainer.h"
 #include "RenderSVGRoot.h"
 #include "RenderSVGText.h"
 #include "RenderSVGViewportContainer.h"
@@ -144,6 +146,7 @@
 #include "ScrollSnapOffsetsInfo.h"
 #include "Scrollbar.h"
 #include "ScrollbarTheme.h"
+#include "ScrollbarUpdateScope.h"
 #include "ScrollingCoordinator.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
@@ -362,6 +365,9 @@ RenderLayer::RenderLayer(RenderLayerModelObject& renderer)
     , m_hasNotIsolatedBlendingDescendantsStatusDirty(false)
     , m_renderer(renderer)
 {
+    if (renderer.isSVGLayerAwareRenderer() && renderer.document().settings().layerBasedSVGEngineEnabled())
+        m_svgData = makeUnique<SVGData>();
+
     setIsNormalFlowOnly(shouldBeNormalFlowOnly());
     setIsCSSStackingContext(shouldBeCSSStackingContext());
     setCanBeBackdropRoot(computeCanBeBackdropRoot());
@@ -379,7 +385,7 @@ RenderLayer::RenderLayer(RenderLayerModelObject& renderer)
         // Leave m_visibleContentStatusDirty = true in any case. The associated renderer needs to be inserted into the
         // render tree, before we can determine the visible content status. The visible content status of a SVG renderer
         // depends on its ancestors (all children of RenderSVGHiddenContainer are recursively invisible, no matter what).
-        if (renderer.isSVGLayerAwareRenderer() && renderer.document().settings().layerBasedSVGEngineEnabled())
+        if (m_svgData)
             return false;
 
         //  We need the parent to know if we have skipped content or content-visibility root.
@@ -481,7 +487,7 @@ void RenderLayer::addChild(RenderLayer& child, RenderLayer* beforeChild)
 
 void RenderLayer::removeChild(RenderLayer& oldChild)
 {
-    if (!renderer().renderTreeBeingDestroyed())
+    if (!renderer().renderTreeBeingDestroyed() && !isReflectionLayer(oldChild))
         compositor().layerWillBeRemoved(*this, oldChild);
 
     // remove the child
@@ -1290,7 +1296,7 @@ void RenderLayer::recursiveUpdateLayerPositions(OptionSet<UpdateLayerPositionsFl
         m_enclosingPaginationLayer = nullptr;
     }
 
-    if (renderer().isSVGLayerAwareRenderer() && renderer().document().settings().layerBasedSVGEngineEnabled()) {
+    if (m_svgData) {
         if (!is<RenderSVGRoot>(renderer())) {
             ASSERT(!renderer().isFixedPositioned());
             if (mode == Write)
@@ -1680,12 +1686,7 @@ void RenderLayer::dirtyAncestorChainHasAlwaysIncludedInZOrderListsDescendants()
 
 FloatRect RenderLayer::referenceBoxRectForClipPath(CSSBoxType boxType, const LayoutSize& offsetFromRoot, const LayoutRect& rootRelativeBounds) const
 {
-    bool isReferenceBox = false;
-
-    if (renderer().document().settings().layerBasedSVGEngineEnabled() && renderer().isSVGLayerAwareRenderer())
-        isReferenceBox = true;
-    else
-        isReferenceBox = renderer().isRenderBox();
+    bool isReferenceBox = m_svgData ? true : renderer().isRenderBox();
 
     // FIXME: Support different reference boxes for inline content.
     // https://bugs.webkit.org/show_bug.cgi?id=129047
@@ -1945,23 +1946,14 @@ void RenderLayer::dirtyAncestorChainVisibleDescendantStatus()
 
 void RenderLayer::updateAncestorDependentState()
 {
-    m_enclosingSVGHiddenOrResourceContainer = nullptr;
-    auto determineSVGAncestors = [&] (const RenderElement& renderer) {
-        for (auto* ancestor = renderer.parent(); ancestor; ancestor = ancestor->parent()) {
-            if (auto* container = dynamicDowncast<RenderSVGHiddenContainer>(ancestor)) {
-                m_enclosingSVGHiddenOrResourceContainer = container;
-                return;
-            }
-        }
-    };
-    if (renderer().document().settings().layerBasedSVGEngineEnabled())
-        determineSVGAncestors(renderer());
+    if (m_svgData)
+        updateAncestorDependentStateForSVG();
 
     bool insideSVGForeignObject = false;
     if (renderer().document().mayHaveRenderedSVGForeignObjects()) {
         if (ancestorsOfType<LegacyRenderSVGForeignObject>(renderer()).first())
             insideSVGForeignObject = true;
-        else if (renderer().document().settings().layerBasedSVGEngineEnabled() && ancestorsOfType<RenderSVGForeignObject>(renderer()).first())
+        else if (m_svgData && ancestorsOfType<RenderSVGForeignObject>(renderer()).first())
             insideSVGForeignObject = true;
     }
 
@@ -2046,7 +2038,7 @@ bool RenderLayer::computeHasVisibleContent() const
     if (renderer().style().usedVisibility() == Visibility::Visible)
         return true;
 
-    if (!renderer().style().filter().isNone() && renderer().isSVGLayerAwareRenderer())
+    if (m_svgData && !renderer().style().filter().isNone())
         return true;
 
     // Layer's renderer has visibility:hidden, but some non-layer child may have visibility:visible.
@@ -2406,11 +2398,7 @@ RenderLayer* RenderLayer::enclosingTransformedAncestor() const
 
 bool RenderLayer::shouldRepaintAfterLayout() const
 {
-    // The SVG containers themselves never trigger repaints, only their contents are allowed to.
-    // SVG container sizes/positions are only ever determined by their children, so they will
-    // change as a reaction on a re-position/re-sizing of the children - which already properly
-    // trigger repaints.
-    if (is<RenderSVGContainer>(renderer()) && !shouldPaintWithFilters())
+    if (m_svgData && shouldSkipRepaintAfterLayoutForSVG())
         return false;
 
     if (m_repaintStatus == RepaintStatus::NeedsNormalRepaint || m_repaintStatus == RepaintStatus::NeedsFullRepaint)
@@ -2925,7 +2913,7 @@ LayoutPoint RenderLayer::convertToLayerCoords(const RenderLayer* ancestorLayer, 
         currLayer = accumulateOffsetTowardsAncestor(currLayer, ancestorLayer, locationInLayerCoords, adjustForColumns);
 
     // Pixel snap the whole SVG subtree as one "block" -- not individual layers down the SVG render tree.
-    if (renderer().isRenderSVGRoot())
+    if (m_svgData && renderer().isRenderSVGRoot())
         return LayoutPoint(roundPointToDevicePixels(locationInLayerCoords, renderer().document().deviceScaleFactor()));
 
     return locationInLayerCoords;
@@ -3157,11 +3145,12 @@ int RenderLayer::scrollHeight() const
     return roundToInt(overflowRect.maxY() - overflowRect.y());
 }
 
-void RenderLayer::updateScrollInfoAfterLayout()
+std::optional<ScrollbarUpdateScope> RenderLayer::updateScrollInfoAfterLayout()
 {
     updateLayerScrollableArea();
     if (m_scrollableArea)
-        m_scrollableArea->updateScrollInfoAfterLayout();
+        return m_scrollableArea->updateScrollInfoAfterLayout();
+    return { };
 }
 
 void RenderLayer::updateScrollbarSteps()
@@ -3298,33 +3287,6 @@ static inline bool NODELETE shouldSuppressPaintingLayer(RenderLayer* layer)
         return true;
 
     return false;
-}
-
-void RenderLayer::paintSVGResourceLayer(GraphicsContext& context, const AffineTransform& layerContentTransform)
-{
-    bool wasPaintingSVGResourceLayer = m_isPaintingSVGResourceLayer;
-    m_isPaintingSVGResourceLayer = true;
-    context.concatCTM(layerContentTransform);
-
-    auto localPaintDirtyRect = LayoutRect::infiniteRect();
-
-    auto* rootPaintingLayer = [&] () {
-        auto* curr = parent();
-        while (curr && !(curr->renderer().isAnonymous() && is<RenderSVGViewportContainer>(curr->renderer())))
-            curr = curr->parent();
-        return curr;
-    }();
-    ASSERT(rootPaintingLayer);
-
-    LayerPaintingInfo paintingInfo(rootPaintingLayer, localPaintDirtyRect, PaintBehavior::Normal, LayoutSize());
-
-    OptionSet<PaintLayerFlag> flags { PaintLayerFlag::TemporaryClipRects };
-    if (!renderer().hasNonVisibleOverflow())
-        flags.add({ PaintLayerFlag::PaintingOverflowContents, PaintLayerFlag::PaintingOverflowContentsRoot });
-
-    paintLayer(context, paintingInfo, flags);
-
-    m_isPaintingSVGResourceLayer = wasPaintingSVGResourceLayer;
 }
 
 static inline bool NODELETE paintForFixedRootBackground(const RenderLayer* layer, OptionSet<RenderLayer::PaintLayerFlag> paintFlags)
@@ -3537,14 +3499,8 @@ void RenderLayer::setupClipPath(GraphicsContext& context, GraphicsContextStateSa
     if (!renderer().hasClipPath() || (context.paintingDisabled() && !isCollectingEventRegion) || paintingInfo.paintDirtyRect.isEmpty())
         return;
 
-    // Applying clip-path on <clipPath> enforces us to use mask based clipping, so return false here to disable path based clipping.
-    // Furthermore if we're the child of a resource container (<clipPath> / <mask> / ...) disabled path based clipping.
-    if (is<RenderSVGResourceClipper>(m_enclosingSVGHiddenOrResourceContainer)) {
-        // If m_isPaintingSVGResourceLayer is true, this function was invoked via paintSVGResourceLayer() -- clipping on <clipPath> is already
-        // handled in RenderSVGResourceClipper::applyMaskClipping(), so do not set paintSVGClippingMask to true here.
-        paintFlags.set(PaintLayerFlag::PaintingSVGClippingMask, !m_isPaintingSVGResourceLayer);
+    if (m_svgData && setupClipPathIfNeededForSVG(paintFlags))
         return;
-    }
 
     auto clippedContentBounds = calculateLayerBounds(paintingInfo.rootLayer, offsetFromRoot, { UseLocalClipRectIfPossible });
 
@@ -3703,25 +3659,6 @@ void RenderLayer::paintLayerContents(GraphicsContext& context, const LayerPainti
     bool isSelfPaintingLayer = this->isSelfPaintingLayer();
     bool isInsideSkippedSubtree = renderer().isSkippedContent();
 
-    auto hasVisibleContent = [&]() -> bool {
-        if (isInsideSkippedSubtree)
-            return false;
-
-        if (!m_hasVisibleContent)
-            return false;
-
-        if (!m_enclosingSVGHiddenOrResourceContainer)
-            return true;
-
-        // Hidden SVG containers (<defs> / <symbol> ...) and their children are never painted directly.
-        if (!is<RenderSVGResourceContainer>(m_enclosingSVGHiddenOrResourceContainer))
-            return false;
-
-        // SVG resource layers and their children are only painted indirectly, via paintSVGResourceLayer().
-        ASSERT(m_enclosingSVGHiddenOrResourceContainer->hasLayer());
-        return m_enclosingSVGHiddenOrResourceContainer->layer()->isPaintingSVGResourceLayer();
-    };
-
     auto shouldSkipNonFixedTopDocumentContent = [&] {
         if (!paintingInfo.paintBehavior.contains(PaintBehavior::FixedAndStickyLayersOnly))
             return false;
@@ -3738,7 +3675,8 @@ void RenderLayer::paintLayerContents(GraphicsContext& context, const LayerPainti
         return true;
     };
 
-    bool shouldPaintContent = hasVisibleContent()
+    bool shouldPaintContent = !isInsideSkippedSubtree
+        && hasVisibleContentForPainting()
         && isSelfPaintingLayer
         && !isPaintingOverlayScrollbars
         && !isCollectingEventRegion
@@ -3890,7 +3828,7 @@ void RenderLayer::paintLayerContents(GraphicsContext& context, const LayerPainti
 
         if (filterContext)
             localPaintingInfo.paintBehavior.add(PaintBehavior::DontShowVisitedLinks);
-        else if (hasFailedFilterForSVGRenderer()) {
+        else if (m_svgData && hasFailedFilterForSVG()) {
             shouldPaintContent = false;
             isPaintingCompositedForeground = false;
         }
@@ -4346,16 +4284,8 @@ void RenderLayer::paintForegroundForFragments(const LayerFragments& layerFragmen
     bool selectionOnly = localPaintingInfo.paintBehavior.contains(PaintBehavior::SelectionOnly);
     bool selectionAndBackgroundsOnly = localPaintingInfo.paintBehavior.contains(PaintBehavior::SelectionAndBackgroundsOnly);
 
-    if (is<RenderSVGModelObject>(renderer()) && !is<RenderSVGContainer>(renderer())) {
-        // SVG containers need to propagate paint phases. This could be saved if we remember somewhere if a SVG subtree
-        // contains e.g. LegacyRenderSVGForeignObject objects that do need the individual paint phases. For SVG shapes & SVG images
-        // we can avoid the multiple paintForegroundForFragmentsWithPhase() calls.
-        if (selectionOnly || selectionAndBackgroundsOnly)
-            return;
-
-        paintForegroundForFragmentsWithPhase(PaintPhase::Foreground, layerFragments, context, localPaintingInfo, localPaintBehavior, subtreePaintRootForRenderer);
+    if (m_svgData && paintForegroundForFragmentsForSVG(layerFragments, context, localPaintingInfo, localPaintBehavior, subtreePaintRootForRenderer))
         return;
-    }
 
     if (!selectionOnly)
         paintForegroundForFragmentsWithPhase(PaintPhase::ChildBlockBackgrounds, layerFragments, context, localPaintingInfo, localPaintBehavior, subtreePaintRootForRenderer);
@@ -4732,15 +4662,8 @@ RenderLayer::HitLayer RenderLayer::hitTestLayer(RenderLayer* rootLayer, RenderLa
         return { };
 
     // If we're hit testing 'SVG clip content' (aka. RenderSVGResourceClipper) do not early exit.
-    if (!request.svgClipContent()) {
-        // SVG resource layers and their children are never hit tested.
-        if (is<RenderSVGResourceContainer>(m_enclosingSVGHiddenOrResourceContainer))
-            return { };
-
-        // Hidden SVG containers (<defs> / <symbol> ...) are never hit tested directly.
-        if (is<RenderSVGHiddenContainer>(renderer()))
-            return { };
-    }
+    if (m_svgData && !request.svgClipContent() && shouldSkipHitTestForSVG())
+        return { };
 
     bool skipLayerForFixedContainerSampling = [&] {
         if (!request.isForFixedContainerSampling())
@@ -6638,23 +6561,6 @@ bool RenderLayer::invalidateEventRegion(EventRegionInvalidationReason reason)
     UNUSED_PARAM(reason);
     return false;
 #endif
-}
-
-bool RenderLayer::hasFailedFilterForSVGRenderer() const
-{
-    // Per the SVG spec, if a filter is referenced but cannot be applied (non-existent
-    // reference, empty filter, etc.), the element must not be rendered — the filter
-    // produces transparent black, making the element invisible. The CSS Filter Effects
-    // spec differs — a failed filter means "no effect" (painted normally). Therefore
-    // treat SVG renderers differently, obeying to the SVG rules.
-    if (!m_filters || m_filters->filter() || !renderer().isSVGLayerAwareRenderer() || !renderer().style().filter().isReferenceFilter())
-        return false;
-    return WTF::switchOn(renderer().style().filter().first(),
-        [&](const Style::FilterReference& reference) {
-            return ReferencedSVGResources::referencedFilterElement(renderer().treeScopeForSVGReferences(), reference) != nullptr;
-        },
-        [&](const auto&) { return false; }
-    );
 }
 
 TextStream& operator<<(WTF::TextStream& ts, ClipRectsType clipRectsType)

@@ -1502,7 +1502,11 @@ auto FunctionParser<Context>::simd(SIMDLaneOperation op, SIMDLane lane, SIMDSign
     case SIMDLaneOperation::AddSat:
     case SIMDLaneOperation::SubSat:
     case SIMDLaneOperation::Max:
-    case SIMDLaneOperation::Min: {
+    case SIMDLaneOperation::Min:
+    case SIMDLaneOperation::RelaxedMin:
+    case SIMDLaneOperation::RelaxedMax:
+    case SIMDLaneOperation::RelaxedQ15Mulr:
+    case SIMDLaneOperation::RelaxedDotI8x16I7x16: {
         if constexpr (!isReachable)
             return { };
 
@@ -1522,7 +1526,8 @@ auto FunctionParser<Context>::simd(SIMDLaneOperation op, SIMDLane lane, SIMDSign
         return pushUnreachable(Types::V128);
     }
     case SIMDLaneOperation::RelaxedMAdd:
-    case SIMDLaneOperation::RelaxedNMAdd: {
+    case SIMDLaneOperation::RelaxedNMAdd:
+    case SIMDLaneOperation::RelaxedDotI8x16I7x16Add: {
         if constexpr (!isReachable)
             return { };
         TypedExpression a;
@@ -4254,6 +4259,7 @@ auto FunctionParser<Context>::parseUnreachableExpression() -> PartialResult
         }
 #define CREATE_EXT1_CASE(name, ...) case Ext1OpType::name:
         FOR_EACH_WASM_TRUNC_SATURATED_OP(CREATE_EXT1_CASE)
+        FOR_EACH_WASM_WIDE_ARITHMETIC_OP(CREATE_EXT1_CASE)
             return { };
 #undef CREATE_EXT1_CASE
         default:

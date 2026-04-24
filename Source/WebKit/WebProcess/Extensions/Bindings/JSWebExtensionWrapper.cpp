@@ -33,6 +33,7 @@
 #include "WebFrame.h"
 #include "WebPage.h"
 #include <JavaScriptCore/APICast.h>
+#include <JavaScriptCore/JSCJSValuePropertyInlines.h>
 #include <JavaScriptCore/JSClassRef.h>
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/JSObjectRef.h>
@@ -112,7 +113,7 @@ JSValueRef callWithArguments(JSObjectRef callbackFunction, JSRetainPtr<JSGlobalC
         return nil;
 
     auto* globalObject = toJS(globalContext.get());
-    RefPtr context = globalObject ? JSC::jsCast<JSDOMGlobalObject*>(globalObject)->scriptExecutionContext() : nullptr;
+    RefPtr context = globalObject ? uncheckedDowncast<JSDOMGlobalObject>(globalObject)->scriptExecutionContext() : nullptr;
     if (!context || context->activeDOMObjectsAreStopped())
         return nil;
 

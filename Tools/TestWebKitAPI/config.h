@@ -42,11 +42,11 @@
 #if defined(BUILDING_WITH_CMAKE)
 
 // CMake path
-#if defined(BUILDING_TestJSC) || defined(BUILDING_TestJavaScriptCore)
+#if defined(BUILDING_TestJSC) || defined(BUILDING_TestJavaScriptCore) || defined(BUILDING_TEST_WGSL)
 #include <JavaScriptCore/JSExportMacros.h>
 #endif
 
-#if defined(BUILDING_TestWebCore)
+#if defined(BUILDING_TestWebCore) || defined(BUILDING_TEST_IPC)
 #include <JavaScriptCore/JSExportMacros.h>
 #include <WebCore/PlatformExportMacros.h>
 #include <pal/ExportMacros.h>
@@ -57,6 +57,10 @@
 #include <WebCore/PlatformExportMacros.h>
 #include <pal/ExportMacros.h>
 #include <WebKit/WebKit2_C.h>
+#endif
+
+#if defined(BUILDING_TestWebKit) && !defined(TestWebKitAPIInjectedBundle_EXPORTS) && PLATFORM(COCOA) && defined(__OBJC__)
+#import <WebKit/WebKit.h>
 #endif
 
 #else
@@ -117,11 +121,11 @@
 #endif
 
 // FIXME: Move this to PlatformHave.h.
-#if PLATFORM(IOS_FAMILY) && !(PLATFORM(MACCATALYST) && __MAC_OS_X_VERSION_MIN_REQUIRED < 110000)
+#if PLATFORM(IOS_FAMILY)
 #define HAVE_UIWEBVIEW 1
 #endif
 
 // FIXME: Move this to PlatformHave.h.
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 110000) || (PLATFORM(IOS_FAMILY) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 140000)
+#if PLATFORM(MAC) || PLATFORM(IOS_FAMILY)
 #define HAVE_TLS_VERSION_DURING_CHALLENGE 1
 #endif

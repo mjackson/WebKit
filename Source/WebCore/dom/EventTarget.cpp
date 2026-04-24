@@ -49,13 +49,16 @@
 #include "ScriptDisallowedScope.h"
 #include "Settings.h"
 #include <JavaScriptCore/HeapCellInlines.h>
-#include <JavaScriptCore/JSCJSValueCellInlines.h>
+#include <JavaScriptCore/JSCJSValueStructure.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Ref.h>
 #include <wtf/SetForScope.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
+
+template class mpark::variant<WebCore::AddEventListenerOptions, bool>;
+template class mpark::variant<WebCore::EventListenerOptions, bool>;
 
 namespace WebCore {
 

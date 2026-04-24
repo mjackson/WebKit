@@ -25,6 +25,7 @@
 #include "CoordinatedTileBuffer.h"
 #include "GraphicsLayer.h"
 #include "TextureMapper.h"
+#include "TextureMapperFlags.h"
 #include <wtf/SystemTracing.h>
 
 namespace WebCore {

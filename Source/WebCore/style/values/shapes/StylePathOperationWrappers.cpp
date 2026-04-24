@@ -28,15 +28,16 @@
 
 #include "AcceleratedEffectOffsetPath.h"
 #include "CSSBasicShapeValue.h"
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSRayValue.h"
 #include "CSSURLValue.h"
 #include "SVGURIReference.h"
 #include "CSSValueList.h"
 #include "StyleBuilderState.h"
-#include "StylePrimitiveKeyword+CSSValueCreation.h"
-#include "StylePrimitiveKeyword+Logging.h"
-#include "StylePrimitiveKeyword+Serialization.h"
+#include "StyleKeyword+CSSValueConversion.h"
+#include "StyleKeyword+CSSValueCreation.h"
+#include "StyleKeyword+Logging.h"
+#include "StyleKeyword+Serialization.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 
@@ -47,9 +48,14 @@ namespace Style {
 
 RefPtr<PathOperation> CSSValueConversion<RefPtr<PathOperation>>::operator()(BuilderState& state, const CSSValue& value, SupportRayPathOperation supportRayPathOperation)
 {
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        ASSERT_UNUSED(primitiveValue, primitiveValue->valueID() == CSSValueNone);
-        return nullptr;
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
+            return nullptr;
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return nullptr;
+        }
     }
 
     if (RefPtr url = dynamicDowncast<CSSURLValue>(value)) {
@@ -90,7 +96,7 @@ RefPtr<PathOperation> CSSValueConversion<RefPtr<PathOperation>>::operator()(Buil
         } else if (RefPtr shape = dynamicDowncast<CSSBasicShapeValue>(singleValue))
             operation = ShapePathOperation::create(toStyle(shape->shape(), state, std::nullopt));
         else
-            referenceBox = fromCSSValue<CSSBoxType>(singleValue);
+            referenceBox = toStyleFromCSSValue<CSSBoxType>(state, singleValue);
         return true;
     };
 

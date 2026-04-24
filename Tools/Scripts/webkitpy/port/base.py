@@ -132,6 +132,23 @@ class Port(object):
     def determine_driver_name(cls, options):
         return (getattr(options, 'driver_names', []) or cls.DRIVER_NAMES)[0]
 
+    @staticmethod
+    def test_name_and_variant(test_name):
+        """Splits a test name into the filename part and the variant part."""
+        if '?' in test_name:
+            name, sep, variant = test_name.partition('?')
+            return (name, sep + variant)
+
+        if '#' in test_name:
+            name, sep, variant = test_name.partition('#')
+            return (name, sep + variant)
+
+        return (test_name, '')
+
+    @staticmethod
+    def sanitized_variant(variant):
+        return re.sub(r'[|* <>:/%]', '_', variant)
+
     def __init__(self, host, port_name, options=None, **kwargs):
 
         # This value may be different from cls.port_name by having version modifiers
@@ -426,17 +443,13 @@ class Port(object):
         baseline_search_path = self.baseline_search_path(device_type=device_type) + [self.layout_tests_dir()]
         fs = self._filesystem
 
-        variant = ''
-        if '?' in test_name:
-            (test_name, variant) = test_name.split('?', 1)
-        if '#' in test_name:
-            (test_name, variant) = test_name.split('#', 1)
+        (test_name, variant) = Port.test_name_and_variant(test_name)
 
         baseline_ext_parts = fs.splitext(test_name)
 
         baseline_name_root = baseline_ext_parts[0]
         if len(variant):
-            baseline_name_root += "_" + re.sub(r'[|* <>:]', '_', variant)
+            baseline_name_root += "_" + Port.sanitized_variant(variant[1:])
         baseline_name_root += '-expected'
 
         baselines = []

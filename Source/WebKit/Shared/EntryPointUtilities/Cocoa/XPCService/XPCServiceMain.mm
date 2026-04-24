@@ -167,10 +167,6 @@ void XPCServiceEventHandler(xpc_connection_t peer)
             return;
         }
 
-#if USE(EXIT_XPC_MESSAGE_WORKAROUND)
-        handleXPCExitMessage(event);
-#endif
-
         String messageName = xpcDictionaryGetString(event, "message-name"_s);
         if (!messageName) {
             RELEASE_LOG_ERROR(IPC, "XPCServiceEventHandler: 'message-name' is not present in the XPC dictionary");

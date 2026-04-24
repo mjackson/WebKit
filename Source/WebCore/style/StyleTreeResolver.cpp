@@ -72,6 +72,7 @@
 #include "StyleResolver.h"
 #include "StyleScope.h"
 #include "StyleTreeResolverInlines.h"
+#include "SVGElement.h"
 #include "Text.h"
 #include "TypedElementDescendantIteratorInlines.h"
 #include "ViewTransition.h"
@@ -1361,8 +1362,11 @@ void TreeResolver::resolveComposedTree()
         resumeDescendantResolutionIfNeeded(element.get(), changes, descendantsToResolve);
 
         bool shouldIterateChildren = [&] {
-            // display::none, no need to resolve descendants.
             if (!style)
+                return false;
+
+            // Some elements like certain SVG containers create renderers even with display::none, so their descendants still need style resolution.
+            if (style->display() == DisplayType::None && !element->rendererIsNeeded(*style))
                 return false;
 
             // Style resolution will be resumed after the container or anchor-positioned element has been resolved.

@@ -102,9 +102,6 @@ static RetainPtr<NSError> createNSErrorFromResourceErrorBase(const ResourceError
         [userInfo setValue:resourceError.localizedDescription().createNSString().get() forKey:NSLocalizedDescriptionKey];
 
     if (!resourceError.failingURL().isEmpty()) {
-#if USE(NSURL_ERROR_FAILING_URL_STRING_KEY)
-        [userInfo setValue:resourceError.failingURL().string().createNSString().get() forKey:NSURLErrorFailingURLStringErrorKey];
-#endif
         if (RetainPtr cocoaURL = resourceError.failingURL().createNSURL())
             [userInfo setValue:cocoaURL.get() forKey:NSURLErrorFailingURLErrorKey];
     }
@@ -337,25 +334,5 @@ String ResourceError::blockedTrackerHostName() const
 }
 
 #endif // ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
-
-#if USE(NSURL_ERROR_FAILING_URL_STRING_KEY)
-bool ResourceError::hasMatchingFailingURLKeys() const
-{
-    RetainPtr error = nsError();
-    if (RetainPtr<id> nsErrorFailingURL = [error.get().userInfo objectForKey:NSURLErrorFailingURLErrorKey]) {
-        RetainPtr failingURL = dynamic_objc_cast<NSURL>(nsErrorFailingURL.get());
-        if (!failingURL)
-            return false;
-        if (RetainPtr<id> nsErrorFailingURLString = [error.get().userInfo objectForKey:NSURLErrorFailingURLStringErrorKey]) {
-            RetainPtr failingURLString = dynamic_objc_cast<NSString>(nsErrorFailingURLString.get());
-            if (!failingURLString)
-                return false;
-            if (![failingURL isEqual:URL(failingURLString.get()).createNSURL().get()])
-                return false;
-        }
-    }
-    return true;
-}
-#endif
 
 } // namespace WebCore

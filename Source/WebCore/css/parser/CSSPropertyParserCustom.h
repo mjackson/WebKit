@@ -41,6 +41,7 @@
 #include "CSSFunctionValue.h"
 #include "CSSGridLineNamesValue.h"
 #include "CSSGridTemplateAreasValue.h"
+#include "CSSKeywordValueInlines.h"
 #include "CSSOffsetRotateValue.h"
 #include "CSSParserTokenRangeGuard.h"
 #include "CSSPositionValue.h"
@@ -91,12 +92,10 @@
 #include "CSSPropertyParserConsumer+TimeDefinitions.h"
 #include "CSSPropertyParserConsumer+Timeline.h"
 #include "CSSPropertyParserConsumer+Transform.h"
-#include "CSSPropertyParserConsumer+Transitions.h"
 #include "CSSPropertyParserConsumer+UI.h"
 #include "CSSPropertyParserConsumer+URL.h"
 #include "CSSPropertyParserConsumer+UnicodeRange.h"
 #include "CSSPropertyParserConsumer+ViewTransition.h"
-#include "CSSPropertyParserConsumer+WillChange.h"
 #include "CSSPropertyParserResult.h"
 #include "CSSPropertyParsing.h"
 #include "CSSQuadValue.h"
@@ -341,7 +340,7 @@ inline bool PropertyParserCustom::consumeFontShorthand(CSSParserTokenRange& rang
         // Parsing (correctly) doesn't re-run in response to updateStyleAfterChangeInEnvironment().
         // Instead, we store sentinel values, later replaced by environment-sensitive values
         // inside Style::BuilderCustom and Style::BuilderConverter.
-        result.addPropertyForAllLonghandsOfCurrentShorthand(state, CSSPrimitiveValue::create(systemFont), IsImplicit::Yes);
+        result.addPropertyForAllLonghandsOfCurrentShorthand(state, CSSKeywordValue::create(systemFont), IsImplicit::Yes);
         return true;
     }
 
@@ -478,8 +477,8 @@ inline bool PropertyParserCustom::consumeFontSynthesisShorthand(CSSParserTokenRa
     // none | [ weight || style || small-caps ]
     if (range.peek().id() == CSSValueNone) {
         result.addPropertyForCurrentShorthand(state, CSSPropertyFontSynthesisSmallCaps, consumeIdent(range).releaseNonNull());
-        result.addPropertyForCurrentShorthand(state, CSSPropertyFontSynthesisStyle, CSSPrimitiveValue::create(CSSValueNone));
-        result.addPropertyForCurrentShorthand(state, CSSPropertyFontSynthesisWeight, CSSPrimitiveValue::create(CSSValueNone));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyFontSynthesisStyle, CSSKeywordValue::create(CSSValueNone));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyFontSynthesisWeight, CSSKeywordValue::create(CSSValueNone));
         return range.atEnd();
     }
 
@@ -516,9 +515,9 @@ inline bool PropertyParserCustom::consumeFontSynthesisShorthand(CSSParserTokenRa
         }
     }
 
-    result.addPropertyForCurrentShorthand(state, CSSPropertyFontSynthesisWeight, CSSPrimitiveValue::create(foundWeight ? CSSValueAuto : CSSValueNone));
-    result.addPropertyForCurrentShorthand(state, CSSPropertyFontSynthesisStyle, CSSPrimitiveValue::create(foundStyle ? CSSValueAuto : CSSValueNone));
-    result.addPropertyForCurrentShorthand(state, CSSPropertyFontSynthesisSmallCaps, CSSPrimitiveValue::create(foundSmallCaps ? CSSValueAuto : CSSValueNone));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyFontSynthesisWeight, CSSKeywordValue::create(foundWeight ? CSSValueAuto : CSSValueNone));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyFontSynthesisStyle, CSSKeywordValue::create(foundStyle ? CSSValueAuto : CSSValueNone));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyFontSynthesisSmallCaps, CSSKeywordValue::create(foundSmallCaps ? CSSValueAuto : CSSValueNone));
     return true;
 }
 
@@ -527,11 +526,11 @@ inline bool PropertyParserCustom::consumeTextDecorationSkipShorthand(CSSParserTo
     if (auto skip = consumeIdentRaw<CSSValueNone, CSSValueAuto, CSSValueInk>(range)) {
         switch (*skip) {
         case CSSValueNone:
-            result.addPropertyForCurrentShorthand(state, CSSPropertyTextDecorationSkipInk, CSSPrimitiveValue::create(CSSValueNone));
+            result.addPropertyForCurrentShorthand(state, CSSPropertyTextDecorationSkipInk, CSSKeywordValue::create(CSSValueNone));
             return range.atEnd();
         case CSSValueAuto:
         case CSSValueInk:
-            result.addPropertyForCurrentShorthand(state, CSSPropertyTextDecorationSkipInk, CSSPrimitiveValue::create(CSSValueAuto));
+            result.addPropertyForCurrentShorthand(state, CSSPropertyTextDecorationSkipInk, CSSKeywordValue::create(CSSValueAuto));
             return range.atEnd();
         default:
             ASSERT_NOT_REACHED();
@@ -616,14 +615,14 @@ inline bool PropertyParserCustom::consumeFlexShorthand(CSSParserTokenRange& rang
         }
     };
 
-    RefPtr<CSSPrimitiveValue> flexGrow;
-    RefPtr<CSSPrimitiveValue> flexShrink;
-    RefPtr<CSSPrimitiveValue> flexBasis;
+    RefPtr<CSSValue> flexGrow;
+    RefPtr<CSSValue> flexShrink;
+    RefPtr<CSSValue> flexBasis;
 
     if (range.peek().id() == CSSValueNone) {
         flexGrow = CSSPrimitiveValue::create(0);
         flexShrink = CSSPrimitiveValue::create(0);
-        flexBasis = CSSPrimitiveValue::create(CSSValueAuto);
+        flexBasis = CSSKeywordValue::create(CSSValueAuto);
         range.consumeIncludingWhitespace();
     } else {
         unsigned index = 0;
@@ -808,7 +807,7 @@ inline bool PropertyParserCustom::consumePageBreakAfterShorthand(CSSParserTokenR
     if (value == CSSValueInvalid)
         return false;
 
-    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakAfter, CSSPrimitiveValue::create(value));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakAfter, CSSKeywordValue::create(value));
     return true;
 }
 
@@ -821,7 +820,7 @@ inline bool PropertyParserCustom::consumePageBreakBeforeShorthand(CSSParserToken
     if (value == CSSValueInvalid)
         return false;
 
-    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakBefore, CSSPrimitiveValue::create(value));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakBefore, CSSKeywordValue::create(value));
     return true;
 }
 
@@ -834,7 +833,7 @@ inline bool PropertyParserCustom::consumePageBreakInsideShorthand(CSSParserToken
     if (value == CSSValueInvalid)
         return false;
 
-    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakInside, CSSPrimitiveValue::create(value));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakInside, CSSKeywordValue::create(value));
     return true;
 }
 
@@ -851,7 +850,7 @@ inline bool PropertyParserCustom::consumeWebkitColumnBreakAfterShorthand(CSSPars
     if (value == CSSValueInvalid)
         return false;
 
-    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakAfter, CSSPrimitiveValue::create(value));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakAfter, CSSKeywordValue::create(value));
     return true;
 }
 
@@ -868,7 +867,7 @@ inline bool PropertyParserCustom::consumeWebkitColumnBreakBeforeShorthand(CSSPar
     if (value == CSSValueInvalid)
         return false;
 
-    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakBefore, CSSPrimitiveValue::create(value));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakBefore, CSSKeywordValue::create(value));
     return true;
 }
 
@@ -885,7 +884,7 @@ inline bool PropertyParserCustom::consumeWebkitColumnBreakInsideShorthand(CSSPar
     if (value == CSSValueInvalid)
         return false;
 
-    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakInside, CSSPrimitiveValue::create(value));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyBreakInside, CSSKeywordValue::create(value));
     return true;
 }
 
@@ -893,10 +892,10 @@ inline bool PropertyParserCustom::consumeWebkitTextOrientationShorthand(CSSParse
 {
     // -webkit-text-orientation is a legacy shorthand for text-orientation.
     // The only difference is that it accepts 'sideways-right', which is mapped into 'sideways'.
-    RefPtr<CSSPrimitiveValue> keyword;
+    RefPtr<CSSValue> keyword;
     auto valueID = range.peek().id();
     if (valueID == CSSValueSidewaysRight) {
-        keyword = CSSPrimitiveValue::create(CSSValueSideways);
+        keyword = CSSKeywordValue::create(CSSValueSideways);
         consumeIdentRaw(range);
     } else if (CSSPropertyParsing::isKeywordValidForStyleProperty(CSSPropertyTextOrientation, valueID, state))
         keyword = consumeIdent(range);
@@ -980,7 +979,7 @@ inline bool PropertyParserCustom::consumeAnimationShorthand(CSSParserTokenRange&
 
         for (size_t i = 0; i < longhandCount; ++i) {
             if (!parsedLonghand[i] && !isResetOnlyLonghand(shorthandProperties[i]))
-                longhands[i].append(Ref { CSSPrimitiveValue::implicitInitialValue() });
+                longhands[i].append(Ref { CSSKeywordValue::implicitInitialValue() });
             parsedLonghand[i] = false;
         }
     } while (consumeCommaIncludingWhitespace(range));
@@ -1017,7 +1016,7 @@ inline bool PropertyParserCustom::consumeTransitionShorthand(CSSParserTokenRange
         case CSSPropertyTransitionDuration:
             return CSSPrimitiveValueResolver<Time<Nonnegative>>::consumeAndResolve(range, state);
         case CSSPropertyTransitionProperty:
-            return consumeSingleTransitionPropertyOrNone(range, state);
+            return CSSPropertyParsing::consumeSingleTransitionPropertyOrNone(range, state);
         case CSSPropertyTransitionTimingFunction:
             return consumeEasingFunction(range, state);
         case CSSPropertyTransitionBehavior:
@@ -1056,7 +1055,7 @@ inline bool PropertyParserCustom::consumeTransitionShorthand(CSSParserTokenRange
 
         for (size_t i = 0; i < longhandCount; ++i) {
             if (!parsedLonghand[i])
-                longhands[i].append(Ref { CSSPrimitiveValue::implicitInitialValue() });
+                longhands[i].append(Ref { CSSKeywordValue::implicitInitialValue() });
             parsedLonghand[i] = false;
         }
     } while (consumeCommaIncludingWhitespace(range));
@@ -1200,7 +1199,7 @@ inline bool PropertyParserCustom::consumeBackgroundShorthand(CSSParserTokenRange
                     if (property == CSSPropertyBackgroundOrigin || property == CSSPropertyMaskOrigin)
                         originValue = value;
                     else if (property == CSSPropertyBackgroundClip)
-                        clipIsBorderArea = value->valueID() == CSSValueBorderArea;
+                        clipIsBorderArea = isValueID(value, CSSValueBorderArea);
                     parsedLonghand[i] = true;
                     foundProperty = true;
                     longhands[i].append(value.releaseNonNull());
@@ -1227,11 +1226,11 @@ inline bool PropertyParserCustom::consumeBackgroundShorthand(CSSParserTokenRange
                 continue;
             }
             if (clipIsBorderArea && (property == CSSPropertyBackgroundOrigin) && !parsedLonghand[i]) {
-                longhands[i].append(CSSPrimitiveValue::create(CSSValueBorderBox));
+                longhands[i].append(CSSKeywordValue::create(CSSValueBorderBox));
                 continue;
             }
             if (!parsedLonghand[i])
-                longhands[i].append(Ref { CSSPrimitiveValue::implicitInitialValue() });
+                longhands[i].append(Ref { CSSKeywordValue::implicitInitialValue() });
         }
     } while (consumeCommaIncludingWhitespace(range));
     if (!range.atEnd())
@@ -1357,8 +1356,8 @@ inline bool PropertyParserCustom::consumeOverflowShorthand(CSSParserTokenRange& 
     if (!range.atEnd())
         return false;
 
-    result.addPropertyForCurrentShorthand(state, CSSPropertyOverflowX, CSSPrimitiveValue::create(xValueID));
-    result.addPropertyForCurrentShorthand(state, CSSPropertyOverflowY, CSSPrimitiveValue::create(yValueID));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyOverflowX, CSSKeywordValue::create(xValueID));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyOverflowY, CSSKeywordValue::create(yValueID));
     return true;
 }
 
@@ -1377,7 +1376,7 @@ inline bool PropertyParserCustom::consumeGridItemPositionShorthand(CSSParserToke
         if (!endValue)
             return false;
     } else {
-        endValue = is<CSSCustomIdentValue>(*startValue) ? startValue : CSSPrimitiveValue::create(CSSValueAuto);
+        endValue = is<CSSCustomIdentValue>(*startValue) ? startValue : CSSKeywordValue::create(CSSValueAuto);
     }
     if (!range.atEnd())
         return false;
@@ -1414,11 +1413,11 @@ inline bool PropertyParserCustom::consumeGridAreaShorthand(CSSParserTokenRange& 
     if (!range.atEnd())
         return false;
     if (!columnStartValue)
-        columnStartValue = is<CSSCustomIdentValue>(*rowStartValue) ? rowStartValue : CSSPrimitiveValue::create(CSSValueAuto);
+        columnStartValue = is<CSSCustomIdentValue>(*rowStartValue) ? rowStartValue : CSSKeywordValue::create(CSSValueAuto);
     if (!rowEndValue)
-        rowEndValue = is<CSSCustomIdentValue>(*rowStartValue) ? rowStartValue : CSSPrimitiveValue::create(CSSValueAuto);
+        rowEndValue = is<CSSCustomIdentValue>(*rowStartValue) ? rowStartValue : CSSKeywordValue::create(CSSValueAuto);
     if (!columnEndValue)
-        columnEndValue = is<CSSCustomIdentValue>(*columnStartValue) ? columnStartValue : CSSPrimitiveValue::create(CSSValueAuto);
+        columnEndValue = is<CSSCustomIdentValue>(*columnStartValue) ? columnStartValue : CSSKeywordValue::create(CSSValueAuto);
 
     result.addPropertyForCurrentShorthand(state, CSSPropertyGridRowStart, rowStartValue.releaseNonNull());
     result.addPropertyForCurrentShorthand(state, CSSPropertyGridColumnStart, columnStartValue.releaseNonNull());
@@ -1434,9 +1433,9 @@ inline bool PropertyParserCustom::consumeGridTemplateShorthand(CSSParserTokenRan
 
     // 1- 'none' case.
     if (rowsValue && range.atEnd()) {
-        result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateRows, CSSPrimitiveValue::create(CSSValueNone));
-        result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateColumns, CSSPrimitiveValue::create(CSSValueNone));
-        result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateAreas, CSSPrimitiveValue::create(CSSValueNone));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateRows, CSSKeywordValue::create(CSSValueNone));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateColumns, CSSKeywordValue::create(CSSValueNone));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateAreas, CSSKeywordValue::create(CSSValueNone));
         return true;
     }
 
@@ -1453,7 +1452,7 @@ inline bool PropertyParserCustom::consumeGridTemplateShorthand(CSSParserTokenRan
 
         result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateRows, rowsValue.releaseNonNull());
         result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateColumns, columnsValue.releaseNonNull());
-        result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateAreas, CSSPrimitiveValue::create(CSSValueNone));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateAreas, CSSKeywordValue::create(CSSValueNone));
         return true;
     }
 
@@ -1492,7 +1491,7 @@ inline bool PropertyParserCustom::consumeGridTemplateShorthand(CSSParserTokenRan
         if (RefPtr value = consumeGridTrackSize(range, state))
             templateRows.append(value.releaseNonNull());
         else
-            templateRows.append(CSSPrimitiveValue::create(CSSValueAuto));
+            templateRows.append(CSSKeywordValue::create(CSSValueAuto));
 
         // This will handle the trailing/leading <custom-ident>* in the grammar.
         lineNames = consumeGridLineNames(range, state);
@@ -1508,7 +1507,7 @@ inline bool PropertyParserCustom::consumeGridTemplateShorthand(CSSParserTokenRan
         if (!columnsValue || !range.atEnd())
             return false;
     } else {
-        columnsValue = CSSPrimitiveValue::create(CSSValueNone);
+        columnsValue = CSSKeywordValue::create(CSSValueNone);
     }
     result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateRows, CSSValueList::createSpaceSeparated(WTF::move(templateRows)));
     result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateColumns, columnsValue.releaseNonNull());
@@ -1527,11 +1526,11 @@ inline bool PropertyParserCustom::consumeGridShorthand(CSSParserTokenRange& rang
         if (!autoFlow && (!dense || !consumeIdentRaw<CSSValueAutoFlow>(range)))
             return nullptr;
         if (!dense)
-            return CSSValueList::createSpaceSeparated(CSSPrimitiveValue::create(flowDirection));
+            return CSSValueList::createSpaceSeparated(CSSKeywordValue::create(flowDirection));
         if (flowDirection == CSSValueRow)
-            return CSSValueList::createSpaceSeparated(CSSPrimitiveValue::create(CSSValueDense));
-        return CSSValueList::createSpaceSeparated(CSSPrimitiveValue::create(flowDirection),
-            CSSPrimitiveValue::create(CSSValueDense));
+            return CSSValueList::createSpaceSeparated(CSSKeywordValue::create(CSSValueDense));
+        return CSSValueList::createSpaceSeparated(CSSKeywordValue::create(flowDirection),
+            CSSKeywordValue::create(CSSValueDense));
     };
 
     CSSParserTokenRange rangeCopy = range;
@@ -1540,9 +1539,9 @@ inline bool PropertyParserCustom::consumeGridShorthand(CSSParserTokenRange& rang
     if (consumeGridTemplateShorthand(range, state, gridTemplateShorthand(), result)) {
         // It can only be specified the explicit or the implicit grid properties in a single grid declaration.
         // The sub-properties not specified are set to their initial value, as normal for shorthands.
-        result.addPropertyForCurrentShorthand(state, CSSPropertyGridAutoFlow, CSSPrimitiveValue::create(CSSValueRow));
-        result.addPropertyForCurrentShorthand(state, CSSPropertyGridAutoColumns, CSSPrimitiveValue::create(CSSValueAuto));
-        result.addPropertyForCurrentShorthand(state, CSSPropertyGridAutoRows, CSSPrimitiveValue::create(CSSValueAuto));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyGridAutoFlow, CSSKeywordValue::create(CSSValueRow));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyGridAutoColumns, CSSKeywordValue::create(CSSValueAuto));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyGridAutoRows, CSSKeywordValue::create(CSSValueAuto));
 
         return true;
     }
@@ -1561,7 +1560,7 @@ inline bool PropertyParserCustom::consumeGridShorthand(CSSParserTokenRange& rang
         if (!gridAutoFlow || range.atEnd())
             return false;
         if (consumeSlashIncludingWhitespace(range))
-            autoRowsValue = CSSPrimitiveValue::create(CSSValueAuto);
+            autoRowsValue = CSSKeywordValue::create(CSSValueAuto);
         else {
             autoRowsValue = consumeGridTrackList(range, state, GridAuto);
             if (!autoRowsValue)
@@ -1574,8 +1573,8 @@ inline bool PropertyParserCustom::consumeGridShorthand(CSSParserTokenRange& rang
         templateColumns = consumeGridTemplatesRowsOrColumns(range, state);
         if (!templateColumns)
             return false;
-        templateRows = CSSPrimitiveValue::create(CSSValueNone);
-        autoColumnsValue = CSSPrimitiveValue::create(CSSValueAuto);
+        templateRows = CSSKeywordValue::create(CSSValueNone);
+        autoColumnsValue = CSSKeywordValue::create(CSSValueAuto);
     } else {
         // 3- <grid-template-rows> / [ auto-flow && dense? ] <grid-auto-columns>?
         templateRows = consumeGridTemplatesRowsOrColumns(range, state);
@@ -1587,14 +1586,14 @@ inline bool PropertyParserCustom::consumeGridShorthand(CSSParserTokenRange& rang
         if (!gridAutoFlow)
             return false;
         if (range.atEnd())
-            autoColumnsValue = CSSPrimitiveValue::create(CSSValueAuto);
+            autoColumnsValue = CSSKeywordValue::create(CSSValueAuto);
         else {
             autoColumnsValue = consumeGridTrackList(range, state, GridAuto);
             if (!autoColumnsValue)
                 return false;
         }
-        templateColumns = CSSPrimitiveValue::create(CSSValueNone);
-        autoRowsValue = CSSPrimitiveValue::create(CSSValueAuto);
+        templateColumns = CSSKeywordValue::create(CSSValueNone);
+        autoRowsValue = CSSKeywordValue::create(CSSValueAuto);
     }
 
     if (!range.atEnd())
@@ -1604,7 +1603,7 @@ inline bool PropertyParserCustom::consumeGridShorthand(CSSParserTokenRange& rang
     // The sub-properties not specified are set to their initial value, as normal for shorthands.
     result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateColumns, templateColumns.releaseNonNull());
     result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateRows, templateRows.releaseNonNull());
-    result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateAreas, CSSPrimitiveValue::create(CSSValueNone));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyGridTemplateAreas, CSSKeywordValue::create(CSSValueNone));
     result.addPropertyForCurrentShorthand(state, CSSPropertyGridAutoFlow, gridAutoFlow.releaseNonNull());
     result.addPropertyForCurrentShorthand(state, CSSPropertyGridAutoColumns, autoColumnsValue.releaseNonNull());
     result.addPropertyForCurrentShorthand(state, CSSPropertyGridAutoRows, autoRowsValue.releaseNonNull());
@@ -1670,13 +1669,13 @@ inline bool PropertyParserCustom::consumeBlockStepShorthand(CSSParserTokenRange&
 
     // Fill in default values if one was missing.
     if (!size)
-        size = CSSPrimitiveValue::create(CSSValueNone);
+        size = CSSKeywordValue::create(CSSValueNone);
     if (!insert)
-        insert = CSSPrimitiveValue::create(CSSValueMarginBox);
+        insert = CSSKeywordValue::create(CSSValueMarginBox);
     if (!align)
-        align = CSSPrimitiveValue::create(CSSValueAuto);
+        align = CSSKeywordValue::create(CSSValueAuto);
     if (!round)
-        round = CSSPrimitiveValue::create(CSSValueUp);
+        round = CSSKeywordValue::create(CSSValueUp);
 
     result.addPropertyForCurrentShorthand(state, CSSPropertyBlockStepSize, WTF::move(size));
     result.addPropertyForCurrentShorthand(state, CSSPropertyBlockStepInsert, WTF::move(insert));
@@ -1896,11 +1895,11 @@ inline bool PropertyParserCustom::consumeListStyleShorthand(CSSParserTokenRange&
     if (noneCount == 2) {
         // Using implicit none for list-style-image is how we serialize "none" instead of "none none".
         image = nullptr;
-        type = CSSPrimitiveValue::create(CSSValueNone);
+        type = CSSKeywordValue::create(CSSValueNone);
     } else if (noneCount == 1) {
         // Use implicit none for list-style-image, but non-implicit for type.
         if (!type)
-            type = CSSPrimitiveValue::create(CSSValueNone);
+            type = CSSKeywordValue::create(CSSValueNone);
     }
 
     result.addPropertyForCurrentShorthand(state, CSSPropertyListStylePosition, WTF::move(position));
@@ -1915,9 +1914,9 @@ inline bool PropertyParserCustom::consumeLineClampShorthand(CSSParserTokenRange&
 
     if (range.peek().id() == CSSValueNone) {
         // Sets max-lines to none, continue to auto, and block-ellipsis to none.
-        result.addPropertyForCurrentShorthand(state, CSSPropertyMaxLines, CSSPrimitiveValue::create(CSSValueNone));
-        result.addPropertyForCurrentShorthand(state, CSSPropertyContinue, CSSPrimitiveValue::create(CSSValueAuto));
-        result.addPropertyForCurrentShorthand(state, CSSPropertyBlockEllipsis, CSSPrimitiveValue::create(CSSValueNone));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyMaxLines, CSSKeywordValue::create(CSSValueNone));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyContinue, CSSKeywordValue::create(CSSValueAuto));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyBlockEllipsis, CSSKeywordValue::create(CSSValueNone));
         consumeIdent(range);
         return range.atEnd();
     }
@@ -1935,13 +1934,13 @@ inline bool PropertyParserCustom::consumeLineClampShorthand(CSSParserTokenRange&
     }
 
     if (!blockEllipsis)
-        blockEllipsis = CSSPrimitiveValue::create(CSSValueAuto);
+        blockEllipsis = CSSKeywordValue::create(CSSValueAuto);
 
     if (!maxLines)
-        maxLines = CSSPrimitiveValue::create(CSSValueNone);
+        maxLines = CSSKeywordValue::create(CSSValueNone);
 
     result.addPropertyForCurrentShorthand(state, CSSPropertyMaxLines, WTF::move(maxLines));
-    result.addPropertyForCurrentShorthand(state, CSSPropertyContinue, CSSPrimitiveValue::create(CSSValueDiscard));
+    result.addPropertyForCurrentShorthand(state, CSSPropertyContinue, CSSKeywordValue::create(CSSValueDiscard));
     result.addPropertyForCurrentShorthand(state, CSSPropertyBlockEllipsis, WTF::move(blockEllipsis));
     return range.atEnd();
 }
@@ -1950,8 +1949,8 @@ inline bool PropertyParserCustom::consumeTextBoxShorthand(CSSParserTokenRange& r
 {
     if (range.peek().id() == CSSValueNormal) {
         // if the single keyword normal is specified, it sets text-box-trim to none and text-box-edge to auto.
-        result.addPropertyForCurrentShorthand(state, CSSPropertyTextBoxTrim, CSSPrimitiveValue::create(CSSValueNone));
-        result.addPropertyForCurrentShorthand(state, CSSPropertyTextBoxEdge, CSSPrimitiveValue::create(CSSValueAuto));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyTextBoxTrim, CSSKeywordValue::create(CSSValueNone));
+        result.addPropertyForCurrentShorthand(state, CSSPropertyTextBoxEdge, CSSKeywordValue::create(CSSValueAuto));
         consumeIdent(range);
         return range.atEnd();
     }
@@ -1973,11 +1972,11 @@ inline bool PropertyParserCustom::consumeTextBoxShorthand(CSSParserTokenRange& r
 
     // Omitting the text-box-edge value sets it to auto (the initial value)
     if (!textBoxEdge)
-        textBoxEdge = CSSPrimitiveValue::create(CSSValueAuto);
+        textBoxEdge = CSSKeywordValue::create(CSSValueAuto);
 
     // Omitting the text-box-trim value sets it to both (not the initial value)
     if (!textBoxTrim)
-        textBoxTrim = CSSPrimitiveValue::create(CSSValueTrimBoth);
+        textBoxTrim = CSSKeywordValue::create(CSSValueTrimBoth);
 
     result.addPropertyForCurrentShorthand(state, CSSPropertyTextBoxTrim, WTF::move(textBoxTrim));
     result.addPropertyForCurrentShorthand(state, CSSPropertyTextBoxEdge, WTF::move(textBoxEdge));
@@ -2003,9 +2002,9 @@ inline bool PropertyParserCustom::consumeTextWrapShorthand(CSSParserTokenRange& 
 
     // Fill in default values if one was missing from the multi-value syntax.
     if (!mode)
-        mode = CSSPrimitiveValue::create(CSSValueWrap);
+        mode = CSSKeywordValue::create(CSSValueWrap);
     if (!style)
-        style = CSSPrimitiveValue::create(CSSValueAuto);
+        style = CSSKeywordValue::create(CSSValueAuto);
 
     result.addPropertyForCurrentShorthand(state, CSSPropertyTextWrapMode, WTF::move(mode));
     result.addPropertyForCurrentShorthand(state, CSSPropertyTextWrapStyle, WTF::move(style));
@@ -2028,20 +2027,20 @@ inline bool PropertyParserCustom::consumeWhiteSpaceShorthand(CSSParserTokenRange
     if (singleValueKeyword) {
         switch (*singleValueKeyword) {
         case CSSValueNormal:
-            whiteSpaceCollapse = CSSPrimitiveValue::create(CSSValueCollapse);
-            textWrapMode = CSSPrimitiveValue::create(CSSValueWrap);
+            whiteSpaceCollapse = CSSKeywordValue::create(CSSValueCollapse);
+            textWrapMode = CSSKeywordValue::create(CSSValueWrap);
             break;
         case CSSValuePre:
-            whiteSpaceCollapse = CSSPrimitiveValue::create(CSSValuePreserve);
-            textWrapMode = CSSPrimitiveValue::create(CSSValueNowrap);
+            whiteSpaceCollapse = CSSKeywordValue::create(CSSValuePreserve);
+            textWrapMode = CSSKeywordValue::create(CSSValueNowrap);
             break;
         case CSSValuePreLine:
-            whiteSpaceCollapse = CSSPrimitiveValue::create(CSSValuePreserveBreaks);
-            textWrapMode = CSSPrimitiveValue::create(CSSValueWrap);
+            whiteSpaceCollapse = CSSKeywordValue::create(CSSValuePreserveBreaks);
+            textWrapMode = CSSKeywordValue::create(CSSValueWrap);
             break;
         case CSSValuePreWrap:
-            whiteSpaceCollapse = CSSPrimitiveValue::create(CSSValuePreserve);
-            textWrapMode = CSSPrimitiveValue::create(CSSValueWrap);
+            whiteSpaceCollapse = CSSKeywordValue::create(CSSValuePreserve);
+            textWrapMode = CSSKeywordValue::create(CSSValueWrap);
             break;
         default:
             ASSERT_NOT_REACHED();
@@ -2064,9 +2063,9 @@ inline bool PropertyParserCustom::consumeWhiteSpaceShorthand(CSSParserTokenRange
 
     // Fill in default values if one was missing from the multi-value syntax.
     if (!whiteSpaceCollapse)
-        whiteSpaceCollapse = CSSPrimitiveValue::create(CSSValueCollapse);
+        whiteSpaceCollapse = CSSKeywordValue::create(CSSValueCollapse);
     if (!textWrapMode)
-        textWrapMode = CSSPrimitiveValue::create(CSSValueWrap);
+        textWrapMode = CSSKeywordValue::create(CSSValueWrap);
 
     result.addPropertyForCurrentShorthand(state, CSSPropertyWhiteSpaceCollapse, WTF::move(whiteSpaceCollapse));
     result.addPropertyForCurrentShorthand(state, CSSPropertyTextWrapMode, WTF::move(textWrapMode));
@@ -2088,21 +2087,19 @@ inline bool PropertyParserCustom::consumeAnimationRangeShorthand(CSSParserTokenR
             // From the spec: If <'animation-range-end'> is omitted and <'animation-range-start'> includes a component, then
             // animation-range-end is set to that same and 100%. Otherwise, any omitted longhand is set to its initial value.
             auto rangeEndValueForStartValue = [](const CSSValue& value) {
-                auto isRangeOffset = [](auto& value) {
+                auto isRangeOffset = [](const CSSPrimitiveValue& value) {
                     return value.isLength() || value.isPercentage() || value.isCalculatedPercentageWithLength();
                 };
 
-                if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value); primitiveValue && isRangeOffset(downcast<CSSPrimitiveValue>(value)))
-                    return CSSPrimitiveValue::create(CSSValueNormal);
-                return CSSPrimitiveValue::create(value.valueID());
+                if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value); primitiveValue && isRangeOffset(*primitiveValue))
+                    return CSSKeywordValue::create(CSSValueNormal);
+                return CSSKeywordValue::create(valueID(value));
             };
 
-            if (RefPtr startPrimitiveValue = dynamicDowncast<CSSPrimitiveValue>(start))
-                end = rangeEndValueForStartValue(*startPrimitiveValue);
-            else {
-                RefPtr startPair = downcast<CSSValuePair>(start);
+            if (RefPtr startPair = dynamicDowncast<CSSValuePair>(start))
                 end = rangeEndValueForStartValue(startPair->first());
-            }
+            else
+                end = rangeEndValueForStartValue(*start);
         } else {
             end = consumeSingleAnimationRangeEnd(range, state);
             range.consumeWhitespace();
@@ -2135,7 +2132,7 @@ inline bool PropertyParserCustom::consumeScrollTimelineShorthand(CSSParserTokenR
 
         // A scroll-timeline-axis is optional.
         if (range.peek().type() == CommaToken || range.atEnd())
-            axesList.append(CSSPrimitiveValue::create(CSSValueBlock));
+            axesList.append(CSSKeywordValue::create(CSSValueBlock));
         else if (auto axis = CSSPropertyParsing::consumeAxis(range))
             axesList.append(axis.releaseNonNull());
         else
@@ -2157,8 +2154,8 @@ inline bool PropertyParserCustom::consumeViewTimelineShorthand(CSSParserTokenRan
     CSSValueListBuilder axesList;
     CSSValueListBuilder insetsList;
 
-    auto defaultAxis = [] -> Ref<CSSValue> { return CSSPrimitiveValue::create(CSSValueBlock); };
-    auto defaultInsets = [] -> Ref<CSSValue> { return CSSPrimitiveValue::create(CSSValueAuto); };
+    auto defaultAxis = [] -> Ref<CSSValue> { return CSSKeywordValue::create(CSSValueBlock); };
+    auto defaultInsets = [] -> Ref<CSSValue> { return CSSKeywordValue::create(CSSValueAuto); };
 
     do {
         // A valid view-timeline-name is required.

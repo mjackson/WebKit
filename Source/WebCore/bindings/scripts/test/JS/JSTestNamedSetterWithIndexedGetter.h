@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestNamedSetterWithIndexedGetter : public JSDOMWrapper<TestNamedSetterWithIndexedGetter> {
 public:
     using Base = JSDOMWrapper<TestNamedSetterWithIndexedGetter>;
-    static JSTestNamedSetterWithIndexedGetter* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestNamedSetterWithIndexedGetter>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestNamedSetterWithIndexedGetter* ptr = new (NotNull, JSC::allocateCell<JSTestNamedSetterWithIndexedGetter>(vm)) JSTestNamedSetterWithIndexedGetter(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestNamedSetterWithIndexedGetter* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestNamedSetterWithIndexedGetter>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

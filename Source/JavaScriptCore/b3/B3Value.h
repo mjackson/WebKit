@@ -568,6 +568,10 @@ protected:
         case VectorTransposeOdd:
         case VectorExtractPair:
         case Stitch:
+        case VectorRelaxedMin:
+        case VectorRelaxedMax:
+        case VectorRelaxedQ15Mulr:
+        case VectorRelaxedDotI8x16I7x16:
             return 2 * sizeof(Value*);
         case WasmArraySet:
         case Select:
@@ -579,6 +583,7 @@ protected:
         case VectorRelaxedLaneSelect:
         case MemoryFill:
         case MemoryCopy:
+        case VectorRelaxedDotI8x16I7x16Add:
             return 3 * sizeof(Value*);
         case WasmArrayNew:
             return 4 * sizeof(Value*);
@@ -821,6 +826,10 @@ private:
         case VectorTransposeEven:
         case VectorTransposeOdd:
         case VectorExtractPair:
+        case VectorRelaxedQ15Mulr:
+        case VectorRelaxedMin:
+        case VectorRelaxedMax:
+        case VectorRelaxedDotI8x16I7x16:
         case Stitch:
             if (numArgs != 2) [[unlikely]]
                 badKind(kind, numArgs);
@@ -830,6 +839,7 @@ private:
         case VectorRelaxedMAdd:
         case VectorRelaxedNMAdd:
         case VectorRelaxedLaneSelect:
+        case VectorRelaxedDotI8x16I7x16Add:
         case MemoryCopy:
         case MemoryFill:
             if (numArgs != 3) [[unlikely]]

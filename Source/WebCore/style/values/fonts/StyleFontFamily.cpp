@@ -27,6 +27,7 @@
 #include "StyleFontFamily.h"
 
 #include "CSSFontFamilyNameValue.h"
+#include "CSSKeywordValue.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "Document.h"
 #include "Settings.h"
@@ -43,8 +44,8 @@ auto CSSValueConversion<FontFamilies>::operator()(BuilderState& state, const CSS
 {
     using namespace CSSPropertyParserHelpers;
 
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        auto valueID = primitiveValue->valueID();
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        auto valueID = keywordValue->valueID();
         if (valueID == CSSValueWebkitBody) {
             return {
                 AtomString { state.document().settings().standardFontFamily() },
@@ -94,11 +95,11 @@ auto CSSValueConversion<FontFamilies>::operator()(BuilderState& state, const CSS
                 };
             }
 
-            RefPtr primitiveContentValue = requiredDowncast<CSSPrimitiveValue>(state, contentValue);
-            if (!primitiveContentValue)
+            RefPtr keywordValue = requiredDowncast<CSSKeywordValue>(state, contentValue);
+            if (!keywordValue)
                 return { nullAtom(), FontFamilyKind::Generic };
 
-            auto valueID = primitiveContentValue->valueID();
+            auto valueID = keywordValue->valueID();
             if (valueID == CSSValueWebkitBody)
                 return { AtomString { state.document().settings().standardFontFamily() }, FontFamilyKind::Specified };
 

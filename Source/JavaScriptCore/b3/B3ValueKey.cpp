@@ -206,6 +206,10 @@ Value* ValueKey::materialize(Procedure& proc, Origin origin) const
     case VectorTransposeEven:
     case VectorTransposeOdd:
     case VectorRelaxedSwizzle:
+    case VectorRelaxedMin:
+    case VectorRelaxedMax:
+    case VectorRelaxedQ15Mulr:
+    case VectorRelaxedDotI8x16I7x16:
         return proc.add<SIMDValue>(origin, kind(), type(), simdInfo(), child(proc, 0), child(proc, 1));
     case VectorReplaceLane:
     case VectorMulByElement:
@@ -215,6 +219,7 @@ Value* ValueKey::materialize(Procedure& proc, Origin origin) const
     case VectorRelaxedNMAdd:
     case VectorBitwiseSelect:
     case VectorRelaxedLaneSelect:
+    case VectorRelaxedDotI8x16I7x16Add:
         return proc.add<SIMDValue>(origin, kind(), type(), simdInfo(), child(proc, 0), child(proc, 1), child(proc, 2));
     case VectorSwizzle:
         if (u.indices[2] == UINT32_MAX)

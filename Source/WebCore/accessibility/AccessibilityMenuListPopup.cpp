@@ -107,7 +107,7 @@ void AccessibilityMenuListPopup::addChildren()
         }
     }
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     verifyChildrenIndexInParent();
 #endif
 }

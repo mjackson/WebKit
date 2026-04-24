@@ -37,13 +37,13 @@
 namespace WebCore {
 
 class WebGLTexture;
-class XRProjectionLayer;
+class XRCompositionLayer;
 
 // https://immersive-web.github.io/layers/#xrwebglsubimagetype
 class XRWebGLSubImage : public XRSubImage {
     WTF_MAKE_TZONE_ALLOCATED(XRWebGLSubImage);
 public:
-    static ExceptionOr<Ref<XRWebGLSubImage>> create(Ref<WebXRViewport>&&, XRProjectionLayer&);
+    static ExceptionOr<Ref<XRWebGLSubImage>> create(Ref<WebXRViewport>&&, XRCompositionLayer&);
     virtual ~XRWebGLSubImage();
 
     const WebXRViewport& viewport() const final { return m_viewport.get(); }
@@ -51,7 +51,9 @@ public:
     RefPtr<WebGLTexture> depthStencilTexture() const;
     RefPtr<WebGLTexture> motionVectorTexture() const { return nullptr; }
 
-    std::optional<uint32_t> imageIndex() const { return std::nullopt; }
+    std::optional<uint32_t> imageIndex() const { return m_imageIndex; }
+    void setImageIndex(uint32_t imageIndex) { m_imageIndex = imageIndex; }
+
     uint32_t colorTextureWidth() const { return m_colorTextureSize.width(); }
     uint32_t colorTextureHeight() const { return m_colorTextureSize.height(); }
     std::optional<uint32_t> depthStencilTextureWidth() const;
@@ -71,6 +73,8 @@ private:
 
     RefPtr<WebGLTexture> m_depthStencilTexture;
     std::optional<IntSize> m_depthStencilTextureSize;
+
+    std::optional<uint32_t> m_imageIndex;
 };
 
 } // namespace WebCore

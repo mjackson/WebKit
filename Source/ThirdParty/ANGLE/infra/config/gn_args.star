@@ -7,6 +7,37 @@
 load("@chromium-luci//gn_args.star", "gn_args")
 
 gn_args.config(
+    name = "android",
+    args = {
+        "target_os": "android",
+    },
+)
+
+gn_args.config(
+    name = "android_clang",
+    configs = [
+        "android",
+        "clang",
+        "siso",
+    ],
+)
+
+gn_args.config(
+    name = "android_static_analysis",
+    args = {
+        "android_static_analysis": "on",
+    },
+)
+
+gn_args.config(
+    name = "angle_ir",
+    args = {
+        "angle_ir": True,
+        "enable_rust_clippy": True,
+    },
+)
+
+gn_args.config(
     name = "arm64",
     args = {
         "target_cpu": "arm64",
@@ -31,6 +62,13 @@ gn_args.config(
     name = "component",
     args = {
         "is_component_build": True,
+    },
+)
+
+gn_args.config(
+    name = "debug",
+    args = {
+        "is_debug": True,
     },
 )
 

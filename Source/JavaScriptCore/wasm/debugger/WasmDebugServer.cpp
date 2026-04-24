@@ -83,13 +83,6 @@ DebugServer::DebugServer()
 
 bool DebugServer::start()
 {
-    if (isState(State::Running) || isState(State::Starting)) {
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Server already running or is starting");
-        return true;
-    }
-
-    setState(State::Starting);
-
     if (!createAndBindServerSocket())
         return false;
 
@@ -98,7 +91,8 @@ bool DebugServer::start()
     m_moduleManager = makeUnique<ModuleManager>();
     m_executionHandler = makeUnique<ExecutionHandler>(*this, *m_moduleManager);
 
-    setState(State::Running);
+    setIsInService();
+    dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Wasm Debug Server listening. Connect with: lldb -o 'gdb-remote localhost:", m_port, "'");
     startAcceptThread();
     return true;
 }
@@ -106,101 +100,14 @@ bool DebugServer::start()
 #if ENABLE(REMOTE_INSPECTOR)
 void DebugServer::startRWI(Function<bool(const String&)>&& rwiResponseHandler)
 {
-    if (isState(State::Running) || isState(State::Starting)) {
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Server already running or is starting");
-        return;
-    }
-
-    setState(State::Starting);
-
     m_moduleManager = makeUnique<ModuleManager>();
     m_executionHandler = makeUnique<ExecutionHandler>(*this, *m_moduleManager);
     m_rwiResponseHandler = WTF::move(rwiResponseHandler);
 
-    // RWI mode: No thread creation needed!
-    // IPC messages are received by WasmDebuggerDispatcher on its WorkQueue thread
-    // and directly call handlePacket() on that thread
-
-    setState(State::Running);
+    setIsInService();
     dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Wasm Debug Server started in RWI mode (WorkQueue-based)");
 }
 #endif
-
-void DebugServer::stop()
-{
-    if (isState(State::Stopped) || isState(State::Stopping)) {
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Server already stopped or is stopping");
-        return;
-    }
-
-    setState(State::Stopping);
-
-    closeSocket(m_serverSocket);
-    closeSocket(m_clientSocket);
-    if (RefPtr thread = m_acceptThread) {
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Waiting for accept thread to terminate...");
-        thread->waitForCompletion();
-        m_acceptThread = nullptr;
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Accept thread terminated");
-    }
-
-    // FIXME: Here we just enforce resetting everything.
-    resetAll();
-
-    setState(State::Stopped);
-}
-
-void DebugServer::setState(State state)
-{
-    switch (state) {
-    case State::Stopped:
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Debug Server is stopped");
-        break;
-    case State::Starting:
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Starting Debug Server...");
-        break;
-    case State::Running:
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Wasm Debug Server listening. Connect with: lldb -o 'gdb-remote localhost:", m_port);
-        break;
-    case State::Stopping:
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Stopping Debug Server...");
-        break;
-    }
-    m_state.store(state);
-}
-
-bool DebugServer::isState(State state) const
-{
-    bool result = m_state.load() == state;
-    if (result && state == State::Running) {
-#if ENABLE(REMOTE_INSPECTOR)
-        if (isRWIMode())
-            return result;
-#endif
-        RELEASE_ASSERT(isSocketValid(m_serverSocket));
-    }
-    return result;
-}
-
-void DebugServer::resetAll()
-{
-    m_state.store(State::Stopped);
-    m_port = defaultPort;
-    closeSocket(m_serverSocket);
-    closeSocket(m_clientSocket);
-    m_acceptThread = nullptr;
-
-    m_noAckMode = false;
-    m_queryHandler = nullptr;
-    m_memoryHandler = nullptr;
-    m_executionHandler = nullptr;
-
-    m_moduleManager = nullptr;
-
-#if ENABLE(REMOTE_INSPECTOR)
-    m_rwiResponseHandler = nullptr;
-#endif
-}
 
 union SocketAddress {
     sockaddr_in in;
@@ -264,7 +171,7 @@ void DebugServer::startAcceptThread()
     m_acceptThread = WTF::Thread::create("WasmDebugServer", [this]() {
         m_executionHandler->setDebugServerThreadId(Thread::currentSingleton().uid());
 
-        while (isState(State::Running)) {
+        while (isInService()) {
             dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Waiting for client connections...");
             SocketAddress clientAddress;
             socklen_t clientLen = sizeof(clientAddress.in);
@@ -295,12 +202,14 @@ void DebugServer::closeSocket(SocketType& socket)
 void DebugServer::reset()
 {
     // Reset to the init state without stopping the debug server.
-    m_executionHandler->reset();
     m_isDebuggerReady.store(false, std::memory_order_release);
     m_hasContinued.store(false, std::memory_order_release);
-    closeSocket(m_clientSocket);
     m_noAckMode = false;
     m_packetParser.reset();
+    // m_isDebuggerReady=false before reset() gates new traps; socket closed after so
+    // hasDebugger() stays true for wasmDebuggerOnResumeCallback() during resumeImpl().
+    m_executionHandler->reset();
+    closeSocket(m_clientSocket);
 }
 
 static void dumpReceivedBytes(std::span<const uint8_t> buffer)
@@ -561,7 +470,7 @@ void DebugServer::untrackModule(Module& module)
 
 bool DebugServer::hasDebugger() const
 {
-    if (!isState(State::Running))
+    if (!isInService())
         return false;
 #if ENABLE(REMOTE_INSPECTOR)
     if (isRWIMode())

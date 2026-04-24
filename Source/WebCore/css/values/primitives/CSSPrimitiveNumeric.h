@@ -39,7 +39,7 @@ namespace CSS {
 // MARK: - Forward Declarations
 
 template<NumericRaw> struct PrimitiveNumeric;
-template<Numeric, PrimitiveKeyword...> struct PrimitiveNumericOrKeyword;
+template<Numeric, SpecificKeyword...> struct PrimitiveNumericOrKeyword;
 
 // MARK: - Primitive Numeric (Raw + UnevaluatedCalc)
 
@@ -156,7 +156,7 @@ template<NumericRaw RawType> struct PrimitiveNumeric {
 
 private:
     template<typename> friend struct PrimitiveDataMarkableTraits;
-    template<Numeric, PrimitiveKeyword...> friend struct PrimitiveNumericOrKeyword;
+    template<Numeric, SpecificKeyword...> friend struct PrimitiveNumericOrKeyword;
 
     PrimitiveNumeric(PrimitiveDataEmptyToken token)
         : m_data { token }

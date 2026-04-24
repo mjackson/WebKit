@@ -385,6 +385,14 @@ bool SVGImage::hasRelativeHeight() const
     return false;
 }
 
+bool SVGImage::hasNaturalAspectRatio() const
+{
+    RefPtr rootElement = this->rootElement();
+    if (!rootElement)
+        return false;
+    return rootElement->hasIntrinsicDimensions();
+}
+
 void SVGImage::computeIntrinsicDimensions(float& intrinsicWidth, float& intrinsicHeight, FloatSize& intrinsicRatio)
 {
     RefPtr rootElement = this->rootElement();
@@ -393,9 +401,6 @@ void SVGImage::computeIntrinsicDimensions(float& intrinsicWidth, float& intrinsi
 
     intrinsicWidth = rootElement->intrinsicWidth();
     intrinsicHeight = rootElement->intrinsicHeight();
-
-    if (rootElement->preserveAspectRatio().align() == SVGPreserveAspectRatioValue::SVG_PRESERVEASPECTRATIO_NONE)
-        return;
 
     intrinsicRatio = rootElement->viewBox().size();
     if (intrinsicRatio.isEmpty())

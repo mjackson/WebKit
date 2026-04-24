@@ -27,10 +27,10 @@
 #include "CSSValuePool.h"
 
 #include "CSSFontFamilyNameValue.h"
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSPropertyParser.h"
 #include "CSSValueKeywords.h"
 #include "CSSValueList.h"
+#include "StyleKeyword+Mappings.h"
 
 namespace WebCore {
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(CSSValuePool);
@@ -38,13 +38,13 @@ DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(CSSValuePool);
 LazyNeverDestroyed<StaticCSSValuePool> staticCSSValuePool;
 
 StaticCSSValuePool::StaticCSSValuePool()
-    : m_implicitInitialValue(CSSValue::StaticCSSValue, CSSPrimitiveValue::ImplicitInitialValue)
+    : m_implicitInitialValue(CSSValue::StaticCSSValue, CSSKeywordValue::ImplicitInitialValue)
     , m_transparentColor(CSSValue::StaticCSSValue, WebCore::Color::transparentBlack)
     , m_whiteColor(CSSValue::StaticCSSValue, WebCore::Color::white)
     , m_blackColor(CSSValue::StaticCSSValue, WebCore::Color::black)
 {
     for (auto keyword : allCSSValueKeywords())
-        new (m_identifierValues[std::to_underlying(keyword)].get()) CSSPrimitiveValue { CSSValue::StaticCSSValue, keyword };
+        new (m_identifierValues[std::to_underlying(keyword)].get()) CSSKeywordValue { CSSValue::StaticCSSValue, CSS::Keyword { keyword } };
 
     for (unsigned i = 0; i <= maximumCacheableIntegerValue; ++i) {
         new (m_pixelValues[i].get()) CSSPrimitiveValue(CSSValue::StaticCSSValue, i, CSSUnitType::CSS_PX);

@@ -33,13 +33,13 @@
 namespace WebCore {
 namespace Style {
 
-template<Numeric N, CSS::PrimitiveKeyword... Ks> class PrimitiveNumericOrKeyword {
+template<Numeric N, CSS::SpecificKeyword... Ks> class PrimitiveNumericOrKeyword {
 public:
     using CSS = typename N::CSS;
     using Raw = typename N::Raw;
     using Calc = typename N::Calc;
     using Dimension = typename N::Dimension;
-    using Keywords = WebCore::CSS::PrimitiveKeywordList<Ks...>;
+    using Keywords = WebCore::CSS::KeywordList<Ks...>;
     using Representation = FlatteningCompactVariant<N, Ks...>;
 
     template<typename U>
@@ -60,21 +60,21 @@ private:
     Representation m_value;
 };
 
-template<Numeric N, CSS::PrimitiveKeyword... Ks>
+template<Numeric N, CSS::SpecificKeyword... Ks>
 template<typename U>
 constexpr bool PrimitiveNumericOrKeyword<N, Ks...>::holdsAlternative() const
 {
     return WTF::holdsAlternative<U>(m_value);
 }
 
-template<Numeric N, CSS::PrimitiveKeyword... Ks>
+template<Numeric N, CSS::SpecificKeyword... Ks>
 template<typename... F>
 constexpr decltype(auto) PrimitiveNumericOrKeyword<N, Ks...>::switchOn(F&&... functors) const
 {
     return WTF::switchOn(m_value, std::forward<F>(functors)...);
 }
 
-template<Numeric N, CSS::PrimitiveKeyword... Ks>
+template<Numeric N, CSS::SpecificKeyword... Ks>
 constexpr bool PrimitiveNumericOrKeyword<N, Ks...>::isZero() const
 {
     return switchOn(

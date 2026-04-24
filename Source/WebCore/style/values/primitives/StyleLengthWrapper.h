@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include <WebCore/CSSPrimitiveKeywordList.h>
+#include <WebCore/CSSKeywordList.h>
 #include <WebCore/LayoutUnit.h>
 #include <WebCore/StyleLengthWrapperData.h>
 #include <WebCore/StylePrimitiveNumericTypes.h>
@@ -34,13 +34,13 @@
 namespace WebCore {
 namespace Style {
 
-template<typename, CSS::PrimitiveKeyword...> struct LengthWrapperBase;
+template<typename, CSS::SpecificKeyword...> struct LengthWrapperBase;
 template<typename, typename> struct MinimumEvaluation;
 
 // Transitionary type acting as a `Style::PrimitiveNumericOrKeyword<...>` but implemented by wrapping a `LengthWrapperData`.
-template<typename Numeric, CSS::PrimitiveKeyword... Ks> struct LengthWrapperBase {
+template<typename Numeric, CSS::SpecificKeyword... Ks> struct LengthWrapperBase {
     using Base = LengthWrapperBase<Numeric, Ks...>;
-    using Keywords = CSS::PrimitiveKeywordList<Ks...>;
+    using Keywords = CSS::KeywordList<Ks...>;
 
     static constexpr bool hasKeywords = Keywords::count > 0;
 
@@ -55,17 +55,6 @@ template<typename Numeric, CSS::PrimitiveKeyword... Ks> struct LengthWrapperBase
     using Fixed = typename Specified::Dimension;
     using Percentage = typename Specified::Percentage;
     using Calc = typename Specified::Calc;
-
-    static constexpr bool SupportsAuto = Keywords::isValidKeyword(CSS::Keyword::Auto { });
-    static constexpr bool SupportsNormal = Keywords::isValidKeyword(CSS::Keyword::Normal { });
-    static constexpr bool SupportsIntrinsic = Keywords::isValidKeyword(CSS::Keyword::Intrinsic { });
-    static constexpr bool SupportsMinIntrinsic = Keywords::isValidKeyword(CSS::Keyword::MinIntrinsic { });
-    static constexpr bool SupportsMinContent = Keywords::isValidKeyword(CSS::Keyword::MinContent { });
-    static constexpr bool SupportsMaxContent = Keywords::isValidKeyword(CSS::Keyword::MaxContent { });
-    static constexpr bool SupportsStretch = Keywords::isValidKeyword(CSS::Keyword::Stretch { });
-    static constexpr bool SupportsFitContent = Keywords::isValidKeyword(CSS::Keyword::FitContent { });
-    static constexpr bool SupportsContent = Keywords::isValidKeyword(CSS::Keyword::Content { });
-    static constexpr bool SupportsNone = Keywords::isValidKeyword(CSS::Keyword::None { });
 
     LengthWrapperBase(CSS::ValidKeywordForList<Keywords> auto keyword) : m_value(Keywords::offsetForKeyword(keyword)) { }
 
@@ -83,10 +72,6 @@ template<typename Numeric, CSS::PrimitiveKeyword... Ks> struct LengthWrapperBase
     LengthWrapperBase(CSS::ValueLiteral<CSS::PercentageUnit::Percentage> literal) : LengthWrapperBase(Percentage { literal }) { }
 
     explicit LengthWrapperBase(WTF::HashTableEmptyValueType token) : m_value(token) { }
-
-    // IPC Support
-    explicit LengthWrapperBase(LengthWrapperData::IPCData&& data) : m_value { toData(WTF::move(data)) } { }
-    LengthWrapperData::IPCData ipcData() const { return m_value.ipcData(); }
 
     ALWAYS_INLINE bool isFixed() const { return holdsAlternative<Fixed>(); }
     ALWAYS_INLINE bool isPercent() const { return holdsAlternative<Percentage>(); }
@@ -175,21 +160,6 @@ private:
                 return LengthWrapperData { indexForCalc, protect(calc.calculation()) };
             }
         );
-    }
-
-    static LengthWrapperData toData(LengthWrapperData::IPCData&& ipcData)
-    {
-        RELEASE_ASSERT(ipcData.opaqueType <= maxIndex);
-        RELEASE_ASSERT(ipcData.opaqueType != indexForCalc);
-
-        if (ipcData.opaqueType == indexForFixed) {
-            RELEASE_ASSERT(CSS::isWithinRange<Fixed::range>(ipcData.value));
-        }
-        if (ipcData.opaqueType == indexForPercentage) {
-            RELEASE_ASSERT(CSS::isWithinRange<Percentage::range>(ipcData.value));
-        }
-
-        return LengthWrapperData { WTF::move(ipcData) };
     }
 
     LengthWrapperDataEvaluationKind evaluationKind() const

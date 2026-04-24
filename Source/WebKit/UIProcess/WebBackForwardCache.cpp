@@ -30,6 +30,7 @@
 #include "SuspendedPageProxy.h"
 #include "WebBackForwardCacheEntry.h"
 #include "WebBackForwardListFrameItem.h"
+#include "WebBackForwardListItem.h"
 #include "WebPageProxy.h"
 #include "WebProcessMessages.h"
 #include "WebProcessPool.h"
@@ -145,7 +146,19 @@ void WebBackForwardCache::removeEntriesForProcess(WebProcessProxy& process)
 {
     removeEntriesMatching([processIdentifier = process.coreProcessIdentifier()](auto& entry) {
         ASSERT(entry.backForwardCacheEntry());
-        return entry.backForwardCacheEntry()->processIdentifier() == processIdentifier;
+
+        // Check main process (existing behavior).
+        if (entry.backForwardCacheEntry()->processIdentifier() == processIdentifier)
+            return true;
+
+        // Check subframe processes (multi-process BFCache).
+        if (RefPtr suspendedPage = entry.suspendedPage()) {
+            if (suspendedPage->hasSubframeInProcess(processIdentifier)) {
+                RELEASE_LOG(ProcessSwapping, "WebBackForwardCache::removeEntriesForProcess: subframe process terminated while in BFCache, invalidating cache entry");
+                return true;
+            }
+        }
+        return false;
     });
 }
 

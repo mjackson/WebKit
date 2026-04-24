@@ -130,7 +130,7 @@ TEST(WebSocket, PageWithAttributedBundleIdentifierDestroyed)
 }
 
 // FIXME rdar://147876703
-#if PLATFORM(IOS) && (__IPHONE_OS_VERSION_MIN_REQUIRED > 180000) || PLATFORM(MAC) && (__MAC_OS_X_VERSION_MIN_REQUIRED > 150000 )
+#if PLATFORM(IOS) || PLATFORM(MAC)
 TEST(WebSocket, DISABLED_CloseCode)
 #else
 TEST(WebSocket, CloseCode)

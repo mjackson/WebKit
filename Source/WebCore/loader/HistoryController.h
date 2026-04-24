@@ -38,12 +38,12 @@ namespace WebCore {
 class HistoryItem;
 class HistoryItemClient;
 class LocalFrame;
+class NavigationAPIMethodTracker;
 class SerializedScriptValue;
 
 enum class ShouldGoToHistoryItem : uint8_t;
 enum class ShouldTreatAsContinuingLoad : uint8_t;
 
-struct NavigationAPIMethodTracker;
 struct StringWithDirection;
 
 class HistoryController final : public CanMakeWeakPtr<HistoryController>  {

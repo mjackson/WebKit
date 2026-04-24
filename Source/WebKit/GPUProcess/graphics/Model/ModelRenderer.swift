@@ -132,7 +132,7 @@ class Renderer {
     }
 
     internal func setBackgroundColor(_ color: simd_float3) {
-        clearColor = MTLClearColor(red: Double(color.x), green: Double(color.y), blue: Double(color.z), alpha: 1)
+        clearColor = MTLClearColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 0.0)
     }
 
     internal func setCameraTransform(_ transform: CameraTransform) {

@@ -14,7 +14,7 @@ set(WebKitLegacy_SOURCES
     WebCoreSupport/NetworkStorageSessionMap.cpp
     WebCoreSupport/WebBroadcastChannelRegistry.cpp
     WebCoreSupport/WebResourceLoadScheduler.cpp
-    WebCoreSupport/WebViewGroup.cpp
+    WebCoreSupport/WebViewGroup.mm
 )
 
 set(WebKitLegacy_PRIVATE_INCLUDE_DIRECTORIES

@@ -548,9 +548,7 @@ public:
     constexpr AXTreeID treeID() const { return m_id; }
     constexpr ProcessID processID() const { return m_processID; }
     void setPageActivityState(OptionSet<ActivityState>);
-    OptionSet<ActivityState> pageActivityState() const;
-    // Use only if the s_storeLock is already held like in findAXTree.
-    WEBCORE_EXPORT OptionSet<ActivityState> NODELETE lockedPageActivityState() const;
+    WEBCORE_EXPORT OptionSet<ActivityState> pageActivityState() const;
 
     AXTextMarkerRange selectedTextMarkerRange() { return m_selectedTextMarkerRange; }
     void setSelectedTextMarkerRange(AXTextMarkerRange&&);

@@ -28,11 +28,13 @@
 #include "AbstractModuleRecord.h"
 #include "JSCell.h"
 #include "JSModuleLoader.h"
+#include <wtf/RefPtr.h>
 
 namespace JSC {
 
 class ModuleLoaderPayload;
 class ModuleRegistryEntry;
+class ScriptFetcher;
 
 class ModuleLoadingContext final : public JSCell {
 public:
@@ -59,17 +61,17 @@ public:
         Cached, // cached loadPromise settled -> finishLoading or evaluationError
     };
 
-    static ModuleLoadingContext* create(VM&, Step, const JSModuleLoader::ModuleReferrer&, const AbstractModuleRecord::ModuleRequest&, ModuleLoaderPayload*, ModuleRegistryEntry*, JSValue scriptFetcher);
-    static ModuleLoadingContext* create(VM&, const AbstractModuleRecord::ModuleRequest&, JSValue scriptFetcher, bool evaluate, bool dynamic, bool useImportMap);
+    static ModuleLoadingContext* create(VM&, Step, const JSModuleLoader::ModuleReferrer&, const AbstractModuleRecord::ModuleRequest&, ModuleLoaderPayload*, ModuleRegistryEntry*, RefPtr<ScriptFetcher>);
+    static ModuleLoadingContext* create(VM&, const AbstractModuleRecord::ModuleRequest&, RefPtr<ScriptFetcher>, bool evaluate, bool dynamic, bool useImportMap);
 
     Step step() const { return m_step; }
-    void step(Step s) { m_step = s; }
+    void setStep(Step s) { m_step = s; }
 
     JSModuleLoader::ModuleReferrer referrer() const;
     const AbstractModuleRecord::ModuleRequest& moduleRequest() const { return m_moduleRequest; }
     ModuleLoaderPayload* payload() const { return m_payload.get(); }
     ModuleRegistryEntry* entry() const { return m_entry.get(); }
-    JSValue scriptFetcher() const { return m_scriptFetcher.get(); }
+    ScriptFetcher* scriptFetcher() const { return m_scriptFetcher.get(); }
     AbstractModuleRecord* module() const { return m_module.get(); }
     void module(VM& vm, AbstractModuleRecord* mod) { m_module.set(vm, this, mod); }
 
@@ -78,12 +80,12 @@ public:
     bool useImportMap() const { return m_useImportMap; }
 
 private:
-    ModuleLoadingContext(VM&, Structure*, Step, const JSModuleLoader::ModuleReferrer&, AbstractModuleRecord::ModuleRequest&&, ModuleLoaderPayload*, ModuleRegistryEntry*, JSValue scriptFetcher);
-    ModuleLoadingContext(VM&, Structure*, AbstractModuleRecord::ModuleRequest&&, JSValue scriptFetcher, bool evaluate, bool dynamic, bool useImportMap);
+    ModuleLoadingContext(VM&, Structure*, Step, const JSModuleLoader::ModuleReferrer&, AbstractModuleRecord::ModuleRequest&&, ModuleLoaderPayload*, ModuleRegistryEntry*, RefPtr<ScriptFetcher>);
+    ModuleLoadingContext(VM&, Structure*, AbstractModuleRecord::ModuleRequest&&, RefPtr<ScriptFetcher>, bool evaluate, bool dynamic, bool useImportMap);
 
     Step m_step { Step::Main };
     AbstractModuleRecord::ModuleRequest m_moduleRequest;
-    WriteBarrier<Unknown> m_scriptFetcher;
+    const RefPtr<ScriptFetcher> m_scriptFetcher;
     WriteBarrier<ModuleLoaderPayload> m_payload;
     WriteBarrier<ModuleRegistryEntry> m_entry;
     WriteBarrier<Unknown> m_referrer;

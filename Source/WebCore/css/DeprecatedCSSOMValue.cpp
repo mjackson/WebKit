@@ -26,6 +26,7 @@
 #include "config.h"
 #include "DeprecatedCSSOMValue.h"
 
+#include "CSSKeywordValue.h"
 #include "CSSSerializationContext.h"
 #include "DeprecatedCSSOMBoxShadowValue.h"
 #include "DeprecatedCSSOMFilterFunctionValue.h"
@@ -115,7 +116,12 @@ unsigned short DeprecatedCSSOMComplexValue::cssValueType() const
     constexpr unsigned short CSS_INITIAL = 4;
     constexpr unsigned short CSS_UNSET = 5;
     constexpr unsigned short CSS_REVERT = 6;
-    switch (valueID(m_value.get())) {
+
+    RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(m_value);
+    if (!keywordValue)
+        return CSS_CUSTOM;
+
+    switch (keywordValue->valueID()) {
     case CSSValueInherit:
         return CSS_INHERIT;
     case CSSValueInitial:

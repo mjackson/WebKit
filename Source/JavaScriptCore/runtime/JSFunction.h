@@ -25,6 +25,7 @@
 
 #include "FunctionRareData.h"
 #include "InternalFunction.h"
+#include "Intrinsic.h"
 #include "JSCallee.h"
 #include "JSScope.h"
 

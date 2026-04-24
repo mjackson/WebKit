@@ -1152,6 +1152,10 @@ void run(const TestConfig* config)
         RUN(testVectorExtractLane0Double());
         RUN(testVectorMulHigh());
         RUN(testVectorMulLow());
+        RUN(testVectorRelaxedMinMax());
+        RUN(testVectorRelaxedQ15Mulr());
+        RUN(testVectorRelaxedDotI8x16I7x16());
+        RUN(testVectorRelaxedDotI8x16I7x16Add());
         RUN(testVectorDotProductSplatOne());
         RUN(testVectorShrZipToExtend());
         RUN(testVectorShrZipToExtendI32());

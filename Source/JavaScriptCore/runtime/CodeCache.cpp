@@ -28,6 +28,8 @@
 
 #include "BytecodeGenerator.h"
 #include "IndirectEvalExecutable.h"
+#include "ModuleProgramExecutable.h"
+#include "ProgramExecutable.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace JSC {
@@ -294,7 +296,7 @@ void CodeCache::write()
 
 void writeCodeBlock(const SourceCodeKey& key, const SourceCodeValue& value)
 {
-    UnlinkedCodeBlock* codeBlock = jsDynamicCast<UnlinkedCodeBlock*>(value.cell.get());
+    UnlinkedCodeBlock* codeBlock = dynamicDowncast<UnlinkedCodeBlock>(value.cell.get());
     if (!codeBlock)
         return;
 

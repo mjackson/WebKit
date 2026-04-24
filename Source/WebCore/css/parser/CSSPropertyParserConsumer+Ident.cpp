@@ -40,26 +40,39 @@ std::optional<CSSValueID> consumeIdentRaw(CSSParserTokenRange& range)
     return range.consumeIncludingWhitespace().id();
 }
 
-RefPtr<CSSPrimitiveValue> consumeIdent(CSSParserTokenRange& range)
+std::optional<CSS::Keyword> consumeUnresolvedIdent(CSSParserTokenRange& range)
 {
-    if (auto result = consumeIdentRaw(range))
-        return CSSPrimitiveValue::create(*result);
-    return nullptr;
+    if (range.peek().type() != IdentToken)
+        return std::nullopt;
+    return CSS::Keyword { range.consumeIncludingWhitespace().id() };
 }
 
-static std::optional<CSSValueID> consumeIdentRangeRaw(CSSParserTokenRange& range, CSSValueID lower, CSSValueID upper)
+RefPtr<CSSKeywordValue> consumeIdent(CSSParserTokenRange& range)
+{
+    if (range.peek().type() != IdentToken)
+        return nullptr;
+    return CSSKeywordValue::create(CSS::Keyword { range.consumeIncludingWhitespace().id() });
+}
+
+std::optional<CSSValueID> consumeIdentRangeRaw(CSSParserTokenRange& range, CSSValueID lower, CSSValueID upper)
 {
     if (range.peek().id() < lower || range.peek().id() > upper)
         return std::nullopt;
     return consumeIdentRaw(range);
 }
 
-RefPtr<CSSPrimitiveValue> consumeIdentRange(CSSParserTokenRange& range, CSSValueID lower, CSSValueID upper)
+std::optional<CSS::Keyword> consumeUnresolvedIdentRange(CSSParserTokenRange& range, CSSValueID lower, CSSValueID upper)
 {
-    auto value = consumeIdentRangeRaw(range, lower, upper);
-    if (!value)
+    if (range.peek().id() < lower || range.peek().id() > upper)
+        return std::nullopt;
+    return consumeUnresolvedIdent(range);
+}
+
+RefPtr<CSSKeywordValue> consumeIdentRange(CSSParserTokenRange& range, CSSValueID lower, CSSValueID upper)
+{
+    if (range.peek().id() < lower || range.peek().id() > upper)
         return nullptr;
-    return CSSPrimitiveValue::create(*value);
+    return consumeIdent(range);
 }
 
 // MARK: <custom-ident>

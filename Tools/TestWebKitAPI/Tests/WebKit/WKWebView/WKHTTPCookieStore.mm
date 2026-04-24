@@ -411,38 +411,6 @@ TEST(WKHTTPCookieStore, CreationTime)
 }
 #endif
 
-// FIXME: This #if should be removed once <rdar://problem/35344202> is resolved and bots are updated.
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MAX_ALLOWED <= 101301
-TEST(WKHTTPCookieStore, NonPersistent)
-{
-    RetainPtr<WKWebsiteDataStore> nonPersistentDataStore;
-    @autoreleasepool {
-        nonPersistentDataStore = [WKWebsiteDataStore nonPersistentDataStore];
-    }
-
-    runTestWithWebsiteDataStore(nonPersistentDataStore.get());
-}
-
-TEST(WKHTTPCookieStore, Custom)
-{
-    NSURL *cookieStorageFile = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/CustomWebsiteData/CookieStorage/Cookie.File" stringByExpandingTildeInPath] isDirectory:NO];
-    NSURL *idbPath = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/CustomWebsiteData/IndexedDB/" stringByExpandingTildeInPath] isDirectory:YES];
-
-    [[NSFileManager defaultManager] removeItemAtURL:cookieStorageFile error:nil];
-    [[NSFileManager defaultManager] removeItemAtURL:idbPath error:nil];
-
-    EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:cookieStorageFile.path]);
-    EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:idbPath.path]);
-
-    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
-    websiteDataStoreConfiguration.get()._indexedDBDatabaseDirectory = idbPath;
-    websiteDataStoreConfiguration.get()._cookieStorageFile = cookieStorageFile;
-
-    RetainPtr customDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
-    runTestWithWebsiteDataStore(customDataStore.get());
-}
-#endif // PLATFORM(MAC) && __MAC_OS_X_VERSION_MAX_ALLOWED <= 101301
-
 TEST(WebKit, CookieObserverCrash)
 {
     RetainPtr<WKWebsiteDataStore> nonPersistentDataStore;

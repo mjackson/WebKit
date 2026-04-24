@@ -25,11 +25,11 @@
 #include "config.h"
 #include "StyleScrollFunction.h"
 
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSScrollValue.h"
 #include "StyleBuilderChecking.h"
-#include "StylePrimitiveKeyword+CSSValueCreation.h"
-#include "StylePrimitiveKeyword+Serialization.h"
+#include "StyleKeyword+CSSValueConversion.h"
+#include "StyleKeyword+CSSValueCreation.h"
+#include "StyleKeyword+Serialization.h"
 
 namespace WebCore {
 namespace Style {
@@ -44,12 +44,12 @@ auto CSSValueConversion<ScrollFunction>::operator()(BuilderState& state, const C
     return this->operator()(state, *scrollValue);
 }
 
-auto CSSValueConversion<ScrollFunction>::operator()(BuilderState&, const CSSScrollValue& value) -> ScrollFunction
+auto CSSValueConversion<ScrollFunction>::operator()(BuilderState& state, const CSSScrollValue& value) -> ScrollFunction
 {
     return ScrollFunction {
         ScrollFunctionParameters {
-            value.scroller() ? fromCSSValueID<Scroller>(value.scroller()->valueID()) : Scroller::Nearest,
-            value.axis() ? fromCSSValueID<ScrollAxis>(value.axis()->valueID()) : ScrollAxis::Block
+            value.scroller() ? toStyleFromCSSValue<Scroller>(state, *value.scroller()) : Scroller::Nearest,
+            value.axis() ? toStyleFromCSSValue<ScrollAxis>(state, *value.axis()) : ScrollAxis::Block
         }
     };
 }

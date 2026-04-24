@@ -41,9 +41,10 @@ using GL = GraphicsContextGL;
 
 WebXRWebGLSwapchain::~WebXRWebGLSwapchain() = default;
 
-WebXRWebGLSwapchain::WebXRWebGLSwapchain(WebGLRenderingContextBase& context, SwapchainTargets targets, bool clearOnAccess)
+WebXRWebGLSwapchain::WebXRWebGLSwapchain(WebGLRenderingContextBase& context, SwapchainTargets targets, bool clearOnAccess, size_t imageCount)
     : WebXRSwapchain(targets, clearOnAccess)
     , m_context(context)
+    , m_imageCount(imageCount)
 {
     if (clearOnAccess)
         m_framebufferForClearing = m_context->createFramebuffer();
@@ -100,13 +101,13 @@ RefPtr<WebGLRenderingContextBase> WebXRWebGLSwapchain::context()
     return m_context;
 }
 
-std::unique_ptr<WebXRWebGLSharedImageSwapchain> WebXRWebGLSharedImageSwapchain::create(WebGLRenderingContextBase& context, SwapchainTargets targets, GCGLenum format, bool clearOnAccess)
+std::unique_ptr<WebXRWebGLSharedImageSwapchain> WebXRWebGLSharedImageSwapchain::create(WebGLRenderingContextBase& context, SwapchainTargets targets, GCGLenum format, bool clearOnAccess, size_t imageCount)
 {
-    return std::unique_ptr<WebXRWebGLSharedImageSwapchain>(new WebXRWebGLSharedImageSwapchain(context, targets, format, clearOnAccess));
+    return std::unique_ptr<WebXRWebGLSharedImageSwapchain>(new WebXRWebGLSharedImageSwapchain(context, targets, format, clearOnAccess, imageCount));
 }
 
-WebXRWebGLSharedImageSwapchain::WebXRWebGLSharedImageSwapchain(WebGLRenderingContextBase& context, SwapchainTargets targets, GCGLenum format, bool clearOnAccess)
-    : WebXRWebGLSwapchain(context, targets, clearOnAccess)
+WebXRWebGLSharedImageSwapchain::WebXRWebGLSharedImageSwapchain(WebGLRenderingContextBase& context, SwapchainTargets targets, GCGLenum format, bool clearOnAccess, size_t imageCount)
+    : WebXRWebGLSwapchain(context, targets, clearOnAccess, imageCount)
     , m_format(format)
 {
 }
@@ -120,6 +121,10 @@ WebXRWebGLSharedImageSwapchain::~WebXRWebGLSharedImageSwapchain()
 
 PlatformGLObject WebXRWebGLSharedImageSwapchain::currentTexture()
 {
+    // If we haven't received any frame data from the XR compositor yet, return an invalid texture id.
+    if (m_displayImagesSets.isEmpty())
+        return 0;
+
     RELEASE_ASSERT(m_displayImagesSets.size() > m_currentImageIndex);
     return m_displayImagesSets[m_currentImageIndex].colorBuffer.tex;
 }
@@ -188,7 +193,7 @@ static GL::ExternalImageSource makeExternalImageSource(PlatformXR::FrameData::Ex
 #if PLATFORM(GTK) || PLATFORM(WPE)
 #if OS(ANDROID)
     return GraphicsContextGLExternalImageSource {
-        .hardwareBuffer = RefPtr { imageSource },
+        .hardwareBuffer = imageSource,
         .size = size,
     };
 #else
@@ -303,13 +308,20 @@ void WebXRExternalImage::leakObject()
     image.leakObject();
 }
 
+bool WebXRWebGLSharedImageSwapchain::allTexturesAreBound() const
+{
+    return m_displayImagesSets.size() == m_imageCount && std::all_of(m_displayImagesSets.begin(), m_displayImagesSets.end(), [](const auto& imageSet) {
+        return imageSet && imageSet.colorBuffer.tex;
+    });
+}
+
 std::unique_ptr<WebXRWebGLStaticImageSwapchain> WebXRWebGLStaticImageSwapchain::create(WebGLRenderingContextBase& context, StaticImageAttributes attributes)
 {
     return std::unique_ptr<WebXRWebGLStaticImageSwapchain>(new WebXRWebGLStaticImageSwapchain(context, attributes));
 }
 
 WebXRWebGLStaticImageSwapchain::WebXRWebGLStaticImageSwapchain(WebGLRenderingContextBase& context, StaticImageAttributes attributes)
-    : WebXRWebGLSwapchain(context, attributes.targets, attributes.clearOnAccess)
+    : WebXRWebGLSwapchain(context, attributes.targets, attributes.clearOnAccess, attributes.imageCount)
     , m_imageAttributes(attributes)
 {
     m_texSize = attributes.size;
@@ -383,6 +395,14 @@ void WebXRWebGLStaticImageSwapchain::endFrame(PlatformXR::DeviceLayer&)
 {
 
 }
+
+bool WebXRWebGLStaticImageSwapchain::allTexturesAreBound() const
+{
+    return m_textures.size() == m_imageCount && std::all_of(m_textures.begin(), m_textures.end(), [](const auto& texture) {
+        return texture;
+    });
+}
+
 
 } // namespace WebCore
 

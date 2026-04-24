@@ -25,6 +25,7 @@
 #include "config.h"
 #include "StyleTextIndent.h"
 
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 #include "StyleLengthWrapper+Blending.h"
 #include "StyleLengthWrapper+CSSValueConversion.h"
@@ -38,7 +39,7 @@ auto CSSValueConversion<TextIndent>::operator()(BuilderState& state, const CSSVa
     if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
         return toStyleFromCSSValue<TextIndentLength>(state, *primitiveValue);
 
-    auto list = requiredListDowncast<CSSValueList, CSSPrimitiveValue>(state, value);
+    auto list = requiredListDowncast<CSSValueList, CSSValue>(state, value);
     if (!list)
         return 0_css_px;
 
@@ -46,13 +47,37 @@ auto CSSValueConversion<TextIndent>::operator()(BuilderState& state, const CSSVa
     std::optional<CSS::Keyword::Hanging> hanging;
     std::optional<CSS::Keyword::EachLine> eachLine;
 
-    for (RefPtr primitiveValue : *list) {
-        if (primitiveValue->valueID() == CSSValueHanging)
-            hanging = CSS::Keyword::Hanging { };
-        else if (primitiveValue->valueID() == CSSValueEachLine)
-            eachLine = CSS::Keyword::EachLine { };
-        else
+    for (Ref item : *list) {
+        if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(item)) {
+            if (length) {
+                state.setCurrentPropertyInvalidAtComputedValueTime();
+                return 0_css_px;
+            }
             length = toStyleFromCSSValue<TextIndentLength>(state, *primitiveValue);
+        } else if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(item)) {
+            switch (keywordValue->valueID()) {
+            case CSSValueHanging:
+                if (hanging) {
+                    state.setCurrentPropertyInvalidAtComputedValueTime();
+                    return 0_css_px;
+                }
+                hanging = CSS::Keyword::Hanging { };
+                break;
+            case CSSValueEachLine:
+                if (eachLine) {
+                    state.setCurrentPropertyInvalidAtComputedValueTime();
+                    return 0_css_px;
+                }
+                eachLine = CSS::Keyword::EachLine { };
+                break;
+            default:
+                state.setCurrentPropertyInvalidAtComputedValueTime();
+                return 0_css_px;
+            }
+        } else {
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return 0_css_px;
+        }
     }
 
     if (!length) {

@@ -277,16 +277,14 @@ TEST_F(MediaSessionTest, DISABLED_OnlyOneHandler)
     listenForSessionHandlerMessages({ "play"_s, "pause"_s, "seekto"_s, "seekforward"_s, "seekbackward"_s, "previoustrack"_s, "nexttrack"_s });
     listenForEventMessages({ "play"_s, "pause"_s, "seeked"_s });
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED > 101500
     static Vector<MRMediaRemoteCommand> registeredCommands = { MRMediaRemoteCommandPlay };
     auto currentCommands = getSupportedCommands();
     for (MRCommandInfo *command in currentCommands.get()) {
         if (!command.enabled)
             continue;
-        
+
         ASSERT_TRUE(registeredCommands.contains(command.command));
     }
-#endif
 
     ASSERT_TRUE(sendMediaRemoteCommand(MRMediaRemoteCommandPlay));
     waitForSessionHandlerToBeCalled("play"_s);
@@ -322,16 +320,14 @@ TEST_F(MediaSessionTest, DISABLED_RemoteCommands)
     listenForSessionHandlerMessages({ "play"_s, "pause"_s, "seekto"_s, "seekforward"_s, "seekbackward"_s, "previoustrack"_s, "nexttrack"_s });
     listenForEventMessages({ "play"_s, "pause"_s, "seeked"_s });
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED > 101500
     static Vector<MRMediaRemoteCommand> registeredCommands = { MRMediaRemoteCommandPlay, MRMediaRemoteCommandPause, MRMediaRemoteCommandSeekToPlaybackPosition, MRMediaRemoteCommandSkipForward, MRMediaRemoteCommandSkipBackward, MRMediaRemoteCommandPreviousTrack, MRMediaRemoteCommandNextTrack };
     auto currentCommands = getSupportedCommands();
     for (MRCommandInfo *command in currentCommands.get()) {
         if (!command.enabled)
             continue;
-        
+
         ASSERT_TRUE(registeredCommands.contains(command.command));
     }
-#endif
 
     ASSERT_TRUE(sendMediaRemoteCommand(MRMediaRemoteCommandPlay));
     waitForSessionHandlerToBeCalled("play"_s);

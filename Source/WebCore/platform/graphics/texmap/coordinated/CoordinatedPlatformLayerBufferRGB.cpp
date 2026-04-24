@@ -28,7 +28,19 @@
 
 #if USE(COORDINATED_GRAPHICS)
 #include "BitmapTexture.h"
+#include "ColorMatrix.h"
+#include "PlatformDisplay.h"
 #include "TextureMapper.h"
+
+#if USE(SKIA)
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
+#include <skia/core/SkColorFilter.h>
+#include <skia/core/SkImage.h>
+#include <skia/gpu/ganesh/GrBackendSurface.h>
+#include <skia/gpu/ganesh/SkImageGanesh.h>
+#include <skia/gpu/ganesh/gl/GrGLBackendSurface.h>
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
+#endif
 
 namespace WebCore {
 
@@ -65,6 +77,40 @@ void CoordinatedPlatformLayerBufferRGB::paintToTextureMapper(TextureMapper& text
     else
         textureMapper.drawTexture(m_textureID, m_flags, targetRect, modelViewMatrix, opacity);
 }
+
+#if USE(SKIA)
+void CoordinatedPlatformLayerBufferRGB::paintToCanvas(SkCanvas& canvas, const FloatRect& targetRect, const SkPaint& paint)
+{
+    waitForContentsIfNeeded();
+
+    auto* grContext = PlatformDisplay::sharedDisplay().skiaGrContext();
+    GrGLTextureInfo externalTexture;
+    externalTexture.fTarget = GL_TEXTURE_2D;
+    externalTexture.fID = m_texture ? m_texture->id() : m_textureID;
+    externalTexture.fFormat = GL_RGBA8;
+    auto backendTexture = GrBackendTextures::MakeGL(m_size.width(), m_size.height(), skgpu::Mipmapped::kNo, externalTexture);
+    sk_sp<SkImage> image = SkImages::BorrowTextureFrom(grContext, backendTexture, kTopLeft_GrSurfaceOrigin, kRGBA_8888_SkColorType, kPremul_SkAlphaType, SkColorSpace::MakeSRGB());
+
+    auto imagePaint = paint;
+    if (m_texture && m_texture->colorConvertFlags().contains(TextureMapperFlags::ShouldConvertTextureBGRAToRGBA)) {
+        const auto matrix = swapRedBlueMatrix();
+        auto bgraFilter = SkColorFilters::Matrix(matrix.data().data());
+        if (auto* colorFilter = paint.getColorFilter())
+            imagePaint.setColorFilter(colorFilter->makeComposed(bgraFilter));
+        else
+            imagePaint.setColorFilter(bgraFilter);
+    }
+    bool shouldFlip = m_flags.contains(TextureMapperFlags::ShouldFlipTexture);
+    SkAutoCanvasRestore autoRestore(&canvas, shouldFlip);
+    if (shouldFlip) {
+        canvas.translate(0, targetRect.height());
+        canvas.scale(1, -1);
+    }
+    SkRect srcRect = SkRect::MakeWH(m_size.width(), m_size.height());
+    SkRect dstRect = SkRect::MakeXYWH(targetRect.x(), shouldFlip ? -targetRect.y() : targetRect.y(), targetRect.width(), targetRect.height());
+    canvas.drawImageRect(image, srcRect, dstRect, SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNone), &imagePaint, SkCanvas::kFast_SrcRectConstraint);
+}
+#endif
 
 } // namespace WebCore
 

@@ -26,10 +26,11 @@
 #include "config.h"
 #include "StyleWebKitBoxReflect.h"
 
+#include "CSSKeywordValue.h"
 #include "CSSReflectValue.h"
 #include "StyleBuilderChecking.h"
+#include "StyleKeyword+Serialization.h"
 #include "StyleLengthWrapper+CSSValueConversion.h"
-#include "StylePrimitiveKeyword+Serialization.h"
 #include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 #include "StylePrimitiveNumericTypes+CSSValueCreation.h"
 #include "StylePrimitiveNumericTypes+Serialization.h"
@@ -41,12 +42,14 @@ namespace Style {
 
 auto CSSValueConversion<WebkitBoxReflect>::operator()(BuilderState& state, const CSSValue& value) -> WebkitBoxReflect
 {
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        if (primitiveValue->valueID() == CSSValueNone)
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
+        case CSSValueNone:
             return CSS::Keyword::None { };
-
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return CSS::Keyword::None { };
+        default:
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::None { };
+        }
     }
 
     RefPtr reflectValue = requiredDowncast<CSSReflectValue>(state, value);

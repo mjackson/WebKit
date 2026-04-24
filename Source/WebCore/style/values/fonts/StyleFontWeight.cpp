@@ -26,6 +26,7 @@
 #include "config.h"
 #include "StyleFontWeight.h"
 
+#include "CSSKeywordValue.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "FontCascadeDescription.h"
 #include "RenderStyle+GettersInlines.h"
@@ -41,28 +42,27 @@ namespace Style {
 
 auto CSSValueConversion<FontWeight>::operator()(BuilderState& state, const CSSValue& value) -> FontWeight
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return CSS::Keyword::Normal { };
+    if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (auto valueID = keywordValue->valueID(); valueID) {
+        case CSSValueInvalid:
+        case CSSValueNormal:
+            return CSS::Keyword::Normal { };
+        case CSSValueBold:
+            return CSS::Keyword::Bold { };
+        case CSSValueBolder:
+            return FontCascadeDescription::bolderWeight(state.parentStyle().fontDescription().weight());
+        case CSSValueLighter:
+            return FontCascadeDescription::lighterWeight(state.parentStyle().fontDescription().weight());
+        default:
+            if (CSSPropertyParserHelpers::isSystemFontShorthand(valueID))
+                return SystemFontDatabase::singleton().systemFontShorthandWeight(CSSPropertyParserHelpers::lowerFontShorthand(valueID));
 
-    switch (auto valueID = primitiveValue->valueID(); valueID) {
-    case CSSValueInvalid:
-        return toStyleFromCSSValue<FontWeight::Number>(state, *primitiveValue);
-    case CSSValueNormal:
-        return CSS::Keyword::Normal { };
-    case CSSValueBold:
-        return CSS::Keyword::Bold { };
-    case CSSValueBolder:
-        return FontCascadeDescription::bolderWeight(state.parentStyle().fontDescription().weight());
-    case CSSValueLighter:
-        return FontCascadeDescription::lighterWeight(state.parentStyle().fontDescription().weight());
-    default:
-        if (CSSPropertyParserHelpers::isSystemFontShorthand(valueID))
-            return SystemFontDatabase::singleton().systemFontShorthandWeight(CSSPropertyParserHelpers::lowerFontShorthand(valueID));
-
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return CSS::Keyword::Normal { };
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::Normal { };
+        }
     }
+
+    return toStyleFromCSSValue<FontWeight::Number>(state, value);
 }
 
 // MARK: Blending

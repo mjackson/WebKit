@@ -71,7 +71,6 @@ set(wgslc_SOURCES
     WGSL.cpp
     WGSLEnums.cpp
     WGSLShaderModule.cpp
-    wgslc.cpp
 
     AST/ASTBinaryExpression.cpp
     AST/ASTBuilder.cpp
@@ -206,6 +205,23 @@ set(wgslc_PRIVATE_INCLUDE_DIRECTORIES
     ${CMAKE_CURRENT_SOURCE_DIR}/Metal)
 set(wgslc_DEPENDENCIES wgsl-types)
 
+# WGSLCore static library -- shared between wgslc and TestWGSL.
+add_library(WGSLCore STATIC ${wgslc_SOURCES})
+target_include_directories(WGSLCore PUBLIC
+    ${CMAKE_CURRENT_BINARY_DIR}/../../..
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/AST
+    ${CMAKE_CURRENT_SOURCE_DIR}/Metal)
+target_link_libraries(WGSLCore PUBLIC WebKit::WTF WebKit::bmalloc)
+add_dependencies(WGSLCore wgsl-types)
+
+if (DEVELOPER_MODE_CXX_FLAGS)
+    target_compile_options(WGSLCore PRIVATE ${DEVELOPER_MODE_CXX_FLAGS})
+endif ()
+
+# wgslc executable
+list(APPEND wgslc_SOURCES wgslc.cpp)
 WEBKIT_EXECUTABLE_DECLARE(wgslc)
 WEBKIT_EXECUTABLE(wgslc)
 

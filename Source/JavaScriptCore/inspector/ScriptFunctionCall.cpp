@@ -102,6 +102,8 @@ ScriptFunctionCall::ScriptFunctionCall(JSC::JSGlobalObject* globalObject, JSC::J
 {
 }
 
+ScriptFunctionCall::~ScriptFunctionCall() = default;
+
 Expected<JSValue, NakedPtr<Exception>> ScriptFunctionCall::call()
 {
     JSObject* thisObject = m_thisObject.get();

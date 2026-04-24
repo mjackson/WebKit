@@ -70,7 +70,7 @@ constexpr DecodedHTMLEntity::DecodedHTMLEntity(ConstructNotEnoughCharactersType)
 
 static constexpr DecodedHTMLEntity NODELETE makeEntity(char32_t character)
 {
-    if (character <= 0 || character > UCHAR_MAX_VALUE || U_IS_SURROGATE(character))
+    if (!character || character > UCHAR_MAX_VALUE || U_IS_SURROGATE(character))
         return { replacementCharacter };
     if ((character & ~0x1F) != 0x80) {
         if (U_IS_BMP(character)) {

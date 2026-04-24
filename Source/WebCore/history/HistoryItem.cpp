@@ -409,6 +409,15 @@ void HistoryItem::notifyChanged()
     m_client->historyItemChanged(*this);
 }
 
+void HistoryItem::setWasCreatedByJSWithoutUserInteraction(bool wasCreatedByJSWithoutUserInteraction)
+{
+    if (m_wasCreatedByJSWithoutUserInteraction == wasCreatedByJSWithoutUserInteraction)
+        return;
+
+    m_wasCreatedByJSWithoutUserInteraction = wasCreatedByJSWithoutUserInteraction;
+    notifyChanged();
+}
+
 #ifndef NDEBUG
 
 int HistoryItem::showTree() const

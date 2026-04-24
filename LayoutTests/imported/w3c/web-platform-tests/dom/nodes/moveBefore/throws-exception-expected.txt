@@ -1,6 +1,4 @@
 
 
-FAIL moveBefore() on a cross-document target node assert_throws_dom: moveBefore on a cross-document target node throws an exception function "() => {
-    connectedLocalParent.moveBefore(connectedCrossDocChild, null);
-  }" threw object "TypeError: connectedLocalParent.moveBefore is not a function. (In 'connectedLocalParent.moveBefore(connectedCrossDocChild, null)', 'connectedLocalParent.moveBefore' is undefined)" that is not a DOMException HIERARCHY_REQUEST_ERR: property "code" is equal to undefined, expected 3
+PASS moveBefore() on a cross-document target node
 

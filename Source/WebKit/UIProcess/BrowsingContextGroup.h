@@ -74,6 +74,8 @@ public:
     void addPage(WebPageProxy&);
     void addRemotePage(WebPageProxy&, Ref<RemotePageProxy>&&);
     void removePage(WebPageProxy&);
+    void closeRemotePagesForPage(WebPageProxy&);
+    bool hasMultiplePages() const;
     void forEachRemotePage(const WebPageProxy&, Function<void(RemotePageProxy&)>&&);
 
     RefPtr<RemotePageProxy> remotePageInProcess(const WebPageProxy&, const WebProcessProxy&);

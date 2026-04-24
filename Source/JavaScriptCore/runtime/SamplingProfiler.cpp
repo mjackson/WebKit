@@ -41,6 +41,7 @@
 #include "NativeCallee.h"
 #include "NativeCalleeRegistry.h"
 #include "NativeExecutable.h"
+#include "TopExceptionScope.h"
 #include "VM.h"
 #include "VMTrapsInlines.h"
 #include "WasmCallee.h"
@@ -585,7 +586,7 @@ void SamplingProfiler::processUnverifiedStackTraces()
             };
 
             if (calleeCell->type() != JSFunctionType) {
-                if (JSObject* object = jsDynamicCast<JSObject*>(calleeCell))
+                if (JSObject* object = dynamicDowncast<JSObject>(calleeCell))
                     addCallee(object);
 
                 if (!alreadyHasExecutable)
@@ -594,12 +595,12 @@ void SamplingProfiler::processUnverifiedStackTraces()
                 return;
             }
 
-            addCallee(jsCast<JSFunction*>(calleeCell));
+            addCallee(uncheckedDowncast<JSFunction>(calleeCell));
 
             if (alreadyHasExecutable)
                 return;
 
-            ExecutableBase* executable = jsCast<JSFunction*>(calleeCell)->executable();
+            ExecutableBase* executable = uncheckedDowncast<JSFunction>(calleeCell)->executable();
             if (!executable) {
                 setFallbackFrameType();
                 return;
@@ -1124,7 +1125,7 @@ Ref<JSON::Value> SamplingProfiler::stackTracesAsJSON()
         result->setString("category"_s, tierName(stackFrame));
         uint32_t flags = 0;
         if (stackFrame.frameType == SamplingProfiler::FrameType::Executable && stackFrame.executable) {
-            if (auto* executable = jsDynamicCast<FunctionExecutable*>(stackFrame.executable); executable && executable->isBuiltinFunction())
+            if (auto* executable = dynamicDowncast<FunctionExecutable>(stackFrame.executable); executable && executable->isBuiltinFunction())
                 flags = 1;
         }
         result->setDouble("flags"_s, flags);
@@ -1342,7 +1343,7 @@ void SamplingProfiler::reportTopBytecodes(PrintStream& out)
 
         tierCounts.add(tierName(frame), 0).iterator->value++;
         if (frame.frameType == SamplingProfiler::FrameType::Executable && frame.executable) {
-            if (auto* executable = jsDynamicCast<FunctionExecutable*>(frame.executable)) {
+            if (auto* executable = dynamicDowncast<FunctionExecutable>(frame.executable)) {
                 if (executable->isBuiltinFunction())
                     tierCounts.add(Tiers::builtin, 0).iterator->value++;
             }

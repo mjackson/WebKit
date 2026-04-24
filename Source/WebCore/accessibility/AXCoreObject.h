@@ -50,6 +50,7 @@
 #include <wtf/Platform.h>
 #include <wtf/ProcessID.h>
 #include <wtf/RefCounted.h>
+#include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/WallTime.h>
 #include <wtf/threads/BinarySemaphore.h>
@@ -106,6 +107,7 @@ class Path;
 class QualifiedName;
 class RenderObject;
 class ScrollView;
+class SharedBuffer;
 
 struct AccessibilitySearchCriteria;
 struct AccessibilityText;
@@ -126,6 +128,17 @@ enum class ClickHandlerFilter : bool {
 };
 
 enum class PreSortedObjectType : uint8_t { LiveRegion, WebArea };
+
+struct AXImageDataParameters {
+    static constexpr unsigned maxDimension = 2000;
+
+    unsigned resizeWidth { 0 };
+    unsigned resizeHeight { 0 };
+    unsigned left { 0 };
+    unsigned top { 0 };
+    unsigned width { 0 };
+    unsigned height { 0 };
+};
 
 enum class DateComponentsType : uint8_t;
 
@@ -747,6 +760,8 @@ public:
     virtual String brailleRoleDescription() const = 0;
     virtual String embeddedImageDescription() const = 0;
     virtual std::optional<AccessibilityChildrenVector> imageOverlayElements() = 0;
+    virtual FloatSize imageDataSize() const = 0;
+    virtual RefPtr<SharedBuffer> imageData(const AXImageDataParameters&) const = 0;
     virtual String extendedDescription() const = 0;
 
     bool NODELETE supportsActiveDescendant() const;
@@ -1161,7 +1176,7 @@ public:
         return shouldSetChildIndex;
     }
     unsigned indexInParent() const { return m_indexInParent; }
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     virtual void verifyChildrenIndexInParent() const = 0;
     void verifyChildrenIndexInParent(const AccessibilityChildrenVector&) const;
 #endif
@@ -1552,6 +1567,8 @@ inline bool AXCoreObject::emitsNewline() const
 
 namespace Accessibility {
 
+constexpr unsigned maxDescendantTraversalIterations = 100000;
+
 template<typename T, typename MatchFunctionT, typename StopFunctionT>
 T* crossFrameFindAncestor(const T& object, bool includeSelf, const MatchFunctionT& matches, const StopFunctionT& shouldStop)
 {
@@ -1639,11 +1656,36 @@ AXCoreObject* findUnignoredDescendant(T& object, bool includeSelf, const F& matc
     if (includeSelf && matches(object) && !object.isIgnored())
         return &object;
 
-    for (Ref child : object.childrenIncludingIgnored()) {
-        if (RefPtr descendant = findUnignoredDescendant(child.get(), /* includeSelf */ true, matches))
-            return descendant.unsafeGet();
+    Vector<Ref<AXCoreObject>> stack;
+    for (const auto& child : object.childrenIncludingIgnored())
+        stack.append(child);
+
+    unsigned iterationCount = 0;
+#if AX_ASSERTS_ENABLED
+    HashSet<Ref<AXCoreObject>> visited;
+#endif
+
+    RefPtr<AXCoreObject> result = nullptr;
+    while (!stack.isEmpty()) {
+        if (++iterationCount > maxDescendantTraversalIterations)
+            break;
+
+        Ref current = stack.takeLast();
+#if AX_ASSERTS_ENABLED
+        bool foundCycle = !visited.add(current.copyRef()).isNewEntry;
+        AX_ASSERT(!foundCycle);
+        if (foundCycle)
+            break;
+#endif
+        if (matches(current.get()) && !current->isIgnored()) {
+            result = current.ptr();
+            break;
+        }
+
+        for (const auto& child : current->childrenIncludingIgnored())
+            stack.append(child);
     }
-    return nullptr;
+    return result.unsafeGet();
 }
 
 template<typename T, typename F>
@@ -1672,8 +1714,30 @@ void enumerateDescendantsIncludingIgnored(T& object, bool includeSelf, const F& 
     if (includeSelf)
         lambda(object);
 
-    for (const auto& child : object.childrenIncludingIgnored())
-        enumerateDescendantsIncludingIgnored(child.get(), true, lambda);
+    unsigned iterationCount = 0;
+#if AX_ASSERTS_ENABLED
+    HashSet<Ref<AXCoreObject>> visited;
+#endif
+
+    Vector<Ref<AXCoreObject>> stack;
+    for (auto& child : object.childrenIncludingIgnored())
+        stack.append(child);
+
+    while (!stack.isEmpty()) {
+        if (++iterationCount > maxDescendantTraversalIterations)
+            break;
+
+        Ref current = stack.takeLast();
+#if AX_ASSERTS_ENABLED
+        bool foundCycle = !visited.add(current.copyRef()).isNewEntry;
+        AX_ASSERT(!foundCycle);
+        if (foundCycle)
+            break;
+#endif
+        lambda(current.get());
+        for (auto& child : current->childrenIncludingIgnored())
+            stack.append(child);
+    }
 }
 
 template<typename T, typename F>
@@ -1682,11 +1746,30 @@ void enumerateUnignoredDescendants(T& object, bool includeSelf, const F& lambda)
     if (includeSelf)
         lambda(object);
 
-    // We have a reference to unignored children here, so it's possible that it will change when enumerating the unignored
-    // descendants, so copying here ensures they don't change.
-    auto children = object.unignoredChildren();
-    for (const auto& child : children)
-        enumerateUnignoredDescendants(child.get(), true, lambda);
+    Vector<Ref<AXCoreObject>> stack;
+    for (const auto& child : object.unignoredChildren())
+        stack.append(child);
+
+    unsigned iterationCount = 0;
+#if AX_ASSERTS_ENABLED
+    HashSet<Ref<AXCoreObject>> visited;
+#endif
+
+    while (!stack.isEmpty()) {
+        if (++iterationCount > maxDescendantTraversalIterations)
+            break;
+
+        Ref current = stack.takeLast();
+#if AX_ASSERTS_ENABLED
+        bool foundCycle = !visited.add(current.copyRef()).isNewEntry;
+        AX_ASSERT(!foundCycle);
+        if (foundCycle)
+            break;
+#endif
+        lambda(current.get());
+        for (const auto& child : current->unignoredChildren())
+            stack.append(child);
+    }
 }
 
 template<typename U> inline void performFunctionOnMainThreadAndWait(U&& lambda)
@@ -1704,7 +1787,7 @@ template<typename U> inline void performFunctionOnMainThread(U&& lambda)
 }
 
 template<typename T = std::monostate>
-struct TimeoutSafeSemaphore : RefCounted<TimeoutSafeSemaphore<T>> {
+struct TimeoutSafeSemaphore : ThreadSafeRefCounted<TimeoutSafeSemaphore<T>> {
     // This struct is useful for passing in lambdas from one thread to another, as it is ref-counted,
     // meaning it won't be destroyed out from any thread involved even when a timeout happens
     // and one of the threads moves on (which would normally destroy the semaphore it had on
@@ -1727,6 +1810,7 @@ constexpr Seconds GeneralPropertyTimeout = 25_ms;
 constexpr Seconds VisibilityCheckTimeout = 50_ms;
 constexpr Seconds SpellCheckTimeout = 100_ms;
 constexpr Seconds InteractiveTimeout = 250_ms;
+constexpr Seconds ImageDataTimeout = 250_ms;
 
 template<typename U>
 inline DidTimeout performFunctionOnMainThreadAndWaitWithTimeout(U&& lambda, Seconds timeout)

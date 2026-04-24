@@ -249,6 +249,8 @@ void RenderTreeBuilder::destroy(RenderObject& renderer, CanCollapseAnonymousBloc
     tearDownSubTreeIfApplicable();
 
     auto delayDestroyRendererIfApplicable = [&] {
+        if (view().layoutContext().immediateRendererDestructionEnabledForTesting()) [[unlikely]]
+            return;
         CheckedRef rendererToDelete = *toDestroy;
         if (rendererToDelete->view().layoutContext().addToDetachedRendererList(WTF::move(toDestroy))) {
             rendererToDelete->willBeDestroyed();

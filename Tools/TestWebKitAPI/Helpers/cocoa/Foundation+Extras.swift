@@ -22,12 +22,17 @@
 // THE POSSIBILITY OF SUCH DAMAGE.
 
 import Foundation
-import struct Swift.String
 import struct Foundation.URL
+import struct Swift.String
 
-@available(macOS 15.0, iOS 18.0, *)
 extension RangeReplaceableCollection {
-    init<Failure>(
+    /// Asynchronously converts an AsyncSequence to a non-async Sequence.
+    ///
+    /// - Parameters:
+    ///   - sequence: The async sequence to convert.
+    ///   - isolation: The current isolation context.
+    /// - Throws: An error of type `Failure` if the async sequence throws.
+    public init<Failure>(
         _ sequence: some AsyncSequence<Element, Failure>,
         isolation: isolated (any Actor)? = #isolation
     ) async throws(Failure) where Failure: Error {
@@ -39,9 +44,11 @@ extension RangeReplaceableCollection {
     }
 }
 
-@available(macOS 15.0, iOS 18.0, *)
 extension AsyncSequence {
-    func wait(isolation: isolated (any Actor)? = #isolation) async throws(Failure) {
+    /// Waits for the current sequence to terminate or throw a failure.
+    ///
+    /// If the sequence is indefinite, this function will never return.
+    public func wait(isolation: isolated (any Actor)? = #isolation) async throws(Failure) {
         for try await _ in self {
         }
     }

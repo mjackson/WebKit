@@ -371,4 +371,35 @@ NS_ASSUME_NONNULL_END
 
 #endif // HAVE(VK_IMAGE_ANALYSIS)
 
-#endif // !PLATFORM(IOS_SIMULATOR) || !__has_feature(modules)
+#elif defined(__OBJC__)
+
+// iOS Simulator + modules: VisionKitCore.framework headers cannot be imported as modules.
+// Provide minimal declarations so that dependent headers (e.g. ImageAnalysisUtilities.h) compile.
+// Full VisionKit functionality is unavailable in this platform/mode combination.
+
+#import <Foundation/Foundation.h> // NOLINT
+
+#if HAVE(VK_IMAGE_ANALYSIS)
+
+typedef NS_OPTIONS(NSUInteger, VKAnalysisTypes) {
+    VKAnalysisTypeText                 = 1 << 0,
+    VKAnalysisTypeMachineReadableCode  = 1 << 2,
+    VKAnalysisTypeAppClip              = 1 << 3,
+    VKAnalysisTypeVisualSearch         = 1 << 4,
+    VKAnalysisTypeImageSegmentation    = 1 << 5,
+};
+
+@class VKImageAnalysis;
+@class VKImageAnalyzer;
+@class VKImageAnalyzerRequest;
+@class VKCImageAnalysis;
+@class VKCImageAnalyzer;
+@class VKCImageAnalyzerRequest;
+
+#if PLATFORM(IOS_FAMILY)
+@class VKCImageAnalysisInteraction;
+#endif
+
+#endif // HAVE(VK_IMAGE_ANALYSIS)
+
+#endif // !PLATFORM(IOS_SIMULATOR) || !__has_feature(modules) || HAVE(WEBGPU_IOS_SIMULATOR_OPENGL_SUPPORT)

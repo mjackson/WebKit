@@ -43,6 +43,6 @@ class TextChecker(object):
         self._tab_checker = TabChecker(file_path, handle_style_error)
         self._inclusive_language_checker = InclusiveLanguageChecker(handle_style_error)
 
-    def check(self, lines):
+    def check(self, lines, line_numbers=None):
         self._tab_checker.check(lines)
         self._inclusive_language_checker.check(lines)

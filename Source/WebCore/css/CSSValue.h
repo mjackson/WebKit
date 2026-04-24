@@ -106,6 +106,7 @@ public:
     bool isGridLineNamesValue() const { return m_classType == ClassType::GridLineNames; }
     bool isGridLineValue() const { return m_classType == ClassType::GridLineValue; }
     bool isGridTemplateAreasValue() const { return m_classType == ClassType::GridTemplateAreas; }
+    bool isKeywordValue() const { return m_classType == ClassType::Keyword; }
     bool isImageSetOptionValue() const { return m_classType == ClassType::ImageSetOption; }
     bool isImageSetValue() const { return m_classType == ClassType::ImageSet; }
     bool isImageValue() const { return m_classType == ClassType::Image; }
@@ -185,10 +186,6 @@ public:
     inline const Quad& quad() const; // CSSValueQuad
     inline const Rect& rect() const; // CSSSValueRect
 
-    // FIXME: Should these be named isIdent and ident instead?
-    inline bool isValueID() const;
-    inline CSSValueID valueID() const;
-
     bool customMayDependOnBaseURL() const { return false; }
     IterationStatus customVisitChildren(NOESCAPE const Function<IterationStatus(CSSValue&)>&) const { return IterationStatus::Continue; }
 
@@ -241,6 +238,7 @@ protected:
         GridLineNames,
         GridLineValue,
         GridTemplateAreas,
+        Keyword,
         OffsetRotate,
         Path,
         ShorthandSubstitution,

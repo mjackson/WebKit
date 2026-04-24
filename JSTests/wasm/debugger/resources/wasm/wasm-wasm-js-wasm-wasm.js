@@ -90,6 +90,7 @@ var instance = new WebAssembly.Instance(module, { js: { mid_callback } });
 test_c_func = instance.exports.test_c;
 let test_a = instance.exports.test_a;
 
+print("DEBUGGER_READY");
 let iteration = 0;
 for (;;) {
     test_a();

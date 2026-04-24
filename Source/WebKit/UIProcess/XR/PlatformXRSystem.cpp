@@ -442,8 +442,15 @@ PlatformXRCoordinator* PlatformXRSystem::xrCoordinator()
 {
     return nullptr;
 }
-
 #endif // !USE(APPLE_INTERNAL_SDK) && !USE(OPENXR)
+
+#if ENABLE(WEBXR_LAYERS) && PLATFORM(VISION)
+void PlatformXRSystem::createQuadLayer(IPC::Connection&, WebCore::IntSize, PlatformXR::LayerLayout, CompletionHandler<void(std::optional<PlatformXR::LayerInfo>)>&& reply)
+{
+    ASSERT_NOT_REACHED_WITH_MESSAGE("VisionOS does not support Quad layers yet");
+    reply(std::nullopt);
+}
+#endif // ENABLE(WEBXR_LAYERS) && PLATFORM(VISION)
 
 } // namespace WebKit
 

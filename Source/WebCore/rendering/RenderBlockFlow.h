@@ -163,6 +163,7 @@ protected:
 
 public:
     MarginValues marginValuesForChild(RenderBox& child) const;
+    void dirtyForLayoutFromPercentageHeightDescendant(RenderBox&);
 
     class MarginInfo {
     public:

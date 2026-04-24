@@ -81,8 +81,8 @@ private:
     std::optional<Error> NODELETE seek();
     std::optional<Error> NODELETE adjustAndValidateRangeBounds();
     bool consumeData(std::span<const uint8_t>);
-    bool readDataAsync(const BlobDataItem&);
-    void readFileAsync(const BlobDataItem&);
+    bool readDataAsync(const BlobDataItem&, DataSegment&);
+    void readFileAsync(const BlobDataItem&, BlobDataFileReference&);
     void dispatchDidReceiveResponse();
     void doStart();
 

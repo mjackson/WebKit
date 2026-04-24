@@ -27,6 +27,8 @@
 
 #include <wtf/Platform.h>
 
+#if !PLATFORM(COCOA) || !__has_feature(modules)
+
 #include "Helpers/Test.h"
 #include <WebCore/Color.h>
 #include <WebCore/FloatRect.h>
@@ -116,3 +118,5 @@ inline std::ostream& operator<<(std::ostream& os, const WebCore::FloatSegment& v
 }
 
 }
+
+#endif // !PLATFORM(COCOA) || !__has_feature(modules)

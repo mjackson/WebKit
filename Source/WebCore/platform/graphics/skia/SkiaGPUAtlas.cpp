@@ -66,35 +66,14 @@ RefPtr<SkiaGPUAtlas> SkiaGPUAtlas::create(const SkiaImageAtlasLayout& layout, Re
 
     RELEASE_ASSERT(atlasSize == atlasTexture->size());
 
-    ASSERT_IMPLIES(atlasTexture->usesDeferredTextureBinding(), !atlasTexture->id());
-
-    GrBackendTexture backendTexture;
-    if (!atlasTexture->usesDeferredTextureBinding()) {
-        backendTexture = atlasTexture->createSkiaBackendTexture();
-        if (!backendTexture.isValid())
-            return nullptr;
-    }
+    auto backendTexture = atlasTexture->createSkiaBackendTexture();
+    if (!backendTexture.isValid())
+        return nullptr;
 
     return adoptRef(*new SkiaGPUAtlas(WTF::move(atlasTexture), WTF::move(backendTexture), layout, atlasSize));
 }
 
-bool SkiaGPUAtlas::ensureBackendTexture()
-{
-    if (!m_atlasTexture->usesDeferredTextureBinding())
-        return m_backendTexture.isValid();
-
-#if USE(GBM)
-    if (!m_atlasTexture->id()) {
-        if (!m_atlasTexture->bindDMABufToTexture())
-            return false;
-        m_backendTexture = m_atlasTexture->createSkiaBackendTexture();
-    }
-#endif
-
-    return m_backendTexture.isValid();
-}
-
-bool SkiaGPUAtlas::uploadImages()
+void SkiaGPUAtlas::uploadImages()
 {
     Vector<uint8_t> conversionBuffer;
 
@@ -130,7 +109,7 @@ bool SkiaGPUAtlas::uploadImages()
                     gpuBuffer->updateContents(*writeScope, pixels->first, entry.atlasRect, pixels->second);
             }
 
-            return true;
+            return;
         }
     }
 #endif
@@ -140,8 +119,6 @@ bool SkiaGPUAtlas::uploadImages()
         if (auto pixels = pixelDataInSRGB(entry.rasterImage))
             m_atlasTexture->updateContents(pixels->first, entry.atlasRect, IntPoint::zero(), pixels->second, PixelFormat::BGRA8);
     }
-
-    return true;
 }
 
 } // namespace WebCore

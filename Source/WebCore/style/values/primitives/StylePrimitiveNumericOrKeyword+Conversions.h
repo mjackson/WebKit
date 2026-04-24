@@ -30,7 +30,7 @@
 namespace WebCore {
 namespace Style {
 
-template<auto R, typename V, CSS::PrimitiveKeyword... Ks> struct ToCSS<PrimitiveNumericOrKeyword<LengthPercentage<R, V>, Ks...>> {
+template<auto R, typename V, CSS::SpecificKeyword... Ks> struct ToCSS<PrimitiveNumericOrKeyword<LengthPercentage<R, V>, Ks...>> {
     using Result = CSS::PrimitiveNumericOrKeyword<CSS::LengthPercentage<R, V>, Ks...>;
 
     auto operator()(const PrimitiveNumericOrKeyword<LengthPercentage<R, V>, Ks...>& value, const RenderStyle& style) -> Result
@@ -59,7 +59,7 @@ template<auto R, typename V, CSS::PrimitiveKeyword... Ks> struct ToCSS<Primitive
     }
 };
 
-template<CSS::Numeric N, CSS::PrimitiveKeyword... Ks> struct ToStyle<CSS::PrimitiveNumericOrKeyword<N, Ks...>> {
+template<CSS::Numeric N, CSS::SpecificKeyword... Ks> struct ToStyle<CSS::PrimitiveNumericOrKeyword<N, Ks...>> {
     using From = CSS::PrimitiveNumericOrKeyword<N, Ks...>;
     using To = typename ToStyleMapping<From>::type;
 

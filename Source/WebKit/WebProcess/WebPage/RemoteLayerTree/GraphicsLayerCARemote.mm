@@ -228,7 +228,7 @@ RefPtr<WebCore::GraphicsLayerAsyncContentsDisplayDelegate> GraphicsLayerCARemote
 
 bool GraphicsLayerCARemote::shouldDirectlyCompositeImageBuffer(ImageBuffer* image) const
 {
-    return !!dynamicDowncast<ImageBufferBackendHandleSharing>(image->toBackendSharing());
+    return is<ImageBufferBackendHandleSharing>(image->toBackendSharing());
 }
 
 class ImageBufferFlusherFence final : public WebCore::PlatformCALayerDelegatedContentsFence {

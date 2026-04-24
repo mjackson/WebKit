@@ -25,7 +25,9 @@
 
 #pragma once
 
+#include "Error.h"
 #include "ISO8601.h"
+#include "JSGlobalObject.h"
 #include "LazyProperty.h"
 #include "TemporalCalendar.h"
 

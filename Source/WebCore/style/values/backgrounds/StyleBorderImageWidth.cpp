@@ -28,6 +28,7 @@
 
 #include "AnimationUtilities.h"
 #include "CSSBorderImageWidthValue.h"
+#include "CSSKeywordValueInlines.h"
 #include "CSSPrimitiveValue.h"
 #include "StyleBuilderChecking.h"
 #include "StyleLengthWrapper+Blending.h"
@@ -45,12 +46,12 @@ using namespace CSS::Literals;
 
 static BorderImageWidthValue convertBorderImageWidthValue(BuilderState& state, const CSSValue& value)
 {
+    if (isValueID(value, CSSValueAuto))
+        return CSS::Keyword::Auto { };
+
     RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
     if (!primitiveValue)
         return BorderImageWidthValue { 1_css_number };
-
-    if (primitiveValue->valueID() == CSSValueAuto)
-        return CSS::Keyword::Auto { };
 
     if (primitiveValue->isNumber())
         return toStyleFromCSSValue<BorderImageWidthValue::Number>(state, *primitiveValue);

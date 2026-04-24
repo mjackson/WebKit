@@ -37,6 +37,7 @@
 #include "WebDriverBidiProtocolObjects.h"
 #include "WebPageProxy.h"
 #include <wtf/HashSet.h>
+#include <wtf/TZoneMallocInlines.h>
 #include <wtf/UUID.h>
 
 namespace WebKit {

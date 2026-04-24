@@ -31,6 +31,7 @@
 #import "BoundaryPointInlines.h"
 #import "CSSColorValue.h"
 #import "CSSComputedStyleDeclaration.h"
+#import "CSSKeywordValueInlines.h"
 #import "CSSPrimitiveValue.h"
 #import "CSSSerializationContext.h"
 #import "CachedImage.h"
@@ -474,23 +475,12 @@ RefPtr<CSSValue> HTMLConverterCaches::inlineStylePropertyForElement(Element& ele
     return properties->getPropertyCSSValue(propertyId);
 }
 
-static bool stringFromCSSValue(CSSValue& value, String& result)
+static std::optional<String> stringFromCSSValue(CSSValue& value)
 {
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        // FIXME: Use isStringType(CSSUnitType)?
-        auto primitiveType = primitiveValue->primitiveType();
-        if (primitiveType == CSSUnitType::CSS_VALUE_ID) {
-            auto stringValue = value.cssText(CSS::defaultSerializationContext());
-            if (stringValue.length()) {
-                result = stringValue;
-                return true;
-            }
-        }
-    } else if (value.isValueList() || value.isAppleColorFilterValue() || value.isFilterValue() || value.isTextShadowPropertyValue() || value.isBoxShadowPropertyValue() || value.isURL() || value.isPropertyIdentifierValue() || value.isStringValue() || value.isAttrValue()) {
-        result = value.cssText(CSS::defaultSerializationContext());
-        return true;
-    }
-    return false;
+    if (value.isValueList() || value.isAppleColorFilterValue() || value.isFilterValue() || value.isTextShadowPropertyValue() || value.isBoxShadowPropertyValue() || value.isURL() || value.isKeywordValue() || value.isPropertyIdentifierValue() || value.isStringValue() || value.isAttrValue())
+        return value.cssText(CSS::defaultSerializationContext());
+
+    return std::nullopt;
 }
 
 String HTMLConverterCaches::propertyValueForNode(Node& node, CSSPropertyID propertyId)
@@ -506,17 +496,15 @@ String HTMLConverterCaches::propertyValueForNode(Node& node, CSSPropertyID prope
 
     bool inherit = false;
     if (RefPtr value = computedStylePropertyForElement(*element, propertyId)) {
-        String result;
-        if (stringFromCSSValue(*value, result))
-            return result;
+        if (auto result = stringFromCSSValue(*value))
+            return *result;
     }
 
     if (RefPtr value = inlineStylePropertyForElement(*element, propertyId)) {
-        String result;
         if (isValueID(*value, CSSValueInherit))
             inherit = true;
-        else if (stringFromCSSValue(*value, result))
-            return result;
+        else if (auto result = stringFromCSSValue(*value))
+            return *result;
     }
 
     switch (propertyId) {
@@ -1298,12 +1286,14 @@ BOOL HTMLConverter::_addAttachmentForElement(Element& element, NSURL *url, BOOL 
         NSDictionary *attrs;
 
 #if ENABLE(MULTI_REPRESENTATION_HEIC)
-        if (RetainPtr data = [fileWrapper regularFileContents]) {
-            RefPtr imageElement = dynamicDowncast<HTMLImageElement>(element);
-            if (imageElement && imageElement->isMultiRepresentationHEIC())
-                attachment = adoptNS([[PlatformNSAdaptiveImageGlyph alloc] initWithImageContent:data.get()]);
-            if (attachment)
-                attributeName = NSAdaptiveImageGlyphAttributeName;
+        if ([fileWrapper isRegularFile]) {
+            if (RetainPtr data = [fileWrapper regularFileContents]) {
+                RefPtr imageElement = dynamicDowncast<HTMLImageElement>(element);
+                if (imageElement && imageElement->isMultiRepresentationHEIC())
+                    attachment = adoptNS([[PlatformNSAdaptiveImageGlyph alloc] initWithImageContent:data.get()]);
+                if (attachment)
+                    attributeName = NSAdaptiveImageGlyphAttributeName;
+            }
         }
 #endif
 

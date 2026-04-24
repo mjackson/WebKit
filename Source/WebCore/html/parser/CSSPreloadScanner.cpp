@@ -48,10 +48,11 @@ void CSSPreloadScanner::reset()
     m_ruleValue.clear();
 }
 
-void CSSPreloadScanner::scan(const HTMLToken::DataVector& data, PreloadRequestStream& requests)
+void CSSPreloadScanner::scan(const HTMLToken::DataVector& data, PreloadRequestStream& requests, const URL& predictedBaseElementURL)
 {
     ASSERT(!m_requests);
     SetForScope change(m_requests, &requests);
+    m_predictedBaseElementURL = predictedBaseElementURL;
 
     for (char16_t c : data) {
         if (m_state == DoneParsingImportRules)
@@ -241,9 +242,8 @@ void CSSPreloadScanner::emitRule()
         String url = parseCSSStringOrURL(m_ruleValue.span());
         StringView conditions(m_ruleConditions.span());
         if (!url.isEmpty() && hasValidImportConditions(conditions)) {
-            URL baseElementURL; // FIXME: This should be passed in from the HTMLPreloadScanner via scan(): without it we will get relative URLs wrong.
             // FIXME: Should this be including the charset in the preload request?
-            m_requests->append(makeUnique<PreloadRequest>("css"_s, url, baseElementURL, CachedResource::Type::CSSStyleSheet, String(), ScriptType::Classic, ReferrerPolicy::EmptyString));
+            m_requests->append(makeUnique<PreloadRequest>("css"_s, url, m_predictedBaseElementURL, CachedResource::Type::CSSStyleSheet, String(), ScriptType::Classic, ReferrerPolicy::EmptyString));
         }
         m_state = Initial;
     } else if (equalLettersIgnoringASCIICase(rule, "charset"_s))

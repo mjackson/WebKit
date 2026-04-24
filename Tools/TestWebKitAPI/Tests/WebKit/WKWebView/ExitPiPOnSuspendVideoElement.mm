@@ -26,7 +26,7 @@
 #include "config.h"
 
 // We can enable the test for old iOS versions after <rdar://problem/63572534> is fixed.
-#if ENABLE(VIDEO_PRESENTATION_MODE) && (PLATFORM(MAC) || (PLATFORM(IOS_FAMILY) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 140000))
+#if ENABLE(VIDEO_PRESENTATION_MODE) && (PLATFORM(MAC) || PLATFORM(IOS_FAMILY))
 
 #import "Helpers/DeprecatedGlobalValues.h"
 #import "Helpers/PlatformUtilities.h"

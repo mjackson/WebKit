@@ -27,7 +27,7 @@
 #include "StyleVerticalAlign.h"
 
 #include "AnimationUtilities.h"
-#include "CSSPrimitiveValue.h"
+#include "CSSKeywordValue.h"
 #include "StyleBuilderChecking.h"
 #include "StyleLengthWrapper+Blending.h"
 #include "StyleLengthWrapper+CSSValueConversion.h"
@@ -39,12 +39,8 @@ namespace Style {
 
 auto CSSValueConversion<VerticalAlign>::operator()(BuilderState& state, const CSSValue& value) -> VerticalAlign
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return CSS::Keyword::Baseline { };
-
-    if (primitiveValue->isValueID()) {
-        switch (primitiveValue->valueID()) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (keywordValue->valueID()) {
         case CSSValueBaseline:
             return CSS::Keyword::Baseline { };
         case CSSValueSub:
@@ -71,7 +67,7 @@ auto CSSValueConversion<VerticalAlign>::operator()(BuilderState& state, const CS
         return CSS::Keyword::Baseline { };
     }
 
-    return toStyleFromCSSValue<VerticalAlignLength>(state, *primitiveValue);
+    return toStyleFromCSSValue<VerticalAlignLength>(state, value);
 }
 
 // MARK: - Blending

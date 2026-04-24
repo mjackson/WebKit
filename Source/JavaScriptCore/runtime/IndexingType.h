@@ -211,16 +211,7 @@ inline unsigned arrayIndexFromIndexingType(IndexingType indexingType)
     return (indexingType & IndexingShapeMask) >> IndexingShapeShift;
 }
 
-inline IndexingType indexingTypeForValue(JSValue value)
-{
-    if (value.isInt32())
-        return Int32Shape;
-
-    if (value.isNumber() && value.asNumber() == value.asNumber() && Options::allowDoubleShape())
-        return DoubleShape;
-
-    return ContiguousShape;
-}
+inline IndexingType indexingTypeForValue(JSValue); // Defined in IndexingTypeInlines.h
 
 // Return an indexing type that can handle all of the elements of both indexing types.
 IndexingType leastUpperBoundOfIndexingTypes(IndexingType, IndexingType);

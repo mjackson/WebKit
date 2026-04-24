@@ -21,14 +21,14 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-// FIXME: Remove !SWIFT_WEBKIT_TOOLCHAIN once Swift toolchain is fixed (see webkit.org/b/307344).
-#if ENABLE_SWIFTUI && canImport(Testing) && compiler(>=6.2) && !SWIFT_WEBKIT_TOOLCHAIN
+#if ENABLE_SWIFTUI
 
 import SwiftUI
 import Observation
 import Testing
 @_spi(Private) @_spi(Testing) import WebKit
 @_spi(Private) import _WebKit_SwiftUI
+private import TestWebKitAPILibrary
 
 // MARK: Supporting test types
 
@@ -136,4 +136,4 @@ struct WebPageTests {
     }
 }
 
-#endif
+#endif // ENABLE_SWIFTUI

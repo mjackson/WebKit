@@ -32,7 +32,7 @@
 
 namespace WebKit {
 
-NativeWebMouseEvent::NativeWebMouseEvent(NSEvent *event, NSEvent *lastPressureEvent, NSView *view, WebMouseEventInputSource inputSource, WebCore::PlatformMouseEvent::CanInitiateDrag canInitiateDrag)
+NativeWebMouseEvent::NativeWebMouseEvent(NSEvent *event, NSEvent *lastPressureEvent, NSView *view, WebEventInputSource inputSource, WebCore::PlatformMouseEvent::CanInitiateDrag canInitiateDrag)
     : WebMouseEvent(WebEventFactory::createWebMouseEvent(event, lastPressureEvent, view, inputSource, canInitiateDrag))
     , m_nativeEvent(event)
 {

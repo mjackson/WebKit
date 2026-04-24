@@ -64,7 +64,7 @@ static PlatformXR::Device::FeatureList parseFeatures(const Vector<JSC::JSValue>&
 void WebXRTest::simulateDeviceConnection(ScriptExecutionContext& context, const FakeXRDeviceInit& init, WebFakeXRDevicePromise&& promise)
 {
     // https://immersive-web.github.io/webxr-test-api/#dom-xrtest-simulatedeviceconnection
-    context.postTask([this, protectedThis = Ref { *this }, init, promise = WTF::move(promise)] (ScriptExecutionContext& context) mutable {
+    context.postTask([this, protectedThis = protect(*this), init, promise = WTF::move(promise)] (ScriptExecutionContext& context) mutable {
         auto device = WebFakeXRDevice::create();
         auto& simulatedDevice = device->simulatedXRDevice();
 

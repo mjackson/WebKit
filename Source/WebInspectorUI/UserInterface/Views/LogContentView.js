@@ -255,7 +255,7 @@ WI.LogContentView = class LogContentView extends WI.ContentView
         console.assert(messageView.element instanceof Element);
         this._filterMessageElements([messageView.element]);
 
-        if (!this._isMessageVisible(messageView.element)) {
+        if (this._isMessageFilteredOut(messageView.element)) {
             this._immediatelyHiddenMessages.add(messageView);
             this._showHiddenMessagesBannerIfNeeded();
         }
@@ -791,14 +791,22 @@ WI.LogContentView = class LogContentView extends WI.ContentView
         }
     }
 
+    _isMessageFilteredOut(messageElement) {
+
+        if (messageElement.classList.contains(WI.LogContentView.FilteredOutStyleClassName))
+            return true;
+
+        if (this.hasPerformedSearch && messageElement.classList.contains(WI.LogContentView.FilteredOutBySearchStyleClassName))
+            return true;
+
+        return false;
+    }
+
     _isMessageVisible(message)
     {
-        var node = message;
+        let node = message;
 
-        if (node.classList.contains(WI.LogContentView.FilteredOutStyleClassName))
-            return false;
-
-        if (this.hasPerformedSearch && node.classList.contains(WI.LogContentView.FilteredOutBySearchStyleClassName))
+        if (this._isMessageFilteredOut(node))
             return false;
 
         if (message.classList.contains("console-group-title"))

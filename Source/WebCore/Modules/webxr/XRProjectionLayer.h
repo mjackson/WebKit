@@ -63,8 +63,6 @@ public:
     WebXRRigidTransform* NODELETE deltaPose() const;
     void setDeltaPose(WebXRRigidTransform*);
 
-    const XRProjectionLayerInit& init() const { return m_init; }
-
     // WebXRLayer
     void startFrame(PlatformXR::FrameData&) final;
     PlatformXR::DeviceLayer endFrame() final;
@@ -78,7 +76,6 @@ private:
     bool isXRProjectionLayer() const final { return true; }
     Vector<IntRect> computeViewports();
 
-    XRProjectionLayerInit m_init;
     bool m_ignoreDepthValues { false };
 #if ENABLE(WEBGPU)
     std::optional<PlatformXR::FrameData::LayerData> m_layerData;

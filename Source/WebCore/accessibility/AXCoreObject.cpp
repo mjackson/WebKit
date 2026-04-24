@@ -589,7 +589,7 @@ AXCoreObject* AXCoreObject::previousSiblingUnignored() const
     return nullptr;
 }
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
 void AXCoreObject::verifyChildrenIndexInParent(const AccessibilityChildrenVector& children) const
 {
     if (!shouldSetChildIndexInParent()) {

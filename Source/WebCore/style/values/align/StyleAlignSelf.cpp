@@ -27,6 +27,7 @@
 #include "StyleAlignSelf.h"
 
 #include "AnchorPositionEvaluator.h"
+#include "CSSKeywordValue.h"
 #include "RenderStyle.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleAlignItems.h"
@@ -96,8 +97,8 @@ auto CSSValueConversion<AlignSelf>::operator()(BuilderState& state, const CSSVal
         return position;
     };
 
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (applyPositionTryFallbackTactics(state, primitiveValue->valueID())) {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        switch (applyPositionTryFallbackTactics(state, keywordValue->valueID())) {
         // auto
         case CSSValueAuto:
             return CSS::Keyword::Auto { };
@@ -133,7 +134,7 @@ auto CSSValueConversion<AlignSelf>::operator()(BuilderState& state, const CSSVal
         }
     }
 
-    auto pair = requiredPairDowncast<CSSPrimitiveValue>(state, value);
+    auto pair = requiredPairDowncast<CSSKeywordValue>(state, value);
     if (!pair)
         return CSS::Keyword::Auto { };
 

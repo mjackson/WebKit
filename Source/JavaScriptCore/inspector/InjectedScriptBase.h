@@ -81,7 +81,7 @@ private:
     void checkAsyncCallResult(RefPtr<JSON::Value> result, const AsyncCallCallback&);
 
     String m_name;
-    JSC::JSGlobalObject* m_globalObject { nullptr };
+    SUPPRESS_FORWARD_DECL_MEMBER JSC::JSGlobalObject* m_globalObject { nullptr };
     JSC::Strong<JSC::JSObject> m_injectedScriptObject;
     WeakPtr<InspectorEnvironment> m_environment;
 };

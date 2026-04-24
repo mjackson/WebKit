@@ -52,6 +52,7 @@ struct Float4x4;
 struct ImageAsset;
 struct MeshDescriptor;
 struct TextureDescriptor;
+struct TypedResourceId;
 struct UpdateMaterialDescriptor;
 struct UpdateMeshDescriptor;
 struct UpdateTextureDescriptor;
@@ -85,9 +86,11 @@ public:
     virtual void setStageMode(WebCore::StageModeOperation) { }
     virtual void setRotation(float, float = 0.f, float = 0.f) { }
     virtual void play(bool) = 0;
-    virtual void setEnvironmentMap(const WebModel::ImageAsset&) = 0;
+    virtual void setEnvironmentMap(const WebModel::UpdateTextureDescriptor&) = 0;
+    virtual void updateContentsHeadroom(float) = 0;
 
     virtual void render(uint32_t textureIndex, Function<void(bool)>&&) = 0;
+    virtual void processRemovals(Vector<WebModel::TypedResourceId>&& meshRemovals, Vector<WebModel::TypedResourceId>&& materialRemovals, Vector<WebModel::TypedResourceId>&& textureRemovals, CompletionHandler<void(bool)>&&) = 0;
 #if PLATFORM(COCOA)
     virtual std::optional<WebModel::Float4x4> entityTransform() const = 0;
     virtual Vector<MachSendRight> ioSurfaceHandles() { return { }; }

@@ -68,7 +68,7 @@ Ref<AbortSignal> AbortSignal::timeout(ScriptExecutionContext& context, uint64_t 
     auto action = [signal](ScriptExecutionContext& context) mutable {
         signal->setHasActiveTimeoutTimer(false);
 
-        auto* globalObject = JSC::jsCast<JSDOMGlobalObject*>(context.globalObject());
+        auto* globalObject = uncheckedDowncast<JSDOMGlobalObject>(context.globalObject());
         if (!globalObject)
             return;
 
@@ -142,7 +142,7 @@ void AbortSignal::signalAbort(JSC::JSValue reason)
     if (!context)
         return;
 
-    auto* globalObject = JSC::jsCast<JSDOMGlobalObject*>(context->globalObject());
+    auto* globalObject = uncheckedDowncast<JSDOMGlobalObject>(context->globalObject());
     if (!globalObject)
         return;
 
@@ -176,10 +176,8 @@ void AbortSignal::markAborted(JSC::JSGlobalObject& globalObject, JSC::JSValue re
     m_aborted = true;
     m_sourceSignals.clear();
 
-    // FIXME: This code is wrong: we should emit a write-barrier. Otherwise, GC can collect it.
-    // https://bugs.webkit.org/show_bug.cgi?id=236353
     ASSERT(reason);
-    m_reason.setWeakly(globalObject, reason);
+    m_reason.set(globalObject, wrapper(), reason);
 }
 
 void AbortSignal::runAbortSteps()

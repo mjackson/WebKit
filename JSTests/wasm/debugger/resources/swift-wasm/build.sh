@@ -19,7 +19,7 @@ else
     exit 1
 fi
 
-SDK=swift-6.2.3-RELEASE_wasm
+SDK=swift-6.3.1-RELEASE_wasm
 
 if [ -z "$1" ]; then
     echo "Usage: $0 <test-folder>"

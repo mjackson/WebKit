@@ -293,7 +293,12 @@ static LayoutRect selectionRectForTextBox(const InlineIterator::TextBox& textBox
             if ((isLastTextBox && !isCaretWithinLastTextBox) || (!isLastTextBox && !isCaretWithinTextBox))
                 return { };
         } else {
-            bool isRangeWithinTextBox = (rangeStart >= textBox.start() && rangeStart <= textBox.end());
+            bool isRangeWithinTextBox = (rangeStart >= textBox.start() && rangeStart < textBox.end());
+            // When rangeStart == textBox.end(), the range starts _after_ this text box.
+            // However that position is not necessarily at the start of the next line. If there's trimmed content between,
+            // we should consider it a trailing content on the currernt line.
+            if (!isRangeWithinTextBox && rangeStart == textBox.end())
+                isRangeWithinTextBox = textBox.nextTextBox() && textBox.nextTextBox()->start() > textBox.end();
             if (!isRangeWithinTextBox)
                 return { };
         }

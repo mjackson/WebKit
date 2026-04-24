@@ -6,10 +6,28 @@ macro(WEBKIT_COMPUTE_SOURCES _framework)
     set(_derivedSourcesPath ${${_framework}_DERIVED_SOURCES_DIR})
 
     foreach (_sourcesListFile IN LISTS ${_framework}_UNIFIED_SOURCE_LIST_FILES)
-      configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${_sourcesListFile}" "${_derivedSourcesPath}/${_sourcesListFile}" COPYONLY)
+      if (${_framework}_UNIFIED_SOURCE_EXCLUDES)
+          file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/${_sourcesListFile}" _allLines)
+          set(_filtered "")
+          foreach (_line IN LISTS _allLines)
+              set(_skip FALSE)
+              foreach (_pattern IN LISTS ${_framework}_UNIFIED_SOURCE_EXCLUDES)
+                  if (_line MATCHES "${_pattern}")
+                      set(_skip TRUE)
+                      break ()
+                  endif ()
+              endforeach ()
+              if (NOT _skip)
+                  string(APPEND _filtered "${_line}\n")
+              endif ()
+          endforeach ()
+          file(WRITE "${_derivedSourcesPath}/${_sourcesListFile}" "${_filtered}")
+      else ()
+          configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${_sourcesListFile}" "${_derivedSourcesPath}/${_sourcesListFile}" COPYONLY)
+      endif ()
       message(STATUS "Using source list file: ${_sourcesListFile}")
 
-      list(APPEND _sourceListFileTruePaths "${CMAKE_CURRENT_SOURCE_DIR}/${_sourcesListFile}")
+      list(APPEND _sourceListFileTruePaths "${_derivedSourcesPath}/${_sourcesListFile}")
     endforeach ()
 
     set(gusb_args --derived-sources-path ${_derivedSourcesPath} --source-tree-path ${CMAKE_CURRENT_SOURCE_DIR})
@@ -105,6 +123,45 @@ macro(WEBKIT_ADD_SOURCE_DEPENDENCIES _source _deps)
     unset(_tmp)
 endmacro()
 
+# Wrapper around target_precompile_headers() with two workarounds:
+#
+# 1. OBJCXX is excluded from the PCH because WebKit targets mix ARC and
+#    non-ARC .mm sources in the same target. CMake generates one PCH per
+#    language per target, so ARC sources would get a non-ARC PCH (or vice
+#    versa), producing:
+#      "ARC was disabled in precompiled file ... but is currently enabled"
+#    OBJCXX sources still get the prefix header via a plain -include flag.
+#
+# 2. Targets with Swift sources fall back to -include for ALL languages.
+#    CMake's Swift linker rule includes the .pch in the link inputs,
+#    producing "unexpected input file: ...pch". Using -include avoids
+#    generating a .pch file entirely.
+#
+# On ports where OBJC/OBJCXX are not enabled languages the OBJC/OBJCXX
+# clauses are no-ops.
+# FIXME: We should refactor this so that sources differentiate by language
+# so we use PCHs consistently rather than just prefix headers.
+macro(ADD_WEBKIT_PREFIX_HEADERS _target _header)
+    get_target_property(_sources ${_target} SOURCES)
+    set(_has_swift FALSE)
+    foreach (_src IN LISTS _sources)
+        if (_src MATCHES "\\.swift$")
+            set(_has_swift TRUE)
+            break ()
+        endif ()
+    endforeach ()
+
+    if (_has_swift)
+        target_compile_options(${_target} PRIVATE
+            "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-include;${CMAKE_CURRENT_SOURCE_DIR}/${_header}>")
+    else ()
+        target_precompile_headers(${_target} PRIVATE
+            "$<$<COMPILE_LANGUAGE:C,CXX,OBJC>:${CMAKE_CURRENT_SOURCE_DIR}/${_header}>")
+        target_compile_options(${_target} PRIVATE
+            "$<$<COMPILE_LANGUAGE:OBJCXX>:-include;${CMAKE_CURRENT_SOURCE_DIR}/${_header}>")
+    endif ()
+endmacro()
+
 macro(WEBKIT_FRAMEWORK_DECLARE _target)
     # add_library() without any source files triggers CMake warning
     # Addition of dummy "source" file does not result in any changes in generated build.ninja file
@@ -117,9 +174,9 @@ macro(WEBKIT_LIBRARY_DECLARE _target)
     add_library(${_target} ${${_target}_LIBRARY_TYPE} "${CMAKE_BINARY_DIR}/cmakeconfig.h")
 
     if (${_target}_LIBRARY_TYPE STREQUAL "OBJECT")
-        list(APPEND ${_target}_INTERFACE_LIBRARIES $<TARGET_OBJECTS:${_target}>)
+        list(APPEND ${_target}_INTERFACE_LIBRARIES "$<FILTER:$<TARGET_OBJECTS:${_target}>,EXCLUDE,\\.(g|p)ch$>")
         if (TARGET ${_target}_c)
-            list(APPEND ${_target}_INTERFACE_LIBRARIES $<TARGET_OBJECTS:${_target}_c>)
+            list(APPEND ${_target}_INTERFACE_LIBRARIES "$<FILTER:$<TARGET_OBJECTS:${_target}_c>,EXCLUDE,\\.(g|p)ch$>")
         endif ()
     endif ()
 endmacro()
@@ -135,7 +192,8 @@ macro(_WEBKIT_TARGET_SETUP _target _logical_name)
     target_include_directories(${_target} PRIVATE "$<BUILD_INTERFACE:${${_logical_name}_PRIVATE_INCLUDE_DIRECTORIES}>")
 
     if (DEVELOPER_MODE_CXX_FLAGS)
-        target_compile_options(${_target} PRIVATE ${DEVELOPER_MODE_CXX_FLAGS})
+        target_compile_options(${_target} PRIVATE $<$<NOT:$<COMPILE_LANGUAGE:Swift>>:${DEVELOPER_MODE_CXX_FLAGS}>)
+        target_compile_options(${_target} PRIVATE $<$<COMPILE_LANGUAGE:Swift>:-warnings-as-errors>)
     endif ()
 
     target_compile_definitions(${_target} PRIVATE "BUILDING_${_logical_name}")
@@ -294,9 +352,9 @@ macro(_WEBKIT_FRAMEWORK_LINK_FRAMEWORK _target_name)
             )
             list(APPEND ${_target_name}_PRIVATE_LIBRARIES WebKit::${framework})
             if (${framework}_LIBRARY_TYPE STREQUAL "OBJECT")
-                list(APPEND ${_target_name}_PRIVATE_LIBRARIES $<TARGET_OBJECTS:${framework}>)
+                list(APPEND ${_target_name}_PRIVATE_LIBRARIES "$<FILTER:$<TARGET_OBJECTS:${framework}>,EXCLUDE,\\.(g|p)ch$>")
                 if (TARGET ${framework}_c)
-                    list(APPEND ${_target_name}_PRIVATE_LIBRARIES $<TARGET_OBJECTS:${framework}_c>)
+                    list(APPEND ${_target_name}_PRIVATE_LIBRARIES "$<FILTER:$<TARGET_OBJECTS:${framework}_c>,EXCLUDE,\\.(g|p)ch$>")
                 endif ()
             endif ()
         else ()
@@ -319,9 +377,9 @@ macro(_WEBKIT_TARGET_LINK_FRAMEWORK _target)
             # The WebKit:: alias targets do not propagate OBJECT libraries so the
             # underyling library's objects are explicitly added to link properly
             if (TARGET ${framework} AND ${framework}_LIBRARY_TYPE STREQUAL "OBJECT")
-                list(APPEND ${_target}_PRIVATE_LIBRARIES $<TARGET_OBJECTS:${framework}>)
+                list(APPEND ${_target}_PRIVATE_LIBRARIES "$<FILTER:$<TARGET_OBJECTS:${framework}>,EXCLUDE,\\.(g|p)ch$>")
                 if (TARGET ${framework}_c)
-                    list(APPEND ${_target}_PRIVATE_LIBRARIES $<TARGET_OBJECTS:${framework}_c>)
+                    list(APPEND ${_target}_PRIVATE_LIBRARIES "$<FILTER:$<TARGET_OBJECTS:${framework}_c>,EXCLUDE,\\.(g|p)ch$>")
                 endif ()
             endif ()
         endif ()
@@ -563,6 +621,13 @@ macro(WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER _target _module_n
         # of the modulemap and hader for WebKit's internal "APIs" which we
         # make available from C++ to Swift.
         list(APPEND _swift_options "-cxx-interoperability-mode=default" "-Xcc" "-std=c++2b" "-explicit-module-build" "-enable-upcoming-feature" "InternalImportsByDefault" "-Xcc" "-I${_interop_module_path}")
+        # swiftc spawns swift-plugin-server under sandbox-exec to expand macros
+        # (e.g. SwiftUI @State). When the cmake build itself runs inside an
+        # outer sandbox that disallows nested sandbox_apply, macro expansion
+        # fails with "external macro implementation type ... could not be
+        # found". -disable-sandbox skips the inner sandbox; the macros are
+        # WebKit's own, so the isolation it provides isn't load-bearing here.
+        list(APPEND _swift_options "-disable-sandbox")
         # We'll use these options both for mainstream cmake invocations of swiftc (here)
         # and for our own invocation to output an interoperability .h file (later)
         list(TRANSFORM _swift_options PREPEND "$<$<COMPILE_LANGUAGE:Swift>:" OUTPUT_VARIABLE _swift_only_options)

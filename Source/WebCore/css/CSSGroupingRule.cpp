@@ -36,6 +36,7 @@
 #include "CSSStyleSheet.h"
 #include "StylePropertiesInlines.h"
 #include "StyleRule.h"
+#include "StyleSheetContents.h"
 #include <wtf/text/StringBuilder.h>
 
 namespace WebCore {

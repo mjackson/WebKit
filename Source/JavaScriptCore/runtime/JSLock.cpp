@@ -52,7 +52,7 @@ JSLockHolder::JSLockHolder(VM* vm)
 JSLockHolder::JSLockHolder(VM& vm)
     : m_vm(&vm)
 {
-    m_vm->apiLock().lock();
+    protect(m_vm->apiLock())->lock();
 }
 
 JSLockHolder::~JSLockHolder()
@@ -329,12 +329,12 @@ void JSLock::willReleaseLock()
 
 void JSLock::lock(JSGlobalObject* globalObject)
 {
-    globalObject->vm().apiLock().lock();
+    protect(globalObject->vm().apiLock())->lock();
 }
 
 void JSLock::unlock(JSGlobalObject* globalObject)
 {
-    globalObject->vm().apiLock().unlock();
+    protect(globalObject->vm().apiLock())->unlock();
 }
 
 // This function returns the number of locks that were dropped.
@@ -393,8 +393,8 @@ JSLock::DropAllLocks::DropAllLocks(VM* vm)
     // the JSLock before getting here. Its goal is to release the lock if it is held. So,
     // if the lock isn't already held, there's nothing to do, and that's fine.
     // See https://bugs.webkit.org/show_bug.cgi?id=139654#c11.
-    RELEASE_ASSERT(!m_vm->apiLock().currentThreadIsHoldingLock() || !m_vm->isCollectorBusyOnCurrentThread(), m_vm->apiLock().currentThreadIsHoldingLock(), m_vm->isCollectorBusyOnCurrentThread());
-    m_droppedLockCount = m_vm->apiLock().dropAllLocks(this);
+    RELEASE_ASSERT(!m_vm->currentThreadIsHoldingAPILock() || !m_vm->isCollectorBusyOnCurrentThread(), m_vm->currentThreadIsHoldingAPILock(), m_vm->isCollectorBusyOnCurrentThread());
+    m_droppedLockCount = protect(m_vm->apiLock())->dropAllLocks(this);
 }
 
 JSLock::DropAllLocks::DropAllLocks(JSGlobalObject* globalObject)
@@ -411,7 +411,7 @@ JSLock::DropAllLocks::~DropAllLocks()
 {
     if (!m_vm)
         return;
-    m_vm->apiLock().grabAllLocks(this, m_droppedLockCount);
+    protect(m_vm->apiLock())->grabAllLocks(this, m_droppedLockCount);
 }
 
 } // namespace JSC

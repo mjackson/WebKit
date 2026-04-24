@@ -79,7 +79,10 @@ inline float FontCascade::tabWidth(const Font& font, const TabSize& tabSize, flo
     if (!baseTabWidth)
         result = letterSpacing();
     else {
-        result = baseTabWidth - fmodf(position, baseTabWidth);
+        auto remainder = fmodf(position, baseTabWidth);
+        if (remainder < 0)
+            remainder += baseTabWidth;
+        result = baseTabWidth - remainder;
         if (result < font.spaceWidth() / 2)
             result += baseTabWidth;
     }

@@ -41,7 +41,7 @@ namespace WebCore {
 
 class AnimationEventBase;
 class CSSAnimation;
-class CSSKeywordValue;
+class CSSOMKeywordValue;
 class CSSTransition;
 class StyleOriginatedAnimation;
 class WebAnimation;

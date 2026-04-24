@@ -66,6 +66,11 @@ uint32_t XRProjectionLayerImpl::colorTextureArrayLength() const
 #endif
 }
 
+bool XRProjectionLayerImpl::allColorTexturesAreBound() const
+{
+    return false;
+}
+
 bool XRProjectionLayerImpl::ignoreDepthValues() const
 {
     return false;

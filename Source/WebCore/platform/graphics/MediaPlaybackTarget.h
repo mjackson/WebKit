@@ -46,6 +46,8 @@ public:
     virtual String deviceName() const = 0;
     virtual bool supportsRemoteVideoPlayback() const = 0;
 
+    virtual bool operator==(const MediaPlaybackTarget& other) const { return this == &other; }
+
 protected:
     MediaPlaybackTarget(Type type)
         : m_type { type }

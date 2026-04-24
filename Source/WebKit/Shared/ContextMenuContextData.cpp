@@ -178,7 +178,7 @@ ContextMenuContextData::ContextMenuContextData(WebCore::ContextMenuContext::Type
 #if ENABLE(MEDIA_CONTROLS_CONTEXT_MENUS)
     , std::optional<WebCore::HTMLMediaElementIdentifier> mediaElementIdentifier
 #endif
-    , std::optional<WebMouseEventInputSource> inputSource
+    , std::optional<WebEventInputSource> inputSource
 )
     : m_type(type)
     , m_menuLocation(WTF::move(menuLocation))

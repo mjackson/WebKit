@@ -87,6 +87,8 @@ private:
     void endFrame(PlatformXR::DeviceLayer&) final;
 #endif
 
+    bool allColorTexturesAreBound() const final { RELEASE_ASSERT_NOT_REACHED(); return false; }
+
     template<typename T>
     [[nodiscard]] IPC::Error send(T&& message)
     {

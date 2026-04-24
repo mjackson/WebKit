@@ -27,8 +27,10 @@
 
 #include "ExceptionExpectation.h"
 #include "ExceptionHelpers.h"
-#include "JSCJSValueInlines.h"
+#include "JSBigInt.h"
+#include "JSCJSValue.h"
 #include "JSObject.h"
+#include "JSString.h"
 #include "VMTrapsInlines.h"
 
 namespace JSC {

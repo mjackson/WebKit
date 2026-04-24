@@ -25,7 +25,7 @@
 
 #import "config.h"
 
-#if !PLATFORM(IOS_FAMILY_SIMULATOR) && !(PLATFORM(MAC) && __MAC_OS_X_VERSION_MAX_ALLOWED < 101304)
+#if !PLATFORM(IOS_FAMILY_SIMULATOR)
 
 #import "Helpers/PlatformUtilities.h"
 #import "Helpers/cocoa/TestWKWebView.h"

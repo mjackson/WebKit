@@ -98,9 +98,19 @@ void MeshImpl::play(bool play)
     m_backing->play(play);
 }
 
-void MeshImpl::setEnvironmentMap(const WebModel::ImageAsset& imageAsset)
+void MeshImpl::setEnvironmentMap(const WebModel::UpdateTextureDescriptor& imageAsset)
 {
     m_backing->setEnvironmentMap(imageAsset);
+}
+
+void MeshImpl::updateContentsHeadroom(float headroom)
+{
+#if HAVE(SUPPORT_HDR_DISPLAY) && PLATFORM(COCOA)
+    for (auto& renderBuffer : m_renderBuffers)
+        renderBuffer->setContentEDRHeadroom(headroom);
+#else
+    UNUSED_PARAM(headroom);
+#endif
 }
 
 #if PLATFORM(COCOA)
@@ -117,6 +127,11 @@ void MeshImpl::updateRenderBuffers(WebModel::ResizeMeshDescriptor&& descriptor)
     m_renderBuffers = WTF::move(descriptor.renderBuffers);
 }
 #endif
+
+void MeshImpl::processRemovals(Vector<WebModel::TypedResourceId>&& meshRemovals, Vector<WebModel::TypedResourceId>&& materialRemovals, Vector<WebModel::TypedResourceId>&& textureRemovals, CompletionHandler<void(bool)>&& completion)
+{
+    m_backing->processRemovals(WTF::move(meshRemovals), WTF::move(materialRemovals), WTF::move(textureRemovals), WTF::move(completion));
+}
 
 }
 

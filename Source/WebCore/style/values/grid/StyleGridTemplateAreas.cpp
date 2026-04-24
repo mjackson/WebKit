@@ -26,6 +26,7 @@
 #include "StyleGridTemplateAreas.h"
 
 #include "CSSGridTemplateAreasValue.h"
+#include "CSSKeywordValueInlines.h"
 #include "StyleBuilderChecking.h"
 #include "StyleGridTrackSizingDirection.h"
 #include <algorithm>

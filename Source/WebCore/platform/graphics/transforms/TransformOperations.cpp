@@ -75,6 +75,18 @@ bool TransformOperations::containsNonInvertibleMatrix() const
 
 TransformOperations blend(const TransformOperations& from, const TransformOperations& to, const BlendingContext& context)
 {
+    if (context.compositeOperation == CompositeOperation::Add) {
+        ASSERT(context.progress == 1.0);
+
+        Vector<Ref<TransformOperation>> operations;
+        operations.reserveInitialCapacity(from.size() + to.size());
+        for (auto& fromOperation : from)
+            operations.append(fromOperation);
+        for (auto& toOperation : to)
+            operations.append(toOperation);
+        return TransformOperations { WTF::move(operations) };
+    }
+
     bool shouldFallBackToDiscreteInterpolation = from.containsNonInvertibleMatrix() || to.containsNonInvertibleMatrix();
 
     auto createBlendedMatrixOperationFromOperationsSuffix = [&](unsigned start) -> Ref<TransformOperation> {

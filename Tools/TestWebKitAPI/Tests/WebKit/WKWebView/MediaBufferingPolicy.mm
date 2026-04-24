@@ -68,11 +68,7 @@ static void setWebViewVisible(TestWKWebView* webView, BOOL isVisible)
     TestWebKitAPI::Util::run(&stateChanged);
 }
 
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 150000
-TEST(WebKit, DISABLED_MediaBufferingPolicy)
-#else
 TEST(WebKit, MediaBufferingPolicy)
-#endif
 {
     RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
@@ -110,11 +106,7 @@ TEST(WebKit, MediaBufferingPolicy)
     waitUntilBufferingPolicyIsEqualTo(webView.get(), "Default");
 }
 
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 150000
-TEST(WebKit, DISABLED_MediaBufferingPolicyWhenSuspendedOrHidden)
-#else
 TEST(WebKit, MediaBufferingPolicyWhenSuspendedOrHidden)
-#endif
 {
     RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));

@@ -1067,7 +1067,7 @@ JS_BINDING_IDLS := \
     $(WebCore)/css/StyleSheetList.idl \
     $(WebCore)/css/typedom/StylePropertyMap.idl \
     $(WebCore)/css/typedom/StylePropertyMapReadOnly.idl \
-	$(WebCore)/css/typedom/CSSKeywordValue.idl \
+	$(WebCore)/css/typedom/CSSOMKeywordValue.idl \
     $(WebCore)/css/typedom/CSSStyleImageValue.idl \
     $(WebCore)/css/typedom/CSSNumericValue.idl \
     $(WebCore)/css/typedom/CSSStyleValue.idl \
@@ -2688,10 +2688,12 @@ $(IDL_INTERMEDIATE_PATTERNS) : $(PREPROCESS_IDLS_SCRIPTS) $(IDL_ATTRIBUTES_FILE)
 vpath %.idl $(ADDITIONAL_BINDING_IDLS_PATHS) $(WebCore)/bindings/scripts
 
 # -------------------------------------------------
-JS_DOM_HEADERS_PATTERNS = $(subst .h,%h,$(JS_DOM_HEADERS))
-JS_DOM_IMPLEMENTATIONS_PATTERNS = $(subst .cpp,%cpp,$(JS_DOM_IMPLEMENTATIONS))
+# Use a stamp file so that make checks dependencies only once for all JS
+# bindings, instead of evaluating ~3,646 pattern targets individually against
+# ~1,823 IDL prerequisites (which causes O(n*m) stat calls and ~15s overhead).
+JS_BINDINGS_STAMP = .js-bindings-stamp
 
-$(JS_DOM_HEADERS_PATTERNS) $(JS_DOM_IMPLEMENTATIONS_PATTERNS): $(JS_BINDING_IDLS) $(JS_BINDINGS_SCRIPTS) \
+$(JS_BINDINGS_STAMP): $(JS_BINDING_IDLS) $(JS_BINDINGS_SCRIPTS) \
         $(IDL_ATTRIBUTES_FILE) $(IDL_INTERMEDIATE_FILES) \
         $(FEATURE_AND_PLATFORM_FLAGS_RESPONSE_FILE) \
         | $(IDL_FILE_NAMES_LIST)
@@ -2704,6 +2706,9 @@ $(JS_DOM_HEADERS_PATTERNS) $(JS_DOM_IMPLEMENTATIONS_PATTERNS): $(JS_BINDING_IDLS
 		--generator JS \
 		$(addprefix --generatorDependency ,$(JS_BINDINGS_SCRIPTS) $(WEB_PREFERENCES_INPUT_FILES)) \
 		--exclude EventListener.idl
+	touch $(JS_BINDINGS_STAMP)
+
+$(JS_DOM_HEADERS) $(JS_DOM_IMPLEMENTATIONS): $(JS_BINDINGS_STAMP)
 # -------------------------------------------------
 
 # WebCore JS Builtins

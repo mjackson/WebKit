@@ -37,6 +37,7 @@
 #import <wtf/WeakPtr.h>
 
 namespace WebCore {
+struct AXImageDataParameters;
 struct AccessibilitySearchCriteria;
 class AccessibilityObject;
 class AXIsolatedObject;
@@ -142,3 +143,7 @@ extern std::optional<WebCore::SimpleRange> makeDOMRange(WebCore::Document*, NSRa
 #endif
 
 @end
+
+namespace WebCore {
+std::optional<AXImageDataParameters> imageDataParametersFromDictionary(NSDictionary *);
+}

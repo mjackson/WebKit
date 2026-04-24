@@ -35,7 +35,10 @@
 #include "WebProcess.h"
 #include <WebCore/CoordinatedPlatformLayer.h>
 #include <WebCore/Damage.h>
+#include <WebCore/Page.h>
 #include <WebCore/PlatformDisplay.h>
+#include <WebCore/Settings.h>
+#include <WebCore/SkiaCompositingLayer.h>
 #include <WebCore/TextureMapperLayer.h>
 #include <WebCore/TransformationMatrix.h>
 #include <wtf/SetForScope.h>
@@ -66,7 +69,8 @@ Ref<ThreadedCompositor> ThreadedCompositor::create(WebPage& webPage, LayerTreeHo
 ThreadedCompositor::ThreadedCompositor(WebPage& webPage, LayerTreeHost& layerTreeHost, CoordinatedSceneState& sceneState)
     : m_workQueue(WorkQueue::create("org.webkit.ThreadedCompositor"_s))
     , m_layerTreeHost(&layerTreeHost)
-    , m_surface(AcceleratedSurface::create(webPage, [this] { frameComplete(); }))
+    , m_useSkia(webPage.corePage()->settings().useSkiaForComposition())
+    , m_surface(AcceleratedSurface::create(webPage, [this] { frameComplete(); }, AcceleratedSurface::RenderingPurpose::Composited, m_useSkia))
     , m_sceneState(&sceneState)
     , m_flipY(m_surface->shouldPaintMirrored())
     , m_renderTimer(m_workQueue->runLoop(), "ThreadedCompositor::RenderTimer"_s, this, &ThreadedCompositor::renderLayerTree)
@@ -93,13 +97,25 @@ ThreadedCompositor::ThreadedCompositor(WebPage& webPage, LayerTreeHost& layerTre
         // a plain C cast expression in this one instance works in all cases.
         static_assert(sizeof(GLNativeWindowType) <= sizeof(uint64_t), "GLNativeWindowType must not be longer than 64 bits.");
         auto nativeSurfaceHandle = (GLNativeWindowType)m_surface->window();
+        if (m_useSkia && !nativeSurfaceHandle) {
+            // When using Skia for composition, use the thread-local SkiaGLContext from sharedDisplay()
+            // instead of creating a separate GLContext. This avoids expensive context switching between
+            // the compositor's context and Skia's context during paintToSkiaCanvas().
+            if (auto* context = PlatformDisplay::sharedDisplay().skiaGLContext()) {
+                context->makeContextCurrent();
+                glGetIntegerv(GL_MAX_TEXTURE_SIZE, &m_maxTextureSize);
+            }
+            return;
+        }
+
         m_context = GLContext::create(PlatformDisplay::sharedDisplay(), nativeSurfaceHandle);
         if (m_context && m_context->makeContextCurrent()) {
             if (!nativeSurfaceHandle)
                 m_flipY = !m_flipY;
             glGetIntegerv(GL_MAX_TEXTURE_SIZE, &m_maxTextureSize);
 
-            m_textureMapper = TextureMapper::create();
+            if (!m_useSkia)
+                m_textureMapper = TextureMapper::create();
         }
     });
 }
@@ -120,12 +136,12 @@ void ThreadedCompositor::invalidate()
         Locker locker { m_state.lock };
         stopRenderTimer();
         m_state.didCompositeRenderingUpdateFunction = nullptr;
-        m_state.state = State::Idle;
+        m_state.state = State::Invalidated;
     }
 
     m_didCompositeRunLoopObserver->invalidate();
     m_workQueue->dispatchSync([this] {
-        if (!m_context || !m_context->makeContextCurrent())
+        if (!m_useSkia && (!m_context || !m_context->makeContextCurrent()))
             return;
 
         // Update the scene at this point ensures the layers state are correctly propagated.
@@ -192,7 +208,7 @@ void ThreadedCompositor::resume()
 bool ThreadedCompositor::isActive() const
 {
     Locker locker { m_state.lock };
-    return m_state.state != State::Idle;
+    return m_state.state != State::Idle && m_state.state != State::Invalidated;
 }
 
 void ThreadedCompositor::backgroundColorDidChange()
@@ -257,12 +273,21 @@ void ThreadedCompositor::flushCompositingState(const OptionSet<CompositionReason
         ASSERT(!reasons.contains(CompositionReason::RenderingUpdate) || !m_state.isWaitingForTiles);
     }
 #endif
-    m_sceneState->rootLayer().flushCompositingState(reasons);
+
+    m_sceneState->rootLayer().flushCompositingState(reasons, m_useSkia);
     for (auto& layer : m_sceneState->committedLayers())
-        layer->flushCompositingState(reasons);
+        layer->flushCompositingState(reasons, m_useSkia);
 }
 
 void ThreadedCompositor::paintToCurrentGLContext(const TransformationMatrix& matrix, const IntSize& size, const OptionSet<CompositionReason>& reasons)
+{
+    if (m_useSkia)
+        paintToSkiaCanvas(matrix, size, reasons);
+    else
+        paintToTextureMapper(matrix, size, reasons);
+}
+
+void ThreadedCompositor::paintToTextureMapper(const TransformationMatrix& matrix, const IntSize& size, const OptionSet<CompositionReason>& reasons)
 {
     FloatRect clipRect(FloatPoint { }, size);
     TextureMapperLayer& currentRootLayer = m_sceneState->rootLayer().ensureTarget();
@@ -330,6 +355,53 @@ void ThreadedCompositor::paintToCurrentGLContext(const TransformationMatrix& mat
         requestComposition(CompositionReason::Animation);
 }
 
+void ThreadedCompositor::paintToSkiaCanvas(const TransformationMatrix& matrix, const IntSize& size, const OptionSet<CompositionReason>& reasons)
+{
+    auto* canvas = m_surface->canvas();
+    if (!canvas)
+        return;
+
+    auto& rootLayer = m_sceneState->rootLayer().ensureSkiaTarget();
+    rootLayer.setTransform(matrix);
+
+    // We only need context switching here for the old API (indicated by m_context != nullptr).
+    auto& display = PlatformDisplay::sharedDisplay();
+    if (m_context)
+        display.skiaGLContext()->makeContextCurrent();
+
+    m_surface->clear(reasons);
+
+    canvas->save();
+
+    std::optional<Damage> frameDamage;
+#if ENABLE(DAMAGE_TRACKING)
+    if (m_damage.flags)
+        frameDamage = Damage(size, m_damage.flags->contains(DamagePropagationFlags::Unified) ? Damage::Mode::BoundingBox : Damage::Mode::Rectangles);
+#endif
+
+    bool sceneHasRunningAnimations = rootLayer.paint(*canvas, frameDamage);
+    canvas->restore();
+
+#if ENABLE(DAMAGE_TRACKING)
+    if (frameDamage) {
+        if (m_damage.shouldNotifyFrameDamageForTesting && m_layerTreeHost)
+            m_layerTreeHost->notifyFrameDamageForTesting(frameDamage->regionForTesting());
+
+        if (!frameDamage->isEmpty())
+            m_surface->setFrameDamage(WTF::move(*frameDamage));
+    }
+#endif
+
+    if (auto* surface = canvas->getSurface())
+        display.skiaGrContext()->flushAndSubmit(surface, GrSyncCpu::kNo);
+
+    if (m_context)
+        m_context->makeContextCurrent();
+
+    if (sceneHasRunningAnimations)
+        requestComposition(CompositionReason::Animation);
+}
+
 #if HAVE(OS_SIGNPOST) || USE(SYSPROF_CAPTURE)
 static String reasonsToString(const OptionSet<CompositionReason>& reasons)
 {
@@ -359,6 +431,9 @@ void ThreadedCompositor::renderLayerTree()
     {
         Locker locker { m_state.lock };
 
+        if (m_state.state == State::Invalidated)
+            return;
+
         // The timer has been stopped.
         if (!m_state.isRenderTimerActive)
             return;
@@ -377,7 +452,7 @@ void ThreadedCompositor::renderLayerTree()
         m_state.state = State::InProgress;
     }
 
-    if (!m_context || !m_context->makeContextCurrent())
+    if (!m_useSkia && (!m_context || !m_context->makeContextCurrent()))
         return;
 
     // Retrieve the scene attributes in a thread-safe manner.
@@ -417,7 +492,8 @@ void ThreadedCompositor::renderLayerTree()
 
     WTFEmitSignpost(this, DidRenderFrame, "reasons: %s", reasonsToString(reasons).ascii().data());
 
-    m_context->swapBuffers();
+    if (m_context)
+        m_context->swapBuffers();
 
     m_surface->didRenderFrame();
     m_surface->sendFrame();
@@ -458,6 +534,8 @@ ASCIILiteral ThreadedCompositor::stateToString(ThreadedCompositor::State state)
         return "InProgress"_s;
     case State::ScheduledWhileInProgress:
         return "ScheduledWhileInProgress"_s;
+    case State::Invalidated:
+        return "Invalidated"_s;
     }
     RELEASE_ASSERT_NOT_REACHED();
 }
@@ -481,6 +559,7 @@ void ThreadedCompositor::scheduleUpdateLocked()
         m_state.state = State::ScheduledWhileInProgress;
         break;
     case State::ScheduledWhileInProgress:
+    case State::Invalidated:
         break;
     }
 }
@@ -495,6 +574,7 @@ void ThreadedCompositor::frameComplete()
     switch (m_state.state) {
     case State::Idle:
     case State::Scheduled:
+    case State::Invalidated:
         break;
     case State::InProgress:
         if (m_state.reasons.contains(CompositionReason::RenderingUpdate) && m_state.isWaitingForTiles)

@@ -402,8 +402,10 @@ auto CSSValueConversion<Color>::operator()(BuilderState& builderState, const CSS
     if (RefPtr color = dynamicDowncast<CSSColorValue>(value))
         return toStyle(color->color(), builderState, forVisitedLink);
 
-    if (CSS::isColorKeyword(value.valueID()))
-        return toStyle(CSS::Color { CSS::KeywordColor { value.valueID() } }, builderState, forVisitedLink);
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        if (auto valueID = keywordValue->valueID(); CSS::isColorKeyword(valueID))
+            return toStyle(CSS::Color { CSS::KeywordColor { valueID } }, builderState, forVisitedLink);
+    }
 
     builderState.setCurrentPropertyInvalidAtComputedValueTime();
     return Color { WebCore::Color { } };

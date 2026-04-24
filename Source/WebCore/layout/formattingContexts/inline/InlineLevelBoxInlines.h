@@ -26,7 +26,7 @@
 
 #pragma once
 
-#include "CSSPrimitiveKeywordList.h"
+#include "CSSKeywordList.h"
 #include "FontCascadeInlines.h"
 #include "InlineLevelBox.h"
 #include "LayoutBoxInlines.h"
@@ -38,7 +38,7 @@ namespace Layout {
 template<typename PreferredLineHeightFunctor> InlineLevelBox::VerticalAlignment toInlineBoxLevelVerticalAlign(const Style::VerticalAlign& verticalAlign, NOESCAPE PreferredLineHeightFunctor&& preferredLineHeightFunctor)
 {
     return WTF::switchOn(verticalAlign,
-        [](CSS::PrimitiveKeyword auto const& keyword) -> InlineLevelBox::VerticalAlignment {
+        [](CSS::SpecificKeyword auto const& keyword) -> InlineLevelBox::VerticalAlignment {
             return keyword;
         },
         [&](const Style::VerticalAlign::Length& length) -> InlineLevelBox::VerticalAlignment {

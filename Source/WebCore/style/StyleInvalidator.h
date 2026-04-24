@@ -97,6 +97,7 @@ private:
     RuleInformation m_ruleInformation;
 
     bool m_dirtiesAllStyle { false };
+    size_t m_elementTraversalCount { 0 };
 };
 
 }

@@ -3260,6 +3260,215 @@ void testVectorMulLow()
     test(SIMDLane::i64x2, SIMDSignMode::Unsigned);
 }
 
+void testVectorRelaxedMinMax()
+{
+    auto test = [&](SIMDLane lane, B3::Opcode opcode) {
+        alignas(16) v128_t vectors[2];
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<void*>(proc, root);
+
+        Value* address = arguments[0];
+        Value* input0 = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+        Value* input1 = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+        Value* result = root->appendNew<SIMDValue>(proc, Origin(), opcode, B3::V128, lane, SIMDSignMode::None, input0, input1);
+        root->appendNew<MemoryValue>(proc, Store, Origin(), result, address);
+        root->appendNewControlValue(proc, Return, Origin());
+
+        auto code = compileProc(proc);
+        for (auto& operand0 : v128Operands()) {
+            for (auto& operand1 : v128Operands()) {
+                vectors[0] = operand0.value;
+                vectors[1] = operand1.value;
+                invoke<void>(*code, vectors);
+
+                // Relaxed min/max: results are implementation-defined for NaN and ±0 inputs.
+                // Only verify lanes where both inputs are non-NaN and not a ±0 pair.
+                if (lane == SIMDLane::f32x4) {
+                    float a[4], b[4], r[4];
+                    memcpy(a, &operand0.value, 16);
+                    memcpy(b, &operand1.value, 16);
+                    memcpy(r, &vectors[0], 16);
+                    for (int i = 0; i < 4; i++) {
+                        if (std::isnan(a[i]) || std::isnan(b[i]))
+                            continue;
+                        if (a[i] == 0.0f && b[i] == 0.0f)
+                            continue;
+                        float e = (opcode == VectorRelaxedMin) ? std::min(a[i], b[i]) : std::max(a[i], b[i]);
+                        CHECK(r[i] == e);
+                    }
+                } else {
+                    double a[2], b[2], r[2];
+                    memcpy(a, &operand0.value, 16);
+                    memcpy(b, &operand1.value, 16);
+                    memcpy(r, &vectors[0], 16);
+                    for (int i = 0; i < 2; i++) {
+                        if (std::isnan(a[i]) || std::isnan(b[i]))
+                            continue;
+                        if (a[i] == 0.0 && b[i] == 0.0)
+                            continue;
+                        double e = (opcode == VectorRelaxedMin) ? std::min(a[i], b[i]) : std::max(a[i], b[i]);
+                        CHECK(r[i] == e);
+                    }
+                }
+            }
+        }
+    };
+
+    test(SIMDLane::f32x4, VectorRelaxedMin);
+    test(SIMDLane::f32x4, VectorRelaxedMax);
+    test(SIMDLane::f64x2, VectorRelaxedMin);
+    test(SIMDLane::f64x2, VectorRelaxedMax);
+}
+
+void testVectorRelaxedQ15Mulr()
+{
+    alignas(16) v128_t vectors[2];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+
+    Value* address = arguments[0];
+    Value* input0 = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* input1 = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorRelaxedQ15Mulr, B3::V128, SIMDLane::i16x8, SIMDSignMode::Signed, input0, input1);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address);
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    for (auto& operand0 : v128Operands()) {
+        for (auto& operand1 : v128Operands()) {
+            vectors[0] = operand0.value;
+            vectors[1] = operand1.value;
+            invoke<void>(*code, vectors);
+
+            v128_t expected { };
+            int16_t a[8], b[8], r[8];
+            memcpy(a, &operand0.value, 16);
+            memcpy(b, &operand1.value, 16);
+            bool hasOverflow = false;
+            for (int i = 0; i < 8; i++) {
+                int32_t product = static_cast<int32_t>(a[i]) * static_cast<int32_t>(b[i]);
+                int32_t result = (product + 0x4000) >> 15;
+                // Relaxed: overflow case (a[i]==b[i]==-32768) may saturate to 32767 or wrap to -32768
+                if (result > 32767 || result < -32768)
+                    hasOverflow = true;
+                r[i] = static_cast<int16_t>(std::clamp(result, -32768, 32767));
+            }
+            memcpy(&expected, r, 16);
+            if (!hasOverflow)
+                CHECK(bitEquals(vectors[0], expected));
+        }
+    }
+}
+
+void testVectorRelaxedDotI8x16I7x16()
+{
+    alignas(16) v128_t vectors[2];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+
+    Value* address = arguments[0];
+    Value* input0 = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* input1 = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorRelaxedDotI8x16I7x16, B3::V128, SIMDLane::i16x8, SIMDSignMode::Signed, input0, input1);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address);
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    for (auto& operand0 : v128Operands()) {
+        for (auto& operand1 : v128Operands()) {
+            vectors[0] = operand0.value;
+            vectors[1] = operand1.value;
+            invoke<void>(*code, vectors);
+
+            // b is i7x16: spec requires b bytes in 0-127 range.
+            // When b bytes have high bit set, x86 (unsigned) and ARM64 (signed)
+            // interpret differently, giving implementation-defined results.
+            // Skip test cases with out-of-range b values.
+            uint8_t bRaw[16];
+            memcpy(bRaw, &operand1.value, 16);
+            bool bInRange = true;
+            for (int i = 0; i < 16; i++) {
+                if (bRaw[i] > 127) {
+                    bInRange = false;
+                    break;
+                }
+            }
+            if (!bInRange)
+                continue;
+
+            v128_t expected { };
+            int8_t a[16];
+            int8_t b[16];
+            int16_t r[8];
+            memcpy(a, &operand0.value, 16);
+            memcpy(b, &operand1.value, 16);
+            for (int i = 0; i < 8; i++)
+                r[i] = static_cast<int16_t>(static_cast<int32_t>(a[2 * i]) * static_cast<int32_t>(b[2 * i]) + static_cast<int32_t>(a[2 * i + 1]) * static_cast<int32_t>(b[2 * i + 1]));
+            memcpy(&expected, r, 16);
+            CHECK(bitEquals(vectors[0], expected));
+        }
+    }
+}
+
+void testVectorRelaxedDotI8x16I7x16Add()
+{
+    alignas(16) v128_t vectors[3];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+
+    Value* address = arguments[0];
+    Value* input0 = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* input1 = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+    Value* input2 = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(2 * sizeof(v128_t)));
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorRelaxedDotI8x16I7x16Add, B3::V128, SIMDLane::i32x4, SIMDSignMode::Signed, input0, input1, input2);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address);
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    for (auto& operand0 : v128Operands()) {
+        for (auto& operand1 : v128Operands()) {
+            for (auto& operand2 : v128Operands()) {
+                vectors[0] = operand0.value;
+                vectors[1] = operand1.value;
+                vectors[2] = operand2.value;
+                invoke<void>(*code, vectors);
+
+                // b is i7x16: skip out-of-range values (see testVectorRelaxedDotI8x16I7x16)
+                uint8_t bRaw[16];
+                memcpy(bRaw, &operand1.value, 16);
+                bool bInRange = true;
+                for (int i = 0; i < 16; i++) {
+                    if (bRaw[i] > 127) {
+                        bInRange = false;
+                        break;
+                    }
+                }
+                if (!bInRange)
+                    continue;
+
+                v128_t expected { };
+                int8_t a[16], b[16];
+                int32_t c[4], r[4];
+                memcpy(a, &operand0.value, 16);
+                memcpy(b, &operand1.value, 16);
+                memcpy(c, &operand2.value, 16);
+                for (int i = 0; i < 4; i++) {
+                    int32_t sum = 0;
+                    for (int j = 0; j < 4; j++)
+                        sum += static_cast<int32_t>(a[4 * i + j]) * static_cast<int32_t>(b[4 * i + j]);
+                    r[i] = sum + c[i];
+                }
+                memcpy(&expected, r, 16);
+                CHECK(bitEquals(vectors[0], expected));
+            }
+        }
+    }
+}
+
 void testInt52RoundTripUnary(int32_t constant)
 {
     Procedure proc;

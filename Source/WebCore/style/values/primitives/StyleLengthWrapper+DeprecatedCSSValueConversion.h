@@ -39,36 +39,15 @@ template<LengthWrapperBaseDerived T> struct DeprecatedCSSValueConversion<T> {
     {
         using namespace CSS::Literals;
 
-        auto convertLengthPercentage = [&] -> std::optional<T> {
-            auto conversionData = deprecatedLengthConversionCreateCSSToLengthConversionData(element);
-            if (!conversionData) {
-                if (primitiveValue.isCalculated())
-                    return std::nullopt;
-
-                if (primitiveValue.isPx()) {
-                    return T {
-                        typename T::Fixed {
-                            CSS::clampToRange<T::Fixed::range, float>(primitiveValue.resolveAsLengthNoConversionDataRequired(), minValueForCssLength, maxValueForCssLength),
-                        },
-                        primitiveValue.primitiveType() == CSSUnitType::CSS_QUIRKY_EM
-                    };
-                }
-
-                if (primitiveValue.isPercentage()) {
-                    return T {
-                        typename T::Percentage {
-                            CSS::clampToRange<T::Percentage::range, float>(primitiveValue.resolveAsPercentageNoConversionDataRequired()),
-                        }
-                    };
-                }
-
+        auto conversionData = deprecatedLengthConversionCreateCSSToLengthConversionData(element);
+        if (!conversionData) {
+            if (primitiveValue.isCalculated())
                 return std::nullopt;
-            }
 
-            if (primitiveValue.isLength()) {
+            if (primitiveValue.isPx()) {
                 return T {
                     typename T::Fixed {
-                        CSS::clampToRange<T::Fixed::range, float>(primitiveValue.resolveAsLength(*conversionData), minValueForCssLength, maxValueForCssLength),
+                        CSS::clampToRange<T::Fixed::range, float>(primitiveValue.resolveAsLengthNoConversionDataRequired(), minValueForCssLength, maxValueForCssLength),
                     },
                     primitiveValue.primitiveType() == CSSUnitType::CSS_QUIRKY_EM
                 };
@@ -77,50 +56,75 @@ template<LengthWrapperBaseDerived T> struct DeprecatedCSSValueConversion<T> {
             if (primitiveValue.isPercentage()) {
                 return T {
                     typename T::Percentage {
-                        CSS::clampToRange<T::Percentage::range, float>(primitiveValue.resolveAsPercentage(*conversionData)),
-                    }
-                };
-            }
-
-            if (primitiveValue.isCalculatedPercentageWithLength()) {
-                return T {
-                    typename T::Calc {
-                        protect(primitiveValue.cssCalcValue())->createCalculationValue(*conversionData, CSSCalcSymbolTable { })
+                        CSS::clampToRange<T::Percentage::range, float>(primitiveValue.resolveAsPercentageNoConversionDataRequired()),
                     }
                 };
             }
 
             return std::nullopt;
-        };
-
-        if constexpr (!T::Keywords::count)
-            return convertLengthPercentage();
-        else {
-            auto valueID = primitiveValue.valueID();
-            if (valueID == CSSValueInvalid)
-                return convertLengthPercentage();
-
-            constexpr auto keywordsTuple = T::Keywords::tuple;
-
-            auto result = std::apply([&](const auto& ...keyword) {
-                std::optional<T> result;
-                (CSSValueConversion<T>::processKeyword(keyword, valueID, result) || ...);
-                return result;
-            }, keywordsTuple);
-
-            return result;
         }
+
+        if (primitiveValue.isLength()) {
+            return T {
+                typename T::Fixed {
+                    CSS::clampToRange<T::Fixed::range, float>(primitiveValue.resolveAsLength(*conversionData), minValueForCssLength, maxValueForCssLength),
+                },
+                primitiveValue.primitiveType() == CSSUnitType::CSS_QUIRKY_EM
+            };
+        }
+
+        if (primitiveValue.isPercentage()) {
+            return T {
+                typename T::Percentage {
+                    CSS::clampToRange<T::Percentage::range, float>(primitiveValue.resolveAsPercentage(*conversionData)),
+                }
+            };
+        }
+
+        if (primitiveValue.isCalculatedPercentageWithLength()) {
+            return T {
+                typename T::Calc {
+                    protect(primitiveValue.cssCalcValue())->createCalculationValue(*conversionData, CSSCalcSymbolTable { })
+                }
+            };
+        }
+
+        return std::nullopt;
+    }
+
+    auto operator()(const RefPtr<Element>&, const CSSKeywordValue& keywordValue) -> std::optional<T>
+    {
+        auto valueID = keywordValue.valueID();
+
+        constexpr auto keywordsTuple = T::Keywords::tuple;
+
+        auto result = std::apply([&](const auto& ...keyword) {
+            std::optional<T> result;
+            (CSSValueConversion<T>::processKeyword(keyword, valueID, result) || ...);
+            return result;
+        }, keywordsTuple);
+
+        return result;
     }
 
     auto operator()(const RefPtr<Element>& element, const CSSValue& value) -> std::optional<T>
     {
         using namespace CSS::Literals;
 
-        RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value);
-        if (!primitiveValue)
-            return std::nullopt;
+        if constexpr (!T::Keywords::count) {
+            RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value);
+            if (!primitiveValue)
+                return std::nullopt;
+            return this->operator()(element, *primitiveValue);
+        } else {
+            if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
+                return this->operator()(element, *primitiveValue);
 
-        return this->operator()(element, *primitiveValue);
+            RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value);
+            if (!keywordValue)
+                return std::nullopt;
+            return this->operator()(element, *keywordValue);
+        }
     }
 };
 

@@ -565,38 +565,7 @@ set(WebKitLegacy_LEGACY_FORWARDING_HEADERS_FILES
     ${WEBCORE_DIR}/plugins/npapi.h
 )
 
-add_definitions("-include WebKitPrefix.h")
-
-set(C99_FILES
-    mac/DefaultDelegates/WebDefaultEditingDelegate.m
-
-    mac/Misc/WebKitErrors.m
-    mac/Misc/WebKitStatistics.m
-    mac/Misc/WebNSControlExtras.m
-    mac/Misc/WebNSEventExtras.m
-    mac/Misc/WebNSPrintOperationExtras.m
-    mac/Misc/WebNSURLRequestExtras.m
-    mac/Misc/WebNSViewExtras.m
-    mac/Misc/WebNSWindowExtras.m
-
-    mac/WebView/WebFormDelegate.m
-)
-
-set(CPP_FILES
-    Storage/StorageThread.cpp
-)
-
-foreach (_file ${WebKitLegacy_SOURCES})
-    list(FIND C99_FILES ${_file} _c99_index)
-    list(FIND CPP_FILES ${_file} _cpp_index)
-    if (NOT ${_c99_index} EQUAL -1)
-        set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS -std=c99)
-    elseif (NOT ${_cpp_index} EQUAL -1)
-        set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS -std=c++2b)
-    else ()
-        set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS "-ObjC++ -std=c++2b")
-    endif ()
-endforeach ()
+ADD_WEBKIT_PREFIX_HEADERS(WebKitLegacy mac/WebKitPrefix.h)
 
 foreach (_file ${WebKitLegacy_LEGACY_FORWARDING_HEADERS_FILES})
     get_filename_component(_name "${_file}" NAME)
@@ -638,4 +607,4 @@ list(APPEND WebKitLegacy_SOURCES
 
 set(WebKitLegacy_OUTPUT_NAME WebKitLegacy)
 
-set(CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} "-compatibility_version 1 -current_version ${WEBKIT_MAC_VERSION} -framework SecurityInterface")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -compatibility_version 1 -current_version ${WEBKIT_MAC_VERSION} -framework SecurityInterface")

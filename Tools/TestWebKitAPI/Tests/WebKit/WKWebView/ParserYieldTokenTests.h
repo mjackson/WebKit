@@ -33,4 +33,5 @@
 @protocol ParserYieldTokenTestBundle <NSObject>
 - (void)takeDocumentParserTokenAfterCommittingLoad;
 - (void)releaseDocumentParserToken;
+- (void)releaseAndRetakeDocumentParserToken;
 @end

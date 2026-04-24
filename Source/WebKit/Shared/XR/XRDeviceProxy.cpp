@@ -136,11 +136,19 @@ void XRDeviceProxy::requestFrame(std::optional<PlatformXR::RequestData>&& reques
         callback({ });
 }
 
-std::optional<PlatformXR::LayerHandle> XRDeviceProxy::createLayerProjection(uint32_t width, uint32_t height, bool alpha)
+std::optional<PlatformXR::LayerInfo> XRDeviceProxy::createLayerProjection(uint32_t width, uint32_t height, bool alpha)
 {
     RefPtr xrSystem = m_xrSystem.get();
     return xrSystem ? xrSystem->createLayerProjection(width, height, alpha) : std::nullopt;
 }
+
+#if ENABLE(WEBXR_LAYERS)
+std::optional<PlatformXR::LayerInfo> XRDeviceProxy::createQuadLayer(WebCore::IntSize size, PlatformXR::LayerLayout layout)
+{
+    RefPtr xrSystem = m_xrSystem.get();
+    return xrSystem ? xrSystem->createQuadLayer(size, layout) : std::nullopt;
+}
+#endif
 
 void XRDeviceProxy::submitFrame(Vector<PlatformXR::DeviceLayer>&& layers)
 {

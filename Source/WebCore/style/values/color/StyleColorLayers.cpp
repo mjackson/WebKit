@@ -28,10 +28,10 @@
 #include "StyleColorLayers.h"
 
 #include "CSSColorLayersResolver.h"
-#include "CSSPrimitiveValueMappings.h"
 #include "ColorSerialization.h"
 #include "StyleBuilderState.h"
 #include "StyleColorResolutionState.h"
+#include "StyleKeyword+CSSValueConversion.h"
 #include <wtf/text/TextStream.h>
 
 namespace WebCore {

@@ -47,8 +47,8 @@ FAIL :access_mode:aspace="storage";access="write";comma="" assert_unreached:
     alias T = ptr<storage, u32, write>;
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
-    async run@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:682:31
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
+    async run@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:680:31
     @http://127.0.0.1:8000/webgpu/common/runtime/wpt.js:75:27
  Reached unreachable code
 FAIL :access_mode:aspace="storage";access="write";comma="," assert_unreached:
@@ -61,8 +61,8 @@ FAIL :access_mode:aspace="storage";access="write";comma="," assert_unreached:
     alias T = ptr<storage, u32, write,>;
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
-    async run@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:682:31
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
+    async run@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:680:31
     @http://127.0.0.1:8000/webgpu/common/runtime/wpt.js:75:27
  Reached unreachable code
 PASS :access_mode:aspace="storage";access="read_write";comma=""
@@ -119,8 +119,8 @@ FAIL :type:case="sampler" assert_unreached:
         alias Type = ptr<storage, sampler>;
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:91:30
     async finalize@http://127.0.0.1:8000/webgpu/common/framework/fixture.js:128:16
-    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:534:28
-    async run@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:682:31
+    async runTest@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:532:28
+    async run@http://127.0.0.1:8000/webgpu/common/internal/test_group.js:680:31
     @http://127.0.0.1:8000/webgpu/common/runtime/wpt.js:75:27
  Reached unreachable code
 PASS :type:case="texture_2d"

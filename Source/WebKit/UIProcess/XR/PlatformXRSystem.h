@@ -99,10 +99,16 @@ private:
     void shutDownTrackingAndRendering(IPC::Connection&);
     void requestFrame(IPC::Connection&, std::optional<PlatformXR::RequestData>&&, CompletionHandler<void(PlatformXR::FrameData&&)>&&);
 #if USE(OPENXR)
-    void createLayerProjection(IPC::Connection&, uint32_t width, uint32_t height, bool alpha, CompletionHandler<void(std::optional<PlatformXR::LayerHandle>)>&&);
+    void createLayerProjection(IPC::Connection&, uint32_t width, uint32_t height, bool alpha, CompletionHandler<void(std::optional<PlatformXR::LayerInfo>)>&&);
     void submitFrame(IPC::Connection&, Vector<PlatformXR::DeviceLayer>&&);
 #else
     void submitFrame(IPC::Connection&);
+#endif
+#if ENABLE(WEBXR_LAYERS)
+#if !USE(OPENXR) && !defined(NDEBUG)
+    [[noreturn]]
+#endif
+    void NODELETE createQuadLayer(IPC::Connection&, WebCore::IntSize, PlatformXR::LayerLayout, CompletionHandler<void(std::optional<PlatformXR::LayerInfo>)>&&);
 #endif
 #if ENABLE(WEBXR_HIT_TEST)
     void requestHitTestSource(const PlatformXR::HitTestOptions&, CompletionHandler<void(Expected<PlatformXR::HitTestSource, WebCore::ExceptionData>)>&&);

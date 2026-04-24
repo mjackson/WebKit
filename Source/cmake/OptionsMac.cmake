@@ -3,6 +3,13 @@
 set(WEBKIT_MAC_VERSION 615.1.1)
 set(MACOSX_FRAMEWORK_BUNDLE_VERSION 615.1.1+)
 
+# Enable Objective-C / Objective-C++ so .m/.mm sources use the OBJC/OBJCXX
+# compile rules and $<COMPILE_LANGUAGE:OBJC/OBJCXX> generator expressions
+# match. Without this CMake compiles .mm as CXX, CMAKE_OBJCXX_FLAGS are
+# ignored, and the -include flag in ADD_WEBKIT_PREFIX_HEADERS never fires
+# for .mm sources.
+enable_language(OBJC OBJCXX)
+
 WEBKIT_OPTION_BEGIN()
 # Private options shared with other WebKit ports. Add options here only if
 # we need a value different from the default defined in WebKitFeatures.cmake.
@@ -57,7 +64,7 @@ WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_VIDEO_PRESENTATION_MODE PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEBDRIVER_KEYBOARD_INTERACTIONS PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEBDRIVER_MOUSE_INTERACTIONS PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEBDRIVER_WHEEL_INTERACTIONS PRIVATE ON)
-WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEBXR PRIVATE ON)
+WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEBXR PRIVATE OFF)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEB_API_STATISTICS PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEB_AUTHN PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEB_CODECS PRIVATE ON)
@@ -296,10 +303,29 @@ if (CMAKE_CXX_COMPILER_LAUNCHER OR CMAKE_C_COMPILER_LAUNCHER)
     # -frecord-command-line embeds absolute paths; use CMAKE_*_FLAGS for all languages.
     string(APPEND CMAKE_C_FLAGS " -fno-record-command-line")
     string(APPEND CMAKE_CXX_FLAGS " -fno-record-command-line")
+    string(APPEND CMAKE_OBJC_FLAGS " -fno-record-command-line")
+    string(APPEND CMAKE_OBJCXX_FLAGS " -fno-record-command-line")
 endif ()
 
-# Dead-strip unused symbols and dylibs.
-add_link_options(-Wl,-dead_strip)
+# Mac-specific sanitizer flags — mirror Configurations/Sanitizers.xcconfig.
+if (ENABLE_SANITIZERS)
+    # Prevents wtf/Compiler.h macros like ALWAYS_INLINE from interfering with
+    # sanitizer instrumentation in optimized builds.
+    add_compile_definitions(RELEASE_WITHOUT_OPTIMIZATIONS)
+
+    # Disable ASan's "fake stack" (use-after-return detection) — it breaks JSC
+    # garbage collection by keeping stack frames alive that the GC expects to be
+    # dead. See Sanitizers.xcconfig.
+    string(FIND "${ENABLE_SANITIZERS}" "address" _asan_pos)
+    if (NOT _asan_pos EQUAL -1)
+        add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-fsanitize-address-use-after-return=never>")
+        add_link_options("$<$<NOT:$<LINK_LANGUAGE:Swift>>:-fsanitize-address-use-after-return=never>")
+    endif ()
+endif ()
+
+# Dead-strip unused symbols and dylibs. Mirrors Xcode's DEAD_CODE_STRIPPING,
+# which is YES for release configs and NO for Debug.
+add_link_options("$<$<NOT:$<CONFIG:Debug>>:-Wl,-dead_strip>")
 add_link_options(-Wl,-dead_strip_dylibs)
 
 if (CMAKE_GENERATOR STREQUAL "Ninja")
@@ -325,4 +351,15 @@ if (CMAKE_EXPORT_COMPILE_COMMANDS AND NOT EXISTS ${CMAKE_SOURCE_DIR}/compile_com
         ${CMAKE_BINARY_DIR}/compile_commands.json
         ${CMAKE_SOURCE_DIR}/compile_commands.json
         SYMBOLIC)
+endif ()
+
+# Regenerate the Xcode debug wrapper on every (re)configure so its scheme paths
+# and lldbinit source-map track this binary directory. Runs at configure time
+# (not as a build target) to keep the no-op ninja build at zero actions.
+if (EXISTS ${TOOLS_DIR}/Scripts/generate-cmake-xcode-project)
+    execute_process(
+        COMMAND ${Python_EXECUTABLE}
+                ${TOOLS_DIR}/Scripts/generate-cmake-xcode-project
+                ${CMAKE_BINARY_DIR}
+        OUTPUT_QUIET)
 endif ()

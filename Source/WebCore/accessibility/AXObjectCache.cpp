@@ -413,9 +413,9 @@ AXObjectCache::AXObjectCache(LocalFrame& localFrame, Document* document)
     , m_liveRegionChangedPostTimer(*this, &AXObjectCache::liveRegionChangedNotificationPostTimerFired)
     , m_currentModalElement(nullptr)
     , m_performCacheUpdateTimer(*this, &AXObjectCache::performCacheUpdateTimerFired)
+    , m_geometryManager(AXGeometryManager::create(*this))
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     , m_buildIsolatedTreeTimer(*this, &AXObjectCache::buildIsolatedTree)
-    , m_geometryManager(AXGeometryManager::create(*this))
     , m_selectedTextRangeTimer(*this, &AXObjectCache::selectedTextRangeTimerFired, platformSelectedTextRangeDebounceInterval())
     , m_updateTreeSnapshotTimer(*this, &AXObjectCache::updateTreeSnapshotTimerFired)
 #endif
@@ -2350,6 +2350,63 @@ void AXObjectCache::handleFocusedUIElementChanged(Element* oldElement, Element* 
     setIsolatedTreeFocusedObject(focusedObjectForLocalFrame());
 #endif
     platformHandleFocusedUIElementChanged(getOrCreate(oldElement), getOrCreate(newElement));
+
+    // If focus landed inside an aria-hidden=true region, schedule a check for the next
+    // rendering update. This gives web developers one animation frame (via a focus event
+    // listener and requestAnimationFrame) to move focus out before we permanently override
+    // aria-hidden on the ancestor.
+    if (newElement) {
+        bool isInsideAriaHidden = false;
+        for (RefPtr ancestor = newElement; ancestor; ancestor = ancestor->parentElementInComposedTree()) {
+            if (equalLettersIgnoringASCIICase(ancestor->attributeWithDefaultARIA(aria_hiddenAttr), "true"_s)) {
+                isInsideAriaHidden = true;
+                break;
+            }
+        }
+        if (isInsideAriaHidden) {
+            m_pendingAriaHiddenFocusTarget = newElement;
+            m_needsAriaHiddenFocusCheck = true;
+            // Ensure a rendering update is scheduled so that onPostRenderingUpdate
+            // fires after animation frame callbacks have had a chance to run.
+            if (RefPtr page = this->page())
+                page->scheduleRenderingUpdate(RenderingUpdateStep::EventRegionUpdate);
+        } else {
+            m_pendingAriaHiddenFocusTarget = nullptr;
+            m_needsAriaHiddenFocusCheck = false;
+        }
+    }
+}
+
+void AXObjectCache::onPostRenderingUpdate()
+{
+    if (!m_needsAriaHiddenFocusCheck)
+        return;
+    m_needsAriaHiddenFocusCheck = false;
+
+    RefPtr focusTarget = m_pendingAriaHiddenFocusTarget.get();
+    m_pendingAriaHiddenFocusTarget = nullptr;
+    if (!focusTarget)
+        return;
+
+    // Verify focus is still on the same element.
+    RefPtr currentFocus = document()->focusedElement();
+    if (currentFocus != focusTarget)
+        return;
+
+    // Walk all ancestors, flagging every one that has aria-hidden=true so that the
+    // entire subtree of each becomes permanently visible.
+    for (RefPtr ancestor = focusTarget.get(); ancestor; ancestor = ancestor->parentElementInComposedTree()) {
+        auto tag = ancestor->localName();
+        if (tag == bodyTag || tag == htmlTag)
+            break;
+
+        if (!equalLettersIgnoringASCIICase(ancestor->attributeWithDefaultARIA(aria_hiddenAttr), "true"_s))
+            continue;
+
+        if (RefPtr axObject = getOrCreate(*ancestor))
+            axObject->setShouldIgnoreARIAHidden(true);
+        handleAriaHiddenChange(*ancestor);
+    }
 }
 
 void AXObjectCache::selectedChildrenChanged(Node* node)
@@ -3115,6 +3172,25 @@ void AXObjectCache::handleAriaExpandedChange(Element& element)
     }
 }
 
+void AXObjectCache::handleAriaHiddenChange(Element& element)
+{
+    if (RefPtr axObject = getOrCreate(element)) {
+#if ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
+        axObject->recomputeIsIgnoredForDescendants(/* includeSelf */ true);
+#endif
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+        if (RefPtr tree = AXIsolatedTree::treeForFrameID(m_frameID))
+            tree->queueNodeUpdate(axObject->objectID(), { AXProperty::IsARIAHidden });
+#endif
+        updateCachedTextOfAssociatedObjects(*axObject);
+    }
+
+#if !ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
+    if (RefPtr parent = get(element.parentNode()))
+        childrenChanged(parent.get());
+#endif
+}
+
 void AXObjectCache::handleActiveDescendantChange(Element& element, const AtomString& oldValue, const AtomString& newValue)
 {
     AXTRACE("AXObjectCache::handleActiveDescendantChange"_s);
@@ -3555,22 +3631,12 @@ void AXObjectCache::handleAttributeChange(Element* element, const QualifiedName&
     else if (attrName == aria_haspopupAttr)
         postNotification(element, AXNotification::HasPopupChanged);
     else if (attrName == aria_hiddenAttr) {
-        if (RefPtr axObject = getOrCreate(*element)) {
-#if ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
-            axObject->recomputeIsIgnoredForDescendants(/* includeSelf */ true);
-#endif // ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-            if (RefPtr tree = AXIsolatedTree::treeForFrameID(m_frameID))
-                tree->queueNodeUpdate(axObject->objectID(), { AXProperty::IsARIAHidden });
-#endif
-            // aria-hidden can influence the text gathered as part of the accessibility-text algorithm.
-            updateCachedTextOfAssociatedObjects(*axObject);
+        // If aria-hidden was removed or set to a non-true value, clear the permanent override flag.
+        if (!equalLettersIgnoringASCIICase(element->attributeWithDefaultARIA(aria_hiddenAttr), "true"_s)) {
+            if (RefPtr axObject = getOrCreate(*element))
+                axObject->setShouldIgnoreARIAHidden(false);
         }
-
-#if !ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
-        if (RefPtr parent = get(element->parentNode()))
-            childrenChanged(parent.get());
-#endif // !ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
+        handleAriaHiddenChange(*element);
 
         if (RefPtr currentModalElement = m_currentModalElement.get(); currentModalElement && currentModalElement->isDescendantOf(element))
             deferModalChange(*currentModalElement);
@@ -4281,6 +4347,11 @@ CharacterOffset AXObjectCache::characterOffsetFromVisiblePosition(const VisibleP
         // can return a previous position, resulting in us looping infinitely. Iterating solely through
         // |nextVisuallyDistinctCandidate|s should guarantee forward progress.
         currentPosition = nextVisuallyDistinctCandidate(currentPosition, SkipDisplayContents::No);
+        if (currentPosition == previousPosition) {
+            // |nextVisuallyDistinctCandidate|s should guarantee forward progress, so this should be unreachable.
+            AX_ASSERT_NOT_REACHED();
+            break;
+        }
         visiblePosition = VisiblePosition(currentPosition, visiblePosition.affinity());
 
         characterOffset++;
@@ -4894,8 +4965,14 @@ CharacterOffset AXObjectCache::characterOffsetForBounds(const IntRect& rect, boo
         if (rect.contains(absoluteCaretBoundsForCharacterOffset(previousCharOffset).center()))
             return previousCharOffset;
 
+        auto priorNextCharOffset = nextCharOffset;
+        auto priorPreviousCharOffset = previousCharOffset;
         nextCharOffset = nextCharacterOffset(nextCharOffset, false);
         previousCharOffset = previousCharacterOffset(previousCharOffset, false);
+        if (nextCharOffset.isEqual(priorNextCharOffset) && previousCharOffset.isEqual(priorPreviousCharOffset)) {
+            // Without this break, we would loop infinitely.
+            break;
+        }
     }
 
     return CharacterOffset();

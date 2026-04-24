@@ -110,11 +110,13 @@ private:
     void setBackgroundColor(const WebModel::Float3&) final;
     void setViewportSize(float, float) final;
     void setStageMode(WebCore::StageModeOperation) final;
+    void processRemovals(Vector<WebModel::TypedResourceId>&& meshRemovals, Vector<WebModel::TypedResourceId>&& materialRemovals, Vector<WebModel::TypedResourceId>&& textureRemovals, CompletionHandler<void(bool)>&&) final;
 #if ENABLE(GPU_PROCESS_MODEL)
     void computeTransform();
     void setRotation(float yaw, float pitch, float roll) final;
 #endif
-    void setEnvironmentMap(const WebModel::ImageAsset&) final;
+    void setEnvironmentMap(const WebModel::UpdateTextureDescriptor&) final;
+    void updateContentsHeadroom(float) final;
 
     const WebModelIdentifier m_backing;
     const Ref<ModelConvertToBackingContext> m_convertToBackingContext;

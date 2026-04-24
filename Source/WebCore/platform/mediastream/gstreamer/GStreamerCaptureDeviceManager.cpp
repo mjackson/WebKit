@@ -342,7 +342,7 @@ void GStreamerCaptureDeviceManager::refreshCaptureDevices()
 #if GST_CHECK_VERSION(1, 28, 0)
         {
             auto bus = adoptGRef(gst_device_monitor_get_bus(m_deviceMonitor.get()));
-            [[maybe_unused]] auto message = adoptGRef(gst_bus_poll(bus.get(), GST_MESSAGE_DEVICE_MONITOR_STARTED, GST_CLOCK_TIME_NONE));
+            [[maybe_unused]] auto message = adoptGRef(gst_bus_timed_pop_filtered(bus.get(), GST_CLOCK_TIME_NONE, GST_MESSAGE_DEVICE_MONITOR_STARTED));
             GST_DEBUG_OBJECT(m_deviceMonitor.get(), "Device provider(s) successfully started");
         }
 #endif

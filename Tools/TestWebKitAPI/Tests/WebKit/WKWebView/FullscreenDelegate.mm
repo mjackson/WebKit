@@ -80,7 +80,7 @@ static bool receivedVisibilityChangeMessage;
 namespace TestWebKitAPI {
 
 // rdar://137235446
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 150000
+#if PLATFORM(MAC)
 TEST(Fullscreen, DISABLED_Delegate)
 #else
 TEST(Fullscreen, Delegate)

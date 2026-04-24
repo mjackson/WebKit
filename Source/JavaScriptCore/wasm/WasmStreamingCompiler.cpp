@@ -155,8 +155,8 @@ void StreamingCompiler::didComplete()
     switch (m_compilerMode) {
     case CompilerMode::Validation: {
         m_vm.deferredWorkTimer->scheduleWorkSoon(ticket, [result = WTF::move(result), compileOptions = WTF::move(m_compileOptions)](DeferredWorkTimer::Ticket ticket) mutable {
-            JSPromise* promise = jsCast<JSPromise*>(ticket->target());
-            JSGlobalObject* globalObject = jsCast<JSGlobalObject*>(ticket->dependencies()[0]);
+            JSPromise* promise = uncheckedDowncast<JSPromise>(ticket->target());
+            JSGlobalObject* globalObject = uncheckedDowncast<JSGlobalObject>(ticket->dependencies()[0]);
             VM& vm = globalObject->vm();
             auto scope = DECLARE_THROW_SCOPE(vm);
 
@@ -187,9 +187,9 @@ void StreamingCompiler::didComplete()
     case CompilerMode::FullCompile: {
         RefPtr<SourceProvider> provider = m_source.provider();
         m_vm.deferredWorkTimer->scheduleWorkSoon(ticket, [result = WTF::move(result), provider = WTF::move(provider), compileOptions = WTF::move(m_compileOptions)](DeferredWorkTimer::Ticket ticket) mutable {
-            JSPromise* promise = jsCast<JSPromise*>(ticket->target());
-            JSGlobalObject* globalObject = jsCast<JSGlobalObject*>(ticket->dependencies()[0]);
-            JSObject* importObject = jsCast<JSObject*>(ticket->dependencies()[1]);
+            JSPromise* promise = uncheckedDowncast<JSPromise>(ticket->target());
+            JSGlobalObject* globalObject = uncheckedDowncast<JSGlobalObject>(ticket->dependencies()[0]);
+            JSObject* importObject = uncheckedDowncast<JSObject>(ticket->dependencies()[1]);
             VM& vm = globalObject->vm();
             auto scope = DECLARE_THROW_SCOPE(vm);
 
@@ -245,7 +245,7 @@ void StreamingCompiler::fail(JSGlobalObject* globalObject, JSValue error)
         m_eagerFailed = true;
     }
     auto ticket = std::exchange(m_ticket, nullptr);
-    JSPromise* promise = jsCast<JSPromise*>(ticket->target());
+    JSPromise* promise = uncheckedDowncast<JSPromise>(ticket->target());
     // The pending work TicketData was keeping the promise alive. We need to
     // make sure it is reachable from the stack before we remove it from the
     // pending work list. Note: m_ticket stores it as a PackedPtr, which is not

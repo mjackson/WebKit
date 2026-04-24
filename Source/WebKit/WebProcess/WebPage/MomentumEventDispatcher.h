@@ -114,6 +114,7 @@ private:
 
     WebCore::FloatSize offsetAtTime(Seconds);
     std::pair<WebCore::FloatSize, WebCore::FloatSize> computeNextDelta(WebCore::FloatSize currentUnacceleratedDelta);
+    std::pair<WebCore::FloatSize, WebCore::FloatSize> computeNextDeltaSimple(WebCore::FloatSize currentUnacceleratedDelta);
 
     void didReceiveScrollEventWithInterval(WebCore::FloatSize, Seconds);
     void didReceiveScrollEvent(const WebWheelEvent&);
@@ -154,8 +155,10 @@ private:
     WebCore::RectEdges<WebCore::RubberBandingBehavior> m_lastRubberBandableEdges;
     bool m_isInOverriddenPlatformMomentumGesture { false };
 
+    enum class MomentumCurve : uint8_t { Default, Simple };
     struct {
         bool active { false };
+        MomentumCurve momentumCurve { MomentumCurve::Default };
 
         Markable<WebCore::PageIdentifier> pageIdentifier;
         std::optional<ScrollingAccelerationCurve> accelerationCurve;

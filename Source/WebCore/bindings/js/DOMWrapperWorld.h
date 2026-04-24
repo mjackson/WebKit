@@ -124,12 +124,12 @@ DOMWrapperWorld& worldForDOMObject(JSC::JSObject&);
 
 inline DOMWrapperWorld& currentWorld(JSC::JSGlobalObject& lexicalGlobalObject)
 {
-    return JSC::jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)->world();
+    return uncheckedDowncast<JSDOMGlobalObject>(&lexicalGlobalObject)->world();
 }
 
 inline DOMWrapperWorld& worldForDOMObject(JSC::JSObject& object)
 {
-    return JSC::jsCast<JSDOMGlobalObject*>(object.realm())->world();
+    return uncheckedDowncast<JSDOMGlobalObject>(object.realm())->world();
 }
 
 } // namespace WebCore

@@ -45,12 +45,12 @@ WKBackForwardListItemRef WKBackForwardListGetCurrentItem(WKBackForwardListRef li
 
 WKBackForwardListItemRef WKBackForwardListGetBackItem(WKBackForwardListRef listRef)
 {
-    return toAPI(protect(toImpl(listRef)->backItem()).get());
+    return toAPI(protect(toImpl(listRef))->backItem().get());
 }
 
 WKBackForwardListItemRef WKBackForwardListGetForwardItem(WKBackForwardListRef listRef)
 {
-    return toAPI(protect(toImpl(listRef)->forwardItem()).get());
+    return toAPI(protect(toImpl(listRef))->forwardItem().get());
 }
 
 WKBackForwardListItemRef WKBackForwardListGetItemAtIndex(WKBackForwardListRef listRef, int index)

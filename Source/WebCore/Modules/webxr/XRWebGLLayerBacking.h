@@ -28,6 +28,7 @@
 #if ENABLE(WEBXR_LAYERS)
 
 #include "GraphicsTypesGL.h"
+#include "IntSize.h"
 #include "XRLayerBacking.h"
 #include <wtf/TZoneMalloc.h>
 
@@ -40,6 +41,7 @@ struct Layer;
 namespace WebCore {
 
 class WebGLOpaqueTexture;
+class WebGLRenderingContextBase;
 class WebXROpaqueFramebuffer;
 class WebXRWebGLSwapchain;
 
@@ -64,15 +66,12 @@ public:
     RefPtr<WebGLOpaqueTexture> currentColorTexture() const;
     RefPtr<WebGLOpaqueTexture> currentDepthTexture() const;
 
+    bool allColorTexturesAreBound() const final;
+
 protected:
     XRWebGLLayerBacking(PlatformXR::LayerHandle, std::unique_ptr<WebXRWebGLSwapchain>&& colorSwapchain, std::unique_ptr<WebXRWebGLSwapchain>&& depthSwapchain);
 
-    struct SwapchainFormats {
-        GCGLenum format { 0 };
-        GCGLenum internalFormat { 0 };
-    };
-    static SwapchainFormats swapchainFormatsForLayerFormat(GCGLenum);
-    static bool formatHasStencil(GCGLenum);
+    static std::unique_ptr<WebXRWebGLSwapchain> createDepthSwapchain(WebGLRenderingContextBase&, GCGLenum depthFormat, IntSize, bool clearOnAccess, size_t imageCount);
 
     std::unique_ptr<WebXRWebGLSwapchain> m_colorSwapchain;
     std::unique_ptr<WebXRWebGLSwapchain> m_depthSwapchain;

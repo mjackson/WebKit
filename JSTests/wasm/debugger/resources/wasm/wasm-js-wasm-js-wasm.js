@@ -94,6 +94,7 @@ test_mid_func = instance.exports.test_mid;
 wasm_inner_func = instance.exports.wasm_inner;
 let test_outer = instance.exports.test_outer;
 
+print("DEBUGGER_READY");
 let iteration = 0;
 for (;;) {
     test_outer();

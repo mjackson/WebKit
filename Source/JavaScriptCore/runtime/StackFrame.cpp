@@ -161,7 +161,7 @@ String StackFrame::sourceURL(VM& vm, AllowURLOverride allowOverride) const
             if (isAsyncFrameWithoutCodeBlock()) {
                 ASSERT(jsFrame.callee);
                 ASSERT(!jsFrame.codeBlock);
-                JSFunction* calleeFn = jsDynamicCast<JSFunction*>(jsFrame.callee.get());
+                JSFunction* calleeFn = dynamicDowncast<JSFunction>(jsFrame.callee.get());
                 return processSourceURL(vm, *this, calleeFn->jsExecutable()->sourceURL(), allowOverride);
             }
 
@@ -185,7 +185,7 @@ String StackFrame::sourceURLStripped(VM& vm) const
             if (isAsyncFrameWithoutCodeBlock()) {
                 ASSERT(jsFrame.callee);
                 ASSERT(!jsFrame.codeBlock);
-                JSFunction* calleeFn = jsDynamicCast<JSFunction*>(jsFrame.callee.get());
+                JSFunction* calleeFn = dynamicDowncast<JSFunction>(jsFrame.callee.get());
                 return processSourceURL(vm, *this, calleeFn->jsExecutable()->sourceURLStripped());
             }
 
@@ -220,9 +220,9 @@ String StackFrame::functionName(VM& vm) const
             }
             String name;
             if (jsFrame.callee && jsFrame.callee->isObject())
-                name = getCalculatedDisplayName(vm, jsCast<JSObject*>(jsFrame.callee.get())).impl();
+                name = getCalculatedDisplayName(vm, uncheckedDowncast<JSObject>(jsFrame.callee.get())).impl();
             else if (jsFrame.codeBlock) {
-                if (auto* executable = jsDynamicCast<FunctionExecutable*>(jsFrame.codeBlock->ownerExecutable()))
+                if (auto* executable = dynamicDowncast<FunctionExecutable>(jsFrame.codeBlock->ownerExecutable()))
                     name = executable->ecmaName().impl();
             }
 

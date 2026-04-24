@@ -48,16 +48,7 @@ long long BlobDataItem::length() const
     if (m_length != toEndOfFile)
         return m_length;
 
-    switch (type()) {
-    case Type::Data:
-        ASSERT_NOT_REACHED();
-        return m_length;
-    case Type::File:
-        return protect(file())->size();
-    }
-
-    ASSERT_NOT_REACHED();
-    return m_length;
+    return protect(std::get<Ref<BlobDataFileReference>>(m_data))->size();
 }
 
 void BlobData::appendData(Ref<DataSegment>&& data)
@@ -74,9 +65,11 @@ void BlobData::appendData(Ref<DataSegment>&& data, long long offset, long long l
 void BlobData::replaceData(const DataSegment& oldData, Ref<DataSegment>&& newData)
 {
     for (auto& blobItem : m_items) {
-        if (blobItem.type() == BlobDataItem::Type::Data && &blobItem.data() == &oldData) {
-            blobItem.m_data = WTF::move(newData);
-            break;
+        if (auto* data = std::get_if<Ref<DataSegment>>(&blobItem.m_data)) {
+            if (&data->get() == &oldData) {
+                blobItem.m_data = WTF::move(newData);
+                break;
+            }
         }
     }
 }

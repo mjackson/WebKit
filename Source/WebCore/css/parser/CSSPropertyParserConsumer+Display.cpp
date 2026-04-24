@@ -111,9 +111,9 @@ RefPtr<CSSValue> NODELETE mappedDisplayValue()
     if constexpr (result.first == CSSValueInvalid && result.second == CSSValueInvalid)
         return nullptr;
     else if constexpr (result.second == CSSValueInvalid)
-        return CSSPrimitiveValue::create(result.first);
+        return CSSKeywordValue::create(result.first);
     else
-        return CSSValuePair::createNoncoalescing(CSSPrimitiveValue::create(result.first), CSSPrimitiveValue::create(result.second));
+        return CSSValuePair::createNoncoalescing(CSSKeywordValue::create(result.first), CSSKeywordValue::create(result.second));
 }
 
 template<DisplayOutside outside>
@@ -253,7 +253,7 @@ RefPtr<CSSValue> consumeDisplay(CSSParserTokenRange& range, CSS::PropertyParserS
     // <display-listitem>
     // FIXME: Add support for the full <display-listitem> syntax, not just the single value version.
     case CSSValueListItem:
-        return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+        return CSSKeywordValue::create(range.consumeIncludingWhitespace().id());
 
     // <display-internal>
     // FIXME: Add support for `ruby-base-container` and `ruby-text-container`.
@@ -265,41 +265,41 @@ RefPtr<CSSValue> consumeDisplay(CSSParserTokenRange& range, CSS::PropertyParserS
     case CSSValueTableFooterGroup:
     case CSSValueTableRow:
     case CSSValueTableRowGroup:
-        return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+        return CSSKeywordValue::create(range.consumeIncludingWhitespace().id());
     case CSSValueRubyBase:
     case CSSValueRubyText:
         if (!state.context.cssRubyDisplayTypesEnabled)
             return nullptr;
-        return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+        return CSSKeywordValue::create(range.consumeIncludingWhitespace().id());
 
     // <display-box>
     case CSSValueContents:
     case CSSValueNone:
-        return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+        return CSSKeywordValue::create(range.consumeIncludingWhitespace().id());
 
     // <display-legacy>
     case CSSValueInlineBlock:
     case CSSValueInlineTable:
     case CSSValueInlineFlex:
     case CSSValueInlineGrid:
-        return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+        return CSSKeywordValue::create(range.consumeIncludingWhitespace().id());
     case CSSValueInlineGridLanes:
         if (!state.context.gridLanesEnabled)
             return nullptr;
-        return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+        return CSSKeywordValue::create(range.consumeIncludingWhitespace().id());
 
     // <display-non-standard>
     case CSSValueWebkitBox:
     case CSSValueWebkitInlineBox:
-        return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+        return CSSKeywordValue::create(range.consumeIncludingWhitespace().id());
     case CSSValueWebkitFlex:
         // `-webkit-flex` is aliased to `flex`.
         range.consumeIncludingWhitespace();
-        return CSSPrimitiveValue::create(CSSValueFlex);
+        return CSSKeywordValue::create(CSSValueFlex);
     case CSSValueWebkitInlineFlex:
         // `-webkit-inline-flex` is aliased to `inline-flex`.
         range.consumeIncludingWhitespace();
-        return CSSPrimitiveValue::create(CSSValueInlineFlex);
+        return CSSKeywordValue::create(CSSValueInlineFlex);
 
     default:
         return nullptr;

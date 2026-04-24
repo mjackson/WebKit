@@ -118,7 +118,7 @@ void ObjectConstructor::finishCreation(VM& vm, JSGlobalObject* globalObject, Obj
 static ALWAYS_INLINE JSObject* constructObjectWithNewTarget(JSGlobalObject* globalObject, CallFrame* callFrame, JSValue newTarget)
 {
     VM& vm = globalObject->vm();
-    ObjectConstructor* objectConstructor = jsCast<ObjectConstructor*>(callFrame->jsCallee());
+    ObjectConstructor* objectConstructor = uncheckedDowncast<ObjectConstructor>(callFrame->jsCallee());
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     // We need to check newTarget condition in this caller side instead of InternalFunction::createSubclassStructure side.
@@ -324,7 +324,7 @@ JSC_DEFINE_HOST_FUNCTION(objectConstructorAssign, (JSGlobalObject* globalObject,
 
     // FIXME: Extend this for non JSFinalObject. For example, we would like to use this fast path for function objects too.
     // https://bugs.webkit.org/show_bug.cgi?id=185358
-    JSFinalObject* targetObject = jsDynamicCast<JSFinalObject*>(target);
+    JSFinalObject* targetObject = dynamicDowncast<JSFinalObject>(target);
     bool targetCanPerformFastPut = targetObject && targetObject->canPerformFastPutInlineExcludingProto() && targetObject->isStructureExtensible();
     unsigned argsCount = callFrame->argumentCount();
 
@@ -826,9 +826,10 @@ static JSValue definePropertiesSlow(JSGlobalObject* globalObject, JSObject* obje
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     PropertyNameArrayBuilder propertyNames(vm, PropertyNameMode::StringsAndSymbols, PrivateSymbolMode::Exclude);
-    asObject(properties)->methodTable()->getOwnPropertyNames(asObject(properties), globalObject, propertyNames, DontEnumPropertiesMode::Exclude);
+    asObject(properties)->methodTable()->getOwnPropertyNames(asObject(properties), globalObject, propertyNames, DontEnumPropertiesMode::Include);
     RETURN_IF_EXCEPTION(scope, { });
     size_t numProperties = propertyNames.size();
+    Vector<Identifier> enumerableNames;
     Vector<PropertyDescriptor> descriptors;
     MarkedArgumentBuffer markBuffer;
 #define RETURN_IF_EXCEPTION_CLEARING_OVERFLOW(value) do { \
@@ -838,11 +839,27 @@ static JSValue definePropertiesSlow(JSGlobalObject* globalObject, JSObject* obje
     } \
 } while (false)
     for (size_t i = 0; i < numProperties; i++) {
-        JSValue prop = properties->get(globalObject, propertyNames[i]);
+        auto& propertyName = propertyNames[i];
+        ASSERT(!propertyName.isPrivateName());
+
+        PropertySlot slot(properties, PropertySlot::InternalMethodType::GetOwnProperty);
+        bool hasProperty = properties->methodTable()->getOwnPropertySlot(properties, globalObject, propertyName, slot);
+        RETURN_IF_EXCEPTION_CLEARING_OVERFLOW({ });
+        if (!hasProperty)
+            continue;
+        if (slot.attributes() & PropertyAttribute::DontEnum)
+            continue;
+
+        JSValue prop;
+        if (!slot.isTaintedByOpaqueObject()) [[likely]]
+            prop = slot.getValue(globalObject, propertyName);
+        else
+            prop = properties->get(globalObject, propertyName);
         RETURN_IF_EXCEPTION_CLEARING_OVERFLOW({ });
         PropertyDescriptor descriptor;
         toPropertyDescriptor(globalObject, prop, descriptor);
         RETURN_IF_EXCEPTION_CLEARING_OVERFLOW({ });
+        enumerableNames.append(propertyName);
         descriptors.append(descriptor);
         // Ensure we mark all the values that we're accumulating
         if (descriptor.isDataDescriptor() && descriptor.value())
@@ -856,11 +873,8 @@ static JSValue definePropertiesSlow(JSGlobalObject* globalObject, JSObject* obje
     }
     RELEASE_ASSERT(!markBuffer.hasOverflowed());
 #undef RETURN_IF_EXCEPTION_CLEARING_OVERFLOW
-    for (size_t i = 0; i < numProperties; i++) {
-        auto& propertyName = propertyNames[i];
-        ASSERT(!propertyName.isPrivateName());
-
-        object->methodTable()->defineOwnProperty(object, globalObject, propertyName, descriptors[i], true);
+    for (size_t i = 0; i < descriptors.size(); i++) {
+        object->methodTable()->defineOwnProperty(object, globalObject, enumerableNames[i], descriptors[i], true);
         RETURN_IF_EXCEPTION(scope, { });
     }
     return object;
@@ -1124,7 +1138,7 @@ JSObject* objectConstructorSeal(JSGlobalObject* globalObject, JSObject* object)
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    if (jsDynamicCast<JSFinalObject*>(object) && !hasIndexedProperties(object->indexingType())) {
+    if (is<JSFinalObject>(object) && !hasIndexedProperties(object->indexingType())) {
         object->seal(vm);
         return object;
     }
@@ -1157,7 +1171,7 @@ JSObject* objectConstructorFreeze(JSGlobalObject* globalObject, JSObject* object
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    if (jsDynamicCast<JSFinalObject*>(object) && !hasIndexedProperties(object->indexingType())) {
+    if (is<JSFinalObject>(object) && !hasIndexedProperties(object->indexingType())) {
         object->freeze(vm);
         return object;
     }
@@ -1211,7 +1225,7 @@ JSC_DEFINE_HOST_FUNCTION(objectConstructorIsSealed, (JSGlobalObject* globalObjec
     JSObject* object = asObject(obj);
 
     // Quick check for final objects.
-    if (jsDynamicCast<JSFinalObject*>(object) && !hasIndexedProperties(object->indexingType()))
+    if (is<JSFinalObject>(object) && !hasIndexedProperties(object->indexingType()))
         return JSValue::encode(jsBoolean(object->isSealed(vm)));
 
     // 2. Return ? TestIntegrityLevel(O, "sealed").
@@ -1229,7 +1243,7 @@ JSC_DEFINE_HOST_FUNCTION(objectConstructorIsFrozen, (JSGlobalObject* globalObjec
     JSObject* object = asObject(obj);
 
     // Quick check for final objects.
-    if (jsDynamicCast<JSFinalObject*>(object) && !hasIndexedProperties(object->indexingType()))
+    if (is<JSFinalObject>(object) && !hasIndexedProperties(object->indexingType()))
         return JSValue::encode(jsBoolean(object->isFrozen(vm)));
 
     // 2. Return ? TestIntegrityLevel(O, "frozen").
@@ -1278,7 +1292,7 @@ static JSArray* getPropertyKeys(JSGlobalObject* globalObject, JSObject* object, 
     auto kind = inferCachedPropertyNamesKind(propertyNameMode, dontEnumPropertiesMode);
 
     if (object->inherits<ProxyObject>()) {
-        ProxyObject* proxy = jsCast<ProxyObject*>(object);
+        ProxyObject* proxy = uncheckedDowncast<ProxyObject>(object);
         if (proxy->forwardsGetOwnPropertyNamesToTarget(dontEnumPropertiesMode))
             object = proxy->target();
     }

@@ -592,7 +592,7 @@ void SpeculativeJIT::emitCall(Node* node)
     FunctionExecutable* functionExecutable = nullptr;
     if (isDirect) {
         executable = node->castOperand<ExecutableBase*>();
-        functionExecutable = jsDynamicCast<FunctionExecutable*>(executable);
+        functionExecutable = dynamicDowncast<FunctionExecutable>(executable);
     }
     
     unsigned numPassedArgs = 0;
@@ -4366,6 +4366,14 @@ void SpeculativeJIT::compile(Node* node)
 
     case FulfillPromiseFirstResolving:
         compileFulfillPromiseFirstResolving(node);
+        break;
+
+    case NewResolvedPromise:
+        compileNewResolvedPromise(node);
+        break;
+
+    case NewRejectedPromise:
+        compileNewRejectedPromise(node);
         break;
 
     case PromiseResolve:

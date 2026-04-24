@@ -29,22 +29,18 @@
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
-#include "TopExceptionScope.h"
-#include "Error.h"
+#include "ExceptionEventLocation.h"
 #include "ExceptionHelpers.h"
 #include "Identifier.h"
-#include "InternalFunction.h"
 #include "JSBigInt.h"
 #include "JSCJSValue.h"
-#include "JSCJSValueCellInlines.h"
-#include "JSCellInlines.h"
-#include "JSFunction.h"
-#include "JSGlobalProxy.h"
-#include "JSObject.h"
+#include "JSCJSValueBigInt.h"
+#include "JSCJSValuePropertyInlines.h"
 #include "JSStringInlines.h"
 #include "MathCommon.h"
+#include "ThrowScope.h"
+#include <wtf/MediaTime.h>
 #include <wtf/text/MakeString.h>
-#include <wtf/text/StringImpl.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
@@ -85,36 +81,6 @@ inline uint32_t JSValue::toUInt32(JSGlobalObject* globalObject) const
     // The only difference between toInt32 and toUint32 is that toUint32 reinterprets resulted int32_t value as uint32_t.
     // https://tc39.es/ecma262/#sec-touint32
     return toInt32(globalObject);
-}
-
-// https://tc39.es/ecma262/#sec-toindex
-inline uint64_t JSValue::toIndex(JSGlobalObject* globalObject, ASCIILiteral errorName) const
-{
-    VM& vm = getVM(globalObject);
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
-    if (isInt32()) {
-        int32_t integer = asInt32();
-        if (integer < 0) [[unlikely]] {
-            throwException(globalObject, scope, createRangeError(globalObject, makeString(errorName, " cannot be negative"_s)));
-            return 0;
-        }
-        return integer;
-    }
-
-    double d = toIntegerOrInfinity(globalObject);
-    RETURN_IF_EXCEPTION(scope, 0);
-    if (d < 0) [[unlikely]] {
-        throwException(globalObject, scope, createRangeError(globalObject, makeString(errorName, " cannot be negative"_s)));
-        return 0;
-    }
-
-    if (d > maxSafeInteger()) [[unlikely]] {
-        throwException(globalObject, scope, createRangeError(globalObject, makeString(errorName, " larger than (2 ** 53) - 1"_s)));
-        return 0;
-    }
-
-    RELEASE_AND_RETURN(scope, d);
 }
 
 inline size_t JSValue::toTypedArrayIndex(JSGlobalObject* globalObject, ASCIILiteral errorName) const
@@ -210,69 +176,9 @@ inline std::optional<int32_t> JSValue::tryGetAsInt32()
     return std::nullopt;
 }
 
-#if USE(JSVALUE32_64)
-ALWAYS_INLINE JSBigInt* JSValue::asHeapBigInt() const
-{
-    ASSERT(isHeapBigInt());
-    return reinterpret_cast<JSBigInt*>(u.asBits.payload);
-}
-#else // !USE(JSVALUE32_64) i.e. USE(JSVALUE64)
-ALWAYS_INLINE JSBigInt* JSValue::asHeapBigInt() const
-{
-    ASSERT(isHeapBigInt());
-    return static_cast<JSBigInt*>(u.ptr);
-}
-#endif // USE(JSVALUE64)
-
-// ECMA 11.9.3
-inline bool JSValue::equal(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
-{
-    if (v1.isInt32() && v2.isInt32())
-        return v1 == v2;
-
-    return equalSlowCase(globalObject, v1, v2);
-}
-
-inline bool JSValue::isZeroBigInt() const
-{
-    ASSERT(isBigInt());
-#if USE(BIGINT32)
-    if (isBigInt32())
-        return !bigInt32AsInt32();
-#endif
-    ASSERT(isHeapBigInt());
-    return asHeapBigInt()->isZero();
-}
-
-inline bool JSValue::isNegativeBigInt() const
-{
-    ASSERT(isBigInt());
-#if USE(BIGINT32)
-    if (isBigInt32())
-        return bigInt32AsInt32() < 0;
-#endif
-    ASSERT(isHeapBigInt());
-    return asHeapBigInt()->sign();
-}
-
 template <typename Base> String HandleConverter<Base, Unknown>::getString(JSGlobalObject* globalObject) const
 {
     return jsValue().getString(globalObject);
-}
-
-ALWAYS_INLINE bool JSValue::getUInt32(uint32_t& v) const
-{
-    if (isInt32()) {
-        int32_t i = asInt32();
-        v = static_cast<uint32_t>(i);
-        return i >= 0;
-    }
-    if (isDouble()) {
-        double d = asDouble();
-        v = static_cast<uint32_t>(d);
-        return v == d;
-    }
-    return false;
 }
 
 ALWAYS_INLINE Identifier JSValue::toPropertyKey(JSGlobalObject* globalObject) const
@@ -391,31 +297,6 @@ ALWAYS_INLINE JSValue JSValue::toBigIntOrInt32(JSGlobalObject* globalObject) con
     return jsNumber(value);
 }
 
-
-inline JSString* JSValue::toString(JSGlobalObject* globalObject) const
-{
-    if (isString())
-        return asString(asCell());
-    bool returnEmptyStringOnError = true;
-    return toStringSlowCase(globalObject, returnEmptyStringOnError);
-}
-
-inline JSString* JSValue::toStringOrNull(JSGlobalObject* globalObject) const
-{
-    if (isString())
-        return asString(asCell());
-    bool returnEmptyStringOnError = false;
-    return toStringSlowCase(globalObject, returnEmptyStringOnError);
-}
-
-inline String JSValue::toWTFString(JSGlobalObject* globalObject) const
-{
-    if (isString())
-        return static_cast<JSString*>(asCell())->value(globalObject);
-    return toWTFStringSlowCase(globalObject);
-}
-
-
 inline JSValue JSValue::toThis(JSGlobalObject* globalObject, ECMAMode ecmaMode) const
 {
     if (isObject()) {
@@ -432,159 +313,6 @@ inline JSValue JSValue::toThis(JSGlobalObject* globalObject, ECMAMode ecmaMode) 
         return globalObject->globalThis();
 
     return toThisSloppySlowCase(globalObject);
-}
-
-ALWAYS_INLINE JSValue JSValue::get(JSGlobalObject* globalObject, PropertyName propertyName) const
-{
-    PropertySlot slot(asValue(), PropertySlot::InternalMethodType::Get);
-    return get(globalObject, propertyName, slot);
-}
-
-ALWAYS_INLINE JSValue JSValue::get(JSGlobalObject* globalObject, PropertyName propertyName, PropertySlot& slot) const
-{
-    auto scope = DECLARE_THROW_SCOPE(getVM(globalObject));
-    bool hasSlot = getPropertySlot(globalObject, propertyName, slot);
-    EXCEPTION_ASSERT(!scope.exception() || !hasSlot);
-    if (!hasSlot)
-        return jsUndefined();
-    RELEASE_AND_RETURN(scope, slot.getValue(globalObject, propertyName));
-}
-
-template<typename CallbackWhenNoException>
-ALWAYS_INLINE typename std::invoke_result<CallbackWhenNoException, bool, PropertySlot&>::type JSValue::getPropertySlot(JSGlobalObject* globalObject, PropertyName propertyName, CallbackWhenNoException callback) const
-{
-    PropertySlot slot(asValue(), PropertySlot::InternalMethodType::Get);
-    return getPropertySlot(globalObject, propertyName, slot, callback);
-}
-
-template<typename CallbackWhenNoException>
-ALWAYS_INLINE typename std::invoke_result<CallbackWhenNoException, bool, PropertySlot&>::type JSValue::getPropertySlot(JSGlobalObject* globalObject, PropertyName propertyName, PropertySlot& slot, CallbackWhenNoException callback) const
-{
-    auto scope = DECLARE_THROW_SCOPE(getVM(globalObject));
-    bool found = getPropertySlot(globalObject, propertyName, slot);
-    RETURN_IF_EXCEPTION(scope, { });
-    RELEASE_AND_RETURN(scope, callback(found, slot));
-}
-
-ALWAYS_INLINE bool JSValue::getPropertySlot(JSGlobalObject* globalObject, PropertyName propertyName, PropertySlot& slot) const
-{
-    auto scope = DECLARE_THROW_SCOPE(getVM(globalObject));
-    // If this is a primitive, we'll need to synthesize the prototype -
-    // and if it's a string there are special properties to check first.
-    JSObject* object;
-    if (!isObject()) [[unlikely]] {
-        if (isString()) {
-            bool hasProperty = asString(*this)->getStringPropertySlot(globalObject, propertyName, slot);
-            RETURN_IF_EXCEPTION(scope, false);
-            if (hasProperty)
-                return true;
-        }
-        object = synthesizePrototype(globalObject);
-        EXCEPTION_ASSERT(!!scope.exception() == !object);
-        if (!object) [[unlikely]]
-            return false;
-    } else
-        object = asObject(asCell());
-
-    RELEASE_AND_RETURN(scope, object->getPropertySlot(globalObject, propertyName, slot));
-}
-
-ALWAYS_INLINE bool JSValue::getOwnPropertySlot(JSGlobalObject* globalObject, PropertyName propertyName, PropertySlot& slot) const
-{
-    // If this is a primitive, we'll need to synthesize the prototype -
-    // and if it's a string there are special properties to check first.
-    auto scope = DECLARE_THROW_SCOPE(getVM(globalObject));
-    if (!isObject()) [[unlikely]] {
-        if (isString())
-            RELEASE_AND_RETURN(scope, asString(*this)->getStringPropertySlot(globalObject, propertyName, slot));
-
-        if (isUndefinedOrNull())
-            throwException(globalObject, scope, createNotAnObjectError(globalObject, *this));
-        return false;
-    }
-    RELEASE_AND_RETURN(scope, asObject(asCell())->getOwnPropertySlotInline(globalObject, propertyName, slot));
-}
-
-ALWAYS_INLINE JSValue JSValue::get(JSGlobalObject* globalObject, unsigned propertyName) const
-{
-    PropertySlot slot(asValue(), PropertySlot::InternalMethodType::Get);
-    return get(globalObject, propertyName, slot);
-}
-
-ALWAYS_INLINE JSValue JSValue::get(JSGlobalObject* globalObject, unsigned propertyName, PropertySlot& slot) const
-{
-    auto scope = DECLARE_THROW_SCOPE(getVM(globalObject));
-    // If this is a primitive, we'll need to synthesize the prototype -
-    // and if it's a string there are special properties to check first.
-    JSObject* object;
-    if (!isObject()) [[unlikely]] {
-        if (isString()) {
-            bool hasProperty = asString(*this)->getStringPropertySlot(globalObject, propertyName, slot);
-            RETURN_IF_EXCEPTION(scope, { });
-            if (hasProperty)
-                RELEASE_AND_RETURN(scope, slot.getValue(globalObject, propertyName));
-        }
-        object = synthesizePrototype(globalObject);
-        EXCEPTION_ASSERT(!!scope.exception() == !object);
-        if (!object) [[unlikely]]
-            return JSValue();
-    } else
-        object = asObject(asCell());
-    
-    bool hasSlot = object->getPropertySlot(globalObject, propertyName, slot);
-    EXCEPTION_ASSERT(!scope.exception() || !hasSlot);
-    if (!hasSlot)
-        return jsUndefined();
-    RELEASE_AND_RETURN(scope, slot.getValue(globalObject, propertyName));
-}
-
-ALWAYS_INLINE JSValue JSValue::get(JSGlobalObject* globalObject, uint64_t propertyName) const
-{
-    if (propertyName <= std::numeric_limits<unsigned>::max()) [[likely]]
-        return get(globalObject, static_cast<unsigned>(propertyName));
-    return get(globalObject, Identifier::from(getVM(globalObject), static_cast<double>(propertyName)));
-}
-
-template<typename T, typename PropertyNameType>
-ALWAYS_INLINE T JSValue::getAs(JSGlobalObject* globalObject, PropertyNameType propertyName) const
-{
-    JSValue value = get(globalObject, propertyName);
-#if ASSERT_ENABLED || ENABLE(SECURITY_ASSERTIONS)
-    VM& vm = getVM(globalObject);
-    if (vm.exceptionForInspection())
-        return nullptr;
-#endif
-    return jsCast<T>(value);
-}
-
-inline bool JSValue::put(JSGlobalObject* globalObject, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
-{
-    if (!isCell()) [[unlikely]]
-        return putToPrimitive(globalObject, propertyName, value, slot);
-
-    return asCell()->methodTable()->put(asCell(), globalObject, propertyName, value, slot);
-}
-
-ALWAYS_INLINE bool JSValue::putInline(JSGlobalObject* globalObject, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
-{
-    if (!isCell()) [[unlikely]]
-        return putToPrimitive(globalObject, propertyName, value, slot);
-    return asCell()->putInline(globalObject, propertyName, value, slot);
-}
-
-inline bool JSValue::putByIndex(JSGlobalObject* globalObject, unsigned propertyName, JSValue value, bool shouldThrow)
-{
-    if (!isCell()) [[unlikely]]
-        return putToPrimitiveByIndex(globalObject, propertyName, value, shouldThrow);
-
-    return asCell()->methodTable()->putByIndex(asCell(), globalObject, propertyName, value, shouldThrow);
-}
-
-ALWAYS_INLINE JSValue JSValue::getPrototype(JSGlobalObject* globalObject) const
-{
-    if (isObject())
-        return asObject(asCell())->getPrototype(globalObject);
-    return synthesizePrototype(globalObject);
 }
 
 ALWAYS_INLINE bool JSValue::equalSlowCaseInline(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
@@ -789,32 +517,6 @@ inline TriState JSValue::pureToBoolean() const
         return bigInt32AsInt32() ? TriState::True : TriState::False;
 #endif
     return isTrue() ? TriState::True : TriState::False;
-}
-
-ALWAYS_INLINE bool JSValue::requireObjectCoercible(JSGlobalObject* globalObject) const
-{
-    VM& vm = getVM(globalObject);
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
-    if (!isUndefinedOrNull())
-        return true;
-    throwException(globalObject, scope, createNotAnObjectError(globalObject, *this));
-    return false;
-}
-
-ALWAYS_INLINE bool isThisValueAltered(const PutPropertySlot& slot, JSObject* baseObject)
-{
-    JSValue thisValue = slot.thisValue();
-    if (thisValue == baseObject) [[likely]]
-        return false;
-
-    if (!thisValue.isObject())
-        return true;
-    JSObject* thisObject = asObject(thisValue);
-    // Only GlobalProxyType can be seen as the same to the original target object.
-    if (thisObject->type() == GlobalProxyType && jsCast<JSGlobalProxy*>(thisObject)->target() == baseObject)
-        return false;
-    return true;
 }
 
 // See section 7.2.9: https://tc39.github.io/ecma262/#sec-samevalue

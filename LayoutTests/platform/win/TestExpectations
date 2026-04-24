@@ -2432,6 +2432,7 @@ fast/canvas/font-family-system-ui-canvas.html [ Skip ] # ImageOnlyFailure
 fast/css-grid-layout/grid-align-baseline-vertical.html [ Failure ]
 fast/dom/call-a-constructor-as-a-function.html [ Failure ]
 fast/dynamic/float-in-trailing-whitespace-after-last-line-break-2.html [ Failure ]
+fast/events/anchor-mouse-focusable-quirk.html [ Skip ] # Cocoa-only quirk
 fast/events/attempt-scroll-with-no-scrollbars.html [ Failure ]
 fast/events/autoscroll-when-input-is-offscreen.html [ Skip ] # UIScript
 fast/events/autoscroll-with-software-keyboard.html [ Skip ] # UIScript
@@ -4557,6 +4558,7 @@ imported/w3c/web-platform-tests/wasm/core/data.wast.js.html [ Failure Pass ]
 imported/w3c/web-platform-tests/wasm/core/elem.wast.js.html [ Failure Pass ]
 imported/w3c/web-platform-tests/wasm/core/global.wast.js.html [ Failure Pass ]
 imported/w3c/web-platform-tests/wasm/core/unreached-invalid.wast.js.html [ Failure Pass ]
+imported/w3c/web-platform-tests/wasm/core/float_exprs.wast.js.html [ Skip ] # timeout
 # 2) tests timing out on wimpy Windows test machines
 imported/w3c/web-platform-tests/wasm/core/f32.wast.js.html [ Timeout Pass ]
 imported/w3c/web-platform-tests/wasm/core/f32_cmp.wast.js.html [ Timeout Pass ]
@@ -4581,6 +4583,7 @@ imported/w3c/web-platform-tests/speculation-rules/speculation-tags/invalid-tags.
 imported/w3c/web-platform-tests/speculation-rules/speculation-tags/invalid-tags.https.html?tag-level=ruleset&type=prefetch [ Failure ]
 imported/w3c/web-platform-tests/speculation-rules/speculation-tags/valid-tags.https.html?tag-level=rule&type=prefetch [ Failure ]
 imported/w3c/web-platform-tests/speculation-rules/speculation-tags/valid-tags.https.html?tag-level=ruleset&type=prefetch [ Failure ]
+imported/w3c/web-platform-tests/speculation-rules/prefetch/no-http-cache-interference-slow-error.https.html [ Skip ] # timeout
 
 # Lockdown Mode does not apply
 dom/xsl/lockdown-mode [ Skip ]
@@ -4670,3 +4673,5 @@ webkit.org/b/306256 editing/selection/modify-up-on-rtl-wrapping-text.html [ Fail
 fast/canvas/offscreen-webgl-transfer-after-navigation-crash.html [ Skip ] # Flaky failing test
 
 webkit.org/b/312135 fast/animation/request-video-frame-callback-in-isolated-world-with-javascript-disabled.html [ Timeout ]
+
+webkit.org/b/312924 fast/webcodecs/resetting-audio-decoder-with-zero-size-crash.html [ Skip ]

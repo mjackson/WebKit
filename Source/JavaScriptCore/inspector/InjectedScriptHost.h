@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include "JSCJSValueInlines.h"
+#include "JSCJSValue.h"
 #include "PerGlobalObjectWrapperWorld.h"
 #include <wtf/RefCounted.h>
 

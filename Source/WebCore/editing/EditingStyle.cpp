@@ -33,6 +33,7 @@
 #include "CSSComputedStyleDeclaration.h"
 #include "CSSFontFamilyNameValue.h"
 #include "CSSFontStyleWithAngleValue.h"
+#include "CSSKeywordValueInlines.h"
 #include "CSSParserIdioms.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "CSSRuleList.h"
@@ -71,6 +72,7 @@
 #include "StyleRule.h"
 #include "StyledElement.h"
 #include "VisibleUnits.h"
+#include <array>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
 
@@ -188,10 +190,11 @@ template<typename T> CSSValueID identifierForStyleProperty(T& style, CSSProperty
             return CSSValueNormal;
         return *resolvedAngle >= italicThreshold() ? CSSValueItalic : CSSValueNormal;
     }
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value.get())) {
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
         if (propertyID == CSSPropertyFontWeight && primitiveValue->isNumber() && primitiveValue->resolveAsNumberDeprecated() >= boldThreshold())
             return CSSValueBold;
-        auto identifier = primitiveValue->valueID();
+    } else if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        auto identifier = keywordValue->valueID();
         if (identifier == CSSValueOblique) {
             ASSERT(propertyID == CSSPropertyFontStyle);
             return CSSValueItalic;
@@ -203,14 +206,14 @@ template<typename T> CSSValueID identifierForStyleProperty(T& style, CSSProperty
 
 template<typename T> Ref<MutableStyleProperties> getPropertiesNotIn(StyleProperties& styleWithRedundantProperties, T& baseStyle);
 enum class LegacyFontSizeMode : bool { AlwaysUseLegacyFontSize, UseLegacyFontSizeOnlyIfPixelValuesMatch };
-static int legacyFontSizeFromCSSValue(Document&, CSSPrimitiveValue*, bool shouldUseFixedFontDefaultSize, LegacyFontSizeMode);
+static int legacyFontSizeFromCSSValue(Document&, CSSValue&, bool shouldUseFixedFontDefaultSize, LegacyFontSizeMode);
 static bool hasTransparentBackgroundColor(StyleProperties*);
 static RefPtr<CSSValue> backgroundColorInEffect(Node*);
 
 class HTMLElementEquivalent {
     WTF_MAKE_TZONE_ALLOCATED(HTMLElementEquivalent);
 public:
-    HTMLElementEquivalent(CSSPropertyID, CSSValueID primitiveValue, const QualifiedName& tagName);
+    HTMLElementEquivalent(CSSPropertyID, CSSValueID, const QualifiedName&);
     virtual ~HTMLElementEquivalent() = default;
 
     virtual bool matches(const Element& element) const { return !m_tagName || element.hasTagName(*m_tagName); }
@@ -221,9 +224,9 @@ public:
 
 protected:
     HTMLElementEquivalent(CSSPropertyID);
-    HTMLElementEquivalent(CSSPropertyID, const QualifiedName& tagName);
+    HTMLElementEquivalent(CSSPropertyID, const QualifiedName&);
     const CSSPropertyID m_propertyID;
-    const RefPtr<CSSPrimitiveValue> m_primitiveValue;
+    const RefPtr<CSSKeywordValue> m_keywordValue;
     const QualifiedName* m_tagName { nullptr }; // We can store a pointer because HTML tag names are const global.
 };
 
@@ -240,22 +243,22 @@ HTMLElementEquivalent::HTMLElementEquivalent(CSSPropertyID id, const QualifiedNa
 {
 }
 
-HTMLElementEquivalent::HTMLElementEquivalent(CSSPropertyID id, CSSValueID primitiveValue, const QualifiedName& tagName)
+HTMLElementEquivalent::HTMLElementEquivalent(CSSPropertyID id, CSSValueID keywordValue, const QualifiedName& tagName)
     : m_propertyID(id)
-    , m_primitiveValue(CSSPrimitiveValue::create(primitiveValue))
+    , m_keywordValue(CSSKeywordValue::create(keywordValue))
     , m_tagName(&tagName)
 {
-    ASSERT(primitiveValue != CSSValueInvalid);
+    ASSERT(keywordValue != CSSValueInvalid);
 }
 
 bool HTMLElementEquivalent::valueIsPresentInStyle(Element& element, const EditingStyle& style) const
 {
-    return matches(element) && protect(style.style())->propertyAsValueID(m_propertyID) == m_primitiveValue->valueID();
+    return matches(element) && protect(style.style())->propertyAsValueID(m_propertyID) == m_keywordValue->valueID();
 }
 
 void HTMLElementEquivalent::addToStyle(Element*, EditingStyle* style) const
 {
-    style->setProperty(m_propertyID, m_primitiveValue->cssText(CSS::defaultSerializationContext()));
+    style->setProperty(m_propertyID, m_keywordValue->cssText(CSS::defaultSerializationContext()));
 }
 
 class HTMLTextDecorationEquivalent : public HTMLElementEquivalent {
@@ -290,10 +293,10 @@ public:
         RefPtr styleValue = mutableStyle->getPropertyCSSValue(CSSPropertyWebkitTextDecorationsInEffect);
         if (!styleValue)
             styleValue = mutableStyle->getPropertyCSSValue(CSSPropertyTextDecorationLine);
-        if (!m_primitiveValue)
+        if (!m_keywordValue)
             return false;
         RefPtr valueList = dynamicDowncast<CSSValueList>(WTF::move(styleValue));
-        return valueList && valueList->hasValue(Ref { *m_primitiveValue });
+        return valueList && valueList->hasValue(Ref { *m_keywordValue });
     }
 
 private:
@@ -307,27 +310,11 @@ private:
 
 static bool fontWeightValueIsBold(CSSValue& fontWeight)
 {
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(fontWeight))
+        return keywordValue->valueID() == CSSValueBold;
+
     RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(fontWeight);
     if (!primitiveValue)
-        return false;
-
-    auto valueID = primitiveValue->valueID();
-
-    if (isCSSWideKeyword(valueID))
-        return false;
-
-    switch (valueID) {
-    case CSSValueNormal:
-        return false;
-    case CSSValueBold:
-        return true;
-    case CSSValueBolder:
-        return false;
-    default:
-        break;
-    }
-
-    if (CSSPropertyParserHelpers::isSystemFontShorthand(valueID))
         return false;
 
     ASSERT(primitiveValue->isNumber());
@@ -425,7 +412,7 @@ RefPtr<CSSValue> HTMLFontSizeEquivalent::attributeValueAsCSSValue(Element* eleme
     CSSValueID size;
     if (!HTMLFontElement::cssValueFromFontSizeNumber(value, size))
         return nullptr;
-    return CSSPrimitiveValue::create(size);
+    return CSSKeywordValue::create(size);
 }
 
 static bool removeAll(CSSValueListBuilder& list, CSSValueID valueID)
@@ -669,9 +656,9 @@ Ref<MutableStyleProperties> EditingStyle::styleWithResolvedTextDecorations() con
 
     CSSValueListBuilder valueList;
     if (underlineChange() == TextDecorationChange::Add)
-        valueList.append(CSSPrimitiveValue::create(CSSValueUnderline));
+        valueList.append(CSSKeywordValue::create(CSSValueUnderline));
     if (strikeThroughChange() == TextDecorationChange::Add)
-        valueList.append(CSSPrimitiveValue::create(CSSValueLineThrough));
+        valueList.append(CSSKeywordValue::create(CSSValueLineThrough));
     if (valueList.isEmpty())
         style->removeProperty(CSSPropertyTextDecorationLine);
     else
@@ -720,7 +707,7 @@ void EditingStyle::overrideWithStyle(const StyleProperties& style)
     return mergeStyle(&style, CSSPropertyOverrideMode::OverrideValues);
 }
 
-static void applyTextDecorationChangeToValueList(CSSValueListBuilder& valueList, TextDecorationChange change, Ref<CSSPrimitiveValue>&& value)
+static void applyTextDecorationChangeToValueList(CSSValueListBuilder& valueList, TextDecorationChange change, Ref<CSSValue>&& value)
 {
     switch (change) {
     case TextDecorationChange::None:
@@ -751,8 +738,8 @@ void EditingStyle::overrideTypingStyleAt(const EditingStyle& style, const Positi
         m_mutableStyle = MutableStyleProperties::create();
 
     RefPtr mutableStyle = m_mutableStyle;
-    Ref underline = CSSPrimitiveValue::create(CSSValueUnderline);
-    Ref lineThrough = CSSPrimitiveValue::create(CSSValueLineThrough);
+    Ref underline = CSSKeywordValue::create(CSSValueUnderline);
+    Ref lineThrough = CSSKeywordValue::create(CSSValueLineThrough);
     RefPtr value = mutableStyle->getPropertyCSSValue(CSSPropertyWebkitTextDecorationsInEffect);
     CSSValueListBuilder valueList;
     if (RefPtr list = dynamicDowncast<CSSValueList>(value.get())) {
@@ -986,14 +973,14 @@ bool EditingStyle::conflictsWithInlineStyleOfElement(StyledElement& element, Ref
                 if (!newInlineStyle)
                     return true;
                 removeAll(newValueList, CSSValueUnderline);
-                extractedValueList.append(CSSPrimitiveValue::create(CSSValueUnderline));
+                extractedValueList.append(CSSKeywordValue::create(CSSValueUnderline));
             }
 
             if (shouldRemoveStrikeThrough && valueList->hasValue(CSSValueLineThrough)) {
                 if (!newInlineStyle)
                     return true;
                 removeAll(newValueList, CSSValueLineThrough);
-                extractedValueList.append(CSSPrimitiveValue::create(CSSValueLineThrough));
+                extractedValueList.append(CSSKeywordValue::create(CSSValueLineThrough));
             }
 
             if (!extractedValueList.isEmpty()) {
@@ -1063,9 +1050,9 @@ bool EditingStyle::conflictsWithInlineStyleOfElement(StyledElement& element, Ref
     return conflicts;
 }
 
-static std::span<const HTMLElementEquivalent* const> NODELETE htmlElementEquivalents()
+SUPPRESS_NODELETE static std::span<const HTMLElementEquivalent* const> NODELETE htmlElementEquivalents()
 {
-    static const HTMLElementEquivalent* const equivalents[] = {
+    static const auto equivalents = std::to_array<const HTMLElementEquivalent*>({
         new HTMLFontWeightEquivalent(HTMLNames::bTag),
         new HTMLFontWeightEquivalent(HTMLNames::strongTag),
 
@@ -1077,7 +1064,7 @@ static std::span<const HTMLElementEquivalent* const> NODELETE htmlElementEquival
         new HTMLTextDecorationEquivalent(CSSValueUnderline, HTMLNames::uTag),
         new HTMLTextDecorationEquivalent(CSSValueLineThrough, HTMLNames::sTag),
         new HTMLTextDecorationEquivalent(CSSValueLineThrough, HTMLNames::strikeTag),
-    };
+    });
     return equivalents;
 }
 
@@ -1097,9 +1084,9 @@ bool EditingStyle::conflictsWithImplicitStyleOfElement(HTMLElement& element, Edi
     return false;
 }
 
-static std::span<const HTMLAttributeEquivalent* const> NODELETE htmlAttributeEquivalents()
+SUPPRESS_NODELETE static std::span<const HTMLAttributeEquivalent* const> NODELETE htmlAttributeEquivalents()
 {
-    static const HTMLAttributeEquivalent* const equivalents[] = {
+    static const auto equivalents = std::to_array<const HTMLAttributeEquivalent*>({
         // elementIsStyledSpanOrHTMLEquivalent depends on the fact each HTMLAttriuteEquivalent matches exactly one attribute
         // of exactly one element except dirAttr.
         new HTMLAttributeEquivalent(CSSPropertyColor, HTMLNames::fontTag, HTMLNames::colorAttr),
@@ -1108,7 +1095,7 @@ static std::span<const HTMLAttributeEquivalent* const> NODELETE htmlAttributeEqu
 
         new HTMLAttributeEquivalent(CSSPropertyDirection, HTMLNames::dirAttr),
         new HTMLAttributeEquivalent(CSSPropertyUnicodeBidi, HTMLNames::dirAttr),
-    };
+    });
     return equivalents;
 }
 
@@ -1376,10 +1363,10 @@ Ref<EditingStyle> EditingStyle::wrappingStyleForSerialization(Node& context, boo
 static void mergeTextDecorationValues(CSSValueListBuilder& mergedValue, const CSSValueList& valueToMerge)
 {
     if (valueToMerge.hasValue(CSSValueUnderline) && !contains(mergedValue, CSSValueUnderline))
-        mergedValue.append(CSSPrimitiveValue::create(CSSValueUnderline));
+        mergedValue.append(CSSKeywordValue::create(CSSValueUnderline));
 
     if (valueToMerge.hasValue(CSSValueLineThrough) && !contains(mergedValue, CSSValueLineThrough))
-        mergedValue.append(CSSPrimitiveValue::create(CSSValueLineThrough));
+        mergedValue.append(CSSKeywordValue::create(CSSValueLineThrough));
 }
 
 void EditingStyle::mergeStyle(const StyleProperties* style, CSSPropertyOverrideMode mode)
@@ -1668,17 +1655,17 @@ bool EditingStyle::convertPositionStyle()
         return false;
 
     RefPtr mutableStyle = style();
-    RefPtr<CSSPrimitiveValue> sticky = CSSPrimitiveValue::create(CSSValueSticky);
+    RefPtr sticky = CSSKeywordValue::create(CSSValueSticky);
     if (mutableStyle->propertyMatches(CSSPropertyPosition, sticky.get())) {
-        mutableStyle->setProperty(CSSPropertyPosition, CSSPrimitiveValue::create(CSSValueStatic), mutableStyle->propertyIsImportant(CSSPropertyPosition) ? IsImportant::Yes : IsImportant::No);
+        mutableStyle->setProperty(CSSPropertyPosition, CSSKeywordValue::create(CSSValueStatic), mutableStyle->propertyIsImportant(CSSPropertyPosition) ? IsImportant::Yes : IsImportant::No);
         return false;
     }
-    RefPtr<CSSPrimitiveValue> fixed = CSSPrimitiveValue::create(CSSValueFixed);
+    RefPtr fixed = CSSKeywordValue::create(CSSValueFixed);
     if (mutableStyle->propertyMatches(CSSPropertyPosition, fixed.get())) {
-        mutableStyle->setProperty(CSSPropertyPosition, CSSPrimitiveValue::create(CSSValueAbsolute), mutableStyle->propertyIsImportant(CSSPropertyPosition) ? IsImportant::Yes : IsImportant::No);
+        mutableStyle->setProperty(CSSPropertyPosition, CSSKeywordValue::create(CSSValueAbsolute), mutableStyle->propertyIsImportant(CSSPropertyPosition) ? IsImportant::Yes : IsImportant::No);
         return true;
     }
-    RefPtr<CSSPrimitiveValue> absolute = CSSPrimitiveValue::create(CSSValueAbsolute);
+    RefPtr absolute = CSSKeywordValue::create(CSSValueAbsolute);
     if (mutableStyle->propertyMatches(CSSPropertyPosition, absolute.get()))
         return true;
     return false;
@@ -1686,17 +1673,17 @@ bool EditingStyle::convertPositionStyle()
 
 bool EditingStyle::isFloating()
 {
-    RefPtr<CSSValue> v = protect(style())->getPropertyCSSValue(CSSPropertyFloat);
-    RefPtr<CSSPrimitiveValue> noneValue = CSSPrimitiveValue::create(CSSValueNone);
+    RefPtr v = protect(style())->getPropertyCSSValue(CSSPropertyFloat);
+    RefPtr noneValue = CSSKeywordValue::create(CSSValueNone);
     return v && !v->equals(*noneValue);
 }
 
 int EditingStyle::legacyFontSize(Document& document) const
 {
-    RefPtr cssValue = dynamicDowncast<CSSPrimitiveValue>(protect(style())->getPropertyCSSValue(CSSPropertyFontSize));
+    RefPtr cssValue = protect(style())->getPropertyCSSValue(CSSPropertyFontSize);
     if (!cssValue)
         return 0;
-    return legacyFontSizeFromCSSValue(document, cssValue.get(), m_shouldUseFixedDefaultFontSize, LegacyFontSizeMode::AlwaysUseLegacyFontSize);
+    return legacyFontSizeFromCSSValue(document, *cssValue, m_shouldUseFixedDefaultFontSize, LegacyFontSizeMode::AlwaysUseLegacyFontSize);
 }
 
 bool EditingStyle::hasStyle(CSSPropertyID propertyID, const String& value)
@@ -1723,12 +1710,12 @@ bool EditingStyle::fontStyleIsItalic()
 {
     if (!m_mutableStyle)
         return false;
-    RefPtr<CSSValue> fontStyle = extractPropertyValue(Ref { *m_mutableStyle }, CSSPropertyFontStyle);
+    RefPtr fontStyle = extractPropertyValue(Ref { *m_mutableStyle }, CSSPropertyFontStyle);
     if (!fontStyle)
         return false;
 
-    RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(*fontStyle);
-    auto keyword = primitiveValue ? primitiveValue->valueID() : CSSValueOblique;
+    RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(*fontStyle);
+    auto keyword = keywordValue ? keywordValue->valueID() : CSSValueOblique;
     return keyword == CSSValueOblique || keyword == CSSValueItalic;
 }
 
@@ -1821,11 +1808,11 @@ WritingDirection EditingStyle::textDirectionForSelection(const VisibleSelection&
             continue;
 
         Style::Extractor computedStyle(node.get());
-        RefPtr<CSSValue> unicodeBidi = computedStyle.propertyValue(CSSPropertyUnicodeBidi);
-        if (!is<CSSPrimitiveValue>(unicodeBidi))
+        RefPtr unicodeBidi = dynamicDowncast<CSSKeywordValue>(computedStyle.propertyValue(CSSPropertyUnicodeBidi));
+        if (!unicodeBidi)
             continue;
 
-        CSSValueID unicodeBidiValue = unicodeBidi->valueID();
+        auto unicodeBidiValue = unicodeBidi->valueID();
         if (unicodeBidiValue == CSSValueNormal)
             continue;
 
@@ -1833,11 +1820,11 @@ WritingDirection EditingStyle::textDirectionForSelection(const VisibleSelection&
             return WritingDirection::Natural;
 
         ASSERT(isEmbedOrIsolate(unicodeBidiValue));
-        RefPtr<CSSValue> direction = computedStyle.propertyValue(CSSPropertyDirection);
-        if (!is<CSSPrimitiveValue>(direction))
+        RefPtr direction = dynamicDowncast<CSSKeywordValue>(computedStyle.propertyValue(CSSPropertyDirection));
+        if (!direction)
             continue;
 
-        CSSValueID directionValue = direction->valueID();
+        auto directionValue = direction->valueID();
         if (directionValue != CSSValueLtr && directionValue != CSSValueRtl)
             continue;
 
@@ -1954,9 +1941,9 @@ StyleChange::StyleChange(EditingStyle* style, const Position& position)
 
         if (shouldStyleWithCSS) {
             if (shouldAddUnderline && !hasUnderline)
-                valueList.append(CSSPrimitiveValue::create(CSSValueUnderline));
+                valueList.append(CSSKeywordValue::create(CSSValueUnderline));
             if (shouldAddStrikeThrough && !hasLineThrough)
-                valueList.append(CSSPrimitiveValue::create(CSSValueLineThrough));
+                valueList.append(CSSKeywordValue::create(CSSValueLineThrough));
             mutableStyle->setProperty(CSSPropertyTextDecoration, CSSValueList::createSpaceSeparated(WTF::move(valueList))->cssText(CSS::defaultSerializationContext()));
         } else {
             m_applyUnderline = shouldAddUnderline && !hasUnderline;
@@ -2061,13 +2048,16 @@ void StyleChange::extractTextStyles(Document& document, MutableStyleProperties& 
     m_applyFontFace = AtomString { makeStringByReplacingAll(style.getPropertyValue(CSSPropertyFontFamily), '\"', ""_s) };
     style.removeProperty(CSSPropertyFontFamily);
 
-    if (RefPtr<CSSValue> fontSize = style.getPropertyCSSValue(CSSPropertyFontSize)) {
-        auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(*fontSize);
-        if (!primitiveValue)
-            style.removeProperty(CSSPropertyFontSize); // Can't make sense of the number. Put no font size.
-        else if (int legacyFontSize = legacyFontSizeFromCSSValue(document, primitiveValue, shouldUseFixedFontDefaultSize, LegacyFontSizeMode::UseLegacyFontSizeOnlyIfPixelValuesMatch)) {
+    if (RefPtr fontSize = style.getPropertyCSSValue(CSSPropertyFontSize)) {
+        if (int legacyFontSize = legacyFontSizeFromCSSValue(document, *fontSize, shouldUseFixedFontDefaultSize, LegacyFontSizeMode::UseLegacyFontSizeOnlyIfPixelValuesMatch)) {
             m_applyFontSize = AtomString::number(legacyFontSize);
-            style.removeProperty(CSSPropertyFontSize);
+            // For CSS keyword values (e.g. "large"), the legacy <font size> is
+            // a lossless representation, so remove the CSS property.
+            // For explicit lengths (e.g. "13px"), keep the CSS property nested inside
+            // the legacy <font size> so that renderers that understand CSS use the exact value.
+            RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(*fontSize);
+            if (!primitiveValue || !primitiveValue->isFontIndependentLength())
+                style.removeProperty(CSSPropertyFontSize);
         }
     }
 }
@@ -2120,15 +2110,15 @@ Ref<MutableStyleProperties> getPropertiesNotIn(StyleProperties& styleWithRedunda
     return extractPropertiesNotIn(styleWithRedundantProperties, baseStyle);
 }
 
-static bool NODELETE isCSSValueLength(CSSPrimitiveValue* value)
+static bool NODELETE isCSSValueLength(CSSPrimitiveValue& value)
 {
-    return value->isFontIndependentLength();
+    return value.isFontIndependentLength();
 }
 
-int legacyFontSizeFromCSSValue(Document& document, CSSPrimitiveValue* value, bool shouldUseFixedFontDefaultSize, LegacyFontSizeMode mode)
+int legacyFontSizeFromCSSValue(Document& document, CSSValue& value, bool shouldUseFixedFontDefaultSize, LegacyFontSizeMode mode)
 {
-    if (isCSSValueLength(value)) {
-        int pixelFontSize = value->resolveAsLengthDeprecated<int>();
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value); primitiveValue && isCSSValueLength(*primitiveValue)) {
+        int pixelFontSize = primitiveValue->resolveAsLengthDeprecated<int>();
         int legacyFontSize = Style::legacyFontSizeForPixelSize(pixelFontSize, shouldUseFixedFontDefaultSize, document);
         // Use legacy font size only if pixel value matches exactly to that of legacy font size.
         int cssPrimitiveEquivalent = legacyFontSize - 1 + CSSValueXSmall;
@@ -2138,8 +2128,10 @@ int legacyFontSizeFromCSSValue(Document& document, CSSPrimitiveValue* value, boo
         return 0;
     }
 
-    if (CSSValueXSmall <= value->valueID() && value->valueID() <= CSSValueXxxLarge)
-        return value->valueID() - CSSValueXSmall + 1;
+    if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
+        if (auto valueID = keywordValue->valueID(); CSSValueXSmall <= valueID && valueID <= CSSValueXxxLarge)
+            return valueID - CSSValueXSmall + 1;
+    }
 
     return 0;
 }
@@ -2148,7 +2140,7 @@ static bool isTransparentColorValue(CSSValue* value)
 {
     if (!value)
         return true;
-    if (value->valueID() == CSSValueTransparent)
+    if (isValueID(value, CSSValueTransparent))
         return true;
     return !cssValueToColor(value).isVisible();
 }

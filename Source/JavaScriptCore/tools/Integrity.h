@@ -97,7 +97,7 @@ private:
     static constexpr int numberOfTriggerBits = (sizeof(m_triggerBits) * CHAR_BIT) - 1;
 };
 
-ALWAYS_INLINE static bool isSanePointer(const void* pointer)
+ALWAYS_INLINE bool isSanePointer(const void* pointer)
 {
     uintptr_t pointerAsInt = std::bit_cast<uintptr_t>(pointer);
 #if CPU(ARM64) && CPU(ADDRESS64)

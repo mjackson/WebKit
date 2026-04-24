@@ -40,7 +40,6 @@
 #include "CSSParserToken.h"
 #include "CSSParserTokenRange.h"
 #include "CSSPrimitiveValue.h"
-#include "CSSPrimitiveValueMappings.h"
 #include "CSSPropertyParserConsumer+AngleDefinitions.h"
 #include "CSSPropertyParserConsumer+CSSPrimitiveValueResolver.h"
 #include "CSSPropertyParserConsumer+Color.h"
@@ -61,6 +60,7 @@
 #include "Document.h"
 #include "FontCustomPlatformData.h"
 #include "FontFace.h"
+#include "StyleKeyword+Mappings.h"
 #include "WebKitFontFamilyNames.h"
 #include <wtf/text/ParsingUtilities.h>
 
@@ -71,16 +71,6 @@
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
-
-template<typename Result, typename... Ts> static Result forwardVariantTo(Variant<Ts...>&& variant)
-{
-    return WTF::switchOn(WTF::move(variant), [](auto&& alternative) -> Result { return { WTF::move(alternative) }; });
-}
-
-static Ref<CSSPrimitiveValue> resolveToCSSPrimitiveValue(CSS::Numeric auto&& primitive)
-{
-    return WTF::switchOn(WTF::move(primitive), [](auto&& alternative) { return CSSPrimitiveValueResolverBase::resolve(WTF::move(alternative), { }); }).releaseNonNull();
-}
 
 static CSSParserMode NODELETE parserMode(ScriptExecutionContext& context)
 {
@@ -207,7 +197,7 @@ RefPtr<CSSValue> consumeFontStyle(CSSParserTokenRange& range, [[maybe_unused]] C
     }
 #endif
 
-    return CSSPrimitiveValue::create(*keyword);
+    return CSSKeywordValue::create(*keyword);
 }
 
 // MARK: - 'font-family'
@@ -299,7 +289,7 @@ static RefPtr<CSSValue> consumeGenericFamily(CSSParserTokenRange& range, CSS::Pr
         // FIXME: Remove special case for system-ui.
         if (*familyName == CSSValueSystemUi)
             return state.pool.createFontFamilyNameValue(nameLiteral(*familyName));
-        return CSSPrimitiveValue::create(*familyName);
+        return CSSKeywordValue::create(*familyName);
     }
     return nullptr;
 }
@@ -482,7 +472,7 @@ RefPtr<CSSValue> consumeFontSizeAdjust(CSSParserTokenRange& range, CSS::Property
         return consumeIdent(range);
 
     auto metric = consumeIdent<CSSValueExHeight, CSSValueCapHeight, CSSValueChWidth, CSSValueIcWidth, CSSValueIcHeight>(range);
-    auto value = CSSPrimitiveValueResolver<CSS::Number<CSS::Nonnegative>>::consumeAndResolve(range, state);
+    RefPtr<CSSValue> value = CSSPrimitiveValueResolver<CSS::Number<CSS::Nonnegative>>::consumeAndResolve(range, state);
     if (!value)
         value = consumeIdent<CSSValueFromFont>(range);
 
@@ -758,48 +748,57 @@ RefPtr<CSSValue> parseFontFaceFontStyle(const String& string, ScriptExecutionCon
 
 #if ENABLE(VARIATION_FONTS)
 
-RefPtr<CSSValue> consumeFontFaceFontStyle(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+std::optional<CSS::FontStyleRange> consumeUnresolvedFontFaceFontStyle(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <'font-style'> auto | normal | italic | oblique [ <angle [-90deg,90deg]>{1,2} ]?
     // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-style
 
     // FIXME: Missing support for "auto" identifier.
 
-    auto keyword = consumeIdentRaw<CSSValueNormal, CSSValueItalic, CSSValueOblique>(range);
-    if (!keyword)
-        return nullptr;
+    switch (range.peek().id()) {
+    case CSSValueNormal:
+        range.consumeIncludingWhitespace();
+        return CSS::FontStyleRange { CSS::Keyword::Normal { } };
+    case CSSValueItalic:
+        range.consumeIncludingWhitespace();
+        return CSS::FontStyleRange { CSS::Keyword::Italic { } };
+    case CSSValueOblique: {
+        auto rangeCopy = range;
 
-    if (*keyword != CSSValueOblique || range.atEnd())
-        return CSSFontStyleRangeValue::create(CSSPrimitiveValue::create(*keyword));
+        rangeCopy.consumeIncludingWhitespace();
 
-    auto rangeAfterAngles = range;
+        if (rangeCopy.atEnd()) {
+            range = rangeCopy;
+            return CSS::FontStyleRange { CSS::FontStyleRange::Oblique { std::nullopt, std::nullopt } };
+        }
 
-    auto firstAngle = consumeFontStyleAngleUnresolved(rangeAfterAngles, state);
-    if (!firstAngle)
-        return nullptr;
+        auto firstAngle = consumeFontStyleAngleUnresolved(rangeCopy, state);
+        if (!firstAngle)
+            return std::nullopt;
 
-    if (rangeAfterAngles.atEnd()) {
-        range = rangeAfterAngles;
-        return CSSFontStyleRangeValue::create(
-            CSSPrimitiveValue::create(*keyword),
-            CSSValueList::createSpaceSeparated(
-                resolveToCSSPrimitiveValue(WTF::move(*firstAngle))
-            )
-        );
+        if (rangeCopy.atEnd()) {
+            range = rangeCopy;
+            return CSS::FontStyleRange { CSS::FontStyleRange::Oblique { WTF::move(firstAngle), std::nullopt } };
+        }
+
+        auto secondAngle = consumeFontStyleAngleUnresolved(rangeCopy, state);
+        if (!secondAngle)
+            return std::nullopt;
+
+        range = rangeCopy;
+        return CSS::FontStyleRange { CSS::FontStyleRange::Oblique { WTF::move(firstAngle), WTF::move(secondAngle) } };
     }
 
-    auto secondAngle = consumeFontStyleAngleUnresolved(rangeAfterAngles, state);
-    if (!secondAngle)
-        return nullptr;
+    default:
+        return std::nullopt;
+    }
+}
 
-    range = rangeAfterAngles;
-    return CSSFontStyleRangeValue::create(
-        CSSPrimitiveValue::create(*keyword),
-        CSSValueList::createSpaceSeparated(
-            resolveToCSSPrimitiveValue(WTF::move(*firstAngle)),
-            resolveToCSSPrimitiveValue(WTF::move(*secondAngle))
-        )
-    );
+RefPtr<CSSValue> consumeFontFaceFontStyle(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    if (auto unresolved = consumeUnresolvedFontFaceFontStyle(range, state))
+        return CSSFontStyleRangeValue::create(WTF::move(*unresolved));
+    return nullptr;
 }
 
 #else

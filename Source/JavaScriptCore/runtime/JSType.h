@@ -59,8 +59,6 @@ namespace JSC {
     \
     macro(JSCellButterflyType, SpecCellOther) \
     macro(JSSourceCodeType, SpecCellOther) \
-    macro(JSScriptFetcherType, SpecCellOther) \
-    macro(JSScriptFetchParametersType, SpecCellOther) \
     macro(JSPromiseReactionType, SpecCellOther) \
     macro(JSPromiseCombinatorsContextType, SpecCellOther) \
     macro(JSPromiseCombinatorsGlobalContextType, SpecCellOther) \
@@ -165,6 +163,8 @@ enum JSType : uint8_t {
     LastJSCObjectType = InternalFieldTupleType, // This is the last "JSC" Object type. After this, we have embedder's (e.g., WebCore) extended object types.
     MaxJSType = 0b11111111,
 };
+
+static constexpr uint8_t EmbedderArrayLikeType = 0b11101101;
 
 static constexpr uint32_t LastMaybeFalsyCellPrimitive = HeapBigIntType;
 

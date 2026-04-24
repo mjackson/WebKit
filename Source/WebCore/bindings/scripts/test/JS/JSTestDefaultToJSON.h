@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestDefaultToJSON : public JSDOMWrapper<TestDefaultToJSON> {
 public:
     using Base = JSDOMWrapper<TestDefaultToJSON>;
-    static JSTestDefaultToJSON* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestDefaultToJSON>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestDefaultToJSON* ptr = new (NotNull, JSC::allocateCell<JSTestDefaultToJSON>(vm)) JSTestDefaultToJSON(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestDefaultToJSON* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestDefaultToJSON>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);

@@ -210,7 +210,6 @@ set(bmalloc_C_SOURCES
 )
 
 set(bmalloc_PUBLIC_HEADERS
-    Configurations/module.modulemap
     bmalloc/Algorithm.h
     bmalloc/AllocationCounts.h
     bmalloc/CompactAllocationMode.h

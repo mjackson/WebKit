@@ -639,8 +639,8 @@ GLuint TextureState::getEnabledLevelCount() const
     Optional<Extents> expectedSize;
     for (size_t enabledLevel = baseLevel; enabledLevel <= maxLevel; ++enabledLevel, ++levelCount)
     {
-        size_t descIndex         = GetImageDescIndex(target, enabledLevel);
-        const Extents &levelSize = mImageDescs[descIndex].size;
+        size_t descIndex          = GetImageDescIndex(target, enabledLevel);
+        const Extents &levelSize  = mImageDescs[descIndex].size;
         const Format &levelFormat = mImageDescs[descIndex].format;
 
         if (levelSize.empty())
@@ -870,6 +870,11 @@ void Texture::onDestroy(const Context *context)
 
     mState.mBuffer.set(context, nullptr, 0, 0);
 
+    if (context && context->retainIdUntilObjectDestroyed())
+    {
+        context->onTextureDestroy(this);
+    }
+
     if (mTexture)
     {
         mTexture->onDestroy(context);
@@ -990,7 +995,9 @@ GLenum Texture::getWrapS() const
 void Texture::setWrapT(const Context *context, GLenum wrapT)
 {
     if (mState.mSamplerState.getWrapT() == wrapT)
+    {
         return;
+    }
     if (mState.mSamplerState.setWrapT(wrapT))
     {
         signalDirtyState(DIRTY_BIT_WRAP_T);
@@ -1052,6 +1059,19 @@ void Texture::setMaxLod(const Context *context, GLfloat maxLod)
 GLfloat Texture::getMaxLod() const
 {
     return mState.mSamplerState.getMaxLod();
+}
+
+void Texture::setLodBias(const Context *context, GLfloat lodBias)
+{
+    if (mState.mSamplerState.setLodBias(lodBias))
+    {
+        signalDirtyState(DIRTY_BIT_LOD_BIAS_QCOM);
+    }
+}
+
+GLfloat Texture::getLodBias() const
+{
+    return mState.mSamplerState.getLodBias();
 }
 
 void Texture::setCompareMode(const Context *context, GLenum compareMode)
@@ -1875,8 +1895,8 @@ angle::Result Texture::setStorageExternalMemory(Context *context,
                                                  imageCreateInfoPNext));
 
     mState.mIsExternalMemoryTexture = true;
-    mState.mImmutableFormat = true;
-    mState.mImmutableLevels = static_cast<GLuint>(levels);
+    mState.mImmutableFormat         = true;
+    mState.mImmutableLevels         = static_cast<GLuint>(levels);
     mState.clearImageDescs();
     mState.setImageDescChain(0, static_cast<GLuint>(levels - 1), size, Format(internalFormat),
                              InitState::Initialized);
@@ -2707,10 +2727,6 @@ void Texture::onSubjectStateChange(angle::SubjectIndex index, angle::SubjectMess
             }
         }
         break;
-        case angle::SubjectMessage::InitializationComplete:
-            ASSERT(index == rx::kTextureImageImplObserverMessageIndex);
-            setInitState(InitState::Initialized);
-            break;
         case angle::SubjectMessage::InternalMemoryAllocationChanged:
             // Need to mark the texture dirty to give the back end a chance to handle the new
             // buffer. For example, the Vulkan back end needs to create a new buffer view that

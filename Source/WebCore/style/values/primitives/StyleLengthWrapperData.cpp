@@ -57,25 +57,6 @@ void LengthWrapperData::deref() const
     Calculation::ValueMap::calculationValues().deref(m_calculationValueHandle);
 }
 
-LengthWrapperData::LengthWrapperData(IPCData&& data)
-    : m_floatValue { data.value }
-    , m_opaqueType { data.opaqueType }
-    , m_kind { LengthWrapperDataKind::Default }
-    , m_hasQuirk { data.hasQuirk }
-{
-}
-
-auto LengthWrapperData::ipcData() const -> IPCData
-{
-    ASSERT(m_kind == LengthWrapperDataKind::Default);
-
-    return IPCData {
-        .value = value(),
-        .opaqueType = m_opaqueType,
-        .hasQuirk = m_hasQuirk
-    };
-}
-
 float LengthWrapperData::nonNanCalculatedValue(float maxValue, const ZoomFactor& usedZoom) const
 {
     ASSERT(m_kind == LengthWrapperDataKind::Calculation);

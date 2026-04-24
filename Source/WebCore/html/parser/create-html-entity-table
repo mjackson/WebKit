@@ -191,7 +191,7 @@ output_file.write("""});
 
 std::span<const char> HTMLEntityTableEntry::nameCharacters() const
 {
-    return staticEntityStringStorage.span().subspan(nameCharactersOffset);
+    return staticEntityStringStorage.span().subspan(nameCharactersOffset, nameLengthExcludingSemicolon);
 }
 
 std::span<const HTMLEntityTableEntry> HTMLEntityTable::entriesStartingWith(char16_t c)

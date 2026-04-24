@@ -60,6 +60,10 @@ struct UNumberRangeFormatterDeleter {
     JS_EXPORT_PRIVATE void operator()(UNumberRangeFormatter*);
 };
 
+// Approximate sizes of ICU objects for GC memory pressure reporting, measured empirically with unumf_open + format.
+inline constexpr size_t estimatedUNumberFormatterSize = 1000;
+inline constexpr size_t estimatedUNumberRangeFormatterSize = 20000;
+
 class IntlMathematicalValue {
     WTF_MAKE_TZONE_ALLOCATED(IntlMathematicalValue);
 public:
@@ -165,11 +169,11 @@ public:
     JSValue formatToParts(JSGlobalObject*, IntlMathematicalValue&&, JSString* sourceType = nullptr) const;
     JSObject* resolvedOptions(JSGlobalObject*) const;
 
-    JSValue formatRange(JSGlobalObject*, double, double) const;
-    JSValue formatRange(JSGlobalObject*, IntlMathematicalValue&&, IntlMathematicalValue&&) const;
+    JSValue formatRange(JSGlobalObject*, double, double);
+    JSValue formatRange(JSGlobalObject*, IntlMathematicalValue&&, IntlMathematicalValue&&);
 
-    JSValue formatRangeToParts(JSGlobalObject*, double, double) const;
-    JSValue formatRangeToParts(JSGlobalObject*, IntlMathematicalValue&&, IntlMathematicalValue&&) const;
+    JSValue formatRangeToParts(JSGlobalObject*, double, double);
+    JSValue formatRangeToParts(JSGlobalObject*, IntlMathematicalValue&&, IntlMathematicalValue&&);
 
     JSBoundFunction* boundFormat() const LIFETIME_BOUND { return m_boundFormat.get(); }
     void setBoundFormat(VM&, JSBoundFunction*);
@@ -200,6 +204,8 @@ private:
 
     static Vector<String> localeData(const String&, RelevantExtensionKey);
 
+    UNumberRangeFormatter* createNumberRangeFormatterIfNecessary(JSGlobalObject*);
+
     enum class CurrencyDisplay : uint8_t { Code, Symbol, FormalSymbol, NarrowSymbol, Name, Never };
     enum class CurrencySign : uint8_t { Standard, Accounting };
     enum class UnitDisplay : uint8_t { Short, Narrow, Long };
@@ -218,6 +224,8 @@ private:
     WriteBarrier<JSBoundFunction> m_boundFormat;
     std::unique_ptr<UNumberFormatter, UNumberFormatterDeleter> m_numberFormatter;
     std::unique_ptr<UNumberRangeFormatter, UNumberRangeFormatterDeleter> m_numberRangeFormatter;
+    String m_numberFormatterSkeleton;
+    CString m_dataLocaleWithExtensions;
 
     String m_locale;
     String m_numberingSystem;

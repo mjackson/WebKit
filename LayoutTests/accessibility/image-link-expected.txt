@@ -71,6 +71,7 @@ AXVisibleCharacterRange: NSRange: {0, 0}
 AXElementBusy: 0
 AXImageOverlayElements: (null)
 AXEmbeddedImageDescription:
+AXImageDataSize: NSSize: {280, 209}
 AXURL: LayoutTests/accessibility/resources/cake.png
 
 

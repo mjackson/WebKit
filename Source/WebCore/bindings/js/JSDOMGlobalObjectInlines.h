@@ -29,6 +29,7 @@
 #include "DOMConstructors.h"
 #include "JSDOMGlobalObject.h"
 #include <JavaScriptCore/JSObjectInlines.h>
+#include <JavaScriptCore/StructureCreateInlines.h>
 
 namespace WebCore {
 
@@ -73,9 +74,9 @@ JSClass* toJSDOMGlobalObject(JSC::VM&, JSC::JSValue value)
 
     if (auto* object = value.getObject()) {
         if (object->type() == JSC::GlobalProxyType)
-            return JSC::jsDynamicCast<JSClass*>(JSC::jsCast<JSC::JSGlobalProxy*>(object)->target());
+            return dynamicDowncast<JSClass>(uncheckedDowncast<JSC::JSGlobalProxy>(object)->target());
         if (object->inherits<JSClass>())
-            return JSC::jsCast<JSClass*>(object);
+            return uncheckedDowncast<JSClass>(object);
     }
 
     return nullptr;

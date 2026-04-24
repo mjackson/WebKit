@@ -115,6 +115,11 @@
     (subpath "/Library/Apple/System/Library/PrivateFrameworks")
     (subpath "/System/Library/Frameworks")
     (subpath "/System/Library/PrivateFrameworks")
+    (subpath "/System/Library/SubFrameworks/RealityCoreRenderer.framework")
+    (subpath "/System/Library/SubFrameworks/RealityCoreDeformation.framework")
+    (subpath "/System/Library/SubFrameworks/RealityFoundationCloth.framework")
+    (subpath "/System/Library/SubFrameworks/ShaderGraph.framework")
+    (subpath "/System/Library/SubFrameworks/RealityCoreTextureProcessing.framework")
     (subpath "/usr/lib")
     (subpath "/usr/local/lib/sanitizers") ;; FIXME(209820)
     (subpath "/usr/appleinternal/lib") ;; <rdar://problem/72317112>
@@ -808,12 +813,7 @@
         (global-name "com.apple.trustd.agent")))
 #endif
 
-#if ENABLE(LOGD_BLOCKING_IN_WEBCONTENT)
-(with-filter (require-not (logd-blocking))
-    (allow mach-lookup (global-name
-        "com.apple.logd"
-        "com.apple.logd.events")))
-#else
+#if !ENABLE(LOGD_BLOCKING_IN_WEBCONTENT) || !USE(APPLE_INTERNAL_SDK)
 (allow mach-lookup (global-name
     "com.apple.logd"
     "com.apple.logd.events"))
@@ -933,12 +933,9 @@
                 (deny mach-message-send (with no-report) (message-number 1023))
                 (allow mach-message-send (notifyd-message-numbers))))))
 
-#if ENABLE(NOTIFY_BLOCKING)
-(with-filter (require-not (notify-blocking))
-    (allow-notifyd))
-#else
+#if !ENABLE(NOTIFY_BLOCKING) || !USE(APPLE_INTERNAL_SDK)
 (allow-notifyd)
-#endif // ENABLE(NOTIFY_BLOCKING)
+#endif
 #endif // PLATFORM(MAC)
 
 ;; <rdar://problem/63943836>

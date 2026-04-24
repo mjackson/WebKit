@@ -1260,7 +1260,7 @@ class StyleProcessor(ProcessorBase):
 
         _log.debug("Using class: " + checker.__class__.__name__)
 
-        checker.check(lines)
+        checker.check(lines, line_numbers=line_numbers)
         if isinstance(checker, SwiftChecker) and checker.has_swift_format_errors:
             _log.info("These errors can be fixed using swift format --in-place \"%s\"" % file_path)
 

@@ -27,6 +27,8 @@
 #include "FrameWorkerAgent.h"
 
 #include "Document.h"
+#include "DocumentPage.h"
+#include "FrameDestructionObserverInlines.h"
 #include "InstrumentingAgents.h"
 #include "LocalFrame.h"
 #include "Page.h"

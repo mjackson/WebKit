@@ -135,6 +135,18 @@ void CoordinatedPlatformLayerBufferNativeImage::paintToTextureMapper(TextureMapp
     m_buffer->paintToTextureMapper(textureMapper, targetRect, modelViewMatrix, opacity);
 }
 
+#if USE(SKIA)
+void CoordinatedPlatformLayerBufferNativeImage::paintToCanvas(SkCanvas& canvas, const FloatRect& targetRect, const SkPaint& paint)
+{
+    waitForContentsIfNeeded();
+
+    if (!tryEnsureBuffer())
+        return;
+
+    m_buffer->paintToCanvas(canvas, targetRect, paint);
+}
+#endif
+
 } // namespace WebCore
 
 #endif // USE(COORDINATED_GRAPHICS)

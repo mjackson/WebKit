@@ -420,6 +420,13 @@ void PlaybackSessionManager::rateChanged(WebCore::HTMLMediaElementIdentifier con
 #endif
 }
 
+#if ENABLE(IMAGE_ANALYSIS)
+void PlaybackSessionManager::cancelTextRecognition()
+{
+    m_textRecognitionRequest->cancel();
+}
+#endif
+
 void PlaybackSessionManager::seekableRangesChanged(WebCore::HTMLMediaElementIdentifier contextId, const WebCore::PlatformTimeRanges& timeRanges, double lastModifiedTime, double liveUpdateInterval)
 {
     m_page->send(Messages::PlaybackSessionManagerProxy::SeekableRangesVectorChanged(processQualify(contextId), timeRanges, lastModifiedTime, liveUpdateInterval));

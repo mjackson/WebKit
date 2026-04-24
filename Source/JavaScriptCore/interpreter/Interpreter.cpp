@@ -238,16 +238,16 @@ unsigned sizeOfVarargs(JSGlobalObject* globalObject, JSValue arguments, uint32_t
     unsigned length;
     switch (cell->type()) {
     case DirectArgumentsType:
-        length = jsCast<DirectArguments*>(cell)->length(globalObject);
+        length = uncheckedDowncast<DirectArguments>(cell)->length(globalObject);
         break;
     case ScopedArgumentsType:
-        length = jsCast<ScopedArguments*>(cell)->length(globalObject);
+        length = uncheckedDowncast<ScopedArguments>(cell)->length(globalObject);
         break;
     case ClonedArgumentsType:
-        length = jsCast<ClonedArguments*>(cell)->length(globalObject);
+        length = uncheckedDowncast<ClonedArguments>(cell)->length(globalObject);
         break;
     case JSCellButterflyType:
-        length = jsCast<JSCellButterfly*>(cell)->length();
+        length = uncheckedDowncast<JSCellButterfly>(cell)->length();
         break;
     case StringType:
     case SymbolType:
@@ -257,7 +257,7 @@ unsigned sizeOfVarargs(JSGlobalObject* globalObject, JSValue arguments, uint32_t
         
     default:
         RELEASE_ASSERT(arguments.isObject());
-        length = clampToUnsigned(toLength(globalObject, jsCast<JSObject*>(cell)));
+        length = clampToUnsigned(toLength(globalObject, uncheckedDowncast<JSObject>(cell)));
         break;
     }
     RETURN_IF_EXCEPTION(scope, 0);
@@ -317,26 +317,26 @@ void loadVarargs(JSGlobalObject* globalObject, JSValue* firstElementDest, JSValu
     switch (cell->type()) {
     case DirectArgumentsType:
         scope.release();
-        jsCast<DirectArguments*>(cell)->copyToArguments(globalObject, firstElementDest, offset, length);
+        uncheckedDowncast<DirectArguments>(cell)->copyToArguments(globalObject, firstElementDest, offset, length);
         return;
     case ScopedArgumentsType:
         scope.release();
-        jsCast<ScopedArguments*>(cell)->copyToArguments(globalObject, firstElementDest, offset, length);
+        uncheckedDowncast<ScopedArguments>(cell)->copyToArguments(globalObject, firstElementDest, offset, length);
         return;
     case ClonedArgumentsType:
         scope.release();
-        jsCast<ClonedArguments*>(cell)->copyToArguments(globalObject, firstElementDest, offset, length);
+        uncheckedDowncast<ClonedArguments>(cell)->copyToArguments(globalObject, firstElementDest, offset, length);
         return;
     case JSCellButterflyType:
         scope.release();
-        jsCast<JSCellButterfly*>(cell)->copyToArguments(globalObject, firstElementDest, offset, length);
+        uncheckedDowncast<JSCellButterfly>(cell)->copyToArguments(globalObject, firstElementDest, offset, length);
         return;
     default: {
         ASSERT(arguments.isObject());
-        JSObject* object = jsCast<JSObject*>(cell);
+        JSObject* object = uncheckedDowncast<JSObject>(cell);
         if (isJSArray(object)) {
             scope.release();
-            jsCast<JSArray*>(object)->copyToArguments(globalObject, firstElementDest, offset, length);
+            uncheckedDowncast<JSArray>(object)->copyToArguments(globalObject, firstElementDest, offset, length);
             return;
         }
         unsigned i;
@@ -455,7 +455,7 @@ void Interpreter::getAsyncStackTrace(JSCell* owner, Vector<StackFrame>& results,
         if (promise && promise->status() == JSPromise::Status::Pending) {
             JSValue reactionsValue = promise->internalField(JSPromise::Field::ReactionsOrResult).get();
             if (reactionsValue) {
-                if (auto* reaction = jsDynamicCast<JSPromiseReaction*>(reactionsValue))
+                if (auto* reaction = dynamicDowncast<JSPromiseReaction>(reactionsValue))
                     return reaction->context();
             }
         }
@@ -465,24 +465,24 @@ void Interpreter::getAsyncStackTrace(JSCell* owner, Vector<StackFrame>& results,
     auto getParentGenerator = [&](JSGenerator* gen) -> JSGenerator* {
         JSValue generatorContext = gen->internalField(static_cast<unsigned>(JSGenerator::Field::Context)).get();
         ASSERT(generatorContext);
-        JSPromise* awaitedPromise = jsDynamicCast<JSPromise*>(generatorContext);
+        JSPromise* awaitedPromise = dynamicDowncast<JSPromise>(generatorContext);
         JSValue promiseContext = getContextValueFromPromise(awaitedPromise);
 
         if (!promiseContext)
             return nullptr;
 
         // handle simple `await`
-        if (auto* generator = jsDynamicCast<JSGenerator*>(promiseContext))
+        if (auto* generator = dynamicDowncast<JSGenerator>(promiseContext))
             return generator;
 
         // handle `Promise.all`, `Promise.allSettled`, and `Promise.any`
-        if (auto* promiseCombinatorsContext = jsDynamicCast<JSPromiseCombinatorsContext*>(promiseContext)) {
-            if (auto* globalContext = jsDynamicCast<JSPromiseCombinatorsGlobalContext*>(promiseCombinatorsContext->globalContext())) {
+        if (auto* promiseCombinatorsContext = dynamicDowncast<JSPromiseCombinatorsContext>(promiseContext)) {
+            if (auto* globalContext = promiseCombinatorsContext->globalContext()) {
                 JSValue promiseValue = globalContext->promise();
                 ASSERT(promiseValue);
-                if (auto* promise = jsDynamicCast<JSPromise*>(promiseValue)) {
+                if (auto* promise = dynamicDowncast<JSPromise>(promiseValue)) {
                     if (JSValue promiseContext = getContextValueFromPromise(promise)) {
-                        if (auto* generator = jsDynamicCast<JSGenerator*>(promiseContext))
+                        if (auto* generator = dynamicDowncast<JSGenerator>(promiseContext))
                             return generator;
                     }
                 }
@@ -490,9 +490,9 @@ void Interpreter::getAsyncStackTrace(JSCell* owner, Vector<StackFrame>& results,
         }
 
         // handle and `Promise.race`
-        if (auto* contextPromise = jsDynamicCast<JSPromise*>(promiseContext)) {
+        if (auto* contextPromise = dynamicDowncast<JSPromise>(promiseContext)) {
             if (JSValue parentContext = getContextValueFromPromise(contextPromise)) {
-                if (auto* generator = jsDynamicCast<JSGenerator*>(parentContext))
+                if (auto* generator = dynamicDowncast<JSGenerator>(parentContext))
                     return generator;
             }
         }
@@ -520,7 +520,7 @@ void Interpreter::getAsyncStackTrace(JSCell* owner, Vector<StackFrame>& results,
     JSGenerator* currentGenerator = getParentGenerator(generator);
     while (currentGenerator && results.size() < maxStackSize) {
         JSValue nextValue = currentGenerator->internalField(static_cast<unsigned>(JSGenerator::Field::Next)).get();
-        JSFunction* asyncFunction = jsDynamicCast<JSFunction*>(nextValue);
+        JSFunction* asyncFunction = dynamicDowncast<JSFunction>(nextValue);
         if (asyncFunction && !asyncFunction->isHostOrPrivateBuiltinFunction()) {
             if (FunctionExecutable* executable = asyncFunction->jsExecutable()) {
                 // If a CodeBlock doesn't already exist, the stack trace will only show the filename and won't show line column
@@ -569,7 +569,7 @@ void Interpreter::getStackTrace(JSCell* owner, Vector<StackFrame>& results, size
 
     if (!caller && ownerOfCallLinkInfo && callLinkInfo && callLinkInfo->isTailCall()) {
         // Reconstruct the top frame from CallLinkInfo*
-        CodeBlock* codeBlock = jsDynamicCast<CodeBlock*>(ownerOfCallLinkInfo);
+        CodeBlock* codeBlock = dynamicDowncast<CodeBlock>(ownerOfCallLinkInfo);
         if (codeBlock) {
             CodeOrigin codeOrigin = callLinkInfo->codeOrigin();
             if (codeOrigin.inlineCallFrame()) {
@@ -592,7 +592,7 @@ void Interpreter::getStackTrace(JSCell* owner, Vector<StackFrame>& results, size
         ASSERT(Options::useAsyncStackTrace());
         auto* record = vmEntryRecord(previousEntryFrame);
         if (record->m_context) {
-            if (auto* generator = jsDynamicCast<JSGenerator*>(record->m_context)) {
+            if (auto* generator = dynamicDowncast<JSGenerator>(record->m_context)) {
                 asyncStackTraceOriginGenerator = generator;
                 asyncStackTraceInsertPos = previousEntryFrameStackTraceInsertPos;
             }
@@ -789,12 +789,12 @@ public:
     {
 
         if (!m_isTermination) {
-            if (JSWebAssemblyException* wasmException = jsDynamicCast<JSWebAssemblyException*>(thrownValue)) {
+            if (JSWebAssemblyException* wasmException = dynamicDowncast<JSWebAssemblyException>(thrownValue)) {
                 m_catchableFromWasm = true;
                 m_wasmTag = &wasmException->tag();
                 if (m_wasmTag == &Wasm::Tag::jsExceptionTag())
                     m_exception->tryUnwrapValueForJSTag(m_vm);
-            } else if (ErrorInstance* error = jsDynamicCast<ErrorInstance*>(thrownValue))
+            } else if (ErrorInstance* error = dynamicDowncast<ErrorInstance>(thrownValue))
                 m_catchableFromWasm = error->isCatchableFromWasm();
             else
                 m_catchableFromWasm = true;
@@ -858,7 +858,7 @@ public:
         if (!m_callFrame->isNativeCalleeFrame() && JSC::isRemoteFunction(m_callFrame->jsCallee()) && !m_isTermination) {
             // Continue searching for a handler, but mark that a marshalling function was on the stack so that we can
             // translate the exception before jumping to the handler.
-            m_seenRemoteFunction = jsCast<JSRemoteFunction*>(m_callFrame->jsCallee());
+            m_seenRemoteFunction = uncheckedDowncast<JSRemoteFunction>(m_callFrame->jsCallee());
         }
 
         JSGlobalObject* globalObject = m_callFrame->lexicalGlobalObject(m_vm);
@@ -1200,7 +1200,7 @@ failedJSONP:
             CodeBlock* tempCodeBlock;
             program->prepareForExecution<ProgramExecutable>(vm, nullptr, scope, CodeSpecializationKind::CodeForCall, tempCodeBlock);
             RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(throwScope, throwScope.exception());
-            codeBlock = jsCast<ProgramCodeBlock*>(tempCodeBlock);
+            codeBlock = uncheckedDowncast<ProgramCodeBlock>(tempCodeBlock);
             ASSERT(codeBlock && codeBlock->numParameters() == 1); // 1 parameter for 'this'.
         }
 
@@ -1288,7 +1288,7 @@ ALWAYS_INLINE JSValue Interpreter::executeCallImpl(VM& vm, JSObject* function, c
         CodeBlock* newCodeBlock = nullptr;
         if (isJSCall) {
             // Compile the callee:
-            functionExecutable->prepareForExecution<FunctionExecutable>(vm, jsCast<JSFunction*>(function), functionScope, CodeSpecializationKind::CodeForCall, newCodeBlock);
+            functionExecutable->prepareForExecution<FunctionExecutable>(vm, uncheckedDowncast<JSFunction>(function), functionScope, CodeSpecializationKind::CodeForCall, newCodeBlock);
             RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(scope, scope.exception());
             ASSERT(newCodeBlock);
             newCodeBlock->m_shouldAlwaysBeInlined = false;
@@ -1311,7 +1311,7 @@ ALWAYS_INLINE JSValue Interpreter::executeCallImpl(VM& vm, JSObject* function, c
 
 #if ENABLE(WEBASSEMBLY)
     if (callData.native.isWasm)
-        return JSValue::decode(vmEntryToWasm(jsCast<WebAssemblyFunction*>(function)->jsToWasm(ArityCheckMode::MustCheckArity).taggedPtr(), &vm, &protoCallFrame));
+        return JSValue::decode(vmEntryToWasm(uncheckedDowncast<WebAssemblyFunction>(function)->jsToWasm(ArityCheckMode::MustCheckArity).taggedPtr(), &vm, &protoCallFrame));
 #endif
 
     return JSValue::decode(vmEntryToNative(nativeFunction.taggedPtr(), &vm, &protoCallFrame));
@@ -1324,7 +1324,7 @@ JSValue Interpreter::executeCall(JSObject* function, const CallData& callData, J
         return executeCallImpl(vm, function, callData, thisValue, context, args);
 
     // Only one-level unwrap is enough! We already made JSBoundFunction's nest smaller.
-    auto* boundFunction = jsCast<JSBoundFunction*>(function);
+    auto* boundFunction = uncheckedDowncast<JSBoundFunction>(function);
     if (boundFunction->isTainted())
         vm.setMightBeExecutingTaintedCode();
     if (!boundFunction->boundArgsLength()) {
@@ -1384,7 +1384,7 @@ JSObject* Interpreter::executeConstruct(JSObject* constructor, const CallData& c
         CodeBlock* newCodeBlock = nullptr;
         if (isJSConstruct) {
             // Compile the callee:
-            constructData.js.functionExecutable->prepareForExecution<FunctionExecutable>(vm, jsCast<JSFunction*>(constructor), scope, CodeSpecializationKind::CodeForConstruct, newCodeBlock);
+            constructData.js.functionExecutable->prepareForExecution<FunctionExecutable>(vm, uncheckedDowncast<JSFunction>(constructor), scope, CodeSpecializationKind::CodeForConstruct, newCodeBlock);
             RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(throwScope, nullptr);
             ASSERT(newCodeBlock);
             newCodeBlock->m_shouldAlwaysBeInlined = false;
@@ -1484,7 +1484,7 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
                     break;
                 }
                 if (node->isJSLexicalEnvironment()) {
-                    JSLexicalEnvironment* lexicalEnvironment = jsCast<JSLexicalEnvironment*>(node);
+                    JSLexicalEnvironment* lexicalEnvironment = uncheckedDowncast<JSLexicalEnvironment>(node);
                     if (lexicalEnvironment->symbolTable()->scopeType() == SymbolTable::ScopeType::VarScope) {
                         variableObject = node;
                         break;
@@ -1500,7 +1500,7 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
             CodeBlock* tempCodeBlock;
             eval->prepareForExecution<EvalExecutable>(vm, nullptr, scope, CodeSpecializationKind::CodeForCall, tempCodeBlock);
             RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(throwScope, throwScope.exception());
-            codeBlock = jsCast<EvalCodeBlock*>(tempCodeBlock);
+            codeBlock = uncheckedDowncast<EvalCodeBlock>(tempCodeBlock);
             ASSERT(codeBlock && codeBlock->numParameters() == 1); // 1 parameter for 'this'.
         }
 
@@ -1530,7 +1530,7 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
         if (isGlobalVariableEnvironment) {
             for (auto& slot : functionDecls) {
                 FunctionExecutable* function = slot.get();
-                bool canDeclare = jsCast<JSGlobalObject*>(variableObject)->canDeclareGlobalFunction(function->name());
+                bool canDeclare = uncheckedDowncast<JSGlobalObject>(variableObject)->canDeclareGlobalFunction(function->name());
                 RETURN_IF_EXCEPTION(throwScope, throwScope.exception());
                 if (!canDeclare)
                     return throwException(globalObject, throwScope, createErrorForInvalidGlobalFunctionDeclaration(globalObject, function->name()));
@@ -1538,7 +1538,7 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
 
             if (!variableObject->isStructureExtensible()) {
                 for (auto& ident : variables) {
-                    bool canDeclare = jsCast<JSGlobalObject*>(variableObject)->canDeclareGlobalVar(ident);
+                    bool canDeclare = uncheckedDowncast<JSGlobalObject>(variableObject)->canDeclareGlobalVar(ident);
                     RETURN_IF_EXCEPTION(throwScope, throwScope.exception());
                     if (!canDeclare)
                         return throwException(globalObject, throwScope, createErrorForInvalidGlobalVarDeclaration(globalObject, ident));
@@ -1563,10 +1563,10 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
                 RETURN_IF_EXCEPTION(throwScope, throwScope.exception());
                 if (!resolvedScope.isUndefined()) {
                     if (isGlobalVariableEnvironment) {
-                        bool canDeclare = jsCast<JSGlobalObject*>(variableObject)->canDeclareGlobalVar(ident);
+                        bool canDeclare = uncheckedDowncast<JSGlobalObject>(variableObject)->canDeclareGlobalVar(ident);
                         RETURN_IF_EXCEPTION(throwScope, throwScope.exception());
                         if (canDeclare) {
-                            jsCast<JSGlobalObject*>(variableObject)->createGlobalVarBinding<BindingCreationContext::Eval>(ident);
+                            uncheckedDowncast<JSGlobalObject>(variableObject)->createGlobalVarBinding<BindingCreationContext::Eval>(ident);
                             RETURN_IF_EXCEPTION(throwScope, throwScope.exception());
                         }
                     } else {
@@ -1580,7 +1580,7 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
         for (auto& slot : functionDecls) {
             FunctionExecutable* function = slot.get();
             if (isGlobalVariableEnvironment) {
-                jsCast<JSGlobalObject*>(variableObject)->createGlobalFunctionBinding<BindingCreationContext::Eval>(function->name());
+                uncheckedDowncast<JSGlobalObject>(variableObject)->createGlobalFunctionBinding<BindingCreationContext::Eval>(function->name());
                 RETURN_IF_EXCEPTION(throwScope, throwScope.exception());
             } else {
                 ensureBindingExists(function->name());
@@ -1590,7 +1590,7 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
 
         for (auto& ident : variables) {
             if (isGlobalVariableEnvironment) {
-                jsCast<JSGlobalObject*>(variableObject)->createGlobalVarBinding<BindingCreationContext::Eval>(ident);
+                uncheckedDowncast<JSGlobalObject>(variableObject)->createGlobalVarBinding<BindingCreationContext::Eval>(ident);
                 RETURN_IF_EXCEPTION(throwScope, throwScope.exception());
             } else {
                 ensureBindingExists(ident);
@@ -1613,7 +1613,7 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
             CodeBlock* tempCodeBlock;
             eval->prepareForExecution<EvalExecutable>(vm, nullptr, scope, CodeSpecializationKind::CodeForCall, tempCodeBlock);
             RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(throwScope, throwScope.exception());
-            codeBlock = jsCast<EvalCodeBlock*>(tempCodeBlock);
+            codeBlock = uncheckedDowncast<EvalCodeBlock>(tempCodeBlock);
             entry = codeBlock->jitCode()->addressForCall();
             ASSERT(codeBlock && codeBlock->numParameters() == 1); // 1 parameter for 'this'.
         }
@@ -1632,7 +1632,7 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
             CodeBlock* tempCodeBlock;
             eval->prepareForExecution<EvalExecutable>(vm, nullptr, scope, CodeSpecializationKind::CodeForCall, tempCodeBlock);
             RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(throwScope, throwScope.exception());
-            codeBlock = jsCast<EvalCodeBlock*>(tempCodeBlock);
+            codeBlock = uncheckedDowncast<EvalCodeBlock>(tempCodeBlock);
             ASSERT(codeBlock && codeBlock->numParameters() == 1); // 1 parameter for 'this'.
         }
 
@@ -1703,7 +1703,7 @@ JSValue Interpreter::executeModuleProgram(JSModuleRecord* record, ModuleProgramE
             CodeBlock* tempCodeBlock;
             executable->prepareForExecution<ModuleProgramExecutable>(vm, nullptr, scope, CodeSpecializationKind::CodeForCall, tempCodeBlock);
             RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(throwScope, throwScope.exception());
-            codeBlock = jsCast<ModuleProgramCodeBlock*>(tempCodeBlock);
+            codeBlock = uncheckedDowncast<ModuleProgramCodeBlock>(tempCodeBlock);
             ASSERT(codeBlock && codeBlock->numParameters() == numberOfArguments + 1);
         }
 

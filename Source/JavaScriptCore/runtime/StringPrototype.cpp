@@ -344,7 +344,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncReplace, (JSGlobalObject* globalObject, 
 
     JSValue searchValue = callFrame->argument(0);
     if (searchValue.isObject()) {
-        RegExpObject* regExpObject = jsDynamicCast<RegExpObject*>(searchValue);
+        RegExpObject* regExpObject = dynamicDowncast<RegExpObject>(searchValue);
         if (regExpObject && regExpObject->isSymbolReplaceFastAndNonObservable()) [[likely]] {
             JSString* string = thisValue.toString(globalObject);
             RETURN_IF_EXCEPTION(scope, { });
@@ -403,7 +403,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncReplaceAll, (JSGlobalObject* globalObjec
 
     JSValue searchValue = callFrame->argument(0);
     if (searchValue.isObject()) {
-        RegExpObject* regExpObject = jsDynamicCast<RegExpObject*>(searchValue);
+        RegExpObject* regExpObject = dynamicDowncast<RegExpObject>(searchValue);
         if (regExpObject && regExpObject->isSymbolReplaceFastAndNonObservable()) [[likely]] {
             if (!regExpObject->regExp()->global()) [[unlikely]]
                 return throwVMTypeError(globalObject, scope, "String.prototype.replaceAll argument must not be a non-global regular expression"_s);
@@ -466,7 +466,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncToString, (JSGlobalObject* globalObject,
         return JSValue::encode(thisValue);
     }
 
-    auto* stringObject = jsDynamicCast<StringObject*>(thisValue);
+    auto* stringObject = dynamicDowncast<StringObject>(thisValue);
     if (!stringObject)
         return throwVMTypeError(globalObject, scope);
 
@@ -1348,9 +1348,6 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncStartsWith, (JSGlobalObject* globalObjec
     auto* string = thisValue.toString(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto stringToSearchIn = string->view(globalObject);
-    RETURN_IF_EXCEPTION(scope, { });
-
     JSValue a0 = callFrame->argument(0);
     bool isRegularExpression = isRegExp(vm, globalObject, a0);
     RETURN_IF_EXCEPTION(scope, { });
@@ -1360,11 +1357,8 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncStartsWith, (JSGlobalObject* globalObjec
     auto* search = a0.toString(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto searchString = search->view(globalObject);
-    RETURN_IF_EXCEPTION(scope, { });
-
     JSValue positionArg = callFrame->argument(1);
-    unsigned length = stringToSearchIn->length();
+    unsigned length = string->length();
     unsigned start;
     if (positionArg.isInt32())
         start = std::min(clampTo<unsigned>(positionArg.asInt32()), length);
@@ -1372,6 +1366,20 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncStartsWith, (JSGlobalObject* globalObjec
         start = clampAndTruncateToUnsigned(positionArg.toIntegerOrInfinity(globalObject), 0, length);
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
     }
+
+    auto searchString = search->view(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    if (searchString->length() == 1 && string->isRope() && length >= JSString::minLengthForRopeWalk) {
+        if (start >= length)
+            return JSValue::encode(jsBoolean(false));
+
+        if (auto character = string->tryGetCharAt(globalObject, start))
+            return JSValue::encode(jsBoolean(*character == searchString[0]));
+    }
+
+    auto stringToSearchIn = string->view(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
 
     return JSValue::encode(jsBoolean(stringToSearchIn->hasInfixStartingAt(searchString, start)));
 }
@@ -1388,9 +1396,6 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncEndsWith, (JSGlobalObject* globalObject,
     auto* string = thisValue.toString(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto stringToSearchIn = string->view(globalObject);
-    RETURN_IF_EXCEPTION(scope, { });
-
     JSValue a0 = callFrame->argument(0);
     bool isRegularExpression = isRegExp(vm, globalObject, a0);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
@@ -1400,11 +1405,8 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncEndsWith, (JSGlobalObject* globalObject,
     auto* search = a0.toString(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto searchString = search->view(globalObject);
-    RETURN_IF_EXCEPTION(scope, { });
-
     JSValue endPositionArg = callFrame->argument(1);
-    unsigned length = stringToSearchIn->length();
+    unsigned length = string->length();
     unsigned end;
     if (endPositionArg.isUndefined())
         end = length;
@@ -1414,6 +1416,20 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncEndsWith, (JSGlobalObject* globalObject,
         end = clampAndTruncateToUnsigned(endPositionArg.toIntegerOrInfinity(globalObject), 0, length);
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
     }
+
+    auto searchString = search->view(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    if (searchString->length() == 1 && string->isRope() && length >= JSString::minLengthForRopeWalk) {
+        if (!end)
+            return JSValue::encode(jsBoolean(false));
+
+        if (auto character = string->tryGetCharAt(globalObject, end - 1))
+            return JSValue::encode(jsBoolean(*character == searchString[0]));
+    }
+
+    auto stringToSearchIn = string->view(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
 
     return JSValue::encode(jsBoolean(stringToSearchIn->hasInfixEndingAt(searchString, end)));
 }

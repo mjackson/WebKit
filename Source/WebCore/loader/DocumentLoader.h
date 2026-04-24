@@ -90,12 +90,9 @@ struct CustomHeaderFields;
 class FrameLoader;
 class IconLoader;
 class LocalFrame;
-class Page;
 class PreviewConverter;
 class ResourceLoader;
 class FragmentedSharedBuffer;
-class SWClientConnection;
-class SharedBuffer;
 class SubresourceLoader;
 class SubstituteResource;
 class UserContentProvider;
@@ -105,7 +102,6 @@ struct IntegrityPolicy;
 
 enum class ClearSiteDataValue : uint8_t;
 enum class LoadWillContinueInAnotherProcess : bool;
-enum class ShouldContinue;
 enum class ShouldTreatAsContinuingLoad : uint8_t;
 
 using ResourceLoaderMap = HashSet<Ref<ResourceLoader>>;
@@ -828,6 +824,7 @@ private:
 #endif
 
     bool m_canUseServiceWorkers { true };
+    bool m_prefetchResponseFailed { false };
 
 #if ASSERT_ENABLED
     bool m_hasEverBeenAttached { false };
