@@ -20,8 +20,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Host clang (same version Bun uses) — we cross-compile via --target/--sysroot,
-# not via the NDK's bundled clang.
-RUN wget -qO- https://apt.llvm.org/llvm.sh | bash -s -- ${LLVM_VERSION}
+# not via the NDK's bundled clang. apt.llvm.org installs version-suffixed names
+# only (ld.lld-21, not ld.lld), so add unversioned links for -fuse-ld=lld.
+RUN wget -qO- https://apt.llvm.org/llvm.sh | bash -s -- ${LLVM_VERSION} && \
+    for t in clang clang++ ld.lld lld llvm-ar llvm-ranlib; do \
+      ln -sf /usr/bin/${t}-${LLVM_VERSION} /usr/local/bin/${t}; \
+    done
 ENV CC=clang-${LLVM_VERSION}
 ENV CXX=clang++-${LLVM_VERSION}
 ENV AR=llvm-ar-${LLVM_VERSION}
@@ -39,13 +43,18 @@ ENV NDK_SYSROOT=/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot
 # Symlink NDK compiler-rt builtins + libunwind into host clang's resource dir.
 # clang's driver emits a FULL PATH to <resource-dir>/lib/<triple>/libclang_rt.builtins.a
 # with no -L fallback, so the file must exist there for any link step.
+# Both arches done here so the base layer is arch-independent (cacheable).
 ARG ANDROID_API
-ARG ANDROID_ARCH
-RUN RT_DIR=$($CC -print-resource-dir)/lib/${ANDROID_ARCH}-unknown-linux-android${ANDROID_API} && \
-    NDK_RT=/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/$(ls /opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/)/lib/linux && \
-    mkdir -p $RT_DIR && \
-    ln -sf $NDK_RT/libclang_rt.builtins-${ANDROID_ARCH}-android.a $RT_DIR/libclang_rt.builtins.a && \
-    ln -sf $NDK_RT/${ANDROID_ARCH}/libunwind.a $RT_DIR/libunwind.a
+RUN set -eux; \
+    RES=$($CC -print-resource-dir); \
+    NDK_RT=/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/$(ls /opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/)/lib/linux; \
+    for A in aarch64 x86_64; do \
+      DIR=$RES/lib/${A}-unknown-linux-android${ANDROID_API}; \
+      mkdir -p $DIR; \
+      ln -sf $NDK_RT/libclang_rt.builtins-${A}-android.a $DIR/libclang_rt.builtins.a; \
+      ln -sf $NDK_RT/${A}/libunwind.a $DIR/libunwind.a; \
+    done; \
+    ls -la $RES/lib/*-android*/
 
 RUN mkdir -p /output/lib /output/include /output/include/JavaScriptCore /output/include/wtf /output/include/bmalloc /output/include/unicode
 
@@ -80,10 +89,11 @@ RUN --mount=type=tmpfs,target=/icu \
     export CXXFLAGS="${CROSS_FLAGS} ${DEFAULT_CFLAGS} ${MARCH_FLAG} -Os -std=c++20 -fno-exceptions ${LTO_FLAG} -fno-c++-static-destructors" && \
     export LDFLAGS="${CROSS_FLAGS} -fuse-ld=lld" && \
     cd /icu && tar -xf /icu.tgz --strip-components=1 && rm /icu.tgz && cd source && \
-    ./configure --host=${ANDROID_ARCH}-linux-android \
+    { ./configure --host=${ANDROID_ARCH}-linux-android \
         --with-cross-build=/icu-host/source \
         --enable-static --disable-shared --with-data-packaging=static \
-        --disable-samples --disable-tests --disable-debug && \
+        --disable-samples --disable-tests --disable-debug \
+      || { cat config.log; exit 1; }; } && \
     make -j$(nproc) && \
     cp lib/*.a /output/lib && \
     cp -r i18n/unicode/* common/unicode/* /output/include/unicode
