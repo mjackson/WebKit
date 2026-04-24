@@ -12,13 +12,12 @@ export ANDROID_API="${ANDROID_API:-28}"
 export WEBKIT_RELEASE_TYPE="${WEBKIT_RELEASE_TYPE:-Release}"
 export LTO_FLAG="${LTO_FLAG:-}"
 
-if [ -z "${MARCH_FLAG:-}" ]; then
-    if [ "$ANDROID_ARCH" == "aarch64" ]; then
-        export MARCH_FLAG="-march=armv8-a+crc -mtune=cortex-a78"
-    else
-        export MARCH_FLAG="-march=x86-64-v2"
-    fi
-fi
+case "$ANDROID_ARCH" in
+    aarch64) : "${MARCH_FLAG:="-march=armv8-a+crc -mtune=cortex-a78"}" ;;
+    x86_64)  : "${MARCH_FLAG:="-march=x86-64-v2"}" ;;
+    *) echo "error: ANDROID_ARCH must be aarch64 or x86_64, got '$ANDROID_ARCH'" >&2; exit 1 ;;
+esac
+export MARCH_FLAG
 
 export CONTAINER_NAME="bun-webkit-linux-android-${ANDROID_ARCH}"
 if [ "$WEBKIT_RELEASE_TYPE" == "Debug" ]; then
