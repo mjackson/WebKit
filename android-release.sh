@@ -25,6 +25,7 @@ if [ "$WEBKIT_RELEASE_TYPE" == "Debug" ]; then
     CONTAINER_NAME="${CONTAINER_NAME}-debug"
 fi
 
+temp="${temp:-${TMPDIR:-/tmp}}"
 mkdir -p "$temp"
 rm -rf "$temp/bun-webkit"
 

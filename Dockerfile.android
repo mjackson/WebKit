@@ -6,8 +6,12 @@ ARG NDK_VERSION="r27c"
 ARG ANDROID_API="28"
 ARG ANDROID_ARCH="aarch64"
 ARG DEFAULT_CFLAGS="-mno-omit-leaf-frame-pointer -g -fno-omit-frame-pointer -ffunction-sections -fdata-sections -faddrsig -fno-unwind-tables -fno-asynchronous-unwind-tables -DU_STATIC_IMPLEMENTATION=1 "
+ARG ICU_VERSION="75_1"
+ARG ICU_RELEASE_TAG="release-75-1"
+ARG ICU_SHA256="cb968df3e4d2e87e8b11c49a5d01c787bd13b9545280fc6642f826527618caef"
 
 FROM ubuntu:24.04 AS base
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG LLVM_VERSION
 ARG NDK_VERSION
@@ -77,7 +81,10 @@ ARG DEFAULT_CFLAGS
 ARG ANDROID_API
 ARG ANDROID_ARCH
 
-ADD https://github.com/unicode-org/icu/releases/download/release-75-1/icu4c-75_1-src.tgz /icu.tgz
+ARG ICU_VERSION
+ARG ICU_RELEASE_TAG
+ARG ICU_SHA256
+ADD --checksum=sha256:${ICU_SHA256} https://github.com/unicode-org/icu/releases/download/${ICU_RELEASE_TAG}/icu4c-${ICU_VERSION}-src.tgz /icu.tgz
 
 # Host build (tools only — no LTO, fast).
 RUN mkdir -p /icu-host && cd /icu-host \
