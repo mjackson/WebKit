@@ -469,8 +469,14 @@ JSPromise* JSModuleLoader::importModule(JSGlobalObject* globalObject, JSString* 
     RETURN_IF_EXCEPTION(scope, nullptr);
 
     RefPtr<ScriptFetchParameters> fetchParams;
-    if (type)
-        fetchParams = ScriptFetchParameters::create(type.value());
+    if (type) {
+#if USE(BUN_JSC_ADDITIONS)
+        if (type.value() == ScriptFetchParameters::Type::HostDefined)
+            fetchParams = ScriptFetchParameters::create(attributes.get(vm.propertyNames->type.impl()));
+        else
+#endif
+            fetchParams = ScriptFetchParameters::create(type.value());
+    }
 
     if (globalObject->globalObjectMethodTable()->moduleLoaderImportModule)
         RELEASE_AND_RETURN(scope, globalObject->globalObjectMethodTable()->moduleLoaderImportModule(globalObject, this, moduleName, WTF::move(fetchParams), referrer));

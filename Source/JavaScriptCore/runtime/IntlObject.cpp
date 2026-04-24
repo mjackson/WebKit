@@ -1920,7 +1920,9 @@ static std::optional<String> canonicalizeTimeZoneNameFromICUTimeZone(String&& ti
 String toPrimaryIanaTimeZoneIdentifier(std::span<const char16_t> timeZone)
 {
     Vector<char16_t, 32> buffer;
-#if U_ICU_VERSION_MAJOR_NUM >= 74
+    // Bun on macOS links against system libicucore.A.dylib whose version is
+    // determined by the macOS deployment target, not the bundled ICU 74 headers.
+#if U_ICU_VERSION_MAJOR_NUM >= 74 && !(OS(DARWIN) && USE(BUN_JSC_ADDITIONS))
     if (U_SUCCESS(callBufferProducingFunction(ucal_getIanaTimeZoneID, timeZone.data(), static_cast<int32_t>(timeZone.size()), buffer))) {
         if (isUTCEquivalent(StringView(buffer.span())))
             return "UTC"_s;
