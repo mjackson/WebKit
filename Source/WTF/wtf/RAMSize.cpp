@@ -30,7 +30,7 @@
 
 #if OS(WINDOWS)
 #include <windows.h>
-#elif OS(LINUX) || OS(FREEBSD)
+#elif OS(LINUX)
 #include <sys/sysinfo.h>
 #elif OS(UNIX) || OS(HAIKU)
 #endif

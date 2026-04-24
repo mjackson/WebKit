@@ -40,7 +40,7 @@
 #import <mach/mach.h>
 #import <math.h>
 #elif OS(UNIX)
-#if OS(FREEBSD) || OS(LINUX)
+#if OS(LINUX)
 #include <sys/sysinfo.h>
 #endif
 #if OS(LINUX)
@@ -161,9 +161,10 @@ static size_t computeAvailableMemory()
     }
     return availableMemoryGuess;
 #elif OS(FREEBSD)
-    struct sysinfo info;
-    if (!sysinfo(&info))
-        return info.totalram * info.mem_unit;
+    uint64_t physmem = 0;
+    size_t len = sizeof(physmem);
+    if (!sysctlbyname("hw.physmem", &physmem, &len, nullptr, 0))
+        return physmem;
     return availableMemoryGuess;
 #elif OS(UNIX) || OS(HAIKU)
     long pages = sysconf(_SC_PHYS_PAGES);

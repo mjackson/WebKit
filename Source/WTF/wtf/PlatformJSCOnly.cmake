@@ -128,6 +128,7 @@ elseif (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
 
         unix/MemoryPressureHandlerUnix.cpp
     )
+    list(APPEND WTF_LIBRARIES execinfo)
 else ()
     list(APPEND WTF_SOURCES
         generic/MemoryFootprintGeneric.cpp
