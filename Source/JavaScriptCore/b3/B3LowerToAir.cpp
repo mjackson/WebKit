@@ -5935,7 +5935,12 @@ private:
                 break;
             }
 
-            if (value->offset())
+            // The overflow check (3-arg form) compares ptrPlusImm against the original
+            // pointer Tmp with a 64-bit branch. For Int32 pointers (memory32), Move32
+            // above already zero-extends and ZExt32(ptr) + offset cannot overflow 64 bits,
+            // so the check is unnecessary — and unsafe, since the Int32 pointer Tmp's upper
+            // bits are undefined and a Branch64 against it may spuriously fire.
+            if (value->offset() && ptr->type() == Int64)
                 append(Inst(Air::WasmBoundsCheck, value, ptrPlusImm, limit, pointer));
             else
                 append(Inst(Air::WasmBoundsCheck, value, ptrPlusImm, limit));
