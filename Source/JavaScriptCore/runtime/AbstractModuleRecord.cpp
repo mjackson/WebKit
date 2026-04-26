@@ -96,6 +96,7 @@ void AbstractModuleRecord::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     visitor.append(thisObject->m_cycleRoot);
     visitor.append(thisObject->m_topLevelCapability);
     visitor.append(thisObject->m_asyncCapability);
+    visitor.append(thisObject->m_loadRequestedModulesPromise);
     Locker locker { thisObject->cellLock() };
     visitor.append(thisObject->m_asyncParentModules.begin(), thisObject->m_asyncParentModules.end());
     auto values = thisObject->m_dependencies.values();
@@ -688,13 +689,16 @@ auto AbstractModuleRecord::resolveExportImpl(JSGlobalObject* globalObject, const
             if (!moduleRecord->starExportEntries().isEmpty())
                 foundStarLinks = true;
 
-            //  4. Once we follow star links, we should not retrieve the result from the cache and should not cache the result.
-            if (!foundStarLinks) {
-                if (std::optional<Resolution> cachedResolution = moduleRecord->tryGetCachedResolution(query.exportName.get())) {
-                    if (!mergeToCurrentTop(*cachedResolution))
-                        return Resolution::ambiguous();
-                    continue;
-                }
+            // The cache only stores Resolved entries. A Resolved cached value means
+            // ResolveExport(moduleRecord, name, []) found exactly one binding T;
+            // any non-empty resolveSet can only turn paths to T into null, never
+            // surface a different binding (that would have made the [] result
+            // ambiguous and therefore uncached). null vs T merges to T either way,
+            // so reading the cache here is sound regardless of foundStarLinks.
+            if (std::optional<Resolution> cachedResolution = moduleRecord->tryGetCachedResolution(query.exportName.get())) {
+                if (!mergeToCurrentTop(*cachedResolution))
+                    return Resolution::ambiguous();
+                continue;
             }
 
             const std::optional<ExportEntry> optionalExportEntry = moduleRecord->tryGetExportEntry(query.exportName.get());
@@ -802,36 +806,6 @@ auto AbstractModuleRecord::resolveExport(JSGlobalObject* globalObject, const Ide
     return resolveExportImpl(globalObject, ResolveQuery(this, exportName.impl()));
 }
 
-static void getExportedNames(JSGlobalObject* globalObject, AbstractModuleRecord* root, IdentifierSet& exportedNames)
-{
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
-    UncheckedKeyHashSet<AbstractModuleRecord*> exportStarSet;
-    Vector<AbstractModuleRecord*, 8> pendingModules;
-
-    pendingModules.append(root);
-
-    while (!pendingModules.isEmpty()) {
-        AbstractModuleRecord* moduleRecord = pendingModules.takeLast();
-        if (exportStarSet.contains(moduleRecord))
-            continue;
-        exportStarSet.add(moduleRecord);
-
-        for (const auto& pair : moduleRecord->exportEntries()) {
-            const AbstractModuleRecord::ExportEntry& exportEntry = pair.value;
-            if (moduleRecord == root || vm.propertyNames->defaultKeyword != exportEntry.exportName)
-                exportedNames.add(exportEntry.exportName.impl());
-        }
-
-        for (const auto& starModuleName : moduleRecord->starExportEntries()) {
-            AbstractModuleRecord* requestedModuleRecord = moduleRecord->hostResolveImportedModule(globalObject, Identifier::fromUid(vm, starModuleName.get()));
-            RETURN_IF_EXCEPTION(scope, void());
-            pendingModules.append(requestedModuleRecord);
-        }
-    }
-}
-
 JSModuleNamespaceObject* AbstractModuleRecord::getModuleNamespace(JSGlobalObject* globalObject, bool shouldPreventExtensions)
 {
     VM& vm = globalObject->vm();
@@ -846,12 +820,84 @@ JSModuleNamespaceObject* AbstractModuleRecord::getModuleNamespace(JSGlobalObject
     if (m_moduleNamespaceObject)
         return m_moduleNamespaceObject.get();
 
-    IdentifierSet exportedNames;
-    getExportedNames(globalObject, this, exportedNames);
-    RETURN_IF_EXCEPTION(scope, nullptr);
+    // GetModuleNamespace = GetExportedNames + ResolveExport per name. The naive
+    // implementation walks the star-export graph once per name. With N names and
+    // E star edges that is O(N * E), and large re-export trees (barrel files,
+    // `export * from`) make N and E both grow with the graph.
+    //
+    // Observation: ResolveExport(root, n, []) is fully determined by the set of
+    // explicit (Local / Namespace) bindings for n in the star-reachable graph.
+    // If exactly one module T binds n, the answer is always Resolved(T, ...).
+    // The spec's resolveSet only ever turns *extra* paths to T into null, and
+    // merge(Resolved(T), null) = Resolved(T). Only when two distinct bindings
+    // exist (potential shadowing / ambiguity) or an Indirect entry is involved
+    // does the path-sensitive walk matter.
+    //
+    // So: do a single traversal that (a) collects exported names and (b) records
+    // each name's unique binding. Names with one binding go straight into the
+    // namespace; the rest fall back to resolveExportImpl. This is O(E + N) for
+    // the common case.
 
     Vector<std::pair<Identifier, Resolution>> resolutions;
-    for (auto& name : exportedNames) {
+    IdentifierSet slowPathNames;
+    {
+        UncheckedKeyHashSet<AbstractModuleRecord*> exportStarSet;
+        Vector<AbstractModuleRecord*, 8> pendingModules;
+        Resolutions uniqueBindings;
+
+        exportStarSet.add(this);
+        pendingModules.append(this);
+
+        while (!pendingModules.isEmpty()) {
+            AbstractModuleRecord* moduleRecord = pendingModules.takeLast();
+
+            for (const auto& pair : moduleRecord->exportEntries()) {
+                const ExportEntry& exportEntry = pair.value;
+                if (moduleRecord != this && vm.propertyNames->defaultKeyword == exportEntry.exportName)
+                    continue;
+                RefPtr<UniquedStringImpl> name = pair.key;
+                if (slowPathNames.contains(name))
+                    continue;
+
+                Resolution candidate;
+                if (exportEntry.type == ExportEntry::Type::Local)
+                    candidate = Resolution { Resolution::Type::Resolved, moduleRecord, exportEntry.localName };
+                else if (exportEntry.type == ExportEntry::Type::Namespace) {
+                    AbstractModuleRecord* importedModuleRecord = moduleRecord->hostResolveImportedModule(globalObject, exportEntry.moduleName);
+                    RETURN_IF_EXCEPTION(scope, nullptr);
+                    candidate = Resolution { Resolution::Type::Resolved, importedModuleRecord, vm.propertyNames->starNamespacePrivateName };
+                } else {
+                    slowPathNames.add(WTF::move(name));
+                    uniqueBindings.remove(pair.key);
+                    continue;
+                }
+
+                auto addResult = uniqueBindings.add(name, candidate);
+                if (!addResult.isNewEntry) {
+                    const Resolution& existing = addResult.iterator->value;
+                    if (existing.moduleRecord != candidate.moduleRecord || existing.localName != candidate.localName) {
+                        slowPathNames.add(WTF::move(name));
+                        uniqueBindings.remove(pair.key);
+                    }
+                }
+            }
+
+            for (const auto& starModuleName : moduleRecord->starExportEntries()) {
+                AbstractModuleRecord* requestedModuleRecord = moduleRecord->hostResolveImportedModule(globalObject, Identifier::fromUid(vm, starModuleName.get()));
+                RETURN_IF_EXCEPTION(scope, nullptr);
+                if (exportStarSet.add(requestedModuleRecord).isNewEntry)
+                    pendingModules.append(requestedModuleRecord);
+            }
+        }
+
+        resolutions.reserveInitialCapacity(uniqueBindings.size() + slowPathNames.size());
+        for (auto& pair : uniqueBindings) {
+            cacheResolution(pair.key.get(), pair.value);
+            resolutions.append({ Identifier::fromUid(vm, pair.key.get()), pair.value });
+        }
+    }
+
+    for (auto& name : slowPathNames) {
         Identifier ident = Identifier::fromUid(vm, name.get());
         const Resolution resolution = resolveExport(globalObject, ident);
         RETURN_IF_EXCEPTION(scope, nullptr);
@@ -900,6 +946,11 @@ JSPromise* AbstractModuleRecord::asyncCapability() const
 void AbstractModuleRecord::asyncCapability(VM& vm, JSPromise* promise)
 {
     m_asyncCapability.set(vm, this, promise);
+}
+
+void AbstractModuleRecord::setLoadRequestedModulesPromise(VM& vm, JSPromise* promise)
+{
+    m_loadRequestedModulesPromise.set(vm, this, promise);
 }
 
 void AbstractModuleRecord::setModuleEnvironment(JSGlobalObject* globalObject, JSModuleEnvironment* moduleEnvironment)

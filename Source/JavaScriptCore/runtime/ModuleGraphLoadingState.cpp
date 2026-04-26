@@ -73,46 +73,11 @@ ModuleGraphLoadingState* ModuleGraphLoadingState::create(VM& vm, JSPromise* prom
     return instance;
 }
 
-JSPromise* ModuleGraphLoadingState::promise() const
-{
-    return m_promise.get();
-}
-
-unsigned ModuleGraphLoadingState::pendingModulesCount() const
-{
-    return m_pendingModulesCount;
-}
-
-bool ModuleGraphLoadingState::isLoading() const
-{
-    return m_isLoading;
-}
-
-ScriptFetcher* ModuleGraphLoadingState::scriptFetcher() const
-{
-    return m_scriptFetcher.get();
-}
-
-void ModuleGraphLoadingState::setPendingModulesCount(unsigned count)
-{
-    m_pendingModulesCount = count;
-}
-
-void ModuleGraphLoadingState::setIsLoading(bool loading)
-{
-    m_isLoading = loading;
-}
-
 void ModuleGraphLoadingState::appendVisited(VM& vm, CyclicModuleRecord* cyclic)
 {
     Locker locker { cellLock() };
     m_visited.append(WriteBarrier(vm, this, cyclic));
     m_visitedSet.add(cyclic);
-}
-
-bool ModuleGraphLoadingState::containsVisited(CyclicModuleRecord* cyclic) const
-{
-    return m_visitedSet.contains(cyclic);
 }
 
 } // namespace JSC

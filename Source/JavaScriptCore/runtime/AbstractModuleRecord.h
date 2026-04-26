@@ -171,6 +171,8 @@ public:
     AsyncEvaluationOrder asyncEvaluationOrder() const { return m_asyncEvaluationOrder; }
     std::optional<int> pendingAsyncDependencies() const { return m_pendingAsyncDependencies; }
     bool hasTLA() const { return m_hasTLA; }
+    JSPromise* loadRequestedModulesPromise() const { return m_loadRequestedModulesPromise.get(); }
+    void setLoadRequestedModulesPromise(VM&, JSPromise*);
 
     JSPromise* topLevelCapability() const { return m_topLevelCapability.get(); }
     void cycleRoot(VM&, CyclicModuleRecord*);
@@ -280,6 +282,11 @@ private:
     WriteBarrier<JSModuleNamespaceObject> m_moduleNamespaceObject;
 
     WriteBarrier<JSPromise> m_asyncCapability;
+
+    // Memoized result of LoadRequestedModules() — every concurrent caller waits
+    // on the first GraphLoadingState's capability instead of spawning its own
+    // and re-walking the same subgraph.
+    WriteBarrier<JSPromise> m_loadRequestedModulesPromise;
 
     // We assume that all the AbstractModuleRecord are retained by JSModuleLoader's registry.
     // So here, we don't visit each object for GC. The resolution cache map caches the once
