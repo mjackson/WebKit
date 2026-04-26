@@ -96,7 +96,6 @@ void AbstractModuleRecord::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     visitor.append(thisObject->m_cycleRoot);
     visitor.append(thisObject->m_topLevelCapability);
     visitor.append(thisObject->m_asyncCapability);
-    visitor.append(thisObject->m_loadRequestedModulesPromise);
     Locker locker { thisObject->cellLock() };
     visitor.append(thisObject->m_asyncParentModules.begin(), thisObject->m_asyncParentModules.end());
     auto values = thisObject->m_dependencies.values();
@@ -943,11 +942,6 @@ JSPromise* AbstractModuleRecord::asyncCapability() const
 void AbstractModuleRecord::asyncCapability(VM& vm, JSPromise* promise)
 {
     m_asyncCapability.set(vm, this, promise);
-}
-
-void AbstractModuleRecord::setLoadRequestedModulesPromise(VM& vm, JSPromise* promise)
-{
-    m_loadRequestedModulesPromise.set(vm, this, promise);
 }
 
 void AbstractModuleRecord::setModuleEnvironment(JSGlobalObject* globalObject, JSModuleEnvironment* moduleEnvironment)

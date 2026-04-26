@@ -1035,16 +1035,8 @@ JSPromise* JSModuleLoader::loadRequestedModules(JSGlobalObject* globalObject, Ab
 
     // 1. If hostDefined is not present, let hostDefined be empty.
     // 2. Let pc be ! NewPromiseCapability(%Promise%).
-    // Step::Main calls this once per fetched module, so concurrent callers for
-    // the same module would each spawn their own GraphLoadingState and re-walk
-    // the same subgraph. Memoize the first capability; later callers wait on it.
-    // Don't memoize rejection — a fresh import() after a failed load must redo
-    // HostLoadImportedModule for the deps so transient errors aren't sticky.
-    if (JSPromise* existing = module->loadRequestedModulesPromise(); existing && existing->status() != JSPromise::Status::Rejected)
-        return existing;
     JSPromise* pc = JSPromise::create(vm, globalObject->promiseStructure()); // This will eventually be resolved with an AbstractModuleRecord*.
     pc->markAsHandled();
-    module->setLoadRequestedModulesPromise(vm, pc);
     // 3. Let state be the GraphLoadingState Record { [[IsLoading]]: true, [[PendingModulesCount]]: 1, [[Visited]]: « », [[PromiseCapability]]: pc, [[HostDefined]]: hostDefined }.
     auto state = ModuleGraphLoadingState::create(vm, pc, WTF::move(scriptFetcher));
     RETURN_IF_EXCEPTION(scope, nullptr);
