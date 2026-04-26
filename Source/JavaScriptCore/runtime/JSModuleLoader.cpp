@@ -792,74 +792,110 @@ JSPromise* JSModuleLoader::loadModule(JSGlobalObject* globalObject, const Module
     return resultPromise;
 }
 
-static void checkSafeToRecurse(JSGlobalObject* globalObject, ThrowScope& scope)
-{
-    if (!globalObject->vm().isSafeToRecurse())
-        throwRangeError(globalObject, scope, "Maximum call stack size exceeded"_s);
-}
-
-void JSModuleLoader::innerModuleLoading(JSGlobalObject* globalObject, ModuleGraphLoadingState *state, AbstractModuleRecord* module)
+void JSModuleLoader::innerModuleLoading(JSGlobalObject* globalObject, ModuleGraphLoadingState *state, AbstractModuleRecord* startModule)
 {
     // InnerModuleLoading(state, module)
     // https://tc39.es/ecma262/#sec-InnerModuleLoading
+    //
+    // The spec phrases this recursively, with HostLoadImportedModule re-entering
+    // via FinishLoadingImportedModule -> ContinueModuleLoading. That re-entry
+    // happens once per import edge, but only one-per-module actually enters the
+    // step-2 loop body — the rest hit the visited check, decrement the counter
+    // and return. With dense `export * from` graphs (E >> V) the per-edge
+    // function entry / throw-scope / dynamicDowncast dominates. We instead drain
+    // a worklist on the state: ContinueModuleLoading enqueues, and the outermost
+    // call drains. Same observable [[Visited]] / [[PendingModulesCount]].
 
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    // 1. Assert: state.[[IsLoading]] is true.
-    ASSERT(state->isLoading());
-    // 2. If module is a Cyclic Module Record, module.[[Status]] is NEW, and state.[[Visited]] does not contain module, then
-    if (auto* cyclic = dynamicDowncast<CyclicModuleRecord>(module); cyclic && cyclic->status() == CyclicModuleRecord::Status::New && !state->containsVisited(cyclic)) {
-        // 2.a. Append module to state.[[Visited]].
-        state->appendVisited(vm, cyclic);
-        // 2.b. Let requestedModulesCount be the number of elements in module.[[RequestedModules]].
-        size_t requestedModulesCount = module->requestedModules().size();
-        // 2.c. Set state.[[PendingModulesCount]] to state.[[PendingModulesCount]] + requestedModulesCount.
-        state->setPendingModulesCount(state->pendingModulesCount() + requestedModulesCount);
-        // 2.d. For each ModuleRequest Record request of module.[[RequestedModules]], do
-        for (const AbstractModuleRecord::ModuleRequest& request : module->requestedModules()) {
-            // 2.d.i. If AllImportAttributesSupported(request.[[Attributes]]) is false, then
-            // 2.d.i.1. Let error be ThrowCompletion(a newly created SyntaxError object).
-            // 2.d.i.2. Perform ContinueModuleLoading(state, error).
-            // (Not possible.)
-            // 2.d.ii. Else if module.[[LoadedModules]] contains a LoadedModuleRequest Record record such that ModuleRequestsEqual(record, request) is true, then
-            if (auto iter = module->loadedModules().find(ModuleMapKey { request.m_specifier.impl(), request.type() }); iter != module->loadedModules().end()) {
-                checkSafeToRecurse(globalObject, scope);
-                RETURN_IF_EXCEPTION(scope, void());
-                // 2.d.ii.1. Perform InnerModuleLoading(state, record.[[Module]]).
-                innerModuleLoading(globalObject, state, iter->value.m_module.get());
-                RETURN_IF_EXCEPTION(scope, void());
-                // 2.d.iii. Else,
-            } else {
-                // 2.d.iii.1. Perform HostLoadImportedModule(module, request, state.[[HostDefined]], state).
-                JSPromise* promise = hostLoadImportedModule(globalObject, cyclic, request, ModuleLoaderPayload::create(vm, state), state->scriptFetcher(), true);
-                RETURN_IF_EXCEPTION(scope, void());
-                promise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::ModuleGraphLoadingError, jsUndefined(), state);
-                // 2.d.iii.2. NOTE: HostLoadImportedModule will call FinishLoadingImportedModule, which re-enters the graph loading process through ContinueModuleLoading.
+    state->enqueueInnerLoad(startModule);
+    if (state->drainingInnerLoad())
+        RELEASE_AND_RETURN(scope, void());
+    state->setDrainingInnerLoad(true);
+
+    ModuleLoaderPayload* payload = nullptr;
+    AbstractModuleRecord* module;
+    while ((module = state->takeInnerLoad())) {
+        // 1. Assert: state.[[IsLoading]] is true.
+        ASSERT(state->isLoading());
+        // 2. If module is a Cyclic Module Record, module.[[Status]] is NEW, and state.[[Visited]] does not contain module, then
+        // (containsVisited first — it's the cheap pointer-hash check that fails
+        //  fast for the common already-seen case before we pay for the dyncast.)
+        if (!state->containsVisited(module)) {
+            if (auto* cyclic = dynamicDowncast<CyclicModuleRecord>(module); cyclic && cyclic->status() == CyclicModuleRecord::Status::New) {
+                // 2.a. Append module to state.[[Visited]].
+                state->appendVisited(vm, cyclic);
+                // 2.b. Let requestedModulesCount be the number of elements in module.[[RequestedModules]].
+                size_t requestedModulesCount = module->requestedModules().size();
+                // 2.c. Set state.[[PendingModulesCount]] to state.[[PendingModulesCount]] + requestedModulesCount.
+                state->setPendingModulesCount(state->pendingModulesCount() + requestedModulesCount);
+                bool loadedModulesEmpty = module->loadedModules().isEmpty();
+                // 2.d. For each ModuleRequest Record request of module.[[RequestedModules]], do
+                for (const AbstractModuleRecord::ModuleRequest& request : module->requestedModules()) {
+                    // 2.d.i. If AllImportAttributesSupported(request.[[Attributes]]) is false, then
+                    // 2.d.i.1. Let error be ThrowCompletion(a newly created SyntaxError object).
+                    // 2.d.i.2. Perform ContinueModuleLoading(state, error).
+                    // (Not possible.)
+                    // 2.d.ii. Else if module.[[LoadedModules]] contains a LoadedModuleRequest Record record such that ModuleRequestsEqual(record, request) is true, then
+                    if (!loadedModulesEmpty) {
+                        if (auto iter = module->loadedModules().find(ModuleMapKey { request.m_specifier.impl(), request.type() }); iter != module->loadedModules().end()) {
+                            // 2.d.ii.1. Perform InnerModuleLoading(state, record.[[Module]]).
+                            AbstractModuleRecord* loaded = iter->value.m_module.get();
+                            if (state->containsVisited(loaded))
+                                state->setPendingModulesCount(state->pendingModulesCount() - 1);
+                            else
+                                state->enqueueInnerLoad(loaded);
+                            if (!state->isLoading())
+                                break;
+                            continue;
+                        }
+                    }
+                    // 2.d.iii. Else,
+                    // 2.d.iii.1. Perform HostLoadImportedModule(module, request, state.[[HostDefined]], state).
+                    // The payload only carries `state`; one instance is sufficient for every
+                    // request originating from this drain. Async loads stash it in their
+                    // ModuleLoadingContext, but they all want the same state back.
+                    if (!payload)
+                        payload = ModuleLoaderPayload::create(vm, state);
+                    JSPromise* promise = hostLoadImportedModule(globalObject, cyclic, request, payload, state->scriptFetcher(), true);
+                    if (scope.exception()) [[unlikely]] {
+                        state->setDrainingInnerLoad(false);
+                        return;
+                    }
+                    promise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::ModuleGraphLoadingError, jsUndefined(), state);
+                    // 2.d.iii.2. NOTE: HostLoadImportedModule will call FinishLoadingImportedModule, which re-enters the graph loading process through ContinueModuleLoading.
+                    // 2.d.iv. If state.[[IsLoading]] is false, return UNUSED.
+                    if (!state->isLoading())
+                        break;
+                }
+                if (!state->isLoading()) {
+                    state->setDrainingInnerLoad(false);
+                    RELEASE_AND_RETURN(scope, void());
+                }
             }
-            // 2.d.iv. If state.[[IsLoading]] is false, return UNUSED.
-            if (!state->isLoading())
-                RELEASE_AND_RETURN(scope, void());
+        }
+        // 3. Assert: state.[[PendingModulesCount]] ≥ 1.
+        ASSERT(state->pendingModulesCount() >= 1);
+        // 4. Set state.[[PendingModulesCount]] to state.[[PendingModulesCount]] - 1.
+        state->setPendingModulesCount(state->pendingModulesCount() - 1);
+        // 5. If state.[[PendingModulesCount]] = 0, then
+        if (!state->pendingModulesCount()) {
+            // 5.a. Set state.[[IsLoading]] to false.
+            state->setIsLoading(false);
+            // 5.b. For each Cyclic Module Record loaded of state.[[Visited]], do
+            state->iterateVisited([](CyclicModuleRecord* loaded) {
+                // 5.b.i. If loaded.[[Status]] is NEW, set loaded.[[Status]] to UNLINKED.
+                if (loaded->status() == CyclicModuleRecord::Status::New)
+                    loaded->status(CyclicModuleRecord::Status::Unlinked);
+            });
+            // 5.c. Perform ! Call(state.[[PromiseCapability]].[[Resolve]], undefined, « undefined »).
+            state->promise()->fulfill(vm, globalObject, module);
+            break;
         }
     }
-    // 3. Assert: state.[[PendingModulesCount]] ≥ 1.
-    ASSERT(state->pendingModulesCount() >= 1);
-    // 4. Set state.[[PendingModulesCount]] to state.[[PendingModulesCount]] - 1.
-    state->setPendingModulesCount(state->pendingModulesCount() - 1);
-    // 5. If state.[[PendingModulesCount]] = 0, then
-    if (!state->pendingModulesCount()) {
-        // 5.a. Set state.[[IsLoading]] to false.
-        state->setIsLoading(false);
-        // 5.b. For each Cyclic Module Record loaded of state.[[Visited]], do
-        state->iterateVisited([](CyclicModuleRecord* loaded) {
-            // 5.b.i. If loaded.[[Status]] is NEW, set loaded.[[Status]] to UNLINKED.
-            if (loaded->status() == CyclicModuleRecord::Status::New)
-                loaded->status(CyclicModuleRecord::Status::Unlinked);
-        });
-        // 5.c. Perform ! Call(state.[[PromiseCapability]].[[Resolve]], undefined, « undefined »).
-        state->promise()->fulfill(vm, globalObject, module);
-    }
     // 6. Return UNUSED.
+    state->setDrainingInnerLoad(false);
     scope.release();
 }
 
@@ -932,8 +968,25 @@ void JSModuleLoader::continueModuleLoading(JSGlobalObject* globalObject, ModuleG
     // 2. If moduleCompletion is a normal completion, then
     if (auto* module = std::get_if<AbstractModuleRecord*>(&moduleCompletion)) {
         // 2.a. Perform InnerModuleLoading(state, moduleCompletion.[[Value]]).
-        innerModuleLoading(globalObject, state, *module);
-        RETURN_IF_EXCEPTION(scope, void());
+        // Per-edge fast path: most calls land here with a module that's already
+        // visited (E >> V); skip the dyncast+enqueue and just decrement.
+        if (state->containsVisited(*module)) {
+            ASSERT(state->pendingModulesCount() > 1 || !state->drainingInnerLoad());
+            state->setPendingModulesCount(state->pendingModulesCount() - 1);
+            if (!state->pendingModulesCount()) {
+                state->setIsLoading(false);
+                state->iterateVisited([](CyclicModuleRecord* loaded) {
+                    if (loaded->status() == CyclicModuleRecord::Status::New)
+                        loaded->status(CyclicModuleRecord::Status::Unlinked);
+                });
+                state->promise()->fulfill(vm, globalObject, *module);
+            }
+        } else if (state->drainingInnerLoad())
+            state->enqueueInnerLoad(*module);
+        else {
+            innerModuleLoading(globalObject, state, *module);
+            RETURN_IF_EXCEPTION(scope, void());
+        }
     // 3. Else,
     } else {
         // 3.a. Set state.[[IsLoading]] to false.
