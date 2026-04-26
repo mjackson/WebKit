@@ -689,16 +689,13 @@ auto AbstractModuleRecord::resolveExportImpl(JSGlobalObject* globalObject, const
             if (!moduleRecord->starExportEntries().isEmpty())
                 foundStarLinks = true;
 
-            // The cache only stores Resolved entries. A Resolved cached value means
-            // ResolveExport(moduleRecord, name, []) found exactly one binding T;
-            // any non-empty resolveSet can only turn paths to T into null, never
-            // surface a different binding (that would have made the [] result
-            // ambiguous and therefore uncached). null vs T merges to T either way,
-            // so reading the cache here is sound regardless of foundStarLinks.
-            if (std::optional<Resolution> cachedResolution = moduleRecord->tryGetCachedResolution(query.exportName.get())) {
-                if (!mergeToCurrentTop(*cachedResolution))
-                    return Resolution::ambiguous();
-                continue;
+            //  4. Once we follow star links, we should not retrieve the result from the cache and should not cache the result.
+            if (!foundStarLinks) {
+                if (std::optional<Resolution> cachedResolution = moduleRecord->tryGetCachedResolution(query.exportName.get())) {
+                    if (!mergeToCurrentTop(*cachedResolution))
+                        return Resolution::ambiguous();
+                    continue;
+                }
             }
 
             const std::optional<ExportEntry> optionalExportEntry = moduleRecord->tryGetExportEntry(query.exportName.get());
