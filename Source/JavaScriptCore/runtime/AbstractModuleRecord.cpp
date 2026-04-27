@@ -1100,10 +1100,17 @@ unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObjec
         // `import("./chunk")` -> chunk statically imports index.mjs). The
         // pre-rewrite JS loader did not track async parents across dynamic
         // imports, so it evaluated the chunk immediately with the parent's
-        // already-initialised bindings. Preserve that for back-compat: only
-        // skip the wait when the dep was *already* EvaluatingAsync; deps that
-        // *become* EvaluatingAsync during the recursive call below are a
-        // legitimate TLA dependency and must still be awaited.
+        // already-initialised bindings. Preserve that for back-compat.
+        //
+        // "Already EvaluatingAsync" alone is too broad: it also matches a
+        // sibling static import in the *same* Evaluate() pass that popped an
+        // SCC to EvaluatingAsync earlier in the walk. In that case the dep's
+        // body has not run yet (its bindings are TDZ) and skipping the wait
+        // executes the importer too early. We narrow at 11.c.v below: only
+        // skip when the cycle root's pendingAsyncDependencies is 0, i.e. its
+        // ExecuteModule/ExecuteAsyncModule has already been called and the
+        // bindings before its first await are initialised. For an SCC still
+        // queued behind an async dep the root's count is > 0.
         bool depWasAlreadyEvaluatingAsync = false;
         if (auto* depCyclic = dynamicDowncast<CyclicModuleRecord>(requiredModule))
             depWasAlreadyEvaluatingAsync = depCyclic->status() == Status::EvaluatingAsync;
@@ -1140,7 +1147,11 @@ unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObjec
 #if USE(BUN_JSC_ADDITIONS)
                 // See note above the recursive call: skip the spec-mandated
                 // wait to avoid self-deadlock and match old-loader behaviour.
-                if (!depWasAlreadyEvaluatingAsync) {
+                // Only skip when the cycle root's body has already been
+                // entered (pendingAsyncDependencies == 0); otherwise the SCC
+                // is still queued behind an async dep and its bindings are
+                // TDZ, so the wait is required.
+                if (!depWasAlreadyEvaluatingAsync || cyclic->pendingAsyncDependencies().value_or(1)) {
 #endif
                 // 11.c.v.1. Set module.[[PendingAsyncDependencies]] to module.[[PendingAsyncDependencies]] + 1.
                 module->pendingAsyncDependencies(module->pendingAsyncDependencies().value() + 1);
