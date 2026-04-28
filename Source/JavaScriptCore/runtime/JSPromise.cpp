@@ -285,10 +285,15 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
         JSPromiseReaction* existing = reactionsOrResult ? uncheckedDowncast<JSPromiseReaction>(reactionsOrResult) : nullptr;
         JSPromiseReaction* reaction;
 #if USE(BUN_JSC_ADDITIONS)
-        // Always use the full reaction so we can carry the captured async context.
-        // FIXME: thread context through JSSlimPromiseReaction and re-enable the slim path.
-        reaction = JSFullPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, context, existing);
-#else
+        if (!context.isUndefined()) {
+            // Carry async context via JSFullPromiseReaction; normalize non-callable sides
+            // to jsUndefined() so dispatch can use a tag check instead of isCallable().
+            reaction = JSFullPromiseReaction::create(vm, promiseOrCapability,
+                fulfilledCallable ? onFulfilled : jsUndefined(),
+                rejectedCallable ? onRejected : jsUndefined(),
+                context, existing);
+        } else
+#endif
         if (fulfilledCallable && !rejectedCallable)
             reaction = JSSlimPromiseReaction::create(vm, promiseOrCapability, onFulfilled, true, existing);
         else if (!fulfilledCallable && rejectedCallable)
@@ -298,7 +303,6 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
             reaction = JSFullPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, jsUndefined(), existing);
         } else
             reaction = JSSlimPromiseReaction::create(vm, promiseOrCapability, InternalMicrotask::PromiseResolveWithoutHandlerJob, jsUndefined(), existing);
-#endif
         setReactionsOrResult(vm, reaction);
         markAsHandled();
         break;
@@ -334,11 +338,8 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
 #if USE(BUN_JSC_ADDITIONS)
 void JSPromise::performPromiseThenWithContext(VM& vm, JSGlobalObject* globalObject, JSValue onFulfilled, JSValue onRejected, JSValue promiseOrCapability, JSValue userContext)
 {
-    if (!onFulfilled.isCallable())
-        onFulfilled = globalObject->promiseEmptyOnFulfilledFunction();
-
-    if (!onRejected.isCallable())
-        onRejected = globalObject->promiseEmptyOnRejectedFunction();
+    bool fulfilledCallable = onFulfilled.isCallable();
+    bool rejectedCallable = onRejected.isCallable();
 
     // Wrap userContext and asyncContext in InternalFieldTuple: [userContext, asyncContext]
     JSValue context = userContext;
@@ -356,7 +357,10 @@ void JSPromise::performPromiseThenWithContext(VM& vm, JSGlobalObject* globalObje
     JSValue reactionsOrResult = this->reactionsOrResult();
     switch (status()) {
     case JSPromise::Status::Pending: {
-        auto* reaction = JSFullPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, context, reactionsOrResult ? uncheckedDowncast<JSPromiseReaction>(reactionsOrResult) : nullptr);
+        auto* reaction = JSFullPromiseReaction::create(vm, promiseOrCapability,
+            fulfilledCallable ? onFulfilled : jsUndefined(),
+            rejectedCallable ? onRejected : jsUndefined(),
+            context, reactionsOrResult ? uncheckedDowncast<JSPromiseReaction>(reactionsOrResult) : nullptr);
         setReactionsOrResult(vm, reaction);
         markAsHandled();
         break;
@@ -364,12 +368,18 @@ void JSPromise::performPromiseThenWithContext(VM& vm, JSGlobalObject* globalObje
     case JSPromise::Status::Rejected: {
         if (!isHandled())
             globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, this, JSPromiseRejectionOperation::Handle);
-        globalObject->queueMicrotask(vm, InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, onRejected, reactionsOrResult, context);
+        if (rejectedCallable)
+            globalObject->queueMicrotask(vm, InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, onRejected, reactionsOrResult, context);
+        else
+            globalObject->queueMicrotask(vm, InternalMicrotask::PromiseResolveWithoutHandlerJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, reactionsOrResult, jsUndefined());
         markAsHandled();
         break;
     }
     case JSPromise::Status::Fulfilled: {
-        globalObject->queueMicrotask(vm, InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, onFulfilled, reactionsOrResult, context);
+        if (fulfilledCallable)
+            globalObject->queueMicrotask(vm, InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, onFulfilled, reactionsOrResult, context);
+        else
+            globalObject->queueMicrotask(vm, InternalMicrotask::PromiseResolveWithoutHandlerJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, reactionsOrResult, jsUndefined());
         break;
     }
     }
@@ -718,6 +728,14 @@ void JSPromise::triggerPromiseReactions(VM& vm, JSGlobalObject* globalObject, St
             auto* fullReaction = uncheckedDowncast<JSFullPromiseReaction>(reaction);
             handler = isResolved ? fullReaction->onFulfilled() : fullReaction->onRejected();
 #if USE(BUN_JSC_ADDITIONS)
+            // performPromiseThen normalizes non-callable sides to jsUndefined() when storing
+            // an async context in a full reaction; cheap tag check instead of isCallable().
+            if (handler.isUndefined()) {
+                task = InternalMicrotask::PromiseResolveWithoutHandlerJob;
+                handler = argument;
+                arg = jsUndefined();
+                break;
+            }
             JSValue context = fullReaction->context();
             if (!context.isUndefinedOrNull()) {
                 globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(status), promise, handler, arg, context);
