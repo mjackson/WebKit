@@ -27,7 +27,7 @@
 
 #include "BytecodeConventions.h"
 #include "CallFrame.h"
-#include <wtf/PrintStream.h>
+#include <wtf/Forward.h>
 
 namespace JSC {
 

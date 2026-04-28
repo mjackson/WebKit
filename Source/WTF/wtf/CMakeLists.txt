@@ -381,6 +381,7 @@ set(WTF_PUBLIC_HEADERS
     URLParser.h
     UUID.h
     UnalignedAccess.h
+    UnbarrieredMonotonicTime.h
     UniStdExtras.h
     UnionFind.h
     UniqueArray.h
@@ -635,6 +636,7 @@ set(WTF_SOURCES
     URLHelpers.cpp
     URLParser.cpp
     UUID.cpp
+    UnbarrieredMonotonicTime.cpp
     UniqueArray.cpp
     Vector.cpp
     WTFAssertions.cpp

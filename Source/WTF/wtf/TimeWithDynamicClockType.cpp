@@ -45,6 +45,8 @@ TimeWithDynamicClockType TimeWithDynamicClockType::now(ClockType type)
         return ContinuousTime::now();
     case ClockType::ContinuousApproximate:
         return ContinuousApproximateTime::now();
+    case ClockType::UnbarrieredMonotonic:
+        return UnbarrieredMonotonicTime::now();
     }
     RELEASE_ASSERT_NOT_REACHED();
     return TimeWithDynamicClockType();
@@ -85,6 +87,12 @@ ContinuousApproximateTime TimeWithDynamicClockType::continuousApproximateTime() 
     return ContinuousApproximateTime::fromRawSeconds(m_value);
 }
 
+UnbarrieredMonotonicTime TimeWithDynamicClockType::unbarrieredMonotonicTime() const
+{
+    RELEASE_ASSERT(m_type == ClockType::UnbarrieredMonotonic);
+    return UnbarrieredMonotonicTime::fromRawSeconds(m_value);
+}
+
 WallTime TimeWithDynamicClockType::approximateWallTime() const
 {
     switch (m_type) {
@@ -98,6 +106,8 @@ WallTime TimeWithDynamicClockType::approximateWallTime() const
         return continuousTime().approximateWallTime();
     case ClockType::ContinuousApproximate:
         return ContinuousApproximateTime().approximateWallTime();
+    case ClockType::UnbarrieredMonotonic:
+        return unbarrieredMonotonicTime().approximateWallTime();
     }
     RELEASE_ASSERT_NOT_REACHED();
     return WallTime();
@@ -116,6 +126,8 @@ MonotonicTime TimeWithDynamicClockType::approximateMonotonicTime() const
         return continuousTime().approximateMonotonicTime();
     case ClockType::ContinuousApproximate:
         return ContinuousApproximateTime().approximateMonotonicTime();
+    case ClockType::UnbarrieredMonotonic:
+        return unbarrieredMonotonicTime().approximateMonotonicTime();
     }
     RELEASE_ASSERT_NOT_REACHED();
     return MonotonicTime();

@@ -478,6 +478,7 @@ public:
 
     ExceptionOr<unsigned> wheelEventHandlerCount();
     ExceptionOr<unsigned> touchEventHandlerCount();
+    ExceptionOr<unsigned> doubleClickEventHandlerCount();
     ExceptionOr<unsigned> scrollableAreaWidth(Node&);
 
     ExceptionOr<Ref<DOMRectList>> touchEventRectsForEvent(const String&);
@@ -1009,6 +1010,7 @@ public:
     JSC::JSValue cloneArrayBuffer(JSC::JSGlobalObject&, JSC::JSValue, JSC::JSValue, JSC::JSValue);
 
     String composedTreeAsText(Node&);
+    String composedTreeAsTextFromNode(Node& root, Node& startNode);
 
     bool isProcessingUserGesture();
     double NODELETE lastHandledUserGestureTimestamp();
@@ -1619,8 +1621,6 @@ public:
 
     String getComputedLabel(Element&) const;
     String getComputedRole(Element&) const;
-
-    bool hasScopeBreakingHasSelectors() const;
 
 
     struct PDFAnnotationRect {

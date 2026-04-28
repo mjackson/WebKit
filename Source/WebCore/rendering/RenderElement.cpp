@@ -2314,7 +2314,7 @@ RenderBoxModelObject* RenderElement::offsetParent() const
         current = current->parent();
     }
 
-    return dynamicDowncast<RenderBoxModelObject>(current.get());
+    return dynamicDowncast<RenderBoxModelObject>(current.unsafeGet());
 }
 
 bool RenderElement::hasViewTransitionName() const

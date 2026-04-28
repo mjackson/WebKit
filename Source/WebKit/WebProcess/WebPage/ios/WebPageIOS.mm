@@ -163,7 +163,6 @@
 #import <WebCore/PrintContext.h>
 #import <WebCore/Quirks.h>
 #import <WebCore/Range.h>
-#import <WebCore/RemoteFrame.h>
 #import <WebCore/RemoteFrameGeometryTransformer.h>
 #import <WebCore/RemoteFrameView.h>
 #import <WebCore/RenderBlock.h>
@@ -196,6 +195,7 @@
 #import <wtf/CoroutineUtilities.h>
 #import <wtf/MathExtras.h>
 #import <wtf/MemoryPressureHandler.h>
+#import <wtf/ProcessID.h>
 #import <wtf/RuntimeApplicationChecks.h>
 #import <wtf/Scope.h>
 #import <wtf/SetForScope.h>
@@ -907,25 +907,26 @@ static RefPtr<LocalDOMWindow> windowWithDoubleClickEventListener(RefPtr<LocalFra
     return window;
 }
 
-void WebPage::handleDoubleTapForDoubleClickAtPoint(const IntPoint& point, OptionSet<WebEventModifier> modifiers, TransactionID lastLayerTreeTransactionId)
+void WebPage::handleDoubleTapForDoubleClickAtPoint(WebCore::FrameIdentifier frameID, const IntPoint& pointInRootView, const IntPoint& pointInTargetFrameContents, OptionSet<WebEventModifier> modifiers, TransactionID lastLayerTreeTransactionId)
 {
+    RefPtr webFrame = WebProcess::singleton().webFrame(frameID);
+    RefPtr frame = webFrame ? webFrame->coreLocalFrame() : nullptr;
+    if (!frame)
+        return;
+
+    RefPtr frameView = frame->view();
+    if (!frameView)
+        return;
+
+    auto windowPoint = frameView->contentsToWindow(pointInTargetFrameContents);
     FloatPoint adjustedPoint;
-    RefPtr localMainFrame = protect(*m_page)->localMainFrame();
-    RefPtr nodeRespondingToDoubleClick = localMainFrame ? localMainFrame->nodeRespondingToDoubleClickEvent(point, adjustedPoint) : nullptr;
+    RefPtr nodeRespondingToDoubleClick = frame->nodeRespondingToDoubleClickEvent(windowPoint, adjustedPoint);
 
-    RefPtr windowListeningToDoubleClickEvents = windowWithDoubleClickEventListener(localMainFrame);
-
+    RefPtr windowListeningToDoubleClickEvents = nodeRespondingToDoubleClick ? nullptr : windowWithDoubleClickEventListener(frame);
     if (!nodeRespondingToDoubleClick && !windowListeningToDoubleClickEvents)
         return;
 
-    RefPtr<LocalFrame> frameRespondingToDoubleClick;
-    if (nodeRespondingToDoubleClick)
-        frameRespondingToDoubleClick = nodeRespondingToDoubleClick->document().frame();
-    else if (windowListeningToDoubleClickEvents) {
-        RefPtr document = windowListeningToDoubleClickEvents->documentIfLocal();
-        frameRespondingToDoubleClick = document ? document->frame() : nullptr;
-    }
-
+    RefPtr<LocalFrame> frameRespondingToDoubleClick = nodeRespondingToDoubleClick ? nodeRespondingToDoubleClick->document().frame() : frame.get();
     if (!frameRespondingToDoubleClick)
         return;
 
@@ -937,10 +938,10 @@ void WebPage::handleDoubleTapForDoubleClickAtPoint(const IntPoint& point, Option
 
     auto platformModifiers = platform(modifiers);
     auto roundedAdjustedPoint = roundedIntPoint(adjustedPoint);
-    frameRespondingToDoubleClick->eventHandler().handleMousePressEvent(PlatformMouseEvent(roundedAdjustedPoint, roundedAdjustedPoint, MouseButton::Left, PlatformEvent::Type::MousePressed, 2, platformModifiers, MonotonicTime::now(), 0, WebCore::SyntheticClickType::OneFingerTap, WebCore::MouseEventInputSource::UserDriven));
+    frameRespondingToDoubleClick->eventHandler().handleMousePressEvent(PlatformMouseEvent(roundedAdjustedPoint, pointInRootView, MouseButton::Left, PlatformEvent::Type::MousePressed, 2, platformModifiers, MonotonicTime::now(), 0, WebCore::SyntheticClickType::OneFingerTap, WebCore::MouseEventInputSource::UserDriven));
     if (m_isClosed)
         return;
-    frameRespondingToDoubleClick->eventHandler().handleMouseReleaseEvent(PlatformMouseEvent(roundedAdjustedPoint, roundedAdjustedPoint, MouseButton::Left, PlatformEvent::Type::MouseReleased, 2, platformModifiers, MonotonicTime::now(), 0, WebCore::SyntheticClickType::OneFingerTap, WebCore::MouseEventInputSource::UserDriven));
+    frameRespondingToDoubleClick->eventHandler().handleMouseReleaseEvent(PlatformMouseEvent(roundedAdjustedPoint, pointInRootView, MouseButton::Left, PlatformEvent::Type::MouseReleased, 2, platformModifiers, MonotonicTime::now(), 0, WebCore::SyntheticClickType::OneFingerTap, WebCore::MouseEventInputSource::UserDriven));
 }
 
 void WebPage::requestFocusedElementInformation(CompletionHandler<void(const std::optional<FocusedElementInformation>&)>&& completionHandler)
@@ -4304,7 +4305,7 @@ void WebPage::hardwareKeyboardAvailabilityChanged(HardwareKeyboardState state)
 
     protect(m_page)->didUpdateHardwareKeyboardAttachment(m_keyboardIsAttached);
 
-    if (RefPtr focusedFrame = m_page->focusController().focusedLocalFrame())
+    if (RefPtr focusedFrame = m_page->focusController().localFocusedFrame())
         focusedFrame->eventHandler().capsLockStateMayHaveChanged();
 }
 

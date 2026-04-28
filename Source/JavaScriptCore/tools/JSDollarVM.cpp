@@ -60,6 +60,7 @@
 #include "Snippet.h"
 #include "SnippetParams.h"
 #include "Strong.h"
+#include "StructureCreateInlines.h"
 #include "TypeProfiler.h"
 #include "TypeProfilerLog.h"
 #include "VMEntryScopeInlines.h"
@@ -4607,6 +4608,12 @@ void JSDollarVM::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     JSDollarVM* thisObject = uncheckedDowncast<JSDollarVM>(cell);
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_objectDoingSideEffectPutWithoutCorrectSlotStatusStructureID);
+}
+
+Structure* JSDollarVM::createStructure(VM& vm, JSGlobalObject* globalObject, JSValue prototype)
+{
+    DollarVMAssertScope assertScope;
+    return Structure::create(vm, globalObject, prototype, TypeInfo(ObjectType, StructureFlags), info());
 }
 
 DEFINE_VISIT_CHILDREN(JSDollarVM);

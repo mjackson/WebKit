@@ -66,7 +66,6 @@ static bool isSiblingHasRelation(const MatchElement& matchElement)
         return true;
     case MatchElement::HasRelation::Child:
     case MatchElement::HasRelation::Descendant:
-    case MatchElement::HasRelation::ScopeBreaking:
         return false;
     }
     ASSERT_NOT_REACHED();
@@ -161,13 +160,6 @@ void ChildChangeInvalidation::invalidateForChangedElement(Element& changedElemen
     Invalidator::invalidateWithMatchElementRuleSets(changedElement, matchElementRuleSets);
 }
 
-void ChildChangeInvalidation::invalidateForChangeOutsideHasScope()
-{
-    // FIXME: This is a performance footgun. Any mutation will trigger a full document traversal.
-    if (RefPtr invalidationRuleSet = parentElement().styleResolver().ruleSets().scopeBreakingHasPseudoClassInvalidationRuleSet())
-        Invalidator::invalidateWithScopeBreakingHasPseudoClassRuleSet(parentElement(), invalidationRuleSet.get());
-}
-
 void ChildChangeInvalidation::invalidateForHasSiblings(MatchingHasSelectors& matchingHasSelectors, MutationPhase phase)
 {
     bool affectedByBackwardSibling = parentElement().affectedByHasWithBackwardSiblingRelationship();
@@ -209,8 +201,6 @@ void ChildChangeInvalidation::invalidateForHasBeforeMutation()
 {
     ASSERT(m_needsHasInvalidation);
 
-    invalidateForChangeOutsideHasScope();
-
     MatchingHasSelectors matchingHasSelectors;
 
     traverseRemovedElements([&](auto& changedElement) {
@@ -232,8 +222,6 @@ void ChildChangeInvalidation::invalidateForHasBeforeMutation()
 void ChildChangeInvalidation::invalidateForHasAfterMutation()
 {
     ASSERT(m_needsHasInvalidation);
-
-    invalidateForChangeOutsideHasScope();
 
     MatchingHasSelectors matchingHasSelectors;
 

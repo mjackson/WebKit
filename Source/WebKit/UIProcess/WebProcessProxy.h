@@ -560,7 +560,7 @@ public:
 
     Logger& logger();
 
-    void NODELETE resetState();
+    void resetState();
 
     ProcessThrottleState throttleStateForStatistics() const { return m_throttleStateForStatistics; }
     Seconds totalForegroundTime() const;

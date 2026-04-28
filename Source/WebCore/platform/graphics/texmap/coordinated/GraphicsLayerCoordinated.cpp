@@ -390,7 +390,7 @@ void GraphicsLayerCoordinated::setContentsToPlatformLayer(PlatformLayer* content
 
     m_contentsBufferProxy = contentsLayer;
 
-    OptionSet<Change> change = { Change::ContentsBuffer };
+    EnumSet<Change> change = { Change::ContentsBuffer };
     if (m_contentsBufferProxy) {
         m_contentsBufferProxy->setTargetLayer(m_platformLayer.ptr());
         m_contentsDisplayDelegate = nullptr;
@@ -406,7 +406,7 @@ void GraphicsLayerCoordinated::setContentsDisplayDelegate(RefPtr<GraphicsLayerCo
 
     m_contentsDisplayDelegate = WTF::move(delegate);
 
-    OptionSet<Change> change = { Change::ContentsBuffer };
+    EnumSet<Change> change = { Change::ContentsBuffer };
     if (m_contentsDisplayDelegate) {
         if (m_contentsBufferProxy) {
             m_contentsBufferProxy->setTargetLayer(nullptr);
@@ -764,7 +764,7 @@ bool GraphicsLayerCoordinated::filtersCanBeComposited(const FilterOperations& fi
     return !filters.isEmpty();
 }
 
-void GraphicsLayerCoordinated::noteLayerPropertyChanged(OptionSet<Change> change, ScheduleFlush scheduleFlush)
+void GraphicsLayerCoordinated::noteLayerPropertyChanged(EnumSet<Change> change, ScheduleFlush scheduleFlush)
 {
     if (beingDestroyed())
         return;

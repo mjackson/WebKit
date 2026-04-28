@@ -31,6 +31,7 @@
 #include <JavaScriptCore/MicrotaskQueue.h>
 #include <JavaScriptCore/TopExceptionScope.h>
 #include <JavaScriptCore/VMEntryScopeInlines.h>
+#include <wtf/SetForScope.h>
 
 namespace JSC {
 
@@ -100,6 +101,7 @@ inline void MicrotaskQueue::clearForGlobalObject(JSGlobalObject* targetGlobalObj
 template<bool useCallOnEachMicrotask>
 inline void MicrotaskQueue::performMicrotaskCheckpoint(VM& vm, NOESCAPE const Invocable<void(JSGlobalObject*, JSGlobalObject*)> auto& globalObjectSwitchCallback)
 {
+    SetForScope inCheckpoint(m_isPerformingMicrotaskCheckpoint, true);
     auto catchScope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
     if (vm.executionForbidden()) [[unlikely]]
         clear();

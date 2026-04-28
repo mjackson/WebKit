@@ -504,7 +504,7 @@ std::unique_ptr<CachedPage> BackForwardCache::trySuspendPage(Page& page, ForceSu
 
     // Focus the main frame, defocusing a focused subframe (if we have one). We do this here,
     // before the page enters the back/forward cache, while we still can dispatch DOM blur/focus events.
-    if (CheckedRef focusController = page.focusController(); focusController->focusedLocalFrame())
+    if (CheckedRef focusController = page.focusController(); focusController->localFocusedFrame())
         focusController->setFocusedFrame(mainFrame.ptr());
 
     // Fire the pagehide event in all frames.

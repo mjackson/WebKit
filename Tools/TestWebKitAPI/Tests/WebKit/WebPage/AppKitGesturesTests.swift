@@ -37,8 +37,9 @@ struct AppKitGesturesTests {
     func clickingChangesSelection() async throws {
         let page = WebPage()
 
+        let text = "Here's to the crazy ones."
         let html = """
-            <div id="div" contenteditable style="font-size: 30px;">Here's to the crazy ones.</div>
+            <div id="div" contenteditable style="font-size: 30px;">\(text)</div>
             """
 
         try await page.load(html: html).wait()
@@ -52,34 +53,14 @@ struct AppKitGesturesTests {
         window.setFrameOrigin(.zero)
         window.makeKeyAndOrderFront(nil)
 
-        let selectCrazy = """
-            const textNode = document.getElementById("div").firstChild
+        let range = try #require(text.range(of: "crazy"))
+        let start = range.lowerBound.utf16Offset(in: text)
+        let end = range.upperBound.utf16Offset(in: text)
+        let crazySelection: JavaScriptSelection = .range(base: .init(in: "div", at: start), extent: .init(in: "div", at: end))
 
-            const range = document.createRange();
-            range.setStart(textNode, 14);
-            range.setEnd(textNode, 19);
+        try await page.callJavaScript(JavaScriptMessages.SetSelection(crazySelection))
 
-            let selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            """
-
-        try await page.callJavaScript(selectCrazy)
-
-        let getSelectionBounds = """
-            const selection = window.getSelection();
-
-            const range = selection.getRangeAt(0);
-            return range.getBoundingClientRect().toJSON();
-            """
-
-        let crazyBoundsDictionary = try await #require(page.callJavaScript(getSelectionBounds) as? [String: Double])
-        let crazyBoundsInViewportCoordinates = CGRect(
-            x: crazyBoundsDictionary["x", default: 0],
-            y: crazyBoundsDictionary["y", default: 0],
-            width: crazyBoundsDictionary["width", default: 0],
-            height: crazyBoundsDictionary["height", default: 0],
-        )
+        let crazyBoundsInViewportCoordinates = try await CGRect(page.callJavaScript(JavaScriptMessages.SelectionBoundingClientRect()))
 
         let crazyBoundsInAppKitCoordinates = CGRect(
             x: crazyBoundsInViewportCoordinates.minX,
@@ -90,19 +71,8 @@ struct AppKitGesturesTests {
 
         let middleOfCrazy = CGPoint(x: crazyBoundsInAppKitCoordinates.midX, y: crazyBoundsInAppKitCoordinates.midY)
 
-        let moveSelectionToStart = """
-            const textNode = document.getElementById("div").firstChild
-
-            const range = document.createRange();
-            range.setStart(textNode, 0);
-            range.setEnd(textNode, 0);
-
-            let selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            """
-
-        try await page.callJavaScript(moveSelectionToStart)
+        let selectionAtStart: JavaScriptSelection = .collapsed(.init(in: "div", at: 0))
+        try await page.callJavaScript(JavaScriptMessages.SetSelection(selectionAtStart))
 
         let waitForSelectionChange = """
             return await new Promise(resolve => {

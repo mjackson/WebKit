@@ -13199,7 +13199,9 @@
             "initial": "anchors-visible",
             "values": [
                 "always",
+                "anchor-valid",
                 "anchors-valid",
+                "anchor-visible",
                 "anchors-visible",
                 "no-overflow"
             ],
@@ -13209,7 +13211,7 @@
                 "computed-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "computed-style-storage-kind": "raw",
                 "computed-style-type": "Style::PositionVisibility",
-                "parser-grammar": "always | [ anchors-valid || anchors-visible || no-overflow ]@(no-single-item-opt)"
+                "parser-grammar": "always | [ [ anchors-valid | anchor-valid ] || [ anchors-visible | anchor-visible ] || no-overflow ]@(no-single-item-opt)"
             },
             "specification": {
                 "category": "css-anchor-position",

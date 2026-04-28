@@ -564,6 +564,10 @@ SOFT_LINK_FUNCTION_FOR_HEADER(PAL, CoreMedia, CMDerivedObjectCreate, OSStatus, (
 
 #endif // PLATFORM(MAC)
 
+#if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/CoreMediaSoftLinkAdditions.h>)
+#import <WebKitAdditions/CoreMediaSoftLinkAdditions.h>
+#endif
+
 #endif // USE(AVFOUNDATION)
 
 #endif // !__has_feature(modules)

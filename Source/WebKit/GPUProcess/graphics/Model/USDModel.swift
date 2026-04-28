@@ -26,7 +26,7 @@ import OSLog
 import WebKit
 import simd
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreTextureProcessing, _version: 19)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreTextureProcessing, _version: 19) && canImport(_USDKit_RealityKit, _version: 42)
 @_spi(UsdLoaderAPI) import _USDKit_RealityKit
 @_spi(RealityCoreRendererAPI) import RealityKit
 @_spi(RealityCoreTextureProcessingAPI) import RealityCoreTextureProcessing
@@ -820,8 +820,8 @@ extension WKBridgeReceiver {
                                 indexCount: meshData.parts[partIndex].indexCount,
                                 primitive: meshData.parts[partIndex].topology,
                                 windingOrder: .counterClockwise,
-                                boundsMin: -.one,
-                                boundsMax: .one
+                                boundsMin: meshData.parts[partIndex].boundsMin,
+                                boundsMax: meshData.parts[partIndex].boundsMax
                             )
 
                             for instanceTransform in meshData.instanceTransforms {

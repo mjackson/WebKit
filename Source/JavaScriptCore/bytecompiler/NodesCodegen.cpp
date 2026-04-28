@@ -151,6 +151,8 @@ JSValue BigIntNode::jsValue(BytecodeGenerator& generator) const
 
 // ------------------------------ NumberNode ----------------------------------
 
+JSValue NumberNode::jsValue(BytecodeGenerator&) const { return jsNumber(m_value); }
+
 RegisterID* NumberNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
     if (dst == generator.ignoredResult())
@@ -3871,6 +3873,25 @@ RegisterID* OptionalChainNode::emitBytecode(BytecodeGenerator& generator, Regist
         generator.popOptionalChainTarget(finalDest.get(), m_expr->isDeleteNode());
 
     return finalDest.unsafeGet();
+}
+
+void OptionalChainNode::emitBytecodeInConditionContext(BytecodeGenerator& generator, Label& trueTarget, Label& falseTarget, FallThroughMode fallThroughMode)
+{
+    if (needsDebugHook()) [[unlikely]]
+        generator.emitDebugHook(this);
+
+    if (m_expr->isDeleteNode()) {
+        ExpressionNode::emitBytecodeInConditionContext(generator, trueTarget, falseTarget, fallThroughMode);
+        return;
+    }
+
+    // Short-circuiting produces undefined, which is falsy. Route the optional
+    // chain bail-out straight to falseTarget instead of materializing undefined.
+    if (m_isOutermost)
+        generator.pushOptionalChainTarget(falseTarget);
+    generator.emitNodeInConditionContext(m_expr, trueTarget, falseTarget, fallThroughMode);
+    if (m_isOutermost)
+        generator.discardOptionalChainTarget();
 }
 
 // ------------------------------ ConditionalNode ------------------------------

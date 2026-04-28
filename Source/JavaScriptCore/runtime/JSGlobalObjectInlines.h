@@ -222,8 +222,6 @@ inline JSFunction* JSGlobalObject::promiseProtoThenFunction() const { return unc
 inline JSFunction* JSGlobalObject::performPromiseThenFunction() const { return uncheckedDowncast<JSFunction>(linkTimeConstant(LinkTimeConstant::performPromiseThen)); }
 inline JSFunction* JSGlobalObject::rejectPromiseFunction() const { return uncheckedDowncast<JSFunction>(linkTimeConstant(LinkTimeConstant::rejectPromiseWithFirstResolvingFunctionCallCheck)); };
 #endif
-inline JSFunction* JSGlobalObject::promiseEmptyOnFulfilledFunction() const { return uncheckedDowncast<JSFunction>(linkTimeConstant(LinkTimeConstant::promiseEmptyOnFulfilled)); }
-inline JSFunction* JSGlobalObject::promiseEmptyOnRejectedFunction() const { return uncheckedDowncast<JSFunction>(linkTimeConstant(LinkTimeConstant::promiseEmptyOnRejected)); }
 inline JSFunction* JSGlobalObject::regExpProtoExecFunction() const { return uncheckedDowncast<JSFunction>(linkTimeConstant(LinkTimeConstant::regExpBuiltinExec)); }
 inline JSFunction* JSGlobalObject::stringProtoSubstringFunction() const { return uncheckedDowncast<JSFunction>(linkTimeConstant(LinkTimeConstant::stringSubstring)); }
 inline JSFunction* JSGlobalObject::performProxyObjectHasFunction() const { return m_performProxyObjectHasFunction.get(); }

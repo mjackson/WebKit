@@ -32,6 +32,7 @@
 #include <WebCore/PlatformLayer.h>
 #include <WebCore/PlatformLayerIdentifier.h>
 #include <WebCore/ScrollingNodeID.h>
+#include <wtf/ObjectIdentifier.h>
 #include <wtf/Platform.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/ThreadSafeWeakPtr.h>
@@ -312,7 +313,7 @@ public:
 
     virtual const EventRegion* eventRegion() const { return nullptr; }
     virtual void setEventRegion(const EventRegion&) { }
-    
+
 #if ENABLE(SCROLLING_THREAD)
     virtual std::optional<ScrollingNodeID> scrollingNodeID() const { return std::nullopt; }
     virtual void setScrollingNodeID(std::optional<ScrollingNodeID>) { }

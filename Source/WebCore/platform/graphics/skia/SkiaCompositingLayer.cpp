@@ -339,16 +339,15 @@ std::optional<SkiaCompositingLayer::AnimationsState> SkiaCompositingLayer::syncA
     return state;
 }
 
-bool SkiaCompositingLayer::computeTransformsAndAnimations(RefPtr<SkiaCompositingLayer> parent, MonotonicTime time)
+bool SkiaCompositingLayer::computeTransformsAndAnimations(const TransformationMatrix& parentTransform, const TransformationMatrix& futureParentTransform, MonotonicTime time)
 {
     m_animationsState = syncAnimations(time);
     bool hasRunningAnimations = m_animationsState ? m_animationsState->isRunning : false;
 
-    if (!m_size.isEmpty() || !m_masksToBounds) {
-        TransformationMatrix parentTransform;
-        if (parent)
-            parentTransform = parent == m_parent ? parent->m_transforms.combinedForChildren : parent->m_transforms.combined;
+    TransformationMatrix combinedForChildren;
+    TransformationMatrix futureCombinedForChildren;
 
+    if (!m_size.isEmpty() || !m_masksToBounds) {
 #if ENABLE(DAMAGE_TRACKING)
         TransformationMatrix previousTransform = m_transforms.combined;
 #endif
@@ -360,36 +359,32 @@ bool SkiaCompositingLayer::computeTransformsAndAnimations(RefPtr<SkiaCompositing
             .translate3d(origin.x() + (m_position.x() - m_boundsOrigin.x()), origin.y() + (m_position.y() - m_boundsOrigin.y()), m_anchorPoint.z())
             .multiply(localTransform());
 
-        m_transforms.combinedForChildren = m_transforms.combined;
+        combinedForChildren = m_transforms.combined;
         m_transforms.combined.translate3d(-origin.x(), -origin.y(), -m_anchorPoint.z());
 
         if (isReplica())
             m_transforms.combined.translate(-m_position.x(), -m_position.y());
 
         if (!m_preserves3D)
-            m_transforms.combinedForChildren.flatten();
-        m_transforms.combinedForChildren.multiply(m_childrenTransform);
-        m_transforms.combinedForChildren.translate3d(-origin.x(), -origin.y(), -m_anchorPoint.z());
-
-        TransformationMatrix futureParentTransform;
-        if (parent)
-            futureParentTransform = parent == m_parent ? parent->m_transforms.futureCombinedForChildren : parent->m_transforms.futureCombined;
+            combinedForChildren.flatten();
+        combinedForChildren.multiply(m_childrenTransform);
+        combinedForChildren.translate3d(-origin.x(), -origin.y(), -m_anchorPoint.z());
 
         m_transforms.futureCombined = futureParentTransform;
         m_transforms.futureCombined
             .translate3d(origin.x() + (m_position.x() - m_boundsOrigin.x()), origin.y() + (m_position.y() - m_boundsOrigin.y()), m_anchorPoint.z())
             .multiply(futureLocalTransform());
 
-        m_transforms.futureCombinedForChildren = m_transforms.futureCombined;
+        futureCombinedForChildren = m_transforms.futureCombined;
         m_transforms.futureCombined.translate3d(-origin.x(), -origin.y(), -m_anchorPoint.z());
 
         if (isReplica())
             m_transforms.futureCombined.translate(-m_position.x(), -m_position.y());
 
         if (!m_preserves3D)
-            m_transforms.futureCombinedForChildren.flatten();
-        m_transforms.futureCombinedForChildren.multiply(m_childrenTransform);
-        m_transforms.futureCombinedForChildren.translate3d(-origin.x(), -origin.y(), -m_anchorPoint.z());
+            futureCombinedForChildren.flatten();
+        futureCombinedForChildren.multiply(m_childrenTransform);
+        futureCombinedForChildren.translate3d(-origin.x(), -origin.y(), -m_anchorPoint.z());
 
 #if ENABLE(DAMAGE_TRACKING)
         if (frameDamagePropagationEnabled() && previousTransform != m_transforms.combined) {
@@ -404,13 +399,15 @@ bool SkiaCompositingLayer::computeTransformsAndAnimations(RefPtr<SkiaCompositing
             m_animatedBackingStoreClient->requestBackingStoreUpdateIfNeeded(m_transforms.futureCombined);
     }
 
-    if (m_mask)
-        hasRunningAnimations |= m_mask->computeTransformsAndAnimations(m_replicatedLayer ? m_replicatedLayer.get() : this, time);
+    if (m_mask) {
+        auto& maskParent = m_replicatedLayer ? *m_replicatedLayer : *this;
+        hasRunningAnimations |= m_mask->computeTransformsAndAnimations(maskParent.m_transforms.combined, maskParent.m_transforms.futureCombined, time);
+    }
     if (m_replica)
-        hasRunningAnimations |= m_replica->computeTransformsAndAnimations(m_replica->m_replicatedLayer, time);
+        hasRunningAnimations |= m_replica->computeTransformsAndAnimations(m_replica->m_replicatedLayer->m_transforms.combined, m_replica->m_replicatedLayer->m_transforms.futureCombined, time);
 
     for (auto& child : m_children)
-        hasRunningAnimations |= child->computeTransformsAndAnimations(this, time);
+        hasRunningAnimations |= child->computeTransformsAndAnimations(combinedForChildren, futureCombinedForChildren, time);
 
     // If the layer is invisible because of opacity and there's no opacity animation, the content won't
     // be visible ever, so triggering repaints doesn't make sense.
@@ -422,7 +419,7 @@ bool SkiaCompositingLayer::computeTransformsAndAnimations(RefPtr<SkiaCompositing
 
 bool SkiaCompositingLayer::paint(SkCanvas& canvas, std::optional<Damage>& damage)
 {
-    bool hasRunningAnimations = computeTransformsAndAnimations(nullptr, MonotonicTime::now());
+    bool hasRunningAnimations = computeTransformsAndAnimations({ }, { }, MonotonicTime::now());
     PaintContext context(damage);
     recursivePaint(canvas, context);
 
@@ -626,15 +623,16 @@ void SkiaCompositingLayer::paintSelfAndChildren(SkCanvas& canvas, PaintContext& 
     bool shouldClip = (m_masksToBounds || m_contentsRectClipsDescendants) && !m_preserves3D;
     SkAutoCanvasRestore autoRestore(&canvas, shouldClip);
     if (shouldClip) {
+        TransformationMatrix clipTransform(context.accumulatedReplicaTransform);
+        clipTransform.multiply(m_transforms.combined);
         if (m_contentsRectClipsDescendants) {
             SkPathBuilder builder;
             if (m_contentsClippingRect.isRounded())
                 builder.addRRect(SkRRect(m_contentsClippingRect));
             else
                 builder.addRect(SkRect(m_contentsClippingRect.rect()));
-            canvas.clipPath(builder.detach().makeTransform(SkM44(m_transforms.combined).asM33()), true);
+            canvas.clipPath(builder.detach().makeTransform(SkM44(clipTransform).asM33()), true);
         } else {
-            auto clipTransform = m_transforms.combined;
             clipTransform.translate(m_boundsOrigin.x(), m_boundsOrigin.y());
             SkPathBuilder builder;
             builder.addRect(SkRect(effectiveLayerRect()));
@@ -729,7 +727,10 @@ void SkiaCompositingLayer::paintWithIntermediateSurface(SkCanvas& canvas, PaintC
 
 void SkiaCompositingLayer::paintSelfAndChildrenWithFilterAndMask(SkCanvas& canvas, PaintContext& context)
 {
-    const bool shouldClipPath = m_mask && !m_mask->m_clipPath.isEmpty();
+    const bool shouldClipPath = m_mask && m_mask->m_clipPath.has_value();
+    if (shouldClipPath && m_mask->m_clipPath->isEmpty())
+        return;
+
     sk_sp<SkImage> maskImage = m_mask && !shouldClipPath ? m_mask->maskImage() : nullptr;
     SkAutoCanvasRestore autoRestore(&canvas, shouldClipPath || maskImage);
     if (shouldClipPath || maskImage) {
@@ -740,7 +741,7 @@ void SkiaCompositingLayer::paintSelfAndChildrenWithFilterAndMask(SkCanvas& canva
         auto matrix = SkM44(transform).asM33();
 
         if (shouldClipPath)
-            canvas.clipPath(m_mask->m_clipPath.makeTransform(matrix), true);
+            canvas.clipPath(m_mask->m_clipPath->makeTransform(matrix), true);
         else if (auto maskShader = maskImage->makeShader({ SkFilterMode::kLinear, SkMipmapMode::kNone }, &matrix))
             canvas.clipShader(maskShader);
     }

@@ -278,15 +278,21 @@ OptionSet<EventListenerRegionType> Adjuster::computeEventListenerRegionTypes(con
         findListeners(eventNames().pointeroutEvent, EventListenerRegionType::PointerOut, EventListenerRegionType::NonPassivePointerOut);
         findListeners(eventNames().pointeroverEvent, EventListenerRegionType::PointerOver, EventListenerRegionType::NonPassivePointerOver);
         findListeners(eventNames().pointerupEvent, EventListenerRegionType::PointerUp, EventListenerRegionType::NonPassivePointerUp);
+#if ENABLE(TOUCH_EVENTS)
         if (document.quirks().shouldDispatchSimulatedMouseEvents(&eventTarget)) {
             findListeners(eventNames().mousedownEvent, EventListenerRegionType::MouseDown, EventListenerRegionType::NonPassiveMouseDown);
             findListeners(eventNames().mouseupEvent, EventListenerRegionType::MouseUp, EventListenerRegionType::NonPassiveMouseUp);
             findListeners(eventNames().mousemoveEvent, EventListenerRegionType::MouseMove, EventListenerRegionType::NonPassiveMouseMove);
         }
+#endif
 
         findListeners(eventNames().gesturechangeEvent, EventListenerRegionType::GestureChange, EventListenerRegionType::NonPassiveGestureChange);
         findListeners(eventNames().gestureendEvent, EventListenerRegionType::GestureEnd, EventListenerRegionType::NonPassiveGestureEnd);
         findListeners(eventNames().gesturestartEvent, EventListenerRegionType::GestureStart, EventListenerRegionType::NonPassiveGestureStart);
+#if ENABLE(DBLCLICK_EVENT_REGIONS)
+        // dblclick is always synchronous.
+        findListeners(eventNames().dblclickEvent, EventListenerRegionType::Dblclick, EventListenerRegionType::Dblclick);
+#endif
     }
 
     if (eventTarget.hasInternalTouchEventHandling()) {
@@ -1013,6 +1019,15 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
                 style.setMarginLeft(CSS::Keyword::Auto { });
                 style.setMarginRight(CSS::Keyword::Auto { });
             }
+        }
+    }
+
+    // yahoo.com rdar://170502516
+    if (documentQuirks.needsYahooVolumeSliderQuirk()) {
+        static MainThreadNeverDestroyed<const AtomString> className("vjs-volume-control"_s);
+        if (is<HTMLDivElement>(*m_element) && m_element->hasClassName(className)) {
+            style.setMinHeight(100_css_percentage);
+            style.setAlignItems(Style::AlignItems { CSS::Keyword::Center { } });
         }
     }
 

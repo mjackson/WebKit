@@ -26,6 +26,7 @@
 #pragma once
 
 #include "DeferGC.h"
+#include "HeapInlines.h"
 #include "VM.h"
 
 namespace JSC {

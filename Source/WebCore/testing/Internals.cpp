@@ -2870,6 +2870,15 @@ ExceptionOr<unsigned> Internals::touchEventHandlerCount()
     return document->touchEventHandlerCount();
 }
 
+ExceptionOr<unsigned> Internals::doubleClickEventHandlerCount()
+{
+    RefPtr document = contextDocument();
+    if (!document)
+        return Exception { ExceptionCode::InvalidAccessError };
+
+    return document->doubleClickEventHandlerCount();
+}
+
 ExceptionOr<Ref<DOMRectList>> Internals::touchEventRectsForEvent(const String& eventName)
 {
     Document* document = contextDocument();
@@ -6272,6 +6281,13 @@ String Internals::composedTreeAsText(Node& node)
     return WebCore::composedTreeAsText(downcast<ContainerNode>(node));
 }
 
+String Internals::composedTreeAsTextFromNode(Node& root, Node& startNode)
+{
+    if (!is<ContainerNode>(root))
+        return emptyString();
+    return WebCore::composedTreeAsTextFromNode(downcast<ContainerNode>(root), startNode);
+}
+
 bool Internals::isProcessingUserGesture()
 {
     return UserGestureIndicator::processingUserGesture();
@@ -8257,12 +8273,6 @@ String Internals::getComputedRole(Element& element) const
 
     RefPtr axObject = axObjectForElement(element);
     return axObject ? axObject->computedRoleString() : ""_s;
-}
-
-bool Internals::hasScopeBreakingHasSelectors() const
-{
-    contextDocument()->styleScope().flushPendingUpdate();
-    return !!contextDocument()->styleScope().resolver().ruleSets().scopeBreakingHasPseudoClassInvalidationRuleSet();
 }
 
 void Internals::setHistoryTotalStateObjectPayloadLimitOverride(uint32_t limit)

@@ -211,6 +211,7 @@ messages -> NetworkProcess : AuxiliaryProcess WantsAsyncDispatchMessage {
 
     SetServiceWorkerFetchTimeoutForTesting(Seconds seconds) -> () Synchronous
     ResetServiceWorkerFetchTimeoutForTesting() -> () Synchronous
+    ClearCrossOriginPreflightResultCacheForTesting() -> () Synchronous
 
     TerminateIdleServiceWorkers(WebCore::ProcessIdentifier processIdentifier) -> ()
 

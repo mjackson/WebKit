@@ -539,7 +539,8 @@ public:
     WriteBarrier<Structure> webAssemblyCalleeGroupStructure;
 #endif
     WriteBarrier<Structure> moduleProgramExecutableStructure;
-    WriteBarrier<Structure> promiseReactionStructure;
+    WriteBarrier<Structure> slimPromiseReactionStructure;
+    WriteBarrier<Structure> fullPromiseReactionStructure;
     WriteBarrier<Structure> jsMicrotaskDispatcherStructure;
     WriteBarrier<Structure> moduleLoaderStructure;
     WriteBarrier<Structure> moduleRegistryEntryStructure;

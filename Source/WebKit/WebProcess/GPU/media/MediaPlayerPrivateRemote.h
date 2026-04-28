@@ -214,6 +214,10 @@ public:
     MediaTime currentTime() const final;
     MediaTime currentOrPendingSeekTime() const final;
 
+#if PLATFORM(MAC)
+    void screenReservedChanged(bool) final;
+#endif
+
     void gpuProcessConnectionDidClose();
 
 private:

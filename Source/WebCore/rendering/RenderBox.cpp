@@ -736,8 +736,6 @@ void RenderBox::constrainLogicalMinMaxSizesByAspectRatio(LayoutUnit& computedMin
         if (!shouldCheckTransferredMinSize && minimumSizeType == MinimumSizeIsAutomaticContentBased::No)
             transferredLogicalMaxSize = std::max(transferredLogicalMaxSize, computedMinSize);
         computedMaxSize = std::min(computedMaxSize, transferredLogicalMaxSize);
-        if (minimumSizeType == MinimumSizeIsAutomaticContentBased::Yes)
-            computedMinSize = std::min(computedMinSize, computedMaxSize);
     }
 
     if (shouldCheckTransferredMinSize && transferredLogicalMinSize > LayoutUnit()) {
@@ -760,13 +758,31 @@ LayoutUnit RenderBox::constrainLogicalWidthByMinMax(LayoutUnit logicalWidth, Lay
 
     auto logicalMinWidth = styleToUse.logicalMinWidth();
     auto minimumSizeType = MinimumSizeIsAutomaticContentBased::No;
-    LayoutUnit computedMinWidth;
-    if (logicalMinWidth.isAuto() && shouldComputeLogicalWidthFromAspectRatio() && (styleToUse.logicalWidth().isAuto() || styleToUse.logicalWidth().isMinContent() || styleToUse.logicalWidth().isMaxContent()) && !is<RenderReplaced>(*this) && effectiveOverflowInlineDirection() == Overflow::Visible) {
-        // The automatic minimum size in the ratio-dependent axis is  its min-content size. See https://www.w3.org/TR/css-sizing-4/#aspect-ratio-minimum
+    auto shouldComputeAutomaticMinimumFromAspectRatio = [&] {
+        // "The automatic minimum size in the ratio-dependent axis of a box with a preferred aspect ratio
+        //  that is neither a replaced element nor a scroll container is its min-content size capped by
+        //  its maximum size." https://www.w3.org/TR/css-sizing-4/#aspect-ratio-minimum
+        if (!logicalMinWidth.isAuto())
+            return false;
+        if (!shouldComputeLogicalWidthFromAspectRatio())
+            return false;
+        if (is<RenderReplaced>(*this))
+            return false;
+        auto& width = styleToUse.logicalWidth();
+        if (!width.isAuto() && !width.isMinContent() && !width.isMaxContent())
+            return false;
+        if (effectiveOverflowInlineDirection() != Overflow::Visible)
+            return false;
+        // A stretched flex/grid item's cross size is determined by the container, not the aspect ratio.
+        if (hasStretchedLogicalWidth())
+            return false;
+        return true;
+    };
+    if (shouldComputeAutomaticMinimumFromAspectRatio()) {
         logicalMinWidth = CSS::Keyword::MinContent { };
         minimumSizeType = MinimumSizeIsAutomaticContentBased::Yes;
     }
-    computedMinWidth = computeLogicalWidthUsing(logicalMinWidth, availableWidth, cb);
+    auto computedMinWidth = computeLogicalWidthUsing(logicalMinWidth, availableWidth, cb);
 
     if (styleToUse.aspectRatio().hasRatio())
         constrainLogicalMinMaxSizesByAspectRatio(computedMinWidth, computedMaxWidth, logicalWidth, minimumSizeType, ConstrainDimension::Width);
@@ -784,7 +800,26 @@ LayoutUnit RenderBox::constrainLogicalHeightByMinMax(LayoutUnit logicalHeight, s
 
     auto logicalMinHeight = styleToUse.logicalMinHeight();
     auto minimumSizeType = MinimumSizeIsAutomaticContentBased::No;
-    if (logicalMinHeight.isAuto() && shouldComputeLogicalHeightFromAspectRatio() && intrinsicContentHeight && !is<RenderReplaced>(*this) && effectiveOverflowBlockDirection() == Overflow::Visible) {
+    auto shouldComputeAutomaticMinimumFromAspectRatio = [&] {
+        // "The automatic minimum size in the ratio-dependent axis of a box with a preferred aspect ratio
+        //  that is neither a replaced element nor a scroll container is its min-content size capped by
+        //  its maximum size." https://www.w3.org/TR/css-sizing-4/#aspect-ratio-minimum
+        if (!logicalMinHeight.isAuto())
+            return false;
+        if (!shouldComputeLogicalHeightFromAspectRatio())
+            return false;
+        if (is<RenderReplaced>(*this))
+            return false;
+        if (!intrinsicContentHeight)
+            return false;
+        if (effectiveOverflowBlockDirection() != Overflow::Visible)
+            return false;
+        // Stretch only overrides the automatic minimum when the container has a definite cross size.
+        if (hasStretchedLogicalHeight() && containingBlock()->hasDefiniteLogicalHeight())
+            return false;
+        return true;
+    };
+    if (shouldComputeAutomaticMinimumFromAspectRatio()) {
         auto heightFromAspectRatio = blockSizeFromAspectRatio(borderAndPaddingLogicalWidth(), borderAndPaddingLogicalHeight(), style().logicalAspectRatio(), style().boxSizingForAspectRatio(), logicalWidth(), style().aspectRatio(), isRenderReplaced()) - borderAndPaddingLogicalHeight();
         if (firstChild())
             heightFromAspectRatio = std::max(heightFromAspectRatio, *intrinsicContentHeight);
@@ -4245,6 +4280,12 @@ void RenderBox::computeOutOfFlowPositionedLogicalWidth(LogicalExtentComputedValu
         usedMinWidth = computeOutOfFlowPositionedLogicalWidthUsing(logicalMinWidth, inlineConstraints);
     if (transferredMinSize > usedMinWidth)
         usedMinWidth = computeOutOfFlowPositionedLogicalWidthUsing(Style::MinimumSize { Style::MinimumSize::Fixed { transferredMinSize } }, inlineConstraints);
+
+    if (is<RenderTable>(*this)) {
+        // The used width of a table is the greater of the resolved table width, and the used min-width of the table.
+        usedMinWidth = std::max(usedMinWidth, minPreferredLogicalWidth() - inlineConstraints.bordersPlusPadding());
+    }
+
     if (usedWidth < usedMinWidth)
         usedWidth = usedMinWidth;
 

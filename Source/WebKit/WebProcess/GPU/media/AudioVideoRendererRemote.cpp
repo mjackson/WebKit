@@ -614,6 +614,13 @@ bool AudioVideoRendererRemote::seeking() const
     return m_seeking;
 }
 
+void AudioVideoRendererRemote::setScreenReserved(bool reserved)
+{
+    ensureOnDispatcherWithConnection([reserved](auto& renderer, auto& connection) {
+        connection.send(Messages::RemoteAudioVideoRendererProxyManager::SetScreenReserved(renderer.m_identifier, reserved), 0);
+    });
+}
+
 void AudioVideoRendererRemote::setPreferences(VideoRendererPreferences preferences)
 {
     ensureOnDispatcherWithConnection([preferences](auto& renderer, auto& connection) {

@@ -30,6 +30,7 @@
 #include "GraphicsLayer.h"
 #include "GraphicsLayerTransform.h"
 #include "TextureMapperAnimation.h"
+#include <wtf/EnumSet.h>
 #include <wtf/OptionSet.h>
 
 namespace WebCore {
@@ -134,47 +135,47 @@ private:
     void setShowRepaintCounter(bool) override;
     void dumpAdditionalProperties(TextStream&, OptionSet<LayerTreeAsTextOptions>) const override;
 
-    enum class Change : uint64_t {
-        Geometry                     = 1LLU << 0,
-        Transform                    = 1LLU << 1,
-        ChildrenTransform            = 1LLU << 2,
-        DrawsContent                 = 1LLU << 3,
-        MasksToBounds                = 1LLU << 4,
-        Preserves3D                  = 1LLU << 5,
-        BackfaceVisibility           = 1LLU << 6,
-        Opacity                      = 1LLU << 7,
-        BlendMode                    = 1LLU << 8,
-        Children                     = 1LLU << 9,
-        ContentsVisible              = 1LLU << 10,
-        ContentsOpaque               = 1LLU << 11,
-        ContentsRect                 = 1LLU << 12,
-        ContentsRectClipsDescendants = 1LLU << 13,
-        ContentsClippingRect         = 1LLU << 14,
-        ContentsScale                = 1LLU << 15,
-        ContentsTiling               = 1LLU << 16,
-        ContentsBuffer               = 1LLU << 17,
-        ContentsBufferNeedsDisplay   = 1LLU << 18,
-        ContentsImage                = 1LLU << 19,
-        ContentsColor                = 1LLU << 20,
-        DirtyRegion                  = 1LLU << 21,
-        EventRegion                  = 1LLU << 22,
-        Shape                        = 1LLU << 23,
-        Filters                      = 1LLU << 24,
-        Mask                         = 1LLU << 25,
-        Replica                      = 1LLU << 26,
-        Backdrop                     = 1LLU << 27,
-        BackdropRect                 = 1LLU << 28,
-        BackdropRoot                 = 1LLU << 29,
-        Animations                   = 1LLU << 30,
-        TileCoverage                 = 1LLU << 31,
-        DebugIndicators              = 1LLU << 32,
+    enum class Change : uint8_t {
+        Animations,
+        Backdrop,
+        BackdropRect,
+        BackdropRoot,
+        BackfaceVisibility,
+        BlendMode,
+        Children,
+        ChildrenTransform,
+        ContentsBuffer,
+        ContentsBufferNeedsDisplay,
+        ContentsClippingRect,
+        ContentsColor,
+        ContentsImage,
+        ContentsOpaque,
+        ContentsRect,
+        ContentsRectClipsDescendants,
+        ContentsScale,
+        ContentsTiling,
+        ContentsVisible,
+        DebugIndicators,
+        DirtyRegion,
+        DrawsContent,
+        EventRegion,
+        Filters,
+        Geometry,
+        Mask,
+        MasksToBounds,
+        Opacity,
+        Preserves3D,
+        Replica,
 #if ENABLE(SCROLLING_THREAD)
-        ScrollingNode                = 1LLU << 33
+        ScrollingNode,
 #endif
+        Shape,
+        TileCoverage,
+        Transform,
     };
 
     enum class ScheduleFlush : bool { No, Yes };
-    void noteLayerPropertyChanged(OptionSet<Change>, ScheduleFlush);
+    void noteLayerPropertyChanged(EnumSet<Change>, ScheduleFlush);
     void setNeedsUpdateLayerTransform();
     std::pair<FloatPoint, float> computePositionRelativeToBase() const;
     void computePixelAlignmentIfNeeded(float pageScaleFactor, const FloatPoint& positionRelativeToBase, FloatPoint& adjustedPosition, FloatPoint& adjustedBoundsOrigin, FloatPoint3D& adjustedAnchorPoint, FloatSize& adjustedSize);
@@ -203,7 +204,7 @@ private:
     bool updateBackingStoreIfNeeded();
 
     const Ref<CoordinatedPlatformLayer> m_platformLayer;
-    OptionSet<Change> m_pendingChanges;
+    EnumSet<Change> m_pendingChanges;
     bool m_hasDescendantsWithPendingChanges { false };
     bool m_hasDescendantsWithPendingTilesCreation { false };
     bool m_hasDescendantsWithRunningTransformAnimations { false };

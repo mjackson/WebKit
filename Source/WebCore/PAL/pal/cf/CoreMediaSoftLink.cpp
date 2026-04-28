@@ -298,4 +298,8 @@ SOFT_LINK_FUNCTION_FOR_SOURCE_WITH_EXPORT(PAL, CoreMedia, CMBaseObjectGetVTable,
 SOFT_LINK_FUNCTION_FOR_SOURCE_WITH_EXPORT(PAL, CoreMedia, CMDerivedObjectCreate, OSStatus, (CFAllocatorRef allocator, const CMBaseVTable* vTable, CMBaseClassID classID, CMBaseObjectRef* baseObject), (allocator, vTable, classID, baseObject), PAL_EXPORT)
 #endif // PLATFORM(MAC)
 
+#if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/CoreMediaSoftLinkAdditions.cpp>)
+#import <WebKitAdditions/CoreMediaSoftLinkAdditions.cpp>
+#endif
+
 #endif // USE(AVFOUNDATION)

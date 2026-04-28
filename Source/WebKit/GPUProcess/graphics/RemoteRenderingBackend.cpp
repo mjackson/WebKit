@@ -164,10 +164,6 @@ void RemoteRenderingBackend::workQueueUninitialize()
     // Make sure we destroy the ResourceCache on the WorkQueue since it gets populated on the WorkQueue.
     m_remoteResourceCache.releaseAllResources();
 
-    if (m_imageBufferForSelfCopyTimer)
-        m_imageBufferForSelfCopyTimer->stop();
-    m_imageBufferForSelfCopyTimer = nullptr;
-
     Ref streamConnection = m_streamConnection;
     streamConnection->stopReceivingMessages(Messages::RemoteRenderingBackend::messageReceiverName(), m_renderingBackendIdentifier.toUInt64());
     streamConnection->invalidate();
@@ -329,41 +325,6 @@ void RemoteRenderingBackend::createImageBuffer(const FloatSize& logicalSize, Ren
     }
     auto result = m_remoteImageBuffers.add(identifier, RemoteImageBuffer::create(imageBuffer.releaseNonNull(), identifier, contextIdentifier, *this));
     MESSAGE_CHECK(result.isNewEntry, "Duplicate ImageBuffers");
-}
-
-RefPtr<ImageBuffer> RemoteRenderingBackend::createImageBufferForSelfCopy(ImageBuffer* source)
-{
-    assertIsCurrent(workQueue());
-    RefPtr imageBuffer = std::exchange(m_imageBufferForSelfCopy, nullptr);
-    if (m_imageBufferForSelfCopyTimer)
-        m_imageBufferForSelfCopyTimer->stop();
-
-    if (imageBuffer
-        && imageBuffer->logicalSize().width() >= source->logicalSize().width()
-        && imageBuffer->logicalSize().height() >= source->logicalSize().height()
-        && imageBuffer->renderingMode() == source->renderingMode()
-        && imageBuffer->renderingPurpose() == source->renderingPurpose()
-        && imageBuffer->resolutionScale() == source->resolutionScale()
-        && imageBuffer->colorSpace() == source->colorSpace()
-        && imageBuffer->pixelFormat() == source->pixelFormat())
-        return imageBuffer;
-
-    return allocateImageBuffer(source->logicalSize(), source->renderingMode(), source->renderingPurpose(), source->resolutionScale(), source->colorSpace(), { source->pixelFormat() }, { });
-}
-
-void RemoteRenderingBackend::returnImageBufferForSelfCopy(RefPtr<ImageBuffer>&& buffer)
-{
-    assertIsCurrent(workQueue());
-    m_imageBufferForSelfCopy = WTF::move(buffer);
-    if (!m_imageBufferForSelfCopyTimer)
-        m_imageBufferForSelfCopyTimer = makeUnique<Timer>(*this, &RemoteRenderingBackend::cleanupImageBufferForSelfCopy);
-    m_imageBufferForSelfCopyTimer->startOneShot(200_ms);
-}
-
-void RemoteRenderingBackend::cleanupImageBufferForSelfCopy()
-{
-    assertIsCurrent(workQueue());
-    m_imageBufferForSelfCopy = nullptr;
 }
 
 void RemoteRenderingBackend::releaseImageBuffer(RenderingResourceIdentifier identifier)

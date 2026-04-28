@@ -34,6 +34,7 @@
 #include "PlatformLayerIdentifier.h"
 #include "TextureMapperAnimation.h"
 #include "TransformationMatrix.h"
+#include <wtf/EnumSet.h>
 #include <wtf/Lock.h>
 #include <wtf/ThreadSafeRefCounted.h>
 
@@ -223,45 +224,45 @@ private:
     void flushCompositingStateOnSkiaTarget(const OptionSet<CompositionReason>&, SkiaCompositingLayer&);
 #endif
 
-    enum class Change : uint64_t {
-        Position                     = 1LLU << 0,
-        BoundsOrigin                 = 1LLU << 1,
-        AnchorPoint                  = 1LLU << 2,
-        Size                         = 1LLU << 3,
-        Transform                    = 1LLU << 4,
-        ChildrenTransform            = 1LLU << 5,
-        DrawsContent                 = 1LLU << 6,
-        MasksToBounds                = 1LLU << 7,
-        Preserves3D                  = 1LLU << 8,
-        BackfaceVisibility           = 1LLU << 9,
-        Opacity                      = 1LLU << 10,
-        BlendMode                    = 1LLU << 11,
-        Children                     = 1LLU << 12,
-        BackingStore                 = 1LLU << 13,
-        ContentsVisible              = 1LLU << 14,
-        ContentsOpaque               = 1LLU << 15,
-        ContentsRect                 = 1LLU << 16,
-        ContentsRectClipsDescendants = 1LLU << 17,
-        ContentsClippingRect         = 1LLU << 18,
-        ContentsTiling               = 1LLU << 19,
-        ContentsBuffer               = 1LLU << 20,
-        ContentsImage                = 1LLU << 21,
-        ContentsColor                = 1LLU << 22,
-        ClipPath                     = 1LLU << 23,
-        Filters                      = 1LLU << 24,
-        Mask                         = 1LLU << 25,
-        Replica                      = 1LLU << 26,
-        Backdrop                     = 1LLU << 27,
-        BackdropRect                 = 1LLU << 28,
-        BackdropRoot                 = 1LLU << 29,
-        Animations                   = 1LLU << 30,
-        DebugIndicators              = 1LLU << 31,
+    enum class Change : uint8_t {
+        AnchorPoint,
+        Animations,
+        Backdrop,
+        BackdropRect,
+        BackdropRoot,
+        BackfaceVisibility,
+        BackingStore,
+        BlendMode,
+        BoundsOrigin,
+        Children,
+        ChildrenTransform,
+        ClipPath,
+        ContentsBuffer,
+        ContentsClippingRect,
+        ContentsColor,
+        ContentsImage,
+        ContentsOpaque,
+        ContentsRect,
+        ContentsRectClipsDescendants,
+        ContentsTiling,
+        ContentsVisible,
 #if ENABLE(DAMAGE_TRACKING)
-        Damage                       = 1LLU << 32,
+        Damage,
 #endif
+        DebugIndicators,
+        DrawsContent,
+        Filters,
+        Mask,
+        MasksToBounds,
+        Opacity,
+        Position,
+        Preserves3D,
+        Replica,
 #if ENABLE(SCROLLING_THREAD)
-        ScrollingNode                = 1LLU << 33
+        ScrollingNode,
 #endif
+        Size,
+        Transform,
     };
 
     // FIXME: remove the client when a subclass is added for the WebProcess.
@@ -283,7 +284,7 @@ private:
 #endif
 
     Lock m_lock;
-    OptionSet<Change> m_pendingChanges WTF_GUARDED_BY_LOCK(m_lock);
+    EnumSet<Change> m_pendingChanges WTF_GUARDED_BY_LOCK(m_lock);
     FloatPoint m_position WTF_GUARDED_BY_LOCK(m_lock);
     FloatPoint3D m_anchorPoint WTF_GUARDED_BY_LOCK(m_lock) { 0.5f, 0.5f, 0 };
     FloatSize m_size WTF_GUARDED_BY_LOCK(m_lock);

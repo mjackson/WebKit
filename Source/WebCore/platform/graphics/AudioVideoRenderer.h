@@ -128,6 +128,7 @@ public:
     virtual Ref<MediaTimePromise> prepareToSeek(const MediaTime&) = 0;
     virtual Ref<GenericPromise> finishSeek(const MediaTime&) = 0;
     virtual bool seeking() const = 0;
+    virtual void setScreenReserved(bool) = 0;
 };
 
 struct SamplesRendererTrackIdentifierType;

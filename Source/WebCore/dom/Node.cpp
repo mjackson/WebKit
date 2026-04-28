@@ -441,6 +441,11 @@ Node::~Node()
     }
 #endif
 
+#if ENABLE(DBLCLICK_EVENT_REGIONS) && PLATFORM(IOS_FAMILY) && ASSERT_ENABLED
+    for (auto& document : Document::allDocuments())
+        ASSERT(!document->doubleClickEventTargetsContain(*this));
+#endif
+
 #if ASSERT_ENABLED
     if (m_refCountAndParentBit != s_refCountIncrement)
         WTF::RefCountDebuggerBase::printRefDuringDestructionLogAndCrash(this);
@@ -1485,6 +1490,16 @@ Node& Node::shadowIncludingRoot() const
     return root;
 }
 
+SUPPRESS_NODELETE WebCoreOpaqueRoot Node::opaqueRoot() const
+{
+    if (isConnected()) {
+        Locker locker { TreeScope::treeScopeMutationLock() };
+        return WebCoreOpaqueRoot { &treeScope().documentScope() };
+    }
+    // FIXME: Possible race?
+    return traverseToOpaqueRoot();
+}
+
 Node& Node::getRootNode(const GetRootNodeOptions& options) const
 {
     return options.composed ? shadowIncludingRoot() : rootNode();
@@ -2437,6 +2452,12 @@ static inline bool tryAddEventListener(Node* targetNode, const AtomString& event
     }
     else if (typeInfo.isInCategory(EventCategory::MouseClickRelated))
         document->didAddOrRemoveMouseEventHandler(*targetNode);
+    else if (typeInfo.type() == EventType::dblclick) {
+#if ENABLE(DBLCLICK_EVENT_REGIONS)
+        document->didAddDoubleClickEventHandler(*targetNode);
+        document->invalidateEventListenerRegions();
+#endif
+    }
 
 #if PLATFORM(IOS_FAMILY)
     if (targetNode == document.ptr() && typeInfo.type() == EventType::scroll) {
@@ -2500,6 +2521,12 @@ static void didRemoveEventListenersOfType(Node& targetNode, const AtomString& ev
 #endif
     } else if (typeInfo.isInCategory(EventCategory::MouseClickRelated))
         document->didAddOrRemoveMouseEventHandler(targetNode);
+    else if (typeInfo.type() == EventType::dblclick) {
+#if ENABLE(DBLCLICK_EVENT_REGIONS)
+        document->didRemoveDoubleClickEventHandler(targetNode);
+        document->invalidateEventListenerRegions();
+#endif
+    }
 
 #if PLATFORM(IOS_FAMILY)
     if (&targetNode == document.ptr() && typeInfo.type() == EventType::scroll) {

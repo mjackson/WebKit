@@ -29,6 +29,7 @@
 #include "GetVM.h"
 #include "Identifier.h"
 #include "JSCJSValue.h"
+#include "Strong.h"
 #if USE(BUN_JSC_ADDITIONS)
 #include "JSONObject.h"
 #endif

@@ -98,13 +98,19 @@ void OSAllocator::commit(void* address, size_t bytes, bool writable, bool execut
 
 void OSAllocator::decommit(void* address, size_t bytes)
 {
-    // MEM_RESET / DiscardVirtualMemory release physical pages but keep commit
-    // charge. On Windows commit is a hard limit (RAM + pagefile), so long-running
-    // processes that decommit GC blocks would still exhaust it. All callers pair
-    // decommit() with commit() before reuse, so MEM_DECOMMIT is safe here.
+    // Symmetric decommit on Windows. MEM_DECOMMIT releases both physical pages
+    // and Windows commit charge. The matching OSAllocator::commit() call must
+    // happen before any re-access; touching a decommitted page faults.
+    //
+    // Unlike POSIX, Windows has yet another metrics (commit charge), and even though
+    // there is no physical backing pages, commit charge has low hard limit.
+    //
+    // To workaround this limit, Windows is explicitly decommiting and explicitly committing.
     if (!bytes)
         return;
-    if (!VirtualFree(address, bytes, MEM_DECOMMIT))
+
+    bool result = VirtualFree(address, bytes, MEM_DECOMMIT);
+    if (!result)
         CRASH();
 }
 

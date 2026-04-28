@@ -520,6 +520,7 @@ TextStream& operator<<(TextStream& ts, EventListenerRegionType listenerType)
     case EventListenerRegionType::NonPassiveGestureEnd: ts << "active gesture end"_s; break;
     case EventListenerRegionType::GestureStart: ts << "gesture start"_s; break;
     case EventListenerRegionType::NonPassiveGestureStart: ts << "active gesture start"_s; break;
+    case EventListenerRegionType::Dblclick: ts << "dblclick"_s; break;
     }
     return ts;
 }

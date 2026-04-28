@@ -37,6 +37,7 @@
 #include "ObjectConstructor.h"
 #include "ParseInt.h"
 #include "RegExpConstructor.h"
+#include "RegExpConstructorInlines.h"
 #include "RegExpGlobalDataInlines.h"
 #include "RegExpObjectInlines.h"
 #include "StringPrototypeInlines.h"
@@ -1768,10 +1769,27 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncConcat, (JSGlobalObject* globalObject, C
     return JSValue::encode(ropeBuilder.release());
 }
 
+static constexpr unsigned maxPatternLengthForFlatRepeat = 8;
+static constexpr unsigned maxResultLengthForFlatRepeat = 1024;
+
 enum class PadKind : uint8_t {
     PadStart,
     PadEnd
 };
+
+template<typename CharacterType>
+static void fillBufferWithPattern(std::span<CharacterType> buffer, StringView pattern)
+{
+    unsigned fillLength = buffer.size();
+    unsigned initialCopyLength = std::min(pattern.length(), fillLength);
+    pattern.left(initialCopyLength).getCharacters(buffer.first(initialCopyLength));
+    unsigned copied = initialCopyLength;
+    while (copied < fillLength) {
+        unsigned copyLen = std::min(copied, fillLength - copied);
+        memcpySpan(buffer.subspan(copied, copyLen), buffer.first(copyLen));
+        copied += copyLen;
+    }
+}
 
 template<typename CharacterType>
 static JSString* createFillerString(JSGlobalObject* globalObject, StringView fillStringView, unsigned fillLength)
@@ -1786,15 +1804,32 @@ static JSString* createFillerString(JSGlobalObject* globalObject, StringView fil
         return nullptr;
     }
 
-    unsigned fillStringLength = fillStringView.length();
-    unsigned initialCopyLength = std::min(fillStringLength, fillLength);
-    fillStringView.left(initialCopyLength).getCharacters(buffer.first(initialCopyLength));
-    unsigned copied = initialCopyLength;
-    while (copied < fillLength) {
-        unsigned copyLen = std::min(copied, fillLength - copied);
-        memcpySpan(buffer.subspan(copied, copyLen), buffer.first(copyLen));
-        copied += copyLen;
+    fillBufferWithPattern(buffer, fillStringView);
+    RELEASE_AND_RETURN(scope, jsString(vm, impl.releaseNonNull()));
+}
+
+template<typename CharacterType, PadKind padKind>
+static JSString* createPaddedString(JSGlobalObject* globalObject, StringView thisView, StringView fillStringView, unsigned maxLength, unsigned fillLength)
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    std::span<CharacterType> buffer;
+    auto impl = StringImpl::tryCreateUninitialized(maxLength, buffer);
+    if (!impl) [[unlikely]] {
+        throwOutOfMemoryError(globalObject, scope);
+        return nullptr;
     }
+
+    unsigned stringLength = thisView.length();
+    if constexpr (padKind == PadKind::PadStart) {
+        fillBufferWithPattern(buffer.first(fillLength), fillStringView);
+        thisView.getCharacters(buffer.last(stringLength));
+    } else {
+        thisView.getCharacters(buffer.first(stringLength));
+        fillBufferWithPattern(buffer.last(fillLength), fillStringView);
+    }
+
     RELEASE_AND_RETURN(scope, jsString(vm, impl.releaseNonNull()));
 }
 
@@ -1841,6 +1876,16 @@ static JSValue padString(JSGlobalObject* globalObject, CallFrame* callFrame)
 
     unsigned fillLength = maxLength - stringLength;
 
+    if (maxLength <= maxResultLengthForFlatRepeat) {
+        auto thisView = thisString->view(globalObject);
+        RETURN_IF_EXCEPTION(scope, { });
+        StringView fillStringView(fillString);
+        scope.release();
+        if (thisView->is8Bit() && fillString.is8Bit())
+            return createPaddedString<Latin1Character, padKind>(globalObject, thisView, fillStringView, maxLength, fillLength);
+        return createPaddedString<char16_t, padKind>(globalObject, thisView, fillStringView, maxLength, fillLength);
+    }
+
     unsigned fillStringLength = fillString.length();
     JSString* fillerString;
 
@@ -1861,9 +1906,7 @@ static JSValue padString(JSGlobalObject* globalObject, CallFrame* callFrame)
         if (checkedTotalLength.hasOverflowed() || checkedTotalLength > JSString::MaxLength) [[unlikely]]
             return throwOutOfMemoryError(globalObject, scope);
 
-        constexpr unsigned maxFillStringLength = 8;
-        constexpr unsigned maxFillerResultLength = 1024;
-        if (fillStringLength <= maxFillStringLength && fillLength <= maxFillerResultLength) {
+        if (fillStringLength <= maxPatternLengthForFlatRepeat && fillLength <= maxResultLengthForFlatRepeat) {
             // Short string optimization: build sequential buffer
             StringView fillStringView(fillString);
             if (fillString.is8Bit())
@@ -2017,9 +2060,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncRepeat, (JSGlobalObject* globalObject, C
         return JSValue::encode(throwOutOfMemoryError(globalObject, scope));
     unsigned resultLength = checkedResultLength;
 
-    constexpr unsigned maxStringLength = 8;
-    constexpr unsigned maxResultLength = 1024;
-    if (stringLength <= maxStringLength) {
+    if (stringLength <= maxPatternLengthForFlatRepeat) {
         auto view = thisString->view(globalObject);
         RETURN_IF_EXCEPTION(scope, { });
 
@@ -2035,7 +2076,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncRepeat, (JSGlobalObject* globalObject, C
 
         // Even if the string length is not single, if the resulting string length is small,
         // allocating a sequential buffer and fill with the repeated string for efficiency.
-        if (resultLength <= maxResultLength) {
+        if (resultLength <= maxResultLengthForFlatRepeat) {
             scope.release();
             if (view->is8Bit())
                 return JSValue::encode(repeatString<Latin1Character>(globalObject, view, repeatCount));

@@ -33,6 +33,7 @@
 #include "DocumentPage.h"
 #include "DocumentView.h"
 #include "DocumentWindow.h"
+#include "FrameDestructionObserverInlines.h"
 #include "FrameLoader.h"
 #include "LocalDOMWindow.h"
 #include "LocalFrame.h"

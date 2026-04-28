@@ -69,8 +69,6 @@ class JSGlobalObject;
     v(asyncGeneratorQueueDequeueReject, nullptr) \
     v(driveAsyncFunction, nullptr) \
     v(newHandledRejectedPromise, nullptr) \
-    v(promiseEmptyOnFulfilled, nullptr) \
-    v(promiseEmptyOnRejected, nullptr) \
     v(promiseResolve, nullptr) \
     v(promiseReject, nullptr) \
     v(promiseResolveWithThen, nullptr) \
@@ -85,9 +83,7 @@ class JSGlobalObject;
     v(isResizableOrGrowableSharedTypedArrayView, nullptr) \
     v(typedArrayFromFast, nullptr) \
     v(isDetached, nullptr) \
-    v(isBoundFunction, nullptr) \
     v(isFinite, nullptr) \
-    v(hasInstanceBoundFunction, nullptr) \
     v(instanceOf, nullptr) \
     v(BuiltinLog, nullptr) \
     v(BuiltinDescribe, nullptr) \
@@ -98,7 +94,6 @@ class JSGlobalObject;
     v(defaultPromiseThen, nullptr) \
     v(repeatCharacter, nullptr) \
     v(isArray, nullptr) \
-    v(isArraySlow, nullptr) \
     v(Set, nullptr) \
     v(Map, nullptr) \
     v(importInRealm, nullptr) \

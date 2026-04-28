@@ -118,7 +118,7 @@ private:
     bool hasVisualContent() const;
     Ref<SkiaCompositingLayer> backdropRoot();
 
-    bool computeTransformsAndAnimations(RefPtr<SkiaCompositingLayer>, MonotonicTime);
+    bool computeTransformsAndAnimations(const TransformationMatrix& parentTransform, const TransformationMatrix& futureParentTransform, MonotonicTime);
 
     struct PaintContext {
         explicit PaintContext(std::optional<Damage>& damage)
@@ -216,7 +216,7 @@ private:
     FloatRoundedRect m_contentsClippingRect;
     float m_opacity { 1 };
     std::optional<SkBlendMode> m_blendMode;
-    SkPath m_clipPath;
+    std::optional<SkPath> m_clipPath;
     sk_sp<SkImage> m_maskImage;
     RefPtr<SkiaCompositingLayer> m_mask;
     RefPtr<SkiaCompositingLayer> m_replica;
@@ -238,9 +238,7 @@ private:
     std::optional<AnimationsState> m_animationsState;
     struct {
         TransformationMatrix combined;
-        TransformationMatrix combinedForChildren;
         TransformationMatrix futureCombined;
-        TransformationMatrix futureCombinedForChildren;
     } m_transforms;
 #if ENABLE(DAMAGE_TRACKING)
     std::shared_ptr<Damage> m_sharedFrameDamage;
