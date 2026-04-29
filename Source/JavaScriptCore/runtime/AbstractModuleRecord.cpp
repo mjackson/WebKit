@@ -1121,6 +1121,22 @@ unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObjec
         index = result;
         // 11.c. If requiredModule is a Cyclic Module Record, then
         if (auto* cyclic = dynamicDowncast<CyclicModuleRecord>(requiredModule)) {
+#if USE(BUN_JSC_ADDITIONS)
+            // Bun extension: require(esm) can re-enter innerModuleEvaluation
+            // while an outer DFS is already evaluating one of our transitive
+            // deps. That outer module is Evaluating but lives on the OUTER
+            // stack vector, not the local one. Spec invariant 11.c.ii
+            // ("on stack iff Evaluating") assumes a single DFS and doesn't
+            // hold for nested evaluation. Detect the case and skip
+            // 11.c.iii/iv/v entirely: the outer module's bindings are
+            // populated up to its current suspension point, its cycleRoot
+            // isn't set yet (so the else branch would crash), and merging
+            // its DFSAncestorIndex into our inner SCC would taint the SCC
+            // linearization. The outer DFS owns the module's evaluation
+            // lifecycle; our inner pass treats it as a satisfied dependency.
+            bool depInOuterSCC = cyclic->status() == Status::Evaluating && !stack.contains(requiredModule);
+            if (!depInOuterSCC) {
+#endif
             // 11.c.i. Assert: requiredModule.[[Status]] is one of EVALUATING, EVALUATING-ASYNC, or EVALUATED.
             ASSERT(cyclic->status() == Status::Evaluating || cyclic->status() == Status::EvaluatingAsync || cyclic->status() == Status::Evaluated);
             // 11.c.ii. Assert: requiredModule.[[Status]] is EVALUATING if and only if stack contains requiredModule.
@@ -1161,6 +1177,9 @@ unsigned AbstractModuleRecord::innerModuleEvaluation(JSGlobalObject* globalObjec
                 }
 #endif
             }
+#if USE(BUN_JSC_ADDITIONS)
+            } // depInOuterSCC: skip 11.c.iii/iv/v entirely.
+#endif
         }
     }
     // 12. If module.[[PendingAsyncDependencies]] > 0 or module.[[HasTLA]] is true, then
@@ -1234,8 +1253,13 @@ unsigned AbstractModuleRecord::innerModuleLinking(JSGlobalObject* globalObject, 
         // 1.b. Return index.
         return index;
     }
-    // 2. If module.[[Status]] is one of LINKING, LINKED, EVALUATING-ASYNC, or EVALUATED, then
-    if (auto status = module->status(); status == Status::Linking || status == Status::Linked || status == Status::EvaluatingAsync || status == Status::Evaluated) {
+    // 2. If module.[[Status]] is one of LINKING, LINKED, EVALUATING, EVALUATING-ASYNC, or EVALUATED, then
+    //    Bun extension: EVALUATING is reachable when require(esm) re-enters an outer module
+    //    that is currently mid-evaluation. Such a module is already linked, so re-link is a
+    //    no-op; we MUST early-return here, otherwise the linearization loop below would call
+    //    cyclic->status(Status::Linked) and downgrade the evaluating module, wiping its
+    //    in-flight bindings.
+    if (auto status = module->status(); status == Status::Linking || status == Status::Linked || status == Status::Evaluating || status == Status::EvaluatingAsync || status == Status::Evaluated) {
         // 2.a. Return index.
         return index;
     }
@@ -1266,9 +1290,10 @@ unsigned AbstractModuleRecord::innerModuleLinking(JSGlobalObject* globalObject, 
         RETURN_IF_EXCEPTION(scope, invalid);
         // 9.c. If requiredModule is a Cyclic Module Record, then
         if (auto* requiredCyclic = dynamicDowncast<CyclicModuleRecord>(requiredModule)) {
-            // 9.c.i. Assert: requiredModule.[[Status]] is one of LINKING, LINKED, EVALUATING-ASYNC, or EVALUATED.
+            // 9.c.i. Assert: requiredModule.[[Status]] is one of LINKING, LINKED, EVALUATING, EVALUATING-ASYNC, or EVALUATED.
+            //        (See note above re: EVALUATING; Bun's require(esm) re-entry can put an outer module here.)
             Status status = requiredCyclic->status();
-            ASSERT_UNUSED(status, status == Status::Linking || status == Status::Linked || status == Status::EvaluatingAsync || status == Status::Evaluated);
+            ASSERT_UNUSED(status, status == Status::Linking || status == Status::Linked || status == Status::Evaluating || status == Status::EvaluatingAsync || status == Status::Evaluated);
             // 9.c.ii. Assert: requiredModule.[[Status]] is LINKING if and only if stack contains requiredModule.
             ASSERT((status == Status::Linking) == stack.contains(requiredModule));
             // 9.c.iii. If requiredModule.[[Status]] is LINKING, then
