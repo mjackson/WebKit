@@ -510,12 +510,12 @@ void pas_thread_local_cache_ensure_committed(pas_thread_local_cache* thread_loca
         
         pas_lock_assert_held(&thread_local_cache->node->scavenger_lock);
 
-        /* Don't attempt to do fancy things with spans for commit, since we're no longer really
-           optimizing for symmetric commit anyway. */
+        /* Asymmetric, paired with decommit_allocator_range. The page never lost its commit
+           charge; this is a no-op on Windows and a MADV_DODUMP on Linux. */
         pas_page_malloc_commit_without_mprotect(
             (char*)thread_local_cache + (page_index << pas_page_malloc_alignment_shift()),
             pas_page_malloc_alignment(),
-            /* is_symmetric */ !!PAS_USE_SYMMETRIC_PAGE_ALLOCATION,
+            /* is_symmetric */ false,
             pas_may_mmap);
 
         pas_bitvector_set(thread_local_cache->pages_committed, page_index, true);
@@ -993,9 +993,15 @@ static void decommit_allocator_range(pas_thread_local_cache* cache,
     if (verbose)
         pas_log("Decommitting %p...%p\n", (void*)decommit_range.begin, (void*)decommit_range.end);
 
+    /* Asymmetric: TLC allocator pages must remain accessible after decommit because the
+       owning thread's allocation fast path unconditionally writes scavenger_data.is_in_use
+       before any check (the write IS the lazy recommit on POSIX). prepare_to_decommit set
+       kind=decommitted_kind (=0) above, so subsequent reads see either that or a zero page,
+       both of which steer the slow path into commit_and_construct. Symmetric (MEM_DECOMMIT)
+       would make that first write fault on Windows. */
     pas_page_malloc_decommit_without_mprotect(
         (char*)cache + decommit_range.begin, pas_range_size(decommit_range),
-        /* is_symmetric */ !!PAS_USE_SYMMETRIC_PAGE_ALLOCATION, pas_may_mmap);
+        /* is_symmetric */ false, pas_may_mmap);
 
     if (verbose) {
         pas_log("Num committed pages in the range we just decommitted: %zu\n",
@@ -1199,28 +1205,16 @@ bool pas_thread_local_cache_for_all(pas_allocator_scavenge_action allocator_acti
                 if (allocator_index >= cache->allocator_index_upper_bound)
                     break;
 
-                pas_allocator_index end_allocator_index = allocator_index + pas_thread_local_cache_layout_node_num_allocator_indices(layout_node);
-
-#if PAS_USE_SYMMETRIC_PAGE_ALLOCATION
-                /* On symmetric platforms (Windows), decommit_allocator_range hard-decommits
-                   (MEM_DECOMMIT), so dereferencing scavenger_data on a previously decommitted
-                   page faults. On asymmetric platforms the page reads as zero and the existing
-                   paths treat that as already-stopped. Reproduce that behavior explicitly. */
-                bool allocator_is_committed = pas_thread_local_cache_is_committed(cache, allocator_index, end_allocator_index);
-#else
-                bool allocator_is_committed = true;
-#endif
-
                 scavenger_data = (pas_local_allocator_scavenger_data*)
                     pas_thread_local_cache_get_local_allocator_direct(cache, allocator_index);
 
                 if (thread_local_cache_decommit_action == pas_thread_local_cache_decommit_if_possible_action) {
+                    pas_allocator_index end_allocator_index = allocator_index + pas_thread_local_cache_layout_node_num_allocator_indices(layout_node);
                     pas_decommit_exclusion_range decommit_exclusion_range = pas_thread_local_cache_compute_decommit_exclusion_range(cache, allocator_index, end_allocator_index);
                     PAS_ASSERT(start_of_possible_decommit <= decommit_exclusion_range.start_of_possible_decommit);
                     PAS_ASSERT(start_of_possible_decommit <= decommit_exclusion_range.end_of_possible_decommit);
 
                     if (pas_decommit_exclusion_range_is_contiguous(decommit_exclusion_range)) {
-                        PAS_ASSERT(allocator_is_committed);
                         stop_allocator(
                             cache, allocator_action, allocator_index, scavenger_data, &result, &thread_suspend_data);
 
@@ -1247,7 +1241,7 @@ bool pas_thread_local_cache_for_all(pas_allocator_scavenge_action allocator_acti
                         begin_segment = NULL;
                         begin_node_index = 0;
                     }
-                } else if (allocator_is_committed)
+                } else
                     stop_allocator(cache, allocator_action, allocator_index, scavenger_data, &result, &thread_suspend_data);
             }
             
