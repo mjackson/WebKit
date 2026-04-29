@@ -1454,6 +1454,7 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     WKContextSetCacheModel(TestController::singleton().context(), kWKCacheModelDocumentBrowser);
 
     WKWebsiteDataStoreResetServiceWorkerFetchTimeoutForTesting(websiteDataStore());
+    WKWebsiteDataStoreClearCrossOriginPreflightResultCacheForTesting(websiteDataStore());
 
     WKWebsiteDataStoreSetResourceLoadStatisticsEnabled(websiteDataStore(), true);
     WKWebsiteDataStoreClearAllDeviceOrientationPermissions(websiteDataStore());

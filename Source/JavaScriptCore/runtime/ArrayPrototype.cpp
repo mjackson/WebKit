@@ -45,6 +45,7 @@
 #include "VMEntryScopeInlines.h"
 #include <algorithm>
 #include <wtf/Assertions.h>
+#include <wtf/MathExtras.h>
 #include <wtf/StdMap.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -204,11 +205,11 @@ static inline uint64_t argumentClampedIndexFromStartOrEnd(JSGlobalObject* global
     if (indexDouble < 0) {
         if constexpr (relativeNegativeIndex == RelativeNegativeIndex::Yes) {
             indexDouble += length;
-            return indexDouble < 0 ? 0 : static_cast<uint64_t>(indexDouble);
+            return indexDouble < 0 ? 0 : truncateDoubleToUint64(indexDouble);
         } else
             return 0;
     }
-    return indexDouble > length ? length : static_cast<uint64_t>(indexDouble);
+    return indexDouble > length ? length : truncateDoubleToUint64(indexDouble);
 }
 
 static inline int64_t argumentUnclampedIndexFromStartOrEnd(JSGlobalObject* globalObject, JSValue value, uint64_t length, uint64_t undefinedValue = 0)
@@ -228,7 +229,7 @@ static inline int64_t argumentUnclampedIndexFromStartOrEnd(JSGlobalObject* globa
         indexDouble += length;
     if (std::isinf(indexDouble)) [[unlikely]]
         return std::signbit(indexDouble) ? std::numeric_limits<int64_t>::min() : std::numeric_limits<int64_t>::max();
-    return static_cast<int64_t>(indexDouble);
+    return truncateDoubleToInt64(indexDouble);
 }
 
 ALWAYS_INLINE JSString* fastArrayJoin(JSGlobalObject* globalObject, JSObject* thisObject, StringView separator, unsigned length)
@@ -1423,7 +1424,7 @@ JSC_DEFINE_HOST_FUNCTION(arrayProtoFuncLastIndexOf, (JSGlobalObject* globalObjec
                     return JSValue::encode(jsNumber(-1));
             }
             if (fromDouble < length)
-                index = static_cast<uint64_t>(fromDouble);
+                index = truncateDoubleToUint64(fromDouble);
         }
     }
 
@@ -2208,7 +2209,7 @@ JSC_DEFINE_HOST_FUNCTION(arrayProtoFuncFlat, (JSGlobalObject* globalObject, Call
                     return 0;
                 if (std::isinf(depthDouble)) [[unlikely]]
                     return std::numeric_limits<uint64_t>::max();
-                return static_cast<uint64_t>(depthDouble);
+                return truncateDoubleToUint64(depthDouble);
             }();
             RETURN_IF_EXCEPTION(scope, { });
         }

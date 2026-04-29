@@ -22,6 +22,7 @@
 
 #include "EnumerationMode.h"
 #include "Identifier.h"
+#include "VM.h"
 #include <wtf/HashSet.h>
 #include <wtf/Vector.h>
 

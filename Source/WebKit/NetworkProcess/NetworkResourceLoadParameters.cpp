@@ -28,6 +28,7 @@
 
 #include "NetworkProcessConnection.h"
 #include "WebProcess.h"
+#include <WebCore/SecurityOriginData.h>
 #include <wtf/RuntimeApplicationChecks.h>
 
 namespace WebKit {
@@ -35,17 +36,6 @@ using namespace WebCore;
 
 bool NetworkResourceLoadParameters::createSandboxExtensionHandlesIfNecessary()
 {
-    if (RefPtr httpBody = request.httpBody()) {
-        for (const FormDataElement& element : httpBody->elements()) {
-            auto* fileData = std::get_if<FormDataElement::EncodedFileData>(&element.data);
-            if (!fileData)
-                continue;
-            const String& path = fileData->filename;
-            if (auto handle = SandboxExtension::createHandle(path, SandboxExtension::Type::ReadOnly))
-                requestBodySandboxExtensions.append(WTF::move(*handle));
-        }
-    }
-
     if (request.url().protocolIsFile()) {
 #if HAVE(AUDIT_TOKEN)
         if (auto networkProcessAuditToken = WebProcess::singleton().ensureNetworkProcessConnection().networkProcessAuditToken()) {
@@ -67,6 +57,15 @@ RefPtr<SecurityOrigin> NetworkResourceLoadParameters::parentOrigin() const
     if (frameAncestorOrigins.isEmpty())
         return nullptr;
     return frameAncestorOrigins.first().ptr();
+}
+
+SecurityOriginData NetworkResourceLoadParameters::topOriginForServiceWorkers(const URL& requestURL) const
+{
+    if (isMainFrameNavigation) {
+        auto url = requestURL.protocolIsBlob() ? URL { requestURL.path().toString() } : requestURL;
+        return SecurityOriginData::fromURLWithoutStrictOpaqueness(url);
+    }
+    return topOrigin->data();
 }
 
 NetworkLoadParameters NetworkResourceLoadParameters::networkLoadParameters() const

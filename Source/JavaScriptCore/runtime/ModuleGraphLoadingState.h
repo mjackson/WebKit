@@ -82,6 +82,16 @@ public:
     bool drainingInnerLoad() const { return m_drainingInnerLoad; }
     void setDrainingInnerLoad(bool draining) { m_drainingInnerLoad = draining; }
 
+    // Combined-promise AND-join state used by top-level loadModule (mirrors ModuleLoaderPayload's same-named fields).
+    bool decrementRemaining()
+    {
+        ASSERT(m_remainingFulfillments > 0);
+        return !--m_remainingFulfillments;
+    }
+    JSValue fulfillment() const { return m_fulfillment.get(); }
+    void setFulfillment(VM& vm, JSValue value) { m_fulfillment.set(vm, this, value); }
+
+
 private:
     ModuleGraphLoadingState(VM&, Structure*, JSPromise*, RefPtr<ScriptFetcher>);
 
@@ -96,8 +106,11 @@ private:
     // dynamicDowncast on the per-edge fast path.
     UncheckedKeyHashSet<const AbstractModuleRecord*> m_visitedSet;
     Vector<AbstractModuleRecord*, 8> m_innerLoadQueue;
+    // Slot used only at top-level loadModule to AND-join loadPromise and statePromise into combinedPromise.
+    WriteBarrier<Unknown> m_fulfillment;
     // [[PendingModulesCount]]
     unsigned m_pendingModulesCount { 1 };
+    uint8_t m_remainingFulfillments { 2 };
     // [[IsLoading]]
     bool m_isLoading { true };
     bool m_drainingInnerLoad { false };

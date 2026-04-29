@@ -218,6 +218,7 @@ public:
     void setCacheModelSynchronouslyForTesting(CacheModel);
     void setServiceWorkerTimeoutForTesting(Seconds);
     void resetServiceWorkerTimeoutForTesting();
+    void clearCrossOriginPreflightResultCacheForTesting();
     bool hasServiceWorkerBackgroundActivityForTesting() const;
     void runningOrTerminatingServiceWorkerCountForTesting(CompletionHandler<void(unsigned)>&&);
 

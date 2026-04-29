@@ -403,6 +403,10 @@ private:
     void setHasMessageClientForTesting(bool);
     void sendInternalMessage(const WebCore::MessageForTesting&) final;
 
+#if PLATFORM(MAC)
+    void screenReservedChanged(bool);
+#endif
+
 #if !RELEASE_LOG_DISABLED
     const Logger& mediaPlayerLogger() final { return m_logger; }
     uint64_t mediaPlayerLogIdentifier() { return m_configuration.logIdentifier; }

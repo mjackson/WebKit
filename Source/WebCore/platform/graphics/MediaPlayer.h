@@ -818,6 +818,11 @@ public:
 
     void elementIdChanged(const String&) const;
 
+#if PLATFORM(MAC)
+    void setScreenReserved(bool);
+    bool screenReserved() { return m_screenReserved; }
+#endif
+
 private:
     MediaPlayer(MediaPlayerClient&);
     MediaPlayer(MediaPlayerClient&, MediaPlayerEnums::MediaEngineIdentifier);
@@ -890,6 +895,10 @@ private:
 #endif
 
     WeakPtr<MessageClientForTesting> m_internalMessageClient;
+
+#if PLATFORM(MAC)
+    bool m_screenReserved { false };
+#endif
 };
 
 class MediaPlayerFactory : public CanMakeWeakPtr<MediaPlayerFactory>, public CanMakeCheckedPtr<MediaPlayerFactory> {

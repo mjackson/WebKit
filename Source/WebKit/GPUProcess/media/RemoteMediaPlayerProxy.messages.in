@@ -163,6 +163,10 @@ messages -> RemoteMediaPlayerProxy {
     SetSoundStageSize(enum:uint8_t WebCore::MediaPlayerSoundStageSize value)
 
     SetHasMessageClientForTesting(bool value)
+
+#if PLATFORM(MAC)
+    ScreenReservedChanged(bool value)
+#endif
 }
 
 #endif

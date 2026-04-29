@@ -486,6 +486,7 @@ public:
     String ariaRoleDescription() const final { return getAttributeTrimmed(HTMLNames::aria_roledescriptionAttr); };
 
     inline AXObjectCache* axObjectCache() const;
+    inline bool anyObjectHasAriaOwns() const;
 
     static AccessibilityObject* anchorElementForNode(Node&);
     static AccessibilityObject* headingElementForNode(Node*);

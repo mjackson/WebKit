@@ -50,11 +50,13 @@
 #import <QuartzCore/CATextLayer.h>
 #import <QuartzCore/QuartzCore.h>
 #import <WebCore/AnimationFrameRate.h>
+#import <WebCore/EventTrackingRegions.h>
 #import <WebCore/GraphicsContextCG.h>
 #import <WebCore/IOSurfacePool.h>
 #import <WebCore/ScrollTypes.h>
 #import <WebCore/ScrollView.h>
 #import <WebCore/WebActionDisablingCALayerDelegate.h>
+#import <WebCore/WebCoreCALayerExtras.h>
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #import <wtf/CallbackAggregator.h>
 #import <wtf/MachSendRight.h>
@@ -169,6 +171,18 @@ TransactionID RemoteLayerTreeDrawingAreaProxy::nextMainFrameLayerTreeTransaction
 TransactionID RemoteLayerTreeDrawingAreaProxy::lastCommittedMainFrameLayerTreeTransactionID() const
 {
     return m_webPageProxyProcessState.committedLayerTreeTransactionID.value_or(TransactionID(TransactionIdentifier(), webProcessProxy().coreProcessIdentifier()));
+}
+
+HashMap<WebCore::ProcessIdentifier, TransactionID> RemoteLayerTreeDrawingAreaProxy::committedLayerTreeTransactionIDsByProcess() const
+{
+    HashMap<WebCore::ProcessIdentifier, TransactionID> result;
+    if (m_webPageProxyProcessState.committedLayerTreeTransactionID)
+        result.add(webProcessProxy().coreProcessIdentifier(), *m_webPageProxyProcessState.committedLayerTreeTransactionID);
+    for (auto& [identifier, state] : m_remotePageProcessState) {
+        if (state.committedLayerTreeTransactionID)
+            result.add(identifier, *state.committedLayerTreeTransactionID);
+    }
+    return result;
 }
 
 void RemoteLayerTreeDrawingAreaProxy::remotePageProcessDidTerminate(WebCore::ProcessIdentifier processIdentifier)
@@ -380,7 +394,7 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTree(IPC::Connection& connectio
         return;
 
     if (bundle.editorState) {
-        if (page->updateEditorState(EditorState { *bundle.editorState }, WebPageProxy::ShouldMergeVisualEditorState::Yes))
+        if (page->updateEditorState(connection, EditorState { *bundle.editorState }, WebPageProxy::ShouldMergeVisualEditorState::Yes))
             page->dispatchDidUpdateEditorState();
     }
 
@@ -453,15 +467,39 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTree(IPC::Connection& connectio
     scheduleDisplayRefreshCallbacks();
 }
 
-#if ENABLE(TOUCH_EVENT_REGIONS)
+#if ENABLE(TOUCH_EVENT_REGIONS) || ENABLE(DBLCLICK_EVENT_REGIONS)
 WebCore::TrackingType RemoteLayerTreeDrawingAreaProxy::eventTrackingTypeForPoint(WebCore::EventTrackingRegions::EventType eventType, IntPoint location)
 {
     FloatPoint localLocation = location;
-    return eventRegionForPoint(remoteLayerTreeHost().rootLayer(), localLocation).transform([eventType, &localLocation](const WebCore::EventRegion& eventRegion) {
+    RetainPtr rootLayer = remoteLayerTreeHost().rootLayer();
+    return eventRegionForPoint(rootLayer.get(), localLocation).transform([eventType, &localLocation](const WebCore::EventRegion& eventRegion) {
         return eventRegion.eventTrackingTypeForPoint(eventType, roundedIntPoint(localLocation));
     }).value_or(WebCore::TrackingType::NotTracking);
 }
 #endif
+
+std::optional<RemoteLayerTreeDrawingAreaProxy::EventRegionHitTestResult> RemoteLayerTreeDrawingAreaProxy::eventRegionHitTestResultForDoubleClickAtPoint(IntPoint location)
+{
+#if ENABLE(DBLCLICK_EVENT_REGIONS)
+    FloatPoint localLocation = location;
+    RetainPtr rootLayer = remoteLayerTreeHost().rootLayer();
+    RefPtr layerTreeNode = hitLayerTreeNodeAtPoint(rootLayer.get(), localLocation);
+    if (!layerTreeNode)
+        return std::nullopt;
+
+    auto trackingType = layerTreeNode->eventRegion().eventTrackingTypeForPoint(WebCore::EventTrackingRegions::EventType::Dblclick, flooredIntPoint(localLocation));
+    if (trackingType == WebCore::TrackingType::NotTracking)
+        return std::nullopt;
+
+    auto frameID = layerTreeNode->eventRegion().frameID();
+    if (!frameID)
+        return std::nullopt;
+
+    return EventRegionHitTestResult { *frameID, localLocation };
+#else
+    return std::nullopt;
+#endif
+}
 
 void RemoteLayerTreeDrawingAreaProxy::commitLayerTreeTransaction(IPC::Connection& connection, const RemoteLayerTreeTransaction& layerTreeTransaction, const RemoteScrollingCoordinatorTransaction& scrollingTreeTransaction, const std::optional<MainFrameData>& mainFrameData, const PageData& pageData, const TransactionID& transactionID)
 {

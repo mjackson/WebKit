@@ -4366,7 +4366,6 @@ fast/text/unicode-range-download.html [ Failure ]
 fast/text/web-font-load-fallback-during-loading-no-multiple.html [ Failure ]
 imported/w3c/web-platform-tests/permissions/all-permissions.html [ Failure ]
 loader/go-back-cached-main-resource.html [ Failure ]
-streams/pipe-to.html [ Failure ]
 
 fast/canvas/canvas-composite-text-alpha.html [ Failure Pass ]
 

@@ -4049,12 +4049,12 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             }
 
             if (structure) {
-                didFoldClobberWorld();
+                didFoldClobberStructures();
                 setForNode(node, structure);
                 break;
             }
         }
-        clobberWorld();
+        clobberStructures();
         setTypeForNode(node, SpecFinalObject);
         break;
     }

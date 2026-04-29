@@ -259,6 +259,8 @@ public:
     bool isScheduledToRun() const { return m_isScheduledToRun; }
     void setIsScheduledToRun(bool value) { m_isScheduledToRun = value; }
 
+    bool isPerformingMicrotaskCheckpoint() const { return m_isPerformingMicrotaskCheckpoint; }
+
 protected:
     JS_EXPORT_PRIVATE MicrotaskQueue(VM&);
     virtual void scheduleToRunIfNeeded()
@@ -266,6 +268,7 @@ protected:
         setIsScheduledToRun(true);
     }
     bool m_isScheduledToRun { false };
+    bool m_isPerformingMicrotaskCheckpoint { false };
 
 private:
     JS_EXPORT_PRIVATE std::pair<JSGlobalObject*, bool> drainWithUseCallOnEachMicrotask(JSGlobalObject* currentGlobalObject, VM&, TopExceptionScope&);

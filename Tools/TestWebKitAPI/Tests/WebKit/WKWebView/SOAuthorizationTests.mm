@@ -1633,12 +1633,7 @@ TEST(SOAuthorizationRedirect, SOAuthorizationLoadPolicyIgnore)
     EXPECT_WK_STREQ(testURL.get().absoluteString, finalURL);
 }
 
-// FIXME when webkit.org/b/312290 is resolved.
-#if PLATFORM(MAC) && !defined(NDEBUG)
-TEST(SOAuthorizationRedirect, DISABLED_SOAuthorizationLoadPolicyAllowAsync)
-#else
 TEST(SOAuthorizationRedirect, SOAuthorizationLoadPolicyAllowAsync)
-#endif
 {
     resetState();
     SWIZZLE_SOAUTH(PAL::getSOAuthorizationClassSingleton());
@@ -2616,7 +2611,13 @@ TEST(SOAuthorizationPopUp, SOAuthorizationLoadPolicyIgnore)
     EXPECT_TRUE(policyForAppSSOPerformed);
 }
 
+// FIXME when webkit.org/b/312290 is resolved.
+#if PLATFORM(MAC)
+TEST(SOAuthorizationPopUp, DISABLED_SOAuthorizationLoadPolicyAllowAsync)
+#else
 TEST(SOAuthorizationPopUp, SOAuthorizationLoadPolicyAllowAsync)
+#endif
+
 {
     resetState();
     SWIZZLE_SOAUTH(PAL::getSOAuthorizationClassSingleton());

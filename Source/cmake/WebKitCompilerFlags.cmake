@@ -182,6 +182,9 @@ if (COMPILER_IS_GCC_OR_CLANG)
         WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-fdebug-types-section)
     endif ()
 
+    WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-gsimple-template-names)
+    WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS("-mllvm -dwarf-linkage-names=Abstract")
+
     WEBKIT_APPEND_GLOBAL_COMPILER_FLAGS(-fno-strict-aliasing)
 
     # clang-cl.exe impersonates cl.exe so some clang arguments like -fno-rtti are
@@ -556,12 +559,14 @@ int main() {
     return static_cast<int>(result + d.load().value());
 }
     ]=])
+    set(CMAKE_REQUIRED_FLAGS "--std=c++17")
     check_cxx_source_compiles("${ATOMIC_TEST_SOURCE}" ATOMICS_ARE_BUILTIN)
     if (NOT ATOMICS_ARE_BUILTIN)
         set(CMAKE_REQUIRED_LIBRARIES atomic)
         check_cxx_source_compiles("${ATOMIC_TEST_SOURCE}" ATOMICS_REQUIRE_LIBATOMIC)
         unset(CMAKE_REQUIRED_LIBRARIES)
     endif ()
+    unset(CMAKE_REQUIRED_FLAGS)
 
     # <filesystem> vs <experimental/filesystem>
     set(FILESYSTEM_TEST_SOURCE "

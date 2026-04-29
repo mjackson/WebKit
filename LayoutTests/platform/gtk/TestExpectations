@@ -503,9 +503,6 @@ imported/w3c/web-platform-tests/css/css-text/hyphens/hyphenate-character-002.htm
 
 imported/w3c/web-platform-tests/html/browsers/the-window-object/open-close/open-features-non-integer-screeny.html [ Failure ]
 
-webkit.org/b/209727 fast/forms/placeholder-content-line-height.html [ ImageOnlyFailure ]
-webkit.org/b/209727 fast/forms/placeholder-content-center.html [ ImageOnlyFailure ]
-
 webkit.org/b/212233 fast/repaint/iframe-on-subpixel-position.html [ Failure ]
 
 webkit.org/b/214454 imported/w3c/web-platform-tests/css/css-backgrounds/background-attachment-margin-root-001.html [ ImageOnlyFailure ]
@@ -753,7 +750,7 @@ webkit.org/b/252878 imported/w3c/web-platform-tests/wasm/jsapi/instance/construc
 webkit.org/b/252878 inspector/css/modify-css-property.html [ Failure Pass ]
 webkit.org/b/252878 inspector/debugger/breakpoints/resolved-dump-all-pause-locations.html [ Failure Timeout Pass ]
 webkit.org/b/252878 inspector/debugger/breakpoints/resolved-dump-each-line.html [ Failure Timeout Pass ]
-webkit.org/b/252878 webaudio/audioworket-out-of-memory.html [ Pass Timeout ]
+webkit.org/b/252878 webaudio/audioworket-out-of-memory.html [ Pass Failure ]
 
 imported/w3c/web-platform-tests/cors/remote-origin.htm [ Pass Failure ]
 
@@ -1316,6 +1313,22 @@ webkit.org/b/264680 imported/w3c/web-platform-tests/media-source/mediasource-see
 webkit.org/b/264680 inspector/heap/getPreview.html [ Failure Pass ]
 webkit.org/b/264680 scrollbars/scrollbar-selectors.html [ Pass Timeout ]
 
+# Crash due to unimplemented event type.
+imported/w3c/web-platform-tests/css/css-scroll-snap/input/snap-area-overflow-boundary-viewport-covering.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-scroll-snap/overscroll-snap.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-scroll-snap/snap-after-relayout/multiple-aligned-targets/common-to-both-axes-supercedes-first-in-tree-order.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-scroll-snap/snap-after-relayout/multiple-aligned-targets/prefer-common-to-both-axes.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-scroll-snap/snap-after-relayout/multiple-aligned-targets/prefer-first-in-tree-order.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-scroll-snap/snap-after-relayout/multiple-aligned-targets/prefer-focused-element.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-scroll-snap/snap-after-relayout/multiple-aligned-targets/prefer-focused-nested-containers.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-scroll-snap/snap-after-relayout/multiple-aligned-targets/prefer-inner-target.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-scroll-snap/snap-fling-in-large-area.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-scroll-snap/unrelated-gesture-scroll-during-snap.html [ Skip ]
+
+imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-margin-focus.html [ Failure ]
+imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-target-snap-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-scroll-snap/snap-after-initial-layout/initial-snap-matches-scroll.html [ Failure ]
+
 fast/dom/no-scroll-when-command-click-fragment-URL.html [ Skip ]
 
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-2.html [ Failure ]
@@ -1455,10 +1468,11 @@ webkit.org/b/309267 inspector/unit-tests/array-utilities.html [ Pass Failure ]
 
 [ Release ] http/tests/security/video-cross-origin-accessfailure.html [ Pass Failure ]
 [ Release ] imported/w3c/web-platform-tests/permissions/permissions-garbage-collect.https.html [ Pass Failure ]
-[ Release ] platform/gtk/fast/frames/scrolling-iframe-out-of-viewport.html [ Pass Failure ]
 [ Release ] imported/w3c/web-platform-tests/preload/prefetch-document.html [ Failure Pass ]
 [ Release ] imported/w3c/web-platform-tests/content-security-policy/frame-ancestors/frame-ancestors-none-block.html [ Failure Pass ]
 [ Release ] fast/dom/Window/window-resize-update-scrollbars.html [ Failure Pass ]
+
+platform/gtk/fast/frames/scrolling-iframe-out-of-viewport.html [ Pass Failure ]
 
 webkit.org/b/309892 accessibility/aria-role-on-label.html [ Pass Crash ]
 webkit.org/b/309894 http/tests/inspector/target/pause-on-inline-debugger-statement.html [ Pass Timeout ]
@@ -1484,11 +1498,10 @@ webkit.org/b/311927 accessibility/combobox/gtk/combobox-collapsed-selection-chan
 
 webkit.org/b/311930 fonts/font-cache-memory-pressure-crash.html [ Failure Pass ]
 
-webkit.org/b/312269 imported/w3c/web-platform-tests/webrtc/protocol/vp8-fmtp.html [ Pass Crash ]
-webkit.org/b/312269 imported/w3c/web-platform-tests/webrtc/RTCSctpTransport-constructor.html [ Pass Crash ]
-
 webkit.org/b/312888 inspector/debugger/async-stack-trace-basic.html [ Pass Crash ]
 webkit.org/b/312889 media/video-seek-past-end-paused.html [ Pass Timeout ]
 webkit.org/b/312892 imported/w3c/web-platform-tests/html/browsers/browsing-the-web/navigating-across-documents/replace-before-load/window-open-self.html [ Pass Failure ]
 
 webkit.org/b/313043 transitions/remove-transition-style.html [ Pass Failure ]
+
+imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-target-margin-005.html [ Pass Failure ]

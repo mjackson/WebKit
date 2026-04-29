@@ -1201,7 +1201,7 @@ Page::FindStringData Page::findString(const String& target, FindOptions options,
     CanWrap canWrap = options.contains(FindOption::WrapAround) ? CanWrap::Yes : CanWrap::No;
     RefPtr frame = m_focusController->focusedFrame() ? m_focusController->focusedFrame() : m_mainFrame.ptr();
     RefPtr startFrame = frame;
-    RefPtr focusedLocalFrame = dynamicDowncast<LocalFrame>(frame);
+    RefPtr localFocusedFrame = dynamicDowncast<LocalFrame>(frame);
     do {
         RefPtr localFrame = dynamicDowncast<LocalFrame>(frame.get());
         if (!localFrame) {
@@ -1211,8 +1211,8 @@ Page::FindStringData Page::findString(const String& target, FindOptions options,
         auto foundRange = protect(localFrame->editor())->findString(target, (options - FindOption::WrapAround) | FindOption::StartInSelection);
         if (foundRange) {
             if (!options.contains(FindOption::DoNotSetSelection)) {
-                if (focusedLocalFrame && localFrame != focusedLocalFrame)
-                    protect(focusedLocalFrame->selection())->clear();
+                if (localFocusedFrame && localFrame != localFocusedFrame)
+                    protect(localFocusedFrame->selection())->clear();
                 m_focusController->setFocusedFrame(localFrame.get());
             }
             return { std::make_optional(localFrame->frameID()), foundRange };
@@ -1222,15 +1222,15 @@ Page::FindStringData Page::findString(const String& target, FindOptions options,
 
     // Search contents of startFrame, on the other side of the selection that we did earlier.
     // We cheat a bit and just research with wrap on
-    if (canWrap == CanWrap::Yes && focusedLocalFrame && !focusedLocalFrame->selection().isNone()) {
+    if (canWrap == CanWrap::Yes && localFocusedFrame && !localFocusedFrame->selection().isNone()) {
         if (didWrap)
             *didWrap = DidWrap::Yes;
-        auto foundRange = protect(focusedLocalFrame->editor())->findString(target, options | FindOption::WrapAround | FindOption::StartInSelection);
+        auto foundRange = protect(localFocusedFrame->editor())->findString(target, options | FindOption::WrapAround | FindOption::StartInSelection);
         if (!options.contains(FindOption::DoNotSetSelection))
             m_focusController->setFocusedFrame(frame.get());
         if (!foundRange)
             return { std::nullopt, std::nullopt };
-        return { std::make_optional(focusedLocalFrame->frameID()), foundRange };
+        return { std::make_optional(localFocusedFrame->frameID()), foundRange };
     }
 
     return { std::nullopt, std::nullopt };
@@ -1758,12 +1758,6 @@ void Page::setDeviceScaleFactor(float scaleFactor)
 
 void Page::screenPropertiesDidChange(bool affectsStyle)
 {
-#if ENABLE(VIDEO)
-    auto mode = preferredDynamicRangeMode(protect(protect(mainFrame())->virtualView()).get());
-    forEachMediaElement([mode] (auto& element) {
-        element.setPreferredDynamicRangeMode(mode);
-    });
-#endif
 #if HAVE(SUPPORT_HDR_DISPLAY)
     updateDisplayEDRHeadroom();
 #endif
@@ -2207,9 +2201,13 @@ void Page::syncLocalFrameInfoToRemote()
             for (RefPtr child = frame.tree().firstChild(); child; child = child->tree().nextSibling()) {
                 auto visibleRect = frameView->visibleRectOfChild(*child.get());
                 float usedZoom = frame.usedZoomForChild(*child);
-                bool useDarkAppearance = frameView->ownerElementOfChildFrameUsesDarkAppearance(*child);
+                auto frameOwnerElementAppearance = frameView->appearanceOfOwnerElementOfChildFrame(*child);
 
-                childrenFrameLayoutInfo.add(child->frameID(), RemoteFrameLayoutInfo { .visibleRectInParent = visibleRect, .usedZoom = usedZoom, .useDarkAppearance = useDarkAppearance });
+                childrenFrameLayoutInfo.add(child->frameID(), RemoteFrameLayoutInfo {
+                    .visibleRectInParent = visibleRect,
+                    .usedZoom = usedZoom,
+                    .ownerElementAppearance = frameOwnerElementAppearance
+                });
             }
 
             frame.loader().client().broadcastChildrenFrameLayoutInfoToOtherProcesses(childrenFrameLayoutInfo);

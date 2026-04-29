@@ -318,7 +318,8 @@ public:
     };
     Node& NODELETE getRootNode(const GetRootNodeOptions&) const;
 
-    inline WebCoreOpaqueRoot opaqueRoot() const;
+    WebCoreOpaqueRoot opaqueRoot() const final;
+
     WebCoreOpaqueRoot NODELETE traverseToOpaqueRoot() const;
 
     template<typename T, typename Task> static void queueTaskKeepingNodeAlive(T&, TaskSource, Task&&);

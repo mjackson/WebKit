@@ -69,7 +69,6 @@ struct MatchElement {
         IndirectSibling, // :has(~ .changed)
         SiblingChild, // :has(~ .a > .changed)
         SiblingDescendant, // :has(~ .a .changed)
-        ScopeBreaking // :has(:is(.changed .a))
     };
 
     Relation relation;
@@ -149,7 +148,6 @@ struct RuleFeatureSet {
     HashMap<AtomString, std::unique_ptr<Vector<RuleFeatureWithInvalidationSelector>>> attributeRules;
     HashMap<PseudoClassInvalidationKey, std::unique_ptr<RuleFeatureVector>> pseudoClassRules;
     HashMap<PseudoClassInvalidationKey, std::unique_ptr<Vector<RuleFeatureWithInvalidationSelector>>> hasPseudoClassRules;
-    Vector<RuleAndSelector> scopeBreakingHasPseudoClassRules;
 
     HashSet<AtomString> classesAffectingHost;
     HashSet<AtomString> attributesAffectingHost;
@@ -173,7 +171,6 @@ private:
         Vector<InvalidationFeature> attributes;
         Vector<InvalidationFeature> pseudoClasses;
         Vector<HasInvalidationFeature> hasPseudoClasses;
-        bool containsScopeBreakingHasPseudoClass { false };
     };
     struct RecursiveCollectionContext;
     void collectFeaturesFromSelector(SelectorFeatures&, const CSSSelector&, MatchElement = { MatchElement::Relation::Subject, { } });

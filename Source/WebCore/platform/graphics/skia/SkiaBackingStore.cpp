@@ -173,7 +173,10 @@ void SkiaBackingStore::Tile::update(const IntRect& dirtyRect, const IntRect& til
         } else if (tryEnsureSurface(tileRect.size(), buffer)) {
             auto* grContext = PlatformDisplay::sharedDisplay().skiaGrContext();
             auto image = SkImages::BorrowTextureFrom(grContext, backendTexture, kTopLeft_GrSurfaceOrigin, kRGBA_8888_SkColorType, kPremul_SkAlphaType, SkColorSpace::MakeSRGB());
-            m_surface->getCanvas()->drawImageRect(image, SkRect::MakeWH(dirtyRect.width(), dirtyRect.height()), SkRect::Make(SkIRect(dirtyRect)), SkSamplingOptions(SkFilterMode::kNearest, SkMipmapMode::kNone), nullptr, SkCanvas::kFast_SrcRectConstraint);
+            SkPaint paint;
+            paint.setBlendMode(SkBlendMode::kSrc);
+            m_surface->getCanvas()->drawImageRect(image, SkRect::MakeWH(dirtyRect.width(), dirtyRect.height()), SkRect::Make(SkIRect(dirtyRect)),
+                SkSamplingOptions(SkFilterMode::kNearest, SkMipmapMode::kNone), &paint, SkCanvas::kFast_SrcRectConstraint);
         }
     } else if (tryEnsureSurface(tileRect.size(), buffer)) {
         auto& unacceleratedBuffer = static_cast<CoordinatedUnacceleratedTileBuffer&>(buffer);

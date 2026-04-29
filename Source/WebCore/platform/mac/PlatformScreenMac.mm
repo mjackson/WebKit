@@ -47,6 +47,12 @@
 #import <pal/cocoa/MediaToolboxSoftLink.h>
 #endif
 
+#if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/PlatformScreenAdditions.mm>)
+#import <WebKitAdditions/PlatformScreenAdditions.mm>
+#else
+#define COLLECT_SCREEN_RESERVED
+#endif
+
 namespace WebCore {
 
 // These functions scale between screen and page coordinates because JavaScript/DOM operations
@@ -181,6 +187,8 @@ ScreenProperties collectScreenProperties()
         screenData.maxEDRHeadroom = [screen maximumPotentialExtendedDynamicRangeColorComponentValue];
         screenData.currentEDRHeadroom = [screen maximumExtendedDynamicRangeColorComponentValue];
 #endif
+
+        COLLECT_SCREEN_RESERVED;
 
         screenProperties.screenDataMap.set(displayID, WTF::move(screenData));
         if (!screenProperties.primaryDisplayID)

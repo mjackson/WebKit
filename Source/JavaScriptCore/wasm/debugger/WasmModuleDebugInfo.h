@@ -30,6 +30,7 @@
 #if ENABLE(WEBASSEMBLY_DEBUGGER)
 
 #include "JSExportMacros.h"
+#include "WasmModuleInformation.h"
 #include <cstdint>
 #include <optional>
 #include <wtf/DataLog.h>
@@ -43,7 +44,6 @@ namespace JSC {
 namespace Wasm {
 
 struct Type;
-struct ModuleInformation;
 class FunctionCodeIndex;
 
 struct FunctionDebugInfo {

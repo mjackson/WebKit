@@ -482,6 +482,48 @@ auto RealtimeVideoCaptureSource::takePhoto(PhotoSettings&& photoSettings) -> Ref
         photoSettings.imageWidth = sanitizedSize.width();
     }
 
+    auto producer = makeUniqueRef<TakePhotoNativePromise::Producer>();
+    auto promise = producer->promise();
+    m_pendingOperations.append(PendingOperation { PendingPhotoCapture { WTF::move(photoSettings), WTF::move(producer) } });
+
+    if (!m_captureInFlight)
+        dispatchNextOperation();
+
+    return promise;
+}
+
+void RealtimeVideoCaptureSource::applyConstraints(const MediaConstraints& constraints, ApplyConstraintsHandler&& handler)
+{
+    ASSERT(isMainThread());
+    if (!m_captureInFlight && m_pendingOperations.isEmpty()) {
+        RealtimeMediaSource::applyConstraints(constraints, WTF::move(handler));
+        return;
+    }
+    m_pendingOperations.append(PendingOperation { PendingConstraintApplication { constraints, WTF::move(handler) } });
+}
+
+void RealtimeVideoCaptureSource::dispatchNextOperation()
+{
+    ASSERT(isMainThread());
+    ASSERT(!m_captureInFlight);
+
+    // Drain synchronous constraint applications at the front of the queue.
+    while (!m_pendingOperations.isEmpty()) {
+        if (!WTF::holdsAlternative<PendingConstraintApplication>(m_pendingOperations.first()))
+            break;
+        auto pending = std::get<PendingConstraintApplication>(m_pendingOperations.takeFirst());
+        RealtimeMediaSource::applyConstraints(pending.constraints, WTF::move(pending.handler));
+    }
+
+    if (m_pendingOperations.isEmpty())
+        return;
+
+    // Front of queue is a photo capture — dispatch it asynchronously.
+    m_captureInFlight = true;
+    auto pending = std::get<PendingPhotoCapture>(m_pendingOperations.takeFirst());
+    auto photoSettings = WTF::move(pending.settings);
+    auto producer = WTF::move(pending.producer);
+
     std::optional<CaptureSizeFrameRateAndZoom> newPresetForPhoto;
     if (photoSettings.imageHeight || photoSettings.imageWidth) {
         newPresetForPhoto = bestSupportedSizeFrameRateAndZoomConsideringObservers({ photoSettings.imageWidth, photoSettings.imageHeight, { }, { } });
@@ -511,21 +553,38 @@ auto RealtimeVideoCaptureSource::takePhoto(PhotoSettings&& photoSettings) -> Ref
         setSizeFrameRateAndZoomForPhoto(WTF::move(*newPresetForPhoto));
     }
 
-    return takePhotoInternal(WTF::move(photoSettings))->whenSettled(RunLoop::mainSingleton(), [this, protectedThis = Ref { *this }, configurationToRestore = WTF::move(configurationToRestore)] (auto&& result) mutable {
+    takePhotoInternal(WTF::move(photoSettings))->whenSettled(RunLoop::mainSingleton(),
+        [this, protectedThis = Ref { *this }, producer = WTF::move(producer), configurationToRestore = WTF::move(configurationToRestore)] (auto&& result) mutable {
 
-        ASSERT(isMainThread());
+            ASSERT(isMainThread());
 
-        if (configurationToRestore) {
-            setSizeFrameRateAndZoomForPhoto(WTF::move(*configurationToRestore));
+            m_captureInFlight = false;
 
-            if (m_mutedForPhotoCapture) {
-                m_mutedForPhotoCapture = false;
-                setMuted(false);
+            if (configurationToRestore) {
+                setSizeFrameRateAndZoomForPhoto(WTF::move(*configurationToRestore));
+
+                if (m_mutedForPhotoCapture) {
+                    m_mutedForPhotoCapture = false;
+                    setMuted(false);
+                }
             }
-        }
 
-        return TakePhotoNativePromise::createAndSettle(WTF::move(result));
-    });
+            producer->settle(WTF::move(result));
+
+            if (!m_pendingOperations.isEmpty())
+                dispatchNextOperation();
+        });
+}
+
+void RealtimeVideoCaptureSource::didEnd()
+{
+    auto pending = WTF::move(m_pendingOperations);
+    for (auto& operation : pending) {
+        WTF::switchOn(operation,
+            [](PendingPhotoCapture& photo)               { photo.producer->reject("Track ended"_s); },
+            [](PendingConstraintApplication& constraint) { constraint.handler({ }); }
+        );
+    }
 }
 
 void RealtimeVideoCaptureSource::ensureIntrinsicSizeMaintainsAspectRatio()

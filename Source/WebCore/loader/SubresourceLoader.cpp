@@ -413,6 +413,7 @@ void SubresourceLoader::didReceiveResponse(ResourceResponse&& response, Completi
         }
     }
 
+    // Implementing step 20 of https://fetch.spec.whatwg.org/#concept-main-fetch.
     if (auto error = validateRangeRequestedFlag(request(), response)) {
         SUBRESOURCELOADER_RELEASE_LOG(SubResourceLoaderDidReceiveResponseCancelingLoadReceivedUnexpectedRangeResponse);
         cancel(WTF::move(*error));
@@ -470,7 +471,7 @@ void SubresourceLoader::didReceiveResponse(ResourceResponse&& response, Completi
 
     if (response.isRedirection()) {
         if (options().redirect == FetchOptions::Redirect::Follow && isLocationURLFailure(response)) {
-            // Implementing https://fetch.spec.whatwg.org/#concept-http-redirect-fetch step 3
+            // Implementing https://fetch.spec.whatwg.org/#concept-http-redirect-fetch step 5
             cancel();
             return;
         }

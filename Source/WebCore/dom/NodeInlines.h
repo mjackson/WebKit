@@ -24,6 +24,7 @@
 #include <WebCore/Document.h>
 #include <WebCore/Element.h>
 #include <WebCore/EventLoop.h>
+#include <WebCore/EventTargetInlines.h>
 #include <WebCore/GCReachableRef.h>
 #include <WebCore/InspectorInstrumentationPublic.h>
 #include <WebCore/LayoutRect.h>
@@ -49,16 +50,6 @@ inline ContainerNode* Node::parentOrShadowHostNode() const
     if (auto* shadowRoot = dynamicDowncast<ShadowRoot>(*this))
         return shadowRoot->host();
     return parentNode();
-}
-
-inline WebCoreOpaqueRoot Node::opaqueRoot() const
-{
-    if (isConnected()) {
-        Locker locker { TreeScope::treeScopeMutationLock() };
-        return WebCoreOpaqueRoot { &treeScope().documentScope() };
-    }
-    // FIXME: Possible race?
-    return traverseToOpaqueRoot();
 }
 
 inline Document* Node::ownerDocument() const

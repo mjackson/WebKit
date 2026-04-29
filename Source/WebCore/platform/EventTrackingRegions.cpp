@@ -34,6 +34,8 @@ namespace WebCore {
 ASCIILiteral EventTrackingRegions::eventName(EventType eventType)
 {
     switch (eventType) {
+    case EventType::Dblclick:
+        return "dblclick"_s;
     case EventType::Gesturechange:
         return "gesturechange"_s;
     case EventType::Gestureend:
@@ -79,6 +81,8 @@ ASCIILiteral EventTrackingRegions::eventName(EventType eventType)
 const AtomString& EventTrackingRegions::eventNameAtomString(const EventNames& eventNames, EventType eventType)
 {
     switch (eventType) {
+    case EventType::Dblclick:
+        return eventNames.dblclickEvent;
     case EventType::Gesturechange:
         return eventNames.gesturechangeEvent;
     case EventType::Gestureend:
@@ -128,6 +132,14 @@ TrackingType EventTrackingRegions::trackingTypeForPoint(EventType eventType, con
         if (synchronousRegionIterator->value.contains(point))
             return TrackingType::Synchronous;
     }
+
+#if ENABLE(DBLCLICK_EVENT_REGIONS)
+    // FIXME: We are going to need an `eventSpecificAsynchronousDispatchRegions` so that we don't
+    // blindly answer "Asynchronous" if *any* async event listener exists at the point. dblclick
+    // does not have an async variant, though, so for now this is sufficient.
+    if (eventType == EventType::Dblclick)
+        return TrackingType::NotTracking;
+#endif
 
     if (asynchronousDispatchRegion.contains(point))
         return TrackingType::Asynchronous;

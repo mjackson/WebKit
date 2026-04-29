@@ -348,7 +348,7 @@ void AnchorPositionEvaluator::updateScrollAdjustments(RenderView& renderView)
                     shouldBeHidden = anchored->style().positionVisibility().contains(PositionVisibilityValue::NoOverflow);
             }
         }
-        if (!shouldBeHidden && anchored->style().positionVisibility().contains(PositionVisibilityValue::AnchorsVisible))
+        if (!shouldBeHidden && (anchored->style().positionVisibility().contains(PositionVisibilityValue::AnchorsVisible) || anchored->style().positionVisibility().contains(PositionVisibilityValue::AnchorVisible)))
             shouldBeHidden = AnchorPositionEvaluator::isDefaultAnchorInvisibleOrClippedByInterveningBoxes(*anchored);
 
         if (needsInvalidation || shouldBeHidden != adjuster.isHidden()) {

@@ -968,6 +968,8 @@
 		FE35D09227DC5ECC009DFA5B /* StackCheck.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FE35D09127DC5ECC009DFA5B /* StackCheck.cpp */; };
 		FE499A6F2CD153B000E34F32 /* OverflowPolicy.h in Headers */ = {isa = PBXBuildFile; fileRef = FE499A6E2CD153B000E34F32 /* OverflowPolicy.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FE499A712CD153B000E34F32 /* OverflowHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = FE499A702CD153B000E34F32 /* OverflowHandler.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		FE69838C2F9F16BE004EA0A7 /* UnbarrieredMonotonicTime.h in Headers */ = {isa = PBXBuildFile; fileRef = FE69838B2F9F16BE004EA0A7 /* UnbarrieredMonotonicTime.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		FE69838E2F9F1FD0004EA0A7 /* UnbarrieredMonotonicTime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FE69838D2F9F1FD0004EA0A7 /* UnbarrieredMonotonicTime.cpp */; };
 		FE6997E129D241630078B9C6 /* ReasonSPI.h in Headers */ = {isa = PBXBuildFile; fileRef = FE6997E029D241630078B9C6 /* ReasonSPI.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FE7ACFEF285DC2F9007FC8E9 /* RawHex.h in Headers */ = {isa = PBXBuildFile; fileRef = FE7ACFEE285DC2F8007FC8E9 /* RawHex.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FE9B8B1A28B1453D0088C6E1 /* CodePtr.h in Headers */ = {isa = PBXBuildFile; fileRef = FE9B8B1928B1453D0088C6E1 /* CodePtr.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -2080,6 +2082,8 @@
 		FE3842342325CC80009DD445 /* ResourceUsage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ResourceUsage.h; sourceTree = "<group>"; };
 		FE499A6E2CD153B000E34F32 /* OverflowPolicy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OverflowPolicy.h; sourceTree = "<group>"; };
 		FE499A702CD153B000E34F32 /* OverflowHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OverflowHandler.h; sourceTree = "<group>"; };
+		FE69838B2F9F16BE004EA0A7 /* UnbarrieredMonotonicTime.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UnbarrieredMonotonicTime.h; sourceTree = "<group>"; };
+		FE69838D2F9F1FD0004EA0A7 /* UnbarrieredMonotonicTime.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = UnbarrieredMonotonicTime.cpp; sourceTree = "<group>"; };
 		FE6997E029D241630078B9C6 /* ReasonSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ReasonSPI.h; sourceTree = "<group>"; };
 		FE7497E4208FFCAA0003565B /* PtrTag.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PtrTag.h; sourceTree = "<group>"; };
 		FE7ACFEE285DC2F8007FC8E9 /* RawHex.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RawHex.h; sourceTree = "<group>"; };
@@ -2807,6 +2811,8 @@
 				FE03831B2ABC04F700A576A2 /* TZoneMalloc.h */,
 				FE03831A2ABC04F700A576A2 /* TZoneMallocInlines.h */,
 				E360C7642127B85B00C90F0E /* UnalignedAccess.h */,
+				FE69838D2F9F1FD0004EA0A7 /* UnbarrieredMonotonicTime.cpp */,
+				FE69838B2F9F16BE004EA0A7 /* UnbarrieredMonotonicTime.h */,
 				A8A4735C151A825B004123FF /* UnionFind.h */,
 				0FA6F39420CCACE900A03DCD /* UniqueArray.cpp */,
 				E300E521203D645F00DA79BE /* UniqueArray.h */,
@@ -3982,6 +3988,7 @@
 				FE03831D2ABC04F700A576A2 /* TZoneMalloc.h in Headers */,
 				FE03831C2ABC04F700A576A2 /* TZoneMallocInlines.h in Headers */,
 				DD3DC8C927A4BF8E007E5B61 /* UnalignedAccess.h in Headers */,
+				FE69838C2F9F16BE004EA0A7 /* UnbarrieredMonotonicTime.h in Headers */,
 				46E915222CD2E26C00C437B7 /* UnicodeExtras.h in Headers */,
 				DD28468829248DDA0009A61D /* UnifiedWebPreferences.yaml in Headers */,
 				DD3DC8A627A4BF8E007E5B61 /* UnionFind.h in Headers */,
@@ -4635,6 +4642,7 @@
 				0F66B2901DC97BAB004A1D3F /* TimeWithDynamicClockType.cpp in Sources */,
 				0F7075F51FBF53CD00489AF0 /* TimingScope.cpp in Sources */,
 				521CC6B424A27809004377D6 /* TranslatedProcess.cpp in Sources */,
+				FE69838E2F9F1FD0004EA0A7 /* UnbarrieredMonotonicTime.cpp in Sources */,
 				467DCD532CD4689A0040C644 /* UnicodeExtras.cpp in Sources */,
 				0FA6F39520CCACE900A03DCD /* UniqueArray.cpp in Sources */,
 				5CC0EE7621629F1900A1A842 /* URL.cpp in Sources */,

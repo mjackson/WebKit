@@ -142,6 +142,7 @@ public:
     bool NODELETE needsGoogleTranslateScrollingQuirk() const;
     bool needsGeforcenowWarningDisplayNoneQuirk() const;
 
+    bool needsYahooVolumeSliderQuirk() const;
     bool needsZillowFloorplanMarginQuirk() const;
 
     bool needsPrimeVideoUserSelectNoneQuirk() const;

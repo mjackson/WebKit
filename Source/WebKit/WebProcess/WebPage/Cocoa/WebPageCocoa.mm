@@ -775,7 +775,7 @@ void WebPage::getAccessibilityWebProcessDebugInfo(CompletionHandler<void(WebCore
     auto mode = WebCore::AXObjectCache::accessibilityMode();
     Vector<String> warnings;
 
-    RefPtr focusedFrame = [m_mockAccessibilityElement focusedLocalFrame];
+    RefPtr focusedFrame = [m_mockAccessibilityElement localFocusedFrame];
     RefPtr document = focusedFrame ? focusedFrame->document() : nullptr;
 
     if (document) {
@@ -3312,7 +3312,7 @@ void WebPage::completeSyntheticClick(std::optional<WebCore::FrameIdentifier> fra
         return;
     }
 
-    RefPtr oldFocusedFrame = m_page->focusController().focusedLocalFrame();
+    RefPtr oldFocusedFrame = m_page->focusController().localFocusedFrame();
     RefPtr<Element> oldFocusedElement = oldFocusedFrame ? oldFocusedFrame->document()->focusedElement() : nullptr;
 
     SetForScope userIsInteractingChange { m_userIsInteracting, true };
@@ -3341,7 +3341,7 @@ void WebPage::completeSyntheticClick(std::optional<WebCore::FrameIdentifier> fra
     if (m_isClosed)
         return;
 
-    RefPtr newFocusedFrame = m_page->focusController().focusedLocalFrame();
+    RefPtr newFocusedFrame = m_page->focusController().localFocusedFrame();
     RefPtr<Element> newFocusedElement = newFocusedFrame ? newFocusedFrame->document()->focusedElement() : nullptr;
 
     if (nodeRespondingToClick.document().settings().contentChangeObserverEnabled()) {

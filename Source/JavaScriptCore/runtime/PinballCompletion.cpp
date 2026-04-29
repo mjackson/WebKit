@@ -205,7 +205,9 @@ void pinballHandlerImplantSlice(PinballHandlerContext* context, Register *base, 
     auto* slice = context->slice.get();
     CallFrame* bottommostImplantedFrame = slice->implant(base, sentinelFrame);
     returnFrame->callerFrame = bottommostImplantedFrame;
-    returnFrame->returnPC = relocateReturnPC(const_cast<void*>(slice->entryPC()), reinterpret_cast<const CallerFrameAndPC*>(slice->entryPCFrame()), returnFrame);
+    auto* originalDiscriminator = saltedDiscriminator(reinterpret_cast<const void*>(slice));
+    auto* newDiscriminator = reinterpret_cast<const void*>(returnFrame + 1);
+    returnFrame->returnPC = relocateReturnPC(const_cast<void*>(slice->entryPC()), originalDiscriminator, newDiscriminator);
 
     vm.removeEvacuatedStackSlice(slice); // the slice data is now scanned as part of the stack
     context->slice.reset();

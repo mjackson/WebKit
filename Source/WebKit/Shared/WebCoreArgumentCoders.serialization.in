@@ -2196,10 +2196,15 @@ class WebCore::LayoutRect {
     WebCore::LayoutSize m_size;
 };
 
+[OptionSet] enum class WebCore::FrameOwnerElementAppearance : uint8_t {
+    IsDark,
+    ExplicitlySet
+};
+
 struct WebCore::RemoteFrameLayoutInfo {
     std::optional<WebCore::LayoutRect> visibleRectInParent;
     float usedZoom;
-    bool useDarkAppearance;
+    OptionSet<WebCore::FrameOwnerElementAppearance> ownerElementAppearance;
 };
 
 header: <WebCore/VP9Utilities.h>
@@ -2405,6 +2410,9 @@ header: <WebCore/ScreenProperties.h>
 #endif
 #if PLATFORM(MAC) || PLATFORM(IOS_FAMILY)
     float scaleFactor;
+#endif
+#if PLATFORM(MAC)
+    bool reserved;
 #endif
 };
 
@@ -2653,6 +2661,7 @@ header: <WebCore/SearchPopupMenu.h>
 };
 
 [Nested] enum class WebCore::EventTrackingRegions::EventType : uint8_t {
+    Dblclick,
     Mousedown,
     Mousemove,
     Mouseup,
@@ -4802,7 +4811,7 @@ struct WebCore::NavigationRequester {
     bool hasLoadedThirdPartyScript;
     bool hasLoadedThirdPartyFrame;
     bool hasHadUserInteraction;
-    RefPtr<WebCore::SecurityOrigin> parentFrameSecurityOrigin;
+    bool parentOriginIsSameAsTopOrigin;
 };
 
 struct WebCore::PolicyContainer {
@@ -5743,6 +5752,9 @@ class WebCore::EventRegion {
 #endif
 #if ENABLE(INTERACTION_REGIONS_IN_EVENT_REGION)
     Vector<WebCore::InteractionRegion> m_interactionRegions;
+#endif
+#if ENABLE(DBLCLICK_EVENT_REGIONS)
+    Markable<WebCore::FrameIdentifier> m_frameID;
 #endif
 };
 

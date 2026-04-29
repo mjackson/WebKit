@@ -1327,6 +1327,8 @@ void WebGLRenderingContextBase::compressedTexImage2D(GCGLenum target, GCGLint le
         return;
     if (!validateTexture2DBinding("compressedTexImage2D"_s, target))
         return;
+    if (!validateCompressedTexFormat("compressedTexImage2D"_s, internalformat))
+        return;
     graphicsContextGL()->compressedTexImage2D(target, level, internalformat, width, height, border, data.span());
 }
 
@@ -1335,6 +1337,8 @@ void WebGLRenderingContextBase::compressedTexSubImage2D(GCGLenum target, GCGLint
     if (isContextLost())
         return;
     if (!validateTexture2DBinding("compressedTexSubImage2D"_s, target))
+        return;
+    if (!validateCompressedTexFormat("compressedTexSubImage2D"_s, format))
         return;
     graphicsContextGL()->compressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, data.span());
 }
@@ -3277,7 +3281,7 @@ ExceptionOr<void> WebGLRenderingContextBase::texImageSource(TexImageFunctionID f
             type = GraphicsContextGL::FLOAT;
         }
         if (!context->extractPixelBuffer(source.byteArrayPixelBuffer(), GraphicsContextGL::DataFormat::RGBA8, adjustedSourceImageRect, depth, unpackImageHeight, format, type, m_unpackFlipY, m_unpackPremultiplyAlpha, data)) {
-            synthesizeGLError(GraphicsContextGL::INVALID_VALUE, "texImage2D"_s, "bad image data"_s);
+            synthesizeGLError(GraphicsContextGL::INVALID_VALUE, functionName, "bad image data"_s);
             return { };
         }
         imageData = data.span();
@@ -3741,6 +3745,15 @@ bool WebGLRenderingContextBase::validateTexFunc(TexImageFunctionID functionID, T
             if (!validateSettableTexInternalFormat(functionName, format))
                 return false;
         }
+    }
+    return true;
+}
+
+bool WebGLRenderingContextBase::validateCompressedTexFormat(ASCIILiteral functionName, GCGLenum format)
+{
+    if (!m_compressedTextureFormats.contains(format)) {
+        synthesizeGLError(GraphicsContextGL::INVALID_ENUM, functionName, "invalid format"_s);
+        return false;
     }
     return true;
 }

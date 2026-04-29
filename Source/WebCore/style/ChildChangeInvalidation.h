@@ -51,7 +51,6 @@ private:
     enum class MutationPhase : bool { Before, After };
     void invalidateForChangedElement(Element&, MatchingHasSelectors&, ChangedElementRelation, EmptyInvalidation = EmptyInvalidation::No);
     void invalidateForHasSiblings(MatchingHasSelectors&, MutationPhase);
-    void invalidateForChangeOutsideHasScope();
 
     template<typename Function> void traverseRemovedElements(Function&&);
     template<typename Function> void traverseAddedElements(Function&&);

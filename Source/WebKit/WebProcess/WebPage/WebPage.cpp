@@ -993,6 +993,11 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
 
     m_mainFrame->initWithCoreMainFrame(*this, protect(page->mainFrame()));
 
+    for (const auto& iterator : parameters.urlSchemeHandlers)
+        registerURLSchemeHandler(iterator.value, iterator.key);
+    for (auto& scheme : parameters.urlSchemesWithLegacyCustomProtocolHandlers)
+        LegacySchemeRegistry::registerURLSchemeAsHandledBySchemeHandler({ scheme });
+
     if (auto& remotePageParameters = parameters.remotePageParameters) {
         m_mainFrame->coreFrame()->tree().setSpecifiedName(AtomString { remotePageParameters->frameTreeParameters.frameName });
 
@@ -1178,11 +1183,6 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
         downcast<LibWebRTCProvider>(page->webRTCProvider()).enableEnumeratingVisibleNetworkInterfaces();
 #endif
 #endif
-
-    for (const auto& iterator : parameters.urlSchemeHandlers)
-        registerURLSchemeHandler(iterator.value, iterator.key);
-    for (auto& scheme : parameters.urlSchemesWithLegacyCustomProtocolHandlers)
-        LegacySchemeRegistry::registerURLSchemeAsHandledBySchemeHandler({ scheme });
 
 #if PLATFORM(IOS_FAMILY)
     setViewportConfigurationViewLayoutSize(parameters.viewportConfigurationViewLayoutSize, parameters.viewportConfigurationLayoutSizeScaleFactorFromClient, parameters.viewportConfigurationMinimumEffectiveDeviceWidth);
@@ -2208,13 +2208,18 @@ void WebPage::createProvisionalFrame(ProvisionalFrameCreationParameters&& parame
     frame->createProvisionalFrame(WTF::move(parameters));
 }
 
-void WebPage::loadDidCommitInAnotherProcess(WebCore::FrameIdentifier frameID, std::optional<WebCore::LayerHostingContextIdentifier> layerHostingContextIdentifier)
+void WebPage::loadDidCommitInAnotherProcess(WebCore::FrameIdentifier frameID, std::optional<WebCore::LayerHostingContextIdentifier> layerHostingContextIdentifier, std::optional<URL>&& mainFrameDocumentURL)
 {
     RefPtr frame = WebProcess::singleton().webFrame(frameID);
     if (!frame)
         return;
     ASSERT(frame->page() == this);
     frame->loadDidCommitInAnotherProcess(layerHostingContextIdentifier);
+
+    if (mainFrameDocumentURL) {
+        if (RefPtr page = corePage())
+            page->setMainFrameURLAndOrigin(*mainFrameDocumentURL, nullptr);
+    }
 }
 
 void WebPage::loadRequest(LoadParameters&& loadParameters)
@@ -5534,19 +5539,36 @@ void WebPage::sendReportToEndpoints(FrameIdentifier frameID, URL&& baseURL, cons
         return;
 
     RefPtr frame = WebProcess::singleton().webFrame(frameID);
-    if (!frame || !frame->coreLocalFrame())
+    if (!frame)
         return;
 
-    for (auto& url : endpointURIs)
-        PingLoader::sendViolationReport(*protect(frame->coreLocalFrame()), URL { baseURL, url }, Ref { *report.get() }, reportType);
+    RefPtr localFrame = frame->coreLocalFrame();
+    if (!localFrame) {
+        localFrame = frame->provisionalFrame();
+        if (!localFrame)
+            return;
 
-    RefPtr document = frame->coreLocalFrame()->document();
+        // With site isolation, the frame is still provisional at the time of a
+        // CSP frame-ancestors violation, so its outgoingReferrerURL is not yet
+        // set. Recover it from the provisional DocumentLoader's request so that
+        // PingLoader produces the correct HTTP Referer header on the report POST.
+        if (RefPtr docLoader = localFrame->loader().provisionalDocumentLoader()) {
+            auto referrer = docLoader->request().httpReferrer();
+            if (!referrer.isEmpty())
+                localFrame->loader().setOutgoingReferrer(URL { referrer });
+        }
+    }
+
+    for (auto& url : endpointURIs)
+        PingLoader::sendViolationReport(*localFrame, URL { baseURL, url }, Ref { *report }, reportType);
+
+    RefPtr document = localFrame->document();
     if (!document)
         return;
 
     for (auto& token : endpointTokens) {
         if (auto url = document->endpointURIForToken(token); !url.isEmpty())
-            PingLoader::sendViolationReport(*protect(frame->coreLocalFrame()), URL { baseURL, url }, Ref { *report.get() }, reportType);
+            PingLoader::sendViolationReport(*localFrame, URL { baseURL, url }, Ref { *report }, reportType);
     }
 }
 
@@ -7094,17 +7116,13 @@ static bool hasEnabledHorizontalScrollbar(ScrollableArea* scrollableArea)
     return scrollbar && scrollbar->enabled();
 }
 
-static bool pageContainsAnyHorizontalScrollbars(LocalFrame* mainFrame)
+bool WebPage::pageContainsAnyHorizontalScrollbars() const
 {
-    if (!mainFrame)
+    RefPtr page = m_page;
+    if (!page)
         return false;
 
-    if (RefPtr frameView = mainFrame->view()) {
-        if (hasEnabledHorizontalScrollbar(frameView.get()))
-            return true;
-    }
-
-    for (RefPtr<Frame> frame = mainFrame; frame; frame = frame->tree().traverseNext()) {
+    for (RefPtr frame = page->mainFrame(); frame; frame = frame->tree().traverseNext()) {
         RefPtr localFrame = dynamicDowncast<LocalFrame>(*frame);
         if (!localFrame)
             continue;
@@ -7112,6 +7130,9 @@ static bool pageContainsAnyHorizontalScrollbars(LocalFrame* mainFrame)
         RefPtr frameView = localFrame->view();
         if (!frameView)
             continue;
+
+        if (hasEnabledHorizontalScrollbar(frameView.get()))
+            return true;
 
         auto scrollableAreas = frameView->scrollableAreas();
         if (!scrollableAreas)
@@ -7135,7 +7156,7 @@ void WebPage::recomputeShortCircuitHorizontalWheelEventsState()
 
     if (canShortCircuitHorizontalWheelEvents) {
         // Check if we have any horizontal scroll bars on the page.
-        if (pageContainsAnyHorizontalScrollbars(localMainFrame().get()))
+        if (pageContainsAnyHorizontalScrollbars())
             canShortCircuitHorizontalWheelEvents = false;
     }
 

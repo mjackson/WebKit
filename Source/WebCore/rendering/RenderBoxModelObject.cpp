@@ -328,16 +328,20 @@ static bool hasDefiniteHeightByStyle(const RenderBlock& containingBlock)
         return true;
 
     if (containingBlock.isFlexItem()) {
-        auto& flexContainer = downcast<RenderFlexibleBox>(*containingBlock.parent());
-        // §9.8 rule 3: stretched cross-axis items have definite cross size.
-        if (flexContainer.mainAxisIsFlexItemInlineAxis(containingBlock))
-            return flexContainer.alignmentForFlexItem(containingBlock) == ItemPosition::Stretch;
-        // §9.8 rule 2: definite flex-basis makes post-flexing main size definite.
-        auto flexBasis = flexContainer.flexBasisForFlexItem(containingBlock);
-        if (!flexBasis.isAuto() && !flexBasis.isContent() && !flexBasis.isPercentOrCalculated() && !flexBasis.isIntrinsic())
+        auto hasDefiniteHeight = [&] {
+            auto& flexContainer = downcast<RenderFlexibleBox>(*containingBlock.parent());
+            // §9.8 rule 3: stretched cross-axis items have definite cross size.
+            if (flexContainer.mainAxisIsFlexItemInlineAxis(containingBlock))
+                return flexContainer.alignmentForFlexItem(containingBlock) == ItemPosition::Stretch;
+            // §9.8 rule 2: definite flex-basis makes post-flexing main size definite.
+            auto flexBasis = flexContainer.flexBasisForFlexItem(containingBlock);
+            if (!flexBasis.isAuto() && !flexBasis.isContent() && !flexBasis.isPercentOrCalculated() && !flexBasis.isIntrinsic())
+                return true;
+            // §9.8 rule 1: definite container main size makes all items definite.
+            return hasDefiniteHeightByStyle(flexContainer);
+        };
+        if (hasDefiniteHeight())
             return true;
-        // §9.8 rule 1: definite container main size makes all items definite.
-        return hasDefiniteHeightByStyle(flexContainer);
     }
 
     // Percentage and stretch heights are only definite if the ancestor they resolve against is definite.

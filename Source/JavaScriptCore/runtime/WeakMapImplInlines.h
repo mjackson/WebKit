@@ -26,6 +26,8 @@
 #pragma once
 
 #include "HashMapHelper.h"
+#include "JSCJSValueBigInt.h"
+#include "JSCJSValueInlines.h"
 #include "Symbol.h"
 #include "WeakMapImpl.h"
 

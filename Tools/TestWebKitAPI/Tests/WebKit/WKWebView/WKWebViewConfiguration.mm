@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -123,6 +123,67 @@ TEST(WebKit, InvalidConfiguration)
         [configuration _setRelatedWebView:ephemeralWebView.get()];
         ALLOW_DEPRECATED_DECLARATIONS_END
     }, true);
+}
+
+TEST(WebKit, ConfigurationCopyDoesNotLazilyInitializeProcessPool)
+{
+    // Create a configuration without explicitly setting processPool.
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+
+    // Copy should not trigger lazy initialization of processPool on the source.
+    RetainPtr copy = adoptNS([configuration copy]);
+
+    // Accessing processPool on each should create independent pools,
+    // since neither was initialized by the copy operation.
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    RetainPtr pool1 = [configuration processPool];
+    RetainPtr pool2 = [copy processPool];
+    ALLOW_DEPRECATED_DECLARATIONS_END
+
+    // Each configuration should independently lazy-initialize its own pool,
+    // rather than sharing a pool that was created as a side effect of copying.
+    EXPECT_NE(pool1.get(), pool2.get());
+}
+
+TEST(WebKit, ConfigurationCopyPreservesExplicitlySetProcessPool)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    RetainPtr pool = adoptNS([[WKProcessPool alloc] init]);
+    [configuration setProcessPool:pool.get()];
+    ALLOW_DEPRECATED_DECLARATIONS_END
+
+    RetainPtr copy = adoptNS([configuration copy]);
+
+    // An explicitly set processPool should be shared between source and copy.
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    EXPECT_EQ([configuration processPool], [copy processPool]);
+    ALLOW_DEPRECATED_DECLARATIONS_END
+}
+
+TEST(WebKit, RelatedWebViewSyncsProcessPool)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    // Capture the expected pool so we ensure one is initialized.
+    RetainPtr expectedPool = [configuration processPool];
+    ALLOW_DEPRECATED_DECLARATIONS_END
+
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    // A new configuration that hasn't explicitly set a process pool
+    // should adopt the related web view's pool when _relatedWebView is set.
+    RetainPtr newConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [newConfiguration _setRelatedWebView:webView.get()];
+    EXPECT_EQ([newConfiguration processPool], expectedPool.get());
+
+    // Creating a WKWebView with this configuration should not throw.
+    RetainPtr relatedWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:newConfiguration.get()]);
+    EXPECT_TRUE(!!relatedWebView);
+    ALLOW_DEPRECATED_DECLARATIONS_END
 }
 
 TEST(WebKit, ConfigurationGroupIdentifierIsCopied)

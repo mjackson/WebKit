@@ -2412,6 +2412,7 @@ void FrameLoader::commitProvisionalLoad()
                 activation = protect(window->navigation())->createForPageswapEvent(newItem.get(), pdl.get(), !!cachedPage);
             }
         }
+        SetForScope dispatchingPageSwapEvent(m_isDispatchingPageSwapEvent, true);
         document->dispatchPageswapEvent(canTriggerCrossDocumentViewTransition, WTF::move(activation));
 
         // https://html.spec.whatwg.org/multipage/browsing-the-web.html#deactivate-a-document-for-a-cross-document-navigation

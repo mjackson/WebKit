@@ -477,7 +477,7 @@ RefPtr<CSSValue> HTMLConverterCaches::inlineStylePropertyForElement(Element& ele
 
 static std::optional<String> stringFromCSSValue(CSSValue& value)
 {
-    if (value.isValueList() || value.isAppleColorFilterValue() || value.isFilterValue() || value.isTextShadowPropertyValue() || value.isBoxShadowPropertyValue() || value.isURL() || value.isKeywordValue() || value.isPropertyIdentifierValue() || value.isStringValue() || value.isAttrValue())
+    if (value.isValueList() || value.isAppleColorFilterValue() || value.isFilterValue() || value.isTextShadowPropertyValue() || value.isBoxShadowPropertyValue() || value.isURL() || value.isKeywordValue() || value.isStringValue() || value.isAttrValue())
         return value.cssText(CSS::defaultSerializationContext());
 
     return std::nullopt;

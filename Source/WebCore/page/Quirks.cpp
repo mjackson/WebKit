@@ -840,6 +840,14 @@ bool Quirks::needsZillowFloorplanMarginQuirk() const
     return m_quirksData.quirkIsEnabled(QuirksData::SiteSpecificQuirk::NeedsZillowFloorplanMarginQuirk);
 }
 
+// yahoo.com rdar://170502516
+bool Quirks::needsYahooVolumeSliderQuirk() const
+{
+    QUIRKS_EARLY_RETURN_IF_DISABLED_WITH_VALUE(false);
+
+    return m_quirksData.quirkIsEnabled(QuirksData::SiteSpecificQuirk::NeedsYahooVolumeSliderQuirk);
+}
+
 // Kugou Music rdar://74602294
 bool Quirks::shouldOmitHTMLDocumentSupportedPropertyNames()
 {
@@ -3001,6 +3009,12 @@ static void handleYCombinatorQuirks(QuirksData& quirksData, const URL& quirksURL
 }
 #endif
 
+static void handleYahooQuirks(QuirksData& quirksData, const URL& /* quirksURL */, const String& /* quirksDomainString */, const URL& /* documentURL */)
+{
+    // yahoo.com: rdar://170502516
+    quirksData.enableQuirk(QuirksData::SiteSpecificQuirk::NeedsYahooVolumeSliderQuirk);
+}
+
 #if ENABLE(TOUCH_EVENTS)
 static void handleSoylentQuirks(QuirksData& quirksData, const URL& /* quirksURL */, const String& /* quirksDomainString */, const URL& /* documentURL */)
 {
@@ -3937,6 +3951,7 @@ void Quirks::determineRelevantQuirks()
         { "wpdevelopment"_s, &handleWPDevelopmentQuirks },
 #endif
         { "x"_s, &handleTwitterXQuirks },
+        { "yahoo"_s, &handleYahooQuirks },
 #if ENABLE(TEXT_AUTOSIZING)
         { "ycombinator"_s, &handleYCombinatorQuirks },
 #endif

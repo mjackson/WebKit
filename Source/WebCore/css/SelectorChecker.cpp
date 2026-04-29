@@ -1651,7 +1651,11 @@ bool SelectorChecker::matchHasPseudoClass(CheckingContext& checkingContext, cons
                 checkingContext.styleRelations.append(Style::Relation { *parent, Style::Relation::AffectedByHasWithForwardSiblingRelationship });
             return;
         case Style::Relation::DescendantsAffectedByForwardPositionalRules:
+            checkingContext.styleRelations.append(Style::Relation { *relation.element, Style::Relation::AffectedByHasWithForwardSiblingRelationship });
+            return;
         case Style::Relation::DescendantsAffectedByBackwardPositionalRules:
+            checkingContext.styleRelations.append(Style::Relation { *relation.element, Style::Relation::AffectedByHasWithBackwardSiblingRelationship });
+            return;
         case Style::Relation::FirstChild:
         case Style::Relation::LastChild:
         case Style::Relation::NthChildIndex:

@@ -2361,6 +2361,9 @@ void testSuspendServiceWorkerProcessBasedOnClientProcesses(UseSeparateServiceWor
     TestWebKitAPI::Util::run(&done);
     done = false;
 
+    // Disable ITP so it doesn't inadvertently delete our service worker registrations.
+    [[WKWebsiteDataStore defaultDataStore] _setResourceLoadStatisticsEnabled:NO];
+
     RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
     RetainPtr messageHandler = adoptNS([[SWMessageHandler alloc] init]);
@@ -2469,7 +2472,11 @@ TEST(ServiceWorkers, SuspendAndTerminateWorker)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
+    // Disable ITP so it doesn't inadvertently delete our service worker registrations.
+    [dataStore _setResourceLoadStatisticsEnabled:NO];
+
     RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration setWebsiteDataStore:dataStore.get()];
     if ([[configuration preferences] inactiveSchedulingPolicy] == WKInactiveSchedulingPolicyNone)
         return;
 
@@ -2673,6 +2680,8 @@ TEST(ServiceWorkers, RestoreFromDiskNonDefaultStore)
         RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
         websiteDataStoreConfiguration.get()._serviceWorkerRegistrationDirectory = swDBPath;
         RetainPtr nonDefaultDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+        // Disable ITP so it doesn't inadvertently delete our service worker registrations.
+        [nonDefaultDataStore _setResourceLoadStatisticsEnabled:NO];
         configuration.get().websiteDataStore = nonDefaultDataStore.get();
 
         RetainPtr messageHandler = adoptNS([[SWMessageHandlerForRestoreFromDiskTest alloc] initWithExpectedMessage:@"PASS: Registration was successful and service worker was activated"]);

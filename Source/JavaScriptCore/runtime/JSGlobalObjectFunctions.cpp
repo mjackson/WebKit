@@ -799,22 +799,30 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncBuiltinDescribe, (JSGlobalObject* globalObjec
 JSC_DEFINE_HOST_FUNCTION(globalFuncImportModule, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
+
     auto scope = DECLARE_THROW_SCOPE(vm);
+
+    auto rejectWithCaughtException = [&]() -> EncodedJSValue {
+        auto* promise = JSPromise::create(vm, globalObject->promiseStructure());
+        return JSValue::encode(promise->rejectWithCaughtException(globalObject, scope));
+    };
 
     auto sourceOrigin = callFrame->callerSourceOrigin(vm);
     RELEASE_ASSERT(callFrame->argumentCount() >= 1);
+
     auto* specifier = callFrame->uncheckedArgument(0).toString(globalObject);
-    RETURN_IF_EXCEPTION(scope, JSValue::encode(JSPromise::rejectedPromiseWithCaughtException(globalObject, scope)));
+    if (scope.exception()) [[unlikely]]
+        return rejectWithCaughtException();
 
     // We always specify parameters as undefined. Once dynamic import() starts accepting fetching parameters,
     // we should retrieve this from the arguments.
     JSValue parameters = callFrame->argument(1);
     auto* importPromise = globalObject->moduleLoader()->importModule(globalObject, specifier, parameters, sourceOrigin);
-    RETURN_IF_EXCEPTION(scope, JSValue::encode(JSPromise::rejectedPromiseWithCaughtException(globalObject, scope)));
-
-    scope.release();
+    if (scope.exception()) [[unlikely]]
+        return rejectWithCaughtException();
 
 #if USE(BUN_JSC_ADDITIONS)
+    scope.release();
     auto* promise = JSPromise::create(vm, globalObject->promiseStructure());
 
     if (importPromise->status() == JSPromise::Status::Fulfilled) {

@@ -397,6 +397,10 @@ public:
 
     static WEBCORE_EXPORT RefPtr<ShareableBitmap> bitmapFromImage(NativeImage&);
 
+#if PLATFORM(MAC)
+    virtual void screenReservedChanged(bool) { }
+#endif
+
 protected:
     mutable PlatformTimeRanges m_seekable;
     bool m_shouldCheckHardwareSupport { false };

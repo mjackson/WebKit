@@ -2122,6 +2122,16 @@ MediaPlaybackTargetType MediaPlayer::playbackTargetType() const
 }
 #endif
 
+#if PLATFORM(MAC)
+void MediaPlayer::setScreenReserved(bool reserved)
+{
+    if (m_screenReserved == reserved)
+        return;
+    m_screenReserved = reserved;
+    protect(m_private)->screenReservedChanged(reserved);
+}
+#endif
+
 String convertEnumerationToString(MediaPlayer::ReadyState enumerationValue)
 {
     static const std::array<NeverDestroyed<String>, 5> values {

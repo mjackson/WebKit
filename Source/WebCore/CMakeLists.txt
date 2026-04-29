@@ -390,7 +390,10 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/credentialmanagement/CredentialMediationRequirement.idl
     Modules/credentialmanagement/CredentialRequestOptions.idl
     Modules/credentialmanagement/CredentialsContainer.idl
+    Modules/credentialmanagement/FederatedCredentialRequestOptions.idl
+    Modules/credentialmanagement/IdentityCredentialRequestOptions.idl
     Modules/credentialmanagement/Navigator+Credentials.idl
+    Modules/credentialmanagement/OTPCredentialRequestOptions.idl
 
     Modules/encryptedmedia/MediaKeyEncryptionScheme.idl
     Modules/encryptedmedia/MediaKeyMessageEventInit.idl

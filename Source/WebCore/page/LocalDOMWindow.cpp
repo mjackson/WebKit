@@ -1117,7 +1117,7 @@ void LocalDOMWindow::focus(bool allowFocus)
         return;
 
     // Clear the current frame's focused node if a new frame is about to be focused.
-    RefPtr focusedFrame = page->focusController().focusedLocalFrame();
+    RefPtr focusedFrame = page->focusController().localFocusedFrame();
     if (focusedFrame && focusedFrame != frame)
         protect(focusedFrame->document())->setFocusedElement(nullptr);
 
@@ -2061,6 +2061,11 @@ bool LocalDOMWindow::addEventListener(const AtomString& eventType, Ref<EventList
             document->didAddTouchEventHandler(*document);
             document->invalidateEventListenerRegions();
 #endif
+        } else if (typeInfo.type() == EventType::dblclick) {
+#if ENABLE(DBLCLICK_EVENT_REGIONS)
+            document->didAddDoubleClickEventHandler(*document);
+            document->invalidateEventListenerRegions();
+#endif
         }
         else if (eventType == eventNames.storageEvent)
             didAddStorageEventListener(*this);
@@ -2329,6 +2334,11 @@ bool LocalDOMWindow::removeEventListener(const AtomString& eventType, EventListe
         } else if (typeInfo.isInCategory(EventCategory::Gesture)) {
 #if ENABLE(TOUCH_EVENT_REGIONS)
             document->didRemoveTouchEventHandler(*document);
+            document->invalidateEventListenerRegions();
+#endif
+        } else if (typeInfo.type() == EventType::dblclick) {
+#if ENABLE(DBLCLICK_EVENT_REGIONS)
+            document->didRemoveDoubleClickEventHandler(*document);
             document->invalidateEventListenerRegions();
 #endif
         }

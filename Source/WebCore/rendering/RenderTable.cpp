@@ -42,6 +42,7 @@
 #include "LocalFrameView.h"
 #include "PaintInfoInlines.h"
 #include "RenderBlockFlow.h"
+#include "RenderBlockInlines.h"
 #include "RenderBoxInlines.h"
 #include "RenderChildIterator.h"
 #include "RenderDescendantIterator.h"
@@ -304,7 +305,7 @@ void RenderTable::updateLogicalWidth()
     auto& styleLogicalWidth = style().logicalWidth();
     if (auto overridingLogicalWidth = this->overridingBorderBoxLogicalWidth())
         setLogicalWidth(*overridingLogicalWidth);
-    else if ((styleLogicalWidth.isSpecified() && styleLogicalWidth.isPossiblyPositive()) || styleLogicalWidth.isIntrinsicOrStretch())
+    else if ((styleLogicalWidth.isSpecified() && (styleLogicalWidth.isPossiblyPositive() || styleLogicalWidth.isKnownZero())) || styleLogicalWidth.isIntrinsicOrStretch())
         setLogicalWidth(convertStyleLogicalWidthToComputedWidth(styleLogicalWidth, containerWidthInInlineDirection));
     else {
         // Subtract out any fixed margins from our available width for auto width tables.
@@ -1036,13 +1037,7 @@ void RenderTable::computePreferredLogicalWidths()
 
     for (unsigned i = 0; i < m_captions.size(); i++) {
         LayoutUnit captionMinWidth = m_captions[i]->minPreferredLogicalWidth();
-
-        // Only add fixed margins during preferred width calculation
-        auto& captionStyle = m_captions[i]->style();
-        if (auto fixedMarginStart = captionStyle.marginStart().tryFixed())
-            captionMinWidth += fixedMarginStart->resolveZoom(captionStyle.usedZoomForLength());
-        if (auto fixedMarginEnd = captionStyle.marginEnd().tryFixed())
-            captionMinWidth += fixedMarginEnd->resolveZoom(captionStyle.usedZoomForLength());
+        captionMinWidth += marginIntrinsicLogicalWidthForChild(*m_captions[i]);
 
         m_minPreferredLogicalWidth = std::max(m_minPreferredLogicalWidth, captionMinWidth);
     }

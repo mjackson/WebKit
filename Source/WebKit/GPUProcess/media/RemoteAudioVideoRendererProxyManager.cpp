@@ -409,6 +409,12 @@ void RemoteAudioVideoRendererProxyManager::finishSeek(RemoteAudioVideoRendererId
     });
 }
 
+void RemoteAudioVideoRendererProxyManager::setScreenReserved(RemoteAudioVideoRendererIdentifier identifier, bool reserved)
+{
+    if (RefPtr renderer = rendererFor(identifier))
+        renderer->setScreenReserved(reserved);
+}
+
 void RemoteAudioVideoRendererProxyManager::setVolume(RemoteAudioVideoRendererIdentifier identifier, float volume)
 {
     if (RefPtr renderer = rendererFor(identifier))

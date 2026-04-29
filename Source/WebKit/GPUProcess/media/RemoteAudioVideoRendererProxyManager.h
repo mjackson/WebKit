@@ -119,6 +119,7 @@ private:
     void stall(RemoteAudioVideoRendererIdentifier);
     void prepareToSeek(RemoteAudioVideoRendererIdentifier, const MediaTime&, CompletionHandler<void(WebCore::MediaTimePromise::Result&&)>&&);
     void finishSeek(RemoteAudioVideoRendererIdentifier, const MediaTime&, CompletionHandler<void(GenericPromise::Result&&)>&&);
+    void setScreenReserved(RemoteAudioVideoRendererIdentifier, bool);
 
     // AudioInterface
     void setVolume(RemoteAudioVideoRendererIdentifier, float);

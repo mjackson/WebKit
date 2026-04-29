@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "ImplementationVisibility.h"
 #include "ParserModes.h"
 #include "ParserTokens.h"
 #include <wtf/Vector.h>
