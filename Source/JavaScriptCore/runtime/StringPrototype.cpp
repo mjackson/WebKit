@@ -151,7 +151,7 @@ void StringPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("codePointAt"_s, stringProtoFuncCodePointAt, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public, StringPrototypeCodePointAtIntrinsic);
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("concat"_s, stringProtoFuncConcat, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public, StringPrototypeConcatIntrinsic);
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().indexOfPublicName(), stringProtoFuncIndexOf, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public, StringPrototypeIndexOfIntrinsic);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("lastIndexOf"_s, stringProtoFuncLastIndexOf, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("lastIndexOf"_s, stringProtoFuncLastIndexOf, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public, StringPrototypeLastIndexOfIntrinsic);
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("replace"_s, stringProtoFuncReplace, static_cast<unsigned>(PropertyAttribute::DontEnum), 2, ImplementationVisibility::Public, StringPrototypeReplaceIntrinsic);
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("replaceAll"_s, stringProtoFuncReplaceAll, static_cast<unsigned>(PropertyAttribute::DontEnum), 2, ImplementationVisibility::Public, StringPrototypeReplaceAllIntrinsic);
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("repeat"_s, stringProtoFuncRepeat, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public);
@@ -630,9 +630,13 @@ JSC_DEFINE_HOST_FUNCTION(builtinStringIndexOfInternal, (JSGlobalObject* globalOb
 
 JSC_DEFINE_HOST_FUNCTION(stringProtoFuncLastIndexOf, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
+    // https://tc39.es/ecma262/#sec-string.prototype.lastindexof
+
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    // 1. Let thisValue be the this value.
+    // 2. Perform ? RequireObjectCoercible(thisValue).
     JSValue thisValue = callFrame->thisValue();
     if (!checkObjectCoercible(thisValue)) [[unlikely]]
         return throwVMTypeError(globalObject, scope);
@@ -640,34 +644,70 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncLastIndexOf, (JSGlobalObject* globalObje
     JSValue a0 = callFrame->argument(0);
     JSValue a1 = callFrame->argument(1);
 
+    // 3. Let str be ? ToString(thisValue).
     JSString* thisJSString = thisValue.toString(globalObject);
-    RETURN_IF_EXCEPTION(scope, encodedJSValue());
-    unsigned len = thisJSString->length();
+    RETURN_IF_EXCEPTION(scope, { });
+
+    // 4. Let searchStr be ? ToString(searchString).
     JSString* otherJSString = a0.toString(globalObject);
-    RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    RETURN_IF_EXCEPTION(scope, { });
 
-    double dpos = a1.toIntegerPreserveNaN(globalObject);
-    RETURN_IF_EXCEPTION(scope, encodedJSValue());
-    unsigned startPosition;
-    if (dpos < 0)
-        startPosition = 0;
-    else if (!(dpos <= len)) // true for NaN
-        startPosition = len;
-    else
-        startPosition = static_cast<unsigned>(dpos);
+    auto otherView = otherJSString->view(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
 
-    if (len < otherJSString->length())
+    // 5. Let numPos be ? ToNumber(position).
+    // 6. Assert: If position is undefined, then numPos is NaN.
+    // 7. If numPos is NaN, let pos be +∞; else let pos be ! ToIntegerOrInfinity(numPos).
+    // 8. Let len be the length of str.
+    // 9. Let searchLen be the length of searchStr.
+    // 10. If len < searchLen, return -1.
+    // 11. Let start be the result of clamping pos between 0 and len - searchLen.
+    double numPos = a1.toIntegerPreserveNaN(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    unsigned len = thisJSString->length();
+    unsigned otherLen = otherView->length();
+    if (len < otherLen)
         return JSValue::encode(jsNumber(-1));
 
-    auto thisString = thisJSString->value(globalObject);
-    RETURN_IF_EXCEPTION(scope, encodedJSValue());
-    auto otherString = otherJSString->value(globalObject);
-    RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    unsigned maxStart = len - otherLen;
+    unsigned startPosition;
+    if (numPos < 0)
+        startPosition = 0;
+    else if (!(numPos <= maxStart)) // true for NaN
+        startPosition = maxStart;
+    else
+        startPosition = static_cast<unsigned>(numPos);
+
+    // Now, startPosition is in [0, maxStart(len - otherLen)].
+    if (otherLen == 1) {
+        char16_t character = otherView[0];
+        if (thisJSString->isRope() && len >= JSString::minLengthForRopeWalk) {
+            if (auto result = thisJSString->tryFindLastOneChar(globalObject, character, startPosition)) {
+                if (*result != notFound)
+                    return JSValue::encode(jsNumber(*result));
+                return JSValue::encode(jsNumber(-1));
+            }
+            // nullopt: bail out, fall through to resolve. startPosition has been narrowed.
+        }
+
+        auto thisView = thisJSString->view(globalObject);
+        RETURN_IF_EXCEPTION(scope, { });
+
+        size_t result = thisView->reverseFind(character, startPosition);
+        if (result == notFound)
+            return JSValue::encode(jsNumber(-1));
+        return JSValue::encode(jsNumber(result));
+    }
+
+    auto thisView = thisJSString->view(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
     size_t result;
     if (!startPosition)
-        result = thisString->startsWith(otherString) ? 0 : notFound;
+        result = thisView->startsWith(otherView) ? 0 : notFound;
     else
-        result = thisString->reverseFind(otherString, startPosition);
+        result = thisView->reverseFind(otherView, startPosition);
     if (result == notFound)
         return JSValue::encode(jsNumber(-1));
     return JSValue::encode(jsNumber(result));

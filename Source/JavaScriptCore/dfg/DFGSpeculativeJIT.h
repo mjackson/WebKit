@@ -1792,6 +1792,7 @@ public:
     void compileStringCodePointAt(Node*);
     void compileStringLocaleCompare(Node*);
     void compileStringIndexOf(Node*);
+    void compileStringLastIndexOf(Node*);
     void compileStringStartsOrEndsWith(Node*);
     void compileDateGet(Node*);
     void compileDateSet(Node*);

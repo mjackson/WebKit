@@ -221,6 +221,7 @@ class RenderImage;
 class Report;
 class ResourceRequest;
 class ResourceResponse;
+class ResourceTiming;
 class ScrollingCoordinator;
 class SelectionData;
 class SelectionGeometry;
@@ -2309,7 +2310,7 @@ private:
     void tryClose(CompletionHandler<void(bool)>&&);
     void platformDidReceiveLoadParameters(const LoadParameters&);
     void createProvisionalFrame(ProvisionalFrameCreationParameters&&);
-    void loadDidCommitInAnotherProcess(WebCore::FrameIdentifier, std::optional<WebCore::LayerHostingContextIdentifier>, std::optional<URL>&& mainFrameDocumentURL);
+    void loadDidCommitInAnotherProcess(WebCore::FrameIdentifier, std::optional<WebCore::LayerHostingContextIdentifier>, RefPtr<WebCore::DocumentSyncData>&&);
     [[noreturn]] void NODELETE loadRequestWaitingForProcessLaunch(LoadParameters&&, URL&&, WebPageProxyIdentifier, bool);
     void loadData(LoadParameters&&);
     void loadAlternateHTML(LoadParameters&&);
@@ -2675,6 +2676,7 @@ private:
     void useRedirectionForCurrentNavigation(WebCore::ResourceResponse&&);
 
     void dispatchLoadEventToFrameOwnerElement(WebCore::FrameIdentifier);
+    void addResourceTimingFromSubframe(WebCore::FrameIdentifier parentFrameID, WebCore::ResourceTiming&&);
 
     void elementWasFocusedInAnotherProcess(WebCore::FrameIdentifier, WebCore::FocusOptions);
     void frameWasFocusedInAnotherProcess(std::optional<WebCore::FrameIdentifier>&&);
@@ -2783,6 +2785,7 @@ private:
     RefPtr<WebPageTesting> m_webPageTesting;
 
     const Ref<WebFrame> m_mainFrame;
+    std::optional<WebCore::FrameIdentifier> m_unresolvedMainFrameOpenerIdentifier;
 
     const Ref<WebPageGroupProxy> m_pageGroup;
 

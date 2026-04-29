@@ -2275,12 +2275,6 @@ void WebProcessProxy::didStartProvisionalLoadForMainFrame(const URL& url)
     if (url.protocolIsAbout())
         return;
 
-    auto site = WebCore::Site { url };
-    if (url.protocolIsFile() && (!m_site || *m_site == site)) {
-        m_site = site;
-        return;
-    }
-
     if (!url.protocolIsInHTTPFamily() && !processPool().configuration().processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol()) {
         // Unless the processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol flag is set, we don't process swap on navigations withing the same
         // non HTTP(s) protocol. For this reason, we ignore the registrable domain and processes are not eligible for the process cache.
@@ -2288,6 +2282,7 @@ void WebProcessProxy::didStartProvisionalLoadForMainFrame(const URL& url)
         return;
     }
 
+    auto site = WebCore::Site { url };
     RefPtr dataStore = websiteDataStore();
     if (dataStore && m_site && *m_site != site) {
         if (isRunningServiceWorkers())
@@ -2299,7 +2294,7 @@ void WebProcessProxy::didStartProvisionalLoadForMainFrame(const URL& url)
         return;
     }
 
-    if (m_sharedPreferencesForWebProcess.siteIsolationEnabled && (m_site || m_site.error() != SiteState::NotYetSpecified))
+    if (m_sharedPreferencesForWebProcess.siteIsolationEnabled)
         ASSERT((m_site && *m_site == site) || m_site.error() == SiteState::SharedProcess);
     else {
         // Associate the process with this site.
@@ -2968,7 +2963,6 @@ void WebProcessProxy::resetState()
 {
     m_hasCommittedAnyProvisionalLoads = false;
     m_hasCommittedAnyMeaningfulProvisionalLoads = false;
-    m_site = std::unexpected<SiteState> { SiteState::NotYetSpecified };
 }
 
 Seconds WebProcessProxy::totalForegroundTime() const

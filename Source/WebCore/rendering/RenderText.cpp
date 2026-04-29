@@ -1813,6 +1813,7 @@ static void invalidateLineLayoutPathOnContentChangeIfNeeded(RenderText& renderer
         container->invalidateLineLayout(RenderBlockFlow::InvalidationReason::ContentChange);
         return;
     }
+
     if (!inlineLayout->updateTextContent(renderer, offset, oldLength))
         container->invalidateLineLayout(RenderBlockFlow::InvalidationReason::ContentChange);
 }
@@ -1846,8 +1847,13 @@ void RenderText::updateRenderedText(const String& text)
 void RenderText::updateRenderedText()
 {
     updateRenderedText(originalText());
-    if (CheckedPtr container = LayoutIntegration::LineLayout::blockContainer(*this))
+    auto invalidateLineLayoutIfNeeded = [&] {
+        CheckedPtr container = LayoutIntegration::LineLayout::blockContainer(*this);
+        if (!container || !container->inlineLayout())
+            return;
         container->invalidateLineLayout(RenderBlockFlow::InvalidationReason::ContentChange);
+    };
+    invalidateLineLayoutIfNeeded();
 }
 
 void RenderText::setText(const String& newContent, bool force)

@@ -576,7 +576,15 @@ std::unique_ptr<CachedPage> BackForwardCache::suspendPage(Page& page)
 
 std::unique_ptr<CachedPage> BackForwardCache::take(HistoryItem& item, Page* page)
 {
-    auto it = m_cachedPageMap.find(item.frameItemID());
+    auto cachedPage = take(item.frameItemID(), page);
+    if (cachedPage)
+        item.notifyChanged();
+    return cachedPage;
+}
+
+std::unique_ptr<CachedPage> BackForwardCache::take(BackForwardFrameItemIdentifier identifier, Page* page)
+{
+    auto it = m_cachedPageMap.find(identifier);
     if (it == m_cachedPageMap.end())
         return nullptr;
     if (auto* pruningReason = std::get_if<PruningReason>(&it->value)) {
@@ -586,14 +594,16 @@ std::unique_ptr<CachedPage> BackForwardCache::take(HistoryItem& item, Page* page
         return nullptr;
     }
 
-    m_items.remove(item.frameItemID());
-    auto cachedPage = std::get<UniqueRef<CachedPage>>(m_cachedPageMap.take(it));
-    item.notifyChanged();
+    if (page && &std::get<UniqueRef<CachedPage>>(it->value)->page() != page)
+        return nullptr;
 
-    RELEASE_LOG(BackForwardCache, "BackForwardCache::take item: %s, frameItem: %s, size: %u / %u", item.itemID().toString().utf8().data(), item.frameItemID().toString().utf8().data(), pageCount(), maxSize());
+    m_items.remove(identifier);
+    auto cachedPage = std::get<UniqueRef<CachedPage>>(m_cachedPageMap.take(it));
+
+    RELEASE_LOG(BackForwardCache, "BackForwardCache::take frameItemID: %s, size: %u / %u", identifier.toString().utf8().data(), pageCount(), maxSize());
 
     if (cachedPage->hasExpired() || (page && page->isResourceCachingDisabledByWebInspector())) {
-        LOG(BackForwardCache, "Not restoring page for %s from back/forward cache because cache entry has expired", item.url().string().ascii().data());
+        LOG(BackForwardCache, "Not restoring page from back/forward cache because cache entry has expired");
         logBackForwardCacheFailureDiagnosticMessage(page, DiagnosticLoggingKeys::expiredKey());
         return nullptr;
     }
@@ -632,6 +642,8 @@ CachedPage* BackForwardCache::get(HistoryItem& item, Page* page)
             logBackForwardCacheFailureDiagnosticMessage(page, pruningReasonToDiagnosticLoggingKey(pruningReason));
         return nullptr;
     }, [&](UniqueRef<CachedPage>& cachedPage) -> CachedPage* {
+        if (page && &cachedPage->page() != page)
+            return nullptr;
         if (cachedPage->hasExpired() || (page && page->isResourceCachingDisabledByWebInspector())) {
             LOG(BackForwardCache, "Not restoring page for %s from back/forward cache because cache entry has expired", item.url().string().ascii().data());
             logBackForwardCacheFailureDiagnosticMessage(page, DiagnosticLoggingKeys::expiredKey());

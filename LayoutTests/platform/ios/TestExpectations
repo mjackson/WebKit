@@ -2377,6 +2377,7 @@ accessibility/aria-brailleroledescription.html [ Pass ]
 accessibility/aria-checked-mixed-value.html [ Pass ]
 accessibility/aria-controlled-table-row-visibility.html [ Pass ]
 accessibility/aria-describedby-on-input.html [ Pass ]
+accessibility/attributed-string-for-line-in-table.html [ Pass ]
 accessibility/attributed-string-text-stitching.html [ Pass ]
 accessibility/body-element-aria-hidden.html [ Pass ]
 accessibility/button-in-deep-dom.html [ Pass ]
@@ -8191,7 +8192,6 @@ http/tests/workers/service/basic-install-event-sw-fetch-third-party.html [ Failu
 http/wpt/webcodecs/videoFrame-negative-timestamp.html [ Failure ]
 imported/w3c/web-platform-tests/css/selectors/invalidation/has-with-nesting-parent-containing-hover.html [ Failure ]
 imported/w3c/web-platform-tests/uievents/mouse/mousemove_after_mouseover_target_removed.html [ Failure ]
-platform/ipad/fast/viewport/viewport-overriden-by-minimum-effective-width-if-ignore-meta-viewport.html [ Failure ]
 fast/css/accent-color/button.html [ ImageOnlyFailure ]
 fast/css/accent-color/date.html [ ImageOnlyFailure ]
 fast/css/accent-color/select.html [ ImageOnlyFailure ]
@@ -8638,9 +8638,9 @@ webgl/2.0.0/conformance2/textures/image_bitmap_from_image_bitmap/tex-3d-rgb5_a1-
 webgl/2.0.0/conformance2/textures/image_bitmap_from_image_bitmap/tex-3d-rgb5_a1-rgba-unsigned_short_5_5_5_1.html [ Pass Failure ]
 webgl/2.0.0/conformance2/textures/image_bitmap_from_image_bitmap/tex-3d-rgb8-rgb-unsigned_byte.html [ Pass Failure ]
 webgl/2.0.0/conformance2/textures/image_bitmap_from_image_bitmap/tex-3d-rgb8ui-rgb_integer-unsigned_byte.html [ Pass Failure ]
-webgl/2.0.0/conformance2/textures/image_bitmap_from_image_bitmap/tex-3d-rgb9_e5-rgb-float.html [ Pass Failure ]
 webgl/2.0.0/conformance2/textures/image_bitmap_from_image_bitmap/tex-3d-rgb9_e5-rgb-half_float.html [ Pass Failure ]
 webgl/2.0.0/conformance2/textures/image_bitmap_from_image_bitmap/tex-3d-rgba16f-rgba-float.html [ Pass Failure ]
+webgl/2.0.0/conformance2/textures/image_bitmap_from_image_bitmap/tex-3d-rgb9_e5-rgb-float.html [ Pass Failure ]
 webgl/2.0.0/conformance2/textures/image_bitmap_from_image_bitmap/tex-3d-rgba16f-rgba-half_float.html [ Pass Failure ]
 webgl/2.0.0/conformance2/textures/image_bitmap_from_image_bitmap/tex-3d-rgba32f-rgba-float.html [ Pass Failure ]
 webgl/2.0.0/conformance2/textures/image_bitmap_from_image_bitmap/tex-3d-rgba4-rgba-unsigned_byte.html [ Pass Failure ]
@@ -8674,3 +8674,7 @@ imported/w3c/web-platform-tests/html/semantics/popovers/popover-shadowhost-focus
 
 # rdar://168334716 (MTLCompilerService crashes when Metal Shader Validation is enabled on iOS Simulator)
 webgl/webgl2-provoking-vertex-primitive-restart-uint16-nocrash.html [ Skip ]
+
+# webkit.org/b/313677 [iOS] 2 tests in imported/w3c/web-platform-tests/css/css-images/image-orientation are failing with image diff
+imported/w3c/web-platform-tests/css/css-images/image-orientation/image-orientation-background-image.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-images/image-orientation/image-orientation-list-style-image.html [ ImageOnlyFailure ]

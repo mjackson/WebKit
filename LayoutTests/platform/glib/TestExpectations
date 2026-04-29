@@ -984,6 +984,7 @@ accessibility/canvas-drawFocusIfNeeded-bounds-with-transform.html [ Skip ]
 accessibility/native-label-geometry-with-aria-labelledby.html [ Skip ]
 
 # These test a Cocoa-only API.
+accessibility/attributed-string-for-line-in-table.html [ Skip ]
 accessibility/left-right-line-range-display-table-in-flex.html [ Skip ]
 accessibility/line-range-display-table-in-flex.html [ Skip ]
 accessibility/mixed-contenteditable-visible-character-range-hang.html [ Skip ]
@@ -3032,7 +3033,7 @@ imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-setRemoteDescription-si
 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-setRemoteDescription.html [ Pass ]
 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-transceivers.https.html [ Skip ] # Timeout
 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-transport-stats.https.html [ Failure ]
-imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-videoDetectorTest.html [ Pass ]
+webkit.org/b/313631 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-videoDetectorTest.html [ Pass Failure ]
 imported/w3c/web-platform-tests/webrtc/RTCRtpParameters-encodings.html [ Pass ]
 imported/w3c/web-platform-tests/webrtc/RTCRtpParameters-headerExtensions.html [ Pass ]
 imported/w3c/web-platform-tests/webrtc/RTCRtpParameters-rtcp.html [ Pass ]
@@ -3581,13 +3582,13 @@ ipc/web-authenticator-get-assertion.html [ Skip ]
 ipc/restrictedendpoints/allow-access-testOnlyIPC.html [ Skip ]
 
 # Assorted crashes
-ipc/convert-to-luminance-mask-float16.html [ Crash ]
-ipc/empty-svgfilterrenderer-expression-crash.html [ Crash ]
+[ Debug ] ipc/convert-to-luminance-mask-float16.html [ Crash ]
+[ Debug ] ipc/empty-svgfilterrenderer-expression-crash.html [ Crash ]
 
 ### FAILING TESTS
 
 # Read-Only shared-memory handle not supported, see https://bugs.webkit.org/show_bug.cgi?id=131542
-ipc/stream-sync-reply-shared-memory.html [ Failure ]
+[ Debug ] ipc/stream-sync-reply-shared-memory.html [ Failure ]
 
 # (From wk2/TestExpectations)
 # These tests are checking that WebProcess is terminated when performing an invalid IPC operation for WK2.
@@ -3601,7 +3602,7 @@ ipc/validate-message-check-in-networkconnectiontowebproces-crash.html [ Skip ]
 
 ### NEEDS PROPER TRIAGGING/GARDENING
 
-ipc/serialized-type-info.html [ Failure ]
+[ Debug ] ipc/serialized-type-info.html [ Failure ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of IPC testing
@@ -5456,6 +5457,8 @@ webkit.org/b/313511 media/media-source/media-source-real-overlapping-dts.html [ 
 [ Debug ] imported/w3c/web-platform-tests/dom/events/Event-dispatch-single-activation-behavior.html [ Pass Failure ]
 
 webkit.org/b/305531 webgl/webgl2-provoking-vertex-primitive-restart-uint16-nocrash.html [ Skip ]
+
+webkit.org/b/313641 imported/w3c/web-platform-tests/css/filter-effects/crashtests/fecomponenttransfer-tablevalues-crash.html [ Pass Timeout ]
 
 # End: Common failures between GTK and WPE.
 

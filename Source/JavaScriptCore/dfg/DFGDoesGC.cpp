@@ -483,6 +483,7 @@ bool doesGC(Graph& graph, Node* node)
     case ValueNegate:
     case DateSetTime:
     case StringIndexOf:
+    case StringLastIndexOf:
     case StringStartsWith:
     case StringEndsWith:
     case ResolvePromiseFirstResolving:

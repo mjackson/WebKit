@@ -406,8 +406,11 @@ bool SkiaCompositingLayer::computeTransformsAndAnimations(const TransformationMa
     if (m_replica)
         hasRunningAnimations |= m_replica->computeTransformsAndAnimations(m_replica->m_replicatedLayer->m_transforms.combined, m_replica->m_replicatedLayer->m_transforms.futureCombined, time);
 
-    for (auto& child : m_children)
+    m_shouldBlend = !!m_blendMode;
+    for (auto& child : m_children) {
         hasRunningAnimations |= child->computeTransformsAndAnimations(combinedForChildren, futureCombinedForChildren, time);
+        m_shouldBlend |= !!child->m_blendMode;
+    }
 
     // If the layer is invisible because of opacity and there's no opacity animation, the content won't
     // be visible ever, so triggering repaints doesn't make sense.
@@ -848,7 +851,7 @@ void SkiaCompositingLayer::recursivePaint(SkCanvas& canvas, PaintContext& contex
         return;
     }
 
-    if (opacity() < 1 || m_blendMode)
+    if (opacity() < 1 || m_shouldBlend)
         paintUsingOverlapRegions(canvas, context);
     else
         paintSelfAndChildrenWithReplicaFilterAndMask(canvas, context);

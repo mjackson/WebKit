@@ -348,6 +348,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node, bool igno
     case NumberIsFinite:
     case NumberIsSafeInteger:
     case StringIndexOf:
+    case StringLastIndexOf:
     case StringStartsWith:
     case StringEndsWith:
         return true;

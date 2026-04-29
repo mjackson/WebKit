@@ -221,7 +221,7 @@ void WebPageProxyTesting::setObscuredContentInsets(float top, float right, float
 
 void WebPageProxyTesting::resetStateBetweenTests()
 {
-    protect(page().legacyMainFrameProcess())->resetState();
+    page().legacyMainFrameProcess().resetState();
 
     if (auto* mainFrame = m_page->mainFrame())
         mainFrame->disownOpener();

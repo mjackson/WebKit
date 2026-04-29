@@ -232,6 +232,7 @@
 #include <WebCore/DigitalCredentialsProtocols.h>
 #include <WebCore/DigitalCredentialsRequestData.h>
 #include <WebCore/DigitalCredentialsResponseData.h>
+#include <WebCore/DocumentSyncData.h>
 #include <WebCore/DragController.h>
 #include <WebCore/DragData.h>
 #include <WebCore/DragEventTargetData.h>
@@ -273,6 +274,7 @@
 #include <WebCore/RemoteUserInputEventData.h>
 #include <WebCore/RenderEmbeddedObject.h>
 #include <WebCore/ResourceLoadStatistics.h>
+#include <WebCore/ResourceTiming.h>
 #include <WebCore/RunJavaScriptParameters.h>
 #include <WebCore/SecurityOrigin.h>
 #include <WebCore/SecurityOriginData.h>
@@ -1840,7 +1842,9 @@ void WebPageProxy::initializeWebPage(const Site& site, WebCore::SandboxFlags eff
         if (!internals().processInheritedFromOpener)
             return browsingContextGroup->ensureProcessForSite(site, site, process, preferences);
 
-        ASSERT(openerFrame);
+        if (!openerFrame)
+            return browsingContextGroup->ensureProcessForSite(site, site, process, preferences);
+
         Ref openerFrameProcess = openerFrame->frameProcess();
         ASSERT(openerFrameProcess->process() == m_legacyMainFrameProcess.get());
         return openerFrameProcess;
@@ -5485,6 +5489,8 @@ void WebPageProxy::receivedNavigationActionPolicyDecision(WebProcessProxy& proce
             loadParameters.isHandledByAboutSchemeHandler = m_aboutSchemeHandler->canHandleURL(loadParameters.request.url());
             if (auto& action = navigation->lastNavigationAction())
                 loadParameters.requester = action->requester;
+            if (navigation->currentRequestIsRedirect())
+                loadParameters.originalRequest = navigation->originalRequest();
 
             processNavigatingTo->send(Messages::WebPage::LoadRequest(WTF::move(loadParameters)), webPageIDInProcess(processNavigatingTo));
         }
@@ -5820,6 +5826,8 @@ void WebPageProxy::continueNavigationInNewProcess(API::Navigation& navigation, W
             loadParameters.requester = action->requester;
             loadParameters.hadUserGesture = action->userGestureTokenIdentifier.has_value();
         }
+        if (navigation.currentRequestIsRedirect())
+            loadParameters.originalRequest = navigation.originalRequest();
 
         if (isPendingInitialHistoryItem)
             frame.setIsPendingInitialHistoryItem(true);
@@ -8233,10 +8241,17 @@ void WebPageProxy::observeAndCreateRemoteSubframesInOtherProcesses(WebFrameProxy
     });
 }
 
+void WebPageProxy::setTopDocumentSyncData(Ref<WebCore::DocumentSyncData>&& data)
+{
+    m_topDocumentSyncData = WTF::move(data);
+}
+
 void WebPageProxy::broadcastDocumentSyncData(IPC::Connection& connection, const WebCore::DocumentSyncSerializationData& data)
 {
     Ref process = WebProcessProxy::fromConnection(connection);
     // FIXME: Check that the sending process is allowed to write the specified property.
+    if (RefPtr topDocumentSyncData = m_topDocumentSyncData)
+        topDocumentSyncData->update(data);
     forEachWebContentProcess([&](auto& webProcess, auto pageID) {
         if (webProcess == process)
             return;
@@ -8246,6 +8261,7 @@ void WebPageProxy::broadcastDocumentSyncData(IPC::Connection& connection, const 
 
 void WebPageProxy::broadcastAllDocumentSyncData(IPC::Connection& connection, Ref<WebCore::DocumentSyncData>&& data)
 {
+    m_topDocumentSyncData = data.copyRef();
     Ref process = WebProcessProxy::fromConnection(connection);
     forEachWebContentProcess([&](auto& webProcess, auto pageID) {
         if (webProcess == process)
@@ -17601,6 +17617,11 @@ void WebPageProxy::dispatchLoadEventToFrameOwnerElement(WebCore::FrameIdentifier
         return;
 
     sendToProcessContainingFrame(parentFrame->frameID(), Messages::WebPage::DispatchLoadEventToFrameOwnerElement(frameID));
+}
+
+void WebPageProxy::addResourceTimingFromSubframe(WebCore::FrameIdentifier parentFrameID, WebCore::ResourceTiming&& resourceTiming)
+{
+    sendToProcessContainingFrame(parentFrameID, Messages::WebPage::AddResourceTimingFromSubframe(parentFrameID, WTF::move(resourceTiming)));
 }
 
 void WebPageProxy::broadcastFocusedFrameToOtherProcesses(IPC::Connection& connection, std::optional<WebCore::FrameIdentifier>&& frameID)

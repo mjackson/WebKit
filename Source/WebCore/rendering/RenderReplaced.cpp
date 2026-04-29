@@ -1326,10 +1326,10 @@ LayoutUnit RenderReplaced::computeReplacedLogicalHeightUsingGeneric(const SizeTy
         if (isOutOfFlowPositioned()) {
             PositionedLayoutConstraints constraints(*this, LogicalBoxAxis::Block);
             availableHeight = constraints.containingSize();
-        } else if (stretchedHeight)
-            availableHeight = stretchedHeight.value();
-        else if (auto gridAreaLogicalHeight = isGridItem() ? this->gridAreaContentLogicalHeight() : std::nullopt; gridAreaLogicalHeight && *gridAreaLogicalHeight)
+        } else if (auto gridAreaLogicalHeight = isGridItem() ? this->gridAreaContentLogicalHeight() : std::nullopt; gridAreaLogicalHeight && *gridAreaLogicalHeight)
             availableHeight = gridAreaLogicalHeight->value();
+        else if (stretchedHeight)
+            availableHeight = stretchedHeight.value();
         else {
             availableHeight = hasPerpendicularContainingBlock ? containingBlockLogicalWidthForContent() : containingBlockLogicalHeightForContent(AvailableLogicalHeightType::IncludeMarginBorderPadding);
             // It is necessary to use the border-box to match WinIE's broken

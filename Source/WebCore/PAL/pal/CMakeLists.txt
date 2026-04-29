@@ -86,6 +86,7 @@ WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS()
 
 if (SWIFT_REQUIRED AND NOT (PORT STREQUAL GTK OR PORT STREQUAL WPE))
     target_sources(PAL PRIVATE
+        ${PAL_DIR}/pal/pal.swift
         ${PAL_DIR}/pal/crypto/CryptoKit+UnsafeOverlays.swift
         ${PAL_DIR}/pal/crypto/CryptoTypes.swift
         ${PAL_DIR}/pal/system/cocoa/RegexHelper.swift

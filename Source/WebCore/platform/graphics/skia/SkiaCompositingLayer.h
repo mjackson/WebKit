@@ -234,6 +234,7 @@ private:
         FloatRoundedRect clipRect;
     } m_backdrop;
     bool m_isBackdropRoot { false };
+    bool m_shouldBlend { false };
     TextureMapperAnimations m_animations;
     std::optional<AnimationsState> m_animationsState;
     struct {

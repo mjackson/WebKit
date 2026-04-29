@@ -567,12 +567,14 @@ SWServer::SWServer(SWServerDelegate& delegate, UniqueRef<SWOriginStore>&& origin
             if (result && !protectedThis->m_originListImportComplete) {
                 for (auto& origin : result.value())
                     protectedThis->m_originStore->add(origin.topOrigin);
+                auto originCount = result->size();
                 protectedThis->m_originsYetToBeImported = WTF::move(*result);
 #if !RELEASE_LOG_DISABLED
                 auto elapsed = MonotonicTime::now() - startTime;
-                RELEASE_LOG(ServiceWorker, "SWServer: Imported origin list with %u top origins in %.0f ms", result->size(), elapsed.milliseconds());
+                RELEASE_LOG(ServiceWorker, "SWServer: Imported origin list with %u top origins in %.0f ms", originCount, elapsed.milliseconds());
 #else
                 UNUSED_PARAM(startTime);
+                UNUSED_PARAM(originCount);
 #endif
             }
             protectedThis->m_originListImportComplete = true;
@@ -862,7 +864,7 @@ void SWServer::didFinishInstall(const std::optional<ServiceWorkerJobDataIdentifi
         return;
 
     if (wasSuccessful)
-        storeRegistrationForWorker(worker);
+        storeRegistrationForWorkerIfNecessary(worker);
 
     if (CheckedPtr jobQueue = m_jobQueues.get(worker.registrationKey()))
         jobQueue->didFinishInstall(*jobDataIdentifier, worker, wasSuccessful);
@@ -876,8 +878,15 @@ void SWServer::didFinishActivation(SWServerWorker& worker)
         registration->didFinishActivation(worker.identifier());
 }
 
-void SWServer::storeRegistrationForWorker(SWServerWorker& worker)
+void SWServer::storeRegistrationForWorkerIfNecessary(SWServerWorker& worker)
 {
+    RELEASE_LOG(ServiceWorker, "%p - CHRIS: SWServer::storeRegistrationForWorkerIfNecessary: service worker %" PRIu64, this, worker.identifier().toUInt64());
+
+    if (!worker.shouldPersistToDisk()) {
+        RELEASE_LOG(ServiceWorker, "%p - CHRIS: SWServer::storeRegistrationForWorkerIfNecessary: Not saving service worker %" PRIu64 " to disk since it is backing a browser extension", this, worker.identifier().toUInt64());
+        return;
+    }
+
     if (RefPtr store = m_registrationStore)
         store->updateRegistration(worker.contextData());
 }

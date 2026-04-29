@@ -7496,6 +7496,32 @@ header: <WebCore/NetworkLoadMetrics.h>
     bool isProxyConnection;
 }
 
+header: <WebCore/ResourceLoadTiming.h>
+class WebCore::ResourceLoadTiming {
+    MonotonicTime startTime();
+    MonotonicTime endTime();
+}
+
+header: <WebCore/ServerTiming.h>
+struct WebCore::ServerTiming {
+    String name;
+    double duration;
+    String description;
+    bool durationSet;
+    bool descriptionSet;
+}
+
+header: <WebCore/ResourceTiming.h>
+[CustomHeader] class WebCore::ResourceTiming {
+    URL url();
+    String initiatorType();
+    WebCore::ResourceLoadTiming resourceLoadTiming();
+    WebCore::NetworkLoadMetrics networkLoadMetrics();
+    Vector<WebCore::ServerTiming> serverTiming();
+    bool isLoadedFromServiceWorker();
+    bool isSameOriginRequest();
+}
+
 struct WebCore::DisplayUpdate {
     unsigned updateIndex;
     WebCore::FramesPerSecond updatesPerSecond;

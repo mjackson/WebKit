@@ -1366,6 +1366,9 @@ private:
         case StringIndexOf:
             compileStringIndexOf();
             break;
+        case StringLastIndexOf:
+            compileStringLastIndexOf();
+            break;
         case StringStartsWith:
         case StringEndsWith:
             compileStringStartsOrEndsWith();
@@ -11816,10 +11819,8 @@ IGNORE_CLANG_WARNINGS_END
     {
         std::optional<char16_t> character;
         String searchString = m_node->child2()->tryGetString(m_graph);
-        if (!!searchString) {
-            if (searchString.length() == 1)
-                character = searchString.codeUnitAt(0);
-        }
+        if (!!searchString && searchString.length() == 1)
+            character = searchString.codeUnitAt(0);
 
         LValue base = lowString(m_node->child1());
         LValue search = lowString(m_node->child2());
@@ -11836,6 +11837,30 @@ IGNORE_CLANG_WARNINGS_END
             setInt32(vmCall(Int32, operationStringIndexOfWithOneChar, weakPointer(globalObject), base, m_out.constInt32(character.value())));
         else
             setInt32(vmCall(Int32, operationStringIndexOf, weakPointer(globalObject), base, search));
+    }
+
+    void compileStringLastIndexOf()
+    {
+        std::optional<char16_t> character;
+        String searchString = m_node->child2()->tryGetString(m_graph);
+        if (!!searchString && searchString.length() == 1)
+            character = searchString.codeUnitAt(0);
+
+        LValue base = lowString(m_node->child1());
+        LValue search = lowString(m_node->child2());
+        auto* globalObject = m_graph.globalObjectFor(m_origin.semantic);
+        if (m_node->child3()) {
+            if (character)
+                setInt32(vmCall(Int32, operationStringLastIndexOfWithIndexWithOneChar, weakPointer(globalObject), base, lowInt32(m_node->child3()), m_out.constInt32(character.value())));
+            else
+                setInt32(vmCall(Int32, operationStringLastIndexOfWithIndex, weakPointer(globalObject), base, search, lowInt32(m_node->child3())));
+            return;
+        }
+
+        if (character)
+            setInt32(vmCall(Int32, operationStringLastIndexOfWithOneChar, weakPointer(globalObject), base, m_out.constInt32(character.value())));
+        else
+            setInt32(vmCall(Int32, operationStringLastIndexOf, weakPointer(globalObject), base, search));
     }
 
     void compileStringStartsOrEndsWith()

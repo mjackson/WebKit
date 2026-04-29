@@ -372,6 +372,7 @@ static JSC_DECLARE_HOST_FUNCTION(newRejectedPromise);
 static JSC_DECLARE_HOST_FUNCTION(resolveWithInternalMicrotaskForAsyncAwait);
 static JSC_DECLARE_HOST_FUNCTION(driveAsyncFunction);
 static JSC_DECLARE_HOST_FUNCTION(newHandledRejectedPromise);
+static JSC_DECLARE_HOST_FUNCTION(promiseReturnUndefinedOnFulfilled);
 static JSC_DECLARE_HOST_FUNCTION(promiseResolve);
 static JSC_DECLARE_HOST_FUNCTION(promiseReject);
 #if USE(BUN_JSC_ADDITIONS)
@@ -854,6 +855,11 @@ JSC_DEFINE_HOST_FUNCTION(newHandledRejectedPromise, (JSGlobalObject* globalObjec
     auto* promise = JSPromise::rejectedPromise(globalObject, argument);
     promise->markAsHandled();
     return JSValue::encode(promise);
+}
+
+JSC_DEFINE_HOST_FUNCTION(promiseReturnUndefinedOnFulfilled, (JSGlobalObject*, CallFrame*))
+{
+    return JSValue::encode(jsUndefined());
 }
 
 JSC_DEFINE_HOST_FUNCTION(promiseResolve, (JSGlobalObject* globalObject, CallFrame* callFrame))
@@ -2055,6 +2061,9 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
         });
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::newHandledRejectedPromise)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, init.owner, 1, "newHandledRejectedPromise"_s, newHandledRejectedPromise, ImplementationVisibility::Private));
+        });
+    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::promiseReturnUndefinedOnFulfilled)].initLater([] (const Initializer<JSCell>& init) {
+            init.set(JSFunction::create(init.vm, init.owner, 1, "promiseReturnUndefinedOnFulfilled"_s, promiseReturnUndefinedOnFulfilled, ImplementationVisibility::Private));
         });
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::promiseResolve)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, init.owner, 2, "promiseResolve"_s, promiseResolve, ImplementationVisibility::Private, PromiseResolveIntrinsic));

@@ -89,6 +89,7 @@ namespace JSC {
     macro(asyncGeneratorQueueDequeueReject) \
     macro(driveAsyncFunction) \
     macro(newHandledRejectedPromise) \
+    macro(promiseReturnUndefinedOnFulfilled) \
     macro(promiseResolve) \
     macro(promiseReject) \
     macro(promiseResolveWithThen) \

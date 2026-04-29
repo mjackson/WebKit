@@ -1148,8 +1148,10 @@ private:
     HashMap<AXID, AXRelations> m_relations;
     bool m_relationsNeedUpdate { true };
     bool m_hasAriaOwnsRelations { false };
+    bool m_doneInitialRelationsBuild { false };
     HashSet<AXID> m_relationTargets;
     HashMap<AXID, AXRelations> m_recentlyRemovedRelations;
+    WeakHashSet<Element, WeakPtrImplWithEventTargetData> m_elementsWithRelationAttributes;
 
 #if USE(ATSPI)
     ListHashSet<RefPtr<AccessibilityObject>> m_deferredParentChangedList;

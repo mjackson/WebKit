@@ -17578,10 +17578,8 @@ void SpeculativeJIT::compileStringIndexOf(Node* node)
 {
     std::optional<char16_t> character;
     String searchString = node->child2()->tryGetString(m_graph);
-    if (!!searchString) {
-        if (searchString.length() == 1)
-            character = searchString.codeUnitAt(0);
-    }
+    if (!!searchString && searchString.length() == 1)
+        character = searchString.codeUnitAt(0);
 
     if (node->child3()) {
         SpeculateCellOperand base(this, node->child1());
@@ -17623,6 +17621,57 @@ void SpeculativeJIT::compileStringIndexOf(Node* node)
         callOperation(operationStringIndexOfWithOneChar, resultGPR, LinkableConstant::globalObject(*this, node), baseGPR, TrustedImm32(character.value()));
     else
         callOperation(operationStringIndexOf, resultGPR, LinkableConstant::globalObject(*this, node), baseGPR, argumentGPR);
+
+    strictInt32Result(resultGPR, node);
+}
+
+void SpeculativeJIT::compileStringLastIndexOf(Node* node)
+{
+    std::optional<char16_t> character;
+    String searchString = node->child2()->tryGetString(m_graph);
+    if (!!searchString && searchString.length() == 1)
+        character = searchString.codeUnitAt(0);
+
+    if (node->child3()) {
+        SpeculateCellOperand base(this, node->child1());
+        SpeculateCellOperand argument(this, node->child2());
+        SpeculateInt32Operand index(this, node->child3());
+
+        GPRReg baseGPR = base.gpr();
+        GPRReg argumentGPR = argument.gpr();
+        GPRReg indexGPR = index.gpr();
+
+        speculateString(node->child1(), baseGPR);
+        speculateString(node->child2(), argumentGPR);
+
+        flushRegisters();
+        GPRFlushedCallResult result(this);
+        GPRReg resultGPR = result.gpr();
+        if (character)
+            callOperation(operationStringLastIndexOfWithIndexWithOneChar, resultGPR, LinkableConstant::globalObject(*this, node), baseGPR, indexGPR, TrustedImm32(character.value()));
+        else
+            callOperation(operationStringLastIndexOfWithIndex, resultGPR, LinkableConstant::globalObject(*this, node), baseGPR, argumentGPR, indexGPR);
+
+        strictInt32Result(resultGPR, node);
+        return;
+    }
+
+    SpeculateCellOperand base(this, node->child1());
+    SpeculateCellOperand argument(this, node->child2());
+
+    GPRReg baseGPR = base.gpr();
+    GPRReg argumentGPR = argument.gpr();
+
+    speculateString(node->child1(), baseGPR);
+    speculateString(node->child2(), argumentGPR);
+
+    flushRegisters();
+    GPRFlushedCallResult result(this);
+    GPRReg resultGPR = result.gpr();
+    if (character)
+        callOperation(operationStringLastIndexOfWithOneChar, resultGPR, LinkableConstant::globalObject(*this, node), baseGPR, TrustedImm32(character.value()));
+    else
+        callOperation(operationStringLastIndexOf, resultGPR, LinkableConstant::globalObject(*this, node), baseGPR, argumentGPR);
 
     strictInt32Result(resultGPR, node);
 }

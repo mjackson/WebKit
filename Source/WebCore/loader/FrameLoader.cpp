@@ -4207,7 +4207,7 @@ void FrameLoader::continueLoadAfterNavigationPolicy(const ResourceRequest& reque
 
     if (isBackForwardLoadType(type)) {
         CheckedRef diagnosticLoggingClient = protect(frame->page())->diagnosticLoggingClient();
-        if (RefPtr provisionalItem = history().provisionalItem(); provisionalItem && provisionalItem->isInBackForwardCache()) {
+        if (RefPtr provisionalItem = history().provisionalItem(); provisionalItem && BackForwardCache::singleton().get(*provisionalItem, protect(frame->page()).get())) {
             diagnosticLoggingClient->logDiagnosticMessageWithResult(DiagnosticLoggingKeys::backForwardCacheKey(), DiagnosticLoggingKeys::retrievalKey(), DiagnosticLoggingResultPass, ShouldSample::Yes);
             loadProvisionalItemFromCachedPage();
             FRAMELOADER_RELEASE_LOG(ResourceLoading, "continueLoadAfterNavigationPolicy: can't continue loading frame because it will be loaded from cache");

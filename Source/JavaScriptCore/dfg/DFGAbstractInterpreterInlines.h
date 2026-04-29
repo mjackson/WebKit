@@ -2684,6 +2684,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     }
         
     case StringIndexOf:
+    case StringLastIndexOf:
         setNonCellTypeForNode(node, SpecInt32Only);
         break;
 

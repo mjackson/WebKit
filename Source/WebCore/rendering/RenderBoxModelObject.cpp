@@ -373,6 +373,24 @@ static bool hasDefiniteHeightByStyle(const RenderBlock& containingBlock)
     return !logicalHeight.isAuto() && !logicalHeight.isIntrinsic();
 }
 
+#if ASSERT_ENABLED
+static void verifyDefiniteHeightConsistencyBetweenStyleAndContainingBlockChain(const RenderBlock& containingBlock, bool hasDefiniteHeightByStyleOnly)
+{
+    // The fast path is more correct than the slow path for these cases.
+    auto& logicalHeight = containingBlock.style().logicalHeight();
+    if (containingBlock.shouldComputeLogicalHeightFromAspectRatio() || containingBlock.stretchesToViewport() || logicalHeight.isStretch() || logicalHeight.isPercentOrCalculated() || logicalHeight.isIntrinsic())
+        return;
+
+    for (auto* ancestor = containingBlock.parent(); ancestor; ancestor = ancestor->parent()) {
+        // Only compare post-layout - the slow path's results are unreliable mid-layout.
+        if (ancestor->needsLayout())
+            return;
+    }
+    auto containingBlockHasDefiniteHeight = !containingBlock.hasAutoHeightOrContainingBlockWithAutoHeight(RenderBox::UpdatePercentageHeightDescendants::No);
+    ASSERT(hasDefiniteHeightByStyleOnly == containingBlockHasDefiniteHeight);
+}
+#endif
+
 LayoutSize RenderBoxModelObject::relativePositionOffset() const
 {
     auto containingBlockSkippingAnonymous = [&] {
@@ -438,6 +456,9 @@ LayoutSize RenderBoxModelObject::relativePositionOffset() const
         return offset;
 
     auto containingBlockHasDefiniteHeight = hasDefiniteHeightByStyle(*containingBlock);
+#if ASSERT_ENABLED
+    verifyDefiniteHeightConsistencyBetweenStyleAndContainingBlockChain(*containingBlock, containingBlockHasDefiniteHeight);
+#endif
     auto availableHeight = [&] {
         auto* renderBox = dynamicDowncast<RenderBox>(*this);
         if (!renderBox || !renderBox->isGridItem())

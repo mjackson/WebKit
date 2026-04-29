@@ -34,9 +34,13 @@
 #include <wtf/LoggerHelper.h>
 #include <wtf/Ref.h>
 #include <wtf/RefCounted.h>
+#include <wtf/RetainPtr.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/URL.h>
+#include <wtf/darwin/DispatchOSObject.h>
+
+typedef struct OpaqueCMTimebase* CMTimebaseRef;
 
 namespace WebCore {
 
@@ -128,6 +132,12 @@ private:
     void playbackErrorDidChange(MediaDeviceRoute&) final;
     void currentPlaybackPositionDidChange(MediaDeviceRoute&) final;
 
+    CMTimebaseRef ensureTimebase();
+    void destroyTimebase();
+    void updateTimebaseTimeAndRate(MediaTime, float rate);
+    void scheduleTimebaseTimer();
+    void timebaseTimerFired();
+
 #if !RELEASE_LOG_DISABLED
     // LoggerHelper
     const Logger& logger() const final { return m_logger.get(); }
@@ -149,7 +159,8 @@ private:
     ShouldPlayToTarget m_shouldPlayToTarget { ShouldPlayToTarget::Unknown };
     RefPtr<MediaPlaybackTarget> m_playbackTarget;
     MediaPlayer::CurrentTimeDidChangeCallback m_currentTimeDidChangeCallback;
-    std::optional<SeekTarget> m_pendingSeekTarget;
+    RetainPtr<CMTimebaseRef> m_timebase;
+    OSObjectPtr<dispatch_source_t> m_timerSource;
 #if !RELEASE_LOG_DISABLED
     const Ref<const Logger> m_logger;
     const uint64_t m_logIdentifier;

@@ -115,7 +115,6 @@ class CompactTDZEnvironmentMap;
 class ConservativeRoots;
 class ControlFlowProfiler;
 class CrossTaskToken;
-class EvacuatedStackSlice;
 class Exception;
 class ExceptionScope;
 class FuzzerAgent;
@@ -965,11 +964,6 @@ public:
     void clearScratchBuffers();
     bool isScratchBuffer(void*);
 
-    void addEvacuatedStackSlice(EvacuatedStackSlice*);
-    void removeEvacuatedStackSlice(EvacuatedStackSlice*);
-    void addEvacuatedCalleeSaves(std::span<CPURegister>);
-    void removeEvacuatedCalleeSaves(std::span<CPURegister>);
-
     EncodedJSValue* exceptionFuzzingBuffer(size_t size)
     {
         ASSERT(Options::useExceptionFuzz());
@@ -979,7 +973,6 @@ public:
     }
 
     void gatherScratchBufferRoots(ConservativeRoots&);
-    void gatherEvacuatedStackRoots(ConservativeRoots&);
 
     static constexpr unsigned expectedMaxActiveSideStateCount = 4;
     void pushCheckpointOSRSideState(std::unique_ptr<CheckpointOSRExitSideState>&&);
@@ -1337,8 +1330,6 @@ private:
     Lock m_scratchBufferLock;
     Vector<ScratchBuffer*> m_scratchBuffers;
     size_t m_sizeOfLastScratchBuffer { 0 };
-    Vector<EvacuatedStackSlice*> m_evacuatedStackSlices;
-    Vector<std::span<CPURegister>> m_evacuatedCalleeSaves;
     Vector<std::unique_ptr<CheckpointOSRExitSideState>, expectedMaxActiveSideStateCount> m_checkpointSideState;
     InlineWatchpointSet m_primitiveGigacageEnabled { IsWatched };
     FunctionHasExecutedCache m_functionHasExecutedCache;

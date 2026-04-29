@@ -91,6 +91,27 @@ extension JavaScriptMessages {
             self.selection = selection
         }
 
+        /// A convenience initializer for a range selection.
+        ///
+        /// - Parameters:
+        ///   - container: The container the range is relative to.
+        ///   - range: The range of the selection within the container.
+        public init(in container: String, range: Range<Int>) {
+            self.selection = .range(
+                base: .init(in: container, at: range.lowerBound),
+                extent: .init(in: container, at: range.upperBound),
+            )
+        }
+
+        /// A convenience initializer for a collapsed range selection.
+        ///
+        /// - Parameters:
+        ///   - container: The container the range is relative to.
+        ///   - offset: The offset of the selection within the container.
+        public init(in container: String, offset: Int) {
+            self.selection = .collapsed(.init(in: container, at: offset))
+        }
+
         // Protocol conformance.
         // swift-format-ignore: AllPublicDeclarationsHaveDocumentation
         public func encoded() -> [String: Any?] {

@@ -3157,6 +3157,11 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
+    case StringLastIndexOf: {
+        compileStringLastIndexOf(node);
+        break;
+    }
+
     case StringStartsWith:
     case StringEndsWith: {
         compileStringStartsOrEndsWith(node);

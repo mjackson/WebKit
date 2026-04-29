@@ -216,6 +216,7 @@
 #include <WebCore/DocumentPage.h>
 #include <WebCore/DocumentQuirks.h>
 #include <WebCore/DocumentStorageAccess.h>
+#include <WebCore/DocumentSyncData.h>
 #include <WebCore/DocumentView.h>
 #include <WebCore/DragController.h>
 #include <WebCore/DragData.h>
@@ -316,6 +317,8 @@
 #include <WebCore/ResourceLoadStatistics.h>
 #include <WebCore/ResourceRequest.h>
 #include <WebCore/ResourceResponse.h>
+#include <WebCore/ResourceTiming.h>
+#include <WebCore/ResourceTimingInformation.h>
 #include <WebCore/RunJavaScriptParameters.h>
 #include <WebCore/SWClientConnection.h>
 #include <WebCore/ScriptController.h>
@@ -535,6 +538,7 @@ public:
 
 Ref<WebPage> WebPage::create(PageIdentifier pageID, WebPageCreationParameters&& parameters)
 {
+    auto mainFrameOpenerIdentifier = parameters.mainFrameOpenerIdentifier;
     String openedMainFrameName = parameters.openedMainFrameName;
     auto page = adoptRef(*new WebPage(pageID, WTF::move(parameters)));
 
@@ -544,6 +548,21 @@ Ref<WebPage> WebPage::create(PageIdentifier pageID, WebPageCreationParameters&& 
     Ref mainFrame = page->corePage()->mainFrame();
     if (mainFrame->tree().specifiedName().isNull())
         mainFrame->tree().setSpecifiedName(AtomString(openedMainFrameName));
+
+    if (mainFrameOpenerIdentifier && !mainFrame->opener())
+        page->m_unresolvedMainFrameOpenerIdentifier = mainFrameOpenerIdentifier;
+
+    for (Ref otherCorePage : protect(page->corePage())->group().pages()) {
+        if (otherCorePage.ptr() == page->corePage())
+            continue;
+        RefPtr otherWebPage = WebPage::fromCorePage(otherCorePage);
+        if (!otherWebPage || !otherWebPage->m_unresolvedMainFrameOpenerIdentifier)
+            continue;
+        if (*otherWebPage->m_unresolvedMainFrameOpenerIdentifier != mainFrame->frameID())
+            continue;
+        protect(otherCorePage->mainFrame())->updateOpener(mainFrame.get(), Frame::NotifyUIProcess::No);
+        otherWebPage->m_unresolvedMainFrameOpenerIdentifier = std::nullopt;
+    }
 
 #if HAVE(SANDBOX_STATE_FLAGS)
     setHasLaunchedWebContentProcess();
@@ -1288,10 +1307,8 @@ void WebPage::didFinishLoadInAnotherProcess(WebCore::FrameIdentifier frameID)
 void WebPage::frameWasRemovedInAnotherProcess(WebCore::FrameIdentifier frameID)
 {
     RefPtr frame = WebProcess::singleton().webFrame(frameID);
-    if (!frame) {
-        ASSERT_NOT_REACHED();
+    if (!frame)
         return;
-    }
     ASSERT(frame->page() == this);
     frame->markAsRemovedInAnotherProcess();
     frame->removeFromTree();
@@ -2208,7 +2225,7 @@ void WebPage::createProvisionalFrame(ProvisionalFrameCreationParameters&& parame
     frame->createProvisionalFrame(WTF::move(parameters));
 }
 
-void WebPage::loadDidCommitInAnotherProcess(WebCore::FrameIdentifier frameID, std::optional<WebCore::LayerHostingContextIdentifier> layerHostingContextIdentifier, std::optional<URL>&& mainFrameDocumentURL)
+void WebPage::loadDidCommitInAnotherProcess(WebCore::FrameIdentifier frameID, std::optional<WebCore::LayerHostingContextIdentifier> layerHostingContextIdentifier, RefPtr<WebCore::DocumentSyncData>&& topDocumentSyncData)
 {
     RefPtr frame = WebProcess::singleton().webFrame(frameID);
     if (!frame)
@@ -2216,9 +2233,9 @@ void WebPage::loadDidCommitInAnotherProcess(WebCore::FrameIdentifier frameID, st
     ASSERT(frame->page() == this);
     frame->loadDidCommitInAnotherProcess(layerHostingContextIdentifier);
 
-    if (mainFrameDocumentURL) {
+    if (topDocumentSyncData) {
         if (RefPtr page = corePage())
-            page->setMainFrameURLAndOrigin(*mainFrameDocumentURL, nullptr);
+            page->updateTopDocumentSyncData(topDocumentSyncData.releaseNonNull());
     }
 }
 
@@ -9907,6 +9924,19 @@ void WebPage::dispatchLoadEventToFrameOwnerElement(WebCore::FrameIdentifier fram
 
     if (RefPtr ownerElement = coreRemoteFrame->ownerElement())
         ownerElement->dispatchEvent(Event::create(eventNames().loadEvent, Event::CanBubble::No, Event::IsCancelable::No));
+}
+
+void WebPage::addResourceTimingFromSubframe(WebCore::FrameIdentifier parentFrameID, WebCore::ResourceTiming&& resourceTiming)
+{
+    RefPtr frame = WebProcess::singleton().webFrame(parentFrameID);
+    if (!frame)
+        return;
+
+    RefPtr localFrame = frame->coreLocalFrame();
+    if (!localFrame || !localFrame->document())
+        return;
+
+    WebCore::ResourceTimingInformation::addResourceTimingToDocument(*protect(localFrame->document()), WTF::move(resourceTiming));
 }
 
 void WebPage::elementWasFocusedInAnotherProcess(WebCore::FrameIdentifier frameID, WebCore::FocusOptions options)

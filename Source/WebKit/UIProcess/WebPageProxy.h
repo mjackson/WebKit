@@ -150,6 +150,7 @@ class ResourceError;
 class ResourceLoader;
 class ResourceRequest;
 class ResourceResponse;
+class ResourceTiming;
 class RunLoopObserver;
 class SecurityOrigin;
 class SecurityOriginData;
@@ -766,6 +767,7 @@ public:
     PAL::SessionID NODELETE sessionID() const;
 
     WebFrameProxy* mainFrame() const { return m_mainFrame.get(); }
+    void setTopDocumentSyncData(Ref<WebCore::DocumentSyncData>&&);
     WebFrameProxy* focusedFrame() const { return m_focusedFrame.get(); }
     WebFrameProxy* focusedOrMainFrame() const { return m_focusedFrame ? m_focusedFrame.get() : m_mainFrame.get(); }
 
@@ -3562,6 +3564,7 @@ private:
     bool useGPUProcessForDOMRenderingEnabled() const;
 
     void dispatchLoadEventToFrameOwnerElement(WebCore::FrameIdentifier);
+    void addResourceTimingFromSubframe(WebCore::FrameIdentifier parentFrameID, WebCore::ResourceTiming&&);
 
 #if ENABLE(EXTENSION_CAPABILITIES)
     void setMediaCapability(RefPtr<MediaCapability>&&);
@@ -3744,6 +3747,7 @@ private:
 #endif
 
     RefPtr<WebFrameProxy> m_mainFrame;
+    RefPtr<WebCore::DocumentSyncData> m_topDocumentSyncData;
     RefPtr<WebFrameProxy> m_focusedFrame;
 
     String m_userAgent;

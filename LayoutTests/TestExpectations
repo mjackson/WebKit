@@ -423,6 +423,7 @@ media/video-element-fullscreen-not-in-dom-accelerated-iphone.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/import-scripts-redirect.https.html [ Skip ]
 
 imported/w3c/web-platform-tests/service-workers/service-worker/resource-timing-cross-origin.https.html [ Failure ]
+imported/w3c/web-platform-tests/service-workers/service-worker/navigation-preload/resource-timing.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/svg-target-reftest.https.html [ ImageOnlyFailure ]
 
 imported/w3c/web-platform-tests/service-workers/service-worker/partitioned-cookies.tentative.https.html [ Pass Failure ]
@@ -564,13 +565,9 @@ fullscreen/fullscreen-document-gc-crash.html [ DumpJSConsoleLogInStdErr ]
 http/tests/security/cookie-module.html [ DumpJSConsoleLogInStdErr ]
 http/tests/security/cookie-module-import-propagate.html [ DumpJSConsoleLogInStdErr ]
 http/tests/security/cookie-module-propagate.html [ DumpJSConsoleLogInStdErr ]
-http/tests/security/window-opened-from-sandboxed-iframe-should-inherit-sandbox.html [ DumpJSConsoleLogInStdErr ]
 http/wpt/html/cross-origin-embedder-policy/require-corp.https.html [ DumpJSConsoleLogInStdErr ]
 http/wpt/webauthn/public-key-credential-create-failure.https.html [ DumpJSConsoleLogInStdErr ]
 http/wpt/webauthn/public-key-credential-get-failure.https.html [ DumpJSConsoleLogInStdErr ]
-
-# We need to fix our WebVTT implementation to pass most of the WebVTT rendering WPT (https://bugs.webkit.org/show_bug.cgi?id=277975).
-imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video [ ImageOnlyFailure ]
 
 # Cookie Store API tests that timeout
 imported/w3c/web-platform-tests/cookiestore/cookieStore_set_domain_parsing.tentative.sub.https.html [ Skip ]
@@ -607,6 +604,9 @@ webkit.org/b/290522 imported/w3c/web-platform-tests/html/canvas/offscreen/manual
 webkit.org/b/290522 imported/w3c/web-platform-tests/html/canvas/offscreen/manual/text/canvas.2d.offscreen.transferred.direction.inherit.html [ ImageOnlyFailure ]
 webkit.org/b/290522 imported/w3c/web-platform-tests/html/canvas/offscreen/manual/text/canvas.2d.offscreen.worker.direction.inherit.html [ ImageOnlyFailure ]
 
+# We need to fix our WebVTT implementation to pass most of the WebVTT rendering WPT (https://bugs.webkit.org/show_bug.cgi?id=277975).
+imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video [ ImageOnlyFailure ]
+
 # These are the WebVTT rendering WPT we are already passing.
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/bidi/u06E9_no_strong_dir.html [ Pass ]
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/dom_override_remove_cue_while_paused.html [ Pass ]
@@ -631,11 +631,16 @@ imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-mode
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/navigate_cue_position.html [ Pass ]
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/one_line_cue_plus_wrapped_cue.html [ Pass ]
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/size_50.html [ Pass ]
+imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/color_hex.html [ Pass ]
+imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/color_hsla.html [ Pass ]
+imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/id_color.html [ Pass ]
 
 # These WebVTT rendering WPT are flaky.
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/evil/non-standard-pseudo-elements.html [ ImageOnlyFailure Pass Failure ]
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/audio_has_no_subtitles.html [ ImageOnlyFailure Pass Failure ]
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/class_object/class_white-space_pre-line_wrapped.html [ Crash ImageOnlyFailure ]
+imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/white-space_normal_wrapped.html [ ImageOnlyFailure Pass Failure ]
+imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/white-space_nowrap_wrapped.html [ ImageOnlyFailure Pass Failure ]
 
 # These WebVTT rendering WPT occasionally time out.
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/2_tracks.html [ Skip ]
@@ -6607,7 +6612,6 @@ imported/w3c/web-platform-tests/css/css-tables/calc-percent-plus-0px-auto.html [
 imported/w3c/web-platform-tests/css/css-tables/calc-percent-plus-0px-fixed.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/col-definite-max-size-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/col-definite-size-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-tables/absolute-tables-007.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/absolute-tables-011.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/anonymous-table-ws-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/col-definite-min-size-001.html [ ImageOnlyFailure ]
@@ -7554,14 +7558,7 @@ webkit.org/b/282024 fast/text/text-box-edge-with-margin-padding-border-simple.ht
 # general failures
 
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-position-try-012.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/transform-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/transform-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/transform-003.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/transform-004.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/transform-006.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/transform-007.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/transform-008.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/transform-009.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-inline-004.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-multicol-015.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-multicol-016.html [ ImageOnlyFailure ]
