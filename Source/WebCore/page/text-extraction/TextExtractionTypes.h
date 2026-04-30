@@ -146,6 +146,8 @@ struct LinkItemData {
 
 struct IFrameData {
     String origin;
+    String shortenedOrigin;
+    bool isSameOriginAsParent { false };
     FrameIdentifier identifier;
 };
 

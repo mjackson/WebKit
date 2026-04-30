@@ -4510,10 +4510,6 @@ LayoutUnit RenderBox::computeOutOfFlowPositionedLogicalHeightUsing(const Style::
 {
     auto contentLogicalHeight = computedHeight - blockConstraints.bordersPlusPadding();
 
-    // Height is never unsolved for tables.
-    if (isRenderTable())
-        return contentLogicalHeight;
-
     if (logicalHeight.isStretch())
         return blockConstraints.availableContentSpace();
     if (logicalHeight.isIntrinsic())

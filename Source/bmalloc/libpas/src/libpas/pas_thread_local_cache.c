@@ -35,6 +35,7 @@
 #include "pas_heap_lock.h"
 #include "pas_large_utility_free_heap.h"
 #include "pas_log.h"
+#include "pas_process.h"
 #include "pas_scavenger.h"
 #include "pas_segregated_deallocation_mode.h"
 #include "pas_segregated_page_inlines.h"
@@ -159,14 +160,13 @@ static void destructor(void* arg)
     if (verbose)
         pas_log("[%d] Destructor call for TLS %p\n", getpid(), thread_local_cache);
 
-#if PAS_OS(WINDOWS)
-    /* ExitProcess terminates all other threads before running FLS callbacks for
-       the calling thread. If the scavenger held pas_heap_lock when it was killed,
-       destroy() spins forever on the orphaned spinlock. Skip teardown during
-       process shutdown; the address space is about to go away. */
-    if (RtlDllShutdownInProgress())
+    /* On Windows, ExitProcess asynchronously terminates other threads, which may still hold
+       a lock. However the caller thread of ExitProcess does normal TLS destruction, which may cause
+       a dead-lock when we need to take a lock which is held by other threads which gets forcefully terminated.
+       When we know this is in the middle of shutting down the process, ignore TLS destruction. */
+    if (pas_process_is_shutting_down())
         return;
-#endif
+
 
 #if !PAS_OS(DARWIN)
     /* Mark the thread as exiting so can_set() returns false and no new TLC is created,

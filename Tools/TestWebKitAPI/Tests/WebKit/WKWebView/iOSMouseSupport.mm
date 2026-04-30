@@ -28,7 +28,6 @@
 #if PLATFORM(IOS) || PLATFORM(MACCATALYST) || PLATFORM(VISION)
 
 #import "AdditionalButtonMasksIOS.h"
-#import "CrossOriginDblclickHelpers.h"
 #import "Helpers/cocoa/HTTPServer.h"
 #import "Helpers/ios/IOSMouseEventTestHarness.h"
 #import "InstanceMethodSwizzler.h"
@@ -488,68 +487,6 @@ TEST_F(iOSMouseSupport, FractionalCoordinatesInScaledIFrameCrossOrigin)
     [navigationDelegate waitForDidFinishNavigation];
     testFractionalCoordinatesInIFrame(webView.get(), 0.5, 0.5, @"0.25", @"0.25", @"frame.style.transformOrigin = \"top left\"; frame.style.scale = \"2\";", true);
 }
-
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-
-static const auto serverForCrossOriginDblclickWindowListenerTests = TestWebKitAPI::HTTPServer({
-    { "/example"_s, { TestWebKitAPI::mainHTMLForCrossOriginDblclick } },
-    { "/iframe"_s, { TestWebKitAPI::iframeContentForCrossOriginDblclickWindowListener } }
-}, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
-
-static const auto serverForCrossOriginDblclickDocumentListenerTests = TestWebKitAPI::HTTPServer({
-    { "/example"_s, { TestWebKitAPI::mainHTMLForCrossOriginDblclick } },
-    { "/iframe"_s, { TestWebKitAPI::iframeContentForCrossOriginDblclickDocumentListener } }
-}, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
-
-TEST_F(iOSMouseSupport, DblclickWithWindowListenerInSimpleIFrameCrossOrigin)
-{
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(serverForCrossOriginDblclickWindowListenerTests);
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    TestWebKitAPI::testDblclickInCrossOriginIFrame(webView.get(), 50, 50, @"50", @"50");
-}
-
-TEST_F(iOSMouseSupport, DblclickWithWindowListenerInRotatedIFrameCrossOrigin)
-{
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(serverForCrossOriginDblclickWindowListenerTests);
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    TestWebKitAPI::testDblclickInCrossOriginIFrame(webView.get(), 10, 10, @"90", @"90", @"frame.style.rotate = \"180deg\";");
-}
-
-TEST_F(iOSMouseSupport, DblclickWithWindowListenerInScaledIFrameCrossOrigin)
-{
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(serverForCrossOriginDblclickWindowListenerTests);
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    TestWebKitAPI::testDblclickInCrossOriginIFrame(webView.get(), 50, 50, @"25", @"25", @"frame.style.transformOrigin = \"top left\"; frame.style.scale = \"2\";");
-}
-
-TEST_F(iOSMouseSupport, DblclickWithDocumentListenerInSimpleIFrameCrossOrigin)
-{
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(serverForCrossOriginDblclickDocumentListenerTests);
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    TestWebKitAPI::testDblclickInCrossOriginIFrame(webView.get(), 50, 50, @"50", @"50");
-}
-
-TEST_F(iOSMouseSupport, DblclickWithDocumentListenerInRotatedIFrameCrossOrigin)
-{
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(serverForCrossOriginDblclickDocumentListenerTests);
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    TestWebKitAPI::testDblclickInCrossOriginIFrame(webView.get(), 10, 10, @"90", @"90", @"frame.style.rotate = \"180deg\";");
-}
-
-TEST_F(iOSMouseSupport, DblclickWithDocumentListenerInScaledIFrameCrossOrigin)
-{
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(serverForCrossOriginDblclickDocumentListenerTests);
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    TestWebKitAPI::testDblclickInCrossOriginIFrame(webView.get(), 50, 50, @"25", @"25", @"frame.style.transformOrigin = \"top left\"; frame.style.scale = \"2\";");
-}
-
-#endif // ENABLE(DBLCLICK_EVENT_REGIONS)
 
 static bool selectionUpdated = false;
 static void handleUpdatedSelection(id, SEL)

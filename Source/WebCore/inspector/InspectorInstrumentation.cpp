@@ -40,6 +40,7 @@
 #include "DocumentLoader.h"
 #include "Event.h"
 #include "EventTargetInlines.h"
+#include "FrameDOMAgent.h"
 #include "FrameDebuggerAgent.h"
 #include "FrameInspectorController.h"
 #include "FrameRuntimeAgent.h"
@@ -818,6 +819,12 @@ void InspectorInstrumentation::didCommitLoadImpl(InstrumentingAgents& instrument
 
 void InspectorInstrumentation::frameDocumentUpdatedImpl(InstrumentingAgents& instrumentingAgents, LocalFrame& frame)
 {
+    // Query the frame's own InstrumentingAgents (not the passed-in parameter) because
+    // frameDocumentUpdated needs to reach the specific frame's agent. This matches the
+    // Runtime pattern used by didClearWindowObjectInWorld.
+    if (CheckedPtr frameDOMAgent = frame.inspectorController().instrumentingAgents().persistentFrameDOMAgent())
+        frameDOMAgent->frameDocumentUpdated(frame);
+
     if (CheckedPtr domAgent = instrumentingAgents.persistentDOMAgent())
         domAgent->frameDocumentUpdated(frame);
 

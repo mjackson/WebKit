@@ -36,9 +36,12 @@
 #include "DOMHighResTimeStamp.h"
 #include "EventTarget.h"
 #include "EventTargetInterfaces.h"
+#include "PerformanceEntry.h"
 #include "ReducedResolutionSeconds.h"
 #include "ScriptExecutionContext.h"
 #include "Timer.h"
+#include <array>
+#include <limits>
 #include <memory>
 #include <wtf/ContinuousTime.h>
 #include <wtf/ListHashSet.h>
@@ -58,13 +61,11 @@ class EventCounts;
 class LargestContentfulPaint;
 class NetworkLoadMetrics;
 class PerformanceUserTiming;
-class PerformanceEntry;
 class PerformanceMark;
 class PerformanceMeasure;
 class PerformanceNavigation;
 class PerformanceNavigationTiming;
 class PerformanceObserver;
-class PerformancePaintTiming;
 class PerformanceTiming;
 class ResourceResponse;
 class ResourceTiming;
@@ -155,22 +156,30 @@ private:
 
     void queueEntry(PerformanceEntry&);
 
+    // https://w3c.github.io/performance-timeline/#performance-entry-buffer-map
+    struct PerformanceEntryBuffer {
+        Vector<Ref<PerformanceEntry>> buffer;
+        unsigned maxBufferSize { std::numeric_limits<unsigned>::max() };
+        unsigned droppedEntriesCount { 0 };
+        bool availableFromTimeline { true };
+    };
+
+    static unsigned entryTypeIndex(PerformanceEntry::Type type) { return static_cast<unsigned>(type); }
+    PerformanceEntryBuffer& entryBufferTuple(PerformanceEntry::Type);
+    const PerformanceEntryBuffer& entryBufferTuple(PerformanceEntry::Type) const;
+
+    void initializeEntryBufferMap();
+    bool addToEntryBuffer(PerformanceEntry&);
+    void clearEntryBuffer(PerformanceEntry::Type, const String& name = { });
+
     const std::unique_ptr<EventCounts> m_eventCounts;
     mutable RefPtr<PerformanceNavigation> m_navigation;
     mutable RefPtr<PerformanceTiming> m_timing;
-
-    // https://w3c.github.io/resource-timing/#sec-extensions-performance-interface recommends initial buffer size of 250.
-    Vector<Ref<PerformanceEntry>> m_resourceTimingBuffer;
 
     Timer m_resourceTimingBufferFullTimer;
     Vector<Ref<PerformanceEntry>> m_backupResourceTimingBuffer;
 
     RefPtr<PerformanceEntry> m_firstInput;
-    Vector<Ref<PerformanceEntry>> m_eventTimingBuffer;
-
-    // Sizes recommended by https://w3c.github.io/timing-entrytypes-registry/#registry:
-    unsigned m_eventTimingBufferSize { 150 };
-    unsigned m_resourceTimingBufferSize { 250 };
 
     // https://w3c.github.io/resource-timing/#dfn-resource-timing-buffer-full-flag
     bool m_resourceTimingBufferFullFlag { false };
@@ -181,10 +190,9 @@ private:
     ContinuousTime m_continuousTimeOrigin;
 
     RefPtr<PerformanceNavigationTiming> m_navigationTiming;
-    RefPtr<PerformancePaintTiming> m_firstContentfulPaint;
-    RefPtr<PerformanceEntry> m_largestContentfulPaint;
     std::unique_ptr<PerformanceUserTiming> m_userTiming;
 
+    std::array<PerformanceEntryBuffer, PerformanceEntry::performanceEntryTypeCount> m_entryBufferMap;
     ListHashSet<Ref<PerformanceObserver>> m_observers;
 };
 

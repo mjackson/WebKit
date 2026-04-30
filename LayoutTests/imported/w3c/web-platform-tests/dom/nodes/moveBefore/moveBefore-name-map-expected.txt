@@ -1,0 +1,4 @@
+
+
+FAIL moveBefore() correctly updates name map assert_equals: expected (undefined) undefined but got (object) Element node <img name="target" data-target=""></img>
+

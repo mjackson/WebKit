@@ -74,11 +74,6 @@ public:
     WTF_EXPORT_PRIVATE static UnbarrieredMonotonicTime now();
 #endif
 
-    UnbarrieredMonotonicTime approximateUnbarrieredMonotonicTime() const { return *this; }
-    WTF_EXPORT_PRIVATE WallTime approximateWallTime() const;
-    WTF_EXPORT_PRIVATE MonotonicTime approximateMonotonicTime() const;
-    WTF_EXPORT_PRIVATE ContinuousTime approximateContinuousTime() const;
-
     WTF_EXPORT_PRIVATE void dump(PrintStream&) const;
 
     friend struct MarkableTraits<UnbarrieredMonotonicTime>;
@@ -92,7 +87,7 @@ private:
 
 #if USE(HARDWARE_UNBARRIERED_MONOTONIC_TIME)
     struct Calibration {
-        uint64_t startCntpct;
+        uint64_t startCounter;
         double startNanoseconds;
         double nanosecondsPerTick;
     };
@@ -119,7 +114,7 @@ inline UnbarrieredMonotonicTime UnbarrieredMonotonicTime::now()
         calibrate();
 
     constexpr double nanosecondsPerSecond = 1000'000'000;
-    double nanoseconds = (readCounter() - s_calibration.startCntpct) * s_calibration.nanosecondsPerTick + s_calibration.startNanoseconds;
+    double nanoseconds = (readCounter() - s_calibration.startCounter) * s_calibration.nanosecondsPerTick + s_calibration.startNanoseconds;
     return UnbarrieredMonotonicTime::fromRawSeconds(nanoseconds / nanosecondsPerSecond);
 }
 #endif // USE(HARDWARE_UNBARRIERED_MONOTONIC_TIME)

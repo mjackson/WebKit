@@ -242,10 +242,9 @@ TEST(SmartLists, InsertingSpaceAndTextAfterBulletPointGeneratesListWithText)
     runTest(inputWithBullet.get(), expectedHTML.createNSString().get(), @"//body/ul/li[2]/text()", @"World".length);
 }
 
-TEST(SmartLists, InsertingSpaceAndTextAfterHyphenGeneratesDashedList)
+TEST(SmartLists, InsertingSpaceAfterHyphenMinusGeneratesDashedListWithHyphenMinusMarker)
 {
-    auto marker = WTF::makeString(WTF::Unicode::enDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
-
+    auto marker = WTF::makeString(WTF::Unicode::hyphenMinus, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
     static constexpr auto expectedHTMLTemplate = R"""(
     <body contenteditable="">
         <ul style="list-style-type: '<MARKER>';">
@@ -256,8 +255,63 @@ TEST(SmartLists, InsertingSpaceAndTextAfterHyphenGeneratesDashedList)
     )"""_s;
 
     RetainPtr expectedHTML = WTF::makeStringByReplacingAll(expectedHTMLTemplate, "<MARKER>"_s, marker).createNSString();
+    RetainPtr input = makeString(WTF::Unicode::hyphenMinus, " Hello\n"_s, WTF::Unicode::hyphenMinus, " World"_s).createNSString();
 
-    runTest(@"- Hello\n- World", expectedHTML.get(), @"//body/ul/li[2]/text()", @"World".length);
+    runTest(input.get(), expectedHTML.get(), @"//body/ul/li[2]/text()", @"World".length);
+}
+
+TEST(SmartLists, InsertingSpaceAfterUnicodeHyphenGeneratesDashedListWithHyphenMarker)
+{
+    auto marker = WTF::makeString(WTF::Unicode::hyphen, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
+    static constexpr auto expectedHTMLTemplate = R"""(
+    <body contenteditable="">
+        <ul style="list-style-type: '<MARKER>';">
+            <li>Hello</li>
+            <li>World</li>
+        </ul>
+    </body>
+    )"""_s;
+
+    RetainPtr expectedHTML = WTF::makeStringByReplacingAll(expectedHTMLTemplate, "<MARKER>"_s, marker).createNSString();
+    RetainPtr input = makeString(WTF::Unicode::hyphen, " Hello\n"_s, WTF::Unicode::hyphen, " World"_s).createNSString();
+
+    runTest(input.get(), expectedHTML.get(), @"//body/ul/li[2]/text()", @"World".length);
+}
+
+TEST(SmartLists, InsertingSpaceAfterUnicodeEnDashGeneratesDashedListWithEnDashMarker)
+{
+    auto marker = WTF::makeString(WTF::Unicode::enDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
+    static constexpr auto expectedHTMLTemplate = R"""(
+    <body contenteditable="">
+        <ul style="list-style-type: '<MARKER>';">
+            <li>Hello</li>
+            <li>World</li>
+        </ul>
+    </body>
+    )"""_s;
+
+    RetainPtr expectedHTML = WTF::makeStringByReplacingAll(expectedHTMLTemplate, "<MARKER>"_s, marker).createNSString();
+    RetainPtr input = makeString(WTF::Unicode::enDash, " Hello\n"_s, WTF::Unicode::enDash, " World"_s).createNSString();
+
+    runTest(input.get(), expectedHTML.get(), @"//body/ul/li[2]/text()", @"World".length);
+}
+
+TEST(SmartLists, InsertingSpaceAfterEmDashGeneratesDashedListWithEmDashMarker)
+{
+    auto marker = WTF::makeString(WTF::Unicode::emDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
+    static constexpr auto expectedHTMLTemplate = R"""(
+    <body contenteditable="">
+        <ul style="list-style-type: '<MARKER>';">
+            <li>Hello</li>
+            <li>World</li>
+        </ul>
+    </body>
+    )"""_s;
+
+    RetainPtr expectedHTML = WTF::makeStringByReplacingAll(expectedHTMLTemplate, "<MARKER>"_s, marker).createNSString();
+    RetainPtr input = makeString(WTF::Unicode::emDash, " Hello\n"_s, WTF::Unicode::emDash, " World"_s).createNSString();
+
+    runTest(input.get(), expectedHTML.get(), @"//body/ul/li[2]/text()", @"World".length);
 }
 
 TEST(SmartLists, InsertingSpaceAfterBulletPointGeneratesEmptyList)
@@ -360,7 +414,7 @@ TEST(SmartLists, InsertingSpaceAfterLargeNumberDoesNotGenerateOrderedList)
 
 TEST(SmartLists, InsertingDifferentListStylesDoesNotMergeLists)
 {
-    auto dashMarker = WTF::makeString(WTF::Unicode::enDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
+    auto dashMarker = WTF::makeString(WTF::Unicode::hyphenMinus, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
 
     static constexpr auto expectedHTMLTemplate = R"""(
     <body contenteditable="">

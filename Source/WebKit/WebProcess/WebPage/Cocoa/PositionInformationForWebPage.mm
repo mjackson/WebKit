@@ -563,6 +563,18 @@ static void animationPositionInformation(WebPage& page, const InteractionInforma
 #endif // ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
 }
 
+static RefPtr<WebCore::LocalDOMWindow> windowWithDoubleClickEventListener(RefPtr<WebCore::LocalFrame> frame)
+{
+    if (!frame)
+        return nullptr;
+
+    RefPtr window = frame->window();
+    if (!window || !window->hasEventListeners(WebCore::eventNames().dblclickEvent))
+        return nullptr;
+
+    return window;
+}
+
 InteractionInformationAtPosition positionInformationForWebPage(WebPage& page, const InteractionInformationRequest& request)
 {
     InteractionInformationAtPosition info;
@@ -577,6 +589,9 @@ InteractionInformationAtPosition positionInformationForWebPage(WebPage& page, co
 
     info.isContentEditable = nodeRespondingToClickEvents && nodeRespondingToClickEvents->isContentEditable();
     info.adjustedPointForNodeRespondingToClickEvents = adjustedPoint;
+
+    if (request.includeHasDoubleClickHandler)
+        info.hitNodeOrWindowHasDoubleClickListener = localMainFrame->nodeRespondingToDoubleClickEvent(request.point, adjustedPoint) || windowWithDoubleClickEventListener(localMainFrame);
 
     auto hitTestRequestTypes = OptionSet<WebCore::HitTestRequest::Type> {
         WebCore::HitTestRequest::Type::ReadOnly,

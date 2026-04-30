@@ -31,6 +31,8 @@
 
 namespace WebCore {
 
+enum class UseDesktopClassBrowsing : uint8_t { Unspecified, No, Yes };
+
 #if PLATFORM(COCOA)
 enum class UserAgentType { Default, Desktop };
 WEBCORE_EXPORT String standardUserAgentWithApplicationName(const String& applicationName, const String& userAgentOSVersion = emptyString(), UserAgentType = UserAgentType::Default);

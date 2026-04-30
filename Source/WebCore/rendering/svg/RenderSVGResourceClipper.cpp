@@ -95,7 +95,6 @@ void RenderSVGResourceClipper::applyPathClipping(GraphicsContext& context, const
 
     auto* clipRendererPtr = graphicsElement.renderer();
     ASSERT(clipRendererPtr);
-    ASSERT(clipRendererPtr->hasLayer());
     auto& clipRenderer = downcast<RenderSVGModelObject>(*clipRendererPtr);
 
     AffineTransform clipPathTransform;
@@ -206,9 +205,45 @@ bool RenderSVGResourceClipper::hitTestClipContent(const FloatRect& objectBoundin
         point = LayoutPoint(applyTransform.inverse().value_or(AffineTransform()).mapPoint(point));
     }
 
-    HitTestResult result(toLayoutPoint(point - flooredLayoutPoint(this->objectBoundingBox().minXMinYCorner())));
+    // Iterate children directly and call nodeAtPoint() on each, rather than using
+    // layer()->hitTest(). The layer hit test infrastructure does not work for children
+    // inside <clipPath> because they are inside a RenderSVGHiddenContainer, where
+    // fragment collection and ancestor offset computation produce incorrect results.
+    // For transformed children (with or without layers), inverse-map the point through
+    // the child's SVG transform before testing.
     constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::SVGClipContent, HitTestRequest::Type::DisallowUserAgentShadowContent };
-    return layer()->hitTest(hitType, result);
+    for (CheckedPtr child = lastChild(); child; child = child->previousSibling()) {
+        auto* svgChild = dynamicDowncast<RenderSVGModelObject>(*child);
+        if (!svgChild)
+            continue;
+
+        auto testPoint = point;
+        if (svgChild->isTransformed()) {
+            // Compute the child's SVG transform and inverse-map the point.
+            // For non-layer children, localTransform() is already populated.
+            // For layer children, localTransform() is not maintained, so compute it.
+            AffineTransform childTransform;
+            if (svgChild->hasLayer()) {
+                TransformationMatrix tm;
+                auto referenceBoxRect = svgChild->transformReferenceBoxRect(svgChild->style());
+                svgChild->applyTransform(tm, svgChild->style(), referenceBoxRect, Style::TransformResolver::allTransformOperations);
+                childTransform = tm.toAffineTransform();
+            } else
+                childTransform = svgChild->localTransform();
+
+            auto inverseTransform = childTransform.inverse();
+            if (!inverseTransform)
+                continue;
+            testPoint = LayoutPoint(inverseTransform->mapPoint(FloatPoint(point)));
+        }
+
+        HitTestLocation testHitTestLocation(testPoint);
+        HitTestResult result(testPoint);
+        auto accumulatedOffset = toLayoutPoint(toLayoutSize(svgChild->nominalSVGLayoutLocation()) - toLayoutSize(svgChild->currentSVGLayoutLocation()));
+        if (child->nodeAtPoint(hitType, result, testHitTestLocation, accumulatedOffset, HitTestAction::Foreground))
+            return true;
+    }
+    return false;
 }
 
 FloatRect RenderSVGResourceClipper::resourceBoundingBox(const RenderObject& object, RepaintRectCalculation repaintRectCalculation)

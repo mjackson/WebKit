@@ -1035,8 +1035,13 @@ RenderPtr<RenderObject> RenderTreeBuilder::detachFromRenderElement(RenderElement
     ASSERT(parent.canHaveChildren() || parent.canHaveGeneratedChildren());
     ASSERT(child.parent() == &parent);
 
-    if (parent.renderTreeBeingDestroyed() || m_tearDownType == TearDownType::SubtreeWithRootAlreadyDetached)
+    if (parent.renderTreeBeingDestroyed() || m_tearDownType == TearDownType::SubtreeWithRootAlreadyDetached) {
+        if (parent.document().settings().layerBasedSVGEngineEnabled() && parent.isSVGLayerAwareRenderer()) {
+            if (CheckedPtr parentLayer = parent.enclosingLayer())
+                parentLayer->dirtyChildrenInDOMOrderForSVG();
+        }
         return parent.detachRendererInternal(child);
+    }
 
     if (child.everHadLayout())
         resetRendererStateOnDetach(parent, child, willBeDestroyed, m_internalMovesType);

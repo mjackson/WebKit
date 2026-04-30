@@ -1126,8 +1126,10 @@ static void populateJSONForItem(JSON::Object& jsonObject, const TextExtraction::
                 jsonObject.setString("target"_s, linkData.target);
         },
         [&](const TextExtraction::IFrameData& iframeData) {
-            if (!iframeData.origin.isEmpty())
-                jsonObject.setString("origin"_s, iframeData.origin);
+            if (iframeData.isSameOriginAsParent)
+                return;
+            if (!iframeData.shortenedOrigin.isEmpty())
+                jsonObject.setString("origin"_s, iframeData.shortenedOrigin);
         },
         [](auto) { }
     );
@@ -1544,11 +1546,12 @@ static void addPartsForItem(const TextExtraction::Item& item, std::optional<Node
             aggregator.addResult(line, WTF::move(parts));
         },
         [&](const TextExtraction::IFrameData& iframeData) {
+            bool shouldEmitOrigin = !iframeData.isSameOriginAsParent && !iframeData.shortenedOrigin.isEmpty();
             if (aggregator.useHTMLOutput()) {
                 auto attributes = partsForItem(item, aggregator, includeRectForParentItem);
 
-                if (!iframeData.origin.isEmpty())
-                    attributes.append(makeString("src='"_s, iframeData.origin, '\''));
+                if (shouldEmitOrigin)
+                    attributes.append(makeString("src='"_s, iframeData.shortenedOrigin, '\''));
 
                 if (attributes.isEmpty())
                     parts.append(makeString('<', item.nodeName.convertToASCIILowercase(), '>'));
@@ -1558,8 +1561,8 @@ static void addPartsForItem(const TextExtraction::Item& item, std::optional<Node
                 parts.append("iframe"_s);
                 parts.appendVector(partsForItem(item, aggregator, includeRectForParentItem));
 
-                if (!iframeData.origin.isEmpty())
-                    parts.append(makeString("origin="_s, quoteValue(iframeData.origin, streamlined)));
+                if (shouldEmitOrigin)
+                    parts.append(makeString("origin="_s, quoteValue(iframeData.shortenedOrigin, streamlined)));
             }
 
             aggregator.addResult(line, WTF::move(parts));

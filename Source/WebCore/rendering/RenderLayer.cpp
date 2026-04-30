@@ -537,6 +537,14 @@ void RenderLayer::dirtyPaintOrderListsOnChildChange(RenderLayer& child)
         // off dirty in that case anyway.
         child.dirtyStackingContextZOrderLists();
     }
+
+    // SVG layers that are not normal-flow-only still need to dirty the parent's
+    // SVG children DOM order list. dirtyNormalFlowList() handles this for normal-flow
+    // children, and dirtyStackingContextZOrderLists() dirties the stacking context
+    // ancestor (not necessarily this layer). Without this, adding a new child layer
+    // to an SVG container would leave the container's SVG children list stale.
+    if (m_svgData && child.renderer().isSVGLayerAwareRenderer() && !child.isNormalFlowOnly())
+        dirtyChildrenInDOMOrderForSVG();
 }
 
 void RenderLayer::insertOnlyThisLayer()
@@ -742,6 +750,9 @@ void RenderLayer::dirtyZOrderLists()
         m_negZOrderList->clear();
     m_zOrderListsDirty = true;
 
+    if (m_svgData)
+        dirtyChildrenInDOMOrderForSVG();
+
     // FIXME: Ideally, we'd only dirty if the lists changed.
     if (hasCompositingDescendant())
         setNeedsCompositingPaintOrderChildrenUpdate();
@@ -783,6 +794,9 @@ void RenderLayer::dirtyNormalFlowList()
     if (m_normalFlowList)
         m_normalFlowList->clear();
     m_normalFlowListDirty = true;
+
+    if (m_svgData)
+        dirtyChildrenInDOMOrderForSVG();
 
     if (hasCompositingDescendant())
         setNeedsCompositingPaintOrderChildrenUpdate();
@@ -6146,6 +6160,9 @@ void RenderLayer::styleChanged(Style::Difference diff, const RenderStyle* oldSty
             dirtyStackingContextZOrderLists();
             if (isStackingContext())
                 dirtyZOrderLists();
+            // Also dirty the parent layer's SVG children list since z-index affects sort order.
+            if (auto* parentLayer = parent(); parentLayer && parentLayer->m_svgData)
+                parentLayer->dirtyChildrenInDOMOrderForSVG();
         }
 
         if (!oldStyle->viewTransitionName().isNone() != renderer().hasViewTransitionName())

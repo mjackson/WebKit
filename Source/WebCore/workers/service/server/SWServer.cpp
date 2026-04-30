@@ -880,10 +880,10 @@ void SWServer::didFinishActivation(SWServerWorker& worker)
 
 void SWServer::storeRegistrationForWorkerIfNecessary(SWServerWorker& worker)
 {
-    RELEASE_LOG(ServiceWorker, "%p - CHRIS: SWServer::storeRegistrationForWorkerIfNecessary: service worker %" PRIu64, this, worker.identifier().toUInt64());
+    RELEASE_LOG(ServiceWorker, "%p - SWServer::storeRegistrationForWorkerIfNecessary: service worker %" PRIu64, this, worker.identifier().toUInt64());
 
     if (!worker.shouldPersistToDisk()) {
-        RELEASE_LOG(ServiceWorker, "%p - CHRIS: SWServer::storeRegistrationForWorkerIfNecessary: Not saving service worker %" PRIu64 " to disk since it is backing a browser extension", this, worker.identifier().toUInt64());
+        RELEASE_LOG(ServiceWorker, "%p - SWServer::storeRegistrationForWorkerIfNecessary: Not saving service worker %" PRIu64 " to disk since it is backing a browser extension", this, worker.identifier().toUInt64());
         return;
     }
 

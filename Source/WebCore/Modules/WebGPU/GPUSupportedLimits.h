@@ -67,6 +67,10 @@ public:
     uint32_t NODELETE maxComputeWorkgroupSizeY() const;
     uint32_t NODELETE maxComputeWorkgroupSizeZ() const;
     uint32_t NODELETE maxComputeWorkgroupsPerDimension() const;
+    uint32_t NODELETE maxStorageBuffersInFragmentStage() const;
+    uint32_t NODELETE maxStorageTexturesInFragmentStage() const;
+    uint32_t NODELETE maxStorageBuffersInVertexStage() const;
+    uint32_t NODELETE maxStorageTexturesInVertexStage() const;
 
     WebGPU::SupportedLimits& backing() { return m_backing; }
     const WebGPU::SupportedLimits& backing() const { return m_backing; }

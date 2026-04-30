@@ -2870,15 +2870,6 @@ ExceptionOr<unsigned> Internals::touchEventHandlerCount()
     return document->touchEventHandlerCount();
 }
 
-ExceptionOr<unsigned> Internals::doubleClickEventHandlerCount()
-{
-    RefPtr document = contextDocument();
-    if (!document)
-        return Exception { ExceptionCode::InvalidAccessError };
-
-    return document->doubleClickEventHandlerCount();
-}
-
 ExceptionOr<Ref<DOMRectList>> Internals::touchEventRectsForEvent(const String& eventName)
 {
     Document* document = contextDocument();

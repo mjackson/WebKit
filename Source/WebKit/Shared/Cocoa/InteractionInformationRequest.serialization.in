@@ -28,6 +28,7 @@ struct WebKit::InteractionInformationRequest {
     bool includeSnapshot;
     bool includeLinkIndicator;
     bool includeCursorContext;
+    bool includeHasDoubleClickHandler;
     bool includeImageData;
 
     bool gatherAnimations;

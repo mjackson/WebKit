@@ -63,6 +63,7 @@
 #include <WebCore/ShareableBitmap.h>
 #include <WebCore/SimpleRange.h>
 #include <WebCore/SubstituteData.h>
+#include <WebCore/URLKeepingBlobAlive.h>
 #include <WebCore/UserContentTypes.h>
 #include <WebCore/UserScriptTypes.h>
 #include <WebCore/WebCoreKeyboardUIMode.h>
@@ -954,6 +955,7 @@ public:
 
     void stopLoading();
     void stopLoadingDueToProcessSwap();
+    void releaseKeptBlobURLForNewWindowNavigation();
     bool NODELETE defersLoading() const;
 
     void enterAcceleratedCompositingMode(WebCore::Frame&, WebCore::GraphicsLayer*);
@@ -1150,7 +1152,7 @@ public:
     void attemptSyntheticClick(const WebCore::IntPoint&, OptionSet<WebKit::WebEventModifier>, TransactionID lastLayerTreeTransactionId);
     void tapHighlightAtPosition(WebKit::TapIdentifier, const WebCore::FloatPoint&);
     void didRecognizeLongPress();
-    void handleDoubleTapForDoubleClickAtPoint(WebCore::FrameIdentifier, const WebCore::IntPoint& pointInRootView, const WebCore::IntPoint& pointInTargetFrameContents, OptionSet<WebKit::WebEventModifier>, TransactionID lastLayerTreeTransactionId);
+    void handleDoubleTapForDoubleClickAtPoint(const WebCore::IntPoint&, OptionSet<WebKit::WebEventModifier>, TransactionID lastLayerTreeTransactionId);
 
     void inspectorNodeSearchMovedToPosition(const WebCore::FloatPoint&);
     void inspectorNodeSearchEndedAtPosition(const WebCore::FloatPoint&);
@@ -1391,6 +1393,7 @@ public:
 #endif
 
     bool isStoppingLoadingDueToProcessSwap() const { return m_isStoppingLoadingDueToProcessSwap; }
+    void keepBlobURLAliveForNewWindowNavigation(URL&&, std::optional<WebCore::SecurityOriginData>&&);
 
     bool NODELETE isIOSurfaceLosslessCompressionEnabled() const;
 
@@ -3258,6 +3261,7 @@ private:
 
     bool m_didUpdateRenderingAfterCommittingLoad { false };
     bool m_isStoppingLoadingDueToProcessSwap { false };
+    WebCore::URLKeepingBlobAlive m_blobURLLifetimeExtensionForNewWindowNavigation;
     bool m_skipDecidePolicyForResponseIfPossible { false };
 
 #if HAVE(APP_ACCENT_COLORS)

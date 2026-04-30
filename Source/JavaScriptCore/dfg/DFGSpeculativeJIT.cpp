@@ -7737,19 +7737,36 @@ void SpeculativeJIT::compileStringEquality(
     
     loadPtr(Address(leftTempGPR, StringImpl::dataOffset()), leftTempGPR);
     loadPtr(Address(rightTempGPR, StringImpl::dataOffset()), rightTempGPR);
-    
-    Label loop = label();
-    
-    sub32(TrustedImm32(1), lengthGPR);
 
-    // This isn't going to generate the best code on x86. But that's OK, it's still better
-    // than not inlining.
+    constexpr unsigned wordSize = sizeof(void*);
+
+    Jump longString = branch32(AboveOrEqual, lengthGPR, TrustedImm32(wordSize));
+
+    // length in [1, wordSize): byte-at-a-time loop.
+    Label byteLoop = label();
+    sub32(TrustedImm32(1), lengthGPR);
     load8(BaseIndex(leftTempGPR, lengthGPR, TimesOne), leftTemp2GPR);
     load8(BaseIndex(rightTempGPR, lengthGPR, TimesOne), rightTemp2GPR);
     falseCase.append(branch32(NotEqual, leftTemp2GPR, rightTemp2GPR));
-    
-    branchTest32(NonZero, lengthGPR).linkTo(loop, this);
-    
+    branchTest32(NonZero, lengthGPR).linkTo(byteLoop, this);
+    trueCase.append(jump());
+
+    // length >= wordSize: compare a pointer-sized word at a time, walking backwards.
+    longString.link(this);
+    Label wordLoop = label();
+    sub32(TrustedImm32(wordSize), lengthGPR);
+    loadPtr(BaseIndex(leftTempGPR, lengthGPR, TimesOne), leftTemp2GPR);
+    loadPtr(BaseIndex(rightTempGPR, lengthGPR, TimesOne), rightTemp2GPR);
+    falseCase.append(branchPtr(NotEqual, leftTemp2GPR, rightTemp2GPR));
+    branch32(AboveOrEqual, lengthGPR, TrustedImm32(wordSize)).linkTo(wordLoop, this);
+
+    // 0 <= lengthGPR < wordSize bytes remain at the head. Since the original length was
+    // >= wordSize, a single overlapping word load at offset 0 safely covers the remainder.
+    trueCase.append(branchTest32(Zero, lengthGPR));
+    loadPtr(Address(leftTempGPR), leftTemp2GPR);
+    loadPtr(Address(rightTempGPR), rightTemp2GPR);
+    falseCase.append(branchPtr(NotEqual, leftTemp2GPR, rightTemp2GPR));
+
     trueCase.link(this);
     moveTrueTo(leftTempGPR);
     

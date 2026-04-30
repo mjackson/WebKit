@@ -420,18 +420,14 @@ void LocalFrame::invalidateContentEventRegionsIfNeeded(InvalidateContentEventReg
     bool needsUpdateForTouchActionElements = false;
     bool needsUpdateForEditableElements = false;
     bool needsUpdateForInteractionRegions = false;
-    bool needsUpdateForDoubleClickEventHandlers = false;
-
 #if ENABLE(WHEEL_EVENT_REGIONS)
     needsUpdateForWheelEventHandlers = m_doc->hasWheelEventHandlers() || reason == InvalidateContentEventRegionsReason::EventHandlerChange;
+#else
+    UNUSED_PARAM(reason);
 #endif
 #if ENABLE(TOUCH_EVENT_REGIONS)
     needsUpdateForTouchEventHandlers = m_doc->hasTouchEventHandlers() || reason == InvalidateContentEventRegionsReason::EventHandlerChange;
-#endif
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-    needsUpdateForDoubleClickEventHandlers = m_doc->hasDoubleClickEventHandlers() || reason == InvalidateContentEventRegionsReason::EventHandlerChange;
-#endif
-#if !ENABLE(WHEEL_EVENT_REGIONS) && !ENABLE(TOUCH_EVENT_REGIONS) && !ENABLE(DBLCLICK_EVENT_REGIONS)
+#else
     UNUSED_PARAM(reason);
 #endif
 
@@ -447,7 +443,7 @@ void LocalFrame::invalidateContentEventRegionsIfNeeded(InvalidateContentEventReg
     needsUpdateForInteractionRegions = page()->shouldBuildInteractionRegions();
 #endif
 
-    if (!needsUpdateForTouchActionElements && !needsUpdateForEditableElements && !needsUpdateForWheelEventHandlers && !needsUpdateForInteractionRegions && !needsUpdateForTouchEventHandlers && !needsUpdateForDoubleClickEventHandlers)
+    if (!needsUpdateForTouchActionElements && !needsUpdateForEditableElements && !needsUpdateForWheelEventHandlers && !needsUpdateForInteractionRegions && !needsUpdateForTouchEventHandlers)
         return;
 
     if (!m_doc->renderView()->compositor().viewNeedsToInvalidateEventRegionOfEnclosingCompositingLayerForRepaint())

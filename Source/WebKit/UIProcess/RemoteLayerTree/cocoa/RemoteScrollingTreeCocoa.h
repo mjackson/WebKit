@@ -37,12 +37,9 @@ OBJC_CLASS CALayer;
 
 namespace WebKit {
 
-class RemoteLayerTreeNode;
-
 using OptionalEventRegionConstRef = std::optional<std::reference_wrapper<const WebCore::EventRegion>>;
 OptionalEventRegionConstRef eventRegionForLayer(CALayer*);
 bool layerEventRegionContainsPoint(CALayer*, CGPoint);
-RefPtr<RemoteLayerTreeNode> hitLayerTreeNodeAtPoint(CALayer* rootLayer, WebCore::FloatPoint& location);
 OptionalEventRegionConstRef eventRegionForPoint(CALayer*, WebCore::FloatPoint& location);
 
 }

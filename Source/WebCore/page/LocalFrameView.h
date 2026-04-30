@@ -685,7 +685,6 @@ public:
 
     void updateSnapOffsets() final;
     bool isScrollSnapInProgress() const final;
-    void updateScrollingCoordinatorScrollSnapProperties() const;
 
     float adjustVerticalPageScrollStepForFixedContent(float step) final;
 

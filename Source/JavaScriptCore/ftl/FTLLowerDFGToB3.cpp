@@ -21155,8 +21155,13 @@ IGNORE_CLANG_WARNINGS_END
         LBasicBlock rightReadyCase = m_out.newBlock();
         LBasicBlock left8BitCase = m_out.newBlock();
         LBasicBlock right8BitCase = m_out.newBlock();
-        LBasicBlock loop = m_out.newBlock();
+        LBasicBlock byteLoop = m_out.newBlock();
         LBasicBlock bytesEqual = m_out.newBlock();
+        LBasicBlock wordLoopPreheader = m_out.newBlock();
+        LBasicBlock wordLoop = m_out.newBlock();
+        LBasicBlock wordsEqual = m_out.newBlock();
+        LBasicBlock wordTail = m_out.newBlock();
+        LBasicBlock wordTailCompare = m_out.newBlock();
         LBasicBlock trueCase = m_out.newBlock();
         LBasicBlock falseCase = m_out.newBlock();
         LBasicBlock slowCase = m_out.newBlock();
@@ -21192,32 +21197,57 @@ IGNORE_CLANG_WARNINGS_END
                 m_out.constInt32(StringImpl::flagIs8Bit())),
             unsure(slowCase), unsure(right8BitCase));
 
-        m_out.appendTo(right8BitCase, loop);
+        m_out.appendTo(right8BitCase, byteLoop);
 
         LValue leftData = m_out.loadPtr(left, m_heaps.StringImpl_data);
         LValue rightData = m_out.loadPtr(right, m_heaps.StringImpl_data);
 
-        ValueFromBlock indexAtStart = m_out.anchor(length);
+        constexpr unsigned wordSize = 8;
+        ValueFromBlock byteIndexAtStart = m_out.anchor(length);
+        // Lay out the byte loop as the fall-through so that short strings only pay for a
+        // not-taken branch; long strings easily amortize the taken-branch cost over the word loop.
+        m_out.branch(m_out.below(length, m_out.constInt32(wordSize)), usually(byteLoop), rarely(wordLoopPreheader));
 
-        m_out.jump(loop);
-
-        m_out.appendTo(loop, bytesEqual);
-
-        LValue indexAtLoopTop = m_out.phi(Int32, indexAtStart);
-        LValue indexInLoop = m_out.sub(indexAtLoopTop, m_out.int32One);
-
+        // length in [1, wordSize): byte-at-a-time loop.
+        m_out.appendTo(byteLoop, bytesEqual);
+        LValue byteIndexAtLoopTop = m_out.phi(Int32, byteIndexAtStart);
+        LValue byteIndexInLoop = m_out.sub(byteIndexAtLoopTop, m_out.int32One);
         LValue leftByte = m_out.load8ZeroExt32(
-            m_out.baseIndex(m_heaps.characters8, leftData, m_out.zeroExtPtr(indexInLoop)));
+            m_out.baseIndex(m_heaps.characters8, leftData, m_out.zeroExtPtr(byteIndexInLoop)));
         LValue rightByte = m_out.load8ZeroExt32(
-            m_out.baseIndex(m_heaps.characters8, rightData, m_out.zeroExtPtr(indexInLoop)));
-
+            m_out.baseIndex(m_heaps.characters8, rightData, m_out.zeroExtPtr(byteIndexInLoop)));
         m_out.branch(m_out.notEqual(leftByte, rightByte), unsure(falseCase), unsure(bytesEqual));
 
-        m_out.appendTo(bytesEqual, trueCase);
+        m_out.appendTo(bytesEqual, wordLoopPreheader);
+        m_out.addIncomingToPhi(byteIndexAtLoopTop, m_out.anchor(byteIndexInLoop));
+        m_out.branch(m_out.notZero32(byteIndexInLoop), unsure(byteLoop), unsure(trueCase));
 
-        ValueFromBlock indexForNextIteration = m_out.anchor(indexInLoop);
-        m_out.addIncomingToPhi(indexAtLoopTop, indexForNextIteration);
-        m_out.branch(m_out.notZero32(indexInLoop), unsure(loop), unsure(trueCase));
+        // length >= wordSize: compare a word at a time, walking backwards.
+        m_out.appendTo(wordLoopPreheader, wordLoop);
+        ValueFromBlock wordIndexAtStart = m_out.anchor(length);
+        m_out.jump(wordLoop);
+
+        m_out.appendTo(wordLoop, wordsEqual);
+        LValue wordIndexAtLoopTop = m_out.phi(Int32, wordIndexAtStart);
+        LValue wordIndexInLoop = m_out.sub(wordIndexAtLoopTop, m_out.constInt32(wordSize));
+        LValue wordOffset = m_out.zeroExtPtr(wordIndexInLoop);
+        LValue leftWord = m_out.load64(TypedPointer(m_heaps.characters8.atAnyIndex(), m_out.add(leftData, wordOffset)));
+        LValue rightWord = m_out.load64(TypedPointer(m_heaps.characters8.atAnyIndex(), m_out.add(rightData, wordOffset)));
+        m_out.branch(m_out.notEqual(leftWord, rightWord), unsure(falseCase), unsure(wordsEqual));
+
+        m_out.appendTo(wordsEqual, wordTail);
+        m_out.addIncomingToPhi(wordIndexAtLoopTop, m_out.anchor(wordIndexInLoop));
+        m_out.branch(m_out.aboveOrEqual(wordIndexInLoop, m_out.constInt32(wordSize)), unsure(wordLoop), unsure(wordTail));
+
+        // 0 <= wordIndexInLoop < wordSize bytes remain at the head. Since the original length was
+        // >= wordSize, a single overlapping word load at offset 0 safely covers the remainder.
+        m_out.appendTo(wordTail, wordTailCompare);
+        m_out.branch(m_out.isZero32(wordIndexInLoop), unsure(trueCase), unsure(wordTailCompare));
+
+        m_out.appendTo(wordTailCompare, trueCase);
+        LValue leftTailWord = m_out.load64(TypedPointer(m_heaps.characters8.atAnyIndex(), leftData));
+        LValue rightTailWord = m_out.load64(TypedPointer(m_heaps.characters8.atAnyIndex(), rightData));
+        m_out.branch(m_out.notEqual(leftTailWord, rightTailWord), unsure(falseCase), unsure(trueCase));
 
         m_out.appendTo(trueCase, falseCase);
 

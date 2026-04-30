@@ -110,6 +110,11 @@ extension _Proto_LowLevelMeshResource_v1.Descriptor {
 
 @_lifetime(buffer: copy buffer)
 private func copyDataIntoBuffer(_ buffer: inout MutableRawSpan, from data: Data) {
+    precondition(
+        data.count <= buffer.byteCount,
+        "copyDataIntoBuffer: data (\(data.count) B) exceeds buffer capacity (\(buffer.byteCount) B)"
+    )
+
     // unsafe used here as that is the method for populating a MTLBuffer
     unsafe buffer.withUnsafeMutableBytes { unsafe $0.copyBytes(from: data) }
 }

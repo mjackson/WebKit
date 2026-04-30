@@ -94,6 +94,13 @@ td {
     </table>
 </div>
 
+<!-- max-height should clamp -->
+<div class="containingBlock">
+    <table class="table" style="width: 100%; height: 100%; max-height: 20px;" data-expected-width=100 data-expected-height=20>
+        <tr><td></td></tr>
+    </table>
+</div>
+
 <script>
     checkLayout(".table");
 </script>

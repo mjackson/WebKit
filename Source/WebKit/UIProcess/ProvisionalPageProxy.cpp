@@ -494,23 +494,17 @@ void ProvisionalPageProxy::didCommitLoadForFrame(IPC::Connection& connection, Fr
     RefPtr pageMainFrame = page ? page->mainFrame() : nullptr;
     if (page && protect(page->preferences())->siteIsolationEnabled() && pageMainFrame) {
         Ref pageMainFrameProcess = pageMainFrame->frameProcess();
-        Site pageMainFrameSite { pageMainFrame->url() };
 
         bool frameProcessChanged = m_frameProcess.ptr() != pageMainFrameProcess.ptr();
         if (frameProcessChanged)
             pageMainFrame->setProcess(m_frameProcess);
 
-        // If the originating FrameProcess still has local frames and is still in the same
-        // BrowsingContext group, pages in that process still need access to this page.
-        // So transition the WebPageProxy in that process to a RemotePageProxy.
-        if (frameProcessChanged && pageMainFrame == m_mainFrame && pageMainFrameProcess->frameCount() && pageMainFrameProcess->browsingContextGroup() == m_browsingContextGroup.ptr()) {
-            auto topDocumentSyncData = DocumentSyncData::create();
-            topDocumentSyncData->documentURL = request.url();
-            topDocumentSyncData->documentSecurityOrigin = SecurityOrigin::create(request.url());
-            page->setTopDocumentSyncData(topDocumentSyncData.copyRef());
-            protect(page->legacyMainFrameProcess())->send(Messages::WebPage::LoadDidCommitInAnotherProcess(page->mainFrame()->frameID(), std::nullopt, WTF::move(topDocumentSyncData)), page->webPageIDInMainFrameProcess());
-            m_browsingContextGroup->transitionPageToRemotePage(*page, pageMainFrameSite);
-        }
+        // Record that this page needs a remote-page transition. The actual
+        // IPC + transitionPageToRemotePage() call is deferred to
+        // commitProvisionalPage() so it can be skipped when the previous
+        // page is BFCache-suspended (a suspended page is frozen, not remote).
+        if (frameProcessChanged && pageMainFrame == m_mainFrame && pageMainFrameProcess->frameCount() && pageMainFrameProcess->browsingContextGroup() == m_browsingContextGroup.ptr())
+            m_deferredRemoteTransitionSite = Site { pageMainFrame->url() };
     }
     m_provisionalLoadURL = { };
     m_messageReceiverRegistration.stopReceivingMessages();

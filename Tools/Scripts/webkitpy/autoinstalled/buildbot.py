@@ -40,6 +40,7 @@ AutoInstall.install(Package('pbr', Version(5, 9, 0)))
 AutoInstall.install(Package('lz4', Version(4, 4, 4)))
 AutoInstall.install(Package('jwt', Version(2, 10, 1), pypi_name='PyJWT'))
 
+AutoInstall.install(Package('msgpack', Version(1, 1, 2)))
 AutoInstall.install(Package('autobahn', Version(24, 4, 2), wheel=False))
 AutoInstall.install(Package('automat', Version(25, 4, 16), pypi_name='Automat'))
 AutoInstall.install(Package('hamcrest', Version(2, 0, 3), pypi_name='PyHamcrest'))

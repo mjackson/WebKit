@@ -764,6 +764,17 @@ static WebCore::Color scrollViewBackgroundColor(WKWebView *webView, AllowPageBac
     return result;
 }
 
+- (CGPoint)_scrollOffsetAdjustedForObscuredInset:(CGPoint)contentOffset
+{
+    CGPoint result = contentOffset;
+    UIEdgeInsets contentInset = [self _computedObscuredInset];
+
+    result.x += contentInset.left;
+    result.y += contentInset.top;
+
+    return result;
+}
+
 - (UIRectEdge)_effectiveObscuredInsetEdgesAffectedBySafeArea
 {
     if (![self usesStandardContentView])
@@ -983,14 +994,14 @@ static void changeContentOffsetBoundedInValidRange(UIScrollView *scrollView, Web
         return;
 
     double pageScale = mainFrameData.pageScaleFactor;
-    WebCore::IntPoint scrollPosition = layerTreeTransaction.scrollPosition();
+    auto scrollOffset = WebCore::ScrollableArea::scrollOffsetFromPosition(layerTreeTransaction.scrollPosition(), layerTreeTransaction.scrollOrigin());
 
     CGFloat animatingScaleTarget = [[_resizeAnimationView layer] transform].m11;
     double currentTargetScale = animatingScaleTarget * [[_contentView layer] transform].m11;
     double scale = pageScale / currentTargetScale;
     _resizeAnimationTransformAdjustments = CATransform3DMakeScale(scale, scale, 1);
 
-    CGPoint newContentOffset = [self _contentOffsetAdjustedForObscuredInset:CGPointMake(scrollPosition.x() * pageScale, scrollPosition.y() * pageScale)];
+    CGPoint newContentOffset = [self _contentOffsetAdjustedForObscuredInset:CGPointMake(scrollOffset.x() * pageScale, scrollOffset.y() * pageScale)];
     CGPoint currentContentOffset = [_scrollView contentOffset];
 
     _resizeAnimationTransformAdjustments.m41 = (currentContentOffset.x - newContentOffset.x) / animatingScaleTarget;
@@ -2535,7 +2546,7 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
     CGFloat scale = self.bounds.size.width / _perProcessState.liveResizeParameters->viewWidth;
     CGAffineTransform transform = CGAffineTransformMakeScale(scale, scale);
 
-    CGPoint newContentOffset = [self _contentOffsetAdjustedForObscuredInset:CGPointMake(_perProcessState.liveResizeParameters->initialScrollPosition.x * scale, _perProcessState.liveResizeParameters->initialScrollPosition.y * scale)];
+    CGPoint newContentOffset = [self _contentOffsetAdjustedForObscuredInset:CGPointMake(_perProcessState.liveResizeParameters->initialScrollOffset.x * scale, _perProcessState.liveResizeParameters->initialScrollOffset.y * scale)];
     CGPoint currentContentOffset = [_scrollView contentOffset];
 
     transform.tx = currentContentOffset.x - newContentOffset.x;
@@ -3557,12 +3568,10 @@ static WebCore::UserInterfaceLayoutDirection toUserInterfaceLayoutDirection(UISe
 
     WKWEBVIEW_RELEASE_LOG("%p (pageProxyID=%llu) -[WKWebView _beginLiveResize]", self, _page->identifier().toUInt64());
 
-    CGPoint contentOffsetWithoutObscuredInset = self.scrollView.contentOffset;
-    UIEdgeInsets contentInset = [self _computedObscuredInset];
-    contentOffsetWithoutObscuredInset.x += contentInset.left;
-    contentOffsetWithoutObscuredInset.y += contentInset.top;
-
-    _perProcessState.liveResizeParameters = { { self.bounds.size.width, contentOffsetWithoutObscuredInset } };
+    _perProcessState.liveResizeParameters = { {
+        .viewWidth = self.bounds.size.width,
+        .initialScrollOffset = [self _scrollOffsetAdjustedForObscuredInset:self.scrollView.contentOffset]
+    } };
 
     [self _ensureResizeAnimationView];
 }

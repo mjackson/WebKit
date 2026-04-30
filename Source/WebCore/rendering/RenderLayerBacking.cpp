@@ -2112,10 +2112,6 @@ bool RenderLayerBacking::maintainsEventRegion() const
     if (renderer().document().needsPointerEventHandlingForPopoverOrDialog())
         return true;
 #endif
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-    if (renderer().document().hasDoubleClickEventHandlers())
-        return true;
-#endif
 
     if (m_owningLayer.isRenderViewLayer())
         return false;
@@ -2148,9 +2144,6 @@ void RenderLayerBacking::updateEventRegion()
     TraceScope scope(ComputeEventRegionsStart, ComputeEventRegionsEnd);
 
     auto visibleToHitTesting = renderer().visibleToHitTesting();
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-    const auto frameID = renderer().frame().frameID();
-#endif
 
     auto setEventRegionToLayerBounds = [&](GraphicsLayer* graphicsLayer) {
         if (!graphicsLayer)
@@ -2163,9 +2156,6 @@ void RenderLayerBacking::updateEventRegion()
 
 #if ENABLE(INTERACTION_REGIONS_IN_EVENT_REGION)
         eventRegionContext.copyInteractionRegionsToEventRegion(renderer().document().settings().interactionRegionMinimumCornerRadius());
-#endif
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-        eventRegion.setFrameID(frameID);
 #endif
         graphicsLayer->setEventRegion(WTF::move(eventRegion));
     };
@@ -2204,9 +2194,6 @@ void RenderLayerBacking::updateEventRegion()
         eventRegionContext.copyInteractionRegionsToEventRegion(renderer().document().settings().interactionRegionMinimumCornerRadius());
 #endif
         eventRegion.translate(toIntSize(roundedIntPoint(layerOffset)));
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-        eventRegion.setFrameID(frameID);
-#endif
         graphicsLayer.setEventRegion(WTF::move(eventRegion));
     };
 
@@ -4065,7 +4052,7 @@ static RefPtr<Pattern> patternForTouchAction(TouchAction touchAction, FloatSize 
 }
 #endif
 
-#if ENABLE(WHEEL_EVENT_REGIONS) || ENABLE(TOUCH_EVENT_REGIONS) || ENABLE(DBLCLICK_EVENT_REGIONS)
+#if ENABLE(WHEEL_EVENT_REGIONS) || ENABLE(TOUCH_EVENT_REGIONS)
 static RefPtr<Pattern> patternForEventListenerRegionType(EventListenerRegionType type, FloatSize contentOffset, GraphicsContext& destContext)
 {
     auto patternAndPhase = [&]() -> PatternDescription {
@@ -4074,8 +4061,8 @@ static RefPtr<Pattern> patternForEventListenerRegionType(EventListenerRegionType
             return { "wheel"_s, { }, Color::darkGreen.colorWithAlphaByte(128) };
         case EventListenerRegionType::NonPassiveWheel:
             return { "sync"_s, { 0, 9 }, SRGBA<uint8_t> { 200, 0, 0, 128 } };
-        case EventListenerRegionType::Dblclick:
-            return { "dblclick (sync)"_s, { 0, 9 }, SRGBA<uint8_t> { 200, 200, 0, 128 } };
+        case EventListenerRegionType::MouseClick:
+            break;
         case EventListenerRegionType::TouchStart:
         case EventListenerRegionType::TouchMove:
         case EventListenerRegionType::TouchEnd:
@@ -4206,11 +4193,6 @@ void RenderLayerBacking::paintDebugOverlays(const GraphicsLayer* graphicsLayer, 
 
             EventListenerRegionType regionType;
             switch (eventType) {
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-            case EventTrackingRegionsEventType::Dblclick:
-                regionType = EventListenerRegionType::Dblclick;
-                break;
-#endif
             case EventTrackingRegionsEventType::Touchstart:
                 regionType = EventListenerRegionType::NonPassiveTouchStart;
                 break;

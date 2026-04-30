@@ -86,7 +86,10 @@ bool CoordinatedSceneState::flush()
 
     Locker pendingLayersLock { m_pendingLayersLock };
     m_pendingLayers = m_layers;
-    m_pendingLayersToRemove.addAll(WTF::move(m_layersToRemove));
+    if (m_pendingLayersToRemove.isEmpty())
+        m_pendingLayersToRemove = WTF::move(m_layersToRemove);
+    else
+        m_pendingLayersToRemove.addAll(std::exchange(m_layersToRemove, { }));
 
     return true;
 }
@@ -95,9 +98,11 @@ void CoordinatedSceneState::commitPendingLayers()
 {
     ASSERT(!isMainRunLoop());
     Locker pendingLayersLock { m_pendingLayersLock };
-    for (auto& layer : m_pendingLayersToRemove)
+    while (!m_pendingLayersToRemove.isEmpty()) {
+        auto layer = m_pendingLayersToRemove.takeAny();
         layer->invalidateTarget();
-    m_pendingLayersToRemove.clear();
+    }
+
     if (!m_pendingLayers.isEmpty())
         m_committedLayers = WTF::move(m_pendingLayers);
 }

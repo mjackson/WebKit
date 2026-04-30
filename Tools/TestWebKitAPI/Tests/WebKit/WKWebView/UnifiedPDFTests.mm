@@ -1510,7 +1510,12 @@ UNIFIED_PDF_TEST(MainFramePDFScrollbarAdaptsToDarkMode)
     EXPECT_TRUE([darkModeTree containsString:@"uses dark appearance for scrollbars"]);
 }
 
+// FIXME when webkit.org/b/313768 is resolved.
+#if PLATFORM(MAC)
+UNIFIED_PDF_TEST(DISABLED_EmbeddedPDFScrollbarDoesNotAdaptToDarkMode)
+#else
 UNIFIED_PDF_TEST(EmbeddedPDFScrollbarDoesNotAdaptToDarkMode)
+#endif
 {
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 600) configuration:configurationForWebViewTestingUnifiedPDF().get()]);
     [webView synchronouslyLoadHTMLString:@"<embed src='multiple-pages.pdf' width='600' height='600'>"];

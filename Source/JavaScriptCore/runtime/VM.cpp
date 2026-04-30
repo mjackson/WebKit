@@ -514,8 +514,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     Config::finalize();
 
-    if (!isInMiniMode())
+    if (!isInMiniMode()) {
         initializeAvailableTimeZones();
+        if (heapType == HeapType::Large)
+            dateCache.timeZoneDisplayName(/* isDST */ false);
+    }
 
     // We must set this at the end only after the VM is fully initialized.
     WTF::storeStoreFence();

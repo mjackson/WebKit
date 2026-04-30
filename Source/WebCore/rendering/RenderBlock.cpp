@@ -1212,10 +1212,6 @@ void RenderBlock::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOffs
         needsTraverseDescendants |= document->hasTouchEventHandlers();
         LOG_WITH_STREAM(EventRegions, stream << "  has touch event handlers: " << document->hasTouchEventHandlers());
 #endif
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-        needsTraverseDescendants |= document->hasDoubleClickEventHandlers();
-        LOG_WITH_STREAM(EventRegions, stream << "  has dblclick event handlers: " << document->hasDoubleClickEventHandlers());
-#endif
 
 #if ENABLE(EDITABLE_REGION)
         // We treat the entire text control as editable to match users' expectation even

@@ -1568,4 +1568,12 @@ void testVectorSwizzleComposition();
 void testVectorSwizzleUnaryComposition();
 void testVectorSwizzleCompositionMultiUse();
 
+void testRotRFromShiftXorChainSHA256Sigma1_32(int32_t);
+void testRotRFromShiftXorChainSHA512Sigma1_64(int64_t);
+void testRotRFromShiftXorChainSHA256sigma0_32(int32_t);
+void testRotRFromShiftOrChainSHA256Sigma1_32(int32_t);
+void testRotRFromShiftXorChainSharedShiftOperand(int32_t);
+void testShiftOrDifferentBasesNoRotate(int32_t, int32_t, int32_t);
+void testShiftOrMismatchedAmountsNoRotate(int32_t);
+
 #endif // ENABLE(B3_JIT)

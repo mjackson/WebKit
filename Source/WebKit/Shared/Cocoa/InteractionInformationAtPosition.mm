@@ -37,6 +37,7 @@ namespace WebKit {
 InteractionInformationAtPosition::InteractionInformationAtPosition(
     InteractionInformationRequest&& request,
     bool canBeValid,
+    std::optional<bool> hitNodeOrWindowHasDoubleClickListener,
     Selectability&& selectability,
     bool isSelected,
     bool prefersDraggingOverTextSelection,
@@ -98,6 +99,7 @@ InteractionInformationAtPosition::InteractionInformationAtPosition(
 )
     : request(WTF::move(request))
     , canBeValid(canBeValid)
+    , hitNodeOrWindowHasDoubleClickListener(hitNodeOrWindowHasDoubleClickListener)
     , selectability(selectability)
     , isSelected(isSelected)
     , prefersDraggingOverTextSelection(prefersDraggingOverTextSelection)

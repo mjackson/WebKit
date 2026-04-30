@@ -66,6 +66,19 @@ static Ref<SupportedLimits> supportedLimits(WGPUAdapter adapter)
     WGPUSupportedLimits limits;
     auto result = wgpuAdapterGetLimits(adapter, &limits);
     ASSERT_UNUSED(result, result);
+
+    // https://www.w3.org/TR/webgpu/#devices
+    // maxStorageBuffersPerShaderStage = max(perStage, inVertex, inFragment)
+    // Then set inVertex and inFragment equal to the per-stage value.
+    auto& lm = limits.limits;
+    lm.maxStorageBuffersPerShaderStage = std::max({ lm.maxStorageBuffersPerShaderStage, lm.maxStorageBuffersInVertexStage, lm.maxStorageBuffersInFragmentStage });
+    lm.maxStorageBuffersInVertexStage = lm.maxStorageBuffersPerShaderStage;
+    lm.maxStorageBuffersInFragmentStage = lm.maxStorageBuffersPerShaderStage;
+
+    lm.maxStorageTexturesPerShaderStage = std::max({ lm.maxStorageTexturesPerShaderStage, lm.maxStorageTexturesInVertexStage, lm.maxStorageTexturesInFragmentStage });
+    lm.maxStorageTexturesInVertexStage = lm.maxStorageTexturesPerShaderStage;
+    lm.maxStorageTexturesInFragmentStage = lm.maxStorageTexturesPerShaderStage;
+
     return SupportedLimits::create(
         limits.limits.maxTextureDimension1D,
         limits.limits.maxTextureDimension2D,

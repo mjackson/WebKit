@@ -1872,15 +1872,25 @@ bool Quirks::needsIPadMiniUserAgent(const URL& url)
     return false;
 }
 
-bool Quirks::needsIPhoneUserAgent(const URL& url)
+bool Quirks::needsIPhoneUserAgent(const URL& url, UseDesktopClassBrowsing useDesktopClassBrowsing)
 {
 #if PLATFORM(IOS_FAMILY)
-    if (url.host() == "shopee.sg"_s && url.path() == "/payment/account-linking/landing"_s)
-        return true;
-    if (url.host() == "spotify.com"_s || url.host().endsWith(".spotify.com"_s) || url.host().endsWith(".spotifycdn.com"_s))
-        return true;
+    switch (useDesktopClassBrowsing) {
+    case UseDesktopClassBrowsing::Unspecified:
+        if (url.host() == "shopee.sg"_s && url.path() == "/payment/account-linking/landing"_s)
+            return true;
+        break;
+    case UseDesktopClassBrowsing::No:
+        // rdar://175017084
+        if (url.host() == "spotify.com"_s || url.host().endsWith(".spotify.com"_s) || url.host().endsWith(".spotifycdn.com"_s))
+            return true;
+        break;
+    case UseDesktopClassBrowsing::Yes:
+        break;
+    }
 #else
     UNUSED_PARAM(url);
+    UNUSED_PARAM(useDesktopClassBrowsing);
 #endif
     return false;
 }

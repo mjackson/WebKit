@@ -2661,7 +2661,6 @@ header: <WebCore/SearchPopupMenu.h>
 };
 
 [Nested] enum class WebCore::EventTrackingRegions::EventType : uint8_t {
-    Dblclick,
     Mousedown,
     Mousemove,
     Mouseup,
@@ -5753,9 +5752,6 @@ class WebCore::EventRegion {
 #if ENABLE(INTERACTION_REGIONS_IN_EVENT_REGION)
     Vector<WebCore::InteractionRegion> m_interactionRegions;
 #endif
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-    Markable<WebCore::FrameIdentifier> m_frameID;
-#endif
 };
 
 enum class WebCore::PasteboardItemPresentationStyle : uint8_t {
@@ -6836,6 +6832,8 @@ header: <WebCore/TextExtractionTypes.h>
 header: <WebCore/TextExtractionTypes.h>
 [CustomHeader] struct WebCore::TextExtraction::IFrameData {
     String origin;
+    String shortenedOrigin;
+    bool isSameOriginAsParent;
     WebCore::FrameIdentifier identifier;
 };
 
@@ -8574,11 +8572,18 @@ header: <WebCore/ShareableCVPixelBuffer.h>
 [CustomHeader, RefCounted] class WebCore::ShareableCVPixelBufferWithPlanarBytes {
     WebCore::ShareableCVPixelBufferConfiguration m_configuration;
     Vector<Ref<WebCore::ShareableCVPixelBufferBytes>> m_planes;
-};
+}
 
 [CustomHeader, RefCounted] class WebCore::ShareableCVPixelBuffer subclasses {
     WebCore::ShareableCVPixelBufferWithBytes
     WebCore::ShareableCVPixelBufferWithPlanarBytes
+}
+
+header: <WebCore/ShareableGainMap.h>
+[CreateUsing=create] class WebCore::ShareableGainMap {
+    RetainPtr<CFDataRef> m_metadata;
+    Ref<WebCore::ShareableCVPixelBuffer> m_gainMapShareablePixelBuffer;
+    WebCore::DestinationColorSpace m_colorSpace;
 }
 
 #endif
@@ -8594,6 +8599,7 @@ header: <WebCore/ShareableBitmap.h>
     [Validator='[&]() { std::remove_cvref_t<decltype(*bytesPerRow)> bytesForWidth; return WTF::safeMultiply(m_size->width(), *bytesPerPixel, bytesForWidth) && *bytesPerRow >= bytesForWidth; }()'] unsigned bytesPerRow();
 #if USE(CG)
     CGBitmapInfo m_bitmapInfo;
+    std::optional<WebCore::ShareableGainMap> m_shareableGainMap;
 #endif
 }
 

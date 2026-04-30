@@ -34,9 +34,6 @@
 #include <time.h>
 #include <windows.h>
 
-#pragma comment(lib, "ntdll")
-__declspec(dllimport) BOOLEAN NTAPI RtlDllShutdownInProgress(void);
-
 #define pthread_t uintptr_t
 
 /* Threads */

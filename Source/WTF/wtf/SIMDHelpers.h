@@ -150,6 +150,11 @@ ALWAYS_INLINE simde_uint64x2_t load(const uint64_t* ptr)
     return simde_vld1q_u64(ptr);
 }
 
+ALWAYS_INLINE simde_float32x4_t load(const float* ptr)
+{
+    return simde_vld1q_f32(ptr);
+}
+
 ALWAYS_INLINE simde_float64x2_t load(const double* ptr)
 {
     return simde_vld1q_f64(ptr);

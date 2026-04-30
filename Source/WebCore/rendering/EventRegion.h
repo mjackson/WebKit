@@ -42,11 +42,6 @@
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
 
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-#include <WebCore/FrameIdentifier.h>
-#include <wtf/Markable.h>
-#endif
-
 namespace WebCore {
 
 class EventRegion;
@@ -127,9 +122,6 @@ public:
 #if ENABLE(INTERACTION_REGIONS_IN_EVENT_REGION)
     , Vector<WebCore::InteractionRegion>
 #endif
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-    , Markable<FrameIdentifier>
-#endif
     );
 
     EventRegionContext makeContext() { return EventRegionContext(*this); }
@@ -178,11 +170,6 @@ public:
     void clearInteractionRegions();
 #endif
 
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-    Markable<FrameIdentifier> frameID() const { return m_frameID; }
-    void setFrameID(FrameIdentifier frameID) { m_frameID = frameID; }
-#endif
-
 private:
     friend struct IPC::ArgumentCoder<EventRegion>;
 #if ENABLE(TOUCH_ACTION_REGIONS)
@@ -207,9 +194,6 @@ private:
 #endif
 #if ENABLE(INTERACTION_REGIONS_IN_EVENT_REGION)
     Vector<InteractionRegion> m_interactionRegions;
-#endif
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-    Markable<FrameIdentifier> m_frameID;
 #endif
 };
 
