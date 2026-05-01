@@ -72,21 +72,18 @@ RUN . /etc/os-release \
          echo "ubuntu-toolchain-r index not fetched (attempt $i), retrying..."; \
          sleep $((i * 20)); \
        done \
-    && apt-get install -y \
-        -o Acquire::Retries=10 \
-        -o Acquire::http::Timeout=30 \
-        -o Acquire::https::Timeout=30 \
-        gcc-13 \
-        g++-13 \
-        libgcc-13-dev \
-        libstdc++-13-dev \
-        libasan6 \
-        libubsan1 \
-        libatomic1 \
-        libtsan0 \
-        liblsan0 \
-        libgfortran5 \
-        libc6-dev \
+    && for i in 1 2 3 4 5 6; do \
+         apt-get install -y \
+           -o Acquire::Retries=10 \
+           -o Acquire::http::Timeout=30 \
+           -o Acquire::https::Timeout=30 \
+           gcc-13 g++-13 libgcc-13-dev libstdc++-13-dev \
+           libasan6 libubsan1 libatomic1 libtsan0 liblsan0 libgfortran5 libc6-dev \
+         && break; \
+         echo "apt-get install failed (attempt $i), retrying..."; \
+         sleep $((i * 30)); \
+       done \
+    && dpkg -l gcc-13 >/dev/null \
     && rm -rf /var/lib/apt/lists/*
 
 # Ensure GCC 13 is the default
