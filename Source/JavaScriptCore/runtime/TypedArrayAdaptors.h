@@ -71,7 +71,7 @@ struct IntegralTypedArrayAdaptor {
 #if HAVE(FJCVTZS_INSTRUCTION)
         return static_cast<Type>(toInt32(value));
 #else
-        int32_t result = static_cast<int32_t>(value);
+        int32_t result = truncateDoubleToInt32(value);
         if (static_cast<double>(result) != value)
             result = toInt32(value);
         return static_cast<Type>(result);
@@ -108,14 +108,14 @@ struct IntegralTypedArrayAdaptor {
 
     static std::optional<Type> toNativeFromDoubleWithoutCoercion(double value)
     {
-        Type integer = static_cast<Type>(value);
+        // Same instruction count as the original static_cast<Type>(value) form,
+        // but UB-free: cvttsd2si/fcvtzs to int64 (well-defined sentinel on
+        // overflow), then integer-narrow to Type (defined: unsigned wraps,
+        // signed is two's-complement since C++20). Any wrap fails the round-trip.
+        Type integer = static_cast<Type>(truncateDoubleToInt64(value));
         if (static_cast<double>(integer) != value)
             return std::nullopt;
-
-        if (value < 0)
-            return toNativeFromInt32WithoutCoercion(static_cast<int32_t>(value));
-        
-        return toNativeFromUint32WithoutCoercion(static_cast<uint32_t>(value));
+        return integer;
     }
 };
 

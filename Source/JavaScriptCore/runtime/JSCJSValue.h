@@ -30,6 +30,7 @@
 #include <wtf/Forward.h>
 #include <wtf/HashFunctions.h>
 #include <wtf/HashTraits.h>
+#include <wtf/MathExtras.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/Nonmovable.h>
 #include <wtf/TriState.h>
@@ -1172,7 +1173,7 @@ inline int64_t tryConvertToInt52(double number)
     if (std::isinf(number))
         return JSValue::notInt52;
 #endif
-    int64_t asInt64 = static_cast<int64_t>(number);
+    int64_t asInt64 = truncateDoubleToInt64(number);
     if (asInt64 != number)
         return JSValue::notInt52;
     if (!asInt64 && std::signbit(number))
