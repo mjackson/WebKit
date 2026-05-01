@@ -34,15 +34,8 @@
 #include <WebCore/IntPoint.h>
 #include <WebCore/IntSize.h>
 #include <wtf/Deque.h>
-#include <wtf/Markable.h>
-#include <wtf/ObjectIdentifier.h>
 #include <wtf/RefCounted.h>
 #include <wtf/WeakHashMap.h>
-
-namespace WebCore {
-struct FrameIdentifierType;
-using FrameIdentifier = ObjectIdentifier<FrameIdentifierType>;
-}
 
 namespace WebKit {
 
@@ -133,7 +126,6 @@ public:
 
     TransactionID NODELETE nextMainFrameLayerTreeTransactionID() const;
     TransactionID NODELETE lastCommittedMainFrameLayerTreeTransactionID() const;
-    HashMap<WebCore::ProcessIdentifier, TransactionID> committedLayerTreeTransactionIDsByProcess() const;
 
     virtual void didRefreshDisplay();
     virtual void setDisplayLinkWantsFullSpeedUpdates(bool) { }
@@ -160,13 +152,6 @@ public:
 #if ENABLE(TOUCH_EVENT_REGIONS)
     WebCore::TrackingType eventTrackingTypeForPoint(WebCore::EventTrackingRegions::EventType, WebCore::IntPoint);
 #endif
-
-    struct EventRegionHitTestResult {
-        WebCore::FrameIdentifier frameIdentifier;
-        WebCore::FloatPoint pointInTargetFrameContents;
-    };
-
-    std::optional<EventRegionHitTestResult> eventRegionHitTestResultForDoubleClickAtPoint(WebCore::IntPoint);
 
     void drawSlowFrameIndicator(WebCore::GraphicsContext&);
 

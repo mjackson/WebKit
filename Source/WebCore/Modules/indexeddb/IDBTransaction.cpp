@@ -345,6 +345,8 @@ void IDBTransaction::stop()
     if (isVersionChange())
         m_openDBRequest = nullptr;
 
+    m_openRequests.clear();
+
     if (isFinishedOrFinishing())
         return;
 
@@ -423,6 +425,11 @@ void IDBTransaction::completeNoncursorRequest(IDBRequest& request, const IDBResu
 
     request.completeRequestAndDispatchEvent(result);
 
+    if (m_isStopped) {
+        ++m_handledRequestResultsCount;
+        return;
+    }
+
     m_currentlyCompletingRequest = request;
 }
 
@@ -431,6 +438,11 @@ void IDBTransaction::completeCursorRequest(IDBRequest& request, const IDBResultD
     ASSERT(!m_currentlyCompletingRequest);
 
     request.didOpenOrIterateCursor(result);
+
+    if (m_isStopped) {
+        ++m_handledRequestResultsCount;
+        return;
+    }
 
     m_currentlyCompletingRequest = request;
 }

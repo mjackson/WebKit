@@ -55,21 +55,23 @@ RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/nul
     && rm -rf /var/lib/apt/lists/*
 
 # Install GCC 13 toolchain
-RUN add-apt-repository ppa:ubuntu-toolchain-r/test \
+# Mirrored from ppa:ubuntu-toolchain-r/test to a GitHub release so this image
+# doesn't depend on Launchpad availability (single-IP 185.125.190.80; went
+# hard-down 2026-05-01, taking the API + keyserver.ubuntu.com with it). The
+# tarball is SHA-256-pinned. Regenerate via scripts/mirror-gcc13-debs.sh.
+ARG GCC13_DEBS_SHA256_amd64=a2b3b6e10b175bbaaefeb3e9e703ca26a97ed6c1f19ca842d3e0b0c8f941e65b
+ARG GCC13_DEBS_SHA256_arm64=be19db90d94c52c6061280bbadcaad9b09db1e9f2e77a12f8c18c5425d2eb056
+RUN curl -fsSL --retry 5 --retry-connrefused \
+        "https://github.com/oven-sh/WebKit/releases/download/gcc-13-focal-debs/gcc-13-focal-${TARGETARCH}.tar.gz" \
+        -o /tmp/gcc13.tar.gz \
+    && eval "expected=\$GCC13_DEBS_SHA256_${TARGETARCH}" \
+    && echo "${expected}  /tmp/gcc13.tar.gz" | sha256sum -c - \
+    && mkdir -p /tmp/gcc13 && tar xzf /tmp/gcc13.tar.gz -C /tmp/gcc13 \
     && apt-get update \
-    && apt-get install -y \
-        gcc-13 \
-        g++-13 \
-        libgcc-13-dev \
-        libstdc++-13-dev \
-        libasan6 \
-        libubsan1 \
-        libatomic1 \
-        libtsan0 \
-        liblsan0 \
-        libgfortran5 \
-        libc6-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y libc6-dev binutils libisl22 libmpc3 libmpfr6 \
+    && (dpkg -i /tmp/gcc13/*.deb || apt-get install -f -y) \
+    && dpkg -l gcc-13 g++-13 libstdc++-13-dev >/dev/null \
+    && rm -rf /tmp/gcc13 /tmp/gcc13.tar.gz /var/lib/apt/lists/*
 
 # Ensure GCC 13 is the default
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 130 \

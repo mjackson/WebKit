@@ -475,6 +475,7 @@ platform/graphics/cocoa/PlatformMediaEngineConfigurationFactoryCocoa.cpp
 platform/graphics/cocoa/PlatformTimeRangesCocoa.mm @nonARC @no-unify
 platform/graphics/cocoa/ShareableCVPixelBuffer.cpp
 platform/graphics/cocoa/ShareableCVPixelFormat.cpp
+platform/graphics/cocoa/ShareableGainMap.cpp
 platform/graphics/cocoa/SourceBufferParser.cpp
 platform/graphics/cocoa/SourceBufferParserWebM.cpp
 platform/graphics/cocoa/SystemFontDatabaseCocoa.mm @nonARC

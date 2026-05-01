@@ -5,15 +5,15 @@ PASS SMIL clock values: out-of-range minutes/seconds validation and fractional s
 PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="00:01.50"
 PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="00:00:59.50"
 PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="00:59.50"
-FAIL SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="101:00:01" assert_not_equals: dur="101:00:01" should be valid and animate got disallowed value 0
+PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="101:00:01"
 PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="01:99:01"
 PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="99:01"
 PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="01:30:99"
 PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="30:99"
 PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="00:59:59."
-FAIL SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="00:59:9.9" assert_equals: dur="00:59:9.9" should be invalid (seconds < 10 should have a leading zero) expected 0 but got 3.3803768157958984
-FAIL SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="00:59:.9" assert_equals: dur="00:59:.9" should be invalid (seconds needs to be specified) expected 0 but got 3.3889689445495605
-FAIL SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="00:59:009" assert_equals: dur="00:59:009" should be invalid (seconds without fraction should be two digits) expected 0 but got 3.3812339305877686
+PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="00:59:9.9"
+PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="00:59:.9"
+PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="00:59:009"
 PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur=":30:01"
 PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="01::01"
 PASS SMIL clock values: out-of-range minutes/seconds validation and fractional seconds support, dur="5:30"

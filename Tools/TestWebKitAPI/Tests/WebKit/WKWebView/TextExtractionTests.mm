@@ -986,6 +986,39 @@ TEST(TextExtractionTests, SubframeInteractions)
     EXPECT_EQ(numberOfMatches(debugTextAfterClicks.get(), @"Click count: 1"), 2u);
 }
 
+TEST(TextExtractionTests, SubframeOriginInDebugText)
+{
+    HTTPServer server { {
+        { "/subframe-cross.html"_s, { subFrameMarkup("Cross"_s) } },
+        { "/subframe-same.html"_s, { subFrameMarkup("Same"_s) } },
+    }, HTTPServer::Protocol::Http };
+
+    server.addResponse("/"_s, { mainFrameMarkup(server.port()) });
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:^{
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        [[configuration preferences] _setTextExtractionEnabled:YES];
+        return configuration.autorelease();
+    }()]);
+    [webView synchronouslyLoadRequest:server.request()];
+
+    Util::waitForConditionWithLogging([webView] {
+        return [[webView objectByEvaluatingJavaScript:@"subframeLoadedCount"] intValue] == 2;
+    }, 2, @"Expected subframes to finish loading.");
+
+    RetainPtr debugText = [webView synchronouslyGetDebugText:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setIncludeRects:NO];
+        [configuration setIncludeURLs:YES];
+        return configuration.autorelease();
+    }()];
+
+    auto crossOriginExpected = makeString("origin=localhost:"_s, server.port());
+    EXPECT_TRUE([debugText containsString:crossOriginExpected.createNSString()]);
+    EXPECT_FALSE([debugText containsString:@"origin=http://localhost"]);
+    EXPECT_FALSE([debugText containsString:@"origin=127.0.0.1"]);
+}
+
 TEST(TextExtractionTests, InjectedBundle)
 {
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"JSHandlePlugIn"];

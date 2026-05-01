@@ -1204,7 +1204,8 @@ private:
             break;
         }
 
-        case StringIndexOf: {
+        case StringIndexOf:
+        case StringLastIndexOf: {
             setPrediction(SpecInt32Only);
             break;
         }

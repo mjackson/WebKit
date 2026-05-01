@@ -43,6 +43,7 @@ struct InteractionInformationRequest {
     bool includeSnapshot { false };
     bool includeLinkIndicator { false };
     bool includeCursorContext { false };
+    bool includeHasDoubleClickHandler { true };
     bool includeImageData { false };
 
     bool gatherAnimations { false };
@@ -54,11 +55,12 @@ struct InteractionInformationRequest {
     {
     }
 
-    explicit InteractionInformationRequest(WebCore::IntPoint point, bool includeSnapshot, bool includeLinkIndicator, bool includeCursorContext, bool includeImageData, bool gatherAnimations, bool linkIndicatorShouldHaveLegacyMargins)
+    explicit InteractionInformationRequest(WebCore::IntPoint point, bool includeSnapshot, bool includeLinkIndicator, bool includeCursorContext, bool includeHasDoubleClickHandler, bool includeImageData, bool gatherAnimations, bool linkIndicatorShouldHaveLegacyMargins)
         : point(point)
         , includeSnapshot(includeSnapshot)
         , includeLinkIndicator(includeLinkIndicator)
         , includeCursorContext(includeCursorContext)
+        , includeHasDoubleClickHandler(includeHasDoubleClickHandler)
         , includeImageData(includeImageData)
         , gatherAnimations(gatherAnimations)
         , linkIndicatorShouldHaveLegacyMargins(linkIndicatorShouldHaveLegacyMargins)

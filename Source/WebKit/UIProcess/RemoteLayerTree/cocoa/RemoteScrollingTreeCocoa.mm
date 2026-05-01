@@ -55,26 +55,18 @@ bool layerEventRegionContainsPoint(CALayer *layer, CGPoint localPoint)
 
 OptionalEventRegionConstRef eventRegionForPoint(CALayer* rootLayer, FloatPoint& location)
 {
-    RefPtr layerTreeNode = hitLayerTreeNodeAtPoint(rootLayer, location);
-    if (!layerTreeNode)
-        return std::nullopt;
-    return std::cref(layerTreeNode->eventRegion());
-}
-
-RefPtr<RemoteLayerTreeNode> hitLayerTreeNodeAtPoint(CALayer* rootLayer, FloatPoint& location)
-{
     Vector<LayerAndPoint, 16> layersAtPoint;
     collectDescendantLayersAtPoint(layersAtPoint, rootLayer, location, layerEventRegionContainsPoint);
 
     if (layersAtPoint.isEmpty())
-        return nullptr;
+        return std::nullopt;
 
     auto [hitLayer, localPoint] = layersAtPoint.last();
     if (!hitLayer)
-        return nullptr;
+        return std::nullopt;
 
     location = roundedIntPoint(localPoint);
-    return RemoteLayerTreeNode::forCALayer(hitLayer.get());
+    return eventRegionForLayer(hitLayer.get());
 }
 
 }

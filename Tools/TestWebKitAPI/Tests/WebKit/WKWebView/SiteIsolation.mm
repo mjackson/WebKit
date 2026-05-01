@@ -24,7 +24,6 @@
  */
 
 #import "config.h"
-#import "CrossOriginDblclickHelpers.h"
 #import "FrameTreeChecks.h"
 #import "Helpers/PlatformUtilities.h"
 #import "Helpers/Utilities.h"
@@ -8697,7 +8696,6 @@ TEST(SiteIsolation, CrossOriginIframeWithoutHorizontalOverflowCanShortCircuitHor
 #endif
 
 #if PLATFORM(IOS_FAMILY)
-
 TEST(SiteIsolation, NoRedundantFocusPolicyCallbackAfterBlurAndRefocusInCrossOriginIframe)
 {
     auto mainHTML = "<iframe src='https://webkit.org/iframe' style='width: 300px; height: 300px;'></iframe>"_s;
@@ -8743,83 +8741,6 @@ TEST(SiteIsolation, NoRedundantFocusPolicyCallbackAfterBlurAndRefocusInCrossOrig
 
     EXPECT_EQ(1, focusPolicyCallCount);
 }
-
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-
-TEST(SiteIsolation, DblclickWithWindowListenerInSimpleIFrameCrossOrigin)
-{
-    HTTPServer server({
-        { "/example"_s, { mainHTMLForCrossOriginDblclick } },
-        { "/iframe"_s, { iframeContentForCrossOriginDblclickWindowListener } }
-    }, HTTPServer::Protocol::HttpsProxy);
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server, CGRectMake(0, 0, 800, 600));
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    testDblclickInCrossOriginIFrame(webView.get(), 50, 50, @"50", @"50");
-}
-
-TEST(SiteIsolation, DblclickWithWindowListenerInRotatedIFrameCrossOrigin)
-{
-    HTTPServer server({
-        { "/example"_s, { mainHTMLForCrossOriginDblclick } },
-        { "/iframe"_s, { iframeContentForCrossOriginDblclickWindowListener } }
-    }, HTTPServer::Protocol::HttpsProxy);
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server, CGRectMake(0, 0, 800, 600));
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    testDblclickInCrossOriginIFrame(webView.get(), 10, 10, @"90", @"90", @"frame.style.rotate = \"180deg\";");
-}
-
-TEST(SiteIsolation, DblclickWithWindowListenerInScaledIFrameCrossOrigin)
-{
-    HTTPServer server({
-        { "/example"_s, { mainHTMLForCrossOriginDblclick } },
-        { "/iframe"_s, { iframeContentForCrossOriginDblclickWindowListener } }
-    }, HTTPServer::Protocol::HttpsProxy);
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server, CGRectMake(0, 0, 800, 600));
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    testDblclickInCrossOriginIFrame(webView.get(), 50, 50, @"25", @"25", @"frame.style.transformOrigin = \"top left\"; frame.style.scale = \"2\";");
-}
-
-TEST(SiteIsolation, DblclickWithDocumentListenerInSimpleIFrameCrossOrigin)
-{
-    HTTPServer server({
-        { "/example"_s, { mainHTMLForCrossOriginDblclick } },
-        { "/iframe"_s, { iframeContentForCrossOriginDblclickDocumentListener } }
-    }, HTTPServer::Protocol::HttpsProxy);
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server, CGRectMake(0, 0, 800, 600));
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    testDblclickInCrossOriginIFrame(webView.get(), 50, 50, @"50", @"50");
-}
-
-TEST(SiteIsolation, DblclickWithDocumentListenerInRotatedIFrameCrossOrigin)
-{
-    HTTPServer server({
-        { "/example"_s, { mainHTMLForCrossOriginDblclick } },
-        { "/iframe"_s, { iframeContentForCrossOriginDblclickDocumentListener } }
-    }, HTTPServer::Protocol::HttpsProxy);
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server, CGRectMake(0, 0, 800, 600));
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    testDblclickInCrossOriginIFrame(webView.get(), 10, 10, @"90", @"90", @"frame.style.rotate = \"180deg\";");
-}
-
-TEST(SiteIsolation, DblclickWithDocumentListenerInScaledIFrameCrossOrigin)
-{
-    HTTPServer server({
-        { "/example"_s, { mainHTMLForCrossOriginDblclick } },
-        { "/iframe"_s, { iframeContentForCrossOriginDblclickDocumentListener } }
-    }, HTTPServer::Protocol::HttpsProxy);
-    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server, CGRectMake(0, 0, 800, 600));
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
-    [navigationDelegate waitForDidFinishNavigation];
-    testDblclickInCrossOriginIFrame(webView.get(), 50, 50, @"25", @"25", @"frame.style.transformOrigin = \"top left\"; frame.style.scale = \"2\";");
-}
-
-#endif // ENABLE(DBLCLICK_EVENT_REGIONS)
-
-#endif // PLATFORM(IOS_FAMILY)
+#endif
 
 }

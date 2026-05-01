@@ -64,6 +64,7 @@ struct InteractionInformationAtPosition {
     InteractionInformationAtPosition(
         InteractionInformationRequest&&,
         bool canBeValid,
+        std::optional<bool> hitNodeOrWindowHasDoubleClickListener,
         Selectability&&,
         bool isSelected,
         bool prefersDraggingOverTextSelection,
@@ -127,6 +128,7 @@ struct InteractionInformationAtPosition {
     InteractionInformationRequest request;
 
     bool canBeValid { true };
+    std::optional<bool> hitNodeOrWindowHasDoubleClickListener;
 
     Selectability selectability { Selectability::Selectable };
 

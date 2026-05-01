@@ -98,11 +98,21 @@ std::optional<TextList> tryConsumeUnorderedDiscTextList(StringParsingBuffer<Char
 template<typename Character>
 std::optional<TextList> tryConsumeUnorderedDashTextList(StringParsingBuffer<Character>& input)
 {
-    static constexpr std::array marker { WTF::Unicode::enDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace };
+    auto isDashCharacter = [](auto c) {
+        return c == WTF::Unicode::hyphenMinus
+            || c == WTF::Unicode::hyphen
+            || c == WTF::Unicode::emDash
+            || c == WTF::Unicode::enDash;
+    };
 
-    if (WTF::skipExactly(input, WTF::Unicode::hyphenMinus)) {
-        if (input.atEnd())
+    if (!input.atEnd() && isDashCharacter(*input)) {
+        auto dashCharacter = *input;
+        ++input;
+
+        if (input.atEnd()) {
+            std::array marker { static_cast<char16_t>(dashCharacter), WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace };
             return { { Style::ListStyleType { Style::String { WTF::String { std::span { marker } } } }, 0, false } };
+        }
 
         skipToEnd(input);
     }

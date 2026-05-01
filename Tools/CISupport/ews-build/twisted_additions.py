@@ -241,7 +241,6 @@ class TwistedAdditions(object):
         if not url:
             logger('No URL provided\n')
             defer.returnValue(None)
-        logger(f'Accessing {url} with timeout: {timeout}\n')
         hostname = '/'.join(url.split('/', 3)[:3])
         if params:
             url = '{}?{}'.format(url, '&'.join([f'{key}={value}' for key, value in params.items()]))

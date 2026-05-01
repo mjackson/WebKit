@@ -1646,7 +1646,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     [self removeGestureRecognizer:_touchActionDownSwipeGestureRecognizer.get()];
 
     _layerTreeTransactionIdAtLastInteractionStart = { };
-    _layerTreeTransactionIdsAtLastInteractionStart = { };
 
 #if ENABLE(DRAG_SUPPORT)
     [protect(existingLocalDragSessionContext(protect(_dragDropInteractionState.dragSession()))) cleanUpTemporaryDirectories];
@@ -2221,7 +2220,6 @@ typedef NS_ENUM(NSInteger, EndEditingReason) {
 
         [self _handleDOMPasteRequestWithResult:WebCore::DOMPasteAccessResponse::DeniedForGesture];
         _layerTreeTransactionIdAtLastInteractionStart = protect(downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*_page->drawingArea()))->lastCommittedMainFrameLayerTreeTransactionID();
-        _layerTreeTransactionIdsAtLastInteractionStart = protect(downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*_page->drawingArea()))->committedLayerTreeTransactionIDsByProcess();
 
 #if ENABLE(TOUCH_EVENTS)
         _page->didBeginTouchPoint(lastTouchEvent.locationInRootViewCoordinates);
@@ -3562,16 +3560,12 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     if (gestureRecognizer == _doubleTapGestureRecognizerForDoubleClick) {
         // Do not start the double-tap-for-double-click gesture recognizer unless we've got a dblclick event handler on the node at the tap location.
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-        RefPtr drawingAreaProxy = dynamicDowncast<WebKit::RemoteLayerTreeDrawingAreaProxy>(_page->drawingArea());
-        if (!drawingAreaProxy)
-            return NO;
-
-        auto trackingType = drawingAreaProxy->eventTrackingTypeForPoint(WebCore::EventTrackingRegions::EventType::Dblclick, WebCore::IntPoint(point));
-        return trackingType != WebCore::TrackingType::NotTracking;
-#else
-        return NO;
-#endif
+        WebKit::InteractionInformationRequest request(WebCore::roundedIntPoint(point));
+        if (![self _currentPositionInformationIsApproximatelyValidForRequest:request radiusForApproximation:[_doubleTapGestureRecognizerForDoubleClick allowableMovement]]) {
+            if (![self ensurePositionInformationIsUpToDate:request])
+                return NO;
+        }
+        return _positionInformation.hitNodeOrWindowHasDoubleClickListener.value_or(false);
     }
 
     if (gestureRecognizer == _highlightLongPressGestureRecognizer
@@ -3889,8 +3883,8 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (void)_doubleTapRecognizedForDoubleClick:(UITapGestureRecognizer *)gestureRecognizer
 {
-    RELEASE_ASSERT(_layerTreeTransactionIdsAtLastInteractionStart);
-    protect(_page)->handleDoubleTapForDoubleClickAtPoint(WebCore::IntPoint([gestureRecognizer locationInView:self]), WebKit::webEventModifierFlags(gestureRecognizer.modifierFlags), *_layerTreeTransactionIdsAtLastInteractionStart);
+    RELEASE_ASSERT(_layerTreeTransactionIdAtLastInteractionStart);
+    protect(_page)->handleDoubleTapForDoubleClickAtPoint(WebCore::IntPoint([gestureRecognizer locationInView:self]), WebKit::webEventModifierFlags(gestureRecognizer.modifierFlags), *_layerTreeTransactionIdAtLastInteractionStart);
 }
 
 - (void)_twoFingerSingleTapGestureRecognized:(UITapGestureRecognizer *)gestureRecognizer
@@ -12393,7 +12387,6 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     if (event.type() == WebKit::WebEventType::MouseDown) {
         _layerTreeTransactionIdAtLastInteractionStart = protect(downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*page->drawingArea()))->lastCommittedMainFrameLayerTreeTransactionID();
-        _layerTreeTransactionIdsAtLastInteractionStart = protect(downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*page->drawingArea()))->committedLayerTreeTransactionIDsByProcess();
 
         if (auto lastLocation = interaction.lastLocation)
             _lastInteractionLocation = *lastLocation;
@@ -12480,6 +12473,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     WebKit::InteractionInformationRequest interactionInformationRequest;
     interactionInformationRequest.point = WebCore::roundedIntPoint(request.location);
     interactionInformationRequest.includeCursorContext = true;
+    interactionInformationRequest.includeHasDoubleClickHandler = false;
 
     if ([self _currentPositionInformationIsValidForRequest:interactionInformationRequest]) {
         _lastPointerRegion = [self pointerRegionForPositionInformation:_positionInformation point:request.location];
@@ -14722,7 +14716,6 @@ static inline WKTextAnimationType toWKTextAnimationType(WebCore::TextAnimationTy
 - (void)_simulateElementAction:(_WKElementActionType)actionType atLocation:(CGPoint)location
 {
     _layerTreeTransactionIdAtLastInteractionStart = protect(downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*_page->drawingArea()))->lastCommittedMainFrameLayerTreeTransactionID();
-    _layerTreeTransactionIdsAtLastInteractionStart = protect(downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*_page->drawingArea()))->committedLayerTreeTransactionIDsByProcess();
     [self doAfterPositionInformationUpdate:[actionType, self, protectedSelf = retainPtr(self)] (WebKit::InteractionInformationAtPosition info) {
         _WKActivatedElementInfo *elementInfo = [_WKActivatedElementInfo activatedElementInfoWithInteractionInformationAtPosition:info userInfo:nil];
         _WKElementAction *action = [_WKElementAction _elementActionWithType:actionType info:elementInfo assistant:_actionSheetAssistant.get()];
@@ -14737,16 +14730,6 @@ static inline WKTextAnimationType toWKTextAnimationType(WebCore::TextAnimationTy
         if (SEL action = [protectedSelf _actionForLongPress])
             [protectedSelf performSelector:action];
     } forRequest:WebKit::InteractionInformationRequest(WebCore::roundedIntPoint(location))];
-}
-
-- (void)_simulateDoubleClickAtLocation:(CGPoint)location
-{
-    RefPtr drawingArea = dynamicDowncast<WebKit::RemoteLayerTreeDrawingAreaProxy>(_page->drawingArea());
-    if (!drawingArea)
-        return;
-    _layerTreeTransactionIdAtLastInteractionStart = drawingArea->lastCommittedMainFrameLayerTreeTransactionID();
-    _layerTreeTransactionIdsAtLastInteractionStart = drawingArea->committedLayerTreeTransactionIDsByProcess();
-    protect(_page)->handleDoubleTapForDoubleClickAtPoint(WebCore::IntPoint(location), { }, *_layerTreeTransactionIdsAtLastInteractionStart);
 }
 
 - (void)selectFormAccessoryPickerRow:(NSInteger)rowIndex

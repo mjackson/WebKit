@@ -107,13 +107,298 @@ void testRotLWithImmShift(T valueInt, int32_t shift)
     Procedure proc;
     BasicBlock* root = proc.addBlock();
     auto arguments = cCallArgumentValues<T>(proc, root);
-    
+
     Value* value = arguments[0];
     Value* ammount = root->appendIntConstant(proc, Origin(), Int32, shift);
     root->appendNewControlValue(proc, Return, Origin(),
         root->appendNew<Value>(proc, RotL, Origin(), value, ammount));
-    
+
     CHECK_EQ(compileAndRun<T>(proc, valueInt, shift), rotateLeft(valueInt, shift));
+}
+
+// Tests for scalar rotate-from-shift-xor-or synthesis added in
+// B3ReduceStrength::handleRotateFromShiftXorOr (direct-sibling match) and
+// B3OptimizeAssociativeExpressionTrees::optimizeRootedTree (chained XOR/OR).
+// The value computed is invariant under the fold, so these tests cover both
+// the folded and unfolded paths by construction.
+template<typename T>
+void testRotRFromShiftOr(T valueInt, int32_t shift)
+{
+    constexpr uint32_t width = sizeof(T) * 8;
+    uint32_t normalizedShift = static_cast<uint32_t>(shift) % width;
+    if (normalizedShift == 0)
+        return;
+
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<T>(proc, root);
+
+    Value* value = arguments[0];
+    Value* shlAmount = root->appendIntConstant(proc, Origin(), Int32, width - normalizedShift);
+    Value* zshrAmount = root->appendIntConstant(proc, Origin(), Int32, normalizedShift);
+    Value* shl = root->appendNew<Value>(proc, Shl, Origin(), value, shlAmount);
+    Value* zshr = root->appendNew<Value>(proc, ZShr, Origin(), value, zshrAmount);
+    root->appendNewControlValue(proc, Return, Origin(),
+        root->appendNew<Value>(proc, BitOr, Origin(), shl, zshr));
+
+    CHECK_EQ(compileAndRun<T>(proc, valueInt), rotateRight(valueInt, static_cast<int32_t>(normalizedShift)));
+}
+
+template<typename T>
+void testRotRFromShiftXor(T valueInt, int32_t shift)
+{
+    constexpr uint32_t width = sizeof(T) * 8;
+    uint32_t normalizedShift = static_cast<uint32_t>(shift) % width;
+    if (normalizedShift == 0)
+        return;
+
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<T>(proc, root);
+
+    Value* value = arguments[0];
+    Value* shlAmount = root->appendIntConstant(proc, Origin(), Int32, width - normalizedShift);
+    Value* zshrAmount = root->appendIntConstant(proc, Origin(), Int32, normalizedShift);
+    Value* shl = root->appendNew<Value>(proc, Shl, Origin(), value, shlAmount);
+    Value* zshr = root->appendNew<Value>(proc, ZShr, Origin(), value, zshrAmount);
+    root->appendNewControlValue(proc, Return, Origin(),
+        root->appendNew<Value>(proc, BitXor, Origin(), shl, zshr));
+
+    CHECK_EQ(compileAndRun<T>(proc, valueInt), rotateRight(valueInt, static_cast<int32_t>(normalizedShift)));
+}
+
+// Reversed operand order: ZShr first, Shl second. The fold must handle both orderings.
+template<typename T>
+void testRotRFromShiftXorReversed(T valueInt, int32_t shift)
+{
+    constexpr uint32_t width = sizeof(T) * 8;
+    uint32_t normalizedShift = static_cast<uint32_t>(shift) % width;
+    if (normalizedShift == 0)
+        return;
+
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<T>(proc, root);
+
+    Value* value = arguments[0];
+    Value* shlAmount = root->appendIntConstant(proc, Origin(), Int32, width - normalizedShift);
+    Value* zshrAmount = root->appendIntConstant(proc, Origin(), Int32, normalizedShift);
+    Value* zshr = root->appendNew<Value>(proc, ZShr, Origin(), value, zshrAmount);
+    Value* shl = root->appendNew<Value>(proc, Shl, Origin(), value, shlAmount);
+    root->appendNewControlValue(proc, Return, Origin(),
+        root->appendNew<Value>(proc, BitXor, Origin(), zshr, shl));
+
+    CHECK_EQ(compileAndRun<T>(proc, valueInt), rotateRight(valueInt, static_cast<int32_t>(normalizedShift)));
+}
+
+// SHA-256 Sigma1 pattern for 32-bit inputs:
+//   (x >>> 6) ^ (x >>> 11) ^ (x >>> 25) ^ (x << 26) ^ (x << 21) ^ (x << 7)
+// Pairs: (>>>6, <<26), (>>>11, <<21), (>>>25, <<7). Each pair is a rotate-right.
+// Exercises the multi-leaf path in OptimizeAssociativeExpressionTrees::optimizeRootedTree.
+void testRotRFromShiftXorChainSHA256Sigma1_32(int32_t valueInt)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+
+    Value* x = arguments[0];
+    auto buildShift = [&](B3::Opcode op, int32_t amt) -> Value* {
+        Value* amount = root->appendIntConstant(proc, Origin(), Int32, amt);
+        return root->appendNew<Value>(proc, op, Origin(), x, amount);
+    };
+    Value* zshr6 = buildShift(ZShr, 6);
+    Value* zshr11 = buildShift(ZShr, 11);
+    Value* zshr25 = buildShift(ZShr, 25);
+    Value* shl26 = buildShift(Shl, 26);
+    Value* shl21 = buildShift(Shl, 21);
+    Value* shl7 = buildShift(Shl, 7);
+    Value* xor0 = root->appendNew<Value>(proc, BitXor, Origin(), zshr6, zshr11);
+    Value* xor1 = root->appendNew<Value>(proc, BitXor, Origin(), xor0, zshr25);
+    Value* xor2 = root->appendNew<Value>(proc, BitXor, Origin(), xor1, shl26);
+    Value* xor3 = root->appendNew<Value>(proc, BitXor, Origin(), xor2, shl21);
+    Value* xor4 = root->appendNew<Value>(proc, BitXor, Origin(), xor3, shl7);
+    root->appendNewControlValue(proc, Return, Origin(), xor4);
+
+    int32_t expected = rotateRight(valueInt, 6) ^ rotateRight(valueInt, 11) ^ rotateRight(valueInt, 25);
+    CHECK_EQ(compileAndRun<int32_t>(proc, valueInt), expected);
+}
+
+// Analogous pattern at 64 bits: (x >>> 14) ^ (x >>> 18) ^ (x >>> 41) ^ (x << 50) ^ (x << 46) ^ (x << 23)
+// Pairs: (>>>14, <<50), (>>>18, <<46), (>>>41, <<23). Each pair is a 64-bit rotate-right.
+void testRotRFromShiftXorChainSHA512Sigma1_64(int64_t valueInt)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int64_t>(proc, root);
+
+    Value* x = arguments[0];
+    auto buildShift = [&](B3::Opcode op, int32_t amt) -> Value* {
+        Value* amount = root->appendIntConstant(proc, Origin(), Int32, amt);
+        return root->appendNew<Value>(proc, op, Origin(), x, amount);
+    };
+    Value* zshr14 = buildShift(ZShr, 14);
+    Value* zshr18 = buildShift(ZShr, 18);
+    Value* zshr41 = buildShift(ZShr, 41);
+    Value* shl50 = buildShift(Shl, 50);
+    Value* shl46 = buildShift(Shl, 46);
+    Value* shl23 = buildShift(Shl, 23);
+    Value* xor0 = root->appendNew<Value>(proc, BitXor, Origin(), zshr14, zshr18);
+    Value* xor1 = root->appendNew<Value>(proc, BitXor, Origin(), xor0, zshr41);
+    Value* xor2 = root->appendNew<Value>(proc, BitXor, Origin(), xor1, shl50);
+    Value* xor3 = root->appendNew<Value>(proc, BitXor, Origin(), xor2, shl46);
+    Value* xor4 = root->appendNew<Value>(proc, BitXor, Origin(), xor3, shl23);
+    root->appendNewControlValue(proc, Return, Origin(), xor4);
+
+    int64_t expected = rotateRight(valueInt, 14) ^ rotateRight(valueInt, 18) ^ rotateRight(valueInt, 41);
+    CHECK_EQ(compileAndRun<int64_t>(proc, valueInt), expected);
+}
+
+// SHA-256 lowercase sigma0 pattern: (x >>> 7) ^ (x >>> 18) ^ (x >>> 3) ^ (x << 25) ^ (x << 14)
+// Pairs: (>>>7, <<25), (>>>18, <<14). The lone (>>>3) stays as a raw shift.
+// Verifies that the fold only consumes matching halves and leaves unrelated shifts alone.
+void testRotRFromShiftXorChainSHA256sigma0_32(int32_t valueInt)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+
+    Value* x = arguments[0];
+    auto buildShift = [&](B3::Opcode op, int32_t amt) -> Value* {
+        Value* amount = root->appendIntConstant(proc, Origin(), Int32, amt);
+        return root->appendNew<Value>(proc, op, Origin(), x, amount);
+    };
+    Value* zshr7 = buildShift(ZShr, 7);
+    Value* zshr18 = buildShift(ZShr, 18);
+    Value* zshr3 = buildShift(ZShr, 3);
+    Value* shl25 = buildShift(Shl, 25);
+    Value* shl14 = buildShift(Shl, 14);
+    Value* xor0 = root->appendNew<Value>(proc, BitXor, Origin(), zshr7, zshr18);
+    Value* xor1 = root->appendNew<Value>(proc, BitXor, Origin(), xor0, zshr3);
+    Value* xor2 = root->appendNew<Value>(proc, BitXor, Origin(), xor1, shl25);
+    Value* xor3 = root->appendNew<Value>(proc, BitXor, Origin(), xor2, shl14);
+    root->appendNewControlValue(proc, Return, Origin(), xor3);
+
+    int32_t expected = rotateRight(valueInt, 7) ^ rotateRight(valueInt, 18) ^ (static_cast<uint32_t>(valueInt) >> 3);
+    CHECK_EQ(compileAndRun<int32_t>(proc, valueInt), expected);
+}
+
+// BitOr analogue of the SHA-256 Sigma1 pattern for Int32:
+//   (x >>> 6) | (x >>> 11) | (x >>> 25) | (x << 26) | (x << 21) | (x << 7)
+// Each rotate pair has non-overlapping bits, so OR is equivalent to XOR here.
+// Exercises the BitOr path of the multi-leaf handling in
+// OptimizeAssociativeExpressionTrees::optimizeRootedTree.
+void testRotRFromShiftOrChainSHA256Sigma1_32(int32_t valueInt)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+
+    Value* x = arguments[0];
+    auto buildShift = [&](B3::Opcode op, int32_t amt) -> Value* {
+        Value* amount = root->appendIntConstant(proc, Origin(), Int32, amt);
+        return root->appendNew<Value>(proc, op, Origin(), x, amount);
+    };
+    Value* zshr6 = buildShift(ZShr, 6);
+    Value* zshr11 = buildShift(ZShr, 11);
+    Value* zshr25 = buildShift(ZShr, 25);
+    Value* shl26 = buildShift(Shl, 26);
+    Value* shl21 = buildShift(Shl, 21);
+    Value* shl7 = buildShift(Shl, 7);
+    Value* or0 = root->appendNew<Value>(proc, BitOr, Origin(), zshr6, zshr11);
+    Value* or1 = root->appendNew<Value>(proc, BitOr, Origin(), or0, zshr25);
+    Value* or2 = root->appendNew<Value>(proc, BitOr, Origin(), or1, shl26);
+    Value* or3 = root->appendNew<Value>(proc, BitOr, Origin(), or2, shl21);
+    Value* or4 = root->appendNew<Value>(proc, BitOr, Origin(), or3, shl7);
+    root->appendNewControlValue(proc, Return, Origin(), or4);
+
+    int32_t expected = rotateRight(valueInt, 6) | rotateRight(valueInt, 11) | rotateRight(valueInt, 25);
+    CHECK_EQ(compileAndRun<int32_t>(proc, valueInt), expected);
+}
+
+// Use-count safety: when a shift Value inside the XOR/OR tree is ALSO used by an
+// external consumer, the fold must not mutate that shift. It can only replace
+// the pointer inside its local leaf vector. Here Shl(x, 26) is used both inside
+// the SHA-256 Sigma1 chain and as an operand of the outer Add, so its useCount
+// is >= 2 and the original Shl must survive.
+void testRotRFromShiftXorChainSharedShiftOperand(int32_t valueInt)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+
+    Value* x = arguments[0];
+    auto buildShift = [&](B3::Opcode op, int32_t amt) -> Value* {
+        Value* amount = root->appendIntConstant(proc, Origin(), Int32, amt);
+        return root->appendNew<Value>(proc, op, Origin(), x, amount);
+    };
+    Value* zshr6 = buildShift(ZShr, 6);
+    Value* zshr11 = buildShift(ZShr, 11);
+    Value* zshr25 = buildShift(ZShr, 25);
+    Value* shl26 = buildShift(Shl, 26);
+    Value* shl21 = buildShift(Shl, 21);
+    Value* shl7 = buildShift(Shl, 7);
+    Value* xor0 = root->appendNew<Value>(proc, BitXor, Origin(), zshr6, zshr11);
+    Value* xor1 = root->appendNew<Value>(proc, BitXor, Origin(), xor0, zshr25);
+    Value* xor2 = root->appendNew<Value>(proc, BitXor, Origin(), xor1, shl26);
+    Value* xor3 = root->appendNew<Value>(proc, BitXor, Origin(), xor2, shl21);
+    Value* xor4 = root->appendNew<Value>(proc, BitXor, Origin(), xor3, shl7);
+    // shl26 is used twice: once inside the XOR chain, once as an Add operand.
+    root->appendNewControlValue(proc, Return, Origin(),
+        root->appendNew<Value>(proc, Add, Origin(), xor4, shl26));
+
+    int32_t sigma1 = rotateRight(valueInt, 6) ^ rotateRight(valueInt, 11) ^ rotateRight(valueInt, 25);
+    int32_t expected = static_cast<int32_t>(sigma1 + (static_cast<uint32_t>(valueInt) << 26));
+    CHECK_EQ(compileAndRun<int32_t>(proc, valueInt), expected);
+}
+
+// Negative test: two shifts on DIFFERENT base values must NOT be folded into a rotate.
+// This exists to guard against accidental matches when the fold is extended; the
+// computed value depends on the distinction between x and y.
+void testShiftOrDifferentBasesNoRotate(int32_t xValue, int32_t yValue, int32_t shift)
+{
+    constexpr uint32_t width = 32;
+    uint32_t normalizedShift = static_cast<uint32_t>(shift) % width;
+    if (normalizedShift == 0)
+        return;
+
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t, int32_t>(proc, root);
+
+    Value* x = arguments[0];
+    Value* y = arguments[1];
+    Value* shlAmount = root->appendIntConstant(proc, Origin(), Int32, width - normalizedShift);
+    Value* zshrAmount = root->appendIntConstant(proc, Origin(), Int32, normalizedShift);
+    Value* shl = root->appendNew<Value>(proc, Shl, Origin(), x, shlAmount);
+    Value* zshr = root->appendNew<Value>(proc, ZShr, Origin(), y, zshrAmount);
+    root->appendNewControlValue(proc, Return, Origin(),
+        root->appendNew<Value>(proc, BitOr, Origin(), shl, zshr));
+
+    int32_t expected = static_cast<int32_t>(
+        (static_cast<uint32_t>(xValue) << (width - normalizedShift))
+        | (static_cast<uint32_t>(yValue) >> normalizedShift));
+    CHECK_EQ(compileAndRun<int32_t>(proc, xValue, yValue), expected);
+}
+
+// Shifts whose amounts do not sum to the type width must NOT be folded into a rotate.
+void testShiftOrMismatchedAmountsNoRotate(int32_t valueInt)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+
+    Value* value = arguments[0];
+    // N + M = 5 + 10 = 15, not 32 - so this is NOT a rotate.
+    Value* shlAmount = root->appendIntConstant(proc, Origin(), Int32, 5);
+    Value* zshrAmount = root->appendIntConstant(proc, Origin(), Int32, 10);
+    Value* shl = root->appendNew<Value>(proc, Shl, Origin(), value, shlAmount);
+    Value* zshr = root->appendNew<Value>(proc, ZShr, Origin(), value, zshrAmount);
+    root->appendNewControlValue(proc, Return, Origin(),
+        root->appendNew<Value>(proc, BitOr, Origin(), shl, zshr));
+
+    int32_t expected = static_cast<int32_t>(
+        (static_cast<uint32_t>(valueInt) << 5) | (static_cast<uint32_t>(valueInt) >> 10));
+    CHECK_EQ(compileAndRun<int32_t>(proc, valueInt), expected);
 }
 
 template<typename T>
@@ -760,6 +1045,20 @@ void run(const TestConfig* config)
     RUN_BINARY(testRotRWithImmShift, int64Operands(), int32Operands());
     RUN_BINARY(testRotLWithImmShift, int32Operands(), int32Operands());
     RUN_BINARY(testRotLWithImmShift, int64Operands(), int32Operands());
+
+    RUN_BINARY(testRotRFromShiftOr<int32_t>, int32Operands(), int32Operands());
+    RUN_BINARY(testRotRFromShiftOr<int64_t>, int64Operands(), int32Operands());
+    RUN_BINARY(testRotRFromShiftXor<int32_t>, int32Operands(), int32Operands());
+    RUN_BINARY(testRotRFromShiftXor<int64_t>, int64Operands(), int32Operands());
+    RUN_BINARY(testRotRFromShiftXorReversed<int32_t>, int32Operands(), int32Operands());
+    RUN_BINARY(testRotRFromShiftXorReversed<int64_t>, int64Operands(), int32Operands());
+    RUN_UNARY(testRotRFromShiftXorChainSHA256Sigma1_32, int32Operands());
+    RUN_UNARY(testRotRFromShiftXorChainSHA512Sigma1_64, int64Operands());
+    RUN_UNARY(testRotRFromShiftXorChainSHA256sigma0_32, int32Operands());
+    RUN_UNARY(testRotRFromShiftOrChainSHA256Sigma1_32, int32Operands());
+    RUN_UNARY(testRotRFromShiftXorChainSharedShiftOperand, int32Operands());
+    RUN_TERNARY(testShiftOrDifferentBasesNoRotate, int32Operands(), int32Operands(), int32Operands());
+    RUN_UNARY(testShiftOrMismatchedAmountsNoRotate, int32Operands());
 
     RUN(testComputeDivisionMagic<int32_t>(2, -2147483647, 0));
     RUN(testTrivialInfiniteLoop());

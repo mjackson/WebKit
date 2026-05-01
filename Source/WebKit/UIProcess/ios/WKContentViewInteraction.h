@@ -80,7 +80,6 @@
 #import <wtf/CompletionHandler.h>
 #import <wtf/Forward.h>
 #import <wtf/Function.h>
-#import <wtf/HashMap.h>
 #import <wtf/HashSet.h>
 #import <wtf/ObjectIdentifier.h>
 #import <wtf/OptionSet.h>
@@ -543,10 +542,7 @@ struct ImageAnalysisContextMenuActionData {
     Vector<WebKit::KeyEventAndCompletionBlock, 1> _keyWebEventHandlers;
 
     CGPoint _lastInteractionLocation;
-
-    // FIXME: We should solely use the map.
     std::optional<WebKit::TransactionID> _layerTreeTransactionIdAtLastInteractionStart;
-    std::optional<HashMap<WebCore::ProcessIdentifier, WebKit::TransactionID>> _layerTreeTransactionIdsAtLastInteractionStart;
 
     __weak UIView *_cachedSelectionContainerView;
     __weak UIView *_lastSiblingBeforeSelectionHighlight;
@@ -1073,7 +1069,6 @@ FOR_EACH_PRIVATE_WKCONTENTVIEW_ACTION(DECLARE_WKCONTENTVIEW_ACTION_FOR_WEB_VIEW)
 - (void)selectWordBackwardForTesting;
 - (void)_simulateElementAction:(_WKElementActionType)actionType atLocation:(CGPoint)location;
 - (void)_simulateLongPressActionAtLocation:(CGPoint)location;
-- (void)_simulateDoubleClickAtLocation:(CGPoint)location;
 - (void)_simulateTextEntered:(NSString *)text;
 - (void)selectFormAccessoryPickerRow:(NSInteger)rowIndex;
 - (BOOL)selectFormAccessoryHasCheckedItemAtRow:(long)rowIndex;

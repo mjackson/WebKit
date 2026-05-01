@@ -40,6 +40,7 @@
 #include "Logging.h"
 #include "MIMETypeRegistry.h"
 #include "MediaPlayerPrivate.h"
+#include "MediaResourceSniffer.h"
 #include "MediaStrategy.h"
 #include "MessageClientForTesting.h"
 #include "OriginAccessPatterns.h"
@@ -50,6 +51,7 @@
 #include "PlatformTextTrack.h"
 #include "PlatformTimeRanges.h"
 #include "ResourceError.h"
+#include "ResourceRequest.h"
 #include "SecurityOrigin.h"
 #include "ShareableBitmap.h"
 #include "VideoFrame.h"
@@ -542,6 +544,8 @@ bool MediaPlayer::load(const URL& url, const LoadOptions& options)
     // Protect against MediaPlayer being destroyed during a MediaPlayerClient callback.
     Ref<MediaPlayer> protectedThis(*this);
 
+    cancelSniffer();
+    m_sniffAttempted = false;
     m_url = url;
     m_loadOptions = options;
 
@@ -561,6 +565,8 @@ bool MediaPlayer::load(const URL& url, const LoadOptions& options, MediaSourcePr
 {
     ASSERT(!m_reloadTimer.isActive());
 
+    cancelSniffer();
+    m_sniffAttempted = false;
     m_mediaSource = mediaSource;
     m_url = url;
     m_loadOptions = options;
@@ -578,6 +584,8 @@ bool MediaPlayer::load(MediaStreamPrivate& mediaStream)
 {
     ASSERT(!m_reloadTimer.isActive());
 
+    cancelSniffer();
+    m_sniffAttempted = false;
     m_mediaStream = mediaStream;
     m_loadOptions = { };
     loadWithNextMediaEngine(nullptr);
@@ -1439,6 +1447,73 @@ void MediaPlayer::reloadTimerFired()
     loadWithNextMediaEngine(CheckedPtr { m_currentMediaEngine });
 }
 
+void MediaPlayer::cancelSniffer()
+{
+    if (RefPtr sniffer = std::exchange(m_sniffer, { }))
+        sniffer->cancel();
+}
+
+bool MediaPlayer::attemptSniffAndReload()
+{
+    if (m_sniffAttempted || m_sniffer)
+        return false;
+    if (m_url.isEmpty() || m_activeEngineIdentifier)
+        return false;
+    // Only makes sense for plain URL-backed loads. MSE and MediaStream bind to an in-memory
+    // object rather than a fetchable body, and remote playback does its own engine selection.
+#if ENABLE(MEDIA_SOURCE)
+    if (m_mediaSource.get())
+        return false;
+#endif
+#if ENABLE(MEDIA_STREAM)
+    if (m_mediaStream)
+        return false;
+#endif
+    if (m_loadOptions.requiresRemotePlayback)
+        return false;
+
+    m_sniffAttempted = true;
+
+    ResourceRequest request(URL { m_url });
+    request.setAllowCookies(true);
+    // https://mimesniff.spec.whatwg.org/#reading-the-resource-header defines a maximum size of 1445 bytes fetch.
+    m_sniffer = MediaResourceSniffer::create(protect(client())->mediaPlayerCreateResourceLoader(), WTF::move(request), 1445);
+    Ref sniffer = *m_sniffer;
+    sniffer->promise()->whenSettled(RunLoop::mainSingleton(), [weakThis = ThreadSafeWeakPtr { *this }, originalType = m_loadOptions.contentType](auto&& result) mutable {
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return;
+        protectedThis->m_sniffer = nullptr;
+
+        auto reportOriginalFailure = [&protectedThis] {
+            Ref client = protectedThis->client();
+            client->mediaPlayerNetworkStateChanged();
+        };
+
+        if (!result) {
+            // Sniffer failed (cancelled or network error). We can't do better than the original
+            // engine failure; propagate it up to the client.
+            reportOriginalFailure();
+            return;
+        }
+        auto& sniffed = *result;
+        if (sniffed.isEmpty() || sniffed == originalType) {
+            // No new information; nothing to retry.
+            reportOriginalFailure();
+            return;
+        }
+
+        // Reset engine state so a fresh selection runs with the sniffed type. Do not clear
+        // m_sniffAttempted — this is a one-shot so we don't loop on a persistent FormatError.
+        protectedThis->m_loadOptions.contentType = sniffed;
+        protectedThis->m_attemptedEngines.clear();
+        protectedThis->m_currentMediaEngine = nullptr;
+        protectedThis->m_private = nullptr;
+        protectedThis->loadWithNextMediaEngine(nullptr);
+    });
+    return true;
+}
+
 template<typename T>
 static void addToHash(HashSet<T>& toHash, HashSet<T>&& fromHash)
 {
@@ -1493,8 +1568,12 @@ void MediaPlayer::networkStateChanged()
         m_lastErrorMessage = playerPrivate->errorMessage();
     Ref client = this->client();
     // If more than one media engine is installed and this one failed before finding metadata,
-    // let the next engine try.
-    if (playerPrivate->networkState() >= MediaPlayer::NetworkState::FormatError && playerPrivate->readyState() < MediaPlayer::ReadyState::HaveMetadata) {
+    // let the next engine try. Trigger this engine-fallback only for FormatError or DecodeError
+    // (the engine inspected the body and couldn't decode/parse it); NetworkError means the loader
+    // itself failed and retrying against another engine would just hit the same loader failure
+    // against the same URL, wasting a request.
+    auto networkState = playerPrivate->networkState();
+    if ((networkState == MediaPlayer::NetworkState::FormatError || networkState == MediaPlayer::NetworkState::DecodeError) && playerPrivate->readyState() < MediaPlayer::ReadyState::HaveMetadata) {
         client->mediaPlayerEngineFailedToLoad();
         CheckedPtr currentMediaEngine = m_currentMediaEngine.get();
         if (!m_activeEngineIdentifier
@@ -1503,6 +1582,11 @@ void MediaPlayer::networkStateChanged()
             m_reloadTimer.startOneShot(0_s);
             return;
         }
+        // No further engine matches the declared content type. The body may have been mis-declared
+        // (e.g. server returns video/webm but the page's <source type> said video/mp4); fetch a
+        // short prefix and, if the sniffed type differs, re-run engine selection with it.
+        if (attemptSniffAndReload())
+            return;
     }
     client->mediaPlayerNetworkStateChanged();
 }
@@ -1725,6 +1809,8 @@ void MediaPlayer::resetMediaEngines()
 
 void MediaPlayer::reset()
 {
+    cancelSniffer();
+    m_sniffAttempted = false;
     m_attemptedEngines.clear();
 }
 

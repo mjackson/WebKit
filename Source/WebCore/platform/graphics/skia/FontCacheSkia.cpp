@@ -207,9 +207,7 @@ Vector<FontSelectionCapabilities> FontCache::getFontSelectionCapabilitiesInFamil
 #if PLATFORM(GTK) || (PLATFORM(WPE) && ENABLE(WPE_PLATFORM))
 static bool isSystemUIFamilyFont(const String& family)
 {
-    return family == "-apple-system-font"_s
-        || family == "-apple-system"_s
-        || family == "-webkit-system-font"_s
+    return family == "-webkit-system-font"_s
         || family == "-webkit-system-ui"_s
         || family == "system-font"_s
         || family == "system-ui"_s
@@ -403,8 +401,16 @@ Vector<hb_feature_t> FontCache::computeFeatures(const FontDescription& fontDescr
     return features;
 }
 
+static bool isUnsupportedFamilyFont(const AtomString& family)
+{
+    return family == "-apple-system"
+        || family == "-apple-system-font";
+}
+
 std::unique_ptr<FontPlatformData> FontCache::createFontPlatformData(const FontDescription& fontDescription, const AtomString& family, const FontCreationContext& fontCreationContext, OptionSet<FontLookupOptions> options)
 {
+    if (isUnsupportedFamilyFont(family))
+        return nullptr;
     auto familyName = getFamilyNameStringFromFamily(family);
     auto skFontStyle = skiaFontStyle(fontDescription);
     auto typeface = fontManager().matchFamilyStyle(familyName.utf8().data(), skFontStyle);

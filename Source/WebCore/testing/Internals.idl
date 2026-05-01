@@ -708,7 +708,6 @@ enum ContentsFormat {
 
     unsigned long wheelEventHandlerCount();
     unsigned long touchEventHandlerCount();
-    unsigned long doubleClickEventHandlerCount();
 
     DOMRectList touchEventRectsForEvent(DOMString eventName);
     DOMRectList passiveTouchEventListenerRects();

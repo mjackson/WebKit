@@ -41,6 +41,9 @@ bool InteractionInformationRequest::isValidForRequest(const InteractionInformati
     if (other.includeCursorContext && !includeCursorContext)
         return false;
 
+    if (other.includeHasDoubleClickHandler && !includeHasDoubleClickHandler)
+        return false;
+
     if (other.includeImageData && !includeImageData)
         return false;
 

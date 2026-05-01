@@ -444,7 +444,7 @@ static LayoutRect boxBoundingBoxInContainer(const RenderBoxModelObject& box, con
 {
     bool wasFixed = false;
     // FIXME: figure out if OverscrollClamp is still needed.
-    auto boxQuadInContainer = box.localToContainerQuad(FloatQuad { box.borderBoundingBox() }, &container, { MapCoordinatesMode::ClampOverscroll }, &wasFixed);
+    auto boxQuadInContainer = box.localToContainerQuad(FloatQuad { box.borderBoundingBox() }, &container, { MapCoordinatesMode::UseTransforms, MapCoordinatesMode::ClampOverscroll }, &wasFixed);
     LayoutRect boundingBox { boxQuadInContainer.boundingBox() };
 
     if (wasFixed) {
@@ -495,10 +495,12 @@ static LayoutRect boundingRectForFragmentedAnchor(const RenderBoxModelObject& an
     CheckedPtr anchorRenderBox = dynamicDowncast<RenderBox>(&anchorBox);
     if (!anchorRenderBox)
         anchorRenderBox = anchorBox.containingBlock();
+
     LayoutPoint offsetRelativeToFragmentedFlow = fragmentedFlow.mapFromLocalToFragmentedFlow(anchorRenderBox.get(), { }).location();
     auto unfragmentedBorderBox = anchorBox.borderBoundingBox();
     unfragmentedBorderBox.moveBy(offsetRelativeToFragmentedFlow);
     fragmentedFlow.flipForWritingMode(unfragmentedBorderBox); // Convert to RenderLayer coords.
+
     auto fragmentsBoundingBox = fragmentedFlow.fragmentsBoundingBox(unfragmentedBorderBox);
     fragmentedFlow.flipForWritingMode(fragmentsBoundingBox); // Convert to RenderBox coords.
 
@@ -988,13 +990,12 @@ std::optional<double> AnchorPositionEvaluator::evaluateSize(BuilderState& builde
         }
     }
 
-    auto anchorBorderBoundingBox = anchorRenderer->borderBoundingBox();
-    if (CheckedPtr fragmentedFlow = anchorRenderer->enclosingFragmentedFlow()) {
-        CheckedPtr containingBlock = anchorPositionedRenderer->containingBlock();
-        if (fragmentedFlow && containingBlock
-            && fragmentedFlow->isDescendantOf(containingBlock.get()))
-            anchorBorderBoundingBox = boundingRectForFragmentedAnchor(*anchorRenderer, *containingBlock, *fragmentedFlow);
-    }
+    auto anchorBorderBoundingBox = [&]() {
+        CheckedPtr container = dynamicDowncast<RenderLayerModelObject>(anchorPositionedRenderer->container());
+        ASSERT(container);
+
+        return AnchorPositionEvaluator::computeAnchorRectRelativeToContainingBlock(*anchorRenderer, *container, *anchorPositionedRenderer);
+    }();
 
     // Adjust for CSS `zoom` property and page zoom.
 
@@ -1221,11 +1222,17 @@ static AnchorsForAnchorName collectAnchorsForAnchorName(const Document& document
     return anchorsForAnchorName;
 }
 
-static AnchorElements findAnchorsForAnchorPositionedElement(const Styleable& anchorPositioned, const HashSet<ResolvedScopedName>& anchorNames, const AnchorsForAnchorName& anchorsForAnchorName)
+static AnchorElements findAnchorsForAnchorPositionedElement(const Styleable& anchorPositioned, const RenderStyle& anchorPositionedStyle, const HashSet<ResolvedScopedName>& anchorNames, const AnchorsForAnchorName& anchorsForAnchorName)
 {
     AnchorElements anchorElements;
 
     for (auto& anchorName : anchorNames) {
+        auto isImplicitAnchorName = anchorName.name() == implicitAnchorElementName().name;
+        auto isDefaultAnchorNone = anchorPositionedStyle.positionAnchor().isNone()
+            || (anchorPositionedStyle.positionAnchor().isNormal() && anchorPositionedStyle.positionArea().isNone());
+        if (isImplicitAnchorName && isDefaultAnchorNone)
+            continue;
+
         auto anchor = findLastAcceptableAnchorWithName(anchorName, anchorPositioned, anchorsForAnchorName);
         anchorElements.add(anchorName, anchor);
     }
@@ -1254,7 +1261,7 @@ void AnchorPositionEvaluator::updateAnchorPositioningStatesAfterInterleavedLayou
         case AnchorPositionResolutionStage::FindAnchors: {
             if (renderer) {
                 // FIXME: Remove the redundant anchorElements member. The mappings are available in anchorPositionedToAnchorMap.
-                state->anchorElements = findAnchorsForAnchorPositionedElement(*anchorPositioned, state->anchorNames, anchorsForAnchorName);
+                state->anchorElements = findAnchorsForAnchorPositionedElement(*anchorPositioned, renderer->style(), state->anchorNames, anchorsForAnchorName);
                 if (isLayoutTimeAnchorPositioned(renderer->style()))
                     renderer->setNeedsLayout();
 
@@ -1698,7 +1705,7 @@ bool AnchorPositionEvaluator::isImplicitAnchor(const RenderStyle& style)
         if (!pseudoElementStyle)
             return false;
         // If we have an explicit anchor name then there is no need for an implicit anchor.
-        if (!pseudoElementStyle->positionAnchor().isAuto())
+        if (pseudoElementStyle->positionAnchor().isName())
             return false;
 
         return pseudoElementStyle->usesAnchorFunctions() || isLayoutTimeAnchorPositioned(*pseudoElementStyle);

@@ -339,19 +339,17 @@ AcceleratedEffect::AcceleratedEffect(const AcceleratedEffect& source, OptionSet<
 
 static RefPtr<TransformOperation> blend(const RefPtr<TransformOperation>& base, const RefPtr<TransformOperation>& from, const RefPtr<TransformOperation>& to, const BlendingContext& blendingContext, NOESCAPE const Function<Ref<TransformOperation>(const TransformOperation&)>& identity)
 {
-    if (to) {
-        // Explicit "from" and "to" values.
-        if (from)
-            return to->blend(from.get(), blendingContext);
-        // Implicit "from" value.
-        return to->blend(base.get(), blendingContext);
+    // Explicit |to|, from value is either |from| if not null, or |base|.
+    if (to)
+        return to->blend(from ? from : base, blendingContext);
+
+    // Explicit |from|, to value is either |base| if not null, or the identity value.
+    if (from) {
+        Ref toValue = base ? Ref { *base } : identity(*from);
+        return toValue->blend(from.get(), blendingContext);
     }
 
-    // Implicit "to" value.
-    ASSERT(from);
-    if (base)
-        return base->blend(from.get(), blendingContext);
-    return identity(*from)->blend(from.get(), blendingContext);
+    return base;
 }
 
 static void blend(AcceleratedEffectProperty property, AcceleratedEffectValues& output, const AcceleratedEffectValues& from, const AcceleratedEffectValues& to, BlendingContext& blendingContext)

@@ -13099,8 +13099,10 @@
        },
         "position-anchor": {
             "animation-type": "discrete",
-            "initial": "auto",
+            "initial": "normal",
             "values": [
+                "normal",
+                "none",
                 "auto"
             ],
             "codegen-properties": {
@@ -13108,7 +13110,7 @@
                 "computed-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "computed-style-storage-kind": "reference",
                 "computed-style-type": "Style::PositionAnchor",
-                "parser-grammar": "auto | <dashed-ident>"
+                "parser-grammar": "normal | none | auto | <dashed-ident>"
             },
             "specification": {
                 "category": "css-anchor-position",

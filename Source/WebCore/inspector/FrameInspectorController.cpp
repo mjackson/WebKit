@@ -33,6 +33,7 @@
 #include "CommonVM.h"
 #include "DocumentPage.h"
 #include "FrameConsoleAgent.h"
+#include "FrameDOMAgent.h"
 #include "FrameDebugger.h"
 #include "FrameDebuggerAgent.h"
 #include "FrameInlines.h"
@@ -129,20 +130,6 @@ void FrameInspectorController::createConsoleAgent()
     m_didCreateConsoleAgent = true;
 }
 
-void FrameInspectorController::createRuntimeAgent()
-{
-    if (m_didCreateRuntimeAgent)
-        return;
-
-    RefPtr frame = m_frame.get();
-    if (!frame)
-        return;
-
-    auto context = frameAgentContext();
-    m_agents.append(makeUniqueRef<FrameRuntimeAgent>(context));
-    m_didCreateRuntimeAgent = true;
-}
-
 void FrameInspectorController::createLazyAgents()
 {
     if (m_didCreateLazyAgents)
@@ -151,7 +138,10 @@ void FrameInspectorController::createLazyAgents()
     m_didCreateLazyAgents = true;
 
     RefPtr frame = m_frame.get();
-    if (!frame || !frame->settings().siteIsolationEnabled())
+    if (!frame)
+        return;
+
+    if (!frame->settings().siteIsolationEnabled())
         return;
 
     // Create debugger before agents that depend on it.
@@ -159,9 +149,8 @@ void FrameInspectorController::createLazyAgents()
 
     auto context = frameAgentContext();
     m_agents.append(makeUniqueRef<FrameDebuggerAgent>(context));
-
-    createRuntimeAgent();
-
+    m_agents.append(makeUniqueRef<FrameDOMAgent>(context));
+    m_agents.append(makeUniqueRef<FrameRuntimeAgent>(context));
     m_agents.append(makeUniqueRef<FrameWorkerAgent>(context));
 }
 

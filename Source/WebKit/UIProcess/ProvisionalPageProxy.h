@@ -40,6 +40,7 @@
 #include <WebCore/NavigationIdentifier.h>
 #include <WebCore/ProcessSwapDisposition.h>
 #include <WebCore/ResourceRequest.h>
+#include <WebCore/Site.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
 
@@ -113,6 +114,7 @@ public:
 
     bool isProcessSwappingOnNavigationResponse() const { return m_isProcessSwappingOnNavigationResponse; }
     bool didFailProvisionalLoad() const { return m_didFailProvisionalLoad; }
+    const std::optional<WebCore::Site>& deferredRemoteTransitionSite() const { return m_deferredRemoteTransitionSite; }
     bool hasActiveLoadForNavigation(const API::Navigation&) const;
 
     DrawingAreaProxy* drawingArea() const { return m_drawingArea.get(); }
@@ -232,6 +234,7 @@ private:
     bool m_shouldClosePage { true };
     bool m_needsMainFrameObserver { false };
     bool m_didFailProvisionalLoad { false };
+    std::optional<WebCore::Site> m_deferredRemoteTransitionSite;
     URL m_provisionalLoadURL;
     WebPageProxyMessageReceiverRegistration m_messageReceiverRegistration;
     RefPtr<API::WebsitePolicies> m_mainFrameWebsitePolicies;

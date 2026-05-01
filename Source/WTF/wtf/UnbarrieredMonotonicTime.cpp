@@ -27,9 +27,14 @@
 #include <wtf/UnbarrieredMonotonicTime.h>
 
 #include <wtf/ContinuousTime.h>
+#include <wtf/Lock.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/PrintStream.h>
 #include <wtf/WallTime.h>
+
+#if OS(DARWIN)
+#include <mach/mach_time.h>
+#endif
 
 namespace WTF {
 
@@ -39,43 +44,56 @@ UnbarrieredMonotonicTime::Calibration UnbarrieredMonotonicTime::s_calibration;
 void UnbarrieredMonotonicTime::calibrate()
 {
     constexpr double nanosecondsPerSecond = 1000'000'000;
-    if (!s_calibration.nanosecondsPerTick) [[unlikely]] {
-        auto readCounterFrequency = [] -> uint64_t {
-            uint64_t val;
-            __asm__ volatile("mrs %0, CNTFRQ_EL0" : "=r"(val) : : "memory");
-            return val;
-        };
+    static Lock lock;
 
-        auto currentTime = MonotonicTime::now();
-        s_calibration.startCntpct = readCounter();
-        s_calibration.startNanoseconds = currentTime.secondsSinceEpoch().nanoseconds();
-        uint64_t ticksPerSecond = readCounterFrequency();
-        s_calibration.nanosecondsPerTick = nanosecondsPerSecond / ticksPerSecond;
+    Locker locker { lock };
+    if (s_calibration.nanosecondsPerTick)
+        return; // Already calibrated.
+
+    auto readCounterFrequency = [] -> uint64_t {
+        uint64_t val;
+        __asm__ volatile("mrs %0, CNTFRQ_EL0" : "=r"(val) : : "memory");
+        return val;
+    };
+
+    // We're going straight to mach_absolute_time() instead of MonotonicTime::now()
+    // because we want to miminize the time difference between sampling it and sampling
+    // CNTVCT_EL0. MonotonicTime::now() can be deterministically computed from the
+    // value of mach_absolute_time().
+    //
+    // Note that the value of mach_absolute_time() relies on when the kernel samples
+    // CNTVCT_EL0 and update it. Effectively, mach_absolute_time may be of a lower
+    // resolution than CNTVCT_EL0 depending on when the kernel updates it. So, for our
+    // calibration, to minimize the difference between the 2 values, we'll sample
+    // them until we see mach_absolute_time()'s value change 2 times. This allows
+    // us to catch the CNTVCT_EL0 value right as mach_absolute_time() changes.
+    //
+    // We look for 2 transitions of mach_absolute_time() because the first transition
+    // may race against us and occur just as we enter the sampling loop. Waiting for
+    // the 2nd transition reduces the impact of such a race.
+
+    uint64_t counter = readCounter();
+    uint64_t startAbsTime = mach_absolute_time();
+    uint64_t absTime = startAbsTime;
+    for (int i = 0; i < 2; ++i) {
+        do {
+            counter = readCounter();
+            absTime = mach_absolute_time();
+        } while (absTime == startAbsTime);
     }
+
+    // Now that we have the closely paired samples of mach_absolute_time() and CNTVCT_EL0,
+    // determinstically compute the calibration values.
+    mach_timebase_info_data_t info;
+    kern_return_t kr = mach_timebase_info(&info);
+    ASSERT_UNUSED(kr, kr == KERN_SUCCESS);
+    s_calibration.startCounter = counter;
+    s_calibration.startNanoseconds = absTime * info.numer / (double)info.denom;
+
+    uint64_t ticksPerSecond = readCounterFrequency();
+    s_calibration.nanosecondsPerTick = nanosecondsPerSecond / ticksPerSecond;
 }
 #endif
-
-WallTime UnbarrieredMonotonicTime::approximateWallTime() const
-{
-    if (isInfinity())
-        return WallTime::fromRawSeconds(m_value);
-    return *this - now() + WallTime::now();
-}
-
-MonotonicTime UnbarrieredMonotonicTime::approximateMonotonicTime() const
-{
-    if (isInfinity())
-        return MonotonicTime::fromRawSeconds(m_value);
-    return *this - now() + MonotonicTime::now();
-
-}
-
-ContinuousTime UnbarrieredMonotonicTime::approximateContinuousTime() const
-{
-    if (isInfinity())
-        return ContinuousTime::fromRawSeconds(m_value);
-    return *this - now() + ContinuousTime::now();
-}
 
 void UnbarrieredMonotonicTime::dump(PrintStream& out) const
 {

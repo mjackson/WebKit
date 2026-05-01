@@ -441,11 +441,6 @@ Node::~Node()
     }
 #endif
 
-#if ENABLE(DBLCLICK_EVENT_REGIONS) && PLATFORM(IOS_FAMILY) && ASSERT_ENABLED
-    for (auto& document : Document::allDocuments())
-        ASSERT(!document->doubleClickEventTargetsContain(*this));
-#endif
-
 #if ASSERT_ENABLED
     if (m_refCountAndParentBit != s_refCountIncrement)
         WTF::RefCountDebuggerBase::printRefDuringDestructionLogAndCrash(this);
@@ -2452,12 +2447,6 @@ static inline bool tryAddEventListener(Node* targetNode, const AtomString& event
     }
     else if (typeInfo.isInCategory(EventCategory::MouseClickRelated))
         document->didAddOrRemoveMouseEventHandler(*targetNode);
-    else if (typeInfo.type() == EventType::dblclick) {
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-        document->didAddDoubleClickEventHandler(*targetNode);
-        document->invalidateEventListenerRegions();
-#endif
-    }
 
 #if PLATFORM(IOS_FAMILY)
     if (targetNode == document.ptr() && typeInfo.type() == EventType::scroll) {
@@ -2521,12 +2510,6 @@ static void didRemoveEventListenersOfType(Node& targetNode, const AtomString& ev
 #endif
     } else if (typeInfo.isInCategory(EventCategory::MouseClickRelated))
         document->didAddOrRemoveMouseEventHandler(targetNode);
-    else if (typeInfo.type() == EventType::dblclick) {
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-        document->didRemoveDoubleClickEventHandler(targetNode);
-        document->invalidateEventListenerRegions();
-#endif
-    }
 
 #if PLATFORM(IOS_FAMILY)
     if (&targetNode == document.ptr() && typeInfo.type() == EventType::scroll) {

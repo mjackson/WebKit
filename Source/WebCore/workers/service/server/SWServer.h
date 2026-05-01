@@ -234,7 +234,7 @@ public:
 
     void addRegistrationFromStore(ServiceWorkerContextData&&, CompletionHandler<void()>&&);
     WEBCORE_EXPORT void didSaveWorkerScriptsToDisk(ServiceWorkerIdentifier, ScriptBuffer&& mainScript, MemoryCompactRobinHoodHashMap<URL, ScriptBuffer>&& importedScripts);
-    void storeRegistrationForWorker(SWServerWorker&);
+    void storeRegistrationForWorkerIfNecessary(SWServerWorker&);
     void loadWorkerScripts(const SWServerWorker&, CompletionHandler<void(bool)>&&);
 
     WEBCORE_EXPORT void getOriginsWithRegistrations(CompletionHandler<void(const HashSet<SecurityOriginData>&)>&&);

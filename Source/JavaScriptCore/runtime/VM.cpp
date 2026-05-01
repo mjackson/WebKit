@@ -49,7 +49,6 @@
 #include "Disassembler.h"
 #include "DoublePredictionFuzzerAgent.h"
 #include "ErrorInstance.h"
-#include "EvacuatedStack.h"
 #include "EvalCodeBlockInlines.h"
 #include "EvalExecutableInlines.h"
 #include "Exception.h"
@@ -515,8 +514,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     Config::finalize();
 
-    if (!isInMiniMode())
+    if (!isInMiniMode()) {
         initializeAvailableTimeZones();
+        if (heapType == HeapType::Large)
+            dateCache.timeZoneDisplayName(/* isDST */ false);
+    }
 
     // We must set this at the end only after the VM is fully initialized.
     WTF::storeStoreFence();
@@ -1213,21 +1215,6 @@ void VM::scanSideState(ConservativeRoots& roots) const
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif // ENABLE(DFG_JIT)
 
-#if ENABLE(WEBASSEMBLY)
-
-void VM::gatherEvacuatedStackRoots(ConservativeRoots& roots)
-{
-    ASSERT(heap.worldIsStopped());
-    for (auto* slice : m_evacuatedStackSlices) {
-        std::span<Register> slots = slice->slots();
-        roots.add(slots.data(), slots.data() + slots.size());
-    }
-    for (const auto& span : m_evacuatedCalleeSaves)
-        roots.add(span.data(), span.data() + span.size());
-}
-
-#endif // ENABLE(WEBASSEMBLY)
-
 void VM::pushCheckpointOSRSideState(std::unique_ptr<CheckpointOSRExitSideState>&& payload)
 {
     ASSERT(currentThreadIsHoldingAPILock());
@@ -1587,32 +1574,6 @@ bool VM::isScratchBuffer(void* ptr)
             return true;
     }
     return false;
-}
-
-void VM::addEvacuatedStackSlice(EvacuatedStackSlice* slice)
-{
-    ASSERT(currentThreadIsHoldingAPILock());
-    m_evacuatedStackSlices.append(slice);
-}
-
-void VM::removeEvacuatedStackSlice(EvacuatedStackSlice* slice)
-{
-    ASSERT(currentThreadIsHoldingAPILock());
-    m_evacuatedStackSlices.removeAll(slice);
-}
-
-void VM::addEvacuatedCalleeSaves(std::span<CPURegister> span)
-{
-    ASSERT(currentThreadIsHoldingAPILock());
-    m_evacuatedCalleeSaves.constructAndAppend(span);
-}
-
-void VM::removeEvacuatedCalleeSaves(std::span<CPURegister> span)
-{
-    ASSERT(currentThreadIsHoldingAPILock());
-    m_evacuatedCalleeSaves.removeAllMatching([&](const std::span<CPURegister>& existing) {
-        return existing.data() == span.data() && existing.size() == span.size();
-    });
 }
 
 Ref<Waiter> VM::syncWaiter()

@@ -289,10 +289,6 @@ OptionSet<EventListenerRegionType> Adjuster::computeEventListenerRegionTypes(con
         findListeners(eventNames().gesturechangeEvent, EventListenerRegionType::GestureChange, EventListenerRegionType::NonPassiveGestureChange);
         findListeners(eventNames().gestureendEvent, EventListenerRegionType::GestureEnd, EventListenerRegionType::NonPassiveGestureEnd);
         findListeners(eventNames().gesturestartEvent, EventListenerRegionType::GestureStart, EventListenerRegionType::NonPassiveGestureStart);
-#if ENABLE(DBLCLICK_EVENT_REGIONS)
-        // dblclick is always synchronous.
-        findListeners(eventNames().dblclickEvent, EventListenerRegionType::Dblclick, EventListenerRegionType::Dblclick);
-#endif
     }
 
     if (eventTarget.hasInternalTouchEventHandling()) {

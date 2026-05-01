@@ -110,6 +110,15 @@ static inline bool shouldSkipForFirstLetter(char32_t c)
     return deprecatedIsSpaceOrNewline(c) || c == noBreakSpace || isPunctuationForFirstLetter(c);
 }
 
+static bool isDutchIJDigraph(const String& text, unsigned offset)
+{
+    if (offset + 1 >= text.length())
+        return false;
+    auto first = text[offset];
+    auto second = text[offset + 1];
+    return (first == 'i' && second == 'j') || (first == 'I' && second == 'J');
+}
+
 static bool supportsFirstLetter(RenderBlock& block)
 {
     if (is<RenderButton>(block))
@@ -282,6 +291,10 @@ void RenderTreeBuilder::FirstLetter::createRenderers(RenderText& currentTextChil
 
         // Account for first grapheme cluster.
         length += numCodeUnitsInGraphemeClusters(StringView(oldText).substring(length), 1);
+
+        // In Dutch, "ij" is a digraph treated as a single letter for ::first-letter.
+        if (length < oldText.length() && isDutchLocale(currentTextChild.style().fontDescription().specifiedLocale()) && isDutchIJDigraph(oldText, length - 1))
+            length += numCodeUnitsInGraphemeClusters(StringView(oldText).substring(length), 1);
 
         // Keep looking for whitespace and allowed punctuation, but avoid
         // accumulating just whitespace into the :first-letter.

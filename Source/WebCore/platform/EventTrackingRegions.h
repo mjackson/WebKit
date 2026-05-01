@@ -42,7 +42,6 @@ enum class TrackingType : uint8_t {
 };
 
 enum class EventTrackingRegionsEventType : uint8_t {
-    Dblclick,
     Gesturechange,
     Gestureend,
     Gesturestart,

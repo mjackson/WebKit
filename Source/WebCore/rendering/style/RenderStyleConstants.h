@@ -971,7 +971,6 @@ enum class EventListenerRegionType : uint64_t {
     NonPassiveGestureEnd       = 1LLU << 35,
     GestureStart               = 1LLU << 36,
     NonPassiveGestureStart     = 1LLU << 37,
-    Dblclick                   = 1LLU << 38,
 };
 
 enum class MathShift : bool {

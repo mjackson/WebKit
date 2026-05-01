@@ -52,7 +52,6 @@
 #import "PrintInfo.h"
 #import "ProvisionalPageProxy.h"
 #import "RemoteLayerTreeCommitBundle.h"
-#import "RemoteLayerTreeDrawingAreaProxy.h"
 #import "RemoteLayerTreeHost.h"
 #import "RemoteLayerTreeNode.h"
 #import "RemoteLayerTreeTransaction.h"
@@ -820,26 +819,9 @@ void WebPageProxy::didRecognizeLongPress()
     protect(legacyMainFrameProcess())->send(Messages::WebPage::DidRecognizeLongPress(), webPageIDInMainFrameProcess());
 }
 
-void WebPageProxy::handleDoubleTapForDoubleClickAtPoint(const WebCore::IntPoint& point, OptionSet<WebEventModifier> modifiers, const HashMap<WebCore::ProcessIdentifier, TransactionID>& layerTreeTransactionIdsAtLastTouchStart)
+void WebPageProxy::handleDoubleTapForDoubleClickAtPoint(const WebCore::IntPoint& point, OptionSet<WebEventModifier> modifiers, TransactionID layerTreeTransactionIdAtLastTouchStart)
 {
-    RefPtr remoteLayerTreeDrawingAreaProxy = dynamicDowncast<RemoteLayerTreeDrawingAreaProxy>(drawingArea());
-    if (!remoteLayerTreeDrawingAreaProxy)
-        return;
-
-    auto hitResult = remoteLayerTreeDrawingAreaProxy->eventRegionHitTestResultForDoubleClickAtPoint(point);
-    if (!hitResult)
-        return;
-
-    auto layerTreeTransactionIdsIterator = layerTreeTransactionIdsAtLastTouchStart.find(processContainingFrame(hitResult->frameIdentifier)->coreProcessIdentifier());
-    if (layerTreeTransactionIdsIterator  == layerTreeTransactionIdsAtLastTouchStart.end()) {
-        ASSERT_NOT_REACHED();
-        return;
-    }
-
-    auto pointInTargetFrame = flooredIntPoint(hitResult->pointInTargetFrameContents);
-    auto layerTreeTransactionIdAtLastTouchStart = layerTreeTransactionIdsIterator->value;
-
-    sendToProcessContainingFrame(hitResult->frameIdentifier, Messages::WebPage::HandleDoubleTapForDoubleClickAtPoint(hitResult->frameIdentifier, point, pointInTargetFrame, modifiers, layerTreeTransactionIdAtLastTouchStart));
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::HandleDoubleTapForDoubleClickAtPoint(point, modifiers, layerTreeTransactionIdAtLastTouchStart), webPageIDInMainFrameProcess());
 }
 
 void WebPageProxy::inspectorNodeSearchMovedToPosition(const WebCore::FloatPoint& position)
@@ -1590,6 +1572,11 @@ WebContentMode WebPageProxy::effectiveContentModeAfterAdjustingPolicies(API::Web
 
     const bool needsSiteSpecificQuirks = preferences->needsSiteSpecificQuirks();
 
+    auto applyIPhoneUserAgent = [&] {
+        policies.setCustomUserAgent(makeStringByReplacingAll(standardUserAgentWithApplicationName(m_applicationNameForUserAgent), "iPad"_s, "iPhone"_s));
+        policies.setCustomNavigatorPlatform("iPhone"_s);
+    };
+
     if (needsSiteSpecificQuirks) {
         if (auto selectors = Quirks::defaultVisibilityAdjustmentSelectors(request.url()))
             policies.setVisibilityAdjustmentSelectors({ WTF::move(*selectors) });
@@ -1598,8 +1585,7 @@ WebContentMode WebPageProxy::effectiveContentModeAfterAdjustingPolicies(API::Web
             policies.setMediaSourcePolicy(WebsiteMediaSourcePolicy::Enable);
 
         if (Quirks::needsIPhoneUserAgent(request.url())) {
-            policies.setCustomUserAgent(makeStringByReplacingAll(standardUserAgentWithApplicationName(m_applicationNameForUserAgent), "iPad"_s, "iPhone"_s));
-            policies.setCustomNavigatorPlatform("iPhone"_s);
+            applyIPhoneUserAgent();
             return WebContentMode::Mobile;
         }
 
@@ -1610,6 +1596,12 @@ WebContentMode WebPageProxy::effectiveContentModeAfterAdjustingPolicies(API::Web
     }
 
     bool useDesktopBrowsingMode = useDesktopClassBrowsing(policies, request);
+
+    // rdar://175017084
+    if (needsSiteSpecificQuirks && Quirks::needsIPhoneUserAgent(request.url(), useDesktopBrowsingMode ? UseDesktopClassBrowsing::Yes : UseDesktopClassBrowsing::No)) {
+        applyIPhoneUserAgent();
+        return WebContentMode::Mobile;
+    }
 
     m_preferFasterClickOverDoubleTap = false;
 

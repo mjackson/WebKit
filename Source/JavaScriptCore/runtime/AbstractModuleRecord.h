@@ -192,6 +192,8 @@ public:
         static Resolution NODELETE error();
         static Resolution NODELETE ambiguous();
 
+        bool isSameBinding(const Resolution& other) const { return moduleRecord == other.moduleRecord && localName == other.localName; }
+
         Type type;
         AbstractModuleRecord* moduleRecord;
         Identifier localName;

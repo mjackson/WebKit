@@ -69,6 +69,7 @@ class JSGlobalObject;
     v(asyncGeneratorQueueDequeueReject, nullptr) \
     v(driveAsyncFunction, nullptr) \
     v(newHandledRejectedPromise, nullptr) \
+    v(promiseReturnUndefinedOnFulfilled, nullptr) \
     v(promiseResolve, nullptr) \
     v(promiseReject, nullptr) \
     v(promiseResolveWithThen, nullptr) \

@@ -461,6 +461,10 @@ void RiceBackend::setSocketTypeOfService(unsigned streamId, unsigned value)
 
 void RiceBackend::allocateSocket(unsigned streamId, unsigned componentId, WebCore::RTCIceProtocol protocol, const String& from, const String& to)
 {
+    // FIXME: TCP sockets support requires further debugging. For now keep it disabled to un-tangle post-commit bots.
+    // https://bugs.webkit.org/show_bug.cgi?id=313710
+    return;
+
     if (protocol == WebCore::RTCIceProtocol::Udp)
         return;
 

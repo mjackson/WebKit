@@ -27,6 +27,7 @@
 #include <wtf/Threading.h>
 
 #include <bmalloc/BPlatform.h>
+#include <bmalloc/pas_process.h>
 #include <cstring>
 #include <wtf/DateMath.h>
 #include <wtf/FastMalloc.h>
@@ -339,25 +340,14 @@ Ref<Thread> Thread::create(ASCIILiteral name, Function<void()>&& entryPoint, Thr
     return thread;
 }
 
-static bool NODELETE shouldRemoveThreadFromThreadGroup()
-{
-#if OS(WINDOWS)
-    // On Windows the thread specific destructor is also called when the
-    // main thread is exiting. This may lead to the main thread waiting
-    // forever for the thread group lock when exiting, if the sampling
-    // profiler thread was terminated by the system while holding the
-    // thread group lock.
-    if (WTF::isMainThread())
-        return false;
-#endif
-    return true;
-}
-
 void Thread::didExit()
 {
+    if (pas_process_is_shutting_down())
+        return;
+
     allThreads().remove(*this);
 
-    if (shouldRemoveThreadFromThreadGroup()) {
+    {
         {
             Vector<Ref<ThreadGroup>> threadGroups;
             {

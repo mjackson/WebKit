@@ -235,7 +235,7 @@ using TextValidationMapValue = Variant<String, SimilarToOriginalTextTag>;
 #if PLATFORM(IOS_FAMILY)
 struct LiveResizeParameters {
     CGFloat viewWidth;
-    CGPoint initialScrollPosition;
+    CGPoint initialScrollOffset;
 };
 
 struct OverriddenLayoutParameters {

@@ -858,11 +858,10 @@ void Page::setMainFrame(Ref<Frame>&& frame)
 {
     m_mainFrame = WTF::move(frame);
 
-    RefPtr<Document> document;
-    if (RefPtr localFrame = dynamicDowncast<LocalFrame>(m_mainFrame.get()))
-        document = localFrame->document();
-
-    m_topDocumentSyncData = document ? document->syncData() : DocumentSyncData::create();
+    if (RefPtr localFrame = dynamicDowncast<LocalFrame>(m_mainFrame.get())) {
+        if (RefPtr document = localFrame->document())
+            m_topDocumentSyncData = document->syncData();
+    }
 
     // Notify the web page that the frame changed, so that we can re-intitialize the remote token.
     chrome().client().mainFrameDidChange();
@@ -993,13 +992,6 @@ void Page::updateTopDocumentSyncData(const DocumentSyncSerializationData& data)
 
 void Page::updateTopDocumentSyncData(Ref<DocumentSyncData>&& data)
 {
-    if (auto* localFrame = dynamicDowncast<LocalFrame>(m_mainFrame.get())) {
-        // Prefer the main LocalFrame document's data, but if the main LocalFrame
-        // has no document, accept the remote pushed data.
-        if (localFrame->document())
-            return;
-    }
-
     m_topDocumentSyncData = WTF::move(data);
 }
 

@@ -545,6 +545,8 @@
 		0FFFD515256B0FBD001EB94C /* pas_deallocation_mode.h in Headers */ = {isa = PBXBuildFile; fileRef = 0FFFD514256B0FBC001EB94C /* pas_deallocation_mode.h */; };
 		2B2A58992742D803005EE07C /* pas_probabilistic_guard_malloc_allocator.h in Headers */ = {isa = PBXBuildFile; fileRef = 2B2A58972742D802005EE07C /* pas_probabilistic_guard_malloc_allocator.h */; };
 		2B2A589A2742D803005EE07C /* pas_probabilistic_guard_malloc_allocator.c in Sources */ = {isa = PBXBuildFile; fileRef = 2B2A58982742D802005EE07C /* pas_probabilistic_guard_malloc_allocator.c */; };
+		0EAB3692DA184399AE69D6F8 /* pas_process.h in Headers */ = {isa = PBXBuildFile; fileRef = A6CCD9F0B3724EA198AAE8D3 /* pas_process.h */; };
+		565C4CAE4B9B462FBCDA92C1 /* pas_process.c in Sources */ = {isa = PBXBuildFile; fileRef = 53C8C4F225EB4310B2063E8F /* pas_process.c */; };
 		2B2A589C2742D815005EE07C /* PGMTests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2B2A589B2742D815005EE07C /* PGMTests.cpp */; };
 		2B2E2FD12949A41100F85C38 /* pas_malloc_stack_logging.c in Sources */ = {isa = PBXBuildFile; fileRef = 2B2E2FCF2949A41100F85C38 /* pas_malloc_stack_logging.c */; };
 		2B2E2FD22949A41100F85C38 /* pas_malloc_stack_logging.h in Headers */ = {isa = PBXBuildFile; fileRef = 2B2E2FD02949A41100F85C38 /* pas_malloc_stack_logging.h */; };
@@ -1263,6 +1265,8 @@
 		0FFFD514256B0FBC001EB94C /* pas_deallocation_mode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_deallocation_mode.h; sourceTree = "<group>"; };
 		2B2A58972742D802005EE07C /* pas_probabilistic_guard_malloc_allocator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_probabilistic_guard_malloc_allocator.h; sourceTree = "<group>"; };
 		2B2A58982742D802005EE07C /* pas_probabilistic_guard_malloc_allocator.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pas_probabilistic_guard_malloc_allocator.c; sourceTree = "<group>"; };
+		A6CCD9F0B3724EA198AAE8D3 /* pas_process.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_process.h; sourceTree = "<group>"; };
+		53C8C4F225EB4310B2063E8F /* pas_process.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pas_process.c; sourceTree = "<group>"; };
 		2B2A589B2742D815005EE07C /* PGMTests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PGMTests.cpp; sourceTree = "<group>"; };
 		2B2E2FCF2949A41100F85C38 /* pas_malloc_stack_logging.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pas_malloc_stack_logging.c; sourceTree = "<group>"; };
 		2B2E2FD02949A41100F85C38 /* pas_malloc_stack_logging.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_malloc_stack_logging.h; sourceTree = "<group>"; };
@@ -1843,6 +1847,8 @@
 				0FDEA577228E23440085E340 /* pas_primitive_heap_ref.h */,
 				2B2A58982742D802005EE07C /* pas_probabilistic_guard_malloc_allocator.c */,
 				2B2A58972742D802005EE07C /* pas_probabilistic_guard_malloc_allocator.h */,
+				53C8C4F225EB4310B2063E8F /* pas_process.c */,
+				A6CCD9F0B3724EA198AAE8D3 /* pas_process.h */,
 				0F9A1CAD2559961300C8D11B /* pas_promote_intrinsic_heap.h */,
 				0F4F615A259BF6EC008B4A82 /* pas_ptr_hash_map.h */,
 				0F4F6146259BB109008B4A82 /* pas_ptr_hash_set.h */,
@@ -2338,6 +2344,7 @@
 				0F78088722FA2E4900F37451 /* pas_physical_memory_transaction.h in Headers */,
 				0FE7EE2922960142004F4166 /* pas_primitive_heap_ref.h in Headers */,
 				2B2A58992742D803005EE07C /* pas_probabilistic_guard_malloc_allocator.h in Headers */,
+				0EAB3692DA184399AE69D6F8 /* pas_process.h in Headers */,
 				0F9A1CF92559961700C8D11B /* pas_promote_intrinsic_heap.h in Headers */,
 				0F4F615B259BF6EC008B4A82 /* pas_ptr_hash_map.h in Headers */,
 				0F4F6147259BB109008B4A82 /* pas_ptr_hash_set.h in Headers */,
@@ -2846,6 +2853,7 @@
 				0FF248F922FC9EDB0077202E /* pas_physical_memory_transaction.c in Sources */,
 				0FE7EDCC22960142004F4166 /* pas_primitive_heap_ref.c in Sources */,
 				2B2A589A2742D803005EE07C /* pas_probabilistic_guard_malloc_allocator.c in Sources */,
+				565C4CAE4B9B462FBCDA92C1 /* pas_process.c in Sources */,
 				0F4F6151259BC333008B4A82 /* pas_ptr_worklist.c in Sources */,
 				0F5E483823D6960F0046DA5C /* pas_race_test_hooks.c in Sources */,
 				0FD48B3023A9ABB30026C46D /* pas_random.c in Sources */,

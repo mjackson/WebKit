@@ -38,6 +38,8 @@
 
 namespace WebCore {
 
+class Color;
+
 namespace CSS {
 struct AppleColorFilter;
 struct AppleColorFilterValue;

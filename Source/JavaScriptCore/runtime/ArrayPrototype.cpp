@@ -1239,13 +1239,10 @@ ALWAYS_INLINE JSValue fastIndexOf(JSGlobalObject* globalObject, VM& vm, JSArray*
             if (result)
                 return jsNumber(result - data);
         } else {
-            do {
-                ASSERT(index < length);
-                // Array#lastIndexOf uses `===` semantics (not UncheckedKeyHashMap isEqual semantics).
-                // And the hole never matches against Int32 value.
-                if (searchInt32 == data[index].get())
-                    return jsNumber(index);
-            } while (index--);
+            EncodedJSValue encodedSearchElement = JSValue::encode(searchInt32);
+            auto* result = std::bit_cast<const WriteBarrier<Unknown>*>(WTF::reverseFind64(std::bit_cast<const uint64_t*>(data), encodedSearchElement, static_cast<uint64_t>(index) + 1));
+            if (result)
+                return jsNumber(result - data);
         }
         return jsNumber(-1);
     }
@@ -1271,6 +1268,13 @@ ALWAYS_INLINE JSValue fastIndexOf(JSGlobalObject* globalObject, VM& vm, JSArray*
                     return jsNumber(index);
             }
         } else {
+            if (searchElement.isObject()) {
+                auto* result = std::bit_cast<const WriteBarrier<Unknown>*>(WTF::reverseFind64(std::bit_cast<const uint64_t*>(data), JSValue::encode(searchElement), static_cast<uint64_t>(index) + 1));
+                if (result)
+                    return jsNumber(result - data);
+                return jsNumber(-1);
+            }
+
             do {
                 ASSERT(index < length);
                 JSValue value = data[index].get();

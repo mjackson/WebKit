@@ -99,15 +99,15 @@ WallTime TimeWithDynamicClockType::approximateWallTime() const
     case ClockType::Wall:
         return wallTime();
     case ClockType::Monotonic:
-        return monotonicTime().approximateWallTime();
+        return monotonicTime().approximate<WallTime>();
     case ClockType::Approximate:
-        return approximateTime().approximateWallTime();
+        return approximateTime().approximate<WallTime>();
     case ClockType::Continuous:
-        return continuousTime().approximateWallTime();
+        return continuousTime().approximate<WallTime>();
     case ClockType::ContinuousApproximate:
-        return ContinuousApproximateTime().approximateWallTime();
+        return ContinuousApproximateTime().approximate<WallTime>();
     case ClockType::UnbarrieredMonotonic:
-        return unbarrieredMonotonicTime().approximateWallTime();
+        return unbarrieredMonotonicTime().approximate<WallTime>();
     }
     RELEASE_ASSERT_NOT_REACHED();
     return WallTime();
@@ -117,17 +117,17 @@ MonotonicTime TimeWithDynamicClockType::approximateMonotonicTime() const
 {
     switch (m_type) {
     case ClockType::Wall:
-        return wallTime().approximateMonotonicTime();
+        return wallTime().approximate<MonotonicTime>();
     case ClockType::Monotonic:
         return monotonicTime();
     case ClockType::Approximate:
-        return approximateTime().approximateMonotonicTime();
+        return approximateTime().approximate<MonotonicTime>();
     case ClockType::Continuous:
-        return continuousTime().approximateMonotonicTime();
+        return continuousTime().approximate<MonotonicTime>();
     case ClockType::ContinuousApproximate:
-        return ContinuousApproximateTime().approximateMonotonicTime();
+        return ContinuousApproximateTime().approximate<MonotonicTime>();
     case ClockType::UnbarrieredMonotonic:
-        return unbarrieredMonotonicTime().approximateMonotonicTime();
+        return unbarrieredMonotonicTime().approximate<MonotonicTime>();
     }
     RELEASE_ASSERT_NOT_REACHED();
     return MonotonicTime();
