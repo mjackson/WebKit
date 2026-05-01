@@ -55,8 +55,23 @@ RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/nul
     && rm -rf /var/lib/apt/lists/*
 
 # Install GCC 13 toolchain
-RUN add-apt-repository ppa:ubuntu-toolchain-r/test \
-    && apt-get update \
+# Avoid add-apt-repository (it validates the PPA against the Launchpad API,
+# which fails outright when Launchpad is degraded). Write the source entry
+# directly using the modern ppa.launchpadcontent.net host over HTTPS, fetch
+# the signing key from keyserver.ubuntu.com, and retry apt-get update so a
+# transient Launchpad blip doesn't fail the whole image build.
+RUN . /etc/os-release \
+    && curl -fsSL --retry 5 --retry-all-errors \
+        "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x60C317803A41BA51845E371A1E9377A2BA9EF27F" \
+        | gpg --dearmor -o /etc/apt/trusted.gpg.d/ubuntu-toolchain-r.gpg \
+    && echo "deb https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu ${UBUNTU_CODENAME} main" \
+        > /etc/apt/sources.list.d/ubuntu-toolchain-r.list \
+    && for i in 1 2 3 4 5 6; do \
+         apt-get update; \
+         apt-cache policy gcc-13 | grep -q Candidate && break; \
+         echo "ubuntu-toolchain-r index not fetched (attempt $i), retrying..."; \
+         sleep $((i * 20)); \
+       done \
     && apt-get install -y \
         gcc-13 \
         g++-13 \
