@@ -73,6 +73,9 @@ RUN . /etc/os-release \
          sleep $((i * 20)); \
        done \
     && apt-get install -y \
+        -o Acquire::Retries=10 \
+        -o Acquire::http::Timeout=30 \
+        -o Acquire::https::Timeout=30 \
         gcc-13 \
         g++-13 \
         libgcc-13-dev \
