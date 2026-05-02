@@ -25,15 +25,17 @@ ARG ENABLE_SANITIZERS
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# archive.ubuntu.com has been timing out from inside the GitHub-hosted
-# docker-buildx network even though security.ubuntu.com (same Canonical
-# backbone) is reachable. Point the main archive at Azure's mirror — the
-# runners are on Azure so this is both more reliable and faster. arm64 uses
+# Both archive.ubuntu.com and azure.archive.ubuntu.com have intermittently
+# timed out from inside the GitHub-hosted docker-buildx network at different
+# times. Prefer Azure (faster on Azure-hosted runners) but fall back to the
+# canonical mirror if `apt-get update` can't reach it. arm64 uses
 # ports.ubuntu.com which has been reachable, so leave it alone.
 RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list
 
 # Install basic build dependencies
-RUN apt-get update && apt-get install -y \
+RUN ( apt-get update || \
+      ( sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list && apt-get update ) \
+    ) && apt-get install -y \
     wget \
     curl \
     git \
