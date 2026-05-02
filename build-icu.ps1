@@ -205,6 +205,34 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ":: Built makedata successfully"
 
 # ========================================================================
+# STAGE 1b: Filter ICU data
+# ========================================================================
+# Drop converters/translit/rbnf/stringprep/confusables/unames. Bun has zero
+# ucnv_/utrans_/usprep_/uspoof_ consumers (TextCodecICU is removed in
+# src/bun.js/bindings/TextEncodingRegistry.cpp). Cuts sicudt.lib by ~6.8 MB.
+$binDirName = if ($Platform -eq "x64") { "bin64" } else { "bin$Platform" }
+$icupkg = Join-Path $ICU_SOURCE_DIR "..\$binDirName\icupkg.exe"
+$datFile = Get-ChildItem -Path (Join-Path $ICU_SOURCE_DIR "data\in") -Filter "icudt*l.dat" | Select-Object -First 1
+if ((Test-Path $icupkg) -and $datFile) {
+    Write-Host ":: STAGE 1b: Filtering ICU data ($($datFile.Name)) with $icupkg"
+    $rmList = Join-Path $datFile.DirectoryName "rm.lst"
+    & $icupkg -l $datFile.FullName |
+        Where-Object { $_ -match '\.(cnv|spp|cfu)$' -or $_ -match '^cnvalias\.icu$' -or $_ -match '^translit/' -or $_ -match '^rbnf/' -or $_ -match '^unames\.icu$' } |
+        Set-Content $rmList -Encoding ascii
+    $filtered = Join-Path $datFile.DirectoryName "icudt_filtered.dat"
+    & $icupkg --auto_toc_prefix -r $rmList $datFile.FullName $filtered
+    if ($LASTEXITCODE -ne 0) { throw "icupkg -r failed with exit code $LASTEXITCODE" }
+    Move-Item -Force $filtered $datFile.FullName
+    # Force makedata to repackage from the filtered .dat.
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $ICU_SOURCE_DIR "data\out")
+    & $msbuildPath $buildArgs
+    if ($LASTEXITCODE -ne 0) { throw "MSBuild failed for makedata (filtered) with exit code $LASTEXITCODE" }
+    Write-Host ":: Rebuilt makedata with filtered ICU data"
+} else {
+    Write-Host ":: WARNING: icupkg.exe or icudt*l.dat not found; skipping ICU data filter"
+}
+
+# ========================================================================
 # STAGE 2: Rebuild common and i18n as static libraries with /MT
 # ========================================================================
 Write-Host ""

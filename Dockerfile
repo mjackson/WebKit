@@ -25,15 +25,17 @@ ARG ENABLE_SANITIZERS
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# archive.ubuntu.com has been timing out from inside the GitHub-hosted
-# docker-buildx network even though security.ubuntu.com (same Canonical
-# backbone) is reachable. Point the main archive at Azure's mirror — the
-# runners are on Azure so this is both more reliable and faster. arm64 uses
+# Both archive.ubuntu.com and azure.archive.ubuntu.com have intermittently
+# timed out from inside the GitHub-hosted docker-buildx network at different
+# times. Prefer Azure (faster on Azure-hosted runners) but fall back to the
+# canonical mirror if `apt-get update` can't reach it. arm64 uses
 # ports.ubuntu.com which has been reachable, so leave it alone.
 RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list
 
 # Install basic build dependencies
-RUN apt-get update && apt-get install -y \
+RUN ( apt-get update || \
+      ( sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list && apt-get update ) \
+    ) && apt-get install -y \
     wget \
     curl \
     git \
@@ -173,7 +175,14 @@ RUN echo "#include <iostream>\n#include <numbers>\nint main() { std::cout << std
     ./test && \
     rm test.cpp test
 
-# Download and build ICU
+# Download and build ICU.
+#
+# After the first `make` (which produces bin/icupkg), filter data/in/icudt75l.dat
+# to drop converters/translit/rbnf/stringprep/confusables/unames, then rebuild
+# the data target. Bun has zero ucnv_/utrans_/usprep_/uspoof_ consumers
+# (TextCodecICU is removed in src/bun.js/bindings/TextEncodingRegistry.cpp and
+# UCONFIG_NO_LEGACY_CONVERSION=1 is set below), so this is unreachable data.
+# Cuts libicudata.a by ~7.4 MB with no observable change.
 ADD https://github.com/unicode-org/icu/releases/download/release-75-1/icu4c-75_1-src.tgz /icu.tgz
 RUN --mount=type=tmpfs,target=/icu \
     export CFLAGS="$CFLAGS -Os -std=c17 $LTO_FLAG" && \
@@ -185,6 +194,10 @@ RUN --mount=type=tmpfs,target=/icu \
     cd source && \
     ./configure --enable-static --disable-shared --disable-layoutex --disable-layout --with-data-packaging=static --disable-samples --disable-debug --disable-tests --disable-extras --disable-icuio && \
     make -j$(nproc) && \
+    bin/icupkg -l data/in/icudt75l.dat | grep -E '\.(cnv|spp|cfu)$|^cnvalias\.icu$|^translit/|^rbnf/|^unames\.icu$' > data/in/rm.lst && \
+    bin/icupkg --auto_toc_prefix -r data/in/rm.lst data/in/icudt75l.dat data/in/icudt75l_filtered.dat && \
+    mv -f data/in/icudt75l_filtered.dat data/in/icudt75l.dat && \
+    rm -rf data/out lib/libicudata.a && make -j$(nproc) && \
     make install && cp -r /icu/source/lib/* /output/lib && cp -r /icu/source/i18n/unicode/* /icu/source/common/unicode/* /output/include/unicode
 
 # Copy WebKit source and build
