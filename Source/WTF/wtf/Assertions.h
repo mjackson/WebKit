@@ -1039,21 +1039,6 @@ inline void compilerFenceForCrash()
     asm volatile("" ::: "memory");
 }
 
-#if USE(BUN_JSC_ADDITIONS) && !ASSERT_ENABLED && !(!ASAN_ENABLED && (OS(DARWIN) || PLATFORM(PLAYSTATION)) && (CPU(X86_64) || CPU(ARM64)))
-// On platforms where WTFCrashWithInfo / WTFCrashWithInfoImpl ignore the
-// file/function arguments and just CRASH() (see the #else branches above and
-// in Assertions.cpp), don't materialize __FILE__ / __PRETTY_FUNCTION__ at the
-// ~17,000 call sites — they account for ~550 KB of unreferenced .rodata in
-// release builds. __LINE__ is kept so call sites remain distinct for ICF.
-// DFG_CRASH and similar macros that *do* print their arguments take
-// WTF_PRETTY_FUNCTION directly and are unaffected.
-#define CRASH_WITH_INFO(...) do { \
-        WTF::isIntegralOrPointerType(__VA_ARGS__); \
-        compilerFenceForCrash(); \
-        WTFCrashWithInfo(__LINE__, nullptr, nullptr __VA_OPT__(,) __VA_ARGS__); \
-    } while (false)
-#endif
-
 #ifndef CRASH_WITH_INFO
 
 #define PP_THIRD_ARG(a,b,c,...) c
@@ -1062,7 +1047,28 @@ inline void compilerFenceForCrash()
 
 // This is useful if you are going to stuff data into registers before crashing, like the
 // crashWithInfo functions below.
+#if USE(BUN_JSC_ADDITIONS) && !ASSERT_ENABLED && !(!ASAN_ENABLED && (OS(DARWIN) || PLATFORM(PLAYSTATION)) && (CPU(X86_64) || CPU(ARM64)))
+// On platforms where WTFCrashWithInfo / WTFCrashWithInfoImpl ignore the
+// file/function arguments and just CRASH() (see the #else branches above and
+// in Assertions.cpp), don't materialize __FILE__ / __PRETTY_FUNCTION__ at the
+// ~17,000 call sites — they account for ~550 KB of unreferenced .rodata in
+// release builds. __LINE__ is kept so call sites remain distinct for ICF.
+// DFG_CRASH and similar macros that *do* print their arguments take
+// WTF_PRETTY_FUNCTION directly and are unaffected.
 #if !VA_OPT_SUPPORTED
+#define CRASH_WITH_INFO(...) do { \
+        WTF::isIntegralOrPointerType(__VA_ARGS__); \
+        compilerFenceForCrash(); \
+        WTFCrashWithInfo(__LINE__, nullptr, nullptr, ##__VA_ARGS__); \
+    } while (false)
+#else
+#define CRASH_WITH_INFO(...) do { \
+        WTF::isIntegralOrPointerType(__VA_ARGS__); \
+        compilerFenceForCrash(); \
+        WTFCrashWithInfo(__LINE__, nullptr, nullptr __VA_OPT__(,) __VA_ARGS__); \
+    } while (false)
+#endif
+#elif !VA_OPT_SUPPORTED
 #define CRASH_WITH_INFO(...) do { \
         WTF::isIntegralOrPointerType(__VA_ARGS__); \
         compilerFenceForCrash(); \
