@@ -173,7 +173,14 @@ RUN echo "#include <iostream>\n#include <numbers>\nint main() { std::cout << std
     ./test && \
     rm test.cpp test
 
-# Download and build ICU
+# Download and build ICU.
+#
+# After the first `make` (which produces bin/icupkg), filter data/in/icudt75l.dat
+# to drop converters/translit/rbnf/stringprep/confusables/unames, then rebuild
+# the data target. Bun has zero ucnv_/utrans_/usprep_/uspoof_ consumers
+# (TextCodecICU is removed in src/bun.js/bindings/TextEncodingRegistry.cpp and
+# UCONFIG_NO_LEGACY_CONVERSION=1 is set below), so this is unreachable data.
+# Cuts libicudata.a by ~7.4 MB with no observable change.
 ADD https://github.com/unicode-org/icu/releases/download/release-75-1/icu4c-75_1-src.tgz /icu.tgz
 RUN --mount=type=tmpfs,target=/icu \
     export CFLAGS="$CFLAGS -Os -std=c17 $LTO_FLAG" && \
@@ -185,6 +192,10 @@ RUN --mount=type=tmpfs,target=/icu \
     cd source && \
     ./configure --enable-static --disable-shared --disable-layoutex --disable-layout --with-data-packaging=static --disable-samples --disable-debug --disable-tests --disable-extras --disable-icuio && \
     make -j$(nproc) && \
+    bin/icupkg -l data/in/icudt75l.dat | grep -E '\.(cnv|spp|cfu)$|^cnvalias\.icu$|^translit/|^rbnf/|^unames\.icu$' > data/in/rm.lst && \
+    bin/icupkg --auto_toc_prefix -r data/in/rm.lst data/in/icudt75l.dat data/in/icudt75l_filtered.dat && \
+    mv -f data/in/icudt75l_filtered.dat data/in/icudt75l.dat && \
+    rm -rf data/out lib/libicudata.a && make -j$(nproc) && \
     make install && cp -r /icu/source/lib/* /output/lib && cp -r /icu/source/i18n/unicode/* /icu/source/common/unicode/* /output/include/unicode
 
 # Copy WebKit source and build
