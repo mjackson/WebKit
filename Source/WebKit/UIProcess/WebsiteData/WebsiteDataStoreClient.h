@@ -36,7 +36,6 @@
 
 namespace WebCore {
 enum class WasPrivateRelayed : bool;
-enum class WindowProxyProperty : uint8_t;
 struct NotificationData;
 class RegistrableDomain;
 class SecurityOriginData;
@@ -108,10 +107,6 @@ public:
     }
 
     virtual void notifyBackgroundFetchChange(const String&, BackgroundFetchChange)
-    {
-    }
-
-    virtual void didAccessWindowProxyProperty(const WebCore::RegistrableDomain&, const WebCore::RegistrableDomain&, WebCore::WindowProxyProperty, bool)
     {
     }
 

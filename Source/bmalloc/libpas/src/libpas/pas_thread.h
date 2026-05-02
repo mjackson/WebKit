@@ -56,15 +56,6 @@ int sched_yield();
 #define PTHREAD_ONCE_INIT INIT_ONCE_STATIC_INIT
 int pthread_once(pthread_once_t *once_control, void (*init_routine)(void));
 
-/* Thread Local Storage */
-
-#define pthread_key_t uintptr_t
-
-int pthread_key_create(pthread_key_t *key, void (*destructor)(void*));
-
-void *pthread_getspecific(pthread_key_t key);
-int pthread_setspecific(pthread_key_t key, void *value);
-
 /* Mutexes, conditions */
 
 typedef SRWLOCK pthread_mutex_t;

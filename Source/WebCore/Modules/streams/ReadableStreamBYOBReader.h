@@ -39,6 +39,7 @@ namespace WebCore {
 
 class DOMPromise;
 class DeferredPromise;
+class JSDOMGlobalObject;
 class ReadableStream;
 class ReadableStreamReadIntoRequest;
 

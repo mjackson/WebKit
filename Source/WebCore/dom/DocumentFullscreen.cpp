@@ -50,7 +50,6 @@
 #include "LocalFrame.h"
 #include "LocalFrameInlines.h"
 #include "Logging.h"
-#include "NodeInlines.h"
 #include "NodeList.h"
 #include "Page.h"
 #include "PseudoClassChangeInvalidation.h"

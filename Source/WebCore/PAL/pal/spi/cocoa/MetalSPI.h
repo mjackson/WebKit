@@ -35,6 +35,7 @@ DECLARE_SYSTEM_HEADER
 #if USE(APPLE_INTERNAL_SDK)
 
 #import <Metal/MTLDevice_Private.h>
+#import <Metal/MTLEvent_Private.h>
 #import <Metal/MTLRasterizationRate_Private.h>
 #import <Metal/MTLTexture_Private.h>
 #import <Metal/MetalPrivate.h>
@@ -70,6 +71,7 @@ typedef struct __IOSurface *IOSurfaceRef;
 @interface MTLSharedTextureHandle(Private)
 - (instancetype)initWithIOSurface:(IOSurfaceRef)ioSurface label:(NSString*)label;
 - (instancetype)initWithMachPort:(mach_port_t)machPort;
+- (mach_port_t)createMachPort;
 @end
 #endif
 

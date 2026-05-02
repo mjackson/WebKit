@@ -1344,6 +1344,11 @@ inline JSObject* JSGlobalObject::globalThis() const
     return m_globalThis.get();
 }
 
+ALWAYS_INLINE VM& getVM(JSGlobalObject* globalObject)
+{
+    return globalObject->vm();
+}
+
 } // namespace JSC
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

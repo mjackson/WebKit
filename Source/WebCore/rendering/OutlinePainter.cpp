@@ -42,6 +42,7 @@
 #include "LegacyRenderSVGModelObject.h"
 #include "PaintInfo.h"
 #include "PathUtilities.h"
+#include "PlatformRenderTheme.h"
 #include "RenderBlockFlow.h"
 #include "RenderChildIterator.h"
 #include "RenderElementStyleInlines.h"

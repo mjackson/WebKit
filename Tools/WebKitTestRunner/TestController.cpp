@@ -589,6 +589,24 @@ void TestController::closeOtherPage(WKPageRef page, PlatformWebView* view)
         m_auxiliaryWebViews.removeAt(index);
 }
 
+PlatformWebView* TestController::viewForPage(WKPageRef page)
+{
+    if (mainWebView() && mainWebView()->page() == page)
+        return mainWebView();
+    for (auto& auxiliaryWebView : m_auxiliaryWebViews) {
+        if (auxiliaryWebView->page() == page)
+            return auxiliaryWebView.ptr();
+    }
+    return mainWebView();
+}
+
+void TestController::setTargetViewFromMessage(WKScriptMessageRef message)
+{
+    auto* frameInfo = WKScriptMessageGetFrameInfo(message);
+    auto* sourcePage = frameInfo ? WKFrameInfoGetPage(frameInfo) : nullptr;
+    setTargetView(sourcePage ? viewForPage(sourcePage) : mainWebView());
+}
+
 WKPageRef TestController::createOtherPage(WKPageRef, WKPageConfigurationRef configuration, WKNavigationActionRef navigationAction, WKWindowFeaturesRef windowFeatures, const void *clientInfo)
 {
     PlatformWebView* parentView = static_cast<PlatformWebView*>(const_cast<void*>(clientInfo));
@@ -2149,10 +2167,6 @@ if (window.testRunner) {
     testRunner.flushConsoleLogs = () => post(['FlushConsoleLogs']);
     testRunner.updatePresentation = () => post(['UpdatePresentation']);
     testRunner.setPageScaleFactor = (scaleFactor, x, y) => post(['SetPageScaleFactor', { scaleFactor: scaleFactor, x: x, y: y }]);
-    testRunner.getAndClearReportedWindowProxyAccessDomains = async (callback) => { // NOLINT
-        const domains = await post(['GetAndClearReportedWindowProxyAccessDomains']);
-        callback?.(domains);
-    };
     testRunner.setObscuredContentInsets = (top, right, bottom, left) => post(['SetObscuredContentInsets', [top, right, bottom, left]]);
     testRunner.setResourceMonitorList = (rulesText) => post(['SetResourceMonitorList', rulesText]);
     testRunner.findStringMatchesInPage = (target, options) => post(['FindStringMatches', { String: target, FindOptions: options }]);
@@ -2346,9 +2360,6 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
 
     if (WKStringIsEqualToUTF8CString(command, "FlushConsoleLogs"))
         return completionHandler(nullptr);
-
-    if (WKStringIsEqualToUTF8CString(command, "GetAndClearReportedWindowProxyAccessDomains"))
-        return completionHandler(getAndClearReportedWindowProxyAccessDomains().get());
 
     if (WKStringIsEqualToUTF8CString(command, "TakeViewPortSnapshot"))
         return completionHandler(takeViewPortSnapshot().get());
@@ -2762,13 +2773,19 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         const auto y = doubleValue(argument2);
         const auto pointerType = stringValue(argument3);
 
+        // Route event to the view that sent this message (e.g. a popup window).
+        setTargetViewFromMessage(message);
+
         auto array = adoptWK(WKMutableArrayCreate());
         WKArrayAppendItem(array.get(), argument);
         WKArrayAppendItem(array.get(), argument2);
-        WKPagePostMessageToInjectedBundle(mainWebView()->page(), toWK("SetMousePosition").get(), array.get());
+        WKPagePostMessageToInjectedBundle(targetView()->page(), toWK("SetMousePosition").get(), array.get());
 
         m_eventSenderProxy->mouseMoveTo(x, y, pointerType,
-            [completionHandler = WTF::move(completionHandler)] mutable { completionHandler(nullptr); });
+            [this, completionHandler = WTF::move(completionHandler)] mutable {
+                setTargetView(nullptr);
+                completionHandler(nullptr);
+            });
         return;
     }
 
@@ -2776,8 +2793,14 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         const auto button = static_cast<uint64_t>(doubleValue(argument));
         const auto array = arrayValue(argument2);
         const auto pointerType = stringValue(argument3);
+
+        setTargetViewFromMessage(message);
+
         m_eventSenderProxy->mouseDown(button, parseModifierArray(array), pointerType,
-            [completionHandler = WTF::move(completionHandler)] mutable { completionHandler(nullptr); });
+            [this, completionHandler = WTF::move(completionHandler)] mutable {
+                setTargetView(nullptr);
+                completionHandler(nullptr);
+            });
         return;
     }
 
@@ -2785,8 +2808,14 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         const auto button = static_cast<uint64_t>(doubleValue(argument));
         const auto array = arrayValue(argument2);
         const auto pointerType = stringValue(argument3);
+
+        setTargetViewFromMessage(message);
+
         m_eventSenderProxy->mouseUp(button, parseModifierArray(array), pointerType,
-            [completionHandler = WTF::move(completionHandler)] mutable { completionHandler(nullptr); });
+            [this, completionHandler = WTF::move(completionHandler)] mutable {
+                setTargetView(nullptr);
+                completionHandler(nullptr);
+            });
         return;
     }
 
@@ -5308,13 +5337,6 @@ WKRetainPtr<WKStringRef> TestController::takeViewPortSnapshot()
 }
 #endif
 
-#if !PLATFORM(COCOA)
-WKRetainPtr<WKArrayRef> TestController::getAndClearReportedWindowProxyAccessDomains()
-{
-    return nullptr;
-}
-#endif
-
 void TestController::setServiceWorkerFetchTimeoutForTesting(double seconds)
 {
     WKWebsiteDataStoreSetServiceWorkerFetchTimeoutForTesting(websiteDataStore(), seconds);
@@ -5787,7 +5809,7 @@ void TestController::handleAXPerformAction(WKDictionaryRef messageBody)
 void TestController::doAfterProcessingAllPendingMouseEvents(CompletionHandler<void()>&& handler)
 {
     auto* completionHandler = new CompletionHandler<void()>(WTF::move(handler));
-    WKPageDoAfterProcessingAllPendingMouseEvents(mainWebView()->page(), completionHandler, [](void* userData) {
+    WKPageDoAfterProcessingAllPendingMouseEvents(targetView()->page(), completionHandler, [](void* userData) {
         auto* completionHandler = static_cast<CompletionHandler<void()>*>(userData);
         (*completionHandler)();
         delete completionHandler;

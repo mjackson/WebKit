@@ -20,7 +20,7 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #pragma once
@@ -32,6 +32,7 @@
 #include "JSArrayBufferViewInlines.h"
 #include "JSCellInlines.h"
 #include "JSGenericTypedArrayView.h"
+#include "JSGenericTypedArrayViewInlinesLight.h"
 #include "ToNativeFromValue.h"
 #include "TypeError.h"
 #include "TypedArrays.h"
@@ -171,7 +172,7 @@ bool JSGenericTypedArrayView<Adaptor>::validateRange(
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (canAccessRangeQuickly(offset, length))
         return true;
-    
+
     throwException(globalObject, scope, createRangeError(globalObject, "Range consisting of offset and length are out of bounds"_s));
     return false;
 }
@@ -203,7 +204,7 @@ bool JSGenericTypedArrayView<Adaptor>::setWithSpecificType(
         throwTypeError(globalObject, scope, "Content types of source and destination typed arrays are different"_s);
         return false;
     }
-    
+
     // This method doesn't support copying between the same array. Note that
     // set() will only call this if the types differ, which implicitly guarantees
     // that we can't be the same array. This is relevant because the way we detect
@@ -212,7 +213,7 @@ bool JSGenericTypedArrayView<Adaptor>::setWithSpecificType(
     // catch the case where it's the *same* array - fortunately though, this code
     // path never needs to worry about that case.
     ASSERT(static_cast<JSCell*>(this) != static_cast<JSCell*>(other));
-    
+
     // 1) If the two arrays are non-overlapping, we can copy in any order we like
     //    and we don't need an intermediate buffer. Arrays are definitely
     //    non-overlapping if either one of them has no backing buffer (that means
@@ -227,7 +228,7 @@ bool JSGenericTypedArrayView<Adaptor>::setWithSpecificType(
     //       copy is in order.
     // 3) If we have different element sizes and there is a chance of overlap then
     //    we need an intermediate vector.
-    
+
     // NB. Comparisons involving elementSize will be constant-folded by template
     // specialization.
 
@@ -255,7 +256,7 @@ bool JSGenericTypedArrayView<Adaptor>::setWithSpecificType(
         }
         return true;
     }
-    
+
     // Fail: we need an intermediate transfer buffer (i.e. case (3)).
     auto transfer = [&] (auto& buffer) {
         for (size_t i = length; i--;) {
@@ -513,34 +514,6 @@ bool JSGenericTypedArrayView<Adaptor>::setFromArrayLike(JSGlobalObject* globalOb
 }
 
 template<typename Adaptor>
-RefPtr<typename Adaptor::ViewType> JSGenericTypedArrayView<Adaptor>::possiblySharedTypedImpl()
-{
-    return Adaptor::ViewType::tryCreate(possiblySharedBuffer(), byteOffsetRaw(), isAutoLength() ? std::nullopt : std::optional { lengthRaw() });
-}
-
-template<typename Adaptor>
-RefPtr<typename Adaptor::ViewType> JSGenericTypedArrayView<Adaptor>::unsharedTypedImpl()
-{
-    return Adaptor::ViewType::tryCreate(unsharedBuffer(), byteOffsetRaw(), isAutoLength() ? std::nullopt : std::optional { lengthRaw() });
-}
-
-template<typename Adaptor> inline RefPtr<typename Adaptor::ViewType> toPossiblySharedNativeTypedView(VM&, JSValue value)
-{
-    auto* wrapper = dynamicDowncast<typename Adaptor::JSViewType>(value);
-    if (!wrapper)
-        return nullptr;
-    return wrapper->possiblySharedTypedImpl();
-}
-
-template<typename Adaptor> inline RefPtr<typename Adaptor::ViewType> toUnsharedNativeTypedView(VM& vm, JSValue value)
-{
-    auto result = toPossiblySharedNativeTypedView<Adaptor>(vm, value);
-    if (!result || result->isShared())
-        return nullptr;
-    return result;
-}
-
-template<typename Adaptor>
 ArrayBuffer* JSGenericTypedArrayView<Adaptor>::existingBuffer()
 {
     return existingBufferInButterfly();
@@ -705,7 +678,7 @@ void JSGenericTypedArrayView<Adaptor>::getOwnPropertyNames(
         for (uint64_t i = 0; i < length; ++i)
             array.add(Identifier::from(vm, i));
     }
-    
+
     thisObject->getOwnNonIndexPropertyNames(globalObject, array, mode);
 }
 
@@ -733,33 +706,33 @@ void JSGenericTypedArrayView<Adaptor>::visitChildrenImpl(JSCell* cell, Visitor& 
     TypedArrayMode mode;
     void* vector;
     size_t byteSize;
-    
+
     {
         Locker locker { thisObject->cellLock() };
         mode = thisObject->m_mode;
         vector = thisObject->vector();
         byteSize = thisObject->byteLengthRaw();
     }
-    
+
     switch (mode) {
     case FastTypedArray: {
         if (vector)
             visitor.markAuxiliary(vector);
         break;
     }
-        
+
     case OversizeTypedArray: {
         visitor.reportExtraMemoryVisited(byteSize);
         break;
     }
-        
+
     case WastefulTypedArray:
     case ResizableNonSharedWastefulTypedArray:
     case ResizableNonSharedAutoLengthWastefulTypedArray:
     case GrowableSharedWastefulTypedArray:
     case GrowableSharedAutoLengthWastefulTypedArray:
         break;
-        
+
     case DataViewMode:
     case ResizableNonSharedDataViewMode:
     case ResizableNonSharedAutoLengthDataViewMode:
@@ -927,18 +900,6 @@ template<typename Adaptor> inline Structure* JSGenericTypedArrayView<Adaptor>::c
     return Structure::create(vm, globalObject, prototype, TypeInfo(typeForTypedArrayType(Adaptor::typeValue), StructureFlags), info(), NonArray);
 }
 
-template<typename Adaptor> inline const ClassInfo* JSGenericTypedArrayView<Adaptor>::info()
-{
-#define JSC_GET_CLASS_INFO(type) case Type##type: return get##type##ArrayClassInfo();
-    switch (Adaptor::typeValue) {
-        FOR_EACH_TYPED_ARRAY_TYPE_EXCLUDING_DATA_VIEW(JSC_GET_CLASS_INFO)
-    default:
-        RELEASE_ASSERT_NOT_REACHED();
-        return nullptr;
-    }
-#undef JSC_GET_CLASS_INFO
-}
-
 template<typename Adaptor> template<typename, SubspaceAccess access>
 inline GCClient::IsoSubspace* JSGenericTypedArrayView<Adaptor>::subspaceFor(VM& vm)
 {
@@ -992,45 +953,6 @@ inline void JSGenericTypedArrayView<Adaptor>::sortFloat(ElementType* begin, Elem
             return a < b;
         return a > b;
     });
-}
-
-template<typename Adaptor> RefPtr<typename Adaptor::ViewType> JSGenericTypedArrayView<Adaptor>::toWrapped(VM& vm, JSValue value)
-{
-    auto result = JSC::toUnsharedNativeTypedView<Adaptor>(vm, value);
-    if (!result || result->isResizableOrGrowableShared())
-        return nullptr;
-    return result;
-}
-
-template<typename Adaptor> RefPtr<typename Adaptor::ViewType> JSGenericTypedArrayView<Adaptor>::toWrappedAllowResizable(VM& vm, JSValue value)
-{
-    return JSC::toUnsharedNativeTypedView<Adaptor>(vm, value);
-}
-
-template<typename Adaptor> RefPtr<typename Adaptor::ViewType> JSGenericTypedArrayView<Adaptor>::toWrappedAllowShared(VM& vm, JSValue value)
-{
-    auto result = JSC::toPossiblySharedNativeTypedView<Adaptor>(vm, value);
-    if (!result || result->isResizableOrGrowableShared())
-        return nullptr;
-    return result;
-}
-
-template<typename Adaptor> RefPtr<typename Adaptor::ViewType> JSGenericTypedArrayView<Adaptor>::toWrappedAllowSharedAndResizable(VM& vm, JSValue value)
-{
-    return JSC::toPossiblySharedNativeTypedView<Adaptor>(vm, value);
-}
-
-template<typename PassedAdaptor> inline const ClassInfo* JSGenericResizableOrGrowableSharedTypedArrayView<PassedAdaptor>::info()
-{
-    switch (Base::Adaptor::typeValue) {
-#define JSC_GET_CLASS_INFO(type) \
-    case Type##type: return getResizableOrGrowableShared##type##ArrayClassInfo();
-        FOR_EACH_TYPED_ARRAY_TYPE_EXCLUDING_DATA_VIEW(JSC_GET_CLASS_INFO)
-#undef JSC_GET_CLASS_INFO
-    default:
-        RELEASE_ASSERT_NOT_REACHED();
-        return nullptr;
-    }
 }
 
 template<typename PassedAdaptor> inline Structure* JSGenericResizableOrGrowableSharedTypedArrayView<PassedAdaptor>::createStructure(VM& vm, JSGlobalObject* globalObject, JSValue prototype)

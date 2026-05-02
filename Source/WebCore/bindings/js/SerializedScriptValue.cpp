@@ -4843,7 +4843,7 @@ private:
         }
 
         if (!m_canCreateDOMObject)
-            return constructEmptyObject(m_lexicalGlobalObject, m_globalObject->objectPrototype());
+            return JSC::constructEmptyObject(m_lexicalGlobalObject, m_globalObject->objectPrototype());
 
         auto rtcCertificate = RTCCertificate::create(SecurityOrigin::createFromString(origin->string()), expires, WTF::move(fingerprints), certificate->takeString(), keyedMaterial->takeString());
         return toJSNewlyCreated(m_lexicalGlobalObject, uncheckedDowncast<JSDOMGlobalObject>(m_globalObject), WTF::move(rtcCertificate));
@@ -5959,7 +5959,7 @@ DeserializationResult CloneDeserializer::deserialize()
         case ObjectStartState: {
             if (outputObjectStack.size() > maximumFilterRecursion)
                 return { JSValue(), SerializationReturnCode::StackOverflowError };
-            JSObject* outObject = constructEmptyObject(m_lexicalGlobalObject, m_globalObject->objectPrototype());
+            JSObject* outObject = JSC::constructEmptyObject(m_lexicalGlobalObject, m_globalObject->objectPrototype());
             addToObjectPool<ObjectTag>(outObject);
             outputObjectStack.append(outObject);
         }

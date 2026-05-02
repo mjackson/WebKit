@@ -52,6 +52,7 @@
 #import "WebFrame.h"
 #import "WebPage.h"
 #import "WebProcess.h"
+#import <WebCore/UserGestureIndicator.h>
 #import <wtf/cocoa/VectorCocoa.h>
 #import <wtf/text/Base64.h>
 
@@ -1011,7 +1012,8 @@ void WebExtensionAPITabs::sendMessage(WebFrame& frame, double tabID, const Strin
         documentIdentifier.value(),
     };
 
-    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::TabsSendMessage(tabIdentifer.value(), messageJSON, targetParameters, senderParameters), [protectedThis = Ref { *this }, callback = WTF::move(callback)](Expected<String, WebExtensionError>&& result) {
+    bool userGesture = WebCore::UserGestureIndicator::processingUserGesture();
+    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::TabsSendMessage(tabIdentifer.value(), messageJSON, targetParameters, senderParameters, userGesture), [protectedThis = Ref { *this }, callback = WTF::move(callback)](Expected<String, WebExtensionError>&& result) {
         if (!result) {
             callback->reportError(result.error().createNSString().get());
             return;
@@ -1054,7 +1056,8 @@ RefPtr<WebExtensionAPIPort> WebExtensionAPITabs::connect(WebFrame& frame, JSCont
 
     Ref port = WebExtensionAPIPort::create(*this, frame.page()->webPageProxyIdentifier(), WebExtensionContentWorldType::ContentScript, resolvedName);
 
-    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::TabsConnect(tabIdentifer.value(), port->channelIdentifier(), resolvedName, targetParameters, senderParameters), [=, this, protectedThis = Ref { *this }, globalContext = JSRetainPtr { JSContextGetGlobalContext(context) }](Expected<void, WebExtensionError>&& result) {
+    bool userGesture = WebCore::UserGestureIndicator::processingUserGesture();
+    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::TabsConnect(tabIdentifer.value(), port->channelIdentifier(), resolvedName, targetParameters, senderParameters, userGesture), [=, this, protectedThis = Ref { *this }, globalContext = JSRetainPtr { JSContextGetGlobalContext(context) }](Expected<void, WebExtensionError>&& result) {
         if (result)
             return;
 
@@ -1077,7 +1080,8 @@ void WebExtensionAPITabs::executeScript(WebPageProxyIdentifier webPageProxyIdent
     if (options && !parseScriptOptions(options, parameters, outExceptionString))
         return;
 
-    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::TabsExecuteScript(webPageProxyIdentifier, tabIdentifier, parameters), [protectedThis = Ref { *this }, callback = WTF::move(callback)](Expected<Vector<WebExtensionScriptInjectionResultParameters>, WebExtensionError>&& result) {
+    bool userGesture = WebCore::UserGestureIndicator::processingUserGesture();
+    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::TabsExecuteScript(webPageProxyIdentifier, tabIdentifier, parameters, userGesture), [protectedThis = Ref { *this }, callback = WTF::move(callback)](Expected<Vector<WebExtensionScriptInjectionResultParameters>, WebExtensionError>&& result) {
         if (!result) {
             callback->reportError(result.error().createNSString().get());
             return;

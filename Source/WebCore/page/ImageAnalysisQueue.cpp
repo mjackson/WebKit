@@ -35,6 +35,7 @@
 #include "HTMLCollection.h"
 #include "HTMLImageElement.h"
 #include "ImageOverlay.h"
+#include "LocalFrameInlines.h"
 #include "LocalFrameView.h"
 #include "Page.h"
 #include "RenderImage.h"

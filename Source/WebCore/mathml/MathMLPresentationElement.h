@@ -49,7 +49,7 @@ protected:
     static Length parseMathMLLength(const String&, bool acceptLegacyMathMLLengths);
     const Length& cachedMathMLLength(const QualifiedName&, std::optional<Length>&);
 
-    virtual bool acceptsMathVariantAttribute() { return false; }
+    virtual bool acceptsLegacyMathVariantAttribute() { return false; }
     std::optional<MathVariant> specifiedMathVariant() final;
 
     std::optional<MathVariant> m_mathVariant;

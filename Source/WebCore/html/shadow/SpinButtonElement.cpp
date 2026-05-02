@@ -37,7 +37,6 @@
 #include "LocalFrame.h"
 #include "MouseEvent.h"
 #include "NodeDocument.h"
-#include "NodeInlines.h"
 #include "Page.h"
 #include "RenderBox.h"
 #include "RenderTheme.h"

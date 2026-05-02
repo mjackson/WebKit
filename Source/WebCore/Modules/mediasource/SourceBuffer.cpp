@@ -43,7 +43,6 @@
 #include "ContextDestructionObserverInlines.h"
 #include "Document.h"
 #include "Event.h"
-#include "EventTargetInlines.h"
 #include "EventNames.h"
 #include "ExceptionOr.h"
 #include "HTMLMediaElement.h"

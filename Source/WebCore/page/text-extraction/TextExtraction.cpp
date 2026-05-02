@@ -43,7 +43,6 @@
 #include "EventHandler.h"
 #include "EventListenerMap.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "ExceptionCode.h"
 #include "ExceptionOr.h"
 #include "FocusController.h"
@@ -2123,7 +2122,7 @@ static void focusAndInsertText(NodeIdentifier identifier, String&& text, bool re
     });
 }
 
-void handleInteraction(Interaction&& interaction, LocalFrame& frame, CompletionHandler<void(bool, String&&)>&& completion)
+static void dispatchInteraction(Interaction&& interaction, LocalFrame& frame, CompletionHandler<void(bool, String&&)>&& completion)
 {
     switch (interaction.action) {
     case Action::Click: {
@@ -2206,6 +2205,25 @@ void handleInteraction(Interaction&& interaction, LocalFrame& frame, CompletionH
         break;
     }
     completion(false, "Invalid action"_s);
+}
+
+void handleInteraction(Interaction&& interaction, LocalFrame& frame, CompletionHandler<void(bool, String&&, FloatRect)>&& completion)
+{
+    RefPtr<Node> targetNode;
+    if (auto location = interaction.locationInRootView) {
+        if (RefPtr view = frame.view()) {
+            if (RefPtr document = frame.document())
+                targetNode = findNodeAtRootViewLocation(*view, *document, *location);
+        }
+    } else if (auto identifier = interaction.nodeIdentifier)
+        targetNode = Node::fromIdentifier(*identifier);
+
+    dispatchInteraction(WTF::move(interaction), frame, [completion = WTF::move(completion), targetNode = WTF::move(targetNode)](bool success, String&& message) mutable {
+        FloatRect bounds;
+        if (targetNode)
+            bounds = rootViewBounds(*targetNode);
+        completion(success, WTF::move(message), bounds);
+    });
 }
 
 static String normalizedLabelText(const Element& element)

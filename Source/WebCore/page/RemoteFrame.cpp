@@ -33,7 +33,6 @@
 #include "HTMLFrameOwnerElement.h"
 #include "FrameInlines.h"
 #include "NodeDocument.h"
-#include "NodeInlines.h"
 #include "RemoteDOMWindow.h"
 #include "RemoteFrameClient.h"
 #include "RemoteFrameView.h"

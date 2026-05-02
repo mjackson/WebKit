@@ -637,7 +637,12 @@ TEST(WKBackForwardList, BackForwardNavigationSkipsItemsWithoutUserGesturePushSta
     });
 }
 
+// FIXME when webkit.org/b/313844 is resolved.
+#if PLATFORM(MAC)
+TEST(WKBackForwardList, DISABLED_BackForwardNavigationSkipsItemsWithoutUserGestureFragment)
+#else
 TEST(WKBackForwardList, BackForwardNavigationSkipsItemsWithoutUserGestureFragment)
+#endif
 {
     runBackForwardNavigationSkipsItemsWithoutUserGestureTest([](WKWebView* webView, ASCIILiteral destination) {
         [webView _evaluateJavaScriptWithoutUserGesture:makeString("location.href = "_s, destination, ";"_s).createNSString().get() completionHandler:nil];

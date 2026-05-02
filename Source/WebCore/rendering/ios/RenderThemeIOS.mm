@@ -30,6 +30,7 @@
 #if PLATFORM(IOS_FAMILY)
 
 #import "ARKitBadgeSystemImage.h"
+#import "AttachmentLayout.h"
 #import "BitmapImage.h"
 #import "BorderShape.h"
 #import "CSSToLengthConversionData.h"
@@ -65,7 +66,7 @@
 #import "LocalCurrentTraitCollection.h"
 #import "LocalFrame.h"
 #import "LocalFrameView.h"
-#import "NodeInlines.h"
+#import "LocalizedDateCache.h"
 #import "NodeRenderStyle.h"
 #import "PaintInfo.h"
 #import "PathUtilities.h"
@@ -76,6 +77,7 @@
 #import "RenderMenuList.h"
 #import "RenderMeter.h"
 #import "RenderObject.h"
+#import "RenderProgress.h"
 #import "RenderSlider.h"
 #import "RenderStyle+SettersInlines.h"
 #import "RenderView.h"

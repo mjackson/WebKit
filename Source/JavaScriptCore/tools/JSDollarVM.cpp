@@ -34,6 +34,7 @@
 #include "Completion.h"
 #include "ControlFlowProfiler.h"
 #include "DOMAttributeGetterSetter.h"
+#include "DOMJITCallDOMGetterSnippet.h"
 #include "DOMJITGetterSetter.h"
 #include "Debugger.h"
 #include "ExecutableBaseInlines.h"
@@ -42,6 +43,7 @@
 #include "GetterSetter.h"
 #include "HeapProfiler.h"
 #include "HeapSnapshotBuilder.h"
+#include "InitializeThreading.h"
 #include "InterpreterInlines.h"
 #include "JITSizeStatistics.h"
 #include "JSArray.h"
@@ -4626,7 +4628,9 @@ Structure* JSDollarVM::createStructure(VM& vm, JSGlobalObject* globalObject, JSV
 }
 
 DEFINE_VISIT_CHILDREN(JSDollarVM);
-REFTRACKER_IMPL(StrongRefTracker);
+REFTRACKER_IMPL(StrongRefTracker, {
+    JSC::initialize();
+});
 
 } // namespace JSC
 

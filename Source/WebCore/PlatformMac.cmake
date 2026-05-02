@@ -243,6 +243,7 @@ list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/spi/mac"
     "${WEBCORE_DIR}/platform/video-codecs"
     "${WEBCORE_DIR}/plugins/mac"
+    "${WEBCORE_DIR}/rendering/cocoa"
     "${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}"
 )
 

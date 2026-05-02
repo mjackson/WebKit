@@ -28,6 +28,7 @@
 
 #include "CSSKeywordColor.h"
 #include "Document.h"
+#include "PlatformRenderTheme.h"
 #include "RenderStyle.h"
 #include "RenderTheme.h"
 #include "StyleBuilderState.h"

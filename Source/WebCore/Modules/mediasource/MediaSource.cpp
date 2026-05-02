@@ -58,7 +58,6 @@
 #include "MediaSourcePrivate.h"
 #include "MediaSourceRegistry.h"
 #include "MediaStrategy.h"
-#include "NodeInlines.h"
 #include "PlatformStrategies.h"
 #include "ScriptExecutionContextInlines.h"
 #include "Settings.h"

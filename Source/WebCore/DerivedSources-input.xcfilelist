@@ -1370,6 +1370,7 @@ $(PROJECT_DIR)/css/htmlSwitchControl.css
 $(PROJECT_DIR)/css/make-css-file-arrays.pl
 $(PROJECT_DIR)/css/mathml.css
 $(PROJECT_DIR)/css/mathmlCoreExtras.css
+$(PROJECT_DIR)/css/mathmlCoreMathvariant.css
 $(PROJECT_DIR)/css/mathmlFontSizeMath.css
 $(PROJECT_DIR)/css/mathmlLegacyFontSizeMath.css
 $(PROJECT_DIR)/css/popover.css

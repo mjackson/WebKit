@@ -28,6 +28,7 @@
 #include "ExtendedDOMIsoSubspaces.h"
 #include "JSDOMAttribute.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructor.h"
 #include "JSDOMConvertBoolean.h"
 #include "JSDOMConvertInterface.h"
@@ -39,11 +40,8 @@
 #include "ScriptExecutionContext.h"
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <type_traits>
 #include <wtf/GetPtr.h>
@@ -82,7 +80,7 @@ template<> ConversionResult<IDLDictionary<TestEventConstructor::Init>> convertDi
     if (isNullOrUndefined)
         bubblesValue = jsUndefined();
     else {
-        bubblesValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "bubbles"_s));
+        bubblesValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "bubbles"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     auto bubblesConversionResult = convert<IDLBoolean>(lexicalGlobalObject, bubblesValue);
@@ -92,7 +90,7 @@ template<> ConversionResult<IDLDictionary<TestEventConstructor::Init>> convertDi
     if (isNullOrUndefined)
         cancelableValue = jsUndefined();
     else {
-        cancelableValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "cancelable"_s));
+        cancelableValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "cancelable"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     auto cancelableConversionResult = convert<IDLBoolean>(lexicalGlobalObject, cancelableValue);
@@ -102,7 +100,7 @@ template<> ConversionResult<IDLDictionary<TestEventConstructor::Init>> convertDi
     if (isNullOrUndefined)
         composedValue = jsUndefined();
     else {
-        composedValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "composed"_s));
+        composedValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "composed"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     auto composedConversionResult = convert<IDLBoolean>(lexicalGlobalObject, composedValue);
@@ -114,7 +112,7 @@ template<> ConversionResult<IDLDictionary<TestEventConstructor::Init>> convertDi
             if (isNullOrUndefined)
                 trustedValue = jsUndefined();
             else {
-                trustedValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "trusted"_s));
+                trustedValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "trusted"_s));
                 RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
             }
             return convert<IDLBoolean>(lexicalGlobalObject, trustedValue);
@@ -128,7 +126,7 @@ template<> ConversionResult<IDLDictionary<TestEventConstructor::Init>> convertDi
     if (isNullOrUndefined)
         attr2Value = jsUndefined();
     else {
-        attr2Value = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "attr2"_s));
+        attr2Value = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "attr2"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     auto attr2ConversionResult = convertOptionalWithDefault<IDLDOMString>(lexicalGlobalObject, attr2Value, [&] -> ConversionResult<IDLDOMString> { return Converter<IDLDOMString>::ReturnType { emptyString() }; });
@@ -139,7 +137,7 @@ template<> ConversionResult<IDLDictionary<TestEventConstructor::Init>> convertDi
     if (isNullOrUndefined)
         attr3Value = jsUndefined();
     else {
-        attr3Value = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "attr3"_s));
+        attr3Value = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "attr3"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     auto attr3ConversionResult = convertOptionalWithDefault<IDLDOMString>(lexicalGlobalObject, attr3Value, [&] -> ConversionResult<IDLDOMString> { return Converter<IDLDOMString>::ReturnType { emptyString() }; });
@@ -262,14 +260,14 @@ const ClassInfo JSTestEventConstructorPrototype::s_info = { "TestEventConstructo
 
 JSC::Structure* JSTestEventConstructorPrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestEventConstructorPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSTestEventConstructor::info(), JSTestEventConstructorPrototypeTableValues, *this);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestEventConstructor::s_info = { "TestEventConstructor"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestEventConstructor) };

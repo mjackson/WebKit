@@ -28,6 +28,7 @@
 #include "ExtendedDOMIsoSubspaces.h"
 #include "IDLTypes.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertBase.h"
 #include "JSDOMConvertNumbers.h"
@@ -40,12 +41,9 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/PropertyNameArray.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -122,14 +120,14 @@ const ClassInfo JSTestIndexedSetterWithIdentifierPrototype::s_info = { "TestInde
 
 JSC::Structure* JSTestIndexedSetterWithIdentifierPrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestIndexedSetterWithIdentifierPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSTestIndexedSetterWithIdentifier::info(), JSTestIndexedSetterWithIdentifierPrototypeTableValues, *this);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestIndexedSetterWithIdentifier::s_info = { "TestIndexedSetterWithIdentifier"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestIndexedSetterWithIdentifier) };
@@ -191,7 +189,7 @@ bool JSTestIndexedSetterWithIdentifier::legacyPlatformObjectGetOwnProperty(JSObj
             return true;
         }
     }
-    return JSObject::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
+    return WebCore::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
 }
 
 bool JSTestIndexedSetterWithIdentifier::getOwnPropertySlot(JSObject* object, JSGlobalObject* lexicalGlobalObject, PropertyName propertyName, PropertySlot& slot)

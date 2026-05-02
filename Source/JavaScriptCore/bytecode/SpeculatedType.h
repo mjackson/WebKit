@@ -39,6 +39,7 @@ class Structure;
 
 struct ClassInfo;
 
+using IndexingType = uint8_t;
 enum JSType : uint8_t;
 enum TypedArrayType : uint8_t;
 
@@ -595,6 +596,9 @@ SpeculatedType NODELETE typeOfDoubleUnaryOp(SpeculatedType);
 
 // This is mostly for debugging so we can fill profiles from strings.
 SpeculatedType speculationFromString(const char*);
+
+bool NODELETE isProvenValidTypeForIndexingShapeStorage(IndexingType, SpeculatedType);
+IndexingType NODELETE leastUpperBoundOfIndexingTypeAndTypeForSpeculation(IndexingType, SpeculatedType);
 
 } // namespace JSC
 

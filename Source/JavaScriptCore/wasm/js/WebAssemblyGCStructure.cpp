@@ -38,11 +38,9 @@
 
 namespace JSC {
 
-WebAssemblyGCStructure::WebAssemblyGCStructure(VM& vm, const TypeInfo& typeInfo, const ClassInfo* classInfo, Ref<const Wasm::TypeDefinition>&& unexpandedType, Ref<const Wasm::TypeDefinition>&& type, Ref<const Wasm::RTT>&& rtt)
+WebAssemblyGCStructure::WebAssemblyGCStructure(VM& vm, const TypeInfo& typeInfo, const ClassInfo* classInfo, Ref<const Wasm::RTT>&& rtt)
     : Structure(vm, StructureVariant::WebAssemblyGC, nullptr, typeInfo, classInfo)
     , m_rtt(WTF::move(rtt))
-    , m_type(WTF::move(type))
-    , m_typeDependencies(unexpandedType)
 {
     setMayBePrototype(true); // Make sure that didPrototype transition does not happen.
     switch (m_rtt->kind()) {
@@ -58,13 +56,13 @@ WebAssemblyGCStructure::WebAssemblyGCStructure(VM& vm, const TypeInfo& typeInfo,
     }
 }
 
-WebAssemblyGCStructure* WebAssemblyGCStructure::create(VM& vm, const TypeInfo& typeInfo, const ClassInfo* classInfo, Ref<const Wasm::TypeDefinition>&& unexpandedType, Ref<const Wasm::TypeDefinition>&& type, Ref<const Wasm::RTT>&& rtt)
+WebAssemblyGCStructure* WebAssemblyGCStructure::create(VM& vm, const TypeInfo& typeInfo, const ClassInfo* classInfo, Ref<const Wasm::RTT>&& rtt)
 {
     ASSERT(vm.structureStructure);
     const Wasm::RTT* rttPtr = rtt.ptr();
     DeferGC deferGC(vm);
     return vm.wasmGCStructureMap.ensureValue(rttPtr, [&] {
-        WebAssemblyGCStructure* newStructure = new (NotNull, allocateCell<WebAssemblyGCStructure>(vm)) WebAssemblyGCStructure(vm, typeInfo, classInfo, WTF::move(unexpandedType), WTF::move(type), WTF::move(rtt));
+        WebAssemblyGCStructure* newStructure = new (NotNull, allocateCell<WebAssemblyGCStructure>(vm)) WebAssemblyGCStructure(vm, typeInfo, classInfo, WTF::move(rtt));
         newStructure->finishCreation(vm);
         ASSERT(newStructure->type() == StructureType);
         return newStructure;

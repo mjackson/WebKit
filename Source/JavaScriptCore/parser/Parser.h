@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include "EagerIIFERegistry.h"
 #include "ExecutableInfo.h"
 #include "Lexer.h"
 #include "ModuleScopeData.h"
@@ -48,8 +49,10 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
+class ASTBuilder;
 class FunctionMetadataNode;
 class FunctionParameters;
+template <typename LexerType> class EagerIIFEParseScope;
 class Identifier;
 class VM;
 class SourceCode;
@@ -831,6 +834,7 @@ public:
     bool hasNonSimpleParameterList() const { return m_hasNonSimpleParameterList; }
 
     bool hasSloppyModeFunctionHoistingCandidates() const { return !m_sloppyModeFunctionHoistingCandidates.isEmpty(); }
+    void clearSloppyModeFunctionHoistingCandidates() { m_sloppyModeFunctionHoistingCandidates.clear(); }
 
     void copyCapturedVariablesToVector(const UniquedStringImplPtrSet& usedVariables, Vector<UniquedStringImpl*, 8>& vector)
     {
@@ -1158,6 +1162,76 @@ private:
         Scope* m_scope;
         Parser* m_parser;
     };
+
+    // A specialized parser state activated in parseFunctionInfo() to parse a likely IIFE.
+    // See also EagerIIFEParseScope in Parser.cpp.
+    //
+    // The parse state provides methods to parse the function's parameters and body using
+    // an ASTBuilder instead of a SyntaxChecker, collecting the resulting FunctionParameters
+    // and SourceElements.
+    //
+    // Because IIFE parameters and body may themselves contain nested function definitions
+    // (including nested IIFEs), the IIFE parse state marks itself as isInUse while
+    // parsing those constructs. This prevents nested functions from mistakenly reusing
+    // the outer IIFE's parse state — they follow the normal syntax-checking path instead,
+    // or set up their own eager parse state if they are IIFEs too.
+
+    class EagerIIFEParseState {
+    public:
+        EagerIIFEParseState(Parser& parser, ASTBuilder* builder, unsigned startOffset)
+            : m_parser(parser)
+            , m_builder(builder)
+            , m_startOffset(startOffset)
+            , m_savedIIFEParseState(parser.m_iifeParseState)
+        {
+            parser.m_iifeParseState = this;
+        }
+
+        ~EagerIIFEParseState()
+        {
+            m_parser.m_iifeParseState = m_savedIIFEParseState;
+        }
+
+        template <typename TreeBuilder>
+        void parseFunctionParameters(ParserFunctionInfo<TreeBuilder>& functionInfo)
+        {
+            ASSERT(!m_functionParameters);
+            m_isInUse = true;
+            m_functionParameters = m_parser.parseFunctionParameters(*m_builder, functionInfo);
+            m_isInUse = false;
+        }
+
+        SourceElements* parseSourceElements(SourceElementsMode mode)
+        {
+            ASSERT(!m_sourceElements);
+            m_isInUse = true;
+            m_sourceElements = m_parser.parseSourceElements(*m_builder, mode);
+            m_isInUse = false;
+            return m_sourceElements;
+        }
+
+        bool isInUse() const { return m_isInUse; }
+        unsigned startOffset() const { return m_startOffset; }
+
+        CodeFeatures features() const;
+        int numConstants() const;
+        FunctionParameters* functionParameters() const { return m_functionParameters; }
+        SourceElements* sourceElements() const { return m_sourceElements; }
+
+    private:
+        Parser& m_parser;
+        ASTBuilder* m_builder;
+        bool m_isInUse { false };
+        unsigned m_startOffset;
+
+        EagerIIFEParseState* m_savedIIFEParseState;
+
+        FunctionParameters* m_functionParameters { nullptr };
+        SourceElements* m_sourceElements { nullptr };
+    };
+
+    friend class EagerIIFEParseState;
+    friend class EagerIIFEParseScope<LexerType>;
 
     ALWAYS_INLINE DestructuringKind destructuringKindFromDeclarationType(DeclarationType type)
     {
@@ -1821,7 +1895,8 @@ private:
     template <class TreeBuilder> ALWAYS_INLINE TreeExpression createResolveAndUseVariable(TreeBuilder&, const Identifier*, bool isEval, const JSTextPosition&, const JSTokenLocation&);
 
     enum class FunctionDefinitionType { Expression, Declaration, Method };
-    template <class TreeBuilder> NEVER_INLINE bool parseFunctionInfo(TreeBuilder&, FunctionNameRequirements, bool nameIsInContainingScope, ConstructorKind, SuperBinding, unsigned functionStart, ParserFunctionInfo<TreeBuilder>&, FunctionDefinitionType, std::optional<int> functionConstructorParametersEndPosition = std::nullopt);
+    template <class TreeBuilder> NEVER_INLINE bool parseFunctionInfo(TreeBuilder&, FunctionNameRequirements, bool nameIsInContainingScope, ConstructorKind, SuperBinding, unsigned functionStart, ParserFunctionInfo<TreeBuilder>&, FunctionDefinitionType, std::optional<int> functionConstructorParametersEndPosition = std::nullopt, bool isLikelyIIFE = false);
+    [[nodiscard]] CodeFeatures collectCodeFeatures(CodeFeatures, Scope*);
     
     template <class TreeBuilder> ALWAYS_INLINE bool isArrowFunctionParameters(TreeBuilder&);
     
@@ -2073,7 +2148,7 @@ private:
         m_errorMessage = String();
     }
 
-    // Cache line 0 (hot)
+    // Hotter fields first
     VM& m_vm;
     Scope* m_currentScope { nullptr };
     JSTokenLocation m_lastTokenLocation;
@@ -2088,13 +2163,11 @@ private:
     FunctionMode m_functionMode;
     SuperBinding m_superBinding;
 
-    // Cache line 1 (hot)
     std::unique_ptr<LexerType> m_lexer;
     JSToken m_token;
-
-    // Cache line 2 (m_parserState is hot)
     ParserState m_parserState;
 
+    // Colder fields
     ConstructorKind m_constructorKindForTopLevelFunctionExpressions { ConstructorKind::None };
     ImplementationVisibility m_implementationVisibility;
     bool m_parsingBuiltin;
@@ -2102,13 +2175,15 @@ private:
     bool m_isInsideOrdinaryFunction;
     bool m_insideSwitchCaseBody { false };
 
-    ParserArena m_parserArena;
+    Ref<ParserArena> m_parserArena;
     CallOrApplyDepthScope* m_callOrApplyDepthScope { nullptr };
     ScopeStack m_scopeStack;
     bool m_hasStackOverflow;
     String m_errorMessage;
     RefPtr<ModuleScopeData> m_moduleScopeData;
     DebuggerParseData* m_debuggerParseData;
+    EagerIIFEParseState* m_iifeParseState { nullptr };
+    RefPtr<EagerIIFERegistry> m_eagerIIFERegistry;
     bool m_seenTaggedTemplateInNonReparsingFunctionMode { false };
     bool m_seenPrivateNameUseInNonReparsingFunctionMode { false };
     bool m_seenArgumentsDotLength { false };
@@ -2124,6 +2199,15 @@ std::unique_ptr<ParsedNode> Parser<LexerType>::parse(ParserError& error, const I
 
     if (ParsedNode::scopeIsFunction)
         m_lexer->setIsReparsingFunction();
+
+    if constexpr (std::is_same_v<ParsedNode, FunctionNode>) {
+        if (m_eagerIIFERegistry) {
+            if (auto cached = m_eagerIIFERegistry->take(m_source->startOffset())) {
+                m_lexer->clear();
+                return std::unique_ptr<ParsedNode>(cached.release());
+            }
+        }
+    }
 
     errLine = -1;
     errMsg = String();
@@ -2152,7 +2236,7 @@ std::unique_ptr<ParsedNode> Parser<LexerType>::parse(ParserError& error, const I
         endLocation.lineStartOffset = m_lexer->currentLineStartOffset();
         endLocation.startOffset = m_lexer->currentOffset();
         unsigned endColumn = endLocation.startOffset - endLocation.lineStartOffset;
-        result = makeUnique<ParsedNode>(m_parserArena,
+        result = makeUnique<ParsedNode>(m_parserArena.copyRef(),
                                     startLocation,
                                     endLocation,
                                     startColumn,

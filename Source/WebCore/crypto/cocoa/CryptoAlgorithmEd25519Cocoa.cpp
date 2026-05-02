@@ -27,6 +27,7 @@
 #include "CryptoAlgorithmEd25519.h"
 
 #include "CryptoKeyOKP.h"
+#include "CryptoTypesBridging.h"
 #include "ExceptionOr.h"
 #include <pal/crypto/CryptoAlgorithmEd25519CocoaBridging.h>
 #include <pal/crypto/CryptoTypes.h>

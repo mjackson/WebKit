@@ -485,7 +485,7 @@ inline void reifyStaticProperty(VM& vm, const ClassInfo* classInfo, const Proper
         if (value.attributes() & PropertyAttribute::Accessor)
             reifyStaticAccessor(vm, value, thisObj, propertyName);
         else
-            thisObj.putDirectBuiltinFunction(vm, thisObj.realm(), propertyName, value.builtinGenerator()(vm), attributesForStructure(value.attributes()));
+            SUPPRESS_FORWARD_DECL_ARG thisObj.putDirectBuiltinFunction(vm, thisObj.realm(), propertyName, value.builtinGenerator()(vm), attributesForStructure(value.attributes()));
         return;
     }
 

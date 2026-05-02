@@ -21,7 +21,7 @@
 #include "config.h"
 #include "JSTestDefaultToJSONEnum.h"
 
-#include <JavaScriptCore/JSCInlines.h>
+#include "JSDOMBindingFacade.h"
 #include <JavaScriptCore/JSString.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/SortedArrayMap.h>

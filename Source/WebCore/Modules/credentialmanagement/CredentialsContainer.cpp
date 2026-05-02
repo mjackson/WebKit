@@ -29,6 +29,7 @@
 
 #if ENABLE(WEB_AUTHN)
 
+#include "AuthenticatorCoordinator.h"
 #include "CredentialCreationOptions.h"
 #include "CredentialRequestCoordinator.h"
 #include "CredentialRequestOptions.h"
@@ -37,6 +38,7 @@
 #include "JSBasicCredential.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMConvertNullable.h"
+#include "JSDOMPromiseDeferred.h"
 #include "JSDigitalCredential.h"
 #include "JSValueInWrappedObjectInlines.h"
 #include "LocalFrame.h"

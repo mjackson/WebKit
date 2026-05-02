@@ -27,15 +27,16 @@
 #pragma once
 
 #include "DOMConstructors.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMGlobalObject.h"
-#include <JavaScriptCore/JSObjectInlines.h>
-#include <JavaScriptCore/StructureCreateInlines.h>
+#include <JavaScriptCore/JSGlobalProxy.h>
+#include <JavaScriptCore/WriteBarrierInlines.h>
 
 namespace WebCore {
 
 inline JSC::Structure* JSDOMGlobalObject::createStructure(JSC::VM& vm, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, 0, prototype, JSC::TypeInfo(JSC::GlobalObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, nullptr, prototype, JSC::TypeInfo(JSC::GlobalObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 inline JSDOMStructureMap& JSDOMGlobalObject::structures(NoLockingNecessaryTag) LIFETIME_BOUND

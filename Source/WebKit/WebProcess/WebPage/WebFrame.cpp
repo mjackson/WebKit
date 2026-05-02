@@ -1746,13 +1746,18 @@ void WebFrame::describeTextExtractionInteraction(TextExtraction::Interaction&& i
     completion(TextExtraction::interactionDescription(interaction, *frame));
 }
 
-void WebFrame::handleTextExtractionInteraction(TextExtraction::Interaction&& interaction, CompletionHandler<void(bool, String&&)>&& completion)
+void WebFrame::handleTextExtractionInteraction(TextExtraction::Interaction&& interaction, CompletionHandler<void(bool, String&&, FloatRect)>&& completion)
 {
     RefPtr frame = coreLocalFrame();
     if (!frame)
-        return completion(false, "Browsing context is unavailable"_s);
+        return completion(false, "Browsing context is unavailable"_s, { });
 
-    TextExtraction::handleInteraction(WTF::move(interaction), *frame, WTF::move(completion));
+    auto summary = TextExtraction::interactionDescription(interaction, *frame).description;
+    TextExtraction::handleInteraction(WTF::move(interaction), *frame, [completion = WTF::move(completion), summary = WTF::move(summary)](bool success, String&& message, FloatRect interactedElementBounds) mutable {
+        if (success && message.isEmpty())
+            message = WTF::move(summary);
+        completion(success, WTF::move(message), interactedElementBounds);
+    });
 }
 
 void WebFrame::requestJSHandleForExtractedText(TextExtraction::ExtractedText&& extractedText, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&& completion)

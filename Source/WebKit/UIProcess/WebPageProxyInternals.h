@@ -109,59 +109,6 @@
 
 namespace WebKit {
 
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-class WebPageProxyFrameLoadStateObserver final : public RefCounted<WebPageProxyFrameLoadStateObserver>, public FrameLoadStateObserver {
-    WTF_MAKE_NONCOPYABLE(WebPageProxyFrameLoadStateObserver);
-    WTF_MAKE_TZONE_ALLOCATED(WebPageProxyFrameLoadStateObserver);
-public:
-    static constexpr size_t maxVisitedDomainsSize = 6;
-
-    static Ref<WebPageProxyFrameLoadStateObserver> create();
-    virtual ~WebPageProxyFrameLoadStateObserver();
-
-    void ref() const final { RefCounted::ref(); }
-    void deref() const final { RefCounted::deref(); }
-
-    void didReceiveProvisionalURL(const URL& url) override
-    {
-        m_provisionalURLs.append(url);
-    }
-
-    void didCancelProvisionalLoad() override
-    {
-        m_provisionalURLs.clear();
-    }
-
-    void didCommitProvisionalLoad() override
-    {
-        for (auto& url : m_provisionalURLs)
-            didVisitDomain(WebCore::RegistrableDomain(url));
-    }
-
-    const ListHashSet<WebCore::RegistrableDomain>& visitedDomains() const LIFETIME_BOUND
-    {
-        return m_visitedDomains;
-    }
-
-private:
-    WebPageProxyFrameLoadStateObserver();
-
-    void didVisitDomain(WebCore::RegistrableDomain&& domain)
-    {
-        if (domain.isEmpty())
-            return;
-
-        m_visitedDomains.prependOrMoveToFirst(WTF::move(domain));
-
-        if (m_visitedDomains.size() > maxVisitedDomainsSize)
-            m_visitedDomains.removeLast();
-    }
-
-    Vector<URL> m_provisionalURLs;
-    ListHashSet<WebCore::RegistrableDomain> m_visitedDomains;
-};
-#endif
-
 struct PrivateClickMeasurementAndMetadata {
     WebCore::PrivateClickMeasurement pcm;
     String sourceDescription;
@@ -428,11 +375,6 @@ public:
 #if ENABLE(EXTENSION_CAPABILITIES)
     RefPtr<MediaCapability> mediaCapability;
     RefPtr<MediaCapability> displayCaptureCapability;
-#endif
-
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-    RefPtr<WebPageProxyFrameLoadStateObserver> frameLoadStateObserver;
-    HashMap<WebCore::RegistrableDomain, OptionSet<WebCore::WindowProxyProperty>> windowOpenerAccessedProperties;
 #endif
 
 #if PLATFORM(GTK) || PLATFORM(WPE)

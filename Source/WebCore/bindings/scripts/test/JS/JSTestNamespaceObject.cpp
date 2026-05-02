@@ -26,6 +26,7 @@
 #include "ExtendedDOMIsoSubspaces.h"
 #include "JSDOMAttribute.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotCallable.h"
 #include "JSDOMConvertAny.h"
 #include "JSDOMConvertBoolean.h"
@@ -43,12 +44,9 @@
 #include "Settings.h"
 #include "TestNamespaceObject.h"
 #include "WebCoreJSClientData.h"
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/ObjectPrototype.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -107,7 +105,7 @@ template<> JSValue JSTestNamespaceObjectDOMConstructor::prototypeForStructure(JS
 
 template<> void JSTestNamespaceObjectDOMConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
     reifyStaticProperties(vm, JSTestNamespaceObject::info(), JSTestNamespaceObjectConstructorTableValues, *this);
 #if ENABLE(Condition1)
     if (!(&globalObject)->scriptExecutionContext()->settingsValues().testSetting1Enabled) {

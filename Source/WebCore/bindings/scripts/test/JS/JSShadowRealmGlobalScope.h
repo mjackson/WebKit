@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <WebCore/JSDOMBindingFacade.h>
 #include <WebCore/JSDOMWrapper.h>
 #include <wtf/NeverDestroyed.h>
 

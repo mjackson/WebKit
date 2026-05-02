@@ -386,9 +386,14 @@ window.test_driver_internal.click = async function (element, coords)
         return;
     }
 
-    await eventSender.asyncMouseMoveTo(coords.x, coords.y);
-    await eventSender.asyncMouseDown();
-    await eventSender.asyncMouseUp();
+    // Use the eventSender from the element's window so that events are
+    // dispatched to the correct view (e.g. a popup opened via window.open).
+    const targetWindow = element.ownerDocument.defaultView || window;
+    const targetEventSender = targetWindow.eventSender || eventSender;
+
+    await targetEventSender.asyncMouseMoveTo(coords.x, coords.y);
+    await targetEventSender.asyncMouseDown();
+    await targetEventSender.asyncMouseUp();
 }
 
 /**

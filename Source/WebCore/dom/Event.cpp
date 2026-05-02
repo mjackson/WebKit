@@ -28,7 +28,6 @@
 #include "EventNames.h"
 #include "EventPath.h"
 #include "EventTarget.h"
-#include "EventTargetInlines.h"
 #include "InspectorInstrumentation.h"
 #include "JSDOMGlobalObject.h"
 #include "JSNodeCustomInlines.h"

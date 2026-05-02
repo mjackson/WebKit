@@ -47,6 +47,7 @@
 #import "HitTestResult.h"
 #import "HitTestSource.h"
 #import "ImageOverlay.h"
+#import "LocalFrameInlines.h"
 #import "LocalFrameView.h"
 #import "NodeList.h"
 #import "NodeTraversal.h"
@@ -61,6 +62,9 @@
 #import "TypedElementDescendantIteratorInlines.h"
 #import "VisiblePosition.h"
 #import "VisibleUnits.h"
+#import <pal/cocoa/DataDetectorsCoreSoftLink.h>
+#import <pal/mac/DataDetectorsSoftLink.h>
+#import <pal/spi/ios/DataDetectorsUISoftLink.h>
 #import <wtf/WorkQueue.h>
 #import <wtf/cf/TypeCastsCF.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
@@ -68,10 +72,6 @@
 #import <wtf/text/ParsingUtilities.h>
 #import <wtf/text/StringBuilder.h>
 #import <wtf/text/StringToIntegerConversion.h>
-
-#import <pal/cocoa/DataDetectorsCoreSoftLink.h>
-#import <pal/mac/DataDetectorsSoftLink.h>
-#import <pal/spi/ios/DataDetectorsUISoftLink.h>
 
 #if PLATFORM(MAC)
 template<> struct WTF::CFTypeTrait<DDResultRef> {

@@ -122,6 +122,7 @@
 #import <WebCore/PaymentCoordinator.h>
 #import <WebCore/PlatformMediaSessionManager.h>
 #import <WebCore/PlatformMouseEvent.h>
+#import <WebCore/PlatformRenderTheme.h>
 #import <WebCore/PrintContext.h>
 #import <WebCore/Range.h>
 #import <WebCore/RemoteFrame.h>
@@ -132,7 +133,6 @@
 #import <WebCore/RenderElement.h>
 #import <WebCore/RenderLayer.h>
 #import <WebCore/RenderObjectInlines.h>
-#import <WebCore/RenderTheme.h>
 #import <WebCore/RenderedDocumentMarker.h>
 #import <WebCore/SVGImage.h>
 #import <WebCore/Settings.h>
@@ -2402,6 +2402,8 @@ bool WebPage::shouldAllowSingleClickToChangeSelection(WebCore::Node& targetNode,
 
 void WebPage::selectWithGesture(const IntPoint& point, GestureType gestureType, GestureRecognizerState gestureState, bool isInteractingWithFocusedElement, CompletionHandler<void(const WebCore::IntPoint&, GestureType, GestureRecognizerState, OptionSet<SelectionFlags>)>&& completionHandler)
 {
+    SetForScope userIsInteractingChange { m_userIsInteracting, true };
+
     if (gestureState == GestureRecognizerState::Began)
         updateFocusBeforeSelectingTextAtLocation(point);
 
@@ -2761,6 +2763,8 @@ void WebPage::setSelectionRange(WebCore::IntPoint point, WebCore::TextGranularit
 
 void WebPage::updateSelectionWithExtentPointAndBoundary(WebCore::IntPoint point, WebCore::TextGranularity granularity, bool isInteractingWithFocusedElement, TextInteractionSource source, CompletionHandler<void(bool)>&& callback)
 {
+    SetForScope userIsInteractingChange { m_userIsInteracting, true };
+
     RefPtr frame = m_page->focusController().focusedOrMainFrame();
     if (!frame)
         return callback(false);
@@ -2864,6 +2868,8 @@ void WebPage::updateSelectionWithExtentPoint(WebCore::IntPoint point, bool isInt
 
 void WebPage::selectTextWithGranularityAtPoint(WebCore::IntPoint point, WebCore::TextGranularity granularity, bool isInteractingWithFocusedElement, CompletionHandler<void()>&& completionHandler)
 {
+    SetForScope userIsInteractingChange { m_userIsInteracting, true };
+
 #if PLATFORM(IOS_FAMILY)
     if (!m_potentialTapNode) {
         setSelectionRange(point, granularity, isInteractingWithFocusedElement);

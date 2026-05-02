@@ -29,6 +29,7 @@
 #include "ContextDestructionObserverInlines.h"
 #include "Microtasks.h"
 #include "WorkerOrWorkletGlobalScope.h"
+#include "WorkerOrWorkletThread.h"
 
 namespace WebCore {
 

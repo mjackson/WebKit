@@ -41,7 +41,6 @@
 #include "GraphicsContext.h"
 #include "HTMLCanvasElement.h"
 #include "NodeDocument.h"
-#include "NodeInlines.h"
 #include "StyleProperties.h"
 
 #if ENABLE(OFFSCREEN_CANVAS)

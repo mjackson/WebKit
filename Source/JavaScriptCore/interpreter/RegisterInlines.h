@@ -25,12 +25,13 @@
 
 #pragma once
 
-#include "CodeBlock.h"
 #include "JSCJSValue.h"
 #include "JSScope.h"
 #include "Register.h"
 
 namespace JSC {
+
+class CodeBlock;
 
 ALWAYS_INLINE CallFrame* Register::callFrame() const
 {

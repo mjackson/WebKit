@@ -144,6 +144,7 @@ static double NODELETE determinant4x4(const TransformationMatrix::Matrix4& m)
          - d1 * determinant3x3(a2, a3, a4, b2, b3, b4, c2, c3, c4);
 }
 
+#if !CPU(ARM64) || !CPU(ADDRESS64)
 // adjoint( original_matrix, inverse_matrix )
 //
 //   calculate the adjoint of a 4x4 matrix
@@ -160,7 +161,7 @@ static double NODELETE determinant4x4(const TransformationMatrix::Matrix4& m)
 //  The matrix B = (b  ) is the adjoint of A
 //                   ij
 
-static inline void NODELETE adjoint(const TransformationMatrix::Matrix4& matrix, TransformationMatrix::Matrix4& result)
+[[maybe_unused]] static inline void NODELETE adjoint(const TransformationMatrix::Matrix4& matrix, TransformationMatrix::Matrix4& result)
 {
     // Assign to individual variable names to aid
     // selecting correct values
@@ -205,6 +206,7 @@ static inline void NODELETE adjoint(const TransformationMatrix::Matrix4& matrix,
     result[2][3]  = - determinant3x3(a1, a2, a3, b1, b2, b3, d1, d2, d3);
     result[3][3]  =   determinant3x3(a1, a2, a3, b1, b2, b3, c1, c2, c3);
 }
+#endif
 
 // Returns false if the matrix is not invertible
 static bool inverse(const TransformationMatrix::Matrix4& matrix, TransformationMatrix::Matrix4& result)

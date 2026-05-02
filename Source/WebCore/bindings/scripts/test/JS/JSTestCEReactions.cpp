@@ -31,6 +31,7 @@
 #include "IDLTypes.h"
 #include "JSDOMAttribute.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertBase.h"
 #include "JSDOMConvertInterface.h"
@@ -45,11 +46,8 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -146,14 +144,14 @@ const ClassInfo JSTestCEReactionsPrototype::s_info = { "TestCEReactions"_s, &Bas
 
 JSC::Structure* JSTestCEReactionsPrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestCEReactionsPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSTestCEReactions::info(), JSTestCEReactionsPrototypeTableValues, *this);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestCEReactions::s_info = { "TestCEReactions"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestCEReactions) };
@@ -298,7 +296,7 @@ static inline bool setJSTestCEReactions_stringifierAttributeSetter(JSGlobalObjec
     UNUSED_PARAM(vm);
     auto throwScope = DECLARE_THROW_SCOPE(vm);
     auto id = Identifier::fromString(vm, "stringifierAttribute"_s);
-    auto valueToForwardTo = thisObject.get(&lexicalGlobalObject, id);
+    auto valueToForwardTo = WebCore::get(&thisObject, &lexicalGlobalObject, id);
     RETURN_IF_EXCEPTION(throwScope, false);
     if (!valueToForwardTo.isObject()) [[unlikely]] {
         throwTypeError(&lexicalGlobalObject, throwScope);
@@ -403,7 +401,7 @@ static inline bool setJSTestCEReactions_stringifierAttributeNotNeededSetter(JSGl
     UNUSED_PARAM(vm);
     auto throwScope = DECLARE_THROW_SCOPE(vm);
     auto id = Identifier::fromString(vm, "stringifierAttributeNotNeeded"_s);
-    auto valueToForwardTo = thisObject.get(&lexicalGlobalObject, id);
+    auto valueToForwardTo = WebCore::get(&thisObject, &lexicalGlobalObject, id);
     RETURN_IF_EXCEPTION(throwScope, false);
     if (!valueToForwardTo.isObject()) [[unlikely]] {
         throwTypeError(&lexicalGlobalObject, throwScope);

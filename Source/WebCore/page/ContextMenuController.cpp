@@ -99,6 +99,7 @@
 #endif
 
 #if PLATFORM(COCOA)
+#include "ContainerNodeInlines.h"
 #include <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 #endif
 

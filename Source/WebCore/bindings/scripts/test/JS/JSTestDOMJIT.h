@@ -22,8 +22,8 @@
 
 #include "JSNode.h"
 #include "TestDOMJIT.h"
-#include <JavaScriptCore/DOMJITGetterSetter.h>
 #include <WebCore/JSDOMWrapper.h>
+namespace JSC { namespace DOMJIT { class CallDOMGetterSnippet; } }
 
 namespace WebCore {
 

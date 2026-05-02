@@ -28,6 +28,7 @@
 #include "ExtendedDOMIsoSubspaces.h"
 #include "JSDOMAbstractOperations.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMConvertNumbers.h"
@@ -40,12 +41,9 @@
 #include "ScriptExecutionContext.h"
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/PropertyNameArray.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -121,14 +119,14 @@ const ClassInfo JSTestEventTargetPrototype::s_info = { "TestEventTarget"_s, &Bas
 
 JSC::Structure* JSTestEventTargetPrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestEventTargetPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSTestEventTarget::info(), JSTestEventTargetPrototypeTableValues, *this);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestEventTarget::s_info = { "TestEventTarget"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestEventTarget) };
@@ -183,7 +181,7 @@ bool JSTestEventTarget::legacyPlatformObjectGetOwnProperty(JSObject* object, JSG
             slot.setValue(thisObject, static_cast<unsigned>(JSC::PropertyAttribute::ReadOnly), value);
             return true;
         }
-        return JSObject::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
+        return WebCore::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
     }
     if (!ignoreNamedProperties) {
         using GetterIDLType = IDLInterface<Node>;
@@ -197,7 +195,7 @@ bool JSTestEventTarget::legacyPlatformObjectGetOwnProperty(JSObject* object, JSG
             return true;
         }
     }
-    return JSObject::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
+    return WebCore::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
 }
 
 bool JSTestEventTarget::getOwnPropertySlot(JSObject* object, JSGlobalObject* lexicalGlobalObject, PropertyName propertyName, PropertySlot& slot)
@@ -309,7 +307,7 @@ bool JSTestEventTarget::defineOwnProperty(JSObject* object, JSGlobalObject* lexi
 
     if (!propertyName.isSymbol()) {
         PropertySlot slot { thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };
-        bool found = JSObject::getOwnPropertySlot(thisObject, lexicalGlobalObject, propertyName, slot);
+        bool found = WebCore::getOwnPropertySlot(thisObject, lexicalGlobalObject, propertyName, slot);
         slot.disallowVMEntry.reset();
         RETURN_IF_EXCEPTION(throwScope, false);
         if (!found) {
@@ -338,7 +336,7 @@ bool JSTestEventTarget::deleteProperty(JSCell* cell, JSGlobalObject* lexicalGlob
         return !impl.isSupportedPropertyIndex(index.value());
     if (!propertyName.isSymbol() && impl.isSupportedPropertyName(propertyNameToString(propertyName))) {
         PropertySlot slotForGet { &thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };
-        if (!JSObject::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
+        if (!WebCore::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
             return false;
     }
     return JSObject::deleteProperty(cell, lexicalGlobalObject, propertyName, slot);

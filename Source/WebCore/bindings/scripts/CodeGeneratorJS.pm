@@ -945,7 +945,7 @@ sub GenerateGetOwnPropertySlot
         # NOTE: Setting ignoreNamedProps has the effect of skipping step 2, so we can early return here
         #       rather than going through the paces of having an actual ignoreNamedProps update.
         if ($namedGetterOperation || $interface->extendedAttributes->{Plugin}) {
-            push(@$outputArray, "        return JSObject::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);\n");
+            push(@$outputArray, "        return WebCore::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);\n");
         }
         push(@$outputArray, "    }\n");
     }
@@ -991,7 +991,7 @@ sub GenerateGetOwnPropertySlot
     }
 
     # 3. Return OrdinaryGetOwnProperty(O, P).
-    push(@$outputArray, "    return JSObject::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);\n");
+    push(@$outputArray, "    return WebCore::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);\n");
     
     push(@$outputArray, "}\n\n");
 
@@ -1257,8 +1257,8 @@ sub GeneratePut
         my $legacyOverrideBuiltins = $codeGenerator->InheritsExtendedAttribute($interface, "LegacyOverrideBuiltIns");
         if (!$legacyOverrideBuiltins) {
             push(@$outputArray, "        PropertySlot slot { thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };\n");
-            push(@$outputArray, "        JSValue prototype = thisObject->getPrototypeDirect();\n");
-            push(@$outputArray, "        bool found = prototype.isObject() && asObject(prototype)->getPropertySlot(lexicalGlobalObject, propertyName, slot);\n");
+            push(@$outputArray, "        JSValue prototype = WebCore::storedPrototype(thisObject->structure(), thisObject);\n");
+            push(@$outputArray, "        bool found = prototype.isObject() && WebCore::getPropertySlot(asObject(prototype), lexicalGlobalObject, propertyName, slot);\n");
             push(@$outputArray, "        slot.disallowVMEntry.reset();\n");
             push(@$outputArray, "        RETURN_IF_EXCEPTION(throwScope, false);\n");
             push(@$outputArray, "        if (!found) {\n");
@@ -1367,8 +1367,8 @@ sub GeneratePutByIndex
         my $additionalIndent = "";
         if (!$legacyOverrideBuiltins) {
             push(@$outputArray, "    PropertySlot slot { thisObject, PropertySlot::InternalMethodType::VMInquiry, &vm };\n");
-            push(@$outputArray, "    JSValue prototype = thisObject->getPrototypeDirect();\n");
-            push(@$outputArray, "    bool found = prototype.isObject() && asObject(prototype)->getPropertySlot(lexicalGlobalObject, propertyName, slot);\n");
+            push(@$outputArray, "    JSValue prototype = WebCore::storedPrototype(thisObject->structure(), thisObject);\n");
+            push(@$outputArray, "    bool found = prototype.isObject() && WebCore::getPropertySlot(asObject(prototype), lexicalGlobalObject, propertyName, slot);\n");
             push(@$outputArray, "    slot.disallowVMEntry.reset();\n");
             push(@$outputArray, "    RETURN_IF_EXCEPTION(throwScope, false);\n");
             push(@$outputArray, "    if (!found) {\n");
@@ -1514,7 +1514,7 @@ sub GenerateDefineOwnProperty
             #        only look at the actual properties, and not call into our implementation of the
             #        [[GetOwnProperty]] hook?
             push(@$outputArray, $additionalIndent. "        PropertySlot slot { thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };\n");
-            push(@$outputArray, $additionalIndent. "        bool found = JSObject::getOwnPropertySlot(thisObject, lexicalGlobalObject, propertyName, slot);\n");
+            push(@$outputArray, $additionalIndent. "        bool found = WebCore::getOwnPropertySlot(thisObject, lexicalGlobalObject, propertyName, slot);\n");
             push(@$outputArray, $additionalIndent. "        slot.disallowVMEntry.reset();\n");
             push(@$outputArray, $additionalIndent. "        RETURN_IF_EXCEPTION(throwScope, false);\n");
             push(@$outputArray, $additionalIndent. "        if (!found) {\n");
@@ -1643,7 +1643,7 @@ sub GenerateDeleteProperty
             GenerateDeletePropertyCommon($outputArray, $interface, $className, $namedDeleterOperation, $conditional);
         } else {
             push(@$outputArray, "        PropertySlot slotForGet { &thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };\n");
-            push(@$outputArray, "        if (!JSObject::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))\n");
+            push(@$outputArray, "        if (!WebCore::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))\n");
             push(@$outputArray, "            return false;\n");
         }
         push(@$outputArray, "    }\n");
@@ -1697,7 +1697,7 @@ sub GenerateDeletePropertyByIndex
             GenerateDeletePropertyCommon($outputArray, $interface, $className, $namedDeleterOperation, $conditional);
         } else {
             push(@$outputArray, "        PropertySlot slotForGet { &thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };\n");
-            push(@$outputArray, "        if (!JSObject::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))\n");
+            push(@$outputArray, "        if (!WebCore::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))\n");
             push(@$outputArray, "            return false;\n");
         }
         push(@$outputArray, "    }\n");
@@ -2566,7 +2566,7 @@ sub GenerateEnumerationImplementationContent
 
     # FIXME: A little ugly to have this be a side effect instead of a return value.
     AddToImplIncludes("<JavaScriptCore/JSString.h>");
-    AddToImplIncludes("<JavaScriptCore/JSCInlines.h>");
+    AddToImplIncludes("JSDOMBindingFacade.h");
     AddToImplIncludes("JSDOMConvertEnumeration.h");
     AddToImplIncludes("<wtf/SortedArrayMap.h>");
 
@@ -2893,7 +2893,7 @@ sub GenerateDictionaryImplementationMemberConversion
     $memberConversion .= "${indent}    if (isNullOrUndefined)\n";
     $memberConversion .= "${indent}        ${key}Value = jsUndefined();\n";
     $memberConversion .= "${indent}    else {\n";
-    $memberConversion .= "${indent}        ${key}Value = object->get(&lexicalGlobalObject, Identifier::fromString(vm, \"${key}\"_s));\n";
+    $memberConversion .= "${indent}        ${key}Value = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, \"${key}\"_s));\n";
     $memberConversion .= "${indent}        RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });\n";
     $memberConversion .= "${indent}    }\n";
 
@@ -3047,7 +3047,7 @@ sub GenerateConvertDictionaryToJS
     $result .= "    auto throwScope = DECLARE_THROW_SCOPE(vm);\n\n";
 
     # 1. Let O be ! ObjectCreate(%ObjectPrototype%).
-    $result .= "    auto result = constructEmptyObject(&lexicalGlobalObject, globalObject.objectPrototype());\n\n";
+    $result .= "    auto result = WebCore::constructEmptyObject(&lexicalGlobalObject, globalObject.objectPrototype());\n\n";
 
     # 2. Let dictionaries be a list consisting of D and all of D’s inherited dictionaries,
     #    in order from least to most derived.
@@ -3131,7 +3131,7 @@ sub GenerateDictionaryImplementationContent
         $result .= "#if ${conditionalString}\n\n";
     }
 
-    AddToImplIncludes("<JavaScriptCore/JSCInlines.h>");
+    AddToImplIncludes("JSDOMBindingFacade.h");
     AddToImplIncludes("JSDOMConvertDictionary.h");
 
     my @dictionaries;
@@ -3634,18 +3634,23 @@ sub GenerateHeader
 
     push(@headerContent, "\n");
 
-    GeneratePrototypeDeclaration(\@headerContent, $className, $interface) if HeaderNeedsPrototypeDeclaration($interface);
+    if (HeaderNeedsPrototypeDeclaration($interface)) {
+        $headerIncludes{"<WebCore/JSDOMBindingFacade.h>"} = 1;
+        GeneratePrototypeDeclaration(\@headerContent, $className, $interface);
+    }
 
     # CheckJSCast Snippet function.
     if ($interface->extendedAttributes->{DOMJIT}) {
-        $headerIncludes{"<JavaScriptCore/Snippet.h>"} = 1;
+        $implIncludes{"<JavaScriptCore/Snippet.h>"} = 1;
+        unshift(@headerContent, "namespace JSC { class Snippet; }\n");
         push(@headerContent, "#if ENABLE(JIT)\n");
         push(@headerContent, "Ref<JSC::Snippet> checkSubClassSnippetFor${className}();\n");
         push(@headerContent, "#endif\n");
     }
 
     if ($hasDOMJITAttributes) {
-        $headerIncludes{"<JavaScriptCore/DOMJITGetterSetter.h>"} = 1;
+        $implIncludes{"<JavaScriptCore/DOMJITGetterSetter.h>"} = 1;
+        unshift(@headerContent, "namespace JSC { namespace DOMJIT { class CallDOMGetterSnippet; } }\n");
         push(@headerContent,"// DOM JIT Attributes\n\n");
         foreach my $attribute (@{$interface->attributes}) {
             next unless $attribute->extendedAttributes->{DOMJIT};
@@ -4124,7 +4129,7 @@ sub GenerateOverloadDispatcher
 
             # FIXME: Avoid invoking GetMethod(object, Symbol.iterator) again in convert<IDLSequence<T>>(...).
             $overload = GetOverloadThatMatches($S, $d, \&$isSequenceOrFrozenArrayParameter);
-            &$generateOverloadCallIfNecessary($overload, "hasIteratorMethod(lexicalGlobalObject, distinguishingArg)", 1, "<JavaScriptCore/IteratorOperations.h>");
+            &$generateOverloadCallIfNecessary($overload, "WebCore::hasIteratorMethod(lexicalGlobalObject, distinguishingArg)", 1, "JSDOMBindingFacade.h");
 
             $overload = GetOverloadThatMatches($S, $d, \&$isDictionaryOrRecordOrObjectOrCallbackInterfaceParameter);
             &$generateOverloadCallIfNecessary($overload, "distinguishingArg.isObject()");
@@ -4562,11 +4567,11 @@ sub addUnscopableProperties
     return if scalar(@unscopables) == 0;
 
     AddToImplIncludes("<JavaScriptCore/ObjectConstructor.h>");
-    push(@implContent, "    JSObject& unscopables = *constructEmptyObject(vm, realm()->nullPrototypeObjectStructure());\n");
+    push(@implContent, "    JSObject& unscopables = *WebCore::constructEmptyObject(realm(), realm()->nullPrototypeObjectStructure());\n");
     foreach my $unscopable (@unscopables) {
         push(@implContent, "    unscopables.putDirect(vm, Identifier::fromString(vm, \"$unscopable\"_s), jsBoolean(true));\n");
     }
-    push(@implContent, "    putDirectWithoutTransition(vm, vm.propertyNames->unscopablesSymbol, &unscopables, JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);\n");
+    push(@implContent, "    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->unscopablesSymbol, &unscopables, JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);\n");
 }
 
 sub GetArgumentTypeForFunctionWithoutTypeCheck
@@ -4644,7 +4649,7 @@ sub GenerateImplementation
     # - Add default header template
     push(@implContentHeader, GenerateImplementationContentHeader($interface));
 
-    AddToImplIncludes("<JavaScriptCore/JSCInlines.h>");
+    AddToImplIncludes("JSDOMBindingFacade.h");
     AddToImplIncludes("JSDOMBinding.h");
     AddToImplIncludes("JSDOMExceptionHandling.h");
     AddToImplIncludes("JSDOMWrapperCache.h");
@@ -4961,7 +4966,7 @@ sub GenerateImplementation
 
         push(@implContent, "JSC::Structure* ${className}Prototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)\n");
         push(@implContent, "{\n");
-        push(@implContent, "    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());\n");
+        push(@implContent, "    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);\n");
         push(@implContent, "}\n\n");
 
         push(@implContent, "void ${className}Prototype::finishCreation(VM& vm)\n");
@@ -5037,12 +5042,12 @@ sub GenerateImplementation
         if (InterfaceNeedsIterator($interface)) {
             AddToImplIncludes("<JavaScriptCore/BuiltinNames.h>");
             if (IsKeyValueIterableInterface($interface) or $interface->mapLike) {
-                push(@implContent, "    putDirect(vm, vm.propertyNames->iteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().entriesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
+                push(@implContent, "    putDirect(vm, vm.propertyNames->iteratorSymbol, WebCore::getDirect(this, vm, vm.propertyNames->builtinNames().entriesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
             } elsif ($interface->setLike) {
-                push(@implContent, "    putDirect(vm, vm.propertyNames->iteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().valuesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
+                push(@implContent, "    putDirect(vm, vm.propertyNames->iteratorSymbol, WebCore::getDirect(this, vm, vm.propertyNames->builtinNames().valuesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
             } else {
                 AddToImplIncludes("<JavaScriptCore/ArrayPrototype.h>");
-                push(@implContent, "    putDirect(vm, vm.propertyNames->iteratorSymbol, realm()->arrayPrototype()->getDirect(vm, vm.propertyNames->builtinNames().valuesPrivateName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
+                push(@implContent, "    putDirect(vm, vm.propertyNames->iteratorSymbol, WebCore::getDirect(realm()->arrayPrototype(), vm, vm.propertyNames->builtinNames().valuesPrivateName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
             }
         }
         if (InterfaceNeedsAsyncIterator($interface)) {
@@ -5053,9 +5058,9 @@ sub GenerateImplementation
                 push(@implContent, "    if (uncheckedDowncast<JSDOMGlobalObject>(realm())->scriptExecutionContext()->settingsValues()." . ToMethodName($enabledBySettings) . ")\n    ");
             }
             if ($interface->asyncIterable->isKeyValue) {
-                push(@implContent, "    putDirect(vm, vm.propertyNames->asyncIteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().entriesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
+                push(@implContent, "    putDirect(vm, vm.propertyNames->asyncIteratorSymbol, WebCore::getDirect(this, vm, vm.propertyNames->builtinNames().entriesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
             } else {
-                push(@implContent, "    putDirect(vm, vm.propertyNames->asyncIteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().valuesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
+                push(@implContent, "    putDirect(vm, vm.propertyNames->asyncIteratorSymbol, WebCore::getDirect(this, vm, vm.propertyNames->builtinNames().valuesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
             }
         }
         push(@implContent, "    addValueIterableMethods(*realm(), *this);\n") if ($interface->iterable or $interface->asyncIterable) and !IsKeyValueIterableInterface($interface);
@@ -5066,7 +5071,7 @@ sub GenerateImplementation
     assert("JSC_TO_STRING_TAG_WITHOUT_TRANSITION() requires strings two or more characters long") if length($visibleInterfaceName) < 2;
 
     if (!ShouldUseOrdinaryObjectPrototype($interface)) {
-        push(@implContent, "    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();\n");
+        push(@implContent, "    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);\n");
         push(@implContent, "}\n\n");
     }
 
@@ -5240,7 +5245,7 @@ sub GenerateImplementation
         push(@implContent, "\n");
     }
 
-    AddToImplIncludes("<JavaScriptCore/JSCellInlines.h>");
+    AddToImplIncludes("JSDOMBindingFacade.h");
     if ($interfaceName eq "DOMWindow") {
         push(@implContent, "$className* $className\::create(JSC::VM& vm, JSC::Structure* structure, Ref<$implType>&& impl, JSWindowProxy* proxy)\n");
         push(@implContent, "{\n");
@@ -5282,7 +5287,7 @@ sub GenerateImplementation
         push(@implContent, "}\n\n");
     }
 
-    AddToImplIncludes("<JavaScriptCore/StructureInlines.h>");
+    AddToImplIncludes("JSDOMBindingFacade.h");
     push(@implContent, "JSC::Structure* ${className}::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)\n");
     push(@implContent, "{\n");
     my $indexingModeIncludingHistory = InstanceOverridesGetOwnPropertySlot($interface) ? "JSC::MayHaveIndexedAccessors" : "JSC::NonArray";
@@ -5309,8 +5314,8 @@ sub GenerateImplementation
             push(@implContent, "    structure->setMayBePrototype(true);\n");
             push(@implContent, "    return ${className}Prototype::create(vm, &globalObject, structure);\n");
         } else {
-            my $prototype = $interface->extendedAttributes->{Exception} ? "errorPrototype" : "objectPrototype";
-            push(@implContent, "    auto* structure = ${className}Prototype::createStructure(vm, &globalObject, globalObject.${prototype}());\n");
+            my $prototype = $interface->extendedAttributes->{Exception} ? "WebCore::storedPrototypeObject(globalObject.errorStructure())" : "globalObject.objectPrototype()";
+            push(@implContent, "    auto* structure = ${className}Prototype::createStructure(vm, &globalObject, ${prototype});\n");
             push(@implContent, "    structure->setMayBePrototype(true);\n");
             push(@implContent, "    return ${className}Prototype::create(vm, &globalObject, structure);\n");
         }
@@ -6070,7 +6075,7 @@ sub GenerateAttributeSetterBodyDefinition
     } elsif ($isReplaceable) {
         push(@$outputArray, "    throwScope.release();\n") if $needThrowScope;
         push(@$outputArray, "    bool shouldThrow = true;\n");
-        push(@$outputArray, "    thisObject.createDataProperty(&lexicalGlobalObject, propertyName, value, shouldThrow);\n");
+        push(@$outputArray, "    WebCore::createDataProperty(&thisObject, &lexicalGlobalObject, propertyName, value, shouldThrow);\n");
         push(@$outputArray, "    return true;\n");
     } elsif ($attribute->extendedAttributes->{PutForwards}) {
         assert("[PutForwards] is not compatible with static attributes") if $attribute->isStatic;
@@ -6078,7 +6083,7 @@ sub GenerateAttributeSetterBodyDefinition
         # 3.5.9.1. Let Q be ? Get(O, id).
         my $id = $attribute->name;
         push(@$outputArray, "    auto id = Identifier::fromString(vm, \"${id}\"_s);\n");
-        push(@$outputArray, "    auto valueToForwardTo = thisObject.get(&lexicalGlobalObject, id);\n");
+        push(@$outputArray, "    auto valueToForwardTo = WebCore::get(&thisObject, &lexicalGlobalObject, id);\n");
         push(@$outputArray, "    RETURN_IF_EXCEPTION(throwScope, false);\n");
         
         # 3.5.9.2. If Type(Q) is not Object, then throw a TypeError.
@@ -6534,7 +6539,7 @@ sub GenerateDefaultToJSONOperationDefinition
     push(@implContent, "    SUPPRESS_UNCOUNTED_LOCAL auto& impl = castedThis->wrapped();\n");
 
     AddToImplIncludes("<JavaScriptCore/ObjectConstructor.h>");
-    push(@implContent, "    auto* result = constructEmptyObject(lexicalGlobalObject);\n");
+    push(@implContent, "    auto* result = WebCore::constructEmptyObject(lexicalGlobalObject);\n");
 
      while (@inheritenceStack) {
         my $currentInterface = pop(@inheritenceStack);
@@ -7358,7 +7363,7 @@ sub GenerateCallbackImplementationContent
     $includesRef->{"ContextDestructionObserverInlines.h"} = 1;
     $includesRef->{"JSDOMGlobalObject.h"} = 1;
     $includesRef->{"ScriptExecutionContext.h"} = 1;
-    $includesRef->{"<JavaScriptCore/JSCellInlines.h>"} = 1;
+    $includesRef->{"JSDOMBindingFacade.h"} = 1;
 
     # We already validated GenerateIsReachable when generating the header file.
     my $ownerObject = $generateIsReachable ? "globalObject->scriptExecutionContext()" : "this";
@@ -7634,7 +7639,7 @@ public:
 
     static JSC::Structure* createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
     {
-        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
     }
 
     static ${iteratorName}* create(JSC::VM& vm, JSC::Structure* structure, ${className}& iteratedObject, IterationKind kind, InternalIterator&& iterator)
@@ -8817,7 +8822,7 @@ sub GenerateConstructorHelperMethods
 
     assert("jsNontrivialString() requires strings two or more characters long") if length($visibleInterfaceName) < 2;
     if ($interface->isNamespaceObject) {
-        push(@$outputArray, "    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();\n");
+        push(@$outputArray, "    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);\n");
     } else {
         # FIXME: Remove TextTrackCue constructor along with [LegacyFactoryFunctionEnabledBySetting] extended attribute.
         # https://bugs.webkit.org/show_bug.cgi?id=129615
@@ -8840,7 +8845,7 @@ sub GenerateConstructorHelperMethods
         if ($interface->isCallback) {
             push(@$outputArray, "    UNUSED_PARAM(globalObject);\n");
         } else {
-            my $prototype = ShouldUseGlobalObjectPrototype($interface) ? "globalObject.getPrototypeDirect()" : "${className}::prototype(vm, globalObject)";
+            my $prototype = ShouldUseGlobalObjectPrototype($interface) ? "WebCore::storedPrototype(globalObject.structure(), &globalObject)" : "${className}::prototype(vm, globalObject)";
             push(@$outputArray, "    putDirect(vm, vm.propertyNames->prototype, ${prototype}, JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::DontDelete);\n");
         }
     }

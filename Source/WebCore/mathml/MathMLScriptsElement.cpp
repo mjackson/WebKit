@@ -29,6 +29,7 @@
 
 #if ENABLE(MATHML)
 
+#include "NodeDocument.h"
 #include "RenderMathMLScripts.h"
 #include "RenderStyle+GettersInlines.h"
 #include "Settings.h"

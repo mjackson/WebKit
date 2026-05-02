@@ -259,6 +259,7 @@ auto AbstractModuleRecord::resolveImport(JSGlobalObject* globalObject, const Ide
 
     AbstractModuleRecord* importedModule = hostResolveImportedModule(globalObject, importEntry.moduleRequest);
     RETURN_IF_EXCEPTION(scope, Resolution::error());
+
     RELEASE_AND_RETURN(scope, importedModule->resolveExport(globalObject, importEntry.importName));
 }
 
@@ -579,7 +580,7 @@ auto AbstractModuleRecord::resolveExportImpl(JSGlobalObject* globalObject, const
     // To summarize the observations.
     //
     //  1. The starting point is always cacheable.
-    //  2. A module that has resolved a local binding is always cacheable.
+    //  2. A module that has resolved a local binding is always cacheable. But since they are in exportEntries, we do not need a cache.
     //  3. If we don't follow any star links during the resolution, we can see all the traced nodes are cacheable.
     //  4. Once we follow star links, we should not retrieve the result from the cache and should not cache the result.
     //  5. Once we see star links, even if we have not yet traversed that star link path, we should disable caching.
@@ -685,19 +686,17 @@ auto AbstractModuleRecord::resolveExportImpl(JSGlobalObject* globalObject, const
             if (!moduleRecord->starExportEntries().isEmpty())
                 foundStarLinks = true;
 
-            //  4. Once we follow star links, we should not retrieve the result from the cache and should not cache the result.
-            if (!foundStarLinks) {
-                if (std::optional<Resolution> cachedResolution = moduleRecord->tryGetCachedResolution(query.exportName.get())) {
-                    if (!mergeToCurrentTop(*cachedResolution))
-                        return Resolution::ambiguous();
-                    continue;
-                }
-            }
-
             const std::optional<ExportEntry> optionalExportEntry = moduleRecord->tryGetExportEntry(query.exportName.get());
             if (!optionalExportEntry) {
-                // If there is no matched exported binding in the current module,
-                // we need to look into the stars.
+                // If there is no matched exported binding in the current module, we need to look
+                // into the stars. We don't probe m_resolutionCache here: the only writer that can
+                // populate (moduleRecord, exportName) while exportEntries has no match for exportName
+                // is the root-cache write (rule #1), which only fires when star traversal produced
+                // Resolved - which in turn requires moduleRecord to have non-empty starExportEntries.
+                // starExportEntries is immutable after parse, so by the time we reach this point
+                // foundStarLinks is already true (set above) whenever a cached entry could exist -
+                // making any probe here dead. The top-level resolveExport fast path still benefits
+                // from the rule #1 cache write.
                 bool success = resolveNonLocal(task.query);
                 EXCEPTION_ASSERT(!scope.exception() || !success);
                 if (!success)
@@ -710,14 +709,21 @@ auto AbstractModuleRecord::resolveExportImpl(JSGlobalObject* globalObject, const
             case ExportEntry::Type::Local: {
                 ASSERT(!exportEntry.localName.isNull());
                 Resolution resolution { Resolution::Type::Resolved, moduleRecord, exportEntry.localName };
-                //  2. A module that has resolved a local binding is always cacheable.
-                cacheResolutionForQuery(query, resolution);
                 if (!mergeToCurrentTop(resolution))
                     return Resolution::ambiguous();
                 continue;
             }
 
             case ExportEntry::Type::Indirect: {
+                //  4. Once we follow star links, we should not retrieve the result from the cache and should not cache the result.
+                if (!foundStarLinks) {
+                    if (std::optional<Resolution> cachedResolution = moduleRecord->tryGetCachedResolution(query.exportName.get())) {
+                        if (!mergeToCurrentTop(*cachedResolution))
+                            return Resolution::ambiguous();
+                        continue;
+                    }
+                }
+
                 AbstractModuleRecord* importedModuleRecord = moduleRecord->hostResolveImportedModule(globalObject, exportEntry.moduleName);
                 RETURN_IF_EXCEPTION(scope, Resolution::error());
 
@@ -733,10 +739,7 @@ auto AbstractModuleRecord::resolveExportImpl(JSGlobalObject* globalObject, const
             case ExportEntry::Type::Namespace: {
                 AbstractModuleRecord* importedModuleRecord = moduleRecord->hostResolveImportedModule(globalObject, exportEntry.moduleName);
                 RETURN_IF_EXCEPTION(scope, Resolution::error());
-
                 Resolution resolution { Resolution::Type::Resolved, importedModuleRecord, vm.propertyNames->starNamespacePrivateName };
-                //  2. A module that has resolved a module namespace binding is always cacheable.
-                cacheResolutionForQuery(query, resolution);
                 if (!mergeToCurrentTop(resolution))
                     return Resolution::ambiguous();
                 continue;
@@ -793,10 +796,35 @@ auto AbstractModuleRecord::resolveExportImpl(JSGlobalObject* globalObject, const
 
 auto AbstractModuleRecord::resolveExport(JSGlobalObject* globalObject, const Identifier& exportName) -> Resolution
 {
-    // Look up the cached resolution first before entering the resolving loop, since the loop setup takes some cost.
-    if (std::optional<Resolution> cachedResolution = tryGetCachedResolution(exportName.impl()))
-        return *cachedResolution;
-    return resolveExportImpl(globalObject, ResolveQuery(this, exportName.impl()));
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    // Local / Namespace exports are trivially derivable from m_exportEntries.
+    // m_resolutionCache only holds results that actually amortise costly traversals, Indirect resolutions and star-resolved results.
+    if (const auto optionalExportEntry = tryGetExportEntry(exportName.impl())) {
+        const ExportEntry& entry = *optionalExportEntry;
+        switch (entry.type) {
+        case ExportEntry::Type::Local:
+            ASSERT(!entry.localName.isNull());
+            return Resolution { Resolution::Type::Resolved, this, entry.localName };
+        case ExportEntry::Type::Namespace: {
+            AbstractModuleRecord* importedModuleRecord = hostResolveImportedModule(globalObject, entry.moduleName);
+            RETURN_IF_EXCEPTION(scope, Resolution::error());
+            return Resolution { Resolution::Type::Resolved, importedModuleRecord, vm.propertyNames->starNamespacePrivateName };
+        }
+        case ExportEntry::Type::Indirect:
+            if (std::optional<Resolution> cachedResolution = tryGetCachedResolution(exportName.impl()))
+                return *cachedResolution;
+            break;
+        }
+    } else if (!starExportEntries().isEmpty()) {
+        // When there is no matching export entry, cache can exist only when we found star-resolved results.
+        // Thus, if there is no star export entries, cache never exists.
+        if (std::optional<Resolution> cachedResolution = tryGetCachedResolution(exportName.impl()))
+            return *cachedResolution;
+    }
+
+    RELEASE_AND_RETURN(scope, resolveExportImpl(globalObject, ResolveQuery(this, exportName.impl())));
 }
 
 JSModuleNamespaceObject* AbstractModuleRecord::getModuleNamespace(JSGlobalObject* globalObject, bool shouldPreventExtensions)
@@ -823,6 +851,7 @@ JSModuleNamespaceObject* AbstractModuleRecord::getModuleNamespace(JSGlobalObject
     Resolutions uniqueBindings;
     IdentifierSet rootShadowedNames;
     IdentifierSet slowPathNames;
+    Vector<std::pair<Identifier, Resolution>> resolutions;
 
     UncheckedKeyHashSet<AbstractModuleRecord*> exportStarSet;
     Vector<AbstractModuleRecord*, 8> pendingModules;
@@ -836,15 +865,21 @@ JSModuleNamespaceObject* AbstractModuleRecord::getModuleNamespace(JSGlobalObject
 
         for (const auto& pair : moduleRecord->exportEntries()) {
             const ExportEntry& exportEntry = pair.value;
-            if (!isRoot && vm.propertyNames->defaultKeyword == exportEntry.exportName)
-                continue;
             SUPPRESS_UNCOUNTED_LOCAL auto* exportName = exportEntry.exportName.impl();
             // ResolveExport returns at root's own Local/Indirect/Namespace entry before
             // consulting star exports, so star-reachable bindings cannot affect those names.
-            if (!isRoot && rootShadowedNames.contains(exportName))
-                continue;
-            if (slowPathNames.contains(exportName))
-                continue;
+            if (isRoot)
+                rootShadowedNames.add(exportName);
+            else {
+                if (vm.propertyNames->defaultKeyword == exportEntry.exportName)
+                    continue;
+                // Both sets do not include exportName during the root iteration (root is always the first
+                // module popped from pendingModules), so we only need to probe them for non-root.
+                if (rootShadowedNames.contains(exportName))
+                    continue;
+                if (slowPathNames.contains(exportName))
+                    continue;
+            }
 
             Resolution candidate;
             switch (exportEntry.type) {
@@ -858,17 +893,17 @@ JSModuleNamespaceObject* AbstractModuleRecord::getModuleNamespace(JSGlobalObject
                 break;
             }
             case ExportEntry::Type::Indirect:
-                if (isRoot)
-                    rootShadowedNames.add(exportName);
-                else
+                if (!isRoot)
                     uniqueBindings.remove(exportName);
                 slowPathNames.add(exportName);
                 continue;
             }
 
             if (isRoot) {
-                rootShadowedNames.add(exportName);
-                uniqueBindings.add(exportName, candidate);
+                // Root's own Local / Namespace are served by resolveExport's m_exportEntries
+                // fast path, so they never need to sit in uniqueBindings or the cache. Emit
+                // them directly so the cache-write loop below can skip the owned-name probe.
+                resolutions.append({ Identifier::fromUid(vm, exportName), candidate });
                 continue;
             }
 
@@ -886,9 +921,10 @@ JSModuleNamespaceObject* AbstractModuleRecord::getModuleNamespace(JSGlobalObject
         }
     }
 
-    Vector<std::pair<Identifier, Resolution>> resolutions;
-    resolutions.reserveInitialCapacity(uniqueBindings.size() + slowPathNames.size());
+    resolutions.reserveCapacity(resolutions.size() + uniqueBindings.size() + slowPathNames.size());
     for (auto& pair : uniqueBindings) {
+        // Every entry here arrived via a star-export edge (root's own names were emitted
+        // during the walk), so the cache is always useful.
         cacheResolution(pair.key.get(), pair.value);
         resolutions.append({ Identifier::fromUid(vm, pair.key.get()), pair.value });
     }

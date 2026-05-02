@@ -1552,9 +1552,6 @@ fast/images/animated-webp-as-image.html [ Pass ]
 # <rdar://problem/59015708>
 fast/images/animated-webp.html [ Skip ]
 
-# <rdar://problem/60512303> [ wk2 ] imported/w3c/web-platform-tests/content-security-policy/connect-src/connect-src-eventsource-allowed.sub.html is flaky timing out.
-imported/w3c/web-platform-tests/content-security-policy/connect-src/connect-src-eventsource-allowed.sub.html [ Pass Timeout Failure ]
-
 # <rdar://problem/60501497> REGRESSION (r258080) fast/history/history-back-while-pdf-in-pagecache.html is timing out.
 fast/history/history-back-while-pdf-in-pagecache.html [ Pass ImageOnlyFailure Crash Timeout ]
 

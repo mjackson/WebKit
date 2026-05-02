@@ -159,7 +159,7 @@ ProvisionalPageProxy::ProvisionalPageProxy(WebPageProxy& page, Ref<FrameProcess>
         protect(mainFrame())->didStartProvisionalLoad(URL { previousMainFrame->provisionalURL() });
     }
 
-    initializeWebPage(websitePolicies);
+    initializeWebPage(websitePolicies, suspendedPage);
 }
 
 ProvisionalPageProxy::~ProvisionalPageProxy()
@@ -254,7 +254,7 @@ void ProvisionalPageProxy::cancel()
     didFailProvisionalLoadForFrame(WTF::move(frameInfo), ResourceRequest { m_request }, m_navigationID, String { m_provisionalLoadURL.string() }, WTF::move(error), WebCore::WillContinueLoading::No, UserData { }, WebCore::WillInternallyHandleFailure::No); // Will delete |this|.
 }
 
-void ProvisionalPageProxy::initializeWebPage(RefPtr<API::WebsitePolicies>&& websitePolicies)
+void ProvisionalPageProxy::initializeWebPage(RefPtr<API::WebsitePolicies>&& websitePolicies, bool isRestoringFromBFCache)
 {
     Ref page = *m_page;
     Ref process = this->process();
@@ -267,7 +267,7 @@ void ProvisionalPageProxy::initializeWebPage(RefPtr<API::WebsitePolicies>&& webs
     if (websitePolicies)
         m_mainFrameWebsitePolicies = websitePolicies->copy();
 
-    if (preferences->siteIsolationEnabled()) {
+    if (preferences->siteIsolationEnabled() && !isRestoringFromBFCache) {
         if (RefPtr existingRemotePageProxy = m_browsingContextGroup->takeRemotePageInProcessForProvisionalPage(page, process)) {
             if (m_shouldReuseMainFrame) {
                 m_webPageID = existingRemotePageProxy->pageID();
@@ -289,7 +289,7 @@ void ProvisionalPageProxy::initializeWebPage(RefPtr<API::WebsitePolicies>&& webs
 
     RefPtr mainFrame = m_mainFrame;
     auto creationParameters = page->creationParametersForProvisionalPage(process, *drawingArea, mainFrame->frameID());
-    if (preferences->siteIsolationEnabled()) {
+    if (preferences->siteIsolationEnabled() && !isRestoringFromBFCache) {
         creationParameters.remotePageParameters = RemotePageParameters {
             m_request.url(),
             mainFrame->frameTreeCreationParameters(),

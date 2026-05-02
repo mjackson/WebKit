@@ -31,7 +31,6 @@
 #include "AudioNodeInput.h"
 #include "ContextDestructionObserverInlines.h"
 #include "Document.h"
-#include "EventTargetInlines.h"
 #include "MediaStream.h"
 #include "MediaStreamAudioSource.h"
 #include <wtf/Locker.h>

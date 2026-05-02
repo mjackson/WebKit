@@ -28,6 +28,7 @@
 #include "WorkletGlobalScope.h"
 
 #include "ContentSecurityPolicy.h"
+#include "DocumentPage.h"
 #include "DocumentSettingsValues.h"
 #include "FrameConsoleClient.h"
 #include "InspectorInstrumentation.h"

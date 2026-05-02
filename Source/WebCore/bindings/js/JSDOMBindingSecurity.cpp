@@ -33,6 +33,7 @@
 #include "NodeDocument.h"
 #include "RemoteDOMWindow.h"
 #include "SecurityOrigin.h"
+#include <JavaScriptCore/TopExceptionScope.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/text/WTFString.h>
 

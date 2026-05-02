@@ -49,6 +49,7 @@
 #include "NodeRenderStyle.h"
 #include "Path2D.h"
 #include "PixelFormat.h"
+#include "PlatformRenderTheme.h"
 #include "RenderReplaced.h"
 #include "RenderTheme.h"
 #include "RenderWidget.h"

@@ -61,6 +61,7 @@
 #include "NodeDocument.h"
 #include "Page.h"
 #include "PageGroup.h"
+#include "PlatformRenderTheme.h"
 #include "RenderTheme.h"
 #include "ShadowRoot.h"
 #include "Settings.h"

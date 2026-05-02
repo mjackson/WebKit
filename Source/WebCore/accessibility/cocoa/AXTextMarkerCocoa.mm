@@ -36,6 +36,8 @@
 #import <pal/spi/mac/HIServicesSPI.h>
 #else // PLATFORM(IOS_FAMILY)
 #import "WebAccessibilityObjectWrapperIOS.h"
+#import "AXObjectCacheInlines.h"
+#import "AccessibilityObjectInlines.h"
 #endif
 
 namespace WebCore {

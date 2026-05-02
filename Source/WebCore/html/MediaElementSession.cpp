@@ -24,10 +24,9 @@
  */
 
 #include "config.h"
+#include "MediaElementSession.h"
 
 #if ENABLE(VIDEO)
-
-#include "MediaElementSession.h"
 
 #include "AudioTrack.h"
 #include "AudioTrackConfiguration.h"
@@ -78,6 +77,7 @@
 
 #if PLATFORM(IOS_FAMILY)
 #include "AudioSession.h"
+#include "EventTarget.h"
 #include <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 #endif
 
@@ -488,7 +488,6 @@ Expected<void, MediaPlaybackDenialExplanation> MediaElementSession::playbackStat
 
     if (m_restrictions & RequireUserGestureForAudioRateChange && (!element->isVideo() || element->hasAudio()) && !element->muted() && element->volume() && !document->processingUserGestureForMedia())
         return makeUnexpectedDenial(MediaPlaybackDenialReason::UserGestureRequired, "User gesture required for audio rate change"_s);
-
 
     if (m_restrictions & RequirePageVisibilityToPlayAudio && (!element->isVideo() || element->hasAudio()) && !element->muted() && element->volume() && element->elementIsHidden())
         return makeUnexpectedDenial(MediaPlaybackDenialReason::UserGestureRequired, "Page visibility required for audio rate change"_s);

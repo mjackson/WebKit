@@ -38,7 +38,6 @@
 #include "HTMLTableRowsCollection.h"
 #include "HTMLTableSectionElement.h"
 #include "MutableStyleProperties.h"
-#include "NodeInlines.h"
 #include "NodeName.h"
 #include "NodeRareData.h"
 #include "RenderStyle+GettersInlines.h"

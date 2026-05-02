@@ -207,7 +207,7 @@ private:
     void didCreateContextInWebProcessForVisibilityPropagation(LayerHostingContextID);
 #endif
 
-    void initializeWebPage(RefPtr<API::WebsitePolicies>&&);
+    void initializeWebPage(RefPtr<API::WebsitePolicies>&&, bool isRestoringFromBFCache = false);
     bool NODELETE validateInput(WebCore::FrameIdentifier, const std::optional<WebCore::NavigationIdentifier>& = std::nullopt);
 
     WeakPtr<WebPageProxy> m_page;

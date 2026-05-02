@@ -37,7 +37,6 @@
 #include "BlobPart.h"
 #include "BlobURL.h"
 #include "ContextDestructionObserverInlines.h"
-#include "EventTargetInlines.h"
 #include "File.h"
 #include "JSDOMConvertBufferSource.h"
 #include "JSDOMConvertStrings.h"
@@ -52,6 +51,7 @@
 #include "ThreadableBlobRegistry.h"
 #include "WebCoreOpaqueRoot.h"
 #include <JavaScriptCore/JSCJSValueInlines.h>
+#include <JavaScriptCore/Uint8Array.h>
 #include <wtf/Lock.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>

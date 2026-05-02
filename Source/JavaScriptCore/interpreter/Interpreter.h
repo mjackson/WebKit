@@ -32,13 +32,19 @@
 #include "BytecodeIndex.h"
 #include "JSCJSValue.h"
 #include "MacroAssemblerCodeRef.h"
-#include "Opcode.h"
 #include <wtf/HashMap.h>
 #include <wtf/Platform.h>
 #include <wtf/TZoneMalloc.h>
 
 
 namespace JSC {
+
+enum OpcodeID : unsigned;
+#if ENABLE(COMPUTED_GOTO_OPCODES)
+using Opcode = void*;
+#else
+using Opcode = OpcodeID;
+#endif
 
 class CallLinkInfo;
 #if ENABLE(WEBASSEMBLY)

@@ -397,6 +397,8 @@ std::optional<PlatformXR::FrameData::LayerData> OpenXRLayerProjection::startFram
 
 Vector<XrCompositionLayerBaseHeader*> OpenXRLayerProjection::endFrame(const PlatformXR::DeviceLayer& layer, XrSpace space, const Vector<XrView>& frameViews)
 {
+    ASSERT(m_swapchain->acquiredTexture());
+
 #if OS(ANDROID) || USE(GBM)
     if (needsBlitTexture()) {
         if (!m_fbosForBlitting[0])
@@ -499,10 +501,7 @@ std::optional<PlatformXR::FrameData::LayerData> OpenXRQuadLayer::startFrame()
 
 Vector<XrCompositionLayerBaseHeader*> OpenXRQuadLayer::endFrame(const PlatformXR::DeviceLayer& layer, XrSpace space, const Vector<XrView>& frameViews)
 {
-    if (!m_swapchain->acquiredTexture()) {
-        LOG_ERROR("OpenXRQuadLayer::endFrame called without a valid acquired texture");
-        return { };
-    }
+    ASSERT(m_swapchain->acquiredTexture());
 
 #if OS(ANDROID) || USE(GBM)
     if (needsBlitTexture()) {
@@ -633,10 +632,7 @@ std::optional<PlatformXR::FrameData::LayerData> OpenXREquirectLayer::startFrame(
 
 Vector<XrCompositionLayerBaseHeader*> OpenXREquirectLayer::endFrame(const PlatformXR::DeviceLayer& layer, XrSpace space, const Vector<XrView>& frameViews)
 {
-    if (!m_swapchain->acquiredTexture()) {
-        LOG_ERROR("OpenXREquirectLayer::endFrame called without a valid acquired texture");
-        return { };
-    }
+    ASSERT(m_swapchain->acquiredTexture());
 
 #if OS(ANDROID) || USE(GBM)
     if (needsBlitTexture()) {

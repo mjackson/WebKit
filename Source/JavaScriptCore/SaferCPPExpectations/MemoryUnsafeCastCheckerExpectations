@@ -44,7 +44,6 @@ inspector/JSJavaScriptCallFrame.cpp
 inspector/agents/InspectorDebuggerAgent.cpp
 interpreter/CallFrame.cpp
 interpreter/CallFrame.h
-interpreter/CallFrameInlines.h
 interpreter/Interpreter.cpp
 jit/JITOperations.cpp
 jit/JITThunks.cpp

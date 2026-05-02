@@ -34,7 +34,6 @@
 #if ENABLE(MEDIA_STREAM)
 
 #include "Document.h"
-#include "EventTargetInlines.h"
 #include "LocalFrameInlines.h"
 #include "MediaDevices.h"
 #include "Navigator.h"

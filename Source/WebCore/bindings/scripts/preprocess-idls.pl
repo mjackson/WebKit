@@ -206,7 +206,7 @@ my @constructors = ();
 my $constructorsHeaderCode = <<END;
 #include <wtf/FastMalloc.h>
 #include <wtf/Noncopyable.h>
-#include <JavaScriptCore/JSCInlines.h>
+#include <JavaScriptCore/WriteBarrier.h>
 
 #pragma once
 

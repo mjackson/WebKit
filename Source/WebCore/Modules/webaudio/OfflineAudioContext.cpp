@@ -33,7 +33,6 @@
 #include "AudioNodeOutput.h"
 #include "AudioUtilities.h"
 #include "Document.h"
-#include "EventTargetInlines.h"
 #include "JSAudioBuffer.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMPromiseDeferred.h"

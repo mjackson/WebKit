@@ -28,6 +28,7 @@
 
 #if ENABLE(WEB_AUTHN)
 
+#include "AbortSignal.h"
 #include "Chrome.h"
 #include "CredentialRequestCoordinator.h"
 #include "CredentialRequestOptions.h"
@@ -39,6 +40,7 @@
 #include "IDLTypes.h"
 #include "JSDOMConvertDictionary.h"
 #include "JSDOMConvertJSON.h"
+#include "JSDOMPromiseDeferred.h"
 #include "LocalDOMWindow.h"
 #include "LocalFrame.h"
 #include "MediationRequirement.h"

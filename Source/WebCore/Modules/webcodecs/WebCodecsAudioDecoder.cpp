@@ -31,7 +31,6 @@
 
 #include "ContextDestructionObserverInlines.h"
 #include "DOMException.h"
-#include "EventTargetInlines.h"
 #include "ExceptionOr.h"
 #include "JSDOMConvertDictionary.h"
 #include "JSDOMPromiseDeferred.h"

@@ -25,6 +25,7 @@
 
 use warnings;
 use English;
+use Cwd qw(abs_path);
 use File::Basename qw(dirname);
 use File::Copy qw(copy);
 use File::Path qw(make_path remove_tree);
@@ -80,7 +81,8 @@ sub readInputFileList()
     my @files;
     while (my $line = <$fh>) {
         chomp $line;
-        push @files, $line;
+        my $resolved = abs_path($line);
+        push @files, ($resolved ? $resolved : $line);
     }
     close($fh);
     return @files;
@@ -89,6 +91,7 @@ sub readInputFileList()
 sub copyFilesFromList($$\@)
 {
     my ($sourcePrefix, $destRoot, $fileListRef) = @_;
+    $sourcePrefix = abs_path($sourcePrefix) || $sourcePrefix;
     $sourcePrefix .= '/' unless $sourcePrefix =~ /\/$/;
     for my $file (@$fileListRef) {
         next unless index($file, $sourcePrefix) == 0;

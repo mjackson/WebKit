@@ -28,7 +28,6 @@
 
 #if ENABLE(WEBXR_LAYERS)
 
-#include "EventTargetInlines.h"
 #include "Logging.h"
 #include "WebXRRigidTransform.h"
 #include "WebXRSession.h"

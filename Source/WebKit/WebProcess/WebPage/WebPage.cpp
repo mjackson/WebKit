@@ -289,6 +289,7 @@
 #include <WebCore/PlatformKeyboardEvent.h>
 #include <WebCore/PlatformMediaSessionManager.h>
 #include <WebCore/PlatformMouseEvent.h>
+#include <WebCore/PlatformRenderTheme.h>
 #include <WebCore/PlatformStrategies.h>
 #include <WebCore/PluginDocument.h>
 #include <WebCore/PointerCaptureController.h>
@@ -308,7 +309,6 @@
 #include <WebCore/RenderImage.h>
 #include <WebCore/RenderLayer.h>
 #include <WebCore/RenderLayerCompositor.h>
-#include <WebCore/RenderTheme.h>
 #include <WebCore/RenderTreeAsText.h>
 #include <WebCore/RenderVideoInlines.h>
 #include <WebCore/RenderView.h>
@@ -5144,6 +5144,8 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
     WebProcess::singleton().updateSharedPreferencesForWebProcess(WebKit::sharedPreferencesForWebProcess(store, WebProcess::singleton().isLockdownModeEnabled()));
 
     protect(corePage())->settingsDidChange();
+
+    store.logNonDefaultValues();
 }
 
 #if ENABLE(DATA_DETECTION)

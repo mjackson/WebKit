@@ -246,9 +246,6 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(WebMParser::AudioTrackData);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebMParser::TrackData);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebMParser::VideoTrackData);
 
-// FIXME: Remove this once kCMVideoCodecType_VP9 is added to CMFormatDescription.h
-constexpr CMVideoCodecType kCMVideoCodecType_VP9 { 'vp09' };
-
 constexpr uint32_t k_us_in_seconds = 1000000000;
 
 static bool NODELETE isWebmParserAvailable()

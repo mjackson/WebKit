@@ -144,7 +144,7 @@ static void webContentFilterTypeDidChange(CFNotificationCenterRef, void*, CFStri
 #endif
 }
 
-static void registerNotificationForWebContentFilterTypeChange()
+UNUSED_FUNCTION static void registerNotificationForWebContentFilterTypeChange()
 {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
@@ -174,8 +174,7 @@ bool ParentalControlsURLFilter::isEnabled() const
 #if PLATFORM(MAC)
     // FIXME: This can be removed after rdar://159207397 is fixed.
     return isEnabledImpl();
-#endif
-
+#else
     if (!m_isEnabled) {
         m_isEnabled = isEnabledImpl();
         RELEASE_LOG(ContentFiltering, "%p - ParentalControlsURLFilter::isEnabled %d", this, *m_isEnabled);
@@ -184,6 +183,7 @@ bool ParentalControlsURLFilter::isEnabled() const
     registerNotificationForWebContentFilterTypeChange();
 
     return *m_isEnabled;
+#endif
 }
 
 void ParentalControlsURLFilter::isURLAllowed(IsMainFrameLoad isMainFrame, const URL& mainDocumentURL, const URL& url, ParentalControlsContentFilter& filter)

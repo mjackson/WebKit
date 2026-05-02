@@ -11875,44 +11875,62 @@ void SpeculativeJIT::emitNewTypedArrayWithSizeInRegister(Node* node, TypedArrayT
     
     move(TrustedImmPtr(nullptr), storageGPR);
 
+    std::optional<size_t> constantByteSize;
+    if (node->child1()->isInt32Constant()) {
+        int32_t length = node->child1()->asInt32();
+        if (length >= 0 && static_cast<size_t>(length) <= JSArrayBufferView::fastSizeLimit)
+            constantByteSize = WTF::roundUpToMultipleOf<8>(static_cast<size_t>(length) << logElementSize(typedArrayType));
+    }
+
+    if (constantByteSize)
+        move(TrustedImm32(*constantByteSize), scratchGPR);
+    else {
 #if USE(LARGE_TYPED_ARRAYS)
-    slowCases.append(branch64(
-        Above, sizeGPR, TrustedImm64(JSArrayBufferView::fastSizeLimit)));
-    // We assume through the rest of the fast path that the size is a 32-bit number.
-    static_assert(isInBounds<int32_t>(JSArrayBufferView::fastSizeLimit));
+        slowCases.append(branch64(
+            Above, sizeGPR, TrustedImm64(JSArrayBufferView::fastSizeLimit)));
+        // We assume through the rest of the fast path that the size is a 32-bit number.
+        static_assert(isInBounds<int32_t>(JSArrayBufferView::fastSizeLimit));
 #else
-    slowCases.append(branch32(
-        Above, sizeGPR, TrustedImm32(JSArrayBufferView::fastSizeLimit)));
+        slowCases.append(branch32(
+            Above, sizeGPR, TrustedImm32(JSArrayBufferView::fastSizeLimit)));
 #endif
-    
-    lshift32(sizeGPR, TrustedImm32(logElementSize(typedArrayType)), scratchGPR);
-    if (elementSize(typedArrayType) < 8) {
-        add32(TrustedImm32(7), scratchGPR);
-        and32(TrustedImm32(~7), scratchGPR);
+        lshift32(sizeGPR, TrustedImm32(logElementSize(typedArrayType)), scratchGPR);
+        if (elementSize(typedArrayType) < 8) {
+            add32(TrustedImm32(7), scratchGPR);
+            and32(TrustedImm32(~7), scratchGPR);
+        }
     }
     emitAllocateVariableSized(
         storageGPR, vm().primitiveGigacageAuxiliarySpace(), scratchGPR, scratchGPR,
         scratchGPR2, slowCases);
     
-    Jump done = branchTest32(Zero, sizeGPR);
-    move(sizeGPR, scratchGPR);
-    if (elementSize(typedArrayType) != 4) {
-        if (elementSize(typedArrayType) > 4)
-            lshift32(TrustedImm32(logElementSize(typedArrayType) - 2), scratchGPR);
-        else {
-            if (elementSize(typedArrayType) > 1)
-                lshift32(TrustedImm32(logElementSize(typedArrayType)), scratchGPR);
-            add32(TrustedImm32(3), scratchGPR);
-            urshift32(TrustedImm32(2), scratchGPR);
+#if USE(JSVALUE64)
+    constexpr unsigned zeroFillUnrollWordLimit = 16;
+    if (constantByteSize && *constantByteSize / sizeof(UCPURegister) <= zeroFillUnrollWordLimit)
+        emitFillStorageWithJSEmpty(storageGPR, 0, *constantByteSize / sizeof(UCPURegister), scratchGPR);
+    else
+#endif
+    {
+        Jump done = branchTest32(Zero, sizeGPR);
+        move(sizeGPR, scratchGPR);
+        if (elementSize(typedArrayType) != 4) {
+            if (elementSize(typedArrayType) > 4)
+                lshift32(TrustedImm32(logElementSize(typedArrayType) - 2), scratchGPR);
+            else {
+                if (elementSize(typedArrayType) > 1)
+                    lshift32(TrustedImm32(logElementSize(typedArrayType)), scratchGPR);
+                add32(TrustedImm32(3), scratchGPR);
+                urshift32(TrustedImm32(2), scratchGPR);
+            }
         }
+        Label loop = label();
+        sub32(TrustedImm32(1), scratchGPR);
+        store32(
+            TrustedImm32(0),
+            BaseIndex(storageGPR, scratchGPR, TimesFour));
+        branchTest32(NonZero, scratchGPR).linkTo(loop, this);
+        done.link(this);
     }
-    Label loop = label();
-    sub32(TrustedImm32(1), scratchGPR);
-    store32(
-        TrustedImm32(0),
-        BaseIndex(storageGPR, scratchGPR, TimesFour));
-    branchTest32(NonZero, scratchGPR).linkTo(loop, this);
-    done.link(this);
 
     auto butterfly = TrustedImmPtr(nullptr);
     switch (typedArrayType) {

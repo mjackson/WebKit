@@ -959,9 +959,8 @@ macro loadStoreMakePointerSlow(cursor, wasmAddrReg, size, scratch, scratch2, dec
 .memoryIsNotZero:
     mulp constexpr (sizeof(JSWebAssemblyInstance::WasmMemoryBaseAndSize)), scratch
     # FIXME: it's probably worth trying to use a loadpair here, but that requires a separate x86 codepath
-    loadp (constexpr (JSWebAssemblyInstance::offsetOfCachedMemoryBaseSizePair(0) + sizeof(void*))) [wasmInstance, scratch], scratch2 # bounds checking size
-    subp size - 1, scratch2 # wasmAddrReg + (size-1) >= scratch2 is equivalent to wasmAddrReg >= scratch2 - (size-1)
-    bpaeq wasmAddrReg, scratch2, _ipint_throw_OutOfBoundsMemoryAccess
+    loadp (constexpr (JSWebAssemblyInstance::offsetOfCachedMemoryBaseSizePair(0) + sizeof(void*))) [wasmInstance, scratch], decodeScratch1 # bounds checking size
+    bpaeq scratch2, decodeScratch1, _ipint_throw_OutOfBoundsMemoryAccess # scratch2 contains wasm address + size - 1
     loadp (constexpr (JSWebAssemblyInstance::offsetOfCachedMemoryBaseSizePair(0))) [wasmInstance, scratch], scratch2 # memory base
     addp scratch2, wasmAddrReg
 .done:

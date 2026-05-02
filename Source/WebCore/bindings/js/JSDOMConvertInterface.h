@@ -26,7 +26,8 @@
 #pragma once
 
 #include <JavaScriptCore/Error.h>
-#include <JavaScriptCore/JSGlobalObjectInlines.h>
+#include <JavaScriptCore/GetVM.h>
+#include <JavaScriptCore/JSGlobalObject.h>
 #include <WebCore/IDLTypes.h>
 #include <WebCore/JSDOMConvertBase.h>
 #include <WebCore/JSDOMGlobalObject.h>
@@ -159,7 +160,7 @@ template<typename T> struct VariadicConverter<IDLInterface<T>> {
 
     static std::optional<Item> convert(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue value)
     {
-        auto& vm = lexicalGlobalObject.vm();
+        auto& vm = JSC::getVM(&lexicalGlobalObject);
         auto scope = DECLARE_THROW_SCOPE(vm);
 
         auto result = WebCore::convert<IDLInterface<T>>(lexicalGlobalObject, value);

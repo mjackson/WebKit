@@ -146,13 +146,6 @@ ALWAYS_INLINE void JSCell::visitOutputConstraintsImpl(JSCell*, Visitor&)
 
 DEFINE_VISIT_OUTPUT_CONSTRAINTS_WITH_MODIFIER(inline, JSCell);
 
-ALWAYS_INLINE VM& CallFrame::deprecatedVM() const
-{
-    JSCell* callee = this->callee().asCell();
-    ASSERT(callee);
-    return callee->vm();
-}
-
 template<typename Type>
 inline Allocator allocatorForConcurrently(VM& vm, size_t allocationSize, AllocatorForMode mode)
 {

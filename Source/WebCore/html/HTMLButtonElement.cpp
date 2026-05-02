@@ -31,7 +31,6 @@
 #include "DOMFormData.h"
 #include "ElementInlines.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "HTMLFormElement.h"
 #include "HTMLNames.h"
 #include "HTMLSelectElement.h"

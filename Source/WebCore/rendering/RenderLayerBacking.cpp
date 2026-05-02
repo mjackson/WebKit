@@ -107,7 +107,7 @@
 #endif
 
 #if PLATFORM(IOS_FAMILY)
-#include <wtf/RuntimeApplicationChecks.h>
+#include <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 #endif
 
 #if PLATFORM(MAC)

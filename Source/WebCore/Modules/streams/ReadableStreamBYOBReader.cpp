@@ -27,6 +27,7 @@
 #include "ReadableStreamBYOBReader.h"
 
 #include "JSDOMConvertAny.h"
+#include "JSDOMGlobalObject.h"
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSReadableStreamBYOBReader.h"
@@ -34,9 +35,9 @@
 #include "ReadableStream.h"
 #include "ReadableStreamReadRequest.h"
 #include "WebCoreOpaqueRootInlines.h"
-#include <wtf/TZoneMallocInlines.h>
 #include <JavaScriptCore/ArrayBuffer.h>
 #include <JavaScriptCore/ArrayBufferView.h>
+#include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
 

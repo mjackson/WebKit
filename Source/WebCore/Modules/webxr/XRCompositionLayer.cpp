@@ -28,7 +28,6 @@
 
 #if ENABLE(WEBXR_LAYERS)
 
-#include "EventTargetInlines.h"
 #include "WebGLOpaqueTexture.h"
 #include "WebXRSession.h"
 #include "XRLayerBacking.h"
@@ -56,6 +55,11 @@ WebXRSession* XRCompositionLayer::session() const
 XRLayerBacking& XRCompositionLayer::backing()
 {
     return m_backing;
+}
+
+PlatformXR::LayerHandle XRCompositionLayer::layerHandle() const
+{
+    return m_backing->handle();
 }
 
 void XRCompositionLayer::setColorTextures(Vector<RefPtr<WebGLOpaqueTexture>>&& colorTextures)

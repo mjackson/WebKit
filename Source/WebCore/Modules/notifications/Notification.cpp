@@ -42,7 +42,6 @@
 #include "DocumentSecurityOrigin.h"
 #include "Event.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "FrameDestructionObserverInlines.h"
 #include "JSDOMConvertEnumeration.h"
 #include "JSDOMConvertStrings.h"

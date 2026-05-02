@@ -73,6 +73,10 @@ extension WKWebViewConfiguration {
         if let processPool = wrapped.processPool {
             self.processPool = processPool
         }
+
+        #if os(macOS)
+        self._requiresUserActionForEditingControlsManager = wrapped.requiresUserActionForEditingControlsManager
+        #endif
     }
 }
 

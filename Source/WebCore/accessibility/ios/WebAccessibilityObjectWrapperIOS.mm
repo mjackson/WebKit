@@ -35,12 +35,14 @@
 #import "AXObjectCacheInlines.h"
 #import "AXSearchManager.h"
 #import "AXUtilities.h"
+#import "AccessibilityObjectInlines.h"
 #import "AccessibilityRenderObject.h"
 #import "AccessibilityScrollView.h"
 #import "Chrome.h"
 #import "ChromeClient.h"
 #import "CocoaAccessibilityConstants.h"
 #import "FontCascade.h"
+#import "FrameDestructionObserverInlines.h"
 #import "FrameSelection.h"
 #import "HTMLFrameOwnerElement.h"
 #import "HTMLInputElement.h"
@@ -49,9 +51,11 @@
 #import "HitTestResult.h"
 #import "IntRect.h"
 #import "LocalFrame.h"
+#import "LocalFrameInlines.h"
 #import "LocalizedStrings.h"
 #import "Page.h"
 #import "Range.h"
+#import "RenderObjectDocument.h"
 #import "RenderView.h"
 #import "SVGElementInlines.h"
 #import "SVGNames.h"
@@ -68,6 +72,7 @@
 #import <wtf/HashFunctions.h>
 #import <wtf/RuntimeApplicationChecks.h>
 #import <wtf/SoftLinking.h>
+#import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 #import <wtf/cocoa/VectorCocoa.h>
 
 #if ENABLE(MODEL_ELEMENT_ACCESSIBILITY)
@@ -76,6 +81,7 @@
 
 #if ENABLE(SPATIAL_IMAGE_CONTROLS)
 #import "HTMLImageElement.h"
+#import "LocalFrameView.h"
 #import "SpatialImageControls.h"
 #import <pal/ios/UIKitSoftLink.h>
 #endif
@@ -1784,7 +1790,6 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
     return YES;
 }
 
-
 - (BOOL)accessibilityScroll:(UIAccessibilityScrollDirection)direction
 {
     if (![self _prepareAccessibilityCall])
@@ -2426,7 +2431,6 @@ static RenderObject* rendererForView(WAKView* view)
     auto range = makeSimpleRange([startMarker visiblePosition], [endMarker visiblePosition]);
     return range ? self.axBackingObject->contentForRange(*range).autorelease() : nil;
 }
-
 
 // This method is intended to take a text marker representing a VisiblePosition and convert it
 // into a normalized location within the document.

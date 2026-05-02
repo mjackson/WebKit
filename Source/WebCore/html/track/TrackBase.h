@@ -36,8 +36,10 @@
 
 namespace WebCore {
 
+class Document;
 class SourceBuffer;
 class TrackListBase;
+class WeakPtrImplWithEventTargetData;
 class TrackPrivateBase;
 class TrackPrivateBaseClient;
 using TrackID = uint64_t;

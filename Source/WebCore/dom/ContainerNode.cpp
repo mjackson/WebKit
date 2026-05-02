@@ -51,7 +51,6 @@
 #include "LabelsNodeList.h"
 #include "LocalFrameView.h"
 #include "MutationEvent.h"
-#include "NodeInlines.h"
 #include "NodeRareData.h"
 #include "NodeRenderStyle.h"
 #include "RadioNodeList.h"
@@ -72,6 +71,7 @@
 #include "TemplateContentDocumentFragment.h"
 #include <algorithm>
 #include <wtf/TZoneMallocInlines.h>
+#include "AsyncNodeDeletionQueueInlines.h"
 
 namespace WebCore {
 

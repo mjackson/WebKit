@@ -22,6 +22,7 @@
 #include "JSTestCallbackWithFunctionOrDict.h"
 
 #include "ContextDestructionObserverInlines.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConvertBase.h"
 #include "JSDOMConvertCallbacks.h"
 #include "JSDOMConvertDictionary.h"
@@ -31,7 +32,6 @@
 #include "JSTestCallbackFunction.h"
 #include "JSTestDictionary.h"
 #include "ScriptExecutionContext.h"
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/MarkedVector.h>
 #include <wtf/Variant.h>
 

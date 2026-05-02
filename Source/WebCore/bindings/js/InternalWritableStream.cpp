@@ -33,6 +33,7 @@
 #include <JavaScriptCore/JSArrayBufferViewInlines.h>
 #include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSObjectInlines.h>
+#include <JavaScriptCore/TopExceptionScope.h>
 
 namespace WebCore {
 

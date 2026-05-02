@@ -50,6 +50,7 @@
 #import <wtf/SoftLinking.h>
 
 #if PLATFORM(IOS)
+#include "EventTarget.h"
 #include <pal/system/ios/UserInterfaceIdiom.h>
 #endif
 

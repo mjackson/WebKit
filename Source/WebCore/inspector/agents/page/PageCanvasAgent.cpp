@@ -44,7 +44,6 @@
 #include "InstrumentingAgents.h"
 #include "LocalFrame.h"
 #include "NodeDocument.h"
-#include "NodeInlines.h"
 #include <wtf/TZoneMallocInlines.h>
 
 #if ENABLE(OFFSCREEN_CANVAS)

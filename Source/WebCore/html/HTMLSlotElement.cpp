@@ -29,7 +29,6 @@
 #include "AXObjectCache.h"
 #include "ElementInlines.h"
 #include "Event.h"
-#include "EventTargetInlines.h"
 #include "EventNames.h"
 #include "HTMLNames.h"
 #include "InspectorInstrumentation.h"

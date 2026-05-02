@@ -1514,7 +1514,6 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::WheelScrollGestureState': ['<WebCore/PlatformWheelEvent.h>'],
         'WebCore::WillContinueLoading': ['<WebCore/FrameLoaderTypes.h>'],
         'WebCore::WillInternallyHandleFailure': ['<WebCore/FrameLoaderTypes.h>'],
-        'WebCore::WindowProxyProperty': ['<WebCore/FrameLoaderTypes.h>'],
         'WebCore::WebTransportStreamIdentifier': ['"WebTransportSession.h"'],
         'WebCore::WebTransportSendGroupIdentifier': ['<WebCore/WebTransportSendGroup.h>'],
         'WebKit::ActivityStateChangeID': ['"DrawingAreaInfo.h"'],

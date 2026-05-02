@@ -87,10 +87,10 @@
 #import <WebCore/NowPlayingInfo.h>
 #import <WebCore/NullPlaybackSessionInterface.h>
 #import <WebCore/PlatformPlaybackSessionInterface.h>
+#import <WebCore/PlatformRenderTheme.h>
 #import <WebCore/PlaybackSessionInterfaceAVKitLegacy.h>
 #import <WebCore/PlaybackSessionInterfaceMac.h>
 #import <WebCore/PlaybackSessionInterfaceTVOS.h>
-#import <WebCore/RenderTheme.h>
 #import <WebCore/RunLoopObserver.h>
 #import <WebCore/SearchPopupMenuCocoa.h>
 #import <WebCore/SleepDisabler.h>

@@ -45,7 +45,6 @@
 #include "EventDispatcher.h"
 #include "EventHandler.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "FrameInlines.h"
 #include "HTMLAreaElement.h"
 #include "HTMLBodyElement.h"

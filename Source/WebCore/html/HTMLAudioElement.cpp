@@ -30,6 +30,7 @@
 #include "HTMLAudioElement.h"
 
 #include "CommonAtomStrings.h"
+#include "EventTarget.h"
 #include "HTMLNames.h"
 #include <wtf/TZoneMallocInlines.h>
 

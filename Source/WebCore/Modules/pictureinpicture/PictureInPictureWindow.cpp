@@ -32,7 +32,6 @@
 #include "ContextDestructionObserverInlines.h"
 #include "Event.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {

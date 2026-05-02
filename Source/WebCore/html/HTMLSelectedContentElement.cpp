@@ -31,6 +31,7 @@
 #include "HTMLNames.h"
 #include "HTMLOptionElement.h"
 #include "HTMLSelectElement.h"
+#include "Settings.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {

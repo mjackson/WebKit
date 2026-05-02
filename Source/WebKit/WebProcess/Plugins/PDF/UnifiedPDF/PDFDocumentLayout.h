@@ -111,6 +111,9 @@ public:
     void setDisplayMode(PDFDisplayMode displayMode) { m_displayMode = displayMode; }
     PDFDisplayMode displayMode() const { return m_displayMode; }
 
+    void setShouldLeftAlignTrailingTwoUpPage(bool value) { m_shouldLeftAlignTrailingTwoUpPage = value; }
+    bool shouldLeftAlignTrailingTwoUpPage() const { return m_shouldLeftAlignTrailingTwoUpPage; }
+
     bool isSinglePageDisplayMode() const { return isSinglePagePDFDisplayMode(m_displayMode); }
     bool isTwoUpDisplayMode() const { return isTwoUpPDFDisplayMode(m_displayMode); }
 
@@ -146,6 +149,7 @@ private:
     WebCore::FloatRect m_documentBounds;
     float m_scale { 1 };
     PDFDisplayMode m_displayMode { PDFDisplayMode::SinglePageContinuous };
+    bool m_shouldLeftAlignTrailingTwoUpPage { false };
 };
 
 struct PDFLayoutRow {

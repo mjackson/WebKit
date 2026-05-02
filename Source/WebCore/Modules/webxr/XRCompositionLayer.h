@@ -77,6 +77,7 @@ public:
     void setIsStatic(bool isStatic) { m_isStatic = isStatic; }
 
     XRLayerBacking& backing();
+    PlatformXR::LayerHandle layerHandle() const final;
     WebXRSession* session() const;
 
     void destroy() { }

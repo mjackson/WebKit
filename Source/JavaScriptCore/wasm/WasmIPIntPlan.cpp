@@ -55,11 +55,11 @@ IPIntPlan::IPIntPlan(VM& vm, Vector<uint8_t>&& source, CompilerMode compilerMode
         prepare();
 }
 
-IPIntPlan::IPIntPlan(VM& vm, Ref<ModuleInformation> info, const Ref<IPIntCallee>* callees, CompletionTask&& task)
+IPIntPlan::IPIntPlan(VM& vm, Ref<ModuleInformation> info, Ref<IPIntCallees> callees, CompletionTask&& task)
     : Base(vm, WTF::move(info), CompilerMode::FullCompile, WTF::move(task))
-    , m_callees(callees)
+    , m_ipintCallees(WTF::move(callees))
+    , m_calleesAlreadyRegistered(true)
 {
-    ASSERT(m_callees || !m_moduleInformation->functions.size());
     m_areWasmToJSStubsCompiled = true;
     prepare();
     m_currentIndex = m_moduleInformation->functions.size();
@@ -83,11 +83,8 @@ bool IPIntPlan::prepareImpl()
         return false;
     m_entrypoints.resize(functions.size());
 
-    if (!m_callees) {
-        if (!tryReserveCapacity(m_calleesVector, functions.size(), " WebAssembly functions"_s))
-            return false;
-        m_calleesVector.resize(functions.size());
-    }
+    if (!m_ipintCallees)
+        m_ipintCallees = IPIntCallees::create(functions.size());
     return true;
 }
 
@@ -95,9 +92,9 @@ void IPIntPlan::compileFunction(FunctionCodeIndex functionIndex)
 {
     const auto& function = m_moduleInformation->functions[functionIndex];
     TypeSignatureIndex typeSignatureIndex = m_moduleInformation->internalFunctionTypeSignatureIndices[functionIndex];
-    const TypeDefinition& signature = m_moduleInformation->expandedTypeSignature(typeSignatureIndex);
+    const RTT& signature = m_moduleInformation->rtt(typeSignatureIndex);
     auto functionIndexSpace = m_moduleInformation->toSpaceIndex(functionIndex);
-    ASSERT_UNUSED(functionIndexSpace, m_moduleInformation->typeIndexFromFunctionIndexSpace(functionIndexSpace) == m_moduleInformation->typeIndexFromTypeSignatureIndex(typeSignatureIndex));
+    ASSERT_UNUSED(functionIndexSpace, &m_moduleInformation->rtt(functionIndexSpace) == &m_moduleInformation->rtt(typeSignatureIndex));
 
     beginCompilerSignpost(CompilationMode::IPIntMode, functionIndexSpace);
     m_unlinkedWasmToWasmCalls[functionIndex] = Vector<UnlinkedWasmToWasmCall>();
@@ -128,7 +125,7 @@ void IPIntPlan::compileFunction(FunctionCodeIndex functionIndex)
     m_wasmInternalFunctions[functionIndex] = WTF::move(*parseAndCompileResult);
 
     IPIntCallee* ipintCallee = nullptr;
-    if (!m_callees) {
+    {
         auto callee = IPIntCallee::create(*m_wasmInternalFunctions[functionIndex], functionIndexSpace, m_moduleInformation->nameSection->get(functionIndexSpace));
         ASSERT(!callee->entrypoint());
         bool usesSIMD = m_moduleInformation->usesSIMD(functionIndex);
@@ -152,9 +149,8 @@ void IPIntPlan::compileFunction(FunctionCodeIndex functionIndex)
 
         callee->setEntrypointWithoutRegistration(entrypoint);
         ipintCallee = callee.ptr();
-        m_calleesVector[functionIndex] = WTF::move(callee);
-    } else
-        ipintCallee = m_callees[functionIndex].ptr();
+        m_ipintCallees->at(functionIndex) = WTF::move(callee);
+    }
 
     // If the function is exported via module, then we ensure JSToWasm entrypoint.
     if (m_compilerMode != CompilerMode::Validation) {
@@ -174,7 +170,7 @@ bool IPIntPlan::ensureEntrypoint(IPIntCallee&, FunctionCodeIndex functionIndex)
     if (m_entrypoints[functionIndex])
         return true;
 
-    m_entrypoints[functionIndex] = JSToWasmCallee::create(m_moduleInformation->typeIndexFromTypeSignatureIndex(m_moduleInformation->internalFunctionTypeSignatureIndices[functionIndex]), m_moduleInformation->usesSIMD(functionIndex));
+    m_entrypoints[functionIndex] = JSToWasmCallee::create(Ref { m_moduleInformation->rtt(m_moduleInformation->internalFunctionTypeSignatureIndices[functionIndex]) }, m_moduleInformation->usesSIMD(functionIndex));
     return true;
 }
 
@@ -183,9 +179,8 @@ void IPIntPlan::didCompleteCompilation()
     generateStubsIfNecessary();
 
     unsigned functionCount = m_wasmInternalFunctions.size();
-    if (!m_callees && functionCount) {
-        m_callees = m_calleesVector.span().data();
-        NativeCalleeRegistry::singleton().registerCallees(m_calleesVector);
+    if (!m_calleesAlreadyRegistered && functionCount) {
+        NativeCalleeRegistry::singleton().registerCallees(*m_ipintCallees);
         if (!m_moduleInformation->clobberingTailCalls().isEmpty())
             computeTransitiveTailCalls();
     }
@@ -197,14 +192,14 @@ void IPIntPlan::didCompleteCompilation()
         if (!m_entrypoints[functionIndex]) {
             const FunctionSpaceIndex functionIndexSpace = FunctionSpaceIndex(functionIndex + m_moduleInformation->importFunctionCount());
             if (m_exportedFunctionIndices.contains(functionIndex) || m_moduleInformation->hasReferencedFunction(functionIndexSpace)) {
-                if (!ensureEntrypoint(m_callees[functionIndex].get(), FunctionCodeIndex(functionIndex))) {
+                if (!ensureEntrypoint(m_ipintCallees->at(functionIndex).get(), FunctionCodeIndex(functionIndex))) {
                     Base::fail(makeString("JIT is disabled, but the entrypoint for "_s, functionIndex, " requires JIT"_s));
                     return;
                 }
             }
         }
         if (auto& callee = m_entrypoints[functionIndex]) {
-            callee->setWasmCallee(CalleeBits::encodeNativeCallee(&m_callees[functionIndex].get()));
+            callee->setWasmCallee(CalleeBits::encodeNativeCallee(&m_ipintCallees->at(functionIndex).get()));
             m_jsToWasmCallees.add(functionIndex, callee);
         }
     }
@@ -217,7 +212,7 @@ void IPIntPlan::didCompleteCompilation()
                 // https://bugs.webkit.org/show_bug.cgi?id=166462
                 executableAddress = m_wasmToWasmExitStubs.at(call.functionIndexSpace).code();
             } else
-                executableAddress = m_callees[call.functionIndexSpace - m_moduleInformation->importFunctionCount()]->entrypoint();
+                executableAddress = m_ipintCallees->at(call.functionIndexSpace - m_moduleInformation->importFunctionCount())->entrypoint();
             MacroAssembler::repatchNearCall(call.callLocation, CodeLocationLabel<WasmEntryPtrTag>(executableAddress));
         }
     }

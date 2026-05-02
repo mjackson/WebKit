@@ -43,7 +43,6 @@
 #include "HTMLParserIdioms.h"
 #include "LocalFrame.h"
 #include "MouseEvent.h"
-#include "NodeInlines.h"
 #include "RenderBoxInlines.h"
 #include "RenderFlexibleBox.h"
 #include "RenderObjectInlines.h"
@@ -541,6 +540,11 @@ void SliderThumbElement::registerForTouchEvents()
 
     document().addTouchEventHandler(*this);
     m_isRegisteredAsTouchEventListener = true;
+}
+
+void SliderThumbElement::unregisterForTouchEvents()
+{
+    unregisterForTouchEvents(EventHandlerRemovalReason::Other);
 }
 
 void SliderThumbElement::unregisterForTouchEvents(EventHandlerRemovalReason reason)

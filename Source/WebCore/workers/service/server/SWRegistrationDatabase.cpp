@@ -26,6 +26,7 @@
 #include "config.h"
 #include "SWRegistrationDatabase.h"
 
+#include "ClientOrigin.h"
 #include "ContentSecurityPolicyResponseHeaders.h"
 #include "CrossOriginEmbedderPolicy.h"
 #include "Logging.h"

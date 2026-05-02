@@ -38,6 +38,7 @@
 #include "RenderStyle+GettersInlines.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "TableFormattingState.h"
+#include "LayoutBoxInlines.h"
 
 namespace WebCore {
 namespace Layout {

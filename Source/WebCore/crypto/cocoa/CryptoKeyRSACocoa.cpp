@@ -31,6 +31,7 @@
 #include "CryptoAlgorithmRegistry.h"
 #include "CryptoKeyPair.h"
 #include "CryptoKeyRSAComponents.h"
+#include "ExceptionOr.h"
 #include "ScriptExecutionContext.h"
 #include <JavaScriptCore/GenericTypedArrayViewInlines.h>
 #include <JavaScriptCore/HeapInlines.h>

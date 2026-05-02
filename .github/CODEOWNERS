@@ -52,6 +52,7 @@
 AllowedSPI*.toml @emw-apple
 
 /Tools/TestWebKitAPI
+/Tools/TestWebKitAPI/Tests/WebKit @rr-codes
 /Tools/TestWebKitAPI/Tests/WebKitGLib/ @WebKit/glib-reviewers
 /Tools/TestWebKitAPI/Tests/WebKitGtk/ @WebKit/glib-reviewers
 /Tools/TestWebKitAPI/WebKitGLib/ @WebKit/glib-reviewers
@@ -194,7 +195,12 @@ AllowedSPI*.toml @emw-apple
 # ================================================================================
 # Xcode
 
-*.xcconfig @emw-apple
+*.xcconfig @emw-apple @rr-codes
+
+# ================================================================================
+# Module Map
+
+*.modulemap @rr-codes
 
 # ================================================================================
 # Swift

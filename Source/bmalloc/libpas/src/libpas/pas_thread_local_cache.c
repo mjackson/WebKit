@@ -45,7 +45,9 @@
 #include "pas_thread_suspend_lock.h"
 #include "pas_thread_suspender.h"
 #include "pas_zero_memory.h"
-#if !PAS_OS(WINDOWS)
+#if PAS_OS(WINDOWS)
+#include <windows.h>
+#else
 #include <unistd.h>
 #endif
 #if PAS_OS(DARWIN)
@@ -185,6 +187,51 @@ static void destructor(void* arg)
             pas_log("[%d] Repeated destructor call for TLS %p\n", getpid(), thread_local_cache);
     }
 }
+
+#if PAS_OS(WINDOWS)
+
+/* Windows teardown of the thread-local cache runs from a static TLS callback
+   registered in the .CRT$XLB segment. Unlike FLS destructors, this fires
+   deterministically during DLL_THREAD_DETACH on the exiting thread.
+   Force the linker to emit the PE TLS directory (via _tls_used) and retain our
+   callback pointer through /OPT:REF. The leading-underscore decoration differs
+   between x86 and x64. */
+
+#ifdef _WIN64
+#pragma comment(linker, "/INCLUDE:_tls_used")
+#pragma comment(linker, "/INCLUDE:pas_tls_callback_func")
+#else
+#pragma comment(linker, "/INCLUDE:__tls_used")
+#pragma comment(linker, "/INCLUDE:_pas_tls_callback_func")
+#endif
+
+static void NTAPI pas_tls_on_thread_exit(PVOID handle, DWORD reason, PVOID reserved)
+{
+    PAS_UNUSED_PARAM(handle);
+    PAS_UNUSED_PARAM(reserved);
+
+    if (reason != DLL_THREAD_DETACH && reason != DLL_PROCESS_DETACH)
+        return;
+
+    void* value = pas_thread_local_cache_pointer;
+    if (!value)
+        return;
+
+    destructor(value);
+}
+
+#ifdef _WIN64
+#pragma const_seg(push, ".CRT$XLB")
+extern const PIMAGE_TLS_CALLBACK pas_tls_callback_func;
+const PIMAGE_TLS_CALLBACK pas_tls_callback_func = pas_tls_on_thread_exit;
+#pragma const_seg(pop)
+#else
+#pragma data_seg(push, ".CRT$XLB")
+PIMAGE_TLS_CALLBACK pas_tls_callback_func = pas_tls_on_thread_exit;
+#pragma data_seg(pop)
+#endif
+
+#endif /* PAS_OS(WINDOWS) */
 
 static pas_thread_local_cache* allocate_cache(unsigned allocator_index_capacity)
 {

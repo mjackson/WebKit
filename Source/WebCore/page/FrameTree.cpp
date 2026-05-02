@@ -23,6 +23,7 @@
 
 #include "Document.h"
 #include "DocumentPage.h"
+#include "DocumentView.h"
 #include "FrameInlines.h"
 #include "FrameLoader.h"
 #include "HTMLFrameOwnerElement.h"
@@ -35,6 +36,7 @@
 #include <wtf/Vector.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
+#include "LocalFrameViewInlines.h"
 
 namespace WebCore {
 

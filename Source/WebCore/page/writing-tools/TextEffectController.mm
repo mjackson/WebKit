@@ -32,8 +32,11 @@
 #import "ChromeClient.h"
 #import "Document.h"
 #import "DocumentMarkerController.h"
+#import "DocumentMarkers.h"
 #import "FocusController.h"
+#import "LocalFrameInlines.h"
 #import "Page.h"
+#import "RenderedDocumentMarker.h"
 #import "SimpleRange.h"
 #import "TextIndicator.h"
 #import <WebCore/WritingDirection.h>

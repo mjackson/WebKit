@@ -28,6 +28,7 @@
 
 #if ENABLE(VIDEO)
 
+#include "EventTarget.h"
 #include "HTMLVideoElement.h"
 #include "IntersectionObserver.h"
 #include "IntersectionObserverCallback.h"

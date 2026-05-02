@@ -299,7 +299,12 @@ TEST(WKInspectorExtension, ExtensionTabIsPersistent)
     TestWebKitAPI::Util::run(&pendingCallbackWasCalled);
 }
 
+// FIXME when webkit.org/b/313860 is resolved.
+#if PLATFORM(MAC)
+TEST(WKInspectorExtension, DISABLED_EvaluateScriptInExtensionTabCanReturnPromises)
+#else
 TEST(WKInspectorExtension, EvaluateScriptInExtensionTabCanReturnPromises)
+#endif
 {
     resetGlobalState();
 

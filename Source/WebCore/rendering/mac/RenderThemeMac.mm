@@ -90,6 +90,7 @@
 
 #if ENABLE(SERVICE_CONTROLS)
 #include "ImageControlsMac.h"
+#include "Page.h"
 #endif
 
 @interface WebCoreRenderThemeNotificationObserver : NSObject
@@ -130,6 +131,8 @@
 @end
 
 namespace WebCore {
+
+constexpr CGFloat attachmentIconSelectionBorderThickness = 1;
 
 using namespace CSS::Literals;
 using namespace HTMLNames;

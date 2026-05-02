@@ -31,7 +31,6 @@
 
 #include "BitmapImage.h"
 #include "ContextDestructionObserverInlines.h"
-#include "EventTargetInlines.h"
 #include "GraphicsContext.h"
 #include "NotificationResources.h"
 #include "ResourceRequest.h"

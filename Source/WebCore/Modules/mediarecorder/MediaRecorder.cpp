@@ -35,7 +35,6 @@
 #include "Document.h"
 #include "DocumentPage.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "MediaRecorderErrorEvent.h"
 #include "MediaRecorderPrivate.h"
 #include "Page.h"

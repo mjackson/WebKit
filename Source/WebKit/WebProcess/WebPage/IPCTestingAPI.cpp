@@ -2522,7 +2522,7 @@ static JSC::JSObject* jsResultFromReplyDecoder(JSC::JSGlobalObject* globalObject
     }
 
     auto catchScope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
-    JSC::JSObject* jsResult = constructEmptyObject(globalObject, globalObject->objectPrototype());
+    JSC::JSObject* jsResult = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype());
     RETURN_IF_EXCEPTION(catchScope, nullptr);
 
     jsResult->putDirect(vm, vm.propertyNames->arguments, *jsReplyArguments);
@@ -2773,7 +2773,7 @@ JSValueRef JSIPC::serializedTypeInfo(JSContextRef context, JSObjectRef thisObjec
     JSC::JSLockHolder lock(vm);
     auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
-    JSC::JSObject* object = constructEmptyObject(globalObject, globalObject->objectPrototype());
+    JSC::JSObject* object = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype());
     RETURN_IF_EXCEPTION(scope, JSValueMakeUndefined(context));
 
     for (auto& type : allSerializedTypes()) {
@@ -2781,7 +2781,7 @@ JSValueRef JSIPC::serializedTypeInfo(JSContextRef context, JSObjectRef thisObjec
         RETURN_IF_EXCEPTION(scope, JSValueMakeUndefined(context));
 
         for (size_t i = 0; i < type.members.size(); i++) {
-            JSC::JSObject* entry = constructEmptyObject(globalObject, globalObject->objectPrototype());
+            JSC::JSObject* entry = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype());
             RETURN_IF_EXCEPTION(scope, JSValueMakeUndefined(context));
 
             entry->putDirect(vm, JSC::Identifier::fromString(vm, "type"_s), JSC::jsString(vm, String(type.members[i].type)));
@@ -2808,11 +2808,11 @@ JSValueRef JSIPC::serializedEnumInfo(JSContextRef context, JSObjectRef thisObjec
     JSC::JSLockHolder lock(vm);
     auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
-    JSC::JSObject* object = constructEmptyObject(globalObject, globalObject->objectPrototype());
+    JSC::JSObject* object = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype());
     RETURN_IF_EXCEPTION(scope, JSValueMakeUndefined(context));
 
     for (auto& enumeration : allSerializedEnums()) {
-        JSC::JSObject* enumObject = constructEmptyObject(globalObject, globalObject->objectPrototype());
+        JSC::JSObject* enumObject = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype());
         RETURN_IF_EXCEPTION(scope, JSValueMakeUndefined(context));
 
         // Create validValues array for backward compatibility
@@ -2831,7 +2831,7 @@ JSValueRef JSIPC::serializedEnumInfo(JSContextRef context, JSObjectRef thisObjec
         RETURN_IF_EXCEPTION(scope, JSValueMakeUndefined(context));
         for (size_t i = 0; i < enumeration.valueMap.size(); i++) {
             auto& valueInfo = enumeration.valueMap[i];
-            JSC::JSObject* valueObject = constructEmptyObject(globalObject, globalObject->objectPrototype());
+            JSC::JSObject* valueObject = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype());
             RETURN_IF_EXCEPTION(scope, JSValueMakeUndefined(context));
 
             valueObject->putDirect(vm, JSC::Identifier::fromString(vm, "value"_s), JSC::jsNumber(valueInfo.value));
@@ -2968,7 +2968,7 @@ static JSC::JSValue createJSArrayForArgumentDescriptions(JSC::JSGlobalObject* gl
 
     for (unsigned argumentIndex = 0; argumentIndex < argumentDescriptions->size(); ++argumentIndex) {
         auto& description = argumentDescriptions->at(argumentIndex);
-        JSC::JSObject* jsDescriptions = constructEmptyObject(globalObject, globalObject->objectPrototype());
+        JSC::JSObject* jsDescriptions = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype());
         RETURN_IF_EXCEPTION(scope, JSC::jsTDZValue());
 
         argumentsArray->putDirectIndex(globalObject, argumentIndex, jsDescriptions);
@@ -2996,7 +2996,7 @@ JSValueRef JSIPC::messages(JSContextRef context, JSObjectRef thisObject, JSStrin
     }
 
     auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
-    JSC::JSObject* messagesObject = constructEmptyObject(globalObject, globalObject->objectPrototype());
+    JSC::JSObject* messagesObject = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype());
     RETURN_IF_EXCEPTION(scope, JSValueMakeUndefined(context));
 
     auto nameIdent = JSC::Identifier::fromString(vm, "name"_s);
@@ -3008,7 +3008,7 @@ JSValueRef JSIPC::messages(JSContextRef context, JSObjectRef thisObject, JSStrin
     for (unsigned i = 0; i < static_cast<unsigned>(IPC::MessageName::Last); ++i) {
         auto name = static_cast<IPC::MessageName>(i);
 
-        JSC::JSObject* dictionary = constructEmptyObject(globalObject, globalObject->objectPrototype());
+        JSC::JSObject* dictionary = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype());
         RETURN_IF_EXCEPTION(scope, JSValueMakeUndefined(context));
 
         dictionary->putDirect(vm, nameIdent, JSC::JSValue(i));
@@ -3142,7 +3142,7 @@ JSC::JSObject* JSMessageListener::jsDescriptionFromDecoder(JSC::JSGlobalObject* 
     auto& vm = globalObject->vm();
     auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
-    auto* jsResult = constructEmptyObject(globalObject, globalObject->objectPrototype());
+    auto* jsResult = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype());
     RETURN_IF_EXCEPTION(scope, nullptr);
 
     jsResult->putDirect(vm, JSC::Identifier::fromString(vm, "name"_s), JSC::JSValue(static_cast<unsigned>(decoder.messageName())));

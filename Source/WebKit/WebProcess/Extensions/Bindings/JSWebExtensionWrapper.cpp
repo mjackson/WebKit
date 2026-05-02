@@ -34,6 +34,7 @@
 #include "WebPage.h"
 #include <JavaScriptCore/APICast.h>
 #include <JavaScriptCore/JSCJSValuePropertyInlines.h>
+#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSClassRef.h>
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/JSObjectRef.h>

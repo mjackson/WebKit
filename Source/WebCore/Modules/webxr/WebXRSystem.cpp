@@ -34,7 +34,6 @@
 #include "ContextDestructionObserverInlines.h"
 #include "DocumentPage.h"
 #include "DocumentSecurityOrigin.h"
-#include "EventTargetInlines.h"
 #include "IDLTypes.h"
 #include "JSDOMConvertBoolean.h"
 #include "JSDOMConvertInterface.h"

@@ -29,7 +29,6 @@
 #include "LocalFrame.h"
 #include "LocalFrameInlines.h"
 #include "FrameDestructionObserverInlines.h"
-#include "NodeInlines.h"
 #include "RemoteFrame.h"
 #include "RemoteFrameClient.h"
 #include "RenderWidget.h"

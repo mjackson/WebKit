@@ -66,6 +66,7 @@
 #include "MouseEvent.h"
 #include "NodeName.h"
 #include "NodeRareData.h"
+#include "PlatformRenderTheme.h"
 #include "PseudoClassChangeInvalidation.h"
 #include "RenderListBox.h"
 #include "RenderMenuList.h"

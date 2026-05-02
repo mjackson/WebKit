@@ -26,7 +26,6 @@
 #pragma once
 
 #include "Gate.h"
-#include "Opcode.h"
 #include "OptionsList.h"
 #include "SecureARM64EHashPins.h"
 #include "StopTheWorldCallback.h"
@@ -115,8 +114,9 @@ struct Config {
     StopTheWorldCallback JSC_CONFIG_METHOD(jsDebuggerStopTheWorld);
 #endif
 
+    static constexpr unsigned exceptionInstructionsSize = 64;
     struct {
-        uint8_t exceptionInstructions[maxBytecodeStructLength + 1];
+        uint8_t exceptionInstructions[exceptionInstructionsSize];
         const void* gateMap[numberOfGates];
     } llint;
 

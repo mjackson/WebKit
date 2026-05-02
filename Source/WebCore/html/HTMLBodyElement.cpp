@@ -35,7 +35,6 @@
 #include "JSHTMLBodyElement.h"
 #include "LocalDOMWindow.h"
 #include "MutableStyleProperties.h"
-#include "NodeInlines.h"
 #include "NodeName.h"
 #include "ResourceLoaderOptions.h"
 #include <wtf/NeverDestroyed.h>

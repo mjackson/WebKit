@@ -86,6 +86,8 @@
 #include "config.h"
 #include <wtf/Threading.h>
 
+#include <bmalloc/BPlatform.h>
+#include <bmalloc/pas_process.h>
 #include <errno.h>
 #include <process.h>
 #include <windows.h>
@@ -281,12 +283,9 @@ void Thread::establishPlatformSpecificHandle(HANDLE handle, ThreadIdentifier thr
 struct Thread::ThreadHolder {
     ~ThreadHolder()
     {
-        // The thread_local object of the main thread is destructed
-        // after Windows terminates other threads. If the terminated
-        // thread was holding a mutex, trying to lock the mutex causes
-        // deadlock.
-        if (isMainThread())
+        if (pas_process_is_shutting_down())
             return;
+
         if (thread) {
             thread->m_clientData = nullptr;
             thread->specificStorage().destroySlots();

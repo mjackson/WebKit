@@ -37,7 +37,7 @@
 #include "LocalFrame.h"
 #include "LocalFrameView.h"
 #include "LocalizedStrings.h"
-#include "NodeInlines.h"
+#include "PlatformRenderTheme.h"
 #include "RenderBlockFlowInlines.h"
 #include "RenderBoxInlines.h"
 #include "RenderBoxModelObjectInlines.h"

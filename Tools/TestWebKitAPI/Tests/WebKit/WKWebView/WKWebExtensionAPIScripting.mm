@@ -51,6 +51,25 @@ static auto *scriptingManifest = @{
     },
 };
 
+static auto *scriptingActionManifest = @{
+    @"manifest_version": @3,
+
+    @"name": @"Scripting Test",
+    @"description": @"Scripting Test",
+    @"version": @"1",
+
+    @"permissions": @[ @"scripting" ],
+    @"host_permissions": @[ @"*://localhost/*" ],
+
+    @"background": @{
+        @"scripts": @[ @"background.js" ],
+        @"type": @"module",
+        @"persistent": @NO,
+    },
+
+    @"action": @{ },
+};
+
 static auto *changeBackgroundColorScript = @"document.body.style.background = 'pink'";
 static auto *changeBackgroundFontScript = @"document.body.style.fontSize = '555px'";
 
@@ -404,6 +423,79 @@ TEST(WKWebExtensionAPIScripting, ExecuteScriptWithDocumentIds)
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:server.requestWithLocalhost("/frame.html"_s).URL];
 
     [manager runUntilTestMessage:@"Load Tab"];
+
+    [manager.get().defaultTab.webView loadRequest:server.requestWithLocalhost()];
+
+    [manager run];
+}
+
+TEST(WKWebExtensionAPIScripting, ExecuteScriptWithUserGesture)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    auto *backgroundScript = Util::constructScript(@[
+        @"browser.action.setPopup({ popup: '' })",
+
+        @"browser.action.onClicked.addListener(async (tab) => {",
+        @"  browser.test.assertTrue(navigator.userActivation.isActive, 'User gesture should be active at the scripting.executeScript call site')",
+
+        @"  function checkUserGesture() { return navigator.userActivation.isActive }",
+
+        @"  const results = await browser.test.assertSafeResolve(() => browser.scripting.executeScript({",
+        @"    target: { tabId: tab.id },",
+        @"    func: checkUserGesture",
+        @"  }))",
+
+        @"  browser.test.assertTrue(results?.[0]?.result, 'Injected script should run with an active user gesture when executeScript is called from a user action')",
+
+        @"  browser.test.notifyPass()",
+        @"})",
+
+        @"browser.test.sendMessage('Background Ready')"
+    ]);
+
+    auto manager = Util::loadExtension(scriptingActionManifest, @{ @"background.js": backgroundScript });
+
+    [manager.get().defaultTab.webView loadRequest:server.requestWithLocalhost()];
+
+    [manager runUntilTestMessage:@"Background Ready"];
+
+    [manager.get().context performActionForTab:manager.get().defaultTab];
+
+    [manager run];
+}
+
+TEST(WKWebExtensionAPIScripting, ExecuteScriptWithoutUserGesture)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    auto *backgroundScript = Util::constructScript(@[
+        @"browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {",
+        @"  if (changeInfo.status !== 'complete')",
+        @"    return",
+
+        @"  function checkUserGesture() { return navigator.userActivation.isActive }",
+
+        @"  const results = await browser.test.assertSafeResolve(() => browser.scripting.executeScript({",
+        @"    target: { tabId },",
+        @"    func: checkUserGesture",
+        @"  }))",
+
+        @"  browser.test.assertFalse(results?.[0]?.result, 'Injected script should not have an active user gesture when executeScript is called without a prior user action')",
+
+        @"  browser.test.notifyPass()",
+        @"})",
+
+        @"browser.test.sendMessage('Background Ready')"
+    ]);
+
+    auto manager = Util::loadExtension(scriptingActionManifest, @{ @"background.js": backgroundScript });
+
+    [manager runUntilTestMessage:@"Background Ready"];
 
     [manager.get().defaultTab.webView loadRequest:server.requestWithLocalhost()];
 

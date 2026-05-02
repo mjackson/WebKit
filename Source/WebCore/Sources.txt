@@ -693,6 +693,7 @@ bindings/js/JSCanvasRenderingContext2DCustom.cpp
 bindings/js/JSCustomElementInterface.cpp
 bindings/js/JSCustomElementRegistryCustom.cpp
 bindings/js/JSCustomEventCustom.cpp
+bindings/js/JSDOMBindingFacade.cpp @no-unify
 bindings/js/JSDOMBindingSecurity.cpp
 bindings/js/JSDOMBuiltinConstructorBase.cpp
 bindings/js/JSDOMConstructorBase.cpp

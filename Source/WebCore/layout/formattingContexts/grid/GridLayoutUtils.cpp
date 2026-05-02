@@ -28,6 +28,7 @@
 
 #include "GridFormattingContext.h"
 #include "LayoutIntegrationUtils.h"
+#include "NotImplemented.h"
 #include "PlacedGridItem.h"
 #include "RenderStyle+GettersInlines.h"
 #include "TrackSizingAlgorithm.h"
@@ -38,8 +39,6 @@
 namespace WebCore {
 namespace Layout {
 namespace GridLayoutUtils {
-
-
 
 LayoutUnit totalGuttersSize(size_t tracksCount, LayoutUnit gapsSize)
 {

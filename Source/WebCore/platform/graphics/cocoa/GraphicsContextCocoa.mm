@@ -148,14 +148,6 @@ void GraphicsContextCG::drawFocusRing(const Vector<FloatRect>& rects, float outl
     drawFocusRing(path, outlineWidth, color, zoomFactor);
 }
 
-static inline void setPatternPhaseInUserSpace(CGContextRef context, CGPoint phasePoint)
-{
-    CGAffineTransform userToBase = getUserToBaseCTM(context);
-    CGPoint phase = CGPointApplyAffineTransform(phasePoint, userToBase);
-
-    CGContextSetPatternPhase(context, CGSizeMake(phase.x, phase.y));
-}
-
 static inline void drawDotsForDocumentMarker(CGContextRef context, const FloatRect& rect, DocumentMarkerLineStyle style)
 {
     // We want to find the number of full dots, so we're solving the equations:

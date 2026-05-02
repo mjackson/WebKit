@@ -30,6 +30,7 @@
 #include "CSSValueKeywords.h"
 #include "HTMLOptionElement.h"
 #include "HTMLSelectElement.h"
+#include "PlatformRenderTheme.h"
 #include "RenderSelectFallbackButton.h"
 #include "RenderStyle+SettersInlines.h"
 #include "RenderTheme.h"

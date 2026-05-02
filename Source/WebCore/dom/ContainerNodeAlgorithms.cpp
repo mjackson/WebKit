@@ -32,7 +32,6 @@
 #include "HTMLFrameOwnerElement.h"
 #include "HTMLTextAreaElement.h"
 #include "InspectorInstrumentation.h"
-#include "NodeInlines.h"
 #include "ScriptDisallowedScope.h"
 #include "ShadowRoot.h"
 #include "TypedElementDescendantIteratorInlines.h"

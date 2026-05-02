@@ -303,7 +303,6 @@ add_compile_options(
     "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-objc-duplicate-category-definition>"
 )
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-cast-align>")
-add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-undefined-inline>")
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-nonportable-include-path>")
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-unused-parameter>")
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-missing-field-initializers>")

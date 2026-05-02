@@ -74,9 +74,9 @@ RenderPtr<RenderElement> MathMLRowElement::createElementRenderer(RenderStyle&& s
     return createRenderer<RenderMathMLRow>(RenderObject::Type::MathMLRow, *this, WTF::move(style));
 }
 
-bool MathMLRowElement::acceptsMathVariantAttribute()
+bool MathMLRowElement::acceptsLegacyMathVariantAttribute()
 {
-    return hasTagName(mstyleTag);
+    return !document().settings().coreMathMLDeprecateLegacyMathvariant() && hasTagName(mstyleTag);
 }
 
 }

@@ -32,6 +32,7 @@
 #import <Foundation/NSProcessInfo.h>
 #import <wtf/MainThread.h>
 #import <wtf/TZoneMallocInlines.h>
+#import <wtf/WeakPtr.h>
 
 namespace WebCore {
 static bool isThermalMitigationEnabled()

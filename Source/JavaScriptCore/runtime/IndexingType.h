@@ -25,13 +25,14 @@
 
 #pragma once
 
-#include "Options.h"
-#include "SpeculatedType.h"
 #include <cstdint>
+#include <wtf/Forward.h>
 #include <wtf/LockAlgorithm.h>
 #include <wtf/StdLibExtras.h>
 
 namespace JSC {
+
+class JSValue;
 
 /*
     Structure of the IndexingType
@@ -216,8 +217,6 @@ inline IndexingType indexingTypeForValue(JSValue); // Defined in IndexingTypeInl
 // Return an indexing type that can handle all of the elements of both indexing types.
 IndexingType leastUpperBoundOfIndexingTypes(IndexingType, IndexingType);
 
-bool NODELETE isProvenValidTypeForIndexingShapeStorage(IndexingType, SpeculatedType);
-IndexingType NODELETE leastUpperBoundOfIndexingTypeAndTypeForSpeculation(IndexingType, SpeculatedType);
 IndexingType leastUpperBoundOfIndexingTypeAndValue(IndexingType, JSValue);
 
 void dumpIndexingType(PrintStream&, IndexingType);

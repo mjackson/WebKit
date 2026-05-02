@@ -27,6 +27,7 @@
 #include "ExtendedDOMIsoSubspaces.h"
 #include "JSDOMAttribute.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMGlobalObjectInlines.h"
@@ -37,11 +38,8 @@
 #include "ServiceWorkerGlobalScope.h"
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -88,7 +86,7 @@ template<> void JSServiceWorkerGlobalScopeDOMConstructor::initializeProperties(V
     JSString* nameString = jsNontrivialString(vm, "ServiceWorkerGlobalScope"_s);
     m_originalName.set(vm, this, nameString);
     putDirect(vm, vm.propertyNames->name, nameString, JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->prototype, globalObject.getPrototypeDirect(), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::DontDelete);
+    putDirect(vm, vm.propertyNames->prototype, WebCore::storedPrototype(globalObject.structure(), &globalObject), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::DontDelete);
 }
 
 /* Hash table for prototype */
@@ -108,14 +106,14 @@ const ClassInfo JSServiceWorkerGlobalScopePrototype::s_info = { "ServiceWorkerGl
 
 JSC::Structure* JSServiceWorkerGlobalScopePrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSServiceWorkerGlobalScopePrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSServiceWorkerGlobalScope::info(), JSServiceWorkerGlobalScopePrototypeTableValues, *this);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSServiceWorkerGlobalScope::s_info = { "ServiceWorkerGlobalScope"_s, &Base::s_info, &JSServiceWorkerGlobalScopeTable, nullptr, CREATE_METHOD_TABLE(JSServiceWorkerGlobalScope) };

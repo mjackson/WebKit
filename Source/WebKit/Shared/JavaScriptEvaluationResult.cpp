@@ -37,6 +37,7 @@
 #include "WKSharedAPICast.h"
 #include "WebFrame.h"
 #include <JavaScriptCore/JSCJSValuePropertyInlines.h>
+#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/OpaqueJSString.h>
 #include <WebCore/DOMWrapperWorld.h>
 #include <WebCore/Document.h>

@@ -437,7 +437,14 @@ FloatRect PDFDocumentLayout::layoutRow(const PDFLayoutRow& row, FloatSize maxRow
     case 1: {
         auto pageIndex = row.pages[0];
         auto pageBounds = m_pageGeometry[pageIndex].layoutBounds;
-        auto pageLeft = documentMargin.width() + std::max<float>(std::floor((maxRowSize.width() - pageBounds.width()) / 2), 0);
+
+        float pageLeft;
+        if (m_shouldLeftAlignTrailingTwoUpPage && isTwoUpDisplayMode()) {
+            float horizontalSpace = maxRowSize.width() - pageBounds.width() - pageBounds.width() - pageMargin.width();
+            pageLeft = std::floor(documentMargin.width() + std::max<float>(horizontalSpace / 2, 0));
+        } else
+            pageLeft = documentMargin.width() + std::max<float>(std::floor((maxRowSize.width() - pageBounds.width()) / 2), 0);
+
         auto pageTop = rowTop;
 
         if (centerVertically == CenterRowVertically::Yes)

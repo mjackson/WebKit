@@ -34,6 +34,7 @@
 #import "Event.h"
 #import "EventListener.h"
 #import "EventNames.h"
+#import "EventTarget.h"
 #import "ExceptionOr.h"
 #import "HTMLVideoElement.h"
 #import "LocalDOMWindow.h"

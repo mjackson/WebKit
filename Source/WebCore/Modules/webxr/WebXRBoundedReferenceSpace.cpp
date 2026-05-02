@@ -30,7 +30,6 @@
 
 #include "DOMPointReadOnly.h"
 #include "Document.h"
-#include "EventTargetInlines.h"
 #include "Exception.h"
 #include "ExceptionOr.h"
 #include "ScriptWrappableInlines.h"

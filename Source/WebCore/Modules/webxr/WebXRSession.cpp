@@ -33,7 +33,6 @@
 #include "DOMPointReadOnly.h"
 #include "DocumentPage.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSWebXRHitTestSource.h"
@@ -585,9 +584,19 @@ void WebXRSession::applyPendingRenderState()
         m_activeRenderState->setOutputCanvas(nullptr);
     }
 
-    m_requestData = { {
+    m_requestData = {
         .isPassthroughFullyObscured = m_activeRenderState->passthroughFullyObscured().value_or(false),
-        .depthRange = PlatformXR::DepthRange { static_cast<float>(m_activeRenderState->depthNear()), static_cast<float>(m_activeRenderState->depthFar()) } }}; // NOLINT
+        .depthRange = PlatformXR::DepthRange { static_cast<float>(m_activeRenderState->depthNear()), static_cast<float>(m_activeRenderState->depthFar()) },
+        .activeLayerHandles = { }
+    };
+
+    if (RefPtr baseLayer = m_activeRenderState->baseLayer()) {
+        if (baseLayer->isCompositionEnabled())
+            m_requestData->activeLayerHandles.append(baseLayer->layerHandle());
+    } else {
+        for (Ref layer : m_activeRenderState->layers())
+            m_requestData->activeLayerHandles.append(layer->layerHandle());
+    }
 }
 
 void WebXRSession::minimalUpdateRendering()

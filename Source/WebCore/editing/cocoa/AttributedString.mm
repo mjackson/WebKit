@@ -473,15 +473,6 @@ static std::optional<AttributedString::AttributeValue> extractArray(NSArray *arr
     return std::nullopt;
 }
 
-inline static Vector<AttributedString::TextListID> extractListIDs(NSParagraphStyle *style, ListToIdentifierMap& listIDs)
-{
-    return makeVector(retainPtr(style.textLists).get(), [&](NSTextList *list) {
-        return std::optional { listIDs.ensure(list, [] {
-            return AttributedString::TextListID::generate();
-        }).iterator->value };
-    });
-}
-
 inline static ParagraphStyleAlignment NODELETE extractParagraphStyleAlignment(NSTextAlignment alignment)
 {
     switch (alignment) {

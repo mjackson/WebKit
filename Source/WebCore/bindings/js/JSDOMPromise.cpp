@@ -29,6 +29,7 @@
 #include "JSDOMGlobalObject.h"
 #include "LocalDOMWindow.h"
 #include <JavaScriptCore/BuiltinNames.h>
+#include <JavaScriptCore/CallFrameInlines.h>
 #include <JavaScriptCore/Exception.h>
 #include <JavaScriptCore/JSBoundFunction.h>
 #include <JavaScriptCore/JSNativeStdFunction.h>

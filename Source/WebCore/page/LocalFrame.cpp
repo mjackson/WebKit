@@ -131,6 +131,7 @@
 #include "markup.h"
 #include "runtime_root.h"
 #include <JavaScriptCore/APICast.h>
+#include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/RegularExpression.h>
 #include <wtf/HexNumber.h>
 #include <wtf/StdLibExtras.h>
@@ -375,10 +376,6 @@ void LocalFrame::setDocument(RefPtr<Document>&& newDocument)
     }
 
     InspectorInstrumentation::frameDocumentUpdated(*this);
-
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-    m_accessedWindowProxyPropertiesViaOpener = { };
-#endif
 
     m_documentIsBeingReplaced = false;
 }
@@ -1360,39 +1357,6 @@ bool LocalFrame::requestSkipUserActivationCheckForStorageAccess(const Registrabl
     m_storageAccessExceptionDomains->remove(iter);
     return true;
 }
-
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-
-void LocalFrame::didAccessWindowProxyPropertyViaOpener(WindowProxyProperty property)
-{
-    // FIXME: until we support restricted openers, report all property accesses as "other" to reduce
-    // the number of events logged.
-    property = WindowProxyProperty::Other;
-
-    if (m_accessedWindowProxyPropertiesViaOpener.contains(property))
-        return;
-
-    auto origin = SecurityOriginData::fromLocalFrame(this);
-    if (origin.isNull() || origin.isOpaque())
-        return;
-
-    if (!opener() || !opener()->page())
-        return;
-
-    auto openerMainFrameOrigin = opener()->page()->mainFrameOrigin().data();
-    if (openerMainFrameOrigin.isNull() || openerMainFrameOrigin.isOpaque())
-        return;
-
-    auto site = RegistrableDomain(origin);
-    auto openerMainFrameSite = RegistrableDomain(openerMainFrameOrigin);
-    if (site == openerMainFrameSite)
-        return;
-
-    m_accessedWindowProxyPropertiesViaOpener.add(property);
-    loader().client().didAccessWindowProxyPropertyViaOpener(WTF::move(openerMainFrameOrigin), property);
-}
-
-#endif
 
 String LocalFrame::customUserAgent() const
 {

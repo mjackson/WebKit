@@ -157,7 +157,7 @@ protected:
     StringImplShape(uint32_t refCount, std::span<const char16_t>, unsigned hashAndFlags);
 
     enum ConstructWithConstExprTag { ConstructWithConstExpr };
-    template<unsigned characterCount> constexpr StringImplShape(uint32_t refCount, unsigned length, const char (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag);
+    constexpr StringImplShape(uint32_t refCount, ASCIILiteral, unsigned hashAndFlags, ConstructWithConstExprTag);
     template<unsigned characterCount> constexpr StringImplShape(uint32_t refCount, unsigned length, const char16_t (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag);
 
     std::atomic<uint32_t> m_refCount;
@@ -419,7 +419,7 @@ public:
         //       StringImpl::hash() only sets a new hash iff !hasHash().
         //       Additionally, StringImpl::setHash() asserts hasHash() and !isStatic().
 
-        template<unsigned characterCount> explicit constexpr StaticStringImpl(const char (&characters)[characterCount], StringKind = StringNormal);
+        explicit constexpr StaticStringImpl(ASCIILiteral, StringKind = StringNormal);
         template<unsigned characterCount> explicit constexpr StaticStringImpl(const char16_t (&characters)[characterCount], StringKind = StringNormal);
         operator StringImpl&();
         operator const StringImpl&() const;
@@ -894,13 +894,13 @@ inline StringImplShape::StringImplShape(uint32_t refCount, std::span<const char1
     RELEASE_ASSERT(data.size() <= MaxLength);
 }
 
-template<unsigned characterCount> constexpr StringImplShape::StringImplShape(uint32_t refCount, unsigned length, const char (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag)
+constexpr StringImplShape::StringImplShape(uint32_t refCount, ASCIILiteral literal, unsigned hashAndFlags, ConstructWithConstExprTag)
     : m_refCount(refCount)
-    , m_length(length)
-    , m_data8Char(characters)
+    , m_length(literal.length())
+    , m_data8Char(literal.characters())
     , m_hashAndFlags(hashAndFlags)
 {
-    RELEASE_ASSERT(length <= MaxLength);
+    RELEASE_ASSERT(m_length <= MaxLength);
 }
 
 template<unsigned characterCount> constexpr StringImplShape::StringImplShape(uint32_t refCount, unsigned length, const char16_t (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag)
@@ -1306,9 +1306,9 @@ inline void StringImpl::assertHashIsCorrect() const
     ASSERT(existingHash() == StringHasher::computeHashAndMaskTop8Bits(span8()));
 }
 
-template<unsigned characterCount> constexpr StringImpl::StaticStringImpl::StaticStringImpl(const char (&characters)[characterCount], StringKind stringKind)
-    : StringImplShape(s_refCountFlagIsStaticString, characterCount - 1, characters,
-        s_hashFlag8BitBuffer | s_hashFlagDidReportCost | stringKind | BufferInternal | (StringHasher::computeLiteralHashAndMaskTop8Bits(characters) << s_flagCount), ConstructWithConstExpr)
+constexpr StringImpl::StaticStringImpl::StaticStringImpl(ASCIILiteral literal, StringKind stringKind)
+    : StringImplShape(s_refCountFlagIsStaticString, literal,
+        s_hashFlag8BitBuffer | s_hashFlagDidReportCost | stringKind | BufferInternal | (StringHasher::computeLiteralHashAndMaskTop8Bits(literal) << s_flagCount), ConstructWithConstExpr)
 {
 }
 

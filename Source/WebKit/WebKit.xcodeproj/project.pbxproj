@@ -5493,6 +5493,8 @@
 		3A05FCDC2C8909D3005EF8CB /* APIWebPushDaemonConnection.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = APIWebPushDaemonConnection.cpp; sourceTree = "<group>"; };
 		3A05FCDD2C8909D3005EF8CB /* APIWebPushMessage.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = APIWebPushMessage.h; sourceTree = "<group>"; };
 		3A05FCDE2C8909D3005EF8CB /* APIWebPushSubscriptionData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = APIWebPushSubscriptionData.h; sourceTree = "<group>"; };
+		3A068FF32F98A6AC0038FAC7 /* WKXRControllerManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKXRControllerManager.mm; sourceTree = "<group>"; };
+		3A068FF42F98A6AC0038FAC7 /* WKXRTrackingManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKXRTrackingManager.mm; sourceTree = "<group>"; };
 		3A18A2EE2AFF004C00DB976C /* _WKArchiveConfiguration.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = _WKArchiveConfiguration.h; sourceTree = "<group>"; };
 		3A18A2F02AFF006C00DB976C /* _WKArchiveConfiguration.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = _WKArchiveConfiguration.mm; sourceTree = "<group>"; };
 		3A18A2F22B02969800DB976C /* _WKArchiveExclusionRule.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = _WKArchiveExclusionRule.mm; sourceTree = "<group>"; };
@@ -5502,6 +5504,8 @@
 		3A4DC9C92E9463AE0083A531 /* LegacyWebArchiveCallbackAggregator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LegacyWebArchiveCallbackAggregator.h; sourceTree = "<group>"; };
 		3A5B68962AC266D400B11868 /* WKARPresentationSession.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKARPresentationSession.h; sourceTree = "<group>"; };
 		3A5B68972AC266D400B11868 /* WKARPresentationSession.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKARPresentationSession.mm; sourceTree = "<group>"; };
+		3A7111642F986C4000AD199B /* WKXRControllerManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKXRControllerManager.h; sourceTree = "<group>"; };
+		3A7111662F986F0000AD199B /* WKXRTrackingManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKXRTrackingManager.h; sourceTree = "<group>"; };
 		3A7D62D229D35D9D00D57DAC /* WebSWRegistrationStore.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WebSWRegistrationStore.cpp; sourceTree = "<group>"; };
 		3A7D62D329D38DD300D57DAC /* ServiceWorkerStorageManager.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ServiceWorkerStorageManager.cpp; sourceTree = "<group>"; };
 		3A7D62D429D38DD300D57DAC /* ServiceWorkerStorageManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ServiceWorkerStorageManager.h; sourceTree = "<group>"; };
@@ -5511,6 +5515,11 @@
 		3AA50E2C28D37F8700D024E4 /* ProcessAssertionCocoa.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ProcessAssertionCocoa.mm; sourceTree = "<group>"; };
 		3AA994092B0B15CD00253533 /* WKExtrinsicButton.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKExtrinsicButton.h; sourceTree = "<group>"; };
 		3AA9940A2B0B15CE00253533 /* WKExtrinsicButton.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKExtrinsicButton.mm; sourceTree = "<group>"; };
+		3ABF16BA2F983FE200267B72 /* PlatformXRCompositor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PlatformXRCompositor.h; sourceTree = "<group>"; };
+		3ABF16BB2F983FE200267B72 /* PlatformXRCompositor.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PlatformXRCompositor.mm; sourceTree = "<group>"; };
+		3ABF16C82F984F0000267B72 /* PlatformXRSystemXROS.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PlatformXRSystemXROS.mm; sourceTree = "<group>"; };
+		3ABF16CA2F984F0000267B72 /* WKSpatialGestureRecognizer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKSpatialGestureRecognizer.h; sourceTree = "<group>"; };
+		3ABF16CC2F984F0000267B72 /* WKSpatialGestureRecognizer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKSpatialGestureRecognizer.mm; sourceTree = "<group>"; };
 		3AC4C04529D35D1500402716 /* WebSWRegistrationStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebSWRegistrationStore.h; sourceTree = "<group>"; };
 		3AC6E5242A1C59AE0059F092 /* RemoteGraphicsContextGLInitializationState.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteGraphicsContextGLInitializationState.h; sourceTree = "<group>"; };
 		3AE104BD29CBC8BA00661165 /* OriginQuotaManager.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = OriginQuotaManager.cpp; sourceTree = "<group>"; };
@@ -6322,8 +6331,6 @@
 		52D5A1B31C5749F200DE34A3 /* VideoPresentationManager.messages.in */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = VideoPresentationManager.messages.in; sourceTree = "<group>"; };
 		52D5A1B41C5749F200DE34A3 /* VideoPresentationManager.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = VideoPresentationManager.mm; sourceTree = "<group>"; };
 		52E6057F2B17ECCE0069D2C2 /* AuthenticationServicesForwardDeclarations.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AuthenticationServicesForwardDeclarations.h; sourceTree = "<group>"; };
-		52EB68CB279E2145005C98D9 /* ARKitSoftLink.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ARKitSoftLink.h; sourceTree = "<group>"; };
-		52EB68CC279E2145005C98D9 /* ARKitSoftLink.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ARKitSoftLink.mm; sourceTree = "<group>"; };
 		52F060DD1654317500F3281B /* NetworkContentRuleListManagerMessageReceiver.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkContentRuleListManagerMessageReceiver.cpp; sourceTree = "<group>"; };
 		52F4B46727E1197700FFD129 /* VirtualAuthenticatorUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VirtualAuthenticatorUtils.h; sourceTree = "<group>"; };
 		52F4B46827E1197700FFD129 /* VirtualAuthenticatorUtils.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = VirtualAuthenticatorUtils.mm; sourceTree = "<group>"; };
@@ -9992,6 +9999,7 @@
 			isa = PBXGroup;
 			children = (
 				3AEE89902AA5954000D4DF44 /* ios */,
+				3ABF16BC2F983FE200267B72 /* xros */,
 				1185025B2673B07100A6425E /* PlatformXRCoordinator.h */,
 				522746C92C01C02200304409 /* PlatformXRSessionEnums.h */,
 				1185025A2673B07100A6425E /* PlatformXRSystem.cpp */,
@@ -13169,8 +13177,6 @@
 				378E1A3B181ED6FF0031007A /* APIObject.mm */,
 				A175C44921AA3170000037D0 /* ArgumentCodersCocoa.h */,
 				A175C44B21AA331B000037D0 /* ArgumentCodersCocoa.mm */,
-				52EB68CB279E2145005C98D9 /* ARKitSoftLink.h */,
-				52EB68CC279E2145005C98D9 /* ARKitSoftLink.mm */,
 				1A698F171E4910220064E881 /* AuxiliaryProcessCocoa.mm */,
 				413E5C9129B0CF7B002F4987 /* BackgroundFetchStateCocoa.mm */,
 				4413795F2964F0C2003C34C6 /* CacheStoragePolicy.h */,
@@ -13737,6 +13743,22 @@
 				1AAF08B619269E6D00B6390C /* WebUserContentControllerMessages.h */,
 			);
 			path = IPC;
+			sourceTree = "<group>";
+		};
+		3ABF16BC2F983FE200267B72 /* xros */ = {
+			isa = PBXGroup;
+			children = (
+				3ABF16BA2F983FE200267B72 /* PlatformXRCompositor.h */,
+				3ABF16BB2F983FE200267B72 /* PlatformXRCompositor.mm */,
+				3ABF16C82F984F0000267B72 /* PlatformXRSystemXROS.mm */,
+				3ABF16CA2F984F0000267B72 /* WKSpatialGestureRecognizer.h */,
+				3ABF16CC2F984F0000267B72 /* WKSpatialGestureRecognizer.mm */,
+				3A7111642F986C4000AD199B /* WKXRControllerManager.h */,
+				3A068FF32F98A6AC0038FAC7 /* WKXRControllerManager.mm */,
+				3A7111662F986F0000AD199B /* WKXRTrackingManager.h */,
+				3A068FF42F98A6AC0038FAC7 /* WKXRTrackingManager.mm */,
+			);
+			path = xros;
 			sourceTree = "<group>";
 		};
 		3AEE89902AA5954000D4DF44 /* ios */ = {

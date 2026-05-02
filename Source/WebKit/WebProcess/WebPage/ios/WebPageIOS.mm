@@ -156,6 +156,7 @@
 #import <WebCore/PlatformKeyboardEvent.h>
 #import <WebCore/PlatformMediaSessionManager.h>
 #import <WebCore/PlatformMouseEvent.h>
+#import <WebCore/PlatformRenderTheme.h>
 #import <WebCore/PluginDocument.h>
 #import <WebCore/PluginViewBase.h>
 #import <WebCore/PointerCaptureController.h>
@@ -173,7 +174,6 @@
 #import <WebCore/RenderLayerBacking.h>
 #import <WebCore/RenderLayerScrollableArea.h>
 #import <WebCore/RenderObjectInlines.h>
-#import <WebCore/RenderTheme.h>
 #import <WebCore/RenderVideoInlines.h>
 #import <WebCore/RenderView.h>
 #import <WebCore/RenderedDocumentMarker.h>

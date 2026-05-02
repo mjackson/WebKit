@@ -27,6 +27,7 @@
 #include "ExtendedDOMIsoSubspaces.h"
 #include "JSDOMAttribute.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertStrings.h"
 #include "JSDOMExceptionHandling.h"
@@ -37,11 +38,8 @@
 #include "WebCoreOpaqueRootInlines.h"
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -115,7 +113,7 @@ const ClassInfo JSTestGenerateIsReachablePrototype::s_info = { "TestGenerateIsRe
 
 JSC::Structure* JSTestGenerateIsReachablePrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestGenerateIsReachablePrototype::finishCreation(VM& vm)
@@ -132,7 +130,7 @@ void JSTestGenerateIsReachablePrototype::finishCreation(VM& vm)
     }
     if (hasDisabledRuntimeProperties && structure()->isDictionary())
         flattenDictionaryObject(vm);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestGenerateIsReachable::s_info = { "TestGenerateIsReachable"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestGenerateIsReachable) };

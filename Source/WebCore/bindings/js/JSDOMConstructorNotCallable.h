@@ -28,7 +28,7 @@
 
 #include "JSDOMWrapper.h"
 #include "WebCoreJSClientData.h"
-#include <JavaScriptCore/StructureCreateInlines.h>
+#include <WebCore/JSDOMBindingFacade.h>
 
 namespace WebCore {
 
@@ -73,7 +73,7 @@ template<typename JSClass> inline JSDOMConstructorNotCallable<JSClass>* JSDOMCon
 
 template<typename JSClass> inline JSC::Structure* JSDOMConstructorNotCallable<JSClass>::createStructure(JSC::VM& vm, JSC::JSGlobalObject& globalObject, JSC::JSValue prototype)
 {
-    auto* structure = JSC::Structure::create(vm, &globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    auto* structure = JSC::Structure::create(vm, &globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
     structure->setMayBePrototype(true);
     return structure;
 }

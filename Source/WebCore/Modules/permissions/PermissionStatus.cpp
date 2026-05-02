@@ -31,7 +31,6 @@
 #include "Document.h"
 #include "Event.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "MainThreadPermissionObserver.h"
 #include "PermissionController.h"
 #include "PermissionState.h"

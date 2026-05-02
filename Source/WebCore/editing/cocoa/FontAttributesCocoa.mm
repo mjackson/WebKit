@@ -32,6 +32,7 @@
 #import <pal/spi/cocoa/NSAttributedStringSPI.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 #import <wtf/cocoa/VectorCocoa.h>
+#import <wtf/text/MakeString.h>
 
 #if PLATFORM(IOS_FAMILY)
 #import <pal/ios/UIKitSoftLink.h>

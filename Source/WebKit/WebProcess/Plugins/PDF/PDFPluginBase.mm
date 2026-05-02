@@ -77,12 +77,12 @@
 #import <WebCore/PagePasteboardContext.h>
 #import <WebCore/Pasteboard.h>
 #import <WebCore/PasteboardStrategy.h>
+#import <WebCore/PlatformRenderTheme.h>
 #import <WebCore/PlatformStrategies.h>
 #import <WebCore/PluginDocument.h>
 #import <WebCore/RenderEmbeddedObject.h>
 #import <WebCore/RenderLayer.h>
 #import <WebCore/RenderLayerScrollableArea.h>
-#import <WebCore/RenderTheme.h>
 #import <WebCore/ResourceResponse.h>
 #import <WebCore/ScrollAnimator.h>
 #import <WebCore/Settings.h>
@@ -921,6 +921,8 @@ float PDFPluginBase::deviceScaleFactor() const
 
 bool PDFPluginBase::useDarkAppearance() const
 {
+    if (!isFullFramePlugin())
+        return ScrollableArea::useDarkAppearance();
     if (RefPtr page = this->page())
         return page->useDarkAppearance();
     return false;

@@ -39,7 +39,6 @@
 #include "LegacyRenderSVGResource.h"
 #include "LocalFrameView.h"
 #include "LocalFrameViewLayoutContext.h"
-#include "NodeInlines.h"
 #include "NodeRenderStyle.h"
 #include "PseudoElement.h"
 #include "RenderBoxInlines.h"

@@ -132,10 +132,14 @@ void EventSource::connect()
     options.initiatorType = cachedResourceRequestInitiatorTypes().eventsource;
 
     m_loader = ThreadableLoader::create(*context, *this, WTF::move(request), options);
+    if (!m_loader) {
+        if (m_state == CONNECTING)
+            abortConnectionAttempt();
+        return;
+    }
 
     // FIXME: Can we just use m_loader for this, null it out when it's no longer in flight, and eliminate the m_requestInFlight member?
-    if (m_loader)
-        m_requestInFlight = true;
+    m_requestInFlight = true;
 }
 
 void EventSource::networkRequestEnded()

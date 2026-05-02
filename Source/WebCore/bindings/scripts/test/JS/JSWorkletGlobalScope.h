@@ -22,6 +22,7 @@
 
 #include "EventTarget.h"
 #include "JSEventTarget.h"
+#include <WebCore/JSDOMBindingFacade.h>
 #include <WebCore/JSDOMWrapper.h>
 
 namespace WebCore {

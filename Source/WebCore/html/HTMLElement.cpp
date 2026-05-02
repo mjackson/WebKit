@@ -104,6 +104,7 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 

@@ -182,6 +182,7 @@
 			name = "Copy User Interface Resources";
 			outputPaths = (
 				"$(DERIVED_FILE_DIR)/copy-user-interface-resources.stamp",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Main.html",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

@@ -77,7 +77,6 @@
 #include "LocalFrameInlines.h"
 #include "MarkupAccumulator.h"
 #include "MutableStyleProperties.h"
-#include "NodeInlines.h"
 #include "NodeList.h"
 #include "Page.h"
 #include "PageConfiguration.h"
@@ -1673,10 +1672,10 @@ ExceptionOr<void> replaceChildrenWithFragment(ContainerNode& container, Ref<Docu
     SUPPRESS_UNCOUNTED_LOCAL auto* containerChild = dynamicDowncast<Text>(containerNode->firstChild());
     if (containerChild && !containerChild->nextSibling()) {
         if (RefPtr fragmentChild = singleTextChild(fragment); fragmentChild && canUseSetDataOptimization(*containerChild, mutation)) {
-            Ref { *containerChild }->setData(fragmentChild->data());
+            protect(*containerChild)->setData(fragmentChild->data());
             return { };
         }
-        return containerNode->replaceChild(fragment, Ref { *containerChild });
+        return containerNode->replaceChild(fragment, protect(*containerChild));
     }
 
     containerNode->removeChildren();

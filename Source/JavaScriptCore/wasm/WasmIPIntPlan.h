@@ -47,13 +47,13 @@ class IPIntPlan final : public EntryPlan {
 
 public:
     JS_EXPORT_PRIVATE IPIntPlan(VM&, Vector<uint8_t>&&, CompilerMode, CompletionTask&&);
-    IPIntPlan(VM&, Ref<ModuleInformation>, const Ref<IPIntCallee>*, CompletionTask&&);
+    IPIntPlan(VM&, Ref<ModuleInformation>, Ref<IPIntCallees>, CompletionTask&&);
     IPIntPlan(VM&, Ref<ModuleInformation>, CompilerMode, CompletionTask&&); // For StreamingCompiler.
 
-    Vector<Ref<IPIntCallee>>&& takeCallees()
+    Ref<IPIntCallees> takeCallees()
     {
         RELEASE_ASSERT(!failed() && !hasWork());
-        return WTF::move(m_calleesVector);
+        return m_ipintCallees.releaseNonNull();
     }
 
     JSToWasmCalleeMap&& takeJSToWasmCallees()
@@ -89,8 +89,8 @@ private:
     bool ensureEntrypoint(IPIntCallee&, FunctionCodeIndex functionIndex);
 
     Vector<std::unique_ptr<FunctionIPIntMetadataGenerator>> m_wasmInternalFunctions;
-    const Ref<IPIntCallee>* m_callees { nullptr };
-    Vector<Ref<IPIntCallee>> m_calleesVector;
+    RefPtr<IPIntCallees> m_ipintCallees;
+    bool m_calleesAlreadyRegistered { false };
     Vector<RefPtr<JSToWasmCallee>> m_entrypoints;
     JSToWasmCalleeMap m_jsToWasmCallees;
     TailCallGraph m_tailCallGraph;

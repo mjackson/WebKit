@@ -35,7 +35,6 @@
 #include "LegacyRenderSVGRoot.h"
 #include "LegacyRenderSVGViewportContainer.h"
 #include "LocalFrame.h"
-#include "NodeInlines.h"
 #include "NodeName.h"
 #include "RenderBoxInlines.h"
 #include "RenderObjectInlines.h"

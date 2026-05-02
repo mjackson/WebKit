@@ -125,38 +125,6 @@ int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
     return 0;
 }
 
-/* Thread Local Storage
-   The regular Windows Thread Local Storage APIs like TlsAlloc don't have a way an easy way
-   to register a per-thread destructor to be able to clean up the memory.
-   Blink gets around this with some crazy pragmas to manually insert a function to be called
-   on each thread's exit:
-   https://web.archive.org/web/20070921204540/https://www.codeproject.com/threads/tls.asp
-   https://source.chromium.org/chromium/chromium/src/+/main:base/threading/thread_local_storage_win.cc;l=38-48
-  
-   However the fiber-local storage APIs do let you register a per-thread destructor. Even
-   though we don't care about fibers, the API is strictly better and avoids the magic:
-   https://devblogs.microsoft.com/oldnewthing/20191011-00/?p=102989
-  
-   TODO: FlsGetValue is around 2x slower than TlsGetValue on single threaded access, so we should
-   switch to Thread Local Storage and deal with the extra complexity. */
-int pthread_key_create(pthread_key_t* key, void (*destructor)(void*))
-{
-    DWORD result = FlsAlloc(destructor);
-    PAS_ASSERT(result != FLS_OUT_OF_INDEXES);
-    *key = result;
-    return 0;
-}
-
-void *pthread_getspecific(pthread_key_t key)
-{
-    return FlsGetValue(key);
-}
-
-int pthread_setspecific(pthread_key_t key, void* value)
-{
-    return FlsSetValue(key, value);
-}
-
 /* Mutexes, conditions */
 
 int pthread_mutex_init(pthread_mutex_t* mutex, const void* unused_attr)

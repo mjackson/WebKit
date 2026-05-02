@@ -50,6 +50,7 @@
 
 #if PLATFORM(COCOA)
 #include "RunLoopObserver.h"
+#include <wtf/SetForScope.h>
 #endif
 
 namespace WebCore {

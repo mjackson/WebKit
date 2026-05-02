@@ -28,7 +28,7 @@
 
 #include <JavaScriptCore/JSIteratorPrototype.h>
 #include <JavaScriptCore/PropertySlot.h>
-#include <JavaScriptCore/StructureCreateInlines.h>
+#include <WebCore/JSDOMBindingFacade.h>
 #include <WebCore/JSDOMConvert.h>
 #include <WebCore/ScriptExecutionContext.h>
 #include <type_traits>
@@ -72,7 +72,7 @@ public:
 
     static JSC::Structure* createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
     {
-        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
     }
 
     static JSC::EncodedJSValue JSC_HOST_CALL_ATTRIBUTES next(JSC::JSGlobalObject*, JSC::CallFrame*);
@@ -132,7 +132,7 @@ inline JSC::JSValue jsPair(JSC::JSGlobalObject&, JSDOMGlobalObject& globalObject
     arguments.append(value1);
     arguments.append(value2);
     ASSERT(!arguments.hasOverflowed());
-    return constructArray(&globalObject, static_cast<JSC::ArrayAllocationProfile*>(nullptr), arguments);
+    return WebCore::constructArray(&globalObject, arguments);
 }
 
 template<typename FirstType, typename SecondType, typename T, typename U> 
@@ -221,7 +221,7 @@ template<typename JSIterator> JSC::JSValue iteratorForEach(JSC::JSGlobalObject& 
     JSC::JSValue callback = callFrame.argument(0);
     JSC::JSValue thisValue = callFrame.argument(1);
 
-    auto callData = JSC::getCallData(callback);
+    auto callData = WebCore::getCallData(callback);
     if (callData.type == JSC::CallData::Type::None)
         return throwTypeError(&lexicalGlobalObject, scope, "Cannot call callback"_s);
 
@@ -255,10 +255,10 @@ JSC::JSValue JSDOMIteratorBase<JSWrapper, IteratorTraits>::next(JSC::JSGlobalObj
     if (m_iterator) {
         auto iteratorValue = m_iterator->next();
         if (iteratorValue)
-            return createIteratorResultObject(&lexicalGlobalObject, asJS(lexicalGlobalObject, iteratorValue), false);
+            return WebCore::createIteratorResultObject(&lexicalGlobalObject, asJS(lexicalGlobalObject, iteratorValue), false);
         m_iterator = std::nullopt;
     }
-    return createIteratorResultObject(&lexicalGlobalObject, JSC::jsUndefined(), true);
+    return WebCore::createIteratorResultObject(&lexicalGlobalObject, JSC::jsUndefined(), true);
 }
 
 template<typename JSWrapper, typename IteratorTraits>
@@ -281,7 +281,7 @@ void JSDOMIteratorPrototype<JSWrapper, IteratorTraits>::finishCreation(JSC::VM& 
     ASSERT(inheritsSlow(info()));
 
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->next, next, 0, 0, JSC::ImplementationVisibility::Public);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, JSC::jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 }

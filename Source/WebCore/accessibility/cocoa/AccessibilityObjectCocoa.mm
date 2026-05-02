@@ -31,9 +31,17 @@
 
 #import "AXObjectCacheInlines.h"
 #import "FontCascadeInlines.h"
+#import "StyleVerticalAlign.h"
 #import "TextIterator.h"
-#import "WebAccessibilityObjectWrapperBase.h"
 #import <wtf/cocoa/TypeCastsCocoa.h>
+
+#if PLATFORM(MAC)
+#import "WebAccessibilityObjectWrapperMac.h"
+#import <AppKit/NSAccessibilityConstants.h>
+#else
+#import "StyleSpeakAs.h"
+#import "WebAccessibilityObjectWrapperIOS.h"
+#endif
 
 namespace WebCore {
 

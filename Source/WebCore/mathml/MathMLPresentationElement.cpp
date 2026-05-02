@@ -238,7 +238,7 @@ MathVariant MathMLPresentationElement::parseMathVariantAttribute(const AtomStrin
 
 std::optional<MathVariant> MathMLPresentationElement::specifiedMathVariant()
 {
-    if (!acceptsMathVariantAttribute())
+    if (!acceptsLegacyMathVariantAttribute())
         return std::nullopt;
     if (!m_mathVariant)
         m_mathVariant = parseMathVariantAttribute(attributeWithoutSynchronization(mathvariantAttr));
@@ -247,7 +247,7 @@ std::optional<MathVariant> MathMLPresentationElement::specifiedMathVariant()
 
 void MathMLPresentationElement::attributeChanged(const QualifiedName& name, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason attributeModificationReason)
 {
-    if (name == mathvariantAttr && acceptsMathVariantAttribute()) {
+    if (name == mathvariantAttr && acceptsLegacyMathVariantAttribute()) {
         m_mathVariant = std::nullopt;
         if (renderer())
             MathMLStyle::resolveMathMLStyleTree(renderer());

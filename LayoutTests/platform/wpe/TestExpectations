@@ -794,8 +794,8 @@ webkit.org/b/280604 webgl/webgl-worker.html [ Skip ]
 webkit.org/b/280604 webgl/webgl-fail-platform-context-creation-no-crash.html [ Skip ]
 
 # WEBGL2 flakies
-webkit.org/b/251107 webgl/2.0.y/conformance2/textures/image_bitmap_from_video/tex-2d-r8-red-unsigned_byte.html [ Pass Failure ]
-webkit.org/b/251107 webgl/2.0.y/conformance2/textures/video/tex-2d-rgba8ui-rgba_integer-unsigned_byte.html [ Pass Failure ]
+webkit.org/b/313803 webkit.org/b/251107 webgl/2.0.y/conformance2/textures/image_bitmap_from_video/tex-2d-r8-red-unsigned_byte.html [ Timeout ]
+webkit.org/b/313803 webkit.org/b/251107 webgl/2.0.y/conformance2/textures/video/tex-2d-rgba8ui-rgba_integer-unsigned_byte.html [ Timeout ]
 
 webkit.org/b/212147 http/tests/xmlhttprequest/url-with-credentials.html [ Failure ]
 
@@ -1280,7 +1280,7 @@ webkit.org/b/309633 [ arm64 ] fast/text/hyphenate-locale.html [ Failure ]
 
 webkit.org/b/309634 [ arm64 ] http/tests/xmlhttprequest/binary-x-user-defined.html [ Failure ]
 
-webkit.org/b/309635 [ arm64 ] webgl/2.0.y/conformance2/textures/video/tex-2d-r8-red-unsigned_byte.html [ Pass Failure ]
+webkit.org/b/313803 webkit.org/b/309635 [ arm64 ] webgl/2.0.y/conformance2/textures/video/tex-2d-r8-red-unsigned_byte.html [ Timeout ]
 
 webkit.org/b/309636 [ arm64 ] webgl/tex-2d-video-no-change-wrap.html [ Pass Failure ]
 

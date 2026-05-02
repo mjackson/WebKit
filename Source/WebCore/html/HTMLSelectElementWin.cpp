@@ -29,8 +29,6 @@
 #if OS(WINDOWS)
 
 #include "Element.h"
-#include "EventTargetInlines.h"
-#include "NodeInlines.h"
 #include "KeyboardEvent.h"
 
 namespace WebCore {

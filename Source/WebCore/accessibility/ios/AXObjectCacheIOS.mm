@@ -34,6 +34,7 @@
 #import "DocumentPage.h"
 #import "DocumentView.h"
 #import "RenderObject.h"
+#import "RenderObjectDocument.h"
 #import "WebAccessibilityObjectWrapperIOS.h"
 #import <wtf/RetainPtr.h>
 

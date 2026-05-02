@@ -42,6 +42,7 @@
 #include "JSEvent.h"
 #include "JSExecState.h"
 #include "JSExecStateInstrumentation.h"
+#include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/VMEntryScopeInlines.h>
 #include <wtf/Ref.h>

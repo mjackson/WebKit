@@ -26,6 +26,7 @@
 #pragma once
 
 #include "CallFrame.h"
+#include "HeapCellInlines.h"
 #include "JSCalleeInlines.h"
 #include "RegisterInlines.h"
 
@@ -33,17 +34,17 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
-inline Register& CallFrame::r(VirtualRegister reg)
-{
-    if (reg.isConstant())
-        return *reinterpret_cast<Register*>(&this->codeBlock()->constantRegister(reg));
-    return this[reg.offset()];
-}
-
 inline Register& CallFrame::uncheckedR(VirtualRegister reg)
 {
     ASSERT(!reg.isConstant());
     return this[reg.offset()];
+}
+
+ALWAYS_INLINE VM& CallFrame::deprecatedVM() const
+{
+    JSCell* callee = this->callee().asCell();
+    ASSERT(callee);
+    return callee->vm();
 }
 
 inline JSValue CallFrame::guaranteedJSValueCallee() const
@@ -74,13 +75,6 @@ inline JSGlobalObject* CallFrame::lexicalGlobalObject(VM& vm) const
     if (callee().isNativeCallee())
         return lexicalGlobalObjectFromNativeCallee(vm);
     return jsCallee()->realm();
-}
-
-inline JSCell* CallFrame::codeOwnerCell() const
-{
-    if (callee().isNativeCallee())
-        return codeOwnerCellSlow();
-    return codeBlock();
 }
 
 inline bool CallFrame::isZombieFrame() const

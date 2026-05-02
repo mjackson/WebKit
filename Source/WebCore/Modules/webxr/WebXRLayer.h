@@ -49,6 +49,7 @@ public:
 
     virtual void startFrame(PlatformXR::FrameData&) = 0;
     virtual PlatformXR::DeviceLayer endFrame() = 0;
+    virtual PlatformXR::LayerHandle layerHandle() const = 0;
 
     virtual bool isWebXRWebGLLayer() const { return false; }
     virtual bool isXRCompositionLayer() const { return false; }

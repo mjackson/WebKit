@@ -40,7 +40,6 @@
 #include "EditorClient.h"
 #include "Element.h"
 #include "EventLoop.h"
-#include "EventTargetInlines.h"
 #include "FloatQuad.h"
 #include "FrameDestructionObserverInlines.h"
 #include "LocalFrameInlines.h"

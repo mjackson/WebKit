@@ -24,6 +24,7 @@
  */
 
 #include "config.h"
+#include <JavaScriptCore/JSCInlines.h>
 #include "JSIDBRequest.h"
 
 #include "IDBBindingUtilities.h"

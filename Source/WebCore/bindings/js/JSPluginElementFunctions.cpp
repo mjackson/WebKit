@@ -27,6 +27,7 @@
 #include "HTMLPlugInElement.h"
 #include "JSHTMLElement.h"
 #include <JavaScriptCore/JSObjectInlines.h>
+#include <JavaScriptCore/PropertySlot.h>
 
 namespace WebCore {
 using namespace JSC;

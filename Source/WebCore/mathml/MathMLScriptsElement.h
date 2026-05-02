@@ -47,7 +47,7 @@ protected:
 
 private:
     RenderPtr<RenderElement> createElementRenderer(RenderStyle&&, const RenderTreePosition&) override;
-    bool acceptsMathVariantAttribute() override { return false; };
+    bool acceptsLegacyMathVariantAttribute() override { return false; };
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) override;
 
     const ScriptType m_scriptType;

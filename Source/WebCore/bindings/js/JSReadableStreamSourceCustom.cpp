@@ -30,6 +30,7 @@
 #include "JSReadableStreamSource.h"
 
 #include "JSDOMPromiseDeferred.h"
+#include <JavaScriptCore/CallFrameInlines.h>
 #include <JavaScriptCore/HeapInlines.h>
 #include <JavaScriptCore/WriteBarrierInlines.h>
 

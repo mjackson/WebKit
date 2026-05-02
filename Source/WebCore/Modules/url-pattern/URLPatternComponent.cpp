@@ -33,9 +33,11 @@
 #include "URLPatternResult.h"
 #include <JavaScriptCore/JSCJSValueInlines.h>
 #include <JavaScriptCore/JSGlobalObject.h>
+#include <JavaScriptCore/JSObjectInlines.h>
 #include <JavaScriptCore/JSString.h>
 #include <JavaScriptCore/RegExpObject.h>
 #include <JavaScriptCore/StrongInlines.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <ranges>
 
 namespace WebCore {

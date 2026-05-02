@@ -28,6 +28,7 @@
 #include "ExtendedDOMIsoSubspaces.h"
 #include "JSDOMAbstractOperations.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertStrings.h"
 #include "JSDOMExceptionHandling.h"
@@ -37,11 +38,8 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -113,14 +111,14 @@ const ClassInfo JSTestNamedGetterNoIdentifierPrototype::s_info = { "TestNamedGet
 
 JSC::Structure* JSTestNamedGetterNoIdentifierPrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestNamedGetterNoIdentifierPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSTestNamedGetterNoIdentifier::info(), JSTestNamedGetterNoIdentifierPrototypeTableValues, *this);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestNamedGetterNoIdentifier::s_info = { "TestNamedGetterNoIdentifier"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestNamedGetterNoIdentifier) };
@@ -185,7 +183,7 @@ bool JSTestNamedGetterNoIdentifier::legacyPlatformObjectGetOwnProperty(JSObject*
             return true;
         }
     }
-    return JSObject::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
+    return WebCore::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
 }
 
 bool JSTestNamedGetterNoIdentifier::getOwnPropertySlot(JSObject* object, JSGlobalObject* lexicalGlobalObject, PropertyName propertyName, PropertySlot& slot)
@@ -283,7 +281,7 @@ bool JSTestNamedGetterNoIdentifier::defineOwnProperty(JSObject* object, JSGlobal
 
     if (!propertyName.isSymbol()) {
         PropertySlot slot { thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };
-        bool found = JSObject::getOwnPropertySlot(thisObject, lexicalGlobalObject, propertyName, slot);
+        bool found = WebCore::getOwnPropertySlot(thisObject, lexicalGlobalObject, propertyName, slot);
         slot.disallowVMEntry.reset();
         RETURN_IF_EXCEPTION(throwScope, false);
         if (!found) {
@@ -310,7 +308,7 @@ bool JSTestNamedGetterNoIdentifier::deleteProperty(JSCell* cell, JSGlobalObject*
 
     if (!propertyName.isSymbol() && impl.isSupportedPropertyName(propertyNameToString(propertyName))) {
         PropertySlot slotForGet { &thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };
-        if (!JSObject::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
+        if (!WebCore::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
             return false;
     }
     return JSObject::deleteProperty(cell, lexicalGlobalObject, propertyName, slot);
@@ -332,7 +330,7 @@ bool JSTestNamedGetterNoIdentifier::deletePropertyByIndex(JSCell* cell, JSGlobal
     auto propertyName = Identifier::from(vm, index);
     if (impl.isSupportedPropertyName(propertyNameToString(propertyName))) {
         PropertySlot slotForGet { &thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };
-        if (!JSObject::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
+        if (!WebCore::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
             return false;
     }
     return JSObject::deletePropertyByIndex(cell, lexicalGlobalObject, index);

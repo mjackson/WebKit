@@ -78,6 +78,7 @@
 #include "PinballCompletion.h"
 #include "PreventCollectionScope.h"
 #include "ProgramExecutable.h"
+#include "ProxyObject.h"
 #include "SamplingProfiler.h"
 #include "ShadowChicken.h"
 #include "SpaceTimeMutatorScheduler.h"
@@ -440,6 +441,11 @@ Heap::Heap(VM& vm, HeapType heapType)
     , unlinkedFunctionExecutableSpaceAndSet ISO_SUBSPACE_INIT(*this, destructibleCellHeapCellType, UnlinkedFunctionExecutable) // Hash:0x3ba0f4e1
 
 {
+    if (Options::forceFencedBarrier()) {
+        m_mutatorShouldBeFenced = true;
+        m_barrierThreshold = tautologicalThreshold;
+    }
+
     m_worldState.store(0);
 
     for (unsigned i = 0, numberOfParallelThreads = heapHelperPool().numberOfThreads(); i < numberOfParallelThreads; ++i) {

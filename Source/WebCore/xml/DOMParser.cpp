@@ -22,7 +22,6 @@
 #include "CommonAtomStrings.h"
 #include "ExceptionOr.h"
 #include "HTMLDocument.h"
-#include "NodeInlines.h"
 #include "SVGDocument.h"
 #include "SecurityOriginPolicy.h"
 #include "Settings.h"

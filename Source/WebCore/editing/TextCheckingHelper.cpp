@@ -27,6 +27,7 @@
 #include "config.h"
 #include "TextCheckingHelper.h"
 
+#include "AXObjectCache.h"
 #include "BoundaryPointInlines.h"
 #include "Document.h"
 #include "DocumentMarkerController.h"

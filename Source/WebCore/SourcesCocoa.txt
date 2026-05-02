@@ -89,6 +89,7 @@ Modules/airplay/WebMediaSessionManager.mm @nonARC
 Modules/applepay/ApplePayCouponCodeChangedEvent.cpp
 Modules/applepay/ApplePayCancelEvent.cpp
 Modules/applepay/ApplePayContactField.cpp
+Modules/applepay/ApplePayInstallmentConfigurationWebCore.cpp
 Modules/applepay/ApplePayLogoSystemImage.mm @nonARC
 Modules/applepay/ApplePayMerchantCapability.cpp
 Modules/applepay/ApplePayPaymentAuthorizationResult.cpp

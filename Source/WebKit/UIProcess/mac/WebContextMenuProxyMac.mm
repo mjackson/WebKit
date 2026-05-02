@@ -41,6 +41,7 @@
 #import "WKSharingServicePickerDelegate.h"
 #import "WebContextMenuItem.h"
 #import "WebContextMenuItemData.h"
+#import "WebEvent.h"
 #import "WebPageProxy.h"
 #import "WebPreferences.h"
 #import "_WKCaptionStyleMenuController.h"

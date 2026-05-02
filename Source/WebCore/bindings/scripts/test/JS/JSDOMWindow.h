@@ -21,6 +21,7 @@
 #pragma once
 
 #include <WebCore/EventTarget.h>
+#include <WebCore/JSDOMBindingFacade.h>
 #include <WebCore/JSDOMWrapper.h>
 #include <WebCore/JSEventTarget.h>
 #include <WebCore/JSWindowProxy.h>

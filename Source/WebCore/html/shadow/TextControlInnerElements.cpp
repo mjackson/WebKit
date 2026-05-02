@@ -39,6 +39,7 @@
 #include "LocalizedStrings.h"
 #include "MouseEvent.h"
 #include "NodeDocument.h"
+#include "PlatformRenderTheme.h"
 #include "Quirks.h"
 #include "RenderSearchField.h"
 #include "RenderStyle+SettersInlines.h"
@@ -90,14 +91,6 @@ static inline bool NODELETE isStrongPasswordTextField(const Element* element)
     auto* inputElement = dynamicDowncast<HTMLInputElement>(element);
     return inputElement && inputElement->hasAutofillStrongPasswordButton();
 }
-
-#if ENABLE(FORM_CONTROL_REFRESH)
-static inline bool isNumberInput(const Element* element)
-{
-    auto* inputElement = dynamicDowncast<HTMLInputElement>(element);
-    return inputElement && inputElement->isNumberField();
-}
-#endif
 
 std::optional<Style::UnadjustedStyle> TextControlInnerContainer::resolveCustomStyle(const Style::ResolutionContext& resolutionContext, const RenderStyle* shadowHostStyle)
 {

@@ -23,8 +23,8 @@ var wasm = new Uint8Array([
     0x00,       // 0 local declarations
     0x41, 0x00, // [0x2f][0x30] i32.const 0  (call index)
     0x11, 0x00, 0x00, // [0x31][0x32][0x33] call_indirect type=0 table=0  <- OutOfBoundsCallIndirect
-                      //   PC advanced past 3-byte instruction; trap handler sees PC=[0x34]
-    0x1a,       // [0x34] drop  <- PC visible in debugger
+                      //   PC is captured before advancement; trap handler sees PC=[0x31]
+    0x1a,       // [0x34] drop  <- never reached
     0x41, 0x00, // [0x35][0x36] i32.const 0  (return value, never reached)
     0x0b,       // [0x37] end
 ]);

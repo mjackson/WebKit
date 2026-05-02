@@ -34,6 +34,7 @@
 namespace WebCore {
 
 class Page;
+class RenderElement;
 class RunLoopObserver;
 
 class PageTimelineAgent final : public InspectorTimelineAgent, public CanMakeWeakPtr<PageTimelineAgent>, public CanMakeCheckedPtr<PageTimelineAgent> {

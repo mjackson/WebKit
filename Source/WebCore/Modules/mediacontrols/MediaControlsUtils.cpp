@@ -33,6 +33,7 @@
 #include "DOMURL.h"
 #include "HTMLImageElement.h"
 #include "MIMETypeRegistry.h"
+#include "PlatformRenderTheme.h"
 #include "RenderTheme.h"
 
 namespace WebCore {

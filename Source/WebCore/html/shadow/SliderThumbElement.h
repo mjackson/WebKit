@@ -37,6 +37,7 @@
 
 namespace WebCore {
 
+enum class EventHandlerRemovalReason : bool;
 class HTMLInputElement;
 class TouchEvent;
 
@@ -90,7 +91,8 @@ private:
     void handleTouchEndAndCancel(TouchEvent&);
 
     void registerForTouchEvents();
-    void unregisterForTouchEvents(EventHandlerRemovalReason = EventHandlerRemovalReason::Other);
+    void unregisterForTouchEvents(); // EventHandlerRemovalReason::Other
+    void unregisterForTouchEvents(EventHandlerRemovalReason);
 #endif
 
     bool m_inDragMode { false };

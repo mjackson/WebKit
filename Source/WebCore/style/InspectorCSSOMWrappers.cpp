@@ -134,6 +134,7 @@ void InspectorCSSOMWrappers::collectDocumentWrappers(ExtensionStyleSheets& exten
         collectFromStyleSheetContents(UserAgentStyle::svgStyleSheet);
         collectFromStyleSheetContents(UserAgentStyle::mathMLStyleSheet);
         collectFromStyleSheetContents(UserAgentStyle::mathMLCoreExtrasStyleSheet);
+        collectFromStyleSheetContents(UserAgentStyle::mathMLCoreMathvariantStyleSheet);
         collectFromStyleSheetContents(UserAgentStyle::mathMLFontSizeMathStyleSheet);
         collectFromStyleSheetContents(UserAgentStyle::mathMLLegacyFontSizeMathStyleSheet);
         collectFromStyleSheetContents(UserAgentStyle::horizontalFormControlsStyleSheet);

@@ -338,6 +338,8 @@ NS_REQUIRES_PROPERTY_DEFINITIONS
 @interface _WKTextExtractionInteractionResult : NSObject
 
 @property (nonatomic, readonly, nullable) NSError *error;
+@property (nonatomic, readonly, nullable) NSString *summary WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
+@property (nonatomic, readonly) CGRect interactedElementBounds WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
 
 @end
 

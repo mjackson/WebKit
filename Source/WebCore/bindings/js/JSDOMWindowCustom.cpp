@@ -683,7 +683,7 @@ static inline JSC::EncodedJSValue jsDOMWindowInstanceFunctionOpenDatabaseBody(JS
     if (!DeprecatedGlobalSettings::webSQLEnabled()) {
         if (name.returnValue() != "null"_s || version.returnValue() != "null"_s || displayName.returnValue() != "null"_s || estimatedSize.returnValue())
             propagateException(*lexicalGlobalObject, throwScope, Exception(ExceptionCode::UnknownError, "Web SQL is deprecated"_s));
-        return JSValue::encode(constructEmptyObject(lexicalGlobalObject, castedThis->realm()->objectPrototype()));
+        return JSValue::encode(JSC::constructEmptyObject(lexicalGlobalObject, castedThis->realm()->objectPrototype()));
     }
 
     auto creationCallback = convert<IDLNullable<IDLCallbackFunction<JSDatabaseCallback>>>(*lexicalGlobalObject, callFrame->argument(4), *castedThis->realm(), [](JSC::JSGlobalObject& lexicalGlobalObject, JSC::ThrowScope& scope) {

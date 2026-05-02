@@ -39,7 +39,6 @@
 #include "Document.h"
 #include "DocumentLoader.h"
 #include "Event.h"
-#include "EventTargetInlines.h"
 #include "FrameDOMAgent.h"
 #include "FrameDebuggerAgent.h"
 #include "FrameInspectorController.h"

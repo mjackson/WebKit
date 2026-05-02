@@ -192,11 +192,7 @@
 
 (define-once (device-access)
     (allow file-read* file-write-data file-ioctl
-           (literal "/dev/dtracehelper"))
-
-    (allow file-read* (with telemetry)
-           (literal "/dev/random")
-           (literal "/dev/urandom")))
+           (literal "/dev/dtracehelper")))
 
 (define required-etc-files
   (literal "/private/etc/passwd"))

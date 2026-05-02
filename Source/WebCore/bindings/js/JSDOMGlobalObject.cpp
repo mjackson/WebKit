@@ -730,7 +730,7 @@ JSC::JSObject* JSDOMGlobalObject::moduleLoaderCreateImportMetaProperties(JSC::JS
     JSDOMGlobalObject* thisObject = uncheckedDowncast<JSDOMGlobalObject>(globalObject);
     if (auto* loader = scriptModuleLoader(thisObject))
         return loader->createImportMetaProperties(globalObject, moduleLoader, moduleKey, moduleRecord, WTF::move(scriptFetcher));
-    return constructEmptyObject(globalObject->vm(), globalObject->nullPrototypeObjectStructure());
+    return JSC::constructEmptyObject(globalObject->vm(), globalObject->nullPrototypeObjectStructure());
 }
 
 JSC::JSGlobalObject* JSDOMGlobalObject::deriveShadowRealmGlobalObject(JSC::JSGlobalObject* globalObject)

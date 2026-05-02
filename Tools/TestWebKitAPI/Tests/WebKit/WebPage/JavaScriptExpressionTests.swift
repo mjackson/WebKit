@@ -145,7 +145,7 @@ struct JavaScriptExpressionTests {
 
         try await page.callJavaScript(JavaScriptMessages.SetSelection(selection))
 
-        let rect = try await page.callJavaScript(JavaScriptMessages.SelectionBoundingClientRect())
+        let rect = try await page.callJavaScript(JavaScriptMessages.BoundingClientRect(selection))
 
         #expect(rect.x > 0)
         #expect(rect.y > 0)
@@ -158,9 +158,11 @@ struct JavaScriptExpressionTests {
         let page = WebPage()
         try await page.load(html: Self.html).wait()
 
-        try await page.callJavaScript(JavaScriptMessages.SetSelection(.collapsed(.init(in: "div", at: 0))))
+        let selection: JavaScriptSelection = .collapsed(.init(in: "div", at: 0))
 
-        let rect = try await page.callJavaScript(JavaScriptMessages.SelectionBoundingClientRect())
+        try await page.callJavaScript(JavaScriptMessages.SetSelection(selection))
+
+        let rect = try await page.callJavaScript(JavaScriptMessages.BoundingClientRect(selection))
 
         #expect(rect.width == 0)
         #expect(rect.height > 0)

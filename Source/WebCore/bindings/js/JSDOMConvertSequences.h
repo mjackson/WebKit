@@ -25,11 +25,12 @@
 
 #pragma once
 
-#include <JavaScriptCore/IteratorOperations.h>
+#include <JavaScriptCore/ArgList.h>
+#include <JavaScriptCore/ButterflyInlinesLight.h>
 #include <JavaScriptCore/JSArray.h>
-#include <JavaScriptCore/JSGlobalObjectInlines.h>
 #include <JavaScriptCore/ObjectConstructor.h>
 #include <WebCore/IDLTypes.h>
+#include <WebCore/JSDOMBindingFacade.h>
 #include <WebCore/JSDOMConvertBase.h>
 #include <WebCore/JSDOMConvertNumbers.h>
 #include <WebCore/JSDOMGlobalObject.h>
@@ -84,13 +85,13 @@ struct GenericSequenceConverter {
 
     static Result convert(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSObject* object, SequenceType&& sequence)
     {
-        auto& vm = lexicalGlobalObject.vm();
+        auto& vm = JSC::getVM(&lexicalGlobalObject);
         auto scope = DECLARE_THROW_SCOPE(vm);
-        forEachInIterable(&lexicalGlobalObject, object, [&sequence](JSC::VM& vm, JSC::JSGlobalObject* lexicalGlobalObject, JSC::JSValue nextValue) {
+        WebCore::forEachInIterable(&lexicalGlobalObject, object, scopedLambda<void(JSC::VM&, JSC::JSGlobalObject*, JSC::JSValue)>([&sequence](JSC::VM& vm, JSC::JSGlobalObject* lexicalGlobalObject, JSC::JSValue nextValue) {
             auto scope = DECLARE_THROW_SCOPE(vm);
 
             InnerConverter::convert(scope, *lexicalGlobalObject, nextValue, sequence);
-        });
+        }));
         RETURN_IF_EXCEPTION(scope, Result::exception());
 
         return Result { WTF::move(sequence) };
@@ -103,13 +104,13 @@ struct GenericSequenceConverter {
 
     static Result convert(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSObject* object, JSC::JSValue method, SequenceType&& sequence)
     {
-        auto& vm = lexicalGlobalObject.vm();
+        auto& vm = JSC::getVM(&lexicalGlobalObject);
         auto scope = DECLARE_THROW_SCOPE(vm);
-        forEachInIterable(lexicalGlobalObject, object, method, [&sequence](JSC::VM& vm, JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue nextValue) {
+        WebCore::forEachInIterable(lexicalGlobalObject, object, method, scopedLambda<void(JSC::VM&, JSC::JSGlobalObject&, JSC::JSValue)>([&sequence](JSC::VM& vm, JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue nextValue) {
             auto scope = DECLARE_THROW_SCOPE(vm);
 
             InnerConverter::convert(scope, lexicalGlobalObject, nextValue, sequence);
-        });
+        }));
         RETURN_IF_EXCEPTION(scope, Result::exception());
 
         return Result { WTF::move(sequence) };
@@ -175,7 +176,7 @@ struct NumericSequenceConverterImpl {
             RELEASE_AND_RETURN(scope, GenericConverter::convert(lexicalGlobalObject, object));
 
         JSC::JSArray* array = JSC::asArray(object);
-        if (!array->isIteratorProtocolFastAndNonObservable())
+        if (!WebCore::isIteratorProtocolFastAndNonObservable(array))
             RELEASE_AND_RETURN(scope, GenericConverter::convert(lexicalGlobalObject, object));
 
         unsigned length = array->length();
@@ -183,7 +184,7 @@ struct NumericSequenceConverterImpl {
         // If we're not an int32/double array, it's possible that converting a
         // JSValue to a number could cause the iterator protocol to change, hence,
         // we may need more capacity, or less. In such cases, we use the length
-        // as a proxy for the capacity we will most likely need (it's unlikely that 
+        // as a proxy for the capacity we will most likely need (it's unlikely that
         // a program is written with a valueOf that will augment the iterator protocol).
         // If we are an int32/double array, then length is precisely the capacity we need.
         if (!sequence.tryReserveCapacity(length)) {
@@ -191,7 +192,7 @@ struct NumericSequenceConverterImpl {
             throwTypeError(&lexicalGlobalObject, scope);
             return Result::exception();
         }
-        
+
         JSC::IndexingType indexingType = array->indexingType() & JSC::IndexingShapeMask;
         if (indexingType != JSC::Int32Shape && indexingType != JSC::DoubleShape)
             RELEASE_AND_RETURN(scope, GenericConverter::convert(lexicalGlobalObject, object, WTF::move(sequence)));
@@ -208,7 +209,7 @@ struct NumericSequenceConverterImpl {
             RELEASE_AND_RETURN(scope, GenericConverter::convert(lexicalGlobalObject, object, method));
 
         JSC::JSArray* array = JSC::asArray(object);
-        if (!array->isIteratorProtocolFastAndNonObservable())
+        if (!WebCore::isIteratorProtocolFastAndNonObservable(array))
             RELEASE_AND_RETURN(scope, GenericConverter::convert(lexicalGlobalObject, object, method));
 
         unsigned length = array->length();
@@ -216,7 +217,7 @@ struct NumericSequenceConverterImpl {
         // If we're not an int32/double array, it's possible that converting a
         // JSValue to a number could cause the iterator protocol to change, hence,
         // we may need more capacity, or less. In such cases, we use the length
-        // as a proxy for the capacity we will most likely need (it's unlikely that 
+        // as a proxy for the capacity we will most likely need (it's unlikely that
         // a program is written with a valueOf that will augment the iterator protocol).
         // If we are an int32/double array, then length is precisely the capacity we need.
         if (!sequence.tryReserveCapacity(length)) {
@@ -224,7 +225,7 @@ struct NumericSequenceConverterImpl {
             throwTypeError(&lexicalGlobalObject, scope);
             return Result::exception();
         }
-        
+
         JSC::IndexingType indexingType = array->indexingType() & JSC::IndexingShapeMask;
         if (indexingType != JSC::Int32Shape && indexingType != JSC::DoubleShape)
             RELEASE_AND_RETURN(scope, GenericConverter::convert(lexicalGlobalObject, object, method, WTF::move(sequence)));
@@ -244,7 +245,7 @@ struct SequenceConverterImpl {
 
     static Result convertArray(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSArray* array)
     {
-        auto& vm = lexicalGlobalObject.vm();
+        auto& vm = JSC::getVM(&lexicalGlobalObject);
         auto scope = DECLARE_THROW_SCOPE(vm);
         unsigned length = array->length();
 
@@ -270,7 +271,7 @@ struct SequenceConverterImpl {
         }
 
         for (unsigned i = 0; i < length; i++) {
-            auto indexValue = array->getDirectIndex(&lexicalGlobalObject, i);
+            auto indexValue = WebCore::arrayGetDirectIndex(array, &lexicalGlobalObject, i);
             RETURN_IF_EXCEPTION(scope, Result::exception());
 
             if (!indexValue)
@@ -300,9 +301,9 @@ struct SequenceConverterImpl {
             RELEASE_AND_RETURN(scope, (GenericConverter::convert(lexicalGlobalObject, object)));
 
         JSC::JSArray* array = JSC::asArray(object);
-        if (!array->isIteratorProtocolFastAndNonObservable())
+        if (!WebCore::isIteratorProtocolFastAndNonObservable(array))
             RELEASE_AND_RETURN(scope, (GenericConverter::convert(lexicalGlobalObject, object)));
-        
+
         RELEASE_AND_RETURN(scope, (convertArray(lexicalGlobalObject, array)));
     }
 
@@ -315,7 +316,7 @@ struct SequenceConverterImpl {
             return GenericConverter::convert(lexicalGlobalObject, object, method);
 
         JSC::JSArray* array = JSC::asArray(object);
-        if (!array->isIteratorProtocolFastAndNonObservable())
+        if (!WebCore::isIteratorProtocolFastAndNonObservable(array))
             return GenericConverter::convert(lexicalGlobalObject, object, method);
 
         return convertArray(lexicalGlobalObject, array);
@@ -375,7 +376,7 @@ template<typename T, size_t N> struct JSConverter<IDLSequence<T, N>> {
             throwOutOfMemoryError(&lexicalGlobalObject, scope);
             return { };
         }
-        RELEASE_AND_RETURN(scope, JSC::constructArray(&globalObject, static_cast<JSC::ArrayAllocationProfile*>(nullptr), list));
+        RELEASE_AND_RETURN(scope, WebCore::constructArray(&globalObject, list));
     }
 };
 
@@ -399,11 +400,10 @@ template<typename T, size_t N> struct JSConverter<IDLFrozenArray<T, N>> {
             throwOutOfMemoryError(&lexicalGlobalObject, scope);
             return { };
         }
-        auto* array = JSC::constructArray(&globalObject, static_cast<JSC::ArrayAllocationProfile*>(nullptr), list);
+        auto* array = WebCore::constructArray(&globalObject, list);
         RETURN_IF_EXCEPTION(scope, { });
         RELEASE_AND_RETURN(scope, JSC::objectConstructorFreeze(&lexicalGlobalObject, array));
     }
 };
 
 } // namespace WebCore
-

@@ -509,13 +509,3 @@ private:
 };
 
 } // namespace WebCore
-
-#if PLATFORM(MAC)
-#include <WebCore/RenderThemeMac.h>
-#elif PLATFORM(IOS_FAMILY)
-#include <WebCore/RenderThemeIOS.h>
-#elif USE(THEME_ADWAITA)
-#include <WebCore/RenderThemeAdwaita.h>
-#elif PLATFORM(PLAYSTATION)
-#include <WebCore/RenderThemePlayStation.h>
-#endif

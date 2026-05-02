@@ -467,7 +467,7 @@ void WebExtensionContext::tabsToggleReaderMode(WebPageProxyIdentifier webPagePro
     tab->toggleReaderMode(WTF::move(completionHandler));
 }
 
-void WebExtensionContext::tabsSendMessage(WebExtensionTabIdentifier tabIdentifier, const String& messageJSON, const WebExtensionMessageTargetParameters& targetParameters, const WebExtensionMessageSenderParameters& senderParameters, CompletionHandler<void(Expected<String, WebExtensionError>&&)>&& completionHandler)
+void WebExtensionContext::tabsSendMessage(WebExtensionTabIdentifier tabIdentifier, const String& messageJSON, const WebExtensionMessageTargetParameters& targetParameters, const WebExtensionMessageSenderParameters& senderParameters, bool userGesture, CompletionHandler<void(Expected<String, WebExtensionError>&&)>&& completionHandler)
 {
     static NSString * const apiName = @"tabs.sendMessage()";
 
@@ -497,7 +497,7 @@ void WebExtensionContext::tabsSendMessage(WebExtensionTabIdentifier tabIdentifie
     Ref callbackAggregator = EagerCallbackAggregator<void(Expected<String, WebExtensionError>)>::create(WTF::move(completionHandler), { });
 
     for (Ref process : processes) {
-        process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeMessageEvent(targetContentWorldType, messageJSON, targetParametersCopy, senderParameters), [callbackAggregator](String&& replyJSON) {
+        process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeMessageEvent(targetContentWorldType, messageJSON, targetParametersCopy, senderParameters, userGesture), [callbackAggregator](String&& replyJSON) {
             if (replyJSON.isNull())
                 return;
 
@@ -506,7 +506,7 @@ void WebExtensionContext::tabsSendMessage(WebExtensionTabIdentifier tabIdentifie
     }
 }
 
-void WebExtensionContext::tabsConnect(WebExtensionTabIdentifier tabIdentifier, WebExtensionPortChannelIdentifier channelIdentifier, String name, const WebExtensionMessageTargetParameters& targetParameters, const WebExtensionMessageSenderParameters& senderParameters, CompletionHandler<void(Expected<void, WebExtensionError>&&)>&& completionHandler)
+void WebExtensionContext::tabsConnect(WebExtensionTabIdentifier tabIdentifier, WebExtensionPortChannelIdentifier channelIdentifier, String name, const WebExtensionMessageTargetParameters& targetParameters, const WebExtensionMessageSenderParameters& senderParameters, bool userGesture, CompletionHandler<void(Expected<void, WebExtensionError>&&)>&& completionHandler)
 {
     static NSString * const apiName = @"tabs.connect()";
 
@@ -532,7 +532,7 @@ void WebExtensionContext::tabsConnect(WebExtensionTabIdentifier tabIdentifier, W
     size_t totalExpected = processes.size();
 
     for (Ref process : processes) {
-        process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeConnectEvent(targetContentWorldType, channelIdentifier, name, targetParameters, senderParameters), [=, this, protectedThis = Ref { *this }, &handledCount](HashCountedSet<WebPageProxyIdentifier>&& addedPortCounts) mutable {
+        process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeConnectEvent(targetContentWorldType, channelIdentifier, name, targetParameters, senderParameters, userGesture), [=, this, protectedThis = Ref { *this }, &handledCount](HashCountedSet<WebPageProxyIdentifier>&& addedPortCounts) mutable {
             // Flip target and source worlds since we're adding the opposite side of the port connection, sending from target back to source.
             addPorts(targetContentWorldType, sourceContentWorldType, channelIdentifier, WTF::move(addedPortCounts));
 
@@ -601,7 +601,7 @@ void WebExtensionContext::tabsRemove(Vector<WebExtensionTabIdentifier> tabIdenti
     }
 }
 
-void WebExtensionContext::tabsExecuteScript(WebPageProxyIdentifier webPageProxyIdentifier, std::optional<WebExtensionTabIdentifier> tabIdentifier, const WebExtensionScriptInjectionParameters& parameters, CompletionHandler<void(Expected<InjectionResults, WebExtensionError>&&)>&& completionHandler)
+void WebExtensionContext::tabsExecuteScript(WebPageProxyIdentifier webPageProxyIdentifier, std::optional<WebExtensionTabIdentifier> tabIdentifier, const WebExtensionScriptInjectionParameters& parameters, bool userGesture, CompletionHandler<void(Expected<InjectionResults, WebExtensionError>&&)>&& completionHandler)
 {
     static NSString * const apiName = @"tabs.executeScript()";
 
@@ -611,7 +611,7 @@ void WebExtensionContext::tabsExecuteScript(WebPageProxyIdentifier webPageProxyI
         return;
     }
 
-    requestPermissionToAccessURLs({ tab->url() }, tab, [this, protectedThis = Ref { *this }, tab, parameters, completionHandler = WTF::move(completionHandler)](auto&& requestedURLs, auto&& allowedURLs, auto expirationDate) mutable {
+    requestPermissionToAccessURLs({ tab->url() }, tab, [this, protectedThis = Ref { *this }, tab, parameters, userGesture, completionHandler = WTF::move(completionHandler)](auto&& requestedURLs, auto&& allowedURLs, auto expirationDate) mutable {
         if (!tab->extensionHasPermission()) {
             completionHandler(toWebExtensionError(apiName, nullString(), @"this extension does not have access to this tab"));
             return;
@@ -636,7 +636,7 @@ void WebExtensionContext::tabsExecuteScript(WebPageProxyIdentifier webPageProxyI
         }
 
         auto scriptPairs = getSourcePairsForParameters(parameters, *this);
-        executeScript(scriptPairs, webView, *m_contentScriptWorld, *tab, parameters, *this, [completionHandler = WTF::move(completionHandler)](InjectionResults&& injectionResults) mutable {
+        executeScript(scriptPairs, webView, *m_contentScriptWorld, *tab, parameters, *this, userGesture, [completionHandler = WTF::move(completionHandler)](InjectionResults&& injectionResults) mutable {
             completionHandler(WTF::move(injectionResults));
         });
     });

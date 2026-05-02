@@ -29,6 +29,7 @@
 #include "ExtendedDOMIsoSubspaces.h"
 #include "JSDOMAttribute.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructor.h"
 #include "JSDOMConvertAny.h"
 #include "JSDOMConvertBoolean.h"
@@ -42,11 +43,8 @@
 #include "ScriptExecutionContext.h"
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <type_traits>
 #include <wtf/GetPtr.h>
@@ -83,7 +81,7 @@ template<> ConversionResult<IDLDictionary<TestPromiseRejectionEvent::Init>> conv
     if (isNullOrUndefined)
         bubblesValue = jsUndefined();
     else {
-        bubblesValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "bubbles"_s));
+        bubblesValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "bubbles"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     auto bubblesConversionResult = convert<IDLBoolean>(lexicalGlobalObject, bubblesValue);
@@ -93,7 +91,7 @@ template<> ConversionResult<IDLDictionary<TestPromiseRejectionEvent::Init>> conv
     if (isNullOrUndefined)
         cancelableValue = jsUndefined();
     else {
-        cancelableValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "cancelable"_s));
+        cancelableValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "cancelable"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     auto cancelableConversionResult = convert<IDLBoolean>(lexicalGlobalObject, cancelableValue);
@@ -103,7 +101,7 @@ template<> ConversionResult<IDLDictionary<TestPromiseRejectionEvent::Init>> conv
     if (isNullOrUndefined)
         composedValue = jsUndefined();
     else {
-        composedValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "composed"_s));
+        composedValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "composed"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     auto composedConversionResult = convert<IDLBoolean>(lexicalGlobalObject, composedValue);
@@ -115,7 +113,7 @@ template<> ConversionResult<IDLDictionary<TestPromiseRejectionEvent::Init>> conv
             if (isNullOrUndefined)
                 trustedValue = jsUndefined();
             else {
-                trustedValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "trusted"_s));
+                trustedValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "trusted"_s));
                 RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
             }
             return convert<IDLBoolean>(lexicalGlobalObject, trustedValue);
@@ -129,7 +127,7 @@ template<> ConversionResult<IDLDictionary<TestPromiseRejectionEvent::Init>> conv
     if (isNullOrUndefined)
         promiseValue = jsUndefined();
     else {
-        promiseValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "promise"_s));
+        promiseValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "promise"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     if (promiseValue.isUndefined()) {
@@ -143,7 +141,7 @@ template<> ConversionResult<IDLDictionary<TestPromiseRejectionEvent::Init>> conv
     if (isNullOrUndefined)
         reasonValue = jsUndefined();
     else {
-        reasonValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "reason"_s));
+        reasonValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "reason"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     auto reasonConversionResult = convert<IDLAny>(lexicalGlobalObject, reasonValue);
@@ -255,14 +253,14 @@ const ClassInfo JSTestPromiseRejectionEventPrototype::s_info = { "TestPromiseRej
 
 JSC::Structure* JSTestPromiseRejectionEventPrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestPromiseRejectionEventPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSTestPromiseRejectionEvent::info(), JSTestPromiseRejectionEventPrototypeTableValues, *this);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestPromiseRejectionEvent::s_info = { "TestPromiseRejectionEvent"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestPromiseRejectionEvent) };

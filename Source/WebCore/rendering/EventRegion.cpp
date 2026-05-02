@@ -33,6 +33,7 @@
 #include "PathUtilities.h"
 #include "RenderAncestorIterator.h"
 #include "RenderBox.h"
+#include "RenderElementInlines.h"
 #include "RenderObjectInlines.h"
 #include "RenderStyle+GettersInlines.h"
 #include "SimpleRange.h"

@@ -19,16 +19,10 @@
 
 #pragma once
 
-#include <JavaScriptCore/AuxiliaryBarrierInlines.h>
-#include <JavaScriptCore/HeapInlines.h>
 #include <JavaScriptCore/JSArray.h>
-#include <JavaScriptCore/JSCellInlines.h>
-#include <JavaScriptCore/JSObjectInlines.h>
 #include <JavaScriptCore/Lookup.h>
 #include <JavaScriptCore/ObjectConstructor.h>
-#include <JavaScriptCore/SlotVisitorInlines.h>
 #include <JavaScriptCore/Structure.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/WriteBarrier.h>
 #include <WebCore/JSDOMGlobalObject.h>
 #include <WebCore/JSDOMWrapperCache.h>

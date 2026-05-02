@@ -29,9 +29,12 @@
 #include "DeviceOrientationAndMotionAccessController.h"
 #include "DeviceOrientationData.h"
 #include "Document.h"
+#include "DocumentPage.h"
 #include "JSDOMPromiseDeferred.h"
 #include "LocalDOMWindow.h"
 #include <wtf/TZoneMallocInlines.h>
+#include "JSDOMConvertEnumeration.h"
+#include <JavaScriptCore/ConsoleTypes.h>
 #include <wtf/text/MakeString.h>
 
 namespace WebCore {

@@ -28,7 +28,6 @@
 #if ENABLE(MEDIA_STREAM)
 
 #include "ContextDestructionObserverInlines.h"
-#include "EventTargetInlines.h"
 #include "GraphicsContext.h"
 #include "HTMLCanvasElement.h"
 #include "VideoFrame.h"

@@ -26,7 +26,6 @@
 #include "Document.h"
 #include "Element.h"
 #include "NamedNodeMap.h"
-#include "NodeInlines.h"
 #include "SerializedNode.h"
 #include <wtf/TZoneMallocInlines.h>
 

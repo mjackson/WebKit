@@ -642,10 +642,6 @@ messages -> WebPageProxy {
     DidCreateSleepDisabler(WebCore::SleepDisablerIdentifier identifier, String reason, bool display)
     DidDestroySleepDisabler(WebCore::SleepDisablerIdentifier identifier)
 
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-    DidAccessWindowProxyPropertyViaOpenerForFrame(WebCore::FrameIdentifier frameID, WebCore::SecurityOriginData openerOrigin, enum:uint8_t WebCore::WindowProxyProperty property)
-#endif
-
     DidApplyLinkDecorationFiltering(URL originalURL, URL adjustedURL)
     [EnabledBy=SiteIsolationEnabled] BroadcastDocumentSyncData(struct WebCore::DocumentSyncSerializationData processSyncData)
     [EnabledBy=SiteIsolationEnabled] BroadcastAllDocumentSyncData(Ref<WebCore::DocumentSyncData> documentSyncData)

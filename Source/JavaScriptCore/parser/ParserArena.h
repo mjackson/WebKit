@@ -30,6 +30,8 @@
 #include "MathCommon.h"
 #include <array>
 #include <type_traits>
+#include <wtf/Ref.h>
+#include <wtf/RefCounted.h>
 #include <wtf/SegmentedVector.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -147,20 +149,10 @@ namespace JSC {
 
     DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(ParserArena);
 
-    class ParserArena {
-        WTF_MAKE_NONCOPYABLE(ParserArena);
+    class ParserArena : public RefCounted<ParserArena> {
     public:
-        ParserArena();
+        static Ref<ParserArena> create() { return adoptRef(*new ParserArena); }
         ~ParserArena();
-
-        void swap(ParserArena& otherArena)
-        {
-            std::swap(m_freeableMemory, otherArena.m_freeableMemory);
-            std::swap(m_freeablePoolEnd, otherArena.m_freeablePoolEnd);
-            m_identifierArena.swap(otherArena.m_identifierArena);
-            m_freeablePools.swap(otherArena.m_freeablePools);
-            m_deletableObjects.swap(otherArena.m_deletableObjects);
-        }
 
         void* allocateFreeable(size_t size)
         {
@@ -196,6 +188,8 @@ namespace JSC {
         }
 
     private:
+        ParserArena();
+
         static const size_t freeablePoolSize = 8000;
 
         static size_t alignSize(size_t size)

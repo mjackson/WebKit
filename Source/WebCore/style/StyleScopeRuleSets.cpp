@@ -49,6 +49,7 @@
 #include "StyleSheetContents.h"
 #include <JavaScriptCore/ConsoleTypes.h>
 #include <ranges>
+#include <wtf/PointerComparison.h>
 
 namespace WebCore {
 namespace Style {

@@ -32,10 +32,13 @@
 #include "ContainerNodeInlines.h"
 #include "DOMTimer.h"
 #include "DocumentFullscreen.h"
+#include "DocumentPage.h"
 #include "DocumentQuirks.h"
 #include "EventNames.h"
+#include "FrameDestructionObserverInlines.h"
 #include "HTMLIFrameElement.h"
 #include "HTMLImageElement.h"
+#include "LocalFrameInlines.h"
 #include "Logging.h"
 #include "NodeRenderStyle.h"
 #include "Page.h"
@@ -50,7 +53,6 @@
 namespace WebCore {
 
 static const Seconds maximumDelayForTimers { 400_ms };
-static const Seconds maximumDelayForTransitions { 300_ms };
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ContentChangeObserver);
 

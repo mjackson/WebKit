@@ -33,7 +33,6 @@
 #include "ElementInlines.h"
 #include "Event.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "HTMLMediaElement.h"
 #include "HTMLNames.h"
 #include "LoadableTextTrack.h"

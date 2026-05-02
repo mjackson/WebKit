@@ -192,7 +192,7 @@ void PDFDocument::postMessageToIframe(const String& name, JSC::JSObject* data)
     auto& vm = globalObject->vm();
     JSC::JSLockHolder lock(vm);
 
-    JSC::JSObject* message = constructEmptyObject(globalObject);
+    JSC::JSObject* message = JSC::constructEmptyObject(globalObject);
     message->putDirect(vm, vm.propertyNames->message, JSC::jsNontrivialString(vm, name));
     if (data)
         message->putDirect(vm, JSC::Identifier::fromString(vm, "data"_s), data);

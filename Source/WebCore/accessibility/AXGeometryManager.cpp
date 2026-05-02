@@ -38,6 +38,7 @@
 
 #if PLATFORM(MAC)
 #include "PlatformScreen.h"
+#include "AXTreeStoreInlines.h"
 #endif
 
 namespace WebCore {

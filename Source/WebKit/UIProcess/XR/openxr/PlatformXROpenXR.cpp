@@ -65,6 +65,8 @@ struct OpenXRCoordinator::RenderState {
     PlatformXR::Device::RequestFrameCallback onFrameUpdate;
     XrFrameState frameState;
     bool passthroughFullyObscured { false };
+    Vector<PlatformXR::LayerHandle> activeLayerHandles;
+    Vector<PlatformXR::LayerHandle> currentFrameLayerHandles;
 #if ENABLE(WEBXR_HIT_TEST)
     HashMap<PlatformXR::HitTestSource, UniqueRef<PlatformXR::HitTestOptions>> hitTestSources;
     HashMap<PlatformXR::TransientInputHitTestSource, UniqueRef<PlatformXR::TransientInputHitTestOptions>> transientInputHitTestSources;
@@ -429,7 +431,10 @@ void OpenXRCoordinator::scheduleAnimationFrame(WebPageProxy& page, std::optional
             }
 
             active.renderQueue->dispatch([this, renderState = active.renderState, requestData = WTF::move(requestData), onFrameUpdateCallback = WTF::move(onFrameUpdateCallback)]() mutable {
-                renderState->passthroughFullyObscured = requestData ? requestData->isPassthroughFullyObscured : false;
+                if (requestData) {
+                    renderState->passthroughFullyObscured = requestData->isPassthroughFullyObscured;
+                    renderState->activeLayerHandles = requestData->activeLayerHandles;
+                }
                 renderState->onFrameUpdate = WTF::move(onFrameUpdateCallback);
                 renderLoop(renderState);
             });
@@ -1104,6 +1109,8 @@ PlatformXR::FrameData OpenXRCoordinator::populateFrameData(Box<RenderState> rend
         frameData.floorTransform = XrIdentityPose();
 
     for (auto& layer : m_layers) {
+        if (!renderState->currentFrameLayerHandles.contains(layer.key))
+            continue;
         auto layerData = layer.value->startFrame();
         if (layerData) {
             auto layerDataRef = makeUniqueRef<PlatformXR::FrameData::LayerData>(WTF::move(*layerData));
@@ -1224,6 +1231,7 @@ void OpenXRCoordinator::beginFrame(Box<RenderState> renderState)
 
     // We should not directly use renderState->frameState in the xrWaitFrame() in order not to override the previous (ongoing) value.
     renderState->frameState = frameState;
+    renderState->currentFrameLayerHandles = renderState->activeLayerHandles;
 
     createReferenceSpacesIfNeeded(renderState);
     PlatformXR::FrameData frameData = populateFrameData(renderState);
@@ -1247,6 +1255,8 @@ void OpenXRCoordinator::endFrame(Box<RenderState> renderState, Vector<PlatformXR
 
     Vector<XrCompositionLayerBaseHeader*> frameEndLayers;
     for (auto& layer : layers) {
+        ASSERT(renderState->currentFrameLayerHandles.contains(layer.handle));
+
         auto it = m_layers.find(layer.handle);
         if (it == m_layers.end()) {
             LOG(XR, "Didn't find a OpenXRLayer with %d handle", layer.handle);

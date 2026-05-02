@@ -648,7 +648,6 @@ fast/scrolling/rtl-scrollbars-positioned-intersect-scrollbars.html [ Pass ]
 fast/scrolling/rtl-scrollbars-alternate-body-dir-attr-does-not-update-scrollbar-placement-2.html [ Pass ]
 fast/scrolling/rtl-scrollbars-animation-property.html [ Pass ]
 
-webkit.org/b/307300 [ Debug arm64 ] http/tests/inspector/network/eventsource-type.html [ Pass Timeout ]
 webkit.org/b/307300 [ Debug arm64 ] http/tests/inspector/network/fetch-response-body-304.html [ Pass Timeout ]
 webkit.org/b/307300 [ Debug arm64 ] http/tests/inspector/network/har/har-basic.html [ Pass Timeout ]
 webkit.org/b/307300 [ Debug arm64 ] http/tests/inspector/network/har/har-page-aggressive-gc.html [ Pass Timeout ]
@@ -1564,13 +1563,6 @@ http/tests/webgpu/webgpu/shader/execution/flow_control/switch.html [ Pass ]
 webkit.org/b/264306 fast/scrolling/mac/scrollbars/very-wide-overlay-scrollbar.html [ Pass ImageOnlyFailure Timeout ]
 
 webkit.org/b/265599 [ Sonoma+ Debug x86_64 ] imported/w3c/web-platform-tests/html/browsers/the-window-object/open-close/open-features-tokenization-noreferrer.html [ Pass Crash ]
-
-# WindowProxy property access delegate callbacks are only implemented on Mac and iOS WK2.
-http/wpt/opener/child-access-parent-via-windowproxy.html [ Pass ]
-http/wpt/opener/cross-site-child-access-parent-iframe-via-windowproxy.html [ Pass ]
-http/wpt/opener/iframe-access-top-via-windowproxy.html [ Pass ]
-http/wpt/opener/parent-access-child-via-windowproxy.html [ Pass ]
-http/wpt/opener/same-site-child-access-parent-iframe-via-windowproxy.html [ Pass ]
 
 webkit.org/b/265954 [ Release x86_64 ] media/video-audio-session-mode.html [ Failure Crash ]
 

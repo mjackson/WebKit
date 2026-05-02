@@ -36,6 +36,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "JSCJSValue.h"
 #include "JSCJSValueBigInt.h"
 #include "JSCJSValuePropertyInlines.h"
+#include "JSCellInlines.h"
 #include "JSStringInlines.h"
 #include "MathCommon.h"
 #include "ThrowScope.h"

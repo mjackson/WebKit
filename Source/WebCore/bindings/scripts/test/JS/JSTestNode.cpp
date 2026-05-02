@@ -30,6 +30,7 @@
 #include "IDLTypes.h"
 #include "JSDOMAttribute.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructor.h"
 #include "JSDOMConvertBase.h"
 #include "JSDOMConvertBoolean.h"
@@ -49,12 +50,9 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/BuiltinNames.h>
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/ObjectConstructor.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -174,7 +172,7 @@ const ClassInfo JSTestNodePrototype::s_info = { "TestNode"_s, &Base::s_info, nul
 
 JSC::Structure* JSTestNodePrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestNodePrototype::finishCreation(VM& vm)
@@ -235,8 +233,8 @@ void JSTestNodePrototype::finishCreation(VM& vm)
     }
     if (hasDisabledRuntimeProperties && structure()->isDictionary())
         flattenDictionaryObject(vm);
-    putDirect(vm, vm.propertyNames->iteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().entriesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    putDirect(vm, vm.propertyNames->iteratorSymbol, WebCore::getDirect(this, vm, vm.propertyNames->builtinNames().entriesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestNode::s_info = { "TestNode"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestNode) };
@@ -388,7 +386,7 @@ static inline EncodedJSValue jsTestNodePrototypeFunction_toJSONBody(JSGlobalObje
     auto throwScope = DECLARE_THROW_SCOPE(vm);
     UNUSED_PARAM(throwScope);
     SUPPRESS_UNCOUNTED_LOCAL auto& impl = castedThis->wrapped();
-    auto* result = constructEmptyObject(lexicalGlobalObject);
+    auto* result = WebCore::constructEmptyObject(lexicalGlobalObject);
     auto nameValue = toJS<IDLDOMString>(*lexicalGlobalObject, throwScope, impl.name());
     RETURN_IF_EXCEPTION(throwScope, { });
     result->putDirect(vm, Identifier::fromString(vm, "name"_s), nameValue);
@@ -426,7 +424,7 @@ public:
 
     static JSC::Structure* createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
     {
-        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
     }
 
     static TestNodeIterator* create(JSC::VM& vm, JSC::Structure* structure, JSTestNode& iteratedObject, IterationKind kind, InternalIterator&& iterator)

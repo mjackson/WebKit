@@ -26,8 +26,6 @@
 #include "ElementInlines.h"
 #include "Event.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
-#include "NodeInlines.h"
 #include "ScriptElement.h"
 #include <wtf/TZoneMallocInlines.h>
 

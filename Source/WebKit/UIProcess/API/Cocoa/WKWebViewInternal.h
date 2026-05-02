@@ -302,6 +302,11 @@ struct PerWebProcessState {
     std::optional<LiveResizeParameters> liveResizeParameters;
 
     std::optional<WebKit::TransactionID> firstTransactionIDAfterObscuredInsetChange;
+
+#if ENABLE(RESPONSIVE_LIVE_RESIZE_UPDATE)
+    std::optional<CGFloat> lastResizedViewWidth;
+    RetainPtr<NSDate> lastResizeTimestamp;
+#endif
 };
 
 #endif // PLATFORM(IOS_FAMILY)
@@ -446,6 +451,9 @@ struct PerWebProcessState {
     WebCore::IntDegrees _animatedResizeOldOrientation;
     UIEdgeInsets _animatedResizeOldObscuredInsets;
     RetainPtr<UIView> _resizeAnimationView;
+#if ENABLE(RESPONSIVE_LIVE_RESIZE_UPDATE)
+    RetainPtr<UIView> _liveResizeSnapshotContainerView;
+#endif
     CGFloat _lastAdjustmentForScroller;
 
     std::pair<CGSize, UIInterfaceOrientation> _lastKnownWindowSizeAndOrientation;

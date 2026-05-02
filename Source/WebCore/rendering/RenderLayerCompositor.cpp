@@ -4588,10 +4588,11 @@ FloatSize RenderLayerCompositor::enclosingFrameViewVisibleSize() const
     const Ref frameView = m_renderView.frameView();
 #if PLATFORM(IOS_FAMILY)
     return frameView->exposedContentRect().size();
-#endif
+#else
     if (m_scrolledContentsLayer)
         return frameView->sizeForVisibleContent(scrollbarInclusionForVisibleRect());
     return frameView->visibleContentRect().size();
+#endif
 }
 
 float RenderLayerCompositor::contentsScaleMultiplierForNewTiles(const GraphicsLayer*) const

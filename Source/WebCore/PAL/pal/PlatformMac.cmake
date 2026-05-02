@@ -14,6 +14,7 @@ list(APPEND PAL_PUBLIC_HEADERS
 
     cg/CoreGraphicsSoftLink.h
 
+    cocoa/ARKitSoftLink.h
     cocoa/AVFAudioSoftLink.h
     cocoa/AVFoundationSoftLink.h
     cocoa/AccessibilitySoftLink.h
@@ -218,10 +219,12 @@ list(APPEND PAL_SOURCES
 
     cg/CoreGraphicsSoftLink.cpp
 
+    cocoa/ARKitSoftLink.mm
     cocoa/AVFAudioSoftLink.mm
     cocoa/AVFoundationSoftLink.mm
     cocoa/AccessibilitySoftLink.mm
     cocoa/AppSSOSoftLink.mm
+    cocoa/CompositorServicesSoftLink.mm
     cocoa/ContactsSoftLink.mm
     cocoa/CoreMLSoftLink.mm
     cocoa/CoreMaterialSoftLink.mm

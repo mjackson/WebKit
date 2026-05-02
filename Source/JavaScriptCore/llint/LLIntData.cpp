@@ -201,6 +201,7 @@ void initialize()
 #endif
 
     static_assert(llint_throw_from_slow_path_trampoline < UINT8_MAX);
+    static_assert(maxBytecodeStructLength + 1 <= Config::exceptionInstructionsSize);
     for (unsigned i = 0; i < maxBytecodeStructLength + 1; ++i)
         g_jscConfig.llint.exceptionInstructions[i] = llint_throw_from_slow_path_trampoline;
 

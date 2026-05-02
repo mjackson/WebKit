@@ -50,6 +50,7 @@
 #include "LocalizedStrings.h"
 #include "MouseEvent.h"
 #include "NodeDocument.h"
+#include "PlatformRenderTheme.h"
 #include "RenderElement.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderTheme.h"

@@ -2126,6 +2126,7 @@ set(WebCore_USER_AGENT_STYLE_SHEETS
     ${WEBCORE_DIR}/css/htmlSwitchControl.css
     ${WEBCORE_DIR}/css/mathml.css
     ${WEBCORE_DIR}/css/mathmlCoreExtras.css
+    ${WEBCORE_DIR}/css/mathmlCoreMathvariant.css
     ${WEBCORE_DIR}/css/mathmlFontSizeMath.css
     ${WEBCORE_DIR}/css/mathmlLegacyFontSizeMath.css
     ${WEBCORE_DIR}/css/popover.css

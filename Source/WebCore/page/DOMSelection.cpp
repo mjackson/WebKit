@@ -39,7 +39,6 @@
 #include "LocalFrame.h"
 #include "LocalFrameInlines.h"
 #include "NodeDocument.h"
-#include "NodeInlines.h"
 #include "Range.h"
 #include "ShadowRoot.h"
 #include "StaticRange.h"

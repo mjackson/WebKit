@@ -553,20 +553,6 @@ StorageRequests& NODELETE StorageRequests::singleton()
     return requests;
 }
 
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-Ref<WebPageProxyFrameLoadStateObserver> WebPageProxyFrameLoadStateObserver::create()
-{
-    return adoptRef(*new WebPageProxyFrameLoadStateObserver);
-}
-
-WebPageProxyFrameLoadStateObserver::WebPageProxyFrameLoadStateObserver() = default;
-
-WebPageProxyFrameLoadStateObserver::~WebPageProxyFrameLoadStateObserver() = default;
-
-WTF_MAKE_TZONE_ALLOCATED_IMPL(WebPageProxyFrameLoadStateObserver);
-
-#endif // #if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-
 void WebPageProxy::forMostVisibleWebPageIfAny(PAL::SessionID sessionID, const SecurityOriginData& origin, CompletionHandler<void(WebPageProxy*)>&& completionHandler)
 {
     // FIXME: If not finding right away a visible page, we might want to try again for a given period of time when there is a change of visibility.
@@ -1859,11 +1845,6 @@ void WebPageProxy::initializeWebPage(const Site& site, WebCore::SandboxFlags eff
     if (preferences->siteIsolationEnabled())
         browsingContextGroup->addPage(*this);
     process->send(Messages::WebProcess::CreateWebPage(m_webPageID, creationParameters(process, *protect(drawingArea()), m_mainFrame->frameID(), std::nullopt)), 0);
-
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-    internals().frameLoadStateObserver = WebPageProxyFrameLoadStateObserver::create();
-    m_mainFrame->frameLoadState().addObserver(*protect(internals().frameLoadStateObserver));
-#endif
 
     process->addVisitedLinkStoreUser(m_visitedLinkStore, identifier());
 
@@ -17612,34 +17593,6 @@ void WebPageProxy::useRedirectionForCurrentNavigation(const ResourceResponse& re
     ASSERT(response.isRedirection());
     send(Messages::WebPage::UseRedirectionForCurrentNavigation(response));
 }
-
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-
-void WebPageProxy::didAccessWindowProxyPropertyViaOpenerForFrame(IPC::Connection& connection, FrameIdentifier frameID, const SecurityOriginData& parentOrigin, WindowProxyProperty property)
-{
-    if (!internals().frameLoadStateObserver)
-        return;
-
-    RefPtr frame = WebFrameProxy::webFrame(frameID);
-    if (!frame)
-        return;
-
-    RegistrableDomain parentDomain { parentOrigin };
-
-    bool isMostRecentDomain = true;
-    for (auto& childDomain : internals().frameLoadStateObserver->visitedDomains()) {
-        // If we already told the embedder about this domain/property pair before, don't tell them again.
-        auto result = internals().windowOpenerAccessedProperties.add(childDomain, OptionSet<WindowProxyProperty> { });
-        if (result.iterator->value.contains(property))
-            continue;
-        result.iterator->value.add(property);
-
-        websiteDataStore().client().didAccessWindowProxyProperty(parentDomain, childDomain, property, isMostRecentDomain);
-        isMostRecentDomain = false;
-    }
-}
-
-#endif
 
 void WebPageProxy::dispatchLoadEventToFrameOwnerElement(WebCore::FrameIdentifier frameID)
 {

@@ -127,6 +127,8 @@ bool MathMLElement::hasPresentationalHintsForAttribute(const QualifiedName& name
     case AttributeNames::displaystyleAttr:
     case AttributeNames::scriptlevelAttr:
         return true;
+    case AttributeNames::mathvariantAttr:
+        return document().settings().coreMathMLDeprecateLegacyMathvariant();
     default:
         break;
     }
@@ -239,6 +241,15 @@ void MathMLElement::collectPresentationalHintsForAttribute(const QualifiedName& 
     }
     default:
         break;
+    }
+
+    if (document().settings().coreMathMLDeprecateLegacyMathvariant() && name.nodeName() == AttributeNames::mathvariantAttr) {
+        // In MathML Core the mathvariant attribute only has a supported value of normal which sets
+        // a presentational hint resetting the value of text-transform to none.
+        // https://w3c.github.io/mathml-core/#dfn-mathvariant
+        if (hasTagName(MathMLNames::miTag) && equalLettersIgnoringASCIICase(value, "normal"_s))
+            addPropertyToPresentationalHintStyle(style, CSSPropertyTextTransform, CSSValueNone);
+        return;
     }
 
     if (document().settings().coreMathMLEnabled()) {

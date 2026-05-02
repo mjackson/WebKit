@@ -48,7 +48,7 @@ inline JSIDBSerializationGlobalObject::JSIDBSerializationGlobalObject(VM& vm, St
 
 JSIDBSerializationGlobalObject* JSIDBSerializationGlobalObject::create(VM& vm, Structure* structure, Ref<DOMWrapperWorld>&& impl)
 {
-    JSIDBSerializationGlobalObject* ptr =  new (NotNull, allocateCell<JSIDBSerializationGlobalObject>(vm)) JSIDBSerializationGlobalObject(vm, structure, WTF::move(impl));
+    JSIDBSerializationGlobalObject* ptr =  new (NotNull, JSC::allocateCell<JSIDBSerializationGlobalObject>(vm)) JSIDBSerializationGlobalObject(vm, structure, WTF::move(impl));
     ptr->finishCreation(vm);
     return ptr;
 }

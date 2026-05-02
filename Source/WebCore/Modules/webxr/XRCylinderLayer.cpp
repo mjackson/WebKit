@@ -27,7 +27,6 @@
 #include "XRCylinderLayer.h"
 
 #if ENABLE(WEBXR_LAYERS)
-#include "EventTargetInlines.h"
 
 namespace WebCore {
 

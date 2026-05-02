@@ -33,6 +33,7 @@
 #include "LocalFrame.h"
 #include "Page.h"
 #include "PaintInfo.h"
+#include "PlatformRenderTheme.h"
 #include "RenderObjectInlines.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderText.h"

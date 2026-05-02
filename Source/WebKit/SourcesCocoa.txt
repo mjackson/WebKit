@@ -179,7 +179,6 @@ Shared/Extensions/Cocoa/WebExtensionFrameIdentifierCocoa.mm @nonARC
 
 Shared/Cocoa/APIDataCocoa.mm @nonARC
 Shared/Cocoa/APIObject.mm @nonARC
-Shared/Cocoa/ARKitSoftLink.mm @nonARC
 Shared/Cocoa/AccessibilityPreferences.mm @nonARC
 Shared/Cocoa/AuxiliaryProcessCocoa.mm @nonARC
 Shared/Cocoa/CodeSigning.mm @nonARC
@@ -729,6 +728,12 @@ UIProcess/WebsiteData/Cocoa/WebsiteDataStoreCocoa.mm @nonARC
 UIProcess/XR/ios/PlatformXRARKit.mm @nonARC
 UIProcess/XR/ios/PlatformXRSystemIOS.mm @nonARC
 UIProcess/XR/ios/WKARPresentationSession.mm @nonARC
+
+UIProcess/XR/xros/PlatformXRCompositor.mm @nonARC
+UIProcess/XR/xros/PlatformXRSystemXROS.mm @nonARC
+UIProcess/XR/xros/WKSpatialGestureRecognizer.mm @nonARC
+UIProcess/XR/xros/WKXRControllerManager.mm @nonARC
+UIProcess/XR/xros/WKXRTrackingManager.mm @nonARC
 
 WebProcess/API/Cocoa/WKWebProcess.cpp
 

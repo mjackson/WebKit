@@ -909,6 +909,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     bindings/js/JSCSSRuleCustom.h
     bindings/js/JSCSSStyleDeclarationCustom.h
     bindings/js/JSDOMBinding.h
+    bindings/js/JSDOMBindingFacade.h
     bindings/js/JSDOMBindingSecurity.h
     bindings/js/JSDOMCastThisValue.h
     bindings/js/JSDOMConvert.h
@@ -2992,6 +2993,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/PaintInfo.h
     rendering/PaintPhase.h
     rendering/PathOperation.h
+    rendering/PlatformRenderTheme.h
     rendering/RegionContext.h
     rendering/RelayoutScopeForScrollbarChange.h
     rendering/RenderAttachment.h

@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <wtf/text/ASCIILiteral.h>
 #include <wtf/text/StringHasher.h>
 #include <wtf/text/WYHash.h>
 
@@ -36,6 +37,11 @@ constexpr unsigned StringHasher::computeLiteralHashAndMaskTop8Bits(const T (&cha
 {
     constexpr unsigned characterCountWithoutNull = characterCount - 1;
     return WYHash::computeHashAndMaskTop8Bits<T>(unsafeMakeSpan(characters, characterCountWithoutNull));
+}
+
+constexpr unsigned StringHasher::computeLiteralHashAndMaskTop8Bits(ASCIILiteral literal)
+{
+    return WYHash::computeHashAndMaskTop8Bits<char>(literal.span());
 }
 
 } // namespace WTF

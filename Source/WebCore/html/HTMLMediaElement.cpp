@@ -63,7 +63,6 @@
 #include "DocumentView.h"
 #include "ElementChildIteratorInlines.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "FourCC.h"
 #include "FrameDestructionObserverInlines.h"
 #include "FrameLoader.h"
@@ -108,7 +107,6 @@
 #include "NavigatorMediaDevices.h"
 #include "NavigatorMediaSession.h"
 #include "NetworkingContext.h"
-#include "NodeInlines.h"
 #include "NodeName.h"
 #include "NowPlayingInfo.h"
 #include "OriginAccessPatterns.h"
@@ -117,6 +115,7 @@
 #include "PageInlines.h"
 #include "PictureInPictureSupport.h"
 #include "PlatformMediaSessionManager.h"
+#include "PlatformRenderTheme.h"
 #include "PlatformTextTrack.h"
 #include "ProgressTracker.h"
 #include "PseudoClassChangeInvalidation.h"
@@ -195,6 +194,7 @@
 #if ENABLE(MEDIA_SOURCE)
 #include "MediaSource.h"
 #include "MediaSourceInterfaceMainThread.h"
+
 #if ENABLE(MEDIA_SOURCE_IN_WORKERS)
 #include "MediaSourceHandle.h"
 #include "MediaSourceInterfaceWorker.h"
@@ -230,6 +230,7 @@
 #endif
 
 #if ENABLE(MEDIA_SESSION_COORDINATOR)
+#include "EventTarget.h"
 #include "MediaSessionCoordinator.h"
 #endif
 
@@ -269,7 +270,6 @@ struct LogArgument<URL> {
     }
 };
 }
-
 
 namespace WebCore {
 
@@ -1457,7 +1457,6 @@ void HTMLMediaElement::setSrcObject(std::optional<MediaProvider>&& mediaProvider
     // the UA must re-run the media element load algorithm.
     //
     // https://bugs.webkit.org/show_bug.cgi?id=124896
-
 
     // https://www.w3.org/TR/html51/semantics-embedded-content.html#dom-htmlmediaelement-srcobject
     // 4.7.14.2. Location of the media resource

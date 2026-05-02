@@ -62,6 +62,7 @@ class Decoder;
 }
 
 namespace WebCore {
+class FloatRect;
 class FrameTreeSyncData;
 class ResourceRequest;
 class SecurityOrigin;
@@ -305,7 +306,7 @@ public:
     void sendMessageToInspectorFrontend(const String& targetId, const String& message);
 
     void requestTextExtraction(WebCore::TextExtraction::Request&&, CompletionHandler<void(WebCore::TextExtraction::Result&&)>&&);
-    void handleTextExtractionInteraction(WebCore::TextExtraction::Interaction&&, CompletionHandler<void(bool, String&&)>&&);
+    void handleTextExtractionInteraction(WebCore::TextExtraction::Interaction&&, CompletionHandler<void(bool, String&&, WebCore::FloatRect)>&&);
     void describeTextExtractionInteraction(WebCore::TextExtraction::Interaction&&, CompletionHandler<void(WebCore::TextExtraction::InteractionDescription&&)>&&);
     void takeSnapshotOfExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&&);
     void requestJSHandleForExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);

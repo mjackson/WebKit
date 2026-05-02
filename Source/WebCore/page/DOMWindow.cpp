@@ -35,7 +35,6 @@
 #include "CustomElementRegistry.h"
 #include "DocumentSecurityOrigin.h"
 #include "DocumentView.h"
-#include "EventTargetInlines.h"
 #include "ExceptionOr.h"
 #include "Frame.h"
 #include "FrameConsoleClient.h"

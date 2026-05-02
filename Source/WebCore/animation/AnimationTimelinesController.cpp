@@ -36,7 +36,6 @@
 #include "DocumentWindow.h"
 #include "ElementInlines.h"
 #include "EventLoop.h"
-#include "EventTargetInlines.h"
 #include "GraphicsLayer.h"
 #include "KeyframeEffect.h"
 #include "LocalDOMWindow.h"

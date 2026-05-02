@@ -31,7 +31,6 @@
 #include "Blob.h"
 #include "ContextDestructionObserverInlines.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "ExceptionCode.h"
 #include "ExceptionOr.h"
 #include "Logging.h"

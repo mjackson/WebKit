@@ -96,15 +96,6 @@ static RetainPtr<CMSampleBufferRef> createSampleBuffer(const CAAudioStreamDescri
         return nullptr;
     }
     return sampleBuffer;
-
-    auto result = WebAudioBufferList::createWebAudioBufferListWithBlockBuffer(description, numberOfFrames);
-    if (!result)
-        return nullptr;
-
-    auto [newList, blockBuffer] = WTF::move(*result);
-    if (PAL::CMSampleBufferSetDataBuffer(rawSampleBuffer, blockBuffer.get()))
-        return nullptr;
-    return sampleBuffer;
 }
 
 RefPtr<PlatformRawAudioData> PlatformRawAudioData::create(std::span<const uint8_t> sourceData, AudioSampleFormat format, float sampleRate, int64_t timestamp, size_t numberOfFrames, size_t numberOfChannels)

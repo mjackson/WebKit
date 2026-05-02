@@ -47,7 +47,6 @@
 #include "LocalFrame.h"
 #include "LocalFrameView.h"
 #include "Logging.h"
-#include "NodeInlines.h"
 #include "PrintContext.h"
 #include "PseudoElement.h"
 #include "RemoteFrame.h"

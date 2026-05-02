@@ -113,6 +113,10 @@ public:
     WKStringRef testPluginDirectory() const { return m_testPluginDirectory.get(); }
 
     PlatformWebView* mainWebView() { return m_mainWebView.get(); }
+    PlatformWebView* viewForPage(WKPageRef);
+    PlatformWebView* targetView() { return m_targetView ? m_targetView : m_mainWebView.get(); }
+    void setTargetView(PlatformWebView* view) { m_targetView = view; }
+    void setTargetViewFromMessage(WKScriptMessageRef);
     WKContextRef context() { return m_context.get(); }
     WKUserContentControllerRef userContentController() { return m_userContentController.get(); }
 
@@ -427,8 +431,6 @@ public:
     void setIsMediaKeySystemPermissionGranted(bool);
     WKRetainPtr<WKStringRef> takeViewPortSnapshot();
 
-    WKRetainPtr<WKArrayRef> getAndClearReportedWindowProxyAccessDomains();
-
     WKPreferencesRef platformPreferences() { return m_preferences.get(); }
 
     bool grantNotificationPermission(WKStringRef origin);
@@ -740,6 +742,7 @@ private:
 
     std::unique_ptr<PlatformWebView> m_mainWebView;
     Vector<UniqueRef<PlatformWebView>> m_auxiliaryWebViews;
+    PlatformWebView* m_targetView { nullptr };
     WKRetainPtr<WKContextRef> m_context;
     WKRetainPtr<WKPreferencesRef> m_preferences;
     WKRetainPtr<WKUserContentControllerRef> m_userContentController;

@@ -38,6 +38,8 @@
 #include <pal/cf/CoreAudioExtras.h>
 #include <wtf/StdLibExtras.h>
 
+#include <pal/cf/AudioToolboxSoftLink.h>
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(PitchShiftAudioUnit);

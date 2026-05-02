@@ -298,7 +298,7 @@ static JSValue ensureNthValueOnKeyPath(JSGlobalObject& lexicalGlobalObject, JSVa
         JSValue parentValue(currentValue);
         const String& keyPathElement = keyPathElements[i];
         if (!get(lexicalGlobalObject, parentValue, keyPathElement, currentValue)) {
-            JSObject* object = constructEmptyObject(&lexicalGlobalObject);
+            JSObject* object = JSC::constructEmptyObject(&lexicalGlobalObject);
             if (!set(lexicalGlobalObject.vm(), parentValue, keyPathElement, JSValue(object)))
                 return jsUndefined();
             currentValue = JSValue(object);

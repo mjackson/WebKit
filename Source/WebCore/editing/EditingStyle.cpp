@@ -296,7 +296,7 @@ public:
         if (!m_keywordValue)
             return false;
         RefPtr valueList = dynamicDowncast<CSSValueList>(WTF::move(styleValue));
-        return valueList && valueList->hasValue(Ref { *m_keywordValue });
+        return valueList && valueList->hasValue(protect(*m_keywordValue));
     }
 
 private:
@@ -892,7 +892,7 @@ TriState EditingStyle::triStateOfStyle(EditingStyle* style) const
 {
     if (!style || !style->m_mutableStyle)
         return TriState::False;
-    return triStateOfStyle(Ref { *style->m_mutableStyle }.get(), ShouldIgnoreTextOnlyProperties::No);
+    return triStateOfStyle(protect(*style->m_mutableStyle).get(), ShouldIgnoreTextOnlyProperties::No);
 }
 
 template<typename T>
@@ -1160,7 +1160,7 @@ bool EditingStyle::styleIsPresentInComputedStyleOfNode(Node& node) const
             return false;
     }
 
-    return !m_mutableStyle || getPropertiesNotIn(Ref { *m_mutableStyle }, computedStyle)->isEmpty();
+    return !m_mutableStyle || getPropertiesNotIn(protect(*m_mutableStyle), computedStyle)->isEmpty();
 }
 
 bool EditingStyle::elementIsStyledSpanOrHTMLEquivalent(const HTMLElement& element)
@@ -1413,7 +1413,7 @@ static Ref<MutableStyleProperties> styleFromMatchedRulesForElement(Element& elem
     if (!element.isConnected())
         return style;
 
-    for (auto& matchedRule : Ref { element.styleResolver() }->styleRulesForElement(&element, rulesToInclude))
+    for (auto& matchedRule : protect(element.styleResolver())->styleRulesForElement(&element, rulesToInclude))
         style->mergeAndOverrideOnConflict(protect(matchedRule->properties()));
     
     return style;
@@ -1490,7 +1490,7 @@ Ref<MutableStyleProperties> EditingStyle::removeInlineStyleRedundantDueToMatched
 {
     auto styleFromMatchedRules = styleFromMatchedRulesForElement(element, Style::Resolver::AllButEmptyCSSRules);
     if (!styleFromMatchedRules->isEmpty())
-        m_mutableStyle = getPropertiesNotIn(Ref { *m_mutableStyle }, styleFromMatchedRules.get());
+        m_mutableStyle = getPropertiesNotIn(protect(*m_mutableStyle), styleFromMatchedRules.get());
     return styleFromMatchedRules;
 }
 
@@ -1703,14 +1703,14 @@ bool EditingStyle::fontWeightIsBold()
     if (!m_mutableStyle)
         return false;
 
-    return WebCore::fontWeightIsBold(Ref { *m_mutableStyle }.get());
+    return WebCore::fontWeightIsBold(protect(*m_mutableStyle).get());
 }
 
 bool EditingStyle::fontStyleIsItalic()
 {
     if (!m_mutableStyle)
         return false;
-    RefPtr fontStyle = extractPropertyValue(Ref { *m_mutableStyle }, CSSPropertyFontStyle);
+    RefPtr fontStyle = extractPropertyValue(protect(*m_mutableStyle), CSSPropertyFontStyle);
     if (!fontStyle)
         return false;
 
@@ -1723,7 +1723,7 @@ bool EditingStyle::webkitTextDecorationsInEffectIsUnderline()
 {
     if (!m_mutableStyle)
         return false;
-    RefPtr textDecorations = dynamicDowncast<CSSValueList>(extractPropertyValue(Ref { *m_mutableStyle }, CSSPropertyWebkitTextDecorationsInEffect));
+    RefPtr textDecorations = dynamicDowncast<CSSValueList>(extractPropertyValue(protect(*m_mutableStyle), CSSPropertyWebkitTextDecorationsInEffect));
     if (!textDecorations)
         return false;
     return textDecorations->hasValue(CSSValueUnderline);
@@ -1865,7 +1865,7 @@ Ref<EditingStyle> EditingStyle::inverseTransformColorIfNeeded(Element& element)
 
     const auto& colorFilter = renderer->style().appleColorFilter();
     auto invertedColor = [&](CSSPropertyID propertyID) {
-        Color newColor = cssValueToColor(extractPropertyValue(Ref { *m_mutableStyle }, propertyID).get());
+        Color newColor = cssValueToColor(extractPropertyValue(protect(*m_mutableStyle), propertyID).get());
         colorFilter.inverseTransformColor(newColor);
         protect(styleWithInvertedColors->style())->setProperty(propertyID, serializationForCSS(newColor));
     };

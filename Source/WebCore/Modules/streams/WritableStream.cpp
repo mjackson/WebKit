@@ -38,6 +38,7 @@
 #include "StreamPipeOptions.h"
 #include "StreamPipeToUtilities.h"
 #include "StreamTransferUtilities.h"
+#include <JavaScriptCore/CallFrameInlines.h>
 
 namespace WebCore {
 

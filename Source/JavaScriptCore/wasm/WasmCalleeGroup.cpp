@@ -69,7 +69,7 @@ CalleeGroup::CalleeGroup(VM& vm, MemoryMode mode, ModuleInformation& moduleInfor
     , m_callers(m_calleeCount)
 {
     RefPtr<CalleeGroup> protectedThis = this;
-    m_plan = adoptRef(*new IPIntPlan(vm, moduleInformation, m_ipintCallees->span().data(), createSharedTask<Plan::CallbackType>([this, protectedThis = WTF::move(protectedThis)] (Plan&) {
+    m_plan = adoptRef(*new IPIntPlan(vm, moduleInformation, m_ipintCallees.copyRef(), createSharedTask<Plan::CallbackType>([this, protectedThis = WTF::move(protectedThis)] (Plan&) {
         Locker locker { m_lock };
         if (m_plan->failed()) {
             m_errorMessage = m_plan->errorMessage();

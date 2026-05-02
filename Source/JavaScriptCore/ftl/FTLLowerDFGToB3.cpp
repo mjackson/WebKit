@@ -10597,12 +10597,15 @@ IGNORE_CLANG_WARNINGS_END
         LValue allocator = allocatorForSize(vm().primitiveGigacageAuxiliarySpace(), byteSize, slowCase);
         LValue storage = allocateHeapCell(allocator, slowCase);
 
-        splatWords(
-            storage,
-            m_out.int32Zero,
-            m_out.castToInt32(m_out.lShr(byteSize, m_out.constIntPtr(3))),
-            m_out.int64Zero,
-            m_heaps.TypedArrayProperties);
+        LValue zeroFillEnd = nullptr;
+        if (m_node->child1()->isInt32Constant()) {
+            int32_t length = m_node->child1()->asInt32();
+            if (length >= 0 && static_cast<size_t>(length) <= JSArrayBufferView::fastSizeLimit)
+                zeroFillEnd = m_out.constInt32(WTF::roundUpToMultipleOf<8>(static_cast<size_t>(length) << logElementSize(typedArrayType)) / sizeof(UCPURegister));
+        }
+        if (!zeroFillEnd)
+            zeroFillEnd = m_out.castToInt32(m_out.lShr(byteSize, m_out.constIntPtr(3)));
+        splatWords(storage, m_out.int32Zero, zeroFillEnd, m_out.int64Zero, m_heaps.TypedArrayProperties);
 
         ValueFromBlock haveStorage = m_out.anchor(storage);
 
@@ -14175,9 +14178,9 @@ IGNORE_CLANG_WARNINGS_END
         WebAssemblyFunction* wasmFunction = node->castOperand<WebAssemblyFunction*>();
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
 
-        const auto& signature = Wasm::TypeInformation::getFunctionSignature(wasmFunction->typeIndex());
+        Ref signature = wasmFunction->signature();
         const Wasm::WasmCallingConvention& wasmCC = Wasm::wasmCallingConvention();
-        Wasm::CallInformation wasmCallInfo = wasmCC.callInformationFor(signature);
+        Wasm::CallInformation wasmCallInfo = wasmCC.callInformationFor(signature.get());
 
         RegisterAtOffsetList savedResultRegisters = wasmCallInfo.computeResultsOffsetList();
         unsigned totalFrameSize = wasmCallInfo.headerAndArgumentStackSizeInBytes;
@@ -14187,9 +14190,9 @@ IGNORE_CLANG_WARNINGS_END
         m_proc.requestCallArgAreaSizeInBytes(totalFrameSize);
 
         Vector<ConstrainedValue> arguments;
-        for (unsigned i = signature.argumentCount(); i--;) {
+        for (unsigned i = signature->argumentCount(); i--;) {
             bool isStack = wasmCallInfo.params[i].location.isStackArgument();
-            auto type = signature.argumentType(i);
+            auto type = signature->argumentType(i);
             switch (type.kind) {
             case Wasm::TypeKind::I32:
                 if (isStack)
@@ -14262,10 +14265,10 @@ IGNORE_CLANG_WARNINGS_END
         }
 
         PatchpointValue* patchpoint = nullptr;
-        if (signature.returnsVoid())
+        if (signature->returnsVoid())
             patchpoint = m_out.patchpoint(Void);
         else {
-            switch (signature.returnType(0).kind) {
+            switch (signature->returnType(0).kind) {
             case Wasm::TypeKind::I32: {
                 patchpoint = m_out.patchpoint(Int32);
                 patchpoint->resultConstraints = { ValueRep::reg(wasmCallInfo.results[0].location.jsr().payloadGPR()) };
@@ -14361,10 +14364,10 @@ IGNORE_CLANG_WARNINGS_END
 
             });
 
-        if (signature.returnsVoid())
+        if (signature->returnsVoid())
             setJSValue(m_out.constInt64(JSValue::encode(jsUndefined())));
         else {
-            switch (signature.returnType(0).kind) {
+            switch (signature->returnType(0).kind) {
             case Wasm::TypeKind::I32: {
                 setInt32(patchpoint);
                 break;

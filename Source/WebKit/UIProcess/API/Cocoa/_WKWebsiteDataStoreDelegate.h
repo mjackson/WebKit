@@ -45,6 +45,7 @@ typedef NS_ENUM(NSInteger, WKBackgroundFetchChange) {
     WKBackgroundFetchChangeUpdate,
 } WK_API_AVAILABLE(macos(14.0), ios(17.0));
 
+// FIXME: Remove WKWindowProxyProperty and didOpenDomainViaWindowOpen once clients stop referencing them.
 typedef NS_ENUM(NSInteger, WKWindowProxyProperty) {
     WKWindowProxyPropertyInitialOpen,
     WKWindowProxyPropertyPostMessage,

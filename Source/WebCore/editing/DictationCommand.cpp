@@ -50,9 +50,9 @@ public:
     void operator()(size_t lineOffset, size_t lineLength, bool isLastLine) const
     {
         if (lineLength > 0)
-            Ref { m_dictationCommand.get() }->insertTextRunWithoutNewlines(lineOffset, lineLength);
+            protect(m_dictationCommand.get())->insertTextRunWithoutNewlines(lineOffset, lineLength);
         if (!isLastLine)
-            Ref { m_dictationCommand.get() }->insertParagraphSeparator();
+            protect(m_dictationCommand.get())->insertParagraphSeparator();
     }
 private:
     WeakRef<DictationCommand> m_dictationCommand;

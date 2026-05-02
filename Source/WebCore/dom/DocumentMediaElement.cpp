@@ -32,6 +32,7 @@
 #include "DOMWrapperWorld.h"
 #include "Document.h"
 #include "FrameDestructionObserverInlines.h"
+#include "PlatformRenderTheme.h"
 #include "RenderTheme.h"
 #include "ScriptController.h"
 #include "ScriptSourceCode.h"

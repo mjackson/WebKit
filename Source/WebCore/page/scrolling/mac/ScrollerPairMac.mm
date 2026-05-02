@@ -40,6 +40,7 @@
 #import <WebCore/ScrollableArea.h>
 #import <WebCore/ScrollingTreeScrollingNode.h>
 #import <pal/spi/mac/NSScrollerImpSPI.h>
+#import <wtf/BlockObjCExceptions.h>
 #import <wtf/TZoneMallocInlines.h>
 
 @interface WebScrollerImpPairDelegateMac : NSObject <NSScrollerImpPairDelegate> {

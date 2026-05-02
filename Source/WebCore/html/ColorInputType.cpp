@@ -48,6 +48,7 @@
 #include "HTMLInputElement.h"
 #include "HTMLOptionElement.h"
 #include "InputTypeNames.h"
+#include "PlatformRenderTheme.h"
 #include "PseudoClassChangeInvalidation.h"
 #include "RenderTheme.h"
 #include "RenderView.h"

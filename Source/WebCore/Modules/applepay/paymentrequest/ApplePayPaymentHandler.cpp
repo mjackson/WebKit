@@ -48,6 +48,7 @@
 #include "ApplePayShippingMethodUpdate.h"
 #include "ContextDestructionObserverInlines.h"
 #include "Document.h"
+#include "DocumentPage.h"
 #include "EventNames.h"
 #include "JSApplePayCouponCodeDetails.h"
 #include "JSApplePayError.h"
@@ -166,7 +167,6 @@ static ExceptionOr<ApplePayLineItem> convertAndValidate(const PaymentItem& item,
     auto exception = validate(item.amount, expectedCurrency);
     if (exception.hasException())
         return exception.releaseException();
-
 
     ApplePayLineItem lineItem;
     lineItem.amount = item.amount.value;

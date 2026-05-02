@@ -31,7 +31,6 @@
 #include "Image.h"
 #include "LegacyRenderSVGResource.h"
 #include "NativeImage.h"
-#include "NodeInlines.h"
 #include "RenderObject.h"
 #include "SVGElementInlines.h"
 #include "SVGNames.h"

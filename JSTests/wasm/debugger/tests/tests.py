@@ -1511,12 +1511,12 @@ class WasmOutOfBoundsCallIndirectTrapTestCase:
     def execute(self):
         for _ in range(10):
             self.session.cmd("c", patterns=["Process 1 stopped", "Out of bounds call_indirect"])
-            self.session.cmd("dis", patterns=["->  0x4000000000000034: drop"])
+            self.session.cmd("dis", patterns=["->  0x4000000000000031: call_indirect 0"])
 
         self.session.cmd(
             "bt",
             patterns=[
-                "frame #0: 0x4000000000000034",
+                "frame #0: 0x4000000000000031",
                 "frame #1: 0xc000000000000000",
             ]
         )

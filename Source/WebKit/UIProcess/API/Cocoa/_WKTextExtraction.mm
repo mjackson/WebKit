@@ -317,9 +317,11 @@
 
 @implementation _WKTextExtractionInteractionResult {
     RetainPtr<NSError> _error;
+    RetainPtr<NSString> _summary;
+    CGRect _interactedElementBounds;
 }
 
-- (instancetype)initWithErrorDescription:(NSString *)errorDescription
+- (instancetype)initWithErrorDescription:(NSString *)errorDescription summary:(NSString *)summary interactedElementBounds:(CGRect)interactedElementBounds
 {
     if (!(self = [super init]))
         return nil;
@@ -327,12 +329,25 @@
     if (errorDescription)
         _error = [NSError errorWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:@{ NSDebugDescriptionErrorKey: errorDescription }];
 
+    _summary = adoptNS([summary copy]);
+    _interactedElementBounds = interactedElementBounds;
+
     return self;
 }
 
 - (NSError *)error
 {
     return _error.get();
+}
+
+- (NSString *)summary
+{
+    return _summary.get();
+}
+
+- (CGRect)interactedElementBounds
+{
+    return _interactedElementBounds;
 }
 
 @end

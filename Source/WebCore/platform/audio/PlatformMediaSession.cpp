@@ -28,6 +28,7 @@
 
 #if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
 
+#include "EventTarget.h"
 #include "HTMLMediaElement.h"
 #include "Logging.h"
 #include "MediaPlayer.h"

@@ -68,6 +68,7 @@
 #endif
 
 #if ENABLE(PICTURE_IN_PICTURE_API)
+#include "EventTarget.h"
 #include "HTMLVideoElementPictureInPicture.h"
 #include "PictureInPictureObserver.h"
 #endif

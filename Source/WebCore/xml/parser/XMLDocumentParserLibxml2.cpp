@@ -54,7 +54,6 @@
 #include "MIMETypeRegistry.h"
 #include "NameValidation.h"
 #include "NodeDocument.h"
-#include "NodeInlines.h"
 #include "OriginAccessPatterns.h"
 #include "Page.h"
 #include "PendingScript.h"

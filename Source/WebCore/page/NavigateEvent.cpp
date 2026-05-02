@@ -31,8 +31,8 @@
 #include "CommonVM.h"
 #include "DocumentView.h"
 #include "Element.h"
-#include "FrameDestructionObserverInlines.h"
 #include "ExceptionCode.h"
+#include "FrameDestructionObserverInlines.h"
 #include "HTMLBodyElement.h"
 #include "HistoryController.h"
 #include "JSValueInWrappedObjectInlines.h"
@@ -40,6 +40,7 @@
 #include "LocalFrameView.h"
 #include "Navigation.h"
 #include "NavigationNavigationType.h"
+#include "ScriptWrappableInlines.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {

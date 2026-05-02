@@ -29,6 +29,7 @@
 #include "IDLTypes.h"
 #include "JSDOMAbstractOperations.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertBase.h"
 #include "JSDOMConvertNumbers.h"
@@ -41,12 +42,9 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/PropertyNameArray.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -125,14 +123,14 @@ const ClassInfo JSTestNamedAndIndexedSetterWithIdentifierPrototype::s_info = { "
 
 JSC::Structure* JSTestNamedAndIndexedSetterWithIdentifierPrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestNamedAndIndexedSetterWithIdentifierPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSTestNamedAndIndexedSetterWithIdentifier::info(), JSTestNamedAndIndexedSetterWithIdentifierPrototypeTableValues, *this);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestNamedAndIndexedSetterWithIdentifier::s_info = { "TestNamedAndIndexedSetterWithIdentifier"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestNamedAndIndexedSetterWithIdentifier) };
@@ -192,7 +190,7 @@ bool JSTestNamedAndIndexedSetterWithIdentifier::legacyPlatformObjectGetOwnProper
             slot.setValue(thisObject, 0, value);
             return true;
         }
-        return JSObject::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
+        return WebCore::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
     }
     if (!ignoreNamedProperties) {
         using GetterIDLType = IDLDOMString;
@@ -206,7 +204,7 @@ bool JSTestNamedAndIndexedSetterWithIdentifier::legacyPlatformObjectGetOwnProper
             return true;
         }
     }
-    return JSObject::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
+    return WebCore::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
 }
 
 bool JSTestNamedAndIndexedSetterWithIdentifier::getOwnPropertySlot(JSObject* object, JSGlobalObject* lexicalGlobalObject, PropertyName propertyName, PropertySlot& slot)
@@ -275,8 +273,8 @@ bool JSTestNamedAndIndexedSetterWithIdentifier::put(JSCell* cell, JSGlobalObject
 
     if (!propertyName.isSymbol()) {
         PropertySlot slot { thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };
-        JSValue prototype = thisObject->getPrototypeDirect();
-        bool found = prototype.isObject() && asObject(prototype)->getPropertySlot(lexicalGlobalObject, propertyName, slot);
+        JSValue prototype = WebCore::storedPrototype(thisObject->structure(), thisObject);
+        bool found = prototype.isObject() && WebCore::getPropertySlot(asObject(prototype), lexicalGlobalObject, propertyName, slot);
         slot.disallowVMEntry.reset();
         RETURN_IF_EXCEPTION(throwScope, false);
         if (!found) {
@@ -319,8 +317,8 @@ bool JSTestNamedAndIndexedSetterWithIdentifier::putByIndex(JSCell* cell, JSGloba
 
     auto propertyName = Identifier::from(vm, index);
     PropertySlot slot { thisObject, PropertySlot::InternalMethodType::VMInquiry, &vm };
-    JSValue prototype = thisObject->getPrototypeDirect();
-    bool found = prototype.isObject() && asObject(prototype)->getPropertySlot(lexicalGlobalObject, propertyName, slot);
+    JSValue prototype = WebCore::storedPrototype(thisObject->structure(), thisObject);
+    bool found = prototype.isObject() && WebCore::getPropertySlot(asObject(prototype), lexicalGlobalObject, propertyName, slot);
     slot.disallowVMEntry.reset();
     RETURN_IF_EXCEPTION(throwScope, false);
     if (!found) {
@@ -355,7 +353,7 @@ bool JSTestNamedAndIndexedSetterWithIdentifier::defineOwnProperty(JSObject* obje
 
     if (!propertyName.isSymbol()) {
         PropertySlot slot { thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };
-        bool found = JSObject::getOwnPropertySlot(thisObject, lexicalGlobalObject, propertyName, slot);
+        bool found = WebCore::getOwnPropertySlot(thisObject, lexicalGlobalObject, propertyName, slot);
         slot.disallowVMEntry.reset();
         RETURN_IF_EXCEPTION(throwScope, false);
         if (!found) {
@@ -389,7 +387,7 @@ bool JSTestNamedAndIndexedSetterWithIdentifier::deleteProperty(JSCell* cell, JSG
         return !impl.isSupportedPropertyIndex(index.value());
     if (!propertyName.isSymbol() && impl.isSupportedPropertyName(propertyNameToString(propertyName))) {
         PropertySlot slotForGet { &thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };
-        if (!JSObject::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
+        if (!WebCore::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
             return false;
     }
     return JSObject::deleteProperty(cell, lexicalGlobalObject, propertyName, slot);

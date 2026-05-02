@@ -31,6 +31,7 @@
 #include "ExceptionHelpers.h"
 #include "FunctionCodeBlock.h"
 #include "JSCellButterfly.h"
+#include "JSGlobalProxy.h"
 #include "JSPropertyNameEnumerator.h"
 #include "ScopedArguments.h"
 #include "SlowPathFunction.h"

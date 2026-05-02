@@ -25,18 +25,16 @@
 #include "ExtendedDOMClientIsoSubspaces.h"
 #include "ExtendedDOMIsoSubspaces.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotCallable.h"
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMWrapperCache.h"
 #include "TestNamespaceConst.h"
 #include "WebCoreJSClientData.h"
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/ObjectPrototype.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -66,7 +64,7 @@ template<> JSValue JSTestNamespaceConstDOMConstructor::prototypeForStructure(JSC
 
 template<> void JSTestNamespaceConstDOMConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
     reifyStaticProperties(vm, JSTestNamespaceConst::info(), JSTestNamespaceConstConstructorTableValues, *this);
     UNUSED_PARAM(globalObject);
 }

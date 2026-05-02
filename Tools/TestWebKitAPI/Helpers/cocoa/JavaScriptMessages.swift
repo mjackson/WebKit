@@ -31,8 +31,8 @@ public enum JavaScriptMessages {
 }
 
 extension JavaScriptMessages {
-    /// Gets the bounding client rect of the current selection.
-    public struct SelectionBoundingClientRect: WebPage.JavaScriptExpression {
+    /// Gets the bounding client rect of an element.
+    public struct BoundingClientRect: WebPage.JavaScriptExpression {
         // Protocol conformance.
         // swift-format-ignore: AllPublicDeclarationsHaveDocumentation
         public typealias Output = DOMRect
@@ -41,21 +41,50 @@ extension JavaScriptMessages {
         // swift-format-ignore: AllPublicDeclarationsHaveDocumentation
         public static var expression: String {
             """
-            const selection = window.getSelection();
+            const range = document.createRange();
 
-            const range = selection.getRangeAt(0);
+            if (selection.kind === "range") {
+                const baseNode = document.getElementById(selection.base.container).firstChild;
+                const extentNode = document.getElementById(selection.extent.container).firstChild;
+                range.setStart(baseNode, selection.base.offset)
+                range.setEnd(extentNode, selection.extent.offset);
+            } else {
+                const node = document.getElementById(selection.position.container).firstChild;
+                range.setStart(node, selection.position.offset)
+                range.setEnd(node, selection.position.offset);
+            }
+
             return range.getBoundingClientRect().toJSON();
             """
         }
 
-        /// Create a new `SelectionBoundingClientRect`.
-        public init() {
+        private let selection: JavaScriptSelection
+
+        /// Create a `BoundingClientRect` expression from the given selection.
+        ///
+        /// - Parameter selection: The selection that will be set.
+        public init(_ selection: JavaScriptSelection) {
+            self.selection = selection
+        }
+
+        /// A convenience initializer for a range selection.
+        ///
+        /// - Parameters:
+        ///   - container: The container the range is relative to.
+        ///   - range: The range of the selection within the container.
+        public init(in container: String, range: Range<Int>) {
+            self.selection = .range(
+                base: .init(in: container, at: range.lowerBound),
+                extent: .init(in: container, at: range.upperBound),
+            )
         }
 
         // Protocol conformance.
         // swift-format-ignore: AllPublicDeclarationsHaveDocumentation
         public func encoded() -> [String: Any?] {
-            [:]
+            [
+                "selection": selection.encoded()
+            ]
         }
     }
 }

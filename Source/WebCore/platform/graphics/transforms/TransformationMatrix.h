@@ -407,6 +407,8 @@ public:
 #if PLATFORM(COCOA)
     WEBCORE_EXPORT TransformationMatrix(const simd_float4x4&);
     WEBCORE_EXPORT operator simd_float4x4() const;
+
+    WEBCORE_EXPORT static TransformationMatrix makeLookAt(simd_float3, simd_float3);
 #endif
 #if USE(SKIA)
     WEBCORE_EXPORT TransformationMatrix(const SkM44&);

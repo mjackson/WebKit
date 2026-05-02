@@ -100,7 +100,25 @@
             "name": "mac-release",
             "displayName": "macOS Release",
             "inherits": ["mac", "release"],
-            "binaryDir": "WebKitBuild/cmake-mac/Release"
+            "binaryDir": "WebKitBuild/cmake-mac/Release",
+            "cacheVariables": {
+                "CMAKE_C_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-O3 -DNDEBUG -g"
+                },
+                "CMAKE_CXX_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-O3 -DNDEBUG -g"
+                },
+                "CMAKE_OBJC_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-O3 -DNDEBUG -g"
+                },
+                "CMAKE_OBJCXX_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-O3 -DNDEBUG -g"
+                }
+            }
         },
         {
             "name": "mac-debug",
@@ -131,6 +149,14 @@
                 "CMAKE_CXX_FLAGS_DEBUG": {
                     "type": "STRING",
                     "value": "-g -O3"
+                },
+                "CMAKE_OBJC_FLAGS_DEBUG": {
+                    "type": "STRING",
+                    "value": "-g -O3"
+                },
+                "CMAKE_OBJCXX_FLAGS_DEBUG": {
+                    "type": "STRING",
+                    "value": "-g -O3"
                 }
             }
         },
@@ -143,6 +169,22 @@
                 "CMAKE_BUILD_TYPE": {
                     "type": "STRING",
                     "value": "RelWithDebInfo"
+                },
+                "CMAKE_C_FLAGS_RELWITHDEBINFO": {
+                    "type": "STRING",
+                    "value": "-O3 -g -DNDEBUG"
+                },
+                "CMAKE_CXX_FLAGS_RELWITHDEBINFO": {
+                    "type": "STRING",
+                    "value": "-O3 -g -DNDEBUG"
+                },
+                "CMAKE_OBJC_FLAGS_RELWITHDEBINFO": {
+                    "type": "STRING",
+                    "value": "-O3 -g -DNDEBUG"
+                },
+                "CMAKE_OBJCXX_FLAGS_RELWITHDEBINFO": {
+                    "type": "STRING",
+                    "value": "-O3 -g -DNDEBUG"
                 }
             }
         },

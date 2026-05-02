@@ -31,10 +31,11 @@
 // (JSStringInlines.h, JSCellInlines.h, JSBigInt.h, etc.).
 
 #include <JavaScriptCore/ExceptionHelpers.h>
+#include <JavaScriptCore/GetVM.h>
 #include <JavaScriptCore/JSCJSValueCell.h>
-#include <JavaScriptCore/JSGlobalObjectInlines.h>
 #include <JavaScriptCore/JSObject.h>
 #include <JavaScriptCore/JSString.h>
+#include <JavaScriptCore/Symbol.h>
 
 namespace JSC {
 

@@ -38,7 +38,6 @@
 #include "DocumentPage.h"
 #include "EventNames.h"
 #include "EventTargetInterfaces.h"
-#include "EventTargetInlines.h"
 #include "ExceptionOr.h"
 #include "JSCookieListItem.h"
 #include "JSDOMConvertDictionary.h"

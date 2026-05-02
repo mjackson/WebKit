@@ -1,5 +1,5 @@
 This tests the presence and functionality of features of `HTMLOrForeignElement` (currently `HTMLOrSVGElement`)
-E
+𝐸
 
 PASS MathML elements should have a .dataset
 PASS The dataset property should be present and be functional.

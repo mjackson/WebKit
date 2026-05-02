@@ -31,6 +31,7 @@
 #include "IDLTypes.h"
 #include "JSDOMAttribute.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertBase.h"
 #include "JSDOMConvertBoolean.h"
@@ -113,11 +114,8 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -647,7 +645,7 @@ template<> void JSTestGlobalObjectDOMConstructor::initializeProperties(VM& vm, J
     JSString* nameString = jsNontrivialString(vm, "TestGlobalObject"_s);
     m_originalName.set(vm, this, nameString);
     putDirect(vm, vm.propertyNames->name, nameString, JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->prototype, globalObject.getPrototypeDirect(), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::DontDelete);
+    putDirect(vm, vm.propertyNames->prototype, WebCore::storedPrototype(globalObject.structure(), &globalObject), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::DontDelete);
     reifyStaticProperties(vm, JSTestGlobalObject::info(), JSTestGlobalObjectConstructorTableValues, *this);
 }
 
@@ -668,13 +666,13 @@ const ClassInfo JSTestGlobalObjectPrototype::s_info = { "TestGlobalObject"_s, &B
 
 JSC::Structure* JSTestGlobalObjectPrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestGlobalObjectPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestGlobalObject::s_info = { "TestGlobalObject"_s, &Base::s_info, &JSTestGlobalObjectTable, nullptr, CREATE_METHOD_TABLE(JSTestGlobalObject) };

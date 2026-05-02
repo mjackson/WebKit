@@ -436,13 +436,12 @@ bool PlatformXRSystem::webXREnabled() const
     return page && protect(page->preferences())->webXREnabled();
 }
 
-#if !USE(APPLE_INTERNAL_SDK) && !USE(OPENXR)
-
+#if USE(EMPTYXR)
 PlatformXRCoordinator* PlatformXRSystem::xrCoordinator()
 {
     return nullptr;
 }
-#endif // !USE(APPLE_INTERNAL_SDK) && !USE(OPENXR)
+#endif // !USE(APPLE_INTERNAL_SDK) && !USE(OPENXR) && !PLATFORM(IOS) && !PLATFORM(VISION)
 
 #if ENABLE(WEBXR_LAYERS) && PLATFORM(VISION)
 void PlatformXRSystem::createCompositionLayer(IPC::Connection&, PlatformXR::CompositionLayerType, WebCore::IntSize, PlatformXR::LayerLayout, CompletionHandler<void(std::optional<PlatformXR::LayerInfo>)>&& reply)

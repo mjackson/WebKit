@@ -26,6 +26,7 @@
 
 #include "ContextDestructionObserverInlines.h"
 #include "DOMPromiseProxy.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertBase.h"
 #include "JSDOMConvertBoolean.h"
@@ -46,8 +47,6 @@
 #include "ScriptExecutionContext.h"
 #include "SerializedScriptValue.h"
 #include <JavaScriptCore/FunctionPrototype.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSString.h>
 #include <JavaScriptCore/MarkedVector.h>
 #include <type_traits>
@@ -122,7 +121,7 @@ template<> ConversionResult<IDLDictionary<TestCallbackInterface::Dictionary>> co
     if (isNullOrUndefined)
         optionalMemberValue = jsUndefined();
     else {
-        optionalMemberValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "optionalMember"_s));
+        optionalMemberValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "optionalMember"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     auto optionalMemberConversionResult = convert<IDLOptional<IDLLong>>(lexicalGlobalObject, optionalMemberValue);
@@ -132,7 +131,7 @@ template<> ConversionResult<IDLDictionary<TestCallbackInterface::Dictionary>> co
     if (isNullOrUndefined)
         requiredMemberValue = jsUndefined();
     else {
-        requiredMemberValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "requiredMember"_s));
+        requiredMemberValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "requiredMember"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     if (requiredMemberValue.isUndefined()) {

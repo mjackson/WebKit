@@ -1279,12 +1279,15 @@ double RenderFlexibleBox::preferredAspectRatioForFlexItem(const RenderBox& flexI
 template<typename SizeType> LayoutUnit RenderFlexibleBox::computeMainSizeFromAspectRatioUsing(const RenderBox& flexItem, const SizeType& crossSizeLength) const
 {
     ASSERT(flexItemHasAspectRatio(flexItem));
+    auto flexItemCrossAxisBorderAndPadding = isHorizontalFlow() ? flexItem.verticalBorderAndPaddingExtent() : flexItem.horizontalBorderAndPaddingExtent();
 
-    // `crossSize` is border-box size if box-sizing is border-box, and content-box otherwise.
-
+    // All paths return border-box cross size.
     auto crossSizeOptional = WTF::switchOn(crossSizeLength,
         [&](const SizeType::Fixed& fixedCrossSizeLength) -> std::optional<LayoutUnit> {
-            return LayoutUnit(fixedCrossSizeLength.resolveZoom(flexItem.style().usedZoomForLength()));
+            auto value = LayoutUnit { fixedCrossSizeLength.resolveZoom(flexItem.style().usedZoomForLength()) };
+            if (flexItem.style().boxSizing() == BoxSizing::ContentBox)
+                value += flexItemCrossAxisBorderAndPadding;
+            return value;
         },
         [&](const SizeType::Percentage& percentageCrossSizeLength) -> std::optional<LayoutUnit> {
             return mainAxisIsFlexItemInlineAxis(flexItem)
@@ -1313,32 +1316,27 @@ template<typename SizeType> LayoutUnit RenderFlexibleBox::computeMainSizeFromAsp
         return 0_lu;
 
     auto crossSize = *crossSizeOptional;
-    auto boxSizing = flexItem.style().boxSizing();
     auto preferredAspectRatio = preferredAspectRatioForFlexItem(flexItem);
-    auto flexItemCrossAxisBorderAndPadding = isHorizontalFlow() ? flexItem.verticalBorderAndPaddingExtent() : flexItem.horizontalBorderAndPaddingExtent();
 
     auto useCSSAspectRatio = flexItem.style().aspectRatio().isRatio() || (flexItem.style().aspectRatio().isAutoAndRatio() && flexItem.intrinsicSize().isEmpty());
     if (!useCSSAspectRatio) {
         // Intrinsic aspect ratio (e.g. from <img>). The sizing calculations that floor
         // the content box size at zero when applying box-sizing are also ignored.
         // https://drafts.csswg.org/css-flexbox/#algo-main-item.
-        if (boxSizing == BoxSizing::BorderBox)
-            crossSize -= flexItemCrossAxisBorderAndPadding;
+        crossSize -= flexItemCrossAxisBorderAndPadding;
         return std::max(0_lu, LayoutUnit { crossSize * preferredAspectRatio });
     }
 
     auto boxSizingForAspectRatio = flexItem.style().boxSizingForAspectRatio();
     if (boxSizingForAspectRatio == BoxSizing::ContentBox) {
-        // Ratio applies to content dimensions. Convert cross size to content-box.
-        // FIXME: This should only subtract when boxSizing != boxSizingForAspectRatio,
-        // since crossSize is already content-box when box-sizing is content-box.
+        // Ratio applies to content dimensions. Convert border-box cross size to content-box.
         crossSize -= flexItemCrossAxisBorderAndPadding;
         return std::max(0_lu, LayoutUnit { crossSize * preferredAspectRatio });
     }
 
     // Ratio applies to border-box dimensions. Compute border-box main size,
     // then subtract main-axis border+padding to return content-box.
-    ASSERT(boxSizing == BoxSizing::BorderBox);
+    ASSERT(flexItem.style().boxSizing() == BoxSizing::BorderBox);
     auto flexItemMainAxisBorderAndPadding = isHorizontalFlow() ? flexItem.horizontalBorderAndPaddingExtent() : flexItem.verticalBorderAndPaddingExtent();
     return std::max(0_lu, LayoutUnit { crossSize * preferredAspectRatio } - flexItemMainAxisBorderAndPadding);
 }

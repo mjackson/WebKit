@@ -63,6 +63,7 @@
 #include "MeterPart.h"
 #include "Page.h"
 #include "PaintInfo.h"
+#include "PlatformRenderTheme.h"
 #include "ProgressBarPart.h"
 #include "RenderMeter.h"
 #include "RenderElementInlines.h"
@@ -2080,7 +2081,6 @@ Color RenderTheme::datePlaceholderTextColor(const Color& textColor, const Color&
     // FIXME: Consider keeping color in LCHA (if that change is made) or converting back to the initial underlying color type to avoid unnecessarily clamping colors outside of sRGB.
     return convertColor<SRGBA<float>>(hsla);
 }
-
 
 Color RenderTheme::spellingMarkerColor(OptionSet<StyleColorOptions> options) const
 {

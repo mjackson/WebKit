@@ -35,6 +35,7 @@
 #include "StructureArrayStorageInlines.h"
 #include "StructureChain.h"
 #include "StructureCreateInlines.h"
+#include "StructureInlinesLight.h"
 #include "StructureRareDataInlines.h"
 #include "SymbolPrototype.h"
 #include "WebAssemblyGCStructure.h"
@@ -66,74 +67,6 @@ inline Structure* Structure::create(VM& vm, Structure* previous, DeferredStructu
         RELEASE_ASSERT_NOT_REACHED();
         return nullptr;
     }
-}
-
-inline JSObject* Structure::storedPrototypeObject() const
-{
-    ASSERT(hasMonoProto());
-    JSValue value = m_prototype.get();
-    if (value.isNull())
-        return nullptr;
-    return asObject(value);
-}
-
-inline Structure* Structure::storedPrototypeStructure() const
-{
-    ASSERT(hasMonoProto());
-    JSObject* object = storedPrototypeObject();
-    if (!object)
-        return nullptr;
-    return object->structure();
-}
-
-ALWAYS_INLINE JSValue Structure::storedPrototype(const JSObject* object) const
-{
-    ASSERT(isCompilationThread() || Thread::mayBeGCThread() || object->structure() == this);
-    if (hasMonoProto())
-        return storedPrototype();
-    return object->getDirect(knownPolyProtoOffset);
-}
-
-ALWAYS_INLINE JSObject* Structure::storedPrototypeObject(const JSObject* object) const
-{
-    ASSERT(isCompilationThread() || Thread::mayBeGCThread() || object->structure() == this);
-    if (hasMonoProto())
-        return storedPrototypeObject();
-    JSValue proto = object->getDirect(knownPolyProtoOffset);
-    if (proto.isNull())
-        return nullptr;
-    return asObject(proto);
-}
-
-ALWAYS_INLINE Structure* Structure::storedPrototypeStructure(const JSObject* object) const
-{
-    if (JSObject* proto = storedPrototypeObject(object))
-        return proto->structure();
-    return nullptr;
-}
-
-ALWAYS_INLINE PropertyOffset Structure::get(VM& vm, PropertyName propertyName)
-{
-    unsigned attributes;
-    return get(vm, propertyName, attributes);
-}
-    
-ALWAYS_INLINE PropertyOffset Structure::get(VM& vm, PropertyName propertyName, unsigned& attributes)
-{
-    ASSERT(!isCompilationThread());
-    ASSERT(structure()->classInfoForCells() == info());
-
-    if (m_seenProperties.ruleOut(CompactPtr<UniquedStringImpl>::encode(propertyName.uid())))
-        return invalidOffset;
-
-    PropertyTable* propertyTable = ensurePropertyTableIfNotEmpty(vm);
-    if (!propertyTable)
-        return invalidOffset;
-
-    auto [offset, entryAttributes] = propertyTable->get(propertyName.uid());
-    if (offset != invalidOffset)
-        attributes = entryAttributes;
-    return offset;
 }
 
 template<typename Functor>
@@ -200,18 +133,6 @@ void Structure::forEachProperty(VM& vm, const Functor& functor)
         });
         ensureStillAliveHere(table);
     }
-}
-
-inline bool Structure::hasIndexingHeader(const JSCell* cell) const
-{
-    if (hasIndexedProperties(indexingType()))
-        return true;
-    
-    if (!isTypedView(m_blob.type()))
-        return false;
-
-    TypedArrayMode mode = uncheckedDowncast<JSArrayBufferView>(cell)->mode();
-    return isWastefulTypedArray(mode);
 }
 
 inline void Structure::setCachedPropertyNames(VM& vm, CachedPropertyNamesKind kind, JSCellButterfly* cached)

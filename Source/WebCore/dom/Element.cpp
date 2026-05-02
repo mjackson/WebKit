@@ -107,7 +107,6 @@
 #include "MutationObserverInterestGroup.h"
 #include "MutationRecord.h"
 #include "NameValidation.h"
-#include "NodeInlines.h"
 #include "NodeName.h"
 #include "NodeRenderStyle.h"
 #include "PlatformMouseEvent.h"

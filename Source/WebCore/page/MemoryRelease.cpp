@@ -50,6 +50,7 @@
 #include "MemoryCache.h"
 #include "Page.h"
 #include "PerformanceLogging.h"
+#include "PlatformRenderTheme.h"
 #include "PluginDocument.h"
 #include "RenderObjectInlines.h"
 #include "RenderTheme.h"

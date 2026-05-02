@@ -96,7 +96,7 @@ static JSValue getElementsArrayAttribute(JSGlobalObject& lexicalGlobalObject, co
     if (cachedObjectValue)
         cachedObject = asObject(cachedObjectValue);
     else {
-        cachedObject = constructEmptyObject(vm, thisObject.realm()->nullPrototypeObjectStructure());
+        cachedObject = JSC::constructEmptyObject(vm, thisObject.realm()->nullPrototypeObjectStructure());
         const_cast<JSElement&>(thisObject).putDirect(vm, builtinNames(vm).cachedAttrAssociatedElementsPrivateName(), cachedObject);
     }
 

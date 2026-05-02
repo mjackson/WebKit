@@ -28,6 +28,7 @@
 #include "ExtendedDOMIsoSubspaces.h"
 #include "JSDOMAbstractOperations.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertStrings.h"
 #include "JSDOMExceptionHandling.h"
@@ -37,11 +38,8 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -113,14 +111,14 @@ const ClassInfo JSTestNamedSetterWithLegacyOverrideBuiltInsPrototype::s_info = {
 
 JSC::Structure* JSTestNamedSetterWithLegacyOverrideBuiltInsPrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestNamedSetterWithLegacyOverrideBuiltInsPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSTestNamedSetterWithLegacyOverrideBuiltIns::info(), JSTestNamedSetterWithLegacyOverrideBuiltInsPrototypeTableValues, *this);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestNamedSetterWithLegacyOverrideBuiltIns::s_info = { "TestNamedSetterWithLegacyOverrideBuiltIns"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestNamedSetterWithLegacyOverrideBuiltIns) };
@@ -185,7 +183,7 @@ bool JSTestNamedSetterWithLegacyOverrideBuiltIns::legacyPlatformObjectGetOwnProp
             return true;
         }
     }
-    return JSObject::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
+    return WebCore::getOwnPropertySlot(object, lexicalGlobalObject, propertyName, slot);
 }
 
 bool JSTestNamedSetterWithLegacyOverrideBuiltIns::getOwnPropertySlot(JSObject* object, JSGlobalObject* lexicalGlobalObject, PropertyName propertyName, PropertySlot& slot)
@@ -305,7 +303,7 @@ bool JSTestNamedSetterWithLegacyOverrideBuiltIns::deleteProperty(JSCell* cell, J
 
     if (!propertyName.isSymbol() && impl.isSupportedPropertyName(propertyNameToString(propertyName))) {
         PropertySlot slotForGet { &thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };
-        if (!JSObject::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
+        if (!WebCore::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
             return false;
     }
     return JSObject::deleteProperty(cell, lexicalGlobalObject, propertyName, slot);
@@ -327,7 +325,7 @@ bool JSTestNamedSetterWithLegacyOverrideBuiltIns::deletePropertyByIndex(JSCell* 
     auto propertyName = Identifier::from(vm, index);
     if (impl.isSupportedPropertyName(propertyNameToString(propertyName))) {
         PropertySlot slotForGet { &thisObject, PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject->vm() };
-        if (!JSObject::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
+        if (!WebCore::getOwnPropertySlot(&thisObject, lexicalGlobalObject, propertyName, slotForGet))
             return false;
     }
     return JSObject::deletePropertyByIndex(cell, lexicalGlobalObject, index);

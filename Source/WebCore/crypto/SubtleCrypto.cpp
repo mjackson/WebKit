@@ -128,7 +128,7 @@ static ExceptionOr<std::unique_ptr<CryptoAlgorithmParameters>> normalizeCryptoAl
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     if (std::holds_alternative<String>(algorithmIdentifier)) {
-        auto newParams = Strong<JSObject>(vm, constructEmptyObject(&state));
+        auto newParams = Strong<JSObject>(vm, JSC::constructEmptyObject(&state));
         newParams->putDirect(vm, Identifier::fromString(vm, "name"_s), jsString(vm, std::get<String>(algorithmIdentifier)));
         
         return normalizeCryptoAlgorithmParameters(state, newParams, operation);
@@ -277,7 +277,7 @@ static ExceptionOr<std::unique_ptr<CryptoAlgorithmParameters>> normalizeCryptoAl
             // Remove this hack once https://bugs.webkit.org/show_bug.cgi?id=169333 is fixed.
             JSValue nameValue = value.get()->get(&state, Identifier::fromString(vm, "name"_s));
             JSValue publicValue = value.get()->get(&state, Identifier::fromString(vm, "public"_s));
-            JSObject* newValue = constructEmptyObject(&state);
+            JSObject* newValue = JSC::constructEmptyObject(&state);
             newValue->putDirect(vm, Identifier::fromString(vm, "name"_s), nameValue);
             newValue->putDirect(vm, Identifier::fromString(vm, "publicKey"_s), publicValue);
 
@@ -290,7 +290,7 @@ static ExceptionOr<std::unique_ptr<CryptoAlgorithmParameters>> normalizeCryptoAl
             // Remove this hack once https://bugs.webkit.org/show_bug.cgi?id=169333 is fixed.
             JSValue nameValue = value.get()->get(&state, Identifier::fromString(vm, "name"_s));
             JSValue publicValue = value.get()->get(&state, Identifier::fromString(vm, "public"_s));
-            JSObject* newValue = constructEmptyObject(&state);
+            JSObject* newValue = JSC::constructEmptyObject(&state);
             newValue->putDirect(vm, Identifier::fromString(vm, "name"_s), nameValue);
             newValue->putDirect(vm, Identifier::fromString(vm, "publicKey"_s), publicValue);
 

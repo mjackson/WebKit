@@ -23,20 +23,21 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-#include "AttachmentLayout.h"
+#import "config.h"
+#import "AttachmentLayout.h"
 
 #if ENABLE(ATTACHMENT_ELEMENT) && PLATFORM(COCOA)
 
-#include "ColorCocoa.h"
-#include "ElementInlines.h"
-#include "FontCacheCoreText.h"
-#include "FrameSelection.h"
-#include "GeometryUtilities.h"
-#include "RenderObjectInlines.h"
-#include "RenderTheme.h"
-#include <pal/spi/cf/CoreTextSPI.h>
-#include <wtf/cocoa/TypeCastsCocoa.h>
+#import "ColorCocoa.h"
+#import "ElementInlines.h"
+#import "FontCacheCoreText.h"
+#import "FrameSelection.h"
+#import "GeometryUtilities.h"
+#import "PlatformRenderTheme.h"
+#import "RenderObjectInlines.h"
+#import "RenderTheme.h"
+#import <pal/spi/cf/CoreTextSPI.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 
 namespace WebCore {
 
@@ -45,8 +46,7 @@ namespace WebCore {
 constexpr CGFloat attachmentIconSize = 48;
 constexpr CGFloat attachmentIconBackgroundPadding = 6;
 constexpr CGFloat attachmentIconBackgroundSize = attachmentIconSize + attachmentIconBackgroundPadding;
-constexpr CGFloat attachmentIconSelectionBorderThickness = 1;
-constexpr CGFloat attachmentIconBackgroundRadius = 3;
+constexpr CGFloat attachmentIconBackgroundRadius [[maybe_unused]] = 3;
 constexpr CGFloat attachmentIconToTitleMargin = 2;
 
 constexpr auto attachmentIconBackgroundColor = Color::black.colorWithAlphaByte(30);
@@ -185,7 +185,7 @@ AttachmentLayout::AttachmentLayout(const RenderAttachment& attachment, Attachmen
 
 #if PLATFORM(IOS_FAMILY)
 
-constexpr CGSize attachmentSize = { 160, 119 };
+constexpr CGSize attachmentSize [[maybe_unused]] = { 160, 119 };
 
 constexpr CGFloat attachmentBorderRadius = 16;
 constexpr auto attachmentBorderColor = SRGBA<uint8_t> { 204, 204, 204 };

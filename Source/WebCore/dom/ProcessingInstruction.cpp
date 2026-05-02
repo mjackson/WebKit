@@ -45,6 +45,8 @@
 #include "XSLStyleSheet.h"
 #include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
+#include "CachedResourceLoader.h"
+#include "HTMLParserIdioms.h"
 
 namespace WebCore {
 

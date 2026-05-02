@@ -34,6 +34,7 @@
 #include "DFGGraph.h"
 #include "DFGInsertionSet.h"
 #include "DFGPhase.h"
+#include "DOMJITCallDOMGetterSnippet.h"
 #include "GetterSetter.h"
 #include "JSCInlines.h"
 #include "TypeLocation.h"

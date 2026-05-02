@@ -29,12 +29,6 @@ import USDKit
 @_spi(RealityCoreRendererAPI) @_spi(Private) import RealityKit
 import simd
 
-internal struct CameraTransform {
-    var rotation: simd_quatf
-    var translation: simd_float3
-    var scale: simd_float3
-}
-
 class Renderer {
     let device: any MTLDevice
     let commandQueue: any MTLCommandQueue
@@ -47,7 +41,8 @@ class Renderer {
     }
 
     var pose: _Proto_Pose_v1
-    private static let cameraDistance: Float = 0.5
+    static let cameraDistance: Float = 0.5
+    var effectiveCameraDistance: Float = Renderer.cameraDistance
     var fovY: Float = 60 * .pi / 180
     var clearColor: MTLClearColor = .init(red: 1, green: 1, blue: 1, alpha: 1)
     let memoryOwner: task_id_token_t
@@ -61,7 +56,7 @@ class Renderer {
         self.device = device
         self.commandQueue = commandQueue
         self.pose = .init(
-            translation: [0, 0, Self.cameraDistance],
+            translation: [0, 0, Renderer.cameraDistance],
             rotation: .init(ix: 0, iy: 0, iz: 0, r: 1)
         )
         self.memoryOwner = memoryOwner
@@ -108,11 +103,12 @@ class Renderer {
         let time = CACurrentMediaTime()
 
         let aspect = Float(texture.width) / Float(texture.height)
+        let d = effectiveCameraDistance
         let projection = _Proto_LowLevelRenderer_v1.Camera.Projection.perspective(
             fovYRadians: fovY,
             aspectRatio: aspect,
-            nearZ: Self.cameraDistance * 0.01,
-            farZ: Self.cameraDistance * 100,
+            nearZ: d * 0.01,
+            farZ: d * 100,
             reverseZ: true
         )
 
@@ -127,19 +123,33 @@ class Renderer {
         commandBuffer.commit()
     }
 
-    internal func setFOV(_ fovYRadians: Float) {
+    func setFOV(_ fovYRadians: Float) {
         fovY = fovYRadians
     }
 
-    internal func setBackgroundColor(_ color: simd_float3) {
+    func setBackgroundColor(_ color: simd_float3) {
         clearColor = MTLClearColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 0.0)
     }
 
-    internal func setCameraTransform(_ transform: CameraTransform) {
-        pose = .init(
-            translation: transform.translation,
-            rotation: transform.rotation,
-        )
+    func setCameraTransformForModelTransform(_ modelTransform: simd_float4x4) {
+        // To keep the model stationary while achieving the same visual result as applying
+        // modelTransform to the model, derive the equivalent camera pose by composing the
+        // inverse model transform with the default camera matrix.
+        var defaultCameraMatrix = matrix_identity_float4x4
+        defaultCameraMatrix.columns.3 = [0, 0, Renderer.cameraDistance, 1]
+        let cameraMatrix = simd_inverse(modelTransform) * defaultCameraMatrix
+
+        let col0 = simd_float3(cameraMatrix.columns.0.x, cameraMatrix.columns.0.y, cameraMatrix.columns.0.z)
+        let col1 = simd_float3(cameraMatrix.columns.1.x, cameraMatrix.columns.1.y, cameraMatrix.columns.1.z)
+        let col2 = simd_float3(cameraMatrix.columns.2.x, cameraMatrix.columns.2.y, cameraMatrix.columns.2.z)
+        let scale = simd_float3(simd_length(col0), simd_length(col1), simd_length(col2))
+        let rotation = simd_quatf(simd_float3x3(col0 / scale.x, col1 / scale.y, col2 / scale.z))
+        let translation = simd_float3(cameraMatrix.columns.3.x, cameraMatrix.columns.3.y, cameraMatrix.columns.3.z)
+        pose = .init(translation: translation, rotation: rotation)
+        // Derive the near/far distance from the camera's world-space position.
+        // The model lives at its USD-space coordinates, so the camera can be far from
+        // origin for large or offset models; simd_length gives the actual view distance.
+        effectiveCameraDistance = max(simd_length(translation), Self.cameraDistance)
     }
 }
 

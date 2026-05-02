@@ -30,7 +30,6 @@
 #include "ContextDestructionObserverInlines.h"
 #include "Document.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "ExceptionOr.h"
 #include "JSDOMGlobalObject.h"
 #include "Logging.h"

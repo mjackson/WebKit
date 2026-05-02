@@ -53,6 +53,7 @@
 #include "LogicalSelectionOffsetCachesInlines.h"
 #include "Page.h"
 #include "PaintInfo.h"
+#include "PlatformRenderTheme.h"
 #include "RenderBoxInlines.h"
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderChildIterator.h"

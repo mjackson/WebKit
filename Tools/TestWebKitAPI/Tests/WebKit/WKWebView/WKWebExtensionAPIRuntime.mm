@@ -1039,6 +1039,138 @@ TEST(WKWebExtensionAPIRuntime, SendMessageWithNaNValue)
     [manager run];
 }
 
+TEST(WKWebExtensionAPIRuntime, SendMessageGestureFromContentScriptIsNotPropagated)
+{
+    // Gestures from content scripts are intentionally not propagated to extension pages
+    // to prevent web page interactions from triggering privileged extension APIs.
+
+    TestWebKitAPI::HTTPServer server({
+        { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    auto *backgroundScript = Util::constructScript(@[
+        @"browser.runtime.onMessage.addListener((message, sender, sendResponse) => {",
+        @"  if (message !== 'check-gesture')",
+        @"    return",
+
+        @"  browser.test.assertFalse(navigator.userActivation.isActive, 'User gesture from content script should not propagate to background onMessage')",
+
+        @"  browser.test.notifyPass()",
+        @"})",
+
+        @"browser.test.sendMessage('Background Ready')"
+    ]);
+
+    auto *contentScript = Util::constructScript(@[
+        @"browser.test.onMessage.addListener((message) => {",
+        @"  if (message !== 'Send')",
+        @"    return",
+
+        @"  browser.test.runWithUserGesture(() => {",
+        @"    browser.runtime.sendMessage('check-gesture')",
+        @"  })",
+        @"})",
+
+        @"browser.test.sendMessage('Content Ready')"
+    ]);
+
+    auto manager = Util::loadExtension(runtimeContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
+
+    RetainPtr urlRequest = server.requestWithLocalhost();
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.get().URL];
+    [manager.get().defaultTab.webView loadRequest:urlRequest.get()];
+
+    [manager runUntilTestMessage:@"Background Ready"];
+    [manager runUntilTestMessage:@"Content Ready"];
+
+    [manager sendTestMessage:@"Send"];
+
+    [manager run];
+}
+
+TEST(WKWebExtensionAPIRuntime, SendMessageGestureFromPopupIsPropagated)
+{
+    // Gestures from extension pages (popup, sidebar) ARE propagated to other extension pages.
+    // These originate from deliberate user interaction with the extension UI, unlike content
+    // scripts which run in web page contexts where any page click qualifies as a gesture.
+
+    auto *backgroundScript = Util::constructScript(@[
+        @"browser.runtime.onMessage.addListener((message) => {",
+        @"  if (message !== 'check-gesture')",
+        @"    return",
+
+        @"  browser.test.assertTrue(navigator.userActivation.isActive, 'User gesture from popup (extension page) should propagate to background onMessage')",
+        @"  browser.test.notifyPass()",
+        @"})",
+
+        @"browser.test.sendMessage('Background Ready')"
+    ]);
+
+    auto *popupScript = Util::constructScript(@[
+        @"browser.test.runWithUserGesture(() => {",
+        @"  browser.runtime.sendMessage('check-gesture')",
+        @"})"
+    ]);
+
+    auto manager = Util::loadExtension(runtimeManifest, @{
+        @"background.js": backgroundScript,
+        @"popup.html": @"<script type='module' src='popup.js'></script>",
+        @"popup.js": popupScript,
+    });
+
+    [manager runUntilTestMessage:@"Background Ready"];
+
+    manager.get().internalDelegate.presentPopupForAction = ^(WKWebExtensionAction *) { };
+
+    [manager.get().context performActionForTab:manager.get().defaultTab];
+
+    [manager run];
+}
+
+TEST(WKWebExtensionAPIRuntime, SendMessageWithoutUserGestureFromContentScript)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    auto *backgroundScript = Util::constructScript(@[
+        @"browser.runtime.onMessage.addListener((message, sender, sendResponse) => {",
+        @"  if (message !== 'check-gesture')",
+        @"    return",
+
+        @"  browser.test.assertFalse(navigator.userActivation.isActive, 'User gesture should not be active in background onMessage regardless of sender gesture state')",
+
+        @"  browser.test.notifyPass()",
+        @"})",
+
+        @"browser.test.sendMessage('Background Ready')"
+    ]);
+
+    auto *contentScript = Util::constructScript(@[
+        @"browser.test.onMessage.addListener((message) => {",
+        @"  if (message !== 'Send')",
+        @"    return",
+
+        @"  browser.runtime.sendMessage('check-gesture')",
+        @"})",
+
+        @"browser.test.sendMessage('Content Ready')"
+    ]);
+
+    auto manager = Util::loadExtension(runtimeContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
+
+    RetainPtr urlRequest = server.requestWithLocalhost();
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.get().URL];
+    [manager.get().defaultTab.webView loadRequest:urlRequest.get()];
+
+    [manager runUntilTestMessage:@"Background Ready"];
+    [manager runUntilTestMessage:@"Content Ready"];
+
+    [manager sendTestMessage:@"Send"];
+
+    [manager run];
+}
+
 // FIXME rdar://147858640
 #if PLATFORM(IOS) && !defined(NDEBUG)
 TEST(WKWebExtensionAPIRuntime, DISABLED_ConnectFromContentScript)

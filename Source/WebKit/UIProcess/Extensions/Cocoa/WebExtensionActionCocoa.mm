@@ -1076,12 +1076,12 @@ void WebExtensionAction::popupDidFinishDocumentLoad()
 
 void WebExtensionAction::readyToPresentPopup()
 {
-    ASSERT(presentsPopupWhenReady());
-    ASSERT(canProgrammaticallyPresentPopup());
+    if (!presentsPopupWhenReady())
+        return;
 
     m_presentsPopupWhenReady = false;
 
-    if (!extensionContext())
+    if (!canProgrammaticallyPresentPopup() || !extensionContext())
         return;
 
     // The popup might have presented or closed already.

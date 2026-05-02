@@ -129,7 +129,7 @@ bool WebExtensionContext::isScriptingMessageAllowed(IPC::Decoder& message)
     return isLoadedAndPrivilegedMessage(message) && hasPermission(WebExtensionPermission::scripting());
 }
 
-void WebExtensionContext::scriptingExecuteScript(const WebExtensionScriptInjectionParameters& parameters, CompletionHandler<void(Expected<InjectionResults, WebExtensionError>&&)>&& completionHandler)
+void WebExtensionContext::scriptingExecuteScript(const WebExtensionScriptInjectionParameters& parameters, bool userGesture, CompletionHandler<void(Expected<InjectionResults, WebExtensionError>&&)>&& completionHandler)
 {
     static NSString * const apiName= @"scripting.executeScript()";
 
@@ -139,7 +139,7 @@ void WebExtensionContext::scriptingExecuteScript(const WebExtensionScriptInjecti
         return;
     }
 
-    requestPermissionToAccessURLs({ tab->url() }, tab, [this, protectedThis = Ref { *this }, tab, parameters, completionHandler = WTF::move(completionHandler)](auto&& requestedURLs, auto&& allowedURLs, auto expirationDate) mutable {
+    requestPermissionToAccessURLs({ tab->url() }, tab, [this, protectedThis = Ref { *this }, tab, parameters, userGesture, completionHandler = WTF::move(completionHandler)](auto&& requestedURLs, auto&& allowedURLs, auto expirationDate) mutable {
         if (!tab->extensionHasPermission()) {
             completionHandler(toWebExtensionError(apiName, nullString(), @"this extension does not have access to this tab"));
             return;
@@ -154,7 +154,7 @@ void WebExtensionContext::scriptingExecuteScript(const WebExtensionScriptInjecti
         auto scriptPairs = getSourcePairsForParameters(parameters, *this);
         Ref executionWorld = toContentWorld(parameters.world);
 
-        executeScript(scriptPairs, webView, executionWorld, *tab, parameters, *this, [completionHandler = WTF::move(completionHandler)](InjectionResults&& injectionResults) mutable {
+        executeScript(scriptPairs, webView, executionWorld, *tab, parameters, *this, userGesture, [completionHandler = WTF::move(completionHandler)](InjectionResults&& injectionResults) mutable {
             completionHandler(WTF::move(injectionResults));
         });
     });

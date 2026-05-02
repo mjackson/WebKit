@@ -250,11 +250,6 @@ inline GetterSetter* JSGlobalObject::regExpProtoStickyGetter() const { return st
 inline GetterSetter* JSGlobalObject::regExpProtoUnicodeGetter() const { return std::bit_cast<GetterSetter*>(linkTimeConstant(LinkTimeConstant::regExpProtoUnicodeGetter)); }
 inline GetterSetter* JSGlobalObject::regExpProtoUnicodeSetsGetter() const { return std::bit_cast<GetterSetter*>(linkTimeConstant(LinkTimeConstant::regExpProtoUnicodeSetsGetter)); }
 
-ALWAYS_INLINE VM& getVM(JSGlobalObject* globalObject)
-{
-    return globalObject->vm();
-}
-
 template<typename T>
 inline unsigned JSGlobalObject::WeakCustomGetterOrSetterHash<T>::hash(const Weak<T>& value)
 {

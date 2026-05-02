@@ -287,6 +287,7 @@ struct DepthRange {
 struct RequestData {
     bool isPassthroughFullyObscured;
     DepthRange depthRange;
+    Vector<LayerHandle> activeLayerHandles;
 };
 
 struct RateMapDescription {

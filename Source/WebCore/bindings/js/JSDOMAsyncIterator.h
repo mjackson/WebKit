@@ -30,11 +30,10 @@
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
 #include <JavaScriptCore/AsyncIteratorPrototype.h>
-#include <JavaScriptCore/IteratorOperations.h>
 #include <JavaScriptCore/JSBoundFunction.h>
 #include <JavaScriptCore/JSPromiseConstructor.h>
 #include <JavaScriptCore/PropertySlot.h>
-#include <JavaScriptCore/StructureCreateInlines.h>
+#include <WebCore/JSDOMBindingFacade.h>
 #include <type_traits>
 #include <wtf/CompletionHandler.h>
 
@@ -76,7 +75,7 @@ public:
 
     static JSC::Structure* createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
     {
-        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
     }
 
     static JSC::EncodedJSValue JSC_HOST_CALL_ATTRIBUTES next(JSC::JSGlobalObject*, JSC::CallFrame*);
@@ -233,7 +232,7 @@ JSC::JSValue JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::next(JSC::JSGlob
     auto afterOngoingPromiseCapability = JSC::JSPromise::createNewPromiseCapability(&lexicalGlobalObject, lexicalGlobalObject.promiseConstructor());
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto* promise = dynamicDowncast<JSC::JSPromise>(afterOngoingPromiseCapability.get(&lexicalGlobalObject, vm.propertyNames->promise));
+    auto* promise = dynamicDowncast<JSC::JSPromise>(WebCore::get(JSC::asObject(afterOngoingPromiseCapability), &lexicalGlobalObject, vm.propertyNames->promise));
     RETURN_IF_EXCEPTION(scope, { });
 
     auto onSettled = createOnSettledFunction(&lexicalGlobalObject);
@@ -255,11 +254,11 @@ JSC::JSPromise* JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::runNextSteps(
     auto nextPromiseCapability = JSC::JSPromise::createNewPromiseCapability(&globalObject, globalObject.promiseConstructor());
     RETURN_IF_EXCEPTION(scope, nullptr);
 
-    auto* promise = dynamicDowncast<JSC::JSPromise>(nextPromiseCapability.get(&globalObject, vm.propertyNames->promise));
+    auto* promise = dynamicDowncast<JSC::JSPromise>(WebCore::get(JSC::asObject(nextPromiseCapability), &globalObject, vm.propertyNames->promise));
     RETURN_IF_EXCEPTION(scope, { });
 
     if (m_isFinished.get()) {
-        promise->resolve(&globalObject, vm, JSC::createIteratorResultObject(&globalObject, JSC::jsUndefined(), true));
+        promise->resolve(&globalObject, vm, WebCore::createIteratorResultObject(&globalObject, JSC::jsUndefined(), true));
         RETURN_IF_EXCEPTION(scope, nullptr);
 
         return promise;
@@ -377,7 +376,7 @@ JSC::EncodedJSValue JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::fulfill(J
     if (m_isFinished.get())
         m_iterator = nullptr;
 
-    return JSC::JSValue::encode(JSC::createIteratorResultObject(globalObject, result, m_isFinished.get()));
+    return JSC::JSValue::encode(WebCore::createIteratorResultObject(globalObject, result, m_isFinished.get()));
 }
 
 template<typename JSWrapper, typename IteratorTraits>
@@ -454,11 +453,11 @@ JSC::JSPromise* JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::runReturnStep
     auto returnPromiseCapability = JSC::JSPromise::createNewPromiseCapability(&globalObject, globalObject.promiseConstructor());
     RETURN_IF_EXCEPTION(scope, nullptr);
 
-    auto* returnPromise = dynamicDowncast<JSC::JSPromise>(returnPromiseCapability.get(&globalObject, vm.propertyNames->promise));
+    auto* returnPromise = dynamicDowncast<JSC::JSPromise>(WebCore::get(JSC::asObject(returnPromiseCapability), &globalObject, vm.propertyNames->promise));
     RETURN_IF_EXCEPTION(scope, nullptr);
 
     if (m_isFinished.get()) {
-        returnPromise->resolve(&globalObject, vm, JSC::createIteratorResultObject(&globalObject, value, true));
+        returnPromise->resolve(&globalObject, vm, WebCore::createIteratorResultObject(&globalObject, value, true));
         RETURN_IF_EXCEPTION(scope, nullptr);
 
         return returnPromise;
@@ -497,14 +496,14 @@ JSC::JSValue JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::returnMethod(JSC
     auto returnPromiseCapability = JSC::JSPromise::createNewPromiseCapability(&lexicalGlobalObject, lexicalGlobalObject.promiseConstructor());
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto* returnPromise = dynamicDowncast<JSC::JSPromise>(returnPromiseCapability.get(&lexicalGlobalObject, vm.propertyNames->promise));
+    auto* returnPromise = dynamicDowncast<JSC::JSPromise>(WebCore::get(JSC::asObject(returnPromiseCapability), &lexicalGlobalObject, vm.propertyNames->promise));
     RETURN_IF_EXCEPTION(scope, { });
 
     if (m_ongoingPromise) {
         auto afterOngoingPromiseCapability = JSC::JSPromise::createNewPromiseCapability(&lexicalGlobalObject, lexicalGlobalObject.promiseConstructor());
         RETURN_IF_EXCEPTION(scope, { });
 
-        auto* promise = dynamicDowncast<JSC::JSPromise>(afterOngoingPromiseCapability.get(&lexicalGlobalObject, vm.propertyNames->promise));
+        auto* promise = dynamicDowncast<JSC::JSPromise>(WebCore::get(JSC::asObject(afterOngoingPromiseCapability), &lexicalGlobalObject, vm.propertyNames->promise));
         RETURN_IF_EXCEPTION(scope, { });
 
         auto returnStepsValue = JSC::JSValue::encode(value);
@@ -544,7 +543,7 @@ JSC::EncodedJSValue JSDOMAsyncIteratorPrototype<JSWrapper, IteratorTraits>::retu
         auto returnPromiseCapability = JSC::JSPromise::createNewPromiseCapability(globalObject, globalObject->promiseConstructor());
         RETURN_IF_EXCEPTION(scope, { });
 
-        auto* promise = dynamicDowncast<JSC::JSPromise>(returnPromiseCapability.get(globalObject, vm.propertyNames->promise));
+        auto* promise = dynamicDowncast<JSC::JSPromise>(WebCore::get(JSC::asObject(returnPromiseCapability), globalObject, vm.propertyNames->promise));
         RETURN_IF_EXCEPTION(scope, { });
 
         auto deferred = DeferredPromise::create(*uncheckedDowncast<JSDOMGlobalObject>(globalObject), *promise);
@@ -563,7 +562,7 @@ void JSDOMAsyncIteratorPrototype<JSWrapper, IteratorTraits>::finishCreation(JSC:
 
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->next, next, 0, 0, JSC::ImplementationVisibility::Public);
     addReturnMethodIfNeeded<typename DOMWrapped::Iterator>(vm, globalObject);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, JSC::jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 template<typename JSWrapper, typename IteratorTraits>

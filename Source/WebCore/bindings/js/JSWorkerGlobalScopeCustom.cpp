@@ -33,6 +33,7 @@
 #include "WorkerNavigator.h"
 #include <JavaScriptCore/Error.h>
 #include <JavaScriptCore/GlobalObjectMethodTable.h>
+#include <JavaScriptCore/MicrotaskQueue.h>
 
 namespace WebCore {
 using namespace JSC;

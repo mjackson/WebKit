@@ -27,6 +27,8 @@
 #include "CryptoAlgorithmAESKW.h"
 
 #include "CryptoKeyAES.h"
+#include "CryptoTypesBridging.h"
+#include "ExceptionOr.h"
 #include <CommonCrypto/CommonCrypto.h>
 #include <pal/crypto/CryptoAlgorithmAESKWCocoaBridging.h>
 #include <pal/crypto/CryptoTypes.h>

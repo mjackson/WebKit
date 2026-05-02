@@ -36,7 +36,6 @@
 #include "HTMLElement.h"
 #include "HTMLNames.h"
 #include "Logging.h"
-#include "NodeInlines.h"
 #include "PopoverData.h"
 #include "PseudoClassChangeInvalidation.h"
 #include "RenderBlock.h"

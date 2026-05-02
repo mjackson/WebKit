@@ -90,6 +90,7 @@ header: <WebCore/PlatformXR.h>
 [CustomHeader] struct PlatformXR::RequestData {
     bool isPassthroughFullyObscured;
     PlatformXR::DepthRange depthRange;
+    Vector<PlatformXR::LayerHandle> activeLayerHandles;
 };
 
 [Nested] struct PlatformXR::FrameData::FloatQuaternion {

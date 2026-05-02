@@ -115,6 +115,7 @@ class CompactTDZEnvironmentMap;
 class ConservativeRoots;
 class ControlFlowProfiler;
 class CrossTaskToken;
+class EagerIIFERegistry;
 class Exception;
 class ExceptionScope;
 class FuzzerAgent;
@@ -811,10 +812,12 @@ public:
     static void computeCanUseJIT();
 
     SourceProviderCache* addSourceProviderCache(SourceProvider*);
+    EagerIIFERegistry* addEagerIIFERegistry(SourceProvider*);
     void clearSourceProviderCaches();
 
     typedef UncheckedKeyHashMap<RefPtr<SourceProvider>, RefPtr<SourceProviderCache>> SourceProviderCacheMap;
     SourceProviderCacheMap sourceProviderCacheMap;
+    UncheckedKeyHashMap<RefPtr<SourceProvider>, RefPtr<EagerIIFERegistry>> eagerIIFERegistryMap;
 #if ENABLE(JIT)
     std::unique_ptr<JITThunks> jitStubs;
     MacroAssemblerCodeRef<JITThunkPtrTag> getCTIStub(ThunkGenerator);

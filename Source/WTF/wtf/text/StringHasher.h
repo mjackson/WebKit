@@ -30,6 +30,7 @@ namespace WTF {
 // Golden ratio. Arbitrary start value to avoid mapping all zeros to a hash value of zero.
 static constexpr unsigned stringHashingStartValue = 0x9E3779B9U;
 
+class ASCIILiteral;
 class SuperFastHash;
 class WYHash;
 
@@ -52,6 +53,8 @@ public:
 
     template<typename T, unsigned characterCount>
     static constexpr unsigned computeLiteralHashAndMaskTop8Bits(const T (&characters)[characterCount]);
+
+    static constexpr unsigned computeLiteralHashAndMaskTop8Bits(ASCIILiteral);
 
 private:
     friend class SuperFastHash;

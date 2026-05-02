@@ -4142,6 +4142,16 @@
    },
    {
       "emails" : [
+         "jason_barkley@apple.com"
+      ],
+      "github" : "jbarkley-apple",
+      "name" : "Jason Barkley",
+      "nicks" : [
+         "jbarkley"
+      ]
+   },
+   {
+      "emails" : [
          "lawrence.j@apple.com"
       ],
       "name" : "Jason Lawrence"
@@ -5236,7 +5246,7 @@
       "expertise" : "Safari Extensions, Web Extensions",
       "github" : "kiaraarose",
       "name" : "Kiara Rose",
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -5900,6 +5910,13 @@
       "nicks" : [
          "marywu"
       ]
+   },
+   {
+      "emails" : [
+         "mathew_mason@apple.com"
+      ],
+      "github" : "masonm12",
+      "name" : "Mathew Mason"
    },
    {
       "emails" : [

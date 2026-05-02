@@ -31,7 +31,6 @@
 #include "CSSStyleImageValue.h"
 #include "ContextDestructionObserverInlines.h"
 #include "DOMException.h"
-#include "EventTargetInlines.h"
 #include "HTMLCanvasElement.h"
 #include "HTMLImageElement.h"
 #include "HTMLVideoElement.h"

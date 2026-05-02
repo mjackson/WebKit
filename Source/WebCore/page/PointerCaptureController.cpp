@@ -34,7 +34,6 @@
 #include "EventHandler.h"
 #include "EventNames.h"
 #include "EventTarget.h"
-#include "EventTargetInlines.h"
 #include "FrameDestructionObserverInlines.h"
 #include "FrameInlines.h"
 #include "HitTestResult.h"

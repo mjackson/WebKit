@@ -173,7 +173,7 @@ void InspectorCanvasAgent::internalEnable()
     {
         Locker locker { WebGLProgram::instancesLock() };
         for (auto& [program, contextWebGLBase] : WebGLProgram::instances()) {
-            if (contextWebGLBase && matchesCurrentContext(contextWebGLBase->canvasBase().scriptExecutionContext()))
+            if (contextWebGLBase && contextWebGLBase->isContextThread() && matchesCurrentContext(contextWebGLBase->canvasBase().scriptExecutionContext()))
                 didCreateWebGLProgram(*contextWebGLBase, *program);
         }
     }

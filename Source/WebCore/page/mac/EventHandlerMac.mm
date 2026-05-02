@@ -88,8 +88,6 @@
 
 namespace WebCore {
 
-static const Seconds resetLatchedStateTimeout { 100_ms };
-
 static RetainPtr<NSEvent>& NODELETE currentNSEventSlot()
 {
     static NeverDestroyed<RetainPtr<NSEvent>> event;

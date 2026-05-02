@@ -25,8 +25,9 @@
 
 #pragma once
 
+#include "GetVM.h"
 #include "HeapCellInlines.h"
-#include "JSGlobalObjectInlines.h"
+#include "JSGlobalObject.h"
 #include "JSString.h"
 #include "KeyAtomStringCacheInlines.h"
 #include "MarkedBlockInlines.h"

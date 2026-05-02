@@ -52,7 +52,6 @@
 #include "DocumentView.h"
 #include "Element.h"
 #include "ExtensionStyleSheets.h"
-#include "EventTargetInlines.h"
 #include "FrameDestructionObserverInlines.h"
 #include "HTMLHeadElement.h"
 #include "HTMLNames.h"

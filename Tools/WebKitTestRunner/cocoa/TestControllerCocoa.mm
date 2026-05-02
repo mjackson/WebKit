@@ -522,8 +522,6 @@ void TestController::cocoaResetStateToConsistentValues(const TestOptions& option
     [LayoutTestSpellChecker uninstallAndReset];
 
     WebCoreTestSupport::setAdditionalSupportedImageTypesForTesting(String::fromLatin1(options.additionalSupportedImageTypes().c_str()));
-
-    [globalWebsiteDataStoreDelegateClient() clearReportedWindowProxyAccessDomains];
 }
 
 void TestController::platformSetStatisticsCrossSiteLoadWithLinkDecoration(WKStringRef fromHost, WKStringRef toHost, bool wasFiltered, void* context, SetStatisticsCrossSiteLoadWithLinkDecorationCallBack callback)
@@ -774,25 +772,6 @@ void TestController::configureWebpagePreferences(WKWebViewConfiguration *configu
 WKRetainPtr<WKStringRef> TestController::takeViewPortSnapshot()
 {
     return adoptWK(WKImageCreateDataURLFromImage(mainWebView()->windowSnapshotImage().get()));
-}
-
-static WKRetainPtr<WKArrayRef> createWKArray(NSArray *nsArray)
-{
-    auto array = adoptWK(WKMutableArrayCreate());
-
-    for (NSString *nsString in nsArray) {
-        auto string = adoptWK(WKStringCreateWithCFString((CFStringRef)nsString));
-        WKArrayAppendItem(array.get(), string.get());
-    }
-
-    return array;
-}
-
-WKRetainPtr<WKArrayRef> TestController::getAndClearReportedWindowProxyAccessDomains()
-{
-    auto domains = createWKArray([globalWebsiteDataStoreDelegateClient() reportedWindowProxyAccessDomains]);
-    [globalWebsiteDataStoreDelegateClient() clearReportedWindowProxyAccessDomains];
-    return domains;
 }
 
 WKRetainPtr<WKStringRef> TestController::getBackgroundFetchIdentifier()

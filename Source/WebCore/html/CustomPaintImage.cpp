@@ -25,6 +25,7 @@
 
 #include "config.h"
 #include "CustomPaintImage.h"
+
 #include "ContextDestructionObserverInlines.h"
 
 #include "CSSComputedStyleDeclaration.h"
@@ -43,7 +44,6 @@
 #include "JSCSSPaintCallback.h"
 #include "JSDOMExceptionHandling.h"
 #include "MainThreadStylePropertyMapReadOnly.h"
-#include "NodeInlines.h"
 #include "PaintRenderingContext2D.h"
 #include "RenderElement.h"
 #include "RenderElementInlines.h"

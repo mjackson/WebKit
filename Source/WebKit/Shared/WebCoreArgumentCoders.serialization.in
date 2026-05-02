@@ -1200,9 +1200,9 @@ struct WebCore::ApplePayDisbursementRequest {
 
 #if ENABLE(APPLE_PAY_INSTALLMENTS)
 header: <WebCore/ApplePayInstallmentConfigurationWebCore.h>
-[CustomHeader] struct WebCore::ApplePayInstallmentConfiguration {
+[CustomHeader, CreateUsing=fromInstallmentConfiguration] struct WebCore::ApplePayInstallmentConfiguration {
     WebCore::ApplePaySetupFeatureType featureType;
-    String merchandisingImageData;
+    [NotSerialized] String merchandisingImageData;
     String openToBuyThresholdAmount;
     String bindingTotalAmount;
     String currencyCode;
@@ -8194,12 +8194,6 @@ struct WebCore::MediaSourceConfiguration {
     WebCore::PointLightSource
     WebCore::SpotLightSource
 }
-
-enum class WebCore::WindowProxyProperty : uint8_t {
-    Other,
-    Closed,
-    PostMessage,
-};
 
 header: <WebCore/Image.h>
 [RefCounted] class WebCore::Image {

@@ -31,6 +31,7 @@
 #include "HTMLStyleElement.h"
 #include "NodeDocument.h"
 #include "NodeName.h"
+#include "PlatformRenderTheme.h"
 #include "RenderMeter.h"
 #include "RenderTheme.h"
 #include "ScriptDisallowedScope.h"

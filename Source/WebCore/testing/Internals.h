@@ -148,6 +148,7 @@ class TypeConversions;
 class VoidCallback;
 class WebAnimation;
 class WebGLRenderingContext;
+class WebGLRenderingContextBase;
 class WindowProxy;
 class WritableStream;
 class XMLHttpRequest;

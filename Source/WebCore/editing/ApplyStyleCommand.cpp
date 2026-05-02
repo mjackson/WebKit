@@ -40,7 +40,6 @@
 #include "HTMLNames.h"
 #include "HTMLSpanElement.h"
 #include "LocalFrame.h"
-#include "NodeInlines.h"
 #include "NodeList.h"
 #include "NodeTraversal.h"
 #include "RenderLineBreak.h"

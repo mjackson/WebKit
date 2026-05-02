@@ -25,10 +25,10 @@
 
 #pragma once
 
-#include <JavaScriptCore/IteratorOperations.h>
 #include <JavaScriptCore/JSArrayBufferViewInlines.h>
 #include <WebCore/IDLTypes.h>
 #include <WebCore/JSDOMBinding.h>
+#include <WebCore/JSDOMBindingFacade.h>
 #include <WebCore/JSDOMConvertBase.h>
 #include <WebCore/JSDOMConvertBoolean.h>
 #include <WebCore/JSDOMConvertBufferSource.h>
@@ -301,7 +301,7 @@ template<typename... T> struct Converter<IDLUnion<T...>> : DefaultConverter<IDLU
                     //         2. If method is not undefined, return the result of creating a sequence of that type from V and method.
                     constexpr bool hasSequenceType = numberOfSequenceTypes != 0;
                     if constexpr (hasSequenceType) {
-                        auto method = JSC::iteratorMethod(&lexicalGlobalObject, object);
+                        auto method = WebCore::iteratorMethod(&lexicalGlobalObject, object);
                         if (scope.exception())
                             return functor(ConversionResultException());
                         if (!method.isUndefined()) {
@@ -315,7 +315,7 @@ template<typename... T> struct Converter<IDLUnion<T...>> : DefaultConverter<IDLU
                     //         2. If method is not undefined, return the result of creating a frozen array of that type from V and method.
                     constexpr bool hasFrozenArrayType = numberOfFrozenArrayTypes != 0;
                     if constexpr (hasFrozenArrayType) {
-                        auto method = JSC::iteratorMethod(&lexicalGlobalObject, object);
+                        auto method = WebCore::iteratorMethod(&lexicalGlobalObject, object);
                         if (scope.exception())
                             return functor(ConversionResultException());
                         if (!method.isUndefined()) {

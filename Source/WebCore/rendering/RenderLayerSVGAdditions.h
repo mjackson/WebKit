@@ -20,8 +20,9 @@
 
 #include <WebCore/LayoutRect.h>
 #include <WebCore/PaintPhase.h>
-#include <wtf/CheckedPtr.h>
+#include <wtf/InlineWeakPtr.h>
 #include <wtf/OptionSet.h>
+#include <wtf/WeakPtr.h>
 
 namespace WebCore {
 
@@ -45,8 +46,8 @@ public:
         return SVGPaintOrderLayerItem { &renderer, nullptr, 0, { PaintPhase::SelfOutline }, ancestorOffset };
     }
 
-    CheckedPtr<RenderElement> renderer;
-    CheckedPtr<RenderLayer> layer; // null for non-layer children
+    SingleThreadWeakPtr<RenderElement> renderer;
+    InlineWeakPtr<RenderLayer> layer; // null for non-layer children
     int zIndex { 0 };
     OptionSet<PaintPhase> phasesToPaint; // Empty for layered children; drives the non-layer paint loop.
     LayoutSize accumulatedAncestorOffset; // Precomputed offset from non-layered ancestors between child and layer's renderer.

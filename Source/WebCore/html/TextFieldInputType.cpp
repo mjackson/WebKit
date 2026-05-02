@@ -58,6 +58,7 @@
 #include "LocalizedStrings.h"
 #include "NodeRenderStyle.h"
 #include "PlatformKeyboardEvent.h"
+#include "PlatformRenderTheme.h"
 #include "PseudoClassChangeInvalidation.h"
 #include "RenderLayer.h"
 #include "RenderLayerScrollableArea.h"

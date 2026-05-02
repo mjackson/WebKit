@@ -76,7 +76,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface _WKTextExtractionInteractionResult ()
 
-- (instancetype)initWithErrorDescription:(NSString *)errorDescription;
+- (instancetype)initWithErrorDescription:(nullable NSString *)errorDescription summary:(nullable NSString *)summary interactedElementBounds:(CGRect)interactedElementBounds;
 
 @end
 

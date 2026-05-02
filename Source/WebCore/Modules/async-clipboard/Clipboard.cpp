@@ -32,7 +32,6 @@
 #include "ContextDestructionObserverInlines.h"
 #include "DocumentPage.h"
 #include "Editor.h"
-#include "EventTargetInlines.h"
 #include "EventTargetInterfaces.h"
 #include "FrameInlines.h"
 #include "JSBlob.h"

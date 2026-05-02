@@ -31,6 +31,7 @@
 #import "ChromeClient.h"
 #import "DocumentPage.h"
 #import "DocumentView.h"
+#import "FrameLoader.h"
 #import "LocalFrame.h"
 #import "RenderView.h"
 

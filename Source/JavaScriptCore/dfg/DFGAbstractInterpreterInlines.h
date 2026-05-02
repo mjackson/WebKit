@@ -34,6 +34,7 @@
 #include "CheckPrivateBrandStatus.h"
 #include "DFGAbstractInterpreter.h"
 #include "DFGAbstractInterpreterClobberState.h"
+#include "DOMJITCallDOMGetterSnippet.h"
 #include "DOMJITGetterSetter.h"
 #include "DOMJITSignature.h"
 #include "FunctionPrototype.h"
@@ -5647,14 +5648,14 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         clobberWorld();
 
         WebAssemblyFunction* wasmFunction = node->castOperand<WebAssemblyFunction*>();
-        const auto& signature = Wasm::TypeInformation::getFunctionSignature(wasmFunction->typeIndex());
-        if (signature.returnsVoid()) {
+        Ref signature = wasmFunction->signature();
+        if (signature->returnsVoid()) {
             setConstant(node, jsUndefined());
             break;
         }
 
-        ASSERT(signature.returnCount() == 1);
-        auto type = signature.returnType(0);
+        ASSERT(signature->returnCount() == 1);
+        auto type = signature->returnType(0);
         switch (type.kind) {
         case Wasm::TypeKind::I32: {
             setNonCellTypeForNode(node, SpecInt32Only);

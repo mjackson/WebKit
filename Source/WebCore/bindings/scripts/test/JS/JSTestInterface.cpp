@@ -33,6 +33,7 @@
 #include "HTMLNames.h"
 #include "JSDOMAttribute.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructor.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMConvertOptional.h"
@@ -51,11 +52,8 @@
 #include <JavaScriptCore/BuiltinNames.h>
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -464,7 +462,7 @@ const ClassInfo JSTestInterfacePrototype::s_info = { "TestInterface"_s, &Base::s
 
 JSC::Structure* JSTestInterfacePrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSTestInterfacePrototype::finishCreation(VM& vm)
@@ -483,8 +481,8 @@ void JSTestInterfacePrototype::finishCreation(VM& vm)
 #endif
     if (hasDisabledRuntimeProperties && structure()->isDictionary())
         flattenDictionaryObject(vm);
-    putDirect(vm, vm.propertyNames->iteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().entriesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    putDirect(vm, vm.propertyNames->iteratorSymbol, WebCore::getDirect(this, vm, vm.propertyNames->builtinNames().entriesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSTestInterface::s_info = { "TestInterface"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestInterface) };
@@ -1145,7 +1143,7 @@ public:
 
     static JSC::Structure* createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
     {
-        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
     }
 
     static TestInterfaceIterator* create(JSC::VM& vm, JSC::Structure* structure, JSTestInterface& iteratedObject, IterationKind kind, InternalIterator&& iterator)

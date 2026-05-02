@@ -40,6 +40,8 @@
 #include "Page.h"
 #include "UserGestureIndicator.h"
 #include <wtf/TZoneMallocInlines.h>
+#include "FrameDestructionObserverInlines.h"
+#include "DocumentPage.h"
 
 namespace WebCore {
 

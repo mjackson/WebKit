@@ -1374,8 +1374,6 @@ localizedStrings["Readonly"] = "Readonly";
 localizedStrings["Ready"] = "Ready";
 localizedStrings["Reasons for compositing"] = "Reasons for compositing";
 localizedStrings["Reasons for compositing:"] = "Reasons for compositing:";
-localizedStrings["Record first %s frame"] = "Record first %s frame";
-localizedStrings["Record first %s frames"] = "Record first %s frames";
 localizedStrings["Recording"] = "Recording";
 localizedStrings["Recording %d"] = "Recording %d";
 localizedStrings["Recording Error: %s"] = "Recording Error: %s";
@@ -1398,6 +1396,8 @@ localizedStrings["Recording Type Offscreen Canvas WebGL"] = "WebGL (Offscreen)";
 /* A type of canvas recording in the Graphics Tab. */
 localizedStrings["Recording Type Offscreen Canvas WebGL2"] = "WebGL2 (Offscreen)";
 localizedStrings["Recording Warning: %s"] = "Recording Warning: %s";
+/* Label for input for number of frames to record @ Canvas section of Graphics tab */
+localizedStrings["Recording frame count: %s"] = "Recording frame count: %s";
 localizedStrings["Recordings"] = "Recordings";
 /* Label for red color component of CSS color. */
 localizedStrings["Red @ Color Picker"] = "Red";

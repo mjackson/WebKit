@@ -282,10 +282,6 @@ private:
 
     void documentLoaderDetached(WebCore::NavigationIdentifier, WebCore::LoadWillContinueInAnotherProcess) final;
 
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-    void didAccessWindowProxyPropertyViaOpener(WebCore::SecurityOriginData&&, WebCore::WindowProxyProperty) final;
-#endif
-
     bool NODELETE siteIsolationEnabled() const;
 
     void broadcastAllFrameTreeSyncDataToOtherProcesses(WebCore::FrameTreeSyncData&) final;

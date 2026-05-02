@@ -31,6 +31,7 @@
 #include "FontSelector.h"
 #include "Logging.h"
 #include "Pagination.h"
+#include "PlatformRenderTheme.h"
 #include "RenderBlock.h"
 #include "RenderElement.h"
 #include "RenderStyleProperties+ConstructionInlines.h"

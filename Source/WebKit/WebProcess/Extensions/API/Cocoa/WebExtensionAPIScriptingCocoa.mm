@@ -48,6 +48,7 @@
 #import "WebExtensionTabIdentifier.h"
 #import "WebExtensionUtilities.h"
 #import "WebProcess.h"
+#import <WebCore/UserGestureIndicator.h>
 #import <wtf/cocoa/VectorCocoa.h>
 
 static NSString * const allFramesKey = @"allFrames";
@@ -188,7 +189,8 @@ void WebExtensionAPIScripting::executeScript(NSDictionary *script, Ref<WebExtens
     if (!parseScriptInjectionOptions(script, parameters, outExceptionString))
         return;
 
-    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::ScriptingExecuteScript(WTF::move(parameters)), [protectedThis = Ref { *this }, callback = WTF::move(callback)](Expected<Vector<WebKit::WebExtensionScriptInjectionResultParameters>, WebExtensionError>&& result) {
+    bool userGesture = WebCore::UserGestureIndicator::processingUserGesture();
+    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::ScriptingExecuteScript(WTF::move(parameters), userGesture), [protectedThis = Ref { *this }, callback = WTF::move(callback)](Expected<Vector<WebKit::WebExtensionScriptInjectionResultParameters>, WebExtensionError>&& result) {
         if (!result)
             callback->reportError(result.error().createNSString().get());
         else

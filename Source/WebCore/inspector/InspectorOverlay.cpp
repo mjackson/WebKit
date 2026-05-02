@@ -42,7 +42,6 @@
 #include "DOMCSSNamespace.h"
 #include "DOMTokenList.h"
 #include "ElementInlines.h"
-#include "EventTargetInlines.h"
 #include "FloatLine.h"
 #include "FloatPoint.h"
 #include "FloatRoundedRect.h"

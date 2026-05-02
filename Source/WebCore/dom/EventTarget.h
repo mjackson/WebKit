@@ -123,10 +123,10 @@ public:
     bool setAttributeEventListener(const AtomString& eventType, RefPtr<EventListener>&&, DOMWrapperWorld&);
     RefPtr<JSEventListener> attributeEventListener(const AtomString& eventType, DOMWrapperWorld&);
 
-    bool hasEventListeners() const;
-    bool hasEventListeners(const AtomString& eventType) const;
+    inline bool hasEventListeners() const; // Defined in EventTargetInlines.h
+    inline bool hasEventListeners(const AtomString& eventType) const; // Defined in EventTargetInlines.h
     bool hasAnyEventListeners(std::span<const AtomString> eventTypes) const;
-    bool hasCapturingEventListeners(const AtomString& eventType);
+    inline bool hasCapturingEventListeners(const AtomString& eventType); // Defined in EventTargetInlines.h
     bool NODELETE hasActiveEventListeners(const AtomString& eventType) const;
 
     Vector<AtomString> eventTypes() const;
@@ -136,18 +136,18 @@ public:
     void fireEventListeners(Event&, EventInvokePhase);
 
     template<typename Visitor>
-    inline void visitJSEventListenersInGCThread(Visitor&);
+    inline void visitJSEventListenersInGCThread(Visitor&); // Defined in EventTargetInlines.h
     void invalidateJSEventListeners(JSC::JSObject*);
 
-    inline const EventTargetData* eventTargetData() const;
-    inline EventTargetData* eventTargetData();
-    inline EventTargetData* eventTargetDataConcurrently();
+    inline const EventTargetData* eventTargetData() const; // Defined in EventTargetInlines.h
+    inline EventTargetData* eventTargetData(); // Defined in EventTargetInlines.h
+    inline EventTargetData* eventTargetDataConcurrently(); // Defined in EventTargetInlines.h
 
     template<typename CallbackType>
-    inline void enumerateEventListenerTypes(NOESCAPE const CallbackType&) const;
+    inline void enumerateEventListenerTypes(NOESCAPE const CallbackType&) const; // Defined in EventTargetInlines.h
 
     template<typename CallbackType>
-    inline bool containsMatchingEventListener(NOESCAPE const CallbackType&) const;
+    inline bool containsMatchingEventListener(NOESCAPE const CallbackType&) const; // Defined in EventTargetInlines.h
 
     bool hasEventTargetData() const { return hasEventTargetFlag(EventTargetFlag::HasEventTargetData); }
     bool isNode() const { return hasEventTargetFlag(EventTargetFlag::IsNode); }

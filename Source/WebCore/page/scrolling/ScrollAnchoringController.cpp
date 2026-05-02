@@ -33,7 +33,6 @@
 #include "LegacyRenderSVGModelObject.h"
 #include "LocalFrameView.h"
 #include "Logging.h"
-#include "NodeInlines.h"
 #include "RenderBlockFlow.h"
 #include "RenderBox.h"
 #include "RenderBoxInlines.h"

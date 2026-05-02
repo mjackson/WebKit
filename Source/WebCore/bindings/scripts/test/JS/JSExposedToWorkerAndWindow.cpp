@@ -26,6 +26,7 @@
 #include "ExtendedDOMClientIsoSubspaces.h"
 #include "ExtendedDOMIsoSubspaces.h"
 #include "JSDOMBinding.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructor.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMConvertOptional.h"
@@ -39,12 +40,9 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/HeapAnalyzer.h>
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/ObjectConstructor.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
-#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <type_traits>
 #include <wtf/GetPtr.h>
@@ -80,7 +78,7 @@ template<> ConversionResult<IDLDictionary<ExposedToWorkerAndWindow::Dict>> conve
     if (isNullOrUndefined)
         objValue = jsUndefined();
     else {
-        objValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "obj"_s));
+        objValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "obj"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     auto objConversionResult = convert<IDLOptional<IDLInterface<TestObj>>>(lexicalGlobalObject, objValue);
@@ -96,7 +94,7 @@ JSC::JSObject* convertDictionaryToJS(JSC::JSGlobalObject& lexicalGlobalObject, J
     SUPPRESS_UNCOUNTED_LOCAL auto& vm = JSC::getVM(&lexicalGlobalObject);
     auto throwScope = DECLARE_THROW_SCOPE(vm);
 
-    auto result = constructEmptyObject(&lexicalGlobalObject, globalObject.objectPrototype());
+    auto result = WebCore::constructEmptyObject(&lexicalGlobalObject, globalObject.objectPrototype());
 
     if (!IDLInterface<TestObj>::isNullValue(dictionary.obj)) {
         auto objValue = toJS<IDLInterface<TestObj>>(lexicalGlobalObject, globalObject, throwScope, IDLInterface<TestObj>::extractValueFromNullable(dictionary.obj));
@@ -192,14 +190,14 @@ const ClassInfo JSExposedToWorkerAndWindowPrototype::s_info = { "ExposedToWorker
 
 JSC::Structure* JSExposedToWorkerAndWindowPrototype::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
 {
-    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 void JSExposedToWorkerAndWindowPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSExposedToWorkerAndWindow::info(), JSExposedToWorkerAndWindowPrototypeTableValues, *this);
-    JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
+    WebCore::putDirectWithoutTransition(this, vm, vm.propertyNames->toStringTagSymbol, jsNontrivialString(vm, info()->className), JSC::PropertyAttribute::DontEnum | JSC::PropertyAttribute::ReadOnly);
 }
 
 const ClassInfo JSExposedToWorkerAndWindow::s_info = { "ExposedToWorkerAndWindow"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSExposedToWorkerAndWindow) };

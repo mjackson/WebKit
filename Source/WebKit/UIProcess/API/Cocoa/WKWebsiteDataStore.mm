@@ -109,7 +109,6 @@ public:
         , m_hasGetDisplayedNotificationsSelector([m_delegate.get() respondsToSelector:@selector(websiteDataStore:getDisplayedNotificationsForWorkerOrigin:completionHandler:)])
         , m_hasRequestBackgroundFetchPermissionSelector([m_delegate.get() respondsToSelector:@selector(requestBackgroundFetchPermission:frameOrigin:decisionHandler:)])
         , m_hasNotifyBackgroundFetchChangeSelector([m_delegate.get() respondsToSelector:@selector(notifyBackgroundFetchChange:change:)])
-        , m_hasWindowProxyPropertyAccessSelector([m_delegate.get() respondsToSelector:@selector(websiteDataStore:domain:didOpenDomainViaWindowOpen:withProperty:directly:)])
         , m_hasDidAllowPrivateTokenUsageByThirdPartyForTestingSelector([m_delegate.get() respondsToSelector:@selector(websiteDataStore:didAllowPrivateTokenUsageByThirdPartyForTesting:forResourceURL:)])
         , m_hasDidExceedMemoryFootprintThresholdSelector([m_delegate.get() respondsToSelector:@selector(websiteDataStore:domain:didExceedMemoryFootprintThreshold:withPageCount:processLifetime:inForeground:wasPrivateRelayed:canSuspend:)])
         , m_hasWebCryptoMasterKeySelector([m_delegate.get() respondsToSelector:@selector(webCryptoMasterKey:)])
@@ -333,26 +332,6 @@ private:
         [m_delegate.get() notifyBackgroundFetchChange:backgroundFetchIdentifier.createNSString().get() change:change];
     }
 
-    void didAccessWindowProxyProperty(const WebCore::RegistrableDomain& parentDomain, const WebCore::RegistrableDomain& childDomain, WebCore::WindowProxyProperty property, bool directlyAccessedProperty) final
-    {
-        if (!m_hasWindowProxyPropertyAccessSelector)
-            return;
-
-        WKWindowProxyProperty windowProxyProperty;
-        switch (property) {
-        case WebCore::WindowProxyProperty::PostMessage:
-            windowProxyProperty = WKWindowProxyPropertyPostMessage;
-            break;
-        case WebCore::WindowProxyProperty::Closed:
-            windowProxyProperty = WKWindowProxyPropertyClosed;
-            break;
-        default:
-            windowProxyProperty = WKWindowProxyPropertyOther;
-        }
-
-        [m_delegate.get() websiteDataStore:m_dataStore.get().get() domain:parentDomain.string().createNSString().get() didOpenDomainViaWindowOpen:childDomain.string().createNSString().get() withProperty:windowProxyProperty directly:directlyAccessedProperty];
-    }
-
     void didAllowPrivateTokenUsageByThirdPartyForTesting(bool wasAllowed, WTF::URL&& resourceURL) final
     {
         if (!m_hasDidAllowPrivateTokenUsageByThirdPartyForTestingSelector)
@@ -381,7 +360,6 @@ private:
     bool m_hasGetDisplayedNotificationsSelector { false };
     bool m_hasRequestBackgroundFetchPermissionSelector { false };
     bool m_hasNotifyBackgroundFetchChangeSelector { false };
-    bool m_hasWindowProxyPropertyAccessSelector { false };
     bool m_hasDidAllowPrivateTokenUsageByThirdPartyForTestingSelector { false };
     bool m_hasDidExceedMemoryFootprintThresholdSelector { false };
     bool m_hasWebCryptoMasterKeySelector { false };

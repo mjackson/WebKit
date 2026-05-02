@@ -54,7 +54,6 @@
 #include "Editor.h"
 #include "EditorClient.h"
 #include "ElementAncestorIteratorInlines.h"
-#include "EventTargetInlines.h"
 #include "FloatRect.h"
 #include "FocusOptions.h"
 #include "FontCascade.h"

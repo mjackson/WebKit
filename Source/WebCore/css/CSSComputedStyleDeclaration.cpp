@@ -33,7 +33,6 @@
 #include "ComposedTreeAncestorIterator.h"
 #include "DeprecatedCSSOMValue.h"
 #include "NodeDocument.h"
-#include "NodeInlines.h"
 #include "RenderBox.h"
 #include "RenderBoxModelObject.h"
 #include "RenderStyle+GettersInlines.h"

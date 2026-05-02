@@ -51,7 +51,6 @@
 #include "Editor.h"
 #include "EventHandler.h"
 #include "EventLoop.h"
-#include "EventTargetInlines.h"
 #include "EventNames.h"
 #include "FindRevealAlgorithms.h"
 #include "FixedContainerEdges.h"
@@ -85,7 +84,6 @@
 #include "LocalFrameLoaderClient.h"
 #include "Logging.h"
 #include "MemoryCache.h"
-#include "NodeInlines.h"
 #include "NodeRenderStyle.h"
 #include "NullGraphicsContext.h"
 #include "Page.h"
@@ -93,6 +91,7 @@
 #include "PageInspectorController.h"
 #include "PageOverlayController.h"
 #include "PerformanceLoggingClient.h"
+#include "PlatformRenderTheme.h"
 #include "ProgressTracker.h"
 #include "Quirks.h"
 #include "RenderAncestorIterator.h"
@@ -3797,7 +3796,6 @@ void LocalFrameView::updateScriptedAnimationsAndTimersThrottlingState(const IntR
     else
         scriptedAnimationController->removeThrottlingReason(ThrottlingReason::OutsideViewport);
 }
-
 
 void LocalFrameView::resumeVisibleImageAnimationsIncludingSubframes()
 {

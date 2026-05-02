@@ -29,7 +29,6 @@
 #include "Document.h"
 #include "EventLoop.h"
 #include "EventNames.h"
-#include "EventTargetInlines.h"
 #include "EventTargetInterfaces.h"
 #include "ExtendableEvent.h"
 #include "FetchEvent.h"
