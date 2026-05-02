@@ -55,7 +55,12 @@ RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/nul
     && rm -rf /var/lib/apt/lists/*
 
 # Install GCC 13 toolchain
-RUN add-apt-repository ppa:ubuntu-toolchain-r/test \
+# Add the ubuntu-toolchain-r PPA directly instead of via `add-apt-repository ppa:...`,
+# which queries launchpad.net/api to discover the signing key and hard-fails when that
+# API is slow or down (returns "'~ubuntu-toolchain-r' user or team does not exist").
+# The package archive itself (ppa.launchpadcontent.net) is CDN-backed and far more reliable.
+RUN curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x60C317803A41BA51845E371A1E9377A2BA9EF27F" | gpg --dearmor -o /etc/apt/trusted.gpg.d/ubuntu-toolchain-r.gpg \
+    && echo "deb https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ubuntu-toolchain-r.list \
     && apt-get update \
     && apt-get install -y \
         gcc-13 \
