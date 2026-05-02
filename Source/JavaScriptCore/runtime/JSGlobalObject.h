@@ -673,7 +673,12 @@ public:
     struct WeakCustomGetterOrSetterHash {
         static unsigned hash(const Weak<T>&);
         static bool equal(const Weak<T>&, const Weak<T>&);
-        static unsigned hash(const PropertyName&, typename T::CustomFunctionPointer, const ClassInfo*);
+        // Templated on U=T so T::CustomFunctionPointer is a dependent name and lookup is
+        // deferred to call time; otherwise instantiating this struct (as a HashSet trait)
+        // requires JSCustomGetterFunction/JSCustomSetterFunction to be complete in every
+        // TU that includes this header, which fails under -fforce-emit-vtables.
+        template<typename U = T>
+        static unsigned hash(const PropertyName&, typename U::CustomFunctionPointer, const ClassInfo*);
 
         static constexpr bool safeToCompareToEmptyOrDeleted = false;
     };

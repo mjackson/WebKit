@@ -26,6 +26,8 @@
 #include "config.h"
 #include "SourceProviderCache.h"
 
+#include <wtf/NeverDestroyed.h>
+
 namespace JSC {
 
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(SourceProviderCache);
