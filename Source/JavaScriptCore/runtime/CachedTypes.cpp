@@ -2995,6 +2995,20 @@ static_assert(alignof(CacheEntry<UnlinkedProgramCodeBlock>) <= alignof(std::max_
 static_assert(alignof(CacheEntry<UnlinkedModuleProgramCodeBlock>) <= alignof(std::max_align_t));
 
 #if USE(BUN_JSC_ADDITIONS)
+// Width tripwires: every place a Wire<uintN_t> stands in for a typedef/enum or
+// a former bitfield, assert the source still fits. If upstream widens one of
+// these, the build fails here instead of silently truncating on encode.
+static_assert(sizeof(CodeFeatures) <= sizeof(uint16_t) && bitWidthOfCodeFeatures <= 16); // CachedCodeBlock::m_features
+static_assert(sizeof(LexicallyScopedFeatures) <= sizeof(uint8_t) && bitWidthOfLexicallyScopedFeatures <= 8); // CachedCodeBlock::m_lexicallyScopedFeatures
+static_assert(sizeof(SourceParseMode) <= sizeof(uint8_t)); // m_parseMode / m_sourceParseMode
+static_assert(sizeof(std::underlying_type_t<CodeGenerationMode>) <= sizeof(uint8_t)); // m_codeGenerationMode
+static_assert(bitWidthOfImplementationVisibility <= 8); // CachedFunctionExecutable::m_implementationVisibility
+static_assert(sizeof(SourceTaintedOrigin) <= sizeof(uint8_t)); // CachedSourceProviderShape::m_sourceTaintedOrigin
+static_assert(sizeof(IndexingType) <= sizeof(uint8_t)); // CachedImmutableButterfly::m_indexingType
+static_assert(sizeof(SourceProviderSourceType) <= sizeof(uint8_t)); // CachedSourceProvider::m_sourceType
+static_assert(sizeof(ScopeOffset) <= sizeof(uint32_t)); // CachedSymbolTable::m_maxScopeOffset
+static_assert(sizeof(VirtualRegister) <= sizeof(int32_t)); // CachedCodeBlock::m_thisRegister/m_scopeRegister
+
 // Explicit wire-portability table. The choke-point asserts in
 // Encoder::malloc<T> / VariableLengthObject::allocate<T> already cover every
 // type that flows through them, but those are template instantiations and a

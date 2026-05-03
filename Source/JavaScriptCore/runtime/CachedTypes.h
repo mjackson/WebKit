@@ -87,6 +87,8 @@ BUN_DEFINE_WIRE(double)
 // cache, since this will only be filled in when we parse the function
 struct CachedFunctionExecutableMetadata {
 #if USE(BUN_JSC_ADDITIONS)
+    static_assert(sizeof(CodeFeatures) <= sizeof(uint16_t) && bitWidthOfCodeFeatures <= 16);
+    static_assert(sizeof(LexicallyScopedFeatures) <= sizeof(uint8_t) && bitWidthOfLexicallyScopedFeatures <= 8);
     Wire<uint16_t> m_features; // CodeFeatures
     Wire<uint8_t> m_lexicallyScopedFeatures; // LexicallyScopedFeatures
     Wire<uint8_t> m_hasCapturedVariables;
