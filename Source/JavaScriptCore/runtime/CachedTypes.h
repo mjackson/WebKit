@@ -53,6 +53,8 @@ template<typename T> struct Wire;
 #define BUN_DEFINE_WIRE(T)                                                    \
     template<> struct Wire<T> {                                               \
         uint8_t m_bytes[sizeof(T)];                                           \
+        Wire() = default;                                                     \
+        ALWAYS_INLINE Wire(T v) { memcpy(m_bytes, &v, sizeof(T)); }           \
         ALWAYS_INLINE operator T() const                                      \
         {                                                                     \
             T v;                                                              \
@@ -65,7 +67,9 @@ template<typename T> struct Wire;
             return *this;                                                     \
         }                                                                     \
     };                                                                        \
-    static_assert(sizeof(Wire<T>) == sizeof(T) && alignof(Wire<T>) == 1);
+    static_assert(sizeof(Wire<T>) == sizeof(T) && alignof(Wire<T>) == 1);     \
+    static_assert(std::has_unique_object_representations_v<Wire<T>>           \
+        || std::is_same_v<T, double>);
 
 BUN_DEFINE_WIRE(uint8_t)
 BUN_DEFINE_WIRE(uint16_t)

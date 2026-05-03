@@ -48,11 +48,7 @@ void CachedBytecode::addFunctionUpdate(const UnlinkedFunctionExecutable* executa
     ptrdiff_t offset = it->value.base();
     ASSERT(offset);
     copyLeafExecutables(bytecode.get());
-    CachedFunctionExecutableMetadata metadata;
-    metadata.m_features = executable->features();
-    metadata.m_lexicallyScopedFeatures = executable->lexicallyScopedFeatures();
-    metadata.m_hasCapturedVariables = executable->hasCapturedVariables();
-    m_updates.append(CacheUpdate::FunctionUpdate { offset, kind, metadata, WTF::move(bytecode->m_payload) });
+    m_updates.append(CacheUpdate::FunctionUpdate { offset, kind, { executable->features(), executable->lexicallyScopedFeatures(), executable->hasCapturedVariables() }, WTF::move(bytecode->m_payload) });
 }
 
 void CachedBytecode::copyLeafExecutables(const CachedBytecode& bytecode)
