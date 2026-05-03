@@ -43,12 +43,54 @@ class UnlinkedFunctionExecutable;
 
 enum class SourceCodeType;
 
+#if USE(BUN_JSC_ADDITIONS)
+// Portable on-disk scalar. See the "Portable wire format" comment in
+// CachedTypes.cpp for the full rationale. Primary template is intentionally
+// undefined so only fixed-width primitives are usable; alignment is 1 so
+// Cached* layout has no implementation-defined padding.
+template<typename T> struct Wire;
+
+#define BUN_DEFINE_WIRE(T)                                                    \
+    template<> struct Wire<T> {                                               \
+        uint8_t m_bytes[sizeof(T)];                                           \
+        ALWAYS_INLINE operator T() const                                      \
+        {                                                                     \
+            T v;                                                              \
+            memcpy(&v, m_bytes, sizeof(T));                                   \
+            return v;                                                         \
+        }                                                                     \
+        ALWAYS_INLINE Wire& operator=(T v)                                    \
+        {                                                                     \
+            memcpy(m_bytes, &v, sizeof(T));                                   \
+            return *this;                                                     \
+        }                                                                     \
+    };                                                                        \
+    static_assert(sizeof(Wire<T>) == sizeof(T) && alignof(Wire<T>) == 1);
+
+BUN_DEFINE_WIRE(uint8_t)
+BUN_DEFINE_WIRE(uint16_t)
+BUN_DEFINE_WIRE(uint32_t)
+BUN_DEFINE_WIRE(uint64_t)
+BUN_DEFINE_WIRE(int8_t)
+BUN_DEFINE_WIRE(int16_t)
+BUN_DEFINE_WIRE(int32_t)
+BUN_DEFINE_WIRE(int64_t)
+BUN_DEFINE_WIRE(double)
+#undef BUN_DEFINE_WIRE
+#endif // USE(BUN_JSC_ADDITIONS)
+
 // This struct has to be updated when incrementally writing to the bytecode
 // cache, since this will only be filled in when we parse the function
 struct CachedFunctionExecutableMetadata {
+#if USE(BUN_JSC_ADDITIONS)
+    Wire<uint16_t> m_features; // CodeFeatures
+    Wire<uint8_t> m_lexicallyScopedFeatures; // LexicallyScopedFeatures
+    Wire<uint8_t> m_hasCapturedVariables;
+#else
     CodeFeatures m_features;
     LexicallyScopedFeatures m_lexicallyScopedFeatures;
     bool m_hasCapturedVariables;
+#endif
 };
 
 struct CachedFunctionExecutableOffsets {
@@ -70,11 +112,19 @@ class VariableLengthObjectBase {
 
 protected:
     VariableLengthObjectBase(ptrdiff_t offset)
+#if USE(BUN_JSC_ADDITIONS)
+    {
+        m_offset = offset;
+    }
+    static_assert(sizeof(ptrdiff_t) == sizeof(int64_t));
+    Wire<int64_t> m_offset;
+#else
         : m_offset(offset)
     {
     }
 
     ptrdiff_t m_offset;
+#endif
 };
 
 class Decoder : public RefCounted<Decoder> {
