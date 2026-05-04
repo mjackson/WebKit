@@ -988,10 +988,8 @@ void Options::notifyOptionsChanged()
         const char* asanOptions = getenv("ASAN_OPTIONS");
         bool okToUseWasmFastMemory = asanOptions
             && (strstr(asanOptions, "allow_user_segv_handler=1") || strstr(asanOptions, "handle_segv=0"));
-        if (!okToUseWasmFastMemory) {
-            dataLogLn("WARNING: ASAN interferes with JSC signal handlers; useWasmFastMemory and useWasmFaultSignalHandler will be disabled.");
+        if (!okToUseWasmFastMemory)
             Options::useWasmFaultSignalHandler() = false;
-        }
     }
 #endif
 
