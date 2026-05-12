@@ -37,6 +37,7 @@ if (DEVELOPER_MODE)
         ../API/tests/PingPongStackOverflowTest.cpp
         ../API/tests/TypedArrayCTest.cpp
         ../API/tests/VMManagerStopTheWorldTest.cpp
+        ../API/tests/WindowsVMDecommitTest.cpp
         ../API/tests/testapi.cpp
     )
     set(testapi_C_SOURCES

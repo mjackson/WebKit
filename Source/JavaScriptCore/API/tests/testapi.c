@@ -71,6 +71,7 @@
 #include "PingPongStackOverflowTest.h"
 #include "TypedArrayCTest.h"
 #include "VMManagerStopTheWorldTest.h"
+#include "WindowsVMDecommitTest.h"
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
@@ -1625,6 +1626,7 @@ int main(int argc, char* argv[])
         return failed;
 
     testCompareAndSwap();
+    testWindowsVMDecommit();
     startMultithreadedMultiVMExecutionTest();
     
     // Test garbage collection with a fresh context
