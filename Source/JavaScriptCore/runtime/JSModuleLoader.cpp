@@ -346,7 +346,11 @@ void JSModuleLoader::provideFetch(JSGlobalObject* globalObject, const Identifier
         entry->provideFetch(globalObject, jsSourceCode); // can throw
 }
 
+#if USE(BUN_JSC_ADDITIONS)
+JSPromise* JSModuleLoader::loadModule(JSGlobalObject* globalObject, const Identifier& specifier, RefPtr<ScriptFetchParameters> parameters, RefPtr<ScriptFetcher> scriptFetcher, OptionSet<ModuleLoadFlag> flags, CyclicModuleRecord* dynamicImportInitiator)
+#else
 JSPromise* JSModuleLoader::loadModule(JSGlobalObject* globalObject, const Identifier& specifier, RefPtr<ScriptFetchParameters> parameters, RefPtr<ScriptFetcher> scriptFetcher, OptionSet<ModuleLoadFlag> flags)
+#endif
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -381,6 +385,10 @@ JSPromise* JSModuleLoader::loadModule(JSGlobalObject* globalObject, const Identi
     AbstractModuleRecord::ModuleRequest request { specifier, ScriptFetchParameters::create(type) };
 #endif
     auto* context = ModuleLoadingContext::create(vm, request, WTF::move(scriptFetcher), flags);
+#if USE(BUN_JSC_ADDITIONS)
+    if (flags.contains(ModuleLoadFlag::Dynamic) && dynamicImportInitiator)
+        context->setDynamicImportInitiator(vm, dynamicImportInitiator);
+#endif
 
     JSPromise* intermediatePromise = JSPromise::create(vm, globalObject->promiseStructure());
     intermediatePromise->markAsHandled();
@@ -448,7 +456,31 @@ JSPromise* JSModuleLoader::requestImportModule(JSGlobalObject* globalObject, con
     OptionSet<ModuleLoadFlag> flags { ModuleLoadFlag::Evaluate, ModuleLoadFlag::Dynamic };
     if (deferred)
         flags.add(ModuleLoadFlag::Deferred);
+#if USE(BUN_JSC_ADDITIONS)
+    // Resolve the referrer URL to a CyclicModuleRecord (the caller of
+    // `import()`) so loadModule can stash it on the ModuleLoadingContext.
+    // dynamicImportLoadSettled pushes it onto the VM's
+    // m_modulesAwaitingDynamicImport set around the target's Evaluate(),
+    // which lets innerModuleEvaluation 11.c.v tell the Nitro self-deadlock
+    // (cycle initiator == dep) from an unrelated parallel dynamic import
+    // (no match — spec wait is correct). See #30651.
+    CyclicModuleRecord* initiator = nullptr;
+    if (!referrer.isNull() && !referrer.isSymbol() && !referrer.isEmpty()) {
+        for (auto type : { ScriptFetchParameters::Type::JavaScript, ScriptFetchParameters::Type::WebAssembly, ScriptFetchParameters::Type::JSON, ScriptFetchParameters::Type::HostDefined }) {
+            if (ModuleRegistryEntry* entry = getRegisteredMayBeNull(referrer, type)) {
+                if (auto* record = entry->record()) {
+                    if (auto* cyclic = dynamicDowncast<CyclicModuleRecord>(record)) {
+                        initiator = cyclic;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    JSPromise* promise = loadModule(globalObject, resolved, WTF::move(parameters), WTF::move(scriptFetcher), flags, initiator);
+#else
     JSPromise* promise = loadModule(globalObject, resolved, WTF::move(parameters), WTF::move(scriptFetcher), flags);
+#endif
     RETURN_IF_EXCEPTION(scope, nullptr);
 
     JSPromise* resultPromise = JSPromise::create(vm, globalObject->promiseStructure());
@@ -956,7 +988,11 @@ void JSModuleLoader::finishLoadingImportedModule(JSGlobalObject* globalObject, c
     } else {
         // 3.a. Perform ContinueDynamicImport(payload, result).
         auto* dynamicPayload = uncheckedDowncast<ModuleLoaderPayload>(payload);
+#if USE(BUN_JSC_ADDITIONS)
+        continueDynamicImport(globalObject, dynamicPayload, result, WTF::move(scriptFetcher), dynamicPayload->deferred());
+#else
         continueDynamicImport(globalObject, dynamicPayload->promise(), result, WTF::move(scriptFetcher), dynamicPayload->deferred());
+#endif
         RETURN_IF_EXCEPTION(scope, void());
     }
 
@@ -1008,13 +1044,21 @@ void JSModuleLoader::continueModuleLoading(JSGlobalObject* globalObject, ModuleG
     scope.release();
 }
 
+#if USE(BUN_JSC_ADDITIONS)
+void JSModuleLoader::continueDynamicImport(JSGlobalObject* globalObject, ModuleLoaderPayload* dynamicPayload, ModuleCompletion completion, RefPtr<ScriptFetcher> scriptFetcher, bool deferred)
+#else
 void JSModuleLoader::continueDynamicImport(JSGlobalObject* globalObject, JSPromise* promise, ModuleCompletion completion, RefPtr<ScriptFetcher> scriptFetcher, bool deferred)
+#endif
 {
     // ContinueDynamicImport(promiseCapability, moduleCompletion)
     // https://tc39.es/ecma262/#sec-ContinueDynamicImport
 
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
+
+#if USE(BUN_JSC_ADDITIONS)
+    JSPromise* promise = dynamicPayload->promise();
+#endif
 
     // 1. If moduleCompletion is an abrupt completion, then
     if (Exception** exception = std::get_if<Exception*>(&completion)) {
@@ -1030,7 +1074,13 @@ void JSModuleLoader::continueDynamicImport(JSGlobalObject* globalObject, JSPromi
     JSPromise* loadPromise = loadRequestedModules(globalObject, module, WTF::move(scriptFetcher));
     RETURN_IF_EXCEPTION(scope, void());
     // 4-8. Link and evaluate using microtask dispatch instead of closures.
+#if USE(BUN_JSC_ADDITIONS)
+    // Route via the payload (not the promise) so dynamicImportLoadSettled
+    // can recover the initiator for #30651's push/pop.
+    loadPromise->performPromiseThenWithInternalMicrotask(vm, deferred ? InternalMicrotask::DynamicImportDeferLoadSettled : InternalMicrotask::DynamicImportLoadSettled, dynamicPayload, module);
+#else
     loadPromise->performPromiseThenWithInternalMicrotask(vm, deferred ? InternalMicrotask::DynamicImportDeferLoadSettled : InternalMicrotask::DynamicImportLoadSettled, promise, module);
+#endif
     // 9. Return UNUSED.
     scope.release();
 }

@@ -32,6 +32,7 @@
 
 namespace JSC {
 
+class CyclicModuleRecord;
 class ModuleRegistryEntry;
 class ScriptFetcher;
 
@@ -78,6 +79,16 @@ public:
     bool dynamic() const { return m_flags.contains(ModuleLoadFlag::Dynamic); }
     bool useImportMap() const { return m_flags.contains(ModuleLoadFlag::UseImportMap); }
     bool deferred() const { return m_flags.contains(ModuleLoadFlag::Deferred); }
+#if USE(BUN_JSC_ADDITIONS)
+    // Dynamic-import-only: the CyclicModuleRecord whose body is awaiting
+    // this import's result. Set by loadModule's dynamic overload if the
+    // caller can name a module referrer; used by dynamicImportLoadSettled
+    // to push/pop around the target's Evaluate() so innerModuleEvaluation's
+    // 11.c.v can distinguish the Nitro self-deadlock from a parallel
+    // unrelated dynamic import (#30651).
+    void setDynamicImportInitiator(VM&, CyclicModuleRecord*);
+    CyclicModuleRecord* dynamicImportInitiator() const;
+#endif
 
 private:
     ModuleLoadingContext(VM&, Structure*, Step, const JSModuleLoader::ModuleReferrer&, AbstractModuleRecord::ModuleRequest&&, JSCell* payload, ModuleRegistryEntry*, RefPtr<ScriptFetcher>);
@@ -91,6 +102,9 @@ private:
     WriteBarrier<Unknown> m_referrer;
     WriteBarrier<AbstractModuleRecord> m_module;
     OptionSet<ModuleLoadFlag> m_flags;
+#if USE(BUN_JSC_ADDITIONS)
+    WriteBarrier<CyclicModuleRecord> m_dynamicImportInitiator;
+#endif
 };
 
 } // namespace JSC
