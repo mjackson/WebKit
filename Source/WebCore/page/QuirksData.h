@@ -145,6 +145,7 @@ struct QuirksData {
         ShouldAllowPopupFromMicrosoftOfficeToOneDrive,
 #endif
         ShouldAutoplayWebAudioForArbitraryUserGestureQuirk,
+        ShouldAvoidProgrammaticScrollClampingQuirk,
         ShouldAvoidResizingWhenInputViewBoundsChangeQuirk,
         ShouldAvoidScrollingWhenFocusedContentIsVisibleQuirk,
         ShouldBlockFetchWithNewlineAndLessThan,
@@ -181,6 +182,7 @@ struct QuirksData {
         ShouldDispatchSimulatedMouseEventsAssumeDefaultPreventedQuirk,
 #if ENABLE(MEDIA_STREAM)
         ShouldEnableCameraAndMicrophonePermissionStateQuirk,
+        ShouldEnableCameraBackgroundPlayback,
         ShouldEnableEnumerateDeviceQuirk,
         ShouldEnableFacebookFlagQuirk,
 #endif
@@ -255,9 +257,12 @@ struct QuirksData {
         NeedsZillowFloorplanMarginQuirk,
 #if PLATFORM(IOS_FAMILY)
         NeedsChromeOSNavigatorUserAgentQuirk,
+        ShouldSendFakeTouchForceChangeEvent,
 #endif
         ShouldLimitHLSPlaybackRate,
         ShouldDeferIntersectionObserversDuringResize,
+        ShouldSuppressHLSSubtitles,
+        ShouldSuppressMediaSessionPauseActionOnInterruption,
 
         NumberOfQuirks
     };

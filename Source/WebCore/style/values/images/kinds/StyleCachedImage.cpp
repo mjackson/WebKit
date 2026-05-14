@@ -30,6 +30,7 @@
 #include "ContainerNodeInlines.h"
 #include "ReferencedSVGResources.h"
 #include "RenderElement.h"
+#include "RenderImage.h"
 #include "RenderObjectInlines.h"
 #include "RenderSVGResourceMasker.h"
 #include "RenderView.h"
@@ -236,7 +237,10 @@ FloatSize CachedImage::imageSize(const RenderElement* renderer, float multiplier
         return m_containerSize;
     if (!m_cachedImage)
         return { };
-    return m_cachedImage->imageSizeForRenderer(renderer, multiplier, sizeType) / m_scaleFactor;
+    float density = 1.0f;
+    if (CheckedPtr renderImage = dynamicDowncast<RenderImage>(renderer))
+        density = renderImage->imageDevicePixelRatio();
+    return m_cachedImage->imageSizeForRenderer(renderer, multiplier, sizeType, density) / m_scaleFactor;
 }
 
 bool CachedImage::imageHasRelativeWidth() const

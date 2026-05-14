@@ -219,6 +219,7 @@ struct Item {
     String title;
     HashMap<String, String> clientAttributes;
     unsigned enclosingBlockNumber { 0 };
+    unsigned visualBlockContainerNumber { 0 };
     bool hasLineThrough { false };
 
     template<typename T> bool hasData() const

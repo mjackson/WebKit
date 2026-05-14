@@ -35,6 +35,10 @@
 #include <wtf/ThreadSafeWeakPtr.h>
 
 namespace WebCore {
+struct SeekTarget;
+} // namespace WebCore
+
+namespace WebCore {
 
 class MediaSourcePrivate;
 

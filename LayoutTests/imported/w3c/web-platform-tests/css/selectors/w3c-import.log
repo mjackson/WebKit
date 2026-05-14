@@ -460,6 +460,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selector-structural-pseudo-root-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selector-structural-pseudo-root-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selector-structural-pseudo-root.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-attr-many-2.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-attr-many-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-attr-many-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-attr-many.html

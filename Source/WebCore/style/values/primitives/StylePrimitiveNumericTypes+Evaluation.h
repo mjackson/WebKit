@@ -180,6 +180,39 @@ template<CSS::Range nR, CSS::Range pR, typename V, typename Result> struct Evalu
 
 // MARK: - SpaceSeparatedPoint
 
+template<typename T> struct Evaluation<SpaceSeparatedPoint<T>, IntPoint> {
+    auto operator()(const SpaceSeparatedPoint<T>& value) -> IntPoint
+    {
+        return {
+            evaluate<int>(value.x()),
+            evaluate<int>(value.y())
+        };
+    }
+    auto operator()(const SpaceSeparatedPoint<T>& value, IntSize referenceBox) -> IntPoint
+        requires HasTwoParameterEvaluate<T, int, int>
+    {
+        return {
+            evaluate<int>(value.x(), referenceBox.width()),
+            evaluate<int>(value.y(), referenceBox.height())
+        };
+    }
+    auto operator()(const SpaceSeparatedPoint<T>& value, IntSize referenceBox, ZoomNeeded token) -> IntPoint
+        requires HasThreeParameterEvaluate<T, int, int, ZoomNeeded>
+    {
+        return {
+            evaluate<int>(value.x(), referenceBox.width(), token),
+            evaluate<int>(value.y(), referenceBox.height(), token)
+        };
+    }
+    auto operator()(const SpaceSeparatedPoint<T>& value, IntSize referenceBox, ZoomFactor zoom) -> IntPoint
+        requires HasThreeParameterEvaluate<T, int, int, ZoomFactor>
+    {
+        return {
+            evaluate<int>(value.x(), referenceBox.width(), zoom),
+            evaluate<int>(value.y(), referenceBox.height(), zoom)
+        };
+    }
+};
 template<typename T> struct Evaluation<SpaceSeparatedPoint<T>, FloatPoint> {
     auto operator()(const SpaceSeparatedPoint<T>& value, FloatSize referenceBox) -> FloatPoint
         requires HasTwoParameterEvaluate<T, float, float>
@@ -411,7 +444,7 @@ template<auto R, typename V> auto reflect(const LengthPercentage<R, V>& value) -
 // Merges the two ranges, `aR` and `bR`, creating a union of their ranges.
 consteval CSS::Range mergeRanges(CSS::Range aR, CSS::Range bR)
 {
-    return CSS::Range { std::min(aR.min, bR.min), std::max(aR.max, bR.max), aR.clampOptions, aR.zoomOptions };
+    return CSS::Range { std::min(aR.min, bR.min), std::max(aR.max, bR.max), aR.minParseTimeBehavior, aR.maxParseTimeBehavior, aR.zoomOptions };
 }
 
 // Convert to `calc(100% - (a + b))`.
@@ -419,7 +452,8 @@ consteval CSS::Range mergeRanges(CSS::Range aR, CSS::Range bR)
 // Returns a LengthPercentage with range, `resultR`, equal to union of the two input ranges `aR` and `bR`.
 template<auto aR, auto bR, typename V> auto reflectSum(const LengthPercentage<aR, V>& a, const LengthPercentage<bR, V>& b) -> LengthPercentage<mergeRanges(aR, bR), V>
 {
-    static_assert(aR.clampOptions == bR.clampOptions);
+    static_assert(aR.minParseTimeBehavior == bR.minParseTimeBehavior);
+    static_assert(aR.maxParseTimeBehavior == bR.maxParseTimeBehavior);
     static_assert(aR.zoomOptions == bR.zoomOptions);
 
     constexpr auto resultR = mergeRanges(aR, bR);

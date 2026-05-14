@@ -38,6 +38,7 @@
 #include "Crypto.h"
 #include "CryptoKeyData.h"
 #include "DOMTimer.h"
+#include "Document.h"
 #include "FontCustomPlatformData.h"
 #include "FontFaceSet.h"
 #include "FrameConsoleClient.h"
@@ -74,6 +75,7 @@
 #include "WorkerNavigator.h"
 #include "WorkerOrWorkletGlobalScope.h"
 #include "WorkerReportingProxy.h"
+#include "WorkerSTWParticipation.h"
 #include "WorkerSWClientConnection.h"
 #include "WorkerScriptLoader.h"
 #include "WorkerStorageConnection.h"
@@ -125,6 +127,7 @@ WorkerGlobalScope::WorkerGlobalScope(WorkerThreadType type, const WorkerParamete
     , m_settingsValues(params.settingsValues)
     , m_workerType(params.workerType)
     , m_credentials(params.credentials)
+    , m_agentClusterID(params.agentClusterID)
 {
     {
         Locker locker { allWorkerGlobalScopeIdentifiersLock };
@@ -207,7 +210,8 @@ void WorkerGlobalScope::applyContentSecurityPolicyResponseHeaders(const ContentS
     protect(contentSecurityPolicy())->didReceiveHeaders(contentSecurityPolicyResponseHeaders, String { });
 }
 
-URL WorkerGlobalScope::completeURL(const String& url, ForceUTF8) const
+// https://html.spec.whatwg.org/multipage/webappapis.html#parse-a-url
+URL WorkerGlobalScope::parseURL(const String& url) const
 {
     // Always return a null URL when passed a null string.
     // FIXME: Should we change the URL constructor to have this behavior?
@@ -309,6 +313,17 @@ WorkerFileSystemStorageConnection& WorkerGlobalScope::getFileSystemStorageConnec
 
 WorkerFileSystemStorageConnection* WorkerGlobalScope::fileSystemStorageConnection()
 {
+    if (!m_fileSystemStorageConnection) {
+        RefPtr<FileSystemStorageConnection> mainThreadConnection;
+        callOnMainThreadAndWait([workerThread = Ref { thread() }, &mainThreadConnection]() mutable {
+            if (workerThread->runLoop().terminated())
+                return;
+            if (CheckedPtr workerLoaderProxy = workerThread->workerLoaderProxy())
+                mainThreadConnection = workerLoaderProxy->createFileSystemStorageConnection();
+        });
+        if (mainThreadConnection)
+            m_fileSystemStorageConnection = WorkerFileSystemStorageConnection::create(*this, mainThreadConnection.releaseNonNull());
+    }
     return m_fileSystemStorageConnection.get();
 }
 
@@ -417,7 +432,7 @@ ExceptionOr<void> WorkerGlobalScope::importScripts(const FixedVector<Variant<Ref
     Vector<URLKeepingBlobAlive> completedURLs;
     completedURLs.reserveInitialCapacity(urls.size());
     for (auto& entry : urlStrings) {
-        URL url = completeURL(entry);
+        URL url = parseURL(entry);
         if (!url.isValid())
             return Exception { ExceptionCode::SyntaxError };
         completedURLs.append({ WTF::move(url), m_topOrigin->data() });
@@ -533,7 +548,7 @@ std::optional<Vector<uint8_t>> WorkerGlobalScope::serializeAndWrapCryptoKey(Cryp
         wrappedKey = context.serializeAndWrapCryptoKey(WTF::move(keyData));
         semaphore.signal();
     });
-    semaphore.wait();
+    waitWithSTWParticipation(semaphore, vm());
     return wrappedKey;
 }
 
@@ -550,7 +565,7 @@ std::optional<Vector<uint8_t>> WorkerGlobalScope::unwrapCryptoKey(const Vector<u
         key = context.unwrapCryptoKey(wrappedKey);
         semaphore.signal();
     });
-    semaphore.wait();
+    waitWithSTWParticipation(semaphore, vm());
     return key;
 }
 
@@ -631,7 +646,7 @@ Ref<FontFaceSet> WorkerGlobalScope::fonts()
 
 RefPtr<FontLoadRequest> WorkerGlobalScope::fontLoadRequest(const String& url, bool, bool, LoadedFromOpaqueSource loadedFromOpaqueSource)
 {
-    return WorkerFontLoadRequest::create(completeURL(url), loadedFromOpaqueSource);
+    return WorkerFontLoadRequest::create(parseURL(url), loadedFromOpaqueSource);
 }
 
 void WorkerGlobalScope::beginLoadingFontSoon(FontLoadRequest& request)
@@ -728,7 +743,7 @@ void WorkerGlobalScope::clearDecodedScriptData()
 
 bool WorkerGlobalScope::crossOriginIsolated() const
 {
-    return ScriptExecutionContext::crossOriginMode() == CrossOriginMode::Isolated;
+    return crossOriginEmbedderPolicy().value == CrossOriginEmbedderPolicyValue::RequireCORP;
 }
 
 void WorkerGlobalScope::updateSourceProviderBuffers(const ScriptBuffer& mainScript, const HashMap<URL, ScriptBuffer>& importedScripts)

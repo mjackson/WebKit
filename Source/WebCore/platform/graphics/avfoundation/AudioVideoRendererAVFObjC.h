@@ -30,10 +30,13 @@
 #include <WebCore/ProcessIdentity.h>
 #include <WebCore/TrackInfo.h>
 #include <WebCore/WebAVSampleBufferListener.h>
+#include <wtf/Deque.h>
 #include <wtf/Forward.h>
 #include <wtf/Function.h>
 #include <wtf/HashMap.h>
 #include <wtf/LoggerHelper.h>
+#include <wtf/MonotonicTime.h>
+#include <wtf/RetainPtr.h>
 #include <wtf/StdUnorderedMap.h>
 #include <wtf/ThreadSafeWeakPtr.h>
 

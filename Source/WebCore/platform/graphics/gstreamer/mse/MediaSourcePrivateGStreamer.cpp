@@ -41,6 +41,7 @@
 #include "Logging.h"
 #include "MediaPlayerPrivateGStreamer.h"
 #include "MediaPlayerPrivateGStreamerMSE.h"
+#include "MediaSourcePrivateClient.h"
 #include "MediaSourceTrackGStreamer.h"
 #include "NotImplemented.h"
 #include "SourceBufferPrivateGStreamer.h"
@@ -199,11 +200,12 @@ void MediaSourcePrivateGStreamer::markEndOfStream(EndOfStreamStatus endOfStreamS
     ASSERT(isMainThread());
 
     MediaSourcePrivate::markEndOfStream(endOfStreamStatus);
+
+#ifndef GST_DISABLE_GST_DEBUG
     RefPtr player = platformPlayer();
     if (!player)
         return;
 
-#ifndef GST_DISABLE_GST_DEBUG
     ASCIILiteral statusString;
     switch (endOfStreamStatus) {
     case EndOfStreamStatus::NoError:
@@ -216,15 +218,8 @@ void MediaSourcePrivateGStreamer::markEndOfStream(EndOfStreamStatus endOfStreamS
         statusString = "network-error"_s;
         break;
     }
-    GST_DEBUG_OBJECT(player->pipeline(), "Marking EOS, status is %s", statusString.characters());
+    GST_DEBUG_OBJECT(player->pipeline(), "Marked EOS, status is %s", statusString.characters());
 #endif
-    if (endOfStreamStatus == EndOfStreamStatus::NoError) {
-        auto bufferedRanges = buffered();
-        if (!bufferedRanges.length()) {
-            GST_DEBUG("EOS with no buffers");
-            player->setEosWithNoBuffers(true);
-        }
-    }
 }
 
 void MediaSourcePrivateGStreamer::unmarkEndOfStream()
@@ -234,7 +229,7 @@ void MediaSourcePrivateGStreamer::unmarkEndOfStream()
     if (!player)
         return;
 
-    player->setEosWithNoBuffers(false);
+    player->rebuildPipeline();
     MediaSourcePrivate::unmarkEndOfStream();
 }
 

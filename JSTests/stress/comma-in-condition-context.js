@@ -333,4 +333,3 @@ for (let i = 0; i < 1e3; i++) {
     shouldBe(testSwitch(99, 0), "none");
 }
 
-print("PASS");

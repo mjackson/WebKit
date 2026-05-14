@@ -51,14 +51,14 @@ JSValue toJSNewlyCreated(JSGlobalObject*, JSDOMGlobalObject* globalObject, Ref<E
 
 EventTarget* NODELETE JSEventTarget::toWrapped(VM&, JSValue value)
 {
-    if (value.inherits<JSWindowProxy>())
-        return &uncheckedDowncast<JSWindowProxy>(asObject(value))->wrapped();
-    if (value.inherits<JSDOMWindow>())
-        return &uncheckedDowncast<JSDOMWindow>(asObject(value))->wrapped();
-    if (value.inherits<JSWorkerGlobalScope>())
-        return &uncheckedDowncast<JSWorkerGlobalScope>(asObject(value))->wrapped();
-    if (value.inherits<JSEventTarget>())
-        return &uncheckedDowncast<JSEventTarget>(asObject(value))->wrapped();
+    if (auto* windowProxy = dynamicDowncast<JSWindowProxy>(value))
+        return &windowProxy->wrapped();
+    if (auto* window = dynamicDowncast<JSDOMWindow>(value))
+        return &window->wrapped();
+    if (auto* workerGlobalScope = dynamicDowncast<JSWorkerGlobalScope>(value))
+        return &workerGlobalScope->wrapped();
+    if (auto* eventTarget = dynamicDowncast<JSEventTarget>(value))
+        return &eventTarget->wrapped();
     return nullptr;
 }
 

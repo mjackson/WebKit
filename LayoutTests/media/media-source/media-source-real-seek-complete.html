@@ -41,12 +41,14 @@
         run('source.endOfStream()');
         run('video.currentTime = 10');
         await waitFor(video, 'seeked');
-
-        endTest();
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

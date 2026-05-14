@@ -126,7 +126,7 @@ public:
     bool containsOnlyASCII { true };
 
     AXTextRuns() = default;
-    AXTextRuns(RenderBlock* containingBlock, Vector<AXTextRun>&& textRuns, String&& text, bool containsOnlyASCII = true)
+    AXTextRuns(void* containingBlock, Vector<AXTextRun>&& textRuns, String&& text, bool containsOnlyASCII = true)
         : text(WTF::move(text))
         , containingBlock(containingBlock)
         , runs(WTF::move(textRuns))

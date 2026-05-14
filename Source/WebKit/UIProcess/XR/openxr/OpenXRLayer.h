@@ -91,8 +91,8 @@ public:
 private:
     explicit OpenXRLayerProjection(UniqueRef<OpenXRSwapchain>&&);
 
-    std::optional<PlatformXR::FrameData::LayerData> startFrame() final;
-    Vector<XrCompositionLayerBaseHeader*> endFrame(const PlatformXR::DeviceLayer&, XrSpace, const Vector<XrView>&) final;
+    std::optional<PlatformXR::FrameData::LayerData> startFrame() override;
+    Vector<XrCompositionLayerBaseHeader*> endFrame(const PlatformXR::DeviceLayer&, XrSpace, const Vector<XrView>&) override;
 
     XrCompositionLayerProjection m_layerProjection;
     Vector<XrCompositionLayerProjectionView> m_projectionViews;
@@ -142,6 +142,23 @@ private:
     explicit OpenXREquirectLayer(UniqueRef<OpenXRSwapchain>&&, PlatformXR::LayerLayout);
 
     Vector<XrCompositionLayerEquirect2KHR> m_layers;
+};
+#endif
+
+#if defined(XR_KHR_composition_layer_cylinder)
+class OpenXRCylinderLayer final : public OpenXRCompositionLayer {
+    WTF_MAKE_TZONE_ALLOCATED(OpenXRCylinderLayer);
+    WTF_MAKE_NONCOPYABLE(OpenXRCylinderLayer);
+public:
+    static std::unique_ptr<OpenXRCylinderLayer> create(std::unique_ptr<OpenXRSwapchain>&&, PlatformXR::LayerLayout);
+
+    std::optional<PlatformXR::FrameData::LayerData> startFrame() override;
+    Vector<XrCompositionLayerBaseHeader*> endFrame(const PlatformXR::DeviceLayer&, XrSpace, const Vector<XrView>&) override;
+
+private:
+    explicit OpenXRCylinderLayer(UniqueRef<OpenXRSwapchain>&&, PlatformXR::LayerLayout);
+
+    Vector<XrCompositionLayerCylinderKHR> m_layers;
 };
 #endif
 

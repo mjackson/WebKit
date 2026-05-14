@@ -549,17 +549,29 @@ bool BackForwardCache::addIfCacheable(BackForwardFrameItemIdentifier identifier,
     return true;
 }
 
+static bool hasRemoteFrameDescendant(const Frame& frame)
+{
+    for (auto* child = frame.tree().firstChild(); child; child = child->tree().nextSibling()) {
+        if (is<RemoteFrame>(*child))
+            return true;
+        if (hasRemoteFrameDescendant(*child))
+            return true;
+    }
+    return false;
+}
+
 bool BackForwardCache::addIfCacheable(HistoryItem& item, Page* page)
 {
     if (!page)
         return false;
 
-    // Same-site BFCache is not yet supported under Site Isolation — same-origin
-    // navigations can leave stale RemotePageProxy objects in the BCG.
-    // Cross-site (multi-process) BFCache uses the other addIfCacheable overload
-    // which is only called when both SI and multiProcessBackForwardCache are enabled.
-    if (page->settings().siteIsolationEnabled())
-        return false;
+    // Same-site BFCache is supported when the page has no cross-site
+    // iframes. Cross-site iframes require UIProcess coordination for
+    // suspension which is not yet implemented for the in-process path.
+    if (page->settings().siteIsolationEnabled()) {
+        if (RefPtr mainFrame = page->mainFrame(); mainFrame && hasRemoteFrameDescendant(*mainFrame))
+            return false;
+    }
 
     if (!addIfCacheable(item.frameItemID(), *page))
         return false;

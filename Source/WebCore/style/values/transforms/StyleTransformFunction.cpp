@@ -44,6 +44,7 @@
 #include "StyleInterpolationContext.h"
 #include "StyleKeyword+CSSValueConversion.h"
 #include "StyleLengthWrapper+Blending.h"
+#include "StyleLengthWrapper+CSSValueConversion.h"
 #include "StyleMatrix3DTransformFunction.h"
 #include "StyleMatrixTransformFunction.h"
 #include "StylePerspectiveTransformFunction.h"
@@ -58,34 +59,6 @@
 
 namespace WebCore {
 namespace Style {
-
-static TranslateTransformFunction::LengthPercentage resolveAsTranslateLengthPercentage(const CSSPrimitiveValue& primitiveValue, BuilderState& state)
-{
-    // FIXME: This should use `toStyleFromCSSValue<TranslateTransformFunction::LengthPercentage>`, but doing so breaks transforms/hittest-translated-content-off-to-infinity-and-back.html, due to it clamping between minValueForCssLength/maxValueForCssLength.
-
-    auto& conversionData = state.cssToLengthConversionData();
-    if (primitiveValue.isLength())
-        return TranslateTransformFunction::LengthPercentage::Fixed { static_cast<float>(primitiveValue.resolveAsLength<double>(conversionData)) };
-    if (primitiveValue.isPercentage())
-        return TranslateTransformFunction::LengthPercentage::Percentage { static_cast<float>(primitiveValue.resolveAsPercentage<double>(conversionData)) };
-    if (primitiveValue.isCalculated())
-        return TranslateTransformFunction::LengthPercentage::Calc { protect(primitiveValue.cssCalcValue())->createCalculationValue(conversionData, CSSCalcSymbolTable { }) };
-
-    state.setCurrentPropertyInvalidAtComputedValueTime();
-    return 0_css_px;
-}
-
-static TranslateTransformFunction::Length resolveAsTranslateLength(const CSSPrimitiveValue& primitiveValue, BuilderState& state)
-{
-    // FIXME: This should use `toStyleFromCSSValue<TranslateTransformFunction::Length>`, but doing so breaks transforms/hittest-translated-content-off-to-infinity-and-back.html, due to it clamping between minValueForCssLength/maxValueForCssLength.
-
-    auto& conversionData = state.cssToLengthConversionData();
-    if (primitiveValue.isLength())
-        return TranslateTransformFunction::Length { static_cast<float>(primitiveValue.resolveAsLength<double>(conversionData)) };
-
-    state.setCurrentPropertyInvalidAtComputedValueTime();
-    return 0_css_px;
-}
 
 // MARK: Matrix
 
@@ -370,8 +343,8 @@ static RefPtr<const TransformFunctionBase> createTranslateTransformFunction(cons
     if (!function)
         return { };
 
-    auto tx = resolveAsTranslateLengthPercentage(function->item(0), state);
-    auto ty = function->size() > 1 ? resolveAsTranslateLengthPercentage(function->item(1), state) : TranslateTransformFunction::LengthPercentage { 0_css_px };
+    auto tx = toStyleFromCSSValue<TranslateTransformFunction::LengthPercentage>(state, function->item(0));
+    auto ty = function->size() > 1 ? toStyleFromCSSValue<TranslateTransformFunction::LengthPercentage>(state, function->item(1)) : TranslateTransformFunction::LengthPercentage { 0_css_px };
     auto tz = 0_css_px;
 
     return TranslateTransformFunction::create(WTF::move(tx), WTF::move(ty), WTF::move(tz), TransformFunctionType::Translate);
@@ -386,9 +359,9 @@ static RefPtr<const TransformFunctionBase> createTranslate3dTransformFunction(co
     if (!function)
         return { };
 
-    auto tx = resolveAsTranslateLengthPercentage(function->item(0), state);
-    auto ty = resolveAsTranslateLengthPercentage(function->item(1), state);
-    auto tz = resolveAsTranslateLength(function->item(2), state);
+    auto tx = toStyleFromCSSValue<TranslateTransformFunction::LengthPercentage>(state, function->item(0));
+    auto ty = toStyleFromCSSValue<TranslateTransformFunction::LengthPercentage>(state, function->item(1));
+    auto tz = toStyleFromCSSValue<TranslateTransformFunction::Length>(state, function->item(2));
 
     return TranslateTransformFunction::create(WTF::move(tx), WTF::move(ty), WTF::move(tz), TransformFunctionType::Translate3D);
 }
@@ -402,7 +375,7 @@ static RefPtr<const TransformFunctionBase> createTranslateXTransformFunction(con
     if (!function)
         return { };
 
-    auto tx = resolveAsTranslateLengthPercentage(function->item(0), state);
+    auto tx = toStyleFromCSSValue<TranslateTransformFunction::LengthPercentage>(state, function->item(0));
     auto ty = 0_css_px;
     auto tz = 0_css_px;
 
@@ -419,7 +392,7 @@ static RefPtr<const TransformFunctionBase> createTranslateYTransformFunction(con
         return { };
 
     auto tx = 0_css_px;
-    auto ty = resolveAsTranslateLengthPercentage(function->item(0), state);
+    auto ty = toStyleFromCSSValue<TranslateTransformFunction::LengthPercentage>(state, function->item(0));
     auto tz = 0_css_px;
 
     return TranslateTransformFunction::create(WTF::move(tx), WTF::move(ty), WTF::move(tz), TransformFunctionType::TranslateY);
@@ -436,7 +409,7 @@ static RefPtr<const TransformFunctionBase> createTranslateZTransformFunction(con
 
     auto tx = 0_css_px;
     auto ty = 0_css_px;
-    auto tz = resolveAsTranslateLength(function->item(0), state);
+    auto tz = toStyleFromCSSValue<TranslateTransformFunction::Length>(state, function->item(0));
 
     return TranslateTransformFunction::create(WTF::move(tx), WTF::move(ty), WTF::move(tz), TransformFunctionType::TranslateZ);
 }

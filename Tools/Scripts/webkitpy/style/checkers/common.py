@@ -31,6 +31,7 @@ import sre_compile
 #        after moving the relevant cpp_unittest.ErrorCollector code
 #        into a shared location and refactoring appropriately.
 categories = set([
+    "non-inclusive-term",
     "whitespace/carriage_return",
     "whitespace/tab"])
 

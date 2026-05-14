@@ -54,7 +54,7 @@ RefPtr<SourceBufferParser> SourceBufferParser::create(const ContentType& type, c
         return SourceBufferParserWebM::create();
 
     if (SourceBufferParserAVFObjC::isContentTypeSupported(type) != MediaPlayerEnums::SupportsType::IsNotSupported)
-        return adoptRef(new SourceBufferParserAVFObjC(configuration));
+        return adoptRef(new SourceBufferParserAVFObjC(type, configuration));
 
     return nullptr;
 }

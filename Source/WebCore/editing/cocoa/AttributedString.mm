@@ -51,6 +51,8 @@ OBJC_CLASS NSTextTab;
 
 #if PLATFORM(IOS_FAMILY)
 SPECIALIZE_OBJC_TYPE_TRAITS(UIImage, PAL::getUIImageClassSingleton())
+SPECIALIZE_OBJC_TYPE_TRAITS(NSShadow, PAL::getNSShadowClassSingleton())
+SPECIALIZE_OBJC_TYPE_TRAITS(NSPresentationIntent, PAL::getNSPresentationIntentClassSingleton())
 #endif
 
 namespace WebCore {
@@ -367,14 +369,14 @@ static RetainPtr<id> toNSObject(const AttributedString::AttributeValue& value, I
     }, [] (const TextAttachmentMissingImage& value) -> RetainPtr<id> {
         UNUSED_PARAM(value);
         RetainPtr<NSTextAttachment> attachment = adoptNS([[PlatformNSTextAttachment alloc] initWithData:nil ofType:nil]);
-        attachment.get().image = RetainPtr { webCoreTextAttachmentMissingPlatformImage() }.get();
+        attachment.get().image = protect(webCoreTextAttachmentMissingPlatformImage()).get();
         return attachment;
     }, [] (const TextAttachmentFileWrapper& value) -> RetainPtr<id> {
         RetainPtr<NSData> data = value.data ? bridge_cast((value.data).get()) : nil;
 
         RetainPtr fileWrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:data.get()]);
         if (!value.preferredFilename.isNull())
-            [fileWrapper setPreferredFilename:RetainPtr { filenameByFixingIllegalCharacters(value.preferredFilename.createNSString().get()) }.get()];
+            [fileWrapper setPreferredFilename:protect(filenameByFixingIllegalCharacters(value.preferredFilename.createNSString().get())).get()];
 
         auto textAttachment = adoptNS([[PlatformNSTextAttachment alloc] initWithFileWrapper:fileWrapper.get()]);
         if (!value.accessibilityLabel.isNull())
@@ -703,15 +705,15 @@ static std::optional<AttributedString::AttributeValue> extractValue(id value, Ta
     if (auto* array = dynamic_objc_cast<NSArray>(value))
         return extractArray(array);
     if (auto* date = dynamic_objc_cast<NSDate>(value))
-        return { { { RetainPtr { date } } } };
-    if ([value isKindOfClass:PlatformNSShadow])
-        return { { { RetainPtr { (NSShadow *)value } } } };
+        return { { { protect(date) } } };
+    if (auto* shadow = dynamic_objc_cast<NSShadow>(value))
+        return { { { protect(shadow) } } };
     if ([value isKindOfClass:PlatformNSParagraphStyle]) {
         auto style = static_cast<NSParagraphStyle *>(value);
         return { { extractParagraphStyle(style, tableIDs, tableBlockIDs, listIDs) } };
     }
-    if ([value isKindOfClass:PlatformNSPresentationIntent])
-        return { { { RetainPtr { (NSPresentationIntent *)value } } } };
+    if (auto* intent = dynamic_objc_cast<NSPresentationIntent>(value))
+        return { { { protect(intent) } } };
 #if ENABLE(MULTI_REPRESENTATION_HEIC)
     if ([value isKindOfClass:PlatformNSAdaptiveImageGlyph]) {
         auto attachment = static_cast<NSAdaptiveImageGlyph *>(value);

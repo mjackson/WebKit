@@ -552,6 +552,8 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     action.setPopupPopoverAppearance(action.popupPopoverAppearance());
 
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(_otherPopoverWillShow:) name:NSPopoverWillShowNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(popoverWillClose:) name:NSPopoverWillCloseNotification object:self];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(popoverDidClose:) name:NSPopoverDidCloseNotification object:self];
 
     return self;
 }
@@ -567,6 +569,8 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (void)popoverDidClose:(NSNotification *)notification
 {
     ASSERT([self isEqual:notification.object]);
+
+    [NSNotificationCenter.defaultCenter removeObserver:self];
 
     if (RefPtr webExtensionAction = _webExtensionAction.get())
         webExtensionAction->closePopup();

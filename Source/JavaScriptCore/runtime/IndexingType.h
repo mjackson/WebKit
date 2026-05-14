@@ -28,7 +28,7 @@
 #include <cstdint>
 #include <wtf/Forward.h>
 #include <wtf/LockAlgorithm.h>
-#include <wtf/StdLibExtras.h>
+#include <wtf/PrintStream.h>
 
 namespace JSC {
 

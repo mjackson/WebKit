@@ -25,7 +25,6 @@
 
 #include "config.h"
 #include "testb3.h"
-#include <array>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 

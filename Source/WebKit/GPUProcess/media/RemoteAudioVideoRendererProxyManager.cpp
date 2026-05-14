@@ -279,7 +279,7 @@ void RemoteAudioVideoRendererProxyManager::enqueueSample(RemoteAudioVideoRendere
     auto& converter = converterFor(iterator->value, trackIdentifier);
     MESSAGE_CHECK_COMPLETION(!!converter.currentTrackInfo(), completionHandler(false));
     if (RefPtr mediaSample = converter.convert(WTF::move(samplesBlock))) {
-        iterator->value.renderer->enqueueSample(trackIdentifier, mediaSample.releaseNonNull());
+        iterator->value.renderer->enqueueSample(trackIdentifier, mediaSample.releaseNonNull(), minimumPresentationTime);
         completionHandler(iterator->value.renderer->isReadyForMoreSamples(trackIdentifier));
         return;
     }

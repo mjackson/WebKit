@@ -28,7 +28,9 @@
 
 #if ENABLE(WEB_RTC) && USE(LIBWEBRTC)
 
+#include "EventTarget.h"
 #include "LibWebRTCRtpTransformableFrame.h"
+#include "RTCPeerConnection.h"
 
 namespace WebCore {
 

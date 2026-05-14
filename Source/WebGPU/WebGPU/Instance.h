@@ -30,11 +30,13 @@
 #import <wtf/CompletionHandler.h>
 #import <wtf/Deque.h>
 #import <wtf/FastMalloc.h>
+#import <wtf/HashMap.h>
 #import <wtf/Lock.h>
 #import <wtf/MachSendRight.h>
 #import <wtf/Ref.h>
 #import <wtf/TZoneMalloc.h>
 #import <wtf/ThreadSafeRefCounted.h>
+#import <wtf/ThreadSafeWeakPtr.h>
 #import <wtf/ThreadSafetyAnalysis.h>
 #import <wtf/WeakObjCPtr.h>
 #import <wtf/WeakPtr.h>

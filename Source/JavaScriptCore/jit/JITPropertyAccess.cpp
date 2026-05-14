@@ -42,7 +42,6 @@
 #include "SlowPathCall.h"
 #include "ThunkGenerators.h"
 #include <wtf/ScopedLambda.h>
-#include <wtf/StringPrintStream.h>
 
 namespace JSC {
 

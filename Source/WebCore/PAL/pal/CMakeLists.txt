@@ -84,6 +84,11 @@ set(PAL_INTERFACE_DEPENDENCIES PAL_CopyHeaders)
 WEBKIT_FRAMEWORK_DECLARE(PAL)
 WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS()
 
+WEBKIT_COPY_FILES(PAL_CopyHeaders
+    DESTINATION ${PAL_FRAMEWORK_HEADERS_DIR}/pal
+    FILES ${PAL_PUBLIC_HEADERS}
+)
+
 if (SWIFT_REQUIRED AND NOT (PORT STREQUAL GTK OR PORT STREQUAL WPE))
     target_sources(PAL PRIVATE
         ${PAL_DIR}/pal/pal.swift
@@ -103,10 +108,20 @@ if (SWIFT_REQUIRED AND NOT (PORT STREQUAL GTK OR PORT STREQUAL WPE))
         "-swift-version" "6"
         "-Xcc" "-I${PAL_FRAMEWORK_HEADERS_DIR}"
         "-Xcc" "-I${CMAKE_BINARY_DIR}/WTF/Headers"
-        "-Xcc" "-I${CMAKE_BINARY_DIR}/ICU/Headers"
         "-Xcc" "-I${CMAKE_BINARY_DIR}/bmalloc/Headers"
         "-Xcc" "-I${CMAKE_BINARY_DIR}"
         "-Xcc" "-I${PAL_DERIVED_SOURCES_DIR}"
+    )
+    # Bundled ICU shadows SDK ICU in explicit module builds on iOS.
+    if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        list(APPEND PAL_SWIFT_EXTRA_OPTIONS "-Xcc" "-I${CMAKE_BINARY_DIR}/ICU/Headers")
+    endif ()
+
+    # Declare a header-only dependency for WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER below.
+    set(PAL_SWIFT_HEADER_DEPENDS
+        PAL_CopyHeaders
+        WTF_CopyHeaders
+        bmalloc_CopyHeaders
     )
 
     WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER(PAL pal
@@ -139,17 +154,8 @@ if (PORT STREQUAL GTK OR PORT STREQUAL WPE)
     )
 endif ()
 
-WEBKIT_COPY_FILES(PAL_CopyHeaders
-    DESTINATION ${PAL_FRAMEWORK_HEADERS_DIR}/pal
-    FILES ${PAL_PUBLIC_HEADERS}
-)
-
 WEBKIT_FRAMEWORK(PAL)
+WEBKIT_ADD_PREFIX_HEADER(PAL PALPrefix.h PREFIX_LANGUAGES CXX OBJCXX)
 
-# PAL's Swift sources need the module.modulemap and headers to be installed
-# before compilation (they import the underlying pal module). The CopyHeaders
-# target is an interface dependency for downstream targets, but PAL itself
-# also needs it.
-if (SWIFT_REQUIRED AND NOT (PORT STREQUAL GTK OR PORT STREQUAL WPE))
-    add_dependencies(PAL PAL_CopyHeaders WTF_CopyHeaders bmalloc_CopyHeaders)
-endif ()
+# Must come after WEBKIT_FRAMEWORK() which adds -warnings-as-errors.
+target_compile_options(PAL PRIVATE "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xfrontend -no-warnings-as-errors>")

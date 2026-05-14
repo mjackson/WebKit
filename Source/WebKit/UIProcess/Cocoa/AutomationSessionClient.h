@@ -56,6 +56,8 @@ private:
     void unloadWebExtension(WebKit::WebAutomationSession&, const String& identifier, CompletionHandler<void(bool)>&&) override;
 #endif
 
+    void performApplicationCommand(WebKit::WebAutomationSession&, WebKit::WebPageProxy&, const String& commandName, const String& arguments, CompletionHandler<void(const String&)>&&) override;
+
     bool isShowingJavaScriptDialogOnPage(WebAutomationSession&, WebPageProxy&) override;
     void dismissCurrentJavaScriptDialogOnPage(WebAutomationSession&, WebPageProxy&) override;
     void acceptCurrentJavaScriptDialogOnPage(WebAutomationSession&, WebPageProxy&) override;
@@ -87,6 +89,7 @@ private:
         bool currentPresentationForWebView : 1;
         bool loadWebExtensionWithOptions : 1;
         bool unloadWebExtension : 1;
+        bool performApplicationCommand : 1;
     } m_delegateMethods;
 };
 

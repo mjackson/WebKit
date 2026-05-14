@@ -103,9 +103,24 @@ private:
     RefPtr<TextureView> m_view;
 };
 
-static bool isRenderableTextureView(const auto& texture)
+static bool isRenderableTextureView(const auto& texture, WGPULoadOp loadOp, WGPUStoreOp storeOp)
 {
+    if (texture.usage() & WGPUTextureUsage_Transient) {
+        if (loadOp != WGPULoadOp_Clear || storeOp != WGPUStoreOp_Discard)
+            return false;
+    }
+
     return (texture.usage() & WGPUTextureUsage_RenderAttachment) && (texture.is2DTexture() || texture.is2DArrayTexture() || texture.is3DTexture()) && texture.mipLevelCount() == 1 && texture.arrayLayerCount() <= 1;
+}
+
+static bool isAllowableTextureView(const auto& texture, WGPULoadOp loadOp, WGPUStoreOp storeOp)
+{
+    if (texture.usage() & WGPUTextureUsage_Transient) {
+        if (loadOp != WGPULoadOp_Clear || storeOp != WGPUStoreOp_Discard)
+            return false;
+    }
+
+    return true;
 }
 
 }

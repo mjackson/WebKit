@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -20,7 +20,7 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "config.h"
@@ -46,7 +46,6 @@
 #include "WasmCallingConvention.h"
 #include "WebAssemblyFunction.h"
 #include <cstdlib>
-#include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuilder.h>
 
 namespace JSC { namespace DFG {
@@ -285,24 +284,34 @@ private:
             if (foldPurifyNaNOnBinary(m_node))
                 m_changed = true;
 
-            // On Integers
-            // In: ArithMod(ArithMod(x, const1), const2)
-            // Out: Identity(ArithMod(x, const1))
-            //     if const1 <= const2.
-            if (m_node->binaryUseKind() == Int32Use
-                && m_node->child2()->isInt32Constant()
-                && m_node->child1()->op() == ArithMod
-                && m_node->child1()->binaryUseKind() == Int32Use
-                && m_node->child1()->child2()->isInt32Constant()) {
+            if (m_node->isBinaryInt32UseKind()) {
+                if (m_node->child2()->isInt32Constant()) {
+                    int32_t const2 = m_node->child2()->asInt32();
+                    if (m_node->arithMode() == Arith::CheckOverflow) {
+                        if (const2 != 0 && const2 != -1) {
+                            m_node->setArithMode(Arith::Unchecked);
+                            m_changed = true;
+                        }
+                    }
 
-                int32_t const1 = m_node->child1()->child2()->asInt32();
-                int32_t const2 = m_node->child2()->asInt32();
+                    // On Integers
+                    // In: ArithMod(ArithMod(x, const1), const2)
+                    // Out: Identity(ArithMod(x, const1))
+                    //     if const1 <= const2.
+                    if (m_node->child1()->op() == ArithMod
+                        && m_node->child1()->binaryUseKind() == Int32Use
+                        && m_node->child1()->child2()->isInt32Constant()) {
+                        int32_t const1 = m_node->child1()->child2()->asInt32();
 
-                if (const1 == INT_MIN || const2 == INT_MIN)
-                    break; // std::abs(INT_MIN) is undefined.
+                        if (const1 == INT_MIN || const2 == INT_MIN)
+                            break; // std::abs(INT_MIN) is undefined.
 
-                if (std::abs(const1) <= std::abs(const2))
-                    convertToIdentityOverChild1();
+                        if (std::abs(const1) <= std::abs(const2)) {
+                            convertToIdentityOverChild1();
+                            break;
+                        }
+                    }
+                }
             }
             break;
         }
@@ -871,7 +880,7 @@ private:
                 }
             }
 
-            if (!regExp->globalOrSticky())
+            if (!regExp->globalOrSticky() || m_node->op() == RegExpSearch)
                 lastIndex = 0;
 
             auto foldToConstant = [&] {
@@ -951,6 +960,7 @@ private:
 
                 m_changed = true;
 
+                bool wasSearch = m_node->op() == RegExpSearch;
                 NodeOrigin origin = m_node->origin;
 
                 m_insertionSet.insertNode(m_nodeIndex, SpecNone, Check, origin, m_node->children.justChecks());
@@ -1060,7 +1070,7 @@ private:
                 // Because SetRegExpObjectLastIndex may exit and it clobbers exit state, we do that
                 // first.
 
-                if (regExp->globalOrSticky()) {
+                if (regExp->globalOrSticky() && !wasSearch) {
                     ASSERT(regExpObjectNode);
                     m_insertionSet.insertNode(
                         m_nodeIndex, SpecNone, SetRegExpObjectLastIndex, origin,
@@ -1521,15 +1531,50 @@ private:
                 break;
             }
 
+            case Array::Int8Array:
             case Array::Uint8Array:
+            case Array::Int16Array:
             case Array::Uint16Array:
             case Array::Uint32Array: {
                 if (m_node->op() == PutByVal || m_node->op() == PutByValDirect || m_node->op() == PutByValDirectResolved) {
                     Edge& valueEdge = m_graph.child(m_node, 2);
                     if (valueEdge.useKind() == Int32Use) {
-                        if (valueEdge->op() == UInt32ToNumber && valueEdge->child1().useKind() == Int32Use) {
-                            valueEdge = valueEdge->child1();
-                            m_changed = true;
+                        unsigned arrayElementWidth = 0;
+                        switch (m_node->arrayMode().modeForPut().type()) {
+                        case Array::Int8Array:
+                        case Array::Uint8Array:
+                            arrayElementWidth = 1U << 8;
+                            break;
+                        case Array::Int16Array:
+                        case Array::Uint16Array:
+                            arrayElementWidth = 1U << 16;
+                            break;
+                        default:
+                            break;
+                        }
+
+                        while (true) {
+                            if (arrayElementWidth
+                                && valueEdge->op() == ArithMod
+                                && valueEdge->binaryUseKind() == Int32Use
+                                && valueEdge->child2()->isInt32Constant()) {
+                                int32_t modConst = valueEdge->child2()->asInt32();
+                                if (modConst != INT_MIN) {
+                                    // Canonicalize modConst via std::abs as ArithMod(x, -256) and ArithMod(x, 256) are the same.
+                                    int64_t absModConst = std::abs(static_cast<int64_t>(modConst));
+                                    if (absModConst >= arrayElementWidth && absModConst % arrayElementWidth == 0) {
+                                        valueEdge = Edge(valueEdge->child1().node(), Int32Use);
+                                        m_changed = true;
+                                        continue;
+                                    }
+                                }
+                            }
+                            if (valueEdge->op() == UInt32ToNumber && valueEdge->child1().useKind() == Int32Use) {
+                                valueEdge = valueEdge->child1();
+                                m_changed = true;
+                                continue;
+                            }
+                            break;
                         }
                     }
                 }

@@ -1242,62 +1242,94 @@ void AssemblyHelpers::emitVirtualCallWithoutMovingGlobalObject(VM& vm, GPRReg ca
 }
 
 #if USE(JSVALUE64)
-void AssemblyHelpers::wangsInt64Hash(GPRReg inputAndResult, GPRReg scratch)
+void AssemblyHelpers::rapidHashMix64(GPRReg inputAndResult, GPRReg scratch1, GPRReg scratch2)
 {
+    // rapidhash "mum" mixer. Keep in sync with WTF intHash and FTL rapidHashMix64 code
+    // as we need to use the same hash function.
+    //
+    //   a = key ^ secret1
+    //   b = key ^ secret2
+    //   product = a * b                  (128-bit)
+    //   result  = lo64(product) ^ hi64(product)
+    //
     GPRReg input = inputAndResult;
+
+    ASSERT(scratch1 != scratch2);
+    ASSERT(scratch1 != input);
+    ASSERT(scratch2 != input);
+
 #if CPU(ARM64)
-    // key += ~(key << 32) => key = key - (key << 32) - 1
-    subLeftShift64(input, input, TrustedImm32(32), input);
-    sub64(TrustedImm32(1), input);
-    // key ^= (key >> 22)
-    xorUnsignedRightShift64(input, input, TrustedImm32(22), input);
-    // key += ~(key << 13) => key = key - (key << 13) - 1
-    subLeftShift64(input, input, TrustedImm32(13), input);
-    sub64(TrustedImm32(1), input);
-    // key ^= (key >> 8)
-    xorUnsignedRightShift64(input, input, TrustedImm32(8), input);
-    // key += (key << 3)
-    addLeftShift64(input, input, TrustedImm32(3), input);
-    // key ^= (key >> 15)
-    xorUnsignedRightShift64(input, input, TrustedImm32(15), input);
-    // key += ~(key << 27) => key = key - (key << 27) - 1
-    subLeftShift64(input, input, TrustedImm32(27), input);
-    sub64(TrustedImm32(1), input);
-    // key ^= (key >> 31)
-    xorUnsignedRightShift64(input, input, TrustedImm32(31), input);
-    UNUSED_PARAM(scratch);
+    // scratch1 = input ^ secret1 = a
+    move(TrustedImm64(static_cast<int64_t>(0x2d358dccaa6c78a5ULL)), scratch1);
+    xor64(input, scratch1);
+    // scratch2 = input ^ secret2 = b
+    move(TrustedImm64(static_cast<int64_t>(0x8bb84b93962eacc9ULL)), scratch2);
+    xor64(input, scratch2);
+    // input is dead as a value now; reuse its register for the hi half.
+    uMulHigh64(scratch1, scratch2, input);  // input = hi64(a * b)
+    mul64(scratch1, scratch2, scratch1);    // scratch1 = lo64(a * b); scratch2 preserved
+    xor64(scratch1, input);                 // input = lo ^ hi = hash
+#elif CPU(X86_64)
+    // x86-64 mulq uses rax and rdx implicitly: rdx:rax = rax * src.
+    // We use scratchRegister, scratch1, and scratch2 to save and restore rax / rdx.
+    GPRReg inputSafe = scratchRegister();
+    move(input, inputSafe); // scratchRegister is never rax / rdx.
+
+    // Whether we need to preserve either rax or rdx.
+    // If they are in scratches, then we do not need to specially save and restore them.
+    bool preserveRax = (scratch1 != X86Registers::eax) && (scratch2 != X86Registers::eax);
+    bool preserveRdx = (scratch1 != X86Registers::edx) && (scratch2 != X86Registers::edx);
+
+    // A scratch is a valid persistent save slot only if it is neither rax nor rdx
+    GPRReg safeScratch1 = (scratch1 != X86Registers::eax && scratch1 != X86Registers::edx) ? scratch1 : InvalidGPRReg;
+    GPRReg safeScratch2 = (scratch2 != X86Registers::eax && scratch2 != X86Registers::edx) ? scratch2 : InvalidGPRReg;
+
+    GPRReg raxSaveSlot = InvalidGPRReg;
+    GPRReg rdxSaveSlot = InvalidGPRReg;
+    if (preserveRax) {
+        raxSaveSlot = (safeScratch1 != InvalidGPRReg) ? safeScratch1 : safeScratch2;
+        ASSERT(raxSaveSlot != InvalidGPRReg);
+    }
+    if (preserveRdx) {
+        if (safeScratch1 != InvalidGPRReg && safeScratch1 != raxSaveSlot)
+            rdxSaveSlot = safeScratch1;
+        else
+            rdxSaveSlot = safeScratch2;
+        ASSERT(rdxSaveSlot != InvalidGPRReg);
+    }
+
+    if (preserveRax)
+        move(X86Registers::eax, raxSaveSlot);
+    if (preserveRdx)
+        move(X86Registers::edx, rdxSaveSlot);
+
+    // rax = input ^ secret1 = a
+    move(TrustedImm64(static_cast<int64_t>(0x2d358dccaa6c78a5ULL)), X86Registers::eax);
+    xor64(inputSafe, X86Registers::eax);
+    // rdx = input ^ secret2 = b
+    move(TrustedImm64(static_cast<int64_t>(0x8bb84b93962eacc9ULL)), X86Registers::edx);
+    xor64(inputSafe, X86Registers::edx);
+
+    // mulq rdx: rdx:rax = rax * rdx = a * b; rax has lo, rdx has hi.
+    m_assembler.mulq_r(X86Registers::edx);
+    xor64(X86Registers::edx, X86Registers::eax);  // rax = lo ^ hi = hash
+
+    move(X86Registers::eax, scratchRegister());
+
+    if (preserveRax)
+        move(raxSaveSlot, X86Registers::eax);
+    if (preserveRdx)
+        move(rdxSaveSlot, X86Registers::edx);
+
+    move(scratchRegister(), inputAndResult);
 #else
-    lshift64(input, TrustedImm32(32), scratch);
-    not64(scratch);
-    add64(scratch, input);
-    // key ^= (key >> 22);
-    urshift64(input, TrustedImm32(22), scratch);
-    xor64(scratch, input);
-    // key += ~(key << 13);
-    lshift64(input, TrustedImm32(13), scratch);
-    not64(scratch);
-    add64(scratch, input);
-    // key ^= (key >> 8);
-    urshift64(input, TrustedImm32(8), scratch);
-    xor64(scratch, input);
-    // key += (key << 3);
-    lshift64(input, TrustedImm32(3), scratch);
-    add64(scratch, input);
-    // key ^= (key >> 15);
-    urshift64(input, TrustedImm32(15), scratch);
-    xor64(scratch, input);
-    // key += ~(key << 27);
-    lshift64(input, TrustedImm32(27), scratch);
-    not64(scratch);
-    add64(scratch, input);
-    // key ^= (key >> 31);
-    urshift64(input, TrustedImm32(31), scratch);
-    xor64(scratch, input);
-#endif // CPU(ARM64)
+    UNUSED_PARAM(scratch1);
+    UNUSED_PARAM(scratch2);
+    RELEASE_ASSERT_NOT_REACHED();
+#endif
 
     // return static_cast<unsigned>(result)
-    void* mask = std::bit_cast<void*>(static_cast<uintptr_t>(UINT_MAX));
-    and64(TrustedImmPtr(mask), inputAndResult);
+    zeroExtend32ToWord(inputAndResult, inputAndResult);
 }
 #endif // USE(JSVALUE64)
 

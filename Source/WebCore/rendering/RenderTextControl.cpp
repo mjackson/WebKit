@@ -23,6 +23,7 @@
 #include "RenderTextControl.h"
 
 #include "ContainerNodeInlines.h"
+#include "HTMLInputElement.h"
 #include "HTMLTextFormControlElement.h"
 #include "HitTestResult.h"
 #include "PlatformRenderTheme.h"
@@ -173,8 +174,17 @@ float RenderTextControl::scaleEmToUnits(int x) const
 
 void RenderTextControl::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
 {
-    if (style().fieldSizing() == FieldSizing::Content)
-        return RenderBlockFlow::computeIntrinsicLogicalWidths(minLogicalWidth, maxLogicalWidth);
+    if (style().fieldSizing() == FieldSizing::Content) {
+        RenderBlockFlow::computeIntrinsicLogicalWidths(minLogicalWidth, maxLogicalWidth);
+        RefPtr placeholder = textFormControlElement().placeholderElement();
+        CheckedPtr placeholderBox = placeholder ? placeholder->renderBox() : nullptr;
+        if (RefPtr input = placeholderBox ? dynamicDowncast<HTMLInputElement>(textFormControlElement()) : nullptr) {
+            auto decoration = LayoutUnit::fromFloatCeil(input->decorationWidth(maxLogicalWidth));
+            minLogicalWidth = std::max(minLogicalWidth, placeholderBox->minPreferredLogicalWidth() + decoration);
+            maxLogicalWidth = std::max(maxLogicalWidth, placeholderBox->maxPreferredLogicalWidth() + decoration);
+        }
+        return;
+    }
 
     if (shouldApplySizeOrInlineSizeContainment()) {
         if (auto width = explicitIntrinsicInnerLogicalWidth()) {
@@ -210,7 +220,7 @@ void RenderTextControl::computePreferredLogicalWidths()
     else
         computeIntrinsicLogicalWidths(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
 
-    RenderBox::computePreferredLogicalWidths(style().logicalMinWidth(), style().logicalMaxWidth(), borderAndPaddingLogicalWidth());
+    constrainPreferredLogicalWidthsByMinMax(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
 
     clearNeedsPreferredWidthsUpdate();
 }

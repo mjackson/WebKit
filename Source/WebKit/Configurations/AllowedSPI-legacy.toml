@@ -1080,6 +1080,13 @@ requires = ["!SDKDB_HAS_148943382"]
 
 
 [[legacy]]
+requires = ["!SDKDB_HAS_164901718", "HAVE_UIINTELLIGENCESUPPORT_FRAMEWORK", "!NDEBUG"]
+swift-decls = [
+    { name = "Foundation.AttributeDynamicLookup.subscript(dynamicMember:)", type_kinds = { "AttributeDynamicLookup" = "enum" }, extension = "UIIntelligenceSupport", extension_base_depth = 1 },
+]
+allow-unused = true
+
+[[legacy]]
 requires = ["!SDKDB_HAS_164901718", "HAVE_UIINTELLIGENCESUPPORT_FRAMEWORK"]
 swift-decls = [
     { name = "UIIntelligenceSupport.IntelligenceCollectionContext.createRemoteContext(description:)", type_kinds = { "IntelligenceCollectionContext" = "protocol" } },
@@ -1104,3 +1111,4 @@ swift-decls = [
     { name = "UIIntelligenceSupport.UIIntelligenceElementCollector.collect(_:)" },
     { name = "UIIntelligenceSupport.UIIntelligenceElementCollector.context" },
 ]
+allow-unused = true

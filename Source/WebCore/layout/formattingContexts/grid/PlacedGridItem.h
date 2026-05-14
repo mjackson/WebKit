@@ -69,8 +69,7 @@ public:
 
     const WritingMode& writingMode() const LIFETIME_BOUND { return m_writingMode; }
 
-    // FIXME: Add support for grid item's with preferred aspect ratios.
-    bool hasPreferredAspectRatio() const { return false; }
+    std::optional<double> preferredAspectRatio() const;
     bool isReplacedElement() const { return m_layoutBox->isReplacedBox(); }
 
     const GridAreaLines& gridAreaLines() const LIFETIME_BOUND { return m_gridAreaLines; }
@@ -79,6 +78,7 @@ public:
 
 private:
     PlacedGridItem(const ElementBox& gridItem, const GridAreaLines&, const BoxGeometry& gridItemGeometry,  const RenderStyle& gridContainerWritingMode, const RenderStyle& gridItemWritingMode);
+
     const CheckedRef<const ElementBox> m_layoutBox;
 
     const ComputedSizes m_inlineAxisSizes;

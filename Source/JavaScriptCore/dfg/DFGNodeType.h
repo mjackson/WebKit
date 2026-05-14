@@ -250,6 +250,7 @@ namespace JSC { namespace DFG {
     macro(DefineDataProperty, NodeMustGenerate | NodeHasVarArgs) \
     macro(DefineAccessorProperty, NodeMustGenerate | NodeHasVarArgs) \
     macro(ObjectDefineProperty, NodeMustGenerate) \
+    macro(ObjectDefinePropertyFromFields, NodeMustGenerate | NodeHasVarArgs) \
     macro(DeleteById, NodeResultBoolean | NodeMustGenerate) \
     macro(DeleteByVal, NodeResultBoolean | NodeMustGenerate) \
     macro(CheckStructure, NodeMustGenerate) \
@@ -343,6 +344,8 @@ namespace JSC { namespace DFG {
     macro(ArrayPush, NodeResultJS | NodeMustGenerate | NodeHasVarArgs) \
     macro(ArrayPop, NodeResultJS | NodeMustGenerate) \
     macro(ArraySlice, NodeResultJS | NodeMustGenerate | NodeHasVarArgs) \
+    macro(ArrayConcatArray, NodeResultJS | NodeMustGenerate) \
+    macro(ArrayConcatAppendOne, NodeResultJS | NodeMustGenerate) \
     macro(ArrayIncludes, NodeResultBoolean | NodeHasVarArgs) \
     macro(ArrayIndexOf, NodeResultInt32 | NodeHasVarArgs) \
     macro(ArraySplice, NodeResultJS | NodeMustGenerate | NodeHasVarArgs) \
@@ -364,6 +367,7 @@ namespace JSC { namespace DFG {
     macro(StringLastIndexOf, NodeResultInt32) \
     macro(StringStartsWith, NodeResultBoolean) \
     macro(StringEndsWith, NodeResultBoolean) \
+    macro(StringSplit, NodeResultJS | NodeMustGenerate) \
     \
     /* Optimizations for string access */ \
     macro(StringAt, NodeResultJS) \
@@ -419,7 +423,12 @@ namespace JSC { namespace DFG {
     macro(NewArrayBuffer, NodeResultJS) \
     macro(NewArrayWithButterfly, NodeResultJS) \
     macro(NewButterflyWithSize, NodeResultStorage) \
+    macro(GetCellButterflySlot, NodeResultJS | NodeMustGenerate) \
+    macro(PutCellButterflySlot, NodeMustGenerate) \
+    macro(ArraySortCompact, NodeResultJS | NodeMustGenerate) \
+    macro(ArraySortCommit, NodeMustGenerate) \
     macro(NewInternalFieldObject, NodeResultJS) \
+    macro(NewPromise, NodeResultJS) \
     macro(NewTypedArray, NodeResultJS | NodeMustGenerate) \
     macro(NewTypedArrayBuffer, NodeResultJS | NodeMustGenerate) \
     macro(NewRegExp, NodeResultJS) \
@@ -447,6 +456,7 @@ namespace JSC { namespace DFG {
     macro(PhantomNewAsyncGeneratorFunction, NodeResultJS | NodeMustGenerate) \
     macro(PhantomNewInternalFieldObject, NodeResultJS | NodeMustGenerate) \
     macro(MaterializeNewInternalFieldObject, NodeResultJS | NodeHasVarArgs) \
+    macro(PhantomNewPromise, NodeResultJS | NodeMustGenerate) \
     macro(PhantomCreateActivation, NodeResultJS | NodeMustGenerate) \
     macro(MaterializeCreateActivation, NodeResultJS | NodeHasVarArgs) \
     macro(PhantomNewRegExp, NodeResultJS | NodeMustGenerate) \

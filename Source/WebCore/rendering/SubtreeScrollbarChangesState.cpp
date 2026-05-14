@@ -26,13 +26,21 @@
 #include "config.h"
 #include "SubtreeScrollbarChangesState.h"
 
+#include "HTMLTextAreaElement.h"
 #include "LayoutScope.h"
 #include "LocalFrameViewLayoutContext.h"
 #include "RenderBlock.h"
+#include "RenderElementInlines.h"
 #include "RenderObjectInlines.h"
 #include <wtf/Scope.h>
 
 namespace WebCore {
+
+bool SubtreeScrollbarChangesState::isEligibleForScrollbarHandlingByAncestor(const RenderBlock& renderer)
+{
+    // Textareas have some behavior related to how scrollbars are incorporated into their sizing that needs some investigating.
+    return !is<HTMLTextAreaElement>(renderer.element());
+}
 
 SubtreeScrollbarChangesStateScope::SubtreeScrollbarChangesStateScope(LocalFrameViewLayoutContext& layoutContext, RenderBlock& subtreeRoot)
     : m_layoutContext(layoutContext)
@@ -77,6 +85,11 @@ SubtreeScrollbarChangesHandler::~SubtreeScrollbarChangesHandler()
 
     if (descendantsWithScrollbarChange.isEmpty())
         return;
+
+#if ASSERT_ENABLED
+    for (auto& renderer : descendantsWithScrollbarChange)
+        ASSERT(subtreeScrollbarChangesState->isEligibleForScrollbarHandlingByAncestor(renderer.get()));
+#endif
 
     if (!isSubtreeRootHandlingScrollbarChanges) {
         while (!descendantsWithScrollbarChange.isEmpty()) {

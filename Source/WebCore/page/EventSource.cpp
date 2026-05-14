@@ -33,6 +33,7 @@
 #include "config.h"
 #include "EventSource.h"
 
+#include "Blob.h"
 #include "CachedResourceRequestInitiatorTypes.h"
 #include "ContentSecurityPolicy.h"
 #include "ContextDestructionObserverInlines.h"
@@ -74,7 +75,7 @@ inline EventSource::EventSource(ScriptExecutionContext& context, const URL& url,
 
 ExceptionOr<Ref<EventSource>> EventSource::create(ScriptExecutionContext& context, const String& url, Init&& eventSourceInit)
 {
-    URL fullURL = context.completeURL(url);
+    URL fullURL = context.encodingParseURL(url);
     if (!fullURL.isValid())
         return Exception { ExceptionCode::SyntaxError };
 

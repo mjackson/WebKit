@@ -515,7 +515,6 @@
     "com.apple.Kerberos"
     "edu.mit.Kerberos")
 (allow file-read*
-    (literal "/private/etc/services")
     (literal "/private/etc/hosts")
     (subpath "/Library/KerberosPlugins/GSSAPI")
     (subpath "/Library/KerberosPlugins/KerberosFrameworkPlugins"))

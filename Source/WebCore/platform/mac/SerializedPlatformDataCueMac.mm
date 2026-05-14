@@ -134,7 +134,7 @@ static JSValue *jsValueWithDataInContext(NSData *data, JSContext *context)
 
     auto* lexicalGlobalObject = toJS([context JSGlobalContextRef]);
     // FIXME: It is a layering violation to use the JSDOMGlobalObject type in the platform directory.
-    JSC::JSValue array = dataArray ? toJS(lexicalGlobalObject, uncheckedDowncast<JSDOMGlobalObject>(lexicalGlobalObject), *dataArray) : JSC::jsNull();
+    JSC::JSValue array = dataArray ? toJS(lexicalGlobalObject, downcast<JSDOMGlobalObject>(lexicalGlobalObject), *dataArray) : JSC::jsNull();
 
     return [JSValue valueWithJSValueRef:toRef(lexicalGlobalObject, array) inContext:context];
 }

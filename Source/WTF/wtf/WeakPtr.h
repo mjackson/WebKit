@@ -29,6 +29,7 @@
 #include <type_traits>
 #include <wtf/CanMakeWeakPtr.h>
 #include <wtf/CompactRefPtrTuple.h>
+#include <wtf/CurrentThread.h>
 #include <wtf/GetPtr.h>
 #include <wtf/Packed.h>
 #include <wtf/SwiftBridging.h>
@@ -219,7 +220,7 @@ private:
         return !m_impl
             || !m_shouldEnableAssertions
             || m_impl->threadAssertion().isCurrent()
-            || Thread::mayBeGCThread();
+            || currentThreadMayBeGCThread();
     }
 #endif
 

@@ -29,10 +29,8 @@
 #include "RenderImageResource.h"
 
 #include "CachedImage.h"
-#include "Image.h"
 #include "NullGraphicsContext.h"
 #include "RenderElement.h"
-#include "RenderImage.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleCachedImage.h"
 #include "StyleInvalidImage.h"
@@ -144,10 +142,7 @@ LayoutSize RenderImageResource::imageSize(float multiplier, CachedImage::SizeTyp
 {
     if (!m_styleImage)
         return { };
-    auto size = LayoutSize(m_styleImage->imageSize(m_renderer.get(), multiplier, type));
-    if (auto* renderImage = dynamicDowncast<RenderImage>(m_renderer.get()))
-        size.scale(renderImage->imageDevicePixelRatio());
-    return size;
+    return LayoutSize(m_styleImage->imageSize(m_renderer.get(), multiplier, type));
 }
 
 } // namespace WebCore

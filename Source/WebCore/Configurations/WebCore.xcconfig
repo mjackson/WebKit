@@ -179,7 +179,7 @@ OTHER_LDFLAGS_PLATFORM_macosx = -sub_library libobjc $(WK_PGO_USE_LDFLAGS) $(WK_
 
 EXCLUDED_SOURCE_FILE_NAMES = pdfjs*/*;
 EXCLUDED_SOURCE_FILE_NAMES[sdk=iphone*] = $(inherited) *.tiff *Cursor.png npapi.h npfunctions.h npruntime.h npruntime_internal.h;
-EXCLUDED_SOURCE_FILE_NAMES[sdk=xr*] = $(inherited) *.tiff *Cursor.png npapi.h npfunctions.h npruntime.h npruntime_internal.h;
+EXCLUDED_SOURCE_FILE_NAMES[sdk=xr*] = $(inherited) *.tiff *Cursor.png npapi.h npfunctions.h npruntime.h npruntime_internal.h modelDefaultDiffuseData modelDefaultSpecularData;
 
 INCLUDED_SOURCE_FILE_NAMES = $(INCLUDED_SOURCE_FILE_NAMES_$(ENABLE_PDFJS));
 INCLUDED_SOURCE_FILE_NAMES_ENABLE_PDFJS = pdfjs*/*;
@@ -217,8 +217,6 @@ WK_HAVE_URL_FORMATTING_xros = YES;
 WK_HAVE_URL_FORMATTING_xrsimulator = YES;
 WK_HAVE_URL_FORMATTING_maccatalyst = YES;
 WK_HAVE_URL_FORMATTING_macosx = YES;
-
-SWIFT_VERSION = 6.0;
 
 SWIFT_INSTALL_OBJC_HEADER = NO;
 BUILD_LIBRARY_FOR_DISTRIBUTION = YES;

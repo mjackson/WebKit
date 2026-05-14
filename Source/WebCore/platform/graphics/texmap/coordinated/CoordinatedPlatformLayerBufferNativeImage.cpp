@@ -42,7 +42,12 @@
 #include "PlatformDisplay.h"
 #include "SkiaUtilities.h"
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
+#include <skia/core/SkColorSpace.h>
 #include <skia/core/SkPixmap.h> // NOLINT
+#include <skia/gpu/ganesh/GrBackendSurface.h>
+#include <skia/gpu/ganesh/SkImageGanesh.h>
+#include <skia/gpu/ganesh/SkSurfaceGanesh.h>
+#include <skia/gpu/ganesh/gl/GrGLBackendSurface.h>
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #endif
 
@@ -95,7 +100,7 @@ CoordinatedPlatformLayerBufferNativeImage::~CoordinatedPlatformLayerBufferNative
 #endif
 }
 
-bool CoordinatedPlatformLayerBufferNativeImage::tryEnsureBuffer()
+bool CoordinatedPlatformLayerBufferNativeImage::tryEnsureBuffer(UseSkiaForCompositing useSkiaForCompositing)
 {
     if (m_buffer)
         return true;
@@ -114,10 +119,23 @@ bool CoordinatedPlatformLayerBufferNativeImage::tryEnsureBuffer()
     auto* surface = m_image->platformImage().get();
     auto* imageData = cairo_image_surface_get_data(surface);
     texture->updateContents(imageData, IntRect(IntPoint(), m_size), IntPoint(), cairo_image_surface_get_stride(surface), PixelFormat::BGRA8);
+    UNUSED_PARAM(useSkiaForCompositing);
 #elif USE(SKIA)
     const auto& image = m_image->platformImage();
     SkPixmap pixmap;
-    if (image->peekPixels(&pixmap))
+    if (!image->peekPixels(&pixmap))
+        return false;
+
+    if (useSkiaForCompositing == UseSkiaForCompositing::Yes) {
+        auto& display = PlatformDisplay::sharedDisplay();
+        GLContext::ScopedGLContextCurrent scopedCurrent(*display.skiaGLContext());
+        GrBackendTexture backendTexture = texture->createSkiaBackendTexture();
+        auto surface = SkSurfaces::WrapBackendTexture(display.skiaGrContext(), backendTexture, kTopLeft_GrSurfaceOrigin, 0, kRGBA_8888_SkColorType, SkColorSpace::MakeSRGB(), nullptr);
+        if (!surface)
+            return false;
+
+        surface->writePixels(pixmap, 0, 0);
+    } else
         texture->updateContents(pixmap.addr(), IntRect(IntPoint(), m_size), IntPoint(), image->imageInfo().minRowBytes(), PixelFormat::BGRA8);
 #endif
 
@@ -136,14 +154,14 @@ void CoordinatedPlatformLayerBufferNativeImage::paintToTextureMapper(TextureMapp
 }
 
 #if USE(SKIA)
-void CoordinatedPlatformLayerBufferNativeImage::paintToCanvas(SkCanvas& canvas, const FloatRect& targetRect, const SkPaint& paint)
+sk_sp<SkImage> CoordinatedPlatformLayerBufferNativeImage::skiaImage()
 {
     waitForContentsIfNeeded();
 
-    if (!tryEnsureBuffer())
-        return;
+    if (!tryEnsureBuffer(UseSkiaForCompositing::Yes))
+        return nullptr;
 
-    m_buffer->paintToCanvas(canvas, targetRect, paint);
+    return m_buffer->skiaImage();
 }
 #endif
 

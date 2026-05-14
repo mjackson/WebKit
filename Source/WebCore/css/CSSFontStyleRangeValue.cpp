@@ -26,6 +26,9 @@
 #include "config.h"
 #include "CSSFontStyleRangeValue.h"
 
+#include "CSSPrimitiveNumericTypes+CSSValueVisitation.h"
+#include "CSSPrimitiveNumericTypes+Serialization.h"
+
 namespace WebCore {
 
 Ref<CSSFontStyleRangeValue> CSSFontStyleRangeValue::create(CSS::FontStyleRange&& fontStyleRange)

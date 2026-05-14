@@ -116,7 +116,6 @@ const ClassInfo StringPrototype::s_info = { "String"_s, &StringObject::s_info, &
     match         JSBuiltin                      DontEnum|Function 1
     matchAll      JSBuiltin                      DontEnum|Function 1
     search        JSBuiltin                      DontEnum|Function 1
-    split         JSBuiltin                      DontEnum|Function 1
     anchor        stringProtoFuncAnchor          DontEnum|Function 1
     big           stringProtoFuncBig             DontEnum|Function 0
     bold          stringProtoFuncBold            DontEnum|Function 0
@@ -170,6 +169,7 @@ void StringPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("startsWith"_s, stringProtoFuncStartsWith, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public, StringPrototypeStartsWithIntrinsic);
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("endsWith"_s, stringProtoFuncEndsWith, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public, StringPrototypeEndsWithIntrinsic);
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("includes"_s, stringProtoFuncIncludes, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public, StringPrototypeIncludesIntrinsic);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("split"_s, stringProtoFuncSplit, static_cast<unsigned>(PropertyAttribute::DontEnum), 2, ImplementationVisibility::Public, StringPrototypeSplitIntrinsic);
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("normalize"_s, stringProtoFuncNormalize, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, ImplementationVisibility::Public);
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().charCodeAtPrivateName(), stringProtoFuncCharCodeAt, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public, CharCodeAtIntrinsic);
 
@@ -330,6 +330,271 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncRepeatCharacter, (JSGlobalObject* global
     if (isLatin1(character))
         return JSValue::encode(repeatCharacter(globalObject, static_cast<Latin1Character>(character), repeatCount));
     return JSValue::encode(repeatCharacter(globalObject, character, repeatCount));
+}
+
+JSString* replaceUsingRegExpSearch(VM& vm, JSGlobalObject* globalObject, JSString* string, JSValue searchValue, const CallData& callData, const String& replacementString, JSValue replaceValue)
+{
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    auto source = string->value(globalObject);
+    RETURN_IF_EXCEPTION(scope, nullptr);
+
+    unsigned sourceLen = source->length();
+    RegExpObject* regExpObject = uncheckedDowncast<RegExpObject>(searchValue);
+    RegExp* regExp = regExpObject->regExp();
+    bool global = regExp->global();
+    bool hasNamedCaptures = regExp->hasNamedCaptures();
+
+    if (global) {
+        // ES5.1 15.5.4.10 step 8.a.
+        regExpObject->setLastIndex(globalObject, 0);
+        RETURN_IF_EXCEPTION(scope, nullptr);
+
+        if (callData.type == CallData::Type::None && !replacementString.length())
+            RELEASE_AND_RETURN(scope, removeAllUsingRegExpSearch(vm, globalObject, string, source, regExp));
+
+        if (callData.type == CallData::Type::JS && !hasNamedCaptures && sourceLen >= Options::thresholdForStringReplaceCache())
+            RELEASE_AND_RETURN(scope, replaceAllWithCacheUsingRegExpSearch(vm, globalObject, string, source, regExp, uncheckedDowncast<JSFunction>(replaceValue)));
+    }
+
+    if (callData.type == CallData::Type::None) {
+        switch (regExp->specificPattern()) {
+        case Yarr::SpecificPattern::TrailingSpacesPlus:
+        case Yarr::SpecificPattern::LeadingSpacesPlus:
+        case Yarr::SpecificPattern::TrailingSpacesStar:
+        case Yarr::SpecificPattern::LeadingSpacesStar: {
+            if (!replacementString.isEmpty())
+                break;
+
+            if (auto* result = tryTrimSpaces(vm, globalObject, source, string, regExp))
+                return result;
+
+            break;
+        }
+        case Yarr::SpecificPattern::Atom:
+        case Yarr::SpecificPattern::Newlines:
+        case Yarr::SpecificPattern::None:
+            break;
+        }
+
+        if (global)
+            RELEASE_AND_RETURN(scope, replaceAllWithStringUsingRegExpSearch(vm, globalObject, string, source, regExp, replacementString));
+        RELEASE_AND_RETURN(scope, replaceOneWithStringUsingRegExpSearch(vm, globalObject, string, source, regExp, replacementString));
+    }
+
+    size_t lastIndex = 0;
+    unsigned startPosition = 0;
+
+    Vector<Range<int32_t>, 16> sourceRanges;
+    Vector<String, 16> replacements;
+
+    // This is either a loop (if global is set) or a one-way (if not).
+    if (global && callData.type == CallData::Type::JS) {
+        // regExp->numSubpatterns() + 1 for pattern args, + 2 for match start and string
+        int argCount = regExp->numSubpatterns() + 1 + 2;
+        if (hasNamedCaptures)
+            ++argCount;
+        JSFunction* func = uncheckedDowncast<JSFunction>(replaceValue);
+        std::optional<CachedCall> cachedCallHolder;
+        CachedCall* cachedCall = nullptr;
+        while (true) {
+            int* ovector;
+            MatchResult result = globalObject->regExpGlobalData().performMatch(globalObject, regExp, string, source, startPosition, &ovector);
+            RETURN_IF_EXCEPTION(scope, nullptr);
+            if (!result)
+                break;
+
+            if (!sourceRanges.tryConstructAndAppend(lastIndex, result.start)) [[unlikely]]
+                OUT_OF_MEMORY(globalObject, scope);
+
+            if (!cachedCall) {
+                cachedCallHolder.emplace(globalObject, func, argCount);
+                RETURN_IF_EXCEPTION(scope, nullptr);
+                cachedCall = &cachedCallHolder.value();
+            }
+            cachedCall->clearArguments();
+            JSObject* groups = hasNamedCaptures ? constructEmptyObject(vm, globalObject->nullPrototypeObjectStructure()) : nullptr;
+
+            for (unsigned i = 0; i < regExp->numSubpatterns() + 1; ++i) {
+                int matchStart = ovector[i * 2];
+                int matchEnd = ovector[i * 2 + 1];
+
+                JSValue patternValue;
+
+                if (matchStart < 0 || matchEnd < matchStart)
+                    patternValue = jsUndefined();
+                else {
+                    patternValue = jsSubstring(globalObject, vm, string, matchStart, matchEnd - matchStart);
+                    RETURN_IF_EXCEPTION(scope, nullptr);
+                }
+
+                cachedCall->appendArgument(patternValue);
+
+                if (i && hasNamedCaptures) {
+                    String groupName = regExp->getCaptureGroupNameForSubpatternId(i);
+                    if (!groupName.isEmpty()) {
+                        auto captureIndex = regExp->subpatternIdForGroupName(groupName, ovector);
+
+                        if (captureIndex == i)
+                            groups->putDirect(vm, Identifier::fromString(vm, groupName), patternValue);
+                        else if (captureIndex > 0) {
+                            int captureStart = ovector[captureIndex * 2];
+                            int captureEnd = ovector[captureIndex * 2 + 1];
+                            JSValue captureValue;
+                            if (captureStart < 0 || captureEnd < captureStart)
+                                captureValue = jsUndefined();
+                            else {
+                                captureValue = jsSubstring(globalObject, vm, string, captureStart, captureEnd - captureStart);
+                                RETURN_IF_EXCEPTION(scope, nullptr);
+                            }
+                            groups->putDirect(vm, Identifier::fromString(vm, groupName), captureValue);
+                        } else
+                            groups->putDirect(vm, Identifier::fromString(vm, groupName), jsUndefined());
+                    }
+                }
+            }
+
+            cachedCall->appendArgument(jsNumber(result.start));
+            cachedCall->appendArgument(string);
+            if (hasNamedCaptures)
+                cachedCall->appendArgument(groups);
+
+            cachedCall->setThis(jsUndefined());
+            if (cachedCall->hasOverflowedArguments()) [[unlikely]] {
+                throwOutOfMemoryError(globalObject, scope);
+                return nullptr;
+            }
+
+            JSValue jsResult = cachedCall->call();
+            RETURN_IF_EXCEPTION(scope, nullptr);
+            replacements.append(jsResult.toWTFString(globalObject));
+            RETURN_IF_EXCEPTION(scope, nullptr);
+
+            lastIndex = result.end;
+            startPosition = lastIndex;
+
+            // special case of empty match
+            if (result.empty()) {
+                startPosition++;
+                if (startPosition > sourceLen)
+                    break;
+                if (regExp->eitherUnicode() && U16_IS_LEAD(source[startPosition - 1]) && U16_IS_TRAIL(source[startPosition])) {
+                    startPosition++;
+                    if (startPosition > sourceLen)
+                        break;
+                }
+            }
+        }
+    } else {
+        ASSERT(callData.type != CallData::Type::None);
+        do {
+            int* ovector;
+            MatchResult result = globalObject->regExpGlobalData().performMatch(globalObject, regExp, string, source, startPosition, &ovector);
+            RETURN_IF_EXCEPTION(scope, nullptr);
+            if (!result)
+                break;
+
+            if (!sourceRanges.tryConstructAndAppend(lastIndex, result.start)) [[unlikely]]
+                OUT_OF_MEMORY(globalObject, scope);
+
+            MarkedArgumentBuffer args;
+            JSObject* groups = hasNamedCaptures ? constructEmptyObject(vm, globalObject->nullPrototypeObjectStructure()) : nullptr;
+
+            for (unsigned i = 0; i < regExp->numSubpatterns() + 1; ++i) {
+                int matchStart = ovector[i * 2];
+                int matchEnd = ovector[i * 2 + 1];
+
+                JSValue patternValue;
+
+                if (matchStart < 0 || matchEnd < matchStart)
+                    patternValue = jsUndefined();
+                else {
+                    patternValue = jsSubstring(globalObject, vm, string, matchStart, matchEnd - matchStart);
+                    RETURN_IF_EXCEPTION(scope, nullptr);
+                }
+
+                args.append(patternValue);
+
+                if (i && hasNamedCaptures) {
+                    String groupName = regExp->getCaptureGroupNameForSubpatternId(i);
+                    if (!groupName.isEmpty()) {
+                        auto captureIndex = regExp->subpatternIdForGroupName(groupName, ovector);
+
+                        if (captureIndex == i)
+                            groups->putDirect(vm, Identifier::fromString(vm, groupName), patternValue);
+                        else if (captureIndex > 0) {
+                            int captureStart = ovector[captureIndex * 2];
+                            int captureEnd = ovector[captureIndex * 2 + 1];
+                            JSValue captureValue;
+                            if (captureStart < 0 || captureEnd < captureStart)
+                                captureValue = jsUndefined();
+                            else {
+                                captureValue = jsSubstring(globalObject, vm, string, captureStart, captureEnd - captureStart);
+                                RETURN_IF_EXCEPTION(scope, nullptr);
+                            }
+                            groups->putDirect(vm, Identifier::fromString(vm, groupName), captureValue);
+                        } else
+                            groups->putDirect(vm, Identifier::fromString(vm, groupName), jsUndefined());
+                    }
+                }
+            }
+
+            args.append(jsNumber(result.start));
+            args.append(string);
+            if (hasNamedCaptures)
+                args.append(groups);
+            if (args.hasOverflowed()) [[unlikely]] {
+                throwOutOfMemoryError(globalObject, scope);
+                return nullptr;
+            }
+
+            JSValue replacement = call(globalObject, replaceValue, callData, jsUndefined(), args);
+            RETURN_IF_EXCEPTION(scope, nullptr);
+            String replacementString = replacement.toWTFString(globalObject);
+            RETURN_IF_EXCEPTION(scope, nullptr);
+            replacements.append(replacementString);
+            RETURN_IF_EXCEPTION(scope, nullptr);
+
+            lastIndex = result.end;
+            startPosition = lastIndex;
+
+            // special case of empty match
+            if (result.empty()) {
+                startPosition++;
+                if (startPosition > sourceLen)
+                    break;
+                if (regExp->eitherUnicode() && U16_IS_LEAD(source[startPosition - 1]) && U16_IS_TRAIL(source[startPosition])) {
+                    startPosition++;
+                    if (startPosition > sourceLen)
+                        break;
+                }
+            }
+        } while (global);
+    }
+
+    if (!lastIndex && replacements.isEmpty())
+        return string;
+
+    if (static_cast<unsigned>(lastIndex) < sourceLen) {
+        if (!sourceRanges.tryConstructAndAppend(lastIndex, sourceLen)) [[unlikely]]
+            OUT_OF_MEMORY(globalObject, scope);
+    }
+    RELEASE_AND_RETURN(scope, jsSpliceSubstringsWithSeparators(globalObject, string, source, sourceRanges.span().data(), sourceRanges.size(), replacements.span().data(), replacements.size()));
+}
+
+JSString* replaceUsingRegExpSearch(VM& vm, JSGlobalObject* globalObject, JSString* string, JSValue searchValue, JSValue replaceValue)
+{
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    String replacementString;
+    auto callData = JSC::getCallDataInline(replaceValue);
+    if (callData.type == CallData::Type::None) {
+        replacementString = replaceValue.toWTFString(globalObject);
+        RETURN_IF_EXCEPTION(scope, nullptr);
+    }
+
+    RELEASE_AND_RETURN(scope, replaceUsingRegExpSearch(
+        vm, globalObject, string, searchValue, callData, replacementString, replaceValue));
 }
 
 // 22.1.3.19 String.prototype.replace ( searchValue, replaceValue )
@@ -772,57 +1037,27 @@ static bool NODELETE isASCIIIdentifierStart(char16_t ch)
     return isASCIIAlpha(ch) || ch == '_' || ch == '$';
 }
 
-// ES 21.1.3.17 String.prototype.split(separator, limit)
-JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSplitFast, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSCell* stringSplitFast(JSGlobalObject* globalObject, JSString* thisString, JSString* separatorString, unsigned limit)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
-    JSValue thisValue = callFrame->thisValue();
-    ASSERT(checkObjectCoercible(thisValue));
 
-    // 3. Let S be the result of calling ToString, giving it the this value as its argument.
-    // 7. Let s be the number of characters in S.
-    JSString* thisString = thisValue.toString(globalObject);
-    RETURN_IF_EXCEPTION(scope, { });
     auto input = thisString->value(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
     ASSERT(!input->isNull());
 
-    // 6. If limit is undefined, let lim = 2^32-1; else let lim = ToUint32(limit).
-    JSValue limitValue = callFrame->uncheckedArgument(1);
-    unsigned limit = 0xFFFFFFFFu;
-    if (!limitValue.isUndefined()) {
-        limit = limitValue.toUInt32(globalObject);
-        RETURN_IF_EXCEPTION(scope, { });
-    }
-
-    // 9. If separator is a RegExp object (its [[Class]] is "RegExp"), let R = separator;
-    //    otherwise let R = ToString(separator).
-    JSValue separatorValue = callFrame->uncheckedArgument(0);
-    JSString* separatorString = separatorValue.toString(globalObject);
     auto separator = separatorString->value(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
     unsigned separatorLength = separator.data.length();
 
     // 10. If lim == 0, return A.
     if (!limit)
-        RELEASE_AND_RETURN(scope, JSValue::encode(constructEmptyArray(globalObject, nullptr)));
-
-    // 11. If separator is undefined, then
-    if (separatorValue.isUndefined()) {
-        // a. Call the [[DefineOwnProperty]] internal method of A with arguments "0",
-        std::array<EncodedJSValue, 1> args { {
-            JSValue::encode(jsStringWithReuse(globalObject, thisString, input))
-        } };
-        RETURN_IF_EXCEPTION(scope, { });
-        // b. Return A.
-        RELEASE_AND_RETURN(scope, JSValue::encode(constructArray(globalObject, static_cast<ArrayAllocationProfile*>(nullptr), ArgList { args.data(), args.size() })));
-    }
+        RELEASE_AND_RETURN(scope, constructEmptyArray(globalObject, nullptr));
 
     if (limit == 0xFFFFFFFFu && !globalObject->isHavingABadTime()) [[likely]] {
         if (auto* immutableButterfly = vm.stringSplitCache.get(input, separator)) {
             Structure* arrayStructure = globalObject->originalArrayStructureForIndexingType(CopyOnWriteArrayWithContiguous);
-            return JSValue::encode(JSArray::createWithButterfly(vm, nullptr, arrayStructure, immutableButterfly->toButterfly()));
+            return JSArray::createWithButterfly(vm, nullptr, arrayStructure, immutableButterfly->toButterfly());
         }
     }
 
@@ -902,7 +1137,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSplitFast, (JSGlobalObject* globalObject
         scope.release();
         if (!separator.data.isEmpty())
             result.append(input->length());
-        return JSValue::encode(cacheAndCreateArray());
+        return cacheAndCreateArray();
     }
 
     // Optimized case for splitting on the empty string.
@@ -935,7 +1170,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSplitFast, (JSGlobalObject* globalObject
             }
             vm.stringSplitCache.set(input, separator, newButterfly);
             Structure* arrayStructure = globalObject->originalArrayStructureForIndexingType(CopyOnWriteArrayWithContiguous);
-            return JSValue::encode(JSArray::createWithButterfly(vm, nullptr, arrayStructure, newButterfly->toButterfly()));
+            return JSArray::createWithButterfly(vm, nullptr, arrayStructure, newButterfly->toButterfly());
         }
 
         auto* array = constructEmptyArray(globalObject, static_cast<ArrayAllocationProfile*>(nullptr), resultSize);
@@ -944,7 +1179,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSplitFast, (JSGlobalObject* globalObject
             array->putDirectIndex(globalObject, i, jsSingleCharacterString(vm, input[i]));
             RETURN_IF_EXCEPTION(scope, { });
         }
-        return JSValue::encode(array);
+        return array;
     }
 
     // 3 cases:
@@ -958,10 +1193,10 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSplitFast, (JSGlobalObject* globalObject
         char16_t separatorCharacter = separatorImpl->at(0);
         if (stringImpl->is8Bit()) {
             if (splitStringByOneCharacterImpl<Latin1Character>(result, stringImpl, separatorCharacter, limit))
-                RELEASE_AND_RETURN(scope, JSValue::encode(cacheAndCreateArray()));
+                RELEASE_AND_RETURN(scope, cacheAndCreateArray());
         } else {
             if (splitStringByOneCharacterImpl<char16_t>(result, stringImpl, separatorCharacter, limit))
-                RELEASE_AND_RETURN(scope, JSValue::encode(cacheAndCreateArray()));
+                RELEASE_AND_RETURN(scope, cacheAndCreateArray());
         }
     } else {
         // 13. Let q = p.
@@ -979,7 +1214,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSplitFast, (JSGlobalObject* globalObject
             // 3. Increment lengthA by 1.
             // 4. If lengthA == lim, return A.
             if (result.size() == limit)
-                RELEASE_AND_RETURN(scope, JSValue::encode(cacheAndCreateArray()));
+                RELEASE_AND_RETURN(scope, cacheAndCreateArray());
 
             // 5. Let p = e.
             // 6. Let q = p.
@@ -991,7 +1226,85 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSplitFast, (JSGlobalObject* globalObject
     //     through s (exclusive).
     // 16. Call CreateDataProperty(A, ToString(lengthA), T).
     result.append(input->length());
-    RELEASE_AND_RETURN(scope, JSValue::encode(cacheAndCreateArray()));
+    RELEASE_AND_RETURN(scope, cacheAndCreateArray());
+}
+
+// ES 22.1.3.21 String.prototype.split(separator, limit)
+JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSplit, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    // 1. Let O be ? RequireObjectCoercible(this value).
+    JSValue thisValue = callFrame->thisValue();
+    if (!checkObjectCoercible(thisValue)) [[unlikely]]
+        return throwVMTypeError(globalObject, scope, "String.prototype.split requires that |this| not be null or undefined"_s);
+
+    JSValue separatorValue = callFrame->argument(0);
+    JSValue limitValue = callFrame->argument(1);
+
+    // 2. If separator is neither undefined nor null, defer to its @@split method
+    //    (if any). For primordial RegExp separators we skip the property lookup
+    //    and the JS regExpPrototypeSplit body and call the C++ split engine
+    //    directly — this beats the JS-builtin path on the steady state.
+    if (separatorValue.isObject()) {
+        JSObject* separatorObject = asObject(separatorValue);
+        if (auto* regExpObject = dynamicDowncast<RegExpObject>(separatorObject); regExpObject && regExpObject->isSymbolSplitFastAndNonObservable()) {
+            JSString* thisString = thisValue.toString(globalObject);
+            RETURN_IF_EXCEPTION(scope, { });
+            unsigned limit = 0xFFFFFFFFu;
+            if (!limitValue.isUndefined()) {
+                limit = limitValue.toUInt32(globalObject);
+                RETURN_IF_EXCEPTION(scope, { });
+            }
+            RELEASE_AND_RETURN(scope, JSValue::encode(regExpSplitFast(globalObject, regExpObject, thisString, limit)));
+        }
+
+        JSValue splitter = separatorObject->get(globalObject, vm.propertyNames->splitSymbol);
+        RETURN_IF_EXCEPTION(scope, { });
+
+        if (!splitter.isUndefinedOrNull()) {
+            auto callData = JSC::getCallData(splitter);
+            if (callData.type == CallData::Type::None) [[unlikely]]
+                return throwVMTypeError(globalObject, scope, "@@split method is not callable"_s);
+            std::array<EncodedJSValue, 2> args { {
+                JSValue::encode(thisValue),
+                JSValue::encode(limitValue),
+            } };
+            JSValue result = call(globalObject, splitter, callData, separatorValue, ArgList { args.data(), args.size() });
+            RETURN_IF_EXCEPTION(scope, { });
+            return JSValue::encode(result);
+        }
+    }
+
+    // 3. Let S be ToString(O).
+    JSString* thisString = thisValue.toString(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    unsigned limit = 0xFFFFFFFFu;
+    if (!limitValue.isUndefined()) {
+        limit = limitValue.toUInt32(globalObject);
+        RETURN_IF_EXCEPTION(scope, { });
+    }
+
+    // 11. If separator is undefined, then return [thisString].
+    if (separatorValue.isUndefined()) {
+        if (!limit)
+            RELEASE_AND_RETURN(scope, JSValue::encode(constructEmptyArray(globalObject, nullptr)));
+        auto input = thisString->value(globalObject);
+        RETURN_IF_EXCEPTION(scope, { });
+        std::array<EncodedJSValue, 1> args { {
+            JSValue::encode(jsStringWithReuse(globalObject, thisString, input))
+        } };
+        RETURN_IF_EXCEPTION(scope, { });
+        RELEASE_AND_RETURN(scope, JSValue::encode(constructArray(globalObject, static_cast<ArrayAllocationProfile*>(nullptr), ArgList { args.data(), args.size() })));
+    }
+
+    // 9. ... R = ToString(separator).
+    JSString* separatorString = separatorValue.toString(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    RELEASE_AND_RETURN(scope, JSValue::encode(stringSplitFast(globalObject, thisString, separatorString, limit)));
 }
 
 JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSubstr, (JSGlobalObject* globalObject, CallFrame* callFrame))

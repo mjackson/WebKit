@@ -43,6 +43,7 @@
 #include <WebCore/ThreadableWebSocketChannel.h>
 #include <WebCore/WebSocketChannelClient.h>
 #include <wtf/CheckedArithmetic.h>
+#include <wtf/URLParser.h>
 #include <wtf/text/MakeString.h>
 
 namespace WebKit {
@@ -142,31 +143,25 @@ WebSocketChannel::ConnectStatus WebSocketChannel::connect(const URL& url, const 
             client->didUpgradeURL();
     }
 
-    OptionSet<AdvancedPrivacyProtections> advancedPrivacyProtections;
-    bool allowPrivacyProxy { true };
-    std::optional<PageIdentifier> pageID;
     StoredCredentialsPolicy storedCredentialsPolicy { StoredCredentialsPolicy::Use };
     RefPtr frame = document->frame();
-    RefPtr mainFrame = document->localMainFrame();
-    if (!mainFrame)
+    if (!frame)
         return ConnectStatus::KO;
-    auto frameID = frame ? std::optional(frame->frameID()) : std::nullopt;
-    pageID = mainFrame->pageID();
-    if (RefPtr policySourceDocumentLoader = mainFrame->document() ? mainFrame->document()->loader() : nullptr) {
-        if (!policySourceDocumentLoader->request().url().hasSpecialScheme() && protect(frame->document())->url().protocolIsInHTTPFamily())
-            policySourceDocumentLoader = frame->document()->loader();
 
-        if (policySourceDocumentLoader) {
-            allowPrivacyProxy = policySourceDocumentLoader->allowPrivacyProxy();
-            advancedPrivacyProtections = policySourceDocumentLoader->advancedPrivacyProtections();
-        }
-    }
-    if (auto* page = mainFrame->page())
+    if (auto* page = frame->page())
         storedCredentialsPolicy = page->canUseCredentialStorage() ? StoredCredentialsPolicy::Use : StoredCredentialsPolicy::DoNotUse;
 
     m_inspector.didCreateWebSocket(url);
     m_url = request->url();
-    MessageSender::send(Messages::NetworkConnectionToWebProcess::CreateSocketChannel { *request, protocol, identifier(), m_webPageProxyID, frameID, pageID, document->clientOrigin(), WebProcess::singleton().hadMainFrameMainResourcePrivateRelayed(), allowPrivacyProxy, advancedPrivacyProtections, storedCredentialsPolicy });
+    Ref mainFrame = frame->mainFrame();
+
+    Ref policySourceFrame = [&] -> Ref<Frame> {
+        if (!WTF::URLParser::isSpecialScheme(mainFrame->frameURLProtocol()) && document->url().protocolIsInHTTPFamily())
+            return *frame;
+        return mainFrame;
+    }();
+
+    MessageSender::send(Messages::NetworkConnectionToWebProcess::CreateSocketChannel { *request, protocol, identifier(), m_webPageProxyID, std::optional(frame->frameID()), frame->pageID(), document->clientOrigin(), WebProcess::singleton().hadMainFrameMainResourcePrivateRelayed(), policySourceFrame->allowPrivacyProxy(), policySourceFrame->advancedPrivacyProtections(), storedCredentialsPolicy });
     return ConnectStatus::OK;
 }
 

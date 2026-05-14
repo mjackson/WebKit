@@ -323,6 +323,140 @@ const AXCoreObject::AccessibilityChildrenVector& AXIsolatedObject::children(bool
     return m_children;
 }
 
+AXIsolatedTree::CachedUnignoredChildren& AXIsolatedObject::ensureCachedUnignoredChildren()
+{
+    auto& cache = tree().cachedUnignoredChildrenMap();
+    auto result = cache.ensure(objectID(), [&] {
+        auto children = AXCoreObject::unignoredChildren();
+        bool hasPotentialStitchable = false;
+        for (const auto& child : children) {
+            if (child->hasStitchableRole()) {
+                hasPotentialStitchable = true;
+                break;
+            }
+        }
+        return AXIsolatedTree::CachedUnignoredChildren { WTF::move(children), hasPotentialStitchable };
+    });
+    return result.iterator->value;
+}
+
+#if ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
+AXCoreObject::AccessibilityChildrenVector AXIsolatedObject::unignoredChildren(bool)
+{
+    AX_ASSERT(!isMainThread());
+    return ensureCachedUnignoredChildren().children;
+}
+#endif
+
+AXCoreObject::AccessibilityChildrenVector AXIsolatedObject::stitchedUnignoredChildren()
+{
+    AX_ASSERT(!isMainThread());
+    auto& entry = ensureCachedUnignoredChildren();
+    if (!entry.hasPotentialStitchable)
+        return entry.children;
+    auto copy = entry.children;
+    copy.removeAllMatching([] (const auto& child) {
+        if (!child->hasStitchableRole())
+            return false;
+        std::optional stitchedIntoID = child->stitchedIntoID();
+        return stitchedIntoID && *stitchedIntoID != child->objectID();
+    });
+    return copy;
+}
+
+size_t AXIsolatedObject::stitchedUnignoredChildrenCount()
+{
+    AX_ASSERT(!isMainThread());
+    auto& entry = ensureCachedUnignoredChildren();
+    if (!entry.hasPotentialStitchable)
+        return entry.children.size();
+    size_t count = 0;
+    for (const auto& child : entry.children) {
+        if (!child->hasStitchableRole()) {
+            ++count;
+            continue;
+        }
+        std::optional stitchedIntoID = child->stitchedIntoID();
+        if (!stitchedIntoID || *stitchedIntoID == child->objectID())
+            ++count;
+    }
+    return count;
+}
+
+const AXCoreObject::AccessibilityChildrenVector* AXIsolatedObject::cachedUnignoredChildren()
+{
+    AX_ASSERT(!isMainThread());
+    return &ensureCachedUnignoredChildren().children;
+}
+
+const AXCoreObject::AccessibilityChildrenVector* AXIsolatedObject::cachedStitchedUnignoredChildren()
+{
+    AX_ASSERT(!isMainThread());
+    auto& entry = ensureCachedUnignoredChildren();
+    if (!entry.hasPotentialStitchable)
+        return &entry.children;
+    return nullptr;
+}
+
+AXCoreObject::AccessibilityChildrenVector AXIsolatedObject::crossFrameUnignoredChildrenInRange(size_t start, size_t maxCount)
+{
+    AX_ASSERT(!isMainThread());
+    auto& entry = ensureCachedUnignoredChildren();
+
+    if (entry.children.isEmpty()) {
+#if ENABLE_ACCESSIBILITY_LOCAL_FRAME
+        if (!start && maxCount) {
+            if (RefPtr crossFrameChild = crossFrameChildObject())
+                return { Ref { *crossFrameChild } };
+        }
+#endif
+        return { };
+    }
+
+    if (!entry.hasPotentialStitchable) {
+        if (start >= entry.children.size())
+            return { };
+        size_t end = std::min(start + maxCount, entry.children.size());
+
+        AccessibilityChildrenVector result;
+        result.reserveInitialCapacity(end - start);
+        for (size_t i = start; i < end; i++) {
+            Ref child = entry.children[i];
+#if ENABLE_ACCESSIBILITY_LOCAL_FRAME
+            if (RefPtr crossFrameChild = child->crossFrameChildObject())
+                result.append(crossFrameChild.releaseNonNull());
+            else
+#endif
+                result.append(WTF::move(child));
+        }
+        return result;
+    }
+
+    // Has potential stitchable children — need to skip stitched-away elements
+    // while computing the range relative to the stitched result.
+    AccessibilityChildrenVector result;
+    size_t stitchedIndex = 0;
+    for (const auto& child : entry.children) {
+        if (child->hasStitchableRole()) {
+            std::optional stitchedIntoID = child->stitchedIntoID();
+            if (stitchedIntoID && *stitchedIntoID != child->objectID())
+                continue;
+        }
+        if (stitchedIndex >= start + maxCount)
+            break;
+        if (stitchedIndex >= start) {
+#if ENABLE_ACCESSIBILITY_LOCAL_FRAME
+            if (RefPtr crossFrameChild = child->crossFrameChildObject())
+                result.append(*crossFrameChild);
+            else
+#endif
+                result.append(child);
+        }
+        ++stitchedIndex;
+    }
+    return result;
+}
+
 void AXIsolatedObject::setSelectedChildren(const AccessibilityChildrenVector& selectedChildren)
 {
     AX_ASSERT(selectedChildren.isEmpty() || selectedChildren[0]->isAXIsolatedObjectInstance());
@@ -1707,6 +1841,15 @@ bool AXIsolatedObject::press()
     return false;
 }
 
+bool AXIsolatedObject::syncPress()
+{
+    return Accessibility::retrieveValueFromMainThreadWithTimeoutAndDefault([context = mainThreadContext()] () -> bool {
+        if (RefPtr axObject = context.axObjectOnMainThread())
+            return axObject->press();
+        return false;
+    }, Accessibility::InteractiveTimeout, false);
+}
+
 void AXIsolatedObject::increment()
 {
     performFunctionOnMainThread([] (auto* axObject) {
@@ -1719,6 +1862,22 @@ void AXIsolatedObject::decrement()
     performFunctionOnMainThread([] (auto* axObject) {
         axObject->decrement();
     });
+}
+
+void AXIsolatedObject::syncIncrement()
+{
+    Accessibility::performFunctionOnMainThreadAndWaitWithTimeout([context = mainThreadContext()] {
+        if (RefPtr axObject = context.axObjectOnMainThread())
+            axObject->increment();
+    }, Accessibility::InteractiveTimeout);
+}
+
+void AXIsolatedObject::syncDecrement()
+{
+    Accessibility::performFunctionOnMainThreadAndWaitWithTimeout([context = mainThreadContext()] {
+        if (RefPtr axObject = context.axObjectOnMainThread())
+            axObject->decrement();
+    }, Accessibility::InteractiveTimeout);
 }
 
 bool AXIsolatedObject::isAccessibilityNodeObject() const
@@ -1762,15 +1921,14 @@ int AXIsolatedObject::insertionPointLineNumber() const
 
 String AXIsolatedObject::identifierAttribute() const
 {
-#if !LOG_DISABLED
-    return stringAttributeValue(AXProperty::IdentifierAttribute);
-#else
+    if (AXIsolatedTree::shouldCacheIdentifierAttribute())
+        return stringAttributeValue(AXProperty::IdentifierAttribute);
+
     return Accessibility::retrieveValueFromMainThreadWithTimeoutAndDefault([context = mainThreadContext()] () -> String {
         if (RefPtr object = context.axObjectOnMainThread())
             return object->identifierAttribute().isolatedCopy();
         return { };
     }, Accessibility::GeneralPropertyTimeout, emptyString());
-#endif
 }
 
 CharacterRange AXIsolatedObject::doAXRangeForLine(unsigned lineIndex) const

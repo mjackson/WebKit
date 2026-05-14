@@ -61,7 +61,7 @@ AllowedSPI*.toml @emw-apple
 /Tools/gstreamer/ @WebKit/glib-reviewers
 /Tools/jhbuild/ @WebKit/glib-reviewers
 
-/Tools/WebKitTestRunner/InjectedBundle/Accessibility* @twilco @hoffmanjoshua @minorninth @fleizach @AndresGonzalezApple
+/Tools/WebKitTestRunner/InjectedBundle/Accessibility* @twilco @minorninth @fleizach @AndresGonzalezApple
 
 # ================================================================================
 # bmalloc
@@ -91,10 +91,10 @@ AllowedSPI*.toml @emw-apple
 # ================================================================================
 # WebCore
 
-/Source/WebCore/accessibility @twilco @hoffmanjoshua @minorninth @fleizach @AndresGonzalezApple
+/Source/WebCore/accessibility @twilco @minorninth @fleizach @AndresGonzalezApple
 /Source/WebCore/dom @rniwa @cdumez
-/LayoutTests/accessibility @twilco @hoffmanjoshua @minorninth @fleizach @AndresGonzalezApple
-/LayoutTests/accessibility-isolated-tree @twilco @hoffmanjoshua @minorninth @fleizach @AndresGonzalezApple
+/LayoutTests/accessibility @twilco @minorninth @fleizach @AndresGonzalezApple
+/LayoutTests/accessibility-isolated-tree @twilco @minorninth @fleizach @AndresGonzalezApple
 /LayoutTests/fast/dom @rniwa
 /LayoutTests/fast/events @rniwa
 

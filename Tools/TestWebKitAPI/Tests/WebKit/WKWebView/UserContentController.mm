@@ -37,6 +37,7 @@
 #import <WebKit/WKContentWorld.h>
 #import <WebKit/WKContentWorldConfiguration.h>
 #import <WebKit/WKContentWorldPrivate.h>
+#import <WebKit/WKJSSerializedNode.h>
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKScriptMessage.h>
 #import <WebKit/WKScriptMessageHandlerWithReply.h>
@@ -2006,4 +2007,46 @@ TEST(WKUserContentController, EvaluateLargeJavaScriptStringInAutoFillWorld)
     // Check that script still works after caching.
     result = [webView objectByEvaluatingJavaScript:largeScript inFrame:nil inContentWorld:autofillWorld.get()];
     EXPECT_EQ([result intValue], 2);
+}
+
+@interface SerializedNodeReplyHandler : NSObject <WKScriptMessageHandlerWithReply>
+@property (nonatomic, strong) WKContentWorld *world;
+@end
+
+@implementation SerializedNodeReplyHandler
+
+- (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message replyHandler:(void (^)(id, NSString *errorMessage))replyHandler
+{
+    WKWebView *webView = message.webView;
+    [webView evaluateJavaScript:@"window.webkit.serializeNode(document.createElement('div'))" inFrame:nil inContentWorld:self.world completionHandler:^(id result, NSError *error) {
+        EXPECT_NULL(error);
+        EXPECT_TRUE([result isKindOfClass:WKJSSerializedNode.class]);
+        replyHandler(result, nil);
+    }];
+}
+
+@end
+
+TEST(WKUserContentController, MessageHandlerReplyWithSerializedNode)
+{
+    RetainPtr worldConfiguration = adoptNS([WKContentWorldConfiguration new]);
+    worldConfiguration.get().nodeSerializationEnabled = YES;
+    RetainPtr world = [WKContentWorld worldWithConfiguration:worldConfiguration.get()];
+
+    RetainPtr handler = adoptNS([SerializedNodeReplyHandler new]);
+    handler.get().world = world.get();
+
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [[configuration userContentController] addScriptMessageHandlerWithReply:handler.get() contentWorld:world.get() name:@"testHandler"];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView synchronouslyLoadHTMLString:@"<body>test</body>"];
+
+    __block bool done = false;
+    [webView callAsyncJavaScript:@"let node = await window.webkit.messageHandlers.testHandler.postMessage('serialize'); return node.nodeName" arguments:nil inFrame:nil inContentWorld:world.get() completionHandler:^(id result, NSError *error) {
+        EXPECT_NULL(error);
+        EXPECT_WK_STREQ(result, "DIV");
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
 }

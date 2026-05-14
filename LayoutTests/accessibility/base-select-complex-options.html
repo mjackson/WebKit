@@ -51,7 +51,7 @@ if (window.accessibilityController) {
         select.press();
         output += await expectAsync("select.isExpanded", "true");
 
-        window.menu = select.childAtIndex(0);
+        window.menu = findBaseSelectMenu(select);
         output += expect("menu.role.toLowerCase().includes('menu')", "true");
 
         output += "\n--- Simple option: text is NOT exposed as a StaticText child ---\n";

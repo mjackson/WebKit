@@ -104,7 +104,7 @@ static String preferredFilenameForElement(const HTMLImageElement& element)
 
     auto suggestedName = [&] -> String {
         Ref document = element.document();
-        RetainPtr url = document->completeURL(urlString).createNSURL();
+        RetainPtr url = document->encodingParseURL(urlString).createNSURL();
         if (!url)
             url = [NSURL _web_URLWithString:[urlString.createNSString() stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] relativeToURL:nil];
 

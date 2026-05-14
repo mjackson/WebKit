@@ -8,7 +8,11 @@ set(TestWebKitAPI_DISABLED_WARNINGS
 
 macro(WEBKIT_TEST _target)
     WEBKIT_EXECUTABLE(${_target})
-    ADD_WEBKIT_PREFIX_HEADERS(${_target} Helpers/TestWebKitAPIPrefix.h)
+    if (${_target} STREQUAL "TestWTF")
+        WEBKIT_ADD_PREFIX_HEADER(TestWTF Helpers/TestWebKitAPIPrefix.h PREFIX_NO_CODEGEN PREFIX_LANGUAGES CXX OBJCXX)
+    else ()
+        WEBKIT_REUSE_PREFIX_HEADER(${_target} TestWTF Helpers/TestWebKitAPIPrefix.h PREFIX_LANGUAGES CXX OBJCXX)
+    endif ()
     add_test(${_target} ${TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY}/${_target})
     set_tests_properties(${_target} PROPERTIES TIMEOUT 60)
     set_target_properties(${_target} PROPERTIES
@@ -27,6 +31,7 @@ set(TestWTF_SOURCES
     Helpers/Utilities.cpp
 
     Tests/WTF/AtomString.cpp
+    Tests/WTF/AutomaticThread.cpp
     Tests/WTF/Base64.cpp
     Tests/WTF/BitSet.cpp
     Tests/WTF/BitVector.cpp
@@ -89,12 +94,15 @@ set(TestWTF_SOURCES
     Tests/WTF/NeverDestroyed.cpp
     Tests/WTF/OptionCountedSet.cpp
     Tests/WTF/OptionSet.cpp
+    Tests/WTF/OrderedHashMap.cpp
+    Tests/WTF/OrderedHashSet.cpp
     Tests/WTF/Packed.cpp
     Tests/WTF/PackedRef.cpp
     Tests/WTF/PackedRefPtr.cpp
     Tests/WTF/ParkingLot.cpp
     Tests/WTF/PreciseSum.cpp
     Tests/WTF/PriorityQueue.cpp
+    Tests/WTF/RapidHash.cpp
     Tests/WTF/RedBlackTree.cpp
     Tests/WTF/Ref.cpp
     Tests/WTF/RefCountedFixedVector.cpp
@@ -120,7 +128,6 @@ set(TestWTF_SOURCES
     Tests/WTF/StringConcatenate.cpp
     Tests/WTF/StringHasher.cpp
     Tests/WTF/SuperFastHash.cpp
-    Tests/WTF/WYHash.cpp
     Tests/WTF/StringImpl.cpp
     Tests/WTF/StringParsingBuffer.cpp
     Tests/WTF/StringSearch.cpp
@@ -434,10 +441,13 @@ if (ENABLE_WEBKIT)
             Tests/WebKit/WKPage/DOMWindowExtensionBasic_Bundle.cpp
 
             Helpers/cocoa/UtilitiesCocoa.mm
-
             InjectedBundle/mac/InjectedBundleControllerMac.mm
-            Helpers/mac/PlatformUtilitiesMac.mm
         )
+        if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+            list(APPEND TestWebKitAPIInjectedBundle_SOURCES
+                Helpers/mac/PlatformUtilitiesMac.mm
+            )
+        endif ()
     endif ()
     # macOS: MODULE + BUNDLE TRUE (PlatformMac) emits a CFBundle matching Xcode's MH_BUNDLE.
     # Other ports: SHARED dylib/so.
@@ -447,6 +457,7 @@ if (ENABLE_WEBKIT)
         set(TestWebKitAPIInjectedBundle_LIBRARY_TYPE SHARED)
     endif ()
     add_library(TestWebKitAPIInjectedBundle ${TestWebKitAPIInjectedBundle_LIBRARY_TYPE} ${TestWebKitAPIInjectedBundle_SOURCES})
+    WEBKIT_ADD_PREFIX_HEADER(TestWebKitAPIInjectedBundle Helpers/TestWebKitAPIPrefix.h PREFIX_LANGUAGES CXX)
 
     target_compile_definitions(TestWebKitAPIInjectedBundle PRIVATE BUILDING_TestWebKit)
     target_include_directories(TestWebKitAPIInjectedBundle PRIVATE ${TestWebKit_PRIVATE_INCLUDE_DIRECTORIES})
@@ -504,7 +515,7 @@ if (ENABLE_WEBKIT)
         )
 
         WEBKIT_EXECUTABLE_DECLARE(TestIPC)
-        target_compile_definitions(TestIPC PRIVATE BUILDING_TEST_IPC GTEST_API_=)
+        target_compile_definitions(TestIPC PRIVATE BUILDING_TEST_IPC)
     endif ()
 endif ()
 
@@ -539,7 +550,7 @@ if (APPLE AND ENABLE_WEBGPU)
     )
 
     WEBKIT_EXECUTABLE_DECLARE(TestWGSL)
-    target_compile_definitions(TestWGSL PRIVATE BUILDING_TEST_WGSL GTEST_API_=)
+    target_compile_definitions(TestWGSL PRIVATE BUILDING_TEST_WGSL)
 endif ()
 
 # Include platform specific files

@@ -45,10 +45,6 @@ SWIFT_LIBRARY_LEVEL = api;
 SWIFT_INSTALL_OBJC_HEADER = NO;
 DEFINES_MODULE = NO;
 
-// Disable optimization for debug builds.
-SWIFT_OPTIMIZATION_LEVEL = -O;
-SWIFT_OPTIMIZATION_LEVEL[config=Debug] = -Onone;
-
 CLANG_INSTRUMENT_FOR_OPTIMIZATION_PROFILING = NO; // Disable PGO profile generation.
 WK_PGO_GEN_FLAGS = ; // Disable IR PGO profile generation
 WK_PGO_USE_CFLAGS = ; // Disable IR PGO profile use

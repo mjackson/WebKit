@@ -307,8 +307,8 @@ static Ref<DOMPromise> createDOMPromise(const DeferredPromise& deferredPromise)
     Locker<JSC::JSLock> locker(commonVM().apiLock());
 
     auto promiseValue = deferredPromise.promise();
-    auto& jsPromise = *uncheckedDowncast<JSC::JSPromise>(promiseValue);
-    auto& globalObject = *uncheckedDowncast<JSDOMGlobalObject>(jsPromise.realm());
+    auto& jsPromise = *downcast<JSC::JSPromise>(promiseValue);
+    auto& globalObject = *downcast<JSDOMGlobalObject>(jsPromise.realm());
 
     return DOMPromise::create(globalObject, jsPromise);
 }
@@ -425,7 +425,7 @@ Navigation::Result Navigation::reload(JSC::JSGlobalObject& globalObject, ReloadO
 Navigation::Result Navigation::navigate(JSC::JSGlobalObject& globalObject, const String& url, NavigateOptions&& options, Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished)
 {
     RefPtr window = this->window();
-    auto newURL = protect(window->document())->completeURL(url, ScriptExecutionContext::ForceUTF8::Yes);
+    auto newURL = protect(window->document())->parseURL(url);
     const URL& currentURL = protect(scriptExecutionContext())->url();
 
     if (!newURL.isValid())
@@ -973,7 +973,7 @@ public:
     static Ref<PromiseSettlementObserver> create(Document& document)
     {
         ASSERT(document.isFullyActive());
-        auto* globalObject = uncheckedDowncast<JSDOMGlobalObject>(document.globalObject());
+        auto* globalObject = downcast<JSDOMGlobalObject>(document.globalObject());
         JSC::JSLockHolder locker(globalObject->vm());
         RefPtr wrapper = DeferredPromise::create(*globalObject, DeferredPromise::Mode::RetainPromiseOnResolve);
         return adoptRef(*new PromiseSettlementObserver(wrapper.releaseNonNull()));
@@ -1067,7 +1067,7 @@ void Navigation::setupInterceptionState(NavigateEvent& event, NavigationNavigati
     }
 
     {
-        auto& domGlobalObject = *uncheckedDowncast<JSDOMGlobalObject>(document.globalObject());
+        auto& domGlobalObject = *downcast<JSDOMGlobalObject>(document.globalObject());
         JSC::JSLockHolder locker(domGlobalObject.vm());
         m_transition = NavigationTransition::create(navigationType, *fromNavigationHistoryEntry, DeferredPromise::create(domGlobalObject, DeferredPromise::Mode::RetainPromiseOnResolve).releaseNonNull());
     }

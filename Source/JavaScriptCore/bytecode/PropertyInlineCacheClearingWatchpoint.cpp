@@ -77,6 +77,12 @@ void StructureTransitionPropertyInlineCacheClearingWatchpoint::fireInternal(VM& 
     m_key.object()->structure()->addTransitionWatchpoint(this);
 }
 
+AdaptiveValuePropertyInlineCacheClearingWatchpoint::AdaptiveValuePropertyInlineCacheClearingWatchpoint(ClangVTableWorkaroundTag, WatchpointSet& watchpointSet)
+    : m_owner(nullptr)
+    , m_watchpointSet(watchpointSet)
+{
+}
+
 void AdaptiveValuePropertyInlineCacheClearingWatchpoint::handleFire(VM& vm, const FireDetail&)
 {
     if (m_owner->ownerIsDead())

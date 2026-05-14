@@ -40,11 +40,11 @@
 #include <wtf/Assertions.h>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/Compiler.h>
+#include <wtf/CurrentThread.h>
 #include <wtf/Forward.h>
 #include <wtf/Lock.h>
 #include <wtf/Locker.h>
 #include <wtf/Platform.h>
-#include <wtf/Threading.h>
 #include <wtf/Vector.h>
 #include <wtf/text/AtomString.h>
 
@@ -121,13 +121,13 @@ private:
             return;
 #endif
         if (!m_threadUID) {
-            ASSERT(!Thread::mayBeGCThread());
-            m_threadUID = Thread::currentSingleton().uid();
+            ASSERT(!currentThreadMayBeGCThread());
+            m_threadUID = currentThreadID();
             return;
         }
-        if (m_threadUID == Thread::currentSingleton().uid()) [[likely]]
+        if (m_threadUID == currentThreadID()) [[likely]]
             return;
-        RELEASE_ASSERT(Thread::mayBeGCThread());
+        RELEASE_ASSERT(currentThreadMayBeGCThread());
     }
 
     Vector<std::pair<AtomString, EventListenerVector>, 0, CrashOnOverflow, 4> m_entries;

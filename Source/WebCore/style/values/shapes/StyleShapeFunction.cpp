@@ -43,6 +43,22 @@
 namespace WebCore {
 namespace Style {
 
+// MARK: - Shape
+
+Shape::Shape(std::optional<FillRule> fillRule, Position&& startingPoint, Commands&& commands)
+    : fillRule(fillRule)
+    , startingPoint(WTF::move(startingPoint))
+    , commands(WTF::move(commands))
+{
+}
+
+Shape::Shape(Shape&&) = default;
+Shape::Shape(const Shape&) = default;
+Shape& Shape::operator=(Shape&&) = default;
+Shape& Shape::operator=(const Shape&) = default;
+Shape::~Shape() = default;
+bool Shape::operator==(const Shape&) const = default;
+
 // MARK: - Control Point Evaluation
 
 template<typename ControlPoint> static ControlPointAnchor NODELETE evaluateControlPointAnchoring(const ControlPoint& value, ControlPointAnchor defaultValue)
@@ -629,10 +645,10 @@ auto Blending<Shape>::canBlend(const Shape& a, const Shape& b) -> bool
 
 auto Blending<Shape>::blend(const Shape& a, const Shape& b, const BlendingContext& context) -> Shape
 {
-    return {
-        .fillRule = a.fillRule,
-        .startingPoint = WebCore::Style::blend(a.startingPoint, b.startingPoint, context),
-        .commands = WebCore::Style::blend(a.commands, b.commands, context)
+    return Shape {
+        std::optional<FillRule> { a.fillRule },
+        WebCore::Style::blend(a.startingPoint, b.startingPoint, context),
+        WebCore::Style::blend(a.commands, b.commands, context)
     };
 }
 
@@ -667,9 +683,9 @@ std::optional<Shape> makeShapeFromPath(const Path& path)
         return { };
 
     return Shape {
-        .fillRule = path.fillRule,
-        .startingPoint = converter.initialMove().value_or(Position { 0_css_px, 0_css_px }),
-        .commands = { WTF::move(shapeCommands) }
+        path.fillRule,
+        converter.initialMove().value_or(Position { 0_css_px, 0_css_px }),
+        Shape::Commands { WTF::move(shapeCommands) }
     };
 }
 

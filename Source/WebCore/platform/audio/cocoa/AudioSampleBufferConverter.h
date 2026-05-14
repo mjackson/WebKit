@@ -65,7 +65,7 @@ public:
         std::optional<bool> useinbandfec { };
         std::optional<bool> usedtx { };
     };
-    static RefPtr<AudioSampleBufferConverter> create(CMBufferQueueTriggerCallback, void* callbackObject, const Options&);
+    static RefPtr<AudioSampleBufferConverter> create(Function<void()>&&, const Options&);
     ~AudioSampleBufferConverter();
 
     bool isEmpty() const;
@@ -79,9 +79,11 @@ public:
     unsigned NODELETE bitRate() const;
     unsigned preSkip() const { return m_preSkip; }
 
+    static void converterOutputBufferCallback(void*, CMBufferQueueTriggerToken);
+
 private:
-    AudioSampleBufferConverter(const Options&);
-    bool initialize(CMBufferQueueTriggerCallback, void* callbackObject);
+    AudioSampleBufferConverter(Function<void()>&&, const Options&);
+    bool initialize();
     UInt32 NODELETE defaultOutputBitRate(const AudioStreamBasicDescription&) const;
 
     static OSStatus audioConverterComplexInputDataProc(AudioConverterRef, UInt32*, AudioBufferList*, AudioStreamPacketDescription**, void*);
@@ -105,6 +107,8 @@ private:
     const RetainPtr<CMBufferQueueRef> m_inputBufferQueue; // initialized on the caller's thread once, never modified after that.
     bool m_isEncoding WTF_GUARDED_BY_CAPABILITY(queue()) { true };
     bool m_isDraining WTF_GUARDED_BY_CAPABILITY(queue()) { false };
+
+    const Function<void()> m_outputCallback;
 
     AudioConverterRef m_converter WTF_GUARDED_BY_CAPABILITY(queue()) { nullptr };
     AudioStreamBasicDescription m_sourceFormat WTF_GUARDED_BY_CAPABILITY(queue());

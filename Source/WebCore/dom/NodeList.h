@@ -25,7 +25,6 @@
 
 #include <JavaScriptCore/EmbedderArrayLike.h>
 #include <WebCore/ScriptWrappable.h>
-#include <wtf/Forward.h>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {

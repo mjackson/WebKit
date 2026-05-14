@@ -72,8 +72,6 @@ bool WebParentalControlsURLFilter::isEnabledImpl() const
 
 void WebParentalControlsURLFilter::isURLAllowedImpl(WebCore::IsMainFrameLoad isMainFrame, const URL& mainDocumentURL, const URL& url, CompletionHandler<void(bool, NSData *)>&& completionHandler)
 {
-    // FIXME: Move this into a ifdef guard once rdar://175796135 is merged.
-    UNUSED_PARAM(isMainFrame);
     workQueueSingleton().dispatch([this,
         protectedThis = Ref { *this },
         currentIsEnabled = isEnabled(),

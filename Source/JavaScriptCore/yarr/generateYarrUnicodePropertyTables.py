@@ -558,16 +558,45 @@ class PropertyData:
             formatter(file, elem)
         file.write("}")
 
-    def convertStringToCppFormat(self, file, utf32String):
-        output = ""
-        for codePoint in utf32String:
-            if codePoint <= '\xff':
-                output += codePoint
-            else:
-                output += "\\x{:x}".format(ord(codePoint))
-        file.write("{{ std::span {{ U\"{}\", {} }}}}".format(output, len(utf32String)))
+    def dumpStringTables(self, file):
+        # Emit a flat constexpr char32_t data array plus a constexpr per-string
+        # length array. createCharacterClassN() reconstructs Vector<Vector<char32_t>>
+        # from these with a small loop instead of thousands of inline Vector ctors,
+        # keeping the data in __TEXT,__const instead of generating hundreds of KB of
+        # construction code in __TEXT,__text.
+        file.write("static constexpr char32_t kStrings{}Data[] = {{\n    ".format(self.index))
+        valuesThisLine = 0
+        firstValue = True
+        for utf32String in self.matchStrings:
+            for codePoint in utf32String:
+                if not firstValue:
+                    file.write(", ")
+                firstValue = False
+                if valuesThisLine >= 16:
+                    file.write("\n    ")
+                    valuesThisLine = 0
+                file.write("0x{:x}".format(ord(codePoint)))
+                valuesThisLine += 1
+        file.write("\n};\n")
+
+        file.write("static constexpr uint8_t kStrings{}Lengths[] = {{\n    ".format(self.index))
+        valuesThisLine = 0
+        firstValue = True
+        for utf32String in self.matchStrings:
+            assert len(utf32String) <= 255, "string length must fit in uint8_t"
+            if not firstValue:
+                file.write(", ")
+            firstValue = False
+            if valuesThisLine >= 24:
+                file.write("\n    ")
+                valuesThisLine = 0
+            file.write("{}".format(len(utf32String)))
+            valuesThisLine += 1
+        file.write("\n};\n")
 
     def dump(self, file, commaAfter):
+        if self.hasStrings:
+            self.dumpStringTables(file)
         file.write("static std::unique_ptr<CharacterClass> {}()\n{{\n".format(self.getCreateFuncName()))
         file.write("    // Name = {},".format(self.name))
         if self.hasStrings:
@@ -576,10 +605,6 @@ class PropertyData:
             file.write(" number of codePoints: {}".format(self.codePointCount))
         file.write("\n")
         file.write("    auto characterClass = makeUnique<CharacterClass>(\n")
-        if self.hasStrings:
-            file.write("        std::initializer_list<Vector<char32_t>>(")
-            self.dumpMatchData(file, 1, self.matchStrings, self.convertStringToCppFormat)
-            file.write("),\n")
         file.write("        std::initializer_list<char32_t>(")
         self.dumpMatchData(file, 8, self.matches, lambda file, match: (file.write("{0:0=#4x}".format(match))))
         file.write("),\n")
@@ -593,10 +618,15 @@ class PropertyData:
         self.dumpMatchData(file, 4, self.unicodeRanges, lambda file, range: (file.write("{{{0:0=#6x}, {1:0=#6x}}}".format(range[0], range[1]))))
         file.write("),\n")
 
-        file.write("        CharacterClassWidths::{}".format(("Unknown", "HasBMPChars", "HasNonBMPChars", "HasBothBMPAndNonBMP")[int(self.hasNonBMPCharacters) * 2 + int(self.hasBMPCharacters)]))
+        file.write("        CharacterClassWidths::{});\n".format(("Unknown", "HasBMPChars", "HasNonBMPChars", "HasBothBMPAndNonBMP")[int(self.hasNonBMPCharacters) * 2 + int(self.hasBMPCharacters)]))
         if self.hasStrings:
-            file.write(",\n        true")  # inCanonicalForm
-        file.write(");\n")
+            file.write("    characterClass->m_strings.reserveInitialCapacity({});\n".format(len(self.matchStrings)))
+            file.write("    const char32_t* data = kStrings{}Data;\n".format(self.index))
+            file.write("    for (uint8_t length : kStrings{}Lengths) {{\n".format(self.index))
+            file.write("        characterClass->m_strings.append(Vector<char32_t>(std::span(data, length)));\n")
+            file.write("        data += length;\n")
+            file.write("    }\n")
+            file.write("    characterClass->m_inCanonicalForm = true;\n")
         file.write("    return characterClass;\n}\n\n")
 
     @classmethod

@@ -63,4 +63,13 @@
     return YES;
 }
 
+// Make -[NSApplication sendAction:to:from:] work by manually vending this
+// window as the window to dispatch actions to. Otherwise, AppKit defaults
+// to sending actions to the key window, which this will never REALLY be
+// (it only pretends), because it's offscreen.
+- (NSWindow *)_startingWindowForSendAction:(SEL)action
+{
+    return self;
+}
+
 @end

@@ -26,6 +26,7 @@
 #pragma once
 
 #include <wtf/ObjectIdentifier.h>
+#include <wtf/Platform.h>
 
 namespace JSC {
 
@@ -79,6 +80,10 @@ enum class InternalMicrotask : uint8_t {
     DynamicImportLoadSettled,
     DynamicImportEvaluateSettled,
     ImportModuleNamespace,
+#if ENABLE(WEBASSEMBLY)
+    WebAssemblyCompileStreaming,
+    WebAssemblyInstantiateStreaming,
+#endif
     Opaque, // Dispatch must handle everything.
 #if USE(BUN_JSC_ADDITIONS)
     BunPerformMicrotaskJob, // Bun's performMicrotask function with async context

@@ -187,7 +187,17 @@ enum class AccessibilityObjectInclusion : uint8_t {
     DefaultBehavior,
 };
 
-enum class AccessibilityCurrentState { False, True, Page, Step, Location, Date, Time };
+enum class AccessibilityCurrentState : uint8_t { False, True, Page, Step, Location, Date, Time };
+
+enum class AccessibilityPopupValue : uint8_t {
+    False,
+    True,
+    Menu,
+    Listbox,
+    Tree,
+    Grid,
+    Dialog,
+};
 
 enum class AccessibilityButtonState {
     Off = 0,
@@ -196,6 +206,13 @@ enum class AccessibilityButtonState {
 };
 
 enum class AXDirection : bool { Next, Previous };
+
+// Controls what traverseDescendantsIncludingIgnored() does after visiting a descendant.
+enum class AXTraversalResult : uint8_t {
+    SkipSubtree, // Advance to this descendant's next sibling; do not descend into its children.
+    Descend, // Descend into this descendant's children (if any).
+    Stop, // End the traversal immediately.
+};
 
 enum class AccessibilitySortDirection {
     // It's important that Invalid is the first entry, as that means it is the "default value"
@@ -803,10 +820,10 @@ public:
     virtual bool containsOnlyStaticText() const;
     bool isStaticTextLabel() const { return role() == AccessibilityRole::Label && containsOnlyStaticText(); }
 
-    bool hasPopup() const;
+    bool hasPopup() const { return popupValue() != AccessibilityPopupValue::False; }
     bool selfOrAncestorLinkHasPopup() const;
-    virtual String explicitPopupValue() const = 0;
-    String popupValue() const;
+    virtual AccessibilityPopupValue popupValue() const = 0;
+    String popupValueString() const;
     virtual bool supportsHasPopup() const = 0;
     virtual bool pressedIsPresent() const = 0;
     virtual String explicitInvalidStatus() const = 0;
@@ -1073,6 +1090,7 @@ public:
     virtual void setSelectedRows(AccessibilityChildrenVector&&) = 0;
 
     virtual bool press() = 0;
+    virtual bool syncPress() = 0;
     bool performDefaultAction() { return press(); }
     virtual bool performDismissAction() { return false; }
     virtual void performDismissActionIgnoringResult() = 0;
@@ -1088,6 +1106,8 @@ public:
 
     virtual void increment() = 0;
     virtual void decrement() = 0;
+    virtual void syncIncrement() = 0;
+    virtual void syncDecrement() = 0;
 
     // When ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE) is true, this returns ignored children.
     // When it is not, it returns unignored children. After ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
@@ -1100,9 +1120,19 @@ public:
         return children(updateChildrenIfNeeded);
     };
 
+    // Walks this object's descendants in pre-order through the core (include-ignored) AX tree,
+    // calling `visitor` once per descendant. `visitor` returns an AXTraversalResult controlling
+    // descent.
+    //
+    // Keeps a cached parent + siblings cursor so sibling walks and subtree ascents reuse one
+    // parentObject() call per hop instead of re-fetching via nextSiblingIncludingIgnored() /
+    // nextInPreOrder().
+    template<typename Visitor>
+    void traverseDescendantsIncludingIgnored(Visitor&&, bool updateChildrenIfNeeded = true);
+
 #if ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
     bool onlyAddsUnignoredChildren() const { return isTableColumn() || role() == AccessibilityRole::TableHeaderContainer; }
-    AccessibilityChildrenVector unignoredChildren(bool updateChildrenIfNeeded = true);
+    virtual AccessibilityChildrenVector unignoredChildren(bool updateChildrenIfNeeded = true);
     bool hasUnignoredChild();
 #else
     const AccessibilityChildrenVector& unignoredChildren(bool updateChildrenIfNeeded = true) LIFETIME_BOUND { return children(updateChildrenIfNeeded); }
@@ -1112,7 +1142,11 @@ public:
         return !children.isEmpty();
     }
 #endif // ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
-    AccessibilityChildrenVector stitchedUnignoredChildren();
+    virtual AccessibilityChildrenVector stitchedUnignoredChildren();
+    virtual size_t stitchedUnignoredChildrenCount();
+    virtual const AccessibilityChildrenVector* cachedUnignoredChildren() { return nullptr; }
+    virtual const AccessibilityChildrenVector* cachedStitchedUnignoredChildren() { return nullptr; }
+    virtual AccessibilityChildrenVector crossFrameUnignoredChildrenInRange(size_t start, size_t maxCount);
 
     virtual bool isBlockFlow() const { return false; }
     bool hasStitchableRole() const
@@ -1465,6 +1499,61 @@ inline Vector<AXID> axIDs(const AXCoreObject::AccessibilityChildrenVector& objec
     });
 }
 
+template<typename Visitor>
+void AXCoreObject::traverseDescendantsIncludingIgnored(Visitor&& visitor, bool updateChildrenIfNeeded)
+{
+    const auto& children = childrenIncludingIgnored(updateChildrenIfNeeded);
+    if (children.isEmpty())
+        return;
+
+    RefPtr descendant = children[0].ptr();
+    RefPtr<AXCoreObject> parent;
+    const AccessibilityChildrenVector* siblings = nullptr;
+
+    while (descendant && descendant != this) {
+        AXTraversalResult result = visitor(*descendant);
+        if (result == AXTraversalResult::Stop)
+            return;
+
+        if (result == AXTraversalResult::Descend && descendant->shouldSetChildIndexInParent()) {
+            // Ignored or invalid descendant: descend into its subtree to look for unignored nested descendants.
+            // Skip descent into Column and TableHeaderContainer, as they add cells despite not being their "true"
+            // parent (the rows are), so descending would either recurse infinitely or walk the wrong sibling
+            // list. This matches the role check in nextInPreOrder().
+            const auto& descendantChildren = descendant->childrenIncludingIgnored(updateChildrenIfNeeded);
+            if (!descendantChildren.isEmpty()) {
+                descendant = descendantChildren[0].ptr();
+                parent = nullptr;
+                continue;
+            }
+        }
+
+        // Either SkipSubtree, or descent wasn't possible. Advance to the next sibling,
+        // or ascend if there isn't one.
+        while (descendant && descendant != this) {
+            if (!parent) {
+                parent = descendant->parentObject();
+                if (!parent) {
+                    siblings = nullptr;
+                    descendant = nullptr;
+                    break;
+                }
+                siblings = &parent->childrenIncludingIgnored();
+            }
+
+            unsigned nextSiblingIndex = descendant->indexInParent() + 1;
+            if (RefPtr nextSibling = nextSiblingIndex < siblings->size() ? (*siblings)[nextSiblingIndex].ptr() : nullptr) {
+                descendant = WTF::move(nextSibling);
+                break;
+            }
+
+            // No next sibling, ascend to parent.
+            descendant = WTF::move(parent);
+            parent = nullptr;
+        }
+    }
+}
+
 #if PLATFORM(MAC)
 void attributedStringSetExpandedText(NSMutableAttributedString *, const AXCoreObject&, const NSRange&);
 void attributedStringSetNeedsSpellCheck(NSMutableAttributedString *, const AXCoreObject&);
@@ -1809,8 +1898,11 @@ constexpr Seconds BoundingBoxTimeout = 25_ms;
 constexpr Seconds GeneralPropertyTimeout = 25_ms;
 constexpr Seconds VisibilityCheckTimeout = 50_ms;
 constexpr Seconds SpellCheckTimeout = 100_ms;
+constexpr Seconds LineRectsAndTextTimeout = 100_ms;
+constexpr Seconds TextMarkerForBoundsTimeout = 100_ms;
 constexpr Seconds InteractiveTimeout = 250_ms;
 constexpr Seconds ImageDataTimeout = 250_ms;
+constexpr Seconds PluginTimeout = 500_ms;
 
 template<typename U>
 inline DidTimeout performFunctionOnMainThreadAndWaitWithTimeout(U&& lambda, Seconds timeout)

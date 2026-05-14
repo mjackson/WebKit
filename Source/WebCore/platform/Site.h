@@ -40,6 +40,7 @@ public:
     WEBCORE_EXPORT const String& protocol() const;
     const RegistrableDomain& domain() const LIFETIME_BOUND { return m_domain; }
     WEBCORE_EXPORT String toString() const;
+    WEBCORE_EXPORT String loggingString() const;
     bool isEmpty() const { return m_domain.isEmpty(); }
     WEBCORE_EXPORT bool matches(const URL&) const;
 

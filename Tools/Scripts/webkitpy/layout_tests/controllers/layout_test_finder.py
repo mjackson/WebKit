@@ -32,6 +32,9 @@ from webkitpy.layout_tests.models.test import Test
 from webkitpy.thirdparty.wpt.manifest.sourcefile import SourceFile
 from webkitpy.w3c.common import TEMPLATED_TEST_HEADER
 
+IMPORTED_WPT_DIR = "imported/w3c/web-platform-tests"
+LOCAL_WPT_PATH = "http/wpt"
+
 supported_test_extensions = (
     ".htm",
     ".html",
@@ -445,8 +448,8 @@ class LayoutTestFinder(object):
                     and "websocket" in trimmed_path + variant
                 ),
                 is_wpt_test=(
-                    "imported/w3c/web-platform-tests/" in trimmed_path
-                    or "http/wpt/" in trimmed_path
+                    IMPORTED_WPT_DIR + "/" in trimmed_path
+                    or LOCAL_WPT_PATH + "/" in trimmed_path
                 ),
                 is_wpt_crash_test=self.is_wpt_crash_test(trimmed_path),
             )
@@ -611,11 +614,11 @@ class LayoutTestFinder(object):
 
     def is_wpt_crash_test(self, name):
         # This shouldn't exist, we should be reading the WPT manifest instead.
-        if "imported/w3c/web-platform-tests/" in name:
-            base_dir = self.fs.join(self.layout_tests_base_dir, "imported/w3c/web-platform-tests/")
+        if IMPORTED_WPT_DIR + "/" in name:
+            base_dir = self.fs.join(self.layout_tests_base_dir, *IMPORTED_WPT_DIR.split('/'))
             url_base = "/"
-        elif "http/wpt/" in name:
-            base_dir = self.fs.join(self.layout_tests_base_dir, "http/wpt/")
+        elif LOCAL_WPT_PATH + "/" in name:
+            base_dir = self.fs.join(self.layout_tests_base_dir, *LOCAL_WPT_PATH.split('/'))
             url_base = "/WebKit/"
         else:
             return False

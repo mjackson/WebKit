@@ -1023,6 +1023,7 @@ static Vector<TextCheckingResult> core(NSArray *incomingResults, OptionSet<TextC
                 NSArray *guesses = [incomingDetail objectForKey:NSGrammarCorrections];
                 for (NSString *guess in guesses)
                     detail.guesses.append(String(guess));
+                detail.uuid = [incomingDetail objectForKey:@"NSGrammarUUID"];
                 result.details.append(detail);
             }
             results.append(result);

@@ -30,6 +30,7 @@
 #include "ScopedArguments.h"
 #include "Structure.h"
 #include "StructureArrayStorageInlines.h"
+#include <JavaScriptCore/ResourceExhaustion.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 

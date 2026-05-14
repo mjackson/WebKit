@@ -1216,6 +1216,11 @@ private:
             break;
         }
 
+        case StringSplit: {
+            setPrediction(SpecArray);
+            break;
+        }
+
         case StringLocaleCompare: {
             setPrediction(SpecInt32Only);
             break;
@@ -1330,6 +1335,28 @@ private:
             break;
         }
 
+        case GetCellButterflySlot: {
+            switch (m_currentNode->arrayMode().type()) {
+            case Array::Int32:
+                setPrediction(SpecInt32Only);
+                break;
+            default:
+                setPrediction(SpecBytecodeTop);
+                break;
+            }
+            break;
+        }
+
+        case PutCellButterflySlot:
+        case ArraySortCommit: {
+            break;
+        }
+
+        case ArraySortCompact: {
+            setPrediction(SpecObjectOther);
+            break;
+        }
+
         case GetGlobalThis:
             setPrediction(SpecGlobalProxy);
             break;
@@ -1361,10 +1388,13 @@ private:
             break;
 
         case NewInternalFieldObject:
+        case NewPromise:
             setPrediction(speculationFromStructure(m_currentNode->structure().get()));
             break;
             
         case ArraySlice:
+        case ArrayConcatArray:
+        case ArrayConcatAppendOne:
         case NewArrayWithSpread:
         case NewArray:
         case NewArrayWithSize:
@@ -1644,6 +1674,7 @@ private:
         case PhantomNewArrayWithSpread:
         case PhantomNewArrayBuffer:
         case PhantomNewInternalFieldObject:
+        case PhantomNewPromise:
         case PhantomClonedArguments:
         case PhantomNewRegExp:
         case GetMyArgumentByVal:
@@ -1719,6 +1750,7 @@ private:
         case DefineDataProperty:
         case DefineAccessorProperty:
         case ObjectDefineProperty:
+        case ObjectDefinePropertyFromFields:
         case CallCustomAccessorSetter:
         case DFG::Jump:
         case Branch:

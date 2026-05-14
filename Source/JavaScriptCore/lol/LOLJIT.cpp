@@ -60,10 +60,6 @@
 #include "StackAlignment.h"
 #include "ThunkGenerators.h"
 #include "TypeProfilerLog.h"
-#include <wtf/BubbleSort.h>
-#include <wtf/GraphNodeWorklist.h>
-#include <wtf/SequesteredMalloc.h>
-#include <wtf/SimpleStats.h>
 #include <wtf/text/MakeString.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN

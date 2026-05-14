@@ -56,7 +56,7 @@ static bool passesSameOriginCheck(JSC::JSGlobalObject& globalObject, RefPtr<Loca
     Ref frameSecurityOrigin = document->securityOrigin();
     if (!globalObject.inherits<JSDOMGlobalObject>())
         return false;
-    RefPtr scriptExecutionContext = uncheckedDowncast<JSDOMGlobalObject>(globalObject).scriptExecutionContext();
+    RefPtr scriptExecutionContext = downcast<JSDOMGlobalObject>(globalObject).scriptExecutionContext();
     if (!scriptExecutionContext)
         return false;
     RefPtr securityOrigin = scriptExecutionContext->securityOrigin();

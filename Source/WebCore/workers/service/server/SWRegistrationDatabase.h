@@ -78,6 +78,8 @@ private:
     bool ensureValidRecordsTable();
     std::optional<uint64_t> recordsCount();
     std::optional<Vector<ServiceWorkerContextData>> importRegistrationsImpl();
+    std::optional<Vector<ServiceWorkerContextData>> importRegistrationsImpl(const SecurityOriginData& topOrigin);
+    std::optional<HashSet<ClientOrigin>> importOriginsImpl();
     Vector<ServiceWorkerContextData> collectRegistrationsFromStatement(SQLiteStatement&);
     std::optional<Vector<ServiceWorkerScripts>> updateRegistrationsImpl(const Vector<ServiceWorkerContextData>&, const Vector<ServiceWorkerRegistrationKey>&);
 

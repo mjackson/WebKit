@@ -38,7 +38,6 @@
 #include "DFGNodeType.h"
 #include "DFGPhase.h"
 #include "FunctionAllowlist.h"
-#include <wtf/IndexMap.h>
 
 namespace JSC {
 namespace DFG {
@@ -875,6 +874,7 @@ bool LoopUnrollingPhase::LoopData::isMaterialNode(Graph& graph, Node* node)
     case PhantomNewAsyncGeneratorFunction:
     case PhantomNewAsyncFunction:
     case PhantomNewInternalFieldObject:
+    case PhantomNewPromise:
     case PhantomCreateActivation:
     case PhantomDirectArguments:
     case PhantomCreateRest:

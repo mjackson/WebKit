@@ -116,7 +116,7 @@ void ProcessLauncher::launchProcess()
             g_error("Unable to spawn a new child process");
 
         // We've finished launching the process, message back to the main run loop.
-        RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }, this, serverSocket = WTF::move(webkitSocketPair.server)] mutable {
+        RunLoop::mainSingleton().dispatch([protectedThis = protect(*this), this, serverSocket = WTF::move(webkitSocketPair.server)] mutable {
             didFinishLaunchingProcess(m_processID, IPC::Connection::Identifier { WTF::move(serverSocket) });
         });
 
@@ -237,7 +237,7 @@ void ProcessLauncher::launchProcess()
         // We need to get the pid of the actual WebKit auxiliary process, not the bwrap or flatpak-spawn
         // intermediate process. And do it without blocking, because process launching is slow.
         g_socket_set_blocking(socket.get(), FALSE);
-        m_socketMonitor.start(socket.get(), G_IO_IN, RunLoop::mainSingleton(), nullptr, [protectedThis = Ref { *this }, this, socket](GIOCondition condition) mutable -> gboolean {
+        m_socketMonitor.start(socket.get(), G_IO_IN, RunLoop::mainSingleton(), nullptr, [protectedThis = protect(*this), this, socket](GIOCondition condition) mutable -> gboolean {
             if (!(condition & G_IO_IN))
                 g_error("Failed to read pid from child process");
 
@@ -260,7 +260,7 @@ void ProcessLauncher::launchProcess()
     m_processID = g_ascii_strtoll(processIdStr, nullptr, 0);
     RELEASE_ASSERT(m_processID);
 
-    RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }, this, serverSocket = WTF::move(webkitSocketPair.server)] mutable {
+    RunLoop::mainSingleton().dispatch([protectedThis = protect(*this), this, serverSocket = WTF::move(webkitSocketPair.server)] mutable {
         didFinishLaunchingProcess(m_processID, IPC::Connection::Identifier { WTF::move(serverSocket) });
     });
 }

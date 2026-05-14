@@ -25,6 +25,9 @@
 
 namespace JSC {
 
+struct CallData;
+
+class JSString;
 class ObjectPrototype;
 class RegExp;
 class RegExpObject;
@@ -53,8 +56,12 @@ STATIC_ASSERT_ISO_SUBSPACE_SHARABLE(StringPrototype, StringObject);
 void substituteBackreferences(StringBuilder& result, const String& replacement, StringView source, const int* ovector, RegExp*);
 void substituteBackreferencesSlow(StringBuilder& result, StringView replacement, StringView source, const int* ovector, RegExp*, size_t firstDollarSignPosition);
 
+JSString* replaceUsingRegExpSearch(VM&, JSGlobalObject*, JSString*, JSValue searchValue, const CallData&, const String& replacementString, JSValue replaceValue);
+JSString* replaceUsingRegExpSearch(VM&, JSGlobalObject*, JSString*, JSValue searchValue, JSValue replaceValue);
+
 JSC_DECLARE_HOST_FUNCTION(stringProtoFuncRepeatCharacter);
-JSC_DECLARE_HOST_FUNCTION(stringProtoFuncSplitFast);
+JSC_DECLARE_HOST_FUNCTION(stringProtoFuncSplit);
+JSCell* stringSplitFast(JSGlobalObject*, JSString* thisString, JSString* separatorString, unsigned limit);
 JSC_DECLARE_HOST_FUNCTION(stringProtoFuncSubstring);
 
 JSC_DECLARE_HOST_FUNCTION(builtinStringIncludesInternal);

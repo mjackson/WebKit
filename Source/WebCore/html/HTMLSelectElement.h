@@ -125,6 +125,7 @@ public:
 
     bool popupIsVisible() const { return m_popupIsVisible; }
     WEBCORE_EXPORT void setPopupIsVisible(bool);
+    std::optional<FloatPoint> lastPopupLocationForTesting() const { return m_lastPopupLocationForTesting; }
 
     bool NODELETE isOpen() const;
 
@@ -232,6 +233,8 @@ private:
 
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
 
+    void setDisabledInternal(bool disabled, bool disabledByAncestorFieldset) final;
+
     bool hasPresentationalHintsForAttribute(const QualifiedName&) const final;
 
     bool childShouldCreateRenderer(const Node&) const final;
@@ -322,6 +325,7 @@ private:
 #if !PLATFORM(IOS_FAMILY)
     RefPtr<PopupMenu> m_popup;
 #endif
+    std::optional<FloatPoint> m_lastPopupLocationForTesting;
     bool m_popupIsVisible { false };
     bool m_wasBaseAppearance { false };
 };

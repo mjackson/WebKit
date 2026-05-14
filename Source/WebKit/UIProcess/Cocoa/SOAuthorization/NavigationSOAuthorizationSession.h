@@ -30,6 +30,7 @@
 #include "SOAuthorizationSession.h"
 #include "WebViewDidMoveToWindowObserver.h"
 #include <wtf/CompletionHandler.h>
+#include <wtf/URL.h>
 #include <wtf/text/WTFString.h>
 
 namespace WebKit {

@@ -39,7 +39,7 @@ struct GainMap {
 #if PLATFORM(COCOA)
     RetainPtr<CGImageMetadataRef> metadata;
     RetainPtr<CVPixelBufferRef> gainMapPixelBuffer;
-    DestinationColorSpace colorSpace;
+    std::optional<DestinationColorSpace> colorSpace;
 #endif
 };
 

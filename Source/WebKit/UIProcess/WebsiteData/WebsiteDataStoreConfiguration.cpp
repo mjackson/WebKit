@@ -26,11 +26,21 @@
 #include "config.h"
 #include "WebsiteDataStoreConfiguration.h"
 
+#include "TimeBasedEvictionMode.h"
 #include "UnifiedOriginStorageLevel.h"
 #include "WebPushDaemonConnectionConfiguration.h"
 #include "WebsiteDataStore.h"
 
 namespace WebKit {
+
+TimeBasedEvictionMode WebsiteDataStoreConfiguration::defaultTimeBasedEvictionMode()
+{
+#if ENABLE(TIME_BASED_EVICTION_SERVICE_WORKER_ONLY)
+    return TimeBasedEvictionMode::ServiceWorkerRegistrationsOnly;
+#else
+    return TimeBasedEvictionMode::Disabled;
+#endif
+}
 
 WebsiteDataStoreConfiguration::WebsiteDataStoreConfiguration(IsPersistent isPersistent, ShouldInitializePaths shouldInitializePaths)
     : m_isPersistent(isPersistent)
@@ -177,6 +187,11 @@ Ref<WebsiteDataStoreConfiguration> WebsiteDataStoreConfiguration::copy() const
     copy->m_webContentRestrictionsConfigurationFile = this->m_webContentRestrictionsConfigurationFile;
 #endif
     copy->m_additionalDomainsWithUserInteractionForTesting = this->m_additionalDomainsWithUserInteractionForTesting;
+    copy->m_timeBasedEvictionMode = this->m_timeBasedEvictionMode;
+    copy->m_timeBasedEvictionThreshold = this->m_timeBasedEvictionThreshold;
+    copy->m_lastModificationTimeUpdateIntervalOverride = this->m_lastModificationTimeUpdateIntervalOverride;
+    copy->m_timeBasedEvictionIntervalOverride = this->m_timeBasedEvictionIntervalOverride;
+    copy->m_defaultTrackingPreventionEnabledOverride = this->m_defaultTrackingPreventionEnabledOverride;
 
     return copy;
 }

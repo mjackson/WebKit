@@ -28,6 +28,7 @@
 #include <WebCore/GlyphPage.h>
 #include <WebCore/TextMeasurementCache.h>
 #include <WebCore/TextRun.h>
+#include <wtf/CurrentThread.h>
 #include <wtf/EnumeratedArray.h>
 #include <wtf/Forward.h>
 #include <wtf/HashFunctions.h>
@@ -36,6 +37,7 @@
 #include <wtf/MainThread.h>
 #include <wtf/Platform.h>
 #include <wtf/TriState.h>
+#include <wtf/unicode/CharacterNames.h>
 
 #if PLATFORM(IOS_FAMILY)
 #include <WebCore/WebCoreThread.h>
@@ -69,6 +71,7 @@ struct GlyphOverflow {
 struct GlyphGeometryCacheEntry {
     Markable<float> width;
     Markable<GlyphOverflow> glyphOverflow;
+    bool usedFallbackFonts { false };
 };
 
 namespace ShapedTextCacheDefaults {
@@ -167,8 +170,11 @@ private:
 
     class GlyphPageCacheEntry {
     public:
-        GlyphPageCacheEntry() = default;
+        GlyphPageCacheEntry();
         GlyphPageCacheEntry(RefPtr<GlyphPage>&&);
+        GlyphPageCacheEntry(GlyphPageCacheEntry&&) = default;
+        GlyphPageCacheEntry& operator=(GlyphPageCacheEntry&&) = default;
+        ~GlyphPageCacheEntry();
 
         GlyphData glyphDataForCharacter(char32_t);
 
@@ -198,7 +204,7 @@ private:
     bool m_isForPlatformFont { false };
     TriState m_canTakeFixedPitchFastContentMeasuring : 2 { TriState::Indeterminate };
 #if ASSERT_ENABLED
-    std::optional<Ref<Thread>> m_thread;
+    std::optional<uint32_t> m_creationThreadID;
 #endif
 };
 
@@ -218,21 +224,21 @@ inline bool FontCascadeFonts::canTakeFixedPitchFastContentMeasuring(const FontCa
 
 inline const Font& FontCascadeFonts::primaryFont(const FontCascadeDescription& description, FontSelector* fontSelector)
 {
-    ASSERT(m_thread ? m_thread->ptr() == &Thread::currentSingleton() : isMainThread());
+    ASSERT(m_creationThreadID ? *m_creationThreadID == currentThreadID() : isMainThread());
     if (!m_cachedPrimaryFont) {
         // CSS Fonts 4 §5.2: "The first available font [...] is defined to be the first font for which
         // the character U+0020 (space) is not excluded by a unicode-range [...]. Note: it does not
         // matter whether that font actually has a glyph for the space character."
         auto& primaryRanges = realizeFallbackRangesAt(description, fontSelector, 0);
-        m_cachedPrimaryFont = primaryRanges.glyphDataForCharacter(' ', ExternalResourceDownloadPolicy::Allow).font.get();
-        if (!m_cachedPrimaryFont && primaryRanges.hasRangeContaining(' '))
+        m_cachedPrimaryFont = primaryRanges.glyphDataForCharacter(space, ExternalResourceDownloadPolicy::Allow).font.get();
+        if (!m_cachedPrimaryFont && primaryRanges.hasRangeContaining(space))
             m_cachedPrimaryFont = primaryRanges.rangeAt(0).font(ExternalResourceDownloadPolicy::Allow);
         if (!m_cachedPrimaryFont || m_cachedPrimaryFont->isInterstitial()) {
             for (unsigned index = 1; ; ++index) {
                 auto& localRanges = realizeFallbackRangesAt(description, fontSelector, index);
                 if (localRanges.isNull())
                     break;
-                WeakPtr font = localRanges.glyphDataForCharacter(' ', ExternalResourceDownloadPolicy::Forbid).font.get();
+                WeakPtr font = localRanges.glyphDataForCharacter(space, ExternalResourceDownloadPolicy::Forbid).font.get();
                 if (font && !font->isInterstitial()) {
                     m_cachedPrimaryFont = WTF::move(font);
                     break;

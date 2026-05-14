@@ -96,7 +96,11 @@ bool AXGeometryManager::cacheRectIfNeeded(AXID axID, IntRect&& rect)
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     invalidateHitTestCacheForID(axID);
 
-    RefPtr tree = AXIsolatedTree::treeForFrameID(m_cache->frameID());
+    CheckedPtr cache = m_cache;
+    if (!cache)
+        return false;
+
+    RefPtr tree = AXIsolatedTree::treeForFrameID(cache->frameID());
     if (!tree)
         return false;
     tree->updateFrame(axID, WTF::move(rect));
@@ -148,19 +152,25 @@ void AXGeometryManager::willUpdateObjectRegions()
     if (m_updateObjectRegionsTimer.isActive())
         m_updateObjectRegionsTimer.stop();
 
-    if (!m_cache)
+    CheckedPtr cache = m_cache;
+    if (!cache)
         return;
 
-    if (RefPtr tree = AXIsolatedTree::treeForFrameID(m_cache->frameID()))
+    if (RefPtr tree = AXIsolatedTree::treeForFrameID(cache->frameID()))
         tree->updateRootScreenRelativePosition();
 }
 
 void AXGeometryManager::scheduleRenderingUpdate()
 {
-    if (!m_cache || !m_cache->document())
+    CheckedPtr cache = m_cache;
+    if (!cache)
         return;
 
-    if (RefPtr page = m_cache->document()->page())
+    RefPtr document = cache->document();
+    if (!document)
+        return;
+
+    if (RefPtr page = document->page())
         page->scheduleRenderingUpdate(RenderingUpdateStep::AccessibilityRegionUpdate);
 }
 

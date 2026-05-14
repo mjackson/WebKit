@@ -27,8 +27,6 @@
 
 #if LIBPAS_ENABLED
 
-#include "bmalloc_heap_config.h"
-#include "bmalloc_heap_inlines.h"
 #include "pas_darwin_spi.h"
 #include "pas_malloc_stack_logging.h"
 #include <stdlib.h>

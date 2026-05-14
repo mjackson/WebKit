@@ -30,12 +30,14 @@
         testExpected('sourceBuffer.videoTracks.length', 1);
         testExpected('sourceBuffer.videoTracks[0].selected', true);
         testExpected('source.activeSourceBuffers.length', 1);
-
-        endTest();
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

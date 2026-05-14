@@ -682,7 +682,7 @@ String HTMLFormElement::action() const
     auto& value = attributeWithoutSynchronization(actionAttr);
     if (value.isEmpty())
         return document().url().string();
-    return document().completeURL(value).string();
+    return document().encodingParseURL(value).string();
 }
 
 String HTMLFormElement::method() const

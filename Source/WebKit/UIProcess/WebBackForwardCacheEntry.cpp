@@ -30,6 +30,7 @@
 #include "SuspendedPageProxy.h"
 #include "WebBackForwardCache.h"
 #include "WebBackForwardListFrameItem.h"
+#include "WebBackForwardListItem.h"
 #include "WebProcessMessages.h"
 #include "WebProcessProxy.h"
 #include <wtf/TZoneMallocInlines.h>
@@ -58,7 +59,12 @@ WebBackForwardCacheEntry::WebBackForwardCacheEntry(WebBackForwardCache& backForw
 
 WebBackForwardCacheEntry::~WebBackForwardCacheEntry()
 {
-    if (m_backForwardFrameItemID && !m_suspendedPage) {
+    // m_backForwardFrameItemID is cleared by takeSuspendedPage(), so this
+    // correctly skips on the BFCache restore path. On capacity eviction we
+    // must still clear the cached page even when a SuspendedPageProxy is
+    // held, since the SPP may be shared with other entries in the same
+    // process and won't be destroyed by this drop.
+    if (m_backForwardFrameItemID) {
         if (auto process = this->process())
             process->sendWithAsyncReply(Messages::WebProcess::ClearCachedPage(*m_backForwardFrameItemID), [] { });
     }
@@ -67,6 +73,16 @@ WebBackForwardCacheEntry::~WebBackForwardCacheEntry()
 WebBackForwardCache* WebBackForwardCacheEntry::backForwardCache() const
 {
     return m_backForwardCache.get();
+}
+
+void WebBackForwardCacheEntry::setSuspendedPage(Ref<SuspendedPageProxy>&& suspendedPage)
+{
+    m_suspendedPage = WTF::move(suspendedPage);
+}
+
+void WebBackForwardCacheEntry::clearSuspendedPage()
+{
+    m_suspendedPage = nullptr;
 }
 
 Ref<SuspendedPageProxy> WebBackForwardCacheEntry::takeSuspendedPage()

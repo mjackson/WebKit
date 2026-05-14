@@ -52,7 +52,7 @@ std::optional<ShareableGainMap> ShareableGainMap::create(const std::optional<Gai
     return ShareableGainMap { WTF::move(metadata), gainMapShareablePixelBuffer.releaseNonNull(), gainMap->colorSpace };
 }
 
-std::optional<ShareableGainMap> ShareableGainMap::create(RetainPtr<CFDataRef>&& metadata, Ref<ShareableCVPixelBuffer>&& gainMapShareablePixelBuffer, const DestinationColorSpace& colorSpace)
+std::optional<ShareableGainMap> ShareableGainMap::create(RetainPtr<CFDataRef>&& metadata, Ref<ShareableCVPixelBuffer>&& gainMapShareablePixelBuffer, const std::optional<DestinationColorSpace> colorSpace)
 {
     if (!metadata)
         return std::nullopt;
@@ -60,7 +60,7 @@ std::optional<ShareableGainMap> ShareableGainMap::create(RetainPtr<CFDataRef>&& 
     return ShareableGainMap { WTF::move(metadata), WTF::move(gainMapShareablePixelBuffer), colorSpace };
 }
 
-ShareableGainMap::ShareableGainMap(RetainPtr<CFDataRef>&& metadata, Ref<ShareableCVPixelBuffer>&& gainMapShareablePixelBuffer, const DestinationColorSpace& colorSpace)
+ShareableGainMap::ShareableGainMap(RetainPtr<CFDataRef>&& metadata, Ref<ShareableCVPixelBuffer>&& gainMapShareablePixelBuffer, const std::optional<DestinationColorSpace> colorSpace)
     : m_metadata(WTF::move(metadata))
     , m_gainMapShareablePixelBuffer(WTF::move(gainMapShareablePixelBuffer))
     , m_colorSpace(colorSpace)
@@ -98,7 +98,7 @@ PlatformImagePtr ShareableGainMap::applyGainMapToBaseImage(PlatformImagePtr base
 
     RetainPtr options = adoptCF(CFDictionaryCreateMutable(nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
     CFDictionarySetValue(options, kCGImageAuxiliaryDataInfoMetadata, metadata);
-    CFDictionarySetValue(options, kCGImageAuxiliaryDataInfoColorSpace, m_colorSpace.platformColorSpace());
+    CFDictionarySetValue(options, kCGImageAuxiliaryDataInfoColorSpace, m_colorSpace ? m_colorSpace->platformColorSpace() : nullptr);
 
     auto status = CGImageApplyHDRGainMap(baseImagePixelBuffer, gainMapPixelBuffer, outputImagePixelBuffer, options);
     if (status != kCVReturnSuccess) {

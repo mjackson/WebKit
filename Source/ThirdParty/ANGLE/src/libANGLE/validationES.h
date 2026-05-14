@@ -42,7 +42,6 @@ class Shader;
     ANGLE_UNSAFE_TODO(context->getMutableErrorSetForValidation()->validationErrorF( \
         entryPoint, errorCode, __VA_ARGS__))
 
-void SetRobustLengthParam(const GLsizei *length, GLsizei value);
 bool ValidTextureTarget(const Context *context, TextureType type);
 bool ValidTexture2DTarget(const Context *context, TextureType type);
 bool ValidTexture3DTarget(const Context *context, TextureType target);
@@ -187,12 +186,9 @@ bool ValidatePixelPack(const Context *context,
                        angle::EntryPoint entryPoint,
                        GLenum format,
                        GLenum type,
-                       GLint x,
-                       GLint y,
                        GLsizei width,
                        GLsizei height,
                        GLsizei bufSize,
-                       GLsizei *length,
                        const void *pixels);
 
 bool ValidateReadPixelsBase(const Context *context,
@@ -204,9 +200,6 @@ bool ValidateReadPixelsBase(const Context *context,
                             GLenum format,
                             GLenum type,
                             GLsizei bufSize,
-                            GLsizei *length,
-                            GLsizei *columns,
-                            GLsizei *rows,
                             const void *pixels);
 bool ValidateBeginQueryBase(const Context *context,
                             angle::EntryPoint entryPoint,
@@ -500,10 +493,6 @@ bool ValidateGenOrDelete(ErrorSet *errors, angle::EntryPoint entryPoint, GLint n
 bool ValidateRobustEntryPoint(const Context *context,
                               angle::EntryPoint entryPoint,
                               GLsizei bufSize);
-bool ValidateRobustBufferSize(const Context *context,
-                              angle::EntryPoint entryPoint,
-                              GLsizei bufSize,
-                              GLsizei numParams);
 bool ValidateRobustParamCount(const Context *context,
                               angle::EntryPoint entryPoint,
                               GLsizei paramCount,
@@ -909,13 +898,83 @@ ANGLE_INLINE bool ValidateDrawInstancedAttribs(const Context *context,
         return true;
     }
 
-    // Validate that the buffers bound for the attributes can hold enough vertices for this
-    // instanced draw.  For attributes with a divisor of 0, ValidateDrawAttribs already checks this.
-    // Thus, the following only checks attributes with a non-zero divisor (i.e. "instanced").
-    const GLint64 limit = context->getInstancedVertexElementLimit();
-    if (baseinstance >= limit || primcount > limit - baseinstance)
+    // For each instance, attribute element index = floor(instance / attrib.divisor) + baseinstance.
+    // The instance runs [0..primcount - 1], so max instance is primcount - 1.
+    // For all attribs with attrib.divisor != 0, check max element index < attrib.elementIndex:
+    //    floor((primcount - 1) / attrib.divisor) + baseinstance < attrib.elementLimit.
+
+    if (ANGLE_LIKELY(baseinstance == 0))
     {
-        RecordDrawAttribsError(context, entryPoint);
+        // Fast path when baseinstance == 0:
+        // floor((primcount - 1) / attrib.divisor) < attrib.elementLimit
+        // ->
+        // primcount <= min(attrib.elementLimit * divisor)
+        const GLint64 limit = context->getInstancedVertexElementLimit();
+        if (primcount > limit)
+        {
+            RecordDrawAttribsError(context, entryPoint);
+            return false;
+        }
+        return true;
+    }
+
+    const VertexArray *vao = context->getState().getVertexArray();
+    if (!vao)
+    {
+        return true;
+    }
+
+    const auto &vertexAttribs  = vao->getVertexAttributes();
+    const auto &vertexBindings = vao->getVertexBindings();
+
+    for (size_t attributeIndex : context->getActiveBufferedAttribsMask())
+    {
+        const VertexAttribute &attrib = vertexAttribs[attributeIndex];
+        const VertexBinding &binding  = vertexBindings[attrib.bindingIndex];
+
+        GLuint divisor = binding.getDivisor();
+        if (divisor == 0)
+        {
+            // Non-instanced attributes are validated by ValidateDrawAttribs.
+            continue;
+        }
+
+        GLint64 elementLimit = attrib.getCachedElementLimit();
+        if (elementLimit == VertexAttribute::kIntegerOverflow || elementLimit < 0)
+        {
+            RecordDrawAttribsError(context, entryPoint);
+            return false;
+        }
+        // Compute max instance attribute index = floor(instance / divisor) + baseinstance.
+        GLint64 lastIndex =
+            static_cast<GLint64>((static_cast<GLuint>(primcount) - 1u) / divisor) + baseinstance;
+
+        if (lastIndex >= elementLimit)
+        {
+            RecordDrawAttribsError(context, entryPoint);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+ANGLE_INLINE bool ValidateDrawInstancedCounts(const Context *context,
+                                              angle::EntryPoint entryPoint,
+                                              GLsizei primcount,
+                                              GLuint baseinstance)
+{
+    if (ANGLE_UNLIKELY(!context->getLimitations().instanceIdMayOverflow))
+    {
+        return true;
+    }
+
+    angle::CheckedNumeric<GLuint> checkedSum = baseinstance;
+    checkedSum += primcount - 1;
+
+    if (ANGLE_UNLIKELY(!checkedSum.IsValid()))
+    {
+        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, err::kInstanceIdOverflow);
         return false;
     }
 
@@ -1134,7 +1193,7 @@ ANGLE_INLINE bool ValidateDrawElementsCommon(const Context *context,
                 return false;
             }
 
-            if (!ValidateDrawAttribs(context, entryPoint, static_cast<GLint>(indexRange.end())))
+            if (!ValidateDrawAttribs(context, entryPoint, static_cast<GLint64>(indexRange.end())))
             {
                 return false;
             }

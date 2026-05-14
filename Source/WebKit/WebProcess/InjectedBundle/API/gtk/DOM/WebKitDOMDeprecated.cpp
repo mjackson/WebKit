@@ -157,7 +157,7 @@ WebKitDOMText* webkit_dom_text_replace_whole_text(WebKitDOMText* self, const gch
     g_return_val_if_fail(!error || !*error, nullptr);
 
     WebCore::JSMainThreadNullState state;
-    RefPtr { WebKit::core(self) }->replaceWholeText(WTF::String::fromUTF8(content));
+    protect(WebKit::core(self))->replaceWholeText(WTF::String::fromUTF8(content));
     return self;
 }
 

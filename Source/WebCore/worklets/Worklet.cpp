@@ -69,7 +69,7 @@ void Worklet::addModule(const String& moduleURLString, WorkletOptions&& options,
         return;
     }
 
-    URL moduleURL = document->completeURL(moduleURLString);
+    URL moduleURL = document->encodingParseURL(moduleURLString);
     if (!moduleURL.isValid()) {
         promise.reject(Exception { ExceptionCode::SyntaxError, "Module URL is invalid"_s });
         return;

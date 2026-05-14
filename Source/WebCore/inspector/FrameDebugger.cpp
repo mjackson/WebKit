@@ -26,6 +26,7 @@
 #include "config.h"
 #include "FrameDebugger.h"
 
+#include "ActiveDOMObject.h"
 #include "CommonVM.h"
 #include "DOMWrapperWorld.h"
 #include "Document.h"

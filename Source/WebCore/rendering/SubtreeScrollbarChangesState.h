@@ -35,6 +35,8 @@ class RenderBlock;
 struct SubtreeScrollbarChangesState {
     CheckedRef<RenderBlock> subtreeRoot;
     ListHashSet<CheckedRef<RenderBlock>> renderersWithScrollbarChange;
+
+    static bool isEligibleForScrollbarHandlingByAncestor(const RenderBlock&);
 };
 
 class LocalFrameViewLayoutContext;

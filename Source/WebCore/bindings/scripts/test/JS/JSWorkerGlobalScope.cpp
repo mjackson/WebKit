@@ -67,24 +67,23 @@ using JSWorkerGlobalScopeDOMConstructor = JSDOMConstructorNotConstructable<JSWor
 
 /* Hash table */
 
-static const struct CompactHashIndex JSWorkerGlobalScopeTableIndex[17] = {
-    { -1, -1 },
+static const struct CompactHashIndex JSWorkerGlobalScopeTableIndex[16] = {
     { 1, -1 },
     { 4, -1 },
     { -1, -1 },
+    { -1, -1 },
+    { 2, -1 },
     { -1, -1 },
     { 3, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 0, 16 },
-    { -1, -1 },
-    { 2, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
     { 5, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 0, -1 },
+    { -1, -1 },
 };
 
 

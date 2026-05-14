@@ -53,7 +53,6 @@
 #include "ThunkGenerators.h"
 #include "TypeProfilerLog.h"
 #include <wtf/BubbleSort.h>
-#include <wtf/GraphNodeWorklist.h>
 #include <wtf/SequesteredMalloc.h>
 #include <wtf/SimpleStats.h>
 #include <wtf/text/MakeString.h>

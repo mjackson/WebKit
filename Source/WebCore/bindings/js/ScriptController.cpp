@@ -76,6 +76,7 @@
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/JSModuleRecord.h>
 #include <JavaScriptCore/JSNativeStdFunction.h>
+#include <JavaScriptCore/JSObjectInlines.h>
 #include <JavaScriptCore/ScriptCallStack.h>
 #include <JavaScriptCore/StrongInlines.h>
 #include <JavaScriptCore/SyntheticModuleRecord.h>
@@ -334,7 +335,7 @@ void ScriptController::initScriptForWindowProxy(JSWindowProxy& windowProxy)
     JSC::VM& vm = world->vm();
     auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
-    uncheckedDowncast<JSDOMWindow>(windowProxy.window())->updateDocument();
+    downcast<JSDOMWindow>(windowProxy.window())->updateDocument();
     EXCEPTION_ASSERT_UNUSED(scope, !scope.exception());
 
     windowProxy.window()->setConsoleClient(m_frame->console());
@@ -514,7 +515,7 @@ void ScriptController::updateDocument()
     RefPtr document = m_frame->document();
     for (auto& jsWindowProxy : protect(windowProxy())->jsWindowProxiesAsVector()) {
         JSLockHolder lock(jsWindowProxy->world().vm());
-        uncheckedDowncast<JSDOMWindow>(jsWindowProxy->window())->updateDocument();
+        downcast<JSDOMWindow>(jsWindowProxy->window())->updateDocument();
         if (document)
             document->addMicrotaskGlobalObject(jsWindowProxy->window());
     }

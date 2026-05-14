@@ -84,7 +84,7 @@ public:
 
     void startSuspension(std::optional<WebCore::BackForwardFrameItemIdentifier>);
     void waitUntilReadyToUnsuspend(CompletionHandler<void(SuspendedPageProxy*)>&&);
-    void unsuspend();
+    void unsuspend(WebCore::BackForwardFrameItemIdentifier);
 
     bool hasSubframeInProcess(WebCore::ProcessIdentifier) const;
 

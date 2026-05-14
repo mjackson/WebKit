@@ -25,9 +25,9 @@
 
 #pragma once
 
-#include "ISO8601.h"
-#include "IntlObject.h"
-#include "JSObject.h"
+#include <JavaScriptCore/ISO8601.h>
+#include <JavaScriptCore/IntlObject.h>
+#include <JavaScriptCore/JSObject.h>
 
 namespace JSC {
 

@@ -389,7 +389,14 @@ struct Shape {
     Position startingPoint;
     Commands commands;
 
-    bool operator==(const Shape&) const = default;
+    Shape(std::optional<FillRule>, Position&&, Commands&&);
+    Shape(Shape&&);
+    Shape(const Shape&);
+    Shape& operator=(Shape&&);
+    Shape& operator=(const Shape&);
+    ~Shape();
+
+    bool operator==(const Shape&) const;
 };
 using ShapeFunction = FunctionNotation<CSSValueShape, Shape>;
 

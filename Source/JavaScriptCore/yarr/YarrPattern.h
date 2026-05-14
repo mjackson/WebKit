@@ -52,7 +52,7 @@ struct CharacterRange {
     char32_t begin { 0 };
     char32_t end { UCHAR_MAX_VALUE };
 
-    CharacterRange(char32_t begin, char32_t end)
+    constexpr CharacterRange(char32_t begin, char32_t end)
         : begin(begin)
         , end(end)
     {

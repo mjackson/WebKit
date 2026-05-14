@@ -157,6 +157,11 @@ static bool shouldDisableMutationEvents(const std::string& pathOrURL)
         || pathContains(pathOrURL, "html/semantics/forms/the-select-element/");
 }
 
+static bool shouldEnableTouchEventRegions(const std::string& pathOrURL)
+{
+    return pathContains(pathOrURL, "touch-event-regions-layer-tree/");
+}
+
 TestFeatures hardcodedFeaturesBasedOnPathForTest(const TestCommand& command)
 {
     TestFeatures features;
@@ -190,6 +195,8 @@ TestFeatures hardcodedFeaturesBasedOnPathForTest(const TestCommand& command)
         features.boolWebPreferenceFeatures.insert({ "UsesBackForwardCache", true });
     if (shouldDisableMutationEvents(command.pathOrURL))
         features.boolWebPreferenceFeatures.insert({ "MutationEventsEnabled", false });
+    if (shouldEnableTouchEventRegions(command.pathOrURL))
+        features.boolWebPreferenceFeatures.insert({ "AlwaysUseTouchEventRegions", true });
 
     return features;
 }

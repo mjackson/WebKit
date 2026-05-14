@@ -30,6 +30,7 @@
 #include <WebCore/BlobData.h>
 #include <WebCore/FormData.h>
 #include <WebCore/HistoryItem.h>
+#include <WebCore/SerializedScriptValue.h>
 #include <wtf/FileSystem.h>
 
 namespace WebKit {

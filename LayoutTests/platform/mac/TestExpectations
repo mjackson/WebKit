@@ -715,9 +715,6 @@ webkit.org/b/122021 media/track/track-in-band-mode.html [ Failure ]
 # FIXME: Needs bugzilla (<rdar://problem/16802068>)
 fast/css/input-search-padding.html [ Failure ]
 
-# FIXME: Needs bugzilla (<rdar://problem/17458211>)
-platform/mac/fast/text/systemFont.html [ Pass Failure ]
-
 # --- Start Media Source Tests ---
 ## --- Start W3C Imported Media Source Tests
 # Failing Media Source tests
@@ -924,8 +921,6 @@ webkit.org/b/155505 http/tests/security/contentSecurityPolicy/userAgentShadowDOM
 webkit.org/b/156983 media/video-fullscreen-restriction-removed.html [ Pass Failure ]
 
 webkit.org/b/155196 security/contentSecurityPolicy/video-with-file-url-allowed-by-media-src-star.html [ Pass ImageOnlyFailure ]
-webkit.org/b/155196 security/contentSecurityPolicy/video-with-data-url-allowed-by-media-src-star.html [ Pass ImageOnlyFailure ]
-webkit.org/b/155196 security/contentSecurityPolicy/video-with-blob-url-allowed-by-media-src-star.html [ Skip ]
 webkit.org/b/155196 security/contentSecurityPolicy/video-with-file-url-allowed-by-media-src-star-with-AllowContentSecurityPolicySourceStarToMatchAnyProtocol-enabled.html [ Pass ImageOnlyFailure ]
 
 webkit.org/b/158534 css3/filters/backdrop/dynamic-backdrop-filter-change.html [ Pass ImageOnlyFailure ]
@@ -976,16 +971,12 @@ compositing/video/poster.html [ Pass ImageOnlyFailure ]
 
 webkit.org/b/161883 imported/w3c/web-platform-tests/dom/nodes/ProcessingInstruction-escapes-1.xhtml [ Pass Failure ]
 
-webkit.org/b/162523 imported/w3c/web-platform-tests/media-source/mediasource-preload.html [ Pass Failure ]
 
-webkit.org/b/162626 imported/w3c/web-platform-tests/media-source/mediasource-liveseekable.html [ Pass Failure ]
 
 webkit.org/b/162647 http/tests/xmlhttprequest/onabort-response-getters.html [ Pass Failure ]
 
 [ Debug ] fast/selectors/slow-style-sharing-with-long-cousin-list.html [ Skip ]
 
-webkit.org/b/197068 [ Debug ] fast/selectors/matches-backtracking.html [ Pass Timeout ]
-webkit.org/b/197068 [ Debug ] fast/selectors/is-backtracking.html [ Pass Timeout ]
 
 webkit.org/b/161720 [ Debug ] storage/indexeddb/key-type-array.html [ Pass Timeout ]
 
@@ -1392,8 +1383,6 @@ webkit.org/b/203357 [ Debug ] imported/w3c/web-platform-tests/css/css-transition
 # rdar://54275897 ([ macOS ] Add support for batched key requests)
 platform/mac/media/encrypted-media/fps-multiple-pssh.html [ Skip ]
 
-webkit.org/b/204756 imported/w3c/web-platform-tests/fetch/content-encoding/bad-gzip-body.any.worker.html [ Pass Failure ]
-
 # <rdar://problem/55667423> REGRESSION: [19E136] fast/text/emoji-gender* tests are failing.
 webkit.org/b/204820 fast/text/emoji-gender-3.html [ ImageOnlyFailure ]
 webkit.org/b/204820 fast/text/emoji-gender-4.html [ ImageOnlyFailure ]
@@ -1445,10 +1434,6 @@ webkit.org/b/206285 inspector/worker/debugger-pause.html [ Pass Failure ]
 webkit.org/b/207142 requestidlecallback/requestidlecallback-is-called.html [ Pass Failure ]
 
 webkit.org/b/207226 http/tests/misc/image-blocked-src-change.html [ Pass Failure ]
-
-webkit.org/b/206908 imported/w3c/web-platform-tests/hr-time/basic.any.html [ Pass Failure ]
-
-webkit.org/b/232316 imported/w3c/web-platform-tests/hr-time/basic.html [ Pass Failure ]
 
 webkit.org/b/207306 inspector/animation/lifecycle-css-animation.html [ Pass Failure ]
 
@@ -1565,8 +1550,6 @@ editing/pasteboard/5478250.html [ Pass Failure ]
 # rdar://66784420
 imported/mozilla/svg/filters/feImage-1.svg [ Pass ImageOnlyFailure ]
 
-# <rdar://problem/63554557> [20A279] DQ is seeing media/media-source/media-source-unnecessary-seek-seeked.html failing
-media/media-source/media-source-unnecessary-seek-seeked.html [ Pass Failure ]
 
 # imported/w3c/web-platform-tests/mathml/presentation-markup/operators/mo-stretch-properties-dynamic-001.html is flaky
 webkit.org/b/228094 imported/w3c/web-platform-tests/mathml/presentation-markup/operators/mo-stretch-properties-dynamic-001.html [ Pass Failure ]
@@ -2035,9 +2018,7 @@ imported/w3c/web-platform-tests/media-source/mediasource-config-change-mp4-av-au
 imported/w3c/web-platform-tests/media-source/mediasource-config-change-mp4-av-video-bitrate.html [ Pass Failure ]
 imported/w3c/web-platform-tests/media-source/mediasource-play-then-seek-back.html [ Pass Failure ]
 imported/w3c/web-platform-tests/media-source/mediasource-play.html [ Pass Failure ]
-imported/w3c/web-platform-tests/media-source/mediasource-redundant-seek.html [ Pass Failure ]
 imported/w3c/web-platform-tests/media-source/mediasource-remove-preserves-currentTime.html [ Pass Failure ]
-imported/w3c/web-platform-tests/media-source/mediasource-remove.html [ Pass Failure ]
 
 # Failing word-break: auto-phrase tests.
 webkit.org/b/257698 [ Sonoma+ ] imported/w3c/web-platform-tests/css/css-text/word-break/auto-phrase/word-break-auto-phrase-004.html [ ImageOnlyFailure ]
@@ -2249,8 +2230,6 @@ inspector/worker/console-basic-subworker.html [ Skip ]
 
 webkit.org/b/284597 http/tests/misc/repeat-open-cancel.html [ Slow ]
 
-webkit.org/b/284653 http/tests/site-isolation/compositing/iframes/resize-from-zero-size.html [ Pass Failure ]
-
 webkit.org/b/285954 [ Debug ] inspector/worker/runtime-basic-subworker.html [ Pass Crash ]
 
 webkit.org/b/286039 imported/w3c/web-platform-tests/scroll-to-text-fragment/scroll-to-text-fragment.html [ Pass Failure ]
@@ -2375,6 +2354,8 @@ webkit.org/b/299322 imported/w3c/web-platform-tests/uievents/mouse/mouse_boundar
 
 [ x86_64 ] imported/w3c/web-platform-tests/svg/fonts/font-size-adjust-scale-text.svg [ Failure Pass ]
 
+webkit.org/b/314491 [ x86_64 ] imported/w3c/web-platform-tests/html/infrastructure/safe-passing-of-structured-data/messagechannel.any.serviceworker.html [ Pass Crash ]
+
 webkit.org/b/300337 fast/images/imagebitmap-memory.html [ Pass ImageOnlyFailure ]
 
 # webkit.org/b/300715
@@ -2467,6 +2448,5 @@ tiled-drawing/mac/margin-tiles-with-banner-view-overlay-repeat-y.html [ Skip ]
 
 # Cocoa platforms use data URLs for pasted images; blob URL tests are for Glib ports
 editing/pasteboard/paste-image-as-blob-url.html [ Skip ]
-editing/pasteboard/data-transfer-get-data-on-pasting-html-uses-blob-url.html [ Skip ]
 
 webkit.org/b/311570 [ Debug ] http/tests/site-isolation/nested-cross-origin-iframe.html [ Skip ]

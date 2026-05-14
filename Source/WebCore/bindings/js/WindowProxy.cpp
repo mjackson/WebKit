@@ -39,6 +39,7 @@
 #include "ScriptController.h"
 #include "SecurityOrigin.h"
 #include "runtime_root.h"
+#include <JavaScriptCore/JSGlobalObjectInlines.h>
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/StrongInlines.h>
 #include <JavaScriptCore/WeakGCMapInlines.h>

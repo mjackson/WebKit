@@ -25,9 +25,7 @@
 #include <JavaScriptCore/JSEmbedderArrayLike.h>
 #include <WebCore/JSDOMGlobalObject.h>
 #include <WebCore/NodeType.h>
-#include <wtf/Compiler.h>
 #include <wtf/SignedPtr.h>
-#include <wtf/StdLibExtras.h>
 
 namespace JSC {
 class Structure;

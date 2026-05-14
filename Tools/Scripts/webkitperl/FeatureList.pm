@@ -130,6 +130,7 @@ my (
     $spellcheckSupport,
     $svgFontsSupport,
     $swiftDemoUriScheme,
+    $swiftBackForwardList,
     $isoMallocSupport,
     $systemMallocSupport,
     $mimallocSupport,
@@ -365,6 +366,9 @@ my @features = (
 
     { option => "swift-demo-uri-scheme", desc => "Toggle demo Swift x-swift-demo: URI handler",
       define => "ENABLE_SWIFT_DEMO_URI_SCHEME", value => \$swiftDemoUriScheme},
+
+    { option => "swift-back-forward-list", desc => "Use Swift version of WebBackForwardList",
+      define => "ENABLE_BACK_FORWARD_LIST_SWIFT", value => \$swiftBackForwardList},
 
     { option => "telephone-number-detection", desc => "Toggle telephone number detection support",
       define => "ENABLE_TELEPHONE_NUMBER_DETECTION", value => \$telephoneNumberDetectionSupport },

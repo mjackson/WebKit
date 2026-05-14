@@ -180,8 +180,8 @@ void CyclicModuleRecord::initializeEnvironment(JSGlobalObject* globalObject, Ref
 #endif
             // 7.b. If in.[[ImportName]] is NAMESPACE-OBJECT, then
             if (in.type == ImportEntryType::Namespace) {
-                // 7.b.i. Let namespace be GetModuleNamespace(importedModule).
-                JSModuleNamespaceObject* ns = importedModule->getModuleNamespace(globalObject);
+                // 7.b.i. Let namespace be GetModuleNamespace(importedModule, in.[[Phase]]).
+                JSModuleNamespaceObject* ns = importedModule->getModuleNamespace(globalObject, in.phase);
                 RETURN_IF_EXCEPTION(scope, void());
                 // 7.b.ii. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
                 // 7.b.iii. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
@@ -556,6 +556,11 @@ static void gatherAvailableAncestors(CyclicModuleRecord* module, Vector<CyclicMo
 {
     // GatherAvailableAncestors(module, execList)
     // https://tc39.es/ecma262/#sec-gather-available-ancestors
+    //
+    // We replace the spec's "execList does not contain m" membership test with
+    // "m.[[PendingAsyncDependencies]] != 0" so the loop is O(N) instead of O(N^2).
+    // Within a single gather call, the two are equivalent under the spec's invariants;
+    // see commit message for the proof. The ASSERT below verifies this at runtime.
 
     // 1. For each Cyclic Module Record m of module.[[AsyncParentModules]], do
     for (const WriteBarrier<AbstractModuleRecord>& barrier : module->asyncParentModules()) {
@@ -563,26 +568,32 @@ static void gatherAvailableAncestors(CyclicModuleRecord* module, Vector<CyclicMo
         // 1.a. If execList does not contain m and m.[[CycleRoot]].[[EvaluationError]] is empty, then
         // (Probable spec bug (https://github.com/tc39/ecma262/issues/3766). We need an additional check here that m.[[CycleRoot]] isn't empty.)
         ASSERT_IMPLIES(!m->cycleRoot(), m->evaluationError());
-        if (CyclicModuleRecord* root = m->cycleRoot(); root && root->evaluationError() == nullptr && !execList.contains(m)) {
-            // 1.a.i. Assert: m.[[Status]] is EVALUATING-ASYNC.
-            ASSERT(m->status() == CyclicModuleRecord::Status::EvaluatingAsync);
-            // 1.a.ii. Assert: m.[[EvaluationError]] is EMPTY.
-            ASSERT(m->evaluationError() == nullptr);
-            // 1.a.iii. Assert: m.[[AsyncEvaluationOrder]] is an integer.
-            ASSERT(m->asyncEvaluationOrder().hasOrder());
-            // 1.a.iv. Assert: m.[[PendingAsyncDependencies]] > 0.
-            ASSERT(m->pendingAsyncDependencies() > 0);
-            // 1.a.v. Set m.[[PendingAsyncDependencies]] to m.[[PendingAsyncDependencies]] - 1.
-            int newDependencies = m->pendingAsyncDependencies().value() - 1;
-            m->setPendingAsyncDependencies(newDependencies);
-            // 1.a.vi. If m.[[PendingAsyncDependencies]] = 0, then
-            if (!newDependencies) {
-                // 1.a.vi.1. Append m to execList.
-                execList.append(m);
-                // 1.a.vi.2. If m.[[HasTLA]] is false, perform GatherAvailableAncestors(m, execList).
-                if (!m->hasTLA())
-                    gatherAvailableAncestors(m, execList);
-            }
+        CyclicModuleRecord* root = m->cycleRoot();
+        if (!root || root->evaluationError() != nullptr)
+            continue;
+        auto pending = m->pendingAsyncDependencies();
+        // Verify the invariant in debug: execList ∋ m  iff  pending == 0 (under cycleRoot OK).
+        ASSERT(pending);
+        ASSERT(execList.contains(m) == !*pending);
+        if (!*pending)
+            continue;
+        // 1.a.i. Assert: m.[[Status]] is EVALUATING-ASYNC.
+        ASSERT(m->status() == CyclicModuleRecord::Status::EvaluatingAsync);
+        // 1.a.ii. Assert: m.[[EvaluationError]] is EMPTY.
+        ASSERT(m->evaluationError() == nullptr);
+        // 1.a.iii. Assert: m.[[AsyncEvaluationOrder]] is an integer.
+        ASSERT(m->asyncEvaluationOrder().hasOrder());
+        // 1.a.iv. Assert: m.[[PendingAsyncDependencies]] > 0. (Implied by *pending != 0 above.)
+        // 1.a.v. Set m.[[PendingAsyncDependencies]] to m.[[PendingAsyncDependencies]] - 1.
+        int newDependencies = *pending - 1;
+        m->setPendingAsyncDependencies(newDependencies);
+        // 1.a.vi. If m.[[PendingAsyncDependencies]] = 0, then
+        if (!newDependencies) {
+            // 1.a.vi.1. Append m to execList.
+            execList.append(m);
+            // 1.a.vi.2. If m.[[HasTLA]] is false, perform GatherAvailableAncestors(m, execList).
+            if (!m->hasTLA())
+                gatherAvailableAncestors(m, execList);
         }
     }
     // 2. Return UNUSED.

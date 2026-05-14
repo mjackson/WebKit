@@ -177,6 +177,11 @@ OptionSet<AdvancedPrivacyProtections> RemoteFrame::advancedPrivacyProtections() 
     return m_advancedPrivacyProtections;
 }
 
+bool RemoteFrame::allowPrivacyProxy() const
+{
+    return m_allowPrivacyProxy;
+}
+
 void RemoteFrame::updateScrollingMode()
 {
     if (RefPtr ownerElement = this->ownerElement())

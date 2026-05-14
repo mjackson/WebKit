@@ -88,7 +88,6 @@ public:
 
     void readText(ReadTextCompletionHandler&& completionHandler)
     {
-        RefPtr protectedThis = RefPtr { this };
         m_completionHandler = WTF::move(completionHandler);
         gdk_clipboard_read_text_async(m_clipboard, m_cancellable.get(), [](GObject* clipboard, GAsyncResult* result, gpointer userData) {
             auto task = adoptRef(static_cast<ClipboardTask*>(userData));
@@ -96,7 +95,7 @@ public:
             GUniquePtr<char> text(gdk_clipboard_read_text_finish(GDK_CLIPBOARD(clipboard), result, &error.outPtr()));
             std::get<ReadTextCompletionHandler>(task->m_completionHandler)(String::fromUTF8(text.get()));
             task->done(error.get());
-        }, protectedThis.leakRef());
+        }, protect(this).leakRef());
         run();
     }
 
@@ -104,7 +103,6 @@ public:
 
     void readFilePaths(ReadFilePathsCompletionHandler&& completionHandler)
     {
-        RefPtr protectedThis = RefPtr { this };
         m_completionHandler = WTF::move(completionHandler);
         gdk_clipboard_read_value_async(m_clipboard, GDK_TYPE_FILE_LIST, G_PRIORITY_DEFAULT, m_cancellable.get(), [](GObject* clipboard, GAsyncResult* result, gpointer userData) {
             auto task = adoptRef(static_cast<ClipboardTask*>(userData));
@@ -124,7 +122,7 @@ public:
             }
             std::get<ReadFilePathsCompletionHandler>(task->m_completionHandler)(WTF::move(filePaths));
             task->done(error.get());
-        }, protectedThis.leakRef());
+        }, protect(this).leakRef());
         run();
     }
 
@@ -132,7 +130,6 @@ public:
 
     void readBuffer(const char* format, ReadBufferCompletionHandler&& completionHandler)
     {
-        RefPtr protectedThis = RefPtr { this };
         m_completionHandler = WTF::move(completionHandler);
         auto mimeTypes = std::to_array<const char*>({ format, nullptr });
         gdk_clipboard_read_async(m_clipboard, mimeTypes.data(), G_PRIORITY_DEFAULT, m_cancellable.get(), [](GObject* clipboard, GAsyncResult* result, gpointer userData) {
@@ -162,7 +159,7 @@ public:
                     std::get<ReadBufferCompletionHandler>(task->m_completionHandler)(WebCore::SharedBuffer::create(bytes.get()));
                     task->done(error.get());
                 }, task.leakRef());
-        }, protectedThis.leakRef());
+        }, protect(this).leakRef());
         run();
     }
 
@@ -170,7 +167,6 @@ public:
 
     void readURL(ReadURLCompletionHandler&& completionHandler)
     {
-        RefPtr protectedThis = RefPtr { this };
         m_completionHandler = WTF::move(completionHandler);
         gdk_clipboard_read_value_async(m_clipboard, GDK_TYPE_FILE_LIST, G_PRIORITY_DEFAULT, m_cancellable.get(), [](GObject* clipboard, GAsyncResult* result, gpointer userData) {
             auto task = adoptRef(static_cast<ClipboardTask*>(userData));
@@ -181,7 +177,7 @@ public:
             GUniquePtr<char> uri(g_file_get_uri(file));
             std::get<ReadURLCompletionHandler>(task->m_completionHandler)(uri ? String::fromUTF8(uri.get()) : String(), { });
             task->done(error.get());
-        }, protectedThis.leakRef());
+        }, protect(this).leakRef());
         run();
     }
 

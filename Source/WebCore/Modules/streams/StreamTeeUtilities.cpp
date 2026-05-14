@@ -156,7 +156,7 @@ public:
 
     JSDOMGlobalObject* globalObject()
     {
-        return m_context ? uncheckedDowncast<JSDOMGlobalObject>(protect(m_context)->globalObject()) : nullptr;
+        return m_context ? downcast<JSDOMGlobalObject>(protect(m_context)->globalObject()) : nullptr;
     }
 
     void queueMicrotaskWithValue(JSC::JSValue value, Function<void(JSC::JSValue)>&& task)
@@ -165,7 +165,7 @@ public:
         if (!context)
             return;
 
-        auto& globalObject = *uncheckedDowncast<JSDOMGlobalObject>(context->globalObject());
+        auto& globalObject = *downcast<JSDOMGlobalObject>(context->globalObject());
         protect(context->eventLoop())->queueMicrotask(globalObject.vm(), [task = WTF::move(task), value = JSC::Strong<JSC::Unknown> { globalObject.vm(), value }] {
             task(value.get());
         });

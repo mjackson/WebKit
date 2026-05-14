@@ -79,7 +79,7 @@ ExceptionOr<Ref<InternalWritableStream>> WritableStream::createInternalWritableS
 
 ExceptionOr<Ref<WritableStream>> WritableStream::create(JSC::JSGlobalObject& globalObject, JSC::JSValue underlyingSink, JSC::JSValue strategy)
 {
-    auto result = InternalWritableStream::createFromUnderlyingSink(uncheckedDowncast<JSDOMGlobalObject>(globalObject), underlyingSink, strategy);
+    auto result = InternalWritableStream::createFromUnderlyingSink(downcast<JSDOMGlobalObject>(globalObject), underlyingSink, strategy);
     if (result.hasException())
         return result.releaseException();
 

@@ -128,6 +128,10 @@ public:
     GraphicsLayer* backgroundLayer() const { return m_backgroundLayer.get(); }
     bool backgroundLayerPaintsFixedRootBackground() const { return m_backgroundLayerPaintsFixedRootBackground; }
 
+#if USE(SYSTEM_PREVIEW) && ENABLE(MODEL_PROCESS)
+    GraphicsLayer* systemPreviewBadgeLayer() const { return m_systemPreviewBadgeLayer.get(); }
+#endif
+
     bool needsRepaintOnCompositedScroll() const;
 
     bool requiresBackgroundLayer() const { return m_requiresBackgroundLayer; }
@@ -349,8 +353,17 @@ private:
     void clearOverflowControlsLayers();
     bool updateForegroundLayer(bool needsForegroundLayer);
     bool updateBackgroundLayer(bool needsBackgroundLayer);
+#if ENABLE(MODEL_PROCESS)
+    bool updateContentsContainmentLayer();
+#endif
     bool updateMaskingLayer(bool hasMask, bool hasClipPath);
     bool updateTransformFlatteningLayer(const RenderLayer* compositingAncestor);
+#if USE(SYSTEM_PREVIEW) && ENABLE(MODEL_PROCESS)
+    bool updateSystemPreviewBadgeLayer(bool needsLayer);
+    bool needsSystemPreviewBadgeLayer() const;
+    void updateSystemPreviewBadgeLayerGeometry();
+    void paintSystemPreviewBadgeLayer(GraphicsContext&, const FloatRect& clip);
+#endif
 
     bool requiresLayerForScrollbar(Scrollbar*) const;
     bool requiresHorizontalScrollbarLayer() const;
@@ -465,6 +478,10 @@ private:
     RefPtr<GraphicsLayer> m_viewportAnchorLayer; // Only used on fixed/sticky elements.
     RefPtr<GraphicsLayer> m_maskLayer; // Only used if we have a mask and/or clip-path.
     RefPtr<GraphicsLayer> m_transformFlatteningLayer;
+#if USE(SYSTEM_PREVIEW) && ENABLE(MODEL_PROCESS)
+    RefPtr<GraphicsLayer> m_systemPreviewWrapperLayer; // Outer wrapper above m_contentsContainmentLayer, parents the model subtree and the badge layer as siblings.
+    RefPtr<GraphicsLayer> m_systemPreviewBadgeLayer; // Sibling of m_contentsContainmentLayer; lifts the AR badge in front of the model's separated portal on visionOS.
+#endif
 
     RefPtr<GraphicsLayer> m_layerForHorizontalScrollbar;
     RefPtr<GraphicsLayer> m_layerForVerticalScrollbar;

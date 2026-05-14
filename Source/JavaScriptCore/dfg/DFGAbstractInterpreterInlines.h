@@ -2694,6 +2694,16 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         setNonCellTypeForNode(node, SpecBoolean);
         break;
 
+    case StringSplit:
+        clobberWorld();
+        if (node->child2().useKind() == RegExpObjectUse) {
+            // The RegExp variant may invoke a per-instance @@split override that
+            // can return any JS value, so fall back to top.
+            makeHeapTopForNode(node);
+        } else
+            setTypeForNode(node, SpecArray);
+        break;
+
     case StringFromCharCode: {
         if (node->child1().useKind() == Int32Use || node->child1().useKind() == KnownInt32Use) {
             if (node->child1()->isInt32Constant() && node->child1()->asUInt32() <= maxSingleCharacterString) {
@@ -3305,6 +3315,11 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
     }
 
+    case ArrayConcatArray:
+    case ArrayConcatAppendOne:
+        setTypeForNode(node, SpecArray);
+        break;
+
     case ArraySplice:
         clobberWorld();
         makeBytecodeTopForNode(node);
@@ -3824,6 +3839,27 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         clearForNode(node);
         break;
 
+    case GetCellButterflySlot:
+        switch (node->arrayMode().type()) {
+        case Array::Int32:
+            setNonCellTypeForNode(node, SpecInt32Only);
+            break;
+        default:
+            makeBytecodeTopForNode(node);
+            break;
+        }
+        break;
+
+    case PutCellButterflySlot:
+        break;
+
+    case ArraySortCompact:
+        setTypeForNode(node, SpecObjectOther);
+        break;
+
+    case ArraySortCommit:
+        break;
+
     case MaterializeNewArrayWithButterfly: {
 #if ASSERT_ENABLED
         SpeculatedType validTypes = [&]() {
@@ -4029,6 +4065,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     case NewInternalFieldObject:
     case NewObject:
     case MaterializeNewInternalFieldObject:
+    case NewPromise:
         ASSERT(!!node->structure().get());
         setForNode(node, node->structure());
         break;
@@ -4125,6 +4162,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     case PhantomNewArrayWithSpread:
     case PhantomNewArrayBuffer:
     case PhantomNewInternalFieldObject:
+    case PhantomNewPromise:
     case PhantomNewRegExp:
     case BottomValue: {
         clearForNode(node);
@@ -5342,9 +5380,10 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     case DefineDataProperty:
     case DefineAccessorProperty:
     case ObjectDefineProperty:
+    case ObjectDefinePropertyFromFields:
         clobberWorld();
         break;
-        
+
     case InById:
     case InByIdMegamorphic: {
         // FIXME: We can determine when the property definitely exists based on abstract

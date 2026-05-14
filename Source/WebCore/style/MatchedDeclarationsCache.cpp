@@ -183,7 +183,11 @@ void MatchedDeclarationsCache::add(const RenderStyle& style, const RenderStyle& 
         addResult.iterator->value.append(Entry { &matchResult, RenderStyle::clonePtr(style), RenderStyle::clonePtr(parentStyle) });
 
     // Protect against unlimited growth.
+#if PLATFORM(WPE)
+    constexpr size_t maximumSize = 1024;
+#else
     constexpr size_t maximumSize = 16 * 1024;
+#endif
     if (m_entries.size() > maximumSize)
         m_entries.remove(m_entries.random());
 }

@@ -63,7 +63,7 @@ class WebSWServerToContextConnection final: public WebCore::SWServerToContextCon
 public:
     USING_CAN_MAKE_WEAKPTR(WebCore::SWServerToContextConnection);
 
-    static Ref<WebSWServerToContextConnection> create(NetworkConnectionToWebProcess&, WebPageProxyIdentifier, WebCore::Site&&, std::optional<WebCore::ScriptExecutionContextIdentifier>, WebCore::SWServer&);
+    static Ref<WebSWServerToContextConnection> create(NetworkConnectionToWebProcess&, WebPageProxyIdentifier, WebCore::Site&&, std::optional<WebCore::ScriptExecutionContextIdentifier>, WebCore::SWServer&, WebCore::CrossOriginEmbedderPolicyValue);
     ~WebSWServerToContextConnection();
 
     void ref() const final { WebCore::SWServerToContextConnection::ref(); }

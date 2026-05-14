@@ -54,17 +54,19 @@
         sourceBuffer.appendBuffer(media);
         await waitFor(sourceBuffer, 'updateend');
 
-        // Buffered range should cover PTS 0 to 4 (since all samples are present)
+        // Buffered range should cover PTS 0 to 4 (on platforms with signed CTO
+        // support) or 0 to 5 (platforms using unsigned CTO interpretation).
         testExpected('sourceBuffer.buffered.length', 1);
-        testExpectedEqualWithTolerance('sourceBuffer.buffered.start(0)', 0, 0.01);
-        testExpectedEqualWithTolerance('sourceBuffer.buffered.end(0)', 4, 0.01);
-
-        endTest();
+        testExpectedEqualWithTolerance('sourceBuffer.buffered.start(0)', 0, 0.05);
+        testExpectedEqualWithTolerance('sourceBuffer.buffered.end(0)', 4, 1.05);
     }
 
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <div>Tests B-frame-like composition time offsets (PTS != DTS) with real MP4 data.</div>
     <video></video>
 </body>

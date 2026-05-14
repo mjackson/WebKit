@@ -110,6 +110,18 @@ void TrackBuffer::addSample(MediaSample& sample)
             if (sample.presentationTime() < previousSample->presentationTime())
                 m_hasOutOfOrderFrames = true;
         }
+
+        // Track reorder depth in decode order. We can't publish a trustworthy
+        // minimum upcoming PTS until we've seen at least m_maxObservedReorderDepth
+        // + 1 samples past the head — a B-frame with lower PTS may still be on
+        // its way.
+        if (m_maxPresentationTimeSeenInDecodeOrder.isInvalid() || sample.presentationTime() > m_maxPresentationTimeSeenInDecodeOrder) {
+            m_maxPresentationTimeSeenInDecodeOrder = sample.presentationTime();
+            m_samplesSinceMaxPresentationTime = 0;
+        } else {
+            ++m_samplesSinceMaxPresentationTime;
+            m_maxObservedReorderDepth = std::max(m_maxObservedReorderDepth, m_samplesSinceMaxPresentationTime);
+        }
     }
 
     // NOTE: the spec considers the need to check the last frame duration but doesn't specify if that last frame
@@ -183,6 +195,17 @@ void TrackBuffer::updateMinimumUpcomingPresentationTime()
         m_minimumEnqueuedPresentationTime = MediaTime::invalidTime();
         return;
     }
+
+    // For streams with B-frames we can't trust the sliding-window minimum until
+    // we've seen enough samples past the head to cover the observed reorder
+    // depth — a later-arriving B-frame could have a lower PTS than what's
+    // currently in the queue, and publishing the too-high minimum to the
+    // renderer triggers UpcomingPTSExpectation warnings for every B-frame.
+    if (m_hasOutOfOrderFrames && m_decodeQueue.size() < m_maxObservedReorderDepth + 1) {
+        m_minimumEnqueuedPresentationTime = MediaTime::invalidTime();
+        return;
+    }
+
     size_t forwardIndex = 0;
     m_minimumEnqueuedPresentationTime = MediaTime::positiveInfiniteTime();
     for (auto it = m_decodeQueue.begin(); it != m_decodeQueue.end() && forwardIndex < MaximumSlidingWindowLength; ++forwardIndex, ++it) {
@@ -529,6 +552,11 @@ void TrackBuffer::clearDecodeQueue()
     m_minimumEnqueuedPresentationTime = MediaTime::invalidTime();
     m_highestEnqueuedPresentationTime = MediaTime::invalidTime();
     m_lastEnqueuedDecodeKey = { MediaTime::invalidTime(), MediaTime::invalidTime() };
+    // Reset the running reorder observation but keep m_maxObservedReorderDepth —
+    // the codec-declared / previously-seen reorder depth remains valid across a
+    // decode-queue flush (same stream, same codec config).
+    m_maxPresentationTimeSeenInDecodeOrder = MediaTime::invalidTime();
+    m_samplesSinceMaxPresentationTime = 0;
 }
 
 void TrackBuffer::setRoundedTimestampOffset(const MediaTime& time, uint32_t timeScale, const MediaTime& roundingMargin)

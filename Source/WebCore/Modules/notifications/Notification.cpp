@@ -189,14 +189,14 @@ Notification::Notification(ScriptExecutionContext& context, WTF::UUID identifier
 
 #if ENABLE(DECLARATIVE_WEB_PUSH)
     if (!options.navigate.isEmpty()) {
-        auto navigate = context.completeURL(WTF::move(options.navigate).isolatedCopy());
+        auto navigate = context.parseURL(WTF::move(options.navigate).isolatedCopy());
         if (navigate.isValid())
             m_navigate = WTF::move(navigate);
     }
 #endif
 
     if (!options.icon.isEmpty()) {
-        auto iconURL = context.completeURL(WTF::move(options.icon).isolatedCopy());
+        auto iconURL = context.parseURL(WTF::move(options.icon).isolatedCopy());
         if (iconURL.isValid())
             m_icon = iconURL;
     }

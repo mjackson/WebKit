@@ -1967,9 +1967,13 @@ TEST(WKAttachmentTestsMac, DraggingAttachmentBackedImagePreservesRangedSelection
 
     [webView mouseDragToPoint:CGPointMake(150, 150)];
     [webView mouseDragToPoint:CGPointMake(200, 150)];
-    [webView waitForPendingMouseEvents];
 
-    [webView mouseUpAtPoint:CGPointMake(200, 150)];
+    // Dragging here causes the WCP to initiate a drag session whose modal loop
+    // blocks on [NSApp nextEventMatchingMask:...]. We need to post a mouse-up to
+    // the event queue so the drag loop can terminate; the test helpers are insufficent
+    // since they bypass the queue via direct [NSWindow sendEvent:] dispatch.
+    // Fundamentally the same workaround done for WK1 in Pasteboard::setDragImage.
+    [NSApp postEvent:[NSEvent mouseEventWithType:NSEventTypeLeftMouseUp location:NSMakePoint(200, 150) modifierFlags:0 timestamp:[webView eventTimestamp] windowNumber:[[webView window] windowNumber] context:nil eventNumber:0 clickCount:1 pressure:0] atStart:NO];
     [webView waitForPendingMouseEvents];
 
     EXPECT_WK_STREQ("Range", [webView stringByEvaluatingJavaScript:@"getSelection().type"]);

@@ -43,6 +43,7 @@
 #include "InspectorDOMAgent.h"
 #include "InstrumentingAgents.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "PseudoElement.h"
 #include "ShadowRoot.h"
 #include "Text.h"

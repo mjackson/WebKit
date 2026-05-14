@@ -31,6 +31,34 @@ import sys
 
 from webkit.opaque_ipc_types import is_opaque_type, opaque_ipc_types
 
+# Directories under Source/WebKit/ that get their own per-domain
+# GeneratedSerializers<Domain>.{mm,cpp} translation unit when invoked with
+# --split-by-directory. Anything not matching one of these falls into
+# GeneratedSerializersCommon.{mm,cpp} (the residual bucket).
+KNOWN_DOMAINS = ['Shared', 'WebProcess', 'GPUProcess', 'NetworkProcess', 'Platform', 'ModelProcess', 'UIProcess']
+RESIDUAL_DOMAIN = '__residual__'
+
+
+def derive_source_directory(input_file_path):
+    """Return the top-level subdirectory under Source/WebKit/ for a .serialization.in path,
+    or None if the file doesn't live under Source/WebKit/<DIR>/...
+    """
+    parts = os.path.normpath(input_file_path).split(os.sep)
+    for i in range(len(parts) - 2):
+        if parts[i] == 'Source' and parts[i + 1] == 'WebKit':
+            return parts[i + 2]
+    return None
+
+
+def matches_domain(item, domain_filter):
+    """Filter helper used by argument_coder_declarations and generate_impl."""
+    if domain_filter is None:
+        return True
+    source_directory = getattr(item, 'source_directory', None)
+    if domain_filter == RESIDUAL_DOMAIN:
+        return source_directory not in KNOWN_DOMAINS
+    return source_directory == domain_filter
+
 # Supported type attributes:
 #
 # AdditionalEncoder - generate serializers for StreamConnectionEncoder in addition to IPC::Encoder.
@@ -107,6 +135,7 @@ class SerializedType(object):
         self.disableMissingMemberCheck = False
         self.debug_decoding_failure = False
         self.generic_wrapper = None
+        self.source_directory = None
         if attributes is not None:
             for attribute in attributes.split(', '):
                 if '=' in attribute:
@@ -274,6 +303,7 @@ class SerializedEnum(object):
         self.valid_values = valid_values
         self.condition = condition
         self.attributes = attributes
+        self.source_directory = None
 
     def namespace_and_name(self):
         if self.namespace is None:
@@ -573,12 +603,14 @@ def one_argument_coder_declaration(type, template_argument):
     return result
 
 
-def argument_coder_declarations(serialized_types, skip_nested, webkit_platform):
+def argument_coder_declarations(serialized_types, skip_nested, webkit_platform, domain_filter=None):
     result = []
     for type in serialized_types:
         if type.nested == skip_nested:
             continue
         if (webkit_platform is not None and type.webkit_platform != webkit_platform):
+            continue
+        if not matches_domain(type, domain_filter):
             continue
         if type.templates:
             for template in type.templates:
@@ -1158,7 +1190,7 @@ def generate_one_impl(type, template_argument, serialized_types):
     return result
 
 
-def generate_impl(serialized_types, serialized_enums, headers, generating_webkit_platform_impl, objc_wrapped_types):
+def generate_impl(serialized_types, serialized_enums, headers, generating_webkit_platform_impl, objc_wrapped_types, domain_filter=None):
     result = []
     result.append(_license_header)
     result.append('#include "config.h"')
@@ -1219,11 +1251,13 @@ def generate_impl(serialized_types, serialized_enums, headers, generating_webkit
             result.append(f'#endif // {type.condition}')
         result.append('')
 
-    result = result + argument_coder_declarations(serialized_types, False, generating_webkit_platform_impl)
+    result = result + argument_coder_declarations(serialized_types, False, generating_webkit_platform_impl, domain_filter=domain_filter)
     result.append('')
 
     for type in serialized_types:
         if type.webkit_platform != generating_webkit_platform_impl:
+            continue
+        if not matches_domain(type, domain_filter):
             continue
         if type.templates:
             for template in type.templates:
@@ -1237,6 +1271,8 @@ def generate_impl(serialized_types, serialized_enums, headers, generating_webkit
         if generating_webkit_platform_impl:
             continue
         if not type.members_are_subclasses:
+            continue
+        if not matches_domain(type, domain_filter):
             continue
         result.append('')
         if type.condition is not None:
@@ -1261,6 +1297,8 @@ def generate_impl(serialized_types, serialized_enums, headers, generating_webkit
 
     for enum in serialized_enums:
         if enum.is_webkit_platform() != generating_webkit_platform_impl:
+            continue
+        if not matches_domain(enum, domain_filter):
             continue
         result.append('')
         if enum.condition is not None:
@@ -2031,6 +2069,8 @@ def main(argv):
     parser.add_argument('file_extension', help='File extension for output files')
     parser.add_argument('input_files', nargs='+', help='Input files to process')
     parser.add_argument('--output-dir', help='Directory for output files')
+    parser.add_argument('--split-by-directory', action='store_true',
+                        help='Emit per-domain GeneratedSerializers<Domain>.{ext} files instead of a single GeneratedSerializers.{ext}.')
 
     args = parser.parse_args(argv[1:])
 
@@ -2044,16 +2084,20 @@ def main(argv):
     additional_forward_declarations_list = []
     file_extension = args.file_extension
     output_dir = args.output_dir
+    split_by_directory = args.split_by_directory
 
     input_files = args.input_files
 
     for input_file in input_files:
+        source_directory = derive_source_directory(input_file)
         with open(input_file) as file:
             new_types, new_enums, new_headers, new_using_statements, new_additional_forward_declarations, new_objc_wrapped_types = parse_serialized_types(file)
             for type in new_types:
                 type.enforce_opaque_ipc_types_usage()
+                type.source_directory = source_directory
                 serialized_types.append(type)
             for enum in new_enums:
+                enum.source_directory = source_directory
                 serialized_enums.append(enum)
             for using_statement in new_using_statements:
                 using_statement.enforce_opaque_ipc_types_usage()
@@ -2078,8 +2122,24 @@ def main(argv):
 
     with open(output_path('GeneratedSerializers.h'), "w+") as output:
         output.write(generate_header(serialized_types, serialized_enums, additional_forward_declarations_list))
-    with open(output_path('GeneratedSerializers.%s' % file_extension), "w+") as output:
-        output.write(generate_impl(serialized_types, serialized_enums, headers, False, []))
+    if split_by_directory:
+        # Emit one .{ext} per known domain plus a residual Common bucket.
+        # Each known-domain file is always emitted (even if empty) so CMake/Xcode
+        # output lists stay deterministic. The residual bucket catches WebCore-
+        # generated inputs and other paths that aren't under Source/WebKit/<DIR>/.
+        for domain in KNOWN_DOMAINS:
+            with open(output_path(f'GeneratedSerializers{domain}.{file_extension}'), "w+") as output:
+                output.write(generate_impl(serialized_types, serialized_enums, headers, False, [], domain_filter=domain))
+        with open(output_path(f'GeneratedSerializersCommon.{file_extension}'), "w+") as output:
+            output.write(generate_impl(serialized_types, serialized_enums, headers, False, [], domain_filter=RESIDUAL_DOMAIN))
+
+        residual_types = [t.namespace_and_name() for t in serialized_types
+                          if not t.webkit_platform and t.source_directory not in KNOWN_DOMAINS]
+        if residual_types:
+            sys.stderr.write(f'generate-serializers.py: {len(residual_types)} type(s) fell into GeneratedSerializersCommon.{file_extension} (residual bucket): {", ".join(sorted(set(residual_types))[:10])}{"..." if len(residual_types) > 10 else ""}\n')
+    else:
+        with open(output_path('GeneratedSerializers.%s' % file_extension), "w+") as output:
+            output.write(generate_impl(serialized_types, serialized_enums, headers, False, []))
     with open(output_path('WebKitPlatformGeneratedSerializers.%s' % file_extension), "w+") as output:
         output.write(generate_impl(serialized_types, serialized_enums, headers, True, objc_wrapped_types))
     with open(output_path('SerializedTypeInfo.%s' % file_extension), "w+") as output:

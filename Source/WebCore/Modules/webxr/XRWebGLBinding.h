@@ -77,7 +77,7 @@ public:
 
     ExceptionOr<Ref<XRProjectionLayer>> createProjectionLayer(ScriptExecutionContext&, const XRProjectionLayerInit&);
     ExceptionOr<Ref<XRQuadLayer>> createQuadLayer(ScriptExecutionContext&, const XRQuadLayerInit&);
-    ExceptionOr<Ref<XRCylinderLayer>> createCylinderLayer(const XRCylinderLayerInit&) { RELEASE_ASSERT_NOT_REACHED(); }
+    ExceptionOr<Ref<XRCylinderLayer>> createCylinderLayer(ScriptExecutionContext&, const XRCylinderLayerInit&);
     ExceptionOr<Ref<XREquirectLayer>> createEquirectLayer(ScriptExecutionContext&, const XREquirectLayerInit&);
     ExceptionOr<Ref<XRCubeLayer>> createCubeLayer(const XRCubeLayerInit&) { RELEASE_ASSERT_NOT_REACHED(); }
 

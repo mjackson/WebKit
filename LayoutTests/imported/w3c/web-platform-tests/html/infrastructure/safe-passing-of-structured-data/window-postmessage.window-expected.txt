@@ -139,6 +139,8 @@ PASS Serializing OOB TypedArray throws
 PASS Serializing OOB DataView throws
 PASS ArrayBuffer
 PASS MessagePort
+PASS ImageBitmap
+PASS OffscreenCanvas
 PASS A detached ArrayBuffer cannot be transferred
 PASS A detached platform object cannot be transferred
 PASS Transferring a non-transferable platform object fails

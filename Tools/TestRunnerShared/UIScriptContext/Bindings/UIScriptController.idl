@@ -84,6 +84,7 @@ interface UIScriptController {
     undefined doAfterDoubleTapDelay(object callback);
 
     undefined simulateAccessibilitySettingsChangeNotification(object callback);
+    undefined simulateAvailableSpeechVoicesDidChangeOnBackgroundThread(object callback);
 
     // Interaction.
     // These functions post events asynchronously. The callback is fired when the events have been dispatched, but any

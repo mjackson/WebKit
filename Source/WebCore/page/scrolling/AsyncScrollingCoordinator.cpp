@@ -31,6 +31,7 @@
 #include "ContainerNodeInlines.h"
 #include "DebugPageOverlays.h"
 #include "DeprecatedGlobalSettings.h"
+#include "DocumentQuirks.h"
 #include "DocumentView.h"
 #include "EditorClient.h"
 #include "GraphicsLayer.h"
@@ -39,6 +40,7 @@
 #include "Logging.h"
 #include "Page.h"
 #include "PerformanceLoggingClient.h"
+#include "Quirks.h"
 #include "RemoteFrame.h"
 #include "RenderLayerCompositor.h"
 #include "RenderObjectInlines.h"
@@ -399,7 +401,7 @@ bool AsyncScrollingCoordinator::requestScrollToPosition(ScrollableArea& scrollab
 
     if ((inProgrammaticScroll && options.animated == ScrollIsAnimated::No) || inBackForwardCache) {
         auto adjustedScrollPosition = scrollPosition;
-        if (options.clamping == ScrollClamping::Clamped)
+        if (options.clamping == ScrollClamping::Clamped && !frameView->frame().document()->quirks().shouldAvoidProgrammaticScrollClamping())
             adjustedScrollPosition = scrollableArea.adjustScrollPositionWithinRange(scrollPosition);
 
         auto scrollUpdate = ScrollUpdate {

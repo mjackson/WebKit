@@ -34,7 +34,6 @@
 #include <wtf/text/MakeString.h>
 #include <wtf/text/StringCommon.h>
 #include <wtf/text/StringImpl.h>
-#include <wtf/text/WTFString.h>
 
 /*
  * GRAMMAR:

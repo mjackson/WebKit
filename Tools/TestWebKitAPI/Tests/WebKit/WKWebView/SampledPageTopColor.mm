@@ -494,6 +494,8 @@ TEST(SampledPageTopColor, MainDocumentChange)
 TEST(SampledPageTopColor, TopColorExtensionWhenRubberBanding)
 {
     RetainPtr webView = createWebViewWithSampledPageTopColorMaxDifference(5);
+    RetainPtr refreshControl = adoptNS([[UIRefreshControl alloc] init]);
+    [[webView scrollView] setRefreshControl:refreshControl];
 
     auto insets = UIEdgeInsetsMake(75, 0, 0, 0);
     auto insetSize = UIEdgeInsetsInsetRect([webView bounds], insets).size;
@@ -526,7 +528,9 @@ TEST(SampledPageTopColor, TopColorExtensionWhenRubberBanding)
     EXPECT_EQ(colorExtensionViewHeight(), 100.f);
 }
 
-TEST(SampledPageTopColor, TopColorExtensionGrowsDuringRubberBandingWithoutSampledPageTopColor)
+enum class NeedsRefreshControl : bool { No, Yes };
+
+static RetainPtr<TestWKWebView> webViewForColorExtensionGrowthTests(NeedsRefreshControl needsRefreshControl)
 {
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
 
@@ -534,13 +538,25 @@ TEST(SampledPageTopColor, TopColorExtensionGrowsDuringRubberBandingWithoutSample
     auto insetSize = UIEdgeInsetsInsetRect([webView bounds], insets).size;
     [webView _setObscuredInsets:insets];
     RetainPtr scrollView = [webView scrollView];
+
     [scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
     [scrollView setContentInset:insets];
-    [webView _overrideLayoutParametersWithMinimumLayoutSize:insetSize minimumUnobscuredSizeOverride:insetSize maximumUnobscuredSizeOverride:insetSize];
 
+    if (needsRefreshControl == NeedsRefreshControl::Yes) {
+        RetainPtr refreshControl = adoptNS([[UIRefreshControl alloc] init]);
+        [scrollView setRefreshControl:refreshControl];
+    }
+
+    [webView _overrideLayoutParametersWithMinimumLayoutSize:insetSize minimumUnobscuredSizeOverride:insetSize maximumUnobscuredSizeOverride:insetSize];
     [webView synchronouslyLoadTestPageNamed:@"top-fixed-element"];
     [webView waitForNextPresentationUpdate];
 
+    return webView;
+}
+
+TEST(SampledPageTopColor, TopColorExtensionGrowsDuringRubberBandingWithoutSampledPageTopColor)
+{
+    RetainPtr webView = webViewForColorExtensionGrowthTests(NeedsRefreshControl::Yes);
     RetainPtr topColorExtension = [webView _colorExtensionViewForTesting:UIRectEdgeTop];
     EXPECT_NOT_NULL(topColorExtension.get());
 
@@ -557,7 +573,7 @@ TEST(SampledPageTopColor, TopColorExtensionGrowsDuringRubberBandingWithoutSample
         EXPECT_IN_RANGE(components[2], 0.27, 0.28);
     }
 
-    [scrollView setContentOffset:CGPointMake(0, -100) animated:NO];
+    [[webView scrollView] setContentOffset:CGPointMake(0, -100) animated:NO];
     [webView waitForNextPresentationUpdate];
 
     EXPECT_EQ(colorExtensionViewHeight(), 100.f);
@@ -572,18 +588,8 @@ TEST(SampledPageTopColor, TopColorExtensionGrowsDuringRubberBandingWithoutSample
 
 TEST(SampledPageTopColor, TopColorExtensionHeightIncreasesWithRubberBandAmount)
 {
-    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
-
-    auto insets = UIEdgeInsetsMake(75, 0, 0, 0);
-    auto insetSize = UIEdgeInsetsInsetRect([webView bounds], insets).size;
-    [webView _setObscuredInsets:insets];
+    RetainPtr webView = webViewForColorExtensionGrowthTests(NeedsRefreshControl::Yes);
     RetainPtr scrollView = [webView scrollView];
-    [scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
-    [scrollView setContentInset:insets];
-    [webView _overrideLayoutParametersWithMinimumLayoutSize:insetSize minimumUnobscuredSizeOverride:insetSize maximumUnobscuredSizeOverride:insetSize];
-
-    [webView synchronouslyLoadTestPageNamed:@"top-fixed-element"];
-    [webView waitForNextPresentationUpdate];
 
     RetainPtr topColorExtension = [webView _colorExtensionViewForTesting:UIRectEdgeTop];
 
@@ -600,6 +606,32 @@ TEST(SampledPageTopColor, TopColorExtensionHeightIncreasesWithRubberBandAmount)
     [scrollView setContentOffset:CGPointMake(0, -150) animated:NO];
     [webView waitForNextPresentationUpdate];
     EXPECT_EQ(colorExtensionViewHeight(), 150.f);
+
+    [scrollView setContentOffset:CGPointMake(0, -75) animated:NO];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_EQ(colorExtensionViewHeight(), 75.f);
+}
+
+TEST(SampledPageTopColor, TopColorExtensionHeightDoesNotIncreaseWithoutRefreshControl)
+{
+    RetainPtr webView = webViewForColorExtensionGrowthTests(NeedsRefreshControl::No);
+    RetainPtr scrollView = [webView scrollView];
+
+    RetainPtr topColorExtension = [webView _colorExtensionViewForTesting:UIRectEdgeTop];
+
+    auto colorExtensionViewHeight = [topColorExtension] {
+        return CGRectGetHeight([topColorExtension bounds]);
+    };
+
+    EXPECT_EQ(colorExtensionViewHeight(), 75.f);
+
+    [scrollView setContentOffset:CGPointMake(0, -100) animated:NO];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_EQ(colorExtensionViewHeight(), 75.f);
+
+    [scrollView setContentOffset:CGPointMake(0, -150) animated:NO];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_EQ(colorExtensionViewHeight(), 75.f);
 
     [scrollView setContentOffset:CGPointMake(0, -75) animated:NO];
     [webView waitForNextPresentationUpdate];

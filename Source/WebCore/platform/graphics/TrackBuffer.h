@@ -81,6 +81,11 @@ public:
     void setHighestEnqueuedPresentationTime(MediaTime timestamp) { m_highestEnqueuedPresentationTime = WTF::move(timestamp); }
     const MediaTime& minimumEnqueuedPresentationTime() const LIFETIME_BOUND { return m_minimumEnqueuedPresentationTime; }
 
+    // Raises the tracked reorder depth. Call once per init segment with the
+    // codec-declared max_num_reorder_frames / sps_max_num_reorder_pics when
+    // available. The running observation in addSample() can only grow it further.
+    void setInitialReorderDepth(size_t depth) { m_maxObservedReorderDepth = std::max(m_maxObservedReorderDepth, depth); }
+
     const DecodeOrderSampleMap::KeyType& lastEnqueuedDecodeKey() const LIFETIME_BOUND { return m_lastEnqueuedDecodeKey; }
     void setLastEnqueuedDecodeKey(DecodeOrderSampleMap::KeyType key) { m_lastEnqueuedDecodeKey = WTF::move(key); }
 
@@ -137,6 +142,14 @@ private:
 
     MediaTime m_highestEnqueuedPresentationTime { MediaTime::invalidTime() };
     MediaTime m_minimumEnqueuedPresentationTime { MediaTime::invalidTime() };
+
+    // Running observation of decode-order reorder depth. Seeded by
+    // setInitialReorderDepth; grown when a deeper reorder is seen. Gates
+    // publication of m_minimumEnqueuedPresentationTime so a yet-to-arrive
+    // B-frame can't invalidate the value handed to the renderer.
+    MediaTime m_maxPresentationTimeSeenInDecodeOrder { MediaTime::invalidTime() };
+    size_t m_samplesSinceMaxPresentationTime { 0 };
+    size_t m_maxObservedReorderDepth { 3 };
 
     DecodeOrderSampleMap::KeyType m_lastEnqueuedDecodeKey { MediaTime::invalidTime(), MediaTime::invalidTime() };
 

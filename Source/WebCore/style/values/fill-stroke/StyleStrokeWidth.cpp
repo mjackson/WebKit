@@ -38,6 +38,8 @@ namespace Style {
 
 auto CSSValueConversion<StrokeWidth>::operator()(BuilderState& state, const CSSValue& value) -> StrokeWidth
 {
+    using namespace CSS::Literals;
+
     RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
     if (!primitiveValue)
         return 0_css_px;

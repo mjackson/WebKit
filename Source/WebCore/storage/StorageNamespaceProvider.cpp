@@ -96,4 +96,9 @@ void StorageNamespaceProvider::setSessionIDForTesting(PAL::SessionID newSessionI
     }
 }
 
+uint64_t StorageNamespaceProvider::localStorageAreaMapCountForTesting() const
+{
+    return m_localStorageNamespace ? m_localStorageNamespace->storageAreaMapCountForTesting() : 0;
+}
+
 }

@@ -42,12 +42,9 @@ public:
     bool setNeedsLayoutIfNeededAfterIntrinsicSizeChange();
 
     LayoutSize intrinsicSize() const final;
-    FloatSize intrinsicRatio() const;
-    
+
     bool isContentLikelyVisibleInViewport();
     bool shouldInvalidatePreferredWidths() const override;
-
-    double computeIntrinsicAspectRatio() const;
 
     virtual bool paintsContent() const { return true; }
 
@@ -60,6 +57,11 @@ public:
 
     bool replacedMinLogicalHeightComputesAsNone() const;
     bool replacedMaxLogicalHeightComputesAsNone() const;
+
+    virtual RenderReplaced* embeddedSVGRoot() const { return nullptr; }
+
+    std::optional<double> preferredAspectRatio() const override;
+    FloatSize preferredAspectRatioAsSize() const override;
 
 protected:
     RenderReplaced(Type, Element&, RenderStyle&&, OptionSet<ReplacedFlag> = { });
@@ -76,9 +78,6 @@ protected:
     bool NODELETE isSelected() const;
 
     void styleDidChange(Style::Difference, const RenderStyle* oldStyle) override;
-
-    virtual FloatSize computeIntrinsicSize() const;
-    virtual FloatSize preferredAspectRatio() const;
 
     void setIntrinsicSize(const LayoutSize& intrinsicSize) { m_intrinsicSize = intrinsicSize; }
     virtual void intrinsicSizeChanged();
@@ -104,9 +103,7 @@ private:
     template<typename T> LayoutUnit computeReplacedLogicalHeightRespectingMinMaxHeight(T logicalHeight) const { return computeReplacedLogicalHeightRespectingMinMaxHeight(LayoutUnit(logicalHeight)); }
     bool replacedMinMaxLogicalHeightComputesAsNone(const auto& logicalHeight, const auto& initialLogicalHeight) const;
 
-    void computeAspectRatioAdjustedIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const;
 
-    virtual RenderBox* embeddedContentBox() const { return 0; }
     ASCIILiteral renderName() const override { return "RenderReplaced"_s; }
 
     bool canHaveChildren() const override { return false; }
@@ -121,8 +118,7 @@ private:
     bool canBeSelectionLeaf() const override { return true; }
 
     LayoutRect selectionRectForRepaint(const RenderLayerModelObject* repaintContainer, bool clipToVisibleContent = true) final;
-    void computeAspectRatioInformationForRenderBox(RenderBox*, FloatSize& constrainedSize, FloatSize& intrinsicRatio) const;
-    void computeIntrinsicSizesConstrainedByTransferredMinMaxSizes(RenderBox* contentRenderer, FloatSize& constrainedSize, FloatSize& intrinsicRatio) const;
+    void computeIntrinsicSizesConstrainedByTransferredMinMaxSizes(FloatSize& constrainedSize, FloatSize& intrinsicRatio) const;
 
     virtual bool shouldDrawSelectionTint() const;
     

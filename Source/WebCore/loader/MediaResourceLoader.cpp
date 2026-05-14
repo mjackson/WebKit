@@ -44,6 +44,7 @@
 #include "OriginAccessPatterns.h"
 #include "SecurityOrigin.h"
 #include "Settings.h"
+#include <JavaScriptCore/RegularExpression.h>
 #include <WebCore/HTTPStatusCodes.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/SortedArrayMap.h>
@@ -169,6 +170,8 @@ RefPtr<PlatformMediaResource> MediaResourceLoader::requestResource(ResourceReque
         return nullptr;
 
     Ref mediaResource = MediaResource::create(*this, WTF::move(resource));
+    if (document->quirks().shouldSuppressHLSSubtitles())
+        mediaResource->setShouldSuppressHLSSubtitles();
     m_resources.add(mediaResource.get());
 
     return mediaResource;
@@ -390,11 +393,48 @@ void MediaResource::dataSent(CachedResource& resource, unsigned long long bytesS
         client->dataSent(*this, bytesSent, totalBytesToBeSent);
 }
 
+void MediaResource::sendPartialPlaylistLine(String& line)
+{
+    if (!line.length())
+        return;
+
+    if (line.contains("EXT-X-MEDIA:TYPE=SUBTITLES"_s))
+        return;
+
+    RefPtr client = protect(*this)->client();
+    if (!client)
+        return;
+
+    static NeverDestroyed<JSC::Yarr::RegularExpression> subtitlesAttr("SUBTITLES=\"[^\"]*\",?"_s);
+    replace(line, subtitlesAttr, ""_s);
+
+    if (auto lineBuffer = utf8Buffer(line)) {
+        client->dataReceived(*this, *lineBuffer);
+        m_partialPlaylistByteCount += lineBuffer->size();
+
+        client->dataReceived(*this, SharedBuffer::create(Vector<uint8_t> {  FillWith { }, 1, '\n' }));
+        ++m_partialPlaylistByteCount;
+    }
+}
+
 void MediaResource::dataReceived(CachedResource& resource, const SharedBuffer& buffer)
 {
     assertIsMainThread();
 
     ASSERT_UNUSED(resource, &resource == m_resource);
+
+    if (m_shouldSuppressHLSSubtitles && resource.response().mimeType() == "application/x-mpegurl"_s) {
+        String partialPlaylist = makeString(m_partialPlaylistLine, String::fromUTF8(byteCast<char>(buffer.span())));
+        auto lines = partialPlaylist.split('\n');
+        if (lines.isEmpty())
+            return;
+
+        m_partialPlaylistLine = lines.takeLast();
+
+        for (auto& line : lines)
+            sendPartialPlaylistLine(line);
+        return;
+    }
 
     Ref protectedThis { *this };
     if (RefPtr client = this->client())
@@ -408,12 +448,30 @@ void MediaResource::notifyFinished(CachedResource& resource, const NetworkLoadMe
     ASSERT_UNUSED(resource, &resource == m_resource);
 
     Ref protectedThis { *this };
-    if (RefPtr client = this->client()) {
-        if (m_resource->loadFailedOrCanceled())
-            client->loadFailed(*this, m_resource->resourceError());
-        else
-            client->loadFinished(*this, metrics);
+    RefPtr client = protect(*this)->client();
+    if (!client)
+        return ensureShutdown();
+
+    if (m_resource->loadFailedOrCanceled()) {
+        client->loadFailed(*this, m_resource->resourceError());
+        return ensureShutdown();
     }
+
+    if (m_shouldSuppressHLSSubtitles && (!m_partialPlaylistLine.isEmpty() || m_partialPlaylistByteCount)) {
+        sendPartialPlaylistLine(m_partialPlaylistLine);
+
+        long long expectedLength = resource.response().expectedContentLength();
+        if (expectedLength > 0 && static_cast<size_t>(expectedLength) > m_partialPlaylistByteCount) {
+            auto remainingBytes = static_cast<size_t>(expectedLength) - m_partialPlaylistByteCount;
+            auto remainingBuffer = SharedBuffer::create(Vector<uint8_t> { FillWith { }, remainingBytes, '\n' });
+            client->dataReceived(*this, remainingBuffer);
+        }
+
+        m_partialPlaylistLine = { };
+        m_partialPlaylistByteCount = 0;
+    }
+
+    client->loadFinished(*this, metrics);
     ensureShutdown();
 }
 

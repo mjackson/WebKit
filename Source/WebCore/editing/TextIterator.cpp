@@ -1161,6 +1161,7 @@ void TextIterator::representNodeOffsetZero()
         if (shouldRepresentNodeOffsetZero()) {
             RefPtr parentNode = currentNode->parentNode();
             emitCharacter('\n', WTF::move(parentNode), WTF::move(currentNode), 0, 0);
+            m_isBlockNewline = true;
             // Per the spec, <p> elements require a blank line (2 newlines) before them.
             if (emitsNewlinesPerInnerTextSpec && is<HTMLParagraphElement>(*m_currentNode))
                 m_nodeForAdditionalNewline = m_currentNode.get();
@@ -1169,6 +1170,7 @@ void TextIterator::representNodeOffsetZero()
             // but <p> requires a blank line. Emit one more newline if we don't have enough.
             RefPtr parentNode = currentNode->parentNode();
             emitCharacter('\n', WTF::move(parentNode), WTF::move(currentNode), 0, 0);
+            m_isBlockNewline = true;
             // If the preceding '\n' was a content newline (e.g. from <pre> text) rather
             // than a block-boundary newline, m_consecutiveNewlineCount was reset to 0 by
             // emitText and the single emitCharacter above only brings it to 1. Schedule
@@ -1242,9 +1244,17 @@ void TextIterator::exitNode(Node* exitedNode)
         // use extra newline to represent margin bottom, as needed
         bool addNewline = shouldEmitExtraNewlineForNode(*protect(m_currentNode), m_behaviors.contains(TextIteratorBehavior::EmitsNewlinesPerInnerTextSpec));
 
+        // Per the innerText spec, every non-last table row produces a literal '\n' line
+        // break, independent of surrounding content. So when we reach a <tr> exit whose
+        // row-exit newline hasn't been emitted yet, emit it even if m_lastCharacter is
+        // already '\n' (e.g. from the previous row's exit or from a block inside the cell).
+        bool needsTableRowExitNewline = m_behaviors.contains(TextIteratorBehavior::EmitsNewlinesPerInnerTextSpec)
+            && is<RenderTableRow>(m_currentNode->renderer())
+            && m_lastTableRowEmittedExitNewlineFor.get() != m_currentNode.get();
+
         // FIXME: We need to emit a '\n' as we leave an empty block(s) that
         // contain a VisiblePosition when doing selection preservation.
-        if (m_lastCharacter != '\n') {
+        if (m_lastCharacter != '\n' || needsTableRowExitNewline) {
             // insert a newline with a position following this block's contents.
             emitCharacter('\n', protect(baseNode->parentNode()), baseNode.copyRef(), 1, 1);
             m_isBlockNewline = true;
@@ -1257,6 +1267,9 @@ void TextIterator::exitNode(Node* exitedNode)
             emitCharacter('\n', protect(baseNode->parentNode()), baseNode.copyRef(), 1, 1);
             m_isBlockNewline = true;
         }
+
+        if (needsTableRowExitNewline)
+            m_lastTableRowEmittedExitNewlineFor = m_currentNode.get();
     }
     
     // If nothing was emitted, see if we need to emit a space.

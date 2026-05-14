@@ -30,6 +30,7 @@
 #include <WebCore/Timer.h>
 #include <memory>
 #include <wtf/HashMap.h>
+#include <wtf/HashSet.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
 #include <wtf/WeakRef.h>
@@ -70,6 +71,8 @@ public:
     WEBCORE_EXPORT void addTransparentContentMarker(const SimpleRange&, WTF::UUID);
     WEBCORE_EXPORT void addDictationStreamingOpacityMarker(const SimpleRange&, float opacity);
     WEBCORE_EXPORT void removeAllDictationStreamingOpacityMarkers();
+
+    WEBCORE_EXPORT size_t appliedGrammarTextEffectCount() const;
 
     void copyMarkers(Node& source, OffsetRange, Node& destination);
     bool hasMarkers() const;
@@ -142,7 +145,7 @@ private:
     Timer m_writingToolsTextSuggestionAnimationTimer;
 
 #if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
-    Vector<SimpleRange> m_appliedGrammarTextEffectRanges;
+    HashSet<String> m_appliedGrammarTextEffectUUIDs;
 #endif
 };
 

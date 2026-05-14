@@ -82,18 +82,3 @@ function search(regexp)
     return createdRegExp.@@search(thisString);
 }
 
-function split(separator, limit)
-{
-    "use strict";
-    
-    if (@isUndefinedOrNull(this))
-        @throwTypeError("String.prototype.split requires that |this| not be null or undefined");
-    
-    if (@isObject(separator)) {
-        var splitter = separator.@@split;
-        if (!@isUndefinedOrNull(splitter))
-            return splitter.@call(separator, this, limit);
-    }
-    
-    return @stringSplitFast.@call(this, separator, limit);
-}

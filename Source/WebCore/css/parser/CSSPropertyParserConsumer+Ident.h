@@ -29,6 +29,7 @@
 #include "CSSParserToken.h"
 #include "CSSParserTokenRange.h"
 #include "CSSValuePool.h"
+#include "CSSWideKeyword.h"
 #include <optional>
 #include <wtf/RefPtr.h>
 
@@ -85,6 +86,11 @@ StringView consumeEagerlyResolvableDashedIdentRaw(CSSParserTokenRange&);
 std::optional<CSS::CustomIdent> consumeUnresolvedDashedIdent(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 RefPtr<CSSValue> consumeDashedIdent(CSSParserTokenRange&, CSS::PropertyParserState&);
+
+// MARK: <CSS-wide keyword>
+// https://drafts.csswg.org/css-values/#common-keywords
+
+std::optional<CSSWideKeyword> consumeCSSWideKeyword(CSSParserTokenRange&);
 
 // MARK: -
 

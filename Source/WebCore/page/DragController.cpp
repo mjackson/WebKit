@@ -1166,7 +1166,14 @@ bool DragController::startDrag(LocalFrame& src, const DragState& state, OptionSe
         return true;
     }
 
+#if ENABLE(MODEL_ELEMENT)
+    // If the user is dragging a <model> that happens to be wrapped in an <a rel="ar" href=...>,
+    // let the Model drag path below package the USDZ as a rich model pasteboard item instead of
+    // dropping the anchor's href URL (which reduces AR Quick Look to a download-then-preview).
+    if (!linkURL.isEmpty() && m_dragSourceAction.contains(DragSourceAction::Link) && !(state.type.contains(DragSourceAction::Model) && is<HTMLModelElement>(state.source.get()))) {
+#else
     if (!linkURL.isEmpty() && m_dragSourceAction.contains(DragSourceAction::Link)) {
+#endif
         PasteboardWriterData pasteboardWriterData;
 
         String textContentWithSimplifiedWhiteSpace = hitTestResult->textContent().simplifyWhiteSpace(deprecatedIsSpaceOrNewline);
@@ -1435,7 +1442,7 @@ void DragController::doSystemDrag(DragImage image, const IntPoint& dragLoc, cons
         if (RefPtr link = containingLinkElement(*element)) {
             auto titleAttribute = link->attributeWithoutSynchronization(HTMLNames::titleAttr);
             item.title = titleAttribute.isEmpty() ? link->innerText() : titleAttribute.string();
-            item.url = frame.document()->completeURL(link->getAttribute(HTMLNames::hrefAttr));
+            item.url = frame.document()->encodingParseURL(link->getAttribute(HTMLNames::hrefAttr));
         }
 
 #if ENABLE(MODEL_ELEMENT_STAGE_MODE_INTERACTION)

@@ -29,6 +29,7 @@
 #include "IntlObjectInlines.h"
 #include "JSCInlines.h"
 #include "LazyPropertyInlines.h"
+#include "Rounding.h"
 #include "TemporalPlainDate.h"
 #include "TemporalPlainTime.h"
 #include "VMTrapsInlines.h"
@@ -191,18 +192,18 @@ static void incrementDay(ISO8601::Duration& duration)
 
     double daysInMonth = ISO8601::daysInMonth(year, month);
     if (day < daysInMonth) {
-        duration.setDays(day + 1);
+        duration.setField(TemporalUnit::Day, day + 1);
         return;
     }
 
-    duration.setDays(1);
+    duration.setField(TemporalUnit::Day, 1);
     if (month < 12) {
-        duration.setMonths(month + 1);
+        duration.setField(TemporalUnit::Month, month + 1);
         return;
     }
 
-    duration.setMonths(1);
-    duration.setYears(year + 1);
+    duration.setField(TemporalUnit::Month, 1);
+    duration.setField(TemporalUnit::Year, year + 1);
 }
 
 String TemporalPlainDateTime::toString(JSGlobalObject* globalObject, JSValue optionsValue) const
@@ -231,9 +232,9 @@ String TemporalPlainDateTime::toString(JSGlobalObject* globalObject, JSValue opt
     RETURN_IF_EXCEPTION(scope, { });
 
     double extraDays = duration.days();
-    duration.setYears(year());
-    duration.setMonths(month());
-    duration.setDays(day());
+    duration.setYears(static_cast<int64_t>(year()));
+    duration.setMonths(static_cast<int64_t>(month()));
+    duration.setDays(static_cast<int64_t>(day()));
     if (extraDays) {
         ASSERT(extraDays == 1);
         incrementDay(duration);
@@ -289,12 +290,12 @@ TemporalPlainDateTime* TemporalPlainDateTime::with(JSGlobalObject* globalObject,
     RETURN_IF_EXCEPTION(scope, { });
 
     ISO8601::Duration duration { };
-    duration.setHours(optionalHour.value_or(hour()));
-    duration.setMinutes(optionalMinute.value_or(minute()));
-    duration.setSeconds(optionalSecond.value_or(second()));
-    duration.setMilliseconds(optionalMillisecond.value_or(millisecond()));
-    duration.setMicroseconds(optionalMicrosecond.value_or(microsecond()));
-    duration.setNanoseconds(optionalNanosecond.value_or(nanosecond()));
+    duration.setField(TemporalUnit::Hour, optionalHour.value_or(hour()));
+    duration.setField(TemporalUnit::Minute, optionalMinute.value_or(minute()));
+    duration.setField(TemporalUnit::Second, optionalSecond.value_or(second()));
+    duration.setField(TemporalUnit::Millisecond, optionalMillisecond.value_or(millisecond()));
+    duration.setField(TemporalUnit::Microsecond, optionalMicrosecond.value_or(microsecond()));
+    duration.setField(TemporalUnit::Nanosecond, optionalNanosecond.value_or(nanosecond()));
     auto plainTime = TemporalPlainTime::regulateTime(globalObject, WTF::move(duration), overflow);
     RETURN_IF_EXCEPTION(scope, { });
 
@@ -352,7 +353,7 @@ TemporalPlainDateTime* TemporalPlainDateTime::round(JSGlobalObject* globalObject
     unsigned maximum = 1;
     Inclusivity isInclusive = Inclusivity::Inclusive;
     if (smallestUnit != TemporalUnit::Day) {
-        auto maximumOptional = maximumRoundingIncrement(smallestUnit);
+        auto maximumOptional = TemporalCore::maximumRoundingIncrement(smallestUnit);
         ASSERT(maximumOptional);
         maximum = maximumOptional.value();
         isInclusive = Inclusivity::Exclusive;
@@ -365,9 +366,9 @@ TemporalPlainDateTime* TemporalPlainDateTime::round(JSGlobalObject* globalObject
     RETURN_IF_EXCEPTION(scope, { });
 
     double extraDays = duration.days();
-    duration.setYears(year());
-    duration.setMonths(month());
-    duration.setDays(day());
+    duration.setYears(static_cast<int64_t>(year()));
+    duration.setMonths(static_cast<int64_t>(month()));
+    duration.setDays(static_cast<int64_t>(day()));
     if (extraDays) {
         ASSERT(extraDays == 1);
         incrementDay(duration);

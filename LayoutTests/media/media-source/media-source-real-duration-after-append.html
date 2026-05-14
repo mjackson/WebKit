@@ -20,6 +20,10 @@
 
         sourceBuffer = source.addSourceBuffer(MP4.VIDEO_TYPE);
 
+        // Explicitly set duration to 0 — some parsers report Infinity
+        // when the init segment has no duration hint.
+        source.duration = 0;
+
         var initData = MP4.initSegment({
             timescale: 1000,
             tracks: [{ id: 1, type: 'video', timescale: 1000 }]
@@ -38,12 +42,14 @@
         sourceBuffer.appendBuffer(media);
         await waitFor(sourceBuffer, 'updateend');
         testExpected('video.duration', 10);
-
-        endTest();
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

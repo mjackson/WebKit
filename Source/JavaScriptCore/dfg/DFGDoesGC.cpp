@@ -179,6 +179,9 @@ bool doesGC(Graph& graph, Node* node)
     case FencedStoreBarrier:
     case InvalidationPoint:
     case NotifyWrite:
+    case GetCellButterflySlot:
+    case PutCellButterflySlot:
+    case ArraySortCommit:
     case AssertInBounds:
     case CheckInBounds:
     case CheckInBoundsInt52:
@@ -220,6 +223,7 @@ bool doesGC(Graph& graph, Node* node)
     case PhantomNewAsyncFunction:
     case PhantomNewAsyncGeneratorFunction:
     case PhantomNewInternalFieldObject:
+    case PhantomNewPromise:
     case PhantomCreateActivation:
     case PhantomDirectArguments:
     case PhantomCreateRest:
@@ -307,6 +311,7 @@ bool doesGC(Graph& graph, Node* node)
     case DefineDataProperty:
     case DefineAccessorProperty:
     case ObjectDefineProperty:
+    case ObjectDefinePropertyFromFields:
     case DeleteById:
     case DeleteByVal:
     case DirectCall:
@@ -413,8 +418,10 @@ bool doesGC(Graph& graph, Node* node)
     case NewArray:
     case NewArrayWithSpread:
     case NewInternalFieldObject:
+    case NewPromise:
     case Spread:
     case NewButterflyWithSize:
+    case ArraySortCompact:
     case NewArrayWithSize:
     case NewArrayWithButterfly:
     case NewArrayWithSpecies:
@@ -460,6 +467,8 @@ bool doesGC(Graph& graph, Node* node)
     case CallDOMGetter:
     case CallDOM:
     case ArraySlice:
+    case ArrayConcatArray:
+    case ArrayConcatAppendOne:
     case ArrayIncludes:
     case ArrayIndexOf:
     case ParseInt: // We might resolve a rope even though we don't clobber anything.
@@ -486,6 +495,7 @@ bool doesGC(Graph& graph, Node* node)
     case StringLastIndexOf:
     case StringStartsWith:
     case StringEndsWith:
+    case StringSplit:
     case ResolvePromiseFirstResolving:
     case RejectPromiseFirstResolving:
     case FulfillPromiseFirstResolving:

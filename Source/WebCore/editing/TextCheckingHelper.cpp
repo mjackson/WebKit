@@ -434,7 +434,7 @@ int TextCheckingHelper::findUngrammaticalPhrases(Operation operation, const Vect
         
         if (operation == Operation::MarkAll) {
             auto badGrammarRange = resolveCharacterRange(m_range, { badGrammarPhraseLocation - startOffset + detail->range.location, detail->range.length });
-            addMarker(badGrammarRange, DocumentMarkerType::Grammar, detail->userDescription);
+            addMarker(badGrammarRange, DocumentMarkerType::Grammar, DocumentMarker::GrammarData { detail->userDescription, detail->uuid });
         }
         
         // Remember this detail only if it's earlier than our current candidate (the details aren't in a guaranteed order)

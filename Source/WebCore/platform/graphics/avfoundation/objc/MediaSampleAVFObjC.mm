@@ -126,19 +126,6 @@ static bool doesCMSampleBufferHaveSyncInfo(CMSampleBufferRef sample)
     return PAL::CMSampleBufferGetSampleAttachmentsArray(sample, false);
 }
 
-static bool isCMSampleBufferRandomAccess(CMSampleBufferRef sample)
-{
-    RetainPtr attachments = PAL::CMSampleBufferGetSampleAttachmentsArray(sample, false);
-    if (!attachments)
-        return true;
-
-    if (CFArrayGetCount(attachments.get()) < 1)
-        return true;
-
-    RetainPtr firstAttachment = checked_cf_cast<CFDictionaryRef>(CFArrayGetValueAtIndex(attachments.get(), 0));
-    return isCMSampleBufferAttachmentRandomAccess(firstAttachment.get());
-}
-
 static bool isCMSampleBufferAttachmentNonDisplaying(CFDictionaryRef attachmentDict)
 {
     return CFDictionaryContainsKey(attachmentDict, PAL::kCMSampleAttachmentKey_DoNotDisplay);

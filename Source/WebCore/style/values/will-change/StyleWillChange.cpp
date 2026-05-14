@@ -164,6 +164,7 @@ bool WillChangeAnimatableFeatures::Data::createsContainingBlockForAbsolutelyPosi
 bool WillChangeAnimatableFeatures::Data::createsContainingBlockForOutOfFlowPositioned(bool isRootElement) const
 {
     return containsProperty(CSSPropertyPerspective)
+        || containsProperty(CSSPropertyWebkitPerspective)
         // CSS transforms
         || containsProperty(CSSPropertyTransform)
         || containsProperty(CSSPropertyTransformStyle)

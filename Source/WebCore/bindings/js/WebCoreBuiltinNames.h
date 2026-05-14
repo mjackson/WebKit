@@ -526,6 +526,7 @@ namespace WebCore {
     macro(WebTransportSendGroup) \
     macro(WebTransportSendStream) \
     macro(WindowClient) \
+    macro(Worker) \
     macro(Worklet) \
     macro(WorkletGlobalScope) \
     macro(WritableStream) \

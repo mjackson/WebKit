@@ -30,6 +30,7 @@
 
 #import "MediaReorderQueue.h"
 #import <WebCore/CMUtilities.h>
+#import <wtf/ThreadSafeWeakPtr.h>
 #import <wtf/cf/TypeCastsCF.h>
 
 #import "CoreVideoSoftLink.h"

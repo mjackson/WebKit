@@ -28,7 +28,6 @@
 #import "AuthenticationChallenge.h"
 #import "AuthenticationCocoa.h"
 #import "CachedResourceLoader.h"
-#import "CookieStorage.h"
 #import "CredentialStorage.h"
 #import "FormDataStreamCocoa.h"
 #import "FrameLoader.h"

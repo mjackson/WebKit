@@ -28,6 +28,10 @@ imported/w3c/web-platform-tests/css/CSS2/linebox/vertical-align-baseline-009.xht
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-to-sticky-003.html [ Pass ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-to-sticky-004.html [ Pass ]
 
+imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/color_rgba.html [ Pass ]
+imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/lang_object/lang_attribute.html [ Pass ]
+imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/root_selector.html [ Pass ]
+
 imported/w3c/web-platform-tests/css/compositing/mix-blend-mode/mix-blend-mode-stacking-context-002.html [ Pass ]
 
 webkit.org/b/289926 imported/w3c/web-platform-tests/css/css-position/position-absolute-under-non-containing-stacking-context.html [ Pass ]
@@ -309,6 +313,9 @@ webkit.org/b/130464 fast/canvas/canvas-path-addPath.html
 Bug(GTK) editing/spelling/grammar.html [ Skip ]
 Bug(GTK) editing/spelling/grammar-and-spelling-error-styling.html [ Skip ]
 Bug(GTK) editing/spelling/grammar-correction-shown-clicking-middle-of-word.html [ Skip ]
+Bug(GTK) editing/spelling/grammar-correction-shown-clicking-multiword-phrase.html [ Skip ]
+Bug(GTK) editing/spelling/grammar-arrow-upstream-into-multiword-phrase.html [ Skip ]
+Bug(GTK) editing/spelling/grammar-arrow-downstream-into-multiword-phrase.html [ Skip ]
 Bug(GTK) editing/spelling/grammar-edit-word.html [ Skip ]
 Bug(GTK) editing/spelling/grammar-markers.html [ Skip ]
 Bug(GTK) editing/spelling/grammar-markers-hidpi.html [ Skip ]
@@ -589,11 +596,7 @@ webkit.org/b/208809 imported/w3c/web-platform-tests/css/WOFF2/tabledata-transfor
 webkit.org/b/208809 imported/w3c/web-platform-tests/css/WOFF2/tabledata-transform-hmtx-003.xht [ ImageOnlyFailure Pass ]
 webkit.org/b/208809 imported/w3c/web-platform-tests/css/WOFF2/tabledata-transform-hmtx-004.xht [ ImageOnlyFailure Pass ]
 
-webkit.org/b/211836 imported/w3c/web-platform-tests/fetch/api/abort/general.any.worker.html [ Failure Pass ]
-
 webkit.org/b/214801 fast/forms/datalist/datalist-show-hide.html [ Failure Pass ]
-
-webkit.org/b/214802 http/tests/navigation/ping-attribute/anchor-ping-and-follow-redirect-when-sending-ping.html [ Failure Pass ]
 
 webkit.org/b/262852 fast/forms/datalist/datalist-show-picker.html [ Failure ]
 
@@ -711,6 +714,9 @@ webkit.org/b/308032 fast/events/popup-allowed-from-gesture-initiated-event.html 
 webkit.org/b/308100 fast/dom/Window/window-property-invalid-characters-ignored.html [ Failure Pass ]
 
 webkit.org/b/308632 svg/repaint/non-scaling-stroke-transform-animation.html [ ImageOnlyFailure Pass ]
+
+webkit.org/b/313973 inspector/timeline/timeline-recording.html [ Failure Pass ]
+webkit.org/b/313973 inspector/timeline/timeline-recording-autocapture.html [ Failure Pass ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Flaky tests
@@ -1061,7 +1067,7 @@ webkit.org/b/177294 platform/gtk/fonts/fontconfig-aliasing-settings.html [ Failu
 
 webkit.org/b/144690 fast/writing-mode/english-bt-text-with-spelling-marker.html [ ImageOnlyFailure ]
 
-webkit.org/b/182763 accessibility/gtk/aria-activedescendant-changed-notification.html [ Failure ]
+webkit.org/b/314266 webkit.org/b/182763 accessibility/gtk/aria-activedescendant-changed-notification.html [ Failure Crash ]
 
 webkit.org/b/183902 fast/dom/frame-loading-via-document-write.html [ Failure ]
 
@@ -1110,8 +1116,6 @@ webkit.org/b/99036 pointer-lock/locked-element-iframe-removed-from-dom.html [ Fa
 # webkit.org/b/99036 pointer-lock/pointerlockchange-pointerlockerror-events.html [ Failure ]
 webkit.org/b/304279 pointer-lock/pointerlockchange-pointerlockerror-events.html [ Failure Crash ]
 
-webkit.org/b/211981 editing/pasteboard/data-transfer-get-data-on-pasting-html-uses-blob-url.html [ Failure ]
-
 webkit.org/b/224062 webgl/1.0.x/conformance/rendering/gl-scissor-test.html [ Failure ]
 
 imported/w3c/web-platform-tests/css/css-transforms/ttwf-css-3d-polygon-cycle.html [ ImageOnlyFailure ]
@@ -1146,7 +1150,6 @@ css3/masking/reference-clip-path-animate-transform-repaint.html [ Failure Pass ]
 editing/pasteboard/paste-rtl-paragraph-with-leading-ltr-text.html [ ImageOnlyFailure ]
 
 webkit.org/b/308631 fast/flexbox/001.html [ Failure Pass ]
-webkit.org/b/308630 fast/css/sticky/sticky-left-percentage.html [ ImageOnlyFailure Pass ]
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of non-crashing, non-flaky tests failing
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -1229,7 +1232,6 @@ webgl/2.0.y/conformance2/textures/image_bitmap_from_video [ Skip ]
 webgl/2.0.y/conformance2/textures/misc/tex-image-with-bad-args-from-dom-elements.html [ Skip ]
 
 # Flaky tests on Aug-2023
-webkit.org/b/261024 imported/w3c/web-platform-tests/html/browsers/browsing-the-web/navigating-across-documents/javascript-url-return-value-handling-dynamic.html [ Failure Pass ]
 webkit.org/b/261024 imported/w3c/web-platform-tests/media-source/mediasource-play.html [ Failure Pass ]
 webkit.org/b/261024 inspector/canvas/recording-webgl-full.html [ Failure ]
 
@@ -1451,3 +1453,7 @@ webkit.org/b/313649 editing/pasteboard/copy-text-with-wrapped-tag.html [ Failure
 webkit.org/b/313649 editing/pasteboard/paste-4039777-fix.html [ Failure ]
 webkit.org/b/313649 editing/pasteboard/paste-noscript.html [ Failure ]
 webkit.org/b/313649 editing/pasteboard/reveal-selection-after-pasting-images.html [ Failure ]
+
+webkit.org/b/313985 fullscreen/fullscreen-clears-hover-on-overlay.html [ Failure Pass ]
+
+webkit.org/b/303859 imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.disconnected.html [ Pass ImageOnlyFailure ]

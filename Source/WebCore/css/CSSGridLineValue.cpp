@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,50 +28,28 @@
 #include "CSSGridLineValue.h"
 
 #include "CSSPrimitiveNumericTypes+Serialization.h"
-#include <wtf/text/StringBuilder.h>
 
 namespace WebCore {
 
-CSSGridLineValue::CSSGridLineValue(std::optional<CSS::Keyword::Span> span, std::optional<CSS::Integer<>>&& numeric, std::optional<CSS::CustomIdent>&& gridLineName)
-    : CSSValue(ClassType::GridLineValue)
-    , m_span(span)
-    , m_numeric(WTF::move(numeric))
-    , m_gridLineName(WTF::move(gridLineName))
+Ref<CSSGridLineValue> CSSGridLineValue::create(CSS::GridLine line)
 {
+    return adoptRef(*new CSSGridLineValue(WTF::move(line)));
 }
 
-Ref<CSSGridLineValue> CSSGridLineValue::create(std::optional<CSS::Keyword::Span> span, std::optional<CSS::Integer<>>&& numeric, std::optional<CSS::CustomIdent>&& gridLineName)
+CSSGridLineValue::CSSGridLineValue(CSS::GridLine&& line)
+    : CSSValue(ClassType::GridLineValue)
+    , m_line(WTF::move(line))
 {
-    return adoptRef(*new CSSGridLineValue(span, WTF::move(numeric), WTF::move(gridLineName)));
 }
 
 bool CSSGridLineValue::equals(const CSSGridLineValue& other) const
 {
-    if (m_span != other.m_span)
-        return false;
-    if (m_numeric != other.m_numeric)
-        return false;
-    if (m_gridLineName != other.m_gridLineName)
-        return false;
-    return true;
+    return m_line == other.m_line;
 }
 
 String CSSGridLineValue::customCSSText(const CSS::SerializationContext& context) const
 {
-    using SerializationType = SpaceSeparatedTuple<
-        std::optional<CSS::Keyword::Span>,
-        std::optional<CSS::Integer<>>,
-        std::optional<CSS::CustomIdent>
-    >;
-
-    // Only return the numeric value if not 1, or if it provided without a span value.
-    // https://drafts.csswg.org/css-grid-2/#grid-placement-span-int
-
-    return CSS::serializationForCSS(context, SerializationType {
-        m_span,
-        m_numeric && (m_numeric->raw() != 1 || !m_span || !m_gridLineName) ? m_numeric : std::nullopt,
-        m_gridLineName
-    });
+    return CSS::serializationForCSS(context, m_line);
 }
 
 } // namespace WebCore

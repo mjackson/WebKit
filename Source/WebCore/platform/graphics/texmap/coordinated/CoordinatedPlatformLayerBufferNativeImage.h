@@ -44,10 +44,11 @@ private:
     void paintToTextureMapper(TextureMapper&, const FloatRect&, const TransformationMatrix& modelViewMatrix = TransformationMatrix(), float opacity = 1.0) override;
 
 #if USE(SKIA)
-    void paintToCanvas(SkCanvas&, const FloatRect&, const SkPaint&) override;
+    sk_sp<SkImage> skiaImage() override;
 #endif
 
-    bool tryEnsureBuffer();
+    enum class UseSkiaForCompositing : bool { No, Yes };
+    bool tryEnsureBuffer(UseSkiaForCompositing = UseSkiaForCompositing::No);
 
     RefPtr<NativeImage> m_image;
     std::unique_ptr<CoordinatedPlatformLayerBuffer> m_buffer;

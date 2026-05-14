@@ -45,12 +45,14 @@
         sourceBuffer.appendBuffer(media);
         await Promise.all([waitFor(sourceBuffer, 'updateend'), waitFor(video, 'durationchange')]);
         testExpected('source.duration', 16);
-
-        endTest();
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

@@ -98,8 +98,6 @@ private:
     void flushDataBuffer();
     bool segmentsMustStartWithVideoKeyframe() const;
 
-    static void compressedAudioOutputBufferCallback(void*, CMBufferQueueTriggerToken);
-
     Ref<FragmentedSharedBuffer> takeData();
 
     MediaTime lastMuxedSampleTime() const;

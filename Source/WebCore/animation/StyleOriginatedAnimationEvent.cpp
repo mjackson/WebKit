@@ -43,8 +43,8 @@ StyleOriginatedAnimationEvent::StyleOriginatedAnimationEvent(enum EventInterface
 {
 }
 
-StyleOriginatedAnimationEvent::StyleOriginatedAnimationEvent(enum EventInterfaceType eventInterface, const AtomString& type, EventInit&& init, IsTrusted isTrusted, double elapsedTime, String&& pseudoElement)
-    : AnimationEventBase(eventInterface, type, WTF::move(init), isTrusted)
+StyleOriginatedAnimationEvent::StyleOriginatedAnimationEvent(enum EventInterfaceType eventInterface, const AtomString& type, EventInit&& init, IsTrusted isTrusted, double elapsedTime, String&& pseudoElement, RefPtr<WebAnimation>&& animation)
+    : AnimationEventBase(eventInterface, type, WTF::move(init), isTrusted, WTF::move(animation))
     , m_elapsedTime(elapsedTime)
     , m_pseudoElement(WTF::move(pseudoElement))
 {

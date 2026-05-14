@@ -38,6 +38,7 @@
 #include <wtf/MonotonicTime.h>
 #include <wtf/RefCounted.h>
 #include <wtf/StdLibExtras.h>
+#include <wtf/Threading.h>
 #include <wtf/threads/BinarySemaphore.h>
 
 #if PLATFORM(COCOA)
@@ -401,6 +402,9 @@ public:
         return didTimeout;
     }
 
+    void cancel() { m_cancelled.store(true, std::memory_order_release); }
+    bool isCancelled() const { return m_cancelled.load(std::memory_order_acquire); }
+
     void NODELETE markParentDispatched() { m_dispatchedParent.store(true, std::memory_order_release); }
     bool NODELETE didDispatchParent() const { return m_dispatchedParent.load(std::memory_order_acquire); }
 
@@ -420,6 +424,7 @@ private:
     BinarySemaphore m_semaphore;
     std::atomic<bool> m_shouldSignal { true };
     std::atomic<bool> m_dispatchedParent { false };
+    std::atomic<bool> m_cancelled { false };
     Lock m_lock;
     Vector<AccessibilityRemoteToken> m_parentTokens WTF_GUARDED_BY_LOCK(m_lock);
 };
@@ -434,6 +439,16 @@ AccessibilitySearchResults performSearchWithParentCoordination(AXCoreObject& anc
     }
 
 #if PLATFORM_SUPPORTS_REMOTE_SEARCH
+    if (criteria.immediateDescendantsOnly) {
+        // immediateDescendantsOnly searches are scoped to a specific container, so the parent
+        // frame has nothing to contribute. Skip the main-thread dispatch entirely.
+        return performSearchWithCrossProcessCoordination(anchorObject, WTF::move(criteria));
+    }
+
+    RefPtr tree = AXTreeStore<AXIsolatedTree>::isolatedTreeForID(treeID);
+    if (!tree || tree->isMainFrame() || !tree->siteIsolationEnabled())
+        return performSearchWithCrossProcessCoordination(anchorObject, WTF::move(criteria));
+
     // Save original parameters for parent coordination.
     unsigned originalLimit = criteria.resultsLimit;
     bool isForward = criteria.searchDirection == AccessibilitySearchDirection::Next;
@@ -453,12 +468,14 @@ AccessibilitySearchResults performSearchWithParentCoordination(AXCoreObject& anc
         RefPtr frame = document ? document->frame() : nullptr;
         RefPtr page = frame ? frame->page() : nullptr;
 
-        if (!frame || !page || frame->isMainFrame() || !page->settings().siteIsolationEnabled() || criteriaForParent.immediateDescendantsOnly) {
-            // Not in a child frame, site isolation is disabled, or this is an
-            // immediateDescendantsOnly search. In the latter case, the search is scoped
-            // to a specific container in the child frame, so the parent frame has nothing
-            // to contribute — skip the parent search to match non-site-isolation behavior
-            // and avoid returning unrelated elements (like the parent's ScrollBar).
+        if (!frame || !page) {
+            context->signal();
+            return;
+        }
+
+        if (context->isCancelled()) {
+            // The AX thread already found enough local results and no longer
+            // needs parent contributions. Bail to avoid unnecessary IPC.
             context->signal();
             return;
         }
@@ -467,9 +484,7 @@ AccessibilitySearchResults performSearchWithParentCoordination(AXCoreObject& anc
 
         if (shouldMockParentSearchResultsForTesting()) [[unlikely]] {
             // Testing: provide a mock parent result instead of dispatching
-            // real IPC (which deadlocks in the test runner). This lets tests
-            // verify that the parent search is correctly skipped for
-            // immediateDescendantsOnly searches (i.e. the if just above).
+            // real IPC (which deadlocks in the test runner).
             context->signal();
             return;
         }
@@ -487,6 +502,15 @@ AccessibilitySearchResults performSearchWithParentCoordination(AXCoreObject& anc
 
     // Perform local + nested remote frame search (runs in parallel with parent search).
     auto searchResults = performSearchWithCrossProcessCoordination(anchorObject, WTF::move(criteria));
+
+    // If local results already satisfy the limit, parent results won't contribute
+    // to the merged output regardless of search direction — skip the wait.
+    if (searchResults.size() >= originalLimit) {
+        // Signal to the main-thread lambda that it can skip the parent search
+        // IPC dispatch, since local results already satisfy the requested limit.
+        context->cancel();
+        return searchResults;
+    }
 
     // Wait for parent search to complete using the cascading timeout.
     if (auto remainingTimeout = computeRemainingTimeout(criteriaForParent.deadline))

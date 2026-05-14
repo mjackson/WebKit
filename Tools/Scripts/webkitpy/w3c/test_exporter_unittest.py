@@ -32,8 +32,6 @@ from webkitbugspy import mocks as bmocks, Tracker, bugzilla
 from webkitcorepy import mocks as wkmocks, testing, OutputCapture
 from webkitscmpy import mocks as mocks
 
-mock_linter = None
-
 
 class TestExporterTest(testing.PathTestCase):
     maxDiff = None
@@ -78,20 +76,6 @@ class TestExporterTest(testing.PathTestCase):
         def scm(self):
             return self._mockSCM
 
-    class MockWPTLinter(object):
-        def __init__(self, repository_directory, filesystem):
-            self.calls = [repository_directory]
-            # workaround to appease the style checker which thinks
-            # exporter._linter is an instance of WPTLinter and
-            # complains if we try to access the calls property which
-            # only exists on MockWPTLinter
-            global mock_linter
-            mock_linter = self
-
-        def lint(self):
-            self.calls.append('lint')
-            return 0
-
     def test_export(self):
         with OutputCapture(level=logging.INFO) as captured, bmocks.Bugzilla(self.BUGZILLA_URL.split('://')[1], issues=bmocks.ISSUES, environment=wkmocks.Environment(
             BUGS_EXAMPLE_COM_USERNAME='tcontributor@example.com',
@@ -101,7 +85,9 @@ class TestExporterTest(testing.PathTestCase):
         }) as wpt_remote, mocks.local.Git(
             self.path,
             remote='https://{}'.format(wpt_remote.remote)
-        ), patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA_URL)]):
+        ), patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA_URL)]), patch(
+            'webkitpy.w3c.test_exporter.WPTLinter', autospec=True, spec_set=True,
+        ) as mock_linter_class:
             host = TestExporterTest.MyMockHost()
             host.filesystem.maybe_make_directory(self.path)
             host.filesystem.write_binary_file(f'{self.path}/resources/testharness.js', '')
@@ -109,14 +95,15 @@ class TestExporterTest(testing.PathTestCase):
 
             host.web.responses.append({'status_code': 200, 'body': '{"login": "USER"}'})
             options = parse_args(['test_exporter.py', '-g', '1@main', '-b', '1', '-c', '-n', 'USER', '-t', 'TOKEN', '-d', self.path])
-            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, TestExporterTest.MockWPTLinter, 1)
+            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, mock_linter_class, 1)
             exporter.do_export()
 
             issue = Tracker.from_string('{}/show_bug.cgi?id=1'.format(self.BUGZILLA_URL))
             self.assertEqual(issue.comments[-1].content, 'Submitted web-platform-tests pull request: https://github.com/web-platform-tests/wpt/pull/1')
             self.assertEqual(issue.related_links, ['https://github.com/web-platform-tests/wpt/pull/1'])
 
-        self.assertEqual(mock_linter.calls, [self.path, 'lint'])
+        mock_linter_class.assert_called_once_with(self.path)
+        mock_linter_class.return_value.lint.assert_called_once_with()
 
         self.assertEqual(
             captured.stdout.getvalue(),
@@ -147,20 +134,23 @@ class TestExporterTest(testing.PathTestCase):
         }) as wpt_remote, mocks.local.Git(
             self.path,
             remote='https://{}'.format(wpt_remote.remote)
-        ), patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA_URL)]):
+        ), patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA_URL)]), patch(
+            'webkitpy.w3c.test_exporter.WPTLinter', autospec=True, spec_set=True,
+        ) as mock_linter_class:
             host = TestExporterTest.MyMockHost()
             host.filesystem.maybe_make_directory(self.path)
             host.filesystem.write_binary_file(f'{self.path}/resources/testharness.js', '')
             host.filesystem.write_binary_file(f'{self.path}/wpt', '')
             host.web.responses.append({'status_code': 200, 'body': '{"login": "USER"}'})
             options = parse_args(['test_exporter.py', '-g', 'HEAD', '-b', '1', '-c', '-n', 'USER', '-t', 'TOKEN', '-bn', 'wpt-export-branch', '-d', self.path])
-            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, TestExporterTest.MockWPTLinter, 1)
+            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, mock_linter_class, 1)
             exporter.do_export()
             issue = Tracker.from_string('{}/show_bug.cgi?id=1'.format(self.BUGZILLA_URL))
             self.assertEqual(issue.comments[-1].content, 'Submitted web-platform-tests pull request: https://github.com/web-platform-tests/wpt/pull/1')
             self.assertEqual(issue.related_links, ['https://github.com/web-platform-tests/wpt/pull/1'])
 
-        self.assertEqual(mock_linter.calls, [self.path, 'lint'])
+        mock_linter_class.assert_called_once_with(self.path)
+        mock_linter_class.return_value.lint.assert_called_once_with()
 
         self.assertEqual(
             captured.stdout.getvalue(),
@@ -191,20 +181,23 @@ class TestExporterTest(testing.PathTestCase):
         }) as wpt_remote, mocks.local.Git(
             self.path,
             remote='https://{}'.format(wpt_remote.remote)
-        ), patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA_URL)]):
+        ), patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA_URL)]), patch(
+            'webkitpy.w3c.test_exporter.WPTLinter', autospec=True, spec_set=True,
+        ) as mock_linter_class:
             host = TestExporterTest.MyMockHost()
             host.filesystem.maybe_make_directory(self.path)
             host.filesystem.write_binary_file(f'{self.path}/resources/testharness.js', '')
             host.filesystem.write_binary_file(f'{self.path}/wpt', '')
             host.web.responses.append({'status_code': 200, 'body': '{"login": "USER"}'})
             options = parse_args(['test_exporter.py', '-g', 'HEAD', '-b', '1', '-c', '-n', 'USER', '-t', 'TOKEN', '--no-clean', '-d', self.path])
-            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, TestExporterTest.MockWPTLinter, 1)
+            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, mock_linter_class, 1)
             exporter.do_export()
             issue = Tracker.from_string('{}/show_bug.cgi?id=1'.format(self.BUGZILLA_URL))
             self.assertEqual(issue.comments[-1].content, 'Submitted web-platform-tests pull request: https://github.com/web-platform-tests/wpt/pull/1')
             self.assertEqual(issue.related_links, ['https://github.com/web-platform-tests/wpt/pull/1'])
 
-        self.assertEqual(mock_linter.calls, [self.path, 'lint'])
+        mock_linter_class.assert_called_once_with(self.path)
+        mock_linter_class.return_value.lint.assert_called_once_with()
 
         self.assertEqual(
             captured.stdout.getvalue(),
@@ -235,12 +228,14 @@ class TestExporterTest(testing.PathTestCase):
         }) as wpt_remote, mocks.local.Git(
             self.path,
             remote='https://{}'.format(wpt_remote.remote)
-        ), patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA_URL)]):
+        ), patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA_URL)]), patch(
+            'webkitpy.w3c.test_exporter.WPTLinter', autospec=True, spec_set=True,
+        ) as mock_linter_class:
             host = TestExporterTest.MyMockHost()
             host.filesystem.maybe_make_directory(self.path)
             host.web.responses.append({'status_code': 200, 'body': '{"login": "USER"}'})
             options = parse_args(['test_exporter.py', '-g', 'HEAD', '-b', '1', '-c', '-n', 'USER', '-t', 'TOKEN', '--interactive', '-d', self.path])
-            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, TestExporterTest.MockWPTLinter, 1)
+            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, mock_linter_class, 1)
             exporter.do_export()
 
     def test_export_invalid_token(self):
@@ -253,8 +248,10 @@ class TestExporterTest(testing.PathTestCase):
         }) as wpt_remote, mocks.local.Git(
             self.path,
             remote='https://{}'.format(wpt_remote.remote)
-        ), self.assertRaises(Exception) as context:
-            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, TestExporterTest.MockWPTLinter, 1)
+        ), self.assertRaises(Exception) as context, patch('webkitpy.w3c.test_exporter.WPTLinter',
+            autospec=True, spec_set=True,
+        ) as mock_linter_class:
+            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, mock_linter_class, 1)
             exporter.do_export()
             self.assertIn('OAuth token is not valid', str(context.exception))
 
@@ -268,8 +265,10 @@ class TestExporterTest(testing.PathTestCase):
         }) as wpt_remote, mocks.local.Git(
             self.path,
             remote='https://{}'.format(wpt_remote.remote)
-        ), self.assertRaises(Exception) as context:
-            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, TestExporterTest.MockWPTLinter, 1)
+        ), self.assertRaises(Exception) as context, patch('webkitpy.w3c.test_exporter.WPTLinter',
+            autospec=True, spec_set=True,
+        ) as mock_linter_class:
+            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, mock_linter_class, 1)
             exporter.do_export()
             self.assertIn('OAuth token does not match the provided username', str(context.exception))
 
@@ -277,8 +276,10 @@ class TestExporterTest(testing.PathTestCase):
         host = TestExporterTest.MyMockHost()
         host.filesystem.maybe_make_directory(self.path)
         options = parse_args(['test_exporter.py', '-g', 'HEAD', '-b', '1', '-c', '-n', 'USER', '-t', 'TOKEN', '-d', self.path])
-        with mocks.local.Git(self.path) as repo:
-            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, TestExporterTest.MockWPTLinter, 1)
+        with mocks.local.Git(self.path), patch('webkitpy.w3c.test_exporter.WPTLinter',
+            autospec=True, spec_set=True,
+        ) as mock_linter_class:
+            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, mock_linter_class, 1)
             self.assertTrue(exporter.has_wpt_changes())
 
     def test_has_no_wpt_changes_for_no_diff(self):
@@ -291,8 +292,10 @@ class TestExporterTest(testing.PathTestCase):
         }) as wpt_remote, mocks.local.Git(
             self.path,
             remote='https://{}'.format(wpt_remote.remote)
-        ):
-            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, TestExporterTest.MockWPTLinter, 1)
+        ), patch('webkitpy.w3c.test_exporter.WPTLinter',
+            autospec=True, spec_set=True,
+        ) as mock_linter_class:
+            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, mock_linter_class, 1)
             self.assertFalse(exporter.has_wpt_changes())
 
     def test_ignore_changes_to_expected_file(self):
@@ -317,8 +320,10 @@ diff --git a/LayoutTests/imported/w3c/web-platform-tests/fetch/api/headers/heade
 +change to any.sharedworker
 """
         options = parse_args(['test_exporter.py', '-g', 'HEAD', '-b', '1', '-c', '-n', 'USER', '-t', 'TOKEN', '-d', self.path])
-        with mocks.local.Git(self.path) as repo:
-            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, TestExporterTest.MockWPTLinter, 1)
+        with mocks.local.Git(self.path), patch('webkitpy.w3c.test_exporter.WPTLinter',
+            autospec=True, spec_set=True,
+        ) as mock_linter_class:
+            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, mock_linter_class, 1)
         self.assertFalse(exporter.has_wpt_changes())
 
     def test_ignore_changes_to_expected_mismatch_file(self):
@@ -331,8 +336,10 @@ diff --git a/LayoutTests/imported/w3c/web-platform-tests/css/css-counter-styles/
 +change to expected-mismatch
 """
         options = parse_args(['test_exporter.py', '-g', 'HEAD', '-b', '1', '-c', '-n', 'USER', '-t', 'TOKEN', '-d', self.path])
-        with mocks.local.Git(self.path) as repo:
-            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, TestExporterTest.MockWPTLinter, 1)
+        with mocks.local.Git(self.path), patch('webkitpy.w3c.test_exporter.WPTLinter',
+            autospec=True, spec_set=True,
+        ) as mock_linter_class:
+            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, mock_linter_class, 1)
         self.assertFalse(exporter.has_wpt_changes())
 
     def test_ignore_changes_to_w3c_import_log(self):
@@ -345,6 +352,8 @@ diff --git a/LayoutTests/imported/w3c/web-platform-tests/fetch/api/headers/w3c-i
 +change to w3c import
 """
         options = parse_args(['test_exporter.py', '-g', 'HEAD', '-b', '1', '-c', '-n', 'USER', '-t', 'TOKEN', '-d', self.path])
-        with mocks.local.Git(self.path) as repo:
-            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, TestExporterTest.MockWPTLinter, 1)
+        with mocks.local.Git(self.path), patch('webkitpy.w3c.test_exporter.WPTLinter',
+            autospec=True, spec_set=True,
+        ) as mock_linter_class:
+            exporter = WebPlatformTestExporter(host, options, TestExporterTest.MockBugzilla, mock_linter_class, 1)
         self.assertFalse(exporter.has_wpt_changes())

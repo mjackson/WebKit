@@ -214,21 +214,6 @@ static RefPtr<CSSValue> consumeCSSWideKeywordValue(CSSParserTokenRange& range)
     return CSSKeywordValue::create(valueID);
 }
 
-static std::optional<CSSWideKeyword> consumeCSSWideKeyword(CSSParserTokenRange& range)
-{
-    auto rangeCopy = range;
-    auto valueID = rangeCopy.consumeIncludingWhitespace().id();
-    if (!rangeCopy.atEnd())
-        return { };
-
-    auto keyword = parseCSSWideKeyword(valueID);
-    if (!keyword)
-        return { };
-
-    range = rangeCopy;
-    return keyword;
-}
-
 // MARK: - Parser entry points
 
 using namespace CSSPropertyParserHelpers;
@@ -462,11 +447,6 @@ RefPtr<CSSValue> CSSPropertyParser::parseWithSyntax(const CSSCustomPropertySynta
     if (!value || !range.atEnd())
         return { };
     return value;
-}
-
-std::optional<CSSWideKeyword> CSSPropertyParser::parseCSSWideKeyword(CSSParserTokenRange range)
-{
-    return consumeCSSWideKeyword(range);
 }
 
 std::pair<RefPtr<CSSValue>, CSSCustomPropertySyntax::Type> consumeCustomPropertyValueWithSyntax(CSSParserTokenRange& range, CSS::PropertyParserState& state, const CSSCustomPropertySyntax& syntax)

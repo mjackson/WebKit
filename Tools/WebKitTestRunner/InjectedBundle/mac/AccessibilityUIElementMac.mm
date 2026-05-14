@@ -738,7 +738,7 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElementMac::ariaLabelledByElementA
 
 RefPtr<AccessibilityUIElement> AccessibilityUIElementMac::labelForElementAtIndex(unsigned index)
 {
-    return elementForAttributeAtIndex(@"AXLabelFor", index);
+    return elementForAttributeAtIndex(@"AXServesAsTitleForUIElements", index);
 }
 
 RefPtr<AccessibilityUIElement> AccessibilityUIElementMac::ownerElementAtIndex(unsigned index)
@@ -3230,9 +3230,19 @@ JSRetainPtr<JSStringRef> AccessibilityUIElementMac::supportedActions() const
 bool AccessibilityUIElementMac::performAction(NSString *actionName) const
 {
     BEGIN_AX_OBJC_EXCEPTIONS
-    s_controller->executeOnAXThread([actionName, this] {
-        [m_element accessibilityPerformAction:actionName];
-    });
+    if ([actionName hasPrefix:@"AXSync"]) {
+        // Sync actions (e.g. AXSyncIncrementAction) use AXIsolatedObject::syncIncrement(),
+        // which waits for the main thread to complete the action. We must also wait here
+        // for the AX thread to finish, otherwise the calling JS would read stale values
+        // because the AX thread hasn't even begun executing the action yet.
+        s_controller->executeOnAXThreadAndWait([actionName, this] {
+            [m_element accessibilityPerformAction:actionName];
+        });
+    } else {
+        s_controller->executeOnAXThread([actionName, this] {
+            [m_element accessibilityPerformAction:actionName];
+        });
+    }
     END_AX_OBJC_EXCEPTIONS
 
     // macOS actions don't return a value.

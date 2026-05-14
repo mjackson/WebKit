@@ -93,6 +93,7 @@ struct LoadParameters {
     bool hadUserGesture { false };
     WebCore::NavigationUpgradeToHTTPSBehavior navigationUpgradeToHTTPSBehavior { WebCore::NavigationUpgradeToHTTPSBehavior::BasedOnPolicy };
     bool isHandledByAboutSchemeHandler { false };
+    bool isHistoryItemNavigation { false };
 
     std::optional<OptionSet<WebCore::AdvancedPrivacyProtections>> advancedPrivacyProtections;
     uint64_t requiredCookiesVersion { 0 };

@@ -41,7 +41,9 @@
 #endif
 
 #if USE(SKIA)
+#include "SkiaUtilities.h"
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
+#include <skia/core/SkColorSpace.h>
 #include <skia/core/SkImage.h>
 #include <skia/gpu/ganesh/GrBackendSurface.h>
 #include <skia/gpu/ganesh/SkImageGanesh.h>
@@ -166,23 +168,23 @@ void CoordinatedPlatformLayerBufferExternalOES::paintToTextureMapper(TextureMapp
 }
 
 #if USE(SKIA)
-void CoordinatedPlatformLayerBufferExternalOES::paintToCanvas(SkCanvas& canvas, const FloatRect& targetRect, const SkPaint& paint)
+sk_sp<SkImage> CoordinatedPlatformLayerBufferExternalOES::skiaImage()
 {
     waitForContentsIfNeeded();
 
     if (!m_textureID) {
         // FIXME: support Qualcomm decoder.
-        return;
+        return nullptr;
     }
 
     auto* grContext = PlatformDisplay::sharedDisplay().skiaGrContext();
+    ASSERT(grContext);
     GrGLTextureInfo externalTexture;
     externalTexture.fTarget = GL_TEXTURE_EXTERNAL_OES;
     externalTexture.fID = m_textureID;
     externalTexture.fFormat = GL_RGBA8;
     auto backendTexture = GrBackendTextures::MakeGL(m_size.width(), m_size.height(), skgpu::Mipmapped::kNo, externalTexture);
-    sk_sp<SkImage> image = SkImages::BorrowTextureFrom(grContext, backendTexture, kTopLeft_GrSurfaceOrigin, kRGBA_8888_SkColorType, kPremul_SkAlphaType, SkColorSpace::MakeSRGB());
-    canvas.drawImageRect(image, SkRect::MakeWH(m_size.width(), m_size.height()), targetRect, SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNone), &paint, SkCanvas::kFast_SrcRectConstraint);
+    return SkiaUtilities::borrowBackendTextureAsImage(grContext, backendTexture);
 }
 #endif
 

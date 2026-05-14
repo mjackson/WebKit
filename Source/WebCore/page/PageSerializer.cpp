@@ -215,12 +215,12 @@ void PageSerializer::serializeFrame(LocalFrame* frame)
             retrieveResourcesForProperties(protect(styledElement->inlineStyle()).get(), document.get());
 
         if (RefPtr imageElement = dynamicDowncast<HTMLImageElement>(*element)) {
-            auto url = document->completeURL(imageElement->attributeWithoutSynchronization(HTMLNames::srcAttr));
+            auto url = document->encodingParseURL(imageElement->attributeWithoutSynchronization(HTMLNames::srcAttr));
             RefPtr cachedImage = imageElement->cachedImage();
             addImageToResources(cachedImage, imageElement->renderer(), url);
         } else if (RefPtr linkElement = dynamicDowncast<HTMLLinkElement>(*element)) {
             if (RefPtr sheet = linkElement->sheet()) {
-                auto url = document->completeURL(linkElement->attributeWithoutSynchronization(HTMLNames::hrefAttr));
+                auto url = document->encodingParseURL(linkElement->attributeWithoutSynchronization(HTMLNames::hrefAttr));
                 serializeCSSStyleSheet(sheet.get(), url);
                 ASSERT(m_resourceURLs.contains(url));
             }
@@ -252,7 +252,7 @@ void PageSerializer::serializeCSSStyleSheet(CSSStyleSheet* styleSheet, const URL
         RefPtr document = styleSheet->ownerDocument();
         // Some rules have resources associated with them that we need to retrieve.
         if (RefPtr importRule = dynamicDowncast<CSSImportRule>(*rule)) {
-            auto importURL = document->completeURL(importRule->href());
+            auto importURL = document->encodingParseURL(importRule->href());
             if (m_resourceURLs.contains(importURL))
                 continue;
             serializeCSSStyleSheet(protect(importRule->styleSheet()).get(), importURL);
@@ -315,7 +315,7 @@ void PageSerializer::retrieveResourcesForProperties(const StyleProperties* style
         if (!image)
             continue;
 
-        addImageToResources(image, nullptr, document->completeURL(image->url().string()));
+        addImageToResources(image, nullptr, document->encodingParseURL(image->url().string()));
     }
 }
 

@@ -87,6 +87,7 @@ private:
 
     WeakRef<ViewGestureController> m_viewGestureController;
     WeakRef<WebPageProxy> m_webPageProxy;
+    WebPageProxyIdentifier m_pageIdentifier;
 };
 
 } // namespace WebKit

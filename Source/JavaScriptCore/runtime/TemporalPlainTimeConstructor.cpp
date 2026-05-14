@@ -93,10 +93,11 @@ JSC_DEFINE_HOST_FUNCTION(constructTemporalPlainTime, (JSGlobalObject* globalObje
     auto count = std::min<size_t>(callFrame->argumentCount(), numberOfTemporalPlainTimeUnits);
     for (unsigned i = 0; i < count; i++) {
         unsigned durationIndex = i + static_cast<unsigned>(TemporalUnit::Hour);
-        duration[durationIndex] = callFrame->uncheckedArgument(i).toIntegerOrInfinity(globalObject);
+        double v = callFrame->uncheckedArgument(i).toIntegerOrInfinity(globalObject);
         RETURN_IF_EXCEPTION(scope, { });
-        if (!std::isfinite(duration[durationIndex]))
+        if (!std::isfinite(v))
             return throwVMRangeError(globalObject, scope, "Temporal.PlainTime properties must be finite"_s);
+        duration.setField(durationIndex, v);
     }
     RELEASE_AND_RETURN(scope, JSValue::encode(TemporalPlainTime::tryCreateIfValid(globalObject, structure, WTF::move(duration))));
 }

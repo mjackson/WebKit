@@ -220,10 +220,8 @@ void FrameConsoleClient::messageWithTypeAndLevel(MessageType type, MessageLevel 
     auto columnNumber = message->column();
 
     auto* domGlobalObject = dynamicDowncast<JSDOMGlobalObject>(lexicalGlobalObject);
-    if (level == MessageLevel::Error && domGlobalObject && domGlobalObject->hasScriptErrorCallbacks()) {
-        auto fullMessageText = makeStringByJoining(arguments->getArgumentsAsStrings(), " "_s);
-        domGlobalObject->invokeScriptErrorCallbacks(fullMessageText, url, lineNumber, columnNumber);
-    }
+    if (level == MessageLevel::Error && domGlobalObject && domGlobalObject->hasScriptErrorCallbacks())
+        domGlobalObject->invokeScriptErrorCallbacks(messageText, url, lineNumber, columnNumber);
 
 #if ENABLE(WEBDRIVER_BIDI)
     AutomationInstrumentation::addMessageToConsole(message);

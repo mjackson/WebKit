@@ -131,6 +131,7 @@ private:
     float m_viewportWidth { 0.f };
     float m_viewportHeight { 0.f };
     WebCore::StageModeOperation m_stageMode;
+    bool m_entityTransformSetByScript { false };
 #endif
 };
 

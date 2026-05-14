@@ -44,6 +44,7 @@
 #endif
 
 #define BASAN_ENABLED BCOMPILER_HAS_CLANG_FEATURE(address_sanitizer)
+#define BTSAN_ENABLED BCOMPILER_HAS_CLANG_FEATURE(thread_sanitizer)
 
 /* BCOMPILER_HAS_CLANG_DECLSPEC() - whether the compiler supports a Microsoft style __declspec attribute. */
 /* https://clang.llvm.org/docs/LanguageExtensions.html#has-declspec-attribute */

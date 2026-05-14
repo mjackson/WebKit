@@ -170,6 +170,8 @@ static Vector<uint8_t> loadData(RetainPtr<CFStringRef> filename)
 void WebModelPlayer::load(WebCore::Model& modelSource, WebCore::LayoutSize size)
 {
     RefPtr corePage = m_page.get();
+    if (!corePage)
+        return;
     m_modelLoader = nil;
     m_didFinishLoading = false;
     m_renderTextureIndex = 0;
@@ -197,6 +199,8 @@ void WebModelPlayer::load(WebCore::Model& modelSource, WebCore::LayoutSize size)
         if (surfaceHandles.size())
             protectedThis->m_displayBuffers = WTF::move(surfaceHandles);
     });
+    if (!m_currentModel)
+        return;
     m_currentModel->setViewportSize(cssSize.width().toFloat(), cssSize.height().toFloat());
 
     m_modelLoader = adoptNS([allocWKBridgeModelLoaderInstance() initWithGPUFamily:MTLGPUFamilyApple7]);
@@ -333,7 +337,11 @@ void WebModelPlayer::handleMouseMove(const WebCore::LayoutPoint& currentPoint, M
     if (!m_initialPoint)
         return;
 
-    static constexpr float kDragToRotationMultiplier = 0.005;
+    static constexpr float kDefaultDragToRotationMultiplier = 0.005;
+    static float kDragToRotationMultiplier = [] {
+        auto factor = [[NSUserDefaults standardUserDefaults] floatForKey:@"WebKitModelDragToRotationMultiplier"];
+        return kDefaultDragToRotationMultiplier * (factor > 0 ? factor : 1.0f);
+    }();
 
     float totalDeltaX = static_cast<float>(m_initialPoint->x() - currentPoint.x()) * kDragToRotationMultiplier;
     float totalDeltaY = static_cast<float>(currentPoint.y() - m_initialPoint->y()) * kDragToRotationMultiplier;

@@ -571,7 +571,9 @@
 
 // Add this annotation to right after the return type of a function when the function does not run any destructor or free memory.
 // Static analyzer does not require the use of smart pointers in the code which calls a function with this annotation.
+#ifndef NODELETE
 #define NODELETE [[clang::annotate_type("webkit.nodelete")]]
+#endif
 
 #else
 
@@ -724,6 +726,15 @@
 // Used to indicate that a class member has a specialized implementation in Swift. See
 // "SwiftCXXThunk.h".
 #define HAS_SWIFTCXX_THUNK  NS_REFINED_FOR_SWIFT
+
+#ifdef __cplusplus
+namespace WTF {
+// When -fpch-debuginfo is enabled, clang sometimes forgets to emit a vtable (rdar://176736350).
+// This tag identifies an unused out-of-line constructor that reminds clang to emit a vtable.
+enum class ClangVTableWorkaroundTag { };
+} // namespace WTF
+using WTF::ClangVTableWorkaroundTag;
+#endif
 
 // This comment is incremented each time we add or remove a modulemap file, to force
 // rebuild of all WTF's dependencies. This is a workaround for rdar://151920332.

@@ -75,6 +75,7 @@ static void serializeMathFunction(StringBuilder&, const Child&, SerializationSta
 static void serializeMathFunction(StringBuilder&, const Symbol&, SerializationState&);
 static void serializeMathFunction(StringBuilder&, const SiblingCount&, SerializationState&);
 static void serializeMathFunction(StringBuilder&, const SiblingIndex&, SerializationState&);
+static void serializeMathFunction(StringBuilder&, const IndirectNode<Deg2Rad>&, SerializationState&);
 template<Numeric Op> static void serializeMathFunction(StringBuilder&, const Op&, SerializationState&);
 template<typename Op> static void serializeMathFunction(StringBuilder&, const IndirectNode<Op>&, SerializationState&);
 
@@ -108,6 +109,7 @@ static void serializeCalculationTree(StringBuilder&, const IndirectNode<Sum>&, S
 static void serializeCalculationTree(StringBuilder&, const IndirectNode<Product>&, SerializationState&);
 static void serializeCalculationTree(StringBuilder&, const IndirectNode<Negate>&, SerializationState&);
 static void serializeCalculationTree(StringBuilder&, const IndirectNode<Invert>&, SerializationState&);
+static void serializeCalculationTree(StringBuilder&, const IndirectNode<Deg2Rad>&, SerializationState&);
 template<Numeric Op> void serializeCalculationTree(StringBuilder&, const Op&, SerializationState&);
 template<typename Op> static void serializeCalculationTree(StringBuilder&, const IndirectNode<Op>&, SerializationState&);
 
@@ -692,6 +694,19 @@ void serializeCalculationTree(StringBuilder& builder, const IndirectNode<Invert>
 
     // - Append ")" to s, then return it.
     builder.append(state.closeGroup());
+}
+
+void serializeCalculationTree(StringBuilder& builder, const IndirectNode<Deg2Rad>& root, SerializationState& state)
+{
+    // Deg2Rad is an implementation-only node inserted at parse time inside trig functions. It has
+    // no CSS-level representation, so serialize it transparently by just serializing its child.
+    serializeCalculationTree(builder, root->angle, state);
+}
+
+void serializeMathFunction(StringBuilder& builder, const IndirectNode<Deg2Rad>& root, SerializationState& state)
+{
+    // Deg2Rad has no CSS-level representation, so defer to the child.
+    serializeMathFunction(builder, root->angle, state);
 }
 
 template<typename Op> void serializeCalculationTree(StringBuilder& builder, const IndirectNode<Op>& root, SerializationState& state)

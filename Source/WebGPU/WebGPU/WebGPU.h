@@ -777,6 +777,7 @@ typedef enum WGPUTextureUsage {
     WGPUTextureUsage_TextureBinding = 0x00000004,
     WGPUTextureUsage_StorageBinding = 0x00000008,
     WGPUTextureUsage_RenderAttachment = 0x00000010,
+    WGPUTextureUsage_Transient = 0x00000020,
     WGPUTextureUsage_Force32 = 0x7FFFFFFF
 } WGPUTextureUsage WGPU_ENUM_ATTRIBUTE;
 typedef WGPUFlags WGPUTextureUsageFlags WGPU_ENUM_ATTRIBUTE;

@@ -163,7 +163,13 @@
         }
 
         _handlePresentationModeChanged() {
-            this._mirrorTrack.mode = this._video.webkitPresentationMode == 'inline' ? 'hidden' : 'showing';
+            if (this._video.webkitPresentationMode == 'inline') {
+                this._mirrorTrack.mode = 'hidden';
+                return;
+            }
+
+            this._player.loadModule('captions');
+            this._mirrorTrack.mode = 'showing';
         }
 
         _handleMediaSessionAction(details) {

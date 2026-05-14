@@ -37,12 +37,15 @@
 #include <wtf/Function.h>
 #include <wtf/MonotonicTime.h>
 
+namespace PAL { class SessionID; }
+
 namespace WebCore {
 
 class ContentSecurityPolicyResponseHeaders;
 class ScriptBuffer;
 class ScriptExecutionContext;
 class Worker;
+struct CrossOriginEmbedderPolicy;
 struct WorkerInitializationData;
 enum class ReferrerPolicy : uint8_t;
 enum class WorkerType : bool;

@@ -236,6 +236,24 @@ template<typename Op> static std::optional<TypedChild> consumeExactlyOneArgument
 
     Op op { WTF::move(sum->child) };
 
+    // Sin, Cos, and Tan accept either a <number> (already in radians) or an <angle> (in the
+    // canonical unit of degrees). Wrap angle arguments in a Deg2Rad node so that evaluation no
+    // longer has to inspect types to decide whether to convert — the conversion is explicit in
+    // the tree. Simplify the Deg2Rad eagerly so that fully-resolved angles collapse into a Number
+    // (which then lets the trig simplification below reduce the whole expression to a Number).
+    if constexpr (std::same_as<Op, Sin> || std::same_as<Op, Cos> || std::same_as<Op, Tan>) {
+        if (sum->type.template matchesAny<Type::Match::Angle>({ .allowsPercentHint = true })) {
+            Deg2Rad conversion { .angle = WTF::move(op.a) };
+            if (auto* simplificationOptions = state.simplificationOptions) {
+                if (auto replacement = simplify(conversion, *simplificationOptions))
+                    op.a = WTF::move(*replacement);
+                else
+                    op.a = makeChild(WTF::move(conversion), Type { });
+            } else
+                op.a = makeChild(WTF::move(conversion), Type { });
+        }
+    }
+
     if (auto* simplificationOptions = state.simplificationOptions) {
         if (auto replacement = simplify(op, *simplificationOptions))
             return TypedChild { WTF::move(*replacement), *outputType };

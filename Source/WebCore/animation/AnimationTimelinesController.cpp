@@ -281,7 +281,7 @@ std::optional<Seconds> AnimationTimelinesController::timeUntilNextTickForAnimati
 {
     if (!m_cachedCurrentTime)
         return std::nullopt;
-    return m_frameRateAligner.timeUntilNextUpdateForFrameRate(frameRate, *m_cachedCurrentTime);
+    return m_frameRateAligner.timeUntilNextUpdateForFrameRate(frameRate, ReducedResolutionSeconds::fromSeconds(*m_cachedCurrentTime));
 };
 
 void AnimationTimelinesController::suspendAnimations()
@@ -290,7 +290,7 @@ void AnimationTimelinesController::suspendAnimations()
         return;
 
     if (!m_cachedCurrentTime)
-        m_cachedCurrentTime = liveCurrentTime();
+        m_cachedCurrentTime = liveCurrentTime().deprecatedNonRoundedSeconds();
 
     m_cachedCurrentTimeClearanceTimer.stop();
 
@@ -324,7 +324,7 @@ std::optional<Seconds> AnimationTimelinesController::currentTime(UseCachedCurren
         return std::nullopt;
 
     if (useCachedCurrentTime == UseCachedCurrentTime::No && !m_isSuspended)
-        return liveCurrentTime();
+        return liveCurrentTime().deprecatedNonRoundedSeconds();
 
     if (!m_cachedCurrentTime)
         cacheCurrentTime(liveCurrentTime());
@@ -334,7 +334,7 @@ std::optional<Seconds> AnimationTimelinesController::currentTime(UseCachedCurren
 
 void AnimationTimelinesController::cacheCurrentTime(ReducedResolutionSeconds newCurrentTime)
 {
-    if (m_cachedCurrentTime == newCurrentTime)
+    if (m_cachedCurrentTime == newCurrentTime.deprecatedNonRoundedSeconds())
         return;
 
     m_cachedCurrentTimeClearanceTimer.stop();
@@ -347,7 +347,7 @@ void AnimationTimelinesController::cacheCurrentTime(ReducedResolutionSeconds new
         processPendingAnimations();
     }
 
-    m_cachedCurrentTime = newCurrentTime;
+    m_cachedCurrentTime = newCurrentTime.deprecatedNonRoundedSeconds();
 
     // As we've advanced to a new current time, we want all animations created during this run
     // loop to have this newly-cached current time as their start time. To that end, we schedule

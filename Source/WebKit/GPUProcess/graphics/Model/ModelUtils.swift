@@ -27,8 +27,7 @@ import DirectResource
 import Metal
 import USDKit
 @_spi(UsdLoaderAPI) import _USDKit_RealityKit
-@_spi(Private) @_spi(RealityCoreRendererAPI) import RealityKit
-@_spi(SGInternal) import RealityKit
+@_spi(RealityCoreRendererAPI) import RealityKit
 
 final class MeshInstancePool {
     private(set) var meshInstances: _Proto_LowLevelMeshInstanceArray_v1
@@ -289,30 +288,6 @@ internal func debugPrintShaderGraph(_ graph: _Proto_ShaderNodeGraph?, prefix: St
     logInfo("\(nextIndent)Edges (\(graph.edges.count)):")
     for (index, edge) in graph.edges.enumerated() {
         logInfo("\(nextIndent)  [\(index)] \(edge.outputNode):\(edge.outputPort) -> \(edge.inputNode):\(edge.inputPort)")
-    }
-
-    // Print underlying SGGraph
-    let sgGraph = graph.sgGraph
-    logInfo("\(nextIndent)SGGraph:")
-    let sgIndent = nextIndent + "  "
-    logInfo("\(sgIndent)Name: \(sgGraph.name)")
-    logInfo("\(sgIndent)Inputs (\(sgGraph.inputs.count)):")
-    for (index, input) in sgGraph.inputs.enumerated() {
-        logInfo("\(sgIndent)  [\(index)] name: \(input.name), type: \(input.type)")
-    }
-    logInfo("\(sgIndent)Outputs (\(sgGraph.outputs.count)):")
-    for (index, output) in sgGraph.outputs.enumerated() {
-        logInfo("\(sgIndent)  [\(index)] name: \(output.name), type: \(output.type)")
-    }
-    logInfo("\(sgIndent)Nodes (\(sgGraph.childNodes.count)):")
-    for node in sgGraph.childNodes {
-        let inputNames = node.inputs.map { "\($0.name): \($0.type)" }.joined(separator: ", ")
-        let outputNames = node.outputs.map { "\($0.name): \($0.type)" }.joined(separator: ", ")
-        logInfo("\(sgIndent)  \(node.name) inputs=[\(inputNames)] outputs=[\(outputNames)]")
-    }
-    logInfo("\(sgIndent)Edges (\(sgGraph.edges.count))")
-    if let dot = try? sgGraph.createDotRepresentation() {
-        logInfo("\(sgIndent)DOT representation:\n\(dot)")
     }
 }
 

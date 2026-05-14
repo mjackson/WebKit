@@ -152,6 +152,13 @@ static CodePtr<JSEntryPtrTag> callerReturnPC(CodeBlock* baselineCodeBlockForCall
     if (callBytecodeIndex.checkpoint())
         return LLInt::checkpointOSRExitFromInlinedCallTrampolineThunk().code();
 
+    // Array.prototype.sort's comparator is inlined by the DFG ArraySortIntrinsic.
+    // Same stack layout as Call, but on OSR exit inside the comparator its return
+    // PC is arraySortComparatorReturnTrampoline, which discards the return value
+    // and re-dispatches the caller's op_call instead of advancing past it.
+    if (trueCallerCallKind == InlineCallFrame::ArraySortComparatorCall)
+        return LLInt::arraySortComparatorReturnTrampolineThunk().code();
+
     CodePtr<JSEntryPtrTag> jumpTarget;
 
     const auto& callInstruction = *baselineCodeBlockForCaller->instructions().at(callBytecodeIndex).ptr();

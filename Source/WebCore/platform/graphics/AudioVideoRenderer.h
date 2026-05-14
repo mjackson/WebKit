@@ -37,6 +37,7 @@
 #include <wtf/AbstractThreadSafeRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/MediaTime.h>
+#include <wtf/MonotonicTime.h>
 #include <wtf/NativePromise.h>
 #include <wtf/ObjectIdentifier.h>
 
@@ -147,7 +148,13 @@ public:
     virtual std::optional<TrackIdentifier> addTrack(TrackType) = 0;
     virtual void removeTrack(TrackIdentifier) = 0;
 
-    virtual void enqueueSample(TrackIdentifier, Ref<MediaSample>&&, std::optional<MediaTime> = std::nullopt) = 0;
+    // Tri-state on minimumUpcomingFrame:
+    //   nullopt            -> Assume content doesn't have b-frame.
+    //   !isFinite()        -> Content with b-frame: a future compressed frame
+    //                         with a lower presentation state may be incoming,
+    //                         not enough frames buffered ahead to make a determination.
+    //   finite MediaTime   -> Minimum upcoming presentation time known.
+    virtual void enqueueSample(TrackIdentifier, Ref<MediaSample>&&, std::optional<MediaTime> minimumUpcomingTime = std::nullopt) = 0;
     virtual bool isReadyForMoreSamples(TrackIdentifier) = 0;
     using RequestPromise = NativePromise<TrackIdentifier, PlatformMediaError>;
     virtual Ref<RequestPromise> requestMediaDataWhenReady(TrackIdentifier) = 0;

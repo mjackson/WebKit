@@ -29,9 +29,7 @@
 
 #include <wtf/BitSet.h>
 #include <wtf/DataLog.h>
-#include <wtf/StdLibExtras.h>
 #include <wtf/text/MakeString.h>
-#include <wtf/text/StringConcatenate.h>
 #include <wtf/text/TextBreakIterator.h>
 
 namespace JSC {

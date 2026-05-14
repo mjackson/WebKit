@@ -31,6 +31,7 @@
 #include <WebCore/ProcessIdentifier.h>
 #include <WebCoreTestSupport/WebCoreTestSupport.h>
 #include <libxml/parser.h>
+#include <wtf/Threading.h>
 
 namespace TestWebKitAPI {
 

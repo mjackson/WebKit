@@ -304,7 +304,7 @@ public:
     static String fromUTF8(const char* string) { return byteCast<char8_t>(unsafeSpan(string)); }
 
     // Convert each invalid UTF-8 sequence into a replacement character.
-    static String fromUTF8ReplacingInvalidSequences(std::span<const char8_t>);
+    WTF_EXPORT_PRIVATE static String fromUTF8ReplacingInvalidSequences(std::span<const char8_t>);
     static String fromUTF8ReplacingInvalidSequences(std::span<const Latin1Character> characters) { return fromUTF8ReplacingInvalidSequences(byteCast<char8_t>(characters)); }
 
     // Tries to convert the passed in string to UTF-8, but will fall back to Latin-1 if the string is not valid UTF-8.

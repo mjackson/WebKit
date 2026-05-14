@@ -27,7 +27,6 @@
 #pragma once
 
 #include <WebCore/HitTestSource.h>
-#include <memory>
 #include <wtf/CheckedRef.h>
 #include <wtf/Forward.h>
 #include <wtf/NoVirtualDestructorBase.h>

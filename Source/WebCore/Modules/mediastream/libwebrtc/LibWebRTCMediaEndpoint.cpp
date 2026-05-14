@@ -242,27 +242,7 @@ bool LibWebRTCMediaEndpoint::addTrack(LibWebRTCRtpSenderBackend& sender, MediaSt
 
     ALWAYS_LOG(LOGIDENTIFIER, "Adding "_s, track.privateTrack().type() == RealtimeMediaSource::Type::Audio ? "audio"_s : "video"_s, " track with id "_s, track.id());
 
-    LibWebRTCRtpSenderBackend::Source source;
-    webrtc::scoped_refptr<webrtc::MediaStreamTrackInterface> rtcTrack;
-    switch (track.privateTrack().type()) {
-    case RealtimeMediaSource::Type::Audio: {
-        auto audioSource = RealtimeOutgoingAudioSource::create(track.privateTrack());
-        rtcTrack = m_peerConnectionFactory->CreateAudioTrack(track.id().utf8().data(), audioSource.ptr());
-        source = WTF::move(audioSource);
-        break;
-    }
-    case RealtimeMediaSource::Type::Video: {
-        auto videoSource = RealtimeOutgoingVideoSource::create(track.privateTrack());
-
-        RefPtr context = m_peerConnectionBackend->connection().scriptExecutionContext();
-        if (context && context->settingsValues().peerConnectionVideoScalingAdaptationDisabled)
-            videoSource->disableVideoScaling();
-
-        rtcTrack = m_peerConnectionFactory->CreateVideoTrack(webrtc::scoped_refptr<webrtc::VideoTrackSourceInterface> (videoSource.ptr()), track.id().utf8().data());
-        source = WTF::move(videoSource);
-        break;
-    }
-    }
+    auto [source, rtcTrack] = createSourceAndRTCTrack(track);
 
     sender.setSource(WTF::move(source));
     if (RefPtr rtpSender = sender.rtcSender()) {
@@ -425,14 +405,14 @@ ExceptionOr<LibWebRTCMediaEndpoint::Backends> LibWebRTCMediaEndpoint::addTransce
     return createTransceiverBackends(type, fromRtpTransceiverInit(init, type), nullptr, ignoreNegotiationNeededFlag);
 }
 
-std::pair<LibWebRTCRtpSenderBackend::Source, Ref<webrtc::MediaStreamTrackInterface>> LibWebRTCMediaEndpoint::createSourceAndRTCTrack(MediaStreamTrack& track)
+std::pair<LibWebRTCRtpSenderBackend::Source, webrtc::scoped_refptr<webrtc::MediaStreamTrackInterface>> LibWebRTCMediaEndpoint::createSourceAndRTCTrack(MediaStreamTrack& track)
 {
     LibWebRTCRtpSenderBackend::Source source;
-    RefPtr<webrtc::MediaStreamTrackInterface> rtcTrack;
+    webrtc::scoped_refptr<webrtc::MediaStreamTrackInterface> rtcTrack;
     switch (track.privateTrack().type()) {
     case RealtimeMediaSource::Type::Audio: {
         Ref audioSource = RealtimeOutgoingAudioSource::create(track.privateTrack());
-        rtcTrack = toRef(m_peerConnectionFactory->CreateAudioTrack(track.id().utf8().data(), audioSource.ptr()));
+        rtcTrack = m_peerConnectionFactory->CreateAudioTrack(track.id().utf8().data(), audioSource.ptr());
         source = WTF::move(audioSource);
         break;
     }
@@ -443,12 +423,14 @@ std::pair<LibWebRTCRtpSenderBackend::Source, Ref<webrtc::MediaStreamTrackInterfa
         if (context && context->settingsValues().peerConnectionVideoScalingAdaptationDisabled)
             videoSource->disableVideoScaling();
 
-        rtcTrack = toRef(m_peerConnectionFactory->CreateVideoTrack(webrtc::scoped_refptr<webrtc::VideoTrackSourceInterface> (videoSource.ptr()), track.id().utf8().data()));
+        auto rtcVideoTrack = m_peerConnectionFactory->CreateVideoTrack(webrtc::scoped_refptr<webrtc::VideoTrackSourceInterface> (videoSource.ptr()), track.id().utf8().data());
+        rtcVideoTrack->set_content_hint(toWebRTCContentHint(track.privateTrack().contentHint()));
+        rtcTrack = WTF::move(rtcVideoTrack);
         source = WTF::move(videoSource);
         break;
     }
     }
-    return std::make_pair(WTF::move(source), rtcTrack.releaseNonNull());
+    return std::make_pair(WTF::move(source), WTF::move(rtcTrack));
 }
 
 ExceptionOr<LibWebRTCMediaEndpoint::Backends> LibWebRTCMediaEndpoint::addTransceiver(MediaStreamTrack& track, const RTCRtpTransceiverInit& init, PeerConnectionBackend::IgnoreNegotiationNeededFlag ignoreNegotiationNeededFlag)
@@ -457,15 +439,15 @@ ExceptionOr<LibWebRTCMediaEndpoint::Backends> LibWebRTCMediaEndpoint::addTransce
     ALWAYS_LOG(LOGIDENTIFIER, "Adding "_s, track.kind().string(), " ", direction, " transceiver for track "_s, track.id());
 
     auto type = track.source().type() == RealtimeMediaSource::Type::Audio ? webrtc::MediaType::AUDIO : webrtc::MediaType::VIDEO;
-    auto sourceAndTrack = createSourceAndRTCTrack(track);
-    return createTransceiverBackends(webrtc::scoped_refptr { sourceAndTrack.second.ptr() }, fromRtpTransceiverInit(init, type), WTF::move(sourceAndTrack.first), ignoreNegotiationNeededFlag);
+    auto [source, rtcTrack] = createSourceAndRTCTrack(track);
+    return createTransceiverBackends(WTF::move(rtcTrack), fromRtpTransceiverInit(init, type), WTF::move(source), ignoreNegotiationNeededFlag);
 }
 
 void LibWebRTCMediaEndpoint::setSenderSourceFromTrack(LibWebRTCRtpSenderBackend& sender, MediaStreamTrack& track)
 {
-    auto sourceAndTrack = createSourceAndRTCTrack(track);
-    sender.setSource(WTF::move(sourceAndTrack.first));
-    protect(sender.rtcSender())->SetTrack(sourceAndTrack.second.ptr());
+    auto [source, rtcTrack] = createSourceAndRTCTrack(track);
+    sender.setSource(WTF::move(source));
+    protect(sender.rtcSender())->SetTrack(rtcTrack.get());
 }
 
 std::unique_ptr<LibWebRTCRtpTransceiverBackend> LibWebRTCMediaEndpoint::transceiverBackendFromSender(LibWebRTCRtpSenderBackend& backend)

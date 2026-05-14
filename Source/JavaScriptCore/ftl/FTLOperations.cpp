@@ -104,8 +104,17 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationPopulateObjectInOSR, void, (JSGlobalO
             // double-to-contiguous conversion. This is safe because values written to sunk double
             // arrays use DoubleRepRealUse (proven non-NaN), so any NaN here must be the hole
             // sentinel and is not user-visible.
+            //
+            // The analogous case for Int32/Contiguous arrays: an unwritten element's Phi resolves
+            // to the empty JSValue, which is the hole sentinel for these indexing types. For Int32
+            // arrays, putDirectIndex would spuriously convert the array to Contiguous because the
+            // empty JSValue is not an Int32. Contiguous is also handled here for the debug ASSERT
+            // in putDirectIndex that null-derefs on the empty JSValue. Write directly into the
+            // butterfly to preserve the indexing type.
             if (hasDouble(array->indexingType()) && value.isNumber() && std::isnan(value.asNumber())) [[unlikely]]
                 array->butterfly()->contiguousDouble().atUnsafe(index) = PNaN;
+            else if ((hasInt32(array->indexingType()) || hasContiguous(array->indexingType())) && !value) [[unlikely]]
+                array->butterfly()->contiguous().atUnsafe(index).setStartingValue(JSValue());
             else
                 array->putDirectIndex(globalObject, index, value);
 
@@ -155,6 +164,7 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationPopulateObjectInOSR, void, (JSGlobalO
     case PhantomSpread:
     case PhantomNewArrayWithSpread:
     case PhantomNewArrayBuffer:
+    case PhantomNewPromise:
         // Those are completely handled by operationMaterializeObjectInOSR
         break;
 
@@ -217,10 +227,6 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationPopulateObjectInOSR, void, (JSGlobalO
             break;
         case JSAsyncGeneratorType:
             materialize(uncheckedDowncast<JSAsyncGenerator>(target));
-            break;
-        case JSPromiseType:
-            ASSERT(target->classInfo() == JSPromise::info());
-            materialize(uncheckedDowncast<JSPromise>(target));
             break;
         default:
             RELEASE_ASSERT_NOT_REACHED();
@@ -516,13 +522,24 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationMaterializeObjectInOSR, HeapCell*, (J
             return create.operator()<JSGenerator>();
         case JSAsyncGeneratorType:
             return create.operator()<JSAsyncGenerator>();
-        case JSPromiseType:
-            ASSERT(structure->classInfoForCells() == JSPromise::info());
-            return create.operator()<JSPromise>();
         default:
             RELEASE_ASSERT_NOT_REACHED();
             return nullptr;
         }
+    }
+
+    case PhantomNewPromise: {
+        Structure* structure = nullptr;
+        for (unsigned i = materialization->properties().size(); i--;) {
+            const ExitPropertyValue& property = materialization->properties()[i];
+            if (property.location() == PromotedLocationDescriptor(StructurePLoc)) {
+                RELEASE_ASSERT(JSValue::decode(values[i]).asCell()->inherits<Structure>());
+                structure = uncheckedDowncast<Structure>(JSValue::decode(values[i]));
+            }
+        }
+        RELEASE_ASSERT(structure);
+        ASSERT(structure->classInfoForCells() == JSPromise::info());
+        return JSPromise::create(vm, structure);
     }
 
     case PhantomCreateRest:

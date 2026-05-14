@@ -128,20 +128,6 @@ static String codecStringForMediaVideoCodecId(FourCharCode codec)
     }
 }
 
-void MediaRecorderPrivateEncoder::compressedAudioOutputBufferCallback(void* MediaRecorderPrivateEncoder, CMBufferQueueTriggerToken)
-{
-    // We can only be called from the CoreMedia callback if we are still alive.
-    RefPtr encoder = static_cast<class MediaRecorderPrivateEncoder*>(MediaRecorderPrivateEncoder);
-
-    queueSingleton().dispatch([weakEncoder = ThreadSafeWeakPtr { *encoder }] {
-        if (auto strongEncoder = weakEncoder.get()) {
-            assertIsCurrent(queueSingleton());
-            strongEncoder->enqueueCompressedAudioSampleBuffers();
-            strongEncoder->partiallyFlushEncodedQueues();
-        }
-    });
-}
-
 bool MediaRecorderPrivateEncoder::initialize(const MediaRecorderPrivateOptions& options, UniqueRef<MediaRecorderPrivateWriter>&& writer)
 {
     assertIsMainThread();
@@ -351,7 +337,15 @@ void MediaRecorderPrivateEncoder::audioSamplesDescriptionChanged(const AudioStre
         .outputBitRate = m_audioBitsPerSecond ? std::optional { m_audioBitsPerSecond } : std::nullopt,
         .generateTimestamp = true
     };
-    m_audioConverter = AudioSampleBufferConverter::create(compressedAudioOutputBufferCallback, this, options);
+    m_audioConverter = AudioSampleBufferConverter::create([weakThis = ThreadSafeWeakPtr { *this }] {
+        queueSingleton().dispatch([weakThis] {
+            if (auto protectedThis = weakThis.get()) {
+                assertIsCurrent(queueSingleton());
+                protectedThis->enqueueCompressedAudioSampleBuffers();
+                protectedThis->partiallyFlushEncodedQueues();
+            }
+        });
+    }, options);
     if (!m_audioConverter) {
         RELEASE_LOG_ERROR(MediaStream, "MediaRecorderPrivateEncoder::audioSamplesDescriptionChanged: creation of converter failed");
         m_hadError = true;

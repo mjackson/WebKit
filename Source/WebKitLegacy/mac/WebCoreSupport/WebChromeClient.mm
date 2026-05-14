@@ -44,7 +44,7 @@
 #import "WebHTMLViewInternal.h"
 #import "WebHistoryInternal.h"
 #import "WebKitFullScreenListener.h"
-#import "WebKitPrefix.h"
+#import "WebKitLegacyPrefix.h"
 #import "WebNSURLRequestExtras.h"
 #import "WebOpenPanelResultListener.h"
 #import "WebPlugin.h"

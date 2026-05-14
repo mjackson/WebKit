@@ -44,8 +44,6 @@
 #include "OperandsInlines.h"
 #include "ProbeContext.h"
 
-#include <wtf/Scope.h>
-
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC { namespace FTL {

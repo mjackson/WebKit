@@ -37,6 +37,9 @@
 #include "CSSCustomPropertyValue.h"
 #include "CSSEasingFunctionValue.h"
 #include "CSSFilterValue.h"
+#include "CSSGridLineValue.h"
+#include "CSSGridTemplateListValue.h"
+#include "CSSGridTrackSizesValue.h"
 #include "CSSNumericFactory.h"
 #include "CSSOMKeywordValue.h"
 #include "CSSParser.h"
@@ -186,6 +189,45 @@ static bool NODELETE mayConvertCSSValueListToSingleValue(std::optional<CSSProper
         && *propertyID != CSSPropertyGridColumnEnd;
 }
 
+template<CSS::Numeric T>
+static ExceptionOr<Ref<CSSStyleValue>> reifyValue(const T& numeric)
+{
+    return WTF::switchOn(numeric,
+        [&](const typename T::Calc& calc) -> ExceptionOr<Ref<CSSStyleValue>> {
+            auto result = CSSNumericValue::reifyMathExpression(calc.calcValue().tree());
+            if (result.hasException())
+                return result.releaseException();
+            return upcast<CSSStyleValue>(result.releaseReturnValue());
+        },
+        [&](const typename T::Raw& raw) -> ExceptionOr<Ref<CSSStyleValue>> {
+            return upcast<CSSStyleValue>(CSSUnitValue::create(raw.value, toCSSUnitType(raw.unit)));
+        }
+    );
+}
+
+static ExceptionOr<Ref<CSSStyleValue>> reifyValue(CSSValueID keyword)
+{
+    // Per the specification, the CSSKeywordValue's value slot should be set to the serialization
+    // of the identifier. As a result, the identifier will be lowercase:
+    // https://drafts.css-houdini.org/css-typed-om-1/#reify-ident
+    return upcast<CSSStyleValue>(CSSOMKeywordValue::rectifyKeywordish(nameLiteralForSerialization(keyword)));
+}
+
+static ExceptionOr<Ref<CSSStyleValue>> reifyValue(CSS::Keyword keyword)
+{
+    return WebCore::reifyValue(keyword.value);
+}
+
+static ExceptionOr<Ref<CSSStyleValue>> reifyValue(CSS::SpecificKeyword auto const& keyword)
+{
+    return WebCore::reifyValue(keyword.value);
+}
+
+static ExceptionOr<Ref<CSSStyleValue>> reifyValue(const CSS::CustomIdent& customIdent)
+{
+    return upcast<CSSStyleValue>(CSSOMKeywordValue::rectifyKeywordish(CSS::serializationForCSS(CSS::defaultSerializationContext(), customIdent)));
+}
+
 ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& document, const CSSValue& cssValue, std::optional<CSSPropertyID> propertyID)
 {
     if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(cssValue)) {
@@ -286,12 +328,9 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
             break;
         }
     } else if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(cssValue)) {
-        // Per the specification, the CSSKeywordValue's value slot should be set to the serialization
-        // of the identifier. As a result, the identifier will be lowercase:
-        // https://drafts.css-houdini.org/css-typed-om-1/#reify-ident
-        return upcast<CSSStyleValue>(CSSOMKeywordValue::rectifyKeywordish(keywordValue->cssText(CSS::defaultSerializationContext())));
+        return WebCore::reifyValue(keywordValue->keyword());
     } else if (auto* customIdentValue = dynamicDowncast<CSSCustomIdentValue>(cssValue))
-        return upcast<CSSStyleValue>(CSSOMKeywordValue::rectifyKeywordish(customIdentValue->cssText(CSS::defaultSerializationContext())));
+        return WebCore::reifyValue(customIdentValue->customIdent());
     else if (auto* imageValue = dynamicDowncast<CSSImageValue>(cssValue))
         return Ref<CSSStyleValue> { CSSStyleImageValue::create(const_cast<CSSImageValue&>(*imageValue), document) };
     else if (auto* referenceValue = dynamicDowncast<CSSSubstitutionValue>(cssValue))
@@ -318,8 +357,8 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
         return Ref<CSSStyleValue> { transformValue.releaseReturnValue() };
     } else if (RefPtr property = dynamicDowncast<CSSFilterValue>(cssValue)) {
         return WTF::switchOn(property->filter(),
-            [&](CSS::Keyword::None) -> ExceptionOr<Ref<CSSStyleValue>> {
-                return upcast<CSSStyleValue>(CSSOMKeywordValue::rectifyKeywordish(nameLiteral(CSSValueNone)));
+            [&](CSS::Keyword::None keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return WebCore::reifyValue(keyword);
             },
             [&](const auto&) -> ExceptionOr<Ref<CSSStyleValue>> {
                 return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
@@ -327,8 +366,8 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
         );
     } else if (RefPtr property = dynamicDowncast<CSSAppleColorFilterValue>(cssValue)) {
         return WTF::switchOn(property->filter(),
-            [&](CSS::Keyword::None) -> ExceptionOr<Ref<CSSStyleValue>> {
-                return upcast<CSSStyleValue>(CSSOMKeywordValue::rectifyKeywordish(nameLiteral(CSSValueNone)));
+            [&](CSS::Keyword::None keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return WebCore::reifyValue(keyword);
             },
             [&](const auto&) -> ExceptionOr<Ref<CSSStyleValue>> {
                 return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
@@ -336,8 +375,8 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
         );
     } else if (RefPtr property = dynamicDowncast<CSSBoxShadowPropertyValue>(cssValue)) {
         return WTF::switchOn(property->shadow(),
-            [&](CSS::Keyword::None) -> ExceptionOr<Ref<CSSStyleValue>> {
-                return upcast<CSSStyleValue>(CSSOMKeywordValue::rectifyKeywordish(nameLiteral(CSSValueNone)));
+            [&](CSS::Keyword::None keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return WebCore::reifyValue(keyword);
             },
             [&](const auto&) -> ExceptionOr<Ref<CSSStyleValue>> {
                 return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
@@ -345,8 +384,8 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
         );
     } else if (RefPtr property = dynamicDowncast<CSSTextShadowPropertyValue>(cssValue)) {
         return WTF::switchOn(property->shadow(),
-            [&](CSS::Keyword::None) -> ExceptionOr<Ref<CSSStyleValue>> {
-                return upcast<CSSStyleValue>(CSSOMKeywordValue::rectifyKeywordish(nameLiteral(CSSValueNone)));
+            [&](CSS::Keyword::None keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return WebCore::reifyValue(keyword);
             },
             [&](const auto&) -> ExceptionOr<Ref<CSSStyleValue>> {
                 return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
@@ -354,13 +393,83 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
         );
     } else if (RefPtr property = dynamicDowncast<CSSEasingFunctionValue>(cssValue)) {
         return WTF::switchOn(property->easingFunction(),
-            [&]<CSSValueID keyword>(Constant<keyword>) -> ExceptionOr<Ref<CSSStyleValue>> {
-                return upcast<CSSStyleValue>(CSSOMKeywordValue::rectifyKeywordish(nameLiteral(keyword)));
+            [&](CSS::SpecificKeyword auto const& keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return WebCore::reifyValue(keyword);
             },
             [&](const auto&) -> ExceptionOr<Ref<CSSStyleValue>> {
                 return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
             }
         );
+    } else if (RefPtr property = dynamicDowncast<CSSGridLineValue>(cssValue)) {
+        return WTF::switchOn(property->line(),
+            [&](CSS::Keyword::Auto keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return WebCore::reifyValue(keyword);
+            },
+            [&](const CSS::CustomIdent& customIdent) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return WebCore::reifyValue(customIdent);
+            },
+            [&](const auto&) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
+            }
+        );
+    } else if (RefPtr property = dynamicDowncast<CSSGridTemplateListValue>(cssValue)) {
+        return WTF::switchOn(property->list(),
+            [&](CSS::Keyword::None keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return WebCore::reifyValue(keyword);
+            },
+            [&](const CSS::GridTrackList& trackList) -> ExceptionOr<Ref<CSSStyleValue>> {
+                if (trackList.size() == 1) {
+                    return WTF::switchOn(trackList[0],
+                        [&](const CSS::GridLineNames&) -> ExceptionOr<Ref<CSSStyleValue>> {
+                            return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
+                        },
+                        [&](const CSS::GridTrackSize& trackSize) -> ExceptionOr<Ref<CSSStyleValue>> {
+                            return WTF::switchOn(trackSize,
+                                [&](const CSS::GridTrackBreadth& breadth) -> ExceptionOr<Ref<CSSStyleValue>> {
+                                    return WTF::switchOn(breadth,
+                                        [&](const auto& value) -> ExceptionOr<Ref<CSSStyleValue>> {
+                                            return WebCore::reifyValue(value);
+                                        }
+                                    );
+                                },
+                                [&](const CSS::GridMinMaxFunction&) -> ExceptionOr<Ref<CSSStyleValue>> {
+                                    return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
+                                },
+                                [&](const CSS::GridFitContentFunction&) -> ExceptionOr<Ref<CSSStyleValue>> {
+                                    return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
+                                }
+                            );
+                        },
+                        [&](const CSS::GridTrackRepeatFunction&) -> ExceptionOr<Ref<CSSStyleValue>> {
+                            return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
+                        }
+                    );
+                }
+                return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
+            },
+            [&](const auto&) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
+            }
+        );
+    } else if (RefPtr property = dynamicDowncast<CSSGridTrackSizesValue>(cssValue)) {
+        if (property->list().size() == 1) {
+            return WTF::switchOn(property->list()[0],
+                [&](const CSS::GridTrackBreadth& breadth) -> ExceptionOr<Ref<CSSStyleValue>> {
+                    return WTF::switchOn(breadth,
+                        [&](const auto& value) -> ExceptionOr<Ref<CSSStyleValue>> {
+                            return WebCore::reifyValue(value);
+                        }
+                    );
+                },
+                [&](const CSS::GridMinMaxFunction&) -> ExceptionOr<Ref<CSSStyleValue>> {
+                    return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
+                },
+                [&](const CSS::GridFitContentFunction&) -> ExceptionOr<Ref<CSSStyleValue>> {
+                    return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
+                }
+            );
+        }
+        return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));
     } else if (auto* valueList = dynamicDowncast<CSSValueList>(cssValue)) {
         // Reifying the first value in value list.
         // FIXME: Verify this is the expected behavior.

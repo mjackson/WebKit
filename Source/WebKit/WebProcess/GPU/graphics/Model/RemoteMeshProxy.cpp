@@ -201,8 +201,10 @@ std::pair<simd_float4, simd_float4> RemoteMeshProxy::getCenterAndExtents() const
 void RemoteMeshProxy::setEntityTransform(const WebModel::Float4x4& transform)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
+    m_entityTransformSetByScript = true;
     m_transform = transform;
-    setStageMode(m_stageMode);
+    m_computedTransform = transform;
+    setEntityTransformInternal(transform);
 #else
     UNUSED_PARAM(transform);
 #endif
@@ -344,6 +346,8 @@ void RemoteMeshProxy::setStageMode(WebCore::StageModeOperation stageMode)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
     m_stageMode = stageMode;
+    if (m_stageMode == WebCore::StageModeOperation::Orbit)
+        m_entityTransformSetByScript = false;
     computeTransform();
 #else
     UNUSED_PARAM(stageMode);
@@ -368,6 +372,9 @@ void RemoteMeshProxy::processRemovals(Vector<WebModel::TypedResourceId>&& meshRe
 #if ENABLE(GPU_PROCESS_MODEL)
 void RemoteMeshProxy::computeTransform()
 {
+    if (m_entityTransformSetByScript)
+        return;
+
     static constexpr float kCSSPixelsPerMeter = 96 / 2.54 * 100;
     // Fixed camera distance matching the ModelRenderer
     static constexpr float kCameraDistance = 0.5;

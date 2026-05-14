@@ -115,8 +115,10 @@ void DrawingAreaCoordinatedGraphics::updatePreferences(const WebPreferencesStore
     Ref page = *m_webPage->corePage();
     Settings& settings = page->settings();
 #if PLATFORM(GTK)
-    if (settings.hardwareAccelerationEnabled())
+    if (settings.hardwareAccelerationEnabled()) {
         WebProcess::singleton().initializePlatformDisplayIfNeeded();
+        WebProcess::singleton().initializeVulkanIfNeeded();
+    }
 #endif
     settings.setForceCompositingMode(store.getBoolValueForKey(WebPreferencesKey::forceCompositingModeKey()));
     // Fixed position elements need to be composited and create stacking contexts

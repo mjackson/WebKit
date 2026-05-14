@@ -361,9 +361,9 @@ RefPtr<LinkPreloadResourceClient> LinkLoader::preloadIfNeeded(const LinkLoadPara
     if (type == CachedResource::Type::ImageResource && !params.imageSrcSet.isEmpty()) {
         auto sourceSize = SizesAttributeParser(params.imageSizes, document).effectiveSize();
         auto candidate = bestFitSourceForImageAttributes(document.deviceScaleFactor(), params.href.string(), params.imageSrcSet, sourceSize);
-        url = document.completeURL(URL({ }, candidate.string.toString()).string());
+        url = document.encodingParseURL(URL({ }, candidate.string.toString()).string());
     } else
-        url = document.completeURL(params.href.string());
+        url = document.encodingParseURL(params.href.string());
 
     if (!url.isValid()) {
         if (params.relAttribute.isLinkModulePreload)
@@ -442,7 +442,7 @@ void LinkLoader::prefetchIfNeeded(const LinkLoadParameters& params, Document& do
     options.cachingPolicy = CachingPolicy::DisallowCaching;
     options.referrerPolicy = params.referrerPolicy;
     options.nonce = params.nonce;
-    if (auto result = protect(document.cachedResourceLoader())->requestLinkResource(type, CachedResourceRequest(ResourceRequest { document.completeURL(params.href.string()) }, options, priority)))
+    if (auto result = protect(document.cachedResourceLoader())->requestLinkResource(type, CachedResourceRequest(ResourceRequest { document.encodingParseURL(params.href.string()) }, options, priority)))
         m_cachedLinkResource = WTF::move(result.value());
     else
         m_cachedLinkResource = nullptr;

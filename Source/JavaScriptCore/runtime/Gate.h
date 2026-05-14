@@ -69,6 +69,7 @@ namespace JSC {
     v(relocateJITReturnPC, NoPtrTag) \
     v(exitImplantedSliceGate, NoPtrTag) \
     v(getSentinelFrameReturnPCGate, NoPtrTag) \
+    v(wasmRestoreFrame, NoPtrTag) \
 
 #define JSC_WASM_GATE_OPCODES(v) \
     v(wasm_ipint_call, WasmEntryPtrTag) \

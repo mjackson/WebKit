@@ -112,6 +112,7 @@ public:
     JSValue matchGlobal(JSGlobalObject*, JSString*);
 
     bool isSymbolReplaceFastAndNonObservable();
+    bool isSymbolSplitFastAndNonObservable();
 
     static bool getOwnPropertySlot(JSObject*, JSGlobalObject*, PropertyName, PropertySlot&);
     static bool put(JSCell*, JSGlobalObject*, PropertyName, JSValue, PutPropertySlot&);

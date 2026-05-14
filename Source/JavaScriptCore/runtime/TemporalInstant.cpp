@@ -30,6 +30,7 @@
 #include "AuxiliaryBarrierInlines.h"
 #include "Error.h"
 #include "ISO8601.h"
+#include "InstantCore.h"
 #include "IntlObjectInlines.h"
 #include "JSBigInt.h"
 #include "JSGlobalObject.h"
@@ -245,24 +246,7 @@ ISO8601::Duration TemporalInstant::difference(JSGlobalObject* globalObject, Temp
 
 // Must return a double because the maximum increment for nanoseconds
 // does not fit in an int32_t
-static constexpr double NODELETE maximumIncrement(TemporalUnit smallestUnit)
-{
-    switch (smallestUnit) {
-    case TemporalUnit::Hour: return 24;
-    case TemporalUnit::Minute: return 1440;
-    case TemporalUnit::Second: return 86400;
-    case TemporalUnit::Millisecond: return 8.64e7;
-    case TemporalUnit::Microsecond: return 8.64e10;
-    case TemporalUnit::Nanosecond: return 8.64e13;
-    case TemporalUnit::Year:
-    case TemporalUnit::Month:
-    case TemporalUnit::Week:
-    case TemporalUnit::Day:
-    default:
-        { }
-    }
-    RELEASE_ASSERT_NOT_REACHED();
-}
+static constexpr double NODELETE maximumIncrement(TemporalUnit u) { return TemporalCore::maximumInstantIncrement(u); }
 
 ISO8601::ExactTime TemporalInstant::round(JSGlobalObject* globalObject, JSValue optionsValue) const
 {

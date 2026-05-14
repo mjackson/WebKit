@@ -135,8 +135,12 @@ TEST(WebKit, AccessibilityChildrenPreventsProcessSuspensionOnFrontmostTab)
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 
     // Page should acquire the remote AX element activity when -accessibilityChildren runs to keep itself running as long as it's attached to a window.
-    RetainPtr<NSArray> children = [webView accessibilityChildren];
-    EXPECT_GT([children count], (NSUInteger)0);
+    // The remote AX element token arrives asynchronously from the WebProcess, so poll until it is available.
+    RetainPtr<NSArray> children;
+    EXPECT_TRUE(TestWebKitAPI::Util::waitFor([&] {
+        children = [webView accessibilityChildren];
+        return [children count] > 0;
+    }));
     EXPECT_TRUE([webView _hasAccessibilityActivityForTesting]);
 
     // Page should drop the AX activity after being removed from the window. Test in a Util::waitFor

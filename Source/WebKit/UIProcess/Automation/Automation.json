@@ -955,6 +955,19 @@
             "async": true
         },
         {
+            "name": "performApplicationCommand",
+            "description": "Perform a named command by delegating to the automation session client application.",
+            "parameters": [
+                { "name": "browsingContextHandle", "$ref": "BrowsingContextHandle", "description": "The handle for the targeted browsing context." },
+                { "name": "commandName", "type": "string", "description": "The name of the command to perform." },
+                { "name": "arguments", "type": "string", "description": "JSON-encoded command arguments." }
+            ],
+            "returns": [
+                { "name": "result", "type": "string", "description": "JSON-encoded command result." }
+            ],
+            "async": true
+        },
+        {
             "name": "processBidiMessage",
             "description": "Relay a WebDriver Bidi message from the client to be processed by the automation session.",
             "condition": "ENABLE(WEBDRIVER_BIDI)",

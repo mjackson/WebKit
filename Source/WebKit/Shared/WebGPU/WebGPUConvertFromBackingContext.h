@@ -44,6 +44,7 @@
 #include <WebCore/WebGPURenderPassTimestampWrites.h>
 #include <optional>
 #include <wtf/RefCounted.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 
 #if ENABLE(VIDEO) && PLATFORM(COCOA)
 typedef struct CF_BRIDGED_TYPE(id) __CVBuffer* CVPixelBufferRef;

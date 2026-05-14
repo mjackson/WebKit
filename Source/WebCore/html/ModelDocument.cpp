@@ -126,7 +126,7 @@ void ModelDocumentParser::createDocumentStructure()
         return;
 
     frame->loader().activeDocumentLoader()->setMainResourceDataBufferingPolicy(DataBufferingPolicy::DoNotBufferData);
-    frame->loader().setOutgoingReferrer(document->completeURL(m_outgoingReferrer));
+    frame->loader().setOutgoingReferrer(document->encodingParseURL(m_outgoingReferrer));
 }
 
 void ModelDocumentParser::appendBytes(DocumentWriter&, std::span<const uint8_t>)

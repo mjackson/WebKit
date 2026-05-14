@@ -34,6 +34,7 @@
 #include "EventNames.h"
 #include "FetchLoader.h"
 #include "FetchLoaderClient.h"
+#include "FileSystemStorageConnection.h"
 #include "FrameLoader.h"
 #include "IDBConnectionProxy.h"
 #include "LoaderStrategy.h"
@@ -48,6 +49,7 @@
 #include "ServiceWorkerGlobalScope.h"
 #include "Settings.h"
 #include "SocketProvider.h"
+#include "StorageConnection.h"
 #include "WebRTCProvider.h"
 #include "WorkerGlobalScope.h"
 #include <wtf/CrossThreadCopier.h>
@@ -472,6 +474,14 @@ void ServiceWorkerThreadProxy::setInspectable(bool inspectable)
 #else
     UNUSED_PARAM(inspectable);
 #endif // ENABLE(REMOTE_INSPECTOR)
+}
+
+RefPtr<FileSystemStorageConnection> ServiceWorkerThreadProxy::createFileSystemStorageConnection()
+{
+    ASSERT(isMainThread());
+    if (RefPtr storageConnection = m_document->storageConnection())
+        return storageConnection->fileSystemStorageConnection();
+    return nullptr;
 }
 
 } // namespace WebCore

@@ -487,15 +487,37 @@ bool RenderWidget::shouldInvalidatePreferredWidths() const
 {
     if (RenderReplaced::shouldInvalidatePreferredWidths())
         return true;
-    return embeddedContentBox();
+    return embeddedSVGRoot();
 }
 
-RenderBox* RenderWidget::embeddedContentBox() const
+RenderReplaced* RenderWidget::embeddedSVGRoot() const
 {
     if (!is<RenderEmbeddedObject>(this))
         return nullptr;
     RefPtr frameView = dynamicDowncast<LocalFrameView>(widget());
-    return frameView ? frameView->embeddedContentBox() : nullptr;
+    return frameView ? frameView->embeddedSVGRoot() : nullptr;
+}
+
+FloatSize RenderWidget::preferredAspectRatioAsSize() const
+{
+    // Size containment suppresses intrinsic dimensions from content, but the
+    // aspect ratio from the CSS aspect-ratio property is still available via the
+    // base class (which doesn't query image data).
+    if (shouldApplySizeOrInlineSizeContainment())
+        return RenderReplaced::preferredAspectRatioAsSize();
+
+    CheckedPtr svgRoot = embeddedSVGRoot();
+    if (!svgRoot)
+        return RenderReplaced::preferredAspectRatioAsSize();
+
+    auto ratio = svgRoot->preferredAspectRatioAsSize();
+    if (!isHorizontalWritingMode() && !ratio.isEmpty())
+        ratio = ratio.transposedSize();
+
+    if (style().aspectRatio().isRatio() || (style().aspectRatio().isAutoAndRatio() && ratio.isEmpty()))
+        ratio = FloatSize::narrowPrecision(style().aspectRatioLogicalWidth().value, style().aspectRatioLogicalHeight().value);
+
+    return ratio;
 }
 
 } // namespace WebCore

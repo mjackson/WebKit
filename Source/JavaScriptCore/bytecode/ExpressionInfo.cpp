@@ -30,7 +30,6 @@
 #include <numeric>
 #include <wtf/DataLog.h>
 #include <wtf/StringPrintStream.h>
-#include <wtf/UniqueRef.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 

@@ -30,7 +30,7 @@
 namespace WebCore {
 namespace Style {
 
-struct TextIndentLength : LengthWrapperBase<LengthPercentage<CSS::AllUnzoomed>> {
+struct TextIndentLength : LengthWrapperBase<LengthPercentage<CSS::AllLayoutUnitClampedUnzoomed>> {
     using Base::Base;
 };
 

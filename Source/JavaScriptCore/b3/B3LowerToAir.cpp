@@ -5008,6 +5008,108 @@ private:
             emitSIMDCompare(Air::Arg::relCond(MacroAssembler::AboveOrEqual));
             return;
         case B3::VectorAdd:
+            if (isARM64()) {
+                // Try to fuse integer multiply-accumulate patterns into UMLAL/SMLAL
+                // and UMLAL2/SMLAL2. These compute `Vd = Vd + (Vn * Vm) widened` on
+                // the low (UMLAL/SMLAL) or upper (UMLAL2/SMLAL2) half of each input,
+                // with the accumulator forwarded inside the multiplier pipeline, so
+                // strictly at least as fast as UMULL/UMULL2 + ADD. We match:
+                //
+                //   A) VectorAdd(acc, M)                      -> 1 widening MAC
+                //   B) VectorAdd(acc, VectorAdd(M, M))        -> 2 widening MACs (same operands)
+                //   C) VectorAdd(acc, VectorAdd(M1, M2))      -> 2 widening MACs (distinct muls)
+                //
+                // where each M is VectorMulLow or VectorMulHigh with
+                // signMode in {Signed, Unsigned} and `simdLane` matching the outer
+                // VectorAdd's lane. Output lane must be one of i16x8 / i32x4 / i64x2
+                // (i8x16 has no widening MLAL form). In case C the two operands can
+                // mix Low and High freely. This is the quantized-matmul pattern
+                // where a 16-byte load is consumed as extmul_low + extmul_high.
+                auto* outerValue = m_value->as<SIMDValue>();
+                SIMDLane outerLane = outerValue->simdLane();
+                if (outerLane == SIMDLane::i16x8 || outerLane == SIMDLane::i32x4 || outerLane == SIMDLane::i64x2) {
+                    enum class MulKind : uint8_t { Low, High };
+
+                    auto fusableMul = [&](Value* v) -> std::pair<SIMDValue*, MulKind> {
+                        if (v->opcode() != B3::VectorMulLow && v->opcode() != B3::VectorMulHigh)
+                            return { nullptr, MulKind::Low };
+                        SIMDValue* s = v->as<SIMDValue>();
+                        if (s->simdLane() != outerLane)
+                            return { nullptr, MulKind::Low };
+                        if (s->signMode() != SIMDSignMode::Unsigned && s->signMode() != SIMDSignMode::Signed)
+                            return { nullptr, MulKind::Low };
+                        MulKind kind = v->opcode() == B3::VectorMulHigh ? MulKind::High : MulKind::Low;
+                        return { s, kind };
+                    };
+
+                    auto emitMulAdd = [&](SIMDValue* mul, MulKind kind, Tmp result) {
+                        Air::Opcode op = kind == MulKind::High ? Air::VectorMulAddHigh : Air::VectorMulAddLow;
+                        append(op, Arg::simdInfo(mul->simdInfo()), tmp(mul->child(0)), tmp(mul->child(1)), result);
+                    };
+
+                    auto tryMatchMulAccumulate = [&](Value* mulSide, Value* accumulator) -> bool {
+                        if (!canBeInternal(mulSide))
+                            return false;
+
+                        // Case A: direct MulLow/MulHigh on one side.
+                        auto [directMul, directKind] = fusableMul(mulSide);
+                        if (directMul) {
+                            commitInternal(mulSide);
+                            auto result = tmp(m_value);
+                            append(Air::MoveVector, tmp(accumulator), result);
+                            emitMulAdd(directMul, directKind, result);
+                            return true;
+                        }
+
+                        // Cases B & C: mulSide is an inner VectorAdd combining either two copies of one Mul or two distinct Muls.
+                        if (mulSide->opcode() != B3::VectorAdd)
+                            return false;
+                        if (mulSide->as<SIMDValue>()->simdLane() != outerLane)
+                            return false;
+
+                        auto* p = mulSide->child(0);
+                        auto* q = mulSide->child(1);
+
+                        // Case B: p and q are the same Mul node (from shl-by-1 strength reduction). M has exactly 2 uses (both here).
+                        if (p == q) {
+                            auto [mulSimd, kind] = fusableMul(p);
+                            if (!mulSimd)
+                                return false;
+                            if (m_useCounts.numUses(p) != 2 || m_valueToTmp[p])
+                                return false;
+                            commitInternal(mulSide);
+                            commitInternal(p);
+                            auto result = tmp(m_value);
+                            append(Air::MoveVector, tmp(accumulator), result);
+                            emitMulAdd(mulSimd, kind, result);
+                            emitMulAdd(mulSimd, kind, result);
+                            return true;
+                        }
+
+                        // Case C: p and q are distinct, both fusable Muls. Each side may independently be Low or High.
+                        auto [pSimd, pKind] = fusableMul(p);
+                        auto [qSimd, qKind] = fusableMul(q);
+                        if (pSimd && qSimd && canBeInternal(p) && canBeInternal(q)) {
+                            commitInternal(mulSide);
+                            commitInternal(p);
+                            commitInternal(q);
+                            auto result = tmp(m_value);
+                            append(Air::MoveVector, tmp(accumulator), result);
+                            emitMulAdd(pSimd, pKind, result);
+                            emitMulAdd(qSimd, qKind, result);
+                            return true;
+                        }
+
+                        return false;
+                    };
+
+                    auto* left = m_value->child(0);
+                    auto* right = m_value->child(1);
+                    if (tryMatchMulAccumulate(left, right) || tryMatchMulAccumulate(right, left))
+                        return;
+                }
+            }
+
             emitSIMDBinaryOp(Air::VectorAdd);
             return;
         case B3::VectorSub:

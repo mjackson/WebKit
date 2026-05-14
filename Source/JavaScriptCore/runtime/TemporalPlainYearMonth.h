@@ -25,11 +25,11 @@
 
 #pragma once
 
-#include "Error.h"
-#include "ISO8601.h"
-#include "JSGlobalObject.h"
-#include "LazyProperty.h"
-#include "TemporalCalendar.h"
+#include <JavaScriptCore/Error.h>
+#include <JavaScriptCore/ISO8601.h>
+#include <JavaScriptCore/JSGlobalObject.h>
+#include <JavaScriptCore/LazyProperty.h>
+#include <JavaScriptCore/TemporalCalendar.h>
 
 namespace JSC {
 

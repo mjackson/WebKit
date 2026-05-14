@@ -84,6 +84,36 @@ static NSURL *literalURL(const char* literal)
 }
 @end
 
+#if PLATFORM(MAC)
+
+@interface LoadInvalidURLWebFrameLoadDelegate : NSObject <WebFrameLoadDelegate> {
+}
+@end
+
+@implementation LoadInvalidURLWebFrameLoadDelegate
+
+- (void)webView:(WebView *)sender didCommitLoadForFrame:(WebFrame *)frame
+{
+    didFinishTest = true;
+}
+
+- (void)webView:(WebView *)sender didFailProvisionalLoadWithError:(NSError *)error forFrame:(WebFrame *)frame
+{
+    EXPECT_WK_STREQ(error.domain, @"WebKitErrorDomain");
+    EXPECT_EQ(error.code, WebKitErrorCannotShowURL);
+
+    static char literal[] = "https://www.example.com$/";
+    NSURL *failedURL = WTF::URLWithData([NSData dataWithBytes:literal length:strlen(literal)], nil);
+    EXPECT_TRUE([error.userInfo[NSURLErrorFailingURLErrorKey] isEqual:failedURL]);
+
+    didFailProvisionalLoad = true;
+    didFinishTest = true;
+}
+
+@end
+
+#endif
+
 namespace TestWebKitAPI {
 
 TEST(WebKit, LoadInvalidURLRequest)
@@ -184,6 +214,29 @@ TEST(WebKit, LoadInvalidURLWithSpaceCharacter)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://%20.example.com/"]]];
     Util::run(&done);
 }
+
+#if PLATFORM(MAC)
+
+TEST(WebKitLegacy, LoadInvalidURLRequest)
+{
+    @autoreleasepool {
+        RetainPtr<WebView> webView = adoptNS([[WebView alloc] init]);
+
+        RetainPtr<LoadInvalidURLWebFrameLoadDelegate> delegate = adoptNS([[LoadInvalidURLWebFrameLoadDelegate alloc] init]);
+        [webView setFrameLoadDelegate:delegate.get()];
+
+        NSURL *contentURL = [NSBundle.test_resourcesBundle URLForResource:@"LoadInvalidURLRequest" withExtension:@"html"];
+        [[webView mainFrame] loadRequest:[NSURLRequest requestWithURL:contentURL]];
+
+        didFinishTest = false;
+        didFailProvisionalLoad = false;
+        Util::run(&didFinishTest);
+
+        EXPECT_FALSE(didFailProvisionalLoad);
+    }
+}
+
+#endif // PLATFORM(MAC)
 
 } // namespace TestWebKitAPI
 

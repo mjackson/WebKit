@@ -81,7 +81,7 @@ static std::optional<LayoutUnit> NODELETE inlineTransferredSizeSuggestion(const 
 
 static LayoutUnit inlineContentSizeSuggestion(const PlacedGridItem& gridItem, const IntegrationUtils& integrationUtils)
 {
-    ASSERT(!gridItem.hasPreferredAspectRatio(), "Grid items with preferred aspect ratio not supported yet.");
+    ASSERT(!gridItem.preferredAspectRatio(), "Grid items with preferred aspect ratio not supported yet.");
     return integrationUtils.minContentWidth(gridItem.layoutBox());
 }
 
@@ -102,20 +102,24 @@ static std::optional<LayoutUnit> NODELETE blockTransferredSizeSuggestion(const P
 
 static LayoutUnit blockContentSizeSuggestion(const PlacedGridItem& gridItem, const IntegrationUtils& integrationUtils)
 {
-    ASSERT(!gridItem.hasPreferredAspectRatio(), "Grid items with preferred aspect ratio not supported yet.");
+    ASSERT(!gridItem.preferredAspectRatio(), "Grid items with preferred aspect ratio not supported yet.");
     return integrationUtils.minContentHeight(gridItem.layoutBox());
 }
 
-static bool NODELETE hasScrollableInlineOverflow(const PlacedGridItem&)
+// https://drafts.csswg.org/css-overflow-3/#overflow-properties
+// The scroll, auto, and hidden values are known as the scrollable values of overflow.
+static bool NODELETE hasScrollableInlineComputedOverflowValue(const PlacedGridItem& gridItem)
 {
-    notImplemented();
-    return false;
+    auto computedOverflow = gridItem.layoutBox().style().overflowX();
+    return computedOverflow == Overflow::Hidden || computedOverflow == Overflow::Scroll || computedOverflow == Overflow::Auto;
 }
 
-static bool NODELETE hasScrollableBlockOverflow(const PlacedGridItem&)
+// https://drafts.csswg.org/css-overflow-3/#overflow-properties
+// The scroll, auto, and hidden values are known as the scrollable values of overflow.
+static bool NODELETE hasScrollableBlockComputedOverflowValue(const PlacedGridItem& gridItem)
 {
-    notImplemented();
-    return false;
+    auto computedOverflow = gridItem.layoutBox().style().overflowY();
+    return computedOverflow == Overflow::Hidden || computedOverflow == Overflow::Scroll || computedOverflow == Overflow::Auto;
 }
 
 LayoutUnit usedInlineSizeForGridItem(const PlacedGridItem& placedGridItem, LayoutUnit borderAndPadding,
@@ -142,7 +146,7 @@ LayoutUnit usedInlineSizeForGridItem(const PlacedGridItem& placedGridItem, Layou
         // while still respecting the constraints imposed by min-height/min-width/max-height/max-width.
         auto& marginStart = inlineAxisSizes.marginStart;
         auto& marginEnd = inlineAxisSizes.marginEnd;
-        if ((alignmentPosition == ItemPosition::Normal) && !placedGridItem.hasPreferredAspectRatio() && !placedGridItem.isReplacedElement()
+        if ((alignmentPosition == ItemPosition::Normal) && !placedGridItem.preferredAspectRatio() && !placedGridItem.isReplacedElement()
             && !marginStart.isAuto() && !marginEnd.isAuto()) {
             auto& usedZoom = placedGridItem.usedZoom();
 
@@ -184,10 +188,8 @@ static LayoutUnit automaticMinimumInlineSize(const PlacedGridItem& gridItem, Lay
     // if it spans more than one track in that axis, none of those tracks are flexible
     //
     // Otherwise, the automatic minimum size is zero, as usual.
-    if (hasScrollableInlineOverflow(gridItem)) {
-        ASSERT_NOT_IMPLEMENTED_YET();
+    if (hasScrollableInlineComputedOverflowValue(gridItem))
         return { };
-    }
 
     auto gridItemColumnStartLine = gridItem.columnStartLine();
     auto gridItemColumnEndLine = gridItem.columnEndLine();
@@ -236,10 +238,8 @@ static LayoutUnit automaticMinimumBlockSize(const PlacedGridItem& gridItem, Layo
     // if it spans more than one track in that axis, none of those tracks are flexible
     //
     // Otherwise, the automatic minimum size is zero, as usual.
-    if (hasScrollableBlockOverflow(gridItem)) {
-        ASSERT_NOT_IMPLEMENTED_YET();
+    if (hasScrollableBlockComputedOverflowValue(gridItem))
         return { };
-    }
 
     auto gridItemRowStartLine = gridItem.rowStartLine();
     auto gridItemRowEndLine = gridItem.rowEndLine();
@@ -297,7 +297,7 @@ LayoutUnit usedBlockSizeForGridItem(const PlacedGridItem& placedGridItem, Layout
         // while still respecting the constraints imposed by min-height/min-width/max-height/max-width.
         auto& marginStart = blockAxisSizes.marginStart;
         auto& marginEnd = blockAxisSizes.marginEnd;
-        if ((alignmentPosition == ItemPosition::Normal) && !placedGridItem.hasPreferredAspectRatio() && !placedGridItem.isReplacedElement()
+        if ((alignmentPosition == ItemPosition::Normal) && !placedGridItem.preferredAspectRatio() && !placedGridItem.isReplacedElement()
             && !marginStart.isAuto() && !marginEnd.isAuto()) {
             auto& usedZoom = placedGridItem.usedZoom();
 

@@ -51,7 +51,7 @@
 #include "WebXRSession.h"
 #include "XRReferenceSpaceType.h"
 #include "XRSessionInit.h"
-#include <JavaScriptCore/JSCJSValue.h>
+#include <JavaScriptCore/JSCJSValuePropertyInlines.h>
 #include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/JSString.h>
 #include <wtf/Scope.h>

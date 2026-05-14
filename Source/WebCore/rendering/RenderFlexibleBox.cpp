@@ -292,7 +292,7 @@ public:
     {
         if (flexBox.hasDefiniteCrossSizeForFlexItem(flexItem)) {
             auto axis = flexBox.mainAxisIsFlexItemInlineAxis(flexItem) ? OverridingSizesScope::Axis::Block : OverridingSizesScope::Axis::Inline;
-            m_overridingScope.emplace(flexItem, axis, flexBox.computeCrossSizeForFlexItemUsingContainerCrossSize(flexItem));
+            m_overridingScope.emplace(flexItem, axis, flexBox.innerCrossSizeForFlexItem(flexItem));
             if (invalidatePreferredWidths == InvalidatePreferredWidths::Yes) {
                 flexItem.setNeedsPreferredWidthsUpdate(MarkingBehavior::MarkOnlyThis);
 #if ASSERT_ENABLED
@@ -723,23 +723,26 @@ bool RenderFlexibleBox::isMultiline() const
 }
 
 // https://drafts.csswg.org/css-flexbox/#min-size-auto
-bool RenderFlexibleBox::shouldApplyMinSizeAutoForFlexItem(const RenderBox& flexItem) const
+bool RenderFlexibleBox::useContentBasedMinimumSize(const RenderBox& flexItem) const
 {
     auto minSize = minMainSizeLengthForFlexItem(flexItem);
     // min, max and fit-content are equivalent to the automatic size for block sizes https://drafts.csswg.org/css-sizing-3/#valdef-width-min-content.
-    bool flexItemBlockSizeIsEquivalentToAutomaticSize  = !mainAxisIsFlexItemInlineAxis(flexItem) && (minSize.isMinContent() || minSize.isMaxContent() || minSize.isFitContent());
+    // Unlike auto, these are explicit author values so the overflow gate does not apply.
+    bool flexItemBlockSizeIsEquivalentToAutomaticSize = !mainAxisIsFlexItemInlineAxis(flexItem) && (minSize.isMinContent() || minSize.isMaxContent() || minSize.isFitContent());
+    if (flexItemBlockSizeIsEquivalentToAutomaticSize)
+        return true;
 
     auto computedOverflowIsNotScrollable = [this, &flexItem]() {
         auto overflow = mainAxisOverflowForFlexItem(flexItem);
         return overflow == Overflow::Visible || overflow == Overflow::Clip;
     };
 
-    return (minSize.isAuto() || flexItemBlockSizeIsEquivalentToAutomaticSize) && computedOverflowIsNotScrollable();
+    return minSize.isAuto() && computedOverflowIsNotScrollable();
 }
 
-bool RenderFlexibleBox::shouldApplyMinBlockSizeAutoForFlexItem(const RenderBox& flexItem) const
+bool RenderFlexibleBox::useContentBasedMinimumBlockSize(const RenderBox& flexItem) const
 {
-    return !mainAxisIsFlexItemInlineAxis(flexItem) && shouldApplyMinSizeAutoForFlexItem(flexItem);
+    return !mainAxisIsFlexItemInlineAxis(flexItem) && useContentBasedMinimumSize(flexItem);
 }
 
 Style::FlexBasis RenderFlexibleBox::flexBasisForFlexItem(const RenderBox& flexItem) const
@@ -876,7 +879,7 @@ static bool isSVGRootWithIntrinsicAspectRatio(const RenderBox& flexItem)
         return false;
     // It's common for some replaced elements, such as SVGs, to have intrinsic aspect ratios but no intrinsic sizes.
     // That's why it isn't enough just to check for intrinsic sizes in those cases.
-    return downcast<RenderReplaced>(flexItem).computeIntrinsicAspectRatio() > 0;
+    return flexItem.preferredAspectRatioAsSize().aspectRatioDouble() > 0;
 };
 
 static bool flexItemHasAspectRatio(const RenderBox& flexItem)
@@ -1259,11 +1262,11 @@ double RenderFlexibleBox::preferredAspectRatioForFlexItem(const RenderBox& flexI
     auto flexItemAspectRatio = [&] {
         auto flexItemIntrinsicSize = LayoutSize { flexItem.intrinsicLogicalWidth(), flexItem.intrinsicLogicalHeight() };
         if (flexItem.isRenderOrLegacyRenderSVGRoot())
-            return downcast<RenderReplaced>(flexItem).computeIntrinsicAspectRatio();
+            return flexItem.preferredAspectRatioAsSize().aspectRatioDouble();
         if (flexItem.style().aspectRatio().isRatio() || (flexItem.style().aspectRatio().isAutoAndRatio() && flexItemIntrinsicSize.isEmpty()))
             return flexItem.style().logicalAspectRatio();
-        if (auto* replacedElement = dynamicDowncast<RenderReplaced>(flexItem))
-            return replacedElement->computeIntrinsicAspectRatio();
+        if (is<RenderReplaced>(flexItem))
+            return flexItem.preferredAspectRatioAsSize().aspectRatioDouble();
 
         ASSERT(flexItem.intrinsicLogicalHeight());
         return flexItem.intrinsicLogicalWidth().toDouble() / flexItem.intrinsicLogicalHeight().toDouble();
@@ -1301,11 +1304,11 @@ template<typename SizeType> LayoutUnit RenderFlexibleBox::computeMainSizeFromAsp
         },
         [&](const CSS::Keyword::Auto&) -> std::optional<LayoutUnit> {
             ASSERT(hasDefiniteCrossSizeForFlexItem(flexItem));
-            return computeCrossSizeForFlexItemUsingContainerCrossSize(flexItem);
+            return innerCrossSizeForFlexItem(flexItem);
         },
         [&](const CSS::Keyword::Stretch&) -> std::optional<LayoutUnit> {
             // Resolve stretch against the flex container's cross-axis definite size.
-            return computeCrossSizeForFlexItemUsingContainerCrossSize(flexItem);
+            return innerCrossSizeForFlexItem(flexItem);
         },
         [&](const auto&) -> std::optional<LayoutUnit> {
             ASSERT_NOT_REACHED();
@@ -1405,6 +1408,17 @@ bool RenderFlexibleBox::flexItemHasComputableAspectRatioAndCrossSizeIsConsidered
         && (flexItemCrossSizeIsDefinite(flexItem, preferredCrossSizeLengthForFlexItem(flexItem)) || hasDefiniteCrossSizeForFlexItem(flexItem));
 }
 
+static bool canResolveFullyConstrainedLogicalHeight(const RenderFlexibleBox& flexBox)
+{
+    // The height is fully constrained by insets (CSS Sizing 3 section 3.2.1), but we can
+    // only resolve it if the containing block's height is itself definite right now.
+    // In nested flex layouts, the containing block may be a flex item that hasn't been
+    // stretched yet - its height is 0 at that point and computeLogicalHeight would give
+    // a wrong answer. This happens when the nested out-of-flow flex is laid out as part of the
+    // anector flex's main-axis sizing, before the stretch phase sets the final cross size.
+    return flexBox.hasFullyConstrainedLogicalHeight() && flexBox.containingBlock()->hasDefiniteLogicalHeight();
+}
+
 bool RenderFlexibleBox::hasDefiniteCrossSizeForFlexItem(const RenderBox& flexItem) const
 {
     // 9.8 https://drafts.csswg.org/css-flexbox/#definite-sizes
@@ -1416,7 +1430,12 @@ bool RenderFlexibleBox::hasDefiniteCrossSizeForFlexItem(const RenderBox& flexIte
             return true;
         // This must be kept in sync with computeMainSizeFromAspectRatioUsing().
         auto& crossSize = isHorizontalFlow() ? style().height() : style().width();
-        return crossSize.isFixed() || (crossSize.isPercent() && availableLogicalHeightForPercentageComputation());
+        if (crossSize.isFixed())
+            return true;
+        if (crossSize.isPercent() && availableLogicalHeightForPercentageComputation())
+            return true;
+        if (canResolveFullyConstrainedLogicalHeight(*this))
+            return true;
     }
     return false;
 }
@@ -1897,7 +1916,7 @@ std::pair<LayoutUnit, LayoutUnit> RenderFlexibleBox::computeFlexItemMinMaxSizes(
         return { minExtent, maxExtent.value_or(LayoutUnit::max()) };
     }
 
-    if (shouldApplyMinSizeAutoForFlexItem(flexItem)) {
+    if (useContentBasedMinimumSize(flexItem)) {
         // FIXME: If the min value is expected to be valid here, we need to come up with a non optional version of computeMainAxisExtentForFlexItem and
         // ensure it's valid through the virtual calls of computeSizingKeywordLogicalContentHeightUsing.
         LayoutUnit contentSize;
@@ -2319,34 +2338,36 @@ bool RenderFlexibleBox::setStaticPositionForPositionedLayout(const RenderBox& fl
 }
 
 // This refers to https://drafts.csswg.org/css-flexbox-1/#definite-sizes, section 1).
-LayoutUnit RenderFlexibleBox::computeCrossSizeForFlexItemUsingContainerCrossSize(const RenderBox& flexItem) const
+LayoutUnit RenderFlexibleBox::innerCrossSizeForFlexItem(const RenderBox& flexItem) const
 {
     if (isColumnFlow())
         return contentBoxLogicalWidth();
 
     // Keep this sync'ed with hasDefiniteCrossSizeForFlexItem().
-    auto definiteSizeValue = [&] {
-        // Let's compute the definite size value for the flex item (value that we can resolve without running layout).
+    auto flexContainerInnerCrossSize = [&] {
         auto isHorizontal = isHorizontalFlow();
         auto size = isHorizontal ? style().height() : style().width();
-        ASSERT(size.isFixed() || (size.isPercent() && availableLogicalHeightForPercentageComputation()));
-        LayoutUnit definiteValue;
+        auto innerCrossSize = LayoutUnit { };
         if (auto fixedSize = size.tryFixed())
-            definiteValue = LayoutUnit { fixedSize->resolveZoom(style().usedZoomForLength()) };
+            innerCrossSize = adjustContentBoxLogicalHeightForBoxSizing(LayoutUnit { fixedSize->resolveZoom(style().usedZoomForLength()) });
         else if (size.isPercent())
-            definiteValue = availableLogicalHeightForPercentageComputation().value_or(0_lu);
+            innerCrossSize = availableLogicalHeightForPercentageComputation().value_or(0_lu);
+        else if (canResolveFullyConstrainedLogicalHeight(*this))
+            innerCrossSize = std::max(0_lu, computeLogicalHeight(logicalHeight(), 0_lu).extent - borderAndPaddingLogicalHeight() - scrollbarLogicalHeight());
+        else
+            ASSERT_NOT_REACHED();
 
         auto maximumSize = isHorizontal ? style().maxHeight() : style().maxWidth();
         if (auto fixedMaximumSize = maximumSize.tryFixed())
-            definiteValue = std::min(definiteValue, LayoutUnit { fixedMaximumSize->resolveZoom(style().usedZoomForLength()) });
+            innerCrossSize = std::min(innerCrossSize, adjustContentBoxLogicalHeightForBoxSizing(LayoutUnit { fixedMaximumSize->resolveZoom(style().usedZoomForLength()) }));
 
         auto minimumSize = isHorizontal ? style().minHeight() : style().minWidth();
         if (auto fixedMinimumSize = minimumSize.tryFixed())
-            definiteValue = std::max(definiteValue, LayoutUnit { fixedMinimumSize->resolveZoom(style().usedZoomForLength()) });
+            innerCrossSize = std::max(innerCrossSize, adjustContentBoxLogicalHeightForBoxSizing(LayoutUnit { fixedMinimumSize->resolveZoom(style().usedZoomForLength()) }));
 
-        return definiteValue;
+        return innerCrossSize;
     };
-    return std::max(0_lu, definiteSizeValue() - crossAxisMarginExtentForFlexItem(flexItem));
+    return std::max(0_lu, flexContainerInnerCrossSize() - crossAxisMarginExtentForFlexItem(flexItem));
 }
 
 void RenderFlexibleBox::prepareFlexItemForPositionedLayout(RenderBox& flexItem)
@@ -2489,7 +2510,7 @@ bool RenderFlexibleBox::flexItemHasIntrinsicMainAxisSize(const RenderBox& flexIt
     if (!flexItemMainSizeIsDefinite(flexItem, flexBasis) || minSize.isIntrinsic() || maxSize.isIntrinsic())
         return true;
 
-    if (shouldApplyMinSizeAutoForFlexItem(flexItem))
+    if (useContentBasedMinimumSize(flexItem))
         return true;
 
     return false;
@@ -3017,7 +3038,8 @@ void RenderFlexibleBox::applyStretchAlignmentToFlexItem(RenderBox& flexItem, Lay
             // Don't use layoutChildIfNeeded to avoid setting cross axis cached size twice.
             flexItem.layoutIfNeeded();
 
-            setCachedFlexItemIntrinsicContentLogicalHeight(flexItem, flexItemIntrinsicContentLogicalHeight);
+            if (flexItem.shouldCacheIntrinsicContentLogicalHeightForFlexItem())
+                setCachedFlexItemIntrinsicContentLogicalHeight(flexItem, flexItemIntrinsicContentLogicalHeight);
         }
         return;
     }

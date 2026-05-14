@@ -580,6 +580,28 @@ void HTMLSelectElement::attributeChanged(const QualifiedName& name, const AtomSt
     }
 }
 
+void HTMLSelectElement::setDisabledInternal(bool disabled, bool disabledByAncestorFieldset)
+{
+    bool newDisabledState = disabled || disabledByAncestorFieldset;
+    if (newDisabledState == isDisabled()) {
+        ValidatedFormListedElement::setDisabledInternal(disabled, disabledByAncestorFieldset);
+        return;
+    }
+
+    Vector<Style::PseudoClassChangeInvalidation> descendantInvalidations;
+    for (Ref descendant : descendantsOfType<HTMLElement>(*this)) {
+        if (!isAnyOf<HTMLOptionElement, HTMLOptGroupElement>(descendant.get()))
+            continue;
+        bool newDescendantDisabled = newDisabledState || descendant->isDisabledFormControl();
+        descendantInvalidations.append({ descendant.get(), {
+            { CSSSelector::PseudoClass::Disabled, newDescendantDisabled },
+            { CSSSelector::PseudoClass::Enabled, !newDescendantDisabled },
+        } });
+    }
+
+    ValidatedFormListedElement::setDisabledInternal(disabled, disabledByAncestorFieldset);
+}
+
 int HTMLSelectElement::defaultTabIndex() const
 {
     return 0;
@@ -2147,11 +2169,17 @@ void HTMLSelectElement::showPopup()
         m_popup = document().page()->chrome().createPopupMenu(*this);
     setPopupIsVisible(true);
 
+    // Ensure layout is up-to-date before computing the element location.
+    protect(document())->updateLayout();
+
     // Compute the top left taking transforms into account, but use
     // the actual width of the element to size the popup.
     FloatPoint absTopLeft = renderer->localToAbsolute(FloatPoint(), MapCoordinatesMode::UseTransforms);
+    m_lastPopupLocationForTesting = absTopLeft;
+
     IntRect absBounds = renderer->absoluteBoundingBoxRectIgnoringTransforms();
     absBounds.setLocation(roundedIntPoint(absTopLeft));
+
     protect(m_popup)->show(absBounds, *frameView, optionToListIndex(selectedIndex())); // May run JS.
 }
 

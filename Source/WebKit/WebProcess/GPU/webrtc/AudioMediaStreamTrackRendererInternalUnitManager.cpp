@@ -46,6 +46,7 @@
 #include <wtf/Identified.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/Threading.h>
 
 namespace WebKit {
 

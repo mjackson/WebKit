@@ -345,6 +345,11 @@ void TestRunner::syncLocalStorage()
     postSynchronousMessage("SyncLocalStorage", true);
 }
 
+unsigned TestRunner::storageAreaMapCount()
+{
+    return postSynchronousPageMessageReturningUInt64("GetStorageAreaMapCount", WKRetainPtr<WKTypeRef> { });
+}
+
 bool TestRunner::isCommandEnabled(JSStringRef name)
 {
     return postSynchronousPageMessageReturningBoolean("IsCommandEnabled", toWK(name));
@@ -528,6 +533,12 @@ bool TestRunner::didReceiveServerRedirectForProvisionalNavigation() const
 void TestRunner::clearDidReceiveServerRedirectForProvisionalNavigation()
 {
     postSynchronousPageMessage("ClearDidReceiveServerRedirectForProvisionalNavigation");
+}
+
+JSRetainPtr<JSStringRef> TestRunner::lastProvisionalNavigationFailureURL() const
+{
+    auto url = InjectedBundle::singleton().lastProvisionalNavigationFailureURL();
+    return WKStringCopyJSString(url.get());
 }
 
 void TestRunner::setPageVisibility(JSStringRef state)

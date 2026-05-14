@@ -115,8 +115,6 @@ SUPPORTS_MACCATALYST = YES;
 // Can't enable objcxx mode until rdar://135979809 is resolved.
 SWIFT_OBJC_INTEROP_MODE = objc;
 
-SWIFT_VERSION = 6.0;
-
 OTHER_SWIFT_FLAGS = $(inherited) -Xfrontend -experimental-spi-only-imports @$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/platform-enabled-swift-args.$(arch).resp @$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/swift-tba-availability-macros.resp;
 
 WK_ENABLE_SWIFTUI = YES;

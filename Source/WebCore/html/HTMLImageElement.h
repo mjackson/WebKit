@@ -243,8 +243,6 @@ private:
 
     void copyNonAttributePropertiesFromElement(const Element&) final;
 
-    float effectiveImageDevicePixelRatio() const;
-    
 #if ENABLE(SERVICE_CONTROLS)
     bool childShouldCreateRenderer(const Node&) const override;
 #endif

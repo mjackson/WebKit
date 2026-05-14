@@ -32,6 +32,7 @@
 #include "CSSCalcTree+Mappings.h"
 #include "CSSCalcTree+Simplification.h"
 #include "CSSCalcTree.h"
+#include "CSSCalcType.h"
 #include "CSSUnevaluatedCalc.h"
 #include "RenderStyle.h"
 #include "StyleBuilderState.h"
@@ -53,9 +54,13 @@ static auto evaluate(const SiblingCount&, const EvaluationOptions&) -> std::opti
 static auto evaluate(const SiblingIndex&, const EvaluationOptions&) -> std::optional<double>;
 static auto evaluate(const IndirectNode<Sum>&, const EvaluationOptions&) -> std::optional<double>;
 static auto evaluate(const IndirectNode<Product>&, const EvaluationOptions&) -> std::optional<double>;
+static auto evaluate(const IndirectNode<Deg2Rad>&, const EvaluationOptions&) -> std::optional<double>;
 static auto evaluate(const IndirectNode<Min>&, const EvaluationOptions&) -> std::optional<double>;
 static auto evaluate(const IndirectNode<Max>&, const EvaluationOptions&) -> std::optional<double>;
 static auto evaluate(const IndirectNode<Hypot>&, const EvaluationOptions&) -> std::optional<double>;
+static auto evaluate(const IndirectNode<Sin>&, const EvaluationOptions&) -> std::optional<double>;
+static auto evaluate(const IndirectNode<Cos>&, const EvaluationOptions&) -> std::optional<double>;
+static auto evaluate(const IndirectNode<Tan>&, const EvaluationOptions&) -> std::optional<double>;
 static auto evaluate(const IndirectNode<Random>&, const EvaluationOptions&) -> std::optional<double>;
 static auto evaluate(const IndirectNode<Anchor>&, const EvaluationOptions&) -> std::optional<double>;
 static auto evaluate(const IndirectNode<AnchorSize>&, const EvaluationOptions&) -> std::optional<double>;
@@ -191,6 +196,41 @@ std::optional<double> evaluate(const IndirectNode<Max>& root, const EvaluationOp
 std::optional<double> evaluate(const IndirectNode<Hypot>& root, const EvaluationOptions& options)
 {
     return executeVariadicMathOperationAfterUnwrapping(root, options);
+}
+
+std::optional<double> evaluate(const IndirectNode<Deg2Rad>& root, const EvaluationOptions& options)
+{
+    // The canonical unit for <angle> is degrees, so `evaluate(root->angle, ...)` returns a value
+    // in degrees. Deg2Rad converts that into radians so trig functions can be evaluated directly.
+    auto angle = evaluate(root->angle, options);
+    if (!angle)
+        return std::nullopt;
+    return deg2rad(*angle);
+}
+
+template<typename Op> static std::optional<double> evaluateTrig(const IndirectNode<Op>& root, const EvaluationOptions& options)
+{
+    // `root->a` is either a <number> or a Deg2Rad-wrapped <angle> subtree. Either way, evaluating
+    // it yields a plain double in radians, so we can pass it directly to the trig operator.
+    auto radians = evaluate(root->a, options);
+    if (!radians)
+        return std::nullopt;
+    return executeOperation<ToCalculationTreeOp<Op>::op>(*radians);
+}
+
+std::optional<double> evaluate(const IndirectNode<Sin>& root, const EvaluationOptions& options)
+{
+    return evaluateTrig(root, options);
+}
+
+std::optional<double> evaluate(const IndirectNode<Cos>& root, const EvaluationOptions& options)
+{
+    return evaluateTrig(root, options);
+}
+
+std::optional<double> evaluate(const IndirectNode<Tan>& root, const EvaluationOptions& options)
+{
+    return evaluateTrig(root, options);
 }
 
 std::optional<double> evaluate(const IndirectNode<Random>& root, const EvaluationOptions& options)

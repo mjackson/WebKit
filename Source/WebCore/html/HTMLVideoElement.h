@@ -32,6 +32,7 @@
 #include <WebCore/Supplementable.h>
 #include <WebCore/VideoFrameRequestCallback.h>
 #include <memory>
+#include <wtf/Forward.h>
 
 namespace WebCore {
 

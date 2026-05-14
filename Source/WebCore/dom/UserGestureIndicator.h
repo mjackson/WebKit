@@ -35,7 +35,6 @@
 #include <wtf/UUID.h>
 #include <wtf/Vector.h>
 #include <wtf/WeakHashSet.h>
-#include <wtf/WeakPtr.h>
 
 namespace JSC {
 class VM;

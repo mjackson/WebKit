@@ -115,7 +115,7 @@ auto SVGURIReference::targetElementFromIRIString(const String& iri, const TreeSc
         return { };
 
     Ref document = treeScope.documentScope();
-    auto url = document->completeURL(iri);
+    auto url = document->encodingParseURL(iri);
     if (externalDocument) {
         // Enforce that the referenced url matches the url of the document that we've loaded for it!
         ASSERT(equalIgnoringFragmentIdentifier(url, externalDocument->url()));
@@ -148,7 +148,7 @@ bool SVGURIReference::haveLoadedRequiredResources() const
 {
     if (href().isEmpty())
         return true;
-    if (protect(contextElement().document())->completeURL(href()).protocolIsData())
+    if (protect(contextElement().document())->encodingParseURL(href()).protocolIsData())
         return true;
     if (!isExternalURIReference(href(), protect(contextElement().document())))
         return true;

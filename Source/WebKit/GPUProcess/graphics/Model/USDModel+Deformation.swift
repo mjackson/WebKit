@@ -33,7 +33,7 @@ import simd
 import USDKit
 @_spi(SwiftAPI) import DirectResource
 import RealityKit
-@_spi(SGPrivate) import ShaderGraph
+import ShaderGraph
 import RealityCoreDeformation
 
 extension _USDKit_RealityKit._Proto_DeformationData_v1.SkinningData {

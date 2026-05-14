@@ -61,7 +61,8 @@
 
 - (void)_webView:(WKWebView *)webView didChangeFontAttributes:(NSDictionary<NSString *, id> *)fontAttributes
 {
-    NSString *fontTextStyle = [[[fontAttributes objectForKey:@"NSFont"] fontDescriptor] objectForKey:(__bridge NSString *)kCTFontDescriptorTextStyleAttribute];
+    RetainPtr fontDescriptor = [checked_objc_cast<WebCore::CocoaFont>([fontAttributes objectForKey:@"NSFont"]) fontDescriptor];
+    RetainPtr fontTextStyle = checked_objc_cast<NSString>([fontDescriptor objectForKey:bridge_cast(kCTFontDescriptorTextStyleAttribute)]);
 
     if (_willSetFont && [fontTextStyle isEqualToString:@"UICTFontTextStyleTitle1"]) {
         _done = YES;

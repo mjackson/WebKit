@@ -34,7 +34,6 @@
 #include <concepts>
 #include <limits>
 #include <stdint.h>
-#include <stdlib.h>
 #include <wtf/Compiler.h>
 #include <wtf/Platform.h>
 

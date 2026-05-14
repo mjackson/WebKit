@@ -49,8 +49,10 @@ void UserMediaPermissionRequestProxyCocoa::invalidate()
 {
 #if ENABLE(MEDIA_STREAM)
     if (m_hasPendingGetDisplayMediaPrompt) {
-        if (RefPtr page = manager()->page())
+        if (RefPtr page = manager()->page()) {
+            page->setIsPromptingForGetDisplayMedia({ });
             DisplayCaptureSessionManager::singleton().cancelGetDisplayMediaPrompt(*page);
+        }
         m_hasPendingGetDisplayMediaPrompt = false;
     }
 #endif
@@ -67,12 +69,28 @@ void UserMediaPermissionRequestProxyCocoa::promptForGetDisplayMedia(UserMediaDis
     if (!page)
         return;
 
+    WebCore::MediaProducerMediaStateFlags promptFlags;
+    switch (promptType) {
+    case UserMediaDisplayCapturePromptType::Window:
+        promptFlags.add(WebCore::MediaProducerMediaState::IsPromptingForWindowCapture);
+        break;
+    case UserMediaDisplayCapturePromptType::Screen:
+        promptFlags.add(WebCore::MediaProducerMediaState::IsPromptingForScreenCapture);
+        break;
+    case UserMediaDisplayCapturePromptType::UserChoose:
+        promptFlags.add({ WebCore::MediaProducerMediaState::IsPromptingForWindowCapture, WebCore::MediaProducerMediaState::IsPromptingForScreenCapture });
+        break;
+    }
+
+    page->setIsPromptingForGetDisplayMedia(promptFlags);
+
     m_hasPendingGetDisplayMediaPrompt = true;
-    DisplayCaptureSessionManager::singleton().promptForGetDisplayMedia(promptType, *page, topLevelDocumentSecurityOrigin().data(), [protectedThis = Ref { *this }](std::optional<CaptureDevice> device) mutable {
+    DisplayCaptureSessionManager::singleton().promptForGetDisplayMedia(promptType, *page, topLevelDocumentSecurityOrigin().data(), [protectedThis = Ref { *this }, page = WTF::move(page)](std::optional<CaptureDevice> device) mutable {
 
         protectedThis->m_hasPendingGetDisplayMediaPrompt = false;
 
         if (!device) {
+            page->setIsPromptingForGetDisplayMedia({ });
             protectedThis->deny(UserMediaPermissionRequestProxy::UserMediaAccessDenialReason::PermissionDenied);
             return;
         }

@@ -57,13 +57,13 @@ public:
     void setTransform(WebXRRigidTransform&);
 
     float radius() const { return m_radius; }
-    void setRadius(float radius) { m_radius = radius; setNeedsRedraw(true); }
+    void setRadius(float);
     float centralHorizontalAngle() const { return m_centralHorizontalAngle; }
-    void setCentralHorizontalAngle(float angle) { m_centralHorizontalAngle = angle; setNeedsRedraw(true); }
+    void setCentralHorizontalAngle(float);
     float upperVerticalAngle() const { return m_upperVerticalAngle; }
-    void setUpperVerticalAngle(float angle) { m_upperVerticalAngle = angle; setNeedsRedraw(true); }
+    void setUpperVerticalAngle(float);
     float lowerVerticalAngle() const { return m_lowerVerticalAngle; }
-    void setLowerVerticalAngle(float angle) { m_lowerVerticalAngle = angle; setNeedsRedraw(true); }
+    void setLowerVerticalAngle(float);
 
 private:
     XREquirectLayer(ScriptExecutionContext&, WebXRSession&, Ref<XRLayerBacking>&&, const XREquirectLayerInit&);

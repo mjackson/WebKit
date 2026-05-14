@@ -50,6 +50,10 @@ extension WKRKEntity {
     private var backingDuration: TimeInterval? = nil
     @nonobjc
     private var backingPlaybackRate: Float = 1.0
+    @nonobjc
+    private var backingAnimation: AnimationResource? = nil
+    @nonobjc
+    private var backingCurrentTime: TimeInterval = 0
 
     private static var defaultEnvironmentResource: EnvironmentResource?
 
@@ -185,6 +189,17 @@ extension WKRKEntity {
             animationPlaybackController?.isPaused ?? true
         }
         set {
+            if animationPlaybackController == nil {
+                guard !newValue, let animation = backingAnimation else {
+                    return
+                }
+                let controller = entity.playAnimation(animation, startsPaused: false)
+                controller.speed = backingPlaybackRate
+                animationPlaybackController = controller
+                animationPlaybackStateDidUpdate()
+                return
+            }
+
             guard let animationPlaybackController, animationPlaybackController.isPaused != newValue else {
                 return
             }
@@ -200,11 +215,21 @@ extension WKRKEntity {
 
     var currentTime: TimeInterval {
         get {
-            animationPlaybackController?.time ?? 0
+            animationPlaybackController?.time ?? backingCurrentTime
         }
 
         set {
-            guard let animationPlaybackController, let duration = backingDuration else {
+            guard let duration = backingDuration else {
+                return
+            }
+
+            if animationPlaybackController == nil, let animation = backingAnimation {
+                let controller = entity.playAnimation(animation, startsPaused: true)
+                controller.speed = backingPlaybackRate
+                animationPlaybackController = controller
+            }
+
+            guard let animationPlaybackController else {
                 return
             }
 
@@ -222,6 +247,7 @@ extension WKRKEntity {
             return
         }
 
+        backingAnimation = animation
         animationPlaybackController = entity.playAnimation(animation, startsPaused: !autoplay)
         guard let animationPlaybackController else {
             Logger.realityKitEntity.error("Cannot play entity animation")
@@ -246,8 +272,14 @@ extension WKRKEntity {
                 return
             }
 
-            let startsPaused = !self.loop
-            let animationController = self.entity.playAnimation(animation, startsPaused: startsPaused)
+            guard self.loop else {
+                self.backingCurrentTime = self.backingDuration ?? 0
+                self.animationPlaybackController = nil
+                self.animationPlaybackStateDidUpdate()
+                return
+            }
+
+            let animationController = self.entity.playAnimation(animation, startsPaused: false)
             animationController.speed = self.backingPlaybackRate
             self.animationPlaybackController = animationController
             self.animationPlaybackStateDidUpdate()
@@ -391,7 +423,14 @@ extension WKRKEntity {
             return
         }
 
-        let defaultEnvironmentResource = EnvironmentResource.defaultObject()
+        guard
+            let defaultEnvironmentResource = try? EnvironmentResource.load(
+                named: "studio_lighting_objectmode_v3",
+                in: Bundle(identifier: "com.apple.WebKit")
+            )
+        else {
+            fatalError("Could not open studio_lighting_objectmode_v3")
+        }
         WKRKEntity.defaultEnvironmentResource = defaultEnvironmentResource
         applyIBL(defaultEnvironmentResource)
         #else

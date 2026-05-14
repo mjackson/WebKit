@@ -108,12 +108,7 @@ TEST(WKWebExtensionAPIStorage, UndefinedProperties)
     Util::loadAndRunExtension(storageManifest, @{ @"background.js": backgroundScript });
 }
 
-// FIXME rdar://147858640
-#if PLATFORM(IOS) && !defined(NDEBUG)
-TEST(WKWebExtensionAPIStorage, DISABLED_SetAccessLevelTrustedContexts)
-#else
 TEST(WKWebExtensionAPIStorage, SetAccessLevelTrustedContexts)
-#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } }
@@ -132,7 +127,9 @@ TEST(WKWebExtensionAPIStorage, SetAccessLevelTrustedContexts)
         @"  browser.test.assertEq(response?.content, undefined)",
 
         @"  browser.test.notifyPass()",
-        @"})"
+        @"})",
+
+        @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *contentScript = Util::constructScript(@[
@@ -142,24 +139,22 @@ TEST(WKWebExtensionAPIStorage, SetAccessLevelTrustedContexts)
         @"  sendResponse({ content: browser?.storage?.session })",
         @"})",
 
-        @"setTimeout(() => browser.runtime.sendMessage('Ready'), 1000)"
+        @"browser.runtime.sendMessage('Ready')"
     ]);
 
     auto manager = Util::loadExtension(storageManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
 
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
     [manager.get().defaultTab.webView loadRequest:urlRequest];
 
     [manager run];
 }
 
-// FIXME rdar://147858640
-#if PLATFORM(IOS) && !defined(NDEBUG)
-TEST(WKWebExtensionAPIStorage, DISABLED_SetAccessLevelTrustedAndUntrustedContexts)
-#else
 TEST(WKWebExtensionAPIStorage, SetAccessLevelTrustedAndUntrustedContexts)
-#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } }
@@ -178,7 +173,9 @@ TEST(WKWebExtensionAPIStorage, SetAccessLevelTrustedAndUntrustedContexts)
         @"  browser.test.assertEq(response?.content, 'object')",
 
         @"  browser.test.notifyPass()",
-        @"})"
+        @"})",
+
+        @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *contentScript = Util::constructScript(@[
@@ -188,13 +185,16 @@ TEST(WKWebExtensionAPIStorage, SetAccessLevelTrustedAndUntrustedContexts)
         @"  sendResponse({ content: typeof browser?.storage?.session })",
         @"})",
 
-        @"setTimeout(() => browser.runtime.sendMessage('Ready'), 1000)"
+        @"browser.runtime.sendMessage('Ready')"
     ]);
 
     auto manager = Util::loadExtension(storageManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
 
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
     [manager.get().defaultTab.webView loadRequest:urlRequest];
 
     [manager run];

@@ -558,9 +558,13 @@ void TypingCommand::insertTextRunWithoutNewlines(const String& text, bool select
     auto allowPasswordEcho = triggeringEventIsUntrusted() ? AllowPasswordEcho::No : AllowPasswordEcho::Yes;
     auto rebalanceWhitespaces = m_compositionType == TextCompositionType::None ? InsertTextCommand::RebalanceLeadingAndTrailingWhitespaces : InsertTextCommand::RebalanceAllWhitespaces;
     auto command = InsertTextCommand::create(document(), text, allowPasswordEcho, selectInsertedText, rebalanceWhitespaces, EditAction::TypingInsertText);
+    Ref insertTextCommand = command.get();
 
     applyCommandToComposite(WTF::move(command), endingSelection());
     typingAddedToOpenCommand(Type::InsertText);
+
+    if (insertTextCommand->m_styleToPreserveForSmartList)
+        document().selection().setTypingStyle(WTF::move(insertTextCommand->m_styleToPreserveForSmartList));
 }
 
 void TypingCommand::insertLineBreak()

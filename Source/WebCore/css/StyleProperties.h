@@ -22,6 +22,7 @@
 #pragma once
 
 #include <WebCore/CSSProperty.h>
+#include <wtf/RefCounted.h>
 
 namespace WebCore {
 

@@ -51,16 +51,17 @@ constexpr Seconds idleTerminationDelay { 5_s };
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebSharedWorkerServerToContextConnection);
 
-Ref<WebSharedWorkerServerToContextConnection> WebSharedWorkerServerToContextConnection::create(NetworkConnectionToWebProcess& connection, const WebCore::Site& site, WebSharedWorkerServer& server)
+Ref<WebSharedWorkerServerToContextConnection> WebSharedWorkerServerToContextConnection::create(NetworkConnectionToWebProcess& connection, const WebCore::Site& site, WebSharedWorkerServer& server, WebCore::CrossOriginEmbedderPolicyValue crossOriginEmbedderPolicy)
 {
-    return adoptRef(*new WebSharedWorkerServerToContextConnection(connection, site, server));
+    return adoptRef(*new WebSharedWorkerServerToContextConnection(connection, site, server, crossOriginEmbedderPolicy));
 }
 
-WebSharedWorkerServerToContextConnection::WebSharedWorkerServerToContextConnection(NetworkConnectionToWebProcess& connection, const WebCore::Site& site, WebSharedWorkerServer& server)
+WebSharedWorkerServerToContextConnection::WebSharedWorkerServerToContextConnection(NetworkConnectionToWebProcess& connection, const WebCore::Site& site, WebSharedWorkerServer& server, WebCore::CrossOriginEmbedderPolicyValue crossOriginEmbedderPolicy)
     : m_connection(connection)
     , m_server(server)
     , m_site(site)
     , m_idleTerminationTimer(*this, &WebSharedWorkerServerToContextConnection::idleTerminationTimerFired)
+    , m_crossOriginEmbedderPolicyValue(crossOriginEmbedderPolicy)
 {
     CONTEXT_CONNECTION_RELEASE_LOG("WebSharedWorkerServerToContextConnection:");
     relaxAdoptionRequirement();
@@ -70,7 +71,7 @@ WebSharedWorkerServerToContextConnection::WebSharedWorkerServerToContextConnecti
 WebSharedWorkerServerToContextConnection::~WebSharedWorkerServerToContextConnection()
 {
     CONTEXT_CONNECTION_RELEASE_LOG("~WebSharedWorkerServerToContextConnection:");
-    if (CheckedPtr server = m_server.get(); server && server->contextConnectionForRegistrableDomain(registrableDomain()) == this)
+    if (CheckedPtr server = m_server.get(); server && server->contextConnectionForRegistrableDomain(registrableDomain(), m_crossOriginEmbedderPolicyValue) == this)
         server->removeContextConnection(*this);
 }
 

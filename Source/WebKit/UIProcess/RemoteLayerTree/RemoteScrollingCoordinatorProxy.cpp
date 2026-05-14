@@ -370,7 +370,7 @@ String RemoteScrollingCoordinatorProxy::scrollingTreeAsText() const
 bool RemoteScrollingCoordinatorProxy::hasScrollableMainFrame() const
 {
     // FIXME: Locking
-    auto* rootNode = m_scrollingTree->rootNode();
+    RefPtr rootNode = m_scrollingTree->rootNode();
     return rootNode && rootNode->canHaveScrollbars();
 }
 
@@ -471,7 +471,7 @@ void RemoteScrollingCoordinatorProxy::displayDidRefresh(PlatformDisplayID displa
 bool RemoteScrollingCoordinatorProxy::hasScrollableOrZoomedMainFrame() const
 {
     // FIXME: Locking
-    auto* rootNode = m_scrollingTree->rootNode();
+    RefPtr rootNode = m_scrollingTree->rootNode();
     if (!rootNode)
         return false;
 
@@ -489,8 +489,6 @@ void RemoteScrollingCoordinatorProxy::sendUIStateChangedIfNecessary()
 
 void RemoteScrollingCoordinatorProxy::resetStateAfterProcessExited()
 {
-    m_currentHorizontalSnapPointIndex = 0;
-    m_currentVerticalSnapPointIndex = 0;
     m_uiState.reset();
 }
 

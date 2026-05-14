@@ -33,6 +33,7 @@
 #include "VM.h"
 #include <wtf/RunLoop.h>
 #include <wtf/Scope.h>
+#include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace JSC {

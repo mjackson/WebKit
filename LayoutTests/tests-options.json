@@ -3005,30 +3005,6 @@
     "imported/w3c/web-platform-tests/fetch/connection-pool/network-partition-key.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/fetch/http-cache/304-update.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/http-cache/cc-request.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/http-cache/freshness.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/http-cache/heuristic.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/http-cache/invalidate.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/http-cache/partial.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/http-cache/post-patch.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/http-cache/status.html": [
-        "slow"
-    ],
     "imported/w3c/web-platform-tests/fetch/metadata/generated/css-images.https.sub.tentative.html": [
         "slow"
     ],
@@ -3090,39 +3066,6 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/fetch/metadata/preload.https.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/metadata/tools/templates/css-images.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/metadata/tools/templates/element-a.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/metadata/tools/templates/element-area.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/metadata/tools/templates/element-link-icon.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/metadata/tools/templates/element-link-prefetch.optional.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/metadata/tools/templates/fetch-via-serviceworker.https.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/metadata/tools/templates/form-submission.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/metadata/tools/templates/header-refresh.optional.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/metadata/tools/templates/svg-image.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/metadata/tools/templates/window-history.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/fetch/metadata/tools/templates/window-location.sub.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/fetch/range/cache-revalidate-construct-range-response.html": [
@@ -4799,7 +4742,7 @@
     "imported/w3c/web-platform-tests/mathml/relations/html5-tree/math-global-event-handlers.tentative.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-002.tentative.html": [
+    "imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-002.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/media-capabilities/decodingInfoEncryptedMedia.https.html": [
@@ -7214,7 +7157,7 @@
     "imported/w3c/web-platform-tests/xhr/response-data-progress.htm": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/xhr/send-redirect-bogus.htm": [
+    "imported/w3c/web-platform-tests/xhr/send-redirect-bogus.sub.htm": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/xhr/setrequestheader-content-type.htm": [

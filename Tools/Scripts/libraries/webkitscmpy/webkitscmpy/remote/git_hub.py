@@ -182,7 +182,9 @@ class GitHub(Scm):
         def update(self, pull_request, head=None, title=None, body=None, commits=None, base=None, opened=None, draft=None):
             if not isinstance(pull_request, PullRequest):
                 raise ValueError("Expected 'pull_request' to be of type '{}' not '{}'".format(PullRequest, type(pull_request)))
-            if not any((head, title, body, commits, base)) and opened is None:
+            if head is not None and head != pull_request.head:
+                raise ValueError(f"GitHub does not support updating the head branch of a pull request (requested: {pull_request.head} to {head})")
+            if not any((title, body, commits, base)) and opened is None:
                 raise ValueError('No arguments to update pull-request provided')
             if draft is not None:
                 sys.stderr.write('GitHub does not allow editing draft state via API\n')
@@ -192,8 +194,6 @@ class GitHub(Scm):
                 title=title or pull_request.title,
                 base=base or pull_request.base,
             )
-            if head:
-                updates['head'] = '{}:{}'.format(user, head)
             if body or commits:
                 updates['body'] = PullRequest.create_body(body, commits)
             if opened is not None:

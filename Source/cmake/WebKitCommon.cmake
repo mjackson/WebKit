@@ -44,6 +44,7 @@ if (NOT HAS_RUN_WEBKIT_COMMON)
     # -----------------------------------------------------------------------------
     set(ALL_PORTS
         GTK
+        IOS
         JSCOnly
         Mac
         PlayStation
@@ -99,13 +100,17 @@ if (NOT HAS_RUN_WEBKIT_COMMON)
     else ()
         string(TOLOWER ${CMAKE_SYSTEM_PROCESSOR} LOWERCASE_CMAKE_SYSTEM_PROCESSOR)
     endif ()
-    if (FORCE_32BIT OR (
-            LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|aarch32|cortex-(a(5|7|8|9|1[2-7]|32)|m[0-9]|r[0-9]([^0-9]|$)))"
-            AND NOT LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)"))
+    if (LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|aarch32|cortex-(a(5|7|8|9|1[2-7]|32)|m[0-9]|r[0-9]([^0-9]|$)))"
+            AND NOT LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)")
         set(WTF_CPU_ARM 1)
         set(CMAKE_SYSTEM_PROCESSOR "armv7l" CACHE INTERNAL "" FORCE)
     elseif (LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|cortex-(a|x|c))")
-        set(WTF_CPU_ARM64 1)
+        if (FORCE_32BIT)
+            set(WTF_CPU_ARM 1)
+            set(CMAKE_SYSTEM_PROCESSOR "armv7l" CACHE INTERNAL "" FORCE)
+        else ()
+            set(WTF_CPU_ARM64 1)
+        endif ()
     elseif (LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^mips64")
         set(WTF_CPU_MIPS64 1)
     elseif (LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^mips")
@@ -241,6 +246,7 @@ if (NOT HAS_RUN_WEBKIT_COMMON)
     include(ProcessorCount)
 
     include(WebKitPackaging)
+    include(WebKitHeaderMap)
     include(WebKitMacros)
     include(WebKitFS)
     include(WebKitCCache)

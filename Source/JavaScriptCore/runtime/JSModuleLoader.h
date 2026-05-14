@@ -41,6 +41,7 @@ class JSModuleNamespaceObject;
 class JSModuleRecord;
 class JSSourceCode;
 class ModuleRegistryEntry;
+class SourceOrigin;
 
 class JSModuleLoader final : public JSCell {
 public:

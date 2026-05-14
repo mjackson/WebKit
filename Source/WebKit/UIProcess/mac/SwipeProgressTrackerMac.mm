@@ -28,6 +28,7 @@
 
 #if PLATFORM(MAC)
 
+#import "APIPageConfiguration.h"
 #import "DisplayLink.h"
 #import "DrawingAreaProxy.h"
 #import "ViewGestureController.h"
@@ -57,6 +58,7 @@ static double easeOutCubic(double t)
 SwipeProgressTracker::SwipeProgressTracker(WebPageProxy& webPageProxy, ViewGestureController& viewGestureController)
     : m_viewGestureController(viewGestureController)
     , m_webPageProxy(webPageProxy)
+    , m_pageIdentifier(webPageProxy.identifier())
 {
 }
 
@@ -226,12 +228,8 @@ void SwipeProgressTracker::endAnimation()
 
 void SwipeProgressTracker::displayLinkFired(WebCore::PlatformDisplayID, WebCore::DisplayUpdate, bool, bool)
 {
-    RefPtr page = m_webPageProxy.get();
-    if (!page)
-        return;
-
-    RunLoop::mainSingleton().dispatch([pageID = page->identifier()]() {
-        RefPtr controller = ViewGestureController::controllerForPage(pageID);
+    RunLoop::mainSingleton().dispatch([pageIdentifier = m_pageIdentifier] {
+        RefPtr controller = ViewGestureController::controllerForPage(pageIdentifier);
         if (controller && controller->swipeProgressTracker())
             protect(*controller->swipeProgressTracker())->animationTimerFired();
     });

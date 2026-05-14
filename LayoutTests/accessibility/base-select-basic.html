@@ -44,8 +44,10 @@ if (window.accessibilityController) {
         output += await expectAsync("select.isExpanded", "true");
 
         // The select should contain a Menu which wraps the MenuItems.
-        output += expect("select.childrenCount", "1");
-        window.menu = select.childAtIndex(0);
+        // Except on iOS, where the Menu is reparented to be a sibling
+        // of the select (see findBaseSelectMenu for details).
+        window.menu = findBaseSelectMenu(select);
+        output += expect("menu != null", "true");
         output += expect("menu.role.toLowerCase().includes('menu')", "true");
         output += expect("menu.childrenCount", "3");
 

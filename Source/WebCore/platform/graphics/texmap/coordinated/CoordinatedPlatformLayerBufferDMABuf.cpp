@@ -274,7 +274,7 @@ void CoordinatedPlatformLayerBufferDMABuf::paintToTextureMapper(TextureMapper& t
 }
 
 #if USE(SKIA)
-void CoordinatedPlatformLayerBufferDMABuf::paintToCanvas(SkCanvas& canvas, const FloatRect& targetRect, const SkPaint& paint)
+sk_sp<SkImage> CoordinatedPlatformLayerBufferDMABuf::skiaImage()
 {
     waitForContentsIfNeeded();
 
@@ -287,7 +287,9 @@ void CoordinatedPlatformLayerBufferDMABuf::paintToCanvas(SkCanvas& canvas, const
         m_dmabuf->setBuffer(importDMABuf());
 
     if (auto* buffer = m_dmabuf->buffer())
-        buffer->paintToCanvas(canvas, targetRect, paint);
+        return buffer->skiaImage();
+
+    return nullptr;
 }
 #endif
 

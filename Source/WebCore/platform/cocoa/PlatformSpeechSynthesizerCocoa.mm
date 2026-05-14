@@ -103,7 +103,13 @@ static float getAVSpeechUtteranceMaximumSpeechRate()
 
 - (void)availableVoicesDidChange
 {
-    Ref { *m_synthesizerObject }->voicesDidChange();
+    // AVFoundation may post AVSpeechSynthesisAvailableVoicesDidChangeNotification from a
+    // background Swift concurrency thread. PlatformSpeechSynthesizer (and its WeakPtr) are
+    // main-thread objects, so hop to the main thread and null-check before dispatching.
+    ensureOnMainThread([retainedSelf = retainPtr(self)] {
+        if (RefPtr synthesizer = retainedSelf->m_synthesizerObject.get())
+            synthesizer->voicesDidChange();
+    });
 }
 
 #endif

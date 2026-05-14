@@ -38,6 +38,7 @@
 #include <wtf/CrossThreadCopier.h>
 #include <wtf/NativePromise.h>
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/Threading.h>
 #include <wtf/UUID.h>
 
 #if PLATFORM(COCOA)

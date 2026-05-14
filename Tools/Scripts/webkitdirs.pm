@@ -146,6 +146,7 @@ BEGIN {
        &libFuzzerIsEnabled
        &ltoMode
        &markBaseProductDirectoryAsCreatedByXcodeBuildSystem
+       &maybeEnterWebKitContainerSDK
        &maybeUseContainerSDKRootDir
        &maxCPULoad
        &nativeArchitecture
@@ -1189,6 +1190,8 @@ sub determineConfigurationProductDir
         } else {
             if (isGtk() or isWPE() or isJSCOnly() or shouldUseFlatpak() or shouldBuildForCrossTarget() or inCrossTargetEnvironment()) {
                 $configurationProductDir = "$baseProductDir/$portName/$configuration";
+            } elsif (isAppleCocoaWebKit() && isCMakeBuild()) {
+                $configurationProductDir = "$baseProductDir/cmake-mac/$configuration";
             } else {
                 $configurationProductDir = "$baseProductDir/$configuration";
             }
@@ -2548,6 +2551,37 @@ sub runInCrossTargetEnvironment(@)
     exec @prefix, @command, argumentsForConfiguration(), @ARGV or die;
 }
 
+sub maybeEnterWebKitContainerSDK()
+{
+    # Must match linux_container_sdk_utils.AUTOENTER_DECLINED_EXIT_CODE.
+    my $AUTOENTER_DECLINED_EXIT_CODE = 100;
+
+    return if not isLinux();
+    # Cross-target builds use their own toolchain wrapper (runInCrossTargetEnvironment);
+    # don't double-wrap them in the SDK container.
+    return if (shouldBuildForCrossTarget() or inCrossTargetEnvironment());
+
+    # Mirror the cheap opt-out checks from maybe_enter_webkit_container_sdk so
+    # that the overwhelmingly common no-op case avoids forking a Python
+    # interpreter on every wrapper invocation. Keep in sync with that function.
+    return if ($ENV{'WEBKIT_CONTAINER_SDK_ENABLE_AUTOENTER'} // '') ne '1';
+    return if ($ENV{'WEBKIT_CONTAINER_SDK'} // '') eq '1';
+    return if ($ENV{'WEBKIT_FLATPAK'} // '') eq '1';
+    return if ($ENV{'WEBKIT_JHBUILD'} // '') eq '1';
+    return if ($ENV{'WEBKIT_CONTAINER_SDK_INSIDE_MOUNT_NAMESPACE'} // '') eq '1';
+    return unless -f File::Spec->catfile(sourceDir(), ".wkdev-sdk-version");
+
+    # Delegate to the Python helper. It either replaces this process with
+    # `podman exec ...` (never returning), or exits with
+    # $AUTOENTER_DECLINED_EXIT_CODE to signal "continue on the host".
+    my $helper = File::Spec->catfile($FindBin::Bin, "container-sdk-autoenter");
+    return unless -x $helper;
+    system($helper, Cwd::realpath($0) // $0, @ARGV);
+    my $status = exitStatus($?);
+    return if $status == $AUTOENTER_DECLINED_EXIT_CODE;
+    exit $status;
+}
+
 sub maybeUseContainerSDKRootDir()
 {
     return if not isLinux();
@@ -3123,6 +3157,21 @@ sub determineIsCMakeBuild()
 {
     return if defined($isCMakeBuild);
     $isCMakeBuild = checkForArgumentAndRemoveFromARGV("--cmake");
+    return if $isCMakeBuild;
+
+    # Auto-detect a CMake macOS build when no Xcode build is present at the
+    # expected path. The CMake macOS presets place artifacts under
+    # WebKitBuild/cmake-mac/<Configuration>; an Xcode build, if present,
+    # always wins to preserve existing workflows.
+    if (isAppleCocoaWebKit()) {
+        determineBaseProductDir();
+        determineConfiguration();
+        my $cmakeMacBuild = File::Spec->catdir($baseProductDir, "cmake-mac", $configuration);
+        my $xcodeBuild = File::Spec->catdir($baseProductDir, $configuration);
+        if (-f File::Spec->catfile($cmakeMacBuild, "CMakeCache.txt") && !-d $xcodeBuild) {
+            $isCMakeBuild = 1;
+        }
+    }
 }
 
 sub isCMakeBuild()

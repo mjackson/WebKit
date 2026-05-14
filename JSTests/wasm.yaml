@@ -58,7 +58,7 @@
 - path: wasm/spec-tests
   cmd: runWebAssemblySpecTest :normal unless parseRunCommands
 - path: wasm/simd-spec-tests
-  cmd: runWebAssemblySIMDSpecTest :normal
+  cmd: runWebAssemblySIMDSpecTest :normal, "--timeoutMultiplier=2"
 - path: wasm/function-references-spec-tests
   cmd: runWebAssemblyFunctionReferenceSpecTest :normal
 - path: wasm/gc-spec-tests

@@ -39,6 +39,9 @@ extension WebPage {
     /// An edit command that can be used to interact with the web page.
     public enum EditCommand: String {
         case deleteBackward = "DeleteBackward"
+        case toggleBold = "ToggleBold"
+        case toggleItalic = "ToggleItalic"
+        case toggleUnderline = "ToggleUnderline"
     }
 
     /// Suspends execution of the current context until the next presentation update has occurred for this page.
@@ -93,46 +96,102 @@ extension WebPage {
     }
 
     #if os(macOS)
+    /// Sends a left mouse-down NSEvent to the web view at the given location.
+    ///
+    /// - Parameter location: The location in window coordinates.
+    public func mouseDown(at location: NSPoint) {
+        backingWebView.mouseDown(with: mouseEvent(.leftMouseDown, at: location, clickCount: 1, pressure: 1))
+    }
+
+    /// Sends a left mouse-up NSEvent to the web view at the given location.
+    ///
+    /// - Parameter location: The location in window coordinates.
+    public func mouseUp(at location: NSPoint) {
+        backingWebView.mouseUp(with: mouseEvent(.leftMouseUp, at: location, clickCount: 1, pressure: 0))
+    }
+
+    /// Sends a mouse-moved NSEvent to the web view at the given location.
+    ///
+    /// - Parameters:
+    ///   - location: The location in window coordinates.
+    ///   - flags: Modifier flags to include in the event.
+    public func mouseMove(to location: NSPoint, flags: NSEvent.ModifierFlags = []) {
+        backingWebView.mouseMoved(with: mouseEvent(.mouseMoved, at: location, flags: flags, clickCount: 0, pressure: 0))
+    }
+
+    /// Sends a left mouse-dragged NSEvent to the web view at the given location.
+    ///
+    /// - Parameter location: The location in window coordinates.
+    public func mouseDrag(to location: NSPoint) {
+        backingWebView.mouseDragged(with: mouseEvent(.leftMouseDragged, at: location, clickCount: 1, pressure: 1))
+    }
+
     /// Performs a mouse click at the given location by sending a mouse down and mouse up NSEvent.
     ///
     /// - Parameter location: The location to click at, in window coordinates.
     public func click(at location: NSPoint) {
+        mouseDown(at: location)
+        mouseUp(at: location)
+    }
+
+    /// Performs `count` sequential mouse clicks at the given location, incrementing the clickCount on each
+    /// event so that AppKit interprets them as a compound gesture (double-click, triple-click, etc.).
+    ///
+    /// - Parameters:
+    ///   - location: The location to click at, in window coordinates.
+    ///   - count: The number of clicks to send.
+    public func clicks(at location: NSPoint, count: Int) {
+        for clickCount in 1...count {
+            backingWebView.mouseDown(with: mouseEvent(.leftMouseDown, at: location, clickCount: clickCount, pressure: 1))
+            backingWebView.mouseUp(with: mouseEvent(.leftMouseUp, at: location, clickCount: clickCount, pressure: 0))
+        }
+    }
+
+    /// Performs a right mouse click at the given location by sending a right mouse down and right mouse up NSEvent.
+    ///
+    /// - Parameter location: The location to click at, in window coordinates.
+    public func rightClick(at location: NSPoint) {
+        backingWebView.rightMouseDown(with: mouseEvent(.rightMouseDown, at: location, clickCount: 1, pressure: 1))
+        backingWebView.rightMouseUp(with: mouseEvent(.rightMouseUp, at: location, clickCount: 1, pressure: 0))
+    }
+
+    /// Suspends until WebKit has processed all pending mouse events delivered to this page.
+    public func waitForPendingMouseEvents() async {
+        await withCheckedContinuation { continuation in
+            backingWebView._do(afterProcessingAllPendingMouseEvents: {
+                continuation.resume()
+            })
+        }
+    }
+
+    private func mouseEvent(
+        _ type: NSEvent.EventType,
+        at location: NSPoint,
+        flags: NSEvent.ModifierFlags = [],
+        clickCount: Int,
+        pressure: Float
+    ) -> NSEvent {
         guard let window = unsafe backingWebView.window else {
             preconditionFailure("Could not create NSEvent because there is no NSWindow.")
         }
 
-        let timestamp = GetCurrentEventTime()
-
-        let mouseDown = NSEvent.mouseEvent(
-            with: .leftMouseDown,
-            location: location,
-            modifierFlags: [],
-            timestamp: timestamp,
-            windowNumber: window.windowNumber,
-            context: nil,
-            eventNumber: 0,
-            clickCount: 1,
-            pressure: 1
-        )
-
-        let mouseUp = NSEvent.mouseEvent(
-            with: .leftMouseUp,
-            location: location,
-            modifierFlags: [],
-            timestamp: timestamp,
-            windowNumber: window.windowNumber,
-            context: nil,
-            eventNumber: 0,
-            clickCount: 1,
-            pressure: 0
-        )
-
-        guard let mouseDown, let mouseUp else {
+        guard
+            let event = NSEvent.mouseEvent(
+                with: type,
+                location: location,
+                modifierFlags: flags,
+                timestamp: GetCurrentEventTime(),
+                windowNumber: window.windowNumber,
+                context: nil,
+                eventNumber: 0,
+                clickCount: clickCount,
+                pressure: pressure
+            )
+        else {
             preconditionFailure("Could not create NSEvent.")
         }
 
-        backingWebView.mouseDown(with: mouseDown)
-        backingWebView.mouseUp(with: mouseUp)
+        return event
     }
     #endif // os(macOS)
 }

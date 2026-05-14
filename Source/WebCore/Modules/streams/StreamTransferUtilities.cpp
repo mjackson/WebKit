@@ -189,7 +189,7 @@ private:
         if (!globalObject)
             return;
 
-        packAndPostMessage(*uncheckedDowncast<JSDOMGlobalObject>(globalObject), m_port.get(), "pull"_s, JSC::jsUndefined());
+        packAndPostMessage(*downcast<JSDOMGlobalObject>(globalObject), m_port.get(), "pull"_s, JSC::jsUndefined());
         pullFinished();
     }
     void doCancel(JSC::JSValue reason) final
@@ -199,7 +199,7 @@ private:
         if (!globalObject)
             return;
 
-        auto result = packAndPostMessageHandlingError(*uncheckedDowncast<JSDOMGlobalObject>(globalObject), m_port.get(), "error"_s, reason);
+        auto result = packAndPostMessageHandlingError(*downcast<JSDOMGlobalObject>(globalObject), m_port.get(), "error"_s, reason);
         if (result.hasException())
             cancelFinished(result.releaseException());
         else
@@ -311,7 +311,7 @@ private:
             return;
 
         if (!m_backpressurePromise) {
-            RefPtr backpressurePromise = DeferredPromise::create(*uncheckedDowncast<JSDOMGlobalObject>(globalObject), DeferredPromise::Mode::RetainPromiseOnResolve);
+            RefPtr backpressurePromise = DeferredPromise::create(*downcast<JSDOMGlobalObject>(globalObject), DeferredPromise::Mode::RetainPromiseOnResolve);
             if (!backpressurePromise)
                 return;
             backpressurePromise->resolve();
@@ -325,7 +325,7 @@ private:
                 return;
 
             RefPtr context = protectedThis->m_port->scriptExecutionContext();
-            auto* globalObject = context ? uncheckedDowncast<JSDOMGlobalObject>(context->globalObject()) : nullptr;
+            auto* globalObject = context ? downcast<JSDOMGlobalObject>(context->globalObject()) : nullptr;
             if (!globalObject)
                 return;
 

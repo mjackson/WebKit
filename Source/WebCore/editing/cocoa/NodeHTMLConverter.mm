@@ -1632,9 +1632,9 @@ void HTMLConverter::_addLinkForElement(Element& element, NSRange range)
     RetainPtr urlString = element.getAttribute(hrefAttr).createNSString();
     RetainPtr strippedString = [urlString stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     if (urlString && [urlString length] > 0 && strippedString && [strippedString length] > 0 && ![strippedString hasPrefix:@"#"]) {
-        RetainPtr url = element.document().completeURL(urlString.get()).createNSURL();
+        RetainPtr url = element.document().encodingParseURL(urlString.get()).createNSURL();
         if (!url)
-            url = element.document().completeURL(strippedString.get()).createNSURL();
+            url = element.document().encodingParseURL(strippedString.get()).createNSURL();
         if (!url)
             url = [NSURL _web_URLWithString:strippedString.get() relativeToURL:nil];
         [_attrStr addAttribute:NSLinkAttributeName value:url ? (id)url.get() : (id)urlString.get() range:range];
@@ -1794,7 +1794,7 @@ BOOL HTMLConverter::_processElement(Element& element, NSInteger depth)
 #endif
         RetainPtr urlString = element.imageSourceURL().createNSString();
         if (retval && urlString && [urlString length] > 0) {
-            RetainPtr url = element.document().completeURL(urlString.get()).createNSURL();
+            RetainPtr url = element.document().encodingParseURL(urlString.get()).createNSURL();
             if (!url)
                 url = [NSURL _web_URLWithString:[urlString stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] relativeToURL:nil];
 #if PLATFORM(IOS_FAMILY)
@@ -1814,14 +1814,14 @@ BOOL HTMLConverter::_processElement(Element& element, NSInteger depth)
             RetainPtr<NSURL> baseURL;
             RetainPtr<NSURL> url;
             if (baseString && [baseString length] > 0) {
-                baseURL = element.document().completeURL(baseString.get()).createNSURL();
+                baseURL = element.document().encodingParseURL(baseString.get()).createNSURL();
                 if (!baseURL)
                     baseURL = [NSURL _web_URLWithString:[baseString stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] relativeToURL:nil];
             }
             if (baseURL)
                 url = [NSURL _web_URLWithString:[urlString stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] relativeToURL:baseURL.get()];
             if (!url)
-                url = element.document().completeURL(urlString.get()).createNSURL();
+                url = element.document().encodingParseURL(urlString.get()).createNSURL();
             if (!url)
                 url = [NSURL _web_URLWithString:[urlString stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] relativeToURL:nil];
             if (url)

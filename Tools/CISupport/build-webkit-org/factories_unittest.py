@@ -1115,8 +1115,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'delete-WebKitBuild-directory',
             'delete-stale-build-files',
             'jhbuild',
-            'download-built-product',
-            'extract-built-product',
+            'compile-webkit',
             'perf-test',
             'benchmark-test'
         ],

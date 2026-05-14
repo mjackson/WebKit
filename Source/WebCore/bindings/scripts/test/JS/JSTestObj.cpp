@@ -2837,23 +2837,23 @@ using JSTestObjDOMConstructor = JSDOMConstructor<JSTestObj>;
 /* Hash table */
 
 static const struct CompactHashIndex JSTestObjTableIndex[17] = {
+    { 4, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
     { -1, -1 },
-    { 0, 16 },
     { -1, -1 },
-    { -1, -1 },
+    { 0, -1 },
     { -1, -1 },
     { 3, -1 },
+    { -1, -1 },
+    { -1, -1 },
+    { 1, 16 },
+    { -1, -1 },
+    { -1, -1 },
+    { -1, -1 },
     { 2, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { -1, -1 },
-    { 1, -1 },
-    { 4, -1 },
 };
 
 

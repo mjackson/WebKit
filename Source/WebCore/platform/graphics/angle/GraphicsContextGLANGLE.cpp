@@ -303,8 +303,11 @@ bool GraphicsContextGLANGLE::initialize()
             m_knownActiveExtensions.add(*extension);
     }
     for (auto& extensionString : m_allRequestableExtensions) {
-        if (auto extension = extensionEnum(extensionString))
+        if (auto extension = extensionEnum(extensionString)) {
+            if (*extension == GCGLExtension::ANGLE_base_vertex_base_instance && !attributes.supportWebGLDraftExtensions)
+                continue;
             m_requestableExtensions.add(*extension);
+        }
     }
     return true;
 }
@@ -2173,7 +2176,7 @@ GCGLsizeiptr GraphicsContextGLANGLE::getVertexAttribOffset(GCGLuint index, GCGLe
     if (!makeContextCurrent())
         return 0;
 
-    GLvoid* pointer = 0;
+    GLvoid* pointer = nullptr;
     GL_GetVertexAttribPointervRobustANGLE(index, pname, 1, nullptr, &pointer);
     return static_cast<GCGLsizeiptr>(reinterpret_cast<intptr_t>(pointer));
 }

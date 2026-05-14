@@ -2428,6 +2428,8 @@ static inline bool tryAddEventListener(Node* targetNode, const AtomString& event
     Ref document = targetNode->document();
     document->didAddEventListenersOfType(eventType, options.capture ? Document::IsCapture::Yes : Document::IsCapture::No);
 
+    const auto useTouchEventRegions = document->shouldUseTouchEventRegions();
+
     auto& eventNames = WebCore::eventNames();
     auto typeInfo = eventNames.typeInfoForEvent(eventType);
     if (typeInfo.isInCategory(EventCategory::Wheel)) {
@@ -2436,13 +2438,12 @@ static inline bool tryAddEventListener(Node* targetNode, const AtomString& event
     } else if (isTouchRelatedEventType(typeInfo, *targetNode)) {
         document->didAddTouchEventHandler(*targetNode);
 #if ENABLE(TOUCH_EVENT_REGIONS)
-        document->invalidateEventListenerRegions();
+        if (useTouchEventRegions)
+            document->invalidateEventListenerRegions();
 #endif
-    } else if (typeInfo.isInCategory(EventCategory::Gesture)) {
-#if ENABLE(TOUCH_EVENT_REGIONS)
+    } else if (typeInfo.isInCategory(EventCategory::Gesture) && useTouchEventRegions) {
         document->didAddTouchEventHandler(*targetNode);
         document->invalidateEventListenerRegions();
-#endif
     }
     else if (typeInfo.isInCategory(EventCategory::MouseClickRelated))
         document->didAddOrRemoveMouseEventHandler(*targetNode);
@@ -2490,6 +2491,8 @@ static void didRemoveEventListenersOfType(Node& targetNode, const AtomString& ev
     if (bubblingCount)
         document->didRemoveEventListenersOfType(eventType, Document::IsCapture::No, bubblingCount);
 
+    const auto useTouchEventRegions = document->shouldUseTouchEventRegions();
+
     // FIXME: Notify Document that the listener has vanished. We need to keep track of a number of
     // listeners for each type, not just a bool - see https://bugs.webkit.org/show_bug.cgi?id=33861
     auto& eventNames = WebCore::eventNames();
@@ -2500,13 +2503,12 @@ static void didRemoveEventListenersOfType(Node& targetNode, const AtomString& ev
     } else if (isTouchRelatedEventType(typeInfo, targetNode)) {
         document->didRemoveTouchEventHandler(targetNode, removal);
 #if ENABLE(TOUCH_EVENT_REGIONS)
-        document->invalidateEventListenerRegions();
+        if (useTouchEventRegions)
+            document->invalidateEventListenerRegions();
 #endif
-    } else if (typeInfo.isInCategory(EventCategory::Gesture)) {
-#if ENABLE(TOUCH_EVENT_REGIONS)
+    } else if (typeInfo.isInCategory(EventCategory::Gesture) && useTouchEventRegions) {
         document->didRemoveTouchEventHandler(targetNode, removal);
         document->invalidateEventListenerRegions();
-#endif
     } else if (typeInfo.isInCategory(EventCategory::MouseClickRelated))
         document->didAddOrRemoveMouseEventHandler(targetNode);
 

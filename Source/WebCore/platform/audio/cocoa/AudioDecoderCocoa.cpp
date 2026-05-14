@@ -84,7 +84,6 @@ private:
     InternalAudioDecoderCocoa(AudioDecoder::OutputCallback&&);
 
     static WorkQueue& queueSingleton() { return AudioDecoderCocoa::queueSingleton(); }
-    static void decompressedAudioOutputBufferCallback(void*, CMBufferQueueTriggerToken);
     Ref<AudioSampleBufferConverter> converter() const
     {
         assertIsCurrent(queueSingleton());
@@ -218,17 +217,6 @@ void AudioDecoderCocoa::close()
     });
 }
 
-void InternalAudioDecoderCocoa::decompressedAudioOutputBufferCallback(void* object, CMBufferQueueTriggerToken)
-{
-    // We can only be called from the CoreMedia callback if we are still alive.
-    RefPtr decoder = static_cast<class InternalAudioDecoderCocoa*>(object);
-
-    queueSingleton().dispatch([weakDecoder = ThreadSafeWeakPtr { *decoder }] {
-        if (RefPtr protectedDecoder = weakDecoder.get())
-            protectedDecoder->processedDecodedOutputs();
-    });
-}
-
 void InternalAudioDecoderCocoa::processedDecodedOutputs()
 {
     assertIsCurrent(queueSingleton());
@@ -314,7 +302,12 @@ String InternalAudioDecoderCocoa::initialize(const String& codecName, const Audi
         .preSkip = preSkip
     };
 
-    m_converter = AudioSampleBufferConverter::create(decompressedAudioOutputBufferCallback, this, options);
+    m_converter = AudioSampleBufferConverter::create([weakThis = ThreadSafeWeakPtr { *this }] {
+        queueSingleton().dispatch([weakThis] {
+            if (RefPtr protectedThis = weakThis.get())
+                protectedThis->processedDecodedOutputs();
+        });
+    }, options);
     if (!m_converter)
         return "Couldn't create AudioSampleBufferConverter"_s;
 
@@ -397,12 +390,8 @@ void InternalAudioDecoderCocoa::close()
         return;
     m_isClosed = true;
 
-    RefPtr converter = std::exchange(m_converter, { });
-    if (!converter)
-        return;
-    // We keep a reference to ourselves until the converter has been marked as finished. This guarantees that no
-    // callback will occur after we are .
-    converter->finish()->whenSettled(queueSingleton(), [protectedThis = Ref { *this }] { });
+    if (RefPtr converter = std::exchange(m_converter, { }))
+        converter->finish();
 }
 
 } // namespace WebCore

@@ -220,7 +220,7 @@ bool HTMLIFrameElement::shouldLoadFrameLazily()
     Ref document = this->document();
     if (!document->settings().lazyIframeLoadingEnabled() || document->quirks().shouldDisableLazyIframeLoadingQuirk())
         return false;
-    URL completeURL = document->completeURL(frameURL());
+    URL completeURL = document->encodingParseURL(frameURL());
     auto referrerPolicy = referrerPolicyFromAttribute();
     if (!m_lazyLoadFrameObserver) {
         if (isFrameLazyLoadable(document, completeURL, attributeWithoutSynchronization(HTMLNames::loadingAttr))) {

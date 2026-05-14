@@ -88,11 +88,12 @@ Worker::Worker(ScriptExecutionContext& context, JSC::RuntimeFlags runtimeFlags, 
     , m_runtimeFlags(runtimeFlags)
     , m_clientIdentifier(ScriptExecutionContextIdentifier::generate())
 {
-    static bool addedListener;
-    if (!addedListener) {
-        platformStrategies()->loaderStrategy()->addOnlineStateChangeListener(&networkStateChanged);
-        addedListener = true;
-    }
+    static std::once_flag addListenerFlag;
+    std::call_once(addListenerFlag, [] {
+        ensureOnMainThread([] {
+            platformStrategies()->loaderStrategy()->addOnlineStateChangeListener(&networkStateChanged);
+        });
+    });
 
     Locker locker { allWorkersLock };
     auto addResult = allWorkerContexts().add(m_clientIdentifier);
@@ -114,9 +115,7 @@ ExceptionOr<Ref<Worker>> Worker::create(ScriptExecutionContext& context, JSC::Ru
         return scriptURLOrException.releaseException();
 
     auto scriptURL = scriptURLOrException.releaseReturnValue();
-    if (auto exception = validateURL(context, scriptURL)) {
-        if (!context.settingsValues().workerAsynchronousURLErrorHandlingEnabled)
-            return Exception { ExceptionCode::SecurityError };
+    if (!validateURL(context, scriptURL)) {
         worker->queueTaskToDispatchEvent(worker.get(), TaskSource::DOMManipulation, Event::create(eventNames().errorEvent, Event::CanBubble::No, Event::IsCancelable::Yes));
         return worker;
     }

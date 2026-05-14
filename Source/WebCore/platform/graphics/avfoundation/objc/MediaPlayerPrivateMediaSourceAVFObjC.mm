@@ -501,8 +501,6 @@ void MediaPlayerPrivateMediaSourceAVFObjC::stall()
     dispatchToRendererQueue([](auto& renderer) {
         renderer.stall();
     });
-    if (shouldBePlaying())
-        timeChanged();
 }
 
 bool MediaPlayerPrivateMediaSourceAVFObjC::playAtHostTime(const MonotonicTime& time)
@@ -558,9 +556,7 @@ void MediaPlayerPrivateMediaSourceAVFObjC::seekInternal()
 
     cancelPendingSeek();
 
-    dispatchToRendererQueue([](auto& renderer) {
-        renderer.stall();
-    });
+    stall();
 
     ALWAYS_LOG(LOGIDENTIFIER);
 
@@ -783,7 +779,9 @@ void MediaPlayerPrivateMediaSourceAVFObjC::bufferedChanged()
             MediaTime now = protectedThis->currentTime();
             ALWAYS_LOG_WITH_THIS(protectedThis, logSiteIdentifier, "boundary time observer called, now = ", now);
 
-            if (stallTime == protectedThis->duration())
+            if (protectedThis->seeking())
+                return; // seek owns state transitions
+            if (now >= protectedThis->duration())
                 protectedThis->pause();
             protectedThis->timeChanged();
         });
@@ -1156,7 +1154,6 @@ void MediaPlayerPrivateMediaSourceAVFObjC::updateStateFromReadyState()
         dispatchToRendererQueue([](auto& renderer) {
             renderer.play();
         });
-        timeChanged();
     } else
         stall();
 
@@ -1185,6 +1182,10 @@ void MediaPlayerPrivateMediaSourceAVFObjC::mediaSourceHasRetrievedAllData()
 {
     assertIsMainThread();
     setNetworkState(MediaPlayer::NetworkState::Loaded);
+    if (!effectiveRate()) {
+        // Playback had stalled; make transition for the element to ended if needed.
+        timeChanged();
+    }
 }
 
 ALLOW_NEW_API_WITHOUT_GUARDS_BEGIN

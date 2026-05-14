@@ -36,18 +36,18 @@ namespace WebCore {
 class ShareableGainMap {
 public:
     WEBCORE_EXPORT static std::optional<ShareableGainMap> create(const std::optional<GainMap>&);
-    WEBCORE_EXPORT static std::optional<ShareableGainMap> create(RetainPtr<CFDataRef>&& metadata, Ref<ShareableCVPixelBuffer>&& gainMapShareablePixelBuffer, const DestinationColorSpace&);
+    WEBCORE_EXPORT static std::optional<ShareableGainMap> create(RetainPtr<CFDataRef>&& metadata, Ref<ShareableCVPixelBuffer>&& gainMapShareablePixelBuffer, std::optional<DestinationColorSpace>);
 
     WEBCORE_EXPORT PlatformImagePtr applyGainMapToBaseImage(PlatformImagePtr) const;
 
 private:
     friend struct IPC::ArgumentCoder<ShareableGainMap>;
 
-    ShareableGainMap(RetainPtr<CFDataRef>&& metadata, Ref<ShareableCVPixelBuffer>&& gainMapShareablePixelBuffer, const DestinationColorSpace&);
+    ShareableGainMap(RetainPtr<CFDataRef>&& metadata, Ref<ShareableCVPixelBuffer>&& gainMapShareablePixelBuffer, std::optional<DestinationColorSpace>);
 
     RetainPtr<CFDataRef> m_metadata;
     Ref<ShareableCVPixelBuffer> m_gainMapShareablePixelBuffer;
-    DestinationColorSpace m_colorSpace;
+    std::optional<DestinationColorSpace> m_colorSpace;
 };
 
 } // namespace WebCore

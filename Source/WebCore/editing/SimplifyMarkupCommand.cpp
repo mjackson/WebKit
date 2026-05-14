@@ -29,6 +29,7 @@
 #include "ContainerNodeInlines.h"
 #include "NodeRenderStyle.h"
 #include "NodeTraversal.h"
+#include "RenderObjectInlines.h"
 #include "RenderInline.h"
 #include "RenderObject.h"
 #include "RenderStyle.h"

@@ -210,8 +210,8 @@ PASS Tab-separated table cells including trailing empty cells ("<div><table><tr>
 PASS Newline-separated table rows ("<div><table><tr><td>abc<tr><td>def</table>")
 PASS Newlines around table ("<div>abc<table><td>def</table>ghi")
 PASS Tab-separated table cells in a border-collapse table ("<div><table style='border-collapse:collapse'><tr><td>abc<td>def</table>")
-FAIL tfoot not reordered ("<div><table><tfoot>x</tfoot><tbody>y</tbody></table>") assert_equals: innerText expected "xy" but got "xy\n"
-FAIL  ("<table><tfoot><tr><td>footer</tfoot><thead><tr><td style='visibility:collapse'>thead</thead><tbody><tr><td>tbody</tbody></table>") assert_equals: innerText expected "footer\n\ntbody" but got "footer\ntbody"
+PASS tfoot not reordered ("<div><table><tfoot>x</tfoot><tbody>y</tbody></table>")
+PASS  ("<table><tfoot><tr><td>footer</tfoot><thead><tr><td style='visibility:collapse'>thead</thead><tbody><tr><td>tbody</tbody></table>")
 PASS No tab on table-cell itself ("<table><tr><td id=target>abc</td><td>def</td>")
 PASS No newline on table-row itself ("<table><tr id=target><td>abc</td><td>def</td></tr><tr id=target><td>ghi</td><td>jkl</td></tr>")
 PASS Newline between cells and caption ("<div><table><tr><td>abc<caption>def</caption></table>")

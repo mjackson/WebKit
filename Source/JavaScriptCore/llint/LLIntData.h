@@ -27,7 +27,6 @@
 
 #include "GPRInfo.h"
 #include "Instruction.h"
-#include "JSCJSValue.h"
 #include "MacroAssemblerCodeRef.h"
 #include "Opcode.h"
 

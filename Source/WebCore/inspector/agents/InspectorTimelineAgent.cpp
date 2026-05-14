@@ -599,21 +599,41 @@ static Inspector::Protocol::Timeline::EventType NODELETE toProtocol(TimelineReco
     return Inspector::Protocol::Timeline::EventType::TimeStamp;
 }
 
+bool InspectorTimelineAgent::shouldNestUnder(TimelineRecordType type, TimelineRecordType previousType) const
+{
+    switch (type) {
+    case TimelineRecordType::FunctionCall:
+        return true;
+    case TimelineRecordType::TimerFire:
+    case TimelineRecordType::EventDispatch:
+    case TimelineRecordType::FireAnimationFrame:
+    case TimelineRecordType::ObserverCallback:
+        switch (previousType) {
+        case TimelineRecordType::EvaluateScript:
+        case TimelineRecordType::FunctionCall:
+            return true;
+        default:
+            return false;
+        }
+    default:
+        return false;
+    }
+}
+
 void InspectorTimelineAgent::addRecordToTimeline(Ref<JSON::Object>&& record, TimelineRecordType type)
 {
     record->setString("type"_s, Inspector::Protocol::Helpers::getEnumConstantValue(toProtocol(type)));
 
-    if (m_recordStack.isEmpty()) {
+    const TimelineRecordEntry* previousEntry = m_recordStack.isEmpty() ? nullptr : &m_recordStack.last();
+    if (previousEntry && shouldNestUnder(type, previousEntry->type)) {
+        // Nested paint records are an implementation detail and add no information not already contained in the parent.
+        if (type == TimelineRecordType::Paint && previousEntry->type == type)
+            return;
+        previousEntry->children->pushObject(WTF::move(record));
+    } else {
         // FIXME: runtimeCast is a hack. We do it because we can't build TimelineEvent directly now.
         auto recordObject = Inspector::Protocol::BindingTraits<Inspector::Protocol::Timeline::TimelineEvent>::runtimeCast(WTF::move(record));
         sendEvent(WTF::move(recordObject));
-    } else {
-        const TimelineRecordEntry& parent = m_recordStack.last();
-        // Nested paint records are an implementation detail and add no information not already contained in the parent.
-        if (type == TimelineRecordType::Paint && parent.type == type)
-            return;
-
-        parent.children->pushObject(WTF::move(record));
     }
 }
 

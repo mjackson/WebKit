@@ -59,12 +59,11 @@ using JSPaintWorkletGlobalScopeDOMConstructor = JSDOMConstructorNotConstructable
 
 /* Hash table */
 
-static const struct CompactHashIndex JSPaintWorkletGlobalScopeTableIndex[5] = {
-    { -1, -1 },
-    { 0, 4 },
+static const struct CompactHashIndex JSPaintWorkletGlobalScopeTableIndex[4] = {
     { -1, -1 },
     { -1, -1 },
     { 1, -1 },
+    { 0, -1 },
 };
 
 

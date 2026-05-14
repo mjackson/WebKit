@@ -1179,7 +1179,7 @@ extension WebGPU.CommandEncoder {
                         return WebGPU.RenderPassEncoder.createInvalid(self, m_device.ptr(), "color attachment is not renderable")
                     }
 
-                    if !WebGPU.isRenderableTextureView(texture) {
+                    if !WebGPU.isRenderableTextureView(texture, attachment.loadOp, attachment.storeOp) {
                         return WebGPU.RenderPassEncoder.createInvalid(self, m_device.ptr(), "texture view is not renderable")
                     }
                 }
@@ -1267,7 +1267,7 @@ extension WebGPU.CommandEncoder {
                         || resolveTexture.sampleCount != 1
                         || isMultisampleTexture(texture: resolveTexture)
                         || !isMultisampleTexture(texture: mtlTexture)
-                        || !WebGPU.isRenderableTextureView(resolveTarget)
+                        || !WebGPU.isRenderableTextureView(resolveTarget, attachment.loadOp, attachment.storeOp)
                         || mtlTexture.pixelFormat != resolveTexture.pixelFormat
                         || !WebGPU.Texture.supportsResolve(resolveTarget.format(), m_device.ptr())
                     {
@@ -1339,7 +1339,7 @@ extension WebGPU.CommandEncoder {
                 if !WebGPU.Texture.isDepthStencilRenderableFormat(
                     textureView.format(),
                     m_device.ptr()
-                ) || !WebGPU.isRenderableTextureView(textureView) {
+                ) || !WebGPU.isRenderableTextureView(textureView, attachment.depthLoadOp, attachment.depthStoreOp) {
                     return WebGPU.RenderPassEncoder.createInvalid(self, m_device.ptr(), "depth stencil texture is not renderable")
                 }
             }

@@ -599,7 +599,6 @@ UIProcess/ios/WKApplicationStateTrackingView.mm @nonARC
 UIProcess/ios/WKBaseScrollView.mm @nonARC
 UIProcess/ios/WKContentView.mm @nonARC @no-unify
 UIProcess/ios/WKContentViewInteraction.mm @nonARC @no-unify
-UIProcess/ios/WKDeferringGestureRecognizer.mm @nonARC
 UIProcess/ios/WKExtendedTextInputTraits.mm @nonARC
 UIProcess/ios/WKExtrinsicButton.mm @nonARC
 UIProcess/ios/WKGeolocationProviderIOS.mm @nonARC
@@ -938,6 +937,7 @@ LibWebRTCCodecsMessageReceiver.cpp
 LibWebRTCCodecsProxyMessageReceiver.cpp
 LibWebRTCNetworkMessageReceiver.cpp
 LogStreamMessageReceiver.cpp
+Shared/LogStream.mm @no-unify
 ModelConnectionToWebProcessMessageReceiver.cpp
 MediaPlayerPrivateRemoteMessageReceiver.cpp
 MediaSourcePrivateRemoteMessageReceiverMessageReceiver.cpp
@@ -1045,6 +1045,7 @@ WasmDebuggerDispatcherMessageReceiver.cpp
 WebInspectorInterruptDispatcherMessageReceiver.cpp
 WebInspectorBackendMessageReceiver.cpp
 WebInspectorBackendProxyMessageReceiver.cpp
+ProxyingNetworkAgentMessageReceiver.cpp
 WebInspectorUIExtensionControllerMessageReceiver.cpp
 WebInspectorUIExtensionControllerProxyMessageReceiver.cpp
 WebInspectorUIMessageReceiver.cpp

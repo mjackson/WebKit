@@ -32,7 +32,6 @@
 #include "JITOperationValidation.h"
 #include "LinkBuffer.h"
 #include <bit>
-#include <wtf/ByteOrder.h>
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/FastBitVector.h>
 #include <wtf/FileSystem.h>

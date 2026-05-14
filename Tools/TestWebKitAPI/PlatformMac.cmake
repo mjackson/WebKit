@@ -50,6 +50,7 @@ set(TestWebKit_DERIVED_SOURCES_DIR "${CMAKE_BINARY_DIR}/DerivedSources/TestWebKi
 
 list(APPEND TestWebKit_UNIFIED_SOURCE_LIST_FILES
     "SourcesCocoa.txt"
+    "SourcesMac.txt"
 )
 
 # Test files that reference ObjC classes from Swift-only helpers or private
@@ -111,7 +112,9 @@ list(APPEND TestWebKit_PRIVATE_INCLUDE_DIRECTORIES
     ${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}/WebCoreTestSupport
     ${TESTWEBKITAPI_DIR}/Tests/WebCore
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/cocoa
+    ${TESTWEBKITAPI_DIR}/Tests/WebKit/WKWebView
     ${TESTWEBKITAPI_DIR}/Tests/WebKit/WKWebView/ios
+    ${TESTWEBKITAPI_DIR}/Tests/WebKit/WKWebView/mac
     ${CMAKE_SOURCE_DIR}/Source/ThirdParty/libwebrtc/Source
     ${WEBKIT_DIR}/Platform/spi/Cocoa
     ${WEBKIT_DIR}/Platform/IPC
@@ -127,6 +130,7 @@ list(APPEND TestWebKit_LIBRARIES
     "-framework LocalAuthentication"
     "-framework Network"
     "-framework QuartzCore"
+    "-framework Reveal"
     "-framework UniformTypeIdentifiers"
     JavaScriptCore
     WebCoreTestSupport
@@ -134,7 +138,14 @@ list(APPEND TestWebKit_LIBRARIES
     ${CARBON_LIBRARY}
 )
 
-set_source_files_properties(Helpers/cocoa/WebExtensionUtilities.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+set_source_files_properties(Helpers/cocoa/WebExtensionUtilities.mm PROPERTIES
+    COMPILE_FLAGS "-fobjc-arc -include ${CMAKE_CURRENT_SOURCE_DIR}/Helpers/TestWebKitAPIPrefix.h"
+    SKIP_PRECOMPILE_HEADERS ON)
+
+set_source_files_properties(
+    Helpers/cocoa/TestNSBundleExtras.m
+    Helpers/mac/SyntheticBackingScaleFactorWindow.m
+    PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 
 # NSWindow.autodisplay is deprecated since 10.14 but still used in OffscreenWindow.mm.
 WEBKIT_ADD_TARGET_CXX_FLAGS(TestWebKit -Wno-deprecated-declarations)
@@ -143,13 +154,44 @@ WEBKIT_ADD_TARGET_CXX_FLAGS(TestWebKit -Wno-deprecated-declarations)
 set_target_properties(TestWebKit PROPERTIES OUTPUT_NAME TestWebKitAPI)
 
 # TestIPC
+file(GLOB _ipc_core_sources
+    "${WEBKIT_DIR}/Platform/IPC/ArgumentCoders.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/Connection.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/Decoder.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/Encoder.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/IPCUtilities.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/MessageLog.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/MessageReceiveQueueMap.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/MessageReceiverMap.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/MessageSender.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/SharedBufferReference.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/SharedFileHandle.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/StreamClientConnection.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/StreamConnectionBuffer.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/StreamConnectionWorkQueue.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/StreamServerConnection.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/TransferString.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/cocoa/ConnectionCocoa.mm"
+    "${WEBKIT_DIR}/Platform/IPC/cocoa/MachMessage.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/cocoa/SharedFileHandleCocoa.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/cocoa/TransferStringCocoa.mm"
+    "${WEBKIT_DIR}/Platform/IPC/darwin/IPCEventDarwin.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/darwin/IPCSemaphoreDarwin.cpp"
+    "${WEBKIT_DIR}/Platform/IPC/darwin/MachPort.mm"
+)
 list(APPEND TestIPC_SOURCES
     ${_test_main_SOURCES}
     Helpers/cocoa/UtilitiesCocoa.mm
 
     Tests/IPC/IPCSerialization.mm
     Tests/IPC/TransferStringObjCTests.mm
+
+    ${_ipc_core_sources}
+    ${WEBKIT_DIR}/Platform/Logging.cpp
+    ${WEBKIT_DIR}/Platform/mac/MachUtilities.cpp
+    ${WebKit_DERIVED_SOURCES_DIR}/MessageNames.cpp
 )
+unset(_ipc_core_sources)
 
 list(APPEND TestIPC_PRIVATE_INCLUDE_DIRECTORIES
     ${ICU_INCLUDE_DIRS}
@@ -160,6 +202,13 @@ list(APPEND TestIPC_PRIVATE_INCLUDE_DIRECTORIES
     ${WEBKIT_DIR}/Platform/IPC/cocoa
     ${WEBKIT_DIR}/Shared/Cocoa
     ${WEBKIT_DIR}/Shared/cf
+    ${WEBKIT_DIR}
+    ${WEBKIT_DIR}/Platform
+    ${WEBKIT_DIR}/Platform/IPC
+    ${WEBKIT_DIR}/Platform/mac
+    ${WEBKIT_DIR}/Shared
+    ${WebKit_DERIVED_SOURCES_DIR}
+    ${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}
 )
 
 list(APPEND TestIPC_LIBRARIES
@@ -243,18 +292,97 @@ target_link_libraries(TestWebKitAPIInjectedBundle PRIVATE
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -framework Cocoa")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -framework Cocoa")
 
+# TestWebKitAPI.wkbundle -- modern Cocoa WKWebProcessPlugIn bundle loaded via
+# [_WKProcessPoolConfiguration setInjectedBundleURL:] in
+# WKWebViewConfigurationExtras._test_configurationWithTestPlugInClassName:.
+# This is a separate product from InjectedBundleTestWebKitAPI.bundle above,
+# which implements the legacy C-API injected bundle.
+add_library(TestWebKitAPIWebProcessPlugIn MODULE
+    ${TESTWEBKITAPI_DIR}/InjectedBundle/cocoa/WebProcessPlugIn/WebProcessPlugIn.mm
+    ${TESTWEBKITAPI_DIR}/InjectedBundle/cocoa/WebProcessPlugIn/WebProcessPlugInWithInternals.mm
+)
+
+target_include_directories(TestWebKitAPIWebProcessPlugIn PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${_testapi_framework_headers}
+    ${TESTWEBKITAPI_DIR}
+    ${TESTWEBKITAPI_DIR}/InjectedBundle/cocoa/WebProcessPlugIn
+)
+
+# configure_file substitutes ${EXECUTABLE_NAME}/${PRODUCT_NAME}/
+# ${PRODUCT_BUNDLE_IDENTIFIER} in the Info.plist shared with the Xcode build.
+set(EXECUTABLE_NAME TestWebKitAPI)
+set(PRODUCT_NAME TestWebKitAPI)
+set(PRODUCT_BUNDLE_IDENTIFIER com.apple.TestWebKitAPI)
+configure_file(
+    "${TESTWEBKITAPI_DIR}/InjectedBundle/cocoa/WebProcessPlugIn/Info.plist"
+    "${CMAKE_CURRENT_BINARY_DIR}/WebProcessPlugIn-Info.plist"
+)
+
+set_target_properties(TestWebKitAPIWebProcessPlugIn PROPERTIES
+    BUNDLE TRUE
+    BUNDLE_EXTENSION wkbundle
+    OUTPUT_NAME TestWebKitAPI
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/WebProcessPlugIn-Info.plist"
+)
+
+# Same rationale as TestWebKitAPIInjectedBundle: WebCoreTestSupport references
+# WTF symbols that the hosting WebContent process provides.
+target_link_options(TestWebKitAPIWebProcessPlugIn PRIVATE "LINKER:-undefined,dynamic_lookup")
+target_link_libraries(TestWebKitAPIWebProcessPlugIn PRIVATE
+    JavaScriptCore
+    WebCoreTestSupport
+    WebKit
+    WebKit::gtest
+    "-framework Cocoa"
+    "-framework Foundation"
+)
+
+# TestWebKit loads this bundle via NSBundle lookup at runtime, so it must be
+# built and staged next to the TestWebKitAPI executable.
+add_dependencies(TestWebKit TestWebKitAPIWebProcessPlugIn)
+
 # TestWebKitAPIResources.bundle -- test resource files loaded via
 # [NSBundle.test_resourcesBundle URLForResource:withExtension:].
 # For a non-.app executable, NSBundle.mainBundle is the directory containing
 # the binary, so the .bundle must sit next to the test executables.
+#
+# Directory structure under Resources/cocoa/ is preserved -- some tests
+# (e.g. WKWebExtension.mm) load entire subdirectories as nested bundles via
+# URLForResource:withExtension:@"", which requires web-extension/, *.appex/,
+# and *.mlmodelc/ to retain their layout.
 set(_resources_bundle_dir "${TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY}/TestWebKitAPIResources.bundle")
-file(GLOB _resources_top "${TESTWEBKITAPI_DIR}/Resources/*.*")
-file(GLOB _resources_cocoa "${TESTWEBKITAPI_DIR}/Resources/cocoa/*.*")
-WEBKIT_COPY_FILES(TestWebKitAPIResources
-    DESTINATION "${_resources_bundle_dir}"
-    FILES ${_resources_top} ${_resources_cocoa}
-    FLATTENED
-)
+set(_resources_dst_files)
+
+function(_testwebkitapi_stage_resources source_root skip_pattern)
+    file(GLOB_RECURSE _entries RELATIVE "${source_root}" "${source_root}/*")
+    foreach (_rel IN LISTS _entries)
+        if (skip_pattern AND _rel MATCHES "${skip_pattern}")
+            continue ()
+        endif ()
+        set(_src "${source_root}/${_rel}")
+        set(_dst "${_resources_bundle_dir}/${_rel}")
+        get_filename_component(_dst_dir "${_dst}" DIRECTORY)
+        file(MAKE_DIRECTORY "${_dst_dir}")
+        add_custom_command(OUTPUT "${_dst}"
+            COMMAND ${CMAKE_COMMAND} -E create_symlink "${_src}" "${_dst}"
+            MAIN_DEPENDENCY "${_src}"
+            VERBATIM
+        )
+        list(APPEND _resources_dst_files "${_dst}")
+    endforeach ()
+    set(_resources_dst_files "${_resources_dst_files}" PARENT_SCOPE)
+endfunction()
+
+# Top-level Resources/ files go to the bundle root. Skip platform subdirs
+# handled separately (cocoa/) or only built for other ports (glib/).
+_testwebkitapi_stage_resources("${TESTWEBKITAPI_DIR}/Resources" "^(cocoa|glib)/")
+# cocoa/ files (and nested subdirs like web-extension/, *.appex/, *.mlmodelc/)
+# are staged with the cocoa/ prefix stripped so paths match what tests pass to
+# URLForResource:.
+_testwebkitapi_stage_resources("${TESTWEBKITAPI_DIR}/Resources/cocoa" "")
+
+add_custom_target(TestWebKitAPIResources ALL DEPENDS ${_resources_dst_files})
 # Ensure all test targets depend on the resources bundle.
 foreach (_test_target TestWTF TestJavaScriptCore TestWebCore TestWebKitLegacy TestWebKit TestIPC TestWGSL)
     if (TARGET ${_test_target})

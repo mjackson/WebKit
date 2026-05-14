@@ -140,7 +140,10 @@ static void webkitMediaThunderParserConstructed(GObject* object)
     G_OBJECT_CLASS(webkit_media_thunder_parser_parent_class)->constructed(object);
 
     auto self = WEBKIT_MEDIA_THUNDER_PARSER(object);
-    self->priv->parser = makeGStreamerElement("parsebin"_s, "inner-parser"_s);
+
+    static Atomic<uint32_t> nParsers = 0;
+    auto name = makeString("inner-parser-"_s, nParsers.exchangeAdd(1));
+    self->priv->parser = makeGStreamerElement("parsebin"_s, name);
 
     auto factories = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECRYPTOR, GST_RANK_MARGINAL);
     factories = g_list_sort(factories, gst_plugin_feature_rank_compare_func);
@@ -168,6 +171,7 @@ static void webkitMediaThunderParserConstructed(GObject* object)
         GValueArray* result;
 
         auto factories = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODABLE, GST_RANK_MARGINAL);
+        factories = g_list_sort(factories, gst_plugin_feature_rank_compare_func);
         auto list = gst_element_factory_list_filter(factories, caps, GST_PAD_SINK, gst_caps_is_fixed(caps));
         result = g_value_array_new(g_list_length(list));
         for (GList* tmp = list; tmp; tmp = tmp->next) {

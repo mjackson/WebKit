@@ -88,7 +88,6 @@ bool CDMProxyThunder::decrypt(CDMProxyThunder::DecryptionContext& input, const G
         return false;
     }
 
-    GST_TRACE("decrypting");
     OpenCDMError errorCode;
 #if THUNDER_HAS_OCDM_DECRYPT_BUFFER
     RELEASE_ASSERT_WITH_MESSAGE(inputCaps, "Decryption attempted without input caps");

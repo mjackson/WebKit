@@ -31,7 +31,7 @@ extension WebPage {
     /// Create a `NavigationPreferences` value when you want to change the default rendering behavior of
     /// your web page. Typically, iOS devices render web content for a mobile experience, and Mac devices
     /// render content for a desktop experience.
-    @available(iOS 26.0, macOS 26.0, visionOS 26.0, *)
+    @available(anyAppleOSAndDownlevels 26.0, *)
     @available(watchOS, unavailable)
     @available(tvOS, unavailable)
     public struct NavigationPreferences: Sendable {
@@ -64,7 +64,7 @@ extension WebPage {
         }
 
         /// Security restriction modes for WebView content.
-        @available(WK_IOS_TBA, WK_MAC_TBA, WK_XROS_TBA, *)
+        @available(anyAppleOSAndDownlevels 26.4, *)
         @available(watchOS, unavailable)
         @available(tvOS, unavailable)
         public enum SecurityRestrictionMode: Sendable {
@@ -121,7 +121,7 @@ extension WebPage {
         /// This preference only applies to main frame navigations and will be ignored for subframe navigations. When set for a main frame, all subframe content and opened windows inherit the same security restrictions.
         /// When the system has chosen `SecurityRestrictionMode.lockdown` (e.g., in Lockdown Mode), attempts to set a less restrictive mode will fail silently.
         /// The default value is `SecurityRestrictionMode.none`.
-        @available(WK_IOS_TBA, WK_MAC_TBA, WK_XROS_TBA, *)
+        @available(anyAppleOSAndDownlevels 26.4, *)
         @available(watchOS, unavailable)
         @available(tvOS, unavailable)
         public var securityRestrictionMode: SecurityRestrictionMode {
@@ -130,13 +130,13 @@ extension WebPage {
         }
 
         /// Used to make changes to the network request that will be used for this navigation's main resource load.
-        @available(WK_IOS_TBA, WK_MAC_TBA, WK_XROS_TBA, *)
+        @available(TBA, *)
         @available(watchOS, unavailable)
         @available(tvOS, unavailable)
         public var alternateRequest: URLRequest? = nil
 
         /// Used to apply a custom `referer` header to all resource loads in the frame of this navigation.
-        @available(WK_IOS_TBA, WK_MAC_TBA, WK_XROS_TBA, *)
+        @available(TBA, *)
         @available(watchOS, unavailable)
         @available(tvOS, unavailable)
         public var overrideReferrer: Swift.String? = nil
@@ -172,7 +172,7 @@ extension WebPage.NavigationPreferences.UpgradeToHTTPSPolicy {
     }
 }
 
-@available(WK_IOS_TBA, WK_MAC_TBA, WK_XROS_TBA, *)
+@available(anyAppleOSAndDownlevels 26.4, *)
 extension WebPage.NavigationPreferences.SecurityRestrictionMode {
     init(_ wrapped: WKSecurityRestrictionMode) {
         self =

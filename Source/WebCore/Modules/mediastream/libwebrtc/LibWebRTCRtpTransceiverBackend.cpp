@@ -28,10 +28,12 @@
 #if ENABLE(WEB_RTC) && USE(LIBWEBRTC)
 
 #include "ContextDestructionObserverInlines.h"
+#include "EventTarget.h"
 #include "JSDOMPromiseDeferred.h"
 #include "LibWebRTCRtpReceiverBackend.h"
 #include "LibWebRTCRtpSenderBackend.h"
 #include "LibWebRTCUtils.h"
+#include "RTCPeerConnection.h"
 #include "RTCRtpCodec.h"
 #include <wtf/TZoneMallocInlines.h>
 

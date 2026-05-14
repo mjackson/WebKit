@@ -119,14 +119,14 @@ void StyleRuleImport::requestStyleSheet()
         // use parent styleheet's URL as the base URL
         absURL = URL(m_parentStyleSheet->baseURL(), m_strHref);
     else
-        absURL = document->completeURL(m_strHref);
+        absURL = document->encodingParseURL(m_strHref);
 
     // Check for a cycle in our import chain.  If we encounter a stylesheet
     // in our parent chain with the same URL, then just bail.
     RefPtr rootSheet = m_parentStyleSheet;
     for (RefPtr sheet = m_parentStyleSheet; sheet; sheet = sheet->parentStyleSheet()) {
         if (equalIgnoringFragmentIdentifier(absURL, sheet->baseURL())
-            || equalIgnoringFragmentIdentifier(absURL, document->completeURL(sheet->originalURL())))
+            || equalIgnoringFragmentIdentifier(absURL, document->encodingParseURL(sheet->originalURL())))
             return;
         rootSheet = sheet;
     }

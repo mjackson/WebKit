@@ -1014,6 +1014,15 @@ RetainPtr<CMSampleBufferRef> sampleBufferFromVideoData(std::span<const uint8_t> 
     return adoptCF(sampleBuffer);
 }
 
+bool isCMSampleBufferRandomAccess(CMSampleBufferRef sample)
+{
+    RetainPtr attachments = PAL::CMSampleBufferGetSampleAttachmentsArray(sample, false);
+    if (!attachments || CFArrayGetCount(attachments.get()) < 1)
+        return true;
+    RetainPtr firstAttachment = checked_cf_cast<CFDictionaryRef>(CFArrayGetValueAtIndex(attachments.get(), 0));
+    return !CFDictionaryContainsKey(firstAttachment.get(), PAL::kCMSampleAttachmentKey_NotSync);
+}
+
 } // namespace WebCore
 
 #endif // PLATFORM(COCOA)

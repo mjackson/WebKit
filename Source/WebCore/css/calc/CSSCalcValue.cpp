@@ -225,7 +225,7 @@ inline double Value::clampToPermittedRange(double value) const
     if (m_category == CSS::Category::Integer)
         value = std::floor(value + 0.5);
 
-    return std::clamp(value, m_range.min, m_range.max);
+    return CSS::clampToRange<double>(value, m_range);
 }
 
 double Value::doubleValue(const CSSToLengthConversionData& conversionData) const

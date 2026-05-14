@@ -110,7 +110,7 @@ ExceptionOr<Ref<CSSStyleSheet>> CSSStyleSheet::create(Document& document, Init&&
     if (init.baseURL.isNull())
         baseURL = document.baseURL();
     else {
-        baseURL = document.completeURL(init.baseURL);
+        baseURL = document.encodingParseURL(init.baseURL);
         if (!baseURL.isValid())
             return Exception { ExceptionCode::NotAllowedError, "Base URL is invalid"_s };
     }

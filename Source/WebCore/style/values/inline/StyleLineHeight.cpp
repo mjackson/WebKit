@@ -70,43 +70,81 @@ auto CSSValueConversion<LineHeight>::operator()(BuilderState& state, const CSSVa
         return Style::ZoomFactor { conversionData.zoom() };
     };
 
-    if (primitiveValue->isLength() || primitiveValue->isCalculatedPercentageWithLength()) {
-        double fixedValue = 0;
-        if (primitiveValue->isLength())
-            fixedValue = primitiveValue->resolveAsLength(conversionData);
-        else
-            fixedValue = protect(primitiveValue->cssCalcValue())->createCalculationValue(conversionData, CSSCalcSymbolTable { })->evaluate(state.style().fontDescription().computedSizeForRangeZoomOption(conversionData.rangeZoomOption()), zoomFactor());
+    auto percentageBasis = [&] {
+        return state.style().fontDescription().computedSizeForRangeZoomOption(conversionData.rangeZoomOption());
+    };
 
-        if (multiplier != 1.0f)
-            fixedValue *= multiplier;
+    using StyleSpecified = typename LineHeight::Specified;
+    using CSSRaw = typename StyleSpecified::CSS::Raw;
+    using CSSDimensionRaw = typename CSSRaw::Dimension;
+    using CSSPercentageRaw = typename CSSRaw::Percentage;
 
-        return LineHeight::Fixed {
-            CSS::clampToRange<LineHeight::Fixed::range, float>(fixedValue, minValueForCssLength, maxValueForCssLength)
-        };
-    }
+    using StyleNumber = Number<CSS::Nonnegative>;
+    using CSSNumberRaw = typename StyleNumber::CSS::Raw;;
 
-    // Line-height percentages need to inherit as if they were Fixed pixel values. In the example:
-    // <div style="font-size: 10px; line-height: 150%;"><div style="font-size: 100px;"></div></div>
-    // the inner element should have line-height of 15px. However, in this example:
-    // <div style="font-size: 10px; line-height: 1.5;"><div style="font-size: 100px;"></div></div>
-    // the inner element should have a line-height of 150px. Therefore, we map percentages to Fixed
-    // values and raw numbers to percentages.
-    if (primitiveValue->isPercentage()) {
+    auto handleFixed = [&](const StyleSpecified::Dimension& fixed) {
+        return LineHeight::Fixed { CSS::clampToRangeOf<LineHeight::Fixed>(fixed.unresolvedValue() * multiplier) };
+    };
+
+    auto handlePercentage = [&](const StyleSpecified::Percentage& percentage) {
+        // Line-height percentages need to inherit as if they were pixel values. In the example:
+        // <div style="font-size: 10px; line-height: 150%;"><div style="font-size: 100px;"></div></div>
+        // the inner element should have line-height of 15px. However, in this example:
+        // <div style="font-size: 10px; line-height: 1.5;"><div style="font-size: 100px;"></div></div>
+        // the inner element should have a line-height of 150px. Therefore, we map percentages to Fixed
+        // values and raw numbers to percentages.
+
         // FIXME: percentage should not be restricted to an integer here.
-        auto textZoom = evaluationTimeZoomEnabled(state) ? conversionData.zoom() : 1.0f;
-        return LineHeight::Fixed {
-            CSS::clampToRange<LineHeight::Fixed::range, float>((state.style().fontDescription().computedSizeForRangeZoomOption(conversionData.rangeZoomOption()) * primitiveValue->resolveAsPercentage<int>(conversionData) * textZoom) / 100.0, minValueForCssLength, maxValueForCssLength)
-        };
-    }
+        auto percentageValue = static_cast<int>(percentage.value);
 
-    if (primitiveValue->isNumber()) {
-        return LineHeight::Percentage {
-            CSS::clampToRange<LineHeight::Percentage::range, float>(primitiveValue->resolveAsNumber(conversionData) * 100.0)
-        };
-    }
+        return LineHeight::Fixed { CSS::clampToRangeOf<LineHeight::Fixed>((percentageValue * percentageBasis() * zoomFactor().value) / 100.0) };
+    };
 
-    state.setCurrentPropertyInvalidAtComputedValueTime();
-    return CSS::Keyword::Normal { };
+    auto handleCalc = [&](const StyleSpecified::Calc& calc) {
+        return LineHeight::Fixed { CSS::clampToRangeOf<LineHeight::Fixed>(protect(calc.calculation())->evaluate(percentageBasis(), zoomFactor()) * multiplier) };
+    };
+
+    auto handleNumber = [&](const StyleNumber& number) {
+        return LineHeight::Percentage { CSS::clampToRangeOf<LineHeight::Percentage>(number.value * 100.0) };
+    };
+
+    return WTF::switchOn(*primitiveValue,
+        [&](const CSSPrimitiveValue::Calc& calc) -> LineHeight {
+            if (calc.category() == CSS::Category::Number || calc.category() == CSS::Category::Integer)
+                return handleNumber(toStyle(CSS::UnevaluatedCalc<CSSNumberRaw>( const_cast<CSSPrimitiveValue::Calc&>(calc)), conversionData));
+
+            ASSERT(calc.category() == CSS::Category::Length || calc.category() == CSS::Category::Percentage || calc.category() == CSS::Category::LengthPercentage);
+
+            // <length-percentage> calc() can become a raw <length> or <percentage>, or can stay a calc() when converting,
+            // so we have to handle all those cases here.
+
+            auto convertedCalc = toStyle(CSS::UnevaluatedCalc<CSSRaw>(const_cast<CSSPrimitiveValue::Calc&>(calc)), conversionData);
+            return WTF::switchOn(convertedCalc,
+                [&](const StyleSpecified::Dimension& fixed) {
+                    return handleFixed(fixed);
+                },
+                [&](const StyleSpecified::Percentage& percentage) {
+                    return handlePercentage(percentage);
+                },
+                [&](const StyleSpecified::Calc& calc) {
+                    return handleCalc(calc);
+                }
+            );
+        },
+        [&](const CSSPrimitiveValue::Raw& raw) -> LineHeight {
+            if (auto unit = CSSNumberRaw::UnitTraits::validate(raw.unit))
+                return handleNumber(toStyle(CSSNumberRaw(*unit, raw.value), conversionData));
+
+            if (auto unit = CSSPercentageRaw::UnitTraits::validate(raw.unit))
+                return handlePercentage(toStyle(CSSPercentageRaw(*unit, raw.value), conversionData));
+
+            if (auto unit = CSSDimensionRaw::UnitTraits::validate(raw.unit))
+                return handleFixed(toStyle(CSSDimensionRaw(*unit, raw.value), conversionData));
+
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::Normal { };
+        }
+    );
 }
 
 // MARK: - Blending

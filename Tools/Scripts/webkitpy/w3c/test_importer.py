@@ -603,6 +603,17 @@ class TestImporter(object):
                     should_rewrite_files = True
                     break
 
+            downloader = self.test_downloader()
+            paths_to_not_rewrite = {PurePath(p) for p in downloader.paths_to_not_rewrite}
+            paths_to_import = {PurePath(p) for p in downloader.paths_to_import}
+            subpath_as_path = PurePath(subpath)
+            for parent in itertools.chain([subpath_as_path], subpath_as_path.parents):
+                if parent in paths_to_not_rewrite:
+                    should_rewrite_files = False
+                    break
+                if parent in paths_to_import:
+                    break
+
             if not(self.filesystem.exists(new_path)):
                 self.filesystem.maybe_make_directory(new_path)
 

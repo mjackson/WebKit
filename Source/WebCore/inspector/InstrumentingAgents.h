@@ -40,6 +40,7 @@
 namespace Inspector {
 class InspectorAgent;
 class InspectorScriptProfilerAgent;
+class NetworkAgentInstrumentation;
 }
 
 namespace WebCore {
@@ -88,6 +89,7 @@ class WebHeapAgent;
 #define DEFINE_INSPECTOR_AGENT_Inspector(macro, Getter, Setter) DEFINE_INSPECTOR_AGENT(macro, Inspector::InspectorAgent, InspectorAgent, Getter, Setter)
 #define DEFINE_INSPECTOR_AGENT_LayerTree(macro, Getter, Setter) DEFINE_INSPECTOR_AGENT(macro, InspectorLayerTreeAgent, LayerTreeAgent, Getter, Setter)
 #define DEFINE_INSPECTOR_AGENT_Network(macro, Getter, Setter) DEFINE_INSPECTOR_AGENT(macro, InspectorNetworkAgent, NetworkAgent, Getter, Setter)
+#define DEFINE_INSPECTOR_AGENT_NetworkProxy(macro, Getter, Setter) DEFINE_INSPECTOR_AGENT(macro, Inspector::NetworkAgentInstrumentation, NetworkProxy, Getter, Setter)
 #define DEFINE_INSPECTOR_AGENT_Page(macro, Getter, Setter) DEFINE_INSPECTOR_AGENT(macro, InspectorPageAgent, PageAgent, Getter, Setter)
 #define DEFINE_INSPECTOR_AGENT_DOM_Frame(macro, Getter, Setter) DEFINE_INSPECTOR_AGENT(macro, FrameDOMAgent, FrameDOMAgent, Getter, Setter)
 #define DEFINE_INSPECTOR_AGENT_Runtime_Frame(macro, Getter, Setter) DEFINE_INSPECTOR_AGENT(macro, FrameRuntimeAgent, FrameRuntimeAgent, Getter, Setter)
@@ -139,6 +141,7 @@ class WebHeapAgent;
     DEFINE_ENABLED_INSPECTOR_AGENT(macro, LayerTree) \
     DEFINE_ENABLED_INSPECTOR_AGENT(macro, Memory) \
     DEFINE_ENABLED_INSPECTOR_AGENT(macro, Network) \
+    DEFINE_ENABLED_INSPECTOR_AGENT(macro, NetworkProxy) \
     DEFINE_ENABLED_INSPECTOR_AGENT(macro, Page) \
     DEFINE_ENABLED_INSPECTOR_AGENT(macro, Runtime_Frame) \
     DEFINE_ENABLED_INSPECTOR_AGENT(macro, Runtime_Page) \
@@ -148,7 +151,7 @@ class WebHeapAgent;
     DEFINE_TRACKING_INSPECTOR_AGENT(macro, Timeline) \
     DEFINE_TRACKING_INSPECTOR_AGENT(macro, Timeline_Page) \
 
-class InstrumentingAgents : public WTF::RefCountedAndCanMakeWeakPtr<InstrumentingAgents> {
+class WEBCORE_EXPORT InstrumentingAgents : public WTF::RefCountedAndCanMakeWeakPtr<InstrumentingAgents> {
     WTF_MAKE_NONCOPYABLE(InstrumentingAgents);
     WTF_MAKE_TZONE_ALLOCATED(InstrumentingAgents);
 public:

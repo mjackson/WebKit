@@ -162,7 +162,7 @@ void WorkerStorageConnection::fileSystemGetDirectory(ClientOrigin&& origin, Stor
 
 void WorkerStorageConnection::didGetDirectory(uint64_t callbackIdentifier, ExceptionOr<StorageConnection::DirectoryInfo>&& result)
 {
-    RefPtr<FileSystemStorageConnection> mainThreadFileSystemStorageConnection = result.hasException() ? nullptr : result.returnValue().second;
+    RefPtr<FileSystemStorageConnection> mainThreadFileSystemStorageConnection = result.hasException() ? nullptr : result.returnValue().connection;
     auto releaseConnectionScope = makeScopeExit([connection = mainThreadFileSystemStorageConnection]() mutable {
         if (connection)
             callOnMainThread([connection = WTF::move(connection)]() { });
@@ -181,7 +181,7 @@ void WorkerStorageConnection::didGetDirectory(uint64_t callbackIdentifier, Excep
     releaseConnectionScope.release();
 
     Ref workerFileSystemStorageConnection = scope->getFileSystemStorageConnection(protect(*mainThreadFileSystemStorageConnection));
-    callback(StorageConnection::DirectoryInfo { result.returnValue().first, workerFileSystemStorageConnection });
+    callback(StorageConnection::DirectoryInfo { result.returnValue().globalIdentifier, result.returnValue().identifier, WTF::move(workerFileSystemStorageConnection) });
 }
 
 } // namespace WebCore

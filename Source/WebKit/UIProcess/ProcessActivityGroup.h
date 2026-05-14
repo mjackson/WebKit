@@ -26,7 +26,6 @@
 #pragma once
 
 #include "ProcessThrottler.h"
-#include "WebProcessProxy.h"
 
 #include <WebCore/ProcessIdentifier.h>
 #include <wtf/RunLoop.h>
@@ -34,6 +33,7 @@
 namespace WebKit {
 
 class ProcessActivityGroup;
+class WebProcessProxy;
 
 class ProcessActivityGroupContext
 : public CanMakeWeakPtr<ProcessActivityGroupContext>
@@ -47,7 +47,7 @@ public:
 
     Ref<ProcessActivityGroup> foregroundProcessActivityGroup(ASCIILiteral name, std::optional<Seconds> timeout = std::nullopt);
 
-    virtual Vector<Ref<WebProcessProxy>> activityTargets() { return { }; }
+    virtual Vector<Ref<WebProcessProxy>> activityTargets();
 
     void didAddActivityTarget(WebProcessProxy&);
     void didRemoveActivityTarget(WebProcessProxy&);

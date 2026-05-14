@@ -222,10 +222,16 @@ template<Range R = All, typename V = double> struct FlexRaw : PrimitiveNumericRa
 template<Range R = All, typename V = float> struct AnglePercentageRaw : PrimitiveNumericRaw<R, AnglePercentageUnit, V> {
     using Base = PrimitiveNumericRaw<R, AnglePercentageUnit, V>;
     using Base::Base;
+
+    using Dimension = CSS::AngleRaw<R, V>;
+    using Percentage = CSS::PercentageRaw<R, V>;
 };
 template<Range R = All, typename V = float> struct LengthPercentageRaw : PrimitiveNumericRaw<R, LengthPercentageUnit, V> {
     using Base = PrimitiveNumericRaw<R, LengthPercentageUnit, V>;
     using Base::Base;
+
+    using Dimension = CSS::LengthRaw<R, V>;
+    using Percentage = CSS::PercentageRaw<R, V>;
 };
 
 } // namespace CSS

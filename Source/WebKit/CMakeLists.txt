@@ -322,11 +322,13 @@ set(WebKit_MESSAGES_IN_FILES
 
     UIProcess/GPU/GPUProcessProxy
 
-    UIProcess/Model/ModelProcessProxy
+    UIProcess/Inspector/Agents/ProxyingNetworkAgent
 
     UIProcess/Inspector/RemoteWebInspectorUIProxy
     UIProcess/Inspector/WebInspectorBackendProxy
     UIProcess/Inspector/WebInspectorUIProxy
+
+    UIProcess/Model/ModelProcessProxy
 
     UIProcess/Network/NetworkProcessProxy
 
@@ -489,6 +491,7 @@ set(WebKit_SERIALIZATION_IN_FILES
     Shared/DrawingAreaInfo.serialization.in
     Shared/EditingRange.serialization.in
     Shared/EditorState.serialization.in
+    Shared/FileSystemHandleInfo.serialization.in
     Shared/FileSystemSyncAccessHandleInfo.serialization.in
     Shared/FocusedElementInformation.serialization.in
     Shared/FrameInfoData.serialization.in
@@ -501,6 +504,7 @@ set(WebKit_SERIALIZATION_IN_FILES
     Shared/IPCTester.serialization.in
     Shared/ImageOptions.serialization.in
     Shared/InspectorExtensionTypes.serialization.in
+    Shared/InspectorNetworkTypes.serialization.in
     Shared/JavaScriptCore.serialization.in
     Shared/JavaScriptEvaluationResult.serialization.in
     Shared/LayerTreeContext.serialization.in
@@ -512,6 +516,7 @@ set(WebKit_SERIALIZATION_IN_FILES
     Shared/NavigationActionData.serialization.in
     Shared/NetworkProcessConnectionParameters.serialization.in
     Shared/NodeHitTestResult.serialization.in
+    Shared/PDFDisplayMode.serialization.in
     Shared/Pasteboard.serialization.in
     Shared/PlatformPopupMenuData.serialization.in
     Shared/PolicyDecision.serialization.in
@@ -533,6 +538,7 @@ set(WebKit_SERIALIZATION_IN_FILES
     Shared/SerializedNode.serialization.in
     Shared/ServiceWorkerTimingInfo.serialization.in
     Shared/SessionState.serialization.in
+    Shared/ShareableSpatialImage.serialization.in
     Shared/SyntheticEditingCommandType.serialization.in
     Shared/TextFlags.serialization.in
     Shared/TextManipulationParameters.serialization.in
@@ -684,6 +690,7 @@ set(WebKit_SERIALIZATION_IN_FILES
     Shared/WebGPU/WebGPUVertexBufferLayout.serialization.in
     Shared/WebGPU/WebGPUVertexState.serialization.in
 
+    Shared/WebsiteData/TimeBasedEvictionMode.serialization.in
     Shared/WebsiteData/UnifiedOriginStorageLevel.serialization.in
     Shared/WebsiteData/WebsiteData.serialization.in
     Shared/WebsiteData/WebsiteDataFetchOption.serialization.in
@@ -786,7 +793,9 @@ if (USE_LIBWEBRTC)
     list(APPEND WebKit_SYSTEM_INCLUDE_DIRECTORIES "${THIRDPARTY_DIR}/libwebrtc/Source/"
         "${THIRDPARTY_DIR}/libwebrtc/Source/webrtc"
         "${THIRDPARTY_DIR}/libwebrtc/Source/third_party/abseil-cpp")
-    list(APPEND WebKit_LIBRARIES webrtc)
+    if (NOT APPLE)
+        list(APPEND WebKit_LIBRARIES webrtc)
+    endif ()
 endif ()
 
 if (USE_GSTREAMER_WEBRTC AND USE_LIBRICE)
@@ -805,9 +814,10 @@ set(WebKit_INTERFACE_INCLUDE_DIRECTORIES
     ${WebKit_FRAMEWORK_HEADERS_DIR}
     ${WebKit_PRIVATE_FRAMEWORK_HEADERS_DIR}
 )
-set(WebKit_INTERFACE_DEPENDENCIES
-    NetworkProcess
-    WebProcess
+set(WebKit_INTERFACE_DEPENDENCIES "")
+set(WebKit_INTERFACE_LINK_DEPENDS
+    $<TARGET_FILE:NetworkProcess>
+    $<TARGET_FILE:WebProcess>
 )
 
 WEBKIT_EXECUTABLE_DECLARE(WebProcess)
@@ -815,7 +825,7 @@ WEBKIT_EXECUTABLE_DECLARE(NetworkProcess)
 
 if (ENABLE_GPU_PROCESS)
     WEBKIT_EXECUTABLE_DECLARE(GPUProcess)
-    list(APPEND WebKit_INTERFACE_DEPENDENCIES GPUProcess)
+    list(APPEND WebKit_INTERFACE_LINK_DEPENDS $<TARGET_FILE:GPUProcess>)
 endif ()
 
 set(WebKit_GENERATED_SERIALIZERS_SUFFIX cpp)
@@ -825,6 +835,95 @@ set(WebKit_SWIFT_INTEROP_MODULE_PATH "${WEBKIT_DIR}/Modules/Internal")
 
 WEBKIT_FRAMEWORK_DECLARE(WebKit)
 WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS()
+
+# The full WebKit_Internal C++ module pulls in WebPageProxy.h and friends, which
+# quote-include across the entire WebKit/WebCore/JSC private header set. Mirror
+# the C++ target's include directories to swiftc's Clang importer so those
+# resolve. cmakeconfig.h is force-included because the headers assume the
+# project's prefix header has already defined ENABLE()/HAVE() values.
+set(WebKit_SWIFT_CLANG_INCLUDE_DIRS
+    ${CMAKE_BINARY_DIR}
+    ${WebKit_FRAMEWORK_HEADERS_DIR}
+    ${WebKit_DERIVED_SOURCES_DIR}
+    ${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}
+    ${JavaScriptCore_FRAMEWORK_HEADERS_DIR}
+    ${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS_DIR}
+    ${WTF_FRAMEWORK_HEADERS_DIR}
+    ${bmalloc_FRAMEWORK_HEADERS_DIR}
+    ${PAL_FRAMEWORK_HEADERS_DIR}
+    ${ICU_INCLUDE_DIRS}
+    ${WebKit_CMAKE_MODULEMAP_DIR}
+    ${WebKit_PRIVATE_INCLUDE_DIRECTORIES}
+)
+
+if (NOT APPLE AND SWIFT_REQUIRED)
+    # Export macro stubs – on Linux these expand to __attribute__((visibility))
+    # but per-module PCM compiles don't pull in the config headers that define them.
+    # Define as empty so C++ headers compile cleanly in isolation.
+    set(WebKit_SWIFT_CLANG_FLAG_PAIRS
+        "-Xcc -DJS_EXPORT_PRIVATE="
+        "-Xcc -DPAL_EXPORT="
+        "-Xcc -DWEBCORE_EXPORT="
+        "-Xcc -DWEBCORE_TESTSUPPORT_EXPORT="
+        "-Xcc -DWK_EXPORT="
+        "-Xcc -DWK_SUPPORTS_SWIFT_OBJCXX_INTEROP=1"
+        "-Xcc -DWTF_EXPORT_PRIVATE="
+
+        # NODELETE expands to [[clang::annotate_type(...)]], a type attribute.
+        # Clang 21 (Swift 6.3 embedded clang) rejects it on function declarations;
+        # nullify it for the Swift module importer since the annotation is only
+        # meaningful to Apple's static analyser.
+        "-Xcc -DNODELETE="
+
+        # libstdc++ gates coroutine support in <bits/version.h> behind
+        # __glibcxx_want_coroutine.  Swift's Clang 21 compiles <bits/version.h>
+        # as a PCM before that flag is set, so __cpp_lib_coroutine stays
+        # undefined and std::coroutine_handle is not available.  Pre-defining
+        # the flag ensures the PCM gets the right feature-test value.
+        # rdar://175928621
+        "-Xcc -D__glibcxx_want_coroutine=1"
+        "-Xcc -fmodule-map-file=${WTF_FRAMEWORK_HEADERS_DIR}/wtf/module.modulemap"
+    )
+    # Mirror cmake config variables as -Xcc -D so ENABLE()/HAVE() macros in
+    # C++ headers agree with the regular C++ compilation when the Clang importer
+    # compiles them as part of Swift's C++ interop modules.
+    GET_WEBKIT_CONFIG_VARIABLES(_swift_clang_config_vars)
+    list(REMOVE_DUPLICATES _swift_clang_config_vars)
+    foreach (_var IN LISTS _swift_clang_config_vars)
+        if (${${_var}})
+            list(APPEND WebKit_SWIFT_CLANG_FLAG_PAIRS "-Xcc -D${_var}=1")
+        else ()
+            list(APPEND WebKit_SWIFT_CLANG_FLAG_PAIRS "-Xcc -D${_var}=0")
+        endif ()
+    endforeach ()
+    unset(_swift_clang_config_vars)
+    foreach (_dir IN LISTS WebKit_SWIFT_CLANG_INCLUDE_DIRS)
+        list(APPEND WebKit_SWIFT_CLANG_FLAG_PAIRS "-Xcc -I${_dir}")
+    endforeach ()
+    # VFS overlay: inject module.modulemap files for Linux system libraries
+    # (glib, libsoup, etc.) that do not ship their own modulemaps.  The overlay
+    # makes them appear inside /usr/include/glib-2.0/ etc. without modifying
+    # the real filesystem.  Both the -typecheck/-emit-clang-header custom command
+    # and the per-file Swift compilation receive the flag via SWIFT_EXTRA_OPTIONS
+    # and target_compile_options respectively.
+    set(_linux_mm_src "${CMAKE_SOURCE_DIR}/Source/cmake/linux-modulemaps")
+    set(_linux_mm_dir "${CMAKE_BINARY_DIR}/linux-modulemaps")
+    file(MAKE_DIRECTORY "${_linux_mm_dir}")
+    configure_file("${_linux_mm_src}/glib.modulemap"    "${_linux_mm_dir}/glib.modulemap"    COPYONLY)
+    configure_file("${_linux_mm_src}/libsoup.modulemap" "${_linux_mm_dir}/libsoup.modulemap" COPYONLY)
+    set(_vfs_glib_modulemap    "${_linux_mm_dir}/glib.modulemap")
+    set(_vfs_libsoup_modulemap "${_linux_mm_dir}/libsoup.modulemap")
+    configure_file("${_linux_mm_src}/vfs-overlay.yaml.in" "${_linux_mm_dir}/vfs-overlay.yaml" @ONLY)
+    set(_vfs_overlay "${_linux_mm_dir}/vfs-overlay.yaml")
+    list(APPEND WebKit_SWIFT_CLANG_FLAG_PAIRS "-Xcc -ivfsoverlay")
+    list(APPEND WebKit_SWIFT_CLANG_FLAG_PAIRS "-Xcc ${_vfs_overlay}")
+
+    foreach (_pair IN LISTS WebKit_SWIFT_CLANG_FLAG_PAIRS)
+        target_compile_options(WebKit PRIVATE "$<$<COMPILE_LANGUAGE:Swift>:SHELL:${_pair}>")
+        string(REPLACE " " ";" _split "${_pair}")
+        list(APPEND WebKit_SWIFT_EXTRA_OPTIONS ${_split})
+    endforeach ()
+endif ()
 
 WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER(WebKit WebKit
     "${WebKit_SWIFT_INTEROP_MODULE_PATH}"
@@ -953,7 +1052,14 @@ list(APPEND WebKit_SERIALIZATION_DEPENDENCIES "${WebKit_DERIVED_SOURCES_DIR}/Sha
 
 list(APPEND WebKit_DERIVED_SOURCES
     ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializers.h
-    ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializers.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+    ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersShared.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+    ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersWebProcess.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+    ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersGPUProcess.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+    ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersNetworkProcess.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+    ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersPlatform.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+    ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersModelProcess.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+    ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersUIProcess.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+    ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersCommon.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
     ${WebKit_DERIVED_SOURCES_DIR}/SerializedTypeInfo.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
     ${WebKit_DERIVED_SOURCES_DIR}/WebKitPlatformGeneratedSerializers.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
 )
@@ -961,7 +1067,14 @@ list(APPEND WebKit_DERIVED_SOURCES
 add_custom_command(
     OUTPUT
         ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializers.h
-        ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializers.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+        ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersShared.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+        ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersWebProcess.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+        ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersGPUProcess.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+        ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersNetworkProcess.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+        ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersPlatform.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+        ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersModelProcess.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+        ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersUIProcess.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
+        ${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializersCommon.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
         ${WebKit_DERIVED_SOURCES_DIR}/GeneratedWebKitSecureCoding.h
         ${WebKit_DERIVED_SOURCES_DIR}/GeneratedWebKitSecureCoding.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
         ${WebKit_DERIVED_SOURCES_DIR}/SerializedTypeInfo.${WebKit_GENERATED_SERIALIZERS_SUFFIX}
@@ -970,7 +1083,7 @@ add_custom_command(
     DEPENDS
         ${WEBKIT_DIR}/Scripts/webkit/opaque_ipc_types.py
         ${WebKit_SERIALIZATION_DEPENDENCIES}
-    COMMAND ${PYTHON_EXECUTABLE} ${WEBKIT_DIR}/Scripts/generate-serializers.py ${WebKit_GENERATED_SERIALIZERS_SUFFIX} ${WebKit_SERIALIZATION_DEPENDENCIES}
+    COMMAND ${PYTHON_EXECUTABLE} ${WEBKIT_DIR}/Scripts/generate-serializers.py ${WebKit_GENERATED_SERIALIZERS_SUFFIX} --split-by-directory ${WebKit_SERIALIZATION_DEPENDENCIES}
     WORKING_DIRECTORY ${WebKit_DERIVED_SOURCES_DIR}
     VERBATIM
 )
@@ -978,8 +1091,21 @@ add_custom_command(
 # These files are very large and exhaust virtual memory on 32-bit ARM.
 if (WTF_CPU_ARM AND NOT CMAKE_CROSSCOMPILING)
     set(GeneratedSerializers_COMPILE_OPTIONS -O0 -DRELEASE_WITHOUT_OPTIMIZATIONS=ON)
-    set_source_files_properties(${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializers.cpp PROPERTIES COMPILE_OPTIONS "${GeneratedSerializers_COMPILE_OPTIONS}")
-    set_source_files_properties(${WebKit_DERIVED_SOURCES_DIR}/WebKitPlatformGeneratedSerializers.cpp PROPERTIES COMPILE_OPTIONS "${GeneratedSerializers_COMPILE_OPTIONS}")
+    foreach (GeneratedSerializers_BASENAME
+        GeneratedSerializersShared
+        GeneratedSerializersWebProcess
+        GeneratedSerializersGPUProcess
+        GeneratedSerializersNetworkProcess
+        GeneratedSerializersPlatform
+        GeneratedSerializersModelProcess
+        GeneratedSerializersUIProcess
+        GeneratedSerializersCommon
+        WebKitPlatformGeneratedSerializers
+    )
+        set_source_files_properties(${WebKit_DERIVED_SOURCES_DIR}/${GeneratedSerializers_BASENAME}.cpp PROPERTIES
+            COMPILE_OPTIONS "${GeneratedSerializers_COMPILE_OPTIONS}"
+            SKIP_PRECOMPILE_HEADERS ON)
+    endforeach ()
 endif ()
 
 set(WebKit_JSON_RPC_PROTOCOL_GENERATOR_SCRIPTS
@@ -1120,24 +1246,57 @@ if (ENABLE_SWIFT_DEMO_URI_SCHEME)
     )
 endif ()
 
+if (ENABLE_BACK_FORWARD_LIST_SWIFT)
+    set_source_files_properties(
+        ${WebKit_DERIVED_SOURCES_DIR}/WebBackForwardListMessageReceiver.swift
+        PROPERTIES GENERATED TRUE)
+    list(APPEND WebKit_SOURCES
+        ${WebKit_DERIVED_SOURCES_DIR}/WebBackForwardListMessageReceiver.swift
+        ${WEBKIT_DIR}/Shared/API/APIArray.swift
+        ${WEBKIT_DIR}/UIProcess/StdlibExtras.swift
+        ${WEBKIT_DIR}/UIProcess/WebBackForwardList.swift
+    )
+endif ()
+
 list(APPEND WebKit_SOURCES ${WebKit_DERIVED_SOURCES})
 
 WEBKIT_COMPUTE_SOURCES(WebKit)
+
+WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebKit WebKitUIProcess
+    PREFIX WebKitUIProcessPrefix.h
+    PREFIX_LANGUAGES CXX OBJCXX
+    DIRS UIProcess)
+WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebKit WebKitWebProcess
+    PREFIX WebKitWebProcessPrefix.h
+    PREFIX_LANGUAGES CXX OBJCXX
+    DIRS WebProcess)
+WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebKit WebKitMessageReceivers
+    PREFIX WebKitMessageReceiversPrefix.h
+    PREFIX_LANGUAGES CXX OBJCXX
+    DIRS DerivedSources)
+
 WEBKIT_FRAMEWORK(WebKit)
-ADD_WEBKIT_PREFIX_HEADERS(WebKit WebKit2Prefix.h)
+WEBKIT_ADD_PREFIX_HEADER(WebKit WebKitPrefix.h PREFIX_LANGUAGES CXX OBJCXX)
+
+if (WebKit_ARC_SOURCES)
+    WEBKIT_DEFINE_SUBTARGET(WebKitARC WebKit ${WebKit_ARC_SOURCES})
+    target_compile_options(WebKitARC PRIVATE -fobjc-arc)
+    WEBKIT_ADD_PREFIX_HEADER(WebKitARC WebKitPrefix.h PREFIX_NO_CODEGEN PREFIX_LANGUAGES OBJCXX)
+    target_sources(WebKit PRIVATE $<TARGET_OBJECTS:WebKitARC>)
+endif ()
 
 list(APPEND WebProcess_PRIVATE_INCLUDE_DIRECTORIES $<TARGET_PROPERTY:WebKit,INCLUDE_DIRECTORIES>)
 WEBKIT_EXECUTABLE(WebProcess)
-ADD_WEBKIT_PREFIX_HEADERS(WebProcess WebKit2Prefix.h)
+WEBKIT_REUSE_PREFIX_HEADER(WebProcess WebKit WebKitPrefix.h PREFIX_LANGUAGES CXX)
 
 list(APPEND NetworkProcess_PRIVATE_INCLUDE_DIRECTORIES $<TARGET_PROPERTY:WebKit,INCLUDE_DIRECTORIES>)
 WEBKIT_EXECUTABLE(NetworkProcess)
-ADD_WEBKIT_PREFIX_HEADERS(NetworkProcess WebKit2Prefix.h)
+WEBKIT_REUSE_PREFIX_HEADER(NetworkProcess WebKit WebKitPrefix.h PREFIX_LANGUAGES CXX)
 
 if (ENABLE_GPU_PROCESS)
     list(APPEND GPUProcess_PRIVATE_INCLUDE_DIRECTORIES $<TARGET_PROPERTY:WebKit,INCLUDE_DIRECTORIES>)
     WEBKIT_EXECUTABLE(GPUProcess)
-    ADD_WEBKIT_PREFIX_HEADERS(GPUProcess WebKit2Prefix.h)
+    WEBKIT_REUSE_PREFIX_HEADER(GPUProcess WebKit WebKitPrefix.h PREFIX_LANGUAGES CXX)
 endif ()
 
 if (COMPILER_IS_GCC_OR_CLANG)
@@ -1153,7 +1312,7 @@ if (APPLE)
     WEBKIT_ADD_TARGET_CXX_FLAGS(WebKit -fobjc-weak)
 endif ()
 
-if ("${PORT}" STREQUAL "Mac")
+if ("${PORT}" STREQUAL "Mac" OR "${PORT}" STREQUAL "IOS")
     WEBKIT_DEFINE_XPC_SERVICES()
 else ()
     if (NOT ANDROID)
@@ -1164,11 +1323,14 @@ else ()
     install(TARGETS WebKit WebProcess NetworkProcess
         LIBRARY DESTINATION "${LIB_INSTALL_DIR}"
         RUNTIME DESTINATION "${LIBEXEC_INSTALL_DIR}"
+        FRAMEWORK DESTINATION "${LIB_INSTALL_DIR}"
+        BUNDLE DESTINATION "${LIBEXEC_INSTALL_DIR}"
     )
     if (ENABLE_GPU_PROCESS)
         install(TARGETS GPUProcess
             LIBRARY DESTINATION "${LIB_INSTALL_DIR}"
             RUNTIME DESTINATION "${LIBEXEC_INSTALL_DIR}"
+            BUNDLE DESTINATION "${LIBEXEC_INSTALL_DIR}"
         )
     endif ()
 endif ()

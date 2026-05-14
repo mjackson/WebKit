@@ -103,6 +103,7 @@ TEST(UserAgentTest, Quirks)
 
 #if ENABLE(THUNDER)
     assertUserAgentForURLHasFirefoxBrowserQuirk("http://www.netflix.com/");
+    assertUserAgentForURLHasFirefoxBrowserQuirk("http://www.disneyplus.com/");
 #endif
 
     assertUserAgentForURLHasMacPlatformQuirk("http://www.yahoo.com/");

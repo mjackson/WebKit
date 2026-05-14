@@ -33,7 +33,7 @@ using namespace JSC;
 template<typename Visitor>
 void JSDOMBuiltinConstructorBase::visitChildrenImpl(JSC::JSCell* cell, Visitor& visitor)
 {
-    auto* thisObject = uncheckedDowncast<JSDOMBuiltinConstructorBase>(cell);
+    auto* thisObject = downcast<JSDOMBuiltinConstructorBase>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_initializeFunction);

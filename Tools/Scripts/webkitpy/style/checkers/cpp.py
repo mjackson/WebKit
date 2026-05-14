@@ -163,6 +163,8 @@ _NO_CONFIG_H_PATH_PATTERNS = [
     '^Source/WebKitLegacy/',
 ]
 
+_LIBPAS_PATH_PATTERN = '(^|/)Source/bmalloc/libpas/'
+
 _EXPORT_MACRO_SPEC = {
     'BEXPORT': '(Source/bmalloc|Source/JavaScriptCore/API/ExtraSymbolsForTAPI.h)',
     'JS_EXPORT': 'Source/JavaScriptCore/API',
@@ -1010,21 +1012,32 @@ def check_for_header_guard(file_path, lines, error):
     if filename == 'config.h' or filename.endswith('Prefix.h'):
         return
 
+    in_libpas = is_libpas_path(file_path)
+
     first_blank_line_number = 0
     has_import_statement = False
     has_objc_check = False
     has_objc_keywords = False
+    pragma_once_line_number = None
     for line_number, line in enumerate(lines):
         if line == '' and first_blank_line_number == 0:
             first_blank_line_number = line_number
         if line.startswith('#pragma once'):
-            return
+            if in_libpas:
+                pragma_once_line_number = line_number
+            else:
+                return
         if line.startswith('#import '):
             has_import_statement = True
         if '__OBJC__' in line:
             has_objc_check = True
         if functools.reduce(lambda x, y: x or y, map(lambda x: x in line, ['@class', '@interface', '@protocol'])):
             has_objc_keywords = True
+
+    if in_libpas and pragma_once_line_number is not None:
+        error(pragma_once_line_number, 'build/header_guard', 5,
+              'Do not use #pragma once in libpas; use #ifndef/#define header guards instead.')
+        return
 
     if (has_import_statement or has_objc_keywords) and not has_objc_check:
         return  # Objective-C-only headers don't need guards.
@@ -1039,13 +1052,19 @@ def check_for_header_guard(file_path, lines, error):
             if len(previous_line_split) >= 2 and len(line_split) >= 2:
                 if previous_line_split[0] == '#ifndef' and line_split[0] == '#define' \
                         and previous_line_split[1] == line_split[1]:
+                    if in_libpas:
+                        return  # libpas uses #ifndef/#define guards.
                     error(line_number, 'build/header_guard', 5,
                           'Use #pragma once instead of #ifndef for header guard.')
                     return
         previous_line = line
 
-    error(first_blank_line_number + 1, 'build/header_guard_missing', 5,
-          'Missing #pragma once for header guard.')
+    if in_libpas:
+        error(first_blank_line_number + 1, 'build/header_guard_missing', 5,
+              'Missing #ifndef/#define header guard.')
+    else:
+        error(first_blank_line_number + 1, 'build/header_guard_missing', 5,
+              'Missing #pragma once for header guard.')
 
 
 def check_for_unicode_replacement_characters(lines, error):
@@ -4188,7 +4207,7 @@ def check_include_line(filename, file_extension, clean_lines, line_number, inclu
         return
 
     # Check to make sure *Includes.h headers never appear inside a non-Includes.h header.
-    if header_type == _INLINES_HEADER and file_is_header and not filename.endswith('Inlines.h'):
+    if header_type == _INLINES_HEADER and file_is_header and not filename.endswith('Inlines.h') and not filename.endswith('Prefix.h'):
         error(line_number, 'build-speed/inlines', 4, 'Never put an Inlines.h header in a non-Inlines.h header.')
 
     # Check to make sure we have a blank line after and none before primary header.
@@ -4851,6 +4870,11 @@ def check_has_config_header(file_path):
         if re.match(pattern, file_path):
             return False
     return True
+
+
+def is_libpas_path(file_path):
+    """Check if the file is inside libpas, which uses #ifndef/#define header guards rather than #pragma once."""
+    return re.search(_LIBPAS_PATH_PATTERN, _unix_path(file_path)) is not None
 
 
 def files_belong_to_same_module(filename_cpp, filename_h):

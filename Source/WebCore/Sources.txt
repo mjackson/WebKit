@@ -581,6 +581,7 @@ Modules/webxr/WebXRRay.cpp
 Modules/webxr/XRReferenceSpaceEvent.cpp
 Modules/webxr/XRSessionEvent.cpp
 Modules/webxr/XRSubImage.cpp
+Modules/webxr/XRWebGLCylinderLayerBacking.cpp
 Modules/webxr/XRWebGLEquirectLayerBacking.cpp
 Modules/webxr/XRWebGLLayerBacking.cpp
 Modules/webxr/XRWebGLProjectionLayerBacking.cpp
@@ -929,11 +930,11 @@ css/CSSFunctionDescriptors.cpp
 css/CSSFunctionRule.cpp
 css/CSSFunctionValue.cpp
 css/CSSGradientValue.cpp
-css/CSSGridAutoRepeatValue.cpp
-css/CSSGridIntegerRepeatValue.cpp
-css/CSSGridLineNamesValue.cpp
+css/CSSGridAutoFlowValue.cpp
 css/CSSGridLineValue.cpp
 css/CSSGridTemplateAreasValue.cpp
+css/CSSGridTemplateListValue.cpp
+css/CSSGridTrackSizesValue.cpp
 css/CSSGroupingRule.cpp
 css/CSSKeywordValue.cpp
 css/CSSImageSetOptionValue.cpp
@@ -984,7 +985,6 @@ css/CSSStyleProperties.cpp
 css/CSSStyleRule.cpp
 css/CSSStyleSheet.cpp
 css/CSSStyleSheetObservableArray.cpp
-css/CSSSubgridValue.cpp
 css/CSSSupportsRule.cpp
 css/CSSTextShadowPropertyValue.cpp
 css/CSSToLengthConversionData.cpp @header:RenderStyleGetters
@@ -1181,7 +1181,13 @@ css/values/color/CSSPlatformColorResolutionState.cpp
 css/values/color/CSSResolvedColor.cpp
 css/values/fonts/CSSFontFamilyName.cpp
 css/values/fonts/CSSFontStyleRange.cpp
+css/values/grid/CSSGridAutoFlow.cpp
+css/values/grid/CSSGridLine.cpp
+css/values/grid/CSSGridLineNames.cpp
 css/values/grid/CSSGridNamedAreaMap.cpp
+css/values/grid/CSSGridSubgrid.cpp
+css/values/grid/CSSGridTemplateList.cpp
+css/values/grid/CSSGridTrackSizes.cpp
 css/values/images/CSSGradient.cpp
 css/values/motion/CSSRayFunction.cpp
 css/values/primitives/CSSCustomIdent.cpp
@@ -3335,6 +3341,7 @@ style/values/fonts/StyleFontVariationSettings.cpp
 style/values/fonts/StyleFontWeight.cpp @header:RenderStyleGetters
 style/values/fonts/StyleFontWidth.cpp
 style/values/grid/StyleGridAutoFlow.cpp
+style/values/grid/StyleGridLineNames.cpp
 style/values/grid/StyleGridNamedLinesMap.cpp
 style/values/grid/StyleGridPosition.cpp
 style/values/grid/StyleGridPositionsResolver.cpp @header:RenderStyleGetters
@@ -3636,6 +3643,7 @@ workers/WorkerOrWorkletGlobalScope.cpp
 workers/WorkerOrWorkletScriptController.cpp
 workers/WorkerOrWorkletThread.cpp
 workers/WorkerRunLoop.cpp
+workers/WorkerSTWParticipation.cpp
 workers/WorkerScriptLoader.cpp
 workers/WorkerThread.cpp
 workers/service/ExtendableEvent.cpp
@@ -4414,7 +4422,7 @@ JSHTMLObjectElement.cpp
 JSHTMLOptGroupElement.cpp
 JSHTMLOptionElement.cpp
 JSHTMLOptionsCollection.cpp
-JSHTMLOrForeignElement.cpp
+JSHTMLOrSVGOrMathMLElement.cpp
 JSHTMLOutputElement.cpp
 JSHTMLParagraphElement.cpp
 JSHTMLParamElement.cpp
@@ -4844,6 +4852,7 @@ JSResizeObserverCallback.cpp
 JSResizeObserverEntry.cpp
 JSResizeObserverOptions.cpp
 JSResizeObserverSize.cpp
+JSResolvedCaptionDisplaySettingsOptions.cpp
 JSRouterCondition.cpp
 JSRouterRule.cpp
 JSRouterSourceDict.cpp

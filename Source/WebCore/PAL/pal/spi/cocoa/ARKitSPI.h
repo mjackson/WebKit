@@ -32,6 +32,7 @@
 #include <wtf/Platform.h>
 
 #if HAVE(ARKIT)
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 
 DECLARE_SYSTEM_HEADER
 
@@ -47,6 +48,8 @@ DECLARE_SYSTEM_HEADER
 typedef void (^ar_plane_detection_floor_plane_completion_handler_t)(bool, ar_plane_anchor_t _Nullable, ar_error_t _Nullable);
 
 #endif
+
+ALLOW_DEPRECATED_DECLARATIONS_END
 #endif // HAVE(ARKIT)
 
 #endif // !__has_feature(modules)

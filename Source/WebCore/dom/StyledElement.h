@@ -95,6 +95,8 @@ protected:
     Attribute replaceURLsInAttributeValue(const Attribute&, const CSS::SerializationContext&) const override;
 
 private:
+    StyledElement(ClangVTableWorkaroundTag, const QualifiedName&, Document&);
+
     void styleAttributeChanged(const AtomString& newStyleString, AttributeModificationReason);
     void synchronizeStyleAttributeInternalImpl();
     void synchronizeStyleAttributeForSelectorInvalidation();

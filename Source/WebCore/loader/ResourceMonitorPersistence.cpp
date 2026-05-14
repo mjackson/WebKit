@@ -29,6 +29,7 @@
 #include "Logging.h"
 #include "SQLiteStatement.h"
 #include <wtf/FileSystem.h>
+#include <wtf/MainThread.h>
 #include <wtf/Seconds.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/MakeString.h>

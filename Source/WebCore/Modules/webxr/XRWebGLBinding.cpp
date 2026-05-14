@@ -38,6 +38,8 @@
 #include "WebXRSession.h"
 #include "WebXRView.h"
 #include "WebXRViewport.h"
+#include "XRCylinderLayer.h"
+#include "XRCylinderLayerInit.h"
 #include "XREquirectLayer.h"
 #include "XREquirectLayerInit.h"
 #include "XRLayerLayout.h"
@@ -45,6 +47,7 @@
 #include "XRProjectionLayerInit.h"
 #include "XRQuadLayer.h"
 #include "XRQuadLayerInit.h"
+#include "XRWebGLCylinderLayerBacking.h"
 #include "XRWebGLEquirectLayerBacking.h"
 #include "XRWebGLProjectionLayerBacking.h"
 #include "XRWebGLQuadLayerBacking.h"
@@ -568,6 +571,57 @@ ExceptionOr<Ref<XREquirectLayer>> XRWebGLBinding::createEquirectLayer(ScriptExec
                 return checkSpaceResult.releaseException();
 
             Ref layer = XREquirectLayer::create(scriptExecutionContext, m_session, WTF::move(backing), init);
+            initializeCompositionLayer(layer.get());
+
+            auto layoutResult = determineLayout(init.textureType, init.layout);
+            if (layoutResult.hasException())
+                return layoutResult.releaseException();
+            auto layout = layoutResult.releaseReturnValue();
+            layer->setLayout(layout);
+            layer->setNeedsRedraw(true);
+
+            return layer;
+        },
+        [](std::monostate) {
+            ASSERT_NOT_REACHED();
+            return Exception { ExceptionCode::OperationError, "Could not get a WebGL rendering context."_s };
+        }
+    );
+}
+
+ExceptionOr<Ref<XRCylinderLayer>> XRWebGLBinding::createCylinderLayer(ScriptExecutionContext& scriptExecutionContext, const XRCylinderLayerInit& init)
+{
+    if (!m_session->supportsFeature(PlatformXR::SessionFeature::Layers))
+        return Exception { ExceptionCode::NotSupportedError, "Layers are not supported by the session."_s };
+
+    if (m_session->ended())
+        return Exception { ExceptionCode::InvalidStateError, "Cannot create a cylinder layer with an XRSession that has ended."_s };
+
+    return WTF::switchOn(m_context,
+        [&](const Ref<WebGLRenderingContextBase>& baseContext) -> ExceptionOr<Ref<XRCylinderLayer>> {
+            if (baseContext->isContextLost())
+                return Exception { ExceptionCode::InvalidStateError, "Cannot create a cylinder layer with a lost WebGL context"_s };
+
+            if (!init.space->isReferenceSpace())
+                return Exception { ExceptionCode::TypeError, "The space is not a reference space."_s };
+
+            if (downcast<WebXRReferenceSpace>(init.space)->type() == XRReferenceSpaceType::Viewer)
+                return Exception { ExceptionCode::TypeError, "Viewer space is not allowed for cylinder layers."_s };
+
+            auto validateInitResult = validateCompositionLayerInitParameters(init);
+            if (validateInitResult.hasException())
+                return validateInitResult.releaseException();
+
+            auto createBackingResult = XRWebGLCylinderLayerBacking::create(m_session, baseContext, init);
+            if (createBackingResult.hasException())
+                return createBackingResult.releaseException();
+            Ref backing = createBackingResult.releaseReturnValue();
+
+            auto checkSpaceResult = checkCanSetSpace(init.space.get(), m_session);
+            if (checkSpaceResult.hasException())
+                return checkSpaceResult.releaseException();
+
+            Ref layer = XRCylinderLayer::create(scriptExecutionContext, m_session, WTF::move(backing), init);
             initializeCompositionLayer(layer.get());
 
             auto layoutResult = determineLayout(init.textureType, init.layout);

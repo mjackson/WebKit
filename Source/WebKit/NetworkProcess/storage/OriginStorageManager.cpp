@@ -410,6 +410,9 @@ void OriginStorageManager::StorageBucket::deleteData(OptionSet<WebsiteDataType> 
 
     if (types.contains(WebsiteDataType::DOMCache))
         deleteCacheStorageData(modifiedSinceTime);
+
+    if (types.contains(WebsiteDataType::ServiceWorkerRegistrations) && m_level >= UnifiedOriginStorageLevel::Standard)
+        serviceWorkerStorageManager().clearAllRegistrations();
 }
 
 void OriginStorageManager::StorageBucket::deleteFileSystemStorageData(WallTime modifiedSinceTime)

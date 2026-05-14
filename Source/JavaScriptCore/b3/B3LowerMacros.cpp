@@ -73,7 +73,6 @@
 #include "WasmTypeDefinition.h"
 #include "WebAssemblyFunctionBase.h"
 #include "WebAssemblyGCStructure.h"
-#include <cmath>
 #include <numeric>
 #include <wtf/BitVector.h>
 

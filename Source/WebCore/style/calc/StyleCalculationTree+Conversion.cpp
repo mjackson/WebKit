@@ -84,6 +84,7 @@ static auto toStyle(const CSSCalc::SiblingCount&, const ToStyleConversionOptions
 static auto toStyle(const CSSCalc::SiblingIndex&, const ToStyleConversionOptions&) -> Child;
 static auto toStyle(const CSSCalc::IndirectNode<CSSCalc::Anchor>&, const ToStyleConversionOptions&) -> Child;
 static auto toStyle(const CSSCalc::IndirectNode<CSSCalc::AnchorSize>&, const ToStyleConversionOptions&) -> Child;
+static auto toStyle(const CSSCalc::IndirectNode<CSSCalc::Deg2Rad>&, const ToStyleConversionOptions&) -> Child;
 template<typename Op> auto toStyle(const CSSCalc::IndirectNode<Op>&, const ToStyleConversionOptions&) -> Child;
 
 static CSSCalc::CanonicalDimension::Dimension NODELETE determineCanonicalDimension(CSS::Category category)
@@ -351,6 +352,13 @@ Child toStyle(const CSSCalc::IndirectNode<CSSCalc::AnchorSize>&, const ToStyleCo
 {
     ASSERT_NOT_REACHED("Unevaluated anchor-size() functions are not supported in the Tree");
     return number(0);
+}
+
+Child toStyle(const CSSCalc::IndirectNode<CSSCalc::Deg2Rad>& root, const ToStyleConversionOptions& options)
+{
+    // Style::Calculation::Tree has no Deg2Rad node, so express it as a multiplication by the
+    // radians-per-degree constant.
+    return multiply(toStyle(root->angle, options), number(radiansPerDegreeDouble));
 }
 
 template<typename Op> Child toStyle(const CSSCalc::IndirectNode<Op>& root, const ToStyleConversionOptions& options)

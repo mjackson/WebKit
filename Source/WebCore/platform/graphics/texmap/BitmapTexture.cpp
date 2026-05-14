@@ -197,7 +197,9 @@ bool BitmapTexture::allocateTextureFromMemoryMappedGPUBuffer()
     LOG_ERROR("Cannot create EGLImage from dma-buf -- rendering will be broken.");
     return false;
 }
+#endif
 
+#if USE(GBM) || OS(ANDROID)
 BitmapTexture::BitmapTexture(EGLImage image, const IntSize& size, OptionSet<Flags> flags)
     : m_flags(flags)
     , m_size(size)

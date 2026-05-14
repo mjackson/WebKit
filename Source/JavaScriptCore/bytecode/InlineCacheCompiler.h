@@ -34,7 +34,6 @@
 #include "MacroAssembler.h"
 #include "PropertyInlineCacheClearingWatchpoint.h"
 #include "ScratchRegisterAllocator.h"
-#include <wtf/FixedVector.h>
 #include <wtf/Vector.h>
 
 namespace JSC {

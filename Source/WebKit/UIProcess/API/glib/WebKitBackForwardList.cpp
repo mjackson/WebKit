@@ -57,7 +57,7 @@ enum {
 typedef HashMap<WebBackForwardListItem*, GRefPtr<WebKitBackForwardListItem> > BackForwardListItemsMap;
 
 struct _WebKitBackForwardListPrivate {
-    WebBackForwardList* backForwardItems;
+    WebBackForwardListWrapper* backForwardItems;
     BackForwardListItemsMap itemsMap;
 };
 
@@ -120,7 +120,7 @@ static GList* webkitBackForwardListCreateList(WebKitBackForwardList* list, API::
     return returnValue;
 }
 
-WebKitBackForwardList* webkitBackForwardListCreate(WebBackForwardList* backForwardItems)
+WebKitBackForwardList* webkitBackForwardListCreate(WebBackForwardListWrapper* backForwardItems)
 {
     WebKitBackForwardList* list = WEBKIT_BACK_FORWARD_LIST(g_object_new(WEBKIT_TYPE_BACK_FORWARD_LIST, NULL));
     list->priv->backForwardItems = backForwardItems;

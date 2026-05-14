@@ -123,7 +123,6 @@ struct ModuleInformation final : public ThreadSafeRefCounted<ModuleInformation> 
     {
         size_t totalNumberOfFunctions = functionIndexSpaceSize();
         m_referencedFunctions = FixedBitVector(totalNumberOfFunctions);
-        m_clobberingTailCalls = FixedBitVector(totalNumberOfFunctions);
     }
 
     const FixedBitVector& referencedFunctions() const LIFETIME_BOUND { return m_referencedFunctions; }
@@ -188,11 +187,6 @@ struct ModuleInformation final : public ThreadSafeRefCounted<ModuleInformation> 
             : it->value.getBranchHint(branchOffset);
     }
 
-    // FIXME: This should probably be FunctionCodeIndex as calling an import always clobbers the instance.
-    const FixedBitVector& clobberingTailCalls() const LIFETIME_BOUND { return m_clobberingTailCalls; }
-    bool callCanClobberInstance(FunctionSpaceIndex functionIndexSpace) const { return m_clobberingTailCalls.test(functionIndexSpace); }
-    void addClobberingTailCall(FunctionSpaceIndex functionIndexSpace) { m_clobberingTailCalls.concurrentTestAndSet(functionIndexSpace); }
-
     void setTotalFunctionSize(size_t totalFunctionSize)
     {
         m_totalFunctionSize = totalFunctionSize;
@@ -240,7 +234,6 @@ struct ModuleInformation final : public ThreadSafeRefCounted<ModuleInformation> 
     BitVector m_declaredFunctions;
     BitVector m_declaredExceptions;
     mutable FixedBitVector m_referencedFunctions;
-    mutable FixedBitVector m_clobberingTailCalls;
     size_t m_totalFunctionSize { 0 };
     uint32_t m_numSmallFunctions { 0 };
 

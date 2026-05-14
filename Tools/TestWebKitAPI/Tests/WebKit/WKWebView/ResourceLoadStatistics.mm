@@ -1219,7 +1219,7 @@ TEST(ResourceLoadStatistics, BackForwardPerPageData)
 
     // Seed the page with a third party.
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"resource-load-statistics://fp1/fp-load-one"]]];
-    [delegate waitForDidFinishNavigation];
+    [delegate waitForDidFinishNavigationAndLoadInSubframe];
 
     doneFlag = false;
     [dataStore _loadedSubresourceDomainsFor:webView.get() completionHandler:^(NSArray<NSString *> *domains) {
@@ -1236,7 +1236,7 @@ TEST(ResourceLoadStatistics, BackForwardPerPageData)
 
     // Navigate somewhere else and load a different third party.
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"resource-load-statistics://fp2/fp-load-two"]]];
-    [delegate waitForDidFinishNavigation];
+    [delegate waitForDidFinishNavigationAndLoadInSubframe];
 
     doneFlag = false;
     [dataStore _loadedSubresourceDomainsFor:webView.get() completionHandler:^(NSArray<NSString *> *domains) {
@@ -1253,7 +1253,10 @@ TEST(ResourceLoadStatistics, BackForwardPerPageData)
 
     // Go back, check for the cached third party example1.com.
     [webView goBack];
-    [delegate waitForDidFinishNavigation];
+    if (isUsingBackForwardCache(webView.get()))
+        [delegate waitForDidFinishNavigation];
+    else
+        [delegate waitForDidFinishNavigationAndLoadInSubframe];
 
     doneFlag = false;
     [dataStore _loadedSubresourceDomainsFor:webView.get() completionHandler:^(NSArray<NSString *> *domains) {
@@ -1270,7 +1273,10 @@ TEST(ResourceLoadStatistics, BackForwardPerPageData)
 
     // Go forward, check for the cached third party example2.com.
     [webView goForward];
-    [delegate waitForDidFinishNavigation];
+    if (isUsingBackForwardCache(webView.get()))
+        [delegate waitForDidFinishNavigation];
+    else
+        [delegate waitForDidFinishNavigationAndLoadInSubframe];
 
     doneFlag = false;
     [dataStore _loadedSubresourceDomainsFor:webView.get() completionHandler:^(NSArray<NSString *> *domains) {

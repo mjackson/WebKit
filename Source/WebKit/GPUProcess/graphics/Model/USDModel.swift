@@ -32,8 +32,8 @@ import simd
 @_spi(RealityCoreTextureProcessingAPI) import RealityCoreTextureProcessing
 import USDKit
 @_spi(SwiftAPI) import DirectResource
-@_spi(Private) import RealityKit
-@_spi(SGPrivate) import ShaderGraph
+import RealityKit
+import ShaderGraph
 import RealityCoreDeformation
 
 extension _USDKit_RealityKit._Proto_MeshDataUpdate_v1 {
@@ -1223,14 +1223,13 @@ private func constantValues(_ constant: _Proto_ShaderGraphValue) -> ([WKBridgeVa
 }
 
 private func toWKBridgeConstantContainer(
-    _ node: _Proto_ShaderNodeGraph.Node,
-    colorOverride: WKBridgeConstant? = nil
+    _ node: _Proto_ShaderNodeGraph.Node
 ) -> WKBridgeConstantContainer {
     // Extract constant value if this is a constant node
     switch node.data {
     case .constant(let value):
         let (values, defaultType) = constantValues(value)
-        return WKBridgeConstantContainer(constant: colorOverride ?? defaultType, constantValues: values, name: node.name)
+        return WKBridgeConstantContainer(constant: defaultType, constantValues: values, name: node.name)
     case .definition, .graph:
         return WKBridgeConstantContainer(constant: .asset, constantValues: [], name: node.name)
     default: fatalError("toWKBridgeConstantContainer - unknown _Proto_ShaderNodeGraph.Node.data type")
@@ -1270,25 +1269,6 @@ private func toWKBridgeDataType(_ dataType: _Proto_ShaderDataType) -> WKBridgeDa
     case .cgColor4: .cgColor4
     case .filename: .asset
     @unknown default: .asset
-    }
-}
-
-// SGDataType rawValues for color variants that _Proto_ShaderDataType collapses.
-private enum SGDataTypeRawValue {
-    static let color3f: UInt = 41
-    static let color3h: UInt = 42
-    static let color4f: UInt = 44
-    static let color4h: UInt = 45
-}
-
-// Maps an SGDataType rawValue to WKBridgeDataType, preserving half-precision color variants
-// (color3h=42, color4h=45) that _Proto_ShaderDataType collapses to cgColor3/cgColor4.
-// Falls back to the proto-level type for all other types.
-private func toWKBridgeDataTypeFromSGRawValue(_ rawValue: UInt, fallback: WKBridgeDataType) -> WKBridgeDataType {
-    switch rawValue {
-    case SGDataTypeRawValue.color3h: .color3h
-    case SGDataTypeRawValue.color4h: .color4h
-    default: fallback
     }
 }
 
@@ -1334,11 +1314,11 @@ private func toWebOutputs(_ outputs: [_Proto_ShaderGraphNodeDefinition.Output]) 
     }
 }
 
-private func toWebNode(_ e: _Proto_ShaderNodeGraph.Node, colorOverride: WKBridgeConstant? = nil) -> WKBridgeNode {
+private func toWebNode(_ e: _Proto_ShaderNodeGraph.Node) -> WKBridgeNode {
     WKBridgeNode(
         bridgeNodeType: toWKBridgeNodeType(e),
         builtin: toWKBridgeBuiltin(e),
-        constant: toWKBridgeConstantContainer(e, colorOverride: colorOverride)
+        constant: toWKBridgeConstantContainer(e)
     )
 }
 
@@ -1406,25 +1386,8 @@ private func toWebMaterialGraph(_ material: _Proto_ShaderNodeGraph?) -> WKBridge
         )
     }
 
-    // Pre-compute color type overrides for constant nodes by inspecting the sgGraph.
-    // The proto layer collapses color4f/color4h/color3f/color3h to float4/float3, losing
-    // the exact SGDataType. Read it back from the sgGraph's output type for each constant node.
-    var constantColorOverrides: [String: WKBridgeConstant] = [:]
-    let sgNodesByName = Dictionary(uniqueKeysWithValues: material.sgGraph.childNodes.map { ($0.name, $0) })
-    for (nodeName, node) in material.nodes {
-        guard case .constant(let value) = node.data else { continue }
-        guard let rawValue = sgNodesByName[nodeName]?.outputs.first?.type.rawValue else { continue }
-        switch rawValue {
-        case SGDataTypeRawValue.color4f: if case .float4 = value { constantColorOverrides[nodeName] = .color4f }
-        case SGDataTypeRawValue.color4h: if case .float4 = value { constantColorOverrides[nodeName] = .color4h }
-        case SGDataTypeRawValue.color3f: if case .float3 = value { constantColorOverrides[nodeName] = .color3f }
-        case SGDataTypeRawValue.color3h: if case .float3 = value { constantColorOverrides[nodeName] = .color3h }
-        default: break
-        }
-    }
-
     // Convert nodes dictionary to array
-    let nodes = material.nodes.values.map { toWebNode($0, colorOverride: constantColorOverrides[$0.name]) }
+    let nodes = material.nodes.values.map { toWebNode($0) }
 
     // Convert edges
     let edges = toWebEdges(material.edges)
@@ -1446,7 +1409,7 @@ private func toWebMaterialGraph(_ material: _Proto_ShaderNodeGraph?) -> WKBridge
     let primvarTexcoordNames = sortedPrimvarKeys.map { texcoordName(for: material.primvarMappings[$0]!) }
 
     return WKBridgeMaterialGraph(
-        graphName: material.sgGraph.name,
+        graphName: "MaterialGraph",
         nodes: nodes,
         edges: edges,
         arguments: argumentsNode,
@@ -1471,11 +1434,7 @@ func webUpdateMaterialRequestFromUpdateMaterialRequest(
 }
 
 extension _Proto_ShaderNodeGraph {
-    // Reconstructs the graph from the IPC bridge representation using the SGGraph API directly.
-    // This bypasses _Proto_ShaderDataType (which collapses color3h/color4h to cgColor3/cgColor4)
-    // and instead uses SGNode.create(nodeDefName:name:) for builtin nodes (preserving MaterialX
-    // half-precision color types: color3h/color4h) and SGNode.create(value:type:) for constant
-    // nodes (preserving the exact SGDataType transmitted over IPC, e.g. color4f).
+    // Reconstructs the graph from the IPC bridge representation using the _Proto_ShaderNodeGraph API.
     static func fromWKDescriptor(_ descriptor: WKBridgeMaterialGraph?) -> _Proto_ShaderNodeGraph? {
         guard let descriptor else { return nil }
 
@@ -1498,25 +1457,19 @@ extension _Proto_ShaderNodeGraph {
                 }
             )
 
-            let sgGraph = graph.sgGraph
-            let argumentsName = graph.arguments.name
-            let resultsName = graph.results.name
+            let library = _Proto_ShaderNodeGraphLibrary.shared
 
-            // Build nodes using the SGGraph API to preserve MaterialX type precision.
-            var sgNodes: [SGNode] = []
             for bridgeNode in descriptor.nodes {
                 switch bridgeNode.bridgeNodeType {
                 case .constant:
-                    if let constant = bridgeNode.constant,
-                        let sgNode = try? makeConstantSGNode(from: constant)
-                    {
-                        sgNodes.append(sgNode)
+                    if let constant = bridgeNode.constant {
+                        try graph.add(constant: fromWKBridgeConstant(constant), named: constant.name)
                     }
                 case .builtin:
                     if let builtin = bridgeNode.builtin, !builtin.definition.isEmpty,
-                        let sgNode = try? SGNode.create(nodeDefName: builtin.definition, name: builtin.name)
+                        let definition = library.definition(named: builtin.definition)
                     {
-                        sgNodes.append(sgNode)
+                        try graph.add(node: .init(name: builtin.name, data: .definition(definition)))
                     }
                 case .arguments, .results:
                     break
@@ -1525,28 +1478,15 @@ extension _Proto_ShaderNodeGraph {
                     fatalError("Unknown node type '\(name)'")
                 }
             }
-            try sgGraph.insert(sgNodes)
 
-            // Connect edges via the SGGraph API.
-            let insertedNames = Set(sgNodes.map { $0.name })
-                .union([argumentsName, resultsName])
             for bridgeEdge in descriptor.edges {
-                guard insertedNames.contains(bridgeEdge.outputNode),
-                    insertedNames.contains(bridgeEdge.inputNode)
-                else { continue }
-                let outputNode =
-                    bridgeEdge.outputNode == argumentsName
-                    ? sgGraph.argumentsNode
-                    : bridgeEdge.outputNode == resultsName ? sgGraph.resultsNode : sgGraph.node(named: bridgeEdge.outputNode)
-                let inputNode =
-                    bridgeEdge.inputNode == argumentsName
-                    ? sgGraph.argumentsNode
-                    : bridgeEdge.inputNode == resultsName ? sgGraph.resultsNode : sgGraph.node(named: bridgeEdge.inputNode)
-                guard let output = outputNode?.outputNamed(bridgeEdge.outputPort),
-                    let input = inputNode?.inputNamed(bridgeEdge.inputPort)
-                else { continue }
                 do {
-                    try sgGraph.connect(output, to: input)
+                    try graph.connect(
+                        bridgeEdge.outputNode,
+                        bridgeEdge.outputPort,
+                        to: bridgeEdge.inputNode,
+                        bridgeEdge.inputPort
+                    )
                 } catch {
                     logError(
                         "Failed to connect \(bridgeEdge.outputNode):\(bridgeEdge.outputPort) -> \(bridgeEdge.inputNode):\(bridgeEdge.inputPort): \(error)"
@@ -1571,103 +1511,6 @@ extension _Proto_ShaderNodeGraph {
             logError("Failed to reconstruct ShaderNodeGraph: \(error)")
             return nil
         }
-    }
-}
-
-// Creates an SGNode for a constant directly with the exact SGDataType, bypassing the lossy
-// _Proto_ShaderGraphValue layer. This preserves color4f (44) vs cgColor4 (56) distinctions.
-private func makeConstantSGNode(from constant: WKBridgeConstantContainer) throws -> SGNode {
-    let values = constant.constantValues
-    let name = constant.name
-
-    // Helpers to build NSNumber arrays and CGColors for the SGNode factory methods.
-    func nums(_ n: Int) -> NSArray { values[0..<n].map { $0.number } as NSArray }
-    func extendedColor(_ n: Int) -> CGColor {
-        let comps =
-            (0..<n).map { CGFloat(values[$0].number.floatValue) }
-            + (n == 3 ? [CGFloat(1.0)] : [])
-        return CGColor(red: comps[0], green: comps[1], blue: comps[2], alpha: comps.count > 3 ? comps[3] : 1)
-    }
-
-    switch constant.constant {
-    case .bool:
-        return try SGNode.create(values.first?.number.boolValue ?? false, name: name)
-    case .uchar:
-        return try SGNode.create(values.first?.number ?? 0, type: .uchar, name: name)
-    case .int:
-        return try SGNode.create(values.first?.number ?? 0, type: .int, name: name)
-    case .uint:
-        return try SGNode.create(values.first?.number ?? 0, type: .uint, name: name)
-    case .half:
-        return try SGNode.create(values.first?.number ?? 0, type: .half, name: name)
-    case .float:
-        return try SGNode.create(values.first?.number ?? 0, type: .float, name: name)
-    case .timecode:
-        return try SGNode.create(values.first?.number ?? 0, type: .timecode, name: name)
-    case .string:
-        return try SGNode.create(value: values.first?.string ?? "", type: .string, name: name)
-    case .token:
-        return try SGNode.create(value: values.first?.string ?? "", type: .token, name: name)
-    case .asset:
-        return try SGNode.create(value: values.first?.string ?? "", type: .asset, name: name)
-    case .float2:
-        return try SGNode.create(nums(2), type: .float2, name: name)
-    case .texCoord2f:
-        return try SGNode.create(nums(2), type: .texCoord2f, name: name)
-    case .texCoord2h:
-        return try SGNode.create(nums(2), type: .texCoord2h, name: name)
-    case .float3:
-        return try SGNode.create(nums(3), type: .float3, name: name)
-    case .vector3f:
-        return try SGNode.create(nums(3), type: .vector3f, name: name)
-    case .point3f:
-        return try SGNode.create(nums(3), type: .point3f, name: name)
-    case .normal3f:
-        return try SGNode.create(nums(3), type: .normal3f, name: name)
-    case .texCoord3f:
-        return try SGNode.create(nums(3), type: .texCoord3f, name: name)
-    case .vector3h:
-        return try SGNode.create(nums(3), type: .vector3h, name: name)
-    case .point3h:
-        return try SGNode.create(nums(3), type: .point3h, name: name)
-    case .normal3h:
-        return try SGNode.create(nums(3), type: .normal3h, name: name)
-    case .half3:
-        return try SGNode.create(nums(3), type: .half3, name: name)
-    case .texCoord3h:
-        return try SGNode.create(nums(3), type: .texCoord3h, name: name)
-    case .float4, .matrix2f:
-        return try SGNode.create(nums(4), type: .float4, name: name)
-    case .half2:
-        return try SGNode.create(nums(2), type: .half2, name: name)
-    case .half4:
-        return try SGNode.create(nums(4), type: .half4, name: name)
-    case .int2:
-        return try SGNode.create(nums(2), type: .int2, name: name)
-    case .int3:
-        return try SGNode.create(nums(3), type: .int3, name: name)
-    case .int4:
-        return try SGNode.create(nums(4), type: .int4, name: name)
-    case .matrix3f:
-        return try SGNode.create(nums(9), type: .matrix3f, name: name)
-    case .matrix4f:
-        return try SGNode.create(nums(16), type: .matrix4f, name: name)
-    case .quatf, .quath:
-        return try SGNode.create(nums(4), type: .quatf, name: name)
-    case .cgColor3:
-        return try SGNode.createColor3(color: extendedColor(3), name: name)
-    case .cgColor4:
-        return try SGNode.createColor4(color: extendedColor(4), name: name)
-    case .color4f:
-        return try SGNode.create(nums(4), type: .color4f, name: name)
-    case .color4h:
-        return try SGNode.create(nums(4), type: .color4h, name: name)
-    case .color3f:
-        return try SGNode.create(nums(3), type: .color3f, name: name)
-    case .color3h:
-        return try SGNode.create(nums(3), type: .color3h, name: name)
-    @unknown default:
-        fatalError("makeConstantSGNode - Unhandled constant type \(constant.constant) for '\(name)'")
     }
 }
 
@@ -1931,8 +1774,7 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
         ]
         return .cgColor4(CGColor(red: components4f[0], green: components4f[1], blue: components4f[2], alpha: components4f[3]))
     case .color3f:
-        // USD/MaterialX color3f or color3h — encoded as 3 raw floats without CGColor clamping.
-        // Decoded as cgColor3 via extendedLinearSRGB to preserve color semantics for MaterialX.
+        // USD/MaterialX color3f — encoded as 3 raw floats without CGColor clamping.
         guard values.count >= 3 else {
             fatalError("fromWKBridgeConstant: expected 3 values for color3f constant '\(constant.name)', got \(values.count)")
         }
@@ -1943,6 +1785,32 @@ private func fromWKBridgeConstant(_ constant: WKBridgeConstantContainer) -> _Pro
             1.0,
         ]
         return .cgColor3(CGColor(red: components3f[0], green: components3f[1], blue: components3f[2], alpha: 1.0))
+    case .color3h:
+        // USD/MaterialX color3h — half-precision; represented as cgColor3 in _Proto_ShaderGraphValue.
+        guard values.count >= 3 else {
+            fatalError("fromWKBridgeConstant: expected 3 values for color3h constant '\(constant.name)', got \(values.count)")
+        }
+        return .cgColor3(
+            CGColor(
+                red: CGFloat(values[0].number.floatValue),
+                green: CGFloat(values[1].number.floatValue),
+                blue: CGFloat(values[2].number.floatValue),
+                alpha: 1.0
+            )
+        )
+    case .color4h:
+        // USD/MaterialX color4h — half-precision; represented as cgColor4 in _Proto_ShaderGraphValue.
+        guard values.count >= 4 else {
+            fatalError("fromWKBridgeConstant: expected 4 values for color4h constant '\(constant.name)', got \(values.count)")
+        }
+        return .cgColor4(
+            CGColor(
+                red: CGFloat(values[0].number.floatValue),
+                green: CGFloat(values[1].number.floatValue),
+                blue: CGFloat(values[2].number.floatValue),
+                alpha: CGFloat(values[3].number.floatValue)
+            )
+        )
     @unknown default:
         fatalError("fromWKBridgeConstant: unhandled constant type \(constant.constant) for '\(constant.name)'")
     }

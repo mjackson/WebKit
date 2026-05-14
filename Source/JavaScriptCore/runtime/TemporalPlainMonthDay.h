@@ -25,9 +25,9 @@
 
 #pragma once
 
-#include "ISO8601.h"
-#include "LazyProperty.h"
-#include "TemporalCalendar.h"
+#include <JavaScriptCore/ISO8601.h>
+#include <JavaScriptCore/LazyProperty.h>
+#include <JavaScriptCore/TemporalCalendar.h>
 
 namespace JSC {
 

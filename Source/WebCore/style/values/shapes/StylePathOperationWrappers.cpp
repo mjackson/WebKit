@@ -154,8 +154,9 @@ static std::optional<AcceleratedEffectCoordBox> toAcceleratedEffectCoordBox(CSSB
 {
     switch (boxType) {
     case CSSBoxType::BoxMissing:
-    case CSSBoxType::MarginBox:
         return std::nullopt;
+    case CSSBoxType::MarginBox:
+        return AcceleratedEffectCoordBox::MarginBox;
     case CSSBoxType::BorderBox:
         return AcceleratedEffectCoordBox::BorderBox;
     case CSSBoxType::PaddingBox:

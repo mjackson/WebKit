@@ -399,7 +399,9 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElementIOS::titleUIElement()
 
 RefPtr<AccessibilityUIElement> AccessibilityUIElementIOS::parentElement()
 {
-    return nil;
+    if (id container = [m_element accessibilityContainer])
+        return AccessibilityUIElement::create(container);
+    return nullptr;
 }
 
 RefPtr<AccessibilityUIElement> AccessibilityUIElementIOS::disclosedByRow()

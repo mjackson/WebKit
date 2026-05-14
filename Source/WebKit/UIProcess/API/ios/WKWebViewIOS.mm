@@ -753,26 +753,32 @@ static WebCore::Color scrollViewBackgroundColor(WKWebView *webView, AllowPageBac
     return CGPointMake(-combinedUnobscuredAndScrollViewInset.left, -combinedUnobscuredAndScrollViewInset.top);
 }
 
-- (CGPoint)_contentOffsetAdjustedForObscuredInset:(CGPoint)point
+- (CGPoint)_contentOffset:(CGPoint)point adjustedForObscuredInsets:(UIEdgeInsets)insets
 {
     CGPoint result = point;
-    UIEdgeInsets contentInset = [self _computedObscuredInset];
-
-    result.x -= contentInset.left;
-    result.y -= contentInset.top;
+    result.x -= insets.left;
+    result.y -= insets.top;
 
     return result;
 }
 
-- (CGPoint)_scrollOffsetAdjustedForObscuredInset:(CGPoint)contentOffset
+- (CGPoint)_scrollOffset:(CGPoint)point adjustedForObscuredInsets:(UIEdgeInsets)insets
 {
-    CGPoint result = contentOffset;
-    UIEdgeInsets contentInset = [self _computedObscuredInset];
-
-    result.x += contentInset.left;
-    result.y += contentInset.top;
+    CGPoint result = point;
+    result.x += insets.left;
+    result.y += insets.top;
 
     return result;
+}
+
+- (CGPoint)_contentOffsetAdjustedForObscuredInset:(CGPoint)scrollOffset
+{
+    return [self _contentOffset:scrollOffset adjustedForObscuredInsets:[self _computedObscuredInset]];
+}
+
+- (CGPoint)_scrollOffsetAdjustedForObscuredInset:(CGPoint)contentOffset
+{
+    return [self _scrollOffset:contentOffset adjustedForObscuredInsets:[self _computedObscuredInset]];
 }
 
 - (UIRectEdge)_effectiveObscuredInsetEdgesAffectedBySafeArea
@@ -1379,9 +1385,10 @@ static void changeContentOffsetBoundedInValidRange(UIScrollView *scrollView, Web
     if (!surface)
         return nullptr;
 
+    RetainPtr<NSString> displayName = self.window.screen.displayConfiguration.name;
     CARenderServerSnapshot(MACH_PORT_NULL, @{
         kCASnapshotMode: kCASnapshotModeLayer,
-        kCASnapshotDisplayName: kCARenderServerDefaultDisplay,
+        kCASnapshotDisplayName: displayName.get() ?: kCARenderServerDefaultDisplay,
         kCASnapshotContextId: @(self.layer.context.contextId),
         kCASnapshotLayerId: @(reinterpret_cast<uint64_t>(self.layer)),
         kCASnapshotDestination: (__bridge id)surface->surface(),
@@ -2069,8 +2076,12 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
     _page->scheduleAccessibilityFrameGeometryUpdate();
 #endif
 
-    if (CheckedPtr coordinator = _page->scrollingCoordinatorProxy())
+    if (CheckedPtr coordinator = downcast<WebKit::RemoteScrollingCoordinatorProxyIOS>(_page->scrollingCoordinatorProxy())) {
         coordinator->setRootNodeIsInUserScroll(false);
+
+        auto scrollOffset = [self _scrollOffsetAdjustedForObscuredInset:scrollView.contentOffset];
+        coordinator->updateSnapIndicesForMainFrameOffset(scrollOffset, contentZoomScale(self));
+    }
 }
 
 - (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset
@@ -2088,20 +2099,26 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
     }
 
     if (CheckedPtr coordinator = downcast<WebKit::RemoteScrollingCoordinatorProxyIOS>(_page->scrollingCoordinatorProxy())) {
-        // FIXME: Here, I'm finding the maximum horizontal/vertical scroll offsets. There's probably a better way to do this.
-        CGSize maxScrollOffsets = CGSizeMake(scrollView.contentSize.width - scrollView.bounds.size.width, scrollView.contentSize.height - scrollView.bounds.size.height);
-
-        UIEdgeInsets obscuredInset;
-
+        UIEdgeInsets obscuredInsets;
         id<WKUIDelegatePrivate> uiDelegatePrivate = static_cast<id <WKUIDelegatePrivate>>([self UIDelegate]);
         if ([uiDelegatePrivate respondsToSelector:@selector(_webView:finalObscuredInsetsForScrollView:withVelocity:targetContentOffset:)])
-            obscuredInset = [uiDelegatePrivate _webView:self finalObscuredInsetsForScrollView:scrollView withVelocity:velocity targetContentOffset:targetContentOffset];
+            obscuredInsets = [uiDelegatePrivate _webView:self finalObscuredInsetsForScrollView:scrollView withVelocity:velocity targetContentOffset:targetContentOffset];
         else
-            obscuredInset = [self _computedObscuredInset];
+            obscuredInsets = [self _computedObscuredInset];
 
-        CGRect unobscuredRect = UIEdgeInsetsInsetRect(self.bounds, obscuredInset);
+        // FIXME: Here, we're finding the maximum horizontal/vertical scroll offsets. There's probably a better way to do this.
+        CGSize maxContentOffset = CGSizeMake(scrollView.contentSize.width + obscuredInsets.right - scrollView.bounds.size.width, scrollView.contentSize.height + obscuredInsets.bottom - scrollView.bounds.size.height);
+        CGSize maxScrollOffset = CGSizeMake(maxContentOffset.width + obscuredInsets.left, maxContentOffset.height + obscuredInsets.top);
 
-        coordinator->adjustTargetContentOffsetForSnapping(maxScrollOffsets, velocity, unobscuredRect.origin.y, scrollView.contentOffset, targetContentOffset);
+        auto zoomScale = contentZoomScale(self);
+
+        // Add insets.
+        auto adjustedOffset = [self _scrollOffset:*targetContentOffset adjustedForObscuredInsets:obscuredInsets];
+        auto currentOffset = [self _scrollOffset:scrollView.contentOffset adjustedForObscuredInsets:obscuredInsets];
+        auto adjustedScrollOffset = coordinator->adjustTargetScrollOffsetForSnapping(maxScrollOffset, zoomScale, velocity, currentOffset, adjustedOffset);
+
+        // Subtract insets.
+        *targetContentOffset = [self _contentOffset:adjustedScrollOffset adjustedForObscuredInsets:obscuredInsets];
     }
 }
 
@@ -3018,19 +3035,21 @@ static bool scrollViewCanScroll(UIScrollView *scrollView)
     if (viewStability.isEmpty()) {
         CheckedPtr coordinator = downcast<WebKit::RemoteScrollingCoordinatorProxyIOS>(_page->scrollingCoordinatorProxy());
         if (coordinator && coordinator->hasActiveSnapPoint()) {
-            CGPoint currentPoint = [_scrollView contentOffset];
-            CGPoint activePoint = coordinator->nearestActiveContentInsetAdjustedSnapOffset(unobscuredRect.origin.y, currentPoint);
+            CGPoint currentScrollOffset = [self _scrollOffsetAdjustedForObscuredInset:[_scrollView contentOffset]];
+            CGPoint snappedScrollOffset = coordinator->scrollOffsetSnappedToNearestSnapPoint(currentScrollOffset, scaleFactor);
 
-            if (!CGPointEqualToPoint(activePoint, currentPoint)) {
+            if (!CGPointEqualToPoint(snappedScrollOffset, currentScrollOffset)) {
+                LOG_WITH_STREAM(Scrolling, stream << "_createVisibleContentRectUpdate: scroll snap adjusted scroll offset from " << currentScrollOffset << " to " << snappedScrollOffset);
+                CGPoint snappedContentOffset = [self _contentOffsetAdjustedForObscuredInset:snappedScrollOffset];
                 RetainPtr<WKScrollView> strongScrollView = _scrollView;
-                RunLoop::mainSingleton().dispatch([strongScrollView, activePoint] {
-                    [strongScrollView setContentOffset:activePoint animated:NO];
+                RunLoop::mainSingleton().dispatch([strongScrollView, snappedContentOffset] {
+                    [strongScrollView setContentOffset:snappedContentOffset animated:NO];
                 });
             }
         }
     }
 
-    MonotonicTime timestamp = MonotonicTime::now();
+    auto timestamp = MonotonicTime::now();
     WebCore::VelocityData velocityData;
     bool inStableState = viewStability.isEmpty();
     if (!inStableState)
@@ -3692,6 +3711,8 @@ static WebCore::UserInterfaceLayoutDirection toUserInterfaceLayoutDirection(UISe
 #if ENABLE(RESPONSIVE_LIVE_RESIZE_UPDATE)
             UNUSED_PARAM(liveResizeSnapshotView);
             RetainPtr strongSelf = weakSelf.get();
+            if (!strongSelf)
+                return;
             [strongSelf->_liveResizeSnapshotContainerView removeFromSuperview];
             strongSelf->_liveResizeSnapshotContainerView = nil;
 #else
@@ -3706,6 +3727,8 @@ static WebCore::UserInterfaceLayoutDirection toUserInterfaceLayoutDirection(UISe
 #if ENABLE(RESPONSIVE_LIVE_RESIZE_UPDATE)
         UNUSED_PARAM(liveResizeSnapshotView);
         RetainPtr strongSelf = weakSelf.get();
+        if (!strongSelf)
+            return;
         [strongSelf->_liveResizeSnapshotContainerView removeFromSuperview];
         strongSelf->_liveResizeSnapshotContainerView = nil;
 #else
@@ -5143,8 +5166,10 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     if (!_page || !_perProcessState.committedFindLayerID)
         return nil;
 
-    if (RefPtr drawingArea = _page->drawingArea())
-        return downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*drawingArea).remoteLayerTreeHost().layerForID(*_perProcessState.committedFindLayerID);
+    if (RefPtr drawingArea = _page->drawingArea()) {
+        RetainPtr layer = downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*drawingArea).remoteLayerTreeHost().layerForID(*_perProcessState.committedFindLayerID);
+        return layer.autorelease();
+    }
 
     return nil;
 }

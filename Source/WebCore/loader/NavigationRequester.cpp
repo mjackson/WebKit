@@ -29,6 +29,7 @@
 #include "Document.h"
 #include "FrameDestructionObserverInlines.h"
 #include "LocalFrame.h"
+#include "ProcessIdentifier.h"
 
 namespace WebCore {
 
@@ -54,7 +55,8 @@ NavigationRequester NavigationRequester::from(Document& document)
         [&] {
             RefPtr parentOrigin = parentFrame ? parentFrame->frameDocumentSecurityOrigin() : nullptr;
             return parentOrigin && parentOrigin->isSameOriginDomain(protect(document.topOrigin()));
-        }()
+        }(),
+        Process::identifier()
     };
 }
 

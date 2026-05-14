@@ -3683,6 +3683,94 @@ TEST(ProcessSwap, BackForwardCacheSkipBackForwardListItem)
     EXPECT_WK_STREQ(@"pson://www.webkit.org/main.html#foo", [[webView URL] absoluteString]);
 }
 
+TEST(ProcessSwap, BackForwardCacheRestoreSkippedSameProcessItem)
+{
+    auto processPoolConfiguration = psonProcessPoolConfiguration();
+    RetainPtr processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    RetainPtr handler = adoptNS([[PSONScheme alloc] init]);
+    [handler addMappingFromURLString:@"pson://www.webkit.org/main1.html" toData:pageCache1Bytes];
+    [handler addMappingFromURLString:@"pson://www.webkit.org/main2.html" toData:pageCache1Bytes];
+    [handler addMappingFromURLString:@"pson://www.apple.com/main.html" toData:pageCache1Bytes];
+    [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
+
+    RetainPtr messageHandler = adoptNS([[PSONMessageHandler alloc] init]);
+    [[webViewConfiguration userContentController] addScriptMessageHandler:messageHandler.get() name:@"pson"];
+
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+
+    // FIXME: Remove once the back-forward cache is enabled for site isolation: rdar://161762363.
+    if (!isUsingBackForwardCache(webView.get())) {
+        NSLog(@"ProcessSwap.BackForwardCacheRestoreSkippedSameProcessItem: Test is skipped as back-forward cache is disabled");
+        return;
+    }
+
+    RetainPtr delegate = adoptNS([[PSONNavigationDelegate alloc] init]);
+    [webView setNavigationDelegate:delegate.get()];
+
+    // 1. Load pson://www.webkit.org/main1.html (this becomes the "skipped" item a/1).
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main1.html"]];
+    [webView loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    auto webkitPID = [webView _webProcessIdentifier];
+
+    // 2. Load pson://www.webkit.org/main2.html (same-site cross-document; a/1's document is
+    //    placed into PageCache. This becomes a/2 — the item that triggers the cross-site swap
+    //    and originally received the SuspendedPageProxy).
+    request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main2.html"]];
+    [webView loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    EXPECT_EQ(webkitPID, [webView _webProcessIdentifier]);
+    EXPECT_EQ(1U, [[[webView backForwardList] backList] count]);
+
+    // 3. Load pson://www.apple.com/main.html (cross-site swap — SuspendedPageProxy created on
+    //    the webkit process). The fix shares the SPP with a/1 (already in BFCache).
+    request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.apple.com/main.html"]];
+    [webView loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    auto applePID = [webView _webProcessIdentifier];
+    EXPECT_NE(webkitPID, applePID);
+    EXPECT_WK_STREQ(@"pson://www.apple.com/main.html", [[webView URL] absoluteString]);
+    EXPECT_EQ(2U, [[[webView backForwardList] backList] count]);
+
+    // 4. Go directly back to a/1 (skipping a/2). Pre-fix, only a/2 had the SuspendedPageProxy
+    //    so this lookup misses Path A, falls through to Path B, and removeEntriesForPageAndProcess
+    //    drops the SPP and tears down the WebPage — resulting in a full reload (no pageshow.persisted).
+    //    Post-fix, the SPP is shared with a/1, Path A succeeds, and the page is restored from BFCache.
+    [webView goToBackForwardListItem:[[webView backForwardList] itemAtIndex:-2]];
+    TestWebKitAPI::Util::run(&receivedMessage);
+    receivedMessage = false;
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    EXPECT_EQ(webkitPID, [webView _webProcessIdentifier]);
+    EXPECT_WK_STREQ(@"pson://www.webkit.org/main1.html", [[webView URL] absoluteString]);
+    EXPECT_EQ(1U, [receivedMessages count]);
+    EXPECT_TRUE([receivedMessages.get()[0] isEqualToString:@"Was persisted"]);
+
+    // 5. Go forward to a/2. This must also be restored from BFCache — verifies that taking
+    //    the SPP for a/1 correctly cleared it from a/2 too (so the symmetric clear logic in
+    //    takeSuspendedPage works and a/2 can still be restored as an in-process BFCache entry).
+    [webView goForward];
+    TestWebKitAPI::Util::run(&receivedMessage);
+    receivedMessage = false;
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    EXPECT_EQ(webkitPID, [webView _webProcessIdentifier]);
+    EXPECT_WK_STREQ(@"pson://www.webkit.org/main2.html", [[webView URL] absoluteString]);
+    EXPECT_EQ(2U, [receivedMessages count]);
+    EXPECT_TRUE([receivedMessages.get()[1] isEqualToString:@"Was persisted"]);
+}
+
 TEST(ProcessSwap, ClearWebsiteDataWithSuspendedPage)
 {
     auto processPoolConfiguration = psonProcessPoolConfiguration();
@@ -8155,7 +8243,8 @@ TEST(ProcessSwap, MultitabCOOPSwapSameOriginProcessPool)
     EXPECT_NE(pid3, pid6);
 }
 
-TEST(ProcessSwap, NavigateBackAfterNavigatingAwayFromCrossOriginOpenerPolicyUsingBackForwardCache2)
+// FIXME when webkit.org/b/314594 is resolved.
+TEST(ProcessSwap, DISABLED_NavigateBackAfterNavigatingAwayFromCrossOriginOpenerPolicyUsingBackForwardCache2)
 {
     using namespace TestWebKitAPI;
 
@@ -8182,7 +8271,7 @@ TEST(ProcessSwap, NavigateBackAfterNavigatingAwayFromCrossOriginOpenerPolicyUsin
 
     auto pid1 = [webView _webProcessIdentifier];
 
-    [webView _evaluateJavaScriptWithoutUserGesture:@"window.history.pushState({}, null, '/foo')" completionHandler:nil];
+    [webView _evaluateJavaScriptWithoutUserGesture:@"window.history.pushState({}, null, '#foo')" completionHandler:nil];
     Util::run(&done);
     done = false;
 

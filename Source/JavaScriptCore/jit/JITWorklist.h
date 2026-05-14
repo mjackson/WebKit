@@ -63,6 +63,7 @@ public:
     State compilationState(VM&, JITCompilationKey);
 
     State completeAllReadyPlansForVM(VM&, JITCompilationKey = JITCompilationKey());
+    void requestTemporaryStop();
 
     // This is equivalent to:
     // worklist->waitUntilAllPlansForVMAreReady(vm);

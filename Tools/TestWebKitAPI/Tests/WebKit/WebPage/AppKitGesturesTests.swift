@@ -92,7 +92,7 @@ struct AppKitGesturesTests {
         }
 
         await recap.play { composer in
-            composer._wk_click(toBounds.center)
+            composer._wk_click(at: toBounds.center, for: .seconds(0.1))
 
             composer.advanceTime(0.1)
 
@@ -112,7 +112,10 @@ struct AppKitGesturesTests {
         #expect(firstRangeEditorState.postLayoutData != nil)
     }
 
-    @Test(arguments: [true, false])
+    @Test(
+        .bug("rdar://176117750"),
+        arguments: [true, false]
+    )
     func clickingOnSelectedWordOpensContextMenu(contentEditable: Bool) async throws {
         try await loadHTML(contentEditable: contentEditable)
 
@@ -149,7 +152,7 @@ struct AppKitGesturesTests {
             with: implementation
         ) {
             await recap.play { composer in
-                composer._wk_click(crazyBoundsInScreenCoordinates.center)
+                composer._wk_click(at: crazyBoundsInScreenCoordinates.center, for: .seconds(0.1))
             }
 
             await future.wait()
@@ -162,9 +165,9 @@ struct AppKitGesturesTests {
         #expect(newSelection == crazySelection)
     }
 
-    @Test(arguments: [true, false])
-    func doubleClickingInWordSelectsWord(contentEditable: Bool) async throws {
-        try await loadHTML(contentEditable: contentEditable)
+    @Test(arguments: [true, false], [true, false])
+    func doubleClickingInWordSelectsWord(contentEditable: Bool, clickHandler: Bool) async throws {
+        try await loadHTML(contentEditable: contentEditable, clickHandler: clickHandler)
 
         let crazyRange = try #require(Self.text.utf16Range(of: "crazy"))
         let crazySelection = JavaScriptSelection.range(
@@ -184,9 +187,9 @@ struct AppKitGesturesTests {
         }
 
         await recap.play { composer in
-            composer._wk_click(crazyBoundsInScreenCoordinates.center)
+            composer._wk_click(at: crazyBoundsInScreenCoordinates.center, for: .seconds(0.1))
             composer.advanceTime(0.1)
-            composer._wk_click(crazyBoundsInScreenCoordinates.center)
+            composer._wk_click(at: crazyBoundsInScreenCoordinates.center, for: .seconds(0.1))
         }
 
         await page.waitForNextPresentationUpdate()
@@ -219,7 +222,7 @@ struct AppKitGesturesTests {
         }
 
         await recap.play { composer in
-            composer._wk_click(point)
+            composer._wk_click(at: point, for: .seconds(0.1))
         }
 
         await page.waitForNextPresentationUpdate()
@@ -309,9 +312,12 @@ private func convertToCoreGraphicsScreenCoordinates(rectInViewportCoordinates: D
 }
 
 extension AppKitGesturesTests {
-    private func loadHTML(contentEditable: Bool) async throws {
+    private func loadHTML(contentEditable: Bool = false, clickHandler: Bool = false) async throws {
+        let contentEditableMarkup = contentEditable ? "contenteditable" : ""
+        let clickHandlerMarkup = clickHandler ? "onclick='void(0)'" : ""
+
         let html = """
-            <div \(contentEditable ? "contenteditable" : "") id="div" style="font-size: 30px;">\(Self.text)</div>
+            <div \(contentEditableMarkup) \(clickHandlerMarkup) id="div" style="font-size: 30px;">\(Self.text)</div>
             """
 
         try await page.load(html: html).wait()

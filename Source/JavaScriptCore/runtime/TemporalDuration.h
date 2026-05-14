@@ -26,7 +26,7 @@
 
 #pragma once
 
-#include "ISO8601.h"
+#include <JavaScriptCore/ISO8601.h>
 
 namespace JSC {
 
@@ -53,6 +53,8 @@ class TemporalDuration final : public JSNonFinalObject {
 public:
     using Base = JSNonFinalObject;
 
+    static constexpr uint8_t numberOfLowerTierPreciseCells = 0;
+
     template<typename CellType, SubspaceAccess mode>
     static GCClient::IsoSubspace* subspaceFor(VM& vm)
     {
@@ -71,8 +73,8 @@ public:
     static JSValue compare(JSGlobalObject*, JSValue, JSValue);
 
 #define JSC_DEFINE_TEMPORAL_DURATION_FIELD(name, capitalizedName) \
-    double name##s() const { return m_duration.name##s(); } \
-    void set##capitalizedName##s(double value) { m_duration.set##capitalizedName##s(value); }
+    double name##s() const { return static_cast<double>(m_duration.name##s()); } \
+    void set##capitalizedName##s(double value) { m_duration.setField(TemporalUnit::capitalizedName, value); }
     JSC_TEMPORAL_UNITS(JSC_DEFINE_TEMPORAL_DURATION_FIELD);
 #undef JSC_DEFINE_TEMPORAL_DURATION_FIELD
 
@@ -80,7 +82,7 @@ public:
 
     ISO8601::Duration with(JSGlobalObject*, JSObject* durationLike) const;
     ISO8601::Duration NODELETE negated() const;
-    ISO8601::Duration NODELETE abs() const;
+    ISO8601::Duration abs() const;
     ISO8601::Duration add(JSGlobalObject*, JSValue) const;
     ISO8601::Duration subtract(JSGlobalObject*, JSValue) const;
     ISO8601::Duration round(JSGlobalObject*, JSValue options) const;

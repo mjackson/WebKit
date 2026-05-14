@@ -442,9 +442,11 @@ void RemoteGraphicsContext::drawSystemImage(Ref<SystemImage>&& systemImage, cons
 {
 #if USE(SYSTEM_PREVIEW)
     if (auto* badge = dynamicDowncast<ARKitBadgeSystemImage>(systemImage.get())) {
-        RefPtr nativeImage = resourceCache().cachedNativeImage(badge->imageIdentifier());
-        MESSAGE_CHECK(nativeImage);
-        badge->setImage(BitmapImage::create(nativeImage.releaseNonNull()));
+        if (auto imageIdentifier = badge->imageIdentifier()) {
+            RefPtr nativeImage = resourceCache().cachedNativeImage(*imageIdentifier);
+            MESSAGE_CHECK(nativeImage);
+            badge->setImage(BitmapImage::create(nativeImage.releaseNonNull()));
+        }
     }
 #endif
     context().drawSystemImage(systemImage, destinationRect);

@@ -48,7 +48,7 @@ struct PreferredSize;
 //
 // https://drafts.csswg.org/css-sizing-3/#min-size-properties
 // https://drafts.csswg.org/css-sizing-4/#sizing-values (additional values added)
-struct MinimumSize : LengthWrapperBase<LengthPercentage<CSS::NonnegativeUnzoomed>, CSS::Keyword::Auto, CSS::Keyword::MinContent, CSS::Keyword::MaxContent, CSS::Keyword::FitContent, CSS::Keyword::Stretch, CSS::Keyword::Intrinsic, CSS::Keyword::MinIntrinsic> {
+struct MinimumSize : LengthWrapperBase<LengthPercentage<CSS::NonnegativeLayoutUnitClampedUnzoomed>, CSS::Keyword::Auto, CSS::Keyword::MinContent, CSS::Keyword::MaxContent, CSS::Keyword::FitContent, CSS::Keyword::Stretch, CSS::Keyword::Intrinsic, CSS::Keyword::MinIntrinsic> {
     using Base::Base;
 
     ALWAYS_INLINE bool isAuto() const { return holdsAlternative<CSS::Keyword::Auto>(); }

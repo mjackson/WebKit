@@ -28,25 +28,17 @@
 
 #if ENABLE(VIDEO) && USE(GSTREAMER) && ENABLE(MEDIA_SOURCE)
 
-#include "AppendPipeline.h"
 #include "AudioTrackPrivateGStreamer.h"
 #include "GStreamerCommon.h"
 #include "GStreamerRegistryScannerMSE.h"
 #include "InbandTextTrackPrivateGStreamer.h"
-#include "MIMETypeRegistry.h"
-#include "MediaDescription.h"
 #include "MediaPlayer.h"
+#include "MediaSourcePrivateClient.h"
 #include "MediaSourceTrackGStreamer.h"
 #include "SourceBufferPrivateGStreamer.h"
-#include "TimeRanges.h"
 #include "VideoTrackPrivateGStreamer.h"
 #include "WebKitMediaSourceGStreamer.h"
 
-#include <gst/app/gstappsink.h>
-#include <gst/app/gstappsrc.h>
-#include <gst/gst.h>
-#include <gst/pbutils/pbutils.h>
-#include <gst/video/video.h>
 #include <wtf/Condition.h>
 #include <wtf/HashSet.h>
 #include <wtf/NativePromise.h>
@@ -134,8 +126,8 @@ void MediaPlayerPrivateGStreamerMSE::load(const String&)
 
 void MediaPlayerPrivateGStreamerMSE::load(const URL& url, const LoadOptions&, MediaSourcePrivateClient& mediaSource)
 {
-    auto mseBlobURI = makeString("mediasource"_s, url.string().isEmpty() ? "blob://"_s : url.string());
-    GST_DEBUG("Loading %s", mseBlobURI.ascii().data());
+    auto urlString = makeString("mediasource"_s, url.string().isEmpty() ? "blob://"_s : url.string());
+    GST_DEBUG("Loading %s", urlString.ascii().data());
     if (RefPtr mediaSourcePrivate = downcast<MediaSourcePrivateGStreamer>(mediaSource.mediaSourcePrivate())) {
         mediaSourcePrivate->setPlayer(this);
         m_mediaSourcePrivate = WTF::move(mediaSourcePrivate);
@@ -143,12 +135,14 @@ void MediaPlayerPrivateGStreamerMSE::load(const URL& url, const LoadOptions&, Me
     } else
         m_mediaSourcePrivate = MediaSourcePrivateGStreamer::open(mediaSource, *this);
 
-    MediaPlayerPrivateGStreamer::load(mseBlobURI);
+    MediaPlayerPrivateGStreamer::load(urlString);
 }
 
 void MediaPlayerPrivateGStreamerMSE::play()
 {
-    GST_DEBUG_OBJECT(pipeline(), "Play requested");
+    GST_INFO_OBJECT(pipeline(), "Play requested");
+    if (!pipeline())
+        rebuildPipeline();
     m_isPaused = false;
     if (!m_playbackRate && m_playbackRatePausedState == PlaybackRatePausedState::ManuallyPaused)
         m_playbackRatePausedState = PlaybackRatePausedState::RatePaused;
@@ -157,7 +151,7 @@ void MediaPlayerPrivateGStreamerMSE::play()
 
 void MediaPlayerPrivateGStreamerMSE::pause()
 {
-    GST_DEBUG_OBJECT(pipeline(), "Pause requested");
+    GST_INFO_OBJECT(pipeline(), "Pause requested");
     if (m_playbackRatePausedState == PlaybackRatePausedState::ManuallyPaused) {
         GST_DEBUG_OBJECT(pipeline(), "Player is paused already.");
         return;
@@ -242,8 +236,9 @@ MediaTime MediaPlayerPrivateGStreamerMSE::duration() const
 void MediaPlayerPrivateGStreamerMSE::seekToTarget(const SeekTarget& target)
 {
     if (!m_pipeline)
-        return;
-    GST_DEBUG_OBJECT(pipeline(), "Requested seek to %s", target.time.toString().utf8().data());
+        rebuildPipeline();
+
+    GST_INFO_OBJECT(pipeline(), "Requested seek to %s", target.time.toString().utf8().data());
     doSeek(target, m_playbackRate);
 }
 
@@ -251,7 +246,7 @@ bool MediaPlayerPrivateGStreamerMSE::doSeek(const SeekTarget& target, float rate
 {
     UNUSED_PARAM(isAsync);
     RefPtr player = m_player.get();
-    if (!player)
+    if (!player || !m_source)
         return false;
 
     // This method should only be called outside of MediaPlayerPrivateGStreamerMSE by MediaPlayerPrivateGStreamer::setRate().
@@ -283,6 +278,7 @@ bool MediaPlayerPrivateGStreamerMSE::doSeek(const SeekTarget& target, float rate
 
     // Important: In order to ensure correct propagation whether pre-roll has happened or not, we send the seek directly
     // to the source element, rather than letting playbin do the routing.
+    RELEASE_ASSERT(m_source);
     {
         // Take the STATE_LOCK of the __pipeline__.
         //
@@ -431,9 +427,9 @@ void MediaPlayerPrivateGStreamerMSE::didPreroll()
     // c) At the end of a flush (forced quality change). These should not produce either of these outcomes.
     // We identify (a) and (b) by setting m_isWaitingForPreroll = true at the initialization of the player and
     // at the beginning of a seek.
-    GST_DEBUG("Pipeline prerolled. currentMediaTime = %s", currentTime().toString().utf8().data());
+    GST_DEBUG_OBJECT(pipeline(), "Pipeline prerolled. currentMediaTime = %s", currentTime().toString().utf8().data());
     if (!m_isWaitingForPreroll) {
-        GST_DEBUG("Preroll was consequence of a flush, nothing to do at this level.");
+        GST_DEBUG_OBJECT(pipeline(), "Preroll was consequence of a flush, nothing to do at this level.");
         return;
     }
     m_isWaitingForPreroll = false;
@@ -452,6 +448,12 @@ void MediaPlayerPrivateGStreamerMSE::didPreroll()
     }
 
     propagateReadyStateToPlayer();
+}
+
+void MediaPlayerPrivateGStreamerMSE::didEnd()
+{
+    MediaPlayerPrivateGStreamer::didEnd();
+    tearDown(false);
 }
 
 const PlatformTimeRanges& MediaPlayerPrivateGStreamerMSE::buffered() const
@@ -488,7 +490,7 @@ void MediaPlayerPrivateGStreamerMSE::updateStates()
     bool shouldUpdatePlaybackState = false;
     bool shouldBePlaying = (!m_isPaused && !isPausedByViewport() && readyState() >= MediaPlayer::ReadyState::HaveFutureData && m_playbackRatePausedState != PlaybackRatePausedState::RatePaused)
         || m_playbackRatePausedState == PlaybackRatePausedState::ShouldMoveToPlaying;
-    GST_DEBUG_OBJECT(pipeline(), "shouldBePlaying = %s, m_isPipelinePlaying = %s, is seeking %s", boolForPrinting(shouldBePlaying),
+    GST_DEBUG_OBJECT(pipeline(), "shouldBePlaying = %s, m_isPipelinePlaying = %s, is waiting preroll = %s", boolForPrinting(shouldBePlaying),
         boolForPrinting(m_isPipelinePlaying), boolForPrinting(isWaitingPreroll));
     if (!isWaitingPreroll && shouldBePlaying && !m_isPipelinePlaying) {
         auto result = changePipelineState(GST_STATE_PLAYING);
@@ -504,11 +506,6 @@ void MediaPlayerPrivateGStreamerMSE::updateStates()
             GST_ERROR_OBJECT(pipeline(), "Setting the pipeline to PAUSED failed");
 
         shouldUpdatePlaybackState = result == ChangePipelineStateResult::Ok;
-    } else if (m_isEosWithNoBuffers) {
-        if (auto player = m_player.get()) {
-            // Trigger playback end detection in HTMLMediaElement.
-            player->timeChanged();
-        }
     }
 
     if (!shouldUpdatePlaybackState)
@@ -589,32 +586,21 @@ void MediaPlayerPrivateGStreamerMSE::emitStreams(const Vector<RefPtr<MediaSource
     webKitMediaSrcEmitStreams(WEBKIT_MEDIA_SRC(m_source.get()), playbackTracks);
 }
 
-void MediaPlayerPrivateGStreamerMSE::setEosWithNoBuffers(bool eosWithNoBuffers)
+void MediaPlayerPrivateGStreamerMSE::rebuildPipeline()
 {
-    m_isEosWithNoBuffers = eosWithNoBuffers;
-    // Parsebin will trigger an error, instruct MediaPlayerPrivateGStreamer to ignore it.
-    if (eosWithNoBuffers) {
-        // On GStreamer, EOS with no buffers causes a parsebin error here:
-        // https://github.com/GStreamer/gst-plugins-base/blob/1.18.6/gst/playback/gstparsebin.c#L3495
+    if (pipeline())
+        return;
 
-        m_ignoreErrors = true;
-
-        GST_DEBUG_OBJECT(pipeline(), "EOS with no buffers, setting pipeline to READY state.");
-        changePipelineState(GST_STATE_READY);
-
-        unsigned errorCount = m_queuedSyncErrors.loadFullyFenced();
-        if (errorCount) {
-            GST_WARNING_OBJECT(pipeline(), "%u errors pending to process happened while processing EOS with"
-                " no buffers and should be ignored, manually reporting EOS", errorCount);
-            didEnd();
-            // In the best case, m_ignoreErrors will be cleaned up (in the main thread) in MediaPlayerPrivateGStreamer::handleMessage()
-            // in the future, after the last pending error is processed on the main thread. In the worst case, didEnd() will trigger
-            // a pipeline teardown, which will trigger gst_bus_set_flushing() and the pending error message won't ever be processed
-            // by the main thread. That's not a problem, since the player itself will be destructed and nobody will care about the
-            // error count integrity anymore.
-        } else
-            m_ignoreErrors = false;
+    if (!m_mediaSourcePrivate || !m_mediaSourcePrivate->hasAllTracks()) [[unlikely]] {
+        GST_ERROR("Not all tracks are ready, aborting rebuild.");
+        ASSERT_NOT_REACHED();
+        return;
     }
+
+    GST_DEBUG("Re-building the pipeline");
+    m_isEndReached = false;
+    MediaPlayerPrivateGStreamer::load(m_url.string());
+    changePipelineState(GST_STATE_PAUSED);
 }
 
 void MediaPlayerPrivateGStreamerMSE::getSupportedTypes(HashSet<String>& types)

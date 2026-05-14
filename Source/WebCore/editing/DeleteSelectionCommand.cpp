@@ -42,6 +42,7 @@
 #include "HTMLNames.h"
 #include "HTMLStyleElement.h"
 #include "HTMLTableElement.h"
+#include "HTMLTextFormControlElement.h"
 #include "LocalFrame.h"
 #include "NodeTraversal.h"
 #include "Range.h"

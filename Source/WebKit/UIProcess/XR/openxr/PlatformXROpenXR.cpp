@@ -66,7 +66,7 @@ struct OpenXRCoordinator::RenderState {
     XrFrameState frameState;
     bool passthroughFullyObscured { false };
     Vector<PlatformXR::LayerHandle> activeLayerHandles;
-    Vector<PlatformXR::LayerHandle> currentFrameLayerHandles;
+    Vector<PlatformXR::LayerHandle> frameActiveLayerHandles;
 #if ENABLE(WEBXR_HIT_TEST)
     HashMap<PlatformXR::HitTestSource, UniqueRef<PlatformXR::HitTestOptions>> hitTestSources;
     HashMap<PlatformXR::TransientInputHitTestSource, UniqueRef<PlatformXR::TransientInputHitTestOptions>> transientInputHitTestSources;
@@ -301,6 +301,11 @@ void OpenXRCoordinator::createCompositionLayer(PlatformXR::CompositionLayerType 
                     layer = OpenXREquirectLayer::create(WTF::move(swapchain), layout);
 #endif
                     break;
+                case PlatformXR::CompositionLayerType::Cylinder:
+#if defined(XR_KHR_composition_layer_cylinder)
+                    layer = OpenXRCylinderLayer::create(WTF::move(swapchain), layout);
+#endif
+                    break;
                 }
                 if (!layer) {
                     RELEASE_LOG(XR, "OpenXRCoordinator: failed to create composition layer");
@@ -323,6 +328,7 @@ void OpenXRCoordinator::createCompositionLayer(PlatformXR::CompositionLayerType 
             });
         });
 }
+
 #endif // ENABLE(WEBXR_LAYERS)
 
 void OpenXRCoordinator::startSession(WebPageProxy& page, WeakPtr<PlatformXRCoordinatorSessionEventClient>&& sessionEventClient, const WebCore::SecurityOriginData&, PlatformXR::SessionMode sessionMode, const PlatformXR::Device::FeatureList&, std::optional<WebCore::XRCanvasConfiguration>&&)
@@ -358,7 +364,7 @@ void OpenXRCoordinator::startSession(WebPageProxy& page, WeakPtr<PlatformXRCoord
                     cleanupAllResources();
                     return;
                 }
-                renderLoop(renderState);
+                waitForSessionReady(renderState, [] { });
             });
         },
         [&](Active&) {
@@ -390,10 +396,15 @@ void OpenXRCoordinator::endSessionIfExists(WebPageProxy& page)
                     cleanupAllResources();
                     return;
                 }
+                // If xrBeginFrame() was called but submitFrame() cannot be dispatched (the main thread is blocked in dispatchSync),
+                // close the open frame before requesting exit, as OpenXR requires xrEndFrame() to be paired with every xrBeginFrame().
+                if (renderState->pendingFrame)
+                    endFrame(renderState, { });
+
                 // OpenXR will transition the session to STOPPING state and then we will call xrEndSession().
                 CHECK_XRCMD(xrRequestExitSession(m_session));
                 while (m_session != XR_NULL_HANDLE)
-                    renderLoop(renderState);
+                    pollEvents();
             });
             active.renderQueue = nullptr;
 
@@ -436,7 +447,7 @@ void OpenXRCoordinator::scheduleAnimationFrame(WebPageProxy& page, std::optional
                     renderState->activeLayerHandles = requestData->activeLayerHandles;
                 }
                 renderState->onFrameUpdate = WTF::move(onFrameUpdateCallback);
-                renderLoop(renderState);
+                maybeBeginFrame(renderState);
             });
         });
 }
@@ -461,7 +472,7 @@ void OpenXRCoordinator::submitFrame(WebPageProxy& page, Vector<PlatformXR::Devic
 
             active.renderQueue->dispatch([this, renderState = active.renderState, layers = WTF::move(layers)]() mutable {
                 endFrame(renderState, WTF::move(layers));
-                renderLoop(renderState);
+                maybeBeginFrame(renderState);
             });
         });
 }
@@ -665,6 +676,10 @@ void OpenXRCoordinator::createInstance()
 #if defined(XR_KHR_composition_layer_equirect2)
     if (OpenXRExtensions::singleton().isExtensionSupported(XR_KHR_COMPOSITION_LAYER_EQUIRECT2_EXTENSION_NAME ""_span))
         extensions.append(const_cast<char*>(XR_KHR_COMPOSITION_LAYER_EQUIRECT2_EXTENSION_NAME));
+#endif
+#if defined(XR_KHR_composition_layer_cylinder)
+    if (OpenXRExtensions::singleton().isExtensionSupported(XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME ""_span))
+        extensions.append(const_cast<char*>(XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME));
 #endif
 
     XrInstanceCreateInfo createInfo = createOpenXRStruct<XrInstanceCreateInfo, XR_TYPE_INSTANCE_CREATE_INFO >();
@@ -1109,7 +1124,7 @@ PlatformXR::FrameData OpenXRCoordinator::populateFrameData(Box<RenderState> rend
         frameData.floorTransform = XrIdentityPose();
 
     for (auto& layer : m_layers) {
-        if (!renderState->currentFrameLayerHandles.contains(layer.key))
+        if (!renderState->activeLayerHandles.contains(layer.key))
             continue;
         auto layerData = layer.value->startFrame();
         if (layerData) {
@@ -1222,6 +1237,11 @@ void OpenXRCoordinator::beginFrame(Box<RenderState> renderState)
 {
     ASSERT(!RunLoop::isMain());
 
+    if (pollEvents() == PollResult::Stop)
+        return;
+
+    renderState->frameActiveLayerHandles = renderState->activeLayerHandles;
+
     XrFrameWaitInfo frameWaitInfo = createOpenXRStruct<XrFrameWaitInfo, XR_TYPE_FRAME_WAIT_INFO>();
     XrFrameState frameState = createOpenXRStruct<XrFrameState, XR_TYPE_FRAME_STATE>();
     CHECK_XRCMD(xrWaitFrame(m_session, &frameWaitInfo, &frameState));
@@ -1231,7 +1251,6 @@ void OpenXRCoordinator::beginFrame(Box<RenderState> renderState)
 
     // We should not directly use renderState->frameState in the xrWaitFrame() in order not to override the previous (ongoing) value.
     renderState->frameState = frameState;
-    renderState->currentFrameLayerHandles = renderState->activeLayerHandles;
 
     createReferenceSpacesIfNeeded(renderState);
     PlatformXR::FrameData frameData = populateFrameData(renderState);
@@ -1255,11 +1274,18 @@ void OpenXRCoordinator::endFrame(Box<RenderState> renderState, Vector<PlatformXR
 
     Vector<XrCompositionLayerBaseHeader*> frameEndLayers;
     for (auto& layer : layers) {
-        ASSERT(renderState->currentFrameLayerHandles.contains(layer.handle));
-
         auto it = m_layers.find(layer.handle);
         if (it == m_layers.end()) {
-            LOG(XR, "Didn't find a OpenXRLayer with %d handle", layer.handle);
+            // This should not happen as handlers are created here and never changed in the WebProcess. However it could be the case that a layer
+            // is removed but still submitted for rendering due to some unfortunate timing of IPC messages and/or asynchronous methods.
+            RELEASE_LOG(XR, "OpenXRCoordinator::endFrame: skipping unknown layer handle %d", layer.handle);
+            continue;
+        }
+
+        if (!renderState->frameActiveLayerHandles.contains(layer.handle)) {
+            // endFrame should only process layers that beginFrame started. If IPC delivers a layer handle that was not in frameActiveLayerHandles
+            // (i.e. due to a call to updateRenderState with a different list of layers), skip it to avoid asserting on an unacquired swapchain.
+            RELEASE_LOG(XR, "OpenXRCoordinator::endFrame: skipping layer not started in beginFrame");
             continue;
         }
 
@@ -1282,21 +1308,26 @@ void OpenXRCoordinator::endFrame(Box<RenderState> renderState, Vector<PlatformXR
     renderState->pendingFrame = false;
 }
 
-void OpenXRCoordinator::renderLoop(Box<RenderState> renderState)
+void OpenXRCoordinator::maybeBeginFrame(Box<RenderState> renderState)
 {
-    while (pollEvents() != PollResult::Stop) {
-        if (!m_isSessionRunning && m_sessionState < XR_SESSION_STATE_READY) {
-            RunLoop::currentSingleton().dispatchAfter(250_ms, [this, renderState] {
-                renderLoop(renderState);
-            });
-            return;
-        }
+    ASSERT(!RunLoop::isMain());
+    if (renderState->pendingFrame || !renderState->onFrameUpdate || renderState->terminateRequested)
+        return;
+    beginFrame(renderState);
+}
 
-        if (!renderState->onFrameUpdate || renderState->pendingFrame)
-            return;
-
-        beginFrame(renderState);
+void OpenXRCoordinator::waitForSessionReady(Box<RenderState> renderState, Function<void()>&& onReady)
+{
+    ASSERT(!RunLoop::isMain());
+    if (pollEvents() == PollResult::Stop)
+        return;
+    if (!m_isSessionRunning && m_sessionState < XR_SESSION_STATE_READY) {
+        RunLoop::currentSingleton().dispatchAfter(250_ms, [this, renderState, onReady = WTF::move(onReady)]() mutable {
+            waitForSessionReady(WTF::move(renderState), WTF::move(onReady));
+        });
+        return;
     }
+    onReady();
 }
 
 

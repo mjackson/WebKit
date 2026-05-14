@@ -401,6 +401,7 @@ void Invalidator::invalidateStyleWithMatchElement(Element& element, MatchElement
         }
         if (matchElement.relation == Relation::Ancestor && hasRelation == HasRelation::Descendant) {
             // .foo:has(.changed) .subject — find outermost ancestor matching any scope selector (.foo) to bound traversal.
+            // If no ancestor matches any ruleset's scope and no ruleset is scope-breaking, no bearer exists and we can skip.
             auto scopeElement = [&] -> RefPtr<Element> {
                 Vector<Element*, 16> ancestors;
                 for (RefPtr ancestor = element.parentElement(); ancestor; ancestor = ancestor->parentElement())
@@ -417,15 +418,69 @@ void Invalidator::invalidateStyleWithMatchElement(Element& element, MatchElement
                         }
                     }
                 }
-                return element.document().documentElement();
+                return { };
             }();
 
-            if (scopeElement) {
-                SelectorMatchingState selectorMatchingState;
-                invalidateStyleForDescendants(*scopeElement, &selectorMatchingState);
+            if (!scopeElement)
                 return;
-            }
+            SelectorMatchingState selectorMatchingState;
+            invalidateStyleForDescendants(*scopeElement, &selectorMatchingState);
+            return;
         }
+
+        // Null scopeSelector means scope-breaking: no scope element can be identified.
+        // Universal-selector (`*`) scope stays non-null and flows into the optimized paths.
+        auto someRuleSetIsScopeBreaking = [&] {
+            for (auto& ruleSet : m_ruleSets) {
+                if (!ruleSet.scopeSelector)
+                    return true;
+            }
+            return false;
+        }();
+        if (someRuleSetIsScopeBreaking) {
+            SelectorMatchingState selectorMatchingState;
+            invalidateStyleForDescendants(*element.document().documentElement(), &selectorMatchingState);
+            return;
+        }
+
+        auto invalidateScopeElementChildren = [&](Element& scopeElement) {
+            SelectorMatchingState selectorMatchingState;
+            selectorMatchingState.selectorFilter.pushParentInitializingIfNeeded(scopeElement);
+            for (Ref child : childrenOfType<Element>(scopeElement))
+                invalidateIfNeeded(child.get(), &selectorMatchingState);
+        };
+        auto invalidateScopeElementDescendants = [&](Element& scopeElement) {
+            SelectorMatchingState selectorMatchingState;
+            invalidateStyleForDescendants(scopeElement, &selectorMatchingState);
+        };
+
+        if (matchElement.relation == Relation::Parent && hasRelation == HasRelation::DirectSibling) {
+            // :has(+ .changed) > .subject — :has() scope element is element's previous sibling.
+            if (RefPtr scopeElement = element.previousElementSibling())
+                invalidateScopeElementChildren(*scopeElement);
+            return;
+        }
+        if (matchElement.relation == Relation::Ancestor && hasRelation == HasRelation::DirectSibling) {
+            // :has(+ .changed) .subject
+            if (RefPtr scopeElement = element.previousElementSibling())
+                invalidateScopeElementDescendants(*scopeElement);
+            return;
+        }
+        if (matchElement.relation == Relation::Parent && hasRelation == HasRelation::IndirectSibling) {
+            // :has(~ .changed) > .subject — any earlier sibling can be the :has() scope element.
+            for (RefPtr scopeElement = element.previousElementSibling(); scopeElement; scopeElement = scopeElement->previousElementSibling())
+                invalidateScopeElementChildren(*scopeElement);
+            return;
+        }
+        if (matchElement.relation == Relation::Ancestor && hasRelation == HasRelation::IndirectSibling) {
+            // :has(~ .changed) .subject
+            for (RefPtr scopeElement = element.previousElementSibling(); scopeElement; scopeElement = scopeElement->previousElementSibling())
+                invalidateScopeElementDescendants(*scopeElement);
+            return;
+        }
+        // FIXME: SiblingChild and SiblingDescendant cases (e.g. :has(~ .other > .changed)) need
+        // additional info beyond matchElement to identify the :has() scope element correctly when
+        // the entry is for a non-rightmost compound in the :has() argument chain.
         // Remaining non-subject :has() cases fall back to full document traversal.
 
         SelectorMatchingState selectorMatchingState;

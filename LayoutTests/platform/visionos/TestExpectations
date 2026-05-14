@@ -215,7 +215,6 @@ webkit.org/b/313782 interaction-region/paused-video-regions.html [ Failure ]
 ###################################################################################################
 ### START OF Flaky tests
 
-webkit.org/b/309297 overlay-region/full-page-horizontal.html [ Pass Failure ]
 webkit.org/b/305613 overlay-region/clipping.html [ Pass Failure ]
 
 

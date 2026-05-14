@@ -40,6 +40,7 @@
 #include "MutableStyleProperties.h"
 #include "PositionInlines.h"
 #include "Text.h"
+#include "TextIterator.h"
 #include "TextListParser.h"
 #include "VisibleUnits.h"
 #include <wtf/text/StringToIntegerConversion.h>
@@ -207,6 +208,7 @@ bool InsertTextCommand::applySmartListsIfNeeded()
     if (!areCompatibleListMarkers(*currentSmartList, *previousSmartList))
         return false;
 
+    Ref styleToPreserve = EditingStyle::create(endingSelection().start(), EditingStyle::PropertiesToInclude::EditingPropertiesInEffect);
     Ref document = this->document();
 
     // Insert a list for the previous line
@@ -244,6 +246,10 @@ bool InsertTextCommand::applySmartListsIfNeeded()
     // And delete the marker from the current line.
 
     deleteSelection();
+
+    styleToPreserve->prepareToApplyAt(endingSelection().end());
+    if (!styleToPreserve->isEmpty())
+        m_styleToPreserveForSmartList = WTF::move(styleToPreserve);
 
     return true;
 }

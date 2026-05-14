@@ -1,5 +1,3 @@
 
-Harness Error (TIMEOUT), message = null
-
-TIMEOUT An abort() in the initial onupgradeneeded sets version back to 0 Test timed out
+PASS An abort() in the initial onupgradeneeded sets version back to 0
 

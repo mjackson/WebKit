@@ -163,21 +163,23 @@ auto HTMLOptionElement::insertionSteps(InsertionType insertionType, ContainerNod
 {
     auto result = HTMLElement::insertionSteps(insertionType, parentOfInsertedTree);
 
-    if (!document().settings().htmlEnhancedSelectParsingEnabled() || m_ownerSelect)
+    if (!document().settings().htmlEnhancedSelectParsingEnabled())
         return result;
 
-    if (RefPtr select = HTMLSelectElement::findOwnerSelect(parentNode(), HTMLSelectElement::ExcludeOptGroup::No)) {
-        m_ownerSelect = select.get();
-        select->setRecalcListItems();
-        // If this non-selected option is the first non-disabled option in a
-        // single-select that has no explicitly selected option, select it by
-        // default. This maintains m_isSelected incrementally so that
-        // finishParsingChildren() can use selectedWithoutUpdate() (O(1))
-        // instead of selected() which triggers O(n) recalcListItems().
-        // Only do this during parsing — for API insertions, the existing
-        // childrenChanged → optionToSelectFromChildChangeScope path handles it.
-        if (!select->isFinishedParsingChildren() && !selectedWithoutUpdate() && !m_disabled)
-            select->selectDefaultOptionIfNeeded(*this);
+    if (!m_ownerSelect) {
+        if (RefPtr select = HTMLSelectElement::findOwnerSelect(parentNode(), HTMLSelectElement::ExcludeOptGroup::No)) {
+            m_ownerSelect = select.get();
+            select->setRecalcListItems();
+            // If this non-selected option is the first non-disabled option in a
+            // single-select that has no explicitly selected option, select it by
+            // default. This maintains m_isSelected incrementally so that
+            // finishParsingChildren() can use selectedWithoutUpdate() (O(1))
+            // instead of selected() which triggers O(n) recalcListItems().
+            // Only do this during parsing — for API insertions, the existing
+            // childrenChanged → optionToSelectFromChildChangeScope path handles it.
+            if (!select->isFinishedParsingChildren() && !selectedWithoutUpdate() && !m_disabled)
+                select->selectDefaultOptionIfNeeded(*this);
+        }
     }
 
     if (insertionType.connectedToDocument && m_shadowTreeNeedsUpdate)
@@ -580,6 +582,14 @@ bool HTMLOptionElement::isDisabledFormControl() const
             return false;
     }
     return false;
+}
+
+bool HTMLOptionElement::isActuallyDisabled() const
+{
+    if (HTMLElement::isActuallyDisabled())
+        return true;
+    RefPtr select = ownerSelectElement();
+    return select && select->isDisabledFormControl();
 }
 
 String HTMLOptionElement::collectOptionInnerText() const

@@ -62,6 +62,36 @@ ALWAYS_INLINE bool RegExpObject::isSymbolReplaceFastAndNonObservable()
     return true;
 }
 
+ALWAYS_INLINE bool RegExpObject::isSymbolSplitFastAndNonObservable()
+{
+    JSGlobalObject* globalObject = this->realm();
+    if (!globalObject->regExpPrimordialPropertiesWatchpointSet().isStillValid())
+        return false;
+
+    if (!globalObject->stringSymbolSplitWatchpointSet().isStillValid())
+        return false;
+
+    // The C++ split fast path skips the JS regExpPrototypeSplit body, so the
+    // RegExp[Symbol.species] override must not be observable.
+    if (!globalObject->regExpSpeciesWatchpointSet().isStillValid())
+        return false;
+
+    Structure* structure = this->structure();
+    if (structure == globalObject->regExpStructure()) [[likely]]
+        return true;
+
+    if (structure->hasPolyProto())
+        return false;
+
+    if (structure->storedPrototype() != globalObject->regExpPrototype())
+        return false;
+
+    if (hasCustomProperties())
+        return false;
+
+    return true;
+}
+
 inline Structure* RegExpObject::createStructure(VM& vm, JSGlobalObject* globalObject, JSValue prototype)
 {
     return Structure::create(vm, globalObject, prototype, TypeInfo(RegExpObjectType, StructureFlags), info());

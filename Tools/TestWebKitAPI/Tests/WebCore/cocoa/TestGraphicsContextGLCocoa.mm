@@ -40,6 +40,7 @@
 #import <wtf/MemoryFootprint.h>
 #import <wtf/StdLibExtras.h>
 #import <wtf/TZoneMallocInlines.h>
+#import <wtf/Threading.h>
 
 namespace TestWebKitAPI {
 

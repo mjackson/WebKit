@@ -31,11 +31,8 @@
 #include "WebProcessMessages.h"
 #include "WebProcessPool.h"
 #include "WebsiteDataStore.h"
-#include "WebsiteDataStoreParameters.h"
 #include <WebCore/Cookie.h>
-#include <WebCore/CookieStorage.h>
 #include <WebCore/HTTPCookieAcceptPolicy.h>
-#include <WebCore/NetworkStorageSession.h>
 #include <wtf/CallbackAggregator.h>
 
 #if PLATFORM(IOS_FAMILY)

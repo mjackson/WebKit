@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
-import hashlib
 import os
 import re
 import sys
@@ -42,15 +41,20 @@ def log(args, text):
         print(text, file=sys.stderr)
 
 
+def sanitize(s: str) -> str:
+    return re.sub(r'[^A-Za-z0-9]+', '-', s).strip('-') or 'root'
+
+
 def bundle_prefix_and_size_for_path(path: Path, args) -> tuple[str, int]:
     top_level_directory = path.parent
     # Walk up until the parent's parent equals the parent (i.e., we're at a single-component path)
     while top_level_directory.parent.parent != top_level_directory.parent:
         top_level_directory = top_level_directory.parent
     for filt in args.dense_bundle_filter:
-        if fnmatch.fnmatch(path, filt):
-            return filt, MAX_DENSE_BUNDLE_SIZE
-    return str(top_level_directory), args.max_bundle_size
+        pattern, _, name = filt.partition('=')
+        if fnmatch.fnmatch(path, pattern):
+            return name or sanitize(pattern), MAX_DENSE_BUNDLE_SIZE
+    return sanitize(str(top_level_directory)), args.max_bundle_size
 
 
 @dataclass(init=False)
@@ -126,8 +130,8 @@ class BundleManager:
         self.current_bundle_text = ""
         self.max_count = max_count
         self.extra_files: list[str] = []
-        self._current_directory: Optional[Path] = None
         self._last_bundling_prefix: Optional[str] = None
+        self._bundle_count_by_prefix: dict[str, int] = {}
         self._args = args
         self._generated_sources = generated_sources
         self._output_sources = output_sources
@@ -145,9 +149,7 @@ class BundleManager:
         if self.max_count is not None:
             id_str = str(self.bundle_count)
         else:
-            assert self._current_directory is not None, 'flush() without adding any files'
-            hash_val = hashlib.sha1(bytes(self._current_directory)).hexdigest()[:8]
-            id_str = "-{}-{}".format(hash_val, self.bundle_count)
+            id_str = "-{}-{}".format(self._last_bundling_prefix, self.bundle_count)
         return "{}UnifiedSource{}{}".format(self._args.bundle_filename_prefix, id_str, self.suffix)
 
     def flush(self) -> None:
@@ -171,12 +173,14 @@ class BundleManager:
         bundle_prefix, bundle_size = bundle_prefix_and_size_for_path(path, self._args)
         if self._last_bundling_prefix != bundle_prefix:
             if self.file_count != 0:
-                log(self._args, "Flushing because new top level directory; old: {}, new: {}".format(self._current_directory, path.parent))
+                log(self._args, "Flushing because new top level directory; old: {}, new: {}".format(self._last_bundling_prefix, bundle_prefix))
                 self.flush()
-            self._last_bundling_prefix = bundle_prefix
-            self._current_directory = path.parent
+            # Note: Files are not always listed in folder order in Sources.txt, or across Sources.txt + SourcesXXX.txt.
             if self.max_count is None:
-                self.bundle_count = 0
+                if self._last_bundling_prefix is not None:
+                    self._bundle_count_by_prefix[self._last_bundling_prefix] = self.bundle_count
+                self.bundle_count = self._bundle_count_by_prefix.get(bundle_prefix, 0)
+            self._last_bundling_prefix = bundle_prefix
         if self.file_count >= bundle_size:
             log(self._args, "Flushing because new bundle is full ({} sources)".format(self.file_count))
             self.flush()
@@ -235,7 +239,8 @@ def parse_args():
     parser.add_argument('--max-bundle-size', type=int, default=8,
                         help='The number of files to merge into a single bundle (default: 8).')
     parser.add_argument('--dense-bundle-filter', action='append', default=[],
-                        help='Densely bundle files matching the given path glob (repeatable).')
+                        help='Densely bundle files matching the given path glob (repeatable). '
+                             'Use GLOB=NAME to set the bundle filename tag explicitly.')
     parser.add_argument('--bundle-filename-prefix', default='',
                         help='Prefix for generated bundle filenames.')
     parser.add_argument('source_files', nargs='+', metavar='sources-list-file',

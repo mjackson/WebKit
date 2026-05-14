@@ -32,6 +32,7 @@
 #include "JSRemoteFunction.h"
 #include "NativeExecutable.h"
 #include "WebAssemblyFunction.h"
+#include <JavaScriptCore/ExceptionHelpers.h>
 #include <wtf/text/MakeString.h>
 
 namespace JSC {

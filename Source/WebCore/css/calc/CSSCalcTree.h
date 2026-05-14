@@ -50,6 +50,7 @@ struct Sum;
 struct Product;
 struct Negate;
 struct Invert;
+struct Deg2Rad;
 
 // Math Functions.
 struct Min;
@@ -202,6 +203,7 @@ using Node = Variant<
     IndirectNode<Product>,
     IndirectNode<Negate>,
     IndirectNode<Invert>,
+    IndirectNode<Deg2Rad>,
     IndirectNode<Min>,
     IndirectNode<Max>,
     IndirectNode<Clamp>,
@@ -238,9 +240,13 @@ struct Child {
         requires std::constructible_from<Node, T>
     Child(T&&);
 
+    Child(Child&&);
+    Child& operator=(Child&&);
+    ~Child();
+
     FORWARD_VARIANT_FUNCTIONS(Child, value)
 
-    bool operator==(const Child&) const = default;
+    bool operator==(const Child&) const;
 };
 
 struct ChildOrNone {
@@ -328,6 +334,15 @@ struct Invert {
     Child a;
 
     bool operator==(const Invert&) const = default;
+};
+
+// Deg2Rad converts its <angle>-typed child (which evaluates in the canonical angle unit of degrees) into radians. It is inserted implicitly at parse time inside Sin, Cos, and Tan when their argument is an <angle>, so that trig evaluation no longer needs to inspect the argument's type. It has no direct CSS-level representation and is transparent during serialization.
+struct Deg2Rad {
+    WTF_MAKE_STRUCT_TZONE_ALLOCATED(Deg2Rad);
+
+    Child angle;
+
+    bool operator==(const Deg2Rad&) const = default;
 };
 
 // Math Functions
@@ -899,6 +914,7 @@ std::optional<Type> toType(const Sum&);
 std::optional<Type> toType(const Product&);
 std::optional<Type> toType(const Negate&);
 std::optional<Type> toType(const Invert&);
+std::optional<Type> toType(const Deg2Rad&);
 std::optional<Type> toType(const Min&);
 std::optional<Type> toType(const Max&);
 std::optional<Type> toType(const Clamp&);
@@ -993,6 +1009,12 @@ template<size_t I> const auto& get(const Invert& root)
 {
     static_assert(!I);
     return root.a;
+}
+
+template<size_t I> const auto& get(const Deg2Rad& root)
+{
+    static_assert(!I);
+    return root.angle;
 }
 
 template<size_t I> const auto& get(const Min& root)
@@ -1186,107 +1208,6 @@ Child::Child(T&& value)
 {
 }
 
-// MARK: ChildOrNone Definition
-
-inline ChildOrNone::ChildOrNone(Child&& child)
-    : value(WTF::move(child))
-{
-}
-
-inline ChildOrNone::ChildOrNone(CSS::Keyword::None none)
-    : value(none)
-{
-}
-
-// MARK: Children Definition
-
-inline Children::Children(Vector<Child>&& other)
-    : value(WTF::move(other))
-{
-}
-
-inline Children& Children::operator=(Vector<Child>&& other)
-{
-    value = WTF::move(other);
-    return *this;
-}
-
-inline Children::iterator Children::begin() LIFETIME_BOUND
-{
-    return value.begin();
-}
-
-inline Children::iterator Children::end() LIFETIME_BOUND
-{
-    return value.end();
-}
-
-inline Children::reverse_iterator Children::rbegin() LIFETIME_BOUND
-{
-    return value.rbegin();
-}
-
-inline Children::reverse_iterator Children::rend() LIFETIME_BOUND
-{
-    return value.rend();
-}
-
-inline Children::const_iterator Children::begin() const LIFETIME_BOUND
-{
-    return value.begin();
-}
-
-inline Children::const_iterator Children::end() const LIFETIME_BOUND
-{
-    return value.end();
-}
-
-inline Children::const_reverse_iterator Children::rbegin() const LIFETIME_BOUND
-{
-    return value.rbegin();
-}
-
-inline Children::const_reverse_iterator Children::rend() const LIFETIME_BOUND
-{
-    return value.rend();
-}
-
-inline bool Children::isEmpty() const
-{
-    return value.isEmpty();
-}
-
-inline size_t Children::size() const
-{
-    return value.size();
-}
-
-inline Child& Children::operator[](size_t i) LIFETIME_BOUND
-{
-    return value[i];
-}
-
-inline const Child& Children::operator[](size_t i) const LIFETIME_BOUND
-{
-    return value[i];
-}
-
-// AnchorSize
-
-inline AnchorSide::AnchorSide(CSSValueID valueID)
-    : value(valueID)
-{
-}
-
-inline AnchorSide::AnchorSide(Child&& child)
-    : value(WTF::move(child))
-{
-}
-
-// MARK: Size assertions
-
-static_assert(sizeof(Child) <= 24, "Child should stay small");
-
 } // namespace CSSCalc
 } // namespace WebCore
 
@@ -1304,6 +1225,7 @@ OP_TUPLE_LIKE_CONFORMANCE(Sum, 1);
 OP_TUPLE_LIKE_CONFORMANCE(Product, 1);
 OP_TUPLE_LIKE_CONFORMANCE(Negate, 1);
 OP_TUPLE_LIKE_CONFORMANCE(Invert, 1);
+OP_TUPLE_LIKE_CONFORMANCE(Deg2Rad, 1);
 OP_TUPLE_LIKE_CONFORMANCE(Min, 1);
 OP_TUPLE_LIKE_CONFORMANCE(Max, 1);
 OP_TUPLE_LIKE_CONFORMANCE(Clamp, 3);

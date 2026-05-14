@@ -221,7 +221,7 @@ void transformFrame(Frame& frame, JSDOMGlobalObject& globalObject, RTCRtpSFrameT
 
 ExceptionOr<void> RTCRtpSFrameTransform::createStreams()
 {
-    auto* globalObject = scriptExecutionContext() ? uncheckedDowncast<JSDOMGlobalObject>(protect(scriptExecutionContext())->globalObject()) : nullptr;
+    auto* globalObject = scriptExecutionContext() ? downcast<JSDOMGlobalObject>(protect(scriptExecutionContext())->globalObject()) : nullptr;
     if (!globalObject)
         return Exception { ExceptionCode::InvalidStateError };
 
@@ -233,7 +233,7 @@ ExceptionOr<void> RTCRtpSFrameTransform::createStreams()
     auto writable = WritableStream::create(*globalObject, SimpleWritableStreamSink::create([transformer = m_transformer, readableStreamSource = m_readableStreamSource, weakThis = ThreadSafeWeakPtr { *this }](auto& context, auto value) -> ExceptionOr<void> {
         if (!context.globalObject())
             return Exception { ExceptionCode::InvalidStateError };
-        auto& globalObject = *uncheckedDowncast<JSDOMGlobalObject>(context.globalObject());
+        auto& globalObject = *downcast<JSDOMGlobalObject>(context.globalObject());
         auto scope = DECLARE_THROW_SCOPE(globalObject.vm());
 
         auto frameConversionResult = convert<IDLUnion<IDLArrayBuffer, IDLArrayBufferView, IDLInterface<RTCEncodedAudioFrame>, IDLInterface<RTCEncodedVideoFrame>>>(globalObject, value);

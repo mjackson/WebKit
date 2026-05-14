@@ -148,6 +148,7 @@ typedef NSDictionary<NSNumber *, NSValue *> *ProgressToCGPointValueMap;
 @property (nonatomic, copy) dispatch_block_t willEndDraggingHandler;
 
 - (void)writePromisedFiles:(NSArray<NSURL *> *)fileURLs;
+- (void)writePromisedFilesWithWebArchive:(NSArray<NSURL *> *)fileURLs;
 - (void)writeFiles:(NSArray<NSURL *> *)fileURLs;
 - (NSArray<NSURL *> *)receivePromisedFiles;
 

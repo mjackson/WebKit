@@ -95,10 +95,9 @@ using JSTestNamedSetterWithLegacyUnforgeablePropertiesAndLegacyOverrideBuiltInsD
 
 /* Hash table */
 
-static const struct CompactHashIndex JSTestNamedSetterWithLegacyUnforgeablePropertiesAndLegacyOverrideBuiltInsTableIndex[5] = {
+static const struct CompactHashIndex JSTestNamedSetterWithLegacyUnforgeablePropertiesAndLegacyOverrideBuiltInsTableIndex[4] = {
     { -1, -1 },
-    { 0, 4 },
-    { -1, -1 },
+    { 0, -1 },
     { -1, -1 },
     { 1, -1 },
 };

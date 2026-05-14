@@ -1,4 +1,16 @@
 ================
+WebKitGTK 2.53.2
+================
+
+What's new in WebKitGTK 2.53.2?
+
+  - Only use DMA-BUF mapping for writing to the GPU atlas when possible.
+  - Do not resolve '-apple-system' font to default system font.
+  - Set real time limits when not using the portal.
+  - Report support for supported non-AAC mp4a codecs.
+  - Fix several crashes and rendering issues.
+
+================
 WebKitGTK 2.53.1
 ================
 

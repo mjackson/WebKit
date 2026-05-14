@@ -853,7 +853,7 @@ bool LocalDOMWindow::shouldHaveWebKitNamespaceForWorld(DOMWrapperWorld& world, J
     if (world.allowNodeSerialization())
         return true;
 
-    if (uncheckedDowncast<JSDOMGlobalObject>(globalObject)->allowsJSHandleCreation())
+    if (downcast<JSDOMGlobalObject>(globalObject)->allowsJSHandleCreation())
         return true;
 
     RefPtr frame = this->frame();
@@ -1573,13 +1573,17 @@ bool LocalDOMWindow::consumeTransientActivation()
     if (!hasTransientActivation())
         return false;
 
-    for (auto* frame = this->frame() ? &this->frame()->tree().top() : nullptr; frame; frame = frame->tree().traverseNext()) {
+    RefPtr thisFrame = this->frame();
+    for (auto* frame = thisFrame ? &thisFrame->tree().top() : nullptr; frame; frame = frame->tree().traverseNext()) {
         auto* localFrame = dynamicDowncast<LocalFrame>(frame);
         if (!localFrame)
             continue;
         if (auto* window = localFrame->window())
             window->consumeLastActivationIfNecessary();
     }
+
+    if (thisFrame && thisFrame->settings().siteIsolationEnabled())
+        thisFrame->loader().client().didConsumeUserActivation();
 
     return true;
 }
@@ -1643,7 +1647,7 @@ void LocalDOMWindow::notifyActivated(MonotonicTime activationTime)
         return;
 
     RefPtr<Frame> descendant = frame;
-    while ((descendant = descendant->tree().traverseNext(frame))) {
+    while ((descendant = descendant->tree().traverseNext(frame.get()))) {
         RefPtr localDescendant = dynamicDowncast<LocalFrame>(descendant.get());
         if (!localDescendant)
             continue;
@@ -1657,6 +1661,9 @@ void LocalDOMWindow::notifyActivated(MonotonicTime activationTime)
 
         descendantWindow->setLastActivationTimestamp(activationTime);
     }
+
+    if (frame->settings().siteIsolationEnabled())
+        frame->loader().client().didNotifyUserActivation(activationTime);
 }
 
 StyleMedia& LocalDOMWindow::styleMedia()
@@ -2002,8 +2009,8 @@ bool LocalDOMWindow::isSecureContext() const
 
 bool LocalDOMWindow::crossOriginIsolated() const
 {
-    ASSERT(ScriptExecutionContext::crossOriginMode() == CrossOriginMode::Shared || !document() || !document()->mainFrameDocument() || document()->mainFrameDocument()->crossOriginOpenerPolicy().value == CrossOriginOpenerPolicyValue::SameOriginPlusCOEP);
-    return ScriptExecutionContext::crossOriginMode() == CrossOriginMode::Isolated;
+    auto* document = this->document();
+    return document && document->crossOriginIsolated();
 }
 
 static void didAddStorageEventListener(LocalDOMWindow& window)
@@ -2046,6 +2053,7 @@ bool LocalDOMWindow::addEventListener(const AtomString& eventType, Ref<EventList
     auto& eventNames = WebCore::eventNames();
     auto typeInfo = eventNames.typeInfoForEvent(eventType);
     if (document) {
+        const auto useTouchEventRegions = document->shouldUseTouchEventRegions();
         document->didAddEventListenersOfType(eventType, options.capture ? Document::IsCapture::Yes : Document::IsCapture::No);
         if (typeInfo.isInCategory(EventCategory::Wheel)) {
             document->didAddWheelEventHandler(*document);
@@ -2053,9 +2061,10 @@ bool LocalDOMWindow::addEventListener(const AtomString& eventType, Ref<EventList
         } else if (isTouchRelatedEventType(typeInfo, *document)) {
             document->didAddTouchEventHandler(*document);
 #if ENABLE(TOUCH_EVENT_REGIONS)
-            document->invalidateEventListenerRegions();
+            if (useTouchEventRegions)
+                document->invalidateEventListenerRegions();
 #endif
-        } else if (typeInfo.isInCategory(EventCategory::Gesture)) {
+        } else if (typeInfo.isInCategory(EventCategory::Gesture) && useTouchEventRegions) {
 #if ENABLE(TOUCH_EVENT_REGIONS)
             document->didAddTouchEventHandler(*document);
             document->invalidateEventListenerRegions();
@@ -2316,6 +2325,7 @@ bool LocalDOMWindow::removeEventListener(const AtomString& eventType, EventListe
     auto& eventNames = WebCore::eventNames();
     auto typeInfo = eventNames.typeInfoForEvent(eventType);
     if (document) {
+        const auto useTouchEventRegions = document->shouldUseTouchEventRegions();
         document->didRemoveEventListenersOfType(eventType, options.capture ? Document::IsCapture::Yes : Document::IsCapture::No);
         if (typeInfo.isInCategory(EventCategory::Wheel)) {
             document->didRemoveWheelEventHandler(*document);
@@ -2323,9 +2333,10 @@ bool LocalDOMWindow::removeEventListener(const AtomString& eventType, EventListe
         } else if (isTouchRelatedEventType(typeInfo, *document)) {
             document->didRemoveTouchEventHandler(*document);
 #if ENABLE(TOUCH_EVENT_REGIONS)
-            document->invalidateEventListenerRegions();
+            if (useTouchEventRegions)
+                document->invalidateEventListenerRegions();
 #endif
-        } else if (typeInfo.isInCategory(EventCategory::Gesture)) {
+        } else if (typeInfo.isInCategory(EventCategory::Gesture) && useTouchEventRegions) {
 #if ENABLE(TOUCH_EVENT_REGIONS)
             document->didRemoveTouchEventHandler(*document);
             document->invalidateEventListenerRegions();
@@ -2663,7 +2674,7 @@ void LocalDOMWindow::queueEventTimingCandidateForDispatch(PerformanceEventTiming
 PerformanceEventTimingCandidate LocalDOMWindow::initializeEventTiming(Event& event, EventType type)
 {
     auto startTime = performance().relativeTimeFromTimeOriginInReducedResolutionSeconds(event.timeStamp());
-    auto processingStart = performance().nowInReducedResolutionSeconds();
+    auto processingStart = performance().nowInReducedResolutionSeconds().deprecatedNonRoundedSeconds();
     LOG_WITH_STREAM(PerformanceTimeline, stream << "Initializing event timing entry (type=" << event.type() << "; tstamp=" << startTime << ") at t=" << processingStart);
     if (startTime > processingStart)
         startTime = processingStart;
@@ -2691,7 +2702,7 @@ PerformanceEventTimingCandidate LocalDOMWindow::initializeEventTiming(Event& eve
 void LocalDOMWindow::markEndOfProcessingForEventTiming(PerformanceEventTimingCandidate& entry, const Event& event, EventType type)
 {
     // Maps to "Finalize event timing" in the spec.
-    auto processingEnd = performance().nowInReducedResolutionSeconds();
+    auto processingEnd = performance().nowInReducedResolutionSeconds().deprecatedNonRoundedSeconds();
     entry.processingEnd = processingEnd;
     entry.target = event.target();
 
@@ -2761,7 +2772,7 @@ void LocalDOMWindow::markEndOfProcessingForEventTiming(PerformanceEventTimingCan
 void LocalDOMWindow::finalizeAndQueueEventTimingEntries()
 {
     // Maps to "Dispatch pending Event Timing entries" in the spec.
-    auto renderingTime = performance().nowInReducedResolutionSeconds();
+    auto renderingTime = performance().nowInReducedResolutionSeconds().deprecatedNonRoundedSeconds();
     if (m_pendingPointerDown && !m_pendingPointerDown->duration)
         m_pendingPointerDown->duration = std::max(renderingTime - m_pendingPointerDown->startTime, Seconds::fromMilliseconds(1));
 
@@ -2804,7 +2815,7 @@ void LocalDOMWindow::setLocation(LocalDOMWindow& activeWindow, const URL& comple
     // If the loader for activeWindow's frame (browsing context) has no outgoing referrer, set its outgoing referrer
     // to the URL of its parent frame's Document.
     if (RefPtr activeFrame = activeWindow.frame(); activeFrame && activeFrame->loader().outgoingReferrer().isEmpty() && localParent)
-        activeFrame->loader().setOutgoingReferrer(protect(document())->completeURL(localParent->document()->url().strippedForUseAsReferrer().string));
+        activeFrame->loader().setOutgoingReferrer(protect(document())->encodingParseURL(localParent->document()->url().strippedForUseAsReferrer().string));
 
     // We want a new history item if we are processing a user gesture.
     LockHistory lockHistory = (locking != SetLocationLocking::LockHistoryBasedOnGestureState || !UserGestureIndicator::processingUserGesture()) ? LockHistory::Yes : LockHistory::No;
@@ -2826,7 +2837,7 @@ ExceptionOr<RefPtr<Frame>> LocalDOMWindow::createWindow(const String& urlString,
     if (!activeDocument)
         return RefPtr<Frame> { nullptr };
 
-    URL completedURL = urlString.isEmpty() ? URL({ }, emptyString()) : protect(firstFrame.document())->completeURL(urlString);
+    URL completedURL = urlString.isEmpty() ? URL({ }, emptyString()) : protect(firstFrame.document())->encodingParseURL(urlString);
     if (!completedURL.isEmpty() && !completedURL.isValid())
         return Exception { ExceptionCode::SyntaxError };
 
@@ -2910,7 +2921,7 @@ static bool shouldBypassPopupBlockerForQuirk(const Document* document, const Str
 {
     if (RefPtr firstFrameDocument = document) {
         if (firstFrameDocument->quirks().shouldAllowPopupFromMicrosoftOfficeToOneDrive())
-            return firstFrameDocument->quirks().needsPopupFromMicrosoftOfficeToOneDrive(firstFrameDocument->completeURL(urlString));
+            return firstFrameDocument->quirks().needsPopupFromMicrosoftOfficeToOneDrive(firstFrameDocument->encodingParseURL(urlString));
     }
     return false;
 }
@@ -2939,7 +2950,7 @@ ExceptionOr<RefPtr<WindowProxy>> LocalDOMWindow::open(LocalDOMWindow& activeWind
     RefPtr userContentProvider = firstFrame->userContentProvider();
     RefPtr firstFrameDocumentLoader = firstFrameDocument ? firstFrameDocument->loader() : nullptr;
     if (firstFrameDocument && page && userContentProvider && firstFrameDocumentLoader) {
-        auto results = userContentProvider->processContentRuleListsForLoad(*page, firstFrameDocument->completeURL(urlString), ContentExtensions::ResourceType::Popup, *firstFrameDocumentLoader);
+        auto results = userContentProvider->processContentRuleListsForLoad(*page, firstFrameDocument->encodingParseURL(urlString), ContentExtensions::ResourceType::Popup, *firstFrameDocumentLoader);
         if (results.shouldBlock())
             return RefPtr<WindowProxy> { nullptr };
     }
@@ -2976,7 +2987,7 @@ ExceptionOr<RefPtr<WindowProxy>> LocalDOMWindow::open(LocalDOMWindow& activeWind
         if (activeDocument->canNavigate(targetFrame.get()) != CanNavigateState::Able)
             return RefPtr<WindowProxy> { nullptr };
 
-        URL completedURL = protect(firstFrame->document())->completeURL(urlString);
+        URL completedURL = protect(firstFrame->document())->encodingParseURL(urlString);
 
         if (protect(targetFrame->window())->isInsecureScriptAccess(activeWindow, completedURL))
             return &targetFrame->windowProxy();

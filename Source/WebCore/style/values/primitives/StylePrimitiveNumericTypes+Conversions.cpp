@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2024-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,21 +43,6 @@ double canonicalizeLength(double value, CSS::LengthUnit unit, NoConversionDataRe
 double canonicalizeLength(double value, CSS::LengthUnit unit, const CSSToLengthConversionData& conversionData)
 {
     return computeNonCalcLengthDouble(value, unit, conversionData);
-}
-
-float clampLengthToAllowedLimits(double value)
-{
-    return clampTo<float>(narrowPrecisionToFloat(value), minValueForCssLength, maxValueForCssLength);
-}
-
-float canonicalizeAndClampLength(double value, CSS::LengthUnit unit, NoConversionDataRequiredToken token)
-{
-    return clampLengthToAllowedLimits(canonicalizeLength(value, unit, token));
-}
-
-float canonicalizeAndClampLength(double value, CSS::LengthUnit unit, const CSSToLengthConversionData& conversionData)
-{
-    return clampLengthToAllowedLimits(canonicalizeLength(value, unit, conversionData));
 }
 
 // MARK: ToCSS utilities

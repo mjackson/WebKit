@@ -96,7 +96,7 @@ JSC_DEFINE_HOST_FUNCTION(constructTemporalPlainDate, (JSGlobalObject* globalObje
         auto value = callFrame->uncheckedArgument(0).toIntegerWithTruncation(globalObject);
         if (!std::isfinite(value))
             return throwVMRangeError(globalObject, scope, "Temporal.PlainDate year property must be finite"_s);
-        duration.setYears(value);
+        duration.setField(TemporalUnit::Year, value);
         RETURN_IF_EXCEPTION(scope, { });
     }
 
@@ -104,7 +104,7 @@ JSC_DEFINE_HOST_FUNCTION(constructTemporalPlainDate, (JSGlobalObject* globalObje
         auto value = callFrame->uncheckedArgument(1).toIntegerWithTruncation(globalObject);
         if (!std::isfinite(value))
             return throwVMRangeError(globalObject, scope, "Temporal.PlainDate month property must be finite"_s);
-        duration.setMonths(value);
+        duration.setField(TemporalUnit::Month, value);
         RETURN_IF_EXCEPTION(scope, { });
     }
 
@@ -112,7 +112,7 @@ JSC_DEFINE_HOST_FUNCTION(constructTemporalPlainDate, (JSGlobalObject* globalObje
         auto value = callFrame->uncheckedArgument(2).toIntegerWithTruncation(globalObject);
         if (!std::isfinite(value))
             return throwVMRangeError(globalObject, scope, "Temporal.PlainDate day property must be finite"_s);
-        duration.setDays(value);
+        duration.setField(TemporalUnit::Day, value);
         RETURN_IF_EXCEPTION(scope, { });
     }
 

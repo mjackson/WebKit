@@ -1,4 +1,20 @@
 =================
+WPE WebKit 2.53.2
+=================
+
+What's new in WPE WebKit 2.53.2?
+
+  - Only use DMA-BUF mapping for writing to the GPU atlas when possible.
+  - Do not resolve '-apple-system' font to default system font.
+  - Set real time limits when not using the portal.
+  - Report support for supported non-AAC mp4a codecs.
+  - Add cursor shape support in the WPE Qt platform implementation.
+  - Fix toplevel state handling in the WPE Qt platform implementation.
+  - Fix wheel event handling in the WPE Qt platform implementation.
+  - Fix the build when targeting Android.
+  - Fix several crashes and rendering issues.
+
+=================
 WPE WebKit 2.53.1
 =================
 

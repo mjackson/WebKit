@@ -35,6 +35,7 @@
 #include "JSHTMLCollection.h"
 #include "LocalFrame.h"
 #include "WebCoreJSClientData.h"
+#include <JavaScriptCore/JSObjectInlines.h>
 
 namespace WebCore {
 
@@ -91,7 +92,7 @@ void JSDOMWindowProperties::finishCreation(JSGlobalObject& globalObject)
 
 bool JSDOMWindowProperties::getOwnPropertySlot(JSObject* object, JSGlobalObject* lexicalGlobalObject, PropertyName propertyName, PropertySlot& slot)
 {
-    auto* thisObject = uncheckedDowncast<JSDOMWindowProperties>(object);
+    auto* thisObject = downcast<JSDOMWindowProperties>(object);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
 
     if (Base::getOwnPropertySlot(thisObject, lexicalGlobalObject, propertyName, slot))

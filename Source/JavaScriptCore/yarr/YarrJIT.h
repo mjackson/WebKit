@@ -37,7 +37,6 @@
 #include "YarrPattern.h"
 #include <wtf/Atomics.h>
 #include <wtf/BitSet.h>
-#include <wtf/FixedVector.h>
 #include <wtf/StackCheck.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/UniqueRef.h>

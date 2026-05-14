@@ -64,6 +64,32 @@ TEST(DrawingToPDF, GradientIntoPDF)
     Util::run(&didTakeSnapshot);
 }
 
+TEST(DrawingToPDF, CSSFilterInvertAppliedOnPDF)
+{
+    __block bool didTakeSnapshot = false;
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 200, 200)]);
+
+    [webView synchronouslyLoadHTMLString:@"<style>body { margin: 0 } .box { width: 100px; height: 100px; background: black; filter: invert(1); print-color-adjust: exact; }</style><div class=\"box\"></div>"];
+
+    RetainPtr configuration = adoptNS([[WKPDFConfiguration alloc] init]);
+    [configuration setRect:NSMakeRect(0, 0, 100, 100)];
+
+    [webView createPDFWithConfiguration:configuration.get() completionHandler:^(NSData *pdfSnapshotData, NSError *error) {
+        EXPECT_NULL(error);
+        RetainPtr document = adoptNS([[TestPDFDocument alloc] initFromData:pdfSnapshotData]);
+        EXPECT_EQ([document pageCount], 1);
+        RetainPtr page = [document pageAtIndex:0];
+        EXPECT_NOT_NULL(page);
+
+        EXPECT_TRUE(Util::compareColors([page colorAtPoint:CGPointMake(50, 50)], [CocoaColor whiteColor]));
+
+        didTakeSnapshot = true;
+    }];
+
+    Util::run(&didTakeSnapshot);
+}
+
 TEST(DrawingToPDF, BackgroundClipText)
 {
     static bool didTakeSnapshot;

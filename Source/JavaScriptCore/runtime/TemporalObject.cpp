@@ -29,6 +29,7 @@
 #include "JSGlobalObject.h"
 #include "JSObjectInlines.h"
 #include "ObjectPrototype.h"
+#include "Rounding.h"
 #include "TemporalCalendarConstructor.h"
 #include "TemporalCalendarPrototype.h"
 #include "TemporalDurationConstructor.h"
@@ -309,27 +310,11 @@ void validateTemporalUnitValue(JSGlobalObject* globalObject, Variant<TemporalAut
 // https://tc39.es/proposal-temporal/#sec-validatetemporalroundingincrement
 void validateTemporalRoundingIncrement(JSGlobalObject* globalObject, double increment, std::optional<double> dividend, Inclusivity isInclusive)
 {
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
-    double maximum;
-    if (!dividend)
-        maximum = 1'000'000'000;
-    else if (isInclusive == Inclusivity::Inclusive)
-        maximum = dividend.value();
-    else if (dividend.value() > 1)
-        maximum = dividend.value() - 1;
-    else
-        maximum = 1;
-
-    increment = std::trunc(increment);
-    if (increment < 1 || increment > maximum) [[unlikely]] {
-        throwRangeError(globalObject, scope, "rounding increment is out of range"_s);
-        return;
-    }
-    if (dividend && std::fmod(dividend.value(), increment)) [[unlikely]] {
-        throwRangeError(globalObject, scope, makeString("roundingIncrement value does not divide "_s, dividend.value(), " evenly"_s));
-        return;
+    auto result = TemporalCore::validateTemporalRoundingIncrement(increment, dividend, isInclusive);
+    if (!result) {
+        VM& vm = globalObject->vm();
+        auto scope = DECLARE_THROW_SCOPE(vm);
+        throwRangeError(globalObject, scope, result.error().message);
     }
 }
 
@@ -400,7 +385,7 @@ std::tuple<TemporalUnit, TemporalUnit, RoundingMode, double> extractDifferenceOp
         return { };
     }
 
-    auto maximum = maximumRoundingIncrement(smallestUnit);
+    auto maximum = TemporalCore::maximumRoundingIncrement(smallestUnit);
     validateTemporalRoundingIncrement(globalObject, roundingIncrement, maximum, Inclusivity::Exclusive);
     RETURN_IF_EXCEPTION(scope, { });
 
@@ -515,50 +500,6 @@ RoundingMode temporalRoundingMode(JSGlobalObject* globalObject, JSObject* option
         }, "roundingMode must be \"ceil\", \"floor\", \"expand\", \"trunc\", \"halfCeil\", \"halfFloor\", \"halfExpand\", \"halfTrunc\", or \"halfEven\""_s, fallback);
 }
 
-// https://tc39.es/proposal-temporal/#sec-temporal-negatetemporalroundingmode
-RoundingMode negateTemporalRoundingMode(RoundingMode roundingMode)
-{
-    switch (roundingMode) {
-    case RoundingMode::Ceil:
-        return RoundingMode::Floor;
-    case RoundingMode::Floor:
-        return RoundingMode::Ceil;
-    case RoundingMode::HalfCeil:
-        return RoundingMode::HalfFloor;
-    case RoundingMode::HalfFloor:
-        return RoundingMode::HalfCeil;
-    default:
-        return roundingMode;
-    }
-}
-
-// https://tc39.es/proposal-temporal/#sec-applyunsignedroundingmode
-// ApplyUnsignedRoundingMode ( x, r1, r2, unsignedRoundingMode )
-double applyUnsignedRoundingMode(double x, double r1, double r2, UnsignedRoundingMode unsignedRoundingMode)
-{
-    if (x == r1)
-        return r1;
-    ASSERT(r1 < x && x < r2);
-    if (unsignedRoundingMode == UnsignedRoundingMode::Zero)
-        return r1;
-    if (unsignedRoundingMode == UnsignedRoundingMode::Infinity)
-        return r2;
-    double d1 = x - r1;
-    double d2 = r2 - x;
-    if (d1 < d2)
-        return r1;
-    if (d2 < d1)
-        return r2;
-    ASSERT(d1 == d2);
-    if (unsignedRoundingMode == UnsignedRoundingMode::HalfZero)
-        return r1;
-    if (unsignedRoundingMode == UnsignedRoundingMode::HalfInfinity)
-        return r2;
-    ASSERT(unsignedRoundingMode == UnsignedRoundingMode::HalfEven);
-    auto cardinality = std::fmod(r1 / (r2 - r1), 2);
-    return !cardinality ? r1 : r2;
-}
-
 void formatSecondsStringFraction(StringBuilder& builder, unsigned fraction, std::tuple<Precision, unsigned> precision)
 {
     auto [precisionType, precisionValue] = precision;
@@ -584,19 +525,6 @@ void formatSecondsStringPart(StringBuilder& builder, unsigned second, unsigned f
 
     builder.append(':', pad('0', 2, second));
     formatSecondsStringFraction(builder, fraction, precision.precision);
-}
-
-// MaximumTemporalDurationRoundingIncrement ( unit )
-// https://tc39.es/proposal-temporal/#sec-temporal-maximumtemporaldurationroundingincrement
-std::optional<unsigned> maximumRoundingIncrement(TemporalUnit unit)
-{
-    if (unit <= TemporalUnit::Day)
-        return std::nullopt;
-    if (unit == TemporalUnit::Hour)
-        return 24;
-    if (unit <= TemporalUnit::Second)
-        return 60;
-    return 1000;
 }
 
 static double doubleNumberOption(JSGlobalObject* globalObject, JSObject* options, PropertyName property, double defaultValue)
@@ -637,125 +565,6 @@ double temporalRoundingIncrement(JSGlobalObject* globalObject, JSObject* options
     RETURN_IF_EXCEPTION(scope, 0);
 
     return std::trunc(increment);
-}
-
-// RoundNumberToIncrement ( x, increment, roundingMode )
-// https://tc39.es/proposal-temporal/#sec-temporal-roundnumbertoincrement
-// See comment on roundNumberToIncrementInt128() for why there are two
-// roundNumberToIncrement functions.
-double roundNumberToIncrementDouble(double x, double increment, RoundingMode mode)
-{
-    auto quotient = x / increment;
-    auto truncatedQuotient = std::trunc(quotient);
-    if (truncatedQuotient == quotient)
-        return truncatedQuotient * increment;
-
-    auto isNegative = quotient < 0;
-    auto expandedQuotient = isNegative ? truncatedQuotient - 1 : truncatedQuotient + 1;
-
-    if (mode >= RoundingMode::HalfCeil) {
-        auto unsignedFractionalPart = std::abs(quotient - truncatedQuotient);
-        if (unsignedFractionalPart < 0.5)
-            return truncatedQuotient * increment;
-        if (unsignedFractionalPart > 0.5)
-            return expandedQuotient * increment;
-    }
-
-    switch (mode) {
-    case RoundingMode::Ceil:
-    case RoundingMode::HalfCeil:
-        return (isNegative ? truncatedQuotient : expandedQuotient) * increment;
-    case RoundingMode::Floor:
-    case RoundingMode::HalfFloor:
-        return (isNegative ? expandedQuotient : truncatedQuotient) * increment;
-    case RoundingMode::Expand:
-    case RoundingMode::HalfExpand:
-        return expandedQuotient * increment;
-    case RoundingMode::Trunc:
-    case RoundingMode::HalfTrunc:
-        return truncatedQuotient * increment;
-    case RoundingMode::HalfEven:
-        return (!std::fmod(truncatedQuotient, 2) ? truncatedQuotient : expandedQuotient) * increment;
-    }
-
-    RELEASE_ASSERT_NOT_REACHED();
-}
-
-// RoundNumberToIncrementAsIfPositive ( x, increment, roundingMode )
-// https://tc39.es/proposal-temporal/#sec-temporal-roundnumbertoincrementasifpositive
-Int128 roundNumberToIncrementAsIfPositive(Int128 x, Int128 increment, RoundingMode roundingMode)
-{
-    // The following code follows the polyfill rather than the spec, because we don't have float128.
-    // ApplyUnsignedRoundingMode is inlined here to mirror the polyfill's implementation of it,
-    // which has a different type than in the spec.
-    // See https://github.com/tc39/proposal-temporal/blob/main/polyfill/lib/ecmascript.mjs#L4056
-    Int128 quotient = x / increment;
-    Int128 remainder = x % increment;
-    auto unsignedRoundingMode = getUnsignedRoundingMode(roundingMode, false);
-    auto r1 = quotient;
-    auto r2 = quotient + 1;
-    if (x < 0) {
-        r1 = quotient - 1;
-        r2 = quotient;
-    }
-    auto doubleRemainder = absInt128(remainder * 2);
-    auto cmp = (doubleRemainder < increment ? -1 : doubleRemainder == increment ? 0 : 1)
-        * (x < 0 ? -1 : 1);
-    auto even = r1 % 2;
-    if (quotient * increment == x)
-        return x;
-    if (unsignedRoundingMode == UnsignedRoundingMode::Zero)
-        return r1 * increment;
-    if (unsignedRoundingMode == UnsignedRoundingMode::Infinity)
-        return r2 * increment;
-    if (cmp < 0)
-        return r1 * increment;
-    if (cmp > 0)
-        return r2 * increment;
-    if (unsignedRoundingMode == UnsignedRoundingMode::HalfZero)
-        return r1 * increment;
-    if (unsignedRoundingMode == UnsignedRoundingMode::HalfInfinity)
-        return r2 * increment;
-    return !even ? r1 * increment : r2 * increment;
-}
-
-// There are two different versions of this method due to the lack
-// of float128. The names are different (roundNumberToIncrementInt128() and
-// roundNumberToIncrementDouble()) to avoid confusion in the presence of
-// implicit casts.
-// https://tc39.es/proposal-temporal/#sec-temporal-roundnumbertoincrement
-Int128 roundNumberToIncrementInt128(Int128 x, Int128 increment, RoundingMode mode)
-{
-    // This follows the polyfill code rather than the spec, in order to work around
-    // being unable to apply floating-point division in x / increment.
-    // See https://github.com/tc39/proposal-temporal/blob/main/polyfill/lib/ecmascript.mjs#L4043
-    Int128 quotient = x / increment;
-    Int128 remainder = x % increment;
-    bool isNegative = x < 0;
-    Int128 r1 = absInt128(quotient);
-    Int128 r2 = r1 + 1;
-    Int128 even = r1 % 2;
-    auto unsignedRoundingMode = getUnsignedRoundingMode(mode, isNegative);
-    Int128 rounded = 0;
-    if (absInt128(x) == r1 * increment)
-        rounded = r1;
-    else if (unsignedRoundingMode == UnsignedRoundingMode::Zero)
-        rounded = r1;
-    else if (unsignedRoundingMode == UnsignedRoundingMode::Infinity)
-        rounded = r2;
-    else if (absInt128(remainder * 2) < increment)
-        rounded = r1;
-    else if (absInt128(remainder * 2) > increment)
-        rounded = r2;
-    else if (unsignedRoundingMode == UnsignedRoundingMode::HalfZero)
-        rounded = r1;
-    else if (unsignedRoundingMode == UnsignedRoundingMode::HalfInfinity)
-        rounded = r2;
-    else
-        rounded = !even ? r1 : r2;
-    if (isNegative)
-        rounded = -rounded;
-    return rounded * increment;
 }
 
 TemporalOverflow toTemporalOverflow(JSGlobalObject* globalObject, JSObject* options)

@@ -157,7 +157,7 @@ Ref<FetchResponse> FetchResponse::error(ScriptExecutionContext& context)
 
 ExceptionOr<Ref<FetchResponse>> FetchResponse::redirect(ScriptExecutionContext& context, const String& url, int status)
 {
-    URL requestURL = context.completeURL(url, ScriptExecutionContext::ForceUTF8::Yes);
+    URL requestURL = context.parseURL(url);
     if (!requestURL.isValid())
         return Exception { ExceptionCode::TypeError, makeString("Redirection URL '"_s, requestURL.string(), "' is invalid"_s) };
     if (requestURL.hasCredentials())

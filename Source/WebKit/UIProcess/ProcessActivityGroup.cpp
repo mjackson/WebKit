@@ -26,6 +26,8 @@
 #include "config.h"
 #include "ProcessActivityGroup.h"
 
+#include "WebProcessProxy.h"
+
 namespace WebKit {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ProcessActivityGroup);
@@ -87,6 +89,11 @@ void ProcessActivityGroup::activityTimedOut()
 Ref<ProcessActivityGroup> ProcessActivityGroupContext::foregroundProcessActivityGroup(ASCIILiteral name, std::optional<Seconds> timeout)
 {
     return ProcessActivityGroup::create(*this, name, ProcessThrottlerActivityType::Foreground, timeout);
+}
+
+Vector<Ref<WebProcessProxy>> ProcessActivityGroupContext::activityTargets()
+{
+    return { };
 }
 
 void ProcessActivityGroupContext::addProcessActivityGroup(ProcessActivityGroup& activityGroup)

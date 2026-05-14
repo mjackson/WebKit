@@ -31,6 +31,7 @@
 #include "HTMLBRElement.h"
 #include "HTMLNames.h"
 #include "RenderElement.h"
+#include "RenderText.h"
 #include "RenderStyle+GettersInlines.h"
 #include "Text.h"
 #include "VisibleUnits.h"

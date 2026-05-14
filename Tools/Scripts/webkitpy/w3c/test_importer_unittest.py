@@ -768,3 +768,27 @@ class TestImporterTest(unittest.TestCase):
 
         imported = fs.read_text_file('/mock-checkout/LayoutTests/w3c/web-platform-tests/t/resource.html')
         self.assertEqual(imported, RESOURCE_HTML)
+
+    def test_import_no_rewrite_policy(self):
+        """Files under a directory marked 'import-no-rewrite' should be copied verbatim, and the policy should survive re-running the importer."""
+        TEST_HTML = '<!doctype html><meta charset=shift_jis><script src="/resources/testharness.js"></script><script src="/resources/testharnessreport.js"></script><span data-bytes="&A">&A</span>'
+        FAKE_FILES = {
+            '/mock-checkout/LayoutTests/imported/w3c/resources/import-expectations.json': '''
+{
+"web-platform-tests/encoding": "import-no-rewrite"
+}''',
+            f'{FAKE_WPT_DIR}/encoding/raw-test.html': TEST_HTML,
+            '/mock-checkout/Source/WebCore/css/CSSProperties.json': '{"properties":{}}',
+            '/mock-checkout/Source/WebCore/css/CSSValueKeywords.in': '',
+            '/mock-checkout/LayoutTests/imported/w3c/resources/resource-files.json': '{"directories": [], "files": []}',
+            f'{FAKE_WPT_DIR}/wpt': '',
+            f'{FAKE_WPT_DIR}/resources/testharness.js': '',
+        }
+
+        fs = self.import_downloaded_tests(['--no-fetch', '--no-clean-dest-dir', '-d', 'w3c', 'web-platform-tests/encoding'], FAKE_FILES)
+
+        imported = fs.read_text_file('/mock-checkout/LayoutTests/w3c/web-platform-tests/encoding/raw-test.html')
+        self.assertEqual(imported, TEST_HTML)
+
+        import_expectations = json.loads(fs.read_text_file('/mock-checkout/LayoutTests/imported/w3c/resources/import-expectations.json'))
+        self.assertEqual('import-no-rewrite', import_expectations['web-platform-tests/encoding'])

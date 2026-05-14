@@ -200,6 +200,8 @@
 		079A4DAC2D72D06D00CA387F /* EnvironmentValues+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079A4DAB2D72D06D00CA387F /* EnvironmentValues+Extras.swift */; };
 		079A4DB02D73EA4A00CA387F /* WKURLSchemeHandlerAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079A4DAF2D73EA4A00CA387F /* WKURLSchemeHandlerAdapter.swift */; };
 		079D1D9A26960CD300883577 /* SystemStatusSPI.h in Headers */ = {isa = PBXBuildFile; fileRef = 079D1D9926960CD300883577 /* SystemStatusSPI.h */; };
+		079DD3032FAC583900592E03 /* WKDeferringGestureRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079DD3022FAC583900592E03 /* WKDeferringGestureRecognizer.swift */; };
+		079DD3052FAC583A00592E03 /* WKDeferringGestureRecognizerExtras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079DD3042FAC583A00592E03 /* WKDeferringGestureRecognizerExtras.swift */; };
 		07A1B2C42F900D010000ABCD /* TestWebKitAPILibraryAdditions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A1B2C32F900D010000ABCD /* TestWebKitAPILibraryAdditions.swift */; };
 		07A33C9A2D67BE2200F30A05 /* WKScrollGeometry.h in Headers */ = {isa = PBXBuildFile; fileRef = 07A33C992D67BE2200F30A05 /* WKScrollGeometry.h */; };
 		07A4CEC72D0933E700764F5E /* WebPageNavigationAction+SwiftUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A4CEC62D0933E700764F5E /* WebPageNavigationAction+SwiftUI.swift */; };
@@ -260,6 +262,12 @@
 		0D653B3D2F3459340022454D /* ModelTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 0D653B382F3453C40022454D /* ModelTypes.h */; };
 		0D9649182E7489AF000F9CDA /* ModelDowncastConvertToBackingContext.h in Headers */ = {isa = PBXBuildFile; fileRef = 0D9649122E748610000F9CDA /* ModelDowncastConvertToBackingContext.h */; };
 		0DD656D42C8F0A4400278C3B /* DigitalCredentialsCoordinator.h in Headers */ = {isa = PBXBuildFile; fileRef = 0D20EA1C2C59E2F900CA61BD /* DigitalCredentialsCoordinator.h */; };
+		0DF0187C2FA847F70077DA6B /* studio_lighting_objectmode_v3.reibl in Resources */ = {isa = PBXBuildFile; fileRef = 0DF0187B2FA847BD0077DA6B /* studio_lighting_objectmode_v3.reibl */; };
+		0DF0187D2FA847F70077DA6B /* studio_lighting_objectmode_v3_specmap.ktx in Resources */ = {isa = PBXBuildFile; fileRef = 0DF0187A2FA847BD0077DA6B /* studio_lighting_objectmode_v3_specmap.ktx */; };
+		0DF0187E2FA847F70077DA6B /* studio_lighting_objectmode_v3_diffmap.ktx in Resources */ = {isa = PBXBuildFile; fileRef = 0DF018792FA847BD0077DA6B /* studio_lighting_objectmode_v3_diffmap.ktx */; };
+		0DF018802FA848080077DA6B /* studio_lighting_objectmode_v3_diffmap.ktx in Resources */ = {isa = PBXBuildFile; fileRef = 0DF018792FA847BD0077DA6B /* studio_lighting_objectmode_v3_diffmap.ktx */; };
+		0DF018812FA848080077DA6B /* studio_lighting_objectmode_v3_specmap.ktx in Resources */ = {isa = PBXBuildFile; fileRef = 0DF0187A2FA847BD0077DA6B /* studio_lighting_objectmode_v3_specmap.ktx */; };
+		0DF018822FA848080077DA6B /* studio_lighting_objectmode_v3.reibl in Resources */ = {isa = PBXBuildFile; fileRef = 0DF0187B2FA847BD0077DA6B /* studio_lighting_objectmode_v3.reibl */; };
 		0E97D74D200E900400BF6643 /* SafeBrowsingSPI.h in Headers */ = {isa = PBXBuildFile; fileRef = 0E97D74C200E8FF300BF6643 /* SafeBrowsingSPI.h */; };
 		0EDE85032004E75D00030560 /* WebsitePopUpPolicy.h in Headers */ = {isa = PBXBuildFile; fileRef = 0EDE85022004E74900030560 /* WebsitePopUpPolicy.h */; };
 		0F08CF521D63C13A00B48DF1 /* WKFormSelectPicker.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F08CF511D63C13A00B48DF1 /* WKFormSelectPicker.h */; };
@@ -299,6 +307,7 @@
 		0FF264A01A1FF9CC001FE759 /* RemoteLayerTreeScrollingPerformanceData.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F707C791A1FEEA300DA7A45 /* RemoteLayerTreeScrollingPerformanceData.h */; };
 		0FFED98E23A3200A00EEF459 /* WKWebViewIOS.h in Headers */ = {isa = PBXBuildFile; fileRef = 0FFED98C23A3200400EEF459 /* WKWebViewIOS.h */; };
 		0FFED99323A3203D00EEF459 /* WKWebViewMac.h in Headers */ = {isa = PBXBuildFile; fileRef = 0FFED99023A3203800EEF459 /* WKWebViewMac.h */; };
+		116530B58849A3DC336C676D /* GeneratedSerializersPlatform.mm in Sources */ = {isa = PBXBuildFile; fileRef = 438D8284ACE95050B4B6548D /* GeneratedSerializersPlatform.mm */; };
 		15739BBD1B42042D00D258C1 /* WebUserMediaClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 4A410F4919AF7B80002EBAB5 /* WebUserMediaClient.h */; };
 		1A002D43196B337000B9AD44 /* _WKSessionStateInternal.h in Headers */ = {isa = PBXBuildFile; fileRef = 1A002D42196B337000B9AD44 /* _WKSessionStateInternal.h */; };
 		1A002D44196B338900B9AD44 /* _WKSessionState.h in Headers */ = {isa = PBXBuildFile; fileRef = 1A002D3F196B329400B9AD44 /* _WKSessionState.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -673,6 +682,7 @@
 		2ADBEA4C2F358BEF00EDB398 /* WKWebView+WKBannerViewOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ADBEA4B2F358BEF00EDB398 /* WKWebView+WKBannerViewOverlay.swift */; };
 		2AE6D2B72F501404002BE327 /* WebViewRepresentable+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ADBEA4B2F358BEF00EDB399 /* WebViewRepresentable+Extras.swift */; };
 		2BBCCE242EB2B3F500FE7E5A /* RemotePageScreenOrientationManagerProxy.h in Headers */ = {isa = PBXBuildFile; fileRef = 2BBCCE232EB2B3F500FE7E5A /* RemotePageScreenOrientationManagerProxy.h */; };
+		F5AE074483234F46B7D93F3F /* RemotePageWebAuthenticatorCoordinatorProxy.h in Headers */ = {isa = PBXBuildFile; fileRef = 729F145827DA4BFB83A7C750 /* RemotePageWebAuthenticatorCoordinatorProxy.h */; };
 		2D0C56FD229F1DEA00BD33E7 /* DeviceManagementSoftLink.h in Headers */ = {isa = PBXBuildFile; fileRef = 2D0C56FB229F1DEA00BD33E7 /* DeviceManagementSoftLink.h */; };
 		2D0C56FE229F1DEA00BD33E7 /* DeviceManagementSoftLink.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2D0C56FC229F1DEA00BD33E7 /* DeviceManagementSoftLink.mm */; };
 		2D0FD45E2F75127900B1A53C /* SwipeProgressTrackerMac.h in Headers */ = {isa = PBXBuildFile; fileRef = 2D0FD45C2F75126800B1A53C /* SwipeProgressTrackerMac.h */; };
@@ -1054,6 +1064,7 @@
 		3A18A2F52B02969900DB976C /* _WKArchiveExclusionRule.h in Headers */ = {isa = PBXBuildFile; fileRef = 3A18A2F32B02969800DB976C /* _WKArchiveExclusionRule.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		3A4DC9CA2E9463AE0083A531 /* LegacyWebArchiveCallbackAggregator.h in Headers */ = {isa = PBXBuildFile; fileRef = 3A4DC9C92E9463AE0083A531 /* LegacyWebArchiveCallbackAggregator.h */; };
 		3A7D62D629D38DD300D57DAC /* ServiceWorkerStorageManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 3A7D62D429D38DD300D57DAC /* ServiceWorkerStorageManager.h */; };
+		3A8801412FB2C9D600DBBD50 /* TimeBasedEvictionMode.h in Headers */ = {isa = PBXBuildFile; fileRef = 3A88013F2FB2C9D600DBBD50 /* TimeBasedEvictionMode.h */; };
 		3A9BF25A2EC53ED4007D1C46 /* WebParentalControlsURLFilter.h in Headers */ = {isa = PBXBuildFile; fileRef = 3A9BF2572EC53ED4007D1C46 /* WebParentalControlsURLFilter.h */; };
 		3AE104C029CBC8BB00661165 /* OriginQuotaManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 3AE104BE29CBC8BB00661165 /* OriginQuotaManager.h */; };
 		3CAECB6627465AE400AB78D0 /* UnifiedSource113.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3CAECB5E27465AE300AB78D0 /* UnifiedSource113.cpp */; };
@@ -1089,6 +1100,7 @@
 		41FAF5F51E3C0649001AE678 /* WebRTCResolver.h in Headers */ = {isa = PBXBuildFile; fileRef = 41FAF5F41E3C0641001AE678 /* WebRTCResolver.h */; };
 		41FAF5F81E3C1021001AE678 /* LibWebRTCResolver.h in Headers */ = {isa = PBXBuildFile; fileRef = 41FAF5F61E3C0B47001AE678 /* LibWebRTCResolver.h */; };
 		42057BEC2AD435E0001B963B /* DisbursementRequest.h in Headers */ = {isa = PBXBuildFile; fileRef = 42057BE92AD433C6001B963B /* DisbursementRequest.h */; };
+		4270E32751C161F793FD242A /* GeneratedSerializersShared.mm in Sources */ = {isa = PBXBuildFile; fileRef = 26B02F14A5AB139519B02CA5 /* GeneratedSerializersShared.mm */; };
 		440C0BE52BBCAA3C0086046E /* WKTextAnimationManagerMac.h in Headers */ = {isa = PBXBuildFile; fileRef = 440C0BE42BBCAA180086046E /* WKTextAnimationManagerMac.h */; };
 		440DB5B72C1914DC0021639B /* WKTextAnimationManagerIOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 440DB5B62C1914DC0021639B /* WKTextAnimationManagerIOS.swift */; };
 		441379612964F10A003C34C6 /* CacheStoragePolicy.h in Headers */ = {isa = PBXBuildFile; fileRef = 4413795F2964F0C2003C34C6 /* CacheStoragePolicy.h */; };
@@ -1616,6 +1628,7 @@
 		637281A321ADC744009E0DE6 /* WKDownloadProgress.mm in Sources */ = {isa = PBXBuildFile; fileRef = 637281A121ADC744009E0DE6 /* WKDownloadProgress.mm */; };
 		63C32C261E9810D900699BD0 /* _WKGeolocationPosition.h in Headers */ = {isa = PBXBuildFile; fileRef = 63C32C241E9810D900699BD0 /* _WKGeolocationPosition.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		63C32C281E98119000699BD0 /* _WKGeolocationPositionInternal.h in Headers */ = {isa = PBXBuildFile; fileRef = 63C32C271E98119000699BD0 /* _WKGeolocationPositionInternal.h */; };
+		6736FC1C09C562C35389E3A5 /* GeneratedSerializersModelProcess.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5B32F9B70B6A87C73A8BE7A3 /* GeneratedSerializersModelProcess.mm */; };
 		6A5080BF1F0EDAAA00E617C5 /* WKWindowFeaturesPrivate.h in Headers */ = {isa = PBXBuildFile; fileRef = 6A5080BE1F0EDAAA00E617C5 /* WKWindowFeaturesPrivate.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		6BC94707C9319F43B957AF30 /* WKImmersiveEnvironmentDelegate.h in Headers */ = {isa = PBXBuildFile; fileRef = 860A5EA0FD5FBC32B5398AC3 /* WKImmersiveEnvironmentDelegate.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		6BD05865220CE8C2000BED5C /* PrivateClickMeasurementManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 6BD05863220CE8C2000BED5C /* PrivateClickMeasurementManager.h */; };
@@ -1776,7 +1789,6 @@
 		8644890B27B47020007A1C66 /* _WKSystemPreferences.h in Headers */ = {isa = PBXBuildFile; fileRef = 8644890A27B47020007A1C66 /* _WKSystemPreferences.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		8644890F27B5CB43007A1C66 /* _WKSystemPreferencesInternal.h in Headers */ = {isa = PBXBuildFile; fileRef = 8644890E27B5CB43007A1C66 /* _WKSystemPreferencesInternal.h */; };
 		866623F929C2248E0029405A /* WebAutocorrectionData.mm in Sources */ = {isa = PBXBuildFile; fileRef = 866623F829C2248D0029405A /* WebAutocorrectionData.mm */; };
-		86760A6B28DB30DE00D07D06 /* GeneratedSerializers.mm in Sources */ = {isa = PBXBuildFile; fileRef = 86760A6928DB305F00D07D06 /* GeneratedSerializers.mm */; };
 		86D1970929AE4E930083B077 /* NetworkProcessConnectionParameters.h in Headers */ = {isa = PBXBuildFile; fileRef = 86D1970829AE4E930083B077 /* NetworkProcessConnectionParameters.h */; };
 		86D5C7232EB2810B006F06CD /* DataDetectionResult.mm in Sources */ = {isa = PBXBuildFile; fileRef = 86D5C7222EB2810B006F06CD /* DataDetectionResult.mm */; };
 		86DD519028EF28E800DF2A58 /* WebEventModifier.h in Headers */ = {isa = PBXBuildFile; fileRef = 86DD518F28EF28E800DF2A58 /* WebEventModifier.h */; };
@@ -1789,6 +1801,8 @@
 		8DC2EF530486A6940098B216 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C1666FE841158C02AAC07 /* InfoPlist.strings */; };
 		909854ED12BC4E18000AD080 /* WebMemorySampler.h in Headers */ = {isa = PBXBuildFile; fileRef = 905620E912BC248B000799B6 /* WebMemorySampler.h */; };
 		9197940523DBC4BB00257892 /* InspectorBrowserAgent.h in Headers */ = {isa = PBXBuildFile; fileRef = 9197940323DBC4BB00257892 /* InspectorBrowserAgent.h */; };
+		C3EE0FDA0234F84002CAF7FB /* ProxyingNetworkAgent.h in Headers */ = {isa = PBXBuildFile; fileRef = EB43329193327F9D842EE004 /* ProxyingNetworkAgent.h */; };
+		A1B2C3D4E5F60718DEADBEEF /* FrameNetworkAgentProxy.h in Headers */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60719DEADBEEF /* FrameNetworkAgentProxy.h */; };
 		9197940823DBC4CB00257892 /* WebPageInspectorAgentBase.h in Headers */ = {isa = PBXBuildFile; fileRef = 9197940723DBC4CA00257892 /* WebPageInspectorAgentBase.h */; };
 		9197940A23DBC4E000257892 /* APIInspectorClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 9197940923DBC4E000257892 /* APIInspectorClient.h */; };
 		9197940C23DBC50300257892 /* _WKInspectorDelegate.h in Headers */ = {isa = PBXBuildFile; fileRef = 9197940B23DBC50300257892 /* _WKInspectorDelegate.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -2043,6 +2057,7 @@
 		A55BA81F1BA25B27007CD33D /* RemoteWebInspectorUIProxy.h in Headers */ = {isa = PBXBuildFile; fileRef = A55BA8191BA25B1E007CD33D /* RemoteWebInspectorUIProxy.h */; };
 		A55BA8251BA25CFB007CD33D /* RemoteWebInspectorUIProxyMessages.h in Headers */ = {isa = PBXBuildFile; fileRef = A55BA8221BA25BB8007CD33D /* RemoteWebInspectorUIProxyMessages.h */; };
 		A55BA82B1BA38E61007CD33D /* WebInspectorUtilities.h in Headers */ = {isa = PBXBuildFile; fileRef = A55BA8281BA38E1E007CD33D /* WebInspectorUtilities.h */; };
+		A56341427AAAFB5315B5ACCC /* GeneratedSerializersGPUProcess.mm in Sources */ = {isa = PBXBuildFile; fileRef = D1460B47E4FD3B6910A6A868 /* GeneratedSerializersGPUProcess.mm */; };
 		A5860E71230F67FC00461AAE /* WebResourceInterceptController.h in Headers */ = {isa = PBXBuildFile; fileRef = A5860E70230F67DE00461AAE /* WebResourceInterceptController.h */; };
 		A58B6F0818FCA733008CBA53 /* WKFileUploadPanel.h in Headers */ = {isa = PBXBuildFile; fileRef = A58B6F0618FCA733008CBA53 /* WKFileUploadPanel.h */; };
 		A5C0F0A72000654D00536536 /* _WKNSWindowExtras.h in Headers */ = {isa = PBXBuildFile; fileRef = A5C0F0A62000654400536536 /* _WKNSWindowExtras.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -2061,9 +2076,11 @@
 		A7F35F5F2B1959C000E43D98 /* RemoteLayerWithInProcessRenderingBackingStore.h in Headers */ = {isa = PBXBuildFile; fileRef = A7F35F5E2B1959B300E43D98 /* RemoteLayerWithInProcessRenderingBackingStore.h */; };
 		AAB145E6223F931200E489D8 /* PrefetchCache.h in Headers */ = {isa = PBXBuildFile; fileRef = AAB145E4223F931200E489D8 /* PrefetchCache.h */; };
 		AAFA634F234F7C6400FFA864 /* AsyncRevalidation.h in Headers */ = {isa = PBXBuildFile; fileRef = AAFA634E234F7C6300FFA864 /* AsyncRevalidation.h */; };
+		ABCC0C21BBF7F90D362ECEB4 /* GeneratedSerializersUIProcess.mm in Sources */ = {isa = PBXBuildFile; fileRef = F98D069BBFD9CAA8FCDA2943 /* GeneratedSerializersUIProcess.mm */; };
 		AE213B942DDE47AA0043DE0F /* SafeBrowsingCheckOngoing.h in Headers */ = {isa = PBXBuildFile; fileRef = AE213B932DDE47AA0043DE0F /* SafeBrowsingCheckOngoing.h */; };
 		AE5E15BD2D935B9D00BB117E /* AuthenticationServices.framework in Product Dependencies */ = {isa = PBXBuildFile; fileRef = AE5E15BC2D935B9D00BB117E /* AuthenticationServices.framework */; };
 		AE7319DC2F08713300DE5A36 /* CredentialUpdaterShim.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE7319DB2F08712C00DE5A36 /* CredentialUpdaterShim.swift */; };
+		B0447A843DDAFA1CEF0B3F50 /* GeneratedSerializersWebProcess.mm in Sources */ = {isa = PBXBuildFile; fileRef = F63855BEB2200C51A99E3053 /* GeneratedSerializersWebProcess.mm */; };
 		B6058CEC2B6D636E006D4C77 /* WKWebExtensionDataRecord.h in Headers */ = {isa = PBXBuildFile; fileRef = 1CC44A9B2AD7477200E20494 /* WKWebExtensionDataRecord.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		B6058CEE2B6D637C006D4C77 /* WKWebExtensionDataRecordInternal.h in Headers */ = {isa = PBXBuildFile; fileRef = 1CC44A9F2AD7494900E20494 /* WKWebExtensionDataRecordInternal.h */; };
 		B6058CEF2B6D6382006D4C77 /* WKWebExtensionDataRecordPrivate.h in Headers */ = {isa = PBXBuildFile; fileRef = 1CC44AA12AD7495E00E20494 /* WKWebExtensionDataRecordPrivate.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -2273,6 +2290,7 @@
 		BCF69FA21176D01400471A52 /* APINavigationData.h in Headers */ = {isa = PBXBuildFile; fileRef = BCF69FA01176D01400471A52 /* APINavigationData.h */; };
 		BCF69FA91176D1CB00471A52 /* WKNavigationDataRef.h in Headers */ = {isa = PBXBuildFile; fileRef = BCF69FA71176D1CB00471A52 /* WKNavigationDataRef.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BCFD548C132D82680055D816 /* WKErrorCF.h in Headers */ = {isa = PBXBuildFile; fileRef = BCFD548A132D82680055D816 /* WKErrorCF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		BE65E75CCC420DBA7132DD24 /* GeneratedSerializersCommon.mm in Sources */ = {isa = PBXBuildFile; fileRef = 87233FB01A5FD3F415B003E6 /* GeneratedSerializersCommon.mm */; };
 		BFA6179F12F0B99D0033E0CA /* WKViewPrivate.h in Headers */ = {isa = PBXBuildFile; fileRef = BFA6179E12F0B99D0033E0CA /* WKViewPrivate.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		C09AE5E9125257C20025825D /* WKNativeEvent.h in Headers */ = {isa = PBXBuildFile; fileRef = C09AE5E8125257C20025825D /* WKNativeEvent.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		C0CE72A11247E71D00BC0EC4 /* WebPageMessages.h in Headers */ = {isa = PBXBuildFile; fileRef = C0CE729F1247E71D00BC0EC4 /* WebPageMessages.h */; };
@@ -2359,6 +2377,7 @@
 		CEC8F9CB1FDF5870002635E7 /* WKWebProcessPlugInNodeHandlePrivate.h in Headers */ = {isa = PBXBuildFile; fileRef = CEC8F9CA1FDF5870002635E7 /* WKWebProcessPlugInNodeHandlePrivate.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		CEDA12E3152CD1B300D9E08D /* WebAlternativeTextClient.h in Headers */ = {isa = PBXBuildFile; fileRef = CEDA12DE152CCAE800D9E08D /* WebAlternativeTextClient.h */; };
 		CEE4AE2B1A5DCF430002F49B /* UIKitSPI.h in Headers */ = {isa = PBXBuildFile; fileRef = CEE4AE2A1A5DCF430002F49B /* UIKitSPI.h */; };
+		D207D24EE184C36F71B22D8D /* GeneratedSerializersNetworkProcess.mm in Sources */ = {isa = PBXBuildFile; fileRef = 013F2E794503F4590384FC8A /* GeneratedSerializersNetworkProcess.mm */; };
 		D243D71F2CC1764C006D5E35 /* ColorControlSupportsAlpha.h in Headers */ = {isa = PBXBuildFile; fileRef = D243D71E2CC1764B006D5E35 /* ColorControlSupportsAlpha.h */; };
 		D246E13C2C61292700B41DE2 /* HTTPSBrowsingWarning.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D246E13B2C61292700B41DE2 /* HTTPSBrowsingWarning.xcassets */; };
 		D2E2FE6E29C8C30D00023E6B /* NetworkTaskCocoa.h in Headers */ = {isa = PBXBuildFile; fileRef = D2E2FE6D29C8C30D00023E6B /* NetworkTaskCocoa.h */; };
@@ -3319,6 +3338,7 @@
 		00B9661518E24CBA00CE1F88 /* APIFindClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = APIFindClient.h; sourceTree = "<group>"; };
 		00B9661718E25AE100CE1F88 /* FindClient.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = FindClient.mm; sourceTree = "<group>"; };
 		00B9661818E25AE100CE1F88 /* FindClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FindClient.h; sourceTree = "<group>"; };
+		013F2E794503F4590384FC8A /* GeneratedSerializersNetworkProcess.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GeneratedSerializersNetworkProcess.mm; sourceTree = "<group>"; };
 		0201B9502C238EEE00227220 /* WebPageProxyTesting.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WebPageProxyTesting.cpp; sourceTree = "<group>"; };
 		0201B9512C238EFE00227220 /* WebPageProxyTesting.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebPageProxyTesting.h; sourceTree = "<group>"; };
 		0201B9532C238F8500227220 /* WebPageTesting.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebPageTesting.h; sourceTree = "<group>"; };
@@ -3487,7 +3507,9 @@
 		079A4DAF2D73EA4A00CA387F /* WKURLSchemeHandlerAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WKURLSchemeHandlerAdapter.swift; sourceTree = "<group>"; };
 		079D1D9926960CD300883577 /* SystemStatusSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SystemStatusSPI.h; sourceTree = "<group>"; };
 		079D1D9C2698DBD000883577 /* cocoa */ = {isa = PBXFileReference; lastKnownFileType = folder; path = cocoa; sourceTree = "<group>"; };
-		07A1B2C32F900D010000ABCD /* TestWebKitAPILibraryAdditions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TestWebKitAPILibraryAdditions.swift"; path = "$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/TestWebKitAPILibraryAdditions.swift"; sourceTree = "<group>"; };
+		079DD3022FAC583900592E03 /* WKDeferringGestureRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WKDeferringGestureRecognizer.swift; sourceTree = "<group>"; };
+		079DD3042FAC583A00592E03 /* WKDeferringGestureRecognizerExtras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WKDeferringGestureRecognizerExtras.swift; path = "$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/WKDeferringGestureRecognizerExtras.swift"; sourceTree = "<group>"; };
+		07A1B2C32F900D010000ABCD /* TestWebKitAPILibraryAdditions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestWebKitAPILibraryAdditions.swift; path = "$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/TestWebKitAPILibraryAdditions.swift"; sourceTree = "<group>"; };
 		07A33C992D67BE2200F30A05 /* WKScrollGeometry.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKScrollGeometry.h; sourceTree = "<group>"; };
 		07A33C9B2D67BF3000F30A05 /* WKScrollGeometry.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKScrollGeometry.mm; sourceTree = "<group>"; };
 		07A33C9E2D67EEF600F30A05 /* ViewModifierContexts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewModifierContexts.swift; sourceTree = "<group>"; };
@@ -3624,6 +3646,9 @@
 		0D9D28E72C81473B002CB4C7 /* WKDigitalCredentialsPicker.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKDigitalCredentialsPicker.h; sourceTree = "<group>"; };
 		0D9D28E82C814F79002CB4C7 /* WKDigitalCredentialsPicker.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKDigitalCredentialsPicker.mm; sourceTree = "<group>"; };
 		0DCBF4D926E2ED3200EA0E07 /* WebAuthenticatorCoordinatorProxy.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WebAuthenticatorCoordinatorProxy.mm; sourceTree = "<group>"; };
+		0DF018792FA847BD0077DA6B /* studio_lighting_objectmode_v3_diffmap.ktx */ = {isa = PBXFileReference; lastKnownFileType = file; path = studio_lighting_objectmode_v3_diffmap.ktx; sourceTree = "<group>"; };
+		0DF0187A2FA847BD0077DA6B /* studio_lighting_objectmode_v3_specmap.ktx */ = {isa = PBXFileReference; lastKnownFileType = file; path = studio_lighting_objectmode_v3_specmap.ktx; sourceTree = "<group>"; };
+		0DF0187B2FA847BD0077DA6B /* studio_lighting_objectmode_v3.reibl */ = {isa = PBXFileReference; lastKnownFileType = text; path = studio_lighting_objectmode_v3.reibl; sourceTree = "<group>"; };
 		0E97D74C200E8FF300BF6643 /* SafeBrowsingSPI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SafeBrowsingSPI.h; sourceTree = "<group>"; };
 		0EDE85022004E74900030560 /* WebsitePopUpPolicy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebsitePopUpPolicy.h; sourceTree = "<group>"; };
 		0F08CF511D63C13A00B48DF1 /* WKFormSelectPicker.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WKFormSelectPicker.h; sourceTree = "<group>"; };
@@ -4818,6 +4843,7 @@
 		2684054A18B866FF0022C38B /* VisibleContentRectUpdateInfo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VisibleContentRectUpdateInfo.cpp; sourceTree = "<group>"; };
 		2684055018B86ED60022C38B /* ViewUpdateDispatcherMessageReceiver.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ViewUpdateDispatcherMessageReceiver.cpp; sourceTree = "<group>"; };
 		2684055118B86ED60022C38B /* ViewUpdateDispatcherMessages.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ViewUpdateDispatcherMessages.h; sourceTree = "<group>"; };
+		26B02F14A5AB139519B02CA5 /* GeneratedSerializersShared.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GeneratedSerializersShared.mm; sourceTree = "<group>"; };
 		26F10BE619187E2E001D0E68 /* WKSyntheticTapGestureRecognizer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WKSyntheticTapGestureRecognizer.h; sourceTree = "<group>"; };
 		26F10BE719187E2E001D0E68 /* WKSyntheticTapGestureRecognizer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = WKSyntheticTapGestureRecognizer.mm; sourceTree = "<group>"; };
 		26F9A83A18A3463F00AEB88A /* WKWebViewPrivate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKWebViewPrivate.h; sourceTree = "<group>"; };
@@ -4852,6 +4878,8 @@
 		2B1B1C3C2E3A86F400D7D9ED /* UnretainedLocalVarsCheckerExpectations */ = {isa = PBXFileReference; lastKnownFileType = text; path = UnretainedLocalVarsCheckerExpectations; sourceTree = "<group>"; };
 		2BBCCE222EB2B3DA00FE7E5A /* RemotePageScreenOrientationManagerProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemotePageScreenOrientationManagerProxy.cpp; sourceTree = "<group>"; };
 		2BBCCE232EB2B3F500FE7E5A /* RemotePageScreenOrientationManagerProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemotePageScreenOrientationManagerProxy.h; sourceTree = "<group>"; };
+		729F145827DA4BFB83A7C750 /* RemotePageWebAuthenticatorCoordinatorProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemotePageWebAuthenticatorCoordinatorProxy.h; sourceTree = "<group>"; };
+		729F145827DA4BFB83A7C751 /* RemotePageWebAuthenticatorCoordinatorProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemotePageWebAuthenticatorCoordinatorProxy.cpp; sourceTree = "<group>"; };
 		2D0035221BC7414800DA8716 /* PDFPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = PDFPlugin.h; path = PDF/PDFPlugin.h; sourceTree = "<group>"; };
 		2D0035231BC7414800DA8716 /* PDFPlugin.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = PDFPlugin.mm; path = PDF/PDFPlugin.mm; sourceTree = "<group>"; };
 		2D0440922D58810D00E98A2E /* RemoteImageBufferSetConfiguration.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteImageBufferSetConfiguration.h; sourceTree = "<group>"; };
@@ -5333,7 +5361,7 @@
 		31EA25D0134F78B2005B1452 /* NativeWebMouseEventMac.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = NativeWebMouseEventMac.mm; sourceTree = "<group>"; };
 		31EA25D3134F78D6005B1452 /* NativeWebMouseEvent.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NativeWebMouseEvent.h; sourceTree = "<group>"; };
 		31F060DD1654317500F3281C /* NetworkSocketChannelMessageReceiver.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkSocketChannelMessageReceiver.cpp; sourceTree = "<group>"; };
-		32DBCF5E0370ADEE00C91783 /* WebKit2Prefix.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebKit2Prefix.h; sourceTree = "<group>"; };
+		32DBCF5E0370ADEE00C91783 /* WebKitPrefix.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebKitPrefix.h; sourceTree = "<group>"; };
 		3302293F2938263E001F00FA /* WebExtensionAPIWebNavigationEvent.idl */ = {isa = PBXFileReference; lastKnownFileType = text; path = WebExtensionAPIWebNavigationEvent.idl; sourceTree = "<group>"; };
 		33066F09293A90DC008C5749 /* WebExtensionAPIWebNavigation.idl */ = {isa = PBXFileReference; lastKnownFileType = text; path = WebExtensionAPIWebNavigation.idl; sourceTree = "<group>"; };
 		330934431315B9220097A7BC /* WebCookieManagerMessageReceiver.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WebCookieManagerMessageReceiver.cpp; sourceTree = "<group>"; };
@@ -5509,6 +5537,8 @@
 		3A7D62D229D35D9D00D57DAC /* WebSWRegistrationStore.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WebSWRegistrationStore.cpp; sourceTree = "<group>"; };
 		3A7D62D329D38DD300D57DAC /* ServiceWorkerStorageManager.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ServiceWorkerStorageManager.cpp; sourceTree = "<group>"; };
 		3A7D62D429D38DD300D57DAC /* ServiceWorkerStorageManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ServiceWorkerStorageManager.h; sourceTree = "<group>"; };
+		3A88013F2FB2C9D600DBBD50 /* TimeBasedEvictionMode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TimeBasedEvictionMode.h; sourceTree = "<group>"; };
+		3A8801402FB2C9D600DBBD50 /* TimeBasedEvictionMode.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = TimeBasedEvictionMode.serialization.in; sourceTree = "<group>"; };
 		3A8997E029B25E8E00AB88B6 /* WebCookieCacheCocoa.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WebCookieCacheCocoa.mm; sourceTree = "<group>"; };
 		3A9BF2572EC53ED4007D1C46 /* WebParentalControlsURLFilter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = WebParentalControlsURLFilter.h; path = ios/WebParentalControlsURLFilter.h; sourceTree = "<group>"; };
 		3A9BF2582EC53ED4007D1C46 /* WebParentalControlsURLFilter.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = WebParentalControlsURLFilter.mm; path = ios/WebParentalControlsURLFilter.mm; sourceTree = "<group>"; };
@@ -5725,6 +5755,7 @@
 		41FFD2DC275A6A9400501BBF /* ServiceWorkerDownloadTask.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = ServiceWorkerDownloadTask.messages.in; sourceTree = "<group>"; };
 		42057BE92AD433C6001B963B /* DisbursementRequest.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DisbursementRequest.h; sourceTree = "<group>"; };
 		4253D3732AD4394700EE168C /* DisbursementRequestCocoa.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DisbursementRequestCocoa.mm; sourceTree = "<group>"; };
+		438D8284ACE95050B4B6548D /* GeneratedSerializersPlatform.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GeneratedSerializersPlatform.mm; sourceTree = "<group>"; };
 		440C0BE22BBCA9E00086046E /* WKTextAnimationManagerMac.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKTextAnimationManagerMac.mm; sourceTree = "<group>"; };
 		440C0BE42BBCAA180086046E /* WKTextAnimationManagerMac.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKTextAnimationManagerMac.h; sourceTree = "<group>"; };
 		440DB5B62C1914DC0021639B /* WKTextAnimationManagerIOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WKTextAnimationManagerIOS.swift; sourceTree = "<group>"; };
@@ -6542,6 +6573,7 @@
 		58E7CD902E7862A100338ED0 /* com.apple.WebKit.WebContent.EnhancedSecurity.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = com.apple.WebKit.WebContent.EnhancedSecurity.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
 		5ABF2BEC2862353F000DCE74 /* GPUProcessPreferences.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = GPUProcessPreferences.cpp; sourceTree = "<group>"; };
 		5ABF2BED2862353F000DCE74 /* GPUProcessPreferences.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GPUProcessPreferences.h; sourceTree = "<group>"; };
+		5B32F9B70B6A87C73A8BE7A3 /* GeneratedSerializersModelProcess.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GeneratedSerializersModelProcess.mm; sourceTree = "<group>"; };
 		5C00993B2417FB7E00D53C25 /* ResourceLoadStatisticsParameters.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ResourceLoadStatisticsParameters.h; sourceTree = "<group>"; };
 		5C03D5DD28F765F800D096AF /* SessionState.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = SessionState.serialization.in; sourceTree = "<group>"; };
 		5C042DF32F33B06800FA849A /* APIArray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIArray.swift; sourceTree = "<group>"; };
@@ -7268,7 +7300,6 @@
 		8644890E27B5CB43007A1C66 /* _WKSystemPreferencesInternal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = _WKSystemPreferencesInternal.h; sourceTree = "<group>"; };
 		8657EE3928EDB8C500FF9B40 /* Pasteboard.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = Pasteboard.serialization.in; sourceTree = "<group>"; };
 		866623F829C2248D0029405A /* WebAutocorrectionData.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = WebAutocorrectionData.mm; path = ios/WebAutocorrectionData.mm; sourceTree = "<group>"; };
-		86760A6928DB305F00D07D06 /* GeneratedSerializers.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GeneratedSerializers.mm; sourceTree = "<group>"; };
 		868160CD18763D4B0021E79D /* WindowServerConnection.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WindowServerConnection.h; sourceTree = "<group>"; };
 		868160CF187645370021E79D /* WindowServerConnection.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WindowServerConnection.mm; sourceTree = "<group>"; };
 		86890B81294B6FD900DB95CE /* TextRecognitionResult.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = TextRecognitionResult.serialization.in; sourceTree = "<group>"; };
@@ -7326,6 +7357,7 @@
 		86F4FE1E2A98B9AE007378EE /* RemoteGraphicsContextGLInitializationState.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = RemoteGraphicsContextGLInitializationState.serialization.in; sourceTree = "<group>"; };
 		86F4FE282A98C162007378EE /* SharedVideoFrame.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = SharedVideoFrame.serialization.in; sourceTree = "<group>"; };
 		86F9536018FF4FD4001DB2EF /* ProcessAssertion.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ProcessAssertion.h; sourceTree = "<group>"; };
+		87233FB01A5FD3F415B003E6 /* GeneratedSerializersCommon.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GeneratedSerializersCommon.mm; sourceTree = "<group>"; };
 		8BFE6BF62F3C2F1300E82291 /* WKUSDStageConverter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKUSDStageConverter.h; sourceTree = "<group>"; };
 		8BFE6BF72F3C2F1300E82291 /* WKUSDStageConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WKUSDStageConverter.swift; sourceTree = "<group>"; };
 		8CFECE931490F140002AAA32 /* EditorState.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = EditorState.cpp; sourceTree = "<group>"; };
@@ -7336,6 +7368,12 @@
 		905620E912BC248B000799B6 /* WebMemorySampler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebMemorySampler.h; sourceTree = "<group>"; };
 		9197940323DBC4BB00257892 /* InspectorBrowserAgent.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = InspectorBrowserAgent.h; sourceTree = "<group>"; };
 		9197940423DBC4BB00257892 /* InspectorBrowserAgent.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = InspectorBrowserAgent.cpp; sourceTree = "<group>"; };
+		EB43329193327F9D842EE004 /* ProxyingNetworkAgent.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ProxyingNetworkAgent.h; sourceTree = "<group>"; };
+		D2CB01DAB4428B76CDA8AECC /* ProxyingNetworkAgent.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ProxyingNetworkAgent.cpp; sourceTree = "<group>"; };
+		35541583DC2A3C24CD8C2D87 /* ProxyingNetworkAgent.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = ProxyingNetworkAgent.messages.in; sourceTree = "<group>"; };
+		A1B2C3D4E5F60719DEADBEEF /* FrameNetworkAgentProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FrameNetworkAgentProxy.h; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071ADEADBEEF /* FrameNetworkAgentProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = FrameNetworkAgentProxy.cpp; sourceTree = "<group>"; };
+		B59E825E9829F560E50AE308 /* InspectorNetworkTypes.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = InspectorNetworkTypes.serialization.in; sourceTree = "<group>"; };
 		9197940723DBC4CA00257892 /* WebPageInspectorAgentBase.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebPageInspectorAgentBase.h; sourceTree = "<group>"; };
 		9197940923DBC4E000257892 /* APIInspectorClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = APIInspectorClient.h; sourceTree = "<group>"; };
 		9197940B23DBC50300257892 /* _WKInspectorDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = _WKInspectorDelegate.h; sourceTree = "<group>"; };
@@ -7434,6 +7472,7 @@
 		93B0A67326D5A72E00AA21E4 /* WebPermissionController.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WebPermissionController.cpp; sourceTree = "<group>"; };
 		93B0A67426D5A72E00AA21E4 /* WebPermissionController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebPermissionController.h; sourceTree = "<group>"; };
 		93B42F2E29834A4200DF1D45 /* FileSystemSyncAccessHandleInfo.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FileSystemSyncAccessHandleInfo.h; sourceTree = "<group>"; };
+		53619B4B33665181AB76A5CB /* FileSystemHandleInfo.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = FileSystemHandleInfo.serialization.in; sourceTree = "<group>"; };
 		93B631E327ABA5F700443A44 /* IDBStorageConnectionToClient.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = IDBStorageConnectionToClient.cpp; sourceTree = "<group>"; };
 		93B631E427ABA62700443A44 /* IDBStorageConnectionToClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IDBStorageConnectionToClient.h; sourceTree = "<group>"; };
 		93B631E627ABA65C00443A44 /* IDBStorageManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IDBStorageManager.h; sourceTree = "<group>"; };
@@ -8390,6 +8429,8 @@
 		CDA29A251CBEB67A00901CCF /* PlaybackSessionManagerMessages.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlaybackSessionManagerMessages.h; sourceTree = "<group>"; };
 		CDA29A261CBEB67A00901CCF /* PlaybackSessionManagerProxyMessageReceiver.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PlaybackSessionManagerProxyMessageReceiver.cpp; sourceTree = "<group>"; };
 		CDA29A271CBEB67A00901CCF /* PlaybackSessionManagerProxyMessages.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlaybackSessionManagerProxyMessages.h; sourceTree = "<group>"; };
+		CC0302A10001000100010001 /* ProxyingNetworkAgentMessageReceiver.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ProxyingNetworkAgentMessageReceiver.cpp; sourceTree = "<group>"; };
+		CC0302A10001000100010002 /* ProxyingNetworkAgentMessages.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ProxyingNetworkAgentMessages.h; sourceTree = "<group>"; };
 		CDA6D44D25A97158004B1DF6 /* RemoteCDMInstance.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = RemoteCDMInstance.messages.in; sourceTree = "<group>"; };
 		CDA6D44F25A989AC004B1DF6 /* RemoteCDMInstanceMessages.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RemoteCDMInstanceMessages.h; sourceTree = "<group>"; };
 		CDA6D45025A989AC004B1DF6 /* RemoteCDMInstanceMessageReceiver.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = RemoteCDMInstanceMessageReceiver.cpp; sourceTree = "<group>"; };
@@ -8517,6 +8558,7 @@
 		CEDA12DE152CCAE800D9E08D /* WebAlternativeTextClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebAlternativeTextClient.h; sourceTree = "<group>"; };
 		CEDA12DF152CCAE800D9E08D /* WebAlternativeTextClient.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WebAlternativeTextClient.cpp; sourceTree = "<group>"; };
 		CEE4AE2A1A5DCF430002F49B /* UIKitSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = UIKitSPI.h; sourceTree = "<group>"; };
+		D1460B47E4FD3B6910A6A868 /* GeneratedSerializersGPUProcess.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GeneratedSerializersGPUProcess.mm; sourceTree = "<group>"; };
 		D22128312B224B8400DC4861 /* DidFilterKnownLinkDecoration.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = DidFilterKnownLinkDecoration.h; path = Classifier/DidFilterKnownLinkDecoration.h; sourceTree = "<group>"; };
 		D243D71E2CC1764B006D5E35 /* ColorControlSupportsAlpha.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ColorControlSupportsAlpha.h; sourceTree = "<group>"; };
 		D246E13B2C61292700B41DE2 /* HTTPSBrowsingWarning.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = HTTPSBrowsingWarning.xcassets; sourceTree = "<group>"; };
@@ -8876,7 +8918,6 @@
 		F446EDEF265EB2B00031DA8F /* WKRevealItemPresenter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKRevealItemPresenter.h; sourceTree = "<group>"; };
 		F446EDF1265EB3B60031DA8F /* WKRevealItemPresenter.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKRevealItemPresenter.mm; sourceTree = "<group>"; };
 		F44815622387820000982657 /* WKDeferringGestureRecognizer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKDeferringGestureRecognizer.h; sourceTree = "<group>"; };
-		F44815632387820000982657 /* WKDeferringGestureRecognizer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKDeferringGestureRecognizer.mm; sourceTree = "<group>"; };
 		F44DFEB01E9E752F0038D196 /* WebIconUtilities.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebIconUtilities.h; sourceTree = "<group>"; };
 		F44DFEB11E9E752F0038D196 /* WebIconUtilities.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = WebIconUtilities.mm; sourceTree = "<group>"; };
 		F4500D872BE02D6A0081A5F1 /* APITargetedElementRequest.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = APITargetedElementRequest.h; sourceTree = "<group>"; };
@@ -9051,7 +9092,9 @@
 		F6113E26126CE19B0057D0A7 /* WKUserContentURLPattern.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WKUserContentURLPattern.cpp; sourceTree = "<group>"; };
 		F6113E27126CE19B0057D0A7 /* WKUserContentURLPattern.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WKUserContentURLPattern.h; sourceTree = "<group>"; };
 		F634445512A885C8000612D8 /* APISecurityOrigin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = APISecurityOrigin.h; sourceTree = "<group>"; };
+		F63855BEB2200C51A99E3053 /* GeneratedSerializersWebProcess.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GeneratedSerializersWebProcess.mm; sourceTree = "<group>"; };
 		F6A90811133C1F3D0082C3F4 /* WebCookieManagerMac.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = WebCookieManagerMac.mm; sourceTree = "<group>"; };
+		F98D069BBFD9CAA8FCDA2943 /* GeneratedSerializersUIProcess.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GeneratedSerializersUIProcess.mm; sourceTree = "<group>"; };
 		FA07D6912CFFB09700915660 /* AuthenticationManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AuthenticationManager.h; sourceTree = "<group>"; };
 		FA07D6922CFFB09700915660 /* AuthenticationManager.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AuthenticationManager.cpp; sourceTree = "<group>"; };
 		FA07D6932CFFB09700915660 /* AuthenticationManager.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = AuthenticationManager.messages.in; sourceTree = "<group>"; };
@@ -9813,7 +9856,7 @@
 				DDC907B6298B43D700ECA4D6 /* MigratedHeaders-output.xcfilelist */,
 				2D7DEBE021269D5F00B9F73C /* Sources.txt */,
 				2D7DEBE121269D5F00B9F73C /* SourcesCocoa.txt */,
-				32DBCF5E0370ADEE00C91783 /* WebKit2Prefix.h */,
+				32DBCF5E0370ADEE00C91783 /* WebKitPrefix.h */,
 				2B1B1C3D2E3A86F400D7D9ED /* SaferCPPExpectations */,
 			);
 			name = WebKit2;
@@ -10271,6 +10314,7 @@
 				5C6CED8E2900598000B5D522 /* EditorState.serialization.in */,
 				56487A232E951667009CB259 /* EnhancedSecurity.h */,
 				F47FD8B42F7854A8008BF1DD /* ExtractedNodeInfo.h */,
+				53619B4B33665181AB76A5CB /* FileSystemHandleInfo.serialization.in */,
 				93B42F2E29834A4200DF1D45 /* FileSystemSyncAccessHandleInfo.h */,
 				86BAAFD829A3D4040013F9A9 /* FileSystemSyncAccessHandleInfo.serialization.in */,
 				C59C4A5718B81174007BDCB6 /* FocusedElementInformation.h */,
@@ -10298,6 +10342,7 @@
 				999B7ED82550E4A800F450A4 /* InspectorExtensionTypes.cpp */,
 				99BE3B1625433B9400C6551C /* InspectorExtensionTypes.h */,
 				2D9BECF72B309B5A00D0AE99 /* InspectorExtensionTypes.serialization.in */,
+				B59E825E9829F560E50AE308 /* InspectorNetworkTypes.serialization.in */,
 				7BBA63DD280E93B600B04823 /* IPCConnectionTester.cpp */,
 				7BBA63DE280E93B600B04823 /* IPCConnectionTester.h */,
 				7BBA63DC280E93B500B04823 /* IPCConnectionTesterIdentifier.h */,
@@ -10821,6 +10866,9 @@
 				F43019672DC97AAE006522E0 /* WKColorExtensionView.mm */,
 				E596DD68251E71D300C275A7 /* WKContactPicker.h */,
 				E596DD69251E71D400C275A7 /* WKContactPicker.mm */,
+				F44815622387820000982657 /* WKDeferringGestureRecognizer.h */,
+				079DD3022FAC583900592E03 /* WKDeferringGestureRecognizer.swift */,
+				079DD3042FAC583A00592E03 /* WKDeferringGestureRecognizerExtras.swift */,
 				2ECF66CC21D6B77E009E5C3F /* WKEditCommand.h */,
 				2ECF66CD21D6B77E009E5C3F /* WKEditCommand.mm */,
 				E1AEA22D14687BDB00804569 /* WKFullKeyboardAccessWatcher.h */,
@@ -10856,6 +10904,8 @@
 			isa = PBXGroup;
 			children = (
 				93B631F227ABAD7F00443A44 /* QuotaIncreaseRequestIdentifier.h */,
+				3A88013F2FB2C9D600DBBD50 /* TimeBasedEvictionMode.h */,
+				3A8801402FB2C9D600DBBD50 /* TimeBasedEvictionMode.serialization.in */,
 				93D1EEF429669D73009B31D6 /* UnifiedOriginStorageLevel.h */,
 				2D9BED002B30B44600D0AE99 /* UnifiedOriginStorageLevel.serialization.in */,
 				1A4832D41A9CDF96008B4DFE /* WebsiteData.cpp */,
@@ -12489,8 +12539,6 @@
 				0FCB4E3D18BBE044000FCFC9 /* WKContentView.mm */,
 				0FCB4E6A18BBF26A000FCFC9 /* WKContentViewInteraction.h */,
 				0FCB4E6B18BBF26A000FCFC9 /* WKContentViewInteraction.mm */,
-				F44815622387820000982657 /* WKDeferringGestureRecognizer.h */,
-				F44815632387820000982657 /* WKDeferringGestureRecognizer.mm */,
 				F4DF71D72B0689A5009A4522 /* WKExtendedTextInputTraits.h */,
 				F4DF71D82B0689A5009A4522 /* WKExtendedTextInputTraits.mm */,
 				3AA994092B0B15CD00253533 /* WKExtrinsicButton.h */,
@@ -13433,318 +13481,6 @@
 			path = Cocoa;
 			sourceTree = "<group>";
 		};
-		38DE371D763C9F8323F87E41 /* IPC */ = {
-			isa = PBXGroup;
-			children = (
-				CD4570D02441014A00A3DCEB /* AudioSessionRoutingArbitratorProxyMessageReceiver.cpp */,
-				CD4570D12441014B00A3DCEB /* AudioSessionRoutingArbitratorProxyMessages.h */,
-				512F58A012A883AD00629530 /* AuthenticationManagerMessageReceiver.cpp */,
-				512F58A112A883AD00629530 /* AuthenticationManagerMessages.h */,
-				51FAEC361B0657310009C4E7 /* AuxiliaryProcessMessageReceiver.cpp */,
-				51FAEC371B0657310009C4E7 /* AuxiliaryProcessMessages.h */,
-				1AB7D6171288B9D900CFD08C /* DownloadProxyMessageReceiver.cpp */,
-				1AB7D6181288B9D900CFD08C /* DownloadProxyMessages.h */,
-				1A64229712DD029200CAAE2C /* DrawingAreaMessageReceiver.cpp */,
-				1A64229812DD029200CAAE2C /* DrawingAreaMessages.h */,
-				1A64230612DD09EB00CAAE2C /* DrawingAreaProxyMessageReceiver.cpp */,
-				1A64230712DD09EB00CAAE2C /* DrawingAreaProxyMessages.h */,
-				1AA575FF1496B7C000A4EE06 /* EventDispatcherMessageReceiver.cpp */,
-				1AA576001496B7C000A4EE06 /* EventDispatcherMessages.h */,
-				5CAB7DDF28B80FE1002282A6 /* GeneratedSerializers.h */,
-				86760A6928DB305F00D07D06 /* GeneratedSerializers.mm */,
-				51AD56812B1A8CF5001A0ECB /* GeneratedWebKitSecureCoding.h */,
-				51AD56832B1AA324001A0ECB /* GeneratedWebKitSecureCoding.mm */,
-				0F5562E627EE28D200953585 /* GPUConnectionToWebProcessMessageReceiver.cpp */,
-				0F5562E527EE28D200953585 /* GPUConnectionToWebProcessMessages.h */,
-				0F5562E327EE28D100953585 /* GPUProcessConnectionMessageReceiver.cpp */,
-				0F5562EA27EE28D200953585 /* GPUProcessConnectionMessages.h */,
-				0F5562E027EE28D100953585 /* GPUProcessMessageReceiver.cpp */,
-				0F5562DE27EE28D000953585 /* GPUProcessMessages.h */,
-				0F5562E827EE28D200953585 /* GPUProcessProxyMessageReceiver.cpp */,
-				0F5562E427EE28D100953585 /* GPUProcessProxyMessages.h */,
-				5C448C652EE06E11008931C7 /* IPCTesterReceiverMessageReceiver.swift */,
-				2984F586164BA095004BC0C6 /* LegacyCustomProtocolManagerMessageReceiver.cpp */,
-				2984F587164BA095004BC0C6 /* LegacyCustomProtocolManagerMessages.h */,
-				2984F57A164B915F004BC0C6 /* LegacyCustomProtocolManagerProxyMessageReceiver.cpp */,
-				2984F57B164B915F004BC0C6 /* LegacyCustomProtocolManagerProxyMessages.h */,
-				51F060DD1654317500F3281C /* LibWebRTCNetworkMessageReceiver.cpp */,
-				E38034DB2C63D6670095F1E0 /* LogStreamMessages.h */,
-				07E19EF823D401F00094FFB4 /* MediaPlayerPrivateRemoteMessageReceiver.cpp */,
-				07E19EF923D401F00094FFB4 /* MediaPlayerPrivateRemoteMessages.h */,
-				510C52D22B240FD2008EABED /* MediaSourcePrivateRemoteMessageReceiverMessageReceiver.cpp */,
-				9B4790902531563200EC11AB /* MessageArgumentDescriptions.cpp */,
-				0F5562E927EE28D200953585 /* MessageNames.cpp */,
-				0F5562E227EE28D100953585 /* MessageNames.h */,
-				51DD9F2616367DA2001578E9 /* NetworkConnectionToWebProcessMessageReceiver.cpp */,
-				51DD9F2716367DA2001578E9 /* NetworkConnectionToWebProcessMessages.h */,
-				52F060DD1654317500F3281B /* NetworkContentRuleListManagerMessageReceiver.cpp */,
-				51F060DD1654317500F3283F /* NetworkMDNSRegisterMessageReceiver.cpp */,
-				517CF0E1163A486C00C2950E /* NetworkProcessConnectionMessageReceiver.cpp */,
-				517CF0E2163A486C00C2950E /* NetworkProcessConnectionMessages.h */,
-				51ACC9341628064800342550 /* NetworkProcessMessageReceiver.cpp */,
-				51ACC9351628064800342550 /* NetworkProcessMessages.h */,
-				513A163A163088F6005D7D22 /* NetworkProcessProxyMessageReceiver.cpp */,
-				513A163B163088F6005D7D22 /* NetworkProcessProxyMessages.h */,
-				E152551817011819003D7ADB /* NetworkResourceLoaderMessageReceiver.cpp */,
-				E152551917011819003D7ADB /* NetworkResourceLoaderMessages.h */,
-				51F060DD1654317500F3281E /* NetworkRTCMonitorMessageReceiver.cpp */,
-				51F060DD1654317500F3282E /* NetworkRTCProviderMessageReceiver.cpp */,
-				31F060DD1654317500F3281C /* NetworkSocketChannelMessageReceiver.cpp */,
-				93085DCC26E2E902000EC6A7 /* NetworkStorageManagerMessageReceiver.cpp */,
-				93085DCD26E2E902000EC6A7 /* NetworkStorageManagerMessages.h */,
-				51452702271FBA36000467B6 /* NotificationManagerMessageHandlerMessageReceiver.cpp */,
-				51452701271FBA35000467B6 /* NotificationManagerMessageHandlerMessages.h */,
-				CDA29A241CBEB67A00901CCF /* PlaybackSessionManagerMessageReceiver.cpp */,
-				CDA29A251CBEB67A00901CCF /* PlaybackSessionManagerMessages.h */,
-				CDA29A261CBEB67A00901CCF /* PlaybackSessionManagerProxyMessageReceiver.cpp */,
-				CDA29A271CBEB67A00901CCF /* PlaybackSessionManagerProxyMessages.h */,
-				51EE7B5A2A95B5820016FF78 /* PushClientConnectionMessages.h */,
-				1C55A593275457C900EB7E95 /* RemoteAdapterMessageReceiver.cpp */,
-				1C55A5B1275457CD00EB7E95 /* RemoteAdapterMessages.h */,
-				CDFE82BA2F7DE9C300547599 /* RemoteAudioDestinationManagerMessageReceiver.cpp */,
-				CD20CE7725CD2B9D0069B542 /* RemoteAudioHardwareListenerMessageReceiver.cpp */,
-				CD20CE7925CD2B9E0069B542 /* RemoteAudioHardwareListenerMessages.h */,
-				CDD53576240DDE0700F7B8C4 /* RemoteAudioSessionMessageReceiver.cpp */,
-				CDD53575240DDE0700F7B8C4 /* RemoteAudioSessionMessages.h */,
-				CDD53571240DDE0600F7B8C4 /* RemoteAudioSessionProxyMessageReceiver.cpp */,
-				CDD53572240DDE0600F7B8C4 /* RemoteAudioSessionProxyMessages.h */,
-				CDFE82BB2F7DE9C300547599 /* RemoteAudioSourceProviderManagerMessageReceiver.cpp */,
-				CDFE82BC2F7DE9C300547599 /* RemoteAudioSourceProviderManagerMessages.h */,
-				5132290C2E77A368009E1992 /* RemoteAudioVideoRendererProxyManagerMessageReceiver.cpp */,
-				5132290D2E77A368009E1992 /* RemoteAudioVideoRendererProxyManagerMessages.h */,
-				1C55A582275457C600EB7E95 /* RemoteBindGroupLayoutMessageReceiver.cpp */,
-				1C55A591275457C800EB7E95 /* RemoteBindGroupLayoutMessages.h */,
-				1C55A59F275457CB00EB7E95 /* RemoteBindGroupMessageReceiver.cpp */,
-				1C55A5B0275457CD00EB7E95 /* RemoteBindGroupMessages.h */,
-				1C55A59A275457CA00EB7E95 /* RemoteBufferMessageReceiver.cpp */,
-				1C55A599275457CA00EB7E95 /* RemoteBufferMessages.h */,
-				0FF24A2B1879E4BC003ABF0D /* RemoteCaptureSampleManagerMessageReceiver.cpp */,
-				CDAC20F223FC383A0021DEE3 /* RemoteCDMFactoryProxyMessageReceiver.cpp */,
-				CDAC20F323FC383A0021DEE3 /* RemoteCDMFactoryProxyMessages.h */,
-				CDA6D45025A989AC004B1DF6 /* RemoteCDMInstanceMessageReceiver.cpp */,
-				CDA6D44F25A989AC004B1DF6 /* RemoteCDMInstanceMessages.h */,
-				CDAC20F523FC383B0021DEE3 /* RemoteCDMInstanceProxyMessageReceiver.cpp */,
-				CDAC20EB23FC38380021DEE3 /* RemoteCDMInstanceProxyMessages.h */,
-				CD466181240105640047CA35 /* RemoteCDMInstanceSessionMessageReceiver.cpp */,
-				CD466182240105640047CA35 /* RemoteCDMInstanceSessionMessages.h */,
-				CDAC20EC23FC38380021DEE3 /* RemoteCDMInstanceSessionProxyMessageReceiver.cpp */,
-				CDAC20ED23FC38380021DEE3 /* RemoteCDMInstanceSessionProxyMessages.h */,
-				CDAC20EF23FC38390021DEE3 /* RemoteCDMProxyMessageReceiver.cpp */,
-				CDAC20F423FC383A0021DEE3 /* RemoteCDMProxyMessages.h */,
-				1C55A5A6275457CC00EB7E95 /* RemoteCommandBufferMessageReceiver.cpp */,
-				1C55A5B2275457CE00EB7E95 /* RemoteCommandBufferMessages.h */,
-				1C55A59B275457CA00EB7E95 /* RemoteCommandEncoderMessageReceiver.cpp */,
-				1C55A592275457C900EB7E95 /* RemoteCommandEncoderMessages.h */,
-				1C55A5AE275457CD00EB7E95 /* RemoteComputePassEncoderMessageReceiver.cpp */,
-				1C55A57B275457C500EB7E95 /* RemoteComputePassEncoderMessages.h */,
-				1C55A577275457C400EB7E95 /* RemoteComputePipelineMessageReceiver.cpp */,
-				1C55A586275457C700EB7E95 /* RemoteComputePipelineMessages.h */,
-				1C55A588275457C700EB7E95 /* RemoteDeviceMessageReceiver.cpp */,
-				1C55A57C275457C500EB7E95 /* RemoteDeviceMessages.h */,
-				1C55A57E275457C500EB7E95 /* RemoteExternalTextureMessageReceiver.cpp */,
-				1C55A57A275457C500EB7E95 /* RemoteExternalTextureMessages.h */,
-				1C55A59D275457CA00EB7E95 /* RemoteGPUMessageReceiver.cpp */,
-				1C55A58F275457C800EB7E95 /* RemoteGPUMessages.h */,
-				1CDDFC7D2755866D00C93C62 /* RemoteGPUProxyMessageReceiver.cpp */,
-				1CDDFC7E2755866D00C93C62 /* RemoteGPUProxyMessages.h */,
-				3AF5B4722A244FDC004C3D4D /* RemoteGraphicsContextGLMessageReceiver.cpp */,
-				3AF5B4712A244FDC004C3D4D /* RemoteGraphicsContextGLMessages.h */,
-				3AF5B4742A244FDD004C3D4D /* RemoteGraphicsContextGLProxyMessageReceiver.cpp */,
-				3AF5B4732A244FDC004C3D4D /* RemoteGraphicsContextGLProxyMessages.h */,
-				0F6E7C522C4C386800F1DB85 /* RemoteGraphicsContextMessageReceiver.cpp */,
-				0F6E7C512C4C386800F1DB85 /* RemoteGraphicsContextMessages.h */,
-				1D47659B25CE74AD007AF312 /* RemoteImageDecoderAVFManagerMessageReceiver.cpp */,
-				1D47659925CE74AC007AF312 /* RemoteImageDecoderAVFManagerMessages.h */,
-				1D47658F25CCCE92007AF312 /* RemoteImageDecoderAVFProxyMessageReceiver.cpp */,
-				1D47659025CCCE93007AF312 /* RemoteImageDecoderAVFProxyMessages.h */,
-				0FF24A2B1879E4BC003ABF0C /* RemoteLayerTreeDrawingAreaProxyMessageReceiver.cpp */,
-				0FF24A2C1879E4BC003ABF0C /* RemoteLayerTreeDrawingAreaProxyMessages.h */,
-				CDE555292406B896008A3DDB /* RemoteLegacyCDMFactoryProxyMessageReceiver.cpp */,
-				CDE5552D2406B897008A3DDB /* RemoteLegacyCDMFactoryProxyMessages.h */,
-				CDE5552A2406B896008A3DDB /* RemoteLegacyCDMProxyMessageReceiver.cpp */,
-				CDE555282406B896008A3DDB /* RemoteLegacyCDMProxyMessages.h */,
-				CDE5552E2406B897008A3DDB /* RemoteLegacyCDMSessionMessageReceiver.cpp */,
-				CDE555272406B895008A3DDB /* RemoteLegacyCDMSessionMessages.h */,
-				CDE555312406B897008A3DDB /* RemoteLegacyCDMSessionProxyMessageReceiver.cpp */,
-				CDE5552F2406B897008A3DDB /* RemoteLegacyCDMSessionProxyMessages.h */,
-				CD3EEF442579C1D4006563BB /* RemoteMediaEngineConfigurationFactoryProxyMessageReceiver.cpp */,
-				CD3EEF432579C1D4006563BB /* RemoteMediaEngineConfigurationFactoryProxyMessages.h */,
-				07923145239CBCB7009598E2 /* RemoteMediaPlayerManagerProxyMessageReceiver.cpp */,
-				07923146239CBCB7009598E2 /* RemoteMediaPlayerManagerProxyMessages.h */,
-				071BC58C23CE1EA900680D7C /* RemoteMediaPlayerProxyMessageReceiver.cpp */,
-				071BC58D23CE1EAA00680D7C /* RemoteMediaPlayerProxyMessages.h */,
-				CD8FD70E2EF3283600291438 /* RemoteMediaResourceLoaderMessageReceiver.cpp */,
-				CD8FD70F2EF3283600291438 /* RemoteMediaResourceLoaderMessages.h */,
-				CD8FD70B2EF27ED900291438 /* RemoteMediaResourceLoaderProxyMessageReceiver.cpp */,
-				CD8FD70C2EF27ED900291438 /* RemoteMediaResourceLoaderProxyMessages.h */,
-				07A6E5E4260E411400959478 /* RemoteMediaSessionCoordinatorMessageReceiver.cpp */,
-				07A6E5E7260E411600959478 /* RemoteMediaSessionCoordinatorMessages.h */,
-				07A6E5E3260E411400959478 /* RemoteMediaSessionCoordinatorProxyMessageReceiver.cpp */,
-				07A6E5E5260E411500959478 /* RemoteMediaSessionCoordinatorProxyMessages.h */,
-				07E691C52E9EB5C4000C7E3C /* RemoteMediaSessionManagerMessageReceiver.cpp */,
-				07E691C62E9EB5C4000C7E3C /* RemoteMediaSessionManagerMessages.h */,
-				07E691C72E9EB5C4000C7E3C /* RemoteMediaSessionManagerProxyMessageReceiver.cpp */,
-				07E691C82E9EB5C4000C7E3C /* RemoteMediaSessionManagerProxyMessages.h */,
-				1DD2A662256122F100FF7B6F /* RemoteMediaSourceProxyMessageReceiver.cpp */,
-				1DD2A660256122F100FF7B6F /* RemoteMediaSourceProxyMessages.h */,
-				1AC1338318590C4600F3EC05 /* RemoteObjectRegistryMessageReceiver.cpp */,
-				1AC1338418590C4600F3EC05 /* RemoteObjectRegistryMessages.h */,
-				1C55A5A1275457CB00EB7E95 /* RemotePipelineLayoutMessageReceiver.cpp */,
-				1C55A595275457C900EB7E95 /* RemotePipelineLayoutMessages.h */,
-				1C55A58C275457C800EB7E95 /* RemoteQuerySetMessageReceiver.cpp */,
-				1C55A58D275457C800EB7E95 /* RemoteQuerySetMessages.h */,
-				1C55A5A0275457CB00EB7E95 /* RemoteQueueMessageReceiver.cpp */,
-				1C55A5A5275457CC00EB7E95 /* RemoteQueueMessages.h */,
-				CD8252E025D4918400862FD8 /* RemoteRemoteCommandListenerMessageReceiver.cpp */,
-				CD8252E125D4918500862FD8 /* RemoteRemoteCommandListenerMessages.h */,
-				CD8252DA25D4915400862FD8 /* RemoteRemoteCommandListenerProxyMessageReceiver.cpp */,
-				CD8252D925D4915400862FD8 /* RemoteRemoteCommandListenerProxyMessages.h */,
-				1C55A57D275457C500EB7E95 /* RemoteRenderBundleEncoderMessageReceiver.cpp */,
-				1C55A581275457C600EB7E95 /* RemoteRenderBundleEncoderMessages.h */,
-				1C55A5B3275457CE00EB7E95 /* RemoteRenderBundleMessageReceiver.cpp */,
-				1C55A5A8275457CC00EB7E95 /* RemoteRenderBundleMessages.h */,
-				F4517D7726FBCCE4004C8475 /* RemoteRenderingBackendMessageReceiver.cpp */,
-				F4517D7A26FBCD38004C8475 /* RemoteRenderingBackendMessages.h */,
-				1C55A57F275457C500EB7E95 /* RemoteRenderPassEncoderMessageReceiver.cpp */,
-				1C55A596275457C900EB7E95 /* RemoteRenderPassEncoderMessages.h */,
-				1C55A574275457C400EB7E95 /* RemoteRenderPipelineMessageReceiver.cpp */,
-				1C55A5A4275457CB00EB7E95 /* RemoteRenderPipelineMessages.h */,
-				1C55A598275457CA00EB7E95 /* RemoteSamplerMessageReceiver.cpp */,
-				1C55A597275457C900EB7E95 /* RemoteSamplerMessages.h */,
-				0F5947A5187B517600437857 /* RemoteScrollingCoordinatorMessageReceiver.cpp */,
-				0F5947A6187B517600437857 /* RemoteScrollingCoordinatorMessages.h */,
-				1C55A587275457C700EB7E95 /* RemoteShaderModuleMessageReceiver.cpp */,
-				1C55A590275457C800EB7E95 /* RemoteShaderModuleMessages.h */,
-				A76EFA992E7257F70022429C /* RemoteSnapshotRecorderMessageReceiver.cpp */,
-				A76EFA9A2E7257F70022429C /* RemoteSnapshotRecorderMessages.h */,
-				1DD2A66B2562021E00FF7B6F /* RemoteSourceBufferProxyMessageReceiver.cpp */,
-				1DD2A6692562021E00FF7B6F /* RemoteSourceBufferProxyMessages.h */,
-				1C55A584275457C600EB7E95 /* RemoteTextureMessageReceiver.cpp */,
-				1C55A573275457C400EB7E95 /* RemoteTextureMessages.h */,
-				1C55A5A7275457CC00EB7E95 /* RemoteTextureViewMessageReceiver.cpp */,
-				1C55A5AC275457CD00EB7E95 /* RemoteTextureViewMessages.h */,
-				1BBBE49E19B66C53006B7D81 /* RemoteWebInspectorUIMessageReceiver.cpp */,
-				A55BA8211BA25BB8007CD33D /* RemoteWebInspectorUIProxyMessageReceiver.cpp */,
-				A55BA8221BA25BB8007CD33D /* RemoteWebInspectorUIProxyMessages.h */,
-				E18E6913169B667B009B6670 /* SecItemShimProxyMessageReceiver.cpp */,
-				E18E6914169B667B009B6670 /* SecItemShimProxyMessages.h */,
-				51AD56882B1ABFC1001A0ECB /* SerializedTypeInfo.mm */,
-				2DE6943B18BD2A68005C15E5 /* SmartMagnificationControllerMessageReceiver.cpp */,
-				2DE6943C18BD2A68005C15E5 /* SmartMagnificationControllerMessages.h */,
-				510C52D42B241048008EABED /* SourceBufferPrivateRemoteMessageReceiverMessageReceiver.cpp */,
-				93AB9B4F257589110098B10E /* SpeechRecognitionRealtimeMediaSourceManagerMessageReceiver.cpp */,
-				93AB9B54257589120098B10E /* SpeechRecognitionRealtimeMediaSourceManagerMessages.h */,
-				93AB9B51257589110098B10E /* SpeechRecognitionRemoteRealtimeMediaSourceManagerMessageReceiver.cpp */,
-				93AB9B53257589120098B10E /* SpeechRecognitionRemoteRealtimeMediaSourceManagerMessages.h */,
-				93D6B781254CCABC0058DD3A /* SpeechRecognitionServerMessageReceiver.cpp */,
-				93D6B780254CCABC0058DD3A /* SpeechRecognitionServerMessages.h */,
-				1A334DEB16DE8F88006A8E38 /* StorageAreaMapMessageReceiver.cpp */,
-				1A334DEC16DE8F88006A8E38 /* StorageAreaMapMessages.h */,
-				CD491B0B1E732E4D00009066 /* UserMediaCaptureManagerMessageReceiver.cpp */,
-				CD491B0C1E732E4D00009066 /* UserMediaCaptureManagerMessages.h */,
-				CD491B151E73525500009066 /* UserMediaCaptureManagerProxyMessageReceiver.cpp */,
-				CD491B161E73525500009066 /* UserMediaCaptureManagerProxyMessages.h */,
-				3F418EF51887BD97002795FD /* VideoPresentationManagerMessageReceiver.cpp */,
-				3F418EF61887BD97002795FD /* VideoPresentationManagerMessages.h */,
-				3F418EF71887BD97002795FD /* VideoPresentationManagerProxyMessageReceiver.cpp */,
-				3F418EF81887BD97002795FD /* VideoPresentationManagerProxyMessages.h */,
-				2D1B5D5B185869C8006C6596 /* ViewGestureControllerMessageReceiver.cpp */,
-				2D1B5D5C185869C8006C6596 /* ViewGestureControllerMessages.h */,
-				2D819B9F1862800E001F03D1 /* ViewGestureGeometryCollectorMessageReceiver.cpp */,
-				2D819BA01862800E001F03D1 /* ViewGestureGeometryCollectorMessages.h */,
-				2684055018B86ED60022C38B /* ViewUpdateDispatcherMessageReceiver.cpp */,
-				2684055118B86ED60022C38B /* ViewUpdateDispatcherMessages.h */,
-				1A60224A18C16B9F00C3E8C9 /* VisitedLinkStoreMessageReceiver.cpp */,
-				1A60224B18C16B9F00C3E8C9 /* VisitedLinkStoreMessages.h */,
-				1A8E7D3A18C15149005A702A /* VisitedLinkTableControllerMessageReceiver.cpp */,
-				1A8E7D3B18C15149005A702A /* VisitedLinkTableControllerMessages.h */,
-				57DCED6C2142EAF90016B847 /* WebAuthenticatorCoordinatorProxyMessageReceiver.cpp */,
-				57DCED6D2142EAFA0016B847 /* WebAuthenticatorCoordinatorProxyMessages.h */,
-				1C0A19551C90068F00FE0EBB /* WebAutomationSessionMessageReceiver.cpp */,
-				1C0A19561C90068F00FE0EBB /* WebAutomationSessionMessages.h */,
-				1C0A19511C8FFDFB00FE0EBB /* WebAutomationSessionProxyMessageReceiver.cpp */,
-				1C0A19521C8FFDFB00FE0EBB /* WebAutomationSessionProxyMessages.h */,
-				5C76C0062ED9F46F00615579 /* WebBackForwardListMessageReceiver.swift */,
-				330934431315B9220097A7BC /* WebCookieManagerMessageReceiver.cpp */,
-				330934441315B9220097A7BC /* WebCookieManagerMessages.h */,
-				E3866B062399979C00F88FE9 /* WebDeviceOrientationUpdateProviderMessageReceiver.cpp */,
-				E3866B072399979D00F88FE9 /* WebDeviceOrientationUpdateProviderMessages.h */,
-				E3866B042399979C00F88FE9 /* WebDeviceOrientationUpdateProviderProxyMessageReceiver.cpp */,
-				E3866B052399979C00F88FE9 /* WebDeviceOrientationUpdateProviderProxyMessages.h */,
-				1C0234C828A00FA800AC1E5B /* WebExtensionContextMessageReceiver.cpp */,
-				1C0234CC28A00FA900AC1E5B /* WebExtensionContextMessages.h */,
-				1C0234CB28A00FA900AC1E5B /* WebExtensionContextProxyMessageReceiver.cpp */,
-				1C0234C928A00FA800AC1E5B /* WebExtensionContextProxyMessages.h */,
-				1C3BEB4A2887492600E66E38 /* WebExtensionControllerMessageReceiver.cpp */,
-				1C3BEB492887492600E66E38 /* WebExtensionControllerMessages.h */,
-				1C3BEB4D2887492700E66E38 /* WebExtensionControllerProxyMessageReceiver.cpp */,
-				1C3BEB4E2887492700E66E38 /* WebExtensionControllerProxyMessages.h */,
-				93E799822756FA540074008A /* WebFileSystemStorageConnectionMessageReceiver.cpp */,
-				93E799812756FA530074008A /* WebFileSystemStorageConnectionMessages.h */,
-				CD73BA48131ACD8E00EEDED2 /* WebFullScreenManagerMessageReceiver.cpp */,
-				CD73BA49131ACD8E00EEDED2 /* WebFullScreenManagerMessages.h */,
-				CD73BA45131ACC8800EEDED2 /* WebFullScreenManagerProxyMessageReceiver.cpp */,
-				CD73BA4A131ACD8F00EEDED2 /* WebFullScreenManagerProxyMessages.h */,
-				BC0E605F12D6BA910012A72A /* WebGeolocationManagerMessageReceiver.cpp */,
-				BC0E606012D6BA910012A72A /* WebGeolocationManagerMessages.h */,
-				BC0E618012D6CB1D0012A72A /* WebGeolocationManagerProxyMessageReceiver.cpp */,
-				BC0E618112D6CB1D0012A72A /* WebGeolocationManagerProxyMessages.h */,
-				510523721C73D37B007993CB /* WebIDBConnectionToServerMessageReceiver.cpp */,
-				510523731C73D37B007993CB /* WebIDBConnectionToServerMessages.h */,
-				1C8E2A311277852400BC7BD0 /* WebInspectorBackendMessageReceiver.cpp */,
-				1C8E2A321277852400BC7BD0 /* WebInspectorBackendMessages.h */,
-				FEDBDCD41E68D19C00A59F8F /* WebInspectorInterruptDispatcherMessageReceiver.cpp */,
-				FEDBDCD51E68D19C00A59F8F /* WebInspectorInterruptDispatcherMessages.h */,
-				9979659B25310A4800B31AE3 /* WebInspectorUIExtensionControllerMessageReceiver.cpp */,
-				9979659A25310A4800B31AE3 /* WebInspectorUIExtensionControllerMessages.h */,
-				996B2B9525E2448100719379 /* WebInspectorUIExtensionControllerProxyMessageReceiver.cpp */,
-				996B2B9625E2448200719379 /* WebInspectorUIExtensionControllerProxyMessages.h */,
-				1CBBE49E19B66C53006B7D81 /* WebInspectorUIMessageReceiver.cpp */,
-				1CBBE49F19B66C53006B7D81 /* WebInspectorUIMessages.h */,
-				5C9E0F972A577EC400FC2664 /* WebKitPlatformGeneratedSerializers.mm */,
-				31BA9248148830810062EDB5 /* WebNotificationManagerMessageReceiver.cpp */,
-				31BA9249148830810062EDB5 /* WebNotificationManagerMessages.h */,
-				C0CE729E1247E71D00BC0EC4 /* WebPageMessageReceiver.cpp */,
-				C0CE729F1247E71D00BC0EC4 /* WebPageMessages.h */,
-				BCBD3912125BB1A800D2C29F /* WebPageProxyMessageReceiver.cpp */,
-				BCBD3913125BB1A800D2C29F /* WebPageProxyMessages.h */,
-				C0CE729E1447E71D00BC0EC4 /* WebPageTestingMessageReceiver.cpp */,
-				C0CE729F1347E71D00BC0EC4 /* WebPageTestingMessages.h */,
-				7C4694C71A4B4EA000AD5845 /* WebPasteboardProxyMessageReceiver.cpp */,
-				7C4694C81A4B4EA100AD5845 /* WebPasteboardProxyMessages.h */,
-				1AB1F7921D1B3613007C9BD1 /* WebPaymentCoordinatorMessageReceiver.cpp */,
-				1AB1F7931D1B3613007C9BD1 /* WebPaymentCoordinatorMessages.h */,
-				1AB1F7941D1B3613007C9BD1 /* WebPaymentCoordinatorProxyMessageReceiver.cpp */,
-				1AB1F7951D1B3613007C9BD1 /* WebPaymentCoordinatorProxyMessages.h */,
-				D952EC7D289C9A4C006C240A /* WebPermissionControllerProxyMessageReceiver.cpp */,
-				D952EC7B289C9A4C006C240A /* WebPermissionControllerProxyMessages.h */,
-				BC3066BC125A442100E71278 /* WebProcessMessageReceiver.cpp */,
-				BC3066BD125A442100E71278 /* WebProcessMessages.h */,
-				7CE4D2251A4916C200C7F152 /* WebProcessPoolMessageReceiver.cpp */,
-				7CE4D2261A4916C200C7F152 /* WebProcessPoolMessages.h */,
-				BCEE7ACC12817988009827DA /* WebProcessProxyMessageReceiver.cpp */,
-				BCEE7ACD12817988009827DA /* WebProcessProxyMessages.h */,
-				51F060DD1654317500F3281B /* WebResourceLoaderMessageReceiver.cpp */,
-				51F060DE1654317500F3281B /* WebResourceLoaderMessages.h */,
-				51F060DD1654317500F3281F /* WebRTCMonitorMessageReceiver.cpp */,
-				51F060DD1654317500F3282C /* WebRTCResolverMessageReceiver.cpp */,
-				41F060DD1654317500F3281C /* WebSocketChannelMessageReceiver.cpp */,
-				93D6B77D254CCABB0058DD3A /* WebSpeechRecognitionConnectionMessageReceiver.cpp */,
-				93D6B786254CCD8B0058DD3A /* WebSpeechRecognitionConnectionMessages.h */,
-				517A530E1F47A84300DCDC0A /* WebSWClientConnectionMessageReceiver.cpp */,
-				517A530D1F47A84300DCDC0A /* WebSWClientConnectionMessages.h */,
-				460F488D1F996F6C00CF4B87 /* WebSWContextManagerConnectionMessageReceiver.cpp */,
-				460F488E1F996F6C00CF4B87 /* WebSWContextManagerConnectionMessages.h */,
-				517A52D71F43A9B600DCDC0A /* WebSWServerConnectionMessageReceiver.cpp */,
-				517A52D61F43A9B600DCDC0A /* WebSWServerConnectionMessages.h */,
-				515262BA1FB951310070E579 /* WebSWServerToContextConnectionMessageReceiver.cpp */,
-				515262BB1FB951310070E579 /* WebSWServerToContextConnectionMessages.h */,
-				1AAF08B519269E6D00B6390C /* WebUserContentControllerMessageReceiver.cpp */,
-				1AAF08B619269E6D00B6390C /* WebUserContentControllerMessages.h */,
-			);
-			path = IPC;
-			sourceTree = "<group>";
-		};
 		3ABF16BC2F983FE200267B72 /* xros */ = {
 			isa = PBXGroup;
 			children = (
@@ -14391,6 +14127,9 @@
 		5260053F2C707686005D813A /* RealityKit */ = {
 			isa = PBXGroup;
 			children = (
+				0DF0187B2FA847BD0077DA6B /* studio_lighting_objectmode_v3.reibl */,
+				0DF018792FA847BD0077DA6B /* studio_lighting_objectmode_v3_diffmap.ktx */,
+				0DF0187A2FA847BD0077DA6B /* studio_lighting_objectmode_v3_specmap.ktx */,
 				5289527E2C7077B000D0357E /* WKRKEntity.h */,
 				528952802C70797900D0357E /* WKRKEntity.swift */,
 			);
@@ -15141,6 +14880,9 @@
 			children = (
 				9197940423DBC4BB00257892 /* InspectorBrowserAgent.cpp */,
 				9197940323DBC4BB00257892 /* InspectorBrowserAgent.h */,
+				D2CB01DAB4428B76CDA8AECC /* ProxyingNetworkAgent.cpp */,
+				EB43329193327F9D842EE004 /* ProxyingNetworkAgent.h */,
+				35541583DC2A3C24CD8C2D87 /* ProxyingNetworkAgent.messages.in */,
 			);
 			path = Agents;
 			sourceTree = "<group>";
@@ -15177,6 +14919,8 @@
 				91D970E523DA70470057DBC3 /* mac */,
 				F30EE46F2E721EDB00935B60 /* FrameInspectorTarget.cpp */,
 				F30EE46D2E721ECE00935B60 /* FrameInspectorTarget.h */,
+				A1B2C3D4E5F6071ADEADBEEF /* FrameNetworkAgentProxy.cpp */,
+				A1B2C3D4E5F60719DEADBEEF /* FrameNetworkAgentProxy.h */,
 				A543E30A215C8A8400279CD9 /* PageInspectorTarget.cpp */,
 				A543E308215C8A8300279CD9 /* PageInspectorTarget.h */,
 				A55BA8121BA23E05007CD33D /* RemoteWebInspectorUI.cpp */,
@@ -16029,6 +15773,8 @@
 				FA1A7DE52E012DB3005E394B /* RemotePageVideoPresentationManagerProxy.cpp */,
 				FA1A7DE42E012DB3005E394B /* RemotePageVideoPresentationManagerProxy.h */,
 				5CEB40A22A534EE100563C91 /* RemotePageVisitedLinkStoreRegistration.h */,
+				729F145827DA4BFB83A7C751 /* RemotePageWebAuthenticatorCoordinatorProxy.cpp */,
+				729F145827DA4BFB83A7C750 /* RemotePageWebAuthenticatorCoordinatorProxy.h */,
 				7BDE98AD2F0F33B20091DCA3 /* RemotePageWebDeviceOrientationUpdateProviderProxy.cpp */,
 				7BDE98AC2F0F33140091DCA3 /* RemotePageWebDeviceOrientationUpdateProviderProxy.h */,
 				BC111B08112F5E3C00337BAB /* ResponsivenessTimer.cpp */,
@@ -17214,6 +16960,327 @@
 			tabWidth = 8;
 			usesTabs = 0;
 		};
+		38DE371D763C9F8323F87E41 /* IPC */ = {
+			isa = PBXGroup;
+			children = (
+				CD4570D02441014A00A3DCEB /* AudioSessionRoutingArbitratorProxyMessageReceiver.cpp */,
+				CD4570D12441014B00A3DCEB /* AudioSessionRoutingArbitratorProxyMessages.h */,
+				512F58A012A883AD00629530 /* AuthenticationManagerMessageReceiver.cpp */,
+				512F58A112A883AD00629530 /* AuthenticationManagerMessages.h */,
+				51FAEC361B0657310009C4E7 /* AuxiliaryProcessMessageReceiver.cpp */,
+				51FAEC371B0657310009C4E7 /* AuxiliaryProcessMessages.h */,
+				1AB7D6171288B9D900CFD08C /* DownloadProxyMessageReceiver.cpp */,
+				1AB7D6181288B9D900CFD08C /* DownloadProxyMessages.h */,
+				1A64229712DD029200CAAE2C /* DrawingAreaMessageReceiver.cpp */,
+				1A64229812DD029200CAAE2C /* DrawingAreaMessages.h */,
+				1A64230612DD09EB00CAAE2C /* DrawingAreaProxyMessageReceiver.cpp */,
+				1A64230712DD09EB00CAAE2C /* DrawingAreaProxyMessages.h */,
+				1AA575FF1496B7C000A4EE06 /* EventDispatcherMessageReceiver.cpp */,
+				1AA576001496B7C000A4EE06 /* EventDispatcherMessages.h */,
+				5CAB7DDF28B80FE1002282A6 /* GeneratedSerializers.h */,
+				87233FB01A5FD3F415B003E6 /* GeneratedSerializersCommon.mm */,
+				D1460B47E4FD3B6910A6A868 /* GeneratedSerializersGPUProcess.mm */,
+				5B32F9B70B6A87C73A8BE7A3 /* GeneratedSerializersModelProcess.mm */,
+				013F2E794503F4590384FC8A /* GeneratedSerializersNetworkProcess.mm */,
+				438D8284ACE95050B4B6548D /* GeneratedSerializersPlatform.mm */,
+				26B02F14A5AB139519B02CA5 /* GeneratedSerializersShared.mm */,
+				F98D069BBFD9CAA8FCDA2943 /* GeneratedSerializersUIProcess.mm */,
+				F63855BEB2200C51A99E3053 /* GeneratedSerializersWebProcess.mm */,
+				51AD56812B1A8CF5001A0ECB /* GeneratedWebKitSecureCoding.h */,
+				51AD56832B1AA324001A0ECB /* GeneratedWebKitSecureCoding.mm */,
+				0F5562E627EE28D200953585 /* GPUConnectionToWebProcessMessageReceiver.cpp */,
+				0F5562E527EE28D200953585 /* GPUConnectionToWebProcessMessages.h */,
+				0F5562E327EE28D100953585 /* GPUProcessConnectionMessageReceiver.cpp */,
+				0F5562EA27EE28D200953585 /* GPUProcessConnectionMessages.h */,
+				0F5562E027EE28D100953585 /* GPUProcessMessageReceiver.cpp */,
+				0F5562DE27EE28D000953585 /* GPUProcessMessages.h */,
+				0F5562E827EE28D200953585 /* GPUProcessProxyMessageReceiver.cpp */,
+				0F5562E427EE28D100953585 /* GPUProcessProxyMessages.h */,
+				5C448C652EE06E11008931C7 /* IPCTesterReceiverMessageReceiver.swift */,
+				2984F586164BA095004BC0C6 /* LegacyCustomProtocolManagerMessageReceiver.cpp */,
+				2984F587164BA095004BC0C6 /* LegacyCustomProtocolManagerMessages.h */,
+				2984F57A164B915F004BC0C6 /* LegacyCustomProtocolManagerProxyMessageReceiver.cpp */,
+				2984F57B164B915F004BC0C6 /* LegacyCustomProtocolManagerProxyMessages.h */,
+				51F060DD1654317500F3281C /* LibWebRTCNetworkMessageReceiver.cpp */,
+				E38034DB2C63D6670095F1E0 /* LogStreamMessages.h */,
+				07E19EF823D401F00094FFB4 /* MediaPlayerPrivateRemoteMessageReceiver.cpp */,
+				07E19EF923D401F00094FFB4 /* MediaPlayerPrivateRemoteMessages.h */,
+				510C52D22B240FD2008EABED /* MediaSourcePrivateRemoteMessageReceiverMessageReceiver.cpp */,
+				9B4790902531563200EC11AB /* MessageArgumentDescriptions.cpp */,
+				0F5562E927EE28D200953585 /* MessageNames.cpp */,
+				0F5562E227EE28D100953585 /* MessageNames.h */,
+				51DD9F2616367DA2001578E9 /* NetworkConnectionToWebProcessMessageReceiver.cpp */,
+				51DD9F2716367DA2001578E9 /* NetworkConnectionToWebProcessMessages.h */,
+				52F060DD1654317500F3281B /* NetworkContentRuleListManagerMessageReceiver.cpp */,
+				51F060DD1654317500F3283F /* NetworkMDNSRegisterMessageReceiver.cpp */,
+				517CF0E1163A486C00C2950E /* NetworkProcessConnectionMessageReceiver.cpp */,
+				517CF0E2163A486C00C2950E /* NetworkProcessConnectionMessages.h */,
+				51ACC9341628064800342550 /* NetworkProcessMessageReceiver.cpp */,
+				51ACC9351628064800342550 /* NetworkProcessMessages.h */,
+				513A163A163088F6005D7D22 /* NetworkProcessProxyMessageReceiver.cpp */,
+				513A163B163088F6005D7D22 /* NetworkProcessProxyMessages.h */,
+				E152551817011819003D7ADB /* NetworkResourceLoaderMessageReceiver.cpp */,
+				E152551917011819003D7ADB /* NetworkResourceLoaderMessages.h */,
+				51F060DD1654317500F3281E /* NetworkRTCMonitorMessageReceiver.cpp */,
+				51F060DD1654317500F3282E /* NetworkRTCProviderMessageReceiver.cpp */,
+				31F060DD1654317500F3281C /* NetworkSocketChannelMessageReceiver.cpp */,
+				93085DCC26E2E902000EC6A7 /* NetworkStorageManagerMessageReceiver.cpp */,
+				93085DCD26E2E902000EC6A7 /* NetworkStorageManagerMessages.h */,
+				51452702271FBA36000467B6 /* NotificationManagerMessageHandlerMessageReceiver.cpp */,
+				51452701271FBA35000467B6 /* NotificationManagerMessageHandlerMessages.h */,
+				CDA29A241CBEB67A00901CCF /* PlaybackSessionManagerMessageReceiver.cpp */,
+				CDA29A251CBEB67A00901CCF /* PlaybackSessionManagerMessages.h */,
+				CDA29A261CBEB67A00901CCF /* PlaybackSessionManagerProxyMessageReceiver.cpp */,
+				CDA29A271CBEB67A00901CCF /* PlaybackSessionManagerProxyMessages.h */,
+				CC0302A10001000100010001 /* ProxyingNetworkAgentMessageReceiver.cpp */,
+				CC0302A10001000100010002 /* ProxyingNetworkAgentMessages.h */,
+				51EE7B5A2A95B5820016FF78 /* PushClientConnectionMessages.h */,
+				1C55A593275457C900EB7E95 /* RemoteAdapterMessageReceiver.cpp */,
+				1C55A5B1275457CD00EB7E95 /* RemoteAdapterMessages.h */,
+				CDFE82BA2F7DE9C300547599 /* RemoteAudioDestinationManagerMessageReceiver.cpp */,
+				CD20CE7725CD2B9D0069B542 /* RemoteAudioHardwareListenerMessageReceiver.cpp */,
+				CD20CE7925CD2B9E0069B542 /* RemoteAudioHardwareListenerMessages.h */,
+				CDD53576240DDE0700F7B8C4 /* RemoteAudioSessionMessageReceiver.cpp */,
+				CDD53575240DDE0700F7B8C4 /* RemoteAudioSessionMessages.h */,
+				CDD53571240DDE0600F7B8C4 /* RemoteAudioSessionProxyMessageReceiver.cpp */,
+				CDD53572240DDE0600F7B8C4 /* RemoteAudioSessionProxyMessages.h */,
+				CDFE82BB2F7DE9C300547599 /* RemoteAudioSourceProviderManagerMessageReceiver.cpp */,
+				CDFE82BC2F7DE9C300547599 /* RemoteAudioSourceProviderManagerMessages.h */,
+				5132290C2E77A368009E1992 /* RemoteAudioVideoRendererProxyManagerMessageReceiver.cpp */,
+				5132290D2E77A368009E1992 /* RemoteAudioVideoRendererProxyManagerMessages.h */,
+				1C55A582275457C600EB7E95 /* RemoteBindGroupLayoutMessageReceiver.cpp */,
+				1C55A591275457C800EB7E95 /* RemoteBindGroupLayoutMessages.h */,
+				1C55A59F275457CB00EB7E95 /* RemoteBindGroupMessageReceiver.cpp */,
+				1C55A5B0275457CD00EB7E95 /* RemoteBindGroupMessages.h */,
+				1C55A59A275457CA00EB7E95 /* RemoteBufferMessageReceiver.cpp */,
+				1C55A599275457CA00EB7E95 /* RemoteBufferMessages.h */,
+				0FF24A2B1879E4BC003ABF0D /* RemoteCaptureSampleManagerMessageReceiver.cpp */,
+				CDAC20F223FC383A0021DEE3 /* RemoteCDMFactoryProxyMessageReceiver.cpp */,
+				CDAC20F323FC383A0021DEE3 /* RemoteCDMFactoryProxyMessages.h */,
+				CDA6D45025A989AC004B1DF6 /* RemoteCDMInstanceMessageReceiver.cpp */,
+				CDA6D44F25A989AC004B1DF6 /* RemoteCDMInstanceMessages.h */,
+				CDAC20F523FC383B0021DEE3 /* RemoteCDMInstanceProxyMessageReceiver.cpp */,
+				CDAC20EB23FC38380021DEE3 /* RemoteCDMInstanceProxyMessages.h */,
+				CD466181240105640047CA35 /* RemoteCDMInstanceSessionMessageReceiver.cpp */,
+				CD466182240105640047CA35 /* RemoteCDMInstanceSessionMessages.h */,
+				CDAC20EC23FC38380021DEE3 /* RemoteCDMInstanceSessionProxyMessageReceiver.cpp */,
+				CDAC20ED23FC38380021DEE3 /* RemoteCDMInstanceSessionProxyMessages.h */,
+				CDAC20EF23FC38390021DEE3 /* RemoteCDMProxyMessageReceiver.cpp */,
+				CDAC20F423FC383A0021DEE3 /* RemoteCDMProxyMessages.h */,
+				1C55A5A6275457CC00EB7E95 /* RemoteCommandBufferMessageReceiver.cpp */,
+				1C55A5B2275457CE00EB7E95 /* RemoteCommandBufferMessages.h */,
+				1C55A59B275457CA00EB7E95 /* RemoteCommandEncoderMessageReceiver.cpp */,
+				1C55A592275457C900EB7E95 /* RemoteCommandEncoderMessages.h */,
+				1C55A5AE275457CD00EB7E95 /* RemoteComputePassEncoderMessageReceiver.cpp */,
+				1C55A57B275457C500EB7E95 /* RemoteComputePassEncoderMessages.h */,
+				1C55A577275457C400EB7E95 /* RemoteComputePipelineMessageReceiver.cpp */,
+				1C55A586275457C700EB7E95 /* RemoteComputePipelineMessages.h */,
+				1C55A588275457C700EB7E95 /* RemoteDeviceMessageReceiver.cpp */,
+				1C55A57C275457C500EB7E95 /* RemoteDeviceMessages.h */,
+				1C55A57E275457C500EB7E95 /* RemoteExternalTextureMessageReceiver.cpp */,
+				1C55A57A275457C500EB7E95 /* RemoteExternalTextureMessages.h */,
+				1C55A59D275457CA00EB7E95 /* RemoteGPUMessageReceiver.cpp */,
+				1C55A58F275457C800EB7E95 /* RemoteGPUMessages.h */,
+				1CDDFC7D2755866D00C93C62 /* RemoteGPUProxyMessageReceiver.cpp */,
+				1CDDFC7E2755866D00C93C62 /* RemoteGPUProxyMessages.h */,
+				3AF5B4722A244FDC004C3D4D /* RemoteGraphicsContextGLMessageReceiver.cpp */,
+				3AF5B4712A244FDC004C3D4D /* RemoteGraphicsContextGLMessages.h */,
+				3AF5B4742A244FDD004C3D4D /* RemoteGraphicsContextGLProxyMessageReceiver.cpp */,
+				3AF5B4732A244FDC004C3D4D /* RemoteGraphicsContextGLProxyMessages.h */,
+				0F6E7C522C4C386800F1DB85 /* RemoteGraphicsContextMessageReceiver.cpp */,
+				0F6E7C512C4C386800F1DB85 /* RemoteGraphicsContextMessages.h */,
+				1D47659B25CE74AD007AF312 /* RemoteImageDecoderAVFManagerMessageReceiver.cpp */,
+				1D47659925CE74AC007AF312 /* RemoteImageDecoderAVFManagerMessages.h */,
+				1D47658F25CCCE92007AF312 /* RemoteImageDecoderAVFProxyMessageReceiver.cpp */,
+				1D47659025CCCE93007AF312 /* RemoteImageDecoderAVFProxyMessages.h */,
+				0FF24A2B1879E4BC003ABF0C /* RemoteLayerTreeDrawingAreaProxyMessageReceiver.cpp */,
+				0FF24A2C1879E4BC003ABF0C /* RemoteLayerTreeDrawingAreaProxyMessages.h */,
+				CDE555292406B896008A3DDB /* RemoteLegacyCDMFactoryProxyMessageReceiver.cpp */,
+				CDE5552D2406B897008A3DDB /* RemoteLegacyCDMFactoryProxyMessages.h */,
+				CDE5552A2406B896008A3DDB /* RemoteLegacyCDMProxyMessageReceiver.cpp */,
+				CDE555282406B896008A3DDB /* RemoteLegacyCDMProxyMessages.h */,
+				CDE5552E2406B897008A3DDB /* RemoteLegacyCDMSessionMessageReceiver.cpp */,
+				CDE555272406B895008A3DDB /* RemoteLegacyCDMSessionMessages.h */,
+				CDE555312406B897008A3DDB /* RemoteLegacyCDMSessionProxyMessageReceiver.cpp */,
+				CDE5552F2406B897008A3DDB /* RemoteLegacyCDMSessionProxyMessages.h */,
+				CD3EEF442579C1D4006563BB /* RemoteMediaEngineConfigurationFactoryProxyMessageReceiver.cpp */,
+				CD3EEF432579C1D4006563BB /* RemoteMediaEngineConfigurationFactoryProxyMessages.h */,
+				07923145239CBCB7009598E2 /* RemoteMediaPlayerManagerProxyMessageReceiver.cpp */,
+				07923146239CBCB7009598E2 /* RemoteMediaPlayerManagerProxyMessages.h */,
+				071BC58C23CE1EA900680D7C /* RemoteMediaPlayerProxyMessageReceiver.cpp */,
+				071BC58D23CE1EAA00680D7C /* RemoteMediaPlayerProxyMessages.h */,
+				CD8FD70E2EF3283600291438 /* RemoteMediaResourceLoaderMessageReceiver.cpp */,
+				CD8FD70F2EF3283600291438 /* RemoteMediaResourceLoaderMessages.h */,
+				CD8FD70B2EF27ED900291438 /* RemoteMediaResourceLoaderProxyMessageReceiver.cpp */,
+				CD8FD70C2EF27ED900291438 /* RemoteMediaResourceLoaderProxyMessages.h */,
+				07A6E5E4260E411400959478 /* RemoteMediaSessionCoordinatorMessageReceiver.cpp */,
+				07A6E5E7260E411600959478 /* RemoteMediaSessionCoordinatorMessages.h */,
+				07A6E5E3260E411400959478 /* RemoteMediaSessionCoordinatorProxyMessageReceiver.cpp */,
+				07A6E5E5260E411500959478 /* RemoteMediaSessionCoordinatorProxyMessages.h */,
+				07E691C52E9EB5C4000C7E3C /* RemoteMediaSessionManagerMessageReceiver.cpp */,
+				07E691C62E9EB5C4000C7E3C /* RemoteMediaSessionManagerMessages.h */,
+				07E691C72E9EB5C4000C7E3C /* RemoteMediaSessionManagerProxyMessageReceiver.cpp */,
+				07E691C82E9EB5C4000C7E3C /* RemoteMediaSessionManagerProxyMessages.h */,
+				1DD2A662256122F100FF7B6F /* RemoteMediaSourceProxyMessageReceiver.cpp */,
+				1DD2A660256122F100FF7B6F /* RemoteMediaSourceProxyMessages.h */,
+				1AC1338318590C4600F3EC05 /* RemoteObjectRegistryMessageReceiver.cpp */,
+				1AC1338418590C4600F3EC05 /* RemoteObjectRegistryMessages.h */,
+				1C55A5A1275457CB00EB7E95 /* RemotePipelineLayoutMessageReceiver.cpp */,
+				1C55A595275457C900EB7E95 /* RemotePipelineLayoutMessages.h */,
+				1C55A58C275457C800EB7E95 /* RemoteQuerySetMessageReceiver.cpp */,
+				1C55A58D275457C800EB7E95 /* RemoteQuerySetMessages.h */,
+				1C55A5A0275457CB00EB7E95 /* RemoteQueueMessageReceiver.cpp */,
+				1C55A5A5275457CC00EB7E95 /* RemoteQueueMessages.h */,
+				CD8252E025D4918400862FD8 /* RemoteRemoteCommandListenerMessageReceiver.cpp */,
+				CD8252E125D4918500862FD8 /* RemoteRemoteCommandListenerMessages.h */,
+				CD8252DA25D4915400862FD8 /* RemoteRemoteCommandListenerProxyMessageReceiver.cpp */,
+				CD8252D925D4915400862FD8 /* RemoteRemoteCommandListenerProxyMessages.h */,
+				1C55A57D275457C500EB7E95 /* RemoteRenderBundleEncoderMessageReceiver.cpp */,
+				1C55A581275457C600EB7E95 /* RemoteRenderBundleEncoderMessages.h */,
+				1C55A5B3275457CE00EB7E95 /* RemoteRenderBundleMessageReceiver.cpp */,
+				1C55A5A8275457CC00EB7E95 /* RemoteRenderBundleMessages.h */,
+				F4517D7726FBCCE4004C8475 /* RemoteRenderingBackendMessageReceiver.cpp */,
+				F4517D7A26FBCD38004C8475 /* RemoteRenderingBackendMessages.h */,
+				1C55A57F275457C500EB7E95 /* RemoteRenderPassEncoderMessageReceiver.cpp */,
+				1C55A596275457C900EB7E95 /* RemoteRenderPassEncoderMessages.h */,
+				1C55A574275457C400EB7E95 /* RemoteRenderPipelineMessageReceiver.cpp */,
+				1C55A5A4275457CB00EB7E95 /* RemoteRenderPipelineMessages.h */,
+				1C55A598275457CA00EB7E95 /* RemoteSamplerMessageReceiver.cpp */,
+				1C55A597275457C900EB7E95 /* RemoteSamplerMessages.h */,
+				0F5947A5187B517600437857 /* RemoteScrollingCoordinatorMessageReceiver.cpp */,
+				0F5947A6187B517600437857 /* RemoteScrollingCoordinatorMessages.h */,
+				1C55A587275457C700EB7E95 /* RemoteShaderModuleMessageReceiver.cpp */,
+				1C55A590275457C800EB7E95 /* RemoteShaderModuleMessages.h */,
+				A76EFA992E7257F70022429C /* RemoteSnapshotRecorderMessageReceiver.cpp */,
+				A76EFA9A2E7257F70022429C /* RemoteSnapshotRecorderMessages.h */,
+				1DD2A66B2562021E00FF7B6F /* RemoteSourceBufferProxyMessageReceiver.cpp */,
+				1DD2A6692562021E00FF7B6F /* RemoteSourceBufferProxyMessages.h */,
+				1C55A584275457C600EB7E95 /* RemoteTextureMessageReceiver.cpp */,
+				1C55A573275457C400EB7E95 /* RemoteTextureMessages.h */,
+				1C55A5A7275457CC00EB7E95 /* RemoteTextureViewMessageReceiver.cpp */,
+				1C55A5AC275457CD00EB7E95 /* RemoteTextureViewMessages.h */,
+				1BBBE49E19B66C53006B7D81 /* RemoteWebInspectorUIMessageReceiver.cpp */,
+				A55BA8211BA25BB8007CD33D /* RemoteWebInspectorUIProxyMessageReceiver.cpp */,
+				A55BA8221BA25BB8007CD33D /* RemoteWebInspectorUIProxyMessages.h */,
+				E18E6913169B667B009B6670 /* SecItemShimProxyMessageReceiver.cpp */,
+				E18E6914169B667B009B6670 /* SecItemShimProxyMessages.h */,
+				51AD56882B1ABFC1001A0ECB /* SerializedTypeInfo.mm */,
+				2DE6943B18BD2A68005C15E5 /* SmartMagnificationControllerMessageReceiver.cpp */,
+				2DE6943C18BD2A68005C15E5 /* SmartMagnificationControllerMessages.h */,
+				510C52D42B241048008EABED /* SourceBufferPrivateRemoteMessageReceiverMessageReceiver.cpp */,
+				93AB9B4F257589110098B10E /* SpeechRecognitionRealtimeMediaSourceManagerMessageReceiver.cpp */,
+				93AB9B54257589120098B10E /* SpeechRecognitionRealtimeMediaSourceManagerMessages.h */,
+				93AB9B51257589110098B10E /* SpeechRecognitionRemoteRealtimeMediaSourceManagerMessageReceiver.cpp */,
+				93AB9B53257589120098B10E /* SpeechRecognitionRemoteRealtimeMediaSourceManagerMessages.h */,
+				93D6B781254CCABC0058DD3A /* SpeechRecognitionServerMessageReceiver.cpp */,
+				93D6B780254CCABC0058DD3A /* SpeechRecognitionServerMessages.h */,
+				1A334DEB16DE8F88006A8E38 /* StorageAreaMapMessageReceiver.cpp */,
+				1A334DEC16DE8F88006A8E38 /* StorageAreaMapMessages.h */,
+				CD491B0B1E732E4D00009066 /* UserMediaCaptureManagerMessageReceiver.cpp */,
+				CD491B0C1E732E4D00009066 /* UserMediaCaptureManagerMessages.h */,
+				CD491B151E73525500009066 /* UserMediaCaptureManagerProxyMessageReceiver.cpp */,
+				CD491B161E73525500009066 /* UserMediaCaptureManagerProxyMessages.h */,
+				3F418EF51887BD97002795FD /* VideoPresentationManagerMessageReceiver.cpp */,
+				3F418EF61887BD97002795FD /* VideoPresentationManagerMessages.h */,
+				3F418EF71887BD97002795FD /* VideoPresentationManagerProxyMessageReceiver.cpp */,
+				3F418EF81887BD97002795FD /* VideoPresentationManagerProxyMessages.h */,
+				2D1B5D5B185869C8006C6596 /* ViewGestureControllerMessageReceiver.cpp */,
+				2D1B5D5C185869C8006C6596 /* ViewGestureControllerMessages.h */,
+				2D819B9F1862800E001F03D1 /* ViewGestureGeometryCollectorMessageReceiver.cpp */,
+				2D819BA01862800E001F03D1 /* ViewGestureGeometryCollectorMessages.h */,
+				2684055018B86ED60022C38B /* ViewUpdateDispatcherMessageReceiver.cpp */,
+				2684055118B86ED60022C38B /* ViewUpdateDispatcherMessages.h */,
+				1A60224A18C16B9F00C3E8C9 /* VisitedLinkStoreMessageReceiver.cpp */,
+				1A60224B18C16B9F00C3E8C9 /* VisitedLinkStoreMessages.h */,
+				1A8E7D3A18C15149005A702A /* VisitedLinkTableControllerMessageReceiver.cpp */,
+				1A8E7D3B18C15149005A702A /* VisitedLinkTableControllerMessages.h */,
+				57DCED6C2142EAF90016B847 /* WebAuthenticatorCoordinatorProxyMessageReceiver.cpp */,
+				57DCED6D2142EAFA0016B847 /* WebAuthenticatorCoordinatorProxyMessages.h */,
+				1C0A19551C90068F00FE0EBB /* WebAutomationSessionMessageReceiver.cpp */,
+				1C0A19561C90068F00FE0EBB /* WebAutomationSessionMessages.h */,
+				1C0A19511C8FFDFB00FE0EBB /* WebAutomationSessionProxyMessageReceiver.cpp */,
+				1C0A19521C8FFDFB00FE0EBB /* WebAutomationSessionProxyMessages.h */,
+				5C76C0062ED9F46F00615579 /* WebBackForwardListMessageReceiver.swift */,
+				330934431315B9220097A7BC /* WebCookieManagerMessageReceiver.cpp */,
+				330934441315B9220097A7BC /* WebCookieManagerMessages.h */,
+				E3866B062399979C00F88FE9 /* WebDeviceOrientationUpdateProviderMessageReceiver.cpp */,
+				E3866B072399979D00F88FE9 /* WebDeviceOrientationUpdateProviderMessages.h */,
+				E3866B042399979C00F88FE9 /* WebDeviceOrientationUpdateProviderProxyMessageReceiver.cpp */,
+				E3866B052399979C00F88FE9 /* WebDeviceOrientationUpdateProviderProxyMessages.h */,
+				1C0234C828A00FA800AC1E5B /* WebExtensionContextMessageReceiver.cpp */,
+				1C0234CC28A00FA900AC1E5B /* WebExtensionContextMessages.h */,
+				1C0234CB28A00FA900AC1E5B /* WebExtensionContextProxyMessageReceiver.cpp */,
+				1C0234C928A00FA800AC1E5B /* WebExtensionContextProxyMessages.h */,
+				1C3BEB4A2887492600E66E38 /* WebExtensionControllerMessageReceiver.cpp */,
+				1C3BEB492887492600E66E38 /* WebExtensionControllerMessages.h */,
+				1C3BEB4D2887492700E66E38 /* WebExtensionControllerProxyMessageReceiver.cpp */,
+				1C3BEB4E2887492700E66E38 /* WebExtensionControllerProxyMessages.h */,
+				93E799822756FA540074008A /* WebFileSystemStorageConnectionMessageReceiver.cpp */,
+				93E799812756FA530074008A /* WebFileSystemStorageConnectionMessages.h */,
+				CD73BA48131ACD8E00EEDED2 /* WebFullScreenManagerMessageReceiver.cpp */,
+				CD73BA49131ACD8E00EEDED2 /* WebFullScreenManagerMessages.h */,
+				CD73BA45131ACC8800EEDED2 /* WebFullScreenManagerProxyMessageReceiver.cpp */,
+				CD73BA4A131ACD8F00EEDED2 /* WebFullScreenManagerProxyMessages.h */,
+				BC0E605F12D6BA910012A72A /* WebGeolocationManagerMessageReceiver.cpp */,
+				BC0E606012D6BA910012A72A /* WebGeolocationManagerMessages.h */,
+				BC0E618012D6CB1D0012A72A /* WebGeolocationManagerProxyMessageReceiver.cpp */,
+				BC0E618112D6CB1D0012A72A /* WebGeolocationManagerProxyMessages.h */,
+				510523721C73D37B007993CB /* WebIDBConnectionToServerMessageReceiver.cpp */,
+				510523731C73D37B007993CB /* WebIDBConnectionToServerMessages.h */,
+				1C8E2A311277852400BC7BD0 /* WebInspectorBackendMessageReceiver.cpp */,
+				1C8E2A321277852400BC7BD0 /* WebInspectorBackendMessages.h */,
+				FEDBDCD41E68D19C00A59F8F /* WebInspectorInterruptDispatcherMessageReceiver.cpp */,
+				FEDBDCD51E68D19C00A59F8F /* WebInspectorInterruptDispatcherMessages.h */,
+				9979659B25310A4800B31AE3 /* WebInspectorUIExtensionControllerMessageReceiver.cpp */,
+				9979659A25310A4800B31AE3 /* WebInspectorUIExtensionControllerMessages.h */,
+				996B2B9525E2448100719379 /* WebInspectorUIExtensionControllerProxyMessageReceiver.cpp */,
+				996B2B9625E2448200719379 /* WebInspectorUIExtensionControllerProxyMessages.h */,
+				1CBBE49E19B66C53006B7D81 /* WebInspectorUIMessageReceiver.cpp */,
+				1CBBE49F19B66C53006B7D81 /* WebInspectorUIMessages.h */,
+				5C9E0F972A577EC400FC2664 /* WebKitPlatformGeneratedSerializers.mm */,
+				31BA9248148830810062EDB5 /* WebNotificationManagerMessageReceiver.cpp */,
+				31BA9249148830810062EDB5 /* WebNotificationManagerMessages.h */,
+				C0CE729E1247E71D00BC0EC4 /* WebPageMessageReceiver.cpp */,
+				C0CE729F1247E71D00BC0EC4 /* WebPageMessages.h */,
+				BCBD3912125BB1A800D2C29F /* WebPageProxyMessageReceiver.cpp */,
+				BCBD3913125BB1A800D2C29F /* WebPageProxyMessages.h */,
+				C0CE729E1447E71D00BC0EC4 /* WebPageTestingMessageReceiver.cpp */,
+				C0CE729F1347E71D00BC0EC4 /* WebPageTestingMessages.h */,
+				7C4694C71A4B4EA000AD5845 /* WebPasteboardProxyMessageReceiver.cpp */,
+				7C4694C81A4B4EA100AD5845 /* WebPasteboardProxyMessages.h */,
+				1AB1F7921D1B3613007C9BD1 /* WebPaymentCoordinatorMessageReceiver.cpp */,
+				1AB1F7931D1B3613007C9BD1 /* WebPaymentCoordinatorMessages.h */,
+				1AB1F7941D1B3613007C9BD1 /* WebPaymentCoordinatorProxyMessageReceiver.cpp */,
+				1AB1F7951D1B3613007C9BD1 /* WebPaymentCoordinatorProxyMessages.h */,
+				D952EC7D289C9A4C006C240A /* WebPermissionControllerProxyMessageReceiver.cpp */,
+				D952EC7B289C9A4C006C240A /* WebPermissionControllerProxyMessages.h */,
+				BC3066BC125A442100E71278 /* WebProcessMessageReceiver.cpp */,
+				BC3066BD125A442100E71278 /* WebProcessMessages.h */,
+				7CE4D2251A4916C200C7F152 /* WebProcessPoolMessageReceiver.cpp */,
+				7CE4D2261A4916C200C7F152 /* WebProcessPoolMessages.h */,
+				BCEE7ACC12817988009827DA /* WebProcessProxyMessageReceiver.cpp */,
+				BCEE7ACD12817988009827DA /* WebProcessProxyMessages.h */,
+				51F060DD1654317500F3281B /* WebResourceLoaderMessageReceiver.cpp */,
+				51F060DE1654317500F3281B /* WebResourceLoaderMessages.h */,
+				51F060DD1654317500F3281F /* WebRTCMonitorMessageReceiver.cpp */,
+				51F060DD1654317500F3282C /* WebRTCResolverMessageReceiver.cpp */,
+				41F060DD1654317500F3281C /* WebSocketChannelMessageReceiver.cpp */,
+				93D6B77D254CCABB0058DD3A /* WebSpeechRecognitionConnectionMessageReceiver.cpp */,
+				93D6B786254CCD8B0058DD3A /* WebSpeechRecognitionConnectionMessages.h */,
+				517A530E1F47A84300DCDC0A /* WebSWClientConnectionMessageReceiver.cpp */,
+				517A530D1F47A84300DCDC0A /* WebSWClientConnectionMessages.h */,
+				460F488D1F996F6C00CF4B87 /* WebSWContextManagerConnectionMessageReceiver.cpp */,
+				460F488E1F996F6C00CF4B87 /* WebSWContextManagerConnectionMessages.h */,
+				517A52D71F43A9B600DCDC0A /* WebSWServerConnectionMessageReceiver.cpp */,
+				517A52D61F43A9B600DCDC0A /* WebSWServerConnectionMessages.h */,
+				515262BA1FB951310070E579 /* WebSWServerToContextConnectionMessageReceiver.cpp */,
+				515262BB1FB951310070E579 /* WebSWServerToContextConnectionMessages.h */,
+				1AAF08B519269E6D00B6390C /* WebUserContentControllerMessageReceiver.cpp */,
+				1AAF08B619269E6D00B6390C /* WebUserContentControllerMessages.h */,
+			);
+			path = IPC;
+			sourceTree = "<group>";
+		};
 		C0CE73351247F70E00BC0EC4 /* Scripts */ = {
 			isa = PBXGroup;
 			children = (
@@ -18240,6 +18307,7 @@
 				F30EE46E2E721ED600935B60 /* FrameInspectorTarget.h in Headers */,
 				F30EE4742E72227500935B60 /* FrameInspectorTargetProxy.h in Headers */,
 				1AE00D611831792100087DD7 /* FrameLoadState.h in Headers */,
+				A1B2C3D4E5F60718DEADBEEF /* FrameNetworkAgentProxy.h in Headers */,
 				5C121E842410208D00486F9B /* FrameTreeNodeData.h in Headers */,
 				2D4AF0892044C3C4006C8817 /* FrontBoardServicesSPI.h in Headers */,
 				CD78E1151DB7D7ED0014A2DE /* FullscreenClient.h in Headers */,
@@ -18542,6 +18610,7 @@
 				86E67A251910B9D100004AB7 /* ProcessThrottler.h in Headers */,
 				2D279E1926955768004B3EEB /* PrototypeToolsSPI.h in Headers */,
 				1ADC268E29E89FDA005990CA /* ProvisionalFrameCreationParameters.h in Headers */,
+				C3EE0FDA0234F84002CAF7FB /* ProxyingNetworkAgent.h in Headers */,
 				517B5F7D275E97B6002DC22D /* PushClientConnection.h in Headers */,
 				51EE7B5B2A95B5820016FF78 /* PushClientConnectionMessages.h in Headers */,
 				517B5F95275EBA63002DC22D /* PushMessageForTesting.h in Headers */,
@@ -18602,6 +18671,7 @@
 				1AC1338018590AE400F3EC05 /* RemoteObjectRegistry.h in Headers */,
 				1AC1338618590C4600F3EC05 /* RemoteObjectRegistryMessages.h in Headers */,
 				2BBCCE242EB2B3F500FE7E5A /* RemotePageScreenOrientationManagerProxy.h in Headers */,
+				F5AE074483234F46B7D93F3F /* RemotePageWebAuthenticatorCoordinatorProxy.h in Headers */,
 				71C9ECA12CF9FB7100B8AF06 /* RemoteProgressBasedTimeline.h in Headers */,
 				71722EB22EA919E9004218E6 /* RemoteProgressBasedTimelineRegistry.h in Headers */,
 				46088A00261FA8BC00E2500D /* RemoteRenderingBackend.h in Headers */,
@@ -18723,6 +18793,7 @@
 				E3C6727329D4A3AD00AD4452 /* TextTrackRepresentationCocoa.h in Headers */,
 				1AAF263914687C39004A1E8A /* TiledCoreAnimationDrawingArea.h in Headers */,
 				1AF05D8714688348008B1E81 /* TiledCoreAnimationDrawingAreaProxy.h in Headers */,
+				3A8801412FB2C9D600DBBD50 /* TimeBasedEvictionMode.h in Headers */,
 				F48570A32644BEC500C05F71 /* Timeout.h in Headers */,
 				7B8486842ED9C1FC00E34DC1 /* TransferString.h in Headers */,
 				57EB2E3A21E1983E00B89CDF /* U2fAuthenticator.h in Headers */,
@@ -20122,6 +20193,7 @@
 				CD95493226159004008372D9 /* Sources */,
 				CD95493326159004008372D9 /* Frameworks */,
 				6577FFBA2769C64A0011AEC8 /* Create Symlink to Cryptex Path */,
+				0DF0187F2FA848010077DA6B /* Resources */,
 			);
 			buildRules = (
 			);
@@ -20238,6 +20310,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0DF0187F2FA848010077DA6B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0DF018822FA848080077DA6B /* studio_lighting_objectmode_v3.reibl in Resources */,
+				0DF018802FA848080077DA6B /* studio_lighting_objectmode_v3_diffmap.ktx in Resources */,
+				0DF018812FA848080077DA6B /* studio_lighting_objectmode_v3_specmap.ktx in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2D56C1C728A367A00081BD25 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -20326,6 +20408,9 @@
 				8DC2EF530486A6940098B216 /* InfoPlist.strings in Resources */,
 				3FB08E431F60B240005E5312 /* iOS.xcassets in Resources */,
 				5C8BC797218CBB4800813886 /* SafeBrowsing.xcassets in Resources */,
+				0DF0187C2FA847F70077DA6B /* studio_lighting_objectmode_v3.reibl in Resources */,
+				0DF0187E2FA847F70077DA6B /* studio_lighting_objectmode_v3_diffmap.ktx in Resources */,
+				0DF0187D2FA847F70077DA6B /* studio_lighting_objectmode_v3_specmap.ktx in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -21900,7 +21985,14 @@
 				074D6A672F3854F0006089F6 /* FloatRectCG.swift in Sources */,
 				079A4DA72D72CEDC00CA387F /* Foundation+Extras.swift in Sources */,
 				CDA93DB122F8BCF400490A69 /* FullscreenTouchSecheuristicParameters.cpp in Sources */,
-				86760A6B28DB30DE00D07D06 /* GeneratedSerializers.mm in Sources */,
+				BE65E75CCC420DBA7132DD24 /* GeneratedSerializersCommon.mm in Sources */,
+				A56341427AAAFB5315B5ACCC /* GeneratedSerializersGPUProcess.mm in Sources */,
+				6736FC1C09C562C35389E3A5 /* GeneratedSerializersModelProcess.mm in Sources */,
+				D207D24EE184C36F71B22D8D /* GeneratedSerializersNetworkProcess.mm in Sources */,
+				116530B58849A3DC336C676D /* GeneratedSerializersPlatform.mm in Sources */,
+				4270E32751C161F793FD242A /* GeneratedSerializersShared.mm in Sources */,
+				ABCC0C21BBF7F90D362ECEB4 /* GeneratedSerializersUIProcess.mm in Sources */,
+				B0447A843DDAFA1CEF0B3F50 /* GeneratedSerializersWebProcess.mm in Sources */,
 				522F792A28D50EC60069B45B /* HidConnection.mm in Sources */,
 				522F792928D50EBB0069B45B /* HidService.mm in Sources */,
 				2749F6442146561B008380BF /* InjectedBundleNodeHandle.cpp in Sources */,
@@ -22289,6 +22381,8 @@
 				2D931169212F61B200044BFE /* WKContentView.mm in Sources */,
 				2D93116A212F61B500044BFE /* WKContentViewInteraction.mm in Sources */,
 				075C079A2D92125D00B3E900 /* WKContextMenuElementInfoAdapter.swift in Sources */,
+				079DD3032FAC583900592E03 /* WKDeferringGestureRecognizer.swift in Sources */,
+				079DD3052FAC583A00592E03 /* WKDeferringGestureRecognizerExtras.swift in Sources */,
 				637281A321ADC744009E0DE6 /* WKDownloadProgress.mm in Sources */,
 				5CE9120D2293C219005BEC78 /* WKMain.mm in Sources */,
 				E502E4F82D4810EA00C3D56D /* WKMaterialHostingSupport.swift in Sources */,

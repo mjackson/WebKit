@@ -34,6 +34,7 @@
 #include "SampledGradientBuilder.h"
 #include <pal/spi/cg/CoreGraphicsSPI.h>
 #include <wtf/HashMap.h>
+#include <wtf/ThreadSpecific.h>
 #include <wtf/TinyLRUCache.h>
 
 namespace WTF {
@@ -201,8 +202,8 @@ GradientRendererCG::Gradient GradientRendererCG::makeGradient(ColorInterpolation
 GradientRendererCG::Gradient GradientRendererCG::makeGradientBySampling(ColorInterpolationMethod colorInterpolationMethod, const GradientColorStops& stops) const
 {
     auto colorStops = stops.sorted().stops();
-    static NeverDestroyed<TinyLRUCache<WTF::SampledGradientCacheKey, RetainPtr<CGGradientRef>, 8>> cache;
-    RetainPtr gradient = cache.get().get({ colorInterpolationMethod, colorStops, m_colorSpace });
+    static NeverDestroyed<ThreadSpecific<TinyLRUCache<WTF::SampledGradientCacheKey, RetainPtr<CGGradientRef>, 8>>> cache;
+    RetainPtr gradient = cache.get()->get({ colorInterpolationMethod, colorStops, m_colorSpace });
     return Gradient { WTF::move(gradient) };
 }
 

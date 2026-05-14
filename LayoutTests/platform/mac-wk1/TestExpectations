@@ -108,7 +108,6 @@ webkit.org/b/251618 imported/w3c/web-platform-tests/editing/other/exec-command-w
 webkit.org/b/251113 inspector/timeline/timeline-event-screenshots.html [ Skip ]
 webkit.org/b/132421 fast/multicol/fixed-stack.html [ ImageOnlyFailure ]
 webkit.org/b/82747 fast/events/scroll-div-with-prevent-default-in-subframe.html [ Failure ]
-webkit.org/b/155196 security/contentSecurityPolicy/video-with-blob-url-allowed-by-media-src-star.html [ Skip ]
 webkit.org/b/270055 imported/w3c/web-platform-tests/navigation-api/ [ Skip ]
 webkit.org/b/270055 http/wpt/navigation-api/ [ Skip ]
 webkit.org/b/162592 css3/filters/backdrop/backdrop-filter-with-reflection.html [ Pass ImageOnlyFailure ]

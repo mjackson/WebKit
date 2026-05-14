@@ -29,6 +29,7 @@
 #include "WebAnimationTypes.h"
 #include <wtf/BitSet.h>
 #include <wtf/EnumSet.h>
+#include <wtf/OrderedHashMap.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ValueOrReference.h>
 
@@ -108,7 +109,7 @@ public:
     const Property& functionResultProperty() const LIFETIME_BOUND;
 
     std::span<const CSSPropertyID> logicalGroupPropertyIDs() const LIFETIME_BOUND;
-    const HashMap<AtomString, Property>& customProperties() const LIFETIME_BOUND { return m_customProperties; }
+    const WTF::OrderedHashMap<AtomString, Property>& customProperties() const LIFETIME_BOUND { return m_customProperties; }
 
     ValueOrReference<HashSet<AnimatableCSSProperty>> overriddenAnimatedProperties() const;
 
@@ -185,7 +186,7 @@ private:
     CSSPropertyID m_lowestSeenLogicalGroupProperty { lastLogicalGroupProperty };
     CSSPropertyID m_highestSeenLogicalGroupProperty { firstLogicalGroupProperty };
 
-    HashMap<AtomString, Property> m_customProperties;
+    WTF::OrderedHashMap<AtomString, Property> m_customProperties;
 };
 
 inline bool PropertyCascade::hasNormalProperty(CSSPropertyID id) const

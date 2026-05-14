@@ -49,7 +49,7 @@ public:
     const WebXRViewport& viewport() const final { return m_viewport.get(); }
     const WebGLTexture& colorTexture() const;
     RefPtr<WebGLTexture> depthStencilTexture() const;
-    RefPtr<WebGLTexture> motionVectorTexture() const { return nullptr; }
+    RefPtr<WebGLTexture> motionVectorTexture() const;
 
     std::optional<uint32_t> imageIndex() const { return m_imageIndex; }
     void setImageIndex(uint32_t imageIndex) { m_imageIndex = imageIndex; }

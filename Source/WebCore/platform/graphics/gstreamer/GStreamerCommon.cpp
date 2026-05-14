@@ -102,6 +102,10 @@
 #include <gst/webrtc/webrtc-enumtypes.h>
 #endif
 
+#if USE(GSTREAMER_GL)
+#include <gst/gl/gl.h>
+#endif
+
 #if USE(GSTREAMER_FULL) && GST_CHECK_VERSION(1, 18, 0) && !GST_CHECK_VERSION(1, 20, 0)
 #define IS_GST_FULL_1_18 1
 #include <gst/gstinitstaticplugins.h>

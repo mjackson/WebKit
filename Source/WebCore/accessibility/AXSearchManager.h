@@ -25,6 +25,7 @@
 #pragma once
 
 #include <WebCore/AXCoreObject.h>
+#include <WebCore/AXTextMarker.h>
 #include <WebCore/AccessibilityRemoteToken.h>
 #include <WebCore/FrameIdentifier.h>
 #include <wtf/HashMap.h>

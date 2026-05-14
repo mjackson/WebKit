@@ -983,7 +983,7 @@ CachedResource* Internals::resourceFromMemoryCache(const String& url)
     if (!contextDocument() || !contextDocument()->page())
         return nullptr;
 
-    ResourceRequest request(contextDocument()->completeURL(url));
+    ResourceRequest request(contextDocument()->encodingParseURL(url));
     request.setDomainForCachePartition(contextDocument()->domainForCachePartition());
 
     return MemoryCache::singleton().resourceForRequest(request, contextDocument()->page()->sessionID());
@@ -2951,6 +2951,27 @@ ExceptionOr<RefPtr<NodeList>> Internals::nodesFromRect(Document& document, int c
     return RefPtr<NodeList> { StaticNodeList::create(WTF::move(matches)) };
 }
 
+ExceptionOr<RefPtr<Node>> Internals::nodeFromPointIncludingChildFrames(Document& document, int x, int y) const
+{
+    if (!document.frame() || !document.frame()->view())
+        return Exception { ExceptionCode::InvalidAccessError };
+
+    document.updateLayout(LayoutOptions::IgnorePendingStylesheets);
+
+    auto* localFrame = document.frame();
+    if (!localFrame)
+        return RefPtr<Node> { };
+
+    constexpr OptionSet<HitTestRequest::Type> hitType {
+        HitTestRequest::Type::ReadOnly,
+        HitTestRequest::Type::Active,
+        HitTestRequest::Type::DisallowUserAgentShadowContent,
+        HitTestRequest::Type::AllowChildFrameContent,
+    };
+    auto result = localFrame->eventHandler().hitTestResultAtPoint(IntPoint(x, y), hitType);
+    return RefPtr<Node> { result.innerNode() };
+}
+
 class GetCallerCodeBlockFunctor {
 public:
     GetCallerCodeBlockFunctor()
@@ -2988,7 +3009,7 @@ String Internals::parserMetaData(JSC::JSValue code)
         StackVisitor::visit(callFrame, vm, iter);
         executable = iter.codeBlock()->ownerExecutable();
     } else if (code.isCallable())
-        executable = uncheckedDowncast<JSFunction>(code.toObject(globalObject))->jsExecutable();
+        executable = downcast<JSFunction>(code.toObject(globalObject))->jsExecutable();
     else
         return String();
 
@@ -3057,6 +3078,14 @@ bool Internals::hasSpellingMarker(int from, int length)
 bool Internals::hasGrammarMarker(int from, int length)
 {
     return hasMarkerFor(DocumentMarkerType::Grammar, from, length);
+}
+
+unsigned Internals::appliedGrammarTextEffectCount() const
+{
+    RefPtr document = contextDocument();
+    if (!document)
+        return 0;
+    return document->markers().appliedGrammarTextEffectCount();
 }
 
 bool Internals::isAlternativeTextUIActive() const
@@ -4946,6 +4975,20 @@ bool Internals::isSelectPopupVisible(HTMLSelectElement& element)
 #endif
 }
 
+RefPtr<DOMPointReadOnly> Internals::lastSelectPopupLocation(const HTMLSelectElement& element)
+{
+#if !PLATFORM(IOS_FAMILY)
+    auto location = element.lastPopupLocationForTesting();
+    if (!location)
+        return nullptr;
+
+    return DOMPointReadOnly::create(location->x(), location->y(), 0, 0);
+#else
+    UNUSED_PARAM(element);
+    return nullptr;
+#endif
+}
+
 ExceptionOr<String> Internals::captionsStyleSheetOverride()
 {
     Document* document = contextDocument();
@@ -5968,7 +6011,7 @@ RefPtr<File> Internals::createFile(const String& path)
     if (!document)
         return nullptr;
 
-    URL url = document->completeURL(path);
+    URL url = document->encodingParseURL(path);
     if (!url.protocolIsFile())
         return nullptr;
 
@@ -5985,7 +6028,7 @@ void Internals::asyncCreateFile(const String& path, DOMPromiseDeferred<IDLInterf
         return;
     }
 
-    URL url = document->completeURL(path);
+    URL url = document->encodingParseURL(path);
     if (!url.protocolIsFile()) {
         promise.reject(ExceptionCode::InvalidStateError);
         return;
@@ -7051,7 +7094,7 @@ void Internals::hasServiceWorkerRegistration(const String& clientURL, HasRegistr
     if (!contextDocument())
         return;
 
-    URL parsedURL = contextDocument()->completeURL(clientURL);
+    URL parsedURL = contextDocument()->encodingParseURL(clientURL);
 
     return ServiceWorkerProvider::singleton().serviceWorkerConnection().matchRegistration(SecurityOriginData { contextDocument()->topOrigin().data() }, parsedURL, [promise = WTF::move(promise)] (auto&& result) mutable {
         promise.resolve(!!result);

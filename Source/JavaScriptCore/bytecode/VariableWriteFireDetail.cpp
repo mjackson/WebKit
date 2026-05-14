@@ -30,6 +30,12 @@
 
 namespace JSC {
 
+VariableWriteFireDetail::VariableWriteFireDetail(ClangVTableWorkaroundTag, const PropertyName& name)
+    : m_object(nullptr)
+    , m_name(name)
+{
+}
+
 void VariableWriteFireDetail::dump(PrintStream& out) const
 {
     out.print("Write to ", m_name, " in ", JSValue(m_object));

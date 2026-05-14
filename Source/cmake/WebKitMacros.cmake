@@ -35,6 +35,9 @@ macro(WEBKIT_COMPUTE_SOURCES _framework)
     if (MSVC AND ${_framework} STREQUAL "WebCore" AND ${_framework}_LIBRARY_TYPE STREQUAL "STATIC")
         list(APPEND gusb_args --max-bundle-size 16)
     endif ()
+    if (${_framework} STREQUAL "WebCore")
+        list(APPEND gusb_args --dense-bundle-filter "JS*=JSBindings" --dense-bundle-filter "bindings/*=JSBindings")
+    endif ()
 
     if (ENABLE_UNIFIED_BUILDS)
         execute_process(COMMAND ${Python_EXECUTABLE} ${WTF_SCRIPTS_DIR}/generate-unified-source-bundles.py
@@ -67,13 +70,13 @@ macro(WEBKIT_COMPUTE_SOURCES _framework)
         foreach (_file IN LISTS _outputTmp)
             if (_file MATCHES "\\.c$")
                 list(APPEND ${_framework}_C_SOURCES ${_file})
+            elseif (_file MATCHES "-ARC\\.mm$")
+                # generate-unified-source-bundles.rb emits *-ARC.mm and *-nonARC.mm bundles based
+                # on @nonARC annotations in Sources*.txt. The ARC bundles compile in a separate
+                # OBJECT library so the OBJCXX precompiled header agrees on -fobjc-arc.
+                list(APPEND ${_framework}_ARC_SOURCES ${_file})
             else ()
                 list(APPEND ${_framework}_SOURCES ${_file})
-                # generate-unified-source-bundles.rb emits *-ARC.mm and *-nonARC.mm bundles based
-                # on @no-arc annotations in Sources*.txt. Xcode uses per-file CLANG_ENABLE_OBJC_ARC.
-                if (_file MATCHES "-ARC\\.mm$")
-                    set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS "-fobjc-arc")
-                endif ()
             endif ()
         endforeach ()
 
@@ -123,43 +126,154 @@ macro(WEBKIT_ADD_SOURCE_DEPENDENCIES _source _deps)
     unset(_tmp)
 endmacro()
 
-# Wrapper around target_precompile_headers() with two workarounds:
+# Wrapper around target_precompile_headers().
 #
-# 1. OBJCXX is excluded from the PCH because WebKit targets mix ARC and
-#    non-ARC .mm sources in the same target. CMake generates one PCH per
-#    language per target, so ARC sources would get a non-ARC PCH (or vice
-#    versa), producing:
-#      "ARC was disabled in precompiled file ... but is currently enabled"
-#    OBJCXX sources still get the prefix header via a plain -include flag.
+# Swift sources are unaffected: with CMP0157 NEW (set in the top-level
+# CMakeLists.txt) the Swift link rule receives only object files, so the
+# .pch is never passed to swiftc.
 #
-# 2. Targets with Swift sources fall back to -include for ALL languages.
-#    CMake's Swift linker rule includes the .pch in the link inputs,
-#    producing "unexpected input file: ...pch". Using -include avoids
-#    generating a .pch file entirely.
+# Targets that mix ARC and non-ARC .mm split the ARC sources into a separate
+# OBJECT library (see ${_framework}_ARC_SOURCES) so each gets a matching PCH.
 #
-# On ports where OBJC/OBJCXX are not enabled languages the OBJC/OBJCXX
-# clauses are no-ops.
-# FIXME: We should refactor this so that sources differentiate by language
-# so we use PCHs consistently rather than just prefix headers.
-macro(ADD_WEBKIT_PREFIX_HEADERS _target _header)
-    get_target_property(_sources ${_target} SOURCES)
-    set(_has_swift FALSE)
-    foreach (_src IN LISTS _sources)
-        if (_src MATCHES "\\.swift$")
-            set(_has_swift TRUE)
-            break ()
-        endif ()
-    endforeach ()
-
-    if (_has_swift)
-        target_compile_options(${_target} PRIVATE
-            "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-include;${CMAKE_CURRENT_SOURCE_DIR}/${_header}>")
-    else ()
-        target_precompile_headers(${_target} PRIVATE
-            "$<$<COMPILE_LANGUAGE:C,CXX,OBJC>:${CMAKE_CURRENT_SOURCE_DIR}/${_header}>")
-        target_compile_options(${_target} PRIVATE
-            "$<$<COMPILE_LANGUAGE:OBJCXX>:-include;${CMAKE_CURRENT_SOURCE_DIR}/${_header}>")
+# On ports where OBJC/OBJCXX are not enabled languages those clauses are no-ops.
+function(WEBKIT_ADD_PREFIX_HEADER _target _header)
+    cmake_parse_arguments(PARSE_ARGV 2 _PCH "PREFIX_NO_CODEGEN" "" "PREFIX_LANGUAGES")
+    if (NOT _PCH_PREFIX_LANGUAGES)
+        message(FATAL_ERROR "WEBKIT_ADD_PREFIX_HEADER(${_target}): PREFIX_LANGUAGES is required")
     endif ()
+    string(JOIN "," _pch_genex_langs ${_PCH_PREFIX_LANGUAGES})
+    target_precompile_headers(${_target} PRIVATE
+        "$<$<COMPILE_LANGUAGE:${_pch_genex_langs}>:${CMAKE_CURRENT_SOURCE_DIR}/${_header}>")
+    _WEBKIT_ADD_PCH_OBJECT(${_target} ${ARGN})
+endfunction()
+
+# REUSE_FROM is only safe where producer and consumer compile flags match exactly.
+# That fails on GCC (per-target BUILDING_* define -> -Werror=invalid-pch) and on
+# ELF clang when an executable reuses a library PCH (-fPIE vs -fPIC). Fall back
+# to a per-target prefix header on those ports.
+function(WEBKIT_REUSE_PREFIX_HEADER _target _from _header)
+    if (COMPILER_IS_CLANG AND APPLE)
+        target_precompile_headers(${_target} REUSE_FROM ${_from})
+    else ()
+        WEBKIT_ADD_PREFIX_HEADER(${_target} ${_header} PREFIX_NO_CODEGEN ${ARGN})
+    endif ()
+endfunction()
+
+function(_WEBKIT_ADD_PCH_OBJECT _target)
+    if (NOT (COMPILER_IS_CLANG AND APPLE))
+        return()
+    endif ()
+    cmake_parse_arguments(PARSE_ARGV 1 _PO "PREFIX_NO_CODEGEN" "" "PREFIX_LANGUAGES")
+    set(_stub_flags "-fpch-debuginfo;-Xclang;-building-pch-with-obj")
+    if (NOT _PO_PREFIX_NO_CODEGEN)
+        list(PREPEND _stub_flags "-fpch-codegen")
+    endif ()
+    get_target_property(_pch_bin_dir ${_target} BINARY_DIR)
+    list(FILTER _PO_PREFIX_LANGUAGES INCLUDE REGEX "^(CXX|OBJCXX)$")
+    foreach (_pch_lang IN LISTS _PO_PREFIX_LANGUAGES)
+        _WEBKIT_PCH_PATHS_FOR_LANGUAGE(${_pch_lang} _pch_src_ext _pch_stub_ext _pch_stem)
+        set_property(SOURCE "${_pch_bin_dir}/CMakeFiles/${_target}.dir/${_pch_stem}.${_pch_stub_ext}"
+            APPEND PROPERTY COMPILE_OPTIONS "${_stub_flags}")
+        set(_pch_obj_src "${CMAKE_CURRENT_BINARY_DIR}/${_target}_pch_obj.${_pch_src_ext}")
+        if (NOT EXISTS "${_pch_obj_src}")
+            file(WRITE "${_pch_obj_src}" "// PCH object for ${_target} (${_pch_lang})\n")
+        endif ()
+        target_sources(${_target} PRIVATE "${_pch_obj_src}")
+        set_source_files_properties("${_pch_obj_src}" PROPERTIES
+            COMPILE_OPTIONS "-Xclang;-building-pch-with-obj;-fvisibility-inlines-hidden"
+            SKIP_UNITY_BUILD_INCLUSION ON)
+    endforeach ()
+endfunction()
+
+macro(_WEBKIT_PCH_PATHS_FOR_LANGUAGE _lang _out_src_ext _out_stub_ext _out_pch_stem)
+    if (${_lang} STREQUAL "OBJCXX")
+        set(${_out_src_ext} "mm")
+        set(${_out_stub_ext} "mm")
+        set(${_out_pch_stem} "cmake_pch.objcxx.hxx")
+    elseif (${_lang} STREQUAL "OBJC")
+        set(${_out_src_ext} "m")
+        set(${_out_stub_ext} "m")
+        set(${_out_pch_stem} "cmake_pch.objc.h")
+    elseif (${_lang} STREQUAL "C")
+        set(${_out_src_ext} "c")
+        set(${_out_stub_ext} "c")
+        set(${_out_pch_stem} "cmake_pch.h")
+    else ()
+        set(${_out_src_ext} "cpp")
+        set(${_out_stub_ext} "cxx")
+        set(${_out_pch_stem} "cmake_pch.hxx")
+    endif ()
+endmacro()
+
+function(WEBKIT_ADD_PREFIX_HEADER_WITH_PARENT _target _base_target _header _parent_header)
+    if (COMPILER_IS_CLANG)
+        string(JOIN "," _lang_genex ${ARGN})
+        target_precompile_headers(${_target} PRIVATE
+            "$<$<COMPILE_LANGUAGE:${_lang_genex}>:${CMAKE_CURRENT_SOURCE_DIR}/${_header}>")
+        get_target_property(_base_bin_dir ${_base_target} BINARY_DIR)
+        get_target_property(_chain_bin_dir ${_target} BINARY_DIR)
+        foreach (_lang ${ARGN})
+            _WEBKIT_PCH_PATHS_FOR_LANGUAGE(${_lang} _src_ext _stub_ext _pch_stem)
+            set(_base_pch "${_base_bin_dir}/CMakeFiles/${_base_target}.dir/${_pch_stem}.pch")
+            set(_chain_stub "${_chain_bin_dir}/CMakeFiles/${_target}.dir/${_pch_stem}.${_stub_ext}")
+            set_source_files_properties(${_chain_stub} PROPERTIES
+                COMPILE_OPTIONS "-Xclang;-include-pch;-Xclang;${_base_pch}"
+                OBJECT_DEPENDS "${_base_pch}")
+        endforeach ()
+        _WEBKIT_ADD_PCH_OBJECT(${_target} PREFIX_NO_CODEGEN PREFIX_LANGUAGES ${ARGN})
+    else ()
+        WEBKIT_ADD_PREFIX_HEADER(${_target} ${_parent_header} PREFIX_LANGUAGES ${ARGN})
+    endif ()
+endfunction()
+
+function(WEBKIT_DEFINE_SUBTARGET _target _parent)
+    add_library(${_target} OBJECT)
+    target_sources(${_target} PRIVATE ${${_parent}_HEADERS} ${ARGN})
+    target_include_directories(${_target} PRIVATE $<TARGET_PROPERTY:${_parent},INCLUDE_DIRECTORIES>)
+    target_include_directories(${_target} SYSTEM PRIVATE ${${_parent}_SYSTEM_INCLUDE_DIRECTORIES})
+    target_compile_definitions(${_target} PRIVATE ${_parent}_EXPORTS $<TARGET_PROPERTY:${_parent},COMPILE_DEFINITIONS>)
+    target_compile_options(${_target} PRIVATE $<TARGET_PROPERTY:${_parent},COMPILE_OPTIONS>)
+    target_link_libraries(${_target} PRIVATE $<TARGET_PROPERTY:${_parent},LINK_LIBRARIES>)
+    if (${_parent}_DEPENDENCIES)
+        add_dependencies(${_target} ${${_parent}_DEPENDENCIES})
+    endif ()
+endfunction()
+
+macro(WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX _target _subtarget)
+    cmake_parse_arguments(_arg "" "PREFIX" "PREFIX_LANGUAGES;DIRS" ${ARGN})
+    if (${_target}_FINALIZED)
+        message(FATAL_ERROR "WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(${_target} ${_subtarget}) must be called before WEBKIT_FRAMEWORK(${_target})")
+    endif ()
+    if (COMPILER_IS_CLANG AND NOT MSVC AND NOT CMAKE_DISABLE_PRECOMPILE_HEADERS)
+        set(_src_exts)
+        foreach (_lang IN LISTS _arg_PREFIX_LANGUAGES)
+            _WEBKIT_PCH_PATHS_FOR_LANGUAGE(${_lang} _src_ext _stub_ext _pch_stem)
+            list(APPEND _src_exts ${_src_ext})
+        endforeach ()
+        string(JOIN "|" _src_exts ${_src_exts})
+        string(JOIN "|" _dirs ${_arg_DIRS})
+        set(_re "(^|[-/])(${_dirs})[-/]")
+        set(${_subtarget}_SOURCES ${${_target}_SOURCES})
+        list(FILTER ${_subtarget}_SOURCES INCLUDE REGEX "${_re}")
+        list(FILTER ${_subtarget}_SOURCES INCLUDE REGEX "\\.(${_src_exts})$")
+        if (${_subtarget}_SOURCES)
+            list(REMOVE_ITEM ${_target}_SOURCES ${${_subtarget}_SOURCES})
+            WEBKIT_DEFINE_SUBTARGET(${_subtarget} ${_target} ${${_subtarget}_SOURCES})
+            set(_subobjects "$<FILTER:$<TARGET_OBJECTS:${_subtarget}>,EXCLUDE,\\.(g|p)ch$>")
+            if (${_target}_LIBRARY_TYPE STREQUAL "SHARED" OR ${_target}_LIBRARY_TYPE STREQUAL "MODULE")
+                set(_rsp "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${_subtarget}.dir/$<CONFIG>/objects.rsp")
+                file(GENERATE OUTPUT "${_rsp}" CONTENT "$<JOIN:${_subobjects},\n>")
+                target_link_options(${_target} PRIVATE "@${_rsp}")
+                set_property(TARGET ${_target} APPEND PROPERTY LINK_DEPENDS "${_subobjects};${_rsp}")
+            else ()
+                target_link_libraries(${_target} INTERFACE "${_subobjects}")
+            endif ()
+            WEBKIT_ADD_PREFIX_HEADER_WITH_PARENT(${_subtarget} ${_target} ${_arg_PREFIX} "" ${_arg_PREFIX_LANGUAGES})
+        endif ()
+    endif ()
+    unset(_arg_PREFIX)
+    unset(_arg_PREFIX_LANGUAGES)
+    unset(_arg_DIRS)
 endmacro()
 
 macro(WEBKIT_FRAMEWORK_DECLARE _target)
@@ -187,12 +301,16 @@ endmacro()
 
 # Private macro for setting the properties of a target.
 macro(_WEBKIT_TARGET_SETUP _target _logical_name)
+    if (USE_HEADER_MAPS AND ${_logical_name}_PRIVATE_INCLUDE_DIRECTORIES)
+        WEBKIT_MAKE_HEADER_MAP(${_target} "${CMAKE_CURRENT_SOURCE_DIR}" ${_logical_name}_PRIVATE_INCLUDE_DIRECTORIES)
+    endif ()
     target_include_directories(${_target} PUBLIC "$<BUILD_INTERFACE:${${_logical_name}_INCLUDE_DIRECTORIES}>")
     target_include_directories(${_target} SYSTEM PRIVATE "$<BUILD_INTERFACE:${${_logical_name}_SYSTEM_INCLUDE_DIRECTORIES}>")
     target_include_directories(${_target} PRIVATE "$<BUILD_INTERFACE:${${_logical_name}_PRIVATE_INCLUDE_DIRECTORIES}>")
 
     if (DEVELOPER_MODE_CXX_FLAGS)
-        target_compile_options(${_target} PRIVATE $<$<NOT:$<COMPILE_LANGUAGE:Swift>>:${DEVELOPER_MODE_CXX_FLAGS}>)
+        target_compile_options(${_target} PRIVATE
+            "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:${DEVELOPER_MODE_CXX_FLAGS}>")
         target_compile_options(${_target} PRIVATE
             "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Werror ExistentialAny -Werror StrictMemorySafety -Werror ForeignReferenceType>")
     endif ()
@@ -222,6 +340,7 @@ macro(_WEBKIT_TARGET_SETUP _target _logical_name)
 endmacro()
 
 macro(_WEBKIT_TARGET _target)
+    set(${_target}_FINALIZED TRUE)
     if (CMAKE_GENERATOR MATCHES "Visual Studio")
         if (${_target}_C_SOURCES)
             add_library(${_target}_c OBJECT)
@@ -408,6 +527,10 @@ macro(_WEBKIT_TARGET_INTERFACE _target)
     target_include_directories(${_target}_PostBuild INTERFACE ${${_target}_INTERFACE_INCLUDE_DIRECTORIES})
     if (${_target}_INTERFACE_DEPENDENCIES)
         add_dependencies(${_target}_PostBuild ${${_target}_INTERFACE_DEPENDENCIES})
+    endif ()
+    if (${_target}_INTERFACE_LINK_DEPENDS)
+        set_property(TARGET ${_target}_PostBuild PROPERTY
+            INTERFACE_LINK_DEPENDS ${${_target}_INTERFACE_LINK_DEPENDS})
     endif ()
     if (NOT ${_target}_LIBRARY_TYPE STREQUAL "SHARED")
         target_compile_definitions(${_target}_PostBuild INTERFACE "STATICALLY_LINKED_WITH_${_target}")
@@ -616,6 +739,9 @@ macro(WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER _target _module_n
         # linked by clang++ need this search path to satisfy those directives.
         string(JSON _swift_runtime_library_path GET ${_swift_target_paths} "runtimeLibraryPaths" 0)
         target_link_directories(${_target} INTERFACE "${_swift_runtime_library_path}")
+        # Expose the path as a compile definition so the bubblewrap sandbox
+        # (BubblewrapLauncher.cpp) can bind-mount it into the child process filesystem.
+        target_compile_definitions(${_target} PRIVATE "WEBKIT_SWIFT_STDLIB_LIBRARY_PATH=\"${_swift_runtime_library_path}\"")
 
         # Assemble arguments which need to be passed to swiftc.
         # Add WebKit's various feature flags as -D directives to the Swift compiler.
@@ -634,6 +760,20 @@ macro(WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER _target _module_n
         # of the modulemap and hader for WebKit's internal "APIs" which we
         # make available from C++ to Swift.
         list(APPEND _swift_options "-cxx-interoperability-mode=default" "-Xcc" "-std=c++2b" "-enable-upcoming-feature" "InternalImportsByDefault" "-Xcc" "-I${_interop_module_path}")
+        # On non-Apple platforms, Swift's embedded clang doesn't automatically search
+        # the compiler's C++ standard library headers (e.g. <coroutine> lives in /usr/include/c++/15/).
+        # Pass them explicitly so the wtf umbrella module can include them.
+        # Exclude GCC's architecture-specific lib directory (e.g. /usr/lib/gcc/aarch64-linux-gnu/15/include):
+        # it contains GCC-specific intrinsic headers (arm_neon.h, etc.) that use GCC builtins
+        # unknown to Swift's embedded Clang. Clang provides its own compatible versions in its
+        # resource directory and will find them automatically without an explicit -I path.
+        if (NOT APPLE)
+            foreach (_dir IN LISTS CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES)
+                if (NOT _dir MATCHES "^/usr/lib/gcc/")
+                    list(APPEND _swift_options "-Xcc" "-I${_dir}")
+                endif ()
+            endforeach ()
+        endif ()
         # swiftc spawns swift-plugin-server under sandbox-exec to expand macros
         # (e.g. SwiftUI @State). When the cmake build itself runs inside an
         # outer sandbox that disallows nested sandbox_apply, macro expansion
@@ -644,6 +784,15 @@ macro(WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER _target _module_n
         if (NOT (PORT STREQUAL GTK OR PORT STREQUAL WPE))
             # This does not yet work on non-Apple platforms for reasons yet to be determined.
             list(APPEND _swift_options "-explicit-module-build")
+            # -explicit-module-build makes swiftc scan and compile every transitive
+            # SDK Clang module to .pcm before typechecking. Without a fixed cache
+            # path each invocation does that into a private temp dir and discards
+            # it, so the -typecheck/-emit-clang-header pass below and cmake's own
+            # Swift compile each pay the full SDK-module cold cost, every build.
+            # Pin the cache so the second invocation -- and every later rebuild --
+            # reuses the first one's .pcm set.
+            list(APPEND _swift_options "-module-cache-path" "${CMAKE_BINARY_DIR}/SwiftModuleCache")
+            set_property(DIRECTORY "${CMAKE_BINARY_DIR}" APPEND PROPERTY ADDITIONAL_CLEAN_FILES "${CMAKE_BINARY_DIR}/SwiftModuleCache")
         endif ()
         # We'll use these options both for mainstream cmake invocations of swiftc (here)
         # and for our own invocation to output an interoperability .h file (later).
@@ -664,6 +813,23 @@ macro(WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER _target _module_n
         endforeach ()
         target_compile_options(${_target} PRIVATE ${_swift_only_options})
 
+        if (CMAKE_SYSTEM_NAME STREQUAL "iOS" AND CMAKE_OSX_SYSROOT)
+            target_compile_options(${_target} PRIVATE
+                "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xcc -iframework${CMAKE_OSX_SYSROOT}/System/Library/PrivateFrameworks>")
+            if (EXISTS "${CMAKE_OSX_SYSROOT}/usr/local/include/unicode_private.modulemap")
+                target_compile_options(${_target} PRIVATE
+                    "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xcc -isystem${CMAKE_OSX_SYSROOT}/usr/local/include>"
+                    "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xcc -fmodule-map-file=${CMAKE_OSX_SYSROOT}/usr/local/include/unicode_private.modulemap>")
+            endif ()
+        endif ()
+        if (WEBKIT_ADDITIONS_COMPILE_PATH)
+            target_compile_options(${_target} PRIVATE
+                "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xcc -isystem${WEBKIT_ADDITIONS_COMPILE_PATH}>")
+        elseif (WEBKIT_ADDITIONS_INCLUDE_PATH)
+            target_compile_options(${_target} PRIVATE
+                "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xcc -isystem${WEBKIT_ADDITIONS_INCLUDE_PATH}>")
+        endif ()
+
         # cmake's Swift interop does not respect CMAKE_SHARED_LINKER_FLAGS, so let's pass
         # on those that we can.
         # rdar://155519819
@@ -680,9 +846,12 @@ macro(WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER _target _module_n
             endif ()
         endforeach ()
 
-        # Generate the header required for C++ to call into Swift.
-        set(_swift_sources $<TARGET_PROPERTY:${_target},SOURCES>)
-        set(_swift_sources $<FILTER:${_swift_sources},INCLUDE,\\.swift$>)
+        if (DEFINED ${_target}_SWIFT_TYPECHECK_SOURCES)
+            set(_swift_sources ${${_target}_SWIFT_TYPECHECK_SOURCES})
+        else ()
+            set(_swift_sources $<TARGET_PROPERTY:${_target},SOURCES>)
+            set(_swift_sources $<FILTER:${_swift_sources},INCLUDE,\\.swift$>)
+        endif ()
 
         cmake_path(APPEND CMAKE_CURRENT_BINARY_DIR include OUTPUT_VARIABLE _header_base_path)
         cmake_path(APPEND _header_base_path ${_output_header} OUTPUT_VARIABLE _header_path)
@@ -703,9 +872,37 @@ macro(WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER _target _module_n
             set(_swift_sdk_flag -sdk ${CMAKE_OSX_SYSROOT})
         endif ()
 
+        set(_swift_target_flag "")
+        if (CMAKE_Swift_COMPILER_TARGET)
+            set(_swift_target_flag -target ${CMAKE_Swift_COMPILER_TARGET})
+        endif ()
+
+        set(_swift_private_frameworks_flag "")
+        if (CMAKE_SYSTEM_NAME STREQUAL "iOS" AND CMAKE_OSX_SYSROOT)
+            set(_swift_private_frameworks_flag
+                -Xcc -iframework${CMAKE_OSX_SYSROOT}/System/Library/PrivateFrameworks
+                -F ${CMAKE_OSX_SYSROOT}/System/Library/PrivateFrameworks
+            )
+            if (EXISTS "${CMAKE_OSX_SYSROOT}/usr/local/include/unicode_private.modulemap")
+                list(APPEND _swift_private_frameworks_flag
+                    -Xcc -isystem${CMAKE_OSX_SYSROOT}/usr/local/include
+                    -Xcc -fmodule-map-file=${CMAKE_OSX_SYSROOT}/usr/local/include/unicode_private.modulemap
+                )
+            endif ()
+        endif ()
+
+        set(_swift_wka_flag "")
+        if (WEBKIT_ADDITIONS_COMPILE_PATH)
+            set(_swift_wka_flag -Xcc -isystem${WEBKIT_ADDITIONS_COMPILE_PATH})
+        elseif (WEBKIT_ADDITIONS_INCLUDE_PATH)
+            set(_swift_wka_flag -Xcc -isystem${WEBKIT_ADDITIONS_INCLUDE_PATH})
+        endif ()
+
         set(_header_tmp_path "${_header_path}.tmp")
+        set(_header_stamp_path "${_header_path}.stamp")
         add_custom_command(
-            OUTPUT ${_header_path}
+            OUTPUT ${_header_stamp_path}
+            BYPRODUCTS ${_header_path}
             DEPENDS ${_swift_sources}
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
             COMMAND
@@ -713,22 +910,40 @@ macro(WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER _target _module_n
                 ${_swift_options}
                 ${${_target}_SWIFT_EXTRA_OPTIONS}
                 ${_swift_sdk_flag}
+                ${_swift_target_flag}
+                ${_swift_private_frameworks_flag}
+                ${_swift_wka_flag}
                 ${_swift_include_dirs}
                 ${_swift_xcc_options}
                 ${_swift_sources}
                 -module-name ${_module_name}
+                -Xfrontend -emit-clang-header-min-access -Xfrontend internal
                 -emit-clang-header-path ${_header_tmp_path}
                 -emit-dependencies
             COMMAND
                 ${CMAKE_COMMAND} -E copy_if_different ${_header_tmp_path} ${_header_path}
             COMMAND
                 ${CMAKE_COMMAND} -E rm -f ${_header_tmp_path}
+            COMMAND
+                ${CMAKE_COMMAND} -E touch ${_header_stamp_path}
             DEPFILE ${_depfile_path}
             COMMENT
                 "Generating ${_target} C++ bindings to Swift at '${_header_path}'"
             COMMAND_EXPAND_LISTS)
 
         target_include_directories(${_target} PUBLIC ${_header_base_path})
-        target_sources(${_target} PRIVATE ${_header_path})
+        if (DEFINED ${_target}_SWIFT_HEADER_DEPENDS)
+            # The -emit-clang-header pass only needs the staged headers it actually
+            # reads, not the target's linked frameworks. When the caller names
+            # those header-producing targets, wrap the command in its own
+            # custom target so it does NOT inherit
+            # cmake_object_order_depends_target_${_target} (which would gate it
+            # on every link dependency) and can start as soon as headers exist.
+            add_custom_target(${_target}_SwiftCxxHeader DEPENDS ${_header_stamp_path})
+            add_dependencies(${_target}_SwiftCxxHeader ${${_target}_SWIFT_HEADER_DEPENDS})
+            add_dependencies(${_target} ${_target}_SwiftCxxHeader)
+        else ()
+            target_sources(${_target} PRIVATE ${_header_stamp_path})
+        endif ()
     endif ()
 endmacro()

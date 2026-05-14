@@ -31,6 +31,7 @@
 #include "runtime_method.h"
 #include <JavaScriptCore/Error.h>
 #include <JavaScriptCore/JSCJSValueInlines.h>
+#include <JavaScriptCore/StructureInlinesLight.h>
 
 using namespace WebCore;
 
@@ -273,7 +274,7 @@ JSC_DEFINE_HOST_FUNCTION(callRuntimeConstructor, (JSGlobalObject* globalObject, 
     instance->end();
     
     ASSERT(result);
-    return JSValue::encode(result.isObject() ? uncheckedDowncast<JSObject>(result.asCell()) : constructor);
+    return JSValue::encode(result.isObject() ? downcast<JSObject>(result.asCell()) : constructor);
 }
 
 CallData RuntimeObject::getConstructData(JSCell* cell)

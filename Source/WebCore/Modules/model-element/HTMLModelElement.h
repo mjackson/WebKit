@@ -62,6 +62,7 @@ class DOMMatrixReadOnly;
 class DOMPointReadOnly;
 class Event;
 class Exception;
+class FloatPoint;
 class GraphicsLayer;
 class LayoutPoint;
 class LayoutSize;
@@ -152,7 +153,7 @@ public:
     void exitImmersivePresentation(CompletionHandler<void()>&&);
 #endif
 
-    bool NODELETE supportsDragging() const;
+    WEBCORE_EXPORT bool supportsDragging() const;
     bool isDraggableIgnoringAttributes() const final;
 
     bool NODELETE isInteractive() const;
@@ -274,6 +275,9 @@ private:
     void dragDidEnd(WebCore::MouseRelatedEvent&);
 
     LayoutPoint flippedLocationInElementForMouseEvent(WebCore::MouseRelatedEvent&);
+#if USE(SYSTEM_PREVIEW)
+    bool isPointInSystemPreviewBadge(const FloatPoint&) const;
+#endif
 
     void setAnimationIsPlaying(bool, DOMPromiseDeferred<void>&&);
 

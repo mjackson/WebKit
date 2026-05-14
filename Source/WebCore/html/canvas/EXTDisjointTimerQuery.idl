@@ -36,7 +36,7 @@
   const unsigned long TIMESTAMP_EXT               = 0x8E28;
   const unsigned long GPU_DISJOINT_EXT            = 0x8FBB;
 
-  WebGLTimerQueryEXT? createQueryEXT();
+  WebGLTimerQueryEXT createQueryEXT();
   undefined deleteQueryEXT(WebGLTimerQueryEXT? query);
   boolean isQueryEXT(WebGLTimerQueryEXT? query);
   undefined beginQueryEXT(unsigned long target, WebGLTimerQueryEXT query);

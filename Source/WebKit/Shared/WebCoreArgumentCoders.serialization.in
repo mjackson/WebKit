@@ -2170,6 +2170,7 @@ header: <WebCore/TextChecking.h>
     WebCore::CharacterRange range;
     Vector<String> guesses;
     String userDescription;
+    String uuid;
 };
 
 header: <WebCore/TextChecking.h>
@@ -4347,7 +4348,7 @@ class WebCore::SpeechRecognitionUpdate {
 
 #if USE(SYSTEM_PREVIEW)
 [RefCounted, AdditionalEncoder=StreamConnectionEncoder] class WebCore::ARKitBadgeSystemImage {
-    WebCore::RenderingResourceIdentifier imageIdentifier();
+    std::optional<WebCore::RenderingResourceIdentifier> imageIdentifier();
     WebCore::FloatSize m_imageSize;
 };
 #endif
@@ -4811,6 +4812,7 @@ struct WebCore::NavigationRequester {
     bool hasLoadedThirdPartyFrame;
     bool hasHadUserInteraction;
     bool parentOriginIsSameAsTopOrigin;
+    std::optional<WebCore::ProcessIdentifier> processIdentifier;
 };
 
 struct WebCore::PolicyContainer {
@@ -6467,6 +6469,7 @@ struct WebCore::AcceleratedEffectOpacity {
 
 enum class WebCore::AcceleratedEffectCoordBox : uint8_t {
     ContentBox,
+    MarginBox,
     PaddingBox,
     BorderBox,
     FillBox,
@@ -6919,6 +6922,7 @@ header: <WebCore/TextExtractionTypes.h>
     String title;
     HashMap<String, String> clientAttributes;
     unsigned enclosingBlockNumber;
+    unsigned visualBlockContainerNumber;
     bool hasLineThrough;
 };
 
@@ -7981,8 +7985,13 @@ using WebCore::RiceSocket = std::pair<String, WebCore::RTCIceProtocol>;
 };
 #endif
 
+struct WebCore::NonSerializedDataToken {
+    WebCore::ProcessIdentifier processIdentifier;
+    WebCore::NonSerializedDataIdentifier identifier;
+}
+
 headers: <JavaScriptCore/WasmModule.h> <WebCore/ImageBitmap.h> <WebCore/MessagePort.h> <WebCore/OffscreenCanvas.h>
-[Nested] class WebCore::SerializedScriptValue::Internals {
+struct WebCore::SerializedScriptValueInternals {
     Vector<uint8_t> data;
     std::unique_ptr<Vector<JSC::ArrayBufferContents>> arrayBufferContentsArray;
 #if ENABLE(WEB_RTC)
@@ -7993,6 +8002,8 @@ headers: <JavaScriptCore/WasmModule.h> <WebCore/ImageBitmap.h> <WebCore/MessageP
     Vector<Ref<WebCore::WebCodecsEncodedAudioChunkStorage>> serializedAudioChunks;
 #endif
     uint64_t exposedMessagePortCount;
+    std::optional<WebCore::NonSerializedDataToken> nonSerializedDataToken;
+    [NotSerialized] Vector<WebCore::FileSystemHandleKeepAlive> fileSystemHandleKeepAlives;
 #if ENABLE(WEB_CODECS)
     [NotSerialized] Vector<WebCore::WebCodecsVideoFrameData> serializedVideoFrames;
     [NotSerialized] Vector<WebCore::WebCodecsAudioInternalData> serializedAudioData;
@@ -8024,7 +8035,7 @@ headers: <JavaScriptCore/WasmModule.h> <WebCore/ImageBitmap.h> <WebCore/MessageP
 };
 
 [RefCounted] class WebCore::SerializedScriptValue {
-    WebCore::SerializedScriptValue::Internals m_internals;
+    std::unique_ptr<WebCore::SerializedScriptValueInternals> m_internals;
 };
 
 header: <WebCore/SharedBuffer.h>
@@ -8577,7 +8588,7 @@ header: <WebCore/ShareableGainMap.h>
 [CreateUsing=create] class WebCore::ShareableGainMap {
     RetainPtr<CFDataRef> m_metadata;
     Ref<WebCore::ShareableCVPixelBuffer> m_gainMapShareablePixelBuffer;
-    WebCore::DestinationColorSpace m_colorSpace;
+    std::optional<WebCore::DestinationColorSpace> m_colorSpace;
 }
 
 #endif
@@ -8869,7 +8880,7 @@ struct WebCore::WrappedCryptoKey {
 };
 
 #if PLATFORM(IOS_FAMILY)
-using WebCore::RenderThemeIOS::CSSValueToSystemColorMap = HashMap<WebCore::CSSValueKey, WebCore::Color>
+using WebCore::CSSValueToSystemColorMap = HashMap<WebCore::CSSValueKey, WebCore::Color>
 #endif
 
 enum class WebCore::WorkerThreadMode : bool

@@ -41,7 +41,6 @@
 #include "WasmFunctionIPIntMetadataGenerator.h"
 #include "WasmIPIntGenerator.h"
 #include "WasmTypeDefinitionInlines.h"
-#include <wtf/GraphNodeWorklist.h>
 #include <wtf/text/MakeString.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -111,22 +110,11 @@ void IPIntPlan::compileFunction(FunctionCodeIndex functionIndex)
         return;
     }
 
-    if (Options::useWasmTailCalls()) {
-        if (parseAndCompileResult->get()->hasTailCallSuccessors()) {
-            Locker locker { m_lock };
-            for (auto successor : parseAndCompileResult->get()->tailCallSuccessors())
-                addTailCallEdge(m_moduleInformation->importFunctionCount() + parseAndCompileResult->get()->functionIndex(), successor);
-        }
-
-        if (parseAndCompileResult->get()->tailCallClobbersInstance())
-            m_moduleInformation->addClobberingTailCall(m_moduleInformation->toSpaceIndex(parseAndCompileResult->get()->functionIndex()));
-    }
-
     m_wasmInternalFunctions[functionIndex] = WTF::move(*parseAndCompileResult);
 
     IPIntCallee* ipintCallee = nullptr;
     {
-        auto callee = IPIntCallee::create(*m_wasmInternalFunctions[functionIndex], functionIndexSpace, m_moduleInformation->nameSection->get(functionIndexSpace));
+        auto callee = IPIntCallee::create(*m_wasmInternalFunctions[functionIndex], functionIndexSpace, signature, m_moduleInformation->nameSection->get(functionIndexSpace));
         ASSERT(!callee->entrypoint());
         bool usesSIMD = m_moduleInformation->usesSIMD(functionIndex);
         // Immediately tier up to BBQ for SIMD, if necesary.
@@ -181,8 +169,8 @@ void IPIntPlan::didCompleteCompilation()
     unsigned functionCount = m_wasmInternalFunctions.size();
     if (!m_calleesAlreadyRegistered && functionCount) {
         NativeCalleeRegistry::singleton().registerCallees(*m_ipintCallees);
-        if (!m_moduleInformation->clobberingTailCalls().isEmpty())
-            computeTransitiveTailCalls();
+        if (Options::useWasmTailCalls())
+            RestoreFrameCallee::singleton();
     }
 
     if (m_compilerMode == CompilerMode::Validation)
@@ -254,36 +242,6 @@ bool IPIntPlan::didReceiveFunctionData(FunctionCodeIndex, const FunctionData&)
 {
     // Validation is done inline by the parser
     return true;
-}
-
-void IPIntPlan::addTailCallEdge(uint32_t callerIndex, uint32_t calleeIndex)
-{
-    auto it = m_tailCallGraph.find(calleeIndex);
-    if (it == m_tailCallGraph.end())
-        it = m_tailCallGraph.add(calleeIndex, TailCallGraph::MappedType()).iterator;
-    it->value.add(callerIndex);
-}
-
-void IPIntPlan::computeTransitiveTailCalls() const
-{
-    // FIXME: Use FunctionCodeIndex -> FunctionSpaceIndex by adding the right HashTraits.
-    GraphNodeWorklist<uint32_t, UncheckedKeyHashSet<uint32_t, IntHash<uint32_t>, WTF::UnsignedWithZeroKeyHashTraits<uint32_t>>> worklist;
-
-    for (auto clobberingTailCall : m_moduleInformation->clobberingTailCalls())
-        worklist.push(clobberingTailCall);
-
-    while (worklist.notEmpty()) {
-        auto node = worklist.pop();
-        auto it = m_tailCallGraph.find(node);
-        if (it == m_tailCallGraph.end())
-            continue;
-        for (const auto &successor : it->value) {
-            if (worklist.saw(successor))
-                continue;
-            m_moduleInformation->addClobberingTailCall(FunctionSpaceIndex(successor));
-            worklist.push(successor);
-        }
-    }
 }
 
 } } // namespace JSC::Wasm

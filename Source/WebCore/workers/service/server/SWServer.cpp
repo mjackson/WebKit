@@ -1036,14 +1036,15 @@ LastNavigationWasAppInitiated SWServer::clientIsAppInitiatedForRegistrableDomain
 void SWServer::tryInstallContextData(const std::optional<ProcessIdentifier>& requestingProcessIdentifier, ServiceWorkerContextData&& data)
 {
     Site site(data.registration.key.topOrigin());
-    RefPtr connection = contextConnectionForRegistrableDomain(site.domain());
+    auto workerCOEP = data.crossOriginEmbedderPolicy.value;
+    RefPtr connection = contextConnectionForRegistrableDomain(site.domain(), workerCOEP);
     if (!connection) {
         auto firstPartyForCookies = data.registration.key.firstPartyForCookies();
-        m_pendingContextDatas.ensure(site.domain(), [] {
+        m_pendingContextDatas.ensure(ContextConnectionKey { site.domain(), workerCOEP }, [] {
             return Vector<ServiceWorkerContextData> { };
         }).iterator->value.append(WTF::move(data));
 
-        createContextConnection(site, data.serviceWorkerPageIdentifier);
+        createContextConnection(site, data.serviceWorkerPageIdentifier, workerCOEP);
         return;
     }
 
@@ -1062,13 +1063,15 @@ void SWServer::contextConnectionCreated(SWServerToContextConnection& contextConn
 
     contextConnection.setInspectable(m_isInspectable);
 
-    auto pendingContextDatas = m_pendingContextDatas.take(contextConnection.registrableDomain());
+    auto coep = contextConnection.crossOriginEmbedderPolicyValue();
+    auto pendingContextDatas = m_pendingContextDatas.take({ contextConnection.registrableDomain(), coep });
     for (auto& data : pendingContextDatas) {
         delegate->addAllowedFirstPartyForCookies(contextConnection.webProcessIdentifier(), requestingProcessIdentifier, data.registration.key.firstPartyForCookies());
         installContextData(data);
     }
 
-    auto serviceWorkerRunRequests = m_serviceWorkerRunRequests.take(contextConnection.registrableDomain());
+    ContextConnectionKey key { contextConnection.registrableDomain(), coep };
+    auto serviceWorkerRunRequests = m_serviceWorkerRunRequests.take(key);
     for (auto& item : serviceWorkerRunRequests) {
         bool success = runServiceWorker(item.key);
         for (auto& callback : item.value)
@@ -1086,15 +1089,16 @@ void SWServer::forEachServiceWorker(NOESCAPE const Function<bool(const SWServerW
 
 void SWServer::terminateContextConnectionWhenPossible(const RegistrableDomain& registrableDomain, ProcessIdentifier processIdentifier)
 {
-    RefPtr contextConnection = contextConnectionForRegistrableDomain(registrableDomain);
-    if (!contextConnection || contextConnection->webProcessIdentifier() != processIdentifier)
-        return;
+    forEachContextConnectionForRegistrableDomain(registrableDomain, [&](auto& contextConnection) {
+        if (contextConnection.webProcessIdentifier() != processIdentifier)
+            return;
 
-    if (!contextConnection->terminateWhenPossible())
-        return;
+        if (!contextConnection.terminateWhenPossible())
+            return;
 
-    removeContextConnection(*contextConnection);
-    contextConnection->connectionIsNoLongerNeeded();
+        removeContextConnection(contextConnection);
+        contextConnection.connectionIsNoLongerNeeded();
+    });
 }
 
 OptionSet<AdvancedPrivacyProtections> SWServer::advancedPrivacyProtectionsFromClient(const ClientOrigin& origin) const
@@ -1200,14 +1204,14 @@ void SWServer::runServiceWorkerIfNecessary(SWServerWorker& worker, RunServiceWor
     }
 
     if (!contextConnection) {
-        auto& serviceWorkerRunRequestsForOrigin = m_serviceWorkerRunRequests.ensure(worker.topRegistrableDomain(), [] {
+        auto& serviceWorkerRunRequestsForOrigin = m_serviceWorkerRunRequests.ensure(ContextConnectionKey { worker.topRegistrableDomain(), worker.crossOriginEmbedderPolicy().value }, [] {
             return HashMap<ServiceWorkerIdentifier, Vector<RunServiceWorkerCallback>> { };
         }).iterator->value;
         serviceWorkerRunRequestsForOrigin.ensure(worker.identifier(), [&] {
             return Vector<RunServiceWorkerCallback> { };
         }).iterator->value.append(WTF::move(callback));
 
-        createContextConnection(worker.topSite(), worker.serviceWorkerPageIdentifier());
+        createContextConnection(worker.topSite(), worker.serviceWorkerPageIdentifier(), worker.crossOriginEmbedderPolicy().value);
         return;
     }
 
@@ -1513,8 +1517,11 @@ void SWServer::unregisterServiceWorkerClientInternal(const ClientOrigin& clientO
 
                 protectedThis->m_clientIdentifiersPerOrigin.remove(clientOrigin);
             });
-            RefPtr contextConnection = contextConnectionForRegistrableDomain(clientRegistrableDomain);
-            bool shouldContextConnectionBeTerminatedWhenPossible = contextConnection && contextConnection->shouldTerminateWhenPossible();
+            bool shouldContextConnectionBeTerminatedWhenPossible = false;
+            forEachContextConnectionForRegistrableDomain(clientRegistrableDomain, [&](auto& connection) {
+                if (connection.shouldTerminateWhenPossible())
+                    shouldContextConnectionBeTerminatedWhenPossible = true;
+            });
             iterator->value.terminateServiceWorkersTimer->startOneShot(m_isProcessTerminationDelayEnabled && !MemoryPressureHandler::singleton().isUnderMemoryPressure() && !shouldContextConnectionBeTerminatedWhenPossible && !didUnregister ? defaultTerminationDelay : 0_s);
         }
     }
@@ -1566,8 +1573,11 @@ SWServer::ShouldDelayRemoval SWServer::removeContextConnectionIfPossible(const R
     if (m_clientsByRegistrableDomain.contains(domain))
         return ShouldDelayRemoval::No;
 
-    RefPtr connection = contextConnectionForRegistrableDomain(domain);
-    if (!connection)
+    bool hasConnection = false;
+    forEachContextConnectionForRegistrableDomain(domain, [&](auto&) {
+        hasConnection = true;
+    });
+    if (!hasConnection)
         return ShouldDelayRemoval::No;
 
     for (auto& worker : m_runningOrTerminatingWorkers.values()) {
@@ -1575,8 +1585,10 @@ SWServer::ShouldDelayRemoval SWServer::removeContextConnectionIfPossible(const R
             return ShouldDelayRemoval::Yes;
     }
 
-    removeContextConnection(*connection);
-    connection->connectionIsNoLongerNeeded();
+    forEachContextConnectionForRegistrableDomain(domain, [&](auto& connection) {
+        removeContextConnection(connection);
+        connection.connectionIsNoLongerNeeded();
+    });
     return ShouldDelayRemoval::No;
 }
 
@@ -1711,9 +1723,9 @@ void SWServer::addContextConnection(SWServerToContextConnection& connection)
 {
     RELEASE_LOG(ServiceWorker, "SWServer::addContextConnection %" PRIu64, connection.identifier().toUInt64());
 
-    ASSERT(!m_contextConnections.contains(connection.registrableDomain()));
+    ASSERT(!m_contextConnections.contains({ connection.registrableDomain(), connection.crossOriginEmbedderPolicyValue() }));
 
-    m_contextConnections.add(connection.registrableDomain(), connection);
+    m_contextConnections.add(ContextConnectionKey { connection.registrableDomain(), connection.crossOriginEmbedderPolicyValue() }, connection);
 
     contextConnectionCreated(connection);
 }
@@ -1723,14 +1735,21 @@ void SWServer::removeContextConnection(SWServerToContextConnection& connection)
     RELEASE_LOG(ServiceWorker, "SWServer::removeContextConnection %" PRIu64, connection.identifier().toUInt64());
 
     auto site = connection.site();
+    auto coep = connection.crossOriginEmbedderPolicyValue();
     auto serviceWorkerPageIdentifier = connection.serviceWorkerPageIdentifier();
 
-    ASSERT(m_contextConnections.get(site.domain()) == &connection);
+    ASSERT(m_contextConnections.get({ site.domain(), coep }) == &connection);
 
-    m_contextConnections.remove(site.domain());
-    markAllWorkersForRegistrableDomainAsTerminated(site.domain());
+    m_contextConnections.remove({ site.domain(), coep });
+    Vector<Ref<SWServerWorker>> terminatedWorkers;
+    for (auto& worker : m_runningOrTerminatingWorkers.values()) {
+        if (worker->topRegistrableDomain() == site.domain() && worker->crossOriginEmbedderPolicy().value == coep)
+            terminatedWorkers.append(worker);
+    }
+    for (auto& worker : terminatedWorkers)
+        workerContextTerminated(worker);
     if (needsContextConnectionForRegistrableDomain(site.domain()))
-        createContextConnection(site, serviceWorkerPageIdentifier);
+        createContextConnection(site, serviceWorkerPageIdentifier, coep);
 }
 
 void SWServer::terminateIdleServiceWorkers(SWServerToContextConnection& connection)
@@ -1738,10 +1757,11 @@ void SWServer::terminateIdleServiceWorkers(SWServerToContextConnection& connecti
     RELEASE_LOG(ServiceWorker, "SWServer::terminateIdleServiceWorkers %" PRIu64, connection.identifier().toUInt64());
 
     auto domain = connection.site().domain();
+    auto coep = connection.crossOriginEmbedderPolicyValue();
 
     Vector<Ref<SWServerWorker>> idleWorkers;
     for (Ref worker : m_runningOrTerminatingWorkers.values()) {
-        if (worker->topRegistrableDomain() == domain && worker->isIdle(m_isProcessTerminationDelayEnabled ? defaultTerminationDelay : defaultFunctionalEventDuration))
+        if (worker->topRegistrableDomain() == domain && worker->crossOriginEmbedderPolicy().value == coep && worker->isIdle(m_isProcessTerminationDelayEnabled ? defaultTerminationDelay : defaultFunctionalEventDuration))
             idleWorkers.append(worker);
     }
     for (auto& worker : idleWorkers) {
@@ -1750,15 +1770,25 @@ void SWServer::terminateIdleServiceWorkers(SWServerToContextConnection& connecti
     }
 }
 
-SWServerToContextConnection* SWServer::contextConnectionForRegistrableDomain(const RegistrableDomain& domain)
+SWServerToContextConnection* SWServer::contextConnectionForRegistrableDomain(const RegistrableDomain& domain, CrossOriginEmbedderPolicyValue coep)
 {
-    return m_contextConnections.get(domain);
+    return m_contextConnections.get({ domain, coep });
 }
 
-void SWServer::createContextConnection(const Site& site, std::optional<ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier)
+// Safe to mutate m_contextConnections during callback — iteration uses individual lookups, not iterators.
+void SWServer::forEachContextConnectionForRegistrableDomain(const RegistrableDomain& domain, NOESCAPE const Function<void(SWServerToContextConnection&)>& callback)
 {
-    ASSERT(!m_contextConnections.contains(site.domain()));
-    if (m_pendingConnectionDomains.contains(site.domain()))
+    for (auto coep : allCrossOriginEmbedderPolicyValues) {
+        if (RefPtr connection = m_contextConnections.get({ domain, coep }))
+            callback(*connection);
+    }
+}
+
+void SWServer::createContextConnection(const Site& site, std::optional<ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, CrossOriginEmbedderPolicyValue workerCrossOriginEmbedderPolicy)
+{
+    ContextConnectionKey key { site.domain(), workerCrossOriginEmbedderPolicy };
+    ASSERT(!m_contextConnections.contains(key));
+    if (m_pendingConnectionDomains.contains(key))
         return;
 
     RELEASE_LOG(ServiceWorker, "SWServer::createContextConnection will create a connection");
@@ -1769,22 +1799,23 @@ void SWServer::createContextConnection(const Site& site, std::optional<ScriptExe
             requestingProcessIdentifier = it->value.begin()->processIdentifier();
     }
 
-    m_pendingConnectionDomains.add(site.domain());
-    protect(*m_delegate)->createContextConnection(site, requestingProcessIdentifier, serviceWorkerPageIdentifier, [weakThis = WeakPtr { *this }, site, serviceWorkerPageIdentifier] {
+    m_pendingConnectionDomains.add(key);
+    protect(*m_delegate)->createContextConnection(site, requestingProcessIdentifier, serviceWorkerPageIdentifier, workerCrossOriginEmbedderPolicy, [weakThis = WeakPtr { *this }, site, serviceWorkerPageIdentifier, workerCrossOriginEmbedderPolicy] {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
 
         RELEASE_LOG(ServiceWorker, "SWServer::createContextConnection should now have created a connection");
 
-        ASSERT(protectedThis->m_pendingConnectionDomains.contains(site.domain()));
-        protectedThis->m_pendingConnectionDomains.remove(site.domain());
+        ContextConnectionKey key { site.domain(), workerCrossOriginEmbedderPolicy };
+        ASSERT(protectedThis->m_pendingConnectionDomains.contains(key));
+        protectedThis->m_pendingConnectionDomains.remove(key);
 
-        if (protectedThis->m_contextConnections.contains(site.domain()))
+        if (protectedThis->m_contextConnections.contains(key))
             return;
 
         if (protectedThis->needsContextConnectionForRegistrableDomain(site.domain()))
-            protectedThis->createContextConnection(site, serviceWorkerPageIdentifier);
+            protectedThis->createContextConnection(site, serviceWorkerPageIdentifier, workerCrossOriginEmbedderPolicy);
     });
 }
 
@@ -2026,7 +2057,7 @@ void SWServer::fireFunctionalEvent(SWServerRegistration& registration, Completio
         }
 
         if (!worker->contextConnection())
-            protectedThis->createContextConnection(worker->topSite(), worker->serviceWorkerPageIdentifier());
+            protectedThis->createContextConnection(worker->topSite(), worker->serviceWorkerPageIdentifier(), worker->crossOriginEmbedderPolicy().value);
 
         protectedThis->runServiceWorkerIfNecessary(serviceWorkerIdentifier, [callback = WTF::move(callback)](auto* contextConnection) mutable {
             if (!contextConnection) {
@@ -2214,7 +2245,7 @@ void SWServer::Connection::retrieveRecordResponseBody(BackgroundFetchRecordIdent
 void SWServer::reportNetworkUsageToAllWorkerClients(ServiceWorkerIdentifier identifier, size_t bytesTransferredOverNetworkDelta)
 {
     if (RefPtr worker = workerByID(identifier)) {
-        if (RefPtr connection = contextConnectionForRegistrableDomain(worker->topRegistrableDomain())) {
+        if (RefPtr connection = contextConnectionForRegistrableDomain(worker->topRegistrableDomain(), worker->crossOriginEmbedderPolicy().value)) {
             ServiceWorkerClientQueryOptions options = { true, ServiceWorkerClientType::Window };
             matchAll(*worker, options, [connection = connection.releaseNonNull(), bytesTransferredOverNetworkDelta](auto&& clientDataList) {
                 for (auto& data : clientDataList)

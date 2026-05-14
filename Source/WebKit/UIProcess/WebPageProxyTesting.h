@@ -85,6 +85,8 @@ public:
     void setTracksRepaints(bool, CompletionHandler<void()>&&);
     void displayAndTrackRepaints(CompletionHandler<void()>&&);
 
+    void storageAreaMapCount(CompletionHandler<void(uint64_t)>&&);
+
 private:
     explicit WebPageProxyTesting(WebPageProxy&);
 

@@ -172,9 +172,13 @@ struct Child {
         requires std::constructible_from<Node, T>
     Child(T&&);
 
+    Child(Child&&);
+    Child& operator=(Child&&);
+    ~Child();
+
     FORWARD_VARIANT_FUNCTIONS(Child, value)
 
-    bool operator==(const Child&) const = default;
+    bool operator==(const Child&) const;
 };
 
 struct ChildOrNone {
@@ -197,10 +201,11 @@ struct Children {
 
     Vector<Child> value;
 
-    Children(Children&&) = default;
+    Children(Children&&);
     Children(Vector<Child>&&);
-    Children& operator=(Children&&) = default;
+    Children& operator=(Children&&);
     Children& operator=(Vector<Child>&&);
+    ~Children();
 
     iterator begin() LIFETIME_BOUND;
     iterator end() LIFETIME_BOUND;
@@ -535,8 +540,6 @@ struct Blend {
     bool operator==(const Blend&) const = default;
 };
 
-static_assert(sizeof(Child) <= 16, "Child should stay small");
-
 // MARK: Construction
 
 // Default implementation of ChildConstruction used for all indirect nodes.
@@ -544,19 +547,9 @@ template<typename Op> struct ChildConstruction {
     static Child make(Op&& op) { return Child { IndirectNode<Op> { makeUniqueRef<Op>(WTF::move(op)) } }; }
 };
 
-// Specialized implementation of ChildConstruction for Number, needed to avoid `makeUniqueRef`.
-template<> struct ChildConstruction<Number> {
-    static Child make(Number&& op) { return Child { WTF::move(op) }; }
-};
-
-// Specialized implementation of ChildConstruction for Percentage, needed to avoid `makeUniqueRef`.
-template<> struct ChildConstruction<Percentage> {
-    static Child make(Percentage&& op) { return Child { WTF::move(op) }; }
-};
-
-// Specialized implementation of ChildConstruction for Dimension, needed to avoid `makeUniqueRef`.
-template<> struct ChildConstruction<Dimension> {
-    static Child make(Dimension&& op) { return Child { WTF::move(op) }; }
+// Specialized implementation of ChildConstruction for leaf nodes, needed to avoid `makeUniqueRef`.
+template<Leaf T> struct ChildConstruction<T> {
+    static Child make(T&& op) { return Child { WTF::move(op) }; }
 };
 
 template<typename Op> Child makeChild(Op&& op)
@@ -805,91 +798,6 @@ template<typename T>
 Child::Child(T&& value)
     : value(std::forward<T>(value))
 {
-}
-
-// MARK: ChildOrNone Definition
-
-inline ChildOrNone::ChildOrNone(Child&& child)
-    : value(WTF::move(child))
-{
-}
-
-inline ChildOrNone::ChildOrNone(CSS::Keyword::None none)
-    : value(none)
-{
-}
-
-// MARK: Children Definition
-
-inline Children::Children(Vector<Child>&& other)
-    : value(WTF::move(other))
-{
-}
-
-inline Children& Children::operator=(Vector<Child>&& other)
-{
-    value = WTF::move(other);
-    return *this;
-}
-
-inline Children::iterator Children::begin() LIFETIME_BOUND
-{
-    return value.begin();
-}
-
-inline Children::iterator Children::end() LIFETIME_BOUND
-{
-    return value.end();
-}
-
-inline Children::reverse_iterator Children::rbegin() LIFETIME_BOUND
-{
-    return value.rbegin();
-}
-
-inline Children::reverse_iterator Children::rend() LIFETIME_BOUND
-{
-    return value.rend();
-}
-
-inline Children::const_iterator Children::begin() const LIFETIME_BOUND
-{
-    return value.begin();
-}
-
-inline Children::const_iterator Children::end() const LIFETIME_BOUND
-{
-    return value.end();
-}
-
-inline Children::const_reverse_iterator Children::rbegin() const LIFETIME_BOUND
-{
-    return value.rbegin();
-}
-
-inline Children::const_reverse_iterator Children::rend() const LIFETIME_BOUND
-{
-    return value.rend();
-}
-
-inline bool Children::isEmpty() const
-{
-    return value.isEmpty();
-}
-
-inline size_t Children::size() const
-{
-    return value.size();
-}
-
-inline Child& Children::operator[](size_t i) LIFETIME_BOUND
-{
-    return value[i];
-}
-
-inline const Child& Children::operator[](size_t i) const LIFETIME_BOUND
-{
-    return value[i];
 }
 
 } // namespace Calculation

@@ -545,12 +545,9 @@ webkit.org/b/200304 svg/as-image/svg-image-with-data-uri-background.html [ Image
 
 webkit.org/b/212082 imported/w3c/web-platform-tests/mathml/presentation-markup/operators/mo-form-minus-plus.html [ ImageOnlyFailure ]
 
-webkit.org/b/213231 fast/block/float/float-with-anonymous-previous-sibling.html [ ImageOnlyFailure Pass ]
-
 webkit.org/b/213717 fast/scrolling/overflow-scrollable-after-back.html [ Timeout ]
 
 webkit.org/b/219465 [ Debug ] imported/w3c/web-platform-tests/html/browsers/browsing-the-web/history-traversal/persisted-user-state-restoration/resume-timer-on-history-back.html [ Failure Pass ]
-webkit.org/b/235277 [ Debug ] imported/w3c/web-platform-tests/html/canvas/offscreen/text/2d.text.drawing.style.measure.rtl.text.worker.html [ Failure Pass ]
 
 webkit.org/b/307139 imported/w3c/web-platform-tests/html/canvas/offscreen/text/canvas.2d.fontStretch.normal.html [ ImageOnlyFailure Pass ]
 webkit.org/b/307139 imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.fontStretch.normal.html [ Pass ImageOnlyFailure ]
@@ -957,7 +954,6 @@ compositing/visible-rect/iframe-with-layers-outside-viewport.html [ Failure ]
 compositing/visible-rect/mask-layer-coverage.html [ Failure ]
 compositing/visible-rect/nested-transform.html [ Failure ]
 compositing/visible-rect/scrolled.html [ Failure ]
-compositing/video/video-border-radius-clipping.html [ Pass ImageOnlyFailure ]
 
 # No support for blend modes on compositing layers
 imported/w3c/web-platform-tests/css/compositing/mix-blend-mode/mix-blend-mode-blended-element-overflow-scroll.html [ ImageOnlyFailure ]
@@ -1009,7 +1005,6 @@ imported/w3c/web-platform-tests/mathml/relations/css-styling/color-003.html [ Im
 imported/w3c/web-platform-tests/mathml/relations/css-styling/color-004.tentative.html [ ImageOnlyFailure ]
 
 # Failures that happen with WEBKIT_SKIA_ENABLE_CPU_RENDERING=1 (which is enabled on the bots)
-webkit.org/b/287572 compositing/clipping/border-radius-async-overflow-stacking.html [ ImageOnlyFailure ]
 webkit.org/b/287572 compositing/overlap-blending/reflection-opacity-huge.html [ ImageOnlyFailure ]
 webkit.org/b/287572 css3/background/background-repeat-space-padding.html [ ImageOnlyFailure ]
 webkit.org/b/287572 css3/filters/backdrop/backdrop-filter-with-border-radius-and-reflection-add.html [ ImageOnlyFailure ]
@@ -1127,7 +1122,6 @@ webkit.org/b/287572 svg/compositing/outermost-svg-directly-composited-transforme
 webkit.org/b/287572 svg/compositing/outermost-svg-with-border.html [ ImageOnlyFailure ]
 webkit.org/b/287572 svg/compositing/outermost-svg-with-border-overflow-visible.html [ ImageOnlyFailure ]
 webkit.org/b/287572 svg/compositing/outermost-svg-with-border-padding-margin.html [ ImageOnlyFailure ]
-webkit.org/b/287572 svg/compositing/svg-poster-circle.html [ ImageOnlyFailure ]
 webkit.org/b/131347 svg/compositing/hidpi-legacy-svg-compositing-sibling-no-shift.html [ ImageOnlyFailure Pass ]
 webkit.org/b/287572 svg/filters/filter-on-root-tile-boundary.html [ ImageOnlyFailure ]
 webkit.org/b/287572 svg/W3C-SVG-1.2-Tiny/struct-use-recursion-01-t.svg [ ImageOnlyFailure ]
@@ -1312,7 +1306,7 @@ webkit.org/b/311856 [ arm64 ] imported/w3c/web-platform-tests/fullscreen/renderi
 webkit.org/b/311857 [ arm64 ] imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-table-th-right.html [ Pass ImageOnlyFailure ]
 webkit.org/b/311858 [ arm64 ] imported/w3c/web-platform-tests/css/css-conditional/container-queries/canvas-as-container-001.html [ Pass ImageOnlyFailure ]
 webkit.org/b/311859 [ arm64 ] http/tests/resourceLoadStatistics/prevalent-resource-with-user-interaction-timeout.html [ Pass Failure ]
-webkit.org/b/311861 [ arm64 ] media/video-played-ranges-1.html [ Pass Failure Timeout Crash ]
+webkit.org/b/311861 [ arm64 ] media/video-played-ranges-1.html [ Pass Failure ]
 webkit.org/b/311864 [ arm64 ] fast/events/monotonic-event-time-real-gap.html [ Pass Failure ]
 webkit.org/b/311865 [ arm64 ] imported/w3c/web-platform-tests/webrtc/RTCDataChannel-send-close-blob.window.html [ Pass Failure ]
 
@@ -1324,11 +1318,13 @@ webkit.org/b/312138 [ Debug ] media/track/webvtt-parser-does-not-leak.html [ Fai
 webkit.org/b/312138 [ Debug ] media/media-event-listeners.html [ Failure Pass ]
 webkit.org/b/312138 [ Debug ] media/video-background-playback.html [ Failure Pass ]
 
-webkit.org/b/313036 imported/w3c/web-platform-tests/editing/other/copy-elements-with-css-vars.tentative.html [ Pass Failure Crash ]
+webkit.org/b/313036 imported/w3c/web-platform-tests/editing/other/copy-elements-with-css-vars.tentative.html [ Pass Failure ]
 
-webkit.org/b/313054 [ arm64 ] compositing/backing/animate-into-view-with-descendant.html [ Pass Failure Crash ]
+webkit.org/b/313054 [ arm64 ] compositing/backing/animate-into-view-with-descendant.html [ Pass Failure ]
 webkit.org/b/160119 [ arm64 ] editing/selection/caret-at-bidi-boundary.html [ Pass Timeout ]
 webkit.org/b/313055 [ arm64 ] fast/canvas/image-buffer-backend-variants.html [ Pass Failure Timeout ]
 webkit.org/b/313112 [ arm64 ] webrtc/video-mute.html [ Pass Failure Timeout ]
 
 imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-target-margin-005.html [ Failure ]
+
+webkit.org/b/314218 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/track/track-element/track-cues-enter-seeking.html [ Failure Pass ]

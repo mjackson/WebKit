@@ -336,7 +336,7 @@ public:
     JSValue toThis(JSGlobalObject*, ECMAMode) const;
 
     inline static bool equal(JSGlobalObject*, JSValue v1, JSValue v2); // Defined below
-    static bool equalSlowCase(JSGlobalObject*, JSValue v1, JSValue v2);
+    JS_EXPORT_PRIVATE static bool equalSlowCase(JSGlobalObject*, JSValue v1, JSValue v2);
     inline static bool equalSlowCaseInline(JSGlobalObject*, JSValue v1, JSValue v2); // Defined in JSCJSValueInlines.h
     inline static bool strictEqual(JSGlobalObject*, JSValue v1, JSValue v2); // Defined in JSCJSValueInlines.h
     inline static bool strictEqualForCells(JSGlobalObject*, JSCell* v1, JSCell* v2); // Defined in JSCJSValueInlines.h

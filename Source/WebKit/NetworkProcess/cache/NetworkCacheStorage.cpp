@@ -281,6 +281,16 @@ public:
         });
     }
 
+    struct PartitionEntry {
+        String recordPath;
+        WallTime lastAccessTime;
+    };
+    HashMap<String, PartitionEntry>& ensurePartitionMap()
+    {
+        ASSERT(!isMainRunLoop());
+        return m_partitionMap;
+    }
+
 private:
     explicit TraverseOperation(Storage::TraverseHandler&& handler)
         : m_handler(WTF::move(handler))
@@ -290,6 +300,7 @@ private:
     Lock m_lock;
     Condition m_activeCondition;
     unsigned m_activityCount WTF_GUARDED_BY_LOCK(m_lock) { 0 };
+    HashMap<String, PartitionEntry> m_partitionMap;
 };
 
 static String makeCachePath(const String& baseCachePath)
@@ -1133,6 +1144,20 @@ void Storage::traverseWithinRootPath(const String& rootPath, const String& type,
                 return;
 
             auto recordPath = FileSystem::pathByAppendingComponent(recordDirectoryPath, fileName);
+
+            if (flags & TraverseFlag::LastAccessedRecordPerPartition) {
+                ASSERT(!flags.containsAny({ TraverseFlag::ComputeWorth, TraverseFlag::ShareCount }));
+                auto mtime = FileSystem::fileModificationTime(recordPath);
+                auto it = traverseOperation->ensurePartitionMap().find(recordDirectoryPath);
+                if (it == traverseOperation->ensurePartitionMap().end())
+                    traverseOperation->ensurePartitionMap().set(recordDirectoryPath, TraverseOperation::PartitionEntry { recordPath, mtime.value_or(WallTime { }) });
+                else if (mtime && *mtime > it->value.lastAccessTime) {
+                    it->value.recordPath = recordPath;
+                    it->value.lastAccessTime = *mtime;
+                }
+                return;
+            }
+
             double worth = -1;
             if (flags & TraverseFlag::ComputeWorth)
                 worth = computeRecordWorth(fileTimes(recordPath));
@@ -1158,13 +1183,31 @@ void Storage::traverseWithinRootPath(const String& rootPath, const String& type,
                         static_cast<size_t>(metaData.bodySize),
                         worth,
                         bodyShareCount,
-                        String::fromUTF8(SHA1::hexDigest(metaData.bodyHash).span())
+                        String::fromUTF8(SHA1::hexDigest(metaData.bodyHash).span()),
+                        { }
                     };
                     traverseOperation->invokeHandler(&record, info);
                 }
                 traverseOperation->decrementActivityCount();
             });
         });
+
+        if (flags & TraverseFlag::LastAccessedRecordPerPartition) {
+            for (auto& [directoryPath, entry] : traverseOperation->ensurePartitionMap()) {
+                traverseOperation->waitAndIncrementActivityCount();
+                auto channel = IOChannel::open(WTF::move(entry.recordPath), IOChannel::Type::Read);
+                channel->read(0, std::numeric_limits<size_t>::max(), WorkQueue::mainSingleton(), [this, protectedThis, traverseOperation, accessTime = entry.lastAccessTime](auto fileData, int) {
+                    RecordMetaData metaData;
+                    Data headerData;
+                    if (decodeRecordHeader(fileData, metaData, headerData, m_salt)) {
+                        Record record { metaData.key, metaData.timeStamp, headerData, { }, metaData.bodyHash };
+                        RecordInfo info { static_cast<size_t>(metaData.bodySize), -1, 0, String { }, accessTime };
+                        traverseOperation->invokeHandler(&record, info);
+                    }
+                    traverseOperation->decrementActivityCount();
+                });
+            }
+        }
 
         traverseOperation->waitUntilActivitiesFinished();
         RunLoop::mainSingleton().dispatch([traverseOperation = WTF::move(traverseOperation)]() mutable {

@@ -58,7 +58,7 @@ void DatagramSink::write(ScriptExecutionContext& context, JSC::JSValue value, DO
     if (m_isClosed)
         return promise.settle(Exception { ExceptionCode::InvalidStateError });
 
-    auto& globalObject = *uncheckedDowncast<JSDOMGlobalObject>(context.globalObject());
+    auto& globalObject = *downcast<JSDOMGlobalObject>(context.globalObject());
     auto scope = DECLARE_THROW_SCOPE(globalObject.vm());
 
     auto bufferSource = convert<IDLUnion<IDLArrayBuffer, IDLArrayBufferView>>(globalObject, value);

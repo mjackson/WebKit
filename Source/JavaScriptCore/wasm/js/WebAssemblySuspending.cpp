@@ -40,8 +40,6 @@
 #include "JSWebAssemblySuspendError.h"
 #include "PinballCompletion.h"
 
-#include <wtf/HexNumber.h>
-
 #if ASAN_ENABLED
 #include <sanitizer/asan_interface.h>
 #endif

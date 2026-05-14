@@ -177,7 +177,7 @@ static void swizzledSetAnalysis(VKCImageAnalysisInteraction *, SEL, VKCImageAnal
 
 - (void)dismissFullscreen
 {
-#if PLATFORM(IOS) || PLATFORM(VISION)
+#if PLATFORM(IOS_FAMILY)
     [self exitFullscreen];
 #else
     _doneExitingFullscreen = false;

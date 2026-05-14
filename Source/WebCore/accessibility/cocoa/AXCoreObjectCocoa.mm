@@ -305,12 +305,12 @@ NSArray *renderWidgetChildren(const AXCoreObject& object)
     if (!object.isWidget()) [[likely]]
         return nil;
 
-    id child = Accessibility::retrieveAutoreleasedValueFromMainThread<id>([object = Ref { object }] () -> RetainPtr<id> {
+    auto result = Accessibility::retrieveValueFromMainThreadWithTimeout([object = Ref { object }] () -> RetainPtr<id> {
         RefPtr widget = object->widget();
         return widget ? widget->accessibilityObject() : nil;
-    });
+    }, Accessibility::PluginTimeout);
 
-    if (child)
+    if (id child = result.value ? (*result.value).autorelease() : nil)
         return @[child];
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     return [object.platformWidget() accessibilityAttributeValue:NSAccessibilityChildrenAttribute];

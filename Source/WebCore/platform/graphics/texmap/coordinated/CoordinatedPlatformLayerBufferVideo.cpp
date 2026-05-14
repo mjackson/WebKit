@@ -295,12 +295,14 @@ void CoordinatedPlatformLayerBufferVideo::paintToTextureMapper(TextureMapper& te
 }
 
 #if USE(SKIA)
-void CoordinatedPlatformLayerBufferVideo::paintToCanvas(SkCanvas& canvas, const FloatRect& targetRect, const SkPaint& paint)
+sk_sp<SkImage> CoordinatedPlatformLayerBufferVideo::skiaImage()
 {
     createBufferFromMappedFrameIfNeeded();
 
     if (m_buffer)
-        m_buffer->paintToCanvas(canvas, targetRect, paint);
+        return m_buffer->skiaImage();
+
+    return nullptr;
 }
 #endif
 

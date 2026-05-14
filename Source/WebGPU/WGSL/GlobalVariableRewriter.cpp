@@ -597,6 +597,29 @@ Packing RewriteGlobalVariables::getPacking(AST::BinaryExpression& expression)
 {
     pack(Packing::Unpacked, expression.leftExpression());
     pack(Packing::Unpacked, expression.rightExpression());
+
+    auto operation = toASCIILiteral(expression.operation());
+    if (auto* overload = m_shaderModule.lookupOverload(operation)) {
+        if (auto validate = overload->validationFunction) {
+            auto leftEval = expression.leftExpression().maybeEvaluation().value_or(Evaluation::Runtime);
+            auto rightEval = expression.rightExpression().maybeEvaluation().value_or(Evaluation::Runtime);
+            if (leftEval == Evaluation::Override || rightEval == Evaluation::Override) {
+                m_shaderModule.addOverrideValidation([&shaderModule = m_shaderModule, &expression, validate](auto& overrideValues) -> std::optional<Error> {
+                    FixedVector<std::optional<ConstantValue>> validationArguments(2);
+                    if (auto value = evaluate(shaderModule, expression.leftExpression(), overrideValues))
+                        validationArguments[0] = { *value };
+                    if (auto value = evaluate(shaderModule, expression.rightExpression(), overrideValues))
+                        validationArguments[1] = { *value };
+
+                    if (auto error = validate(WTF::move(validationArguments)))
+                        return Error(*error, expression.span());
+
+                    return std::nullopt;
+                });
+            }
+        }
+    }
+
     return Packing::Unpacked;
 }
 
@@ -695,6 +718,23 @@ Packing RewriteGlobalVariables::getPacking(AST::CallExpression& call)
 
     for (auto& argument : call.arguments())
         pack(Packing::Unpacked, argument);
+
+    if (auto validate = call.validationFunction()) {
+        m_shaderModule.addOverrideValidation([&shaderModule = m_shaderModule, &call, validate](auto& overrideValues) -> std::optional<Error> {
+            unsigned argumentCount = call.arguments().size();
+            FixedVector<std::optional<ConstantValue>> validationArguments(argumentCount);
+            for (unsigned i = 0; i < argumentCount; ++i) {
+                if (auto value = evaluate(shaderModule, call.arguments()[i], overrideValues))
+                    validationArguments[i] = { *value };
+            }
+
+            if (auto error = validate(WTF::move(validationArguments)))
+                return Error(*error, call.span());
+
+            return std::nullopt;
+        });
+    }
+
     return Packing::Unpacked;
 }
 

@@ -243,7 +243,10 @@ class WebKitWebResourceLoadManager;
 
 class PageClient : public CanMakeWeakPtr<PageClient> {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(PageClient);
+private:
+    explicit PageClient(ClangVTableWorkaroundTag);
 public:
+    PageClient() = default;
     virtual ~PageClient() { }
 
     void ref() { refView(); }

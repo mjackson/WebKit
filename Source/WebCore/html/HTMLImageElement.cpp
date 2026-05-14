@@ -253,7 +253,7 @@ void HTMLImageElement::setBestFitURLAndDPRFromImageCandidate(const ImageCandidat
 
     auto sourceURL = imageSourceURL();
     // Only complete the URL if it's non-empty to avoid resolving "" to the document base URL.
-    m_currentURL = sourceURL.isEmpty() ? URL() : protect(document())->completeURL(sourceURL);
+    m_currentURL = sourceURL.isEmpty() ? URL() : protect(document())->encodingParseURL(sourceURL);
 
     m_currentSrc = { };
     if (candidate.density >= 0)
@@ -656,7 +656,7 @@ unsigned HTMLImageElement::width()
 
         // if the image is available, use its width
         if (RefPtr image = m_imageLoader->image())
-            return image->imageSizeForRenderer(nullptr, 1.0f).width().toUnsigned();
+            return image->imageSizeForRenderer(nullptr, 1.0f, CachedImage::IntrinsicSize).width().toUnsigned();
     }
 
     CheckedPtr box = renderBox();
@@ -679,7 +679,7 @@ unsigned HTMLImageElement::height()
 
         // if the image is available, use its height
         if (RefPtr image = m_imageLoader->image())
-            return image->imageSizeForRenderer(nullptr, 1.0f).height().toUnsigned();
+            return image->imageSizeForRenderer(nullptr, 1.0f, CachedImage::IntrinsicSize).height().toUnsigned();
     }
 
     CheckedPtr box = renderBox();
@@ -689,29 +689,20 @@ unsigned HTMLImageElement::height()
     return Style::adjustLayoutUnitForAbsoluteZoom(contentRect.height(), *box).round();
 }
 
-float HTMLImageElement::effectiveImageDevicePixelRatio() const
-{
-    RefPtr cachedImage = m_imageLoader->image();
-    if (!cachedImage)
-        return 1.0f;
-
-    RefPtr image = cachedImage->image();
-    if (image && image->drawsSVGImage())
-        return 1.0f;
-
-    return m_imageDevicePixelRatio;
-}
-
 unsigned HTMLImageElement::naturalWidth() const
 {
     RefPtr image = m_imageLoader->image();
-    return image ? image->unclampedImageSizeForRenderer(protect(renderer()).get(), effectiveImageDevicePixelRatio()).width().toUnsigned() : 0;
+    if (!image)
+        return 0;
+    return image->unclampedImageSizeForRenderer(protect(renderer()).get(), 1.0f, CachedImage::IntrinsicSize, m_imageDevicePixelRatio).width().toUnsigned();
 }
 
 unsigned HTMLImageElement::naturalHeight() const
 {
     RefPtr image = m_imageLoader->image();
-    return image ? image->unclampedImageSizeForRenderer(protect(renderer()).get(), effectiveImageDevicePixelRatio()).height().toUnsigned() : 0;
+    if (!image)
+        return 0;
+    return image->unclampedImageSizeForRenderer(protect(renderer()).get(), 1.0f, CachedImage::IntrinsicSize, m_imageDevicePixelRatio).height().toUnsigned();
 }
 
 bool HTMLImageElement::isURLAttribute(const Attribute& attribute) const
@@ -742,7 +733,7 @@ String HTMLImageElement::completeURLsInAttributeValue(const URL& base, const Att
             for (const auto& candidate : imageCandidates) {
                 auto urlString = candidate.string.toString();
                 Ref document = this->document();
-                auto completeURL = base.isNull() ? document->completeURL(urlString) : URL(base, urlString);
+                auto completeURL = base.isNull() ? document->encodingParseURL(urlString) : URL(base, urlString);
                 if (document->shouldMaskURLForBindings(completeURL)) {
                     needsToResolveURLs = true;
                     break;
@@ -851,9 +842,9 @@ void HTMLImageElement::addSubresourceAttributeURLs(ListHashSet<URL>& urls) const
     HTMLElement::addSubresourceAttributeURLs(urls);
 
     Ref document = this->document();
-    addSubresourceURL(urls, document->completeURL(imageSourceURL()));
+    addSubresourceURL(urls, document->encodingParseURL(imageSourceURL()));
     // FIXME: What about when the usemap attribute begins with "#"?
-    addSubresourceURL(urls, document->completeURL(attributeWithoutSynchronization(usemapAttr)));
+    addSubresourceURL(urls, document->encodingParseURL(attributeWithoutSynchronization(usemapAttr)));
 }
 
 void HTMLImageElement::addCandidateSubresourceURLs(ListHashSet<URL>& urls) const

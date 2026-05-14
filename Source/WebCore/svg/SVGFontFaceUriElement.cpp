@@ -106,7 +106,7 @@ void SVGFontFaceUriElement::loadFont()
         options.contentSecurityPolicyImposition = isInUserAgentShadowTree() ? ContentSecurityPolicyImposition::SkipPolicyCheck : ContentSecurityPolicyImposition::DoPolicyCheck;
 
         Ref cachedResourceLoader = document().cachedResourceLoader();
-        CachedResourceRequest request(ResourceRequest(document().completeURL(href)), options);
+        CachedResourceRequest request(ResourceRequest(document().encodingParseURL(href)), options);
         request.setInitiator(*this);
         if (auto result = cachedResourceLoader->requestFont(WTF::move(request), isSVGFontTarget(*this)))
             m_cachedFont = WTF::move(result.value());

@@ -1057,7 +1057,7 @@ Token Lexer<T>::lexNumber()
         return makeToken(TokenType::Invalid);
     };
 
-    if (!fract && !exponent) {
+    if (!fract && !exponent && suffix != 'f' && suffix != 'h') {
         auto base = isHex ? 16 : 10;
         auto result = WTF::parseInteger<int64_t>(integral, base, WTF::TrailingJunkPolicy::Allow);
         if (!result)

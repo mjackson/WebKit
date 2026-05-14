@@ -37,6 +37,7 @@
 #include "ScheduledAction.h"
 #include "ScriptExecutionContextInlines.h"
 #include "Settings.h"
+#include "UserGestureIndicator.h"
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/HashMap.h>
 #include <wtf/MathExtras.h>

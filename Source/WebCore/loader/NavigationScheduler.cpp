@@ -683,7 +683,7 @@ void NavigationScheduler::scheduleLocationChange(Document& initiatingDocument, S
     if (url.hasFragmentIdentifier()
         && localFrame
         && equalIgnoringFragmentIdentifier(localFrame->document()->url(), url)) {
-        ResourceRequest resourceRequest { protect(localFrame->document())->completeURL(url.string()), referrer, ResourceRequestCachePolicy::UseProtocolCachePolicy };
+        ResourceRequest resourceRequest { protect(localFrame->document())->encodingParseURL(url.string()), referrer, ResourceRequestCachePolicy::UseProtocolCachePolicy };
         RefPtr frame = lexicalFrameFromCommonVM();
         auto initiatedByMainFrame = frame && frame->isMainFrame() ? InitiatedByMainFrame::Yes : InitiatedByMainFrame::Unknown;
         

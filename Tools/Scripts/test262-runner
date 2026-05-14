@@ -33,6 +33,10 @@ use 5.8.8;
 
 use FindBin;
 use Config;
+use lib "$FindBin::Bin";
+use webkitdirs;
+
+maybeEnterWebKitContainerSDK();
 
 BEGIN {
     $ENV{DBIC_OVERWRITE_HELPER_METHODS_OK} = 1;

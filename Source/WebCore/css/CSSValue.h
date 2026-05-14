@@ -101,11 +101,11 @@ public:
     bool isFontVariationValue() const { return m_classType == ClassType::FontVariation; }
     bool isFunctionValue() const { return m_classType == ClassType::Function; }
     bool isGradientValue() const { return m_classType == ClassType::Gradient; }
-    bool isGridAutoRepeatValue() const { return m_classType == ClassType::GridAutoRepeat; }
-    bool isGridIntegerRepeatValue() const { return m_classType == ClassType::GridIntegerRepeat; }
-    bool isGridLineNamesValue() const { return m_classType == ClassType::GridLineNames; }
+    bool isGridAutoFlowValue() const { return m_classType == ClassType::GridAutoFlow; }
     bool isGridLineValue() const { return m_classType == ClassType::GridLineValue; }
     bool isGridTemplateAreasValue() const { return m_classType == ClassType::GridTemplateAreas; }
+    bool isGridTemplateListValue() const { return m_classType == ClassType::GridTemplateList; }
+    bool isGridTrackSizesValue() const { return m_classType == ClassType::GridTrackSizes; }
     bool isKeywordValue() const { return m_classType == ClassType::Keyword; }
     bool isImageSetOptionValue() const { return m_classType == ClassType::ImageSetOption; }
     bool isImageSetValue() const { return m_classType == ClassType::ImageSet; }
@@ -126,7 +126,6 @@ public:
     bool isReflectValue() const { return m_classType == ClassType::Reflect; }
     bool isScrollValue() const { return m_classType == ClassType::Scroll; }
     bool isStringValue() const { return m_classType == ClassType::String; }
-    bool isSubgridValue() const { return m_classType == ClassType::Subgrid; }
     bool isTextShadowPropertyValue() const { return m_classType == ClassType::TextShadowProperty; }
     bool isTransformListValue() const { return m_classType == ClassType::TransformList; }
     bool isURL() const { return m_classType == ClassType::URL; }
@@ -234,9 +233,11 @@ protected:
         FontStyleRange,
         FontStyleWithAngle,
         FontVariation,
-        GridLineNames,
+        GridAutoFlow,
         GridLineValue,
         GridTemplateAreas,
+        GridTemplateList,
+        GridTrackSizes,
         Keyword,
         OffsetRotate,
         Path,
@@ -261,10 +262,7 @@ protected:
         // Classes that contain vectors, which derive from CSSValueContainingVector.
         ValueList,
         Function,
-        GridAutoRepeat,
-        GridIntegerRepeat,
         ImageSet,
-        Subgrid,
         TransformList,
         // Do not append classes here unless they derive from CSSValueContainingVector.
     };

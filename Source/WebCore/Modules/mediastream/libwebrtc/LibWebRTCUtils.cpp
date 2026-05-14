@@ -28,6 +28,7 @@
 #if ENABLE(WEB_RTC) && USE(LIBWEBRTC)
 
 #include "LibWebRTCMacros.h"
+#include "MediaStreamTrackHintValue.h"
 #include "RTCDtlsTransportState.h"
 #include "RTCError.h"
 #include "RTCIceCandidate.h"
@@ -529,6 +530,27 @@ RefPtr<RTCError> toRTCError(const webrtc::RTCError& rtcError)
     if (!detail)
         return nullptr;
     return RTCError::create(*detail, String::fromLatin1(rtcError.message()));
+}
+
+webrtc::VideoTrackInterface::ContentHint toWebRTCContentHint(MediaStreamTrackHintValue value)
+{
+    ASSERT(value != MediaStreamTrackHintValue::Speech);
+    ASSERT(value != MediaStreamTrackHintValue::Music);
+    switch (value) {
+    case MediaStreamTrackHintValue::Speech:
+        return webrtc::VideoTrackInterface::ContentHint::kNone;
+    case MediaStreamTrackHintValue::Music:
+        return webrtc::VideoTrackInterface::ContentHint::kNone;
+    case MediaStreamTrackHintValue::Empty:
+        return webrtc::VideoTrackInterface::ContentHint::kNone;
+    case MediaStreamTrackHintValue::Motion:
+        return webrtc::VideoTrackInterface::ContentHint::kFluid;
+    case MediaStreamTrackHintValue::Detail:
+        return webrtc::VideoTrackInterface::ContentHint::kDetailed;
+    case MediaStreamTrackHintValue::Text:
+        return webrtc::VideoTrackInterface::ContentHint::kText;
+    }
+    return webrtc::VideoTrackInterface::ContentHint::kNone;
 }
 
 } // namespace WebCore

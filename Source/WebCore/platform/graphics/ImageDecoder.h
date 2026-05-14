@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,6 +26,7 @@
 #pragma once
 
 #include <WebCore/DecodingOptions.h>
+#include <WebCore/GainMap.h>
 #include <WebCore/ImageOrientation.h>
 #include <WebCore/ImageResolution.h>
 #include <WebCore/ImageTypes.h>
@@ -123,6 +124,7 @@ public:
 
     WEBCORE_EXPORT virtual bool fetchFrameMetaDataAtIndex(size_t, SubsamplingLevel, const DecodingOptions&, ImageFrame&) const;
 
+    virtual std::optional<GainMap> frameGainMapAtIndex(size_t, const DecodingOptions&) { return std::nullopt; }
     virtual PlatformImagePtr createFrameImageAtIndex(size_t, SubsamplingLevel = SubsamplingLevel::Default, const DecodingOptions& = DecodingOptions(DecodingMode::Synchronous)) = 0;
 
     virtual void setExpectedContentSize(long long) { }

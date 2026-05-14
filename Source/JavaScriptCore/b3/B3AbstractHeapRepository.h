@@ -180,6 +180,8 @@ namespace JSC::B3 {
     macro(SpecialPropertyCache_cachedToStringTagValue, SpecialPropertyCache::offsetOfCache(CachedSpecialPropertyKey::ToStringTag) + SpecialPropertyCacheEntry::offsetOfValue(), Mutability::Mutable) \
     macro(JSMap_storage, (JSMap::offsetOfStorage()), Mutability::Mutable) \
     macro(JSSet_storage, (JSSet::offsetOfStorage()), Mutability::Mutable) \
+    macro(JSPromise_packed, JSPromise::offsetOfPacked(), Mutability::Mutable) \
+    macro(JSPromise_slot, JSPromise::offsetOfSlot(), Mutability::Mutable) \
     macro(VM_heap_barrierThreshold, VM::offsetOfHeapBarrierThreshold(), Mutability::Mutable) \
     macro(VM_heap_mutatorShouldBeFenced, VM::offsetOfHeapMutatorShouldBeFenced(), Mutability::Mutable) \
     macro(VM_exception, VM::exceptionOffset(), Mutability::Mutable) \

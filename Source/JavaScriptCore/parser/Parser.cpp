@@ -89,36 +89,6 @@ std::atomic<unsigned> globalParseCount { 0 };
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ModuleScopeData);
 
-// When the parser encounters an immediately-invoked function expression (IIFE), it can
-// build the AST right away instead of the usual syntax-checking parse followed by a full
-// AST-building reparse.
-//
-// EagerIIFEParseScope and EagerIIFEParseState work together to enable this optimization.
-// EagerIIFEParseScope is created as a local in parseFunctionInfo when an IIFE candidate
-// is detected. It owns an ASTBuilder and constructs an EagerIIFEParseState that installs
-// itself into the parser. The ASTBuilder uses the parser's own arena, so the eagerly built
-// AST nodes live in the same arena as the rest of the parse. The FunctionNode created for
-// the IIFE holds a Ref to this shared arena, keeping it alive.
-
-template<typename LexerType>
-class EagerIIFEParseScope {
-public:
-    EagerIIFEParseScope(Parser<LexerType>* parser, unsigned startOffset)
-        : m_builder(const_cast<VM&>(parser->m_vm), parser->m_parserArena.copyRef(), const_cast<SourceCode*>(parser->m_source))
-        , m_parseState(*parser, &m_builder, startOffset)
-    { }
-
-private:
-    ASTBuilder m_builder;
-    Parser<LexerType>::EagerIIFEParseState m_parseState;
-};
-
-template <typename LexerType>
-CodeFeatures Parser<LexerType>::EagerIIFEParseState::features() const { return m_builder->features(); }
-
-template <typename LexerType>
-int Parser<LexerType>::EagerIIFEParseState::numConstants() const { return m_builder->numConstants(); }
-
 ALWAYS_INLINE static SourceParseMode getAsyncFunctionBodyParseMode(SourceParseMode parseMode)
 {
     if (isAsyncGeneratorWrapperParseMode(parseMode))
@@ -168,18 +138,16 @@ Parser<LexerType>::Parser(VM& vm, const SourceCode& source, ImplementationVisibi
     , m_implementationVisibility(implementationVisibility)
     , m_parsingBuiltin(builtinMode == JSParserBuiltinMode::Builtin)
     , m_isInsideOrdinaryFunction(isInsideOrdinaryFunction)
-    , m_parserArena(ParserArena::create())
     , m_hasStackOverflow(false)
     , m_debuggerParseData(debuggerParseData)
 {
     m_lexer = makeUnique<LexerType>(vm, builtinMode, scriptMode);
-    m_lexer->setCode(source, m_parserArena.ptr());
+    m_lexer->setCode(source, &m_parserArena);
     m_token.m_startPosition.line = source.firstLine().oneBasedInt();
     m_token.m_startPosition.offset = source.startOffset();
     m_token.m_startPosition.lineStartOffset = source.startOffset();
     m_token.m_endPosition.offset = source.startOffset();
     m_functionCache = vm.addSourceProviderCache(source.provider());
-    m_eagerIIFERegistry = vm.addEagerIIFERegistry(source.provider());
 
     Scope* scope = pushScope();
     scope->setLexicallyScopedFeatures(lexicallyScopedFeatures);
@@ -246,7 +214,7 @@ static ALWAYS_INLINE bool NODELETE isPrivateFieldName(UniquedStringImpl* uid)
 template <typename LexerType>
 Expected<typename Parser<LexerType>::ParseInnerResult, String> Parser<LexerType>::parseInner(const Identifier& calleeName, ParsingContext parsingContext, std::optional<int> functionConstructorParametersEndPosition, const FixedVector<UnlinkedFunctionExecutable::ClassElementDefinition>* classElementDefinitions, const PrivateNameEnvironment* parentScopePrivateNames)
 {
-    ASTBuilder context(const_cast<VM&>(m_vm), m_parserArena.copyRef(), const_cast<SourceCode*>(m_source));
+    ASTBuilder context(const_cast<VM&>(m_vm), m_parserArena, const_cast<SourceCode*>(m_source));
     SourceParseMode parseMode = sourceParseMode();
     Scope* scope = currentScope();
     scope->setIsLexicalScope();
@@ -352,7 +320,21 @@ Expected<typename Parser<LexerType>::ParseInnerResult, String> Parser<LexerType>
             context.propagateArgumentsUse();
     }
 
-    CodeFeatures features = collectCodeFeatures(context.features(), scope);
+    CodeFeatures features = context.features();
+    if (scope->shadowsArguments())
+        features |= ShadowsArgumentsFeature;
+    if (m_seenTaggedTemplateInNonReparsingFunctionMode)
+        features |= NoEvalCacheFeature;
+    if (scope->hasNonSimpleParameterList())
+        features |= NonSimpleParameterListFeature;
+    if (scope->usesImportMeta())
+        features |= ImportMetaFeature;
+    if (m_seenArgumentsDotLength && scope->hasDeclaredGlobalArguments())
+        features |= ArgumentsFeature;
+    if (scope->asyncFunctionBodyDoesNotUseAwait())
+        features |= AsyncFunctionWithoutAwaitFeature;
+    if (scope->usesAwait())
+        features |= AwaitFeature;
 
 #if ASSERT_ENABLED
 #ifndef BUN_SKIP_FAILING_ASSERTIONS
@@ -372,26 +354,6 @@ Expected<typename Parser<LexerType>::ParseInnerResult, String> Parser<LexerType>
 #endif // ASSERT_ENABLED
 
     return ParseInnerResult { parameters, sourceElements, scope->takeFunctionDeclarations(), scope->takeDeclaredVariables(), scope->takeLexicalEnvironment(), features, context.numConstants() };
-}
-
-template <typename LexerType>
-CodeFeatures Parser<LexerType>::collectCodeFeatures(CodeFeatures features, Scope* scope)
-{
-    if (scope->shadowsArguments())
-        features |= ShadowsArgumentsFeature;
-    if (scope->hasNonSimpleParameterList())
-        features |= NonSimpleParameterListFeature;
-    if (m_seenTaggedTemplateInNonReparsingFunctionMode)
-        features |= NoEvalCacheFeature;
-    if (scope->usesImportMeta())
-        features |= ImportMetaFeature;
-    if (m_seenArgumentsDotLength && scope->hasDeclaredGlobalArguments())
-        features |= ArgumentsFeature;
-    if (scope->asyncFunctionBodyDoesNotUseAwait())
-        features |= AsyncFunctionWithoutAwaitFeature;
-    if (scope->usesAwait())
-        features |= AwaitFeature;
-    return features;
 }
 
 template <typename LexerType>
@@ -1432,14 +1394,14 @@ template <class TreeBuilder> TreeDestructuringPattern Parser<LexerType>::parseDe
                 switch (m_token.m_type) {
                 case DOUBLE:
                 case INTEGER:
-                    propertyName = &m_parserArena->identifierArena().makeNumericIdentifier(const_cast<VM&>(m_vm), m_token.m_data.doubleValue);
+                    propertyName = &m_parserArena.identifierArena().makeNumericIdentifier(const_cast<VM&>(m_vm), m_token.m_data.doubleValue);
                     break;
                 case STRING:
                     propertyName = m_token.m_data.ident;
                     wasString = true;
                     break;
                 case BIGINT:
-                    propertyName = m_parserArena->identifierArena().makeBigIntDecimalIdentifier(const_cast<VM&>(m_vm), *m_token.m_data.bigIntString, m_token.m_data.radix);
+                    propertyName = m_parserArena.identifierArena().makeBigIntDecimalIdentifier(const_cast<VM&>(m_vm), *m_token.m_data.bigIntString, m_token.m_data.radix);
                     failIfFalse(propertyName, "Cannot parse big int property name");
                     break;
                 case OPENBRACKET:
@@ -2420,9 +2382,7 @@ template <class TreeBuilder> TreeFunctionBody Parser<LexerType>::parseFunctionBo
         else
             failIfFalse(parseArrowFunctionSingleExpressionBodySourceElements(syntaxChecker), "Cannot parse body of this arrow function");
     } else {
-        if (m_iifeParseState && !m_iifeParseState->isInUse()) [[unlikely]]
-            failIfFalse(m_iifeParseState->parseSourceElements(CheckForStrictMode), bodyType == StandardFunctionBodyBlock ? "Cannot parse body of this function" : "Cannot parse body of this arrow function");
-        else if (m_debuggerParseData)
+        if (m_debuggerParseData)
             failIfFalse(parseSourceElements(context, CheckForStrictMode), bodyType == StandardFunctionBodyBlock ? "Cannot parse body of this function" : "Cannot parse body of this arrow function");
         else
             failIfFalse(parseSourceElements(syntaxChecker, CheckForStrictMode), bodyType == StandardFunctionBodyBlock ? "Cannot parse body of this function" : "Cannot parse body of this arrow function");
@@ -2616,7 +2576,7 @@ template <class TreeBuilder> typename TreeBuilder::FormalParameterList Parser<Le
 }
 
 template <typename LexerType>
-template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuilder& context, FunctionNameRequirements requirements, bool nameIsInContainingScope, ConstructorKind constructorKind, SuperBinding expectedSuperBinding, unsigned functionStart, ParserFunctionInfo<TreeBuilder>& functionInfo, FunctionDefinitionType functionDefinitionType, std::optional<int> functionConstructorParametersEndPosition, bool isLikelyIIFE)
+template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuilder& context, FunctionNameRequirements requirements, bool nameIsInContainingScope, ConstructorKind constructorKind, SuperBinding expectedSuperBinding, unsigned functionStart, ParserFunctionInfo<TreeBuilder>& functionInfo, FunctionDefinitionType functionDefinitionType, std::optional<int> functionConstructorParametersEndPosition)
 {
     auto mode = sourceParseMode();
     RELEASE_ASSERT(isFunctionParseMode(mode));
@@ -2721,8 +2681,6 @@ template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuild
 
     SyntaxChecker syntaxChecker(const_cast<VM&>(m_vm), m_lexer.get());
 
-    std::optional<EagerIIFEParseScope<LexerType>> eagerIIFEParseScope;
-
     ParserState oldState;
     if ((SourceParseModeSet(SourceParseMode::ArrowFunctionMode, SourceParseMode::AsyncArrowFunctionMode).contains(mode))) [[unlikely]] {
         startLocation = tokenLocation();
@@ -2806,20 +2764,7 @@ template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuild
 
         startLocation = tokenLocation();
         functionInfo.startLine = tokenLine();
-
         startColumn = tokenColumn();
-        // If we are parsing a function nested inside an eagerly parsed IIFE, and we are
-        // still on the same line where the IIFE started, the start column needs to be
-        // adjusted. During lazy parsing the startColumn of this function would be
-        // relative to the start of the IIFE, but during eager parsing it is relative to
-        // the start of the source code containing the IIFE.
-        if (m_iifeParseState
-            && m_iifeParseState->isInUse()
-            && tokenLineStart() <= m_iifeParseState->startOffset()) [[unlikely]] {
-
-            int adjustment = m_iifeParseState->startOffset() - tokenLineStart();
-            startColumn -= adjustment;
-        }
         functionInfo.parametersStartColumn = startColumn;
 
         parametersStart = m_token.m_startPosition.offset;
@@ -2828,27 +2773,11 @@ template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuild
         if (tryLoadCachedFunction())
             return true;
 
-        // Detect IIFE candidates and set up eager AST building.
-        // Because we are past tryLoadCachedFunction(), we know the candidate hasn't been syntax-checked yet.
-        if constexpr (std::is_same_v<TreeBuilder, ASTBuilder>) {
-            const bool shouldEagerlyBuildAST = isLikelyIIFE
-                && Options::useEagerIIFEParsing()
-                && mode == SourceParseMode::NormalFunctionMode
-                && functionDefinitionType == FunctionDefinitionType::Expression
-                && !m_debuggerParseData
-                && m_eagerIIFERegistry;
-            if (shouldEagerlyBuildAST) [[unlikely]]
-                eagerIIFEParseScope.emplace(this, parametersStart);
-        }
-
         m_parserState.lastFunctionName = lastFunctionName;
         oldState = internalSaveParserState(context);
         {
             SetForScope overrideAllowAwait(m_parserState.allowAwait, !isAsyncFunctionParseMode(mode));
-            if (m_iifeParseState && !m_iifeParseState->isInUse()) [[unlikely]]
-                m_iifeParseState->template parseFunctionParameters<TreeBuilder>(functionInfo);
-            else
-                parseFunctionParameters(syntaxChecker, functionInfo);
+            parseFunctionParameters(syntaxChecker, functionInfo);
             propagateError();
         }
         
@@ -2967,43 +2896,9 @@ template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuild
     }
 
     bool functionScopeWasStrictMode = functionScope->strictMode();
-
-    const bool hasEagerlyBuiltAST = m_iifeParseState && m_iifeParseState->sourceElements();
-    ASSERT_IMPLIES(hasEagerlyBuiltAST, m_iifeParseState->functionParameters());
-
-    // Collect IIFE scope data before popScope destroys scope state.
-    CodeFeatures iifeFeatures = 0;
-    int iifeNumConstants = 0;
-    LexicallyScopedFeatures iifeLexFeatures = NoLexicallyScopedFeatures;
-    InnerArrowFunctionCodeFeatures iifeInnerFeatures = 0;
-    VariableEnvironment iifeVarDeclarations;
-    if (hasEagerlyBuiltAST) [[unlikely]] {
-        // Finalize sloppy-mode function hoisting before collecting scope data.
-        // This adds hoisted function names to declaredVariables and sets
-        // isSloppyModeHoistedFunction on the FunctionMetadataNodes, matching
-        // what parseInner() does during a normal reparse.
-        if (!functionScope->strictMode()) {
-            functionScope->finalizeSloppyModeFunctionHoisting();
-            // Clear candidates so they don't bubble up to outer scopes
-            // when popScope runs — the metadata nodes belong to the cached
-            // FunctionNode and must not be mutated by outer finalization.
-            functionScope->clearSloppyModeFunctionHoistingCandidates();
-        }
-
-        iifeFeatures = collectCodeFeatures(m_iifeParseState->features(), functionScope.scope());
-        iifeNumConstants = m_iifeParseState->numConstants();
-        iifeLexFeatures = functionScope->lexicallyScopedFeatures();
-        iifeInnerFeatures = functionScope->innerArrowFunctionFeatures();
-
-        iifeVarDeclarations = functionScope->declaredVariables();
-        IdentifierSet capturedVariables;
-        functionScope->getCapturedVars(capturedVariables);
-        for (auto& entry : capturedVariables)
-            iifeVarDeclarations.markVariableAsCaptured(entry.get());
-    }
-
-    auto [lexicalEnvironment, functionDeclarations] = popScope(functionScope, TreeBuilder::NeedsFreeVariableInfo);
-
+    
+    popScope(functionScope, TreeBuilder::NeedsFreeVariableInfo);
+    
     if (functionBodyType != ArrowFunctionBodyExpression)
         consumeOrFail(CLOSEBRACE, "Expected a closing '}' after a ", stringForFunctionMode(mode), " body");
     else {
@@ -3019,43 +2914,6 @@ template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuild
 
     if (newInfo)
         m_functionCache->add(functionInfo.startOffset, WTF::move(newInfo));
-
-    if (hasEagerlyBuiltAST) [[unlikely]] {
-        SourceCode functionSource = m_source->subExpression(
-            functionInfo.startOffset, functionInfo.endOffset,
-            functionInfo.startLine, functionInfo.parametersStartColumn);
-
-        JSTokenLocation endLocation;
-        endLocation.line = m_lastTokenLocation.line;
-        endLocation.startOffset = functionInfo.endOffset;
-        endLocation.lineStartOffset = m_lastTokenLocation.lineStartOffset;
-
-        auto functionNode = makeUnique<FunctionNode>(
-            m_parserArena.copyRef(),
-            startLocation,
-            endLocation,
-            startColumn,
-            tokenColumn(),
-            m_iifeParseState->sourceElements(),
-            WTF::move(iifeVarDeclarations),
-            WTF::move(functionDeclarations),
-            WTF::move(lexicalEnvironment),
-            m_iifeParseState->functionParameters(),
-            functionSource,
-            iifeFeatures,
-            iifeLexFeatures,
-            iifeInnerFeatures,
-            iifeNumConstants,
-            nullptr /* moduleScopeData */);
-
-        functionNode->setLoc(functionInfo.startLine, m_lastTokenLocation.line, m_lastTokenLocation.endOffset, m_lastTokenLocation.lineStartOffset);
-        functionNode->setEndOffset(functionInfo.endOffset);
-        functionNode->finishParsing(
-            functionInfo.name ? *functionInfo.name : m_vm.propertyNames->nullIdentifier,
-            FunctionMode::FunctionExpression);
-
-        m_eagerIIFERegistry->add(functionInfo.startOffset, WTF::move(functionNode));
-    }
     
     functionInfo.endLine = m_lastTokenLocation.line;
     return true;
@@ -3359,7 +3217,7 @@ parseMethod:
             next();
             break;
         case BIGINT:
-            ident = m_parserArena->identifierArena().makeBigIntDecimalIdentifier(const_cast<VM&>(m_vm), *m_token.m_data.bigIntString, m_token.m_data.radix);
+            ident = m_parserArena.identifierArena().makeBigIntDecimalIdentifier(const_cast<VM&>(m_vm), *m_token.m_data.bigIntString, m_token.m_data.radix);
             failIfFalse(ident, "Cannot parse big int property name");
             next();
             break;
@@ -3394,7 +3252,7 @@ parseMethod:
         }
         case DOUBLE:
         case INTEGER:
-            ident = &m_parserArena->identifierArena().makeNumericIdentifier(const_cast<VM&>(m_vm), m_token.m_data.doubleValue);
+            ident = &m_parserArena.identifierArena().makeNumericIdentifier(const_cast<VM&>(m_vm), m_token.m_data.doubleValue);
             ASSERT(ident);
             next();
             break;
@@ -3475,9 +3333,9 @@ parseMethod:
 
             if (computedPropertyName) {
                 if (tag == ClassElementTag::Instance)
-                    ident = &m_parserArena->identifierArena().makePrivateIdentifier(m_vm, instanceComputedNamePrefix, nextInstanceComputedFieldID++);
+                    ident = &m_parserArena.identifierArena().makePrivateIdentifier(m_vm, instanceComputedNamePrefix, nextInstanceComputedFieldID++);
                 else
-                    ident = &m_parserArena->identifierArena().makePrivateIdentifier(m_vm, staticComputedNamePrefix, nextStaticComputedFieldID++);
+                    ident = &m_parserArena.identifierArena().makePrivateIdentifier(m_vm, staticComputedNamePrefix, nextStaticComputedFieldID++);
                 DeclarationResultMask declarationResult = classScope->declareLexicalVariable(ident, true);
                 ASSERT_UNUSED(declarationResult, declarationResult == DeclarationResult::Valid);
                 classScope->useVariable(ident, false);
@@ -3510,7 +3368,7 @@ parseMethod:
             m_statementDepth = 0;
             failIfFalse(parseBlockStatement(context, BlockType::StaticBlock), "Cannot parse class static block");
             auto* symbolImpl = std::bit_cast<SymbolImpl*>(m_vm.propertyNames->builtinNames().staticInitializerBlockPrivateName().impl());
-            ident = &m_parserArena->identifierArena().makeIdentifier(const_cast<VM&>(m_vm), symbolImpl);
+            ident = &m_parserArena.identifierArena().makeIdentifier(const_cast<VM&>(m_vm), symbolImpl);
             property = context.createProperty(ident, type, SuperBinding::Needed, tag);
             classScope->markLastUsedVariablesSetAsCaptured(usedVariablesSize);
         } else {
@@ -4871,7 +4729,7 @@ namedProperty:
     case DOUBLE:
     case INTEGER: {
         unsigned functionStart = timesPosition.value_or(asyncPosition.value_or(m_token.m_startPosition));
-        const Identifier& ident = m_parserArena->identifierArena().makeNumericIdentifier(const_cast<VM&>(m_vm), m_token.m_data.doubleValue);
+        const Identifier& ident = m_parserArena.identifierArena().makeNumericIdentifier(const_cast<VM&>(m_vm), m_token.m_data.doubleValue);
         next();
 
         if (match(OPENPAREN)) {
@@ -4889,7 +4747,7 @@ namedProperty:
         return context.createProperty(&ident, node, PropertyNode::Constant, SuperBinding::NotNeeded, InferName::Allowed, ClassElementTag::No);
     }
     case BIGINT: {
-        const Identifier* ident = m_parserArena->identifierArena().makeBigIntDecimalIdentifier(const_cast<VM&>(m_vm), *m_token.m_data.bigIntString, m_token.m_data.radix);
+        const Identifier* ident = m_parserArena.identifierArena().makeBigIntDecimalIdentifier(const_cast<VM&>(m_vm), *m_token.m_data.bigIntString, m_token.m_data.radix);
         failIfFalse(ident, "Cannot parse big int property name");
         unsigned functionStart = timesPosition.value_or(asyncPosition.value_or(m_token.m_startPosition));
         next();
@@ -4983,7 +4841,7 @@ template <class TreeBuilder> TreeProperty Parser<LexerType>::parseGetterSetter(T
         numericPropertyName = m_token.m_data.doubleValue;
         next();
     } else if (match(BIGINT)) {
-        stringPropertyName = m_parserArena->identifierArena().makeBigIntDecimalIdentifier(const_cast<VM&>(m_vm), *m_token.m_data.bigIntString, m_token.m_data.radix);
+        stringPropertyName = m_parserArena.identifierArena().makeBigIntDecimalIdentifier(const_cast<VM&>(m_vm), *m_token.m_data.bigIntString, m_token.m_data.radix);
         failIfFalse(stringPropertyName, "Cannot parse big int property name");
         next();
     } else if (consume(OPENBRACKET)) [[likely]] {
@@ -5018,7 +4876,7 @@ template <class TreeBuilder> TreeProperty Parser<LexerType>::parseGetterSetter(T
     if (computedPropertyName)
         return context.createGetterOrSetterProperty(location, static_cast<PropertyNode::Type>(type | PropertyNode::Computed), computedPropertyName, info, tag);
 
-    return context.createGetterOrSetterProperty(const_cast<VM&>(m_vm), m_parserArena.get(), location, type, numericPropertyName, info, tag);
+    return context.createGetterOrSetterProperty(const_cast<VM&>(m_vm), m_parserArena, location, type, numericPropertyName, info, tag);
 }
 
 template <typename LexerType>
@@ -5166,7 +5024,6 @@ template <typename LexerType>
 template <class TreeBuilder> TreeExpression Parser<LexerType>::parseFunctionExpression(TreeBuilder& context)
 {
     ASSERT(match(FUNCTION));
-    bool isLikelyIIFE = m_lastTokenType == OPENPAREN || m_lastTokenType == EXCLAMATION;
     SetForScope nonLHSCountScope(m_parserState.nonLHSCount);
     JSTokenLocation location(tokenLocation());
     unsigned functionStart = tokenStart();
@@ -5181,7 +5038,7 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::parseFunctionExpr
     ConstructorKind constructorKind = currentScope()->isGlobalCode() ? m_constructorKindForTopLevelFunctionExpressions : ConstructorKind::None;
     SuperBinding expectedSuperBinding = constructorKind == ConstructorKind::Extends ? SuperBinding::Needed : SuperBinding::NotNeeded;
 
-    failIfFalse((parseFunctionInfo(context, FunctionNameRequirements::None, false, constructorKind, expectedSuperBinding, functionStart, functionInfo, FunctionDefinitionType::Expression, std::nullopt, isLikelyIIFE)), "Cannot parse function expression");
+    failIfFalse((parseFunctionInfo(context, FunctionNameRequirements::None, false, constructorKind, expectedSuperBinding, functionStart, functionInfo, FunctionDefinitionType::Expression)), "Cannot parse function expression");
     return context.createFunctionExpr(location, functionInfo);
 }
 

@@ -288,7 +288,7 @@ void MessagePort::dispatchMessages()
 
             if (pendingActivity->object().m_messageHandler) {
                 ASSERT(message.transferredPorts.isEmpty());
-                pendingActivity->object().m_messageHandler(*uncheckedDowncast<JSDOMGlobalObject>(globalObject), message.message.releaseNonNull().get());
+                pendingActivity->object().m_messageHandler(*downcast<JSDOMGlobalObject>(globalObject), message.message.releaseNonNull().get());
                 continue;
             }
 

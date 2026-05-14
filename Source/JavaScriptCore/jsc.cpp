@@ -639,16 +639,22 @@ private:
         Base::finishCreation(vm);
         JSC_TO_STRING_TAG_WITHOUT_TRANSITION();
 
-        // Set loop counts based on enabled engine tiers.
-        unsigned testLoopCount = 10000;
-        if (!Options::useDFGJIT())
-            testLoopCount = 1000;
-        if (!Options::useBaselineJIT())
-            testLoopCount = 100;
+        // Set loop counts based on enabled engine tiers. When concurrent JIT is off,
+        // clamp to a small multiple of the top tier's warm-up threshold so eager
+        // modes don't balloon stress-test runtime on the main thread.
+        auto clampLoopCount = [](uint32_t defaultCount, uint32_t noCJITCap) {
+            return Options::useConcurrentJIT() ? defaultCount : std::min(defaultCount, noCJITCap);
+        };
 
-        unsigned wasmTestLoopCount = 10000;
+        unsigned testLoopCount = clampLoopCount(10000, Options::thresholdForFTLOptimizeAfterWarmUp() * 3);
+        if (!Options::useDFGJIT())
+            testLoopCount = clampLoopCount(1000, Options::thresholdForOptimizeAfterWarmUp() * 3);
+        if (!Options::useBaselineJIT())
+            testLoopCount = clampLoopCount(100, Options::thresholdForJITAfterWarmUp() * 3);
+
+        unsigned wasmTestLoopCount = clampLoopCount(10000, Options::thresholdForOMGOptimizeAfterWarmUp() * 3);
         if (!Options::useOMGJIT())
-            wasmTestLoopCount = 1000;
+            wasmTestLoopCount = clampLoopCount(1000, Options::thresholdForBBQOptimizeAfterWarmUp() * 3);
         if (!Options::useBBQJIT())
             wasmTestLoopCount = 100;
 

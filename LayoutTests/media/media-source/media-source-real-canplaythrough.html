@@ -51,9 +51,13 @@
         sourceBuffer.appendBuffer(media);
         // Test ends via canplaythrough event handler (waitForEventAndEnd)
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

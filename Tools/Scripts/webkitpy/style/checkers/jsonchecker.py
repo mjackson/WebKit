@@ -557,12 +557,12 @@ class JSONImportExpectationsChecker(JSONChecker):
                 )
                 valid = False
 
-            if value not in ("import", "skip", "skip-new-directories"):
+            if value not in ("import", "import-no-rewrite", "skip", "skip-new-directories"):
                 self._handle_style_error(
                     line_no,
                     "json/syntax",
                     5,
-                    'Each value must be one of "import", "skip", or "skip-new-directories"',
+                    'Each value must be one of "import", "import-no-rewrite", "skip", or "skip-new-directories"',
                 )
                 valid = False
 
@@ -604,7 +604,7 @@ class JSONImportExpectationsChecker(JSONChecker):
             is_prefix = any(
                 parsed_key == k[: len(parsed_key)]
                 and len(k) > len(parsed_key)
-                and v == "import"
+                and v in ("import", "import-no-rewrite")
                 for k, v in parsed_expectations.items()
             )
             should_exist = not is_skipped or is_prefix

@@ -41,13 +41,25 @@
 #if defined(__APPLE__) && !PLATFORM(GTK)
 #ifdef __OBJC__
 @class WKWebView;
+#if PLATFORM(MAC)
 @class NSWindow;
 #else
+@class UIWindow;
+#endif
+#else
 class WKWebView;
+#if PLATFORM(MAC)
 class NSWindow;
+#else
+class UIWindow;
+#endif
 #endif
 typedef WKWebView *PlatformWKView;
+#if PLATFORM(MAC)
 typedef NSWindow *PlatformWindow;
+#else
+typedef UIWindow *PlatformWindow;
+#endif
 #elif PLATFORM(GTK)
 typedef WKViewRef PlatformWKView;
 typedef GtkWidget *PlatformWindow;

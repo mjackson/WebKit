@@ -428,7 +428,10 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     Modules/filesystem/FileSystemFileHandle.h
     Modules/filesystem/FileSystemHandle.h
     Modules/filesystem/FileSystemHandleCloseScope.h
+    Modules/filesystem/FileSystemHandleGlobalIdentifier.h
     Modules/filesystem/FileSystemHandleIdentifier.h
+    Modules/filesystem/FileSystemHandleInfo.h
+    Modules/filesystem/FileSystemHandleKind.h
     Modules/filesystem/FileSystemStorageConnection.h
     Modules/filesystem/FileSystemSyncAccessHandleIdentifier.h
     Modules/filesystem/FileSystemWritableFileStreamIdentifier.h
@@ -829,6 +832,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     accessibility/AXNotifications.h
     accessibility/AXObjectCache.h
     accessibility/AXObjectCacheInlines.h
+    accessibility/AXObjectTypes.h
     accessibility/AXObjectRareData.h
     accessibility/AXRemoteFrame.h
     accessibility/AXSearchManager.h
@@ -964,6 +968,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     bindings/js/JSValueInWrappedObjectInlines.h
     bindings/js/JSWindowProxy.h
     bindings/js/ModuleScriptLoader.h
+    bindings/js/NonSerializedDataToken.h
     bindings/js/ReadableStreamDefaultController.h
     bindings/js/RunJavaScriptParameters.h
     bindings/js/ScriptCachedFrameData.h
@@ -971,6 +976,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     bindings/js/ScriptWrappable.h
     bindings/js/ScriptWrappableInlines.h
     bindings/js/SerializedScriptValue.h
+    bindings/js/SerializedScriptValueInternals.h
     bindings/js/StringAdaptors.h
     bindings/js/WebAssemblyCachedScriptSourceProvider.h
     bindings/js/WebAssemblyScriptSourceCode.h
@@ -1073,7 +1079,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSFontFaceDescriptors.h
     css/CSSFontFaceRule.h
     css/CSSFontPaletteValuesRule.h
-    css/CSSGridIntegerRepeatValue.h
+    css/CSSGridTemplateListValue.h
     css/CSSGroupingRule.h
     css/CSSImportRule.h
     css/CSSKeywordValue.h
@@ -1096,7 +1102,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSStyleProperties.h
     css/CSSStyleRule.h
     css/CSSStyleSheet.h
-    css/CSSSubgridValue.h
     css/CSSSubstitutionValue.h
     css/CSSToLengthConversionData.h
     css/CSSUnits.h
@@ -1184,8 +1189,15 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/values/color/CSSKeywordColor.h
     css/values/color/CSSResolvedColor.h
 
+    css/values/grid/CSSGridAutoFlow.h
+    css/values/grid/CSSGridLineNames.h
     css/values/grid/CSSGridNamedAreaMap.h
+    css/values/grid/CSSGridSubgrid.h
     css/values/grid/CSSGridTemplateAreas.h
+    css/values/grid/CSSGridTemplateList.h
+    css/values/grid/CSSGridTrackBreadth.h
+    css/values/grid/CSSGridTrackList.h
+    css/values/grid/CSSGridTrackSize.h
 
     css/values/images/CSSGradient.h
 
@@ -1691,6 +1703,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     html/track/VTTRegion.h
     html/track/VideoTrackClient.h
 
+    inspector/CommandLineAPIHost.h
     inspector/FrameInspectorController.h
     inspector/InspectorBackendClient.h
     inspector/InspectorDebuggableType.h
@@ -1709,6 +1722,10 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     inspector/InspectorWebAgentBase.h
     inspector/LegacyWebSocketInspectorInstrumentation.h
     inspector/PageInspectorController.h
+    inspector/UncachedLoadType.h
+    inspector/WebInjectedScriptManager.h
+
+    inspector/hooks/NetworkAgentInstrumentation.h
 
     inspector/agents/InspectorPageAgent.h
 
@@ -1830,6 +1847,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     loader/CookieJar.h
     loader/CrossOriginAccessControl.h
     loader/CrossOriginEmbedderPolicy.h
+    loader/CrossOriginEmbedderPolicyValue.h
     loader/CrossOriginOpenerPolicy.h
     loader/CrossOriginPreflightResultCache.h
     loader/CustomHeaderFields.h
@@ -2038,7 +2056,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     page/ProcessWarming.h
     page/Quirks.h
     page/QuirksData.h
-    page/ReducedResolutionSeconds.h
     page/RemoteDOMWindow.h
     page/RemoteFrame.h
     page/RemoteFrameClient.h
@@ -2157,6 +2174,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/AudioSampleFormat.h
     platform/BoxExtents.h
     platform/BoxSides.h
+    platform/BrowsingContextGroupIdentifier.h
     platform/CPUMonitor.h
     platform/CaptionPreferencesDelegate.h
     platform/CaretAnimator.h
@@ -2219,6 +2237,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/MessageClientForTesting.h
     platform/MessageForTesting.h
     platform/MessageTargetForTesting.h
+    platform/NonSerializedDataIdentifier.h
     platform/NotImplemented.h
     platform/NowPlayingManager.h
     platform/OrientationNotifier.h
@@ -2637,10 +2656,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/ShareableBitmap.h
     platform/graphics/ShareableBitmapHandle.h
 
-    platform/graphics/cocoa/CVPixelBufferUtilities.h
-    platform/graphics/cocoa/ShareableCVPixelBuffer.h
-    platform/graphics/cocoa/ShareableCVPixelFormat.h
-    platform/graphics/cocoa/ShareableGainMap.h
     platform/graphics/ShouldLocalizeAxisNames.h
     platform/graphics/SourceBrush.h
     platform/graphics/SourceBrushLogicalGradient.h
@@ -3285,6 +3300,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/grid/StyleFlowTolerance.h
     style/values/grid/StyleGridAutoFlow.h
+    style/values/grid/StyleGridLineNames.h
     style/values/grid/StyleGridNamedAreaMap.h
     style/values/grid/StyleGridNamedLinesMap.h
     style/values/grid/StyleGridOrderedNamedLinesMap.h
@@ -3563,6 +3579,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     workers/WorkerOrWorkletThread.h
     workers/WorkerReportingProxy.h
     workers/WorkerRunLoop.h
+    workers/WorkerSTWParticipation.h
     workers/WorkerScriptLoader.h
     workers/WorkerScriptLoaderClient.h
     workers/WorkerThread.h

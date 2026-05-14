@@ -26,6 +26,7 @@
 #include <array>
 #include <wtf/Locker.h>
 #include <wtf/MainThread.h>
+#include <wtf/text/CStringView.h>
 #include <wtf/text/StringView.h>
 
 #if USE(LIBEPOXY)
@@ -53,6 +54,19 @@ typedef EGLBoolean (EGLAPIENTRYP PFNEGLDESTROYIMAGEKHRPROC) (EGLDisplay, EGLImag
 typedef EGLImageKHR (EGLAPIENTRYP PFNEGLCREATEIMAGEKHRPROC) (EGLDisplay, EGLContext, EGLenum target, EGLClientBuffer, const EGLint* attribList);
 typedef EGLBoolean (EGLAPIENTRYP PFNEGLDESTROYIMAGEKHRPROC) (EGLDisplay, EGLImageKHR);
 #endif
+#endif
+
+// Epoxy does not yet define these macros as of version 1.5.10
+#ifndef EGL_DEVICE_TYPE_EXT
+#define EGL_DEVICE_TYPE_EXT 0x3590
+#endif
+
+#ifndef EGL_DEVICE_TYPE_CPU_EXT
+#define EGL_DEVICE_TYPE_CPU_EXT 0x3594
+#endif
+
+#ifndef EGL_RENDERER_EXT
+#define EGL_RENDERER_EXT 0x335F
 #endif
 
 namespace WebCore {
@@ -116,6 +130,53 @@ bool GLDisplay::checkVersion(int major, int minor) const
 {
     return (m_version.major > major) || ((m_version.major == major) && (m_version.minor >= minor));
 }
+
+#if USE(LIBEPOXY)
+bool GLDisplay::isSoftwareRendered() const
+{
+    if (m_display == EGL_NO_DISPLAY)
+        return false;
+
+    static const auto containsSoftwareRendererName = [](const CStringView& rendererName) {
+        static constexpr ASCIILiteral substringsToCheck[] = {
+            "llvmpipe"_s,
+            "swrast"_s,
+        };
+
+        for (const auto& substring : substringsToCheck) {
+            if (contains(rendererName.span(), substring))
+                return true;
+        }
+
+        return false;
+    };
+
+    if (GLContext::isExtensionSupported(eglQueryString(nullptr, EGL_EXTENSIONS), "EGL_EXT_device_query")) {
+        EGLDeviceEXT eglDevice;
+        if (eglQueryDisplayAttribEXT(m_display, EGL_DEVICE_EXT, reinterpret_cast<EGLAttrib*>(&eglDevice))) {
+            const char* deviceExtensionsString = eglQueryDeviceStringEXT(eglDevice, EGL_EXTENSIONS);
+            if (GLContext::isExtensionSupported(deviceExtensionsString, "EGL_EXT_device_type")) {
+                EGLAttrib deviceType;
+                if (eglQueryDeviceAttribEXT(eglDevice, EGL_DEVICE_TYPE_EXT, &deviceType))
+                    return deviceType == EGL_DEVICE_TYPE_CPU_EXT;
+            }
+
+            if (GLContext::isExtensionSupported(deviceExtensionsString, "EGL_MESA_device_software"))
+                return true;
+
+            if (GLContext::isExtensionSupported(deviceExtensionsString, "EGL_EXT_device_query_name")) {
+                if (const char* rendererName = eglQueryDeviceStringEXT(eglDevice, EGL_RENDERER_EXT))
+                    return containsSoftwareRendererName(CStringView::unsafeFromUTF8(rendererName));
+            }
+        }
+    }
+
+    if (const char* rendererName = reinterpret_cast<const char*>(glGetString(GL_RENDERER)))
+        return containsSoftwareRendererName(CStringView::unsafeFromUTF8(rendererName));
+
+    return false;
+}
+#endif // USE(LIBEPOXY)
 
 EGLImage GLDisplay::createImage(EGLContext context, EGLenum target, EGLClientBuffer clientBuffer, const Vector<EGLAttrib>& attributes) const
 {

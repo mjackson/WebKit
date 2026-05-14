@@ -29,6 +29,7 @@
 #include "Identifier.h"
 #include "Symbol.h"
 #include "VM.h"
+#include <JavaScriptCore/JSString.h>
 
 namespace JSC  {
 

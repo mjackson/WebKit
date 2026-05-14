@@ -35,8 +35,9 @@
 #include <limits>
 #include <pal/spi/cg/CoreGraphicsSPI.h>
 
-namespace WebCore {
+#include "CoreVideoSoftLink.h"
 
+namespace WebCore {
 
 RefPtr<NativeImage> NativeImage::create(PlatformImagePtr&& image, std::optional<GainMap>&& gainMap)
 {
@@ -76,6 +77,15 @@ bool NativeImage::hasAlpha() const
 {
     CGImageAlphaInfo info = CGImageGetAlphaInfo(m_platformImage.get());
     return (info >= kCGImageAlphaPremultipliedLast) && (info <= kCGImageAlphaFirst);
+}
+
+size_t NativeImage::sizeInBytes() const
+{
+    CheckedSize height = CGImageGetHeight(m_platformImage);
+    CheckedSize sizeInBytes = height * CGImageGetBytesPerRow(m_platformImage);
+    if (m_gainMap)
+        sizeInBytes += CVPixelBufferGetDataSize(m_gainMap->gainMapPixelBuffer);
+    return sizeInBytes;
 }
 
 DestinationColorSpace NativeImage::colorSpace() const
@@ -122,7 +132,6 @@ void NativeImage::clearSubimages()
     CGSubimageCacheWithTimer::clearImage(platformImage().get());
 #endif
 }
-
 
 } // namespace WebCore
 

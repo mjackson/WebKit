@@ -47,7 +47,7 @@ private:
     void paintToTextureMapper(TextureMapper&, const FloatRect&, const TransformationMatrix& modelViewMatrix = TransformationMatrix(), float opacity = 1.0) override;
 
 #if USE(SKIA)
-    void paintToCanvas(SkCanvas&, const FloatRect&, const SkPaint&) override;
+    sk_sp<SkImage> skiaImage() override;
 #endif
 
     Format m_format { Format::AYUV };

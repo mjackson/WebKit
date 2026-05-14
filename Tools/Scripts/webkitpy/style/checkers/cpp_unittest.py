@@ -3046,6 +3046,31 @@ class CppStyleTest(CppStyleTestBase):
             'Missing #pragma once for header guard.'
             '  [build/header_guard_missing] [5]')
 
+        # libpas headers must use #ifndef/#define guards, not #pragma once.
+        libpas_header = 'Source/bmalloc/libpas/src/libpas/pas_foo.h'
+
+        # No warning for libpas header with #ifndef/#define guard.
+        self.assert_header_guard(
+            '#ifndef PAS_FOO_H\n'
+            '#define PAS_FOO_H\n'
+            '#endif /* PAS_FOO_H */\n',
+            '',
+            libpas_header)
+
+        # Warning if a libpas header uses #pragma once.
+        self.assert_header_guard(
+            '#pragma once\n',
+            'Do not use #pragma once in libpas; use #ifndef/#define header guards instead.'
+            '  [build/header_guard] [5]',
+            libpas_header)
+
+        # Warning for libpas header with no guard at all.
+        self.assert_header_guard(
+            '',
+            'Missing #ifndef/#define header guard.'
+            '  [build/header_guard_missing] [5]',
+            libpas_header)
+
     def test_build_printf_format(self):
         self.assert_lint(
             r'SAFE_PRINTF("\%%d", value);',

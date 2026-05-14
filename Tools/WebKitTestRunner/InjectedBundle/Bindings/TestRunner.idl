@@ -131,6 +131,7 @@ interface TestRunner {
     undefined setDatabaseQuota(unsigned long long quota);
     DOMString pathToLocalResource(DOMString url);
     undefined syncLocalStorage();
+    readonly attribute unsigned long storageAreaMapCount;
 
     attribute double databaseDefaultQuota;
     attribute double databaseMaxQuota;
@@ -161,6 +162,8 @@ interface TestRunner {
 
     readonly attribute boolean didReceiveServerRedirectForProvisionalNavigation;
     undefined clearDidReceiveServerRedirectForProvisionalNavigation();
+
+    readonly attribute DOMString lastProvisionalNavigationFailureURL;
 
     // Window/view state
     undefined setWindowIsKey(boolean isKey);

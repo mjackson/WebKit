@@ -25,6 +25,7 @@
 
 #include "config.h"
 #include "XREquirectLayer.h"
+#include <cmath>
 
 #if ENABLE(WEBXR_LAYERS)
 
@@ -33,6 +34,7 @@
 #include "WebXRSession.h"
 #include "XRLayerBacking.h"
 #include "XRWebGLBinding.h"
+#include <wtf/MathExtras.h>
 #include <wtf/Scope.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -44,11 +46,13 @@ XREquirectLayer::XREquirectLayer(ScriptExecutionContext& scriptExecutionContext,
     : XRCompositionLayer(&scriptExecutionContext, session, WTF::move(backing), init)
     , m_space(init.space)
     , m_transform((init.transform) ? init.transform : WebXRRigidTransform::create())
-    , m_radius(init.radius)
-    , m_centralHorizontalAngle(init.centralHorizontalAngle)
-    , m_upperVerticalAngle(init.upperVerticalAngle)
-    , m_lowerVerticalAngle(init.lowerVerticalAngle)
 {
+    // Explicitly call setters to add validation.
+    setRadius(init.radius);
+    setCentralHorizontalAngle(init.centralHorizontalAngle);
+    setUpperVerticalAngle(init.upperVerticalAngle);
+    setLowerVerticalAngle(init.lowerVerticalAngle);
+
     setIsStatic(init.isStatic);
 }
 
@@ -81,6 +85,31 @@ void XREquirectLayer::setTransform(WebXRRigidTransform& transform)
         return;
 
     m_transform = transform;
+    setNeedsRedraw(true);
+}
+
+void XREquirectLayer::setRadius(float radius)
+{
+    m_radius = std::max(0.f, radius);
+    setNeedsRedraw(true);
+}
+
+void XREquirectLayer::setCentralHorizontalAngle(float angle)
+{
+    constexpr float twoPiFloat = static_cast<float>(std::numbers::pi * 2);
+    m_centralHorizontalAngle = std::clamp(angle, 0.f, twoPiFloat);
+    setNeedsRedraw(true);
+}
+
+void XREquirectLayer::setUpperVerticalAngle(float angle)
+{
+    m_upperVerticalAngle = std::clamp(angle, -piOverTwoFloat, piOverTwoFloat);
+    setNeedsRedraw(true);
+}
+
+void XREquirectLayer::setLowerVerticalAngle(float angle)
+{
+    m_lowerVerticalAngle = std::clamp(angle, -piOverTwoFloat, piOverTwoFloat);
     setNeedsRedraw(true);
 }
 

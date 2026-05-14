@@ -351,6 +351,7 @@ public:
     // Accessibility
 
     virtual void simulateAccessibilitySettingsChangeNotification(JSValueRef) { notImplemented(); }
+    virtual void simulateAvailableSpeechVoicesDidChangeOnBackgroundThread(JSValueRef) { notImplemented(); }
     virtual void retrieveSpeakSelectionContent(JSValueRef) { notImplemented(); }
     virtual JSRetainPtr<JSStringRef> accessibilitySpeakSelectionContent() const { notImplemented(); return nullptr; }
     virtual JSObjectRef contentsOfUserInterfaceItem(JSStringRef) const { notImplemented(); return nullptr; }

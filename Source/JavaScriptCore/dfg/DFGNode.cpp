@@ -367,6 +367,65 @@ void Node::convertToRegExpMatchFastGlobalWithoutChecks(FrozenValue* regExp)
     m_opInfo = regExp;
 }
 
+void Node::convertToDefineDataProperty(Graph& graph, Edge base, Edge property, Edge value, Edge attributes)
+{
+    ASSERT(op() == ObjectDefinePropertyFromFields);
+    setOpAndDefaultFlags(DefineDataProperty);
+
+    unsigned firstChild = graph.m_varArgChildren.size();
+    graph.m_varArgChildren.append(base);
+    graph.m_varArgChildren.append(property);
+    graph.m_varArgChildren.append(value);
+    graph.m_varArgChildren.append(attributes);
+    children = AdjacencyList(AdjacencyList::Variable, firstChild, 4);
+}
+
+void Node::convertToDefineAccessorProperty(Graph& graph, Edge base, Edge property, Edge getter, Edge setter, Edge attributes)
+{
+    ASSERT(op() == ObjectDefinePropertyFromFields);
+    setOpAndDefaultFlags(DefineAccessorProperty);
+
+    unsigned firstChild = graph.m_varArgChildren.size();
+    graph.m_varArgChildren.append(base);
+    graph.m_varArgChildren.append(property);
+    graph.m_varArgChildren.append(getter);
+    graph.m_varArgChildren.append(setter);
+    graph.m_varArgChildren.append(attributes);
+    children = AdjacencyList(AdjacencyList::Variable, firstChild, 5);
+}
+
+void Node::convertToObjectDefinePropertyFromFields(Graph& graph, Edge target, Edge key, Edge enumerable, Edge configurable, Edge value, Edge writable, Edge getter, Edge setter)
+{
+    ASSERT(op() == ObjectDefineProperty);
+    setOpAndDefaultFlags(ObjectDefinePropertyFromFields);
+
+    unsigned firstChild = graph.m_varArgChildren.size();
+    graph.m_varArgChildren.append(target);
+    graph.m_varArgChildren.append(key);
+    graph.m_varArgChildren.append(enumerable);
+    graph.m_varArgChildren.append(configurable);
+    graph.m_varArgChildren.append(value);
+    graph.m_varArgChildren.append(writable);
+    graph.m_varArgChildren.append(getter);
+    graph.m_varArgChildren.append(setter);
+    children = AdjacencyList(AdjacencyList::Variable, firstChild, 8);
+}
+
+void Node::convertToPutByIdDirect(Graph& graph, Edge base, Edge value, CacheableIdentifier identifier, ECMAMode ecmaMode)
+{
+    ASSERT(op() == DefineDataProperty);
+    for (unsigned i = 0; i < numChildren(); ++i)
+        graph.varArgChild(this, i) = Edge();
+
+    children.reset();
+    clearFlags(NodeHasVarArgs);
+    setOpAndDefaultFlags(PutByIdDirect);
+    child1() = base;
+    child2() = value;
+    m_opInfo = identifier;
+    m_opInfo2 = ecmaMode.value();
+}
+
 void Node::convertToRegExpTestInline(FrozenValue* globalObject, FrozenValue* regExp)
 {
     ASSERT(op() == RegExpTest);

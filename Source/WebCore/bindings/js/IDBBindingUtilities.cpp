@@ -83,27 +83,27 @@ static bool get(JSGlobalObject& lexicalGlobalObject, JSValue object, const Strin
         RETURN_IF_EXCEPTION(scope, false);
         return true;
     }
-    if (obj->inherits<JSBlob>() && (keyPathElement == "size"_s || keyPathElement == "type"_s)) {
+    if (auto* blob = dynamicDowncast<JSBlob>(*obj); blob && (keyPathElement == "size"_s || keyPathElement == "type"_s)) {
         if (keyPathElement == "size"_s) {
-            result = jsNumber(uncheckedDowncast<JSBlob>(obj)->wrapped().size());
+            result = jsNumber(blob->wrapped().size());
             return true;
         }
         if (keyPathElement == "type"_s) {
-            result = jsString(vm, uncheckedDowncast<JSBlob>(obj)->wrapped().type());
+            result = jsString(vm, blob->wrapped().type());
             return true;
         }
     }
-    if (obj->inherits<JSFile>()) {
+    if (auto* file = dynamicDowncast<JSFile>(*obj)) {
         if (keyPathElement == "name"_s) {
-            result = jsString(vm, uncheckedDowncast<JSFile>(obj)->wrapped().name());
+            result = jsString(vm, file->wrapped().name());
             return true;
         }
         if (keyPathElement == "lastModified"_s) {
-            result = jsNumber(protect(uncheckedDowncast<JSFile>(obj)->wrapped())->lastModified());
+            result = jsNumber(protect(file->wrapped())->lastModified());
             return true;
         }
         if (keyPathElement == "lastModifiedDate"_s) {
-            result = jsDate(lexicalGlobalObject, WallTime::fromRawSeconds(Seconds::fromMilliseconds(protect(uncheckedDowncast<JSFile>(obj)->wrapped())->lastModified()).value()));
+            result = jsDate(lexicalGlobalObject, WallTime::fromRawSeconds(Seconds::fromMilliseconds(protect(file->wrapped())->lastModified()).value()));
             return true;
         }
     }

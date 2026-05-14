@@ -33,7 +33,7 @@ import WebKit_Private
 /// `WebPage.ImmersiveEnvironment` received from the presentation callback to render
 /// that specific environment.
 @MainActor
-@available(WK_XROS_TBA, *)
+@available(TBA, *)
 @available(iOS, unavailable)
 @available(macOS, unavailable)
 @available(watchOS, unavailable)

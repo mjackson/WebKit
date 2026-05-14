@@ -220,6 +220,8 @@ WK_EXPORT void WKPagePermissionChanged(WKStringRef permissionName, WKStringRef o
 
 WK_EXPORT void WKPageExecuteCommandForTesting(WKPageRef pageRef, WKStringRef command, WKStringRef value);
 WK_EXPORT bool WKPageIsEditingCommandEnabledForTesting(WKPageRef page, WKStringRef command);
+typedef void (*WKPageGetStorageAreaMapCountForTestingFunction)(uint64_t count, void* functionContext);
+WK_EXPORT void WKPageGetStorageAreaMapCountForTesting(WKPageRef page, void* context, WKPageGetStorageAreaMapCountForTestingFunction callback);
 WK_EXPORT void WKPageSetPermissionLevelForTesting(WKPageRef page, WKStringRef origin, bool allowed);
 WK_EXPORT void WKPageResetStateBetweenTests(WKPageRef pageRef);
 

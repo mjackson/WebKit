@@ -31,9 +31,7 @@
 #include <WebCore/JSDOMPromiseDeferredForward.h>
 #include <WebCore/StringAdaptors.h>
 #include <wtf/Brigand.h>
-#include <wtf/Compiler.h>
 #include <wtf/Markable.h>
-#include <wtf/StdLibExtras.h>
 #include <wtf/URL.h>
 #include <wtf/WallTime.h>
 

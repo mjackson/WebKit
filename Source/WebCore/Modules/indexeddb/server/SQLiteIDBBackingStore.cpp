@@ -939,6 +939,9 @@ std::optional<IDBDatabaseNameAndVersion> SQLiteIDBBackingStore::databaseNameAndV
         return std::nullopt;
     }
 
+    if (!*databaseVersion)
+        return std::nullopt;
+
     return IDBDatabaseNameAndVersion { databaseName, *databaseVersion };
 }
 

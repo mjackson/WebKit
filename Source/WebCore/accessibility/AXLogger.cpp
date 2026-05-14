@@ -819,9 +819,6 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
     case AXProperty::ExplicitOrientation:
         stream << "ExplicitOrientation";
         break;
-    case AXProperty::ExplicitPopupValue:
-        stream << "ExplicitPopupValue";
-        break;
     case AXProperty::ExtendedDescription:
         stream << "ExtendedDescription";
         break;
@@ -1138,6 +1135,9 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
         stream << "PlatformWidget";
         break;
 #endif
+    case AXProperty::PopupValue:
+        stream << "PopupValue";
+        break;
     case AXProperty::PosInSet:
         stream << "PosInSet";
         break;

@@ -78,7 +78,7 @@ void injectInternalsObject(JSContextRef context)
     VM& vm = lexicalGlobalObject->vm();
     auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
     JSLockHolder lock(vm);
-    JSDOMGlobalObject* globalObject = uncheckedDowncast<JSDOMGlobalObject>(lexicalGlobalObject);
+    JSDOMGlobalObject* globalObject = downcast<JSDOMGlobalObject>(lexicalGlobalObject);
     if (RefPtr document = dynamicDowncast<Document>(*globalObject->scriptExecutionContext())) {
         globalObject->putDirect(vm, Identifier::fromString(vm, Internals::internalsId), toJS(lexicalGlobalObject, globalObject, Internals::create(*document)));
         Options::useDollarVM() = true;
@@ -91,7 +91,7 @@ void resetInternalsObject(JSContextRef context)
 {
     JSGlobalObject* lexicalGlobalObject = toJS(context);
     JSLockHolder lock(lexicalGlobalObject);
-    JSDOMGlobalObject* globalObject = uncheckedDowncast<JSDOMGlobalObject>(lexicalGlobalObject);
+    JSDOMGlobalObject* globalObject = downcast<JSDOMGlobalObject>(lexicalGlobalObject);
     Ref document = downcast<Document>(*globalObject->scriptExecutionContext());
     RefPtr page = document->page();
     RELEASE_ASSERT_WITH_MESSAGE(page, "Frame or Page is nullptr when Document is in a bad state");

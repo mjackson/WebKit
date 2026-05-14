@@ -929,7 +929,6 @@ private:
 
     static Type NODELETE typeFor(Kind, Value* firstChild, Value* secondChild = nullptr);
 
-    // m_index to m_numChildren are arranged to fit in 64 bits.
 protected:
     unsigned m_index { UINT_MAX };
 private:

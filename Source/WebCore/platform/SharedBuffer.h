@@ -27,20 +27,14 @@
 #pragma once
 
 #include <JavaScriptCore/Forward.h>
-#include <span>
-#include <utility>
 #include <wtf/FileSystem.h>
-#include <wtf/Forward.h>
 #include <wtf/Function.h>
 #include <wtf/MappedFileData.h>
-#include <wtf/RawPtrTraits.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/TypeCasts.h>
-#include <wtf/TypeTraits.h>
 #include <wtf/Variant.h>
 #include <wtf/Vector.h>
-#include <wtf/text/WTFString.h>
 
 #if USE(CF)
 #include <wtf/RetainPtr.h>

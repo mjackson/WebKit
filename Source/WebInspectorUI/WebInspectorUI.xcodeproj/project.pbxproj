@@ -8,7 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		1C60FF1614E6E3F7006CD77D /* localizedStrings.js in Resources */ = {isa = PBXBuildFile; fileRef = 1C60FF1314E6E35D006CD77D /* localizedStrings.js */; };
-		1C78EE1717611340002F6AA5 /* WebInspectorUI.c in Sources */ = {isa = PBXBuildFile; fileRef = 1C78EE1617611340002F6AA5 /* WebInspectorUI.c */; };
+		1C78EE1717611340002F6AA5 /* WebInspectorUI.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1C78EE1617611340002F6AA5 /* WebInspectorUI.cpp */; };
+		BF0A00032E18A0A10063278B /* WebInspectorUI.h in Headers */ = {isa = PBXBuildFile; fileRef = BF0A00042E18A0A10063278B /* WebInspectorUI.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DDE9931A278D0D8000F60D26 /* libWebKitAdditions.a in Product Dependencies */ = {isa = PBXBuildFile; fileRef = DDE992FB278D078100F60D26 /* libWebKitAdditions.a */; };
 		DDE9931D278D0DA400F60D26 /* JavaScriptCore.framework in Product Dependencies */ = {isa = PBXBuildFile; fileRef = DDE9931C278D0D9900F60D26 /* JavaScriptCore.framework */; };
 /* End PBXBuildFile section */
@@ -33,13 +34,13 @@
 		1C60FE3114E5F3CD006CD77D /* DebugRelease.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = DebugRelease.xcconfig; sourceTree = "<group>"; };
 		1C60FE3314E5F3CD006CD77D /* WebInspectorUIFramework.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = WebInspectorUIFramework.xcconfig; sourceTree = "<group>"; };
 		1C60FF1014E6D992006CD77D /* UserInterface */ = {isa = PBXFileReference; lastKnownFileType = folder; path = UserInterface; sourceTree = "<group>"; };
-		BF0A00022E18A0A10063278A /* UserInterface-input.xcfilelist */ = {isa = PBXFileReference; lastKnownFileType = text.xcfilelist; path = "UserInterface-input.xcfilelist"; sourceTree = "<group>"; };
 		1C60FF1414E6E35D006CD77D /* en */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; name = en; path = Localizations/en.lproj/localizedStrings.js; sourceTree = "<group>"; };
 		1C60FF1914E73C64006CD77D /* combine-resources.pl */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; path = "combine-resources.pl"; sourceTree = "<group>"; };
 		1C60FF1A14E73DCA006CD77D /* remove-console-asserts.pl */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; path = "remove-console-asserts.pl"; sourceTree = "<group>"; };
 		1C60FFE114E79B0F006CD77D /* copy-user-interface-resources.pl */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; path = "copy-user-interface-resources.pl"; sourceTree = "<group>"; };
 		1C78EE131760E115002F6AA5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		1C78EE1617611340002F6AA5 /* WebInspectorUI.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = WebInspectorUI.c; sourceTree = "<group>"; };
+		1C78EE1617611340002F6AA5 /* WebInspectorUI.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WebInspectorUI.cpp; sourceTree = "<group>"; };
+		BF0A00042E18A0A10063278B /* WebInspectorUI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebInspectorUI.h; sourceTree = "<group>"; };
 		A54C2257148B23DF00373FA3 /* WebInspectorUI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = WebInspectorUI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDE992FB278D078100F60D26 /* libWebKitAdditions.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libWebKitAdditions.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDE9931C278D0D9900F60D26 /* JavaScriptCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = JavaScriptCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -85,8 +86,8 @@
 				1C60FF1514E6E39B006CD77D /* Resources */,
 				1C60FFE014E79B0F006CD77D /* Scripts */,
 				1C60FF1014E6D992006CD77D /* UserInterface */,
-				BF0A00022E18A0A10063278A /* UserInterface-input.xcfilelist */,
-				1C78EE1617611340002F6AA5 /* WebInspectorUI.c */,
+				1C78EE1617611340002F6AA5 /* WebInspectorUI.cpp */,
+				BF0A00042E18A0A10063278B /* WebInspectorUI.h */,
 			);
 			sourceTree = "<group>";
 		};
@@ -114,6 +115,7 @@
 			buildConfigurationList = A54C226C148B23DF00373FA3 /* Build configuration list for PBXNativeTarget "WebInspectorUI" */;
 			buildPhases = (
 				DDE992FA278D076300F60D26 /* Product Dependencies */,
+				BF0A00052E18A0A10063278C /* Headers */,
 				A54C2255148B23DF00373FA3 /* Resources */,
 				1C60FF1214E6D9AF006CD77D /* Copy User Interface Resources */,
 				1C78EE1417611302002F6AA5 /* Sources */,
@@ -156,6 +158,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXHeadersBuildPhase section */
+		BF0A00052E18A0A10063278C /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BF0A00032E18A0A10063278B /* WebInspectorUI.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
 /* Begin PBXResourcesBuildPhase section */
 		A54C2255148B23DF00373FA3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
@@ -173,16 +186,14 @@
 			buildActionMask = 2147483647;
 			files = (
 			);
-			inputFileListPaths = (
-				"$(SRCROOT)/UserInterface-input.xcfilelist",
-			);
 			inputPaths = (
+				"$(SRCROOT)/UserInterface",
 				"$(SRCROOT)/Scripts/copy-user-interface-resources.pl",
+				"$(JAVASCRIPTCORE_PRIVATE_HEADERS_DIR)/InspectorBackendCommands.js",
 			);
 			name = "Copy User Interface Resources";
 			outputPaths = (
 				"$(DERIVED_FILE_DIR)/copy-user-interface-resources.stamp",
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Main.html",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -214,7 +225,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1C78EE1717611340002F6AA5 /* WebInspectorUI.c in Sources */,
+				1C78EE1717611340002F6AA5 /* WebInspectorUI.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

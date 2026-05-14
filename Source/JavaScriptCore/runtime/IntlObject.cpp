@@ -1766,6 +1766,26 @@ CalendarID iso8601CalendarIDSlow()
     return iso8601CalendarIDStorage;
 }
 
+#define DEFINE_CALENDAR_ID(name, str) \
+    CalendarID name##CalendarIDStorage { std::numeric_limits<CalendarID>::max() }; \
+    CalendarID name##CalendarIDSlow() \
+    { \
+        static std::once_flag initializeOnce; \
+        std::call_once(initializeOnce, [&] { \
+            const auto& calendars = intlAvailableCalendars(); \
+            for (unsigned index = 0; index < calendars.size(); ++index) { \
+                if (calendars[index] == str) { \
+                    name##CalendarIDStorage = index; \
+                    return; \
+                } \
+            } \
+            RELEASE_ASSERT_NOT_REACHED(); \
+        }); \
+        return name##CalendarIDStorage; \
+    }
+FOR_EACH_CACHED_CALENDAR_ID(DEFINE_CALENDAR_ID)
+#undef DEFINE_CALENDAR_ID
+
 // https://tc39.es/proposal-intl-enumeration/#sec-availablecalendars
 static JSArray* availableCalendars(JSGlobalObject* globalObject)
 {

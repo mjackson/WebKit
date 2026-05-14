@@ -256,7 +256,6 @@ public:
     void trimBlockEndChildrenMargins();
 
     void setStaticInlinePositionForChild(RenderBox& child, LayoutUnit inlinePosition);
-    void updateStaticInlinePositionForChild(RenderBox& child, LayoutUnit logicalTop);
 
     LayoutUnit staticInlinePositionForOriginalDisplayInline(LayoutUnit logicalTop);
 
@@ -283,8 +282,8 @@ public:
     RenderMultiColumnFlow* NODELETE multiColumnFlowSlowCase() const;
     void setMultiColumnFlow(RenderMultiColumnFlow&);
     void NODELETE clearMultiColumnFlow();
-    bool willCreateColumns(std::optional<unsigned> desiredColumnCount = std::nullopt) const;
-    virtual bool requiresColumns(int) const;
+    bool willCreateColumns() const;
+    virtual bool requiresFragmentedFlow() const;
 
     bool containsFloats() const override;
     bool NODELETE containsFloat(const RenderBox&) const;

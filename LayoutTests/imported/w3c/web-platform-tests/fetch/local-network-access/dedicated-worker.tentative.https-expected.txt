@@ -1,0 +1,8 @@
+
+FAIL LNA Dedicated Worker Public to Loopback Fetch with permission Can't find variable: resolveUrl
+FAIL LNA Dedicated Worker Public to Loopback Fetch without permission Can't find variable: resolveUrl
+FAIL LNA Dedicated Worker Public to Loopback WebTransport with permission Can't find variable: resolveUrl
+FAIL LNA Dedicated Worker Public to Loopback WebTransport without permission Can't find variable: resolveUrl
+FAIL LNA Dedicated Worker Public to Loopback WebSocket with permission Can't find variable: resolveUrl
+FAIL LNA Dedicated Worker Public to Loopback WebSocket without permission Can't find variable: resolveUrl
+

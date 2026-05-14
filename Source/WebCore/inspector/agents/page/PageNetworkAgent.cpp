@@ -61,6 +61,14 @@ PageNetworkAgent::PageNetworkAgent(PageAgentContext& context, InspectorBackendCl
 
 PageNetworkAgent::~PageNetworkAgent() = default;
 
+Inspector::Protocol::ErrorStringOr<void> PageNetworkAgent::enable()
+{
+    if (RefPtr page = m_inspectedPage.get(); page && page->settings().siteIsolationEnabled())
+        return { };
+
+    return InspectorNetworkAgent::enable();
+}
+
 Inspector::Protocol::Network::LoaderId PageNetworkAgent::loaderIdentifier(DocumentLoader* loader)
 {
     if (loader)

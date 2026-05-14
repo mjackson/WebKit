@@ -42,29 +42,32 @@ macro(find_package package)
     # Create targets that are present in later versions of CMake or are referenced above
     if ("${package}" STREQUAL "ICU")
         if (ICU_FOUND AND NOT TARGET ICU::data)
-            # set(ICU_IMPORT_TYPE UNKNOWN)
-            # if (USE_BUN_JSC_ADDITIONS)
-            #     set(ICU_IMPORT_TYPE STATIC)
-            # endif ()
+            # On iOS, bundled ICU headers shadow SDK ICU in explicit module
+            # PCM builds, breaking TextInput_Private.
+            if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+                set(_icu_include_dirs "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:${ICU_INCLUDE_DIRS}>")
+            else ()
+                set(_icu_include_dirs "${ICU_INCLUDE_DIRS}")
+            endif ()
 
             add_library(ICU::data UNKNOWN IMPORTED)
             set_target_properties(ICU::data PROPERTIES
                 IMPORTED_LOCATION "${ICU_DATA_LIBRARY}"
-                INTERFACE_INCLUDE_DIRECTORIES "${ICU_INCLUDE_DIRS}"
+                INTERFACE_INCLUDE_DIRECTORIES "${_icu_include_dirs}"
                 IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
             )
 
             add_library(ICU::i18n UNKNOWN IMPORTED)
             set_target_properties(ICU::i18n PROPERTIES
                 IMPORTED_LOCATION "${ICU_I18N_LIBRARY}"
-                INTERFACE_INCLUDE_DIRECTORIES "${ICU_INCLUDE_DIRS}"
+                INTERFACE_INCLUDE_DIRECTORIES "${_icu_include_dirs}"
                 IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
             )
 
             add_library(ICU::uc UNKNOWN IMPORTED)
             set_target_properties(ICU::uc PROPERTIES
                 IMPORTED_LOCATION "${ICU_UC_LIBRARY}"
-                INTERFACE_INCLUDE_DIRECTORIES "${ICU_INCLUDE_DIRS}"
+                INTERFACE_INCLUDE_DIRECTORIES "${_icu_include_dirs}"
                 IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
             )
         endif ()

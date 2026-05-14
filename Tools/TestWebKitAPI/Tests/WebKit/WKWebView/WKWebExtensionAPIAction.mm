@@ -192,6 +192,68 @@ TEST(WKWebExtensionAPIAction, PresentPopupForAction)
     [manager run];
 }
 
+#if PLATFORM(MAC)
+TEST(WKWebExtensionAPIAction, PopoverCloseNotificationCallsClosePopup)
+{
+    auto *popupPage = @"<b>Hello World!</b>";
+
+    auto *backgroundScript = Util::constructScript(@[
+        @"browser.test.sendMessage('Test Popup Action')"
+    ]);
+
+    auto *smallToolbarIcon = Util::makePNGData(CGSizeMake(16, 16), @selector(redColor));
+    auto *largeToolbarIcon = Util::makePNGData(CGSizeMake(32, 32), @selector(blueColor));
+
+    auto *resources = @{
+        @"background.js": backgroundScript,
+        @"popup.html": popupPage,
+        @"toolbar-16.png": smallToolbarIcon,
+        @"toolbar-32.png": largeToolbarIcon,
+    };
+
+    auto manager = Util::loadExtension(actionPopupManifest, resources);
+
+    __block int presentCount = 0;
+    __block WKWebView *firstWebView = nil;
+    __block WKWebView *secondWebView = nil;
+
+    manager.get().internalDelegate.presentPopupForAction = ^(WKWebExtensionAction *action) {
+        ++presentCount;
+
+        if (presentCount == 1) {
+            firstWebView = action.popupWebView;
+
+            // Simulate the popup being dismissed by the user (e.g., clicking outside), which posts
+            // NSPopoverDidCloseNotification. This should invoke popoverDidClose: and call closePopup(),
+            // resetting the popup state and allowing the popup to be presented again.
+            [NSNotificationCenter.defaultCenter postNotificationName:NSPopoverDidCloseNotification object:action.popupPopover];
+
+            // Trigger a second presentation to verify closePopup() was called. Without the fix,
+            // m_popupPresented remains true and performActionForTab: is a no-op, so the delegate
+            // is never called a second time.
+            [manager.get().context performActionForTab:manager.get().defaultTab];
+        } else {
+            secondWebView = action.popupWebView;
+            [manager done];
+        }
+    };
+
+    [manager runUntilTestMessage:@"Test Popup Action"];
+
+    [manager.get().context performActionForTab:manager.get().defaultTab];
+
+    [manager run];
+
+    // Verify the popup was presented twice (confirming closePopup() reset the state after the notification).
+    EXPECT_EQ(presentCount, 2);
+
+    // Verify a fresh web view was created for the second presentation (confirming m_popupWebView was cleared).
+    EXPECT_NOT_NULL(firstWebView);
+    EXPECT_NOT_NULL(secondWebView);
+    EXPECT_NE(firstWebView, secondWebView);
+}
+#endif // PLATFORM(MAC)
+
 TEST(WKWebExtensionAPIAction, GetCurrentTabAndWindowFromPopupPage)
 {
     auto *popupScript = Util::constructScript(@[
@@ -1528,7 +1590,12 @@ TEST(WKWebExtensionAPIAction, PageAction)
     [manager run];
 }
 
+// FIXME when webkit.org/b/314652 is resolved.
+#if PLATFORM(MAC) && defined(NDEBUG)
+TEST(WKWebExtensionAPIAction, DISABLED_ClearTabSpecificActionPropertiesOnNavigation)
+#else
 TEST(WKWebExtensionAPIAction, ClearTabSpecificActionPropertiesOnNavigation)
+#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },

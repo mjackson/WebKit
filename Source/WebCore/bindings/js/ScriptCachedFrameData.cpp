@@ -40,6 +40,7 @@
 #include "LocalFrameInlines.h"
 #include "PageGroup.h"
 #include "ScriptController.h"
+#include <JavaScriptCore/JSGlobalObjectInlines.h>
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/StrongInlines.h>
 #include <JavaScriptCore/WeakGCMapInlines.h>
@@ -55,7 +56,7 @@ ScriptCachedFrameData::ScriptCachedFrameData(LocalFrame& frame)
     JSLockHolder lock(commonVM());
 
     for (auto windowProxy : frame.windowProxy().jsWindowProxiesAsVector()) {
-        auto* window = uncheckedDowncast<JSDOMWindow>(windowProxy->window());
+        auto* window = downcast<JSDOMWindow>(windowProxy->window());
         m_windows.add(windowProxy->world(), Strong<JSDOMWindow>(window->vm(), window));
         window->setConsoleClient(nullptr);
     }

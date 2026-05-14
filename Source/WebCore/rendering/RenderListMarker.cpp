@@ -496,10 +496,7 @@ void RenderListMarker::updateInlineMargins()
         if (m_textContent.isEmpty())
             return { };
 
-        if (style().listStyleType().isString())
-            return { -minPreferredLogicalWidth(), 0 };
-
-        return { -minPreferredLogicalWidth() - offset / 2, offset / 2 };
+        return { -minPreferredLogicalWidth(), 0 };
     };
 
     auto [marginStart, marginEnd] = isInside() ? marginsForInsideMarker() : marginsForOutsideMarker();

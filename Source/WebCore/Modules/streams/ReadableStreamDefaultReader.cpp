@@ -98,7 +98,7 @@ void ReadableStreamDefaultReader::read(JSDOMGlobalObject& globalObject, Ref<Read
 {
     if (RefPtr internalReader = this->internalDefaultReader()) {
         auto value = internalReader->readForBindings(globalObject);
-        auto* promise = uncheckedDowncast<JSC::JSPromise>(value);
+        auto* promise = downcast<JSC::JSPromise>(value);
         if (!promise)
             return;
 
@@ -385,7 +385,7 @@ WebCoreOpaqueRoot root(ReadableStreamDefaultReader* reader)
 
 bool JSReadableStreamDefaultReaderOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, ASCIILiteral* reason)
 {
-    auto* jsReader = uncheckedDowncast<JSReadableStreamDefaultReader>(handle.slot()->asCell());
+    auto* jsReader = downcast<JSReadableStreamDefaultReader>(handle.slot()->asCell());
     SUPPRESS_UNCOUNTED_LOCAL auto& reader = jsReader->wrapped();
     SUPPRESS_UNCOUNTED_LOCAL if (reader.isReachableFromOpaqueRoots()) {
         if (reason) [[unlikely]]

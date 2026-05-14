@@ -82,6 +82,11 @@ RefPtr<WebGLTexture> XRWebGLSubImage::depthStencilTexture() const
     return m_depthStencilTexture;
 }
 
+RefPtr<WebGLTexture> XRWebGLSubImage::motionVectorTexture() const
+{
+    return nullptr;
+}
+
 std::optional<uint32_t> XRWebGLSubImage::depthStencilTextureWidth() const
 {
     return !m_depthStencilTexture ? std::nullopt : std::make_optional<uint32_t>(m_viewport->width());

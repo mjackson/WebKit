@@ -28,11 +28,17 @@
 
 #if ENABLE(MODEL_ELEMENT)
 
+#include "HTMLAnchorElement.h"
 #include "HTMLModelElement.h"
+#include "NodeInlines.h"
+#include "PaintInfo.h"
 #include "RenderBoxModelObjectInlines.h"
+#include "RenderLayer.h"
+#include "RenderLayerBacking.h"
 #include "RenderObjectNode.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderStyle.h"
+#include "RenderTheme.h"
 #include "StyleDifference.h"
 #include <wtf/TZoneMallocInlines.h>
 
@@ -82,6 +88,35 @@ void RenderModel::update()
 
     contentChanged(ContentChangeType::Model);
 }
+
+#if USE(SYSTEM_PREVIEW)
+void RenderModel::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
+{
+    if (paintInfo.phase != PaintPhase::Foreground)
+        return;
+
+    if (paintInfo.context().paintingDisabled())
+        return;
+
+    if (!modelElement().document().settings().systemPreviewEnabled())
+        return;
+
+    RefPtr anchor = dynamicDowncast<HTMLAnchorElement>(modelElement().parentElement());
+    if (!anchor || !anchor->isSystemPreviewLink())
+        return;
+
+#if ENABLE(MODEL_PROCESS)
+    // If the backing owns a dedicated badge layer (visionOS separated-portal case), it paints the badge itself.
+    if (CheckedPtr layer = this->layer(); layer && layer->backing() && layer->backing()->systemPreviewBadgeLayer())
+        return;
+#endif
+
+    LayoutRect contentRect = replacedContentRect();
+    contentRect.moveBy(paintOffset);
+    RefPtr document = modelElement().document();
+    theme().paintSystemPreviewBadge(paintInfo, snapRectToDevicePixels(contentRect, document->deviceScaleFactor()));
+}
+#endif
 
 }
 

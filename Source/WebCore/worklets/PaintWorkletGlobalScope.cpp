@@ -33,6 +33,7 @@
 #include "JSDOMConvertStrings.h"
 #include "LocalDOMWindow.h"
 #include "RenderView.h"
+#include <JavaScriptCore/JSObjectInlines.h>
 #include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -139,7 +140,7 @@ ExceptionOr<void> PaintWorkletGlobalScope::registerPaint(JSC::JSGlobalObject& gl
         if (paintValue.isUndefined())
             return Exception { ExceptionCode::TypeError, "The class must have a paint method"_s };
 
-        auto paintCallback = convert<IDLCallbackFunction<JSCSSPaintCallback>>(globalObject, paintValue, uncheckedDowncast<JSDOMGlobalObject>(globalObject));
+        auto paintCallback = convert<IDLCallbackFunction<JSCSSPaintCallback>>(globalObject, paintValue, downcast<JSDOMGlobalObject>(globalObject));
         if (paintCallback.hasException(scope)) [[unlikely]]
             return Exception { ExceptionCode::ExistingExceptionError };
 

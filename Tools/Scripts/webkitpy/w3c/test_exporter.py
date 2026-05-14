@@ -223,7 +223,7 @@ class WebPlatformTestExporter(object):
         self._remote = self._init_wpt_remote()
         if not self._remote:
             return 1
-        self._linter = self._linter(repository_directory, self._host.filesystem)
+        self._linter = self._linter(repository_directory)
         return True
 
     def clean(self):
@@ -366,7 +366,12 @@ class WebPlatformTestExporter(object):
             self._filesystem.remove(git_patch_file)
 
         if self._options.use_linter:
-            lint_errors = self._linter.lint()
+            lint_errors = 0
+            for error in self._linter.lint():
+                _log.error("[%s] %s:%s %s",
+                           error['rule'], error['path'],
+                           error['lineno'] or '?', error['message'])
+                lint_errors += 1
             if lint_errors:
                 _log.error(f'The wpt linter detected {lint_errors} linting error(s). Please address the above errors before attempting to export changes to the web-platform-test repository.')
                 self.delete_local_branch(is_success=False)

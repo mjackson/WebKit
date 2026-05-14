@@ -48,8 +48,6 @@
 #include "Options.h"
 #include "PCToCodeOriginMap.h"
 #include "ThunkGenerators.h"
-#include <wtf/RecursableLambda.h>
-#include <wtf/SetForScope.h>
 
 namespace JSC { namespace FTL {
 

@@ -242,7 +242,7 @@ static void imagePositionInformation(WebPage& page, WebCore::Element& element, c
 
     auto& [renderImage, image] = *rendererAndImage;
     info.isImage = true;
-    info.imageURL = page.applyLinkDecorationFiltering(protect(element.document())->completeURL(protect(renderImage.cachedImage())->url().string()), WebCore::LinkDecorationFilteringTrigger::Unspecified);
+    info.imageURL = page.applyLinkDecorationFiltering(protect(element.document())->encodingParseURL(protect(renderImage.cachedImage())->url().string()), WebCore::LinkDecorationFilteringTrigger::Unspecified);
     info.imageMIMEType = image.mimeType();
     info.isAnimatedImage = image.isAnimated();
     info.isAnimating = image.isAnimating();
@@ -295,7 +295,7 @@ static void elementPositionInformation(WebPage& page, WebCore::Element& element,
 
     if (linkElement && !info.isImageOverlayText) {
         info.isLink = true;
-        info.url = page.applyLinkDecorationFiltering(document->completeURL(linkElement->getAttribute(WebCore::HTMLNames::hrefAttr)), WebCore::LinkDecorationFilteringTrigger::Unspecified);
+        info.url = page.applyLinkDecorationFiltering(document->encodingParseURL(linkElement->getAttribute(WebCore::HTMLNames::hrefAttr)), WebCore::LinkDecorationFilteringTrigger::Unspecified);
 
         linkIndicatorPositionInformation(page, *linkElement, request, info);
 #if ENABLE(DATA_DETECTION) && PLATFORM(IOS_FAMILY)
@@ -321,7 +321,7 @@ static void elementPositionInformation(WebPage& page, WebCore::Element& element,
             if (request.includeImageData) {
                 if (auto rendererAndImage = imageRendererAndImage(element)) {
                     auto& [renderImage, image] = *rendererAndImage;
-                    info.imageURL = page.applyLinkDecorationFiltering(document->completeURL(protect(renderImage.cachedImage())->url().string()), WebCore::LinkDecorationFilteringTrigger::Unspecified);
+                    info.imageURL = page.applyLinkDecorationFiltering(document->encodingParseURL(protect(renderImage.cachedImage())->url().string()), WebCore::LinkDecorationFilteringTrigger::Unspecified);
                     info.imageMIMEType = image.mimeType();
                     info.image = createShareableBitmap(renderImage, { WebCore::screenSize() * page.corePage()->deviceScaleFactor(), AllowAnimatedImages::Yes, UseSnapshotForTransparentImages::Yes });
                 }
@@ -627,6 +627,16 @@ InteractionInformationAtPosition positionInformationForWebPage(WebPage& page, co
         focusedElementPositionInformation(page, *page.focusedElement(), request, info);
 
     RefPtr hitTestNode = hitTestResult.innerNonSharedNode();
+
+#if ENABLE(MODEL_ELEMENT)
+    // If the hit lands on a draggable <model>, let the model take precedence over any ancestor
+    // <a rel="ar">. Without this, nodeRespondingToClickEvents walks up to the anchor (because
+    // <model> has no inherent click listeners), which would mark this as a link and trigger the
+    // link preview/context-menu interaction instead of the model's drag gesture on visionOS.
+    if (RefPtr modelElement = dynamicDowncast<WebCore::HTMLModelElement>(hitTestNode); modelElement && modelElement->supportsDragging() && modelElement->model())
+        nodeRespondingToClickEvents = WTF::move(modelElement);
+#endif
+
     if (RefPtr element = dynamicDowncast<WebCore::Element>(nodeRespondingToClickEvents)) {
         elementPositionInformation(page, *element, request, hitTestNode.get(), info);
 

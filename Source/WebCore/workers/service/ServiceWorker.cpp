@@ -33,6 +33,7 @@
 #include "ExceptionOr.h"
 #include "Logging.h"
 #include "MessagePort.h"
+#include "MessageWithMessagePorts.h"
 #include "SWClientConnection.h"
 #include "ScriptExecutionContextInlines.h"
 #include "SerializedScriptValue.h"

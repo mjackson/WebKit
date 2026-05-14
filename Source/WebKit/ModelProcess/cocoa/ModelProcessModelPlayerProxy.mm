@@ -555,7 +555,7 @@ void ModelProcessModelPlayerProxy::computeTransform(bool setDefaultRotation)
         return;
 
     // FIXME: Use the value of the 'object-fit' property here to compute an appropriate SRT.
-    float boundingRadius = [m_modelRKEntity boundingRadius];
+    float boundingRadius = [m_modelRKEntity boundingRadius] * m_originalEntityScale.x;
     simd_quatf currentModelRotation = setDefaultRotation ? simd_quaternion(0, simd_make_float3(1, 0, 0)) : m_transformSRT.rotation;
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
     RESRT newSRT = computeSRT(m_layer.get(), m_originalBoundingBoxExtents, m_originalBoundingBoxCenter, boundingRadius, m_hasPortal, effectivePointsPerMeter(m_layer.get()), m_stageModeOperation, currentModelRotation, m_immersivePresentation);
@@ -580,7 +580,7 @@ void ModelProcessModelPlayerProxy::updateTransform()
     if (!m_modelRKEntity || !m_layer)
         return;
 
-    [m_modelRKEntity setTransform:WKEntityTransform({ m_transformSRT.scale, m_transformSRT.rotation, m_transformSRT.translation })];
+    [m_modelRKEntity setTransform:WKEntityTransform({ m_transformSRT.scale * m_originalEntityScale, m_transformSRT.rotation, m_transformSRT.translation })];
 }
 
 void ModelProcessModelPlayerProxy::updateTransformAfterLayout()
@@ -642,8 +642,13 @@ void ModelProcessModelPlayerProxy::didFinishLoading(WebCore::REModelLoader& load
         m_modelRKEntity = adoptNS([allocWKRKEntityInstance() initWithCoreEntity:model->rootEntity()]);
     [m_modelRKEntity setDelegate:m_objCAdapter.get()];
 
-    m_originalBoundingBoxExtents = [m_modelRKEntity boundingBoxExtents];
-    m_originalBoundingBoxCenter = [m_modelRKEntity boundingBoxCenter];
+    // Capture the root entity's original scale before any transform is applied.
+    WKEntityTransform originalTransform = [m_modelRKEntity transform];
+    m_originalEntityScale = originalTransform.scale;
+
+    // The bounding box is relative to the entity's coordinate space so we still need to apply the scale.
+    m_originalBoundingBoxExtents = [m_modelRKEntity boundingBoxExtents] * m_originalEntityScale;
+    m_originalBoundingBoxCenter = [m_modelRKEntity boundingBoxCenter] * m_originalEntityScale;
 
     m_hostingEntity = adoptRE(REEntityCreate());
     REEntitySetName(m_hostingEntity.get(), "WebKit:EntityWithRootComponent");
@@ -1019,7 +1024,7 @@ void ModelProcessModelPlayerProxy::updateForCurrentStageMode()
 {
     if (m_stageModeOperation != WebCore::StageModeOperation::None) {
         computeTransform(false);
-        [m_modelRKEntity recenterEntityAtTransform:WKEntityTransform({ m_transformSRT.scale, m_transformSRT.rotation, m_transformSRT.translation })];
+        [m_modelRKEntity recenterEntityAtTransform:WKEntityTransform({ m_transformSRT.scale * m_originalEntityScale, m_transformSRT.rotation, m_transformSRT.translation })];
         updateTransformSRT();
     }
 
@@ -1040,7 +1045,7 @@ void ModelProcessModelPlayerProxy::updateTransformSRT()
 {
     WKEntityTransform entityTransform = [m_modelRKEntity transform];
     m_transformSRT = RESRT {
-        .scale = entityTransform.scale,
+        .scale = entityTransform.scale / m_originalEntityScale,
         .rotation = entityTransform.rotation,
         .translation = entityTransform.translation
     };

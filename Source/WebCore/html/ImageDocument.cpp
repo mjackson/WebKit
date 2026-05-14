@@ -54,6 +54,7 @@
 #include "RenderElement.h"
 #include "Settings.h"
 #include "UserScriptTypes.h"
+#include <pal/text/TextEncoding.h>
 #include <wtf/MathExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>

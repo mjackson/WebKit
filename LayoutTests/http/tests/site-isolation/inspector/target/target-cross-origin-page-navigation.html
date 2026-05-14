@@ -6,13 +6,6 @@
         location.hostname = location.hostname === "127.0.0.1" ? "localhost" : "127.0.0.1";
     }
 
-    function navigateCrossOriginSlowly() {
-        let crossOriginHost = location.hostname === "127.0.0.1" ? "localhost" : "127.0.0.1";
-        let path = location.pathname;
-        // Delay the response, giving time to cancel the provisional load.
-        location.href = `http://${crossOriginHost}:8000/resources/network-simulator.py?test=inspector-target-cancel-nav&path=${path}&initialdelay=10000`;
-    }
-
     function test() {
         let suite = InspectorTest.createAsyncSuite("SiteIsolation.Target.CrossOriginPageNavigation");
 
@@ -79,6 +72,11 @@
             name: "SiteIsolation.Target.CrossOriginPageNavigation.ProvisionalLoadCancelsPreviousLoad",
             description: "Two consecutive cross-origin navigations cancel the first provisional frame target and commit the second.",
             async test() {
+                // Prevent the first provisional target from resuming, which halts its
+                // provisional loading and gives us time to start a second navigation.
+                let originalResumeIfPaused = WI.Target.prototype._resumeIfPaused;
+                WI.Target.prototype._resumeIfPaused = function () { };
+
                 let firstProvisionalFrameTargetAdded = new Promise(function (resolve) {
                     function handle(event) {
                         let { target } = event.data;
@@ -90,12 +88,15 @@
                     WI.targetManager.addEventListener(WI.TargetManager.Event.TargetAdded, handle);
                 });
 
-                InspectorTest.log("Navigating cross-origin slowly...");
+                InspectorTest.log("Navigating cross-origin while provisional target is paused...");
                 InspectorTest.deferOutputUntilTestPageIsReloaded();
-                InspectorTest.evaluateInPage(`navigateCrossOriginSlowly();`);
+                InspectorTest.evaluateInPage(`navigateCrossOrigin();`);
 
                 let firstProvisionalTarget = await firstProvisionalFrameTargetAdded;
                 InspectorTest.pass("First provisional frame target was created.");
+
+                // Restore _resumeIfPaused so the second navigation commits normally.
+                WI.Target.prototype._resumeIfPaused = originalResumeIfPaused;
 
                 let frameTargetRemoved = new Promise(function (resolve) {
                     function handle(event) {

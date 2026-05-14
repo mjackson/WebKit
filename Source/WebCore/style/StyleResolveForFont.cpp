@@ -131,11 +131,6 @@ FontSelectionValue fontStretchFromCSSValueDeprecated(const CSSValue& value)
 
 // MARK: - 'font-style'
 
-FontSelectionValue fontStyleAngleFromCSSValueDeprecated(const CSSValue& value)
-{
-    return normalizedFontItalicValue(downcast<CSSPrimitiveValue>(value).resolveAsAngleDeprecated<float>());
-}
-
 std::optional<FontSelectionValue> fontStyleAngleFromCSSFontStyleWithAngleValueDeprecated(const CSSFontStyleWithAngleValue& value)
 {
     if (requiresConversionData(value.obliqueAngle()))

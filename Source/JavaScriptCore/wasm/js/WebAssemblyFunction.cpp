@@ -52,8 +52,6 @@
 #include "WasmModuleInformation.h"
 #include "WasmOperations.h"
 #include "WasmTypeDefinitionInlines.h"
-#include <wtf/StackPointer.h>
-#include <wtf/SystemTracing.h>
 
 namespace JSC {
 

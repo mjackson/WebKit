@@ -403,20 +403,41 @@ class ExpectationsLinter:
         return '\n'.join(lines)
 
     def generate_sorted_content(self) -> str:
-        """Generate a full-file reorder producing correct 3-section ordering."""
+        """Generate a full-file reorder producing correct 3-section ordering.
+
+        The file prologue (license/format header at the top of the file) is
+        preserved in place. Only consecutive comment lines immediately above
+        an entry — with no blank line between them — are treated as attached
+        to that entry and travel with it during sorting.
+        """
         groups = []
-        header_lines = []
+        attached_comments = []
         entry_index = 0
 
-        for line_num, line in enumerate(self._lines, 1):
+        prologue_end = 0
+        first_entry_line = self._parsed_entries[0]['line_number'] if self._parsed_entries else None
+        if first_entry_line is not None:
+            i = first_entry_line - 2  # index of line immediately above the first entry
+            while i >= 0 and self._lines[i].strip().startswith('#'):
+                i -= 1
+            prologue_end = i + 1  # everything up to (but not including) the attached-comment block stays as prologue
+
+        prologue_lines = self._lines[:prologue_end]
+
+        for idx in range(prologue_end, len(self._lines)):
+            line = self._lines[idx]
+            line_num = idx + 1
             is_entry = any(e['line_number'] == line_num for e in self._parsed_entries)
             if is_entry:
                 entry = self._parsed_entries[entry_index]
                 entry_index += 1
-                groups.append((list(header_lines), line, entry))
-                header_lines = []
+                groups.append((list(attached_comments), line, entry))
+                attached_comments = []
+            elif line.strip().startswith('#'):
+                attached_comments.append(line)
             else:
-                header_lines.append(line)
+                # Blank or non-comment line breaks the attached-comment chain.
+                attached_comments = []
 
         def sort_key(group):
             _, raw_line, entry = group
@@ -426,11 +447,12 @@ class ExpectationsLinter:
 
         sorted_groups = sorted(groups, key=sort_key)
 
-        result_lines = []
+        result_lines = list(prologue_lines)
+        if result_lines and result_lines[-1].strip():
+            result_lines.append('')
         for header, entry_line, _ in sorted_groups:
             result_lines.extend(header)
             result_lines.append(entry_line)
-        result_lines.extend(header_lines)
 
         return '\n'.join(result_lines)
 

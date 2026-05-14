@@ -62,6 +62,7 @@ AutomationSessionClient::AutomationSessionClient(id <_WKAutomationSessionDelegat
     m_delegateMethods.loadWebExtensionWithOptions = [delegate respondsToSelector:@selector(_automationSession:loadWebExtensionWithOptions:resource:completionHandler:)];
     m_delegateMethods.unloadWebExtension = [delegate respondsToSelector:@selector(_automationSession:unloadWebExtensionWithIdentifier:completionHandler:)];
 #endif
+    m_delegateMethods.performApplicationCommand = [delegate respondsToSelector:@selector(_automationSession:performCommandForWebView:commandName:arguments:completionHandler:)];
 }
 
 void AutomationSessionClient::didDisconnectFromRemote(WebAutomationSession& session)
@@ -163,6 +164,21 @@ void AutomationSessionClient::unloadWebExtension(WebKit::WebAutomationSession& s
     }).get()];
 }
 #endif
+
+void AutomationSessionClient::performApplicationCommand(WebAutomationSession& session, WebPageProxy& page, const String& commandName, const String& arguments, CompletionHandler<void(const String&)>&& completionHandler)
+{
+    if (!m_delegateMethods.performApplicationCommand) {
+        completionHandler(nullString());
+        return;
+    }
+
+    if (auto webView = page.cocoaView()) {
+        [m_delegate.get() _automationSession:RetainPtr { wrapper(session) }.get() performCommandForWebView:webView.get() commandName:commandName.createNSString().get() arguments:arguments.createNSString().get() completionHandler:makeBlockPtr([completionHandler = WTF::move(completionHandler)](NSString *result) mutable {
+            completionHandler(result);
+        }).get()];
+    } else
+        completionHandler(nullString());
+}
 
 bool AutomationSessionClient::isShowingJavaScriptDialogOnPage(WebAutomationSession& session, WebPageProxy& page)
 {

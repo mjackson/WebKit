@@ -29,6 +29,7 @@
 #include "CSSPrimitiveValue.h"
 #include "StyleBuilderChecking.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
+#include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 
 namespace WebCore {
 namespace Style {
@@ -45,11 +46,8 @@ auto CSSValueConversion<ContainIntrinsicSize>::operator()(BuilderState& state, c
         }
     }
 
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        return ContainIntrinsicSize::Length {
-            primitiveValue->resolveAsLength<float>(state.cssToLengthConversionData().copyWithAdjustedZoom(1.0f))
-        };
-    }
+    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
+        return toStyleFromCSSValue<ContainIntrinsicSize::Length>(state.cssToLengthConversionData().copyWithAdjustedZoom(1.0f), *primitiveValue);
 
     auto pair = requiredPairDowncast<CSSKeywordValue, CSSValue>(state, value);
     if (!pair)
@@ -73,9 +71,7 @@ auto CSSValueConversion<ContainIntrinsicSize>::operator()(BuilderState& state, c
     if (RefPtr primitiveSecondValue = dynamicDowncast<CSSPrimitiveValue>(pair->second)) {
         return {
             CSS::Keyword::Auto { },
-            ContainIntrinsicSize::Length {
-                primitiveSecondValue->resolveAsLength<float>(state.cssToLengthConversionData().copyWithAdjustedZoom(1.0f))
-            }
+            toStyleFromCSSValue<ContainIntrinsicSize::Length>(state.cssToLengthConversionData().copyWithAdjustedZoom(1.0f), *primitiveSecondValue),
         };
     }
 

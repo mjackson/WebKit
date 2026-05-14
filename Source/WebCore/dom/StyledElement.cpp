@@ -71,6 +71,11 @@ void StyledElement::synchronizeStyleAttributeInternalImpl()
         setSynchronizedLazyAttribute(styleAttr, inlineStyle->asTextAtom(CSS::defaultSerializationContext()));
 }
 
+StyledElement::StyledElement(ClangVTableWorkaroundTag, const QualifiedName& name, Document& document)
+    : Element(name, document, { })
+{
+}
+
 StyledElement::~StyledElement() = default;
 
 CSSStyleProperties& StyledElement::cssomStyle()

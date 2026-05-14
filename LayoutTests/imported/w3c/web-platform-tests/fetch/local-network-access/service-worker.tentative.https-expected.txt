@@ -1,0 +1,11 @@
+
+FAIL LNA Service Worker Public to Loopback Fetch with permission Can't find variable: resolveUrl
+FAIL LNA Service Worker Public to Loopback Fetch without permission Can't find variable: resolveUrl
+FAIL LNA Service Worker Public to Loopback WebTransport with permission Can't find variable: resolveUrl
+FAIL LNA Service Worker Public to Loopback WebTransport without permission Can't find variable: resolveUrl
+FAIL LNA Service Worker Public to Loopback WebSocket with permission Can't find variable: resolveUrl
+FAIL LNA Service Worker Public to Loopback WebSocket without permission Can't find variable: resolveUrl
+FAIL LNA Service Worker Public navigate to Loopback main frame without permission Can't find variable: resolveUrl
+FAIL LNA Service Worker Public navigate to Loopback in iframe with permission Can't find variable: resolveUrl
+FAIL LNA Service Worker Public navigate to Loopback in iframe without permission Can't find variable: resolveUrl
+

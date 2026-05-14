@@ -26,6 +26,7 @@
 #pragma once
 
 #include "JSInternalFieldObjectImpl.h"
+#include <wtf/EnumClassOperatorOverloads.h>
 
 namespace JSC {
 

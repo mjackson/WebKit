@@ -103,7 +103,7 @@ String HTMLFormControlElement::formAction() const
     Ref document = this->document();
     if (value.isEmpty())
         return document->url().string();
-    return document->completeURL(value).string();
+    return document->encodingParseURL(value).string();
 }
 
 Node::NeedsPostConnectionSteps HTMLFormControlElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
