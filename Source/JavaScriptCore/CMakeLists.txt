@@ -2312,7 +2312,18 @@ endif()
 
 WEBKIT_FRAMEWORK(JavaScriptCore)
 
-WEBKIT_ADD_PREFIX_HEADER(JavaScriptCore JavaScriptCorePrefix.h PREFIX_LANGUAGES CXX)
+if (USE_BUN_JSC_ADDITIONS)
+    # Without the JavaScriptCoreJIT subtarget there is no second translation
+    # unit guaranteed to emit the inline functions that the pch-codegen stub
+    # object externalizes. Headers like DeferredWorkTimer.h declare inline
+    # methods whose bodies live in *Inlines.h files that the prefix header
+    # does not pull in, so the stub references them as external and nothing
+    # in libJavaScriptCore.a defines them. Disable -fpch-codegen and let each
+    # TU emit its own copy as usual.
+    WEBKIT_ADD_PREFIX_HEADER(JavaScriptCore JavaScriptCorePrefix.h PREFIX_NO_CODEGEN PREFIX_LANGUAGES CXX)
+else ()
+    WEBKIT_ADD_PREFIX_HEADER(JavaScriptCore JavaScriptCorePrefix.h PREFIX_LANGUAGES CXX)
+endif ()
 
 if(NOT "${PORT}" STREQUAL "Mac")
     if(${JavaScriptCore_LIBRARY_TYPE} STREQUAL "SHARED")
