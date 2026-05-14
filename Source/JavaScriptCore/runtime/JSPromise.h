@@ -213,6 +213,13 @@ private:
         ASSERT(hasInlineHandlerReaction());
         return uncheckedDowncast<JSPromise>(payloadCell());
     }
+#if USE(BUN_JSC_ADDITIONS)
+    // Embedder bindings (JSC__JSPromise__*) construct already-settled promises,
+    // twiddle handled/first-resolved bits directly, and walk the pending
+    // reaction list for async stack traces — without going through the
+    // resolve/reject machinery.
+public:
+#endif
     inline JSCell* payloadCell() const { return m_packed.pointer(); }
 
     void setFlags(uint16_t newFlags) { m_packed.setType(newFlags); }
@@ -224,6 +231,9 @@ private:
     }
     void setSlot(VM& vm, JSValue value) { m_slot.set(vm, this, value); }
     void clearSlot() { m_slot.clear(); }
+#if USE(BUN_JSC_ADDITIONS)
+private:
+#endif
 
     void setInlineMicrotaskReaction(VM&, InternalMicrotask, JSValue context);
     void setInlineHandlerReaction(VM&, InlineReactionKind, JSPromise* resultPromise, JSValue handler);
