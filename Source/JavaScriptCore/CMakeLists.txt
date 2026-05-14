@@ -2296,10 +2296,19 @@ endif()
 
 WEBKIT_COMPUTE_SOURCES(JavaScriptCore)
 
-WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(JavaScriptCore JavaScriptCoreJIT
-    PREFIX JavaScriptCoreJITPrefix.h
-    PREFIX_LANGUAGES CXX
-    DIRS jit dfg ftl bytecode bytecompiler llint lol tools)
+# WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX moves jit/dfg/ftl/bytecode/... sources
+# into a separate JavaScriptCoreJIT object library and propagates the objects
+# back to consumers through INTERFACE link properties. That works for cmake
+# targets (jsc, testapi) but not for embedders that link libJavaScriptCore.a
+# directly: the JIT objects never make it into the archive, leaving the
+# archive's own pch-codegen object referencing undefined operationCall*
+# symbols. Skip the subtargeting so the JIT sources stay in the archive.
+if(NOT USE_BUN_JSC_ADDITIONS)
+    WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(JavaScriptCore JavaScriptCoreJIT
+        PREFIX JavaScriptCoreJITPrefix.h
+        PREFIX_LANGUAGES CXX
+        DIRS jit dfg ftl bytecode bytecompiler llint lol tools)
+endif()
 
 WEBKIT_FRAMEWORK(JavaScriptCore)
 
