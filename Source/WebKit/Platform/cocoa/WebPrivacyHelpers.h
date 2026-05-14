@@ -197,6 +197,7 @@ public:
     void getSource(CompletionHandler<void(String&&)>&&);
 
     void setContentRuleListStore(API::ContentRuleListStore&);
+    API::ContentRuleListStore* contentRuleListStore() const { return m_contentRuleListStore; }
 
 private:
     friend class NeverDestroyed<ResourceMonitorURLsController, MainRunLoopAccessTraits>;

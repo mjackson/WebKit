@@ -108,36 +108,24 @@ extension WKTextSelectionController {
         Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] \(#function) point: \(String(reflecting: point))")
 
         let editorState = page.editorState
-        let hasSelection = editorState.selectionType != .None
 
-        if !hasSelection || !editorState.hasPostLayoutAndVisualData() {
-            Logger.viewGestures.log(
-                "[pageProxyID=\(page.logIdentifier())] Editor state has no selection, post layout data, or visual data"
-            )
+        guard editorState.selectionType == .Range else {
+            Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] Selection is not a range")
             return false
         }
 
-        let isRange = editorState.selectionType == .Range
-        let isContentEditable = editorState.isContentEditable
-
-        if !isContentEditable && !isRange {
-            Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] Selection is neither contenteditable nor a range")
+        guard let visualData = Optional(fromCxx: editorState.visualData), Optional(fromCxx: editorState.postLayoutData) != nil else {
+            Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] Editor state has no post layout data or visual data")
             return false
         }
 
-        // FIXME: If the state's selection is not a range, is the number of selection geometries always zero?
-        // If so, then the rest of the logic in this function can be elided in that case.
+        let selectionGeometries = Array(visualData.selectionGeometries)
 
-        var selectionRects: [WKTextSelectionRect] = []
-        let selectionGeometries = editorState.visualData.pointee.selectionGeometries
-
-        // FIXME: `WTF::Vector` should be able to be used as a Swift `Sequence`.
-        for i in 0..<selectionGeometries.size() {
-            let selectionGeometry = unsafe selectionGeometries.__atUnsafe(i).pointee
-            selectionRects.append(.init(selectionGeometry: selectionGeometry, delegate: nil))
+        let result = selectionGeometries.contains {
+            let selectionRect = WKTextSelectionRect(selectionGeometry: $0, delegate: nil)
+            return selectionRect.rect.contains(point)
         }
 
-        let result = selectionRects.contains { $0.rect.contains(point) }
         Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] Text is selected => \(result)")
 
         return result
@@ -151,7 +139,9 @@ extension WKTextSelectionController {
             return false
         }
 
-        Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] \(#function) point: \(String(reflecting: point))")
+        Logger.viewGestures.log(
+            "[pageProxyID=\(page.logIdentifier())] \(#function) point: \(String(reflecting: point)) placeAtWordBoundary: \(placeAtWordBoundary)"
+        )
 
         let previousState = page.editorState
         let previousVisualData = Optional(fromCxx: previousState.visualData)
@@ -235,7 +225,7 @@ extension WKTextSelectionController {
 
     @objc(beginRangeSelectionAtPoint:withGranularity:)
     func beginRangeSelection(at point: NSPoint, with granularity: NSTextSelection.Granularity) {
-        guard let page = view._protectedPage().get() else {
+        guard let page = view._protectedPage().get(), let impl = view._impl() else {
             return
         }
 
@@ -244,6 +234,8 @@ extension WKTextSelectionController {
         )
 
         currentRangeSelectionGranularity = granularity
+
+        impl.beginSuppressingSingleClickGestureForTextSelection()
 
         Task.immediate {
             await page.selectText(
@@ -279,11 +271,13 @@ extension WKTextSelectionController {
 
     @objc(endRangeSelectionAtPoint:)
     func endRangeSelection(at point: NSPoint) {
-        guard let page = view._protectedPage().get() else {
+        guard let page = view._protectedPage().get(), let impl = view._impl() else {
             return
         }
 
         Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] \(#function) point: \(String(reflecting: point))")
+
+        impl.endSuppressingSingleClickGestureForTextSelection()
 
         guard currentRangeSelectionGranularity != nil else {
             assertionFailure("endRangeSelection was called with a nil currentRangeSelectionGranularity")

@@ -753,6 +753,7 @@ public:
     // is true if the renderer returned is an ancestor of repaintContainer.
     RenderElement* container() const;
     RenderElement* container(const RenderLayerModelObject* repaintContainer, bool& repaintContainerSkipped) const;
+    bool isAncestorContainerOfRenderer(const RenderObject&) const;
 
     RenderElement* markContainingBlocksForLayout(RenderElement* layoutRoot = nullptr);
     inline void setNeedsLayout(MarkingBehavior = MarkingBehavior::MarkContainingBlockChain);

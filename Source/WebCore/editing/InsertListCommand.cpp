@@ -39,6 +39,7 @@
 #include "PositionInlines.h"
 #include "Range.h"
 #include "RenderStyle+GettersInlines.h"
+#include "SimpleRange.h"
 #include "VisibleUnits.h"
 
 namespace WebCore {

@@ -52,6 +52,7 @@
 #include "DFGGraph.h"
 #include "DFGGraphSafepoint.h"
 #include "DFGLiveCatchVariablePreservationPhase.h"
+#include "DFGOperations.h"
 #include "DOMJITGetterSetter.h"
 #include "DeleteByStatus.h"
 #include "FunctionCodeBlock.h"
@@ -220,6 +221,8 @@ private:
     // Handle intrinsic functions. Return true if it succeeded, false if we need to plant a call.
     template<typename ChecksFunctor>
     CallOptimizationResult handleIntrinsicCall(Node* callee, Operand result, CallVariant, Intrinsic, int registerOffset, int argumentCountIncludingThis, BytecodeIndex osrExitIndex, NodeType callOp, InlineCallFrame::Kind, CodeSpecializationKind, SpeculatedType prediction, const ChecksFunctor& insertChecks);
+    template<typename ChecksFunctor, typename SetResultFunctor>
+    CallOptimizationResult handleArraySort(Node* callee, Operand result, CallVariant, int registerOffset, int argumentCountIncludingThis, BytecodeIndex osrExitIndex, SpeculatedType prediction, const ChecksFunctor& insertChecks, const SetResultFunctor&);
     template<typename ChecksFunctor>
     bool handleDOMJITCall(Node* callee, Operand result, const DOMJIT::Signature*, int registerOffset, int argumentCountIncludingThis, SpeculatedType prediction, const ChecksFunctor& insertChecks);
     template<typename ChecksFunctor>
@@ -341,6 +344,12 @@ private:
         m_exitOK = true;
         processSetLocalQueue();
         return m_currentIndex;
+    }
+
+    void emitExitOK()
+    {
+        m_exitOK = true;
+        addToGraph(ExitOK);
     }
 
     VariableAccessData* newVariableAccessData(Operand operand)
@@ -2015,12 +2024,12 @@ ByteCodeParser::CallOptimizationResult ByteCodeParser::handleCallVariant(Node* c
     VERBOSE_LOG("    Considering callee ", callee, "\n");
 
     bool didInsertChecks = false;
-    bool didBoundFunctionInlining = false;
-    auto insertChecksWithAccounting = [&] (bool boundFunctionInlining = false) {
+    bool didDoInliningInsideIntrinsic = false;
+    auto insertChecksWithAccounting = [&](bool willDoInliningInsideIntrinsic = false) {
         if (needsToCheckCallee)
             emitFunctionChecks(callee, callTargetNode, thisArgument);
         didInsertChecks = true;
-        didBoundFunctionInlining = boundFunctionInlining;
+        didDoInliningInsideIntrinsic = willDoInliningInsideIntrinsic;
     };
 
     if (kind == InlineCallFrame::TailCall && ByteCodeParser::handleRecursiveTailCall(callTargetNode, callee, registerOffset, argumentCountIncludingThis, insertChecksWithAccounting)) {
@@ -2036,9 +2045,8 @@ ByteCodeParser::CallOptimizationResult ByteCodeParser::handleCallVariant(Node* c
 
     auto endSpecialCase = [&] () {
         RELEASE_ASSERT(didInsertChecks);
-        // Bound function's slots of them are not important. They are dead at OSR exit.
-        // As the same way to the arguments for normal calls, we do not do special things.
-        if (!didBoundFunctionInlining) {
+        // When we did inlining inside intrinsic, we need to manually keep necessary things alive.
+        if (!didDoInliningInsideIntrinsic) {
             addToGraph(Phantom, callTargetNode);
             emitArgumentPhantoms(registerOffset, argumentCountIncludingThis);
         }
@@ -2724,7 +2732,8 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
                 return CallOptimizationResult::DidNothing;
 
             if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadConstantCache)
-                || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadCache))
+                || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadCache)
+                || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType))
                 return CallOptimizationResult::DidNothing;
 
             ArrayMode arrayMode = getArrayMode(Array::Read);
@@ -2820,6 +2829,66 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             return CallOptimizationResult::Inlined;
         }
 
+        case ArrayConcatIntrinsic: {
+            if (argumentCountIncludingThis != 2)
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadConstantCache)
+                || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadCache)
+                || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType)
+                || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, ExoticObjectMode))
+                return CallOptimizationResult::DidNothing;
+
+            ArrayMode arrayMode = getArrayMode(Array::Read);
+            if (!arrayMode.isJSArray())
+                return CallOptimizationResult::DidNothing;
+
+            if (!arrayMode.isJSArrayWithOriginalStructure())
+                return CallOptimizationResult::DidNothing;
+
+            switch (arrayMode.type()) {
+            case Array::Double:
+            case Array::Int32:
+            case Array::Contiguous: {
+                JSGlobalObject* globalObject = m_graph.globalObjectFor(currentNodeOrigin().semantic);
+                if (globalObject->arraySpeciesWatchpointSet().state() != IsWatched
+                    || !globalObject->havingABadTimeWatchpointSet().isStillValid()
+                    || globalObject->arrayPrototypeChainIsSaneWatchpointSet().state() != IsWatched
+                    || globalObject->arrayIsConcatSpreadableWatchpointSet().state() != IsWatched)
+                    return CallOptimizationResult::DidNothing;
+
+                m_graph.watchpoints().addLazily(globalObject->arraySpeciesWatchpointSet());
+                m_graph.watchpoints().addLazily(globalObject->havingABadTimeWatchpointSet());
+                m_graph.watchpoints().addLazily(globalObject->arrayPrototypeChainIsSaneWatchpointSet());
+                m_graph.watchpoints().addLazily(globalObject->arrayIsConcatSpreadableWatchpointSet());
+
+                insertChecks();
+
+                Node* receiver = get(virtualRegisterForArgumentIncludingThis(0, registerOffset));
+                Node* argument = get(virtualRegisterForArgumentIncludingThis(1, registerOffset));
+
+                StructureSet receiverStructureSet;
+                receiverStructureSet.add(globalObject->originalArrayStructureForIndexingType(ArrayWithUndecided));
+                receiverStructureSet.add(globalObject->originalArrayStructureForIndexingType(ArrayWithInt32));
+                receiverStructureSet.add(globalObject->originalArrayStructureForIndexingType(ArrayWithContiguous));
+                receiverStructureSet.add(globalObject->originalArrayStructureForIndexingType(ArrayWithDouble));
+                receiverStructureSet.add(globalObject->originalArrayStructureForIndexingType(CopyOnWriteArrayWithInt32));
+                receiverStructureSet.add(globalObject->originalArrayStructureForIndexingType(CopyOnWriteArrayWithContiguous));
+                receiverStructureSet.add(globalObject->originalArrayStructureForIndexingType(CopyOnWriteArrayWithDouble));
+                addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(receiverStructureSet)), receiver);
+
+                Node* node = addToGraph(ArrayConcatAppendOne, OpInfo(), OpInfo(prediction), receiver, argument);
+                setResult(node);
+                return CallOptimizationResult::Inlined;
+            }
+            default:
+                return CallOptimizationResult::DidNothing;
+            }
+
+            RELEASE_ASSERT_NOT_REACHED();
+            return CallOptimizationResult::DidNothing;
+        }
+
         case ArrayIncludesIntrinsic:
         case ArrayIndexOfIntrinsic: {
             if (argumentCountIncludingThis < 2)
@@ -2881,7 +2950,10 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             return CallOptimizationResult::DidNothing;
 
         }
-            
+
+        case ArraySortIntrinsic:
+            return handleArraySort(callee, resultOperand, variant, registerOffset, argumentCountIncludingThis, osrExitIndex, prediction, insertChecks, setResult);
+
         case ArrayPopIntrinsic: {
             ArrayMode arrayMode = getArrayMode(Array::Write);
             if (!arrayMode.isJSArray())
@@ -3127,6 +3199,29 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
                 result = addToGraph(StringLastIndexOf, OpInfo(ArrayMode(Array::String, Array::Read).asWord()), thisValue, search, index);
             }
 
+            setResult(result);
+            return CallOptimizationResult::Inlined;
+        }
+
+        case StringPrototypeSplitIntrinsic: {
+            if (argumentCountIncludingThis < 2)
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType))
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadConstantValue))
+                return CallOptimizationResult::DidNothing;
+
+            if (!m_graph.isWatchingStringSymbolSplitWatchpoint(currentCodeOrigin()))
+                return CallOptimizationResult::DidNothing;
+
+            Node* separator = get(virtualRegisterForArgumentIncludingThis(1, registerOffset));
+
+            insertChecks();
+            Node* thisValue = get(virtualRegisterForArgumentIncludingThis(0, registerOffset));
+            Node* limit = argumentCountIncludingThis >= 3 ? get(virtualRegisterForArgumentIncludingThis(2, registerOffset)) : jsConstant(jsUndefined());
+            Node* result = addToGraph(StringSplit, thisValue, separator, limit);
             setResult(result);
             return CallOptimizationResult::Inlined;
         }
@@ -7320,7 +7415,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
                 }
                 if (promiseConstructor) {
                     addToGraph(Phantom, callee);
-                    Node* promise = addToGraph(NewInternalFieldObject, OpInfo(m_graph.registerStructure(globalObject->promiseStructure())));
+                    Node* promise = addToGraph(NewPromise, OpInfo(m_graph.registerStructure(globalObject->promiseStructure())));
                     set(VirtualRegister(bytecode.m_dst), promise);
                     alreadyEmitted = true;
                 }
@@ -7355,7 +7450,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
                                 m_graph.freeze(globalObject);
                                 m_graph.watchpoints().addLazily(globalObject->structureCacheClearedWatchpointSet());
 
-                                Node* promise = addToGraph(NewInternalFieldObject, OpInfo(m_graph.registerStructure(structure)));
+                                Node* promise = addToGraph(NewPromise, OpInfo(m_graph.registerStructure(structure)));
                                 set(VirtualRegister(bytecode.m_dst), promise);
                                 // The callee is still live up to this point.
                                 addToGraph(Phantom, callee);
@@ -7391,7 +7486,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
         case op_new_promise: {
             auto bytecode = currentInstruction->as<OpNewPromise>();
             JSGlobalObject* globalObject = m_graph.globalObjectFor(currentNodeOrigin().semantic);
-            Node* promise = addToGraph(NewInternalFieldObject, OpInfo(m_graph.registerStructure(globalObject->promiseStructure())));
+            Node* promise = addToGraph(NewPromise, OpInfo(m_graph.registerStructure(globalObject->promiseStructure())));
             set(bytecode.m_dst, promise);
             NEXT_OPCODE(op_new_promise);
         }
@@ -11506,6 +11601,498 @@ void ByteCodeParser::handleIteratorNext(const JSInstruction* currentInstruction,
     m_currentIndex = startIndex;
     m_currentBlock = continuation;
     clearCaches();
+}
+
+template<typename ChecksFunctor, typename SetResultFunctor>
+auto ByteCodeParser::handleArraySort(Node* callee, Operand resultOperand, CallVariant variant, int registerOffset, int argumentCountIncludingThis, BytecodeIndex osrExitIndex, SpeculatedType prediction, const ChecksFunctor& insertChecks, const SetResultFunctor& setResult) -> CallOptimizationResult
+{
+    // Inline Array.prototype.sort(comparator) when:
+    //   - receiver is an original-structure JSArray with Undecided / Int32 / Contiguous indexing, and
+    //   - comparator is callable (CellUse speculation; non-callable cells throw TypeError from the Call just like the spec requires).
+    //
+    // Strategy:
+    //   * ArrayWithUndecided -> length is 0, return the receiver.
+    //   * Int32 / Contiguous -> dispatch on runtime length:
+    //       length > 16  -> fallback DirectCall to arrayProtoFuncSort. Avoids re-deopt loops
+    //         or hot sort sites with large arrays.
+    //       length <= 16 -> three-phase pipeline over a 16-slot JSCellButterfly scratch:
+    //         1. ArraySortCompact(array, length) -- acquires VM-cached scratch
+    //            JSCellButterfly and copies array content into that. On a hole it returns
+    //            vm.m_sortScratchSentinel. When we hit a sentinel, we go to the normal
+    //            slow path.
+    //         2. Inlined insertion sort over the scratch via GetCellButterflySlot /
+    //            PutCellButterflySlot, calling the comparator for each pair. Because we perform
+    //            onto the scratch, original array is not touched, making entire sort restartable.
+    //         3. ArraySortCommit(array, scratch, length) -- verifies the receiver's length
+    //            hasn't been changed during sorting, copies back to array, clears the scratch,
+    //            and stores it into the VM cache for the next sort. ArraySortCommit is the point
+    //            of committing the actual result to the input array.
+
+    UNUSED_PARAM(resultOperand);
+
+    if (!is64Bit())
+        return CallOptimizationResult::DidNothing;
+
+    if (argumentCountIncludingThis < 2)
+        return CallOptimizationResult::DidNothing;
+
+    if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadIndexingType)
+        || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadConstantCache)
+        || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadCache)
+        || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType)
+        || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, OutOfBounds))
+        return CallOptimizationResult::DidNothing;
+
+    ArrayMode arrayMode = getArrayMode(Array::Read);
+    if (!arrayMode.isJSArray())
+        return CallOptimizationResult::DidNothing;
+    if (!arrayMode.isJSArrayWithOriginalStructure())
+        return CallOptimizationResult::DidNothing;
+    if (arrayMode.doesConversion())
+        return CallOptimizationResult::DidNothing;
+
+    IndexingType indexingType;
+    switch (arrayMode.type()) {
+    case Array::Undecided:
+        indexingType = ArrayWithUndecided;
+        break;
+    case Array::Int32:
+        indexingType = ArrayWithInt32;
+        break;
+    case Array::Contiguous:
+        indexingType = ArrayWithContiguous;
+        break;
+    default:
+        return CallOptimizationResult::DidNothing;
+    }
+
+    Node* comparatorNode = get(virtualRegisterForArgumentIncludingThis(1, registerOffset));
+
+    // Detect the comparator's static shape so we can route its Call through handleCall with
+    // a synthesized CallLinkStatus -- this lets the parser's inliner body-inline the
+    // comparator. Two shapes we recognize:
+    //   - JSFunction constant (named/hoisted function) -> CallVariant(function).
+    //   - NewFunction / NewArrowFunction allocation in the same graph -> CallVariant(executable).
+    // Neither -> fall back to a plain Call at the comparator call site.
+    //
+    // This is workaround since we do not have enough feedback about comparator here due to
+    // lack of CallLinkInfo inside native Array#sort function. However in practice, it is almost
+    // always a function literal or constant.
+    JSFunction* comparatorFunction = nullptr;
+    FunctionExecutable* comparatorExecutable = nullptr;
+    if (!m_graph.m_plan.isUnlinked()) {
+        if (comparatorNode->hasConstant())
+            comparatorFunction = comparatorNode->dynamicCastConstant<JSFunction*>();
+        else if (comparatorNode->isFunctionAllocation())
+            comparatorExecutable = comparatorNode->castOperand<FunctionExecutable*>();
+    }
+    bool tryInlineComparator = comparatorFunction || comparatorExecutable;
+
+    JSGlobalObject* globalObject = m_graph.globalObjectFor(currentNodeOrigin().semantic);
+    if (globalObject->arraySpeciesWatchpointSet().state() != IsWatched
+        || !globalObject->havingABadTimeWatchpointSet().isStillValid()
+        || globalObject->arrayPrototypeChainIsSaneWatchpointSet().state() != IsWatched)
+        return CallOptimizationResult::DidNothing;
+
+    m_graph.watchpoints().addLazily(globalObject->arraySpeciesWatchpointSet());
+    m_graph.watchpoints().addLazily(globalObject->havingABadTimeWatchpointSet());
+    m_graph.watchpoints().addLazily(globalObject->arrayPrototypeChainIsSaneWatchpointSet());
+
+    if (indexingType == ArrayWithUndecided) {
+        insertChecks();
+        Node* array = get(virtualRegisterForArgumentIncludingThis(0, registerOffset));
+        addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(globalObject->originalArrayStructureForIndexingType(indexingType))), array);
+        addToGraph(Check, Edge(comparatorNode, FunctionUse));
+        setResult(array);
+        return CallOptimizationResult::Inlined;
+    }
+
+    insertChecks(/* willDoInliningInsideIntrinsic */ true);
+    Node* array = get(virtualRegisterForArgumentIncludingThis(0, registerOffset));
+    addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(globalObject->originalArrayStructureForIndexingType(indexingType))), array);
+    addToGraph(Check, Edge(comparatorNode, FunctionUse));
+
+    // --- Runtime length dispatch -------------------------------------------------
+    // We deliberately do NOT emit GetArrayLength in the entry block -- instead each
+    // successor block re-emits it. This keeps FixupPhase's Int32 speculation Checks
+    // local to the block where the GetArrayLength lives, avoiding a CPS validation
+    // failure from cross-block ordering of the inserted Check vs. its producer.
+
+    // Allocate fresh tmps for cross-block flow. `tmpLength` caches the array length once
+    // (fetched just before entering the outer loop) so the sort loop doesn't re-fetch
+    // butterfly+length every iteration, and so Commit can check length stability against
+    // the original pre-sort length.
+    //
+    // tmpBase is *relative* to the current inline frame: set()/get() remap through
+    // tmpOffset, while ensureTmps() is keyed off the absolute m_numTmps. We place our tmps
+    // at `current_frame_numTmps + maxNumCheckpointTmps` in relative coordinates so they
+    // sit above any inlined comparator's checkpoint tmps (whose inline-call-frame claims
+    // the slot range [tmpOffset + caller_numTmps, tmpOffset + caller_numTmps + callee_numTmps),
+    // where callee_numTmps <= maxNumCheckpointTmps). Then we ensureTmps() to the absolute
+    // upper bound so the parser's bounds check (operand.value() >= m_numTmps) accepts the
+    // remapped indices.
+    unsigned tmpBase = m_inlineStackTop->m_codeBlock->numTmps() + maxNumCheckpointTmps;
+    unsigned currentTmpOffset = m_inlineStackTop->m_inlineCallFrame ? m_inlineStackTop->m_inlineCallFrame->tmpOffset : 0;
+    ensureTmps(currentTmpOffset + tmpBase + 9);
+    Operand tmpI = Operand::tmp(tmpBase + 0);
+    Operand tmpJ = Operand::tmp(tmpBase + 1);
+    Operand tmpPivot = Operand::tmp(tmpBase + 2);
+    Operand tmpArray = Operand::tmp(tmpBase + 3);
+    Operand tmpCallee = Operand::tmp(tmpBase + 4);
+    Operand tmpComparator = Operand::tmp(tmpBase + 5);
+    Operand tmpCmpResult = Operand::tmp(tmpBase + 6);
+    Operand tmpScratch = Operand::tmp(tmpBase + 7);
+    Operand tmpLength = Operand::tmp(tmpBase + 8);
+
+    // Stash cross-block values into tmps before the Branch so successor blocks see
+    // them via phi merges. Explicitly flush each tmp after the set: Flush changes
+    // variablesAtTail from SetLocal to Flush, which prevents getLocalOrTmp's
+    // same-block short-circuit from returning the raw producer node. Without this,
+    // CPS rethreading / block merging produces cross-block edges that violate the
+    // CPS validator's invariant (Check nodes end up scheduled before their producers).
+    set(tmpArray, array, ImmediateNakedSet);
+    flush(tmpArray);
+    set(tmpCallee, callee, ImmediateNakedSet);
+    flush(tmpCallee);
+    set(tmpComparator, comparatorNode, ImmediateNakedSet);
+    flush(tmpComparator);
+    emitExitOK();
+
+    BasicBlock* dispatcherBlock = allocateUntargetableBlock();
+    BasicBlock* fastBlock = allocateUntargetableBlock();
+    BasicBlock* slowBlock = allocateUntargetableBlock();
+    BasicBlock* continuation = allocateUntargetableBlock();
+
+    // Close the entry block with a Jump to the dispatcher. Putting the length
+    // compare in its own block avoids entangling the entry block's value-flow with
+    // FixupPhase's Check insertion for the Int32Use edge on length.
+    addToGraph(Jump, OpInfo(dispatcherBlock));
+    flushForTerminal();
+
+    {
+        m_currentBlock = dispatcherBlock;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+
+        Node* capPlusOne = jsConstant(jsNumber(sortScratchSlotCount + 1));
+        // Re-emit GetArrayLength locally in this block.
+        Node* dispatcherButterfly = addToGraph(GetButterfly, get(tmpArray));
+        Node* dispatcherLength = addToGraph(GetArrayLength, OpInfo(arrayMode.asWord()), Edge(get(tmpArray)), Edge(dispatcherButterfly, KnownStorageUse));
+        emitExitOK();
+        Node* isSmall = addToGraph(CompareBelow, Edge(dispatcherLength, Int32Use), Edge(capPlusOne, Int32Use));
+
+        {
+            BranchData* branchData = m_graph.m_branchData.add();
+            branchData->taken = BranchTarget(fastBlock);
+            branchData->notTaken = BranchTarget(slowBlock);
+            addToGraph(Branch, OpInfo(branchData), isSmall);
+            flushForTerminal();
+        }
+    }
+
+    // --- Slow path: fallback DirectCall to the generic sort ---------------------
+    {
+        m_currentBlock = slowBlock;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+
+        auto* sortExecutable = variant.executable();
+        Node* slowResult = addCallWithoutSettingResult(Call, OpInfo(), get(tmpCallee), argumentCountIncludingThis, registerOffset, OpInfo(prediction));
+        if (sortExecutable)
+            slowResult->convertToDirectCall(m_graph.freeze(sortExecutable));
+        emitExitOK();
+        addToGraph(Jump, OpInfo(continuation));
+    }
+
+    // --- Fast path: copy array into a 16-slot scratch via an atomic inline-JIT Compact,
+    // insertion-sort the scratch, then Commit the result back via another atomic
+    // inline-JIT copy. Compact and Commit do their loops inline in machine code with no
+    // InvalidationPoints and no per-element speculation -- so no mid-copy OSR exit can
+    // leave the receiver partially mutated.
+    //
+    // `length` is fetched ONCE (before the outer loop) and stashed in tmpLength. The
+    // outer loop reads it each iteration without re-walking the butterfly, and Commit
+    // checks it against the current butterfly length to detect comparator-induced
+    // mutation (OSR exit on mismatch via BadIndexingType).
+    //
+    // The blocks emitted below encode this C-equivalent program. Each labeled comment
+    // identifies the block where the following statement is emitted, and the branches
+    // match the actual BranchData wired up below.
+    //
+    //   int length = array.length;                                // fastBlock (GetArrayLength)
+    //   JSValue* scratch = ArraySortCompact(array, length);       // fastBlock
+    //   if (scratch == vm.m_sortScratchSentinel) goto slowBlock;  // fastBlock -> slowBlock / sortSetup
+    //   int i = 1;                                                // sortSetup
+    //   for (;;) {                                                // outerHeader:
+    //       if (i >= length) goto commit;                         //   CompareGreaterEq -> commitBlock / outerBody
+    //       JSValue pivot = scratch[i];                           // outerBody
+    //       int j = i - 1;                                        // outerBody
+    //       for (;;) {                                            // innerHeader:
+    //           if (j < 0) goto placePivot;                       //   CompareLess(j, 0) -> innerExit / innerCmpBlock
+    //           JSValue current = scratch[j];                     // innerCmpBlock
+    //           JSValue cmp = comparator(pivot, current);         //   inlined or Call
+    //           if (cmp === false) goto shift;                    //   CompareStrictEq(cmp, false) -> innerShift / numericBlock
+    //           if (ToNumber(cmp) < 0) goto shift;                //   numericBlock: ToNumber -> CompareLess -> innerShift / innerExit
+    //           else goto placePivot;
+    //           scratch[j + 1] = current;                         // innerShift
+    //           j = j - 1;                                        // innerShift
+    //           continue;                                         //   Jump -> innerHeader
+    //       }
+    //   placePivot:
+    //       scratch[j + 1] = pivot;                               // innerExit
+    //       i = i + 1;                                            // innerExit
+    //       continue;                                             //   Jump -> outerHeader
+    //   }
+    // commit:
+    //   ArraySortCommit(array, scratch, length);                  // commitBlock; OSR-exits
+    //                                                             //   if array.length != length
+    //   return array;                                             // commitBlock -> continuation
+    //
+
+    BasicBlock* sortSetup = allocateUntargetableBlock();
+    BasicBlock* outerHeader = allocateUntargetableBlock();
+    BasicBlock* outerBody = allocateUntargetableBlock();
+    BasicBlock* innerHeader = allocateUntargetableBlock();
+    BasicBlock* innerCmpBlock = allocateUntargetableBlock();
+    BasicBlock* innerShift = allocateUntargetableBlock();
+    BasicBlock* innerExit = allocateUntargetableBlock();
+    BasicBlock* commitBlock = allocateUntargetableBlock();
+
+    {
+        m_currentBlock = fastBlock;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+
+        Node* array = get(tmpArray);
+        Node* bfly = addToGraph(GetButterfly, array);
+        Node* lengthCompact = addToGraph(GetArrayLength, OpInfo(arrayMode.asWord()), Edge(array), Edge(bfly, KnownStorageUse));
+        emitExitOK();
+        Node* scratch = addToGraph(ArraySortCompact, OpInfo(arrayMode.asWord()), array, lengthCompact);
+        emitExitOK();
+        set(tmpScratch, scratch, ImmediateNakedSet);
+        flush(tmpScratch);
+        set(tmpLength, lengthCompact, ImmediateNakedSet);
+        flush(tmpLength);
+        emitExitOK();
+        // ArraySortCommit generates sentinel when we should go to the slow path (e.g. finding holes).
+        FrozenValue* sentinel = m_graph.freezeStrong(m_graph.m_vm.m_sortScratchSentinel.get());
+        Node* isHole = addToGraph(CompareEqPtr, OpInfo(sentinel), get(tmpScratch));
+        emitExitOK();
+        BranchData* branchData = m_graph.m_branchData.add();
+        branchData->taken = BranchTarget(slowBlock);
+        branchData->notTaken = BranchTarget(sortSetup);
+        addToGraph(Branch, OpInfo(branchData), isHole);
+        flushForTerminal();
+    }
+
+    {
+        m_currentBlock = sortSetup;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+        set(tmpI, jsConstant(jsNumber(1)), ImmediateNakedSet);
+        emitExitOK();
+        addToGraph(Jump, OpInfo(outerHeader));
+    }
+
+    {
+        m_currentBlock = outerHeader;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+        Node* i = get(tmpI);
+        Node* lengthL = get(tmpLength);
+        Node* atEnd = addToGraph(CompareGreaterEq, Edge(i, Int32Use), Edge(lengthL, Int32Use));
+        BranchData* branchData = m_graph.m_branchData.add();
+        branchData->taken = BranchTarget(commitBlock);
+        branchData->notTaken = BranchTarget(outerBody);
+        addToGraph(Branch, OpInfo(branchData), atEnd);
+        flushForTerminal();
+    }
+
+    {
+        m_currentBlock = outerBody;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+        Node* i = get(tmpI);
+        Node* pivot = addToGraph(GetCellButterflySlot, OpInfo(arrayMode.asWord()), get(tmpScratch), i);
+        emitExitOK();
+        set(tmpPivot, pivot, ImmediateNakedSet);
+        emitExitOK();
+        Node* jInit = addToGraph(ArithSub, OpInfo(Arith::Unchecked), OpInfo(SpecInt32Only), Edge(i, Int32Use), Edge(jsConstant(jsNumber(1)), Int32Use));
+        set(tmpJ, jInit, ImmediateNakedSet);
+        addToGraph(Jump, OpInfo(innerHeader));
+    }
+
+    {
+        m_currentBlock = innerHeader;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+        Node* j = get(tmpJ);
+        Node* jNegative = addToGraph(CompareLess, Edge(j, Int32Use), Edge(jsConstant(jsNumber(0)), Int32Use));
+        BranchData* branchData = m_graph.m_branchData.add();
+        branchData->taken = BranchTarget(innerExit);
+        branchData->notTaken = BranchTarget(innerCmpBlock);
+        addToGraph(Branch, OpInfo(branchData), jNegative);
+        flushForTerminal();
+    }
+
+    {
+        m_currentBlock = innerCmpBlock;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+        Node* j = get(tmpJ);
+        Node* pivot = get(tmpPivot);
+        Node* current = addToGraph(GetCellButterflySlot, OpInfo(arrayMode.asWord()), get(tmpScratch), j);
+        emitExitOK();
+
+        // Set up a fresh comparator call frame adjacent to the caller's locals.
+        constexpr int comparatorArgcIncludingThis = 3;
+        unsigned numberOfParameters = comparatorArgcIncludingThis;
+        numberOfParameters++; // True return PC.
+
+        int newRegisterOffset = virtualRegisterForLocal(m_inlineStackTop->m_profiledBlock->numCalleeLocals() - 1).offset();
+        newRegisterOffset -= numberOfParameters;
+        newRegisterOffset -= CallFrame::headerSizeInRegisters;
+        newRegisterOffset = -WTF::roundUpToMultipleOf(stackAlignmentRegisters(), -newRegisterOffset);
+
+        ensureLocals(m_inlineStackTop->remapOperand(VirtualRegister(newRegisterOffset)).toLocal());
+        unsigned parameterSlots = Graph::parameterSlotsForArgCount(comparatorArgcIncludingThis);
+        if (parameterSlots > m_parameterSlots)
+            m_parameterSlots = parameterSlots;
+
+        set(virtualRegisterForArgumentIncludingThis(0, newRegisterOffset), jsConstant(jsUndefined()), ImmediateNakedSet);
+        set(virtualRegisterForArgumentIncludingThis(1, newRegisterOffset), pivot, ImmediateNakedSet);
+        set(virtualRegisterForArgumentIncludingThis(2, newRegisterOffset), current, ImmediateNakedSet);
+        emitExitOK();
+
+        Node* cmpResult = nullptr;
+        if (tryInlineComparator) {
+            auto callLinkStatus = comparatorFunction ? CallLinkStatus(CallVariant(comparatorFunction)) : CallLinkStatus(CallVariant(comparatorExecutable));
+            auto* callTargetNode = comparatorFunction ? jsConstant(comparatorFunction) : get(tmpComparator);
+            handleCall(tmpCmpResult, Call, InlineCallFrame::ArraySortComparatorCall, osrExitIndex, callTargetNode, comparatorArgcIncludingThis, newRegisterOffset, callLinkStatus, SpecBytecodeTop, nullptr);
+            processSetLocalQueue();
+            emitExitOK();
+            cmpResult = get(tmpCmpResult);
+        } else {
+            cmpResult = addCallWithoutSettingResult(Call, OpInfo(), get(tmpComparator), comparatorArgcIncludingThis, newRegisterOffset, OpInfo(SpecBytecodeTop));
+            emitExitOK();
+            set(tmpCmpResult, cmpResult, ImmediateNakedSet);
+        }
+        flush(tmpCmpResult);
+        emitExitOK();
+
+        // Match StableSort's coerceComparatorResultToBoolean:
+        //   if cmp === false           -> shift (legacy boolean special-case, webkit.org/b/47825)
+        //   else                       -> shift iff ToNumber(cmp) < 0
+        Node* cmpIsFalse = addToGraph(CompareStrictEq, Edge(cmpResult), Edge(jsConstant(jsBoolean(false))));
+        BasicBlock* numericBlock = allocateUntargetableBlock();
+        {
+            BranchData* branchData = m_graph.m_branchData.add();
+            branchData->taken = BranchTarget(innerShift);
+            branchData->notTaken = BranchTarget(numericBlock);
+            addToGraph(Branch, OpInfo(branchData), cmpIsFalse);
+            flushForTerminal();
+        }
+
+        m_currentBlock = numericBlock;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+        Node* numericCmp = addToGraph(ToNumber, OpInfo(0), OpInfo(), get(tmpCmpResult));
+        emitExitOK();
+        Node* cmpIsNeg = addToGraph(CompareLess, Edge(numericCmp), Edge(jsConstant(jsNumber(0))));
+        BranchData* branchData = m_graph.m_branchData.add();
+        branchData->taken = BranchTarget(innerShift);
+        branchData->notTaken = BranchTarget(innerExit);
+        addToGraph(Branch, OpInfo(branchData), cmpIsNeg);
+        flushForTerminal();
+    }
+
+    {
+        m_currentBlock = innerShift;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+        Node* j = get(tmpJ);
+        Node* current = addToGraph(GetCellButterflySlot, OpInfo(arrayMode.asWord()), get(tmpScratch), j);
+        emitExitOK();
+        Node* jPlusOne = addToGraph(ArithAdd, OpInfo(Arith::Unchecked), OpInfo(SpecInt32Only), Edge(j, Int32Use), Edge(jsConstant(jsNumber(1)), Int32Use));
+        addToGraph(PutCellButterflySlot, get(tmpScratch), jPlusOne, current);
+        emitExitOK();
+        Node* jMinusOne = addToGraph(ArithAdd, OpInfo(Arith::Unchecked), OpInfo(SpecInt32Only), Edge(j, Int32Use), Edge(jsConstant(jsNumber(-1)), Int32Use));
+        set(tmpJ, jMinusOne, ImmediateNakedSet);
+        addToGraph(Jump, OpInfo(innerHeader));
+        flushForTerminal();
+    }
+
+    {
+        m_currentBlock = innerExit;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+        Node* j = get(tmpJ);
+        Node* insertionPoint = addToGraph(ArithAdd, OpInfo(Arith::Unchecked), OpInfo(SpecInt32Only), Edge(j, Int32Use), Edge(jsConstant(jsNumber(1)), Int32Use));
+        Node* pivot = get(tmpPivot);
+        addToGraph(PutCellButterflySlot, get(tmpScratch), insertionPoint, pivot);
+        emitExitOK();
+        Node* i = get(tmpI);
+        Node* nextI = addToGraph(ArithAdd, OpInfo(Arith::Unchecked), OpInfo(SpecInt32Only), Edge(i, Int32Use), Edge(jsConstant(jsNumber(1)), Int32Use));
+        set(tmpI, nextI, ImmediateNakedSet);
+        addToGraph(Jump, OpInfo(outerHeader));
+        flushForTerminal();
+    }
+
+    // Commit: verify length stability (current butterfly length == the stashed pre-sort
+    // length, via the Commit node's BadIndexingType speculation), write scratch[0..length)
+    // back into array's butterfly, clear the scratch, and return it to the VM cache -- all
+    // inside a single inline-JIT node so no OSR exit can split the write.
+    {
+        m_currentBlock = commitBlock;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+        Node* array = get(tmpArray);
+        Node* lengthCommit = get(tmpLength);
+        addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(globalObject->originalArrayStructureForIndexingType(indexingType))), array);
+        emitExitOK();
+        addToGraph(ArraySortCommit, OpInfo(arrayMode.asWord()), array, get(tmpScratch), lengthCommit);
+        // After Commit clobbers exit state, emit an ExitOK before the Jump so later
+        // phases may place Exits-kind nodes between the clobberer and the block
+        // boundary. The continuation block feeds tmpArray into setResult, so there's
+        // no need for a separate set(resultOperand, ...) here.
+        emitExitOK();
+        addToGraph(Jump, OpInfo(continuation));
+    }
+
+    // --- Continuation -----------------------------------------------------------
+    {
+        m_currentBlock = continuation;
+        clearCaches();
+        emitExitOK();
+        keepUsesOfCurrentInstructionAlive(m_currentInstruction, m_currentIndex.checkpoint());
+
+        // Mirror endSpecialCase's emitArgumentPhantoms here so OSR exits inside our
+        // emitted blocks keep the op_call operand slots (callee, this, cmp) materializable.
+        // We use get() which is cross-block safe -- it emits GetLocal so the Phantom
+        // edge stays intra-continuation-block. We skip Phantom(callTargetNode) because
+        // that helper takes a raw Node* (from the caller's block) which would be a
+        // cross-block edge under our split control flow; the callee-slot Phantom below
+        // covers the equivalent liveness via the caller's stack position.
+        for (int i = 0; i < argumentCountIncludingThis; ++i)
+            addToGraph(Phantom, get(virtualRegisterForArgumentIncludingThis(i, registerOffset)));
+
+        // Array.prototype.sort returns its `this`. Both paths (slow DirectCall and
+        // commit) produce the same logical value, which is tmpArray.
+        setResult(get(tmpArray));
+    }
+    return CallOptimizationResult::Inlined;
 }
 
 void ByteCodeParser::pruneUnreachableNodes()

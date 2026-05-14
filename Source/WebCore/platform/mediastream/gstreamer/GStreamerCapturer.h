@@ -29,7 +29,7 @@
 #include "PipeWireCaptureDevice.h"
 
 #include <wtf/Lock.h>
-#include <wtf/ThreadSafeRefCounted.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/WeakHashSet.h>
 
 namespace WebCore {

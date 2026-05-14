@@ -137,6 +137,7 @@
 #include "StaticPasteboard.h"
 #include "StyleCachedImage.h"
 #include "StyleCursor.h"
+#include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "Styleable.h"
 #include "TextEvent.h"
 #include "TextIterator.h"
@@ -1719,7 +1720,7 @@ std::optional<Cursor> EventHandler::selectCursor(const HitTestResult& result, bo
                 continue;
             float scale = styleImage->imageScaleFactor();
             // Get hotspot and convert from logical pixels to physical pixels.
-            auto hotSpot = styleCursorImage.hotSpot;
+            auto hotSpot = styleCursorImage.hotSpot ? Style::evaluate<IntPoint>(*styleCursorImage.hotSpot) : IntPoint { -1, -1 };
 
             CheckedPtr renderElement = dynamicDowncast<RenderElement>(renderer);
             if (!renderElement && renderer && renderer->parent())
@@ -3398,7 +3399,7 @@ bool EventHandler::dispatchMouseEvent(const AtomString& eventType, Node* targetN
     }
 
     // Only change the focus when clicking scrollbars if it can be transferred to a mouse focusable node.
-    if (!element && isInsideScrollbar(flooredIntPoint(platformMouseEvent.position())))
+    if (!element && m_lastScrollbarUnderMouse)
         return false;
 
 #if (!PLATFORM(GTK) && !PLATFORM(WPE))
@@ -3425,17 +3426,6 @@ bool EventHandler::dispatchMouseEvent(const AtomString& eventType, Node* targetN
         element->findTargetAndUpdateFocusAppearance(SelectionRestorationMode::SelectAll);
 
     return true;
-}
-
-bool EventHandler::isInsideScrollbar(const IntPoint& windowPoint) const
-{
-    if (RefPtr document = m_frame->document()) {
-        HitTestResult result { windowPoint };
-        document->hitTest(OptionSet<HitTestRequest::Type> { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::DisallowUserAgentShadowContent }, result);
-        return result.scrollbar();
-    }
-
-    return false;
 }
 
 #if !PLATFORM(MAC)

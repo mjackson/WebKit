@@ -29,6 +29,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/defined.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/dir-pseudo-class-in-has-expected.xht
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/dir-pseudo-class-in-has.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/empty-pseudo-in-has-display-none.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/empty-pseudo-in-has.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/enabled-disabled.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/first-child-last-child.html
@@ -67,6 +68,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/host-has-shadow-tree-element-at-nonsubject-position.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/host-has-shadow-tree-element-at-subject-position.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/host-pseudo-class-in-has.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/input-in-range-in-has-with-readonly.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/input-pseudo-classes-in-has.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/insert-sibling-001.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/insert-sibling-002.html

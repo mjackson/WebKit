@@ -331,7 +331,7 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
                     return GridAvoidanceReason::GridHasUnsupportedGridTemplateColumns;
                 return { };
             },
-            [&](const Vector<Style::CustomIdent>& names) -> std::optional<GridAvoidanceReason> {
+            [&](const Style::GridLineNames& names) -> std::optional<GridAvoidanceReason> {
                 if (!names.isEmpty())
                     return GridAvoidanceReason::GridHasUnsupportedGridTemplateColumns;
                 return std::nullopt;
@@ -366,7 +366,7 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
                     return GridAvoidanceReason::GridHasUnsupportedGridTemplateRows;
                 return { };
             },
-            [&](const Vector<Style::CustomIdent>& names) -> std::optional<GridAvoidanceReason> {
+            [&](const Style::GridLineNames& names) -> std::optional<GridAvoidanceReason> {
                 if (!names.isEmpty())
                     return GridAvoidanceReason::GridHasUnsupportedGridTemplateRows;
                 return std::nullopt;

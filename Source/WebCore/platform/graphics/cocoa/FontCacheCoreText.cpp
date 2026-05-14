@@ -54,6 +54,7 @@
 #include <wtf/cf/NotificationCenterCF.h>
 #include <wtf/cf/TypeCastsCF.h>
 #include <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 
@@ -991,7 +992,7 @@ void FontCache::prewarm(PrewarmInformation&& prewarmInformation)
             if (auto warmingFont = adoptCF(CTFontCreateWithName(cfFontName.get(), 0, nullptr))) {
                 // This is sufficient to warm CoreText caches for language and character specific fallbacks.
                 CFIndex coveredLength = 0;
-                UniChar character = ' ';
+                UniChar character = space;
 
                 auto fallbackWarmingFont = adoptCF(CTFontCreateForCharactersWithLanguageAndOption(warmingFont.get(), &character, 1, nullptr, kCTFontFallbackOptionSystem, &coveredLength));
             }

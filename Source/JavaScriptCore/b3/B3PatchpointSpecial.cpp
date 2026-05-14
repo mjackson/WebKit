@@ -34,8 +34,6 @@
 #include "B3StackmapGenerationParams.h"
 #include "B3ValueInlines.h"
 
-#include <wtf/ListDump.h>
-
 namespace JSC { namespace B3 {
 
 using Arg = Air::Arg;

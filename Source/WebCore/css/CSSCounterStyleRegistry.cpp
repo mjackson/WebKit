@@ -63,24 +63,27 @@ void CSSCounterStyleRegistry::resolveReferencesIfNeeded()
 
 void CSSCounterStyleRegistry::resolveExtendsReference(CSSRegisteredCounterStyle& counterStyle, CounterStyleMap* map)
 {
-    HashSet<CSSRegisteredCounterStyle*> countersInChain;
+    WTF::OrderedHashSet<CSSRegisteredCounterStyle*> countersInChain;
     resolveExtendsReference(counterStyle, countersInChain, map);
 }
 
-void CSSCounterStyleRegistry::resolveExtendsReference(CSSRegisteredCounterStyle& counter, HashSet<CSSRegisteredCounterStyle*>& countersInChain, CounterStyleMap* map)
+void CSSCounterStyleRegistry::resolveExtendsReference(CSSRegisteredCounterStyle& counter, WTF::OrderedHashSet<CSSRegisteredCounterStyle*>& countersInChain, CounterStyleMap* map)
 {
     ASSERT(counter.isExtendsSystem() && counter.isExtendsUnresolved());
     if (!(counter.isExtendsSystem() && counter.isExtendsUnresolved()))
         return;
 
-    if (countersInChain.contains(&counter)) {
-        // Chain of references forms a circle. Treat all as extending decimal (https://www.w3.org/TR/css-counter-styles-3/#extends-system).
+    auto cycleStart = countersInChain.find(&counter);
+    if (cycleStart != countersInChain.end()) {
+        // Chain of references forms a cycle. Only the counter styles that are part of the cycle
+        // (from the first occurrence of `counter` onwards) are treated as extending decimal
+        // (https://www.w3.org/TR/css-counter-styles-3/#extends-system). Counter styles that merely
+        // point into the cycle keep extending their referenced counter.
         auto decimal = decimalCounter();
-        for (const RefPtr counterInChain : countersInChain) {
-            ASSERT(counterInChain);
-            if (!counterInChain)
-                continue;
-            counterInChain->extendAndResolve(decimal);
+        for (auto it = cycleStart; it != countersInChain.end(); ++it) {
+            ASSERT(*it);
+            if (RefPtr counterInChain = *it)
+                counterInChain->extendAndResolve(decimal);
         }
         // Recursion return for circular chain.
         return;

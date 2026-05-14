@@ -50,6 +50,7 @@ root
 [Plain link \(2\)](example.com/2)
 [Plain link \(3\)](example.com/3)
 [Local file](/test/cat.png)
+
 ![SVG data URL](image)
 ![PNG data URL](image2)
 ![Long image path](vacation-2024-summer-beach.jpg)

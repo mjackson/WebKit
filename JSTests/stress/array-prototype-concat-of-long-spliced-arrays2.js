@@ -1,5 +1,5 @@
 //@ exclusive!
-//@ $skipModes << :lockdown if $memoryLimited or $buildType == "debug"
+//@ $skipModes << :lockdown
 
 function shouldEqual(actual, expected) {
     if (actual != expected) {

@@ -1,0 +1,4 @@
+
+FAIL LNA Public to loopback navigate iframe from opener with permission Can't find variable: resolveUrl
+FAIL LNA Public to loopback navigate iframe from opener without permission Can't find variable: resolveUrl
+

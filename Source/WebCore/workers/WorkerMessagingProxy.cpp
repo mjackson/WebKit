@@ -40,7 +40,9 @@
 #include "ErrorEvent.h"
 #include "EventNames.h"
 #include "FetchRequestCredentials.h"
+#include "FileSystemStorageConnection.h"
 #include "IDBConnectionProxy.h"
+#include "JSDOMGlobalObject.h"
 #include "LoaderStrategy.h"
 #include "LocalDOMWindow.h"
 #include "MessageEvent.h"
@@ -49,6 +51,7 @@
 #include "ScriptExecutionContext.h"
 #include "Settings.h"
 #include "SocketProvider.h"
+#include "StorageConnection.h"
 #include "UserGestureIndicator.h"
 #include "WebRTCProvider.h"
 #include "Worker.h"
@@ -158,13 +161,16 @@ void WorkerMessagingProxy::startWorkerGlobalScope(const URL& scriptURL, PAL::Ses
 
     bool isOnline = parentWorkerGlobalScope ? parentWorkerGlobalScope->isOnline() : platformStrategies()->loaderStrategy()->isOnLine();
 
+    auto agentClusterID = scriptExecutionContext->agentClusterID();
+
     m_scriptURL = scriptURL;
 
     WorkerParameters params { scriptURL, scriptExecutionContext->url(), name, identifier, WTF::move(initializationData.userAgent), isOnline, contentSecurityPolicyResponseHeaders, shouldBypassMainWorldContentSecurityPolicy, crossOriginEmbedderPolicy, timeOrigin, referrerPolicy, workerType, credentials, scriptExecutionContext->settingsValues(), WorkerThreadMode::CreateNewThread, sessionID,
         WTF::move(initializationData.serviceWorkerData),
         initializationData.clientIdentifier,
         scriptExecutionContext->advancedPrivacyProtections(),
-        scriptExecutionContext->noiseInjectionHashSalt()
+        scriptExecutionContext->noiseInjectionHashSalt(),
+        WTF::move(agentClusterID)
     };
     auto thread = DedicatedWorkerThread::create(params, sourceCode, *this, *this, *this, *this, startMode, protect(scriptExecutionContext->topOrigin()), proxy.get(), socketProvider.get(), runtimeFlags);
 
@@ -513,6 +519,23 @@ void WorkerMessagingProxy::setAppBadge(std::optional<uint64_t> badge)
 
         document->page()->badgeClient().setAppBadge(nullptr, SecurityOriginData::fromURL(m_scriptURL), badge);
     });
+}
+
+RefPtr<FileSystemStorageConnection> WorkerMessagingProxy::createFileSystemStorageConnection()
+{
+    ASSERT(isMainThread());
+    if (!m_scriptExecutionContext)
+        return nullptr;
+
+    RefPtr document = dynamicDowncast<Document>(*m_scriptExecutionContext);
+    if (!document)
+        document = Document::allDocumentsMap().get(m_loaderContextIdentifier);
+
+    if (!document)
+        return nullptr;
+    if (RefPtr storageConnection = document->storageConnection())
+        return storageConnection->fileSystemStorageConnection();
+    return nullptr;
 }
 
 } // namespace WebCore

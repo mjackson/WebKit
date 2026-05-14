@@ -63,6 +63,7 @@ TokenPreloadScanner::TagId TokenPreloadScanner::tagIdFor(const HTMLToken::DataVe
 {
     static constexpr SortedArrayMap map { std::to_array<std::pair<PackedASCIILiteral<uint64_t>, TokenPreloadScanner::TagId>>({
         { "base"_s, TagId::Base },
+        { "image"_s, TagId::Img },
         { "img"_s, TagId::Img },
         { "input"_s, TagId::Input },
         { "link"_s, TagId::Link },
@@ -539,6 +540,16 @@ void TokenPreloadScanner::scan(const HTMLToken& token, Vector<std::unique_ptr<Pr
         // Don't speculatively preload scripts inside SVG.
         if (m_foreignContentCount && tagId == TagId::Script)
             return;
+
+        // <image> is rewritten to <img> by the HTML parser only in HTML content; inside SVG
+        // foreign content it is the SVG image element (which uses href/xlink:href, not src),
+        // so it must not be preloaded as if it were an HTML <img>. (A literal <img> breaks
+        // out of foreign content per HTML parsing rules, so handling it as Img is fine.)
+        if (m_foreignContentCount && tagId == TagId::Img) {
+            static constexpr auto imageAsUTF16 = std::to_array<char16_t>({ 'i', 'm', 'a', 'g', 'e' });
+            if (equalSpans(token.name().span(), std::span { imageAsUTF16 }))
+                return;
+        }
 
         StartTagScanner scanner(document, tagId, m_deviceScaleFactor);
         scanner.processAttributes(token.attributes(), m_pictureSourceState);

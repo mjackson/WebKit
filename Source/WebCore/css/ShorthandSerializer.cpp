@@ -1,5 +1,6 @@
-/**
+/*
  * Copyright (C) 2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,10 +28,14 @@
 
 #include "CSSBorderImageWidthValue.h"
 #include "CSSCustomIdentValue.h"
-#include "CSSGridLineNamesValue.h"
+#include "CSSGridAutoFlowValue.h"
+#include "CSSGridLineValue.h"
 #include "CSSGridTemplateAreasValue.h"
+#include "CSSGridTemplateListValue.h"
+#include "CSSGridTrackSizesValue.h"
 #include "CSSKeywordValueInlines.h"
 #include "CSSParserIdioms.h"
+#include "CSSPrimitiveNumericTypes+Serialization.h"
 #include "CSSPropertyInitialValues.h"
 #include "CSSPropertyNames.h"
 #include "CSSPropertyParser.h"
@@ -1073,27 +1078,68 @@ String ShorthandSerializer::serializeFontVariant() const
     return serializeLonghandsOmittingInitialValues();
 }
 
-static bool NODELETE isValueIDIncludingList(const CSSValue& value, CSSValueID id)
+static bool NODELETE gridTemplateListIsNone(const CSSValue& value)
 {
-    if (auto* valueList = dynamicDowncast<CSSValueList>(value)) {
-        if (valueList->size() != 1)
-            return false;
-        auto* item = valueList->item(0);
-        return item && isValueID(*item, id);
-    }
-    return isValueID(value, id);
+    if (auto* list = dynamicDowncast<CSSGridTemplateListValue>(value))
+        return list->list().isNone();
+    return isValueID(value, CSSValueNone);
 }
 
-static bool NODELETE gridAutoFlowContains(CSSValue& autoFlow, CSSValueID id)
+static bool gridTrackSizesIsAuto(const CSSValue& value)
 {
-    if (auto* valueList = dynamicDowncast<CSSValueList>(autoFlow)) {
+    if (auto* trackSizes = dynamicDowncast<CSSGridTrackSizesValue>(value)) {
+        if (trackSizes->list().isAuto())
+            return true;
+        if (trackSizes->list().size() != 1)
+            return false;
+        return trackSizes->list()[0].isAuto();
+    }
+    return isValueID(value, CSSValueAuto);
+}
+
+static bool NODELETE gridAutoFlowIsRow(CSSValue& value)
+{
+    if (auto* autoFlowValue = dynamicDowncast<CSSGridAutoFlowValue>(value))
+        return autoFlowValue->autoFlow().isRow() && autoFlowValue->autoFlow().isSparse();
+
+    // NOTE: Style::Extractor can create CSSValueList values for `grid-auto-flow`,
+    // so we need to check that form as well.
+    if (auto* valueList = dynamicDowncast<CSSValueList>(value)) {
+        if (valueList->size() != 1)
+             return false;
+        auto* item = valueList->item(0);
+        return item && isValueID(*item, CSSValueRow);
+    }
+
+    return isValueID(value, CSSValueRow);
+}
+
+static bool NODELETE gridAutoFlowContains(CSSValue& value, CSSValueID id)
+{
+    if (auto* autoFlowValue = dynamicDowncast<CSSGridAutoFlowValue>(value)) {
+        switch (id) {
+        case CSSValueDense:
+            return autoFlowValue->autoFlow().isDense();
+        case CSSValueColumn:
+            return autoFlowValue->autoFlow().isColumn();
+        case CSSValueRow:
+            return autoFlowValue->autoFlow().isRow();
+        default:
+            return false;
+        }
+    }
+
+    // NOTE: Style::Extractor can create CSSValueList values for `grid-auto-flow`,
+    // so we need to check that form as well.
+    if (auto* valueList = dynamicDowncast<CSSValueList>(value)) {
         for (auto& currentValue : *valueList) {
             if (isValueID(&currentValue, id))
                 return true;
         }
         return false;
     }
-    return isValueID(autoFlow, id);
+
+    return isValueID(value, id);
 }
 
 String ShorthandSerializer::serializeGrid() const
@@ -1111,7 +1157,7 @@ String ShorthandSerializer::serializeGrid() const
     Ref autoRows = longhandValue(autoRowsIndex);
     Ref autoFlow = longhandValue(autoFlowIndex);
 
-    if (isValueIDIncludingList(autoColumns.get(), CSSValueAuto) && isValueIDIncludingList(autoRows.get(), CSSValueAuto) && isValueIDIncludingList(autoFlow.get(), CSSValueRow))
+    if (gridTrackSizesIsAuto(autoColumns.get()) && gridTrackSizesIsAuto(autoRows.get()) && gridAutoFlowIsRow(autoFlow.get()))
         return serializeGridTemplate();
 
     if (!isLonghandValueNone(areasIndex))
@@ -1124,31 +1170,36 @@ String ShorthandSerializer::serializeGrid() const
     auto dense = autoFlowContainsDense ? " dense"_s : ""_s;
 
     if (gridAutoFlowContains(autoFlow.get(), CSSValueColumn)) {
-        if (!isValueIDIncludingList(autoRows.get(), CSSValueAuto) || !isValueIDIncludingList(columns.get(), CSSValueNone))
+        if (!gridTrackSizesIsAuto(autoRows.get()) || !gridTemplateListIsNone(columns.get()))
             return String();
 
-        if (isValueIDIncludingList(autoColumns.get(), CSSValueAuto))
+        if (gridTrackSizesIsAuto(autoColumns.get()))
             return makeString(serializeLonghandValue(rowsIndex), " / auto-flow"_s, dense);
         return makeString(serializeLonghandValue(rowsIndex), " / auto-flow"_s, dense, ' ', serializeLonghandValue(autoColumnsIndex));
     }
 
     if (!gridAutoFlowContains(autoFlow.get(), CSSValueRow) && !autoFlowContainsDense)
         return String();
-    if (!isValueIDIncludingList(autoColumns.get(), CSSValueAuto) || !isValueIDIncludingList(rows.get(), CSSValueNone))
+    if (!gridTrackSizesIsAuto(autoColumns.get()) || !gridTemplateListIsNone(rows.get()))
         return String();
 
-    if (isValueIDIncludingList(autoRows.get(), CSSValueAuto))
+    if (gridTrackSizesIsAuto(autoRows.get()))
         return makeString("auto-flow"_s, dense, " / "_s, serializeLonghandValue(columnsIndex));
     return makeString("auto-flow"_s, dense, ' ', serializeLonghandValue(autoRowsIndex), " / "_s, serializeLonghandValue(columnsIndex));
 }
 
 static bool canOmitTrailingGridAreaValue(CSSValue& value, CSSValue& trailing)
 {
-    if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value)) {
-        if (RefPtr customIdentTrailing = dynamicDowncast<CSSCustomIdentValue>(trailing))
-            return customIdentValue->customIdent() == customIdentTrailing->customIdent();
-        return false;
+    if (RefPtr gridLineValue = dynamicDowncast<CSSGridLineValue>(value)) {
+        if (RefPtr gridLineTrailing = dynamicDowncast<CSSGridLineValue>(trailing)) {
+            if (auto customIdent = gridLineValue->line().customIdent()) {
+                auto trailingCustomIdent = gridLineTrailing->line().customIdent();
+                return trailingCustomIdent && *customIdent == *trailingCustomIdent;
+            }
+        }
     }
+    if (RefPtr gridLineTrailing = dynamicDowncast<CSSGridLineValue>(trailing))
+        return gridLineTrailing->line().isAuto();
     return isValueID(trailing, CSSValueAuto);
 }
 
@@ -1181,9 +1232,12 @@ String ShorthandSerializer::serializeGridTemplate() const
     auto columnsIndex = longhandIndex(1, CSSPropertyGridTemplateColumns);
     auto areasIndex = longhandIndex(2, CSSPropertyGridTemplateAreas);
 
+    Ref rowsValue = longhandValue(rowsIndex);
+    Ref columnsValue = longhandValue(columnsIndex);
+
     RefPtr areasValue = dynamicDowncast<CSSGridTemplateAreasValue>(longhandValue(areasIndex));
     if (!areasValue) {
-        if (isLonghandValueNone(rowsIndex) && isLonghandValueNone(columnsIndex))
+        if (gridTemplateListIsNone(rowsValue) && gridTemplateListIsNone(columnsValue))
             return nameString(CSSValueNone);
         return serializeLonghands(2, " / "_s);
     }
@@ -1191,52 +1245,95 @@ String ShorthandSerializer::serializeGridTemplate() const
     // Depending on the values of grid-template-rows and grid-template-columns, we may not
     // be able to completely represent them in this version of the grid-template shorthand.
     // We need to make sure that those values map to a value the syntax supports
-    auto isValidTrackSize = [&](const CSSValue& value) {
-        if (const auto* keywordValue = dynamicDowncast<CSSKeywordValue>(value))
-            return CSSPropertyParserHelpers::identMatches<CSSValueFitContent, CSSValueMinmax>(keywordValue->valueID()) || CSSPropertyParserHelpers::isGridBreadthIdent(keywordValue->valueID());
-        if (const auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
-            return primitiveValue->isLength() || primitiveValue->isPercentage() || primitiveValue->isCalculated() || primitiveValue->isFlex();
-        return false;
-    };
-    auto isValidExplicitTrackList = [&] (const CSSValue& value) {
-        const auto* values = dynamicDowncast<CSSValueList>(value);
-        if (!values)
-            return isValidTrackSize(value);
-
-        auto hasAtLeastOneTrackSize = false;
-        for (Ref value : *values) {
-            if (isValidTrackSize(value.get()))
-                hasAtLeastOneTrackSize = true;
-            else if (!value->isGridLineNamesValue())
+    auto isValidExplicitTrackList = [&](const CSSValue& value) {
+        auto* templateList = dynamicDowncast<CSSGridTemplateListValue>(value);
+        if (!templateList)
+            return false;
+        return WTF::switchOn(templateList->list(),
+            [](CSS::Keyword::None) {
                 return false;
-        }
-        return hasAtLeastOneTrackSize;
+            },
+            [](const CSS::GridSubgrid&) {
+                return false;
+            },
+            [&](const CSS::GridTrackList& trackList) {
+                auto hasAtLeastOneTrackSize = false;
+                for (auto& track : trackList.value) {
+                    auto success = WTF::switchOn(track,
+                        [&](const CSS::GridLineNames&) {
+                            return true;
+                        },
+                        [&](const CSS::GridTrackSize&) {
+                            hasAtLeastOneTrackSize = true;
+                            return true;
+                        },
+                        [&](const CSS::GridTrackRepeatFunction&) {
+                            return false;
+                        }
+                    );
+                    if (!success)
+                        return false;
+                }
+                return hasAtLeastOneTrackSize;
+            }
+        );
     };
-
-    Ref rowTrackSizes = longhandValue(rowsIndex);
 
     // Make sure the longhands can be expressed in this version of the shorthand.
-    if (!rowTrackSizes->isValueList() || (!isLonghandValueNone(columnsIndex) && !isValidExplicitTrackList(longhandValue(columnsIndex))))
+
+    RefPtr rowsTemplateListValue = dynamicDowncast<CSSGridTemplateListValue>(rowsValue);
+    if (!rowsTemplateListValue)
+        return String();
+
+    bool isColumnsNone = gridTemplateListIsNone(columnsValue);
+    if (!isColumnsNone && !isValidExplicitTrackList(columnsValue))
         return String();
 
     StringBuilder result;
     unsigned row = 0;
-    for (Ref currentValue : downcast<CSSValueList>(rowTrackSizes.get())) {
-        if (!result.isEmpty())
-            result.append(' ');
-        if (RefPtr lineNames = dynamicDowncast<CSSGridLineNamesValue>(currentValue.get()))
-            result.append(lineNames->customCSSText(m_serializationContext));
-        else {
-            result.append('"', areasValue->stringForRow(row), '"');
-            if (!isValidTrackSize(currentValue.get()))
-                return String();
-            if (!isValueID(currentValue.get(), CSSValueAuto))
-                result.append(' ', currentValue->cssText(m_serializationContext));
-            row++;
+    bool validForShorthand = WTF::switchOn(rowsTemplateListValue->list(),
+        [&](const CSS::Keyword::None&) {
+            return false;
+        },
+        [&](const CSS::GridSubgrid&) {
+            return false;
+        },
+        [&](const CSS::GridTrackList& trackList) {
+            for (auto& track : trackList.value) {
+                if (!result.isEmpty())
+                    result.append(' ');
+
+                bool validForShorthand = WTF::switchOn(track,
+                    [&](const CSS::GridLineNames& lineNames) {
+                        CSS::serializationForCSS(result, m_serializationContext, lineNames);
+                        return true;
+                    },
+                    [&](const CSS::GridTrackSize& trackSize) {
+                        result.append('"', areasValue->stringForRow(row), '"');
+                        row++;
+
+                        if (!trackSize.isAuto()) {
+                            result.append(' ');
+                            CSS::serializationForCSS(result, m_serializationContext, trackSize);
+                        }
+                        return true;
+                    },
+                    [&](const CSS::GridTrackRepeatFunction&) {
+                        return false;
+                    }
+                );
+                if (!validForShorthand)
+                    return false;
+            }
+            return true;
         }
-    }
-    if (!isLonghandValueNone(columnsIndex))
+    );
+    if (!validForShorthand)
+        return String();
+
+    if (!isColumnsNone)
         result.append(" / "_s, serializeLonghandValue(columnsIndex));
+
     return result.toString();
 }
 

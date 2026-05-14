@@ -43,7 +43,7 @@ public:
 
     static bool supported(GraphicsContextGL&);
 
-    RefPtr<WebGLTimerQueryEXT> createQueryEXT();
+    Ref<WebGLTimerQueryEXT> createQueryEXT();
     void deleteQueryEXT(WebGLTimerQueryEXT*);
     GCGLboolean isQueryEXT(WebGLTimerQueryEXT*);
     void beginQueryEXT(GCGLenum target, WebGLTimerQueryEXT&);

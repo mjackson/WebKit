@@ -60,7 +60,7 @@ static ExceptionOr<String> computeReferrer(ScriptExecutionContext& context, cons
     if (referrer.isEmpty())
         return "no-referrer"_str;
 
-    URL referrerURL = context.completeURL(referrer, ScriptExecutionContext::ForceUTF8::Yes);
+    URL referrerURL = context.parseURL(referrer);
     if (!referrerURL.isValid())
         return Exception { ExceptionCode::TypeError, "Referrer is not a valid URL."_s };
 
@@ -195,7 +195,7 @@ ExceptionOr<void> FetchRequest::initializeWith(const String& url, Init&& init)
 {
     Ref context = *scriptExecutionContext();
 
-    URL requestURL = context->completeURL(url, ScriptExecutionContext::ForceUTF8::Yes);
+    URL requestURL = context->parseURL(url);
     if (!requestURL.isValid() || requestURL.hasCredentials())
         return Exception { ExceptionCode::TypeError, "URL is not valid or contains user credentials."_s };
 
@@ -308,7 +308,7 @@ ExceptionOr<void> FetchRequest::setBody(FetchRequest& request)
             return Exception { ExceptionCode::TypeError, makeString("Request has method '"_s, m_request.httpMethod(), "' and cannot have a body"_s) };
 
         RefPtr context = scriptExecutionContext();
-        auto* globalObject = context ? uncheckedDowncast<JSDOMGlobalObject>(context->globalObject()) : nullptr;
+        auto* globalObject = context ? downcast<JSDOMGlobalObject>(context->globalObject()) : nullptr;
         m_body = request.m_body->createProxy(*globalObject);
         request.setDisturbed();
     }

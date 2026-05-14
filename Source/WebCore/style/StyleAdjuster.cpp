@@ -220,7 +220,7 @@ bool Adjuster::adjustEventListenerRegionTypesForRootStyle(RenderStyle& rootStyle
 
 #if ENABLE(TOUCH_EVENT_REGIONS)
     // https://html.spec.whatwg.org/multipage/interactive-elements.html#run-light-dismiss-activities
-    if (document.needsPointerEventHandlingForPopoverOrDialog()) {
+    if (document.shouldUseTouchEventRegions() && document.needsPointerEventHandlingForPopoverOrDialog()) {
         regionTypes.add(EventListenerRegionType::PointerDown);
         regionTypes.add(EventListenerRegionType::PointerUp);
     }
@@ -262,7 +262,7 @@ OptionSet<EventListenerRegionType> Adjuster::computeEventListenerRegionTypes(con
     }
 #endif
 #if ENABLE(TOUCH_EVENT_REGIONS)
-    if (eventTarget.hasEventListeners()) {
+    if (document.shouldUseTouchEventRegions() && eventTarget.hasEventListeners()) {
         findListeners(eventNames().touchstartEvent, EventListenerRegionType::TouchStart, EventListenerRegionType::NonPassiveTouchStart);
         findListeners(eventNames().touchendEvent, EventListenerRegionType::TouchEnd, EventListenerRegionType::NonPassiveTouchEnd);
         // `touchcancel` is sent after the event has already been cancelled. Calling preventDefault() has no effect, so we don't
@@ -554,7 +554,7 @@ void Adjuster::adjust(RenderStyle& style) const
         }
 
         // Make sure our z-index value is only applied if the object is positioned.
-        return style.position() == PositionType::Static && !parentBoxStyle.display().isFlexibleOrGridFormattingContextBox();
+        return style.position() == PositionType::Static && !parentBoxStyle.display().isFlexibleBoxIncludingDeprecatedOrGridFormattingContextBox();
     };
 
     bool hasAutoSpecifiedZIndex = hasAutoZIndex(style, m_parentBoxStyle, m_element.get());

@@ -46,8 +46,8 @@ SCOPE CHAIN:
     Closure
       - closureVariable2: 4
     Closure
-      - closureVariable1: 3
       - innerScope: function innerScope() {
+      - closureVariable1: 3
     GlobalLexicalEnvironment
       - lexicalGlobalVariable: 2
     Global

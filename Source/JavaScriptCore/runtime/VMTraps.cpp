@@ -37,6 +37,7 @@
 #include "MachineContext.h"
 #include "MacroAssemblerCodeRef.h"
 #include "VMEntryScopeInlines.h"
+#include "VMInlines.h"
 #include "VMManager.h"
 #include "VMTrapsInlines.h"
 #include "WaiterListManager.h"

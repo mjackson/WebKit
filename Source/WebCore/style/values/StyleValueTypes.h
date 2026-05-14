@@ -29,8 +29,6 @@
 #include <WebCore/CSSValueTypes.h>
 #include <optional>
 #include <tuple>
-#include <utility>
-#include <wtf/StdLibExtras.h>
 
 namespace WebCore {
 

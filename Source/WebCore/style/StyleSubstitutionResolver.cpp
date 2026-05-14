@@ -339,7 +339,9 @@ bool SubstitutionResolver::substituteDashedFunction(StringView functionName, CSS
     if (guard.isCyclicContext())
         return false;
 
+    // Tokens reference resolvedResult's string backing; keep it alive until CSSVariableData re-captures.
     tokens.appendVector(resolvedResult->tokens());
+    m_intermediateCustomProperties.append(WTF::move(resolvedResult));
     return true;
 }
 
@@ -714,11 +716,13 @@ RefPtr<CSSVariableData> SubstitutionResolver::substitute(const CSSSubstitutionVa
     auto substitutedTokens = substituteTokenRange(value.m_data->tokenRange(), context);
     if (!substitutedTokens) {
         m_intermediateTokenStrings.clear();
+        m_intermediateCustomProperties.clear();
         return nullptr;
     }
 
     auto data = CSSVariableData::create(*substitutedTokens, m_isAttrTainted ? IsAttrTainted::Yes : IsAttrTainted::No, context);
     m_intermediateTokenStrings.clear();
+    m_intermediateCustomProperties.clear();
     return data;
 }
 

@@ -28,10 +28,10 @@
 
 #include "AnimationFrameRate.h"
 #include "Document.h"
-#include "ReducedResolutionSeconds.h"
 #include "Timer.h"
 #include <wtf/CheckedPtr.h>
 #include <wtf/OptionSet.h>
+#include <wtf/ReducedResolutionSeconds.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
 #include <wtf/Vector.h>

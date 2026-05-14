@@ -69,6 +69,7 @@
 #include "JSObjectGetProxyTargetTest.h"
 #include "MultithreadedMultiVMExecutionTest.h"
 #include "PingPongStackOverflowTest.h"
+#include "TemporalCoreTest.h"
 #include "TypedArrayCTest.h"
 #include "VMManagerStopTheWorldTest.h"
 
@@ -2334,6 +2335,7 @@ int main(int argc, char* argv[])
         JSGlobalContextRelease(context);
     }
     failed |= testTypedArrayCAPI();
+    failed |= testTemporalCore();
     failed |= testFunctionOverrides();
     failed |= testFunctionToString();
     failed |= testGlobalContextWithFinalizer();

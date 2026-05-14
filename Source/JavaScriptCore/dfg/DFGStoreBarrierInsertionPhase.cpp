@@ -289,7 +289,14 @@ private:
                 }
                 break;
             }
-                
+            case ArraySortCommit: {
+                considerBarrier(m_node->child1());
+                break;
+            }
+            case ArraySortCompact: {
+                considerBarrier(Edge(m_node, KnownCellUse));
+                break;
+            }
             case PutPrivateName: {
                 if (!m_graph.m_slowPutByVal.contains(m_node) && (m_node->child1().useKind() == CellUse || m_node->child1().useKind() == KnownCellUse))
                     // FIXME: there are some cases where we can avoid a store barrier by considering the value https://bugs.webkit.org/show_bug.cgi?id=230377
@@ -339,6 +346,11 @@ private:
             case SetRegExpObjectLastIndex:
             case PutInternalField: {
                 considerBarrier(m_node->child1(), m_node->child2());
+                break;
+            }
+
+            case PutCellButterflySlot: {
+                considerBarrier(m_node->child1(), m_node->child3());
                 break;
             }
 
@@ -394,6 +406,7 @@ private:
             case NewArrayWithSizeAndStructure:
             case NewArrayBuffer:
             case NewInternalFieldObject:
+            case NewPromise:
             case NewTypedArray:
             case NewTypedArrayBuffer:
             case NewRegExp:

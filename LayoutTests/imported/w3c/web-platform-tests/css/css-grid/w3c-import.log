@@ -89,6 +89,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/grid-relayout-with-nested-grid-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/grid-relayout-with-nested-grid-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/grid-relayout-with-nested-grid.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/grid-stale-layoutbox-crash.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/grid-table-cell-001-crash.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/grid-tracks-fractional-fr.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/grid-tracks-stretched-with-different-flex-factors-sum.html

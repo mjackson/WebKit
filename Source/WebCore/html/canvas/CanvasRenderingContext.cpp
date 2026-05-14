@@ -73,7 +73,7 @@ Lock& CanvasRenderingContext::instancesLock()
 CanvasRenderingContext::CanvasRenderingContext(CanvasBase& canvas, Type type)
     : m_canvas(canvas)
     , m_type(type)
-    , m_owningThreadUID(Thread::currentSingleton().uid())
+    , m_owningThreadUID(currentThreadID())
 {
     Locker locker { instancesLock() };
     instances().add(this);

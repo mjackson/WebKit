@@ -110,13 +110,13 @@ list(APPEND WebKit_SERIALIZATION_IN_FILES Shared/glib/RendererBufferFormat.seria
 
 if (USE_GBM)
   list(APPEND WebKit_SERIALIZATION_IN_FILES
-      Shared/gbm/DMABufBuffer.serialization.in
       Shared/gbm/DRMDevice.serialization.in
   )
 endif ()
 
 list(APPEND WebKit_SERIALIZATION_IN_FILES
     Shared/glib/AvailableInputDevices.serialization.in
+    Shared/glib/DMABufBufferAttributes.serialization.in
     Shared/glib/InputMethodState.serialization.in
     Shared/glib/RenderProcessInfo.serialization.in
     Shared/glib/RendererBufferTransportMode.serialization.in
@@ -581,7 +581,7 @@ WEBKIT_BUILD_INSPECTOR_GRESOURCES(
 install(FILES "${CMAKE_BINARY_DIR}/share/inspector.gresource" DESTINATION "${CMAKE_INSTALL_FULL_DATADIR}/wpe-webkit-${WPE_API_VERSION}")
 
 add_library(WPEInjectedBundle MODULE "${WEBKIT_DIR}/WebProcess/InjectedBundle/API/glib/WebKitInjectedBundleMain.cpp")
-ADD_WEBKIT_PREFIX_HEADERS(WPEInjectedBundle WebKit2Prefix.h)
+WEBKIT_ADD_PREFIX_HEADER(WPEInjectedBundle WebKitPrefix.h PREFIX_LANGUAGES CXX)
 target_link_libraries(WPEInjectedBundle WebKit)
 
 target_include_directories(WPEInjectedBundle PRIVATE $<TARGET_PROPERTY:WebKit,INCLUDE_DIRECTORIES>)

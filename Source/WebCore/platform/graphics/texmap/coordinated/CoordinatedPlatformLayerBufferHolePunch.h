@@ -46,12 +46,12 @@ public:
 #endif
     virtual ~CoordinatedPlatformLayerBufferHolePunch();
 
+#if USE(GSTREAMER)
+    void setHolePunchVideoRectangle(const IntRect&);
+#endif
+
 private:
     void paintToTextureMapper(TextureMapper&, const FloatRect&, const TransformationMatrix& modelViewMatrix = TransformationMatrix(), float opacity = 1.0) override;
-
-#if USE(SKIA)
-    void paintToCanvas(SkCanvas&, const FloatRect&, const SkPaint&) override;
-#endif
 
 #if USE(GSTREAMER)
     GRefPtr<GstElement> m_videoSink;

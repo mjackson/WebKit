@@ -52,12 +52,14 @@
         run('source.endOfStream()');
         testExpected('source.duration.toFixed(3)', 5);
         testExpected('sourceBuffer.updating', false);
-
-        endTest();
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

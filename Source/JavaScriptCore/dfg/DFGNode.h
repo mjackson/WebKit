@@ -912,6 +912,33 @@ public:
         m_opInfo2 = OpInfoWrapper();
     }
 
+    void convertToNewPromise(RegisteredStructure structure)
+    {
+        ASSERT(m_op == CreatePromise);
+        setOpAndDefaultFlags(NewPromise);
+        children.reset();
+        m_opInfo = structure;
+        m_opInfo2 = OpInfoWrapper();
+    }
+
+    void convertToPhantomNewPromise()
+    {
+        ASSERT(m_op == NewPromise);
+        setOpAndDefaultFlags(PhantomNewPromise);
+        m_opInfo = OpInfoWrapper();
+        m_opInfo2 = OpInfoWrapper();
+        children = AdjacencyList();
+    }
+
+    void convertToNewResolvedPromise(Edge argument)
+    {
+        ASSERT(m_op == PromiseResolve);
+        setOpAndDefaultFlags(NewResolvedPromise);
+        children = AdjacencyList(AdjacencyList::Fixed, argument);
+        m_opInfo = OpInfoWrapper();
+        m_opInfo2 = OpInfoWrapper();
+    }
+
     void NODELETE convertToNewArrayBuffer(FrozenValue* immutableButterfly);
     void NODELETE convertToNewArrayWithSize();
     void NODELETE convertToNewArrayWithButterfly(Graph&, Node* butterfly);
@@ -928,6 +955,20 @@ public:
     void NODELETE convertToRegExpExecNonGlobalOrStickyWithoutChecks(FrozenValue* regExp);
     void NODELETE convertToRegExpMatchFastGlobalWithoutChecks(FrozenValue* regExp);
     void NODELETE convertToRegExpTestInline(FrozenValue* globalObject, FrozenValue* regExp);
+
+    enum DescriptorSlot : unsigned {
+        EnumerableSlot = 0,
+        ConfigurableSlot,
+        ValueSlot,
+        WritableSlot,
+        GetSlot,
+        SetSlot,
+    };
+    static constexpr unsigned numberOfDescriptorSlots = 6;
+    void convertToDefineDataProperty(Graph&, Edge base, Edge property, Edge value, Edge attributes);
+    void convertToDefineAccessorProperty(Graph&, Edge base, Edge property, Edge getter, Edge setter, Edge attributes);
+    void convertToObjectDefinePropertyFromFields(Graph&, Edge target, Edge key, Edge enumerable, Edge configurable, Edge value, Edge writable, Edge getter, Edge setter);
+    void convertToPutByIdDirect(Graph&, Edge base, Edge value, CacheableIdentifier, ECMAMode);
 
     void convertToSetRegExpObjectLastIndex()
     {
@@ -2388,6 +2429,7 @@ public:
         case MaterializeNewInternalFieldObject:
         case NewObject:
         case NewInternalFieldObject:
+        case NewPromise:
         case NewStringObject:
         case NewRegExpUntyped:
         case NewMap:
@@ -2596,6 +2638,7 @@ public:
         case PhantomNewAsyncFunction:
         case PhantomNewAsyncGeneratorFunction:
         case PhantomNewInternalFieldObject:
+        case PhantomNewPromise:
         case PhantomCreateActivation:
         case PhantomNewRegExp:
             return true;
@@ -2688,6 +2731,9 @@ public:
         case AtomicsSub:
         case AtomicsXor:
         case NewArrayWithSpecies:
+        case ArraySortCompact:
+        case ArraySortCommit:
+        case GetCellButterflySlot:
             return true;
         default:
             return false;

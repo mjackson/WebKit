@@ -604,9 +604,12 @@ Ref<RenderPassEncoder> CommandEncoder::beginRenderPass(const WGPURenderPassDescr
             if (!(texture.usage() & WGPUTextureUsage_RenderAttachment) || !Texture::isColorRenderableFormat(textureFormat, m_device))
                 return RenderPassEncoder::createInvalid(*this, m_device, @"color attachment is not renderable");
 
-            if (!isRenderableTextureView(texture))
+            if (!isRenderableTextureView(texture, attachment.loadOp, attachment.storeOp))
                 return RenderPassEncoder::createInvalid(*this, m_device, @"texture view is not renderable");
         }
+        if (!isAllowableTextureView(texture, attachment.loadOp, attachment.storeOp))
+            return RenderPassEncoder::createInvalid(*this, m_device, @"texture view is not renderable");
+
         texture.setCommandEncoder(*this);
 
         id<MTLTexture> mtlTexture = texture.texture();
@@ -661,7 +664,7 @@ Ref<RenderPassEncoder> CommandEncoder::beginRenderPass(const WGPURenderPassDescr
                 return RenderPassEncoder::createInvalid(*this, m_device, @"resolve target created from different device");
             resolveTarget.setCommandEncoder(*this);
             id<MTLTexture> resolveTexture = resolveTarget.texture();
-            if (mtlTexture.sampleCount == 1 || resolveTexture.sampleCount != 1 || isMultisampleTexture(resolveTexture) || !isMultisampleTexture(mtlTexture) || !isRenderableTextureView(resolveTarget) || mtlTexture.pixelFormat != resolveTexture.pixelFormat || !Texture::supportsResolve(resolveTarget.format(), m_device))
+            if (mtlTexture.sampleCount == 1 || resolveTexture.sampleCount != 1 || isMultisampleTexture(resolveTexture) || !isMultisampleTexture(mtlTexture) || !isRenderableTextureView(resolveTarget, attachment.loadOp, attachment.storeOp) || mtlTexture.pixelFormat != resolveTexture.pixelFormat || !Texture::supportsResolve(resolveTarget.format(), m_device))
                 return RenderPassEncoder::createInvalid(*this, m_device, @"resolve target is invalid");
 
             mtlAttachment.resolveTexture = resolveTexture;
@@ -707,9 +710,12 @@ Ref<RenderPassEncoder> CommandEncoder::beginRenderPass(const WGPURenderPassDescr
             if (textureView.arrayLayerCount() > 1 || textureView.mipLevelCount() > 1)
                 return RenderPassEncoder::createInvalid(*this, m_device, @"depth stencil texture has more than one array layer or mip level");
 
-            if (!Texture::isDepthStencilRenderableFormat(textureView.format(), m_device) || !isRenderableTextureView(textureView))
+            if (!Texture::isDepthStencilRenderableFormat(textureView.format(), m_device) || !isRenderableTextureView(textureView, attachment->depthLoadOp, attachment->depthStoreOp))
                 return RenderPassEncoder::createInvalid(*this, m_device, @"depth stencil texture is not renderable");
         }
+
+        if (!isAllowableTextureView(textureView, attachment->depthLoadOp, attachment->depthStoreOp))
+            return RenderPassEncoder::createInvalid(*this, m_device, @"depth stencil texture is not renderable");
 
         depthReadOnly = attachment->depthReadOnly;
         if (hasDepthComponent) {

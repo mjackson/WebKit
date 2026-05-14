@@ -617,18 +617,16 @@ void genericSplit(
 }
 
 // ES 21.2.5.11 RegExp.prototype[@@split](string, limit)
-JSC_DEFINE_HOST_FUNCTION(regExpProtoFuncSplitFast, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSCell* regExpSplitFast(JSGlobalObject* globalObject, RegExpObject* regexpObject, JSString* inputString, unsigned limit)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     // 1. [handled by JS builtin] Let rx be the this value.
     // 2. [handled by JS builtin] If Type(rx) is not Object, throw a TypeError exception.
-    JSValue thisValue = callFrame->thisValue();
-    RegExp* regexp = uncheckedDowncast<RegExpObject>(thisValue)->regExp();
+    RegExp* regexp = regexpObject->regExp();
 
     // 3. [handled by JS builtin] Let S be ? ToString(string).
-    JSString* inputString = callFrame->argument(0).toString(globalObject);
     auto input = inputString->view(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
     ASSERT(!input->isNull());
@@ -646,9 +644,7 @@ JSC_DEFINE_HOST_FUNCTION(regExpProtoFuncSplitFast, (JSGlobalObject* globalObject
     unsigned resultLength = 0;
 
     // 13. If limit is undefined, let lim be 2^32-1; else let lim be ? ToUint32(limit).
-    JSValue limitValue = callFrame->argument(1);
-    unsigned limit = limitValue.isUndefined() ? 0xFFFFFFFFu : limitValue.toUInt32(globalObject);
-    RETURN_IF_EXCEPTION(scope, { });
+    // (handled by caller)
 
     // 14. Let size be the number of elements in S.
     unsigned inputSize = input->length();
@@ -658,7 +654,7 @@ JSC_DEFINE_HOST_FUNCTION(regExpProtoFuncSplitFast, (JSGlobalObject* globalObject
 
     // 16. If lim == 0, return A.
     if (!limit)
-        RELEASE_AND_RETURN(scope, JSValue::encode(constructEmptyArray(globalObject, nullptr)));
+        RELEASE_AND_RETURN(scope, constructEmptyArray(globalObject, nullptr));
 
     // 17. If size == 0, then
     if (input->isEmpty()) {
@@ -674,7 +670,7 @@ JSC_DEFINE_HOST_FUNCTION(regExpProtoFuncSplitFast, (JSGlobalObject* globalObject
             result->putDirectIndex(globalObject, 0, inputString);
             RETURN_IF_EXCEPTION(scope, { });
         }
-        return JSValue::encode(result);
+        return result;
     }
 
     // Fast path for newline splitting pattern: \r\n?|\n
@@ -718,12 +714,12 @@ JSC_DEFINE_HOST_FUNCTION(regExpProtoFuncSplitFast, (JSGlobalObject* globalObject
             globalObject->regExpGlobalData().recordMatch(vm, globalObject, regexp, inputString, lastMatchResult, false);
 
         if (resultLength >= limit)
-            return JSValue::encode(result);
+            return result;
 
         result->putDirectIndex(globalObject, resultLength++, jsSubstringOfResolved(vm, inputString, position, inputSize - position));
         RETURN_IF_EXCEPTION(scope, { });
 
-        return JSValue::encode(result);
+        return result;
     }
 
     // 18. Let q = p.
@@ -756,15 +752,15 @@ JSC_DEFINE_HOST_FUNCTION(regExpProtoFuncSplitFast, (JSGlobalObject* globalObject
     RETURN_IF_EXCEPTION(scope, { });
 
     if (resultLength >= limit)
-        return JSValue::encode(result);
+        return result;
     if (resultLength < maxSizeForDirectPath) {
         // 20. Let T be a String value equal to the substring of S consisting of the elements at indices p (inclusive) through size (exclusive).
         // 21. Perform ! CreateDataProperty(A, ! ToString(lengthA), T).
         scope.release();
         result->putDirectIndex(globalObject, resultLength, jsSubstringOfResolved(vm, inputString, position, inputSize - position));
-        
+
         // 22. Return A.
-        return JSValue::encode(result);
+        return result;
     }
     
     // Now do a dry run to see how big things get. Give up if they get absurd.
@@ -810,14 +806,31 @@ JSC_DEFINE_HOST_FUNCTION(regExpProtoFuncSplitFast, (JSGlobalObject* globalObject
     RETURN_IF_EXCEPTION(scope, { });
 
     if (resultLength >= limit)
-        return JSValue::encode(result);
-    
+        return result;
+
     // 20. Let T be a String value equal to the substring of S consisting of the elements at indices p (inclusive) through size (exclusive).
     // 21. Perform ! CreateDataProperty(A, ! ToString(lengthA), T).
     scope.release();
     result->putDirectIndex(globalObject, resultLength, jsSubstringOfResolved(vm, inputString, position, inputSize - position));
     // 22. Return A.
-    return JSValue::encode(result);
+    return result;
+}
+
+JSC_DEFINE_HOST_FUNCTION(regExpProtoFuncSplitFast, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    RegExpObject* regexp = uncheckedDowncast<RegExpObject>(callFrame->thisValue());
+
+    JSString* inputString = callFrame->argument(0).toString(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    JSValue limitValue = callFrame->argument(1);
+    unsigned limit = limitValue.isUndefined() ? 0xFFFFFFFFu : limitValue.toUInt32(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    RELEASE_AND_RETURN(scope, JSValue::encode(regExpSplitFast(globalObject, regexp, inputString, limit)));
 }
 
 // https://tc39.es/ecma262/#sec-getsubstitution

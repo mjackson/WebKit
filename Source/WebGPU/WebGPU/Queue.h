@@ -34,6 +34,7 @@
 #import <wtf/SwiftBridging.h>
 #import <wtf/TZoneMalloc.h>
 #import <wtf/ThreadSafeRefCounted.h>
+#import <wtf/ThreadSafeWeakPtr.h>
 #import <wtf/Vector.h>
 #import <wtf/WeakPtr.h>
 

@@ -812,36 +812,60 @@ UNIFIED_PDF_TEST(WebProcessShouldNotCrashWithUISideCompositingDisabled)
     EXPECT_FALSE([delegate webProcessCrashed]);
 }
 
-UNIFIED_PDF_TEST(SelectAllText)
+static void runSelectAllAndVerifySelectedTextMatches(NSString *expected, void (^loadContent)(TestWKWebView *webView))
 {
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configurationForWebViewTestingUnifiedPDF().get()]);
-    [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"test" withExtension:@"pdf"]]];
-
-    auto selectAllText = [](TestWKWebView *webView) {
-#if PLATFORM(IOS_FAMILY)
-        [webView selectTextInGranularity:UITextGranularityDocument atPoint:CGPointMake(100, 100)];
-#else
-        [[webView window] makeFirstResponder:webView];
-        [[webView window] makeKeyAndOrderFront:nil];
-        [[webView window] orderFrontRegardless];
-        [webView sendClickAtPoint:NSMakePoint(100, 100)];
-        [webView selectAll:nil];
-#endif
-    };
-
-    selectAllText(webView.get());
+    loadContent(webView.get());
     [webView waitForNextPresentationUpdate];
 
 #if PLATFORM(IOS_FAMILY)
-    RetainPtr contentView = [webView textInputContentView];
-    RetainPtr selectedText = [contentView selectedText];
+    [webView selectTextInGranularity:UITextGranularityDocument atPoint:CGPointMake(100, 100)];
+    [webView waitForNextPresentationUpdate];
+
+    RetainPtr selectedText = [[webView textInputContentView] selectedText];
 #else
+    [[NSPasteboard generalPasteboard] clearContents];
+
+    [[webView window] makeFirstResponder:webView.get()];
+    [[webView window] makeKeyAndOrderFront:nil];
+    [[webView window] orderFrontRegardless];
+
+    [webView sendClickAtPoint:NSMakePoint(100, 100)];
+    [webView selectAll:nil];
+    [webView waitForNextPresentationUpdate];
     [webView copy:nil];
     [webView waitForNextPresentationUpdate];
+
     RetainPtr selectedText = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
 #endif
-    EXPECT_WK_STREQ(@"Test PDF Content\n555-555-1234", selectedText.get());
+
+    EXPECT_WK_STREQ(expected, selectedText.get());
 }
+
+UNIFIED_PDF_TEST(SelectAllText)
+{
+    runSelectAllAndVerifySelectedTextMatches(@"Test PDF Content\n555-555-1234", ^(TestWKWebView *webView) {
+        [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"test" withExtension:@"pdf"]]];
+    });
+}
+
+#if PLATFORM(MAC)
+
+UNIFIED_PDF_TEST(SelectAllTextInEmbedHostedPDF)
+{
+    runSelectAllAndVerifySelectedTextMatches(@"Test PDF Content\n555-555-1234", ^(TestWKWebView *webView) {
+        [webView synchronouslyLoadHTMLString:@"<embed src='test.pdf' width='600' height='600'>"];
+    });
+}
+
+UNIFIED_PDF_TEST(SelectAllTextInObjectHostedPDF)
+{
+    runSelectAllAndVerifySelectedTextMatches(@"Test PDF Content\n555-555-1234", ^(TestWKWebView *webView) {
+        [webView synchronouslyLoadHTMLString:@"<object type='application/pdf' data='test.pdf' width='600' height='600'></object>"];
+    });
+}
+
+#endif // PLATFORM(MAC)
 
 #if PLATFORM(IOS_FAMILY)
 

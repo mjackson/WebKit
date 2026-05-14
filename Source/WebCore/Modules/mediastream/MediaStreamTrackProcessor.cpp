@@ -90,7 +90,7 @@ ExceptionOr<Ref<ReadableStream>> MediaStreamTrackProcessor::readable(JSC::JSGlob
     if (!m_readable) {
         if (!m_readableStreamSource)
             lazyInitialize(m_readableStreamSource, makeUniqueWithoutRefCountedCheck<Source>(*this));
-        auto readableOrException = ReadableStream::create(uncheckedDowncast<JSDOMGlobalObject>(globalObject), *m_readableStreamSource);
+        auto readableOrException = ReadableStream::create(downcast<JSDOMGlobalObject>(globalObject), *m_readableStreamSource);
         if (readableOrException.hasException()) {
             m_readableStreamSource->setAsCancelled();
             return readableOrException.releaseException();
@@ -256,7 +256,7 @@ void MediaStreamTrackProcessor::Source::enqueue(WebCodecsVideoFrame& frame, Scri
 {
     ASSERT(!m_isCancelled);
 
-    auto* globalObject = uncheckedDowncast<JSDOMGlobalObject>(context.globalObject());
+    auto* globalObject = downcast<JSDOMGlobalObject>(context.globalObject());
     if (!globalObject)
         return;
 

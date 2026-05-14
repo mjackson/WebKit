@@ -21,14 +21,14 @@ Command: StopCommand
 ACTION: seekto
 Command: SeekToPlaybackPositionCommand
 Iterate over all possible actions
-Command: PauseCommand
-Command: PlayCommand
-Command: SkipBackwardCommand
 Command: SkipForwardCommand
-Command: SeekToPlaybackPositionCommand
+Command: SkipBackwardCommand
 Command: PreviousTrackCommand
-Command: NextTrackCommand
+Command: PlayCommand
+Command: SeekToPlaybackPositionCommand
 Command: StopCommand
+Command: PauseCommand
+Command: NextTrackCommand
 Iterate over possible actions after video element src is cleared
 RUN(video.src = "")
 EVENT(loadstart)

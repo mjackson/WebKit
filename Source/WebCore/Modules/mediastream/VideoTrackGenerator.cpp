@@ -46,7 +46,7 @@ ExceptionOr<Ref<VideoTrackGenerator>> VideoTrackGenerator::create(ScriptExecutio
 {
     auto source = Source::create(context.identifier());
     auto sink = Sink::create(Ref { source });
-    auto writableOrException = WritableStream::create(*uncheckedDowncast<JSDOMGlobalObject>(context.globalObject()), Ref { sink });
+    auto writableOrException = WritableStream::create(*downcast<JSDOMGlobalObject>(context.globalObject()), Ref { sink });
 
     if (writableOrException.hasException())
         return writableOrException.releaseException();

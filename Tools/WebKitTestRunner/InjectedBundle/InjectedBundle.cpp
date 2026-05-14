@@ -682,6 +682,13 @@ WKRetainPtr<WKStringRef> InjectedBundle::lastRemovedBackgroundFetchIdentifier() 
     return adoptWK(static_cast<WKStringRef>(result));
 }
 
+WKRetainPtr<WKStringRef> InjectedBundle::lastProvisionalNavigationFailureURL() const
+{
+    WKTypeRef result = nullptr;
+    WKBundlePagePostSynchronousMessageForTesting(page()->page(), toWK("LastProvisionalNavigationFailureURL").get(), 0, &result);
+    return adoptWK(static_cast<WKStringRef>(result));
+}
+
 WKRetainPtr<WKStringRef> InjectedBundle::lastUpdatedBackgroundFetchIdentifier() const
 {
     WKTypeRef result = nullptr;

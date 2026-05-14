@@ -55,6 +55,7 @@
 #import "RenderButton.h"
 #import "RenderMenulist.h"
 #import "RenderMeter.h"
+#import "RenderObjectInlines.h"
 #import "RenderProgress.h"
 #import "RenderSlider.h"
 #import "RenderStyle+SettersInlines.h"

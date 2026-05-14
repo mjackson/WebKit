@@ -345,6 +345,7 @@ PlatformXR::DeviceLayer WebXRWebGLLayer::endFrame()
         .forceMonoPresentation = false,
         .quadLayerData = std::nullopt,
         .equirectLayerData = std::nullopt,
+        .cylinderLayerData = std::nullopt,
 #endif
 #endif
     };

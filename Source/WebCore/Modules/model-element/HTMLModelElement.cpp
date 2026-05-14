@@ -29,6 +29,7 @@
 
 #if ENABLE(MODEL_ELEMENT)
 
+#include "ARKitBadgeSystemImage.h"
 #include "AbortSignal.h"
 #include "ContainerNodeInlines.h"
 #include "DOMMatrixReadOnly.h"
@@ -47,6 +48,7 @@
 #include "FrameDestructionObserverInlines.h"
 #include "GraphicsLayer.h"
 #include "GraphicsLayerCA.h"
+#include "HTMLAnchorElement.h"
 #include "HTMLModelElementCamera.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
@@ -97,7 +99,7 @@
 #include "DocumentImmersive.h"
 #endif
 
-#if ENABLE(TOUCH_EVENTS) && ENABLE(GPU_PROCESS_MODEL)
+#if ENABLE(TOUCH_EVENTS) && (ENABLE(GPU_PROCESS_MODEL) || ENABLE(MODEL_PROCESS))
 #include <WebCore/TouchEvent.h>
 #endif
 
@@ -937,6 +939,28 @@ void HTMLModelElement::defaultEventHandler(Event& event)
 {
     HTMLElement::defaultEventHandler(event);
 
+#if USE(SYSTEM_PREVIEW)
+    // Swallow synthesized click events on the model body inside an <a rel="ar"> so they don't
+    // bubble to the anchor and trigger AR Quick Look. Taps that land on the badge sub-rect ARE
+    // allowed to reach the anchor (that's how AR is launched). We only intercept click here —
+    // not touchstart/mousedown — so the visionOS gesture system still sees the initial touch
+    // events and can drive stagemode="orbit" interaction. This must run BEFORE the
+    // supportsMouseInteraction early-return below, because on visionOS ModelProcessModelPlayer
+    // inherits supportsMouseInteraction() = false, which would otherwise skip all consumption.
+    if (event.type() == eventNames().clickEvent) {
+        if (RefPtr anchor = dynamicDowncast<HTMLAnchorElement>(parentElement()); anchor && anchor->isSystemPreviewLink()) {
+            FloatPoint localPoint;
+            if (auto* mouseEvent = dynamicDowncast<MouseEvent>(&event))
+                localPoint = FloatPoint(mouseEvent->offsetX(), mouseEvent->offsetY());
+            if (!isPointInSystemPreviewBadge(localPoint)) {
+                event.preventDefault();
+                event.setDefaultHandled();
+                event.stopPropagation();
+            }
+        }
+    }
+#endif
+
     RefPtr modelPlayer = m_modelPlayer;
     if (!modelPlayer || !modelPlayer->supportsMouseInteraction())
         return;
@@ -944,11 +968,16 @@ void HTMLModelElement::defaultEventHandler(Event& event)
     auto type = event.type();
     bool isMouseEvent = type == eventNames().mousedownEvent || type == eventNames().mousemoveEvent || type == eventNames().mouseupEvent;
 
-#if ENABLE(TOUCH_EVENTS) && ENABLE(GPU_PROCESS_MODEL)
-    bool isTouchEvent = type == eventNames().touchstartEvent || type == eventNames().touchmoveEvent || type == eventNames().touchendEvent;
+#if ENABLE(TOUCH_EVENTS) && (ENABLE(GPU_PROCESS_MODEL) || ENABLE(MODEL_PROCESS))
+    bool isTouchEvent = type == eventNames().touchstartEvent || type == eventNames().touchmoveEvent || type == eventNames().touchendEvent || type == eventNames().touchcancelEvent;
 
     if (isTouchEvent) {
         auto& touchEvent = downcast<TouchEvent>(event);
+
+#if USE(SYSTEM_PREVIEW)
+        if (type == eventNames().touchstartEvent && !m_isDragging && isPointInSystemPreviewBadge(FloatPoint(touchEvent.offsetX(), touchEvent.offsetY())))
+            return;
+#endif
 
         if (type == eventNames().touchstartEvent && !m_isDragging && !event.defaultPrevented() && isInteractive())
             dragDidStart(touchEvent);
@@ -968,6 +997,11 @@ void HTMLModelElement::defaultEventHandler(Event& event)
     if (mouseEvent.button() != MouseButton::Left)
         return;
 
+#if USE(SYSTEM_PREVIEW)
+    if (type == eventNames().mousedownEvent && !m_isDragging && isPointInSystemPreviewBadge(FloatPoint(mouseEvent.offsetX(), mouseEvent.offsetY())))
+        return;
+#endif
+
     if (type == eventNames().mousedownEvent && !m_isDragging && !event.defaultPrevented() && isInteractive())
         dragDidStart(mouseEvent);
     else if (type == eventNames().mousemoveEvent && m_isDragging)
@@ -983,6 +1017,37 @@ LayoutPoint HTMLModelElement::flippedLocationInElementForMouseEvent(WebCore::Mou
         flippedY = renderModel->paddingBoxHeight() - flippedY;
     return { LayoutUnit(event.offsetX()), flippedY };
 }
+
+#if USE(SYSTEM_PREVIEW)
+bool HTMLModelElement::isPointInSystemPreviewBadge(const FloatPoint& localPoint) const
+{
+    if (!document().settings().systemPreviewEnabled())
+        return false;
+
+    RefPtr anchor = dynamicDowncast<HTMLAnchorElement>(parentElement());
+    if (!anchor || !anchor->isSystemPreviewLink())
+        return false;
+
+    CheckedPtr renderModel = dynamicDowncast<RenderModel>(renderer());
+    if (!renderModel)
+        return false;
+
+    using BadgeMetrics = ARKitBadgeSystemImage::BadgeMetrics;
+    float width = renderModel->paddingBoxWidth();
+    float height = renderModel->paddingBoxHeight();
+
+    bool useSmallBadge = width < BadgeMetrics::minimumSizeForLarge || height < BadgeMetrics::minimumSizeForLarge;
+    float badgeDimension = useSmallBadge ? BadgeMetrics::smallDimension : BadgeMetrics::largeDimension;
+    float badgeOffset = useSmallBadge ? BadgeMetrics::smallOffset : BadgeMetrics::largeOffset;
+
+    float minimumDimension = badgeDimension + 2 * badgeOffset;
+    if (width < minimumDimension || height < minimumDimension)
+        return false;
+
+    FloatRect badgeRect { width - badgeDimension - badgeOffset, badgeOffset, badgeDimension, badgeDimension };
+    return badgeRect.contains(localPoint);
+}
+#endif
 
 void HTMLModelElement::dragDidStart(WebCore::MouseRelatedEvent& event)
 {

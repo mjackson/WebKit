@@ -25,12 +25,10 @@
 
 #import "config.h"
 
-#if ENABLE(CONTENT_FILTERING) && HAVE(WEBCONTENTANALYSIS_FRAMEWORK)
-
-#import "Helpers/DeprecatedGlobalValues.h"
 #import "ContentFiltering.h"
-#import "Helpers/cocoa/HTTPServer.h"
+#import "Helpers/DeprecatedGlobalValues.h"
 #import "Helpers/PlatformUtilities.h"
+#import "Helpers/cocoa/HTTPServer.h"
 #import "Helpers/cocoa/TestProtocol.h"
 #import "Helpers/cocoa/TestWKWebView.h"
 #import "Helpers/cocoa/WKWebViewConfigurationExtras.h"
@@ -41,6 +39,8 @@
 #import <WebKit/WKWebView.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
+#import <WebKit/WebKit.h>
+#import <WebKit/WebKitErrorsPrivate.h>
 #import <WebKit/_WKDownloadDelegate.h>
 #import <WebKit/_WKRemoteObjectInterface.h>
 #import <WebKit/_WKRemoteObjectRegistry.h>
@@ -48,6 +48,58 @@
 #import <pal/spi/cocoa/WebFilterEvaluatorSPI.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/SoftLinking.h>
+
+#if PLATFORM(MAC)
+
+using Decision = WebCore::MockContentFilterSettings::Decision;
+using DecisionPoint = WebCore::MockContentFilterSettings::DecisionPoint;
+
+@interface LoadAlternateFrameLoadDelegate : NSObject <WebFrameLoadDelegate>
+@end
+
+@implementation LoadAlternateFrameLoadDelegate
+
+- (void)webView:(WebView *)sender didFailProvisionalLoadWithError:(NSError *)error forFrame:(WebFrame *)frame
+{
+    EXPECT_WK_STREQ(WebKitErrorDomain, error.domain);
+    EXPECT_EQ(WebKitErrorFrameLoadBlockedByContentFilter, error.code);
+    [frame loadAlternateHTMLString:@"FAIL" baseURL:nil forUnreachableURL:[error.userInfo objectForKey:NSURLErrorFailingURLErrorKey]];
+}
+
+- (void)webView:(WebView *)sender didFinishLoadForFrame:(WebFrame *)frame
+{
+    EXPECT_WK_STREQ(@"blocked", frame.DOMDocument.body.innerText);
+    isDone = true;
+}
+
+@end
+
+static void loadAlternateTestMac(Decision decision, DecisionPoint decisionPoint)
+{
+    @autoreleasepool {
+        auto& settings = WebCore::MockContentFilterSettings::singleton();
+        settings.setEnabled(true);
+        settings.setDecision(decision);
+        settings.setDecisionPoint(decisionPoint);
+        settings.setBlockedString("blocked"_s);
+        [TestProtocol registerWithScheme:@"http"];
+
+        RetainPtr webView = adoptNS([[WebView alloc] initWithFrame:NSZeroRect]);
+        RetainPtr frameLoadDelegate = adoptNS([[LoadAlternateFrameLoadDelegate alloc] init]);
+        [webView setFrameLoadDelegate:frameLoadDelegate.get()];
+        [[webView mainFrame] loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://redirect/?result"]]];
+
+        isDone = false;
+        TestWebKitAPI::Util::run(&isDone);
+
+        settings.setEnabled(false);
+        [TestProtocol unregister];
+    }
+}
+
+#endif // PLATFORM(MAC)
+
+#if ENABLE(CONTENT_FILTERING) && HAVE(WEBCONTENTANALYSIS_FRAMEWORK)
 
 SOFT_LINK_FRAMEWORK_OPTIONAL(NetworkExtension);
 SOFT_LINK_CLASS_OPTIONAL(NetworkExtension, NEFilterSource);
@@ -130,6 +182,10 @@ static RetainPtr<WKWebViewConfiguration> configurationWithContentFilterSettings(
 }
 
 @end
+
+#endif // ENABLE(CONTENT_FILTERING) && HAVE(WEBCONTENTANALYSIS_FRAMEWORK)
+
+#if ENABLE(CONTENT_FILTERING) && HAVE(WEBCONTENTANALYSIS_FRAMEWORK)
 
 TEST(ContentFiltering, URLAfterServerRedirect)
 {
@@ -541,6 +597,33 @@ TEST(ContentFiltering, URLAfterServerRedirectBlocked)
     }
 }
 
+#endif // ENABLE(CONTENT_FILTERING) && HAVE(WEBCONTENTANALYSIS_FRAMEWORK)
 
+#if PLATFORM(MAC)
 
-#endif // ENABLE(CONTENT_FILTERING)
+TEST(ContentFiltering, LoadAlternateAfterWillSendRequestWK1)
+{
+    loadAlternateTestMac(Decision::Block, DecisionPoint::AfterWillSendRequest);
+}
+
+TEST(ContentFiltering, LoadAlternateAfterRedirectWK1)
+{
+    loadAlternateTestMac(Decision::Block, DecisionPoint::AfterRedirect);
+}
+
+TEST(ContentFiltering, LoadAlternateAfterResponseWK1)
+{
+    loadAlternateTestMac(Decision::Block, DecisionPoint::AfterResponse);
+}
+
+TEST(ContentFiltering, LoadAlternateAfterAddDataWK1)
+{
+    loadAlternateTestMac(Decision::Block, DecisionPoint::AfterAddData);
+}
+
+TEST(ContentFiltering, LoadAlternateAfterFinishedAddingDataWK1)
+{
+    loadAlternateTestMac(Decision::Block, DecisionPoint::AfterFinishedAddingData);
+}
+
+#endif // PLATFORM(MAC)

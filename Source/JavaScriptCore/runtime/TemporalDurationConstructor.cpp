@@ -96,11 +96,12 @@ JSC_DEFINE_HOST_FUNCTION(constructTemporalDuration, (JSGlobalObject* globalObjec
         if (value.isUndefined())
             continue;
 
-        result[i] = value.toNumber(globalObject) + 0.0;
+        double v = value.toNumber(globalObject) + 0.0;
         RETURN_IF_EXCEPTION(scope, { });
 
-        if (!isInteger(result[i]))
+        if (!isInteger(v))
             return throwVMRangeError(globalObject, scope, "Temporal.Duration properties must be integers"_s);
+        result.setField(i, v);
     }
 
     RELEASE_AND_RETURN(scope, JSValue::encode(TemporalDuration::tryCreateIfValid(globalObject, WTF::move(result), structure)));

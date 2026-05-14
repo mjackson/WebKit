@@ -65,6 +65,104 @@ WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Sqrt);
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Sum);
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Tan);
 
+// MARK: - Child
+
+Child::Child(Child&&) = default;
+Child& Child::operator=(Child&&) = default;
+Child::~Child() = default;
+bool Child::operator==(const Child&) const = default;
+
+static_assert(sizeof(Child) <= 16, "Child should stay small");
+
+// MARK: - ChildOrNone
+
+ChildOrNone::ChildOrNone(Child&& child)
+    : value(WTF::move(child))
+{
+}
+
+ChildOrNone::ChildOrNone(CSS::Keyword::None none)
+    : value(none)
+{
+}
+
+// MARK: - Children
+
+Children::Children(Children&&) = default;
+Children& Children::operator=(Children&&) = default;
+Children::~Children() = default;
+
+Children::Children(Vector<Child>&& other)
+    : value(WTF::move(other))
+{
+}
+
+Children& Children::operator=(Vector<Child>&& other)
+{
+    value = WTF::move(other);
+    return *this;
+}
+
+Children::iterator Children::begin()
+{
+    return value.begin();
+}
+
+Children::iterator Children::end()
+{
+    return value.end();
+}
+
+Children::reverse_iterator Children::rbegin()
+{
+    return value.rbegin();
+}
+
+Children::reverse_iterator Children::rend()
+{
+    return value.rend();
+}
+
+Children::const_iterator Children::begin() const
+{
+    return value.begin();
+}
+
+Children::const_iterator Children::end() const
+{
+    return value.end();
+}
+
+Children::const_reverse_iterator Children::rbegin() const
+{
+    return value.rbegin();
+}
+
+Children::const_reverse_iterator Children::rend() const
+{
+    return value.rend();
+}
+
+bool Children::isEmpty() const
+{
+    return value.isEmpty();
+}
+
+size_t Children::size() const
+{
+    return value.size();
+}
+
+Child& Children::operator[](size_t i)
+{
+    return value[i];
+}
+
+const Child& Children::operator[](size_t i) const
+{
+    return value[i];
+}
+
 Child number(double value)
 {
     return makeChild(Number { .value = value });

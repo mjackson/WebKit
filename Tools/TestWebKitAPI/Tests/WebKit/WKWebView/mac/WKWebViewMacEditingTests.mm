@@ -335,6 +335,42 @@ TEST(WKWebViewMacEditingTests, KeyDownInsertAccentedCharacterOnce)
         [webView stringByEvaluatingJavaScript:@"logs.map((event) => event.type).join(',')"].UTF8String);
 }
 
+TEST(WKWebViewMacEditingTests, KeyDownForInputMethodCommitUsesCompositionKeyCode)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    for (_WKFeature *feature in WKPreferences._features) {
+        NSString *key = feature.key;
+        if ([key isEqualToString:@"InputMethodUsesCorrectKeyEventOrder"])
+            [[configuration preferences] _setEnabled:YES forFeature:feature];
+    }
+
+    RetainPtr webView = adoptNS([[TestWebViewWithMockTextInputContext alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    [webView _web_superInputContext].actions = [@[
+        [[[MockTextInputContextAction alloc] initWithMarkedText:@"\u3093" selectedRange:NSMakeRange(0, 1) replacementRange:NSMakeRange(NSNotFound, 0)] autorelease],
+        [[[MockTextInputContextAction alloc] initWithInsertText:@"\u3093" replacementRange:NSMakeRange(NSNotFound, 0)] autorelease],
+    ].mutableCopy autorelease];
+    [webView synchronouslyLoadHTMLString:@"<input type='text' id='q'>"];
+    // When the input method commits a composition via insertText:, keydown
+    // must fire with CompositionEventKeyCode (229), not the real key's
+    // windowsVirtualKeyCode. Otherwise:
+    //  - Sites like google.com submit search on keydown when they see
+    //    event.keyCode === 13, treating the Enter-to-commit as a real Enter.
+    //  - The key event would be reported as unhandled, re-sent to the
+    //    responder chain, and trigger an unhandled-keyDown: alert sound.
+    [webView stringByEvaluatingJavaScript:@"window.keyCodes = [];"
+        "document.addEventListener('keydown', (event) => window.keyCodes.push(event.keyCode), true);"
+        "document.getElementById('q').focus();"];
+    [webView waitForNextPresentationUpdate];
+    [webView removeFromSuperview];
+    [webView typeCharacter:'n'];
+    Util::runFor(1_s);
+    [webView typeCharacter:'\r'];
+    Util::runFor(1_s);
+
+    EXPECT_STREQ(@"\u3093".UTF8String, [webView stringByEvaluatingJavaScript:@"document.getElementById('q').value"].UTF8String);
+    EXPECT_STREQ("229,229", [webView stringByEvaluatingJavaScript:@"window.keyCodes.join(',')"].UTF8String);
+}
+
 TEST(WKWebViewMacEditingTests, DoNotCrashWhenInterpretingKeyEventWhileDeallocatingView)
 {
     __block bool isDone = false;

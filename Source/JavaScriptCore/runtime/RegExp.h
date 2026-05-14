@@ -26,6 +26,7 @@
 #include "RegExpKey.h"
 #include "Structure.h"
 #include "Yarr.h"
+#include <JavaScriptCore/YarrErrorCode.h>
 #include <wtf/Forward.h>
 #include <wtf/text/WTFString.h>
 

@@ -276,7 +276,7 @@ public:
         // Allocate and initialize JPEG decompression object.
         jpeg_create_decompress(&m_info);
 
-        decoder_source_mgr* src = 0;
+        decoder_source_mgr* src = nullptr;
         if (!m_info.src) {
             src = (decoder_source_mgr*)fastCalloc(sizeof(decoder_source_mgr), 1);
             if (!src) {

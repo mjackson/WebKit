@@ -108,7 +108,7 @@ protected:
 // It manages the lifecycle of these shared images and binds them to the WebGL context for rendering.
 class WebXRWebGLSharedImageSwapchain final : public WebXRWebGLSwapchain {
 public:
-    static std::unique_ptr<WebXRWebGLSharedImageSwapchain> create(WebGLRenderingContextBase&, SwapchainTargets, GCGLenum format, bool clearOnAccess, size_t imageCount);
+    static std::unique_ptr<WebXRWebGLSharedImageSwapchain> create(WebGLRenderingContextBase&, SwapchainTargets, GCGLenum format, IntSize initialSize, bool clearOnAccess, size_t imageCount);
     ~WebXRWebGLSharedImageSwapchain() override;
 
     PlatformGLObject currentTexture() override;
@@ -119,7 +119,7 @@ public:
     bool allTexturesAreBound() const override;
 
 private:
-    WebXRWebGLSharedImageSwapchain(WebGLRenderingContextBase&, SwapchainTargets, GCGLenum format, bool clearOnAccess, size_t imageCount);
+    WebXRWebGLSharedImageSwapchain(WebGLRenderingContextBase&, SwapchainTargets, GCGLenum format, IntSize initialSize, bool clearOnAccess, size_t imageCount);
     void setupExternalImage(GraphicsContextGL&, const PlatformXR::FrameData::LayerSetupData&);
 
     const WebXRExternalImages* reusableTextures(const PlatformXR::FrameData::ExternalTextureData&) const;

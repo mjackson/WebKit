@@ -330,7 +330,7 @@ void HTMLTableElement::collectPresentationalHintsForAttribute(const QualifiedNam
         break;
     case AttributeNames::backgroundAttr:
         if (auto url = value.string().trim(isASCIIWhitespace); !url.isEmpty())
-            style.setProperty(CSSProperty(CSSPropertyBackgroundImage, CSSImageValue::create(protect(document())->completeURL(url))));
+            style.setProperty(CSSProperty(CSSPropertyBackgroundImage, CSSImageValue::create(protect(document())->encodingParseURL(url))));
         break;
     case AttributeNames::valignAttr:
         if (!value.isEmpty())
@@ -605,7 +605,7 @@ void HTMLTableElement::addSubresourceAttributeURLs(ListHashSet<URL>& urls) const
 {
     HTMLElement::addSubresourceAttributeURLs(urls);
 
-    addSubresourceURL(urls, protect(document())->completeURL(attributeWithoutSynchronization(backgroundAttr)));
+    addSubresourceURL(urls, protect(document())->encodingParseURL(attributeWithoutSynchronization(backgroundAttr)));
 }
 
 }

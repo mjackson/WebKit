@@ -48,6 +48,8 @@ use Text::ParseWords;
 
 sub writeCongrats();
 
+maybeEnterWebKitContainerSDK();
+
 checkRequiredSystemConfig();
 setConfiguration();
 
@@ -209,10 +211,25 @@ if ((isAppleWebKit() || isPlayStation()) && !-d "WebKitLibraries") {
 
 if (isWinCrossCompileFromLinux()) {
     $ENV{"VCPKG_ROOT"} = winCrossCompileVcpkgRoot();
-    # Prevent pkg-config from finding host system packages during cross-compilation.
+    # Prevent pkg-config from finding host system packages during cross-compilation,
+    # but still allow finding vcpkg.
     # The triplet sets VCPKG_ENV_PASSTHROUGH_UNTRACKED to forward this to port builds.
     $ENV{"PKG_CONFIG_LIBDIR"} = "";
     $ENV{"PKG_CONFIG_PATH"} = "";
+    my $vcpkgPkgConfig = File::Spec->catdir(productDir(), "vcpkg_installed", "x64-windows-webkit", "lib", "pkgconfig");
+    $ENV{"PKG_CONFIG_LIBDIR"} = $vcpkgPkgConfig;
+    $ENV{"PKG_CONFIG_PATH"} = "";
+    # The WebKit container sdk sets these, causing interference.
+    delete $ENV{"C_INCLUDE_PATH"};
+    delete $ENV{"CPLUS_INCLUDE_PATH"};
+    delete $ENV{"CPATH"};
+    delete $ENV{"LIBRARY_PATH"};
+    delete $ENV{"LD_LIBRARY_PATH"};
+    delete $ENV{"LDFLAGS"};
+    delete $ENV{"CFLAGS"};
+    delete $ENV{"CXXFLAGS"};
+    delete $ENV{"CPPFLAGS"};
+    delete $ENV{"CMAKE_PREFIX_PATH"};
     # Add WebKitLibraries/windows/bin to PATH for dummy pwsh (satisfies vcpkg's PowerShell check)
     my $winBinDir = File::Spec->catdir(sourceDir(), "WebKitLibraries", "windows", "bin");
     $ENV{"PATH"} = "$winBinDir:$ENV{PATH}";

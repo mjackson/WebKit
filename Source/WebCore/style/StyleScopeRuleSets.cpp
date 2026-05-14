@@ -293,8 +293,8 @@ void ScopeRuleSets::collectFeatures() const
     m_features.shrinkToFit();
 }
 
-template<typename KeyType, typename RuleFeatureVectorType, typename Hash, typename HashTraits>
-static Vector<InvalidationRuleSet>* ensureInvalidationRuleSets(const KeyType& key, HashMap<KeyType, std::unique_ptr<Vector<InvalidationRuleSet>>, Hash, HashTraits>& ruleSetMap, const HashMap<KeyType, std::unique_ptr<RuleFeatureVectorType>, Hash, HashTraits>& ruleFeatures)
+template<typename KeyType, typename Hash, typename HashTraits>
+static Vector<InvalidationRuleSet>* ensureInvalidationRuleSets(const KeyType& key, HashMap<KeyType, std::unique_ptr<Vector<InvalidationRuleSet>>, Hash, HashTraits>& ruleSetMap, const HashMap<KeyType, std::unique_ptr<RuleFeatureVector>, Hash, HashTraits>& ruleFeatures)
 {
     return ruleSetMap.ensure(key, [&] () -> std::unique_ptr<Vector<InvalidationRuleSet>> {
         auto* features = ruleFeatures.get(key);
@@ -329,12 +329,7 @@ static Vector<InvalidationRuleSet>* ensureInvalidationRuleSets(const KeyType& ke
         HashMap<GenericHashKey<RuleSetKey>, RefPtr<RuleSet>> ruleSetMap;
 
         for (auto& feature : *features) {
-            auto key = [&] {
-                if constexpr (std::is_same_v<typename RuleFeatureVectorType::ValueType, RuleFeatureWithInvalidationSelector>)
-                    return GenericHashKey<RuleSetKey> { { feature.matchElement, feature.isNegation, &feature.invalidationSelector, &feature.scopeSelector } };
-                else
-                    return GenericHashKey<RuleSetKey> { { feature.matchElement, feature.isNegation } };
-            }();
+            auto key = GenericHashKey<RuleSetKey> { { feature.matchElement, feature.isNegation, &feature.invalidationSelector, &feature.scopeSelector } };
 
             auto& ruleSet = ruleSetMap.ensure(key, [] {
                 return RuleSet::create();
@@ -347,9 +342,9 @@ static Vector<InvalidationRuleSet>* ensureInvalidationRuleSets(const KeyType& ke
             auto& key = entry.key.key();
             entry.value->shrinkToFit();
             auto invalidationSelector = [&] {
-                if (key.invalidationSelector && key.scopeSelector && !key.scopeSelector->isEmpty())
+                if (!key.invalidationSelector->isEmpty() && !key.scopeSelector->isEmpty())
                     return CSSSelectorParser::makeHasArgumentWithScope(key.invalidationSelector->first(), key.scopeSelector->first());
-                if (key.invalidationSelector)
+                if (!key.invalidationSelector->isEmpty())
                     return CSSSelectorList { *key.invalidationSelector };
                 return CSSSelectorList { };
             }();
@@ -358,7 +353,7 @@ static Vector<InvalidationRuleSet>* ensureInvalidationRuleSets(const KeyType& ke
                 WTF::move(invalidationSelector),
                 key.matchElement,
                 key.isNegation,
-                key.scopeSelector ? *key.scopeSelector : CSSSelectorList { }
+                *key.scopeSelector
             };
         }));
     }).iterator->value.get();

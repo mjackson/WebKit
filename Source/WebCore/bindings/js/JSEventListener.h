@@ -41,6 +41,8 @@ public:
 
     virtual ~JSEventListener();
 
+    USING_CAN_MAKE_WEAKPTR(EventListener);
+
     void ref() const final { EventListener::ref(); }
     void deref() const final { EventListener::deref(); }
 
@@ -52,7 +54,7 @@ public:
     bool wasCreatedFromMarkup() const { return m_wasCreatedFromMarkup; }
 
     JSC::JSObject* ensureJSFunction(ScriptExecutionContext&) const;
-    DOMWrapperWorld* isolatedWorld() const { return m_isolatedWorld.get(); }
+    DOMWrapperWorld* isolatedWorld() const { return m_world; }
 
     JSC::JSObject* jsFunction() const final { return m_jsFunction.get(); }
     JSC::JSObject* wrapper() const final { return m_wrapper.get(); }
@@ -68,6 +70,8 @@ public:
         auto* jsEventListener = dynamicDowncast<JSEventListener>(listener);
         return jsEventListener && jsEventListener->wasCreatedFromMarkup();
     }
+
+    void invalidate();
 
 private:
     virtual JSC::JSObject* initializeJSFunction(ScriptExecutionContext&) const;
@@ -95,7 +99,7 @@ private:
     mutable JSC::Weak<JSC::JSObject> m_jsFunction;
     mutable JSC::Weak<JSC::JSObject> m_wrapper;
 
-    RefPtr<DOMWrapperWorld> m_isolatedWorld;
+    RefPtr<DOMWrapperWorld> m_world;
 };
 
 // For "onxxx" attributes that automatically set up JavaScript event listeners.
@@ -137,10 +141,10 @@ inline JSC::JSObject* JSEventListener::ensureJSFunction(ScriptExecutionContext& 
 {
     // initializeJSFunction can trigger code that deletes this event listener
     // before we're done. It should always return null in this case.
-    if (!m_isolatedWorld) [[unlikely]]
+    if (!m_world) [[unlikely]]
         return nullptr;
 
-    JSC::VM& vm = m_isolatedWorld->vm();
+    JSC::VM& vm = m_world->vm();
     Ref protect = const_cast<JSEventListener&>(*this);
     JSC::EnsureStillAliveScope protectedWrapper(m_wrapper.get());
 

@@ -26,6 +26,8 @@
 #include "config.h"
 #include "OrderedHashTable.h"
 
+#include "ButterflyInlinesLight.h"
+
 namespace JSC {
 
 template<typename Traits>

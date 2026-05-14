@@ -442,8 +442,61 @@ TEST(DragAndDropTests, DragSelectedTextInImageOverlay)
 
 #endif // ENABLE(IMAGE_ANALYSIS)
 
-#if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/DragAndDropTestsAdditions.mm>)
-#import <WebKitAdditions/DragAndDropTestsAdditions.mm>
-#endif
+TEST(DragAndDropTests, DoNotExposeCrossOriginImageData)
+{
+    RetainPtr markupData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"drag-drop-cross-origin-image" withExtension:@"html"]];
+    RetainPtr imageData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"icon" withExtension:@"png"]];
+
+    RetainPtr handler = adoptNS([TestURLSchemeHandler new]);
+    [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
+        RetainPtr<NSString> path = task.request.URL.path;
+        RetainPtr<NSString> type;
+        RetainPtr<NSData> result;
+        if ([path isEqualToString:@"/main"]) {
+            result = markupData;
+            type = @"text/html";
+        } else if ([path isEqualToString:@"/image"]) {
+            result = imageData;
+            type = @"image/png";
+        }
+
+        if (!result) {
+            [task didFailWithError:[NSError errorWithDomain:@"DoNotExposeCrossOriginImageData" code:1 userInfo:nil]];
+            return;
+        }
+
+        RetainPtr response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
+        [task didReceiveResponse:response];
+        [task didReceiveData:result];
+        [task didFinish];
+    }];
+
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
+    [configuration setURLSchemeHandler:handler forURLScheme:@"crossorigin"];
+    [configuration setURLSchemeHandler:handler forURLScheme:@"sameorigin"];
+
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:CGRectMake(0, 0, 400, 400) configuration:configuration]);
+    [[simulator webView] synchronouslyLoadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"sameorigin://test/main"]]];
+
+    auto runDragAndDropTests = [&] {
+        // Drag and drop the cross-origin image first.
+        [simulator runFrom:CGPointMake(50, 50) to:CGPointMake(50, 250)];
+        EXPECT_EQ(0, [[[simulator webView] objectByEvaluatingJavaScript:@"numberOfFiles.get('dragenter')"] intValue]);
+        EXPECT_EQ(0, [[[simulator webView] objectByEvaluatingJavaScript:@"numberOfFiles.get('dragover')"] intValue]);
+        EXPECT_EQ(0, [[[simulator webView] objectByEvaluatingJavaScript:@"numberOfFiles.get('drop')"] intValue]);
+        EXPECT_FALSE([[[simulator webView] objectByEvaluatingJavaScript:@"inconsistentFilesTypeOnDrop"] boolValue]);
+
+        // Next, drag and drop the same-origin image.
+        [simulator runFrom:CGPointMake(50, 150) to:CGPointMake(50, 250)];
+        EXPECT_EQ(0, [[[simulator webView] objectByEvaluatingJavaScript:@"numberOfFiles.get('dragenter')"] intValue]);
+        EXPECT_EQ(0, [[[simulator webView] objectByEvaluatingJavaScript:@"numberOfFiles.get('dragover')"] intValue]);
+        EXPECT_EQ(1, [[[simulator webView] objectByEvaluatingJavaScript:@"numberOfFiles.get('drop')"] intValue]);
+        EXPECT_FALSE([[[simulator webView] objectByEvaluatingJavaScript:@"inconsistentFilesTypeOnDrop"] boolValue]);
+    };
+
+    runDragAndDropTests();
+    [[simulator webView] objectByEvaluatingJavaScript:@"addDraggableAttribute()"];
+    runDragAndDropTests();
+}
 
 #endif // ENABLE(DRAG_SUPPORT) && !PLATFORM(MACCATALYST)

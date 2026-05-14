@@ -32,6 +32,7 @@
 
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkColorSpace.h>
+#include <skia/core/SkExecutor.h>
 #include <skia/gpu/ganesh/GrBackendSurface.h>
 #include <skia/gpu/ganesh/SkSurfaceGanesh.h>
 #include <skia/gpu/ganesh/gl/GrGLBackendSurface.h>
@@ -268,9 +269,11 @@ private:
         if (!glContext || !glContext->makeContextCurrent())
             return;
 
-        // FIXME: add GrContextOptions, shader cache, etc.
+        // FIXME: Add shader cache.
         GrContextOptions options;
         options.fAllowMSAAOnNewIntel = shouldAllowMSAAOnNewIntel();
+        thread_local std::unique_ptr<SkExecutor> s_executor = SkExecutor::MakeFIFOThreadPool(2);
+        options.fExecutor = s_executor.get();
         if (auto grContext = GrDirectContexts::MakeGL(skiaGLInterface(), options)) {
             m_skiaGLContext = WTF::move(glContext);
             m_skiaGrContext = WTF::move(grContext);

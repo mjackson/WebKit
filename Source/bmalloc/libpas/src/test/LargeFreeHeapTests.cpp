@@ -31,7 +31,9 @@
 #include "pas_heap_lock.h"
 #include "pas_large_free.h"
 #include "pas_large_free_heap_config.h"
+#include "pas_large_free_heap_helpers.h"
 #include "pas_page_malloc.h"
+#include "pas_page_sharing_pool.h"
 #include "pas_simple_large_free_heap.h"
 #include <set>
 #include <vector>
@@ -426,6 +428,38 @@ void testBootstrapHeap(const vector<Action>& actions,
 size_t freeListSize(size_t size)
 {
     return PAS_MAX(size, PAS_BOOTSTRAP_FREE_LIST_MINIMUM_SIZE) * sizeof(pas_large_free);
+}
+
+pas_allocation_result failingMemorySource(size_t, pas_alignment, const char*, pas_allocation_kind)
+{
+    return pas_allocation_result_create_failure();
+}
+
+void testGiveBackGuardOnAllocationFailure(bool talksToLargeSharingPool)
+{
+    pas_fast_large_free_heap heap;
+    pas_fast_large_free_heap_construct(&heap);
+    size_t numAllocatedObjectBytes = 0;
+    size_t numAllocatedObjectBytesPeak = 0;
+
+    pas_large_utility_free_heap_talks_to_large_sharing_pool = talksToLargeSharingPool;
+    pas_physical_page_sharing_pool_balancing_enabled = true;
+    pas_physical_page_sharing_pool_balance = 0;
+
+    pas_heap_lock_lock();
+    void* result = pas_large_free_heap_helpers_try_allocate_with_alignment(
+        &heap, failingMemorySource, &numAllocatedObjectBytes, &numAllocatedObjectBytesPeak,
+        100, alignSimple(1), "test-give-back-guard");
+    pas_heap_lock_unlock();
+
+    CHECK(!result);
+
+    // The allocator's failure path must net out to zero against its setup path.
+    // When talks_to_large_sharing_pool is true, take_later subtracts aligned_size
+    // and give_back adds it back. When it is false, take_later is skipped, so
+    // give_back must be skipped too -- otherwise the balance drifts upward by
+    // aligned_size on every failed allocation.
+    CHECK_EQUAL(pas_physical_page_sharing_pool_balance, static_cast<intptr_t>(0));
 }
 
 } // anonymous namespace
@@ -1109,10 +1143,6 @@ void addLargeFreeHeapTests()
                  },
                  1));
 
-    // Regression: fast_write_cursor must preserve max-heap invariant when the
-    // root shrinks. Tree {A=100@1000, B=400@2000(root), C=200@3000}; allocating
-    // 350 from B leaves a 50-byte root with 100/200 children, which previously
-    // hid C from the next 150-byte request.
     ADD_TEST(testFastLargeFreeHeap(
                  {
                      Action::deallocate(1000, 100),
@@ -1128,10 +1158,6 @@ void addLargeFreeHeapTests()
                  },
                  1));
 
-    // Regression: fast_merge must preserve max-heap invariant when a leaf
-    // grows past its parent. Tree {X=100@1000, P=1000@3000(root), L=200@5000};
-    // freeing [5200,8200) coalesces into leaf L, growing it to 3200 under a
-    // 1000-byte root, which previously hid L from the next 2000-byte request.
     ADD_TEST(testFastLargeFreeHeap(
                  {
                      Action::deallocate(1000, 100),
@@ -1233,5 +1259,8 @@ void addLargeFreeHeapTests()
                      Free(15200, 16000)
                  },
                  1));
+
+    ADD_TEST(testGiveBackGuardOnAllocationFailure(true));
+    ADD_TEST(testGiveBackGuardOnAllocationFailure(false));
 }
 

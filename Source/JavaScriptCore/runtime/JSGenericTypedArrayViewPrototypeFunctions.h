@@ -1757,7 +1757,7 @@ static ALWAYS_INLINE EncodedJSValue genericTypedArrayViewProtoFuncSortImpl(VM& v
     if (callData.type == CallData::Type::JS) [[likely]] {
         CachedCall cachedCall(globalObject, uncheckedDowncast<JSFunction>(comparatorValue), 2);
         RETURN_IF_EXCEPTION(scope, { });
-        result = arrayStableSort(vm, src, workingSet, [&](auto left, auto right) ALWAYS_INLINE_LAMBDA {
+        result = arrayStableSort<MergeStrategy::Simple>(vm, src, workingSet, [&](auto left, auto right) ALWAYS_INLINE_LAMBDA {
             auto scope = DECLARE_THROW_SCOPE(vm);
 
             JSValue leftValue = ViewClass::Adaptor::toJSValue(globalObject, left);
@@ -1773,7 +1773,7 @@ static ALWAYS_INLINE EncodedJSValue genericTypedArrayViewProtoFuncSortImpl(VM& v
         RETURN_IF_EXCEPTION(scope, { });
     } else {
         MarkedArgumentBuffer args;
-        result = arrayStableSort(vm, src, workingSet, [&](auto left, auto right) ALWAYS_INLINE_LAMBDA {
+        result = arrayStableSort<MergeStrategy::Simple>(vm, src, workingSet, [&](auto left, auto right) ALWAYS_INLINE_LAMBDA {
             auto scope = DECLARE_THROW_SCOPE(vm);
 
             args.clear();

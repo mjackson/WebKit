@@ -65,7 +65,7 @@ public:
 
 protected:
     static constexpr uint32_t mainThreadID { 1 };
-    static std::atomic<uint32_t> s_uid;
+    WTF_EXPORT_PRIVATE static std::atomic<uint32_t> s_uid;
     static ThreadLikeAssertion createThreadLikeAssertion(uint32_t);
 };
 

@@ -34,9 +34,7 @@
 #include "ColorSerialization.h"
 #include "ContainerNodeInlines.h"
 #include "CSSFontValue.h"
-#include "CSSGridAutoRepeatValue.h"
-#include "CSSGridIntegerRepeatValue.h"
-#include "CSSGridLineNamesValue.h"
+#include "CSSGridTemplateList.h"
 #include "CSSKeywordValueInlines.h"
 #include "CSSMarkup.h"
 #include "CSSPrimitiveNumericTypes+Serialization.h"
@@ -75,6 +73,7 @@
 #include "StyleTransformFunction.h"
 #include "StyleTransformResolver.h"
 #include "WebAnimationUtilities.h"
+#include "WritingMode.h"
 
 namespace WebCore {
 namespace Style {
@@ -1382,16 +1381,15 @@ template<GridTrackSizingDirection direction> Ref<CSSValue> extractGridTemplateVa
         if (collector.isEmpty() && !renderEmpty)
             return;
 
-        SpaceSeparatedVector<Style::CustomIdent> lineNames;
-        collector.collectLineNamesForIndex(lineNames.value, i);
+        GridLineNames lineNames;
+        collector.collectLineNamesForIndex(lineNames, i);
         if (!lineNames.isEmpty() || renderEmpty)
-            list.append(CSSGridLineNamesValue::create(toCSS(lineNames, state.style)));
+            list.append(toCSS(lineNames, state.style));
     };
-
-    auto& tracks = state.style.gridTemplateList(direction);
 
     auto* renderGrid = dynamicDowncast<RenderGrid>(state.renderer);
 
+    auto& tracks = state.style.gridTemplateList(direction);
     auto& trackSizes = tracks.sizes;
     auto& autoRepeatTrackSizes = tracks.autoRepeatSizes;
 
@@ -1409,21 +1407,22 @@ template<GridTrackSizingDirection direction> Ref<CSSValue> extractGridTemplateVa
     if (trackListIsEmpty && !isSubgrid)
         return createCSSValue(state.pool, state.style, CSS::Keyword::None { });
 
-    CSSValueListBuilder list;
-
     // If the element is a grid container, the resolved value is the used value,
     // specifying track sizes in pixels and expanding the repeat() notation.
     // If subgrid was specified, but the element isn't a subgrid (due to not having
     // an appropriate grid parent), then we fall back to using the specified value.
     if (renderGrid && (!isSubgrid || renderGrid->isSubgrid(direction))) {
         if (isSubgrid) {
-            list.append(createCSSValue(state.pool, state.style, CSS::Keyword::Subgrid { }));
+            CSS::GridSubgrid subgrid;
 
             OrderedNamedLinesCollectorInSubgridLayout collector(state, tracks, renderGrid->numTracks(direction));
             for (int i = 0; i < collector.namedGridLineCount(); i++)
-                addValuesForNamedGridLinesAtIndex(list, collector, i, true);
-            return CSSValueList::createSpaceSeparated(WTF::move(list));
+                addValuesForNamedGridLinesAtIndex(subgrid.value.value, collector, i, true);
+
+            return CSS::createCSSValue(state.pool, CSS::GridTemplateList { WTF::move(subgrid) });
         }
+
+        CSS::GridTrackList trackList;
 
         OrderedNamedLinesCollectorInGridLayout collector(state, tracks, renderGrid->autoRepeatCountForDirection(direction), autoRepeatTrackSizes.size());
         auto computedTrackSizes = renderGrid->trackSizesForComputedStyle(direction);
@@ -1437,62 +1436,139 @@ template<GridTrackSizingDirection direction> Ref<CSSValue> extractGridTemplateVa
         ASSERT(static_cast<unsigned>(end) <= computedTrackSizes.size());
         for (int i = start; i < end; ++i) {
             if (i + offset >= 0)
-                addValuesForNamedGridLinesAtIndex(list, collector, i + offset, false);
-            list.append(createCSSValue(state.pool, state.style, Length<> { computedTrackSizes[i] }));
+                addValuesForNamedGridLinesAtIndex(trackList.value.value, collector, i + offset, false);
+
+            trackList.value.value.append(CSS::GridTrackSize { CSS::GridTrackBreadth {
+                toCSS(LengthPercentage<CSS::Nonnegative> { Length<CSS::Nonnegative> { computedTrackSizes[i] } }, state.style)
+            } });
         }
         if (end + offset >= 0)
-            addValuesForNamedGridLinesAtIndex(list, collector, end + offset, false);
-        return CSSValueList::createSpaceSeparated(WTF::move(list));
+            addValuesForNamedGridLinesAtIndex(trackList.value.value, collector, end + offset, false);
+
+        return CSS::createCSSValue(state.pool, CSS::GridTemplateList { WTF::move(trackList) });
     }
 
     // Otherwise, the resolved value is the computed value, preserving repeat().
     auto& computedTracks = tracks.list;
 
-    auto repeatVisitor = [&](CSSValueListBuilder& list, const RepeatEntry& entry) {
-        if (std::holds_alternative<Vector<Style::CustomIdent>>(entry)) {
-            const auto& names = std::get<Vector<Style::CustomIdent>>(entry);
-            if (names.isEmpty() && !isSubgrid)
-                return;
-            list.append(CSSGridLineNamesValue::create(SpaceSeparatedVector<CSS::CustomIdent>::map(names, [&](auto& name) {
-                return toCSS(name, state.style);
-            })));
-        } else
-            list.append(createCSSValue(state.pool, state.style, std::get<GridTrackSize>(entry)));
+    if (isSubgrid) {
+        CSS::GridSubgrid subgrid;
+
+        auto addRepeatEntry = [&](auto& repeated, const RepeatEntry& entry) {
+            WTF::switchOn(entry,
+                [&](const GridLineNames& names) {
+                    repeated.value.append(toCSS(names, state.style));
+                },
+                [&](const GridTrackSize&) {
+                    ASSERT_NOT_REACHED();
+                }
+            );
+        };
+
+        for (auto& entry : computedTracks) {
+            WTF::switchOn(entry,
+                [&](const GridTrackSize&) {
+                    ASSERT_NOT_REACHED();
+                },
+                [&](const GridLineNames& names) {
+                    // Subgrids don't have track sizes specified, so empty line names sets
+                    // need to be serialized, as they are meaningful placeholders.
+                    subgrid.value.value.append(toCSS(names, state.style));
+                },
+                [&](const GridTrackEntryRepeat& repeat) {
+                    using Repetitions = CSS::GridNameRepeatFunctionParameters::Repetitions;
+                    SpaceSeparatedVector<CSS::GridNameRepeatFunctionParameters::Repeated> repeated;
+                    for (auto& repeatEntry : repeat.list)
+                        addRepeatEntry(repeated, repeatEntry);
+
+                    subgrid.value.value.append(CSS::GridNameRepeatFunction {
+                        .parameters {
+                            .repetitions = Repetitions { toCSS(Integer<CSS::Positive, unsigned> { repeat.repeats }, state.style) },
+                            .repeated = WTF::move(repeated),
+                        }
+                    });
+                },
+                [&](const GridTrackEntryAutoRepeat& repeat) {
+                    ASSERT(repeat.type == AutoRepeatType::Fill);
+                    using Repetitions = CSS::GridNameRepeatFunctionParameters::Repetitions;
+                    SpaceSeparatedVector<CSS::GridNameRepeatFunctionParameters::Repeated> repeated;
+                    for (auto& repeatEntry : repeat.list)
+                        addRepeatEntry(repeated, repeatEntry);
+
+                    subgrid.value.value.append(CSS::GridNameRepeatFunction {
+                        .parameters {
+                            .repetitions = Repetitions { CSS::Keyword::AutoFill { } },
+                            .repeated = WTF::move(repeated),
+                        }
+                    });
+                },
+                [&](const GridTrackEntrySubgrid&) {
+                    // Nothing to do.
+                }
+            );
+        }
+
+        return CSS::createCSSValue(state.pool, CSS::GridTemplateList { WTF::move(subgrid) });
+    }
+
+    auto addRepeatEntry = [&](auto& repeated, const RepeatEntry& entry) {
+        WTF::switchOn(entry,
+            [&](const GridLineNames& names) {
+                if (names.isEmpty())
+                    return;
+                repeated.value.append(toCSS(names, state.style));
+            },
+            [&](const GridTrackSize& trackSize) {
+                repeated.value.append(toCSS(trackSize, state.style));
+            }
+        );
     };
+
+    CSS::GridTrackList trackList;
 
     for (auto& entry : computedTracks) {
         WTF::switchOn(entry,
             [&](const GridTrackSize& size) {
-                list.append(createCSSValue(state.pool, state.style, size));
+                trackList.value.value.append(toCSS(size, state.style));
             },
-            [&](const Vector<CustomIdent>& names) {
-                // Subgrids don't have track sizes specified, so empty line names sets
-                // need to be serialized, as they are meaningful placeholders.
-                if (names.isEmpty() && !isSubgrid)
+            [&](const GridLineNames& names) {
+                if (names.isEmpty())
                     return;
-                list.append(CSSGridLineNamesValue::create(SpaceSeparatedVector<CSS::CustomIdent>::map(names, [&](auto& name) {
-                    return toCSS(name, state.style);
-                })));
+                trackList.value.value.append(toCSS(names, state.style));
             },
             [&](const GridTrackEntryRepeat& repeat) {
-                CSSValueListBuilder repeatedValues;
-                for (auto& entry : repeat.list)
-                    repeatVisitor(repeatedValues, entry);
-                list.append(CSSGridIntegerRepeatValue::create(CSSPrimitiveValue::createInteger(repeat.repeats), WTF::move(repeatedValues)));
+                using Repetitions = CSS::GridTrackRepeatFunctionParameters::Repetitions;
+                SpaceSeparatedVector<CSS::GridTrackRepeatFunctionParameters::Repeated> repeated;
+                for (auto& repeatEntry : repeat.list)
+                    addRepeatEntry(repeated, repeatEntry);
+
+                trackList.value.value.append(CSS::GridTrackRepeatFunction {
+                    .parameters {
+                        .repetitions = Repetitions { toCSS(Integer<CSS::Positive, unsigned> { repeat.repeats }, state.style) },
+                        .repeated = WTF::move(repeated),
+                    }
+                });
             },
             [&](const GridTrackEntryAutoRepeat& repeat) {
-                CSSValueListBuilder repeatedValues;
-                for (auto& entry : repeat.list)
-                    repeatVisitor(repeatedValues, entry);
-                list.append(CSSGridAutoRepeatValue::create(repeat.type == AutoRepeatType::Fill ? CSSValueAutoFill : CSSValueAutoFit, WTF::move(repeatedValues)));
+                using Repetitions = CSS::GridTrackRepeatFunctionParameters::Repetitions;
+                SpaceSeparatedVector<CSS::GridTrackRepeatFunctionParameters::Repeated> repeated;
+                for (auto& repeatEntry : repeat.list)
+                    addRepeatEntry(repeated, repeatEntry);
+
+                trackList.value.value.append(CSS::GridTrackRepeatFunction {
+                    .parameters {
+                        .repetitions = repeat.type == AutoRepeatType::Fill ? Repetitions { CSS::Keyword::AutoFill { } } : Repetitions { CSS::Keyword::AutoFit { } },
+                        .repeated = WTF::move(repeated),
+                    }
+                });
             },
             [&](const GridTrackEntrySubgrid&) {
-                list.append(createCSSValue(state.pool, state.style, CSS::Keyword::Subgrid { }));
+                ASSERT_NOT_REACHED();
             }
         );
     }
 
-    return CSSValueList::createSpaceSeparated(WTF::move(list));
+    return CSS::createCSSValue(state.pool, CSS::GridTemplateList { WTF::move(trackList) });
 }
 
 template<GridTrackSizingDirection direction> void extractGridTemplateSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)

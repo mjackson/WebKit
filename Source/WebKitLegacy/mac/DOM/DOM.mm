@@ -395,7 +395,7 @@ id <DOMEventTarget> kit(EventTarget* target)
     auto* link = [self _linkElement];
     if (!link)
         return nil;
-    return link->document().completeURL(link->getAttribute(HTMLNames::hrefAttr)).createNSURL().autorelease();
+    return link->document().encodingParseURL(link->getAttribute(HTMLNames::hrefAttr)).createNSURL().autorelease();
 }
 
 - (NSString *)hrefTarget
@@ -673,7 +673,7 @@ id <DOMEventTarget> kit(EventTarget* target)
 - (NSURL *)_getURLAttribute:(NSString *)name
 {
     auto& element = *core(self);
-    return element.document().completeURL(element.getAttribute(name)).createNSURL().autorelease();
+    return element.document().encodingParseURL(element.getAttribute(name)).createNSURL().autorelease();
 }
 
 - (BOOL)isFocused

@@ -126,7 +126,8 @@ ProvisionalPageProxy::ProvisionalPageProxy(WebPageProxy& page, Ref<FrameProcess>
     // already exists and already has a main frame.
     if (suspendedPage) {
         ASSERT(&suspendedPage->process() == process.ptr());
-        suspendedPage->unsuspend();
+        ASSERT(navigation.targetItem());
+        suspendedPage->unsuspend(navigation.targetItem()->mainFrameItem().identifier());
         m_mainFrame = suspendedPage->mainFrame();
         m_mainFrame->updateReferrerPolicy(ReferrerPolicy::EmptyString);
         m_needsMainFrameObserver = true;
@@ -191,7 +192,7 @@ ProvisionalPageProxy::~ProvisionalPageProxy()
         takenRemotePage->disconnect();
 }
 
-WebProcessProxy& ProvisionalPageProxy::process()
+WebProcessProxy& ProvisionalPageProxy::process() const
 {
     return m_frameProcess->process();
 }
@@ -492,7 +493,7 @@ void ProvisionalPageProxy::didCommitLoadForFrame(IPC::Connection& connection, Fr
     PROVISIONALPAGEPROXY_RELEASE_LOG(ProcessSwapping, "didCommitLoadForFrame: frameID=%" PRIu64, frameID.toUInt64());
     RefPtr page = m_page.get();
     RefPtr pageMainFrame = page ? page->mainFrame() : nullptr;
-    if (page && protect(page->preferences())->siteIsolationEnabled() && pageMainFrame) {
+    if (page && protect(page->preferences())->siteIsolationEnabled() && pageMainFrame && pageMainFrame == m_mainFrame) {
         Ref pageMainFrameProcess = pageMainFrame->frameProcess();
 
         bool frameProcessChanged = m_frameProcess.ptr() != pageMainFrameProcess.ptr();
@@ -503,7 +504,7 @@ void ProvisionalPageProxy::didCommitLoadForFrame(IPC::Connection& connection, Fr
         // IPC + transitionPageToRemotePage() call is deferred to
         // commitProvisionalPage() so it can be skipped when the previous
         // page is BFCache-suspended (a suspended page is frozen, not remote).
-        if (frameProcessChanged && pageMainFrame == m_mainFrame && pageMainFrameProcess->frameCount() && pageMainFrameProcess->browsingContextGroup() == m_browsingContextGroup.ptr())
+        if (frameProcessChanged && pageMainFrameProcess->frameCount() && pageMainFrameProcess->browsingContextGroup() == m_browsingContextGroup.ptr())
             m_deferredRemoteTransitionSite = Site { pageMainFrame->url() };
     }
     m_provisionalLoadURL = { };

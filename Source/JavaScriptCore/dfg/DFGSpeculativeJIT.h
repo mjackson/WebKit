@@ -1683,6 +1683,8 @@ public:
     void compileNewArray(Node*);
     void compileNewArrayWithSpread(Node*);
     void compileArraySlice(Node*);
+    void compileArrayConcatArray(Node*);
+    void compileArrayConcatAppendOne(Node*);
     void compileArraySplice(Node*);
     void compileArrayIndexOfOrArrayIncludes(Node*);
     void compileArrayPush(Node*);
@@ -1729,6 +1731,7 @@ public:
     void compileDefineDataProperty(Node*);
     void compileDefineAccessorProperty(Node*);
     void compileObjectDefineProperty(Node*);
+    void compileObjectDefinePropertyFromFields(Node*);
     void compileStringSlice(Node*);
     void compileStringSubstring(Node*);
     void compileToUpperCase(Node*);
@@ -1761,6 +1764,10 @@ public:
     void compileStrCat(Node*);
     void compileNewArrayBuffer(Node*);
     void compileNewButterflyWithSize(Node*);
+    void compileGetCellButterflySlot(Node*);
+    void compilePutCellButterflySlot(Node*);
+    void compileArraySortCompact(Node*);
+    void compileArraySortCommit(Node*);
     void compileNewArrayWithSize(Node*);
     void compileNewArrayWithButterfly(Node*);
     void compileNewArrayWithSpecies(Node*);
@@ -1778,6 +1785,7 @@ public:
     void compileCreateAsyncGenerator(Node*);
     void compileNewObject(Node*);
     void compileNewInternalFieldObject(Node*);
+    void compileNewPromise(Node*);
     void compileToPrimitive(Node*);
     void compileToPropertyKey(Node*);
     void compileToPropertyKeyOrNumber(Node*);
@@ -1794,6 +1802,7 @@ public:
     void compileStringIndexOf(Node*);
     void compileStringLastIndexOf(Node*);
     void compileStringStartsOrEndsWith(Node*);
+    void compileStringSplit(Node*);
     void compileDateGet(Node*);
     void compileDateSet(Node*);
     void compileGlobalIsNaN(Node*);

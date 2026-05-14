@@ -64,7 +64,7 @@ accessibility/AccessibilityObject.cpp
 accessibility/AccessibilityObject.h
 accessibility/AccessibilityRenderObject.cpp
 accessibility/AccessibilitySlider.cpp
-accessibility/AccessibilityTableHeaderContainer.cpp
+[ Mac ] accessibility/AccessibilityTableHeaderContainer.cpp
 [ iOS ] accessibility/cocoa/WebAccessibilityObjectWrapperBase.mm
 [ iOS ] accessibility/ios/AXObjectCacheIOS.mm
 [ iOS ] accessibility/ios/AccessibilityObjectIOS.mm
@@ -147,7 +147,6 @@ bridge/runtime_root.cpp
 crypto/parameters/CryptoAlgorithmRsaKeyGenParams.h
 css/CSSCounterStyleDescriptors.cpp
 css/CSSCounterStyleRule.h
-css/CSSCursorImageValue.cpp
 css/CSSFontFace.cpp
 css/CSSFontFaceRule.cpp
 css/CSSFontValue.cpp

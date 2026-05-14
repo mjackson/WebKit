@@ -112,6 +112,83 @@ void GridPosition::setMaxPositionForTesting(unsigned maxPosition)
 
 // MARK: - Conversion
 
+template<> struct ToCSS<GridPosition> { auto operator()(const GridPosition&, const RenderStyle&) -> CSS::GridLine; };
+template<> struct ToStyle<CSS::GridLine> { auto operator()(const CSS::GridLine&, const BuilderState&) -> GridPosition; };
+
+template<> struct ToCSS<GridPosition::Explicit> { auto operator()(const GridPosition::Explicit&, const RenderStyle&) -> CSS::GridLine::Explicit; };
+template<> struct ToStyle<CSS::GridLine::Explicit> { auto operator()(const CSS::GridLine::Explicit&, const BuilderState&) -> GridPosition::Explicit; };
+
+template<> struct ToCSS<GridPosition::Span> { auto operator()(const GridPosition::Span&, const RenderStyle&) -> CSS::GridLine::Span; };
+template<> struct ToStyle<CSS::GridLine::Span> { auto operator()(const CSS::GridLine::Span&, const BuilderState&) -> GridPosition::Span; };
+
+auto ToCSS<GridPosition>::operator()(const GridPosition& value, const RenderStyle& style) -> CSS::GridLine
+{
+    return WTF::switchOn(value,
+        [&](CSS::Keyword::Auto keyword) -> CSS::GridLine {
+            return keyword;
+        },
+        [&](const CustomIdent& customIdent) -> CSS::GridLine {
+            return toCSS(customIdent, style);
+        },
+        [&](const GridPosition::Explicit& gridPositionExplicit) -> CSS::GridLine {
+            return toCSS(gridPositionExplicit, style);
+        },
+        [&](const GridPosition::Span& gridPositionSpan) -> CSS::GridLine {
+            return toCSS(gridPositionSpan, style);
+        }
+    );
+}
+
+auto ToStyle<CSS::GridLine>::operator()(const CSS::GridLine& value, const BuilderState& state) -> GridPosition
+{
+    return WTF::switchOn(value,
+        [&](CSS::Keyword::Auto keyword) -> GridPosition {
+            return keyword;
+        },
+        [&](const CSS::CustomIdent& customIdent) -> GridPosition {
+            return toStyle(customIdent, state);
+        },
+        [&](const CSS::GridLineExplicit& gridLineExplicit) -> GridPosition {
+            return toStyle(gridLineExplicit, state);
+        },
+        [&](const CSS::GridLineSpan& gridLineSpan) -> GridPosition {
+            return toStyle(gridLineSpan, state);
+        }
+    );
+}
+
+auto ToCSS<GridPosition::Explicit>::operator()(const GridPosition::Explicit& value, const RenderStyle& style) -> CSS::GridLine::Explicit
+{
+    return CSS::GridLineExplicit {
+        toCSS(value.position, style),
+        !value.name.value.isNull() ? std::optional { toCSS(value.name, style) } : std::nullopt,
+    };
+}
+
+auto ToStyle<CSS::GridLine::Explicit>::operator()(const CSS::GridLine::Explicit& value, const BuilderState& state) -> GridPosition::Explicit
+{
+    return GridPosition::Explicit {
+        toStyle(value.index, state),
+        toStyle(value.name, state).value_or(CustomIdent { nullAtom() }),
+    };
+}
+
+auto ToCSS<GridPosition::Span>::operator()(const GridPosition::Span& value, const RenderStyle& style) -> CSS::GridLine::Span
+{
+    return CSS::GridLineSpan {
+        toCSS(value.position, style),
+        !value.name.value.isNull() ? std::optional { toCSS(value.name, style) } : std::nullopt,
+    };
+}
+
+auto ToStyle<CSS::GridLine::Span>::operator()(const CSS::GridLine::Span& value, const BuilderState& state) -> GridPosition::Span
+{
+    return GridPosition::Span {
+        toStyle(value.index, state),
+        toStyle(value.name, state).value_or(CustomIdent { nullAtom() }),
+    };
+}
+
 auto CSSValueConversion<GridPosition>::operator()(BuilderState& state, const CSSValue& value) -> GridPosition
 {
     using namespace CSS::Literals;
@@ -133,55 +210,12 @@ auto CSSValueConversion<GridPosition>::operator()(BuilderState& state, const CSS
     if (!gridLineValue)
         return CSS::Keyword::Auto { };
 
-    auto resolveGridLineNumberForSpan = [&] -> GridPosition::Span::Position {
-        if (!gridLineValue->numeric())
-            return 1_css_integer;
-        auto unclampedInteger = toStyle(*gridLineValue->numeric(), state);
-        return { CSS::clampToRangeOf<GridPosition::Span::Position>(unclampedInteger.value) };
-    };
-
-    auto resolveGridLineNumberForExplicit = [&] -> GridPosition::Explicit::Position {
-        if (!gridLineValue->numeric())
-            return 1_css_integer;
-        return toStyle(*gridLineValue->numeric(), state);
-    };
-
-    auto resolveGridLineName = [&] {
-        return toStyle(gridLineValue->gridLineName(), state).value_or(CustomIdent { nullAtom() });
-    };
-
-    if (gridLineValue->span()) {
-        return GridPosition::Span {
-            resolveGridLineNumberForSpan(),
-            resolveGridLineName(),
-        };
-    }
-
-    return GridPosition::Explicit {
-        resolveGridLineNumberForExplicit(),
-        resolveGridLineName(),
-    };
+    return toStyle(gridLineValue->line(), state);
 }
 
-// MARK: - Logging
-
-TextStream& operator<<(TextStream& ts, const GridPosition& value)
+Ref<CSSValue> CSSValueCreation<GridPosition>::operator()(CSSValuePool& pool, const RenderStyle& style, const GridPosition& value)
 {
-    WTF::switchOn(value,
-        [&](const CSS::Keyword::Auto&) {
-            ts << "auto"_s;
-        },
-        [&](const Style::GridPosition::Explicit& explicitPosition) {
-            ts << explicitPosition.name << ' ' << explicitPosition.position;
-        },
-        [&](const Style::GridPosition::Span& spanPosition) {
-            ts << "span"_s << ' ' << spanPosition.name << ' ' << spanPosition.position;
-        },
-        [&](const CustomIdent& namedGridAreaPosition) {
-            ts << namedGridAreaPosition;
-        }
-    );
-    return ts;
+    return CSS::createCSSValue(pool, toCSS(value, style));
 }
 
 } // namespace Style

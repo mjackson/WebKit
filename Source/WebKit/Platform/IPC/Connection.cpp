@@ -45,6 +45,7 @@
 #include <wtf/RuntimeApplicationChecks.h>
 #include <wtf/Scope.h>
 #include <wtf/SystemTracing.h>
+#include <wtf/Threading.h>
 #include <wtf/WTFProcess.h>
 #include <wtf/text/WTFString.h>
 #include <wtf/threads/BinarySemaphore.h>

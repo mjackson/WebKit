@@ -69,15 +69,18 @@ MathMLOperatorElement& RenderMathMLOperator::element() const
     return static_cast<MathMLOperatorElement&>(nodeForNonAnonymous());
 }
 
-char32_t RenderMathMLOperator::textContent() const
+char32_t RenderMathMLOperator::singleCharCodePoint() const
 {
-    return element().operatorChar().character;
+    auto& operatorChar = element().operatorChar();
+    if (operatorChar.hasTwoCharacters)
+        return 0;
+    return operatorChar.character;
 }
 
 bool RenderMathMLOperator::isInvisibleOperator() const
 {
     // The following operators are invisible: U+2061 FUNCTION APPLICATION, U+2062 INVISIBLE TIMES, U+2063 INVISIBLE SEPARATOR, U+2064 INVISIBLE PLUS.
-    char32_t character = textContent();
+    char32_t character = singleCharCodePoint();
     return 0x2061 <= character && character <= 0x2064;
 }
 
@@ -206,7 +209,7 @@ void RenderMathMLOperator::computePreferredLogicalWidths()
         preferredWidth = m_maxPreferredLogicalWidth;
         if (isInvisibleOperator()) {
             // In some fonts, glyphs for invisible operators have nonzero width. Consequently, we subtract that width here to avoid wide gaps.
-            GlyphData data = style().fontCascade().glyphDataForCharacter(textContent(), false);
+            GlyphData data = style().fontCascade().glyphDataForCharacter(singleCharCodePoint(), false);
             float glyphWidth = data.font ? data.font->widthForGlyph(data.glyph) : 0;
             preferredWidth -= std::min(LayoutUnit(glyphWidth), preferredWidth);
         }
@@ -243,6 +246,8 @@ void RenderMathMLOperator::layoutBlock(RelayoutChildren relayoutChildren, Layout
         setLogicalWidth(leadingSpaceValue + m_mathOperator.width() + trailingSpaceValue + borderAndPaddingLogicalWidth());
         setLogicalHeight(m_mathOperator.ascent() + m_mathOperator.descent() + borderAndPaddingLogicalHeight());
 
+        updateLogicalHeight();
+
         layoutOutOfFlowBoxes(relayoutChildren);
     } else {
         // We first do the normal layout without spacing.
@@ -264,12 +269,12 @@ void RenderMathMLOperator::updateMathOperator()
     MathOperator::Type type;
     if (isStretchy())
         type = isVertical() ? MathOperator::Type::VerticalOperator : MathOperator::Type::HorizontalOperator;
-    else if (textContent() && isLargeOperatorInDisplayStyle())
+    else if (singleCharCodePoint() && isLargeOperatorInDisplayStyle())
         type = MathOperator::Type::DisplayOperator;
     else
         type = MathOperator::Type::NormalOperator;
 
-    m_mathOperator.setOperator(style(), textContent(), type);
+    m_mathOperator.setOperator(style(), singleCharCodePoint(), type);
 }
 
 void RenderMathMLOperator::updateTokenContent()
@@ -291,7 +296,7 @@ bool RenderMathMLOperator::useMathOperator() const
     // We use the MathOperator class to handle the following cases:
     // 1) Stretchy and large operators, since they require special painting.
     // 2) The minus sign, since it can be obtained from a hyphen in the DOM.
-    return isStretchy() || (textContent() && isLargeOperatorInDisplayStyle()) || textContent() == minusSign;
+    return isStretchy() || (singleCharCodePoint() && isLargeOperatorInDisplayStyle()) || singleCharCodePoint() == minusSign;
 }
 
 void RenderMathMLOperator::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)

@@ -37,9 +37,14 @@ import tempfile
 import zipfile
 
 top_level_directory = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(top_level_directory, 'Tools', 'Scripts'))
 sys.path.insert(0, os.path.join(top_level_directory, 'Tools', 'flatpak'))
 sys.path.insert(0, os.path.join(top_level_directory, 'Tools', 'jhbuild'))
 sys.path.insert(0, os.path.join(top_level_directory, 'Tools', 'Scripts', 'webkitpy'))
+
+from webkitpy.port.linux_container_sdk_utils import maybe_enter_webkit_container_sdk
+maybe_enter_webkit_container_sdk()
+
 import jhbuildutils
 import flatpakutils
 from binary_bundling.ldd import SharedObjectResolver

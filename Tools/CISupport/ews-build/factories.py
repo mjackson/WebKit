@@ -297,6 +297,20 @@ class macOSWK2Factory(TestFactory):
     willTriggerCrashLogSubmission = True
 
 
+class macOSSiteIsolationFactory(TestFactory):
+    findModifiedLayoutTests = True
+    willTriggerCrashLogSubmission = True
+
+    def __init__(self, platform, configuration=None, architectures=None, triggered_by=None, additionalArguments=None, checkRelevance=False, **kwargs):
+        Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggered_by=triggered_by, additionalArguments=additionalArguments, checkRelevance=checkRelevance)
+        self.addStep(KillOldProcesses())
+        self.getProduct()
+        self.addStep(WaitForCrashCollection())
+        self.addStep(RunWebKitTestsEWSSiteIsolation())
+        self.addStep(TriggerCrashLogSubmission())
+        self.addStep(SetBuildSummary())
+
+
 class PlayStationBuildFactory(BuildFactory):
     branches = [r'main']
     requiresUserValidation = True

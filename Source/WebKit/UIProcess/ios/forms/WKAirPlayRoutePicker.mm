@@ -32,8 +32,10 @@
 #import "UIKitUtilities.h"
 #import <WebCore/AudioSession.h>
 #import <pal/spi/ios/MediaPlayerSPI.h>
+#import <wtf/ProcessID.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/SoftLinking.h>
+#import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 

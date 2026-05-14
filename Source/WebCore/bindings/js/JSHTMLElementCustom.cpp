@@ -54,7 +54,7 @@ EncodedJSValue constructJSHTMLElement(JSGlobalObject* lexicalGlobalObject, CallF
     VM& vm = lexicalGlobalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    auto* jsConstructor = uncheckedDowncast<JSDOMConstructorBase>(callFrame.jsCallee());
+    auto* jsConstructor = downcast<JSDOMConstructorBase>(callFrame.jsCallee());
     ASSERT(jsConstructor);
 
     CheckedPtr context = jsConstructor->scriptExecutionContext();
@@ -65,7 +65,7 @@ EncodedJSValue constructJSHTMLElement(JSGlobalObject* lexicalGlobalObject, CallF
     auto* newTarget = callFrame.newTarget().getObject();
     auto* functionGlobalObject = getFunctionRealm(lexicalGlobalObject, newTarget);
     RETURN_IF_EXCEPTION(scope, { });
-    auto* newTargetGlobalObject = uncheckedDowncast<JSDOMGlobalObject>(functionGlobalObject);
+    auto* newTargetGlobalObject = downcast<JSDOMGlobalObject>(functionGlobalObject);
     JSValue htmlElementConstructorValue = JSHTMLElement::getConstructor(vm, newTargetGlobalObject);
     if (newTarget == htmlElementConstructorValue)
         return throwVMTypeError(lexicalGlobalObject, scope, "new.target is not a valid custom element constructor"_s);

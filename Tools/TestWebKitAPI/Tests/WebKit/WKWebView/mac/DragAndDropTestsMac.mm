@@ -266,6 +266,23 @@ TEST(DragAndDropTests, DragPromisedImageFileIntoFileUpload)
     EXPECT_WK_STREQ(UTTypeGIF.identifier, filePromiseReceiver.fileTypes.firstObject);
 }
 
+// https://bugs.webkit.org/show_bug.cgi?id=307601
+TEST(DragAndDropTests, DragPromisedImageFileWithWebArchiveIntoFileUpload)
+{
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400)]);
+    TestWKWebView *webView = [simulator webView];
+    [webView synchronouslyLoadTestPageNamed:@"image-and-file-upload"];
+
+    NSURL *imageURL = [NSBundle.test_resourcesBundle URLForResource:@"apple" withExtension:@"gif"];
+    [simulator writePromisedFilesWithWebArchive:@[ imageURL ]];
+    [simulator runFrom:NSMakePoint(100, 100) to:NSMakePoint(100, 300)];
+
+    TestWebKitAPI::Util::waitForConditionWithLogging([&] () -> bool {
+        return [webView stringByEvaluatingJavaScript:@"imageload.textContent"].boolValue;
+    }, 2, @"Expected image to finish loading.");
+    EXPECT_EQ(1, [webView stringByEvaluatingJavaScript:@"filecount.textContent"].integerValue);
+}
+
 TEST(DragAndDropTests, ReadURLWhenDroppingPromisedWebLoc)
 {
     RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400)]);

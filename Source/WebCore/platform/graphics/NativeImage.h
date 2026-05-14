@@ -29,12 +29,10 @@
 
 #include <WebCore/GainMap.h>
 #include <WebCore/ImageTypes.h>
-#include <WebCore/PlatformExportMacros.h>
 #include <WebCore/PlatformImage.h>
 #include <WebCore/RenderingResource.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/TZoneMalloc.h>
-#include <wtf/UniqueRef.h>
 
 #if USE(SKIA)
 class GrDirectContext;
@@ -72,6 +70,7 @@ public:
     WEBCORE_EXPORT const std::optional<GainMap>& gainMap() const;
     WEBCORE_EXPORT virtual IntSize size() const;
     WEBCORE_EXPORT virtual bool hasAlpha() const;
+    WEBCORE_EXPORT size_t sizeInBytes() const;
     std::optional<Color> singlePixelSolidColor() const;
     WEBCORE_EXPORT virtual DestinationColorSpace colorSpace() const;
     WEBCORE_EXPORT bool hasHDRContent() const;

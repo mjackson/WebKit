@@ -297,7 +297,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BCA8CBDF11E578A000812FB7 /* MiniBrowser.xcconfig */;
 			buildSettings = {
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
 		};

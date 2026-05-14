@@ -70,13 +70,14 @@
         // After removal, buffered should start at the sync frame at PTS=4
         testExpected('sourceBuffer.buffered.length', 1);
         testExpected('sourceBuffer.buffered.start(0)', 4);
-
-        endTest();
     }
 
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <div>Tests SourceBuffer.remove() with real MP4 data. Removes [0, 2) and verifies that removal extends to the next sync frame boundary at PTS=4.</div>
     <video></video>
 </body>

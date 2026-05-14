@@ -384,6 +384,8 @@ void RenderMathMLUnderOver::layoutBlock(RelayoutChildren relayoutChildren, Layou
 
     adjustLayoutForBorderAndPadding();
 
+    updateLogicalHeight();
+
     layoutOutOfFlowBoxes(relayoutChildren);
 }
 

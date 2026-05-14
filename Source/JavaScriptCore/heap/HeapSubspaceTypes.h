@@ -96,6 +96,7 @@
 #include "JSWebAssemblyInstance.h"
 #include "JSWebAssemblyMemory.h"
 #include "JSWebAssemblyModule.h"
+#include "JSWebAssemblyStreamingContext.h"
 #include "JSWebAssemblyStruct.h"
 #include "JSWebAssemblyTable.h"
 #include "JSWebAssemblyTag.h"

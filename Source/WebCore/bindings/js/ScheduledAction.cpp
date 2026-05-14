@@ -42,6 +42,7 @@
 #include "WorkerGlobalScope.h"
 #include "WorkerThread.h"
 #include <JavaScriptCore/JSLock.h>
+#include <JavaScriptCore/JSObjectInlines.h>
 #include <JavaScriptCore/SourceProvider.h>
 #include <wtf/TZoneMallocInlines.h>
 

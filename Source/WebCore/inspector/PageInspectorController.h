@@ -105,6 +105,9 @@ public:
     WEBCORE_EXPORT void disconnectFrontend(Inspector::FrontendChannel&);
     WEBCORE_EXPORT void disconnectAllFrontends();
 
+    WEBCORE_EXPORT void connectRemoteInstrumentation();
+    WEBCORE_EXPORT void disconnectRemoteInstrumentation();
+
     void inspect(Node*);
     WEBCORE_EXPORT bool NODELETE shouldShowOverlay() const;
     WEBCORE_EXPORT void drawHighlight(GraphicsContext&) const;
@@ -129,6 +132,7 @@ public:
     InspectorFrontendClient* inspectorFrontendClient() const { return m_inspectorFrontendClient; }
 
     InstrumentingAgents& instrumentingAgents() const { return m_instrumentingAgents.get(); }
+    Inspector::FrontendRouter& frontendRouter() const { return m_frontendRouter.get(); }
     Inspector::BackendDispatcher& backendDispatcher() const { return m_backendDispatcher.get(); }
     WebInjectedScriptManager& injectedScriptManager() const { return m_injectedScriptManager.get(); }
 

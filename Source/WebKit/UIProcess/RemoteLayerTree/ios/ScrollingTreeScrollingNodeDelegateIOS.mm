@@ -118,8 +118,8 @@
     }
 
     Ref scrollingNode = scrollingTreeNodeDelegate->scrollingNode();
-    std::optional<unsigned> originalHorizontalSnapPosition = scrollingNode->currentHorizontalSnapPointIndex();
-    std::optional<unsigned> originalVerticalSnapPosition = scrollingNode->currentVerticalSnapPointIndex();
+    auto originalHorizontalSnapPosition = scrollingNode->currentHorizontalSnapPointIndex();
+    auto originalVerticalSnapPosition = scrollingNode->currentVerticalSnapPointIndex();
 
     WebCore::FloatSize viewportSize(static_cast<float>(CGRectGetWidth([scrollView bounds])), static_cast<float>(CGRectGetHeight([scrollView bounds])));
     const auto& snapOffsetsInfo = scrollingNode->snapOffsetsInfo();

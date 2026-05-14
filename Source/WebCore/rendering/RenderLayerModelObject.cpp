@@ -34,6 +34,7 @@
 #include "ReferencedSVGResources.h"
 #include "RenderDescendantIterator.h"
 #include "RenderElementInlines.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderLayer.h"
 #include "RenderLayerBacking.h"
 #include "RenderLayerCompositor.h"
@@ -812,6 +813,18 @@ void RenderLayerModelObject::paintSVGEventRegion(PaintInfo& paintInfo, const Lay
     auto eventRegionBounds = strokeBoundingBox();
     eventRegionBounds.move(coordinateSystemOriginTranslation);
     paintInfo.eventRegionContext()->unite(FloatRoundedRect(eventRegionBounds), *this, style(), false);
+}
+
+AffineTransform RenderLayerModelObject::computeRendererTransform() const
+{
+    if (!isTransformed())
+        return { };
+    if (CheckedPtr renderLayer = layer())
+        return renderLayer->currentTransform(Style::TransformResolver::individualTransformOperations).toAffineTransform();
+    TransformationMatrix matrix;
+    auto referenceBoxRect = transformReferenceBoxRect(style());
+    applyTransform(matrix, style(), referenceBoxRect, Style::TransformResolver::individualTransformOperations);
+    return matrix.toAffineTransform();
 }
 
 #if ASSERT_ENABLED

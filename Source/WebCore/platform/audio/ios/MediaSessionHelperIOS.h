@@ -31,6 +31,7 @@
 #include <WebCore/MediaPlaybackTarget.h>
 #include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/ProcessID.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/WeakHashSet.h>
 
 namespace WebCore {

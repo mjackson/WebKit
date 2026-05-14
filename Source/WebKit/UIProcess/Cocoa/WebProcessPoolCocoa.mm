@@ -47,7 +47,7 @@
 #import "SandboxUtilities.h"
 #import "TextChecker.h"
 #import "WKContentRuleListInternal.h"
-#import "WKContentRuleListStore.h"
+#import "WKContentRuleListStoreInternal.h"
 #import "WebBackForwardCache.h"
 #import "WebCompiledContentRuleList.h"
 #import "WebMemoryPressureHandler.h"
@@ -125,6 +125,7 @@
 #endif
 
 #if PLATFORM(IOS_FAMILY)
+#import <WebCore/RenderThemeIOS.h>
 #import <pal/spi/ios/GraphicsServicesSPI.h>
 #import <pal/spi/ios/MobileGestaltSPI.h>
 #endif
@@ -1065,6 +1066,13 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     removeCFNotificationObserver(kAXSDarkenSystemColorsEnabledNotification);
     removeCFNotificationObserver(kAXSInvertColorsEnabledNotification);
 #endif
+#if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
+    if (canLoadkAXSReduceMotionAutoplayAnimatedImagesChangedNotification())
+        removeCFNotificationObserver(getkAXSReduceMotionAutoplayAnimatedImagesChangedNotificationSingleton());
+#endif
+#if ENABLE(ACCESSIBILITY_NON_BLINKING_CURSOR)
+    removeCFNotificationObserver(kAXSPrefersNonBlinkingCursorIndicatorDidChangeNotification);
+#endif
 #if HAVE(MEDIA_ACCESSIBILITY_FRAMEWORK)
     removeCFNotificationObserver(kMAXCaptionAppearanceSettingsChangedNotification);
 #endif
@@ -1470,7 +1478,13 @@ void WebProcessPool::platformCompileResourceMonitorRuleList(const String& rulesT
 {
     StringView view { rulesText };
     RetainPtr source = view.createNSStringWithoutCopying();
+
+#if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
+    auto& controller = ResourceMonitorURLsController::singleton();
+    RetainPtr store = controller.contentRuleListStore() ? WebKit::wrapper(*controller.contentRuleListStore()) : [WKContentRuleListStore defaultStore];
+#else
     RetainPtr store = [WKContentRuleListStore defaultStore];
+#endif
 
     [store compileContentRuleListForIdentifier:WebKitResourceMonitorURLsForTestingIdentifier encodedContentRuleList:source.get() completionHandler:makeBlockPtr([completionHandler = WTF::move(completionHandler)](WKContentRuleList *list, NSError *error) mutable {
         if (error || !list)

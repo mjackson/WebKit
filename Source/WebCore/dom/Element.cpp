@@ -182,6 +182,10 @@
 #include <wtf/text/MakeString.h>
 #include <wtf/text/TextStream.h>
 
+#if ENABLE(MATHML)
+#include "MathMLElement.h"
+#endif
+
 #if PLATFORM(COCOA)
 #include <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 #endif
@@ -2357,7 +2361,11 @@ void Element::attributeChanged(const QualifiedName& name, const AtomString& oldV
         elementData()->setHasNameAttribute(!newValue.isNull());
         break;
     case AttributeNames::nonceAttr:
+#if ENABLE(MATHML)
+        if (isAnyOf<HTMLElement, SVGElement, MathMLElement>(*this))
+#else
         if (isAnyOf<HTMLElement, SVGElement>(*this))
+#endif
             setNonce(newValue.isNull() ? emptyAtom() : newValue);
         break;
     case AttributeNames::useragentpartAttr:
@@ -2661,7 +2669,7 @@ URL Element::absoluteLinkURL() const
     if (linkAttribute.isEmpty())
         return URL();
 
-    return document().completeURL(linkAttribute);
+    return document().encodingParseURL(linkAttribute);
 }
 
 void Element::setIsLink(bool flag)
@@ -3479,7 +3487,7 @@ RefPtr<ShadowRoot> Element::shadowRootForBindings(JSC::JSGlobalObject& lexicalGl
         return nullptr;
     if (shadow->mode() == ShadowRootMode::Open)
         return shadow;
-    if (uncheckedDowncast<JSDOMGlobalObject>(&lexicalGlobalObject)->world().shadowRootIsAlwaysOpen())
+    if (downcast<JSDOMGlobalObject>(&lexicalGlobalObject)->world().shadowRootIsAlwaysOpen())
         return shadow;
     return nullptr;
 }
@@ -5094,7 +5102,7 @@ URL Element::getURLAttribute(const QualifiedName& name) const
             ASSERT(isURLAttribute(*attribute));
     }
 #endif
-    return document().completeURL(getAttribute(name));
+    return document().encodingParseURL(getAttribute(name));
 }
 
 URL Element::getNonEmptyURLAttribute(const QualifiedName& name) const
@@ -5108,7 +5116,7 @@ URL Element::getNonEmptyURLAttribute(const QualifiedName& name) const
     auto value = getAttribute(name).string().trim(isASCIIWhitespace);
     if (value.isEmpty())
         return URL();
-    return document().completeURL(value);
+    return document().encodingParseURL(value);
 }
 
 int Element::integralAttribute(const QualifiedName& attributeName) const
@@ -5523,6 +5531,19 @@ bool Element::isSpellCheckingEnabled() const
     return true;
 }
 
+bool Element::computedWritingSuggestionsValue() const
+{
+    for (Ref ancestor : composedTreeLineage(*this)) {
+        auto& value = ancestor->attributeWithoutSynchronization(HTMLNames::writingsuggestionsAttr);
+        if (value.isNull())
+            continue;
+        if (equalLettersIgnoringASCIICase(value, "false"_s))
+            return false;
+        return true;
+    }
+    return true;
+}
+
 bool Element::isWritingSuggestionsEnabled() const
 {
     // If none of the following conditions are true, then return `false`.
@@ -5555,16 +5576,8 @@ bool Element::isWritingSuggestionsEnabled() const
     // not in the `default` state and the nearest such ancestor's `writingsuggestions` content attribute
     // is in the `false` state, then return `false`.
 
-    for (Ref ancestor : composedTreeLineage(*this)) {
-        auto& value = ancestor->attributeWithoutSynchronization(HTMLNames::writingsuggestionsAttr);
-
-        if (value.isNull())
-            continue;
-        if (value.isEmpty() || equalLettersIgnoringASCIICase(value, "true"_s))
-            return true;
-        if (equalLettersIgnoringASCIICase(value, "false"_s))
-            return false;
-    }
+    if (!computedWritingSuggestionsValue())
+        return false;
 
     // This is not yet part of the spec, but it improves web-compatibility; if autocomplete
     // is intentionally off, the site author probably wants writingsuggestions off too.
@@ -5986,7 +5999,7 @@ String Element::resolveURLStringIfNeeded(const String& urlString, ResolveURLs re
         return urlString;
 
     static MainThreadNeverDestroyed<const AtomString> maskedURLStringForBindings(document().maskedURLStringForBindings());
-    URL completeURL = base.isNull() ? document().completeURL(urlString) : URL(base, urlString);
+    URL completeURL = base.isNull() ? document().encodingParseURL(urlString) : URL(base, urlString);
 
     switch (resolveURLs) {
     case ResolveURLs::Yes:
@@ -6156,7 +6169,7 @@ RefPtr<Element> Element::findAnchorElementForLink(String& outAnchorName)
         return nullptr;
 
     Ref document = this->document();
-    URL url = document->completeURL(href);
+    URL url = document->encodingParseURL(href);
     if (!url.isValid())
         return nullptr;
 

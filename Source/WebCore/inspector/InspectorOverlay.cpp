@@ -32,9 +32,8 @@
 
 #include "AXObjectCacheInlines.h"
 #include "AccessibilityObject.h"
-#include "CSSGridAutoRepeatValue.h"
-#include "CSSGridIntegerRepeatValue.h"
-#include "CSSGridLineNamesValue.h"
+#include "CSSGridTemplateListValue.h"
+#include "CSSPrimitiveNumericTypes+Serialization.h"
 #include "CSSSerializationContext.h"
 #include "CSSStyleDeclaration.h"
 #include "CSSValuePool.h"
@@ -1446,42 +1445,65 @@ static Vector<String> authoredGridTrackSizes(Node* node, Style::GridTrackSizingD
             cssValue = computedValue;
     }
 
-    RefPtr cssValueList = dynamicDowncast<CSSValueList>(cssValue.get());
-    if (!cssValueList)
+    RefPtr gridTemplateListValue = dynamicDowncast<CSSGridTemplateListValue>(cssValue.get());
+    if (!gridTemplateListValue)
         return { };
-    Vector<String> trackSizes;
 
-    auto handleValueIgnoringLineNames = [&](const CSSValue& currentValue) {
-        if (!is<CSSGridLineNamesValue>(currentValue))
-            trackSizes.append(currentValue.cssText(CSS::defaultSerializationContext()));
-    };
+    return WTF::switchOn(gridTemplateListValue->list(),
+        [&](CSS::Keyword::None) -> Vector<String> {
+            return { };
+        },
+        [&](const CSS::GridSubgrid&) -> Vector<String> {
+            return { };
+        },
+        [&](const CSS::GridTrackList& trackList) -> Vector<String> {
+            Vector<String> trackSizes;
 
-    for (Ref currentValue : *cssValueList) {
-        if (RefPtr cssGridAutoRepeatValue = dynamicDowncast<CSSGridAutoRepeatValue>(currentValue)) {
-            // Auto-repeated values will be looped through until no more values were used in layout based on the expected track count.
-            while (trackSizes.size() < expectedTrackCount) {
-                for (Ref autoRepeatValue : *cssGridAutoRepeatValue) {
-                    handleValueIgnoringLineNames(autoRepeatValue);
-                    if (trackSizes.size() >= expectedTrackCount)
-                        break;
-                }
+            for (auto& track : trackList.value) {
+                WTF::switchOn(track,
+                    [&](const CSS::GridLineNames&) {
+                        // Only adding track sizes, so line names are ignored.
+                    },
+                    [&](const CSS::GridTrackSize& trackSize) {
+                        trackSizes.append(CSS::serializationForCSS(CSS::defaultSerializationContext(), trackSize));
+                    },
+                    [&](const CSS::GridTrackRepeatFunction& repeatFunction) {
+                        auto handleValueIgnoringLineNames = [&](const auto& repeatedValue) {
+                            if (auto* trackSize = std::get_if<CSS::GridTrackSize>(&repeatedValue))
+                                trackSizes.append(CSS::serializationForCSS(CSS::defaultSerializationContext(), *trackSize));
+                        };
+
+                        WTF::switchOn(repeatFunction->repetitions,
+                            [&](const CSS::Integer<CSS::Positive, unsigned>& numberOfRepetitions) {
+                                return WTF::switchOn(numberOfRepetitions,
+                                    [&](const CSS::Integer<CSS::Positive, unsigned>::Raw& numberOfRepetitions) {
+                                        for (unsigned i = 0; i < numberOfRepetitions.value; ++i) {
+                                            for (auto& repeatedValue : repeatFunction->repeated)
+                                                handleValueIgnoringLineNames(repeatedValue);
+                                        }
+                                    },
+                                    [&](const CSS::Integer<CSS::Positive, unsigned>::Calc&) {
+                                        // Number of repetitions is not yet calculated.
+                                    }
+                                );
+                            },
+                            [&](CSS::SpecificKeyword auto const& /* auto-fit or auto-fill */) {
+                                while (trackSizes.size() < expectedTrackCount) {
+                                    for (auto& repeatedValue : repeatFunction->repeated) {
+                                        handleValueIgnoringLineNames(repeatedValue);
+                                        if (trackSizes.size() >= expectedTrackCount)
+                                            break;
+                                    }
+                                }
+                            }
+                        );
+                    }
+                );
             }
-            break;
-        }
 
-        if (RefPtr cssGridIntegerRepeatValue = dynamicDowncast<CSSGridIntegerRepeatValue>(currentValue)) {
-            size_t repetitions = cssGridIntegerRepeatValue->repetitions().resolveAsIntegerDeprecated();
-            for (size_t i = 0; i < repetitions; ++i) {
-                for (Ref integerRepeatValue : *cssGridIntegerRepeatValue)
-                    handleValueIgnoringLineNames(integerRepeatValue);
-            }
-            continue;
+            return trackSizes;
         }
-
-        handleValueIgnoringLineNames(currentValue);
-    }
-    
-    return trackSizes;
+    );
 }
 
 static Style::GridOrderedNamedLinesMap gridLineNames(const RenderStyle* renderStyle, Style::GridTrackSizingDirection direction, unsigned expectedLineCount)
@@ -1490,9 +1512,9 @@ static Style::GridOrderedNamedLinesMap gridLineNames(const RenderStyle* renderSt
         return { };
     
     Style::GridOrderedNamedLinesMap combinedGridLineNames;
-    auto appendLineNames = [&](unsigned index, const Vector<Style::CustomIdent>& newNames) {
+    auto appendLineNames = [&](unsigned index, const Style::GridLineNames& newNames) {
         if (auto result = combinedGridLineNames.map.add(index, newNames); !result.isNewEntry)
-            result.iterator->value.appendVector(newNames);
+            result.iterator->value.value.value.appendVector(newNames.value.value);
     };
 
     auto& tracks = renderStyle->gridTemplateList(direction);
@@ -1512,7 +1534,7 @@ static Style::GridOrderedNamedLinesMap gridLineNames(const RenderStyle* renderSt
 
     for (auto& [name, indexes] : renderStyle->gridTemplateAreas().implicitNamedGridLines(direction).map) {
         for (auto i : indexes)
-            appendLineNames(i, {name});
+            appendLineNames(i, Style::GridLineNames { { name } });
     }
     
     return combinedGridLineNames;

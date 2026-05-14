@@ -13,6 +13,7 @@
 #import <WebCore/PageIdentifier.h>
 #import <WebCore/SecurityOriginData.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/TZoneMalloc.h>
 #import <wtf/Threading.h>
 #import <wtf/Vector.h>
 #import <wtf/WeakObjCPtr.h>
@@ -39,24 +40,18 @@ class WebPageProxy;
 enum class PlatformXRSessionEndReason : uint8_t;
 }
 
-namespace WTF {
-// FIXME: rdar://175742141
-template<typename T> struct IsDeprecatedWeakRefSmartPointerException;
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebKit::CompositorCoordinator> : std::true_type { }; // NOLINT
-}
-
 namespace WebCore {
 struct XRCanvasConfiguration;
 }
 
 namespace WebKit {
 
-class CompositorCoordinator final : public PlatformXRCoordinator, public CanMakeWeakPtr<CompositorCoordinator> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED(CompositorCoordinator);
+class CompositorCoordinator final : public PlatformXRCoordinator {
+    WTF_MAKE_TZONE_ALLOCATED(CompositorCoordinator);
 public:
-    CompositorCoordinator();
     virtual ~CompositorCoordinator() { }
 
+    static CompositorCoordinator* singleton();
     static bool isCompositorServicesAvailable();
 
     void getPrimaryDeviceInfo(WebPageProxy&, DeviceInfoCallback&&) override;
@@ -69,6 +64,10 @@ public:
     void submitFrame(WebPageProxy&) override;
 
 private:
+    friend class WTF::LazyNeverDestroyed<CompositorCoordinator>;
+
+    CompositorCoordinator();
+
     bool processEvent();
     void update();
     void render(cp_frame_t, cp_drawable_t, NSTimeInterval);

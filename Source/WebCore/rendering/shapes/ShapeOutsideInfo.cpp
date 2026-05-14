@@ -200,16 +200,20 @@ static LayoutUnit logicalLeftOffset(const RenderBox& renderer)
 {
     if (renderer.isRenderFragmentContainer())
         return 0_lu;
-    
+
+    // The offset converts from reference-box coordinates to border-box coordinates.
+    // Shape coordinates are physical before the RTL flip, so use physical-left (horizontal)
+    // or physical-top (vertical) values, not inline-start values.
+    auto isHorizontal = renderer.containingBlock()->isHorizontalWritingMode();
     switch (renderer.style().shapeOutside().effectiveCSSBox()) {
     case CSSBoxType::MarginBox:
-        return -renderer.marginStart(renderer.containingBlock()->writingMode());
+        return isHorizontal ? -renderer.marginLeft() : -renderer.marginTop();
     case CSSBoxType::BorderBox:
         return 0_lu;
     case CSSBoxType::PaddingBox:
-        return borderStartWithStyleForWritingMode(renderer, renderer.containingBlock()->writingMode());
+        return isHorizontal ? renderer.borderLeft() : renderer.borderTop();
     case CSSBoxType::ContentBox:
-        return borderAndPaddingStartWithStyleForWritingMode(renderer, renderer.containingBlock()->writingMode());
+        return isHorizontal ? renderer.borderLeft() + renderer.paddingLeft() : renderer.borderTop() + renderer.paddingTop();
     case CSSBoxType::FillBox:
         break;
     case CSSBoxType::StrokeBox:
@@ -256,6 +260,7 @@ Ref<const LayoutShape> makeShapeForShapeOutside(const RenderBox& renderer)
     auto zoom = style.usedZoomForLength();
 
     auto boxSize = computeLogicalBoxSize(renderer, isHorizontalWritingMode);
+    auto borderBoxLogicalWidth = isHorizontalWritingMode ? renderer.width() : renderer.height();
 
     auto logicalMargin = [&] {
         auto shapeMargin = Style::evaluate<LayoutUnit>(style.shapeMargin(), containingBlock.contentBoxLogicalWidth(), zoom).toFloat();
@@ -265,11 +270,11 @@ Ref<const LayoutShape> makeShapeForShapeOutside(const RenderBox& renderer)
     return WTF::switchOn(shapeOutside,
         [&](const Style::ShapeOutside::Shape& shape) {
             auto offset = LayoutPoint { logicalLeftOffset(renderer), logicalTopOffset(renderer) };
-            return LayoutShape::createShape(shape, offset, boxSize, writingMode, logicalMargin, zoom);
+            return LayoutShape::createShape(shape, offset, boxSize, borderBoxLogicalWidth, writingMode, logicalMargin, zoom);
         },
         [&](const Style::ShapeOutside::ShapeAndShapeBox& shapeAndShapeBox) {
             auto offset = LayoutPoint { logicalLeftOffset(renderer), logicalTopOffset(renderer) };
-            return LayoutShape::createShape(shapeAndShapeBox.shape, offset, boxSize, writingMode, logicalMargin, zoom);
+            return LayoutShape::createShape(shapeAndShapeBox.shape, offset, boxSize, borderBoxLogicalWidth, writingMode, logicalMargin, zoom);
         },
         [&](const Style::ShapeOutside::Image& shapeImage) {
             ASSERT(shapeImage.isValid());

@@ -33,6 +33,7 @@
 #include <wtf/Locker.h>
 #include <wtf/RunLoop.h>
 #include <wtf/SHA1.h>
+#include <wtf/TZoneMallocInlines.h>
 
 #if !OS(WINDOWS)
 #include <sys/stat.h>

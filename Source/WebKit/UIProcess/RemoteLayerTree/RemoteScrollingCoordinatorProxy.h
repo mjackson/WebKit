@@ -126,8 +126,8 @@ public:
     void adjustMainFrameDelegatedScrollPosition(WebCore::ScrollRequestData&&);
 
     bool hasFixedOrSticky() const;
-    bool NODELETE hasScrollableMainFrame() const;
-    bool NODELETE hasScrollableOrZoomedMainFrame() const;
+    bool hasScrollableMainFrame() const;
+    bool hasScrollableOrZoomedMainFrame() const;
 
     WebCore::ScrollbarWidth mainFrameScrollbarWidth() const;
     std::optional<WebCore::ScrollbarColor> mainFrameScrollbarColor() const;
@@ -229,8 +229,6 @@ private:
 protected:
     WebCore::ScrollRequestData m_scrollRequestData;
     RemoteScrollingUIState m_uiState;
-    std::optional<unsigned> m_currentHorizontalSnapPointIndex;
-    std::optional<unsigned> m_currentVerticalSnapPointIndex;
     bool m_waitingForDidScrollReply { false };
     HashSet<WebCore::PlatformLayerIdentifier> m_layersWithScrollingRelations;
 };

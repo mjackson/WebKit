@@ -690,6 +690,7 @@ void RenderTableSection::layoutRows()
         if (CheckedPtr rowRenderer = m_grid[rowIndex].rowRenderer) {
             // FIXME: the x() position of the row should be table()->hBorderSpacing() so that it can
             // report the correct offsetLeft. However, that will require a lot of rebaselining of test results.
+            auto oldRowRect = rowRenderer->frameRect();
             rowRenderer->setLogicalLocation({ 0_lu, m_rowPos[rowIndex] });
             rowRenderer->setLogicalWidth(logicalWidth());
 
@@ -701,6 +702,9 @@ void RenderTableSection::layoutRows()
             ASSERT(rowLogicalHeight >= 0);
             rowRenderer->setLogicalHeight(rowLogicalHeight);
             rowRenderer->updateLayerTransform();
+
+            if (rowRenderer->frameRect() != oldRowRect && !table()->selfNeedsLayout() && rowRenderer->checkForRepaintDuringLayout())
+                rowRenderer->repaintDuringLayoutIfMoved(oldRowRect);
 
             // Push the row's offset onto the layout state so that pagination offsets
             // are consistent with what RenderTableRow::layout() pushes.

@@ -32,9 +32,9 @@
 #include <JavaScriptCore/PropertyName.h>
 #include <JavaScriptCore/Weak.h>
 #include <JavaScriptCore/WeakHandleOwner.h>
+#include <wtf/CurrentThread.h>
 #include <wtf/NakedPtr.h>
 #include <wtf/TZoneMalloc.h>
-#include <wtf/Threading.h>
 
 namespace JSC {
 class JSObject;
@@ -80,7 +80,7 @@ private:
     JSC::Weak<JSC::JSObject> m_callback;
 
 #if ASSERT_ENABLED
-    const Ref<Thread> m_thread { Thread::currentSingleton() };
+    const uint32_t m_threadID { currentThreadID() };
 #endif
 };
 

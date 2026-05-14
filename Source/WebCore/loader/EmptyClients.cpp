@@ -1254,6 +1254,7 @@ PageConfiguration pageConfigurationWithEmptyClients(std::optional<PageIdentifier
 {
     PageConfiguration pageConfiguration {
         identifier,
+        std::nullopt,
         sessionID,
         makeUniqueRef<EmptyEditorClient>(),
         adoptRef(*new EmptySocketProvider),

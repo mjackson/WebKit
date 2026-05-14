@@ -328,7 +328,8 @@ enum class DurationSignType : uint8_t {
 // https://tc39.es/proposal-intl-duration-format/#sec-durationsign
 static DurationSignType NODELETE getDurationSign(ISO8601::Duration duration)
 {
-    for (auto value : duration) {
+    for (size_t i = 0; i < numberOfTemporalUnits; ++i) {
+        auto value = duration[i];
         if (value < 0)
             return DurationSignType::Negative;
         if (value > 0)

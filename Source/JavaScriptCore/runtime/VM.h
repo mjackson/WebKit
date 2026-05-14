@@ -115,7 +115,6 @@ class CompactTDZEnvironmentMap;
 class ConservativeRoots;
 class ControlFlowProfiler;
 class CrossTaskToken;
-class EagerIIFERegistry;
 class Exception;
 class ExceptionScope;
 class FuzzerAgent;
@@ -537,6 +536,7 @@ public:
 #if ENABLE(WEBASSEMBLY)
     WriteBarrier<Structure> pinballCompletionStructure;
     WriteBarrier<Structure> webAssemblyCalleeGroupStructure;
+    WriteBarrier<Structure> webAssemblyStreamingContextStructure;
 #endif
     WriteBarrier<Structure> moduleProgramExecutableStructure;
     WriteBarrier<Structure> slimPromiseReactionStructure;
@@ -593,6 +593,9 @@ public:
 
     WriteBarrier<JSCell> m_orderedHashTableDeletedValue;
     WriteBarrier<JSCell> m_orderedHashTableSentinel;
+
+    WriteBarrier<JSCell> m_cachedSortScratch;
+    WriteBarrier<JSCell> m_sortScratchSentinel;
 
     WriteBarrier<NativeExecutable> m_fastCanConstructBoundExecutable;
     WriteBarrier<NativeExecutable> m_slowCanConstructBoundExecutable;
@@ -812,12 +815,10 @@ public:
     static void computeCanUseJIT();
 
     SourceProviderCache* addSourceProviderCache(SourceProvider*);
-    EagerIIFERegistry* addEagerIIFERegistry(SourceProvider*);
     void clearSourceProviderCaches();
 
     typedef UncheckedKeyHashMap<RefPtr<SourceProvider>, RefPtr<SourceProviderCache>> SourceProviderCacheMap;
     SourceProviderCacheMap sourceProviderCacheMap;
-    UncheckedKeyHashMap<RefPtr<SourceProvider>, RefPtr<EagerIIFERegistry>> eagerIIFERegistryMap;
 #if ENABLE(JIT)
     std::unique_ptr<JITThunks> jitStubs;
     MacroAssemblerCodeRef<JITThunkPtrTag> getCTIStub(ThunkGenerator);

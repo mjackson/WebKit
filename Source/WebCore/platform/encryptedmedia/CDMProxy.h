@@ -41,6 +41,7 @@
 #include <wtf/HashSet.h>
 #include <wtf/Lock.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/WeakPtr.h>
 
 #if ENABLE(THUNDER)

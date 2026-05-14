@@ -107,6 +107,9 @@ public:
     void setNativeGetterTypeError() { m_nativeGetterTypeError = true; }
     bool isNativeGetterTypeError() const { return m_nativeGetterTypeError; }
 
+    void setParseError() { m_parseError = true; }
+    bool isParseError() const { return m_parseError; }
+
 #if ENABLE(WEBASSEMBLY)
     void setCatchableFromWasm(bool flag) { m_catchableFromWasm = flag; }
     bool isCatchableFromWasm() const { return m_catchableFromWasm; }
@@ -176,6 +179,7 @@ protected:
     bool m_errorInfoMaterialized : 1;
     bool m_stackPropertyAlreadyMaterialized : 1;
     bool m_nativeGetterTypeError : 1;
+    bool m_parseError : 1;
 #if ENABLE(WEBASSEMBLY)
     bool m_catchableFromWasm : 1;
 #endif

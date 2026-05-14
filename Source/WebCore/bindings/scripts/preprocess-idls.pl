@@ -291,9 +291,21 @@ foreach my $idlFileName (sort keys %idlFileNameHash) {
         }
         $exposedAttribute = substr($exposedAttribute, 1, -1) if substr($exposedAttribute, 0, 1) eq "(";
 
+        my %exposedEnabledBySetting;
+        if (my $exposedSetting = $extendedAttributes->{"ExposedEnabledBySetting"}) {
+            if ($exposedSetting =~ /^(\w+)\|(\w+)$/) {
+                $exposedEnabledBySetting{$1} = $2;
+            }
+        }
+
         my @globalContexts = split(",", $exposedAttribute);
         foreach my $globalContext (@globalContexts) {
-            my ($attributeCode, $windowAliases) = GenerateConstructorAttributes($interfaceName, $extendedAttributes, $globalContext);
+            my %contextExtendedAttributes = %{$extendedAttributes};
+            if (my $setting = $exposedEnabledBySetting{$globalContext}) {
+                my $existing = $contextExtendedAttributes{"EnabledBySetting"};
+                $contextExtendedAttributes{"EnabledBySetting"} = $existing ? "$setting&$existing" : $setting;
+            }
+            my ($attributeCode, $windowAliases) = GenerateConstructorAttributes($interfaceName, \%contextExtendedAttributes, $globalContext);
             if ($globalContext eq "Window") {
                 $windowConstructorsCode .= $attributeCode;
                 $windowConstructorsCode .= $windowAliases if $windowAliases;

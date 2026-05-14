@@ -69,6 +69,7 @@ public:
     bool ownElementDisabled() const { return m_disabled; }
 
     WEBCORE_EXPORT bool isDisabledFormControl() const final;
+    bool isActuallyDisabled() const final;
 
     String textIndentedToRespectGroupLabel() const;
 

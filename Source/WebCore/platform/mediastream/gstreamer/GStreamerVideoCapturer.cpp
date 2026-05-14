@@ -111,6 +111,11 @@ void GStreamerVideoCapturer::tearDown(bool disconnectSignals)
 void GStreamerVideoCapturer::setupPipeline()
 {
     GStreamerCapturer::setupPipeline();
+
+    // Without buffer pool, pipewiresrc will copy its DMABuf memories instead of sharing them.
+    if (isCapturingDisplay() && gstElementMatchesFactoryAndHasProperty(m_src.get(), "pipewiresrc"_s, "use-bufferpool"_s))
+        g_object_set(m_src.get(), "use-bufferpool", TRUE, nullptr);
+
     auto pad = adoptGRef(gst_element_get_static_pad(m_sink.get(), "sink"));
     gst_pad_add_probe(pad.get(), GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM, reinterpret_cast<GstPadProbeCallback>(+[](GstPad*, GstPadProbeInfo* info, gpointer) -> GstPadProbeReturn {
         if (GST_QUERY_TYPE(GST_PAD_PROBE_INFO_QUERY(info)) == GST_QUERY_ALLOCATION)
@@ -404,10 +409,6 @@ void GStreamerVideoCapturer::reconfigure()
 
     auto caps = adoptGRef(gst_caps_new_simple(selector.mimeType.ascii().data(), "width", G_TYPE_INT, selector.maxWidth,
         "height", G_TYPE_INT, selector.maxHeight, nullptr));
-
-    // Workaround for https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/1793.
-    if (!selector.format.isEmpty())
-        gst_caps_set_simple(caps.get(), "format", G_TYPE_STRING, selector.format.ascii().data(), nullptr);
 
     GST_INFO_OBJECT(m_pipeline.get(), "Setting video capture device caps to %" GST_PTR_FORMAT, caps.get());
     g_object_set(m_videoSrcMIMETypeFilter.get(), "caps", caps.get(), nullptr);

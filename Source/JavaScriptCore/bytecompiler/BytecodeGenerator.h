@@ -901,7 +901,7 @@ namespace JSC {
         RegisterID* emitReturn(RegisterID* src);
 
         RegisterID* emitConstruct(RegisterID* dst, RegisterID* func, RegisterID* lazyThis, ExpectedFunction, CallArguments&, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd);
-        RegisterID* emitSuperConstruct(RegisterID* dst, RegisterID* func, RegisterID* lazyThis, ExpectedFunction, CallArguments&, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd);
+        RegisterID* emitSuperConstruct(RegisterID* dst, RegisterID* func, RegisterID* lazyThis, ExpectedFunction, CallArguments&, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd, bool isDefaultDerivedConstructorCall);
         RegisterID* emitStrcat(RegisterID* dst, RegisterID* src, int count);
         void emitToPrimitive(RegisterID* dst, RegisterID* src);
         RegisterID* emitToPropertyKey(RegisterID* dst, RegisterID* src);
@@ -1019,7 +1019,7 @@ namespace JSC {
         void emitOutOfLineExceptionHandler(RegisterID* exceptionRegister, RegisterID* thrownValueRegister, RegisterID* completionTypeRegister, TryData*);
 
         template<typename ConstructOp>
-        RegisterID* emitConstructImpl(RegisterID* dst, RegisterID* func, RegisterID* lazyThis, ExpectedFunction, CallArguments&, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd);
+        RegisterID* emitConstructImpl(RegisterID* dst, RegisterID* func, RegisterID* lazyThis, ExpectedFunction, CallArguments&, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd, bool isDefaultDerivedConstructorCall);
 
     public:
         enum class ScopeType : uint8_t { CatchScope, CatchScopeWithSimpleParameter, LetConstScope, FunctionNameScope, ClassScope };
@@ -1116,6 +1116,7 @@ namespace JSC {
 #else
         bool isPrivateBuiltinFunction() const { return isBuiltinFunction(); }
 #endif
+        bool isBuiltinDefaultClassConstructor() const { return m_isBuiltinDefaultClassConstructor; }
 
         OpcodeID lastOpcodeID() const { return m_lastOpcodeID; }
         
@@ -1438,6 +1439,7 @@ namespace JSC {
 #if USE(BUN_JSC_ADDITIONS)
         bool m_isPrivateBuiltinFunction { false };
 #endif
+        bool m_isBuiltinDefaultClassConstructor { false };
         bool m_usesSloppyEval { false };
         bool m_allowTailCallOptimization { false };
         bool m_allowCallIgnoreResultOptimization { false };

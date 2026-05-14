@@ -557,7 +557,7 @@ TEST(Gamepad, LogitechBasic)
 #else
     auto expectedHID = 2u;
     auto expectedGC = 0u;
-    auto expectedButtons = 16u;
+    auto expectedButtons = 17u;
     NSSet *expectedGamepadNames = [NSSet setWithArray:@[
         @"\"46d-c216-Virtual Logitech F310\"",
         @"\"46d-c219-Virtual Logitech F710\""]];

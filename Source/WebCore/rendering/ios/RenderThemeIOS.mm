@@ -224,6 +224,15 @@ void RenderThemeIOS::adjustMinimumIntrinsicSizeForAppearance(StyleAppearance app
     }
 }
 
+Style::PreferredSizePair RenderThemeIOS::controlSize(StyleAppearance appearance, const FontCascade& fontCascade, const Style::PreferredSizePair& zoomedSize, float) const
+{
+    if (appearance != StyleAppearance::Checkbox && appearance != StyleAppearance::Radio)
+        return zoomedSize;
+
+    auto size = Style::PreferredSize::Fixed { std::max(fontCascade.size(), 16.f) };
+    return { size, size };
+}
+
 void RenderThemeIOS::adjustRadioStyle(RenderStyle& style, const Element*) const
 {
     adjustMinimumIntrinsicSizeForAppearance(StyleAppearance::Radio, style);
@@ -1436,6 +1445,11 @@ String RenderThemeIOS::extraDefaultStyleSheet()
 void RenderThemeIOS::paintSystemPreviewBadge(Image& image, const PaintInfo& paintInfo, const FloatRect& rect)
 {
     paintInfo.context().drawSystemImage(ARKitBadgeSystemImage::create(image), rect);
+}
+
+void RenderThemeIOS::paintSystemPreviewBadge(const PaintInfo& paintInfo, const FloatRect& rect)
+{
+    paintInfo.context().drawSystemImage(ARKitBadgeSystemImage::createWithoutImage(), rect);
 }
 #endif
 

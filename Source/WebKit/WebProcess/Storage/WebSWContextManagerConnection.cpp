@@ -85,7 +85,7 @@ namespace WebKit {
 using namespace PAL;
 using namespace WebCore;
 
-WebSWContextManagerConnection::WebSWContextManagerConnection(Ref<IPC::Connection>&& connection, Site&& site, std::optional<ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, PageGroupIdentifier pageGroupID, WebPageProxyIdentifier webPageProxyID, PageIdentifier pageID, const WebPreferencesStore& store, RemoteWorkerInitializationData&& initializationData)
+WebSWContextManagerConnection::WebSWContextManagerConnection(Ref<IPC::Connection>&& connection, Site&& site, std::optional<ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, PageGroupIdentifier pageGroupID, WebPageProxyIdentifier webPageProxyID, PageIdentifier pageID, const WebPreferencesStore& store, RemoteWorkerInitializationData&& initializationData, CrossOriginEmbedderPolicyValue crossOriginEmbedderPolicyValue)
     : m_connectionToNetworkProcess(WTF::move(connection))
     , m_site(WTF::move(site))
     , m_serviceWorkerPageIdentifier(serviceWorkerPageIdentifier)
@@ -98,6 +98,7 @@ WebSWContextManagerConnection::WebSWContextManagerConnection(Ref<IPC::Connection
     , m_userAgent(standardUserAgent())
 #endif
     , m_userContentController(WebUserContentController::getOrCreate(WTF::move(initializationData.userContentControllerParameters)))
+    , m_crossOriginEmbedderPolicyValue(crossOriginEmbedderPolicyValue)
     , m_queue(WorkQueue::create("WebSWContextManagerConnection queue"_s, WorkQueue::QOS::UserInitiated))
 {
     WebPage::updatePreferencesGenerated(store);
@@ -111,7 +112,7 @@ WebSWContextManagerConnection::~WebSWContextManagerConnection() = default;
 void WebSWContextManagerConnection::establishConnection(CompletionHandler<void()>&& completionHandler)
 {
     m_connectionToNetworkProcess->addWorkQueueMessageReceiver(Messages::WebSWContextManagerConnection::messageReceiverName(), m_queue.get(), *this);
-    m_connectionToNetworkProcess->sendWithAsyncReply(Messages::NetworkConnectionToWebProcess::EstablishSWContextConnection { m_webPageProxyID, m_site, m_serviceWorkerPageIdentifier }, WTF::move(completionHandler), 0);
+    m_connectionToNetworkProcess->sendWithAsyncReply(Messages::NetworkConnectionToWebProcess::EstablishSWContextConnection { m_webPageProxyID, m_site, m_serviceWorkerPageIdentifier, m_crossOriginEmbedderPolicyValue }, WTF::move(completionHandler), 0);
 }
 
 void WebSWContextManagerConnection::stop()

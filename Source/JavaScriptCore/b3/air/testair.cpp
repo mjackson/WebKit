@@ -2967,8 +2967,6 @@ void testStorePairClobberMemoryLoad()
 template<bool nonLoopSpilled, bool loopSpilled, bool hasDef, bool liveAtHeader, bool liveAtExit>
 void testSplitAroundLoop()
 {
-    SetForScope splitAroundLoopsScope(Options::airGreedyRegAllocSplitAroundLoops(), true);
-    SetForScope loopFractionScope(Options::airGreedyRegAllocLoopSplitMaxLoopFraction(), 1.0);
     unsigned numRegs = 8;
     unsigned numAcrossLoopTmps = 4;
 
@@ -3129,8 +3127,6 @@ void testSplitAroundLoop()
 
 void testSplitAroundLoopNoInLoopUses()
 {
-    SetForScope splitAroundLoopsScope(Options::airGreedyRegAllocSplitAroundLoops(), true);
-    SetForScope loopFractionScope(Options::airGreedyRegAllocLoopSplitMaxLoopFraction(), 1.0);
     // Tmps defined before loop, not used inside, used after. loopTmp has zero cost and spills.
     B3::Procedure proc;
     Code& code = proc.code();
@@ -3194,8 +3190,6 @@ void testSplitAroundLoopNoInLoopUses()
 template<bool criticalEntry>
 void testSplitAroundLoopCriticalEdge()
 {
-    SetForScope splitAroundLoopsScope(Options::airGreedyRegAllocSplitAroundLoops(), true);
-    SetForScope loopFractionScope(Options::airGreedyRegAllocLoopSplitMaxLoopFraction(), 1.0);
     // criticalEntry=true: root→header AND root→altExit (critical entry edge).
     // criticalEntry=false: exit has predecessors from both loop and non-loop (critical exit edge).
     // Loop splitting is prevented by the critical edge; verify correctness without it.
@@ -3308,6 +3302,38 @@ void run(const char* filter)
         return !filter || WTF::findIgnoringASCIICaseWithoutLength(testName, filter) != WTF::notFound;
     };
 
+    auto dispatchTasks = [&] {
+        Lock lock;
+
+        Vector<Ref<Thread>> threads;
+        for (unsigned i = filter ? 1 : WTF::numberOfProcessorCores(); i--;) {
+            threads.append(
+                Thread::create(
+                    "testair thread"_s,
+                    [&] () {
+                        for (;;) {
+                            RefPtr<SharedTask<void()>> task;
+                            {
+                                Locker locker { lock };
+                                if (tasks.isEmpty())
+                                    return;
+                                task = tasks.takeFirst();
+                            }
+#if USE(PROTECTED_JIT)
+                            // Must be constructed before we allocate anything using SequesteredArenaMalloc
+                            ArenaLifetime arenaLifetime;
+#endif
+                            task->run();
+                        }
+                    }));
+        }
+
+        for (auto& thread : threads)
+            thread->waitForCompletion();
+    };
+
+    bool anyTestsScheduled = false;
+
     RUN(testSimple());
 
     RUN(testShuffleSimpleSwap());
@@ -3414,61 +3440,50 @@ void run(const char* filter)
 #endif
 #endif
 
-    // testSplitAroundLoop<nonLoopSpilled, loopSpilled, hasDef, liveAtHeader, liveAtExit>()
-    RUN((testSplitAroundLoop<false, true,  false, true,  true>()));
-    RUN((testSplitAroundLoop<false, true,  true,  true,  true>()));
-    RUN((testSplitAroundLoop<false, true,  false, true,  false>()));
-    RUN((testSplitAroundLoop<false, true,  true,  true,  false>()));
-    RUN((testSplitAroundLoop<false, false, false, true,  true>()));
-    RUN((testSplitAroundLoop<false, false, true,  true,  true>()));
-    RUN((testSplitAroundLoop<false, false, false, true,  false>()));
-    RUN((testSplitAroundLoop<false, false, true,  true,  false>()));
-    RUN((testSplitAroundLoop<true,  false, false, true,  true>()));
-    RUN((testSplitAroundLoop<true,  false, true,  true,  true>()));
-    RUN((testSplitAroundLoop<true,  false, false, true,  false>()));
-    RUN((testSplitAroundLoop<true,  false, true,  true,  false>()));
-    RUN((testSplitAroundLoop<false, true,  true,  false, true>()));
-    RUN((testSplitAroundLoop<false, true,  true,  false, false>()));
-    RUN((testSplitAroundLoop<false, false, true,  false, true>()));
-    RUN((testSplitAroundLoop<false, false, true,  false, false>()));
-    RUN((testSplitAroundLoop<true,  false, true,  false, true>()));
-    RUN((testSplitAroundLoop<true,  true,  true,  true,  true>()));
-
-    // Loop-aware splitting: standalone tests.
-    RUN(testSplitAroundLoopNoInLoopUses());
-    RUN((testSplitAroundLoopCriticalEdge<true>()));
-    RUN((testSplitAroundLoopCriticalEdge<false>()));
-
-    if (tasks.isEmpty())
-        usage();
-
-    Lock lock;
-
-    Vector<Ref<Thread>> threads;
-    for (unsigned i = filter ? 1 : WTF::numberOfProcessorCores(); i--;) {
-        threads.append(
-            Thread::create(
-                "testair thread"_s,
-                [&] () {
-                    for (;;) {
-                        RefPtr<SharedTask<void()>> task;
-                        {
-                            Locker locker { lock };
-                            if (tasks.isEmpty())
-                                return;
-                            task = tasks.takeFirst();
-                        }
-#if USE(PROTECTED_JIT)
-                        // Must be constructed before we allocate anything using SequesteredArenaMalloc
-                        ArenaLifetime arenaLifetime;
-#endif
-                        task->run();
-                    }
-                }));
+    if (!tasks.isEmpty()) {
+        anyTestsScheduled = true;
+        dispatchTasks();
     }
 
-    for (auto& thread : threads)
-        thread->waitForCompletion();
+    // Batch 2: loop-aware live range splitting enabled.
+    {
+        SetForScope splitAroundLoopsScope(Options::airGreedyRegAllocSplitAroundLoops(), true);
+        SetForScope loopFractionScope(Options::airGreedyRegAllocLoopSplitMaxLoopFraction(), 1.0);
+
+        // testSplitAroundLoop<nonLoopSpilled, loopSpilled, hasDef, liveAtHeader, liveAtExit>()
+        RUN((testSplitAroundLoop<false, true,  false, true,  true>()));
+        RUN((testSplitAroundLoop<false, true,  true,  true,  true>()));
+        RUN((testSplitAroundLoop<false, true,  false, true,  false>()));
+        RUN((testSplitAroundLoop<false, true,  true,  true,  false>()));
+        RUN((testSplitAroundLoop<false, false, false, true,  true>()));
+        RUN((testSplitAroundLoop<false, false, true,  true,  true>()));
+        RUN((testSplitAroundLoop<false, false, false, true,  false>()));
+        RUN((testSplitAroundLoop<false, false, true,  true,  false>()));
+        RUN((testSplitAroundLoop<true,  false, false, true,  true>()));
+        RUN((testSplitAroundLoop<true,  false, true,  true,  true>()));
+        RUN((testSplitAroundLoop<true,  false, false, true,  false>()));
+        RUN((testSplitAroundLoop<true,  false, true,  true,  false>()));
+        RUN((testSplitAroundLoop<false, true,  true,  false, true>()));
+        RUN((testSplitAroundLoop<false, true,  true,  false, false>()));
+        RUN((testSplitAroundLoop<false, false, true,  false, true>()));
+        RUN((testSplitAroundLoop<false, false, true,  false, false>()));
+        RUN((testSplitAroundLoop<true,  false, true,  false, true>()));
+        RUN((testSplitAroundLoop<true,  true,  true,  true,  true>()));
+
+        // Loop-aware splitting: standalone tests.
+        RUN(testSplitAroundLoopNoInLoopUses());
+        RUN((testSplitAroundLoopCriticalEdge<true>()));
+        RUN((testSplitAroundLoopCriticalEdge<false>()));
+
+        if (!tasks.isEmpty()) {
+            anyTestsScheduled = true;
+            dispatchTasks();
+        }
+    }
+
+    if (!anyTestsScheduled)
+        usage();
+
     crashLock.lock();
     crashLock.unlock();
 }

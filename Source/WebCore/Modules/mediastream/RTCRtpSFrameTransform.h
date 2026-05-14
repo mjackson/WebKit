@@ -32,6 +32,7 @@
 #include "EventTargetInterfaces.h"
 #include "JSDOMPromiseDeferredForward.h"
 #include "RTCRtpSFrameTransformer.h"
+#include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/WeakPtr.h>
 
 namespace JSC {

@@ -29,6 +29,7 @@
 #import <wtf/EnumeratedArray.h>
 #import <wtf/FastMalloc.h>
 #import <wtf/HashMap.h>
+#import <wtf/HashSet.h>
 #import <wtf/HashTraits.h>
 #import <wtf/Ref.h>
 #import <wtf/RefCountedAndCanMakeWeakPtr.h>

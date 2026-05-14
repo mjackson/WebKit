@@ -63,18 +63,18 @@ ExceptionOr<URL> AbstractWorker::resolveURL(const String& url)
     Ref context = *scriptExecutionContext();
 
     // FIXME: This should use the dynamic global scope (bug #27887).
-    URL scriptURL = context->completeURL(url);
+    URL scriptURL = context->encodingParseURL(url);
     if (!scriptURL.isValid())
         return Exception { ExceptionCode::SyntaxError };
 
     return scriptURL;
 }
 
-std::optional<Exception> AbstractWorker::validateURL(ScriptExecutionContext& context, const URL& scriptURL)
+bool AbstractWorker::validateURL(ScriptExecutionContext& context, const URL& scriptURL)
 {
     // Per the specification, any same-origin URL (including blob: URLs) can be used. data: URLs can also be used, but they create a worker with an opaque origin.
     if (!protect(context.securityOrigin())->canRequest(scriptURL, OriginAccessPatternsForWebProcess::singleton()) && !scriptURL.protocolIsData())
-        return Exception { ExceptionCode::SecurityError };
+        return false;
 
     ASSERT(context.contentSecurityPolicy());
 
@@ -83,9 +83,9 @@ std::optional<Exception> AbstractWorker::validateURL(ScriptExecutionContext& con
         sourcePosition = document->currentParserSourcePosition();
 
     if (!protect(context.contentSecurityPolicy())->allowWorkerFromSource(scriptURL, WTF::move(sourcePosition)))
-        return Exception { ExceptionCode::SecurityError };
+        return false;
 
-    return { };
+    return true;
 }
 
 } // namespace WebCore

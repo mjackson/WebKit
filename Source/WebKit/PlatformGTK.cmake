@@ -66,13 +66,13 @@ list(APPEND WebKit_MESSAGES_IN_FILES
 
 if (USE_GBM)
   list(APPEND WebKit_SERIALIZATION_IN_FILES
-      Shared/gbm/DMABufBuffer.serialization.in
       Shared/gbm/DRMDevice.serialization.in
   )
 endif ()
 
 list(APPEND WebKit_SERIALIZATION_IN_FILES
     Shared/glib/AvailableInputDevices.serialization.in
+    Shared/glib/DMABufBufferAttributes.serialization.in
     Shared/glib/InputMethodState.serialization.in
     Shared/glib/RenderProcessInfo.serialization.in
     Shared/glib/RendererBufferFormat.serialization.in
@@ -515,7 +515,7 @@ endif ()
 
 # Commands for building the built-in injected bundle.
 add_library(webkit${WEBKITGTK_API_INFIX}gtkinjectedbundle MODULE "${WEBKIT_DIR}/WebProcess/InjectedBundle/API/glib/WebKitInjectedBundleMain.cpp")
-ADD_WEBKIT_PREFIX_HEADERS(webkit${WEBKITGTK_API_INFIX}gtkinjectedbundle WebKit2Prefix.h)
+WEBKIT_ADD_PREFIX_HEADER(webkit${WEBKITGTK_API_INFIX}gtkinjectedbundle WebKitPrefix.h PREFIX_LANGUAGES CXX)
 target_link_libraries(webkit${WEBKITGTK_API_INFIX}gtkinjectedbundle WebKit)
 
 target_include_directories(webkit${WEBKITGTK_API_INFIX}gtkinjectedbundle PRIVATE

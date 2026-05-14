@@ -58,6 +58,7 @@ WorkletGlobalScope::WorkletGlobalScope(WorkerOrWorkletThread& thread, Ref<JSC::V
     , m_url(parameters.windowURL)
     , m_jsRuntimeFlags(parameters.jsRuntimeFlags)
     , m_settingsValues(parameters.settingsValues)
+    , m_agentClusterID(parameters.agentClusterID)
 {
     ++gNumberOfWorkletGlobalScopes;
 
@@ -74,6 +75,7 @@ WorkletGlobalScope::WorkletGlobalScope(Document& document, Ref<JSC::VM>&& vm, Sc
     , m_jsRuntimeFlags(document.settings().javaScriptRuntimeFlags())
     , m_code(WTF::move(code))
     , m_settingsValues(document.settingsValues().isolatedCopy())
+    , m_agentClusterID(document.agentClusterID())
 {
     ++gNumberOfWorkletGlobalScopes;
 
@@ -120,7 +122,8 @@ void WorkletGlobalScope::evaluate()
         script()->evaluate(*m_code);
 }
 
-URL WorkletGlobalScope::completeURL(const String& url, ForceUTF8) const
+// https://html.spec.whatwg.org/multipage/webappapis.html#parse-a-url
+URL WorkletGlobalScope::parseURL(const String& url) const
 {
     if (url.isNull())
         return URL();

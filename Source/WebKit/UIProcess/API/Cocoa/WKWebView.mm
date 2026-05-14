@@ -3393,6 +3393,9 @@ WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::FixedContai
         if (![_scrollView _wk_isScrolledBeyondTopExtent])
             return 0;
 
+        if (![_scrollView refreshControl])
+            return 0;
+
         auto topFixedColor = _fixedContainerEdges.predominantColor(WebCore::BoxSide::Top);
         if (!topFixedColor.isVisible())
             return 0;
@@ -5496,6 +5499,16 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 {
     THROW_IF_SUSPENDED;
     [self _evaluateJavaScript:functionBody asAsyncFunction:YES withSourceURL:nil withArguments:arguments forceUserGesture:withUserGesture inFrame:frame inWorld:contentWorld completionHandler:completionHandler];
+}
+
+- (void)_clearContentWorld:(WKContentWorld *)contentWorld completionHandler:(void (^)(void))completionHandler
+{
+    THROW_IF_SUSPENDED;
+    auto handler = makeBlockPtr(completionHandler);
+    _page->clearContentWorld(protect(*contentWorld->_contentWorld), [handler = WTF::move(handler)] {
+        if (handler)
+            handler();
+    });
 }
 
 - (BOOL)_allMediaPresentationsClosed

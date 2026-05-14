@@ -10649,7 +10649,7 @@
                 "computed-style-storage-path": ["m_nonInheritedData", "rareData", "grid"],
                 "computed-style-storage-kind": "reference",
                 "computed-style-type": "Style::GridTrackSizes",
-                "parser-function": "consumeGridTrackList",
+                "parser-function": "consumeGridTrackSizes",
                 "parser-grammar-unused": "<track-size>+",
                 "parser-grammar-unused-reason": "Needs investigation."
             },
@@ -10667,7 +10667,7 @@
                 "computed-style-storage-path": ["m_nonInheritedData", "rareData", "grid"],
                 "computed-style-storage-kind": "reference",
                 "computed-style-type": "Style::GridTrackSizes",
-                "parser-function": "consumeGridTrackList",
+                "parser-function": "consumeGridTrackSizes",
                 "parser-grammar-unused": "<track-size>+",
                 "parser-grammar-unused-reason": "Needs investigation."
             },
@@ -10735,7 +10735,7 @@
                 "computed-style-storage-path": ["m_nonInheritedData", "rareData", "grid"],
                 "computed-style-storage-kind": "reference",
                 "computed-style-type": "Style::GridTemplateList",
-                "parser-function": "consumeGridTemplatesRowsOrColumns",
+                "parser-function": "consumeGridTemplateList",
                 "parser-grammar-unused": "none | <track-list> | <auto-track-list>",
                 "parser-grammar-unused-reason": "Needs investigation."
             },
@@ -10752,7 +10752,7 @@
                 "computed-style-storage-path": ["m_nonInheritedData", "rareData", "grid"],
                 "computed-style-storage-kind": "reference",
                 "computed-style-type": "Style::GridTemplateList",
-                "parser-function": "consumeGridTemplatesRowsOrColumns",
+                "parser-function": "consumeGridTemplateList",
                 "parser-grammar-unused": "none | <track-list> | <auto-track-list>",
                 "parser-grammar-unused-reason": "Needs investigation."
             },

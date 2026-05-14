@@ -226,6 +226,9 @@ messages -> WebPage WantsAsyncDispatchMessage {
     FrameTreeSyncDataChangedInAnotherProcess(WebCore::FrameIdentifier frameID, struct WebCore::FrameTreeSyncSerializationData frameTreeSyncData)
     AllFrameTreeSyncDataChangedInAnotherProcess(WebCore::FrameIdentifier frameID, Ref<WebCore::FrameTreeSyncData> frameTreeSyncData)
 
+    UpdateUserActivationTimestamps(Vector<WebCore::FrameIdentifier> frameIDs, MonotonicTime activationTime)
+    ConsumeUserActivations(Vector<WebCore::FrameIdentifier> frameIDs)
+
     GetPDFFirstPageSize(WebCore::FrameIdentifier frameID) -> (WebCore::FloatSize size)
 
 #if PLATFORM(IOS_FAMILY) && ENABLE(UNIFIED_PDF)
@@ -241,6 +244,8 @@ messages -> WebPage WantsAsyncDispatchMessage {
     SetCurrentHistoryItemForReattach(Ref<WebKit::FrameState> frameState)
 
     DidRemoveBackForwardItem(WebCore::BackForwardFrameItemIdentifier backForwardFrameItemID)
+
+    InvalidateBackForwardListCache()
 
     UpdateWebsitePolicies(struct WebKit::WebsitePoliciesData websitePolicies)
 
@@ -267,6 +272,8 @@ messages -> WebPage WantsAsyncDispatchMessage {
 #endif
 
     RunJavaScriptInFrameInScriptWorld(struct WebKit::RunJavaScriptParameters parameters, std::optional<WebCore::FrameIdentifier> frameID, struct WebKit::ContentWorldData world, bool wantsResult) -> (Expected<WebKit::JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>> result)
+
+    ClearContentWorld(WebKit::ContentWorldIdentifier worldIdentifier) -> ()
 
     GetAccessibilityTreeData() -> (std::optional<IPC::SharedBufferReference> dataReference)
     UpdateRenderingWithForcedRepaint() -> ()
@@ -720,7 +727,8 @@ messages -> WebPage WantsAsyncDispatchMessage {
     URLSchemeTaskDidComplete(WebKit::WebURLSchemeHandlerIdentifier handlerIdentifier, WebCore::ResourceLoaderIdentifier taskIdentifier, WebCore::ResourceError error)
 
     SetIsSuspended(bool suspended) -> (std::optional<bool> didSuspend)
-    SetSubframesSuspended(bool suspended, WebCore::BackForwardFrameItemIdentifier identifier) -> (bool success)
+    SuspendWithFrameItem(WebCore::BackForwardFrameItemIdentifier frameItemID) -> (bool success)
+    RestoreWithFrameItem(WebCore::BackForwardFrameItemIdentifier frameItemID) -> (bool success)
 
 #if ENABLE(ATTACHMENT_ELEMENT)
     InsertAttachment(String identifier, std::optional<uint64_t> fileSize, String fileName, String contentType) -> ()

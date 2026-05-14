@@ -55,7 +55,8 @@
 #endif
 
 #if PLATFORM(IOS_FAMILY)
-#include <WebCore/RenderThemeIOS.h>
+#include <WebCore/CSSValueKey.h>
+#include <WebCore/ColorHash.h>
 #include <pal/system/ios/UserInterfaceIdiom.h>
 #endif
 
@@ -73,6 +74,12 @@
 namespace API {
 class Data;
 }
+
+#if PLATFORM(IOS_FAMILY)
+namespace WebCore {
+using CSSValueToSystemColorMap = HashMap<CSSValueKey, Color>;
+}
+#endif
 
 namespace WebKit {
 
@@ -216,7 +223,7 @@ struct WebProcessCreationParameters {
 #if PLATFORM(IOS_FAMILY)
     PAL::UserInterfaceIdiom currentUserInterfaceIdiom { PAL::UserInterfaceIdiom::Default };
     bool supportsPictureInPicture { false };
-    WebCore::RenderThemeIOS::CSSValueToSystemColorMap cssValueToSystemColorMap;
+    WebCore::CSSValueToSystemColorMap cssValueToSystemColorMap;
     WebCore::Color focusRingColor;
     String localizedDeviceModel;
     String contentSizeCategory;

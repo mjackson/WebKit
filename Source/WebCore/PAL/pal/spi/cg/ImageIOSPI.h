@@ -45,6 +45,9 @@ typedef struct CF_BRIDGED_TYPE(id) __CVBuffer* CVPixelBufferRef;
 IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataInfoColorSpace;
 IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataInfoMetadata;
 IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataTypeISOGainMap;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataInfoPixelBuffer;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataRepresentation;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataRepresentationPixelBuffer;
 IMAGEIO_EXTERN const CFStringRef kCGImageSourceShouldCacheImmediately;
 IMAGEIO_EXTERN const CFStringRef kCGImageSourceShouldPreferRGB32;
 IMAGEIO_EXTERN const CFStringRef kCGImageSourceSkipMetadata;
@@ -52,6 +55,7 @@ IMAGEIO_EXTERN const CFStringRef kCGImageSourceSubsampleFactor;
 IMAGEIO_EXTERN const CFStringRef kCGImageSourceUseHardwareAcceleration;
 
 WTF_EXTERN_C_BEGIN
+
 CFStringRef CGImageSourceGetTypeWithData(CFDataRef, CFStringRef, bool*);
 OSStatus CGImageSourceSetAllowableTypes(CFArrayRef allowableTypes);
 
@@ -59,6 +63,8 @@ IMAGEIO_EXTERN OSStatus CGImageSourceDisableHardwareDecoding();
 IMAGEIO_EXTERN OSStatus CGImageSourceEnableRestrictedDecoding();
 
 IMAGEIO_EXTERN uint16_t CGImageGetContentAverageLightLevelNits(CGImageRef);
+
+IMAGEIO_EXTERN CFDictionaryRef CGImageSourceCopyAuxiliaryDataInfoAtIndexWithOptions(CGImageSourceRef, size_t index, CFStringRef auxiliaryDataType, CFDictionaryRef options);
 
 IMAGEIO_EXTERN OSStatus CGImageApplyHDRGainMap(CVPixelBufferRef inputImage, CVPixelBufferRef inputGainmap, CVPixelBufferRef outputImage, CFDictionaryRef options);
 

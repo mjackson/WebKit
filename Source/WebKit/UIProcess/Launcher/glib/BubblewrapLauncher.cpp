@@ -822,6 +822,9 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
         "--ro-bind-try", "/usr/lib", "/usr/lib",
         "--ro-bind-try", "/usr/local/lib", "/usr/local/lib",
         "--ro-bind-try", LIBDIR, LIBDIR,
+#if defined(WEBKIT_SWIFT_STDLIB_LIBRARY_PATH)
+        "--ro-bind-try", WEBKIT_SWIFT_STDLIB_LIBRARY_PATH, WEBKIT_SWIFT_STDLIB_LIBRARY_PATH,
+#endif
 #if CPU(ADDRESS64)
         "--ro-bind-try", "/lib64", "/lib64",
         "--ro-bind-try", "/usr/lib64", "/usr/lib64",

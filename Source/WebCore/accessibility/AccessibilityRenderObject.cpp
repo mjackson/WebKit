@@ -1451,9 +1451,12 @@ AXTextRuns AccessibilityRenderObject::textRuns()
     CheckedPtr renderer = this->renderer();
     if (CheckedPtr renderLineBreak = dynamicDowncast<RenderLineBreak>(renderer.get())) {
         auto box = InlineIterator::boxFor(*renderLineBreak);
-
+        // If we have a real line box, use its containing block + lineIndex. Otherwise (no box),
+        // use the renderer pointer in the containing-block slot so the resulting (renderer*, 0)
+        // lineID is unique and can't collide with in-flow content. Mirrors the replaced-element
+        // branch below.
         return AXTextRuns(
-            renderLineBreak->containingBlock(),
+            box ? static_cast<void*>(renderLineBreak->containingBlock()) : renderLineBreak.get(),
             { AXTextRun(box ? box->lineIndex() : 0, /* startIndex */ 0, /* endIndex */ 1, { lengthOneDomOffsets }, { 0 }, 0, 0) },
             makeString('\n').isolatedCopy()
         );
@@ -1466,15 +1469,29 @@ AXTextRuns AccessibilityRenderObject::textRuns()
 
     if (isReplacedElement()) {
         CheckedPtr containingBlock = renderer ? renderer->containingBlock() : nullptr;
-        FloatRect rect = localRect();
-        uint16_t width = static_cast<uint16_t>(rect.width());
-        uint16_t height = static_cast<uint16_t>(rect.height());
         if (!containingBlock)
             return { };
 
+        FloatRect rect = localRect();
+        uint16_t width = static_cast<uint16_t>(rect.width());
+        uint16_t height = static_cast<uint16_t>(rect.height());
+
+        size_t lineIndex = 0;
+        void* lineIDContainingBlock = containingBlock.get();
+        if (CheckedPtr renderBox = dynamicDowncast<RenderBox>(renderer.get())) {
+            if (renderBox->isFloatingOrOutOfFlowPositioned()) {
+                // Out-of-flow (float / position:absolute) replaced elements don't sit on a
+                // line box. Use the renderer pointer in the lineID's containing-block slot
+                // so the resulting (renderer*, 0) lineID is unique to this element and can't
+                // collide with any in-flow text run's real (containingBlock, 0) lineID.
+                lineIDContainingBlock = renderer.get();
+            } else if (auto box = InlineIterator::boxFor(*renderBox))
+                lineIndex = box->lineIndex();
+        }
+
         return AXTextRuns(
-            containingBlock.get(),
-            { AXTextRun(0, /* startIndex */ 0, /* endIndex */ 1, { lengthOneDomOffsets }, { width }, height, 0) },
+            lineIDContainingBlock,
+            { AXTextRun(lineIndex, /* startIndex */ 0, /* endIndex */ 1, { lengthOneDomOffsets }, { width }, height, 0) },
             String(span(objectReplacementCharacter))
         );
     }

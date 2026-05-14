@@ -814,6 +814,8 @@ WGPUTextureUsageFlags ConvertToBackingContext::convertTextureUsageFlagsToBacking
         result |= WGPUTextureUsage_StorageBinding;
     if (textureUsageFlags.contains(TextureUsage::RenderAttachment))
         result |= WGPUTextureUsage_RenderAttachment;
+    if (textureUsageFlags.contains(TextureUsage::Transient))
+        result |= WGPUTextureUsage_Transient;
     return result;
 }
 

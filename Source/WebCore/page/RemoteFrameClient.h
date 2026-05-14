@@ -25,14 +25,11 @@
 
 #pragma once
 
+#include <WebCore/AXObjectTypes.h>
 #include <WebCore/FrameLoaderClient.h>
 #include <WebCore/LayerTreeAsTextOptions.h>
 #include <WebCore/ScrollTypes.h>
 #include <wtf/TZoneMallocInlines.h>
-
-#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
-#include <WebCore/AXObjectCache.h>
-#endif
 
 namespace WebCore {
 
@@ -42,6 +39,7 @@ class GraphicsContext;
 class IntSize;
 class ResourceTiming;
 class SecurityOriginData;
+
 
 enum class FocusDirection : uint8_t;
 enum class FoundElementInRemoteFrame : bool;

@@ -1478,6 +1478,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
     auto storageProvider = PageStorageSessionProvider::create();
     WebCore::PageConfiguration pageConfiguration(
         WebCore::PageIdentifier::generate(),
+        std::nullopt,
         [[self preferences] privateBrowsingEnabled] ? PAL::SessionID::legacyPrivateSessionID() : PAL::SessionID::defaultSessionID(),
         makeUniqueRef<WebEditorClient>(self),
         LegacySocketProvider::create(),
@@ -1743,6 +1744,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
     auto storageProvider = PageStorageSessionProvider::create();
     WebCore::PageConfiguration pageConfiguration(
         WebCore::PageIdentifier::generate(),
+        std::nullopt,
         [[self preferences] privateBrowsingEnabled] ? PAL::SessionID::legacyPrivateSessionID() : PAL::SessionID::defaultSessionID(),
         makeUniqueRef<WebEditorClient>(self),
         LegacySocketProvider::create(),

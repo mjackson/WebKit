@@ -31,6 +31,7 @@
 #include "ConservativeRoots.h"
 #include "EvacuatedStack.h"
 #include "Exception.h"
+#include "ExceptionHelpers.h"
 #include "JSCellInlines.h"
 #include "JSPIContextInlines.h"
 #include "JSPromise.h"
@@ -147,6 +148,7 @@ extern "C" void SYSV_ABI pinballHandlerInitContextForReject(JSGlobalObject*, Cal
 extern "C" void SYSV_ABI pinballHandlerImplantSlice(PinballHandlerContext*, Register*, CallFrame*, CallerFrameAndPC*);
 extern "C" UCPURegister SYSV_ABI pinballHandlerFulfillFunctionContinue(PinballHandlerContext*);
 extern "C" void SYSV_ABI pinballHandlerFinishReject(PinballHandlerContext*);
+extern "C" void SYSV_ABI pinballHandlerRejectWithStackOverflow(PinballHandlerContext*);
 
 void pinballHandlerInitContextForFulfill(JSGlobalObject* globalObject, CallFrame* callFrame, PinballHandlerContext* context)
 {
@@ -258,6 +260,21 @@ void pinballHandlerFinishReject(PinballHandlerContext* context)
     }
 
     context->arguments[0] = JSValue::encode(jsNull());
+    context->~PinballHandlerContext();
+}
+
+void pinballHandlerRejectWithStackOverflow(PinballHandlerContext* context)
+{
+    ASSERT(context->magic == PinballHandlerContext::expectedMagic);
+
+    VM& vm = *context->vm;
+    JSPIContext& jspiContext = context->jspiContext;
+    PinballCompletion* pinball = context->pinball;
+    JSPromise* resultPromise = pinball->resultPromise();
+
+    resultPromise->reject(vm, context->globalObject, createStackOverflowError(context->globalObject));
+
+    jspiContext.deactivate(vm);
     context->~PinballHandlerContext();
 }
 

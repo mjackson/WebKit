@@ -833,7 +833,6 @@ void JSModuleLoader::innerModuleLoading(JSGlobalObject* globalObject, ModuleGrap
                 size_t requestedModulesCount = module->requestedModules().size();
                 // 2.c. Set state.[[PendingModulesCount]] to state.[[PendingModulesCount]] + requestedModulesCount.
                 state->setPendingModulesCount(state->pendingModulesCount() + requestedModulesCount);
-                bool loadedModulesEmpty = module->loadedModules().isEmpty();
                 // 2.d. For each ModuleRequest Record request of module.[[RequestedModules]], do
                 for (const AbstractModuleRecord::ModuleRequest& request : module->requestedModules()) {
                     // 2.d.i. If AllImportAttributesSupported(request.[[Attributes]]) is false, then
@@ -841,28 +840,35 @@ void JSModuleLoader::innerModuleLoading(JSGlobalObject* globalObject, ModuleGrap
                     // 2.d.i.2. Perform ContinueModuleLoading(state, error).
                     // (Not possible.)
                     // 2.d.ii. Else if module.[[LoadedModules]] contains a LoadedModuleRequest Record record such that ModuleRequestsEqual(record, request) is true, then
-                    if (!loadedModulesEmpty) {
-                        if (auto iter = module->loadedModules().find(ModuleMapKey { request.m_specifier.impl(), request.type() }); iter != module->loadedModules().end()) {
-                            // 2.d.ii.1. Perform InnerModuleLoading(state, record.[[Module]]).
-                            AbstractModuleRecord* loaded = iter->value.m_module.get();
-                            if (state->containsVisited(loaded))
-                                state->setPendingModulesCount(state->pendingModulesCount() - 1);
-                            else
-                                state->enqueueInnerLoad(loaded);
-                            if (!state->isLoading())
-                                break;
-                            continue;
-                        }
+                    if (auto iter = module->loadedModules().find(ModuleMapKey { request.m_specifier.impl(), request.type() }); iter != module->loadedModules().end()) {
+                        // 2.d.ii.1. Perform InnerModuleLoading(state, record.[[Module]]).
+                        AbstractModuleRecord* loaded = iter->value.m_module.get();
+                        if (state->containsVisited(loaded))
+                            state->setPendingModulesCount(state->pendingModulesCount() - 1);
+                        else
+                            state->enqueueInnerLoad(loaded);
+                        if (!state->isLoading())
+                            break;
+                        continue;
                     }
                     // 2.d.iii. Else,
                     // 2.d.iii.1. Perform HostLoadImportedModule(module, request, state.[[HostDefined]], state).
+                    unsigned loadedModulesCountBefore = module->loadedModules().size();
                     JSPromise* promise = hostLoadImportedModule(globalObject, cyclic, request, state, state->scriptFetcher(), true);
                     if (scope.exception()) [[unlikely]] {
                         state->setDrainingInnerLoad(false);
                         return;
                     }
-                    promise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::ModuleGraphLoadingError, jsUndefined(), state);
                     // 2.d.iii.2. NOTE: HostLoadImportedModule will call FinishLoadingImportedModule, which re-enters the graph loading process through ContinueModuleLoading.
+                    //
+                    // If module.[[LoadedModules]] grew across the HostLoadImportedModule call, the requested
+                    // module was loaded synchronously, which means it was already loaded before. In that case
+                    // there is no need to attach a ModuleGraphLoadingError reaction, so we skip it.
+                    bool needsErrorReaction = module->loadedModules().size() == loadedModulesCountBefore;
+                    ASSERT(module->loadedModules().size() <= loadedModulesCountBefore + 1);
+                    ASSERT(needsErrorReaction != module->loadedModules().contains(ModuleMapKey { request.m_specifier.impl(), request.type() }));
+                    if (needsErrorReaction)
+                        promise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::ModuleGraphLoadingError, jsUndefined(), state);
                     // 2.d.iv. If state.[[IsLoading]] is false, return UNUSED.
                     if (!state->isLoading())
                         break;

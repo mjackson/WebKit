@@ -438,6 +438,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
     , m_usesExceptions(false)
     , m_expressionTooDeep(false)
     , m_isBuiltinFunction(codeBlock->isBuiltinFunction())
+    , m_isBuiltinDefaultClassConstructor(codeBlock->isBuiltinDefaultClassConstructor())
     , m_usesSloppyEval(functionNode->usesEval() && !functionNode->isStrictMode())
     // FIXME: We should be able to have tail call elimination with the profiler
     // enabled. This is currently not possible because the profiler expects
@@ -3969,14 +3970,14 @@ RegisterID* BytecodeGenerator::emitReturn(RegisterID* src)
 }
 
 template<typename ConstructOp>
-RegisterID* BytecodeGenerator::emitConstructImpl(RegisterID* dst, RegisterID* func, RegisterID* lazyThis, ExpectedFunction expectedFunction, CallArguments& callArguments, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd)
+RegisterID* BytecodeGenerator::emitConstructImpl(RegisterID* dst, RegisterID* func, RegisterID* lazyThis, ExpectedFunction expectedFunction, CallArguments& callArguments, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd, bool isDefaultDerivedConstructorCall)
 {
     ASSERT(func->refCount());
 
     // Generate code for arguments.
     unsigned argument = 0;
     if (ArgumentsNode* argumentsNode = callArguments.argumentsNode()) {
-        
+
         ArgumentListNode* n = callArguments.argumentsNode()->m_listNode;
         if (n && n->m_expr->isSpreadExpression()) {
             RELEASE_ASSERT(!n->m_next);
@@ -3986,7 +3987,9 @@ RegisterID* BytecodeGenerator::emitConstructImpl(RegisterID* dst, RegisterID* fu
                 if (elements && !elements->next() && elements->value()->isSpreadExpression()) {
                     ExpressionNode* expression = static_cast<SpreadExpressionNode*>(elements->value())->expression();
                     RefPtr<RegisterID> argumentRegister = tempDestination(emitNode(callArguments.argumentRegister(0), expression));
-                    OpSpread::emit(this, argumentRegister.get(), argumentRegister.get());
+
+                    if (!isDefaultDerivedConstructorCall)
+                        OpSpread::emit(this, argumentRegister.get(), argumentRegister.get());
 
                     move(callArguments.thisRegister(), lazyThis);
                     return emitCallVarargs<typename VarArgsOp<ConstructOp>::type>(dst, func, callArguments.thisRegister(), argumentRegister.get(), newTemporary(), 0, divot, divotStart, divotEnd, DebuggableCall::No);
@@ -4024,12 +4027,12 @@ RegisterID* BytecodeGenerator::emitConstructImpl(RegisterID* dst, RegisterID* fu
 
 RegisterID* BytecodeGenerator::emitConstruct(RegisterID* dst, RegisterID* func, RegisterID* lazyThis, ExpectedFunction expectedFunction, CallArguments& callArguments, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd)
 {
-    return emitConstructImpl<OpConstruct>(dst, func, lazyThis, expectedFunction, callArguments, divot, divotStart, divotEnd);
+    return emitConstructImpl<OpConstruct>(dst, func, lazyThis, expectedFunction, callArguments, divot, divotStart, divotEnd, false);
 }
 
-RegisterID* BytecodeGenerator::emitSuperConstruct(RegisterID* dst, RegisterID* func, RegisterID* lazyThis, ExpectedFunction expectedFunction, CallArguments& callArguments, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd)
+RegisterID* BytecodeGenerator::emitSuperConstruct(RegisterID* dst, RegisterID* func, RegisterID* lazyThis, ExpectedFunction expectedFunction, CallArguments& callArguments, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd, bool isDefaultDerivedConstructorCall)
 {
-    return emitConstructImpl<OpSuperConstruct>(dst, func, lazyThis, expectedFunction, callArguments, divot, divotStart, divotEnd);
+    return emitConstructImpl<OpSuperConstruct>(dst, func, lazyThis, expectedFunction, callArguments, divot, divotStart, divotEnd, isDefaultDerivedConstructorCall);
 }
 
 RegisterID* BytecodeGenerator::emitStrcat(RegisterID* dst, RegisterID* src, int count)

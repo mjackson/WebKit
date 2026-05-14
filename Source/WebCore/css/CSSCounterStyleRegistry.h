@@ -28,6 +28,7 @@
 #include "CSSRegisteredCounterStyle.h"
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
+#include <wtf/OrderedHashSet.h>
 #include <wtf/text/AtomStringHash.h>
 
 namespace WebCore {
@@ -68,7 +69,7 @@ private:
     // If no map is passed on, user-agent counter styles map will be used
     static void resolveFallbackReference(CSSRegisteredCounterStyle&, CounterStyleMap* = nullptr);
     static void resolveExtendsReference(CSSRegisteredCounterStyle&, CounterStyleMap* = nullptr);
-    static void resolveExtendsReference(CSSRegisteredCounterStyle&, HashSet<CSSRegisteredCounterStyle*>&, CounterStyleMap* = nullptr);
+    static void resolveExtendsReference(CSSRegisteredCounterStyle&, WTF::OrderedHashSet<CSSRegisteredCounterStyle*>&, CounterStyleMap* = nullptr);
 
     static Ref<CSSRegisteredCounterStyle> counterStyle(const AtomString&, CounterStyleMap* = nullptr);
 

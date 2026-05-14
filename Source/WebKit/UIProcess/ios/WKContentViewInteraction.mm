@@ -483,10 +483,10 @@ public:
 
     ~ImageAnalysisGestureDeferralToken()
     {
-        auto shouldPreventGestures = m_shouldPreventTextSelection ? WebKit::ShouldPreventGestures::Yes : WebKit::ShouldPreventGestures::No;
+        auto shouldPreventGestures = m_shouldPreventTextSelection;
         ensureOnMainRunLoop([weakView = m_view, shouldPreventGestures] {
             if (RetainPtr view = weakView.get())
-                [view _endImageAnalysisGestureDeferral:shouldPreventGestures];
+                [view _endImageAnalysisGestureDeferralShouldPreventGestures:shouldPreventGestures];
         });
     }
 
@@ -1364,7 +1364,7 @@ static WKDragSessionContext *ensureLocalDragSessionContext(id <UIDragSession> se
 #if ENABLE(IMAGE_ANALYSIS)
     _imageAnalysisDeferringGestureRecognizer = adoptNS([[WKDeferringGestureRecognizer alloc] initWithDeferringGestureDelegate:self]);
     [_imageAnalysisDeferringGestureRecognizer setName:@"Deferrer for image analysis"];
-    [_imageAnalysisDeferringGestureRecognizer setImmediatelyFailsAfterTouchEnd:YES];
+    [_imageAnalysisDeferringGestureRecognizer setImmediatelyFailsAfterActionEnd:YES];
     [_imageAnalysisDeferringGestureRecognizer setEnabled:WebKit::isLiveTextAvailableAndEnabled()];
 #endif
 
@@ -2474,8 +2474,12 @@ static WebCore::FloatQuad inflateQuad(const WebCore::FloatQuad& quad, float infl
     if (!preventsNativeGesture)
         return;
 
-    _preventsPanningInXAxis = YES;
-    _preventsPanningInYAxis = YES;
+    if (touchEvent.allTouchPointsAreReleased())
+        [self _resetPanningPreventionFlags];
+    else {
+        _preventsPanningInXAxis = YES;
+        _preventsPanningInYAxis = YES;
+    }
 
     if (![_touchEventGestureRecognizer isDispatchingTouchEvents])
         return;
@@ -2540,7 +2544,7 @@ static void appendRecognizerIfNonNull(RetainPtr<NSMutableArray>& array, const Re
 - (void)_doneDeferringTouchStart:(BOOL)preventNativeGestures
 {
     for (WKDeferringGestureRecognizer *gestureRecognizer in self._touchStartDeferringGestures) {
-        [gestureRecognizer endDeferral:preventNativeGestures ? WebKit::ShouldPreventGestures::Yes : WebKit::ShouldPreventGestures::No];
+        [gestureRecognizer endDeferralShouldPreventGestures:preventNativeGestures];
         if (_failedTouchStartDeferringGestures && !preventNativeGestures)
             _failedTouchStartDeferringGestures->add(gestureRecognizer);
     }
@@ -2548,13 +2552,13 @@ static void appendRecognizerIfNonNull(RetainPtr<NSMutableArray>& array, const Re
 
 - (void)_doneDeferringTouchMove:(BOOL)preventNativeGestures
 {
-    [_touchMoveDeferringGestureRecognizer endDeferral:preventNativeGestures ? WebKit::ShouldPreventGestures::Yes : WebKit::ShouldPreventGestures::No];
+    [_touchMoveDeferringGestureRecognizer endDeferralShouldPreventGestures:preventNativeGestures];
 }
 
 - (void)_doneDeferringTouchEnd:(BOOL)preventNativeGestures
 {
     for (WKDeferringGestureRecognizer *gesture in self._touchEndDeferringGestures)
-        [gesture endDeferral:preventNativeGestures ? WebKit::ShouldPreventGestures::Yes : WebKit::ShouldPreventGestures::No];
+        [gesture endDeferralShouldPreventGestures:preventNativeGestures];
 }
 
 - (BOOL)_isTouchStartDeferringGesture:(WKDeferringGestureRecognizer *)gesture
@@ -3784,7 +3788,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (![self ensurePositionInformationIsUpToDate:request])
         return NO;
 
-    if (gesture == WKBEGestureTypeLoupe && _positionInformation.selectability == WebKit::InteractionInformationAtPosition::Selectability::UnselectableDueToUserSelectNoneOrQuirk)
+    if ((gesture == WKBEGestureTypeLoupe || gesture == WKBEGestureTypeOneFingerDoubleTap) && _positionInformation.selectability == WebKit::InteractionInformationAtPosition::Selectability::UnselectableDueToUserSelectNoneOrQuirk)
         return NO;
 
     if (_positionInformation.preventTextInteraction)
@@ -10530,16 +10534,16 @@ static WebCore::DataOwnerType coreDataOwnerType(_UIDataOwner platformType)
 
 #pragma mark - WKDeferringGestureRecognizerDelegate
 
-- (WebKit::ShouldDeferGestures)deferringGestureRecognizer:(WKDeferringGestureRecognizer *)deferringGestureRecognizer willBeginTouchesWithEvent:(UIEvent *)event
+- (BOOL)deferringGestureRecognizer:(WKDeferringGestureRecognizer *)deferringGestureRecognizer shouldDeferGesturesForEventThatWillBeginAction:(UIEvent *)event
 {
     protect(self.gestureRecognizerConsistencyEnforcer)->beginTracking(deferringGestureRecognizer);
 
 #if ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
     if ([_imageAnalysisInteraction interactableItemExistsAtPoint:[deferringGestureRecognizer locationInView:self]])
-        return WebKit::ShouldDeferGestures::No;
+        return NO;
 #endif
 
-    return [self gestureRecognizer:deferringGestureRecognizer isInterruptingMomentumScrollingWithEvent:event] ? WebKit::ShouldDeferGestures::No : WebKit::ShouldDeferGestures::Yes;
+    return ![self gestureRecognizer:deferringGestureRecognizer isInterruptingMomentumScrollingWithEvent:event];
 }
 
 - (void)deferringGestureRecognizer:(WKDeferringGestureRecognizer *)deferringGestureRecognizer didTransitionToState:(UIGestureRecognizerState)state
@@ -10548,7 +10552,7 @@ static WebCore::DataOwnerType coreDataOwnerType(_UIDataOwner platformType)
         protect(self.gestureRecognizerConsistencyEnforcer)->endTracking(deferringGestureRecognizer);
 }
 
-- (void)deferringGestureRecognizer:(WKDeferringGestureRecognizer *)deferringGestureRecognizer didEndTouchesWithEvent:(UIEvent *)event
+- (void)deferringGestureRecognizer:(WKDeferringGestureRecognizer *)deferringGestureRecognizer didEndActionWithEvent:(UIEvent *)event
 {
     protect(protect(self).get().gestureRecognizerConsistencyEnforcer).get().endTracking(deferringGestureRecognizer);
 
@@ -12722,9 +12726,9 @@ static RetainPtr<NSItemProvider> createItemProvider(const WebKit::WebPageProxy& 
 
 #if ENABLE(IMAGE_ANALYSIS)
 
-- (void)_endImageAnalysisGestureDeferral:(WebKit::ShouldPreventGestures)shouldPreventGestures
+- (void)_endImageAnalysisGestureDeferralShouldPreventGestures:(BOOL)shouldPreventGestures
 {
-    [_imageAnalysisDeferringGestureRecognizer endDeferral:shouldPreventGestures];
+    [_imageAnalysisDeferringGestureRecognizer endDeferralShouldPreventGestures:shouldPreventGestures];
 }
 
 - (void)_doAfterPendingImageAnalysis:(void(^)(WebKit::ProceedWithTextSelectionInImage))block
@@ -13505,7 +13509,7 @@ static BOOL shouldUseMachineReadableCodeMenuFromImageAnalysisResult(CocoaImageAn
 
 - (void)imageAnalysisGestureDidFail:(WKImageAnalysisGestureRecognizer *)gestureRecognizer
 {
-    [self _endImageAnalysisGestureDeferral:WebKit::ShouldPreventGestures::No];
+    [self _endImageAnalysisGestureDeferralShouldPreventGestures:NO];
 }
 
 - (void)captureTextFromCameraForWebView:(id)sender
@@ -14494,7 +14498,7 @@ static inline WKTextAnimationType toWKTextAnimationType(WebCore::TextAnimationTy
     if (!drawingArea)
         return nil;
 
-    WeakPtr layerTreeNode = drawingArea->remoteLayerTreeHost().nodeForID(layerID);
+    RefPtr layerTreeNode = drawingArea->remoteLayerTreeHost().nodeForID(layerID);
     if (!layerTreeNode)
         return nil;
 

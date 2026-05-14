@@ -135,7 +135,7 @@ static std::optional<URL> shareableURLForShareData(ScriptExecutionContext& conte
     if (data.url.isNull())
         return std::nullopt;
 
-    auto url = context.completeURL(data.url);
+    auto url = context.encodingParseURL(data.url);
     if (!url.isValid())
         return std::nullopt;
     if (!url.protocolIsInHTTPFamily())

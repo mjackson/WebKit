@@ -201,7 +201,7 @@ WI.TargetManager = class TargetManager extends WI.Object
             return new WI.WorkerTarget(parentTarget, targetId, WI.UIString("ServiceWorker"), connection, {isPaused});
         case InspectorBackend.Enum.Target.TargetInfoType.Frame:
             // FIXME: <https://webkit.org/b/298977> Consider setting a more meaningful name for the frame target.
-            return new WI.FrameTarget(parentTarget, targetId, WI.UIString("Frame"), connection, {isProvisional});
+            return new WI.FrameTarget(parentTarget, targetId, WI.UIString("Frame"), connection, {isProvisional, isPaused});
         }
 
         throw "Unknown Target type: " + type;

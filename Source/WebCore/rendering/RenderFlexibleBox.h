@@ -96,7 +96,7 @@ public:
     enum class GapType : uint8_t { BetweenLines, BetweenItems };
     LayoutUnit computeGap(GapType) const;
 
-    bool shouldApplyMinBlockSizeAutoForFlexItem(const RenderBox&) const;
+    bool useContentBasedMinimumBlockSize(const RenderBox&) const;
 
     bool isComputingFlexBaseSizes() const { return m_isComputingFlexBaseSizes; }
 
@@ -112,6 +112,7 @@ public:
     bool NODELETE mainAxisIsFlexItemInlineAxis(const RenderBox&) const;
     ItemPosition alignmentForFlexItem(const RenderBox&) const;
     Style::FlexBasis flexBasisForFlexItem(const RenderBox&) const;
+    bool hasDefiniteCrossSizeForFlexItem(const RenderBox& flexItem) const;
 
 protected:
     void computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const override;
@@ -164,7 +165,7 @@ private:
     const Style::PreferredSize& NODELETE preferredCrossSizeLengthForFlexItem(const RenderBox&) const LIFETIME_BOUND;
     const Style::MinimumSize& NODELETE minCrossSizeLengthForFlexItem(const RenderBox&) const LIFETIME_BOUND;
     const Style::MaximumSize& NODELETE maxCrossSizeLengthForFlexItem(const RenderBox&) const LIFETIME_BOUND;
-    bool shouldApplyMinSizeAutoForFlexItem(const RenderBox&) const;
+    bool useContentBasedMinimumSize(const RenderBox&) const;
     LayoutUnit NODELETE crossAxisExtentForFlexItem(const RenderBox& flexItem) const;
     LayoutUnit crossAxisIntrinsicExtentForFlexItem(RenderBox& flexItem);
     LayoutUnit flexItemIntrinsicLogicalHeight(RenderBox& flexItem) const;
@@ -202,8 +203,7 @@ private:
 
     bool crossAxisIsLogicalWidth() const;
     void clearFlexItemOverridingSizes();
-    bool hasDefiniteCrossSizeForFlexItem(const RenderBox& flexItem) const;
-    LayoutUnit computeCrossSizeForFlexItemUsingContainerCrossSize(const RenderBox& flexItem) const;
+    LayoutUnit innerCrossSizeForFlexItem(const RenderBox& flexItem) const;
     void computeChildIntrinsicLogicalWidths(RenderBox&, LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const override;
     template<typename SizeType> LayoutUnit computeMainSizeFromAspectRatioUsing(const RenderBox& flexItem, const SizeType& crossSizeLength) const;
     void NODELETE setFlowAwareLocationForFlexItem(RenderBox& flexItem, const LayoutPoint&);

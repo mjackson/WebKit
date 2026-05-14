@@ -2053,8 +2053,13 @@ public:
         }
     }
 
-    bool NODELETE containsCapturingTerms(PatternAlternative* alternative, size_t firstTermIndex, size_t endIndex)
+    bool containsCapturingTerms(PatternAlternative* alternative, size_t firstTermIndex, size_t endIndex)
     {
+        if (!isSafeToRecurse()) [[unlikely]] {
+            m_error = ErrorCode::PatternTooLarge;
+            return true;
+        }
+
         Vector<PatternTerm>& terms = alternative->m_terms;
 
         ASSERT(endIndex <= terms.size());

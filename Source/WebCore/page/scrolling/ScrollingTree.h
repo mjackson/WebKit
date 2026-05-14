@@ -47,6 +47,7 @@
 #include <wtf/MonotonicTime.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
+#include <wtf/ThreadSafeWeakHashSet.h>
 #include <wtf/TypeCasts.h>
 
 namespace WebCore {

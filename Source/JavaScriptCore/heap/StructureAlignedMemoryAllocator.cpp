@@ -41,11 +41,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include <bmalloc/bmalloc_heap_config.h>
 #include <bmalloc/bmalloc_heap_inlines.h>
 #include <bmalloc/bmalloc_heap_ref.h>
-#include <bmalloc/pas_page_sharing_pool.h>
 #include <bmalloc/pas_primitive_heap_ref.h>
-#include <bmalloc/pas_probabilistic_guard_malloc_allocator.h>
-#include <bmalloc/pas_scavenger.h>
-#include <bmalloc/pas_thread_local_cache.h>
 #elif USE(MIMALLOC)
 #include <bmalloc/mimalloc.h>
 #include <mimalloc/types.h>
@@ -54,10 +50,6 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif
 
 #include <wtf/OSAllocator.h>
-
-#if OS(UNIX) && ASSERT_ENABLED
-#include <sys/mman.h>
-#endif
 
 namespace JSC {
 
@@ -130,7 +122,7 @@ public:
         m_useSystemHeap = !bmalloc::api::isEnabled();
 #if USE(LIBPAS)
         if (!m_useSystemHeap) [[likely]] {
-#if OS(WINDOWS) || PLATFORM(PLAYSTATION)
+#if PLATFORM(PLAYSTATION)
             // libpas isn't calling pas_page_malloc commit, so we've got to commit the region ourselves
             // https://bugs.webkit.org/show_bug.cgi?id=292771
             OSAllocator::commit((void *) g_jscConfig.startOfStructureHeap, MarkedBlock::blockSize, true, false);
@@ -155,7 +147,7 @@ public:
 #if USE(LIBPAS)
             void* result = bmalloc_try_allocate_auxiliary_with_alignment_inline(&structureHeap, MarkedBlock::blockSize, MarkedBlock::blockSize, pas_always_compact_allocation_mode);
 
-#if OS(WINDOWS) || PLATFORM(PLAYSTATION)
+#if PLATFORM(PLAYSTATION)
             // libpas isn't calling pas_page_malloc commit, so we've got to commit the region ourselves
             // https://bugs.webkit.org/show_bug.cgi?id=292771
             OSAllocator::commit(result, MarkedBlock::blockSize, true, false);

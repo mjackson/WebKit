@@ -28,6 +28,7 @@
 
 #if ENABLE(WEBASSEMBLY)
 
+#include "CalleeBits.h"
 #include "InPlaceInterpreter.h"
 #include "JSCJSValueInlines.h"
 #include "JSToWasm.h"
@@ -56,6 +57,7 @@ WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(Callee);
 WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(JITCallee);
 WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(JSToWasmCallee);
 WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(WasmToJSCallee);
+WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(RestoreFrameCallee);
 WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(IPIntCallee);
 WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(WasmBuiltinCallee);
 
@@ -141,6 +143,9 @@ inline void Callee::runWithDowncast(const Func& func)
         break;
     case CompilationMode::WasmBuiltinMode:
         func(uncheckedDowncast<WasmBuiltinCallee>(this));
+        break;
+    case CompilationMode::RestoreFrameMode:
+        func(uncheckedDowncast<RestoreFrameCallee>(this));
         break;
     }
 }
@@ -270,16 +275,34 @@ WasmToJSCallee& WasmToJSCallee::singleton()
     return callee.get().get();
 }
 
-IPIntCallee::IPIntCallee(FunctionIPIntMetadataGenerator& generator, FunctionSpaceIndex index, std::pair<const Name*, RefPtr<NameSection>>&& name)
+EncodedJSValue g_restoreFrameCalleeBoxed { };
+
+RestoreFrameCallee::RestoreFrameCallee()
+    : Callee(Wasm::CompilationMode::RestoreFrameMode)
+{
+    NativeCalleeRegistry::singleton().registerCallee(this);
+}
+
+RestoreFrameCallee& RestoreFrameCallee::singleton()
+{
+    static LazyNeverDestroyed<Ref<RestoreFrameCallee>> callee;
+    static std::once_flag onceKey;
+    std::call_once(onceKey, [&]() {
+        callee.construct(adoptRef(*new RestoreFrameCallee));
+        g_restoreFrameCalleeBoxed = CalleeBits::encodeNativeCallee(&callee.get().get());
+    });
+    return callee.get().get();
+}
+
+IPIntCallee::IPIntCallee(FunctionIPIntMetadataGenerator& generator, FunctionSpaceIndex index, const RTT& signatureRTT, std::pair<const Name*, RefPtr<NameSection>>&& name)
     : Callee(Wasm::CompilationMode::IPIntMode, index, WTF::move(name))
     , m_functionIndex(generator.m_functionIndex)
     , m_bytecode(generator.m_bytecode.data() + generator.m_bytecodeOffset)
     , m_bytecodeEnd(m_bytecode + (generator.m_bytecode.size() - generator.m_bytecodeOffset - 1))
     , m_metadata(WTF::move(generator.m_metadata))
-    , m_argumINTBytecode(WTF::move(generator.m_argumINTBytecode))
-    , m_uINTBytecode(WTF::move(generator.m_uINTBytecode))
+    , m_localInitBytecode(WTF::move(generator.m_localInitBytecode))
+    , m_signatureRTT(&signatureRTT)
     , m_callTargets(WTF::move(generator.m_callTargets))
-    , m_topOfReturnStackFPOffset(generator.m_topOfReturnStackFPOffset)
     , m_localSizeToAlloc(roundUpToMultipleOf<2>(generator.m_numLocals))
     , m_numRethrowSlotsToAlloc(generator.m_numAlignedRethrowSlots)
     , m_numLocals(generator.m_numLocals)

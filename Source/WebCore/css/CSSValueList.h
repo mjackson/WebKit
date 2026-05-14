@@ -23,7 +23,6 @@
 #include <WebCore/CSSValue.h>
 #include <array>
 #include <ranges>
-#include <unicode/umachine.h>
 #include <wtf/MallocSpan.h>
 
 namespace WebCore {

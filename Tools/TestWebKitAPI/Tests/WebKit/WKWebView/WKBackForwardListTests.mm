@@ -392,6 +392,7 @@ TEST(WKBackForwardList, InteractionStateRestorationMultipleItems)
 
 @interface WKBackForwardNavigationDelegate : NSObject <WKNavigationDelegatePrivate>
 - (void)waitForDidFinishNavigationOrDidSameDocumentNavigation;
+- (BOOL)waitForDidFinishNavigationOrDidSameDocumentNavigationWithTimeout:(NSTimeInterval)seconds;
 @end
 
 static RetainPtr<WKNavigation> lastNavigation;
@@ -432,6 +433,12 @@ static RetainPtr<WKNavigation> lastNavigation;
 {
     _navigated = false;
     TestWebKitAPI::Util::run(&_navigated);
+}
+
+- (BOOL)waitForDidFinishNavigationOrDidSameDocumentNavigationWithTimeout:(NSTimeInterval)seconds
+{
+    _navigated = false;
+    return TestWebKitAPI::Util::runFor(&_navigated, Seconds { seconds });
 }
 
 - (void)waitForDidFinishNavigation
@@ -533,40 +540,59 @@ static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<vo
     RetainPtr url2 = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
     RetainPtr url3 = [NSBundle.test_resourcesBundle URLForResource:@"simple3" withExtension:@"html"];
 
+    // Waits for the navigation delegate to see didFinishNavigation or didSameDocumentNavigation,
+    // with a finite timeout so that a rare hang (webkit.org/b/313844) surfaces as a fast EXPECT
+    // failure with the context we were waiting for rather than a silent test-framework timeout.
+    // Returns false on timeout so callers can bail out before the next wait also times out,
+    // keeping total runtime bounded.
+    auto waitForNavigation = [&](const char* context) -> bool {
+        if ([navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigationWithTimeout:10])
+            return true;
+        NSLog(@"WKBackForwardNavigationDelegate wait timed out (%s); webView.URL = %@", context, [webView URL]);
+        EXPECT_TRUE(false);
+        return false;
+    };
+
     [webView loadRequest:[NSURLRequest requestWithURL:url1.get()]];
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    if (!waitForNavigation("loadRequest url1"))
+        return;
 
     [webView loadRequest:[NSURLRequest requestWithURL:url2.get()]];
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    if (!waitForNavigation("loadRequest url2"))
+        return;
 
     // Test case:
     // url1 -> url2 -> url2#a (no user gesture) -> url2#b (no user gesture) -> url2#c (no user gesture) -> url3.
 
     // Add back/forward list items without user gestures.
     navigate(webView.get(), "location.pathname + '#a'"_s);
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    if (!waitForNavigation("navigate to url2#a"))
+        return;
     EXPECT_FALSE([lastNavigation _isUserInitiated]);
     EXPECT_TRUE(webView.get().backForwardList.currentItem._wasCreatedByJSWithoutUserInteraction);
     RetainPtr expectedURLString = makeString(String([url2 absoluteString]), "#a"_s).createNSString();
     EXPECT_WK_STREQ([lastNavigation _request].URL.absoluteString.UTF8String, expectedURLString.get().UTF8String);
 
     navigate(webView.get(), "location.pathname + '#b'"_s);
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    if (!waitForNavigation("navigate to url2#b"))
+        return;
     EXPECT_FALSE([lastNavigation _isUserInitiated]);
     EXPECT_TRUE(webView.get().backForwardList.currentItem._wasCreatedByJSWithoutUserInteraction);
     expectedURLString = makeString(String([url2 absoluteString]), "#b"_s).createNSString();
     EXPECT_WK_STREQ([lastNavigation _request].URL.absoluteString.UTF8String, expectedURLString.get().UTF8String);
 
     navigate(webView.get(), "location.pathname + '#c'"_s);
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    if (!waitForNavigation("navigate to url2#c"))
+        return;
     EXPECT_FALSE([lastNavigation _isUserInitiated]);
     EXPECT_TRUE(webView.get().backForwardList.currentItem._wasCreatedByJSWithoutUserInteraction);
     expectedURLString = makeString(String([url2 absoluteString]), "#c"_s).createNSString();
     EXPECT_WK_STREQ([lastNavigation _request].URL.absoluteString.UTF8String, expectedURLString.get().UTF8String);
 
     [webView loadRequest:[NSURLRequest requestWithURL:url3.get()]];
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
-    EXPECT_FALSE(webView.get().backForwardList.currentItem._wasCreatedByJSWithoutUserInteraction);
+    if (!waitForNavigation("loadRequest url3"))
+        return;
+    EXPECT_FALSE([webView backForwardList].currentItem._wasCreatedByJSWithoutUserInteraction);
 
     // url1 -> url2 -> url2#a (no user gesture) -> url2#b (no user gesture) -> url2#c (no user gesture) -> url3 **
     EXPECT_EQ([webView backForwardList].backList.count, 2U);
@@ -574,7 +600,8 @@ static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<vo
 
     // We are now on url3. Let's go back.
     [webView goBack];
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    if (!waitForNavigation("goBack from url3"))
+        return;
 
     // url1 -> url2 -> url2#a (no user gesture) -> url2#b (no user gesture) -> url2#c (no user gesture) ** -> url3
     expectedURLString = makeString(String([url2 absoluteString]), "#c"_s).createNSString();
@@ -584,7 +611,8 @@ static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<vo
 
     // Let's go back again.
     [webView goBack];
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    if (!waitForNavigation("goBack from url2#c (skipping)"))
+        return;
 
     // We should have skipped over url2#b, url2#a and url2, to end up on url1.
     // url1 ** -> url2 -> url2#a (no user gesture) -> url2#b (no user gesture) -> url2#c (no user gesture) -> url3
@@ -594,7 +622,8 @@ static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<vo
 
     // Now let's go forward.
     [webView goForward];
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    if (!waitForNavigation("goForward from url1"))
+        return;
 
     // We should get to the latest url2 URL, that is url2#c.
     // url1 -> url2 -> url2#a (no user gesture) -> url2#b (no user gesture) -> url2#c (no user gesture) ** -> url3
@@ -605,7 +634,8 @@ static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<vo
 
     // Let's go forward again.
     [webView goForward];
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    if (!waitForNavigation("goForward from url2#c"))
+        return;
 
     // We should now be on url3.
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, [url3 absoluteString].UTF8String);
@@ -615,7 +645,8 @@ static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<vo
 
     // Navigating via the JS API shouldn't skip those back/forward list items.
     [webView _evaluateJavaScriptWithoutUserGesture:@"history.back();" completionHandler:^(id, NSError *) { }];
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    if (!waitForNavigation("history.back() from url3"))
+        return;
 
     expectedURLString = makeString(String([url2 absoluteString]), "#c"_s).createNSString();
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
@@ -623,7 +654,8 @@ static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<vo
     EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
 
     [webView _evaluateJavaScriptWithoutUserGesture:@"history.back();" completionHandler:^(id, NSError *) { }];
-    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    if (!waitForNavigation("history.back() from url2#c (same-document)"))
+        return;
     expectedURLString = makeString(String([url2 absoluteString]), "#b"_s).createNSString();
     EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
     EXPECT_EQ([webView backForwardList].backList.count, 1U);
@@ -1661,6 +1693,44 @@ TEST(WKBackForwardList, BackForwardNavigationSkipsPromiseRedirectWithoutUserInte
     // Attempting to goBack now should simply fail.
     auto *navigation = [popupWebView goBack];
     EXPECT_NULL(navigation);
+}
+
+TEST(WKBackForwardList, CrossDocumentNavigationWithRecentUserGestureNotFlagged)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/source"_s, { "Source page"_s } },
+        { "/destination"_s, { "Destination page"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    [webView _setDontResetTransientActivationAfterRunJavaScript:YES];
+    RetainPtr navigationDelegate = adoptNS([WKBackForwardNavigationDelegate new]);
+    webView.get().navigationDelegate = navigationDelegate.get();
+
+    [webView loadRequest:server.request("/source"_s)];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    // A pattern that's been seen is:
+    // - JS intercepts link click with preventDefault()
+    // - In an async callback, navigates via location.href = <...>
+    // There is a 1-second user gesture forwarding window for such timers.
+    // So sometimes when the load commits and the standard load history update takes place,
+    // it's within the user gesture window, and the resulting back/forward list item is "normal"
+    // Other times it takes longer than a second, and the resulting item is flagged as
+    // "created by JS without user gesture"
+    //
+    // But in other places where we set that flag on a back/forward item we consider the
+    // `lastActivationTimestamp` recency - Which gives 10 seconds of leniency.
+    //
+    // The code change to fix this issue was to allow for the same 10 seconds.
+    // The test has to wait "longer than 1 second" to make sure it exercises the code change.
+    NSString *destinationURL = server.request("/destination"_s).URL.absoluteString;
+    [webView evaluateJavaScript:[NSString stringWithFormat:@"setTimeout(() => { location.href = '%@'; }, 1100);", destinationURL] completionHandler:nil];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    EXPECT_STREQ([webView URL].absoluteString.UTF8String, destinationURL.UTF8String);
+    EXPECT_FALSE([webView backForwardList].currentItem._wasCreatedByJSWithoutUserInteraction);
+    EXPECT_EQ([webView backForwardList].backList.count, 1U);
 }
 
 TEST(WKBackForwardList, BackButtonWorksAfterUserClickFromJSCreatedPage)

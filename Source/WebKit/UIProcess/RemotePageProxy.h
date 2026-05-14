@@ -70,6 +70,7 @@ class RemotePagePlaybackSessionManagerProxy;
 class RemotePageScreenOrientationManagerProxy;
 class RemotePageVideoPresentationManagerProxy;
 class RemotePageVisitedLinkStoreRegistration;
+class RemotePageWebAuthenticatorCoordinatorProxy;
 class UserData;
 class WebFrameProxy;
 class WebPageProxy;
@@ -161,6 +162,9 @@ private:
     WebPageProxyMessageReceiverRegistration m_messageReceiverRegistration;
     WebCore::MediaProducerMediaStateFlags m_mediaState;
     RefPtr<RemotePageScreenOrientationManagerProxy> m_screenOrientationManager;
+#if ENABLE(WEB_AUTHN)
+    RefPtr<RemotePageWebAuthenticatorCoordinatorProxy> m_webAuthenticatorCoordinator;
+#endif
     bool m_hasNetworkRequestsInProgress { false };
     bool m_canShortCircuitHorizontalWheelEvents { true };
 #if ASSERT_ENABLED

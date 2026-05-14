@@ -1,0 +1,6 @@
+
+FAIL LNA Public to loopback webtransport with permission Can't find variable: resolveUrl
+FAIL LNA Public to loopback webtransport without permission Can't find variable: resolveUrl
+FAIL LNA local to loopback webtransport with permission Can't find variable: resolveUrl
+FAIL LNA local to loopback webtransport without permission Can't find variable: resolveUrl
+

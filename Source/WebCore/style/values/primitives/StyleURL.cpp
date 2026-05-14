@@ -56,7 +56,7 @@ auto toStyleWithScriptExecutionContext(const CSS::URL& url, const ScriptExecutio
 {
     if (url.resolved.isNull()) {
         return {
-            .resolved = context.completeURL(url.specified),
+            .resolved = context.encodingParseURL(url.specified),
             .modifiers = url.modifiers,
         };
     }

@@ -151,6 +151,44 @@ class MacPort(DarwinPort):
             expectations.append(self._webkit_baseline_path('wk2'))
         return expectations
 
+    def _api_test_platform_cascade(self):
+        cascade = []
+        internal_version = self._api_test_version_name(self._os_version, table=INTERNAL_TABLE) if apple_additions() else None
+        internal_name = 'mac-{}'.format(internal_version) if internal_version else None
+        cascade.append(('mac', internal_name))
+
+        public_version = self._api_test_version_name(self._os_version)
+        if public_version:
+            cascade.append(('mac-{}'.format(public_version), internal_name))
+
+        return cascade
+
+    def api_test_version_order(self):
+        version_order = []
+        version_name_map = VersionNameMap.map(self.host.platform)
+        for version in self._allowed_versions():
+            version_name = version_name_map.to_name(version, platform=self.port_name)
+            if not version_name:
+                version_name = version_name_map.to_name(version, platform=self.port_name, table=INTERNAL_TABLE)
+            if version_name:
+                version_order.append(version_name.lower().replace(' ', ''))
+        return version_order
+
+    def api_test_current_configuration(self):
+        config = super(MacPort, self).api_test_current_configuration()
+        config['platform'] = 'mac'
+
+        public_version = self._api_test_version_name(self._os_version)
+        if public_version:
+            config['version'] = public_version
+
+        if self.get_option('guard_malloc'):
+            config['style'] = 'guardmalloc'
+
+        config['hardware'] = 'device'
+
+        return config
+
     @memoized
     def configuration_specifier_macros(self):
         config_map = {}

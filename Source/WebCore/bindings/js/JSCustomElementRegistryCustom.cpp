@@ -36,6 +36,7 @@
 #include "JSDOMConvertStrings.h"
 #include "JSDOMPromiseDeferred.h"
 #include "Settings.h"
+#include <JavaScriptCore/JSObjectInlines.h>
 #include <wtf/SetForScope.h>
 
 

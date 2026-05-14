@@ -55,8 +55,11 @@ struct InvalidationRuleSet {
     CSSSelectorList invalidationSelectors;
     MatchElement matchElement;
     IsNegation isNegation;
-    // For non-subject :has(), a selector matching the :has() scope element.
-    // Used to bound the invalidation traversal to the scope element's subtree.
+    // Selector for the :has() scope element, used to bound invalidation traversal.
+    //   - Specific selectors: strong scope.
+    //   - Universal `*`: weak scope (bearer has no compound peer); scope element is still
+    //     DOM-identifiable relative to a changed element.
+    //   - Empty: scope-breaking (nested :is()/:not() reaches outside the scope).
     CSSSelectorList scopeSelector;
 };
 

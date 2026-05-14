@@ -38,7 +38,6 @@
 #include <wtf/Forward.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
-#include <wtf/Threading.h>
 #include <wtf/TypeCasts.h>
 
 namespace WTF {

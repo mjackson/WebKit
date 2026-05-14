@@ -63,6 +63,7 @@ namespace JSC {
     macro(JSFullPromiseReactionType, SpecCellOther) \
     macro(JSPromiseCombinatorsContextType, SpecCellOther) \
     macro(JSPromiseCombinatorsGlobalContextType, SpecCellOther) \
+    macro(JSWebAssemblyStreamingContextType, SpecCellOther) \
     macro(JSMicrotaskDispatcherType, SpecCellOther) \
     macro(ModuleRegistryEntryType, SpecCellOther) \
     macro(ModuleLoadingContextType, SpecCellOther) \

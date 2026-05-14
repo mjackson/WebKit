@@ -1364,6 +1364,11 @@ void Structure::getPropertyNamesFromStructure(VM& vm, PropertyNameArrayBuilder& 
     }
 }
 
+StructureFireDetail::StructureFireDetail(ClangVTableWorkaroundTag)
+    : m_structure(nullptr)
+{
+}
+
 void StructureFireDetail::dump(PrintStream& out) const
 {
     out.print("Structure transition from ", *m_structure);

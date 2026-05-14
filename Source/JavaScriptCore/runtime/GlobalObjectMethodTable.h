@@ -77,8 +77,8 @@ struct GlobalObjectMethodTable {
     void (*reportViolationForUnsafeEval)(JSGlobalObject*, const String&);
     String (*defaultLanguage)();
 #if ENABLE(WEBASSEMBLY)
-    JSPromise* (*compileStreaming)(JSGlobalObject*, JSValue, std::optional<WebAssemblyCompileOptions>&&);
-    JSPromise* (*instantiateStreaming)(JSGlobalObject*, JSValue, JSObject* importObject, std::optional<WebAssemblyCompileOptions>&&);
+    void (*compileStreaming)(JSGlobalObject*, JSPromise*, JSValue, std::optional<WebAssemblyCompileOptions>&&);
+    void (*instantiateStreaming)(JSGlobalObject*, JSPromise*, JSValue, JSObject* importObject, std::optional<WebAssemblyCompileOptions>&&);
 #else
     void* compileStreamingPlaceholder; // placeholders to make positional initializers consistent
     void* instantiateStreamingPlaceholder;

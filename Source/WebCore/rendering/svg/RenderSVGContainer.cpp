@@ -36,6 +36,7 @@
 #include "RenderView.h"
 #include "SVGContainerLayout.h"
 #include "SVGLayerTransformUpdater.h"
+#include "SVGRenderSupport.h"
 #include "SVGVisitedRendererTracking.h"
 #include <wtf/SetForScope.h>
 #include <wtf/StackStats.h>
@@ -118,8 +119,21 @@ FloatRect RenderSVGContainer::strokeBoundingBox() const
 
 void RenderSVGContainer::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 {
-    OptionSet<PaintPhase> relevantPaintPhases { PaintPhase::Foreground, PaintPhase::ClippingMask, PaintPhase::Mask, PaintPhase::Outline, PaintPhase::SelfOutline };
-    if (!shouldPaintSVGRenderer(paintInfo, relevantPaintPhases))
+    if (paintInfo.phase != PaintPhase::EventRegion && paintInfo.context().paintingDisabled())
+        return;
+
+    static constexpr OptionSet<PaintPhase> relevantPaintPhases { PaintPhase::Foreground, PaintPhase::ClippingMask, PaintPhase::Mask, PaintPhase::Outline, PaintPhase::SelfOutline, PaintPhase::EventRegion };
+    if (!relevantPaintPhases.contains(paintInfo.phase))
+        return;
+
+    if (!paintInfo.shouldPaintWithinRoot(*this))
+        return;
+
+    if (style().display() == Style::DisplayType::None)
+        return;
+
+    // Children can override with "visibility: visible", per SVG spec.
+    if (paintInfo.phase != PaintPhase::Foreground && style().usedVisibility() == Visibility::Hidden)
         return;
 
     if (paintInfo.phase == PaintPhase::ClippingMask) {
@@ -139,11 +153,39 @@ void RenderSVGContainer::paint(PaintInfo& paintInfo, const LayoutPoint& paintOff
         return;
 
     if (paintInfo.phase == PaintPhase::Outline || paintInfo.phase == PaintPhase::SelfOutline) {
+        // Children's outlines are painted per-child during the Foreground phase, so later
+        // DOM siblings paint on top of earlier siblings' outlines.
         paintSVGOutline(paintInfo, adjustedPaintOffset);
         return;
     }
 
-    ASSERT(paintInfo.phase == PaintPhase::Foreground);
+    ASSERT(paintInfo.phase == PaintPhase::Foreground || paintInfo.phase == PaintPhase::EventRegion);
+
+    // With a self-painting layer, children are painted by paintChildrenInDOMOrderForSVG().
+    if (hasSelfPaintingLayer())
+        return;
+
+    PaintInfo childPaintInfo(paintInfo);
+    GraphicsContextStateSaver stateSaver(childPaintInfo.context());
+
+    // For layer-backed containers, clipping is handled by RenderLayer::calculateClipRects().
+    if (isRenderSVGViewportContainer() && SVGRenderSupport::isOverflowHidden(*this))
+        childPaintInfo.context().clip(FloatRect(overflowClipRect(adjustedPaintOffset)));
+
+    childPaintInfo.updateSubtreePaintRootForChildren(this);
+    for (CheckedRef child : childrenOfType<RenderElement>(*this)) {
+        if (child->hasSelfPaintingLayer())
+            continue;
+
+        child->paint(childPaintInfo, adjustedPaintOffset);
+
+        if (paintInfo.phase == PaintPhase::Foreground) {
+            // Paint each child's outline immediately so later DOM siblings paint on top of it.
+            PaintInfo outlinePaintInfo(childPaintInfo);
+            outlinePaintInfo.phase = PaintPhase::Outline;
+            child->paint(outlinePaintInfo, adjustedPaintOffset);
+        }
+    }
 }
 
 bool RenderSVGContainer::nodeAtPoint(const HitTestRequest& request, HitTestResult& result, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, HitTestAction hitTestAction)

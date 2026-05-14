@@ -33,9 +33,11 @@
 #include "PlatformSpeechSynthesisVoice.h"
 #include "WebKitAudioSinkGStreamer.h"
 #include <spiel/spiel.h>
-#include <wtf/glib/GSpanExtras.h>
+#include <wtf/HashMap.h>
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/glib/GSpanExtras.h>
 #include <wtf/text/MakeString.h>
+#include <wtf/text/StringHash.h>
 
 namespace WebCore {
 

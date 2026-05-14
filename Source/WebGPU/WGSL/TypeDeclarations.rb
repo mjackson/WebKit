@@ -62,6 +62,7 @@ operator :'&', {
 operator :-, {
     must_use: true,
     const: "constantMinus",
+    validate: "validateMinus",
 
     # unary
     [T < SignedNumber].(T) => T,
@@ -78,6 +79,7 @@ operator :-, {
 operator :+, {
     must_use: true,
     const: "constantAdd",
+    validate: "validateAdd",
 
     [T < Number].(T, T) => T,
 
@@ -93,6 +95,7 @@ operator :+, {
 operator :*, {
     must_use: true,
     const: "constantMultiply",
+    validate: "validateMultiply",
 
     # binary
     [T < Number].(T, T) => T,
@@ -117,6 +120,7 @@ operator :*, {
 operator :/, {
     must_use: true,
     const: "constantDivide",
+    validate: "validateDivide",
 
     [T < Number].(T, T) => T,
 
@@ -129,6 +133,7 @@ operator :/, {
 operator :%, {
     must_use: true,
     const: "constantModulo",
+    validate: "validateModulo",
     [T < Number].(T, T) => T,
 
     # vector scaling

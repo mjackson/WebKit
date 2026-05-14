@@ -1280,6 +1280,65 @@ class Port(object):
     def path_to_api_test_binaries(self):
         return {binary: self.path_to_api_test(binary) for binary in self.API_TEST_BINARY_NAMES}
 
+    def api_test_expectations_dir(self):
+        return self._filesystem.join(self.path_from_webkit_base(), 'TestExpectations')
+
+    def _apple_api_test_expectations_path(self, platform):
+        if not port_config.apple_additions():
+            return None
+        internal_base = port_config.apple_additions().layout_tests_path()
+        parent = self._filesystem.dirname(internal_base)
+        return self._filesystem.join(parent, 'APITestExpectationsForUnreleasedSoftware', platform)
+
+    def api_test_expectations_files(self):
+        files = []
+        base = self.api_test_expectations_dir()
+
+        files.append(self._filesystem.join(base, 'apitests'))
+
+        for platform_entry in self._api_test_platform_cascade():
+            if isinstance(platform_entry, tuple):
+                public_name, internal_name = platform_entry
+            else:
+                public_name = platform_entry
+                internal_name = None
+
+            files.append(self._filesystem.join(base, 'platform', public_name, 'apitests'))
+
+            if internal_name and port_config.apple_additions():
+                internal_path = self._apple_api_test_expectations_path(internal_name)
+                if internal_path:
+                    files.append(self._filesystem.join(internal_path, 'apitests'))
+
+        return files
+
+    def api_test_version_order(self):
+        return []
+
+    def api_test_current_configuration(self):
+        config = {}
+        config['platform'] = self.port_name.split('-')[0] if self.port_name else None
+
+        configuration = self.get_option('configuration')
+        if configuration:
+            config['style'] = configuration.lower()
+
+        if hasattr(self, 'architecture') and self.architecture():
+            config['architecture'] = self.architecture()
+
+        return config
+
+    def _api_test_platform_cascade(self):
+        cascade = []
+        port_name = self.port_name
+        if 'mac' in port_name:
+            cascade.append('mac')
+        elif 'ios' in port_name:
+            cascade.append('ios')
+            if 'simulator' in port_name:
+                cascade.append('ios-simulator')
+        return cascade
+
     def _webkit_baseline_path(self, platform):
         """Return the  full path to the top of the baseline tree for a
         given platform."""

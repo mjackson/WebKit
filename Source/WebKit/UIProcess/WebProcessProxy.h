@@ -202,7 +202,7 @@ public:
 
     static Ref<WebProcessProxy> create(WebProcessPool&, WebsiteDataStore*, LockdownMode, EnhancedSecurity, IsPrewarmed, WebCore::CrossOriginMode = WebCore::CrossOriginMode::Shared, ShouldLaunchProcess = ShouldLaunchProcess::Yes);
 
-    static Ref<WebProcessProxy> createForRemoteWorkers(RemoteWorkerType, WebProcessPool&, WebCore::Site&&, WebsiteDataStore&, LockdownMode, EnhancedSecurity);
+    static Ref<WebProcessProxy> createForRemoteWorkers(RemoteWorkerType, WebProcessPool&, WebCore::Site&&, WebsiteDataStore&, WebCore::CrossOriginMode, LockdownMode, EnhancedSecurity);
 
     ~WebProcessProxy();
 
@@ -466,7 +466,7 @@ public:
 
     void setRemoteWorkerUserAgent(const String&);
     void updateRemoteWorkerPreferencesStore(const WebPreferencesStore&);
-    void establishRemoteWorkerContext(RemoteWorkerType, const WebPreferencesStore&, const WebCore::Site&, std::optional<WebCore::ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, CompletionHandler<void()>&&);
+    void establishRemoteWorkerContext(RemoteWorkerType, const WebPreferencesStore&, const WebCore::Site&, std::optional<WebCore::ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, WebCore::CrossOriginEmbedderPolicyValue, CompletionHandler<void()>&&);
     void registerRemoteWorkerClientProcess(RemoteWorkerType, WebProcessProxy&);
     void unregisterRemoteWorkerClientProcess(RemoteWorkerType, WebProcessProxy&);
     void updateRemoteWorkerProcessAssertion(RemoteWorkerType);

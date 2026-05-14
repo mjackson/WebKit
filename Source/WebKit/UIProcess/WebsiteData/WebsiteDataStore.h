@@ -114,6 +114,7 @@ enum class RestrictedOpenerType : uint8_t;
 enum class ShouldGrandfatherStatistics : bool;
 enum class StorageAccessStatus : uint8_t;
 enum class StorageAccessPromptStatus;
+enum class TimeBasedEvictionMode : uint8_t;
 enum class UnifiedOriginStorageLevel : uint8_t;
 enum class WebsiteDataFetchOption : uint8_t;
 enum class WebsiteDataType : uint32_t;
@@ -186,6 +187,8 @@ public:
 
     bool storageSiteValidationEnabled() const { return m_storageSiteValidationEnabled; }
     void setStorageSiteValidationEnabled(bool);
+
+    TimeBasedEvictionMode timeBasedEvictionMode() const;
 
     uint64_t perOriginStorageQuota() const { return m_configuration->perOriginStorageQuota(); }
     std::optional<double> originQuotaRatio() { return m_configuration->originQuotaRatio(); }

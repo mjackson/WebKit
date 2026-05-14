@@ -135,7 +135,7 @@ static Ref<NetworkStorageManager> createNetworkStorageManager(NetworkProcess& ne
     String serviceWorkerStorageDirectory;
     serviceWorkerStorageDirectory = parameters.serviceWorkerRegistrationDirectory;
     SandboxExtension::consumePermanently(parameters.serviceWorkerRegistrationDirectoryExtensionHandle);
-    return NetworkStorageManager::create(networkProcess, parameters.sessionID, parameters.dataStoreIdentifier, connectionID, parameters.generalStorageDirectory, parameters.localStorageDirectory, parameters.indexedDBDirectory, parameters.cacheStorageDirectory, serviceWorkerStorageDirectory, parameters.perOriginStorageQuota, parameters.originQuotaRatio, parameters.totalQuotaRatio, parameters.standardVolumeCapacity, parameters.volumeCapacityOverride, parameters.unifiedOriginStorageLevel, parameters.storageSiteValidationEnabled);
+    return NetworkStorageManager::create(networkProcess, parameters.sessionID, parameters.dataStoreIdentifier, connectionID, parameters.generalStorageDirectory, parameters.localStorageDirectory, parameters.indexedDBDirectory, parameters.cacheStorageDirectory, serviceWorkerStorageDirectory, parameters.perOriginStorageQuota, parameters.originQuotaRatio, parameters.totalQuotaRatio, parameters.standardVolumeCapacity, parameters.volumeCapacityOverride, parameters.unifiedOriginStorageLevel, parameters.storageSiteValidationEnabled, parameters.timeBasedEvictionMode, parameters.timeBasedEvictionThreshold, parameters.lastModificationTimeUpdateIntervalOverride, parameters.timeBasedEvictionIntervalOverride);
 }
 
 #if ENABLE(WEB_PUSH_NOTIFICATIONS)
@@ -854,10 +854,10 @@ void NetworkSession::softUpdate(ServiceWorkerJobData&& jobData, bool shouldRefre
     m_softUpdateLoaders.add(ServiceWorkerSoftUpdateLoader::create(*this, WTF::move(jobData), shouldRefreshCache, WTF::move(request), WTF::move(completionHandler)));
 }
 
-void NetworkSession::createContextConnection(const WebCore::Site& site, std::optional<WebCore::ProcessIdentifier> requestingProcessIdentifier, std::optional<WebCore::ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, CompletionHandler<void()>&& completionHandler)
+void NetworkSession::createContextConnection(const WebCore::Site& site, std::optional<WebCore::ProcessIdentifier> requestingProcessIdentifier, std::optional<WebCore::ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, WebCore::CrossOriginEmbedderPolicyValue workerCrossOriginEmbedderPolicy, CompletionHandler<void()>&& completionHandler)
 {
     ASSERT(!site.isEmpty());
-    protect(m_networkProcess->parentProcessConnection())->sendWithAsyncReply(Messages::NetworkProcessProxy::EstablishRemoteWorkerContextConnectionToNetworkProcess { RemoteWorkerType::ServiceWorker, site, requestingProcessIdentifier, serviceWorkerPageIdentifier, m_sessionID }, [completionHandler = WTF::move(completionHandler)] (auto) mutable {
+    protect(m_networkProcess->parentProcessConnection())->sendWithAsyncReply(Messages::NetworkProcessProxy::EstablishRemoteWorkerContextConnectionToNetworkProcess { RemoteWorkerType::ServiceWorker, site, requestingProcessIdentifier, serviceWorkerPageIdentifier, m_sessionID, workerCrossOriginEmbedderPolicy }, [completionHandler = WTF::move(completionHandler)] (auto) mutable {
         completionHandler();
     }, 0);
 }

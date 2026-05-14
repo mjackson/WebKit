@@ -45,6 +45,8 @@ public:
     JS_EXPORT_PRIVATE static void touch(VM&, WatchpointSet*, JSObject*, const PropertyName&);
 
 private:
+    VariableWriteFireDetail(ClangVTableWorkaroundTag, const PropertyName&);
+
     JSObject* m_object;
     const PropertyName& m_name;
 };

@@ -25,9 +25,9 @@
 
 #pragma once
 
-#include <WebCore/IntPoint.h>
 #include <WebCore/RenderStyleConstants.h>
 #include <WebCore/StyleImage.h>
+#include <WebCore/StylePrimitiveNumericTypes.h>
 #include <WebCore/StyleValueTypes.h>
 
 namespace WebCore {
@@ -37,7 +37,7 @@ namespace Style {
 // https://drafts.csswg.org/css-ui-4/#typedef-cursor-cursor-image
 struct CursorImageAndHotSpot {
     Ref<Image> image;
-    IntPoint hotSpot { -1, -1 };
+    std::optional<SpaceSeparatedPoint<Number<>>> hotSpot;
 
     bool operator==(const CursorImageAndHotSpot&) const = default;
 };

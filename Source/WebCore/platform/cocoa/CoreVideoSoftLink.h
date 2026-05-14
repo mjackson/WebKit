@@ -34,7 +34,6 @@
 
 typedef struct __IOSurface* IOSurfaceRef;
 
-WTF_DECLARE_CF_TYPE_TRAIT(CVPixelBuffer);
 WTF_DECLARE_CF_TYPE_TRAIT(CVPixelBufferPool);
 
 SOFT_LINK_FRAMEWORK_FOR_HEADER(WebCore, CoreVideo)
@@ -54,6 +53,11 @@ SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreVideo, CVBufferSetAttachment, void, (
 #define CVBufferGetAttachments softLink_CoreVideo_CVBufferGetAttachments
 SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreVideo, CVPixelBufferGetTypeID, CFTypeID, (), ())
 #define CVPixelBufferGetTypeID softLink_CoreVideo_CVPixelBufferGetTypeID
+// Manual equivalent of WTF_DECLARE_CF_TYPE_TRAIT(CVPixelBuffer) because the
+// soft-linked function CVPixelBufferGetTypeID lives in the WebCore namespace.
+template <> struct WTF::CFTypeTrait<CVPixelBufferRef> {
+    static inline CFTypeID typeID() { return WebCore::CVPixelBufferGetTypeID(); }
+};
 SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreVideo, CVPixelBufferGetDataSize, size_t, (CVPixelBufferRef pixelBuffer), (pixelBuffer))
 #define CVPixelBufferGetDataSize softLink_CoreVideo_CVPixelBufferGetDataSize
 SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreVideo, CVPixelBufferGetWidth, size_t, (CVPixelBufferRef pixelBuffer), (pixelBuffer))

@@ -34,7 +34,6 @@
 #include "MathCommon.h"
 #include <wtf/CagedUniquePtr.h>
 #include <wtf/Int128.h>
-#include <wtf/text/StringBuilder.h>
 #include <wtf/text/StringView.h>
 #include <wtf/text/WTFString.h>
 

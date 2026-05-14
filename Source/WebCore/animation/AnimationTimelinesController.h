@@ -27,12 +27,12 @@
 
 #include <WebCore/FrameRateAligner.h>
 #include <WebCore/GraphicsLayer.h>
-#include <WebCore/ReducedResolutionSeconds.h>
 #include <WebCore/Timer.h>
 #include <WebCore/WebAnimationTypes.h>
 #include <wtf/CancellableTask.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/Markable.h>
+#include <wtf/ReducedResolutionSeconds.h>
 #include <wtf/Seconds.h>
 #include <wtf/WeakHashSet.h>
 

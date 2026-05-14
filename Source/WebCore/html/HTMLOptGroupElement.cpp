@@ -169,6 +169,14 @@ bool HTMLOptGroupElement::isDisabledFormControl() const
     return m_isDisabled;
 }
 
+bool HTMLOptGroupElement::isActuallyDisabled() const
+{
+    if (HTMLElement::isActuallyDisabled())
+        return true;
+    RefPtr select = ownerSelectElement();
+    return select && select->isDisabledFormControl();
+}
+
 bool HTMLOptGroupElement::isFocusable() const
 {
     RefPtr select = ownerSelectElement();

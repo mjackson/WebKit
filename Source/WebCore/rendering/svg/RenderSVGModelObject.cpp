@@ -319,12 +319,15 @@ bool RenderSVGModelObject::applyCachedClipAndScrollPosition(RepaintRects& rects,
 
 Path RenderSVGModelObject::computeClipPath(AffineTransform& transform) const
 {
-    if (layer()->isTransformed())
-        transform.multiply(layer()->currentTransform(Style::TransformResolver::individualTransformOperations).toAffineTransform());
+    if (isTransformed())
+        transform.multiply(computeRendererTransform());
 
     if (RefPtr useElement = dynamicDowncast<SVGUseElement>(protect(element()))) {
-        if (CheckedPtr clipChildRenderer = useElement->rendererClipChild())
-            transform.multiply(protect(downcast<RenderLayerModelObject>(*clipChildRenderer).layer())->currentTransform(Style::TransformResolver::individualTransformOperations).toAffineTransform());
+        if (CheckedPtr clipChildRenderer = useElement->rendererClipChild()) {
+            CheckedRef layerModelObject = downcast<RenderLayerModelObject>(*clipChildRenderer);
+            if (layerModelObject->isTransformed())
+                transform.multiply(layerModelObject->computeRendererTransform());
+        }
         if (RefPtr clipChild = useElement->clipChild())
             return pathFromGraphicsElement(*clipChild);
     }

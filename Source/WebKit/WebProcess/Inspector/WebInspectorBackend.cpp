@@ -26,6 +26,7 @@
 #include "config.h"
 #include "WebInspectorBackend.h"
 
+#include "FrameNetworkAgentProxy.h"
 #include "WebFrame.h"
 #include "WebInspectorBackendMessages.h"
 #include "WebInspectorBackendProxyMessages.h"
@@ -34,6 +35,7 @@
 #include "WebProcess.h"
 #include <WebCore/Chrome.h>
 #include <WebCore/DocumentView.h>
+#include <WebCore/FrameInspectorController.h>
 #include <WebCore/FrameLoadRequest.h>
 #include <WebCore/FrameLoader.h>
 #include <WebCore/InspectorFrontendClient.h>
@@ -46,6 +48,8 @@
 #include <WebCore/Page.h>
 #include <WebCore/PageInspectorController.h>
 #include <WebCore/ScriptController.h>
+#include <WebCore/Settings.h>
+#include <WebCore/WebInjectedScriptManager.h>
 #include <WebCore/WindowFeatures.h>
 #include <wtf/Borrow.h>
 
@@ -68,6 +72,8 @@ WebInspectorBackend::WebInspectorBackend(WebPage& page)
 
 WebInspectorBackend::~WebInspectorBackend()
 {
+    disableNetworkInstrumentation();
+
     if (RefPtr frontendConnection = m_frontendConnection)
         frontendConnection->invalidate();
 }
@@ -301,6 +307,82 @@ void WebInspectorBackend::updateDockingAvailability()
     m_previousCanAttach = canAttachWindow;
 
     protect(WebProcess::singleton().parentProcessConnection())->send(Messages::WebInspectorBackendProxy::AttachAvailabilityChanged(canAttachWindow), m_page->identifier());
+}
+
+void WebInspectorBackend::ensureInstrumentationForFrame(LocalFrame& frame)
+{
+    if (!m_networkInstrumentationEnabled)
+        return;
+
+    auto frameID = frame.frameID();
+    if (m_frameNetworkAgentProxies.contains(frameID))
+        return;
+
+    RefPtr page = m_page.get();
+    if (!page)
+        return;
+
+    RefPtr corePage = page->corePage();
+    if (!corePage)
+        return;
+
+    auto& pageInspectorController = corePage->inspectorController();
+    auto& frameController = frame.inspectorController();
+    Inspector::AgentContext baseContext = {
+        frameController,
+        pageInspectorController.injectedScriptManager(),
+        pageInspectorController.frontendRouter(),
+        pageInspectorController.backendDispatcher()
+    };
+    Ref instrumentingAgents = frameController.instrumentingAgents();
+    WebAgentContext webContext = {
+        baseContext,
+        instrumentingAgents.get()
+    };
+
+    auto proxy = makeUnique<FrameNetworkAgentProxy>(webContext, *page);
+    proxy->enable();
+    m_frameNetworkAgentProxies.add(frameID, WTF::move(proxy));
+}
+
+void WebInspectorBackend::enableNetworkInstrumentation()
+{
+    if (!m_page)
+        return;
+
+    RefPtr corePage = m_page->corePage();
+    if (!corePage)
+        return;
+
+    if (!m_networkInstrumentationEnabled) {
+        m_networkInstrumentationEnabled = true;
+        corePage->settings().setDeveloperExtrasEnabled(true);
+        corePage->inspectorController().connectRemoteInstrumentation();
+    }
+
+    corePage->forEachLocalFrame([&](LocalFrame& frame) {
+        ensureInstrumentationForFrame(frame);
+    });
+}
+
+void WebInspectorBackend::disableNetworkInstrumentation()
+{
+    if (!m_networkInstrumentationEnabled)
+        return;
+
+    m_frameNetworkAgentProxies.clear();
+    m_networkInstrumentationEnabled = false;
+
+    if (!m_page)
+        return;
+
+    if (RefPtr corePage = m_page->corePage())
+        corePage->inspectorController().disconnectRemoteInstrumentation();
+}
+
+void WebInspectorBackend::removeInstrumentationForFrame(FrameIdentifier frameID)
+{
+    m_frameNetworkAgentProxies.remove(frameID);
 }
 
 } // namespace WebKit

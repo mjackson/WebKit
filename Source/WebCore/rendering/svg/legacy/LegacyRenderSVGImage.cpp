@@ -123,7 +123,7 @@ bool LegacyRenderSVGImage::updateImageViewport()
     m_objectBoundingBox = calculateObjectBoundingBox();
 
     bool updatedViewport = false;
-    URL imageSourceURL = document().completeURL(imageElement().imageSourceURL());
+    URL imageSourceURL = document().encodingParseURL(imageElement().imageSourceURL());
 
     // Images with preserveAspectRatio=none should force non-uniform scaling. This can be achieved
     // by setting the image's container size to its intrinsic size.
@@ -234,6 +234,9 @@ void LegacyRenderSVGImage::paintForeground(PaintInfo& paintInfo)
     ImagePaintingOptions options = {
         imageOrientation(),
         ImageQualityController::chooseInterpolationQualityForSVG(paintInfo.context(), *this, *image),
+        settings().imageSubsamplingEnabled() ? AllowImageSubsampling::Yes : AllowImageSubsampling::No,
+        settings().showDebugBorders() ? ShowDebugBackground::Yes : ShowDebugBackground::No,
+        settings().hdrAcceleratedApplyGainMapEnabled() ? AllowAcceleratedApplyGainMap::Yes : AllowAcceleratedApplyGainMap::No,
         paintInfo.paintBehavior.contains(PaintBehavior::DrawsHDRContent) ? DrawsHDRContent::Yes : DrawsHDRContent::No,
         style().dynamicRangeLimit().toPlatformDynamicRangeLimit()
     };

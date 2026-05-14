@@ -2030,6 +2030,18 @@ NSString *Device::errorValidatingTextureCreation(const WGPUTextureDescriptor& de
             return @"createTexture: !textureViewFormatCompatible(descriptor.format, viewFormat)";
     }
 
+    if (descriptor.usage & WGPUTextureUsage_Transient) {
+        if (descriptor.usage != (WGPUTextureUsage_Transient | WGPUTextureUsage_RenderAttachment))
+            return @"createTexture: descriptor usage must be exactly Transient | Render_Attachment when using Transient textures";
+        if (descriptor.dimension != WGPUTextureDimension_2D)
+            return @"createTexture: descriptor dimension must be 2D when using Transient textures";
+        if (descriptor.mipLevelCount != 1)
+            return @"createTexture: descriptor mipLevelCount must be 1 when using Transient textures";
+
+        if (descriptor.size.depthOrArrayLayers != 1)
+            return @"createTexture: descriptor.size.depthOrArrayLayers must be 1 when using Transient textures";
+    }
+
     return nil;
 }
 
@@ -2891,8 +2903,10 @@ std::optional<MTLPixelFormat> Texture::stencilOnlyAspectMetalFormat(WGPUTextureF
     }
 }
 
-static MTLStorageMode NODELETE storageMode(bool deviceHasUnifiedMemory, bool supportsNonPrivateDepthStencilTextures)
+static MTLStorageMode NODELETE storageMode(bool deviceHasUnifiedMemory, bool supportsNonPrivateDepthStencilTextures, WGPUTextureUsageFlags usage)
 {
+    if (usage & WGPUTextureUsage_Transient)
+        return MTLStorageModeMemoryless;
 
     // FIXME: only perform this check if the texture is a depth/stencil texture.
     if (!supportsNonPrivateDepthStencilTextures)
@@ -2976,7 +2990,7 @@ Ref<Texture> Device::createTexture(const WGPUTextureDescriptor& descriptor)
 
     textureDescriptor.sampleCount = descriptor.sampleCount;
 
-    textureDescriptor.storageMode = storageMode(hasUnifiedMemory(), baseCapabilities().supportsNonPrivateDepthStencilTextures);
+    textureDescriptor.storageMode = storageMode(hasUnifiedMemory(), baseCapabilities().supportsNonPrivateDepthStencilTextures, descriptor.usage);
 
     // FIXME(PERFORMANCE): Consider write-combining CPU cache mode.
     // FIXME(PERFORMANCE): Consider implementing hazard tracking ourself.
@@ -3321,7 +3335,7 @@ Ref<TextureView> Texture::createView(const WGPUTextureViewDescriptor& inputDescr
 
     auto slices = NSMakeRange(descriptor->baseArrayLayer, descriptor->arrayLayerCount);
 
-    id<MTLTexture> texture = [m_texture newTextureViewWithPixelFormat:resolvedPixelFormat(pixelFormat, m_texture.pixelFormat) textureType:textureType levels:levels slices:slices];
+    id<MTLTexture> texture = m_texture.storageMode == MTLStorageModeMemoryless ? m_texture : [m_texture newTextureViewWithPixelFormat:resolvedPixelFormat(pixelFormat, m_texture.pixelFormat) textureType:textureType levels:levels slices:slices];
     if (!texture)
         return TextureView::createInvalid(*this, device.get());
 

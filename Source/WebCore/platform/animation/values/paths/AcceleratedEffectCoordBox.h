@@ -29,8 +29,13 @@
 
 namespace WebCore {
 
+// FIXME: The Motion Path spec calls for this to be a <coord-box>, not a <geometry-box>, the difference being that the former does not contain "margin-box" as a valid term.
+// However, the spec also has a few examples using "margin-box", so there seems to be some abiguity to be resolved. See: https://github.com/w3c/fxtf-drafts/issues/481
+// We currently parse it as a <geometry-box>, so "margin-box" is included.
+
 enum class AcceleratedEffectCoordBox : uint8_t {
     ContentBox,
+    MarginBox,
     PaddingBox,
     BorderBox,
     FillBox,

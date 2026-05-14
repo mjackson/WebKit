@@ -41,7 +41,6 @@
 #include <JavaScriptCore/Watchpoint.h>
 #include <memory>
 #include <wtf/HashTraits.h>
-#include <wtf/text/SymbolImpl.h>
 
 namespace JSC {
 

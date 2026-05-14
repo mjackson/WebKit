@@ -37,7 +37,7 @@
 #include "JSObject.h"
 #include "JSObjectRef.h"
 #include "JSValueRef.h"
-#include <wtf/PlatformCallingConventions.h>
+#include <wtf/Platform.h>
 
 namespace JSC {
 

@@ -366,7 +366,7 @@ JSC::JSBoundFunction* JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::createO
         boundArgs = { returnStepsValue, 1 };
 
     auto onSettled = JSC::JSFunction::create(vm, globalObject, 0, String(), onPromiseSettled, JSC::ImplementationVisibility::Public);
-    return JSC::JSBoundFunction::create(vm, globalObject, onSettled, this, WTF::move(boundArgs), 1, jsEmptyString(vm), JSC::makeSource("createOnSettledFunction"_s, JSC::SourceOrigin(), JSC::SourceTaintedOrigin::Untainted));
+    return createBoundFunction(vm, globalObject, onSettled, this, WTF::move(boundArgs), 1, "createOnSettledFunction"_s);
 }
 
 template<typename JSWrapper, typename IteratorTraits>
@@ -396,7 +396,7 @@ JSC::JSBoundFunction* JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::createO
 {
     JSC::VM& vm = globalObject->vm();
     auto onFulfilled = JSC::JSFunction::create(vm, globalObject, 0, String(), onPromiseFulFilled, JSC::ImplementationVisibility::Public);
-    return JSC::JSBoundFunction::create(vm, globalObject, onFulfilled, this, { }, 1, jsEmptyString(vm), JSC::makeSource("createOnFulfilledFunction"_s, JSC::SourceOrigin(), JSC::SourceTaintedOrigin::Untainted));
+    return createBoundFunction(vm, globalObject, onFulfilled, this, { }, 1, "createOnFulfilledFunction"_s);
 }
 
 template<typename JSWrapper, typename IteratorTraits>
@@ -428,7 +428,7 @@ JSC::JSBoundFunction* JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::createO
 {
     JSC::VM& vm = globalObject->vm();
     auto onRejected = JSC::JSFunction::create(vm, globalObject, 0, String(), onPromiseRejected, JSC::ImplementationVisibility::Public);
-    return JSC::JSBoundFunction::create(vm, globalObject, onRejected, this, { }, 1, jsEmptyString(vm), JSC::makeSource("createOnRejectedFunction"_s, JSC::SourceOrigin(), JSC::SourceTaintedOrigin::Untainted));
+    return createBoundFunction(vm, globalObject, onRejected, this, { }, 1, "createOnRejectedFunction"_s);
 }
 
 template<typename JSWrapper, typename IteratorTraits>
@@ -471,7 +471,7 @@ JSC::JSPromise* JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::runReturnStep
     auto encodedValue = JSC::JSValue::encode(value);
     JSC::ArgList boundArgs { &encodedValue, 1 };
     auto onFulfilled = JSC::JSFunction::create(vm, &globalObject, 0, String(), onPromiseFulFilled, JSC::ImplementationVisibility::Public);
-    auto onFulfilledFunction = JSC::JSBoundFunction::create(vm, &globalObject, onFulfilled, this, WTF::move(boundArgs), 1, jsEmptyString(vm), JSC::makeSource("createOnReturnFulfilledFunction"_s, JSC::SourceOrigin(), JSC::SourceTaintedOrigin::Untainted));
+    auto onFulfilledFunction = createBoundFunction(vm, &globalObject, onFulfilled, this, WTF::move(boundArgs), 1, "createOnReturnFulfilledFunction"_s);
     RETURN_IF_EXCEPTION(scope, nullptr);
 
     returnResultPromise->performPromiseThenExported(vm, &globalObject, onFulfilledFunction, JSC::jsUndefined(), returnPromiseCapability);
@@ -525,7 +525,7 @@ JSC::JSValue JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::returnMethod(JSC
     auto encodedValue = JSC::JSValue::encode(value);
     JSC::ArgList boundArgs { &encodedValue, 1 };
     auto onFulfilled = JSC::JSFunction::create(vm, &lexicalGlobalObject, 0, String(), onPromiseFulFilled, JSC::ImplementationVisibility::Public);
-    auto onFulfilledFunction = JSC::JSBoundFunction::create(vm, &lexicalGlobalObject, onFulfilled, this, WTF::move(boundArgs), 1, jsEmptyString(vm), JSC::makeSource("createOnReturnFulfilledFunction"_s, JSC::SourceOrigin(), JSC::SourceTaintedOrigin::Untainted));
+    auto onFulfilledFunction = createBoundFunction(vm, &lexicalGlobalObject, onFulfilled, this, WTF::move(boundArgs), 1, "createOnReturnFulfilledFunction"_s);
 
     m_ongoingPromise->promise()->performPromiseThenExported(vm, &lexicalGlobalObject, onFulfilledFunction, JSC::jsUndefined(), returnPromiseCapability);
 

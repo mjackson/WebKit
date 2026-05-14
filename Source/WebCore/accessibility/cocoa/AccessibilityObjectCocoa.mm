@@ -31,6 +31,8 @@
 
 #import "AXObjectCacheInlines.h"
 #import "FontCascadeInlines.h"
+#import "RenderStyle+GettersInlines.h"
+#import "StyleShadow.h"
 #import "StyleVerticalAlign.h"
 #import "TextIterator.h"
 #import <wtf/cocoa/TypeCastsCocoa.h>

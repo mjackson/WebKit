@@ -42,4 +42,7 @@ messages -> WebInspectorBackend {
     StopElementSelection()
 
     SetFrontendConnection(IPC::ConnectionHandle connectionHandle)
+
+    EnableNetworkInstrumentation()
+    DisableNetworkInstrumentation()
 }

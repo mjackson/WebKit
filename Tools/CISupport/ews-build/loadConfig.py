@@ -38,7 +38,7 @@ from .factories import (APITestsFactory, BindingsFactory, BuildFactory, CommitQu
                         GTKTestsFactory, JSCBuildFactory, JSCBuildAndTestsFactory, JSCBuildO3AndTestsFactory, JSCTestsFactory, MergeQueueFactory, SafeMergeQueueFactory, StressTestFactory,
                         StyleFactory, TestFactory, tvOSBuildFactory, WPEBuildFactory, GTK3LibWebRTCBuildFactory, WPETestsFactory, WebKitPerlFactory, WebKitPyFactory, PlayStationBuildFactory,
                         WinBuildFactory, WinTestsFactory, iOSBuildFactory, iOSEmbeddedBuildFactory, iOSTestsFactory,  visionOSBuildFactory, visionOSEmbeddedBuildFactory, visionOSTestsFactory, macOSBuildFactory, macOSBuildOnlyFactory,
-                        macOSWK1Factory, macOSWK2Factory, ServicesFactory, SaferCPPStaticAnalyzerFactory, UnsafeMergeQueueFactory, watchOSBuildFactory)
+                        macOSWK1Factory, macOSWK2Factory, macOSSiteIsolationFactory, ServicesFactory, SaferCPPStaticAnalyzerFactory, UnsafeMergeQueueFactory, watchOSBuildFactory)
 
 from .utils import get_custom_suffix
 

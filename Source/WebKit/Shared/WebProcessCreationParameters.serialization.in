@@ -164,7 +164,7 @@ using WebCore::SystemSettings::State = WebCore::SystemSettingsState;
 #if PLATFORM(IOS_FAMILY)
     PAL::UserInterfaceIdiom currentUserInterfaceIdiom;
     bool supportsPictureInPicture;
-    WebCore::RenderThemeIOS::CSSValueToSystemColorMap cssValueToSystemColorMap;
+    WebCore::CSSValueToSystemColorMap cssValueToSystemColorMap;
     WebCore::Color focusRingColor;
     String localizedDeviceModel;
     String contentSizeCategory;

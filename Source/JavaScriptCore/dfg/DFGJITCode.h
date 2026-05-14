@@ -102,6 +102,7 @@ public:
         StringToStringWatchpointSet,
         StringValueOfWatchpointSet,
         StringSymbolReplaceWatchpointSet,
+        StringSymbolSplitWatchpointSet,
         StringSymbolToPrimitiveWatchpointSet,
         RegExpPrimordialPropertiesWatchpointSet,
         PromiseThenWatchpointSet,

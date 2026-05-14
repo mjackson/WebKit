@@ -3461,6 +3461,17 @@ bool WKPageIsEditingCommandEnabledForTesting(WKPageRef pageRef, WKStringRef comm
     return pageForTesting->isEditingCommandEnabled(protect(toImpl(command))->string());
 }
 
+void WKPageGetStorageAreaMapCountForTesting(WKPageRef pageRef, void* context, WKPageGetStorageAreaMapCountForTestingFunction callback)
+{
+    RefPtr pageForTesting = toImpl(pageRef)->pageForTesting();
+    if (!pageForTesting)
+        return callback(0, context);
+
+    pageForTesting->storageAreaMapCount([context, callback](uint64_t count) {
+        callback(count, context);
+    });
+}
+
 void WKPageSetPermissionLevelForTesting(WKPageRef pageRef, WKStringRef origin, bool allowed)
 {
     if (RefPtr pageForTesting = toImpl(pageRef)->pageForTesting())

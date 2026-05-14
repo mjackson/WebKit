@@ -2946,6 +2946,16 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
+    case ArrayConcatArray: {
+        compileArrayConcatArray(node);
+        break;
+    }
+
+    case ArrayConcatAppendOne: {
+        compileArrayConcatAppendOne(node);
+        break;
+    }
+
     case ArraySplice: {
         compileArraySplice(node);
         break;
@@ -3157,6 +3167,11 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
+    case StringSplit: {
+        compileStringSplit(node);
+        break;
+    }
+
     case StringLastIndexOf: {
         compileStringLastIndexOf(node);
         break;
@@ -3211,6 +3226,13 @@ void SpeculativeJIT::compile(Node* node)
         compileNewButterflyWithSize(node);
         break;
     }
+
+    case GetCellButterflySlot:
+    case PutCellButterflySlot:
+    case ArraySortCompact:
+    case ArraySortCommit:
+        RELEASE_ASSERT_NOT_REACHED();
+        break;
 
     case NewArrayWithButterfly: {
         compileNewArrayWithButterfly(node);
@@ -3318,6 +3340,11 @@ void SpeculativeJIT::compile(Node* node)
 
     case NewInternalFieldObject: {
         compileNewInternalFieldObject(node);
+        break;
+    }
+
+    case NewPromise: {
+        compileNewPromise(node);
         break;
     }
 
@@ -3656,6 +3683,11 @@ void SpeculativeJIT::compile(Node* node)
 
     case ObjectDefineProperty: {
         compileObjectDefineProperty(node);
+        break;
+    }
+
+    case ObjectDefinePropertyFromFields: {
+        compileObjectDefinePropertyFromFields(node);
         break;
     }
 
@@ -4461,6 +4493,7 @@ void SpeculativeJIT::compile(Node* node)
     case PhantomNewAsyncGeneratorFunction:
     case PhantomCreateActivation:
     case PhantomNewInternalFieldObject:
+    case PhantomNewPromise:
     case PhantomNewRegExp:
     case PutHint:
     case CheckStructureImmediate:
@@ -5518,6 +5551,39 @@ void SpeculativeJIT::compileMapIteratorNext(Node* node)
     JSValueRegs resultRegs = result.regs();
     callOperationWithoutExceptionCheck(node->child1().useKind() == MapIteratorObjectUse ? operationMapIteratorNext : operationSetIteratorNext, resultRegs, TrustedImmPtr(&vm()), mapIteratorGPR);
     jsValueResult(resultRegs, node);
+}
+
+void SpeculativeJIT::compileCreatePromise(Node* node)
+{
+    SpeculateCellOperand callee(this, node->child1());
+    GPRReg calleeGPR = callee.gpr();
+
+    flushRegisters();
+    GPRFlushedCallResult result(this);
+    GPRReg resultGPR = result.gpr();
+    callOperation(operationCreatePromise, resultGPR, LinkableConstant::globalObject(*this, node), calleeGPR);
+    cellResult(resultGPR, node);
+}
+
+void SpeculativeJIT::compileNewPromise(Node* node)
+{
+    flushRegisters();
+    GPRFlushedCallResult result(this);
+    GPRReg resultGPR = result.gpr();
+    callOperation(operationNewPromise, resultGPR, TrustedImmPtr(&vm()), TrustedImmPtr(m_graph.freezeStrong(node->structure().get())));
+    cellResult(resultGPR, node);
+}
+
+void SpeculativeJIT::compileNewResolvedPromise(Node* node)
+{
+    JSValueOperand argument(this, node->child1());
+    JSValueRegs argumentRegs = argument.jsValueRegs();
+
+    flushRegisters();
+    GPRFlushedCallResult result(this);
+    GPRReg resultGPR = result.gpr();
+    callOperation(operationNewResolvedPromise, resultGPR, LinkableConstant::globalObject(*this, node), argumentRegs);
+    cellResult(resultGPR, node);
 }
 
 #endif

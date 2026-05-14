@@ -323,8 +323,8 @@ static const RatioSchema& deviceAspectRatioFeatureSchema()
         "device-aspect-ratio"_s,
         OptionSet<MediaQueryDynamicDependency>(),
         [](auto& context) {
-            if (RefPtr localFrame = context.document->frame()->localMainFrame()) {
-                auto screenSize = localFrame->screenSize();
+            if (RefPtr frame = context.document->frame()) {
+                auto screenSize = frame->screenSize();
                 return FloatSize { screenSize.width(), screenSize.height() };
             }
             return FloatSize { 0.0f, 0.0f };
@@ -339,8 +339,8 @@ static const LengthSchema& deviceHeightFeatureSchema()
         "device-height"_s,
         OptionSet<MediaQueryDynamicDependency>(),
         [](auto& context) {
-            if (RefPtr localFrame = context.document->frame()->localMainFrame())
-                return LayoutUnit { localFrame->screenSize().height() };
+            if (RefPtr frame = context.document->frame())
+                return LayoutUnit { frame->screenSize().height() };
             return LayoutUnit { 0.0f };
         }
     };
@@ -365,8 +365,8 @@ static const LengthSchema& deviceWidthFeatureSchema()
         "device-width"_s,
         OptionSet<MediaQueryDynamicDependency>(),
         [](auto& context) {
-            if (RefPtr localFrame = context.document->frame()->localMainFrame())
-                return LayoutUnit { localFrame->screenSize().width() };
+            if (RefPtr frame = context.document->frame())
+                return LayoutUnit { frame->screenSize().width() };
             return LayoutUnit { 0.0f };
         }
     };

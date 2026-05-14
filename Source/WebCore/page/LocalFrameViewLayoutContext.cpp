@@ -69,15 +69,6 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(LocalFrameViewLayoutContext);
 UpdateScrollInfoAfterLayoutTransaction::UpdateScrollInfoAfterLayoutTransaction() = default;
 UpdateScrollInfoAfterLayoutTransaction::~UpdateScrollInfoAfterLayoutTransaction() = default;
 
-static bool isObjectAncestorContainerOf(RenderElement& ancestor, RenderElement& descendant)
-{
-    for (CheckedPtr renderer = &descendant; renderer; renderer = renderer->container()) {
-        if (renderer == &ancestor)
-            return true;
-    }
-    return false;
-}
-
 #ifndef NDEBUG
 class RenderTreeNeedsLayoutChecker {
 public :
@@ -593,14 +584,14 @@ void LocalFrameViewLayoutContext::scheduleSubtreeLayout(RenderElement& layoutRoo
         return;
     }
 
-    if (isObjectAncestorContainerOf(*subtreeLayoutRoot, layoutRoot)) {
+    if (subtreeLayoutRoot->isAncestorContainerOfRenderer(layoutRoot)) {
         // Keep the current root.
         layoutRoot.markContainingBlocksForLayout(subtreeLayoutRoot);
         ASSERT(!subtreeLayoutRoot->container() || is<RenderView>(subtreeLayoutRoot->container()) || !subtreeLayoutRoot->container()->needsLayout());
         return;
     }
 
-    if (isObjectAncestorContainerOf(layoutRoot, *subtreeLayoutRoot)) {
+    if (layoutRoot.isAncestorContainerOfRenderer(*subtreeLayoutRoot)) {
         // Re-root at newRelayoutRoot.
         subtreeLayoutRoot->markContainingBlocksForLayout(&layoutRoot);
         setSubtreeLayoutRoot(layoutRoot);

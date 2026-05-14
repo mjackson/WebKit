@@ -30,6 +30,7 @@
 #include <WebCore/TextExtractionTypes.h>
 #include <wtf/EnumSet.h>
 #include <wtf/JSONValues.h>
+#include <wtf/RunLoop.h>
 #include <wtf/Scope.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <unicode/ubrk.h>
@@ -354,6 +355,7 @@ struct TextExtractionLine {
     unsigned indentLevel { 0 };
     unsigned enclosingBlockNumber { 0 };
     unsigned superscriptLevel { 0 };
+    unsigned visualBlockContainerNumber { 0 };
 };
 
 static bool shouldEmitFullStopBetweenLines(const TextExtractionLine& previous, const String& previousText, const TextExtractionLine& line, const String& text)
@@ -458,28 +460,31 @@ public:
         String previousText;
         StringBuilder buffer;
         for (auto&& [text, line] : WTF::move(m_lines)) {
-            auto separator = [&] -> std::optional<char> {
+            auto separator = [&] -> std::optional<String> {
                 if (!previousLine)
                     return std::nullopt;
+
+                if (useMarkdownOutput() && previousLine->visualBlockContainerNumber != line.visualBlockContainerNumber)
+                    return "\n\n"_s;
 
                 if (shouldJoinWithPreviousLine(*previousLine, previousText, line, text))
                     return std::nullopt;
 
                 if (shouldEmitFullStopBetweenLines(*previousLine, previousText, line, text))
-                    return '.';
+                    return "."_s;
 
                 if (previousLine->enclosingBlockNumber == line.enclosingBlockNumber) {
                     if (shouldEmitExtraSpace(previousText[previousText.length() - 1], text[0]))
-                        return ' ';
+                        return " "_s;
 
                     return std::nullopt;
                 }
 
-                return '\n';
+                return "\n"_s;
             }();
 
             if (separator)
-                buffer.append(*separator);
+                buffer.append(WTF::move(*separator));
 
             previousLine = { WTF::move(line) };
             previousText = { text };
@@ -499,7 +504,7 @@ public:
         if (components.isEmpty())
             return;
 
-        auto [lineIndex, indentLevel, enclosingBlockNumber, superscriptLevel] = line;
+        auto [lineIndex, indentLevel, enclosingBlockNumber, superscriptLevel, visualBlockContainerNumber] = line;
         if (lineIndex >= m_lines.size()) {
             ASSERT_NOT_REACHED();
             return;
@@ -1597,7 +1602,7 @@ static void addPartsForItem(const TextExtraction::Item& item, std::optional<Node
 
                 if (aggregator.includeSelectOptions()) {
                     for (auto& option : selectData.options) {
-                        auto optionLine = TextExtractionLine { aggregator.advanceToNextLine(), line.indentLevel + 1 };
+                        auto optionLine = TextExtractionLine { aggregator.advanceToNextLine(), line.indentLevel + 1, line.enclosingBlockNumber, line.superscriptLevel, line.visualBlockContainerNumber };
                         if (option.isSelected)
                             aggregator.addResult(optionLine, { makeString("<option value='"_s, escapeStringForHTML(option.value), "' selected>"_s, escapeStringForHTML(option.label), "</option>"_s) });
                         else
@@ -1605,14 +1610,14 @@ static void addPartsForItem(const TextExtraction::Item& item, std::optional<Node
                     }
                 }
 
-                aggregator.addResult({ aggregator.advanceToNextLine(), line.indentLevel }, { makeString("</select>"_s) });
+                aggregator.addResult({ aggregator.advanceToNextLine(), line.indentLevel, line.enclosingBlockNumber, line.superscriptLevel, line.visualBlockContainerNumber }, { makeString("</select>"_s) });
             } else if (!aggregator.useMarkdownOutput()) {
                 parts.append("select"_s);
                 parts.appendVector(partsForItem(item, aggregator, includeRectForParentItem));
 
                 if (aggregator.includeSelectOptions()) {
                     for (auto& option : selectData.options) {
-                        auto optionLine = TextExtractionLine { aggregator.advanceToNextLine(), line.indentLevel + 1 };
+                        auto optionLine = TextExtractionLine { aggregator.advanceToNextLine(), line.indentLevel + 1, line.enclosingBlockNumber, line.superscriptLevel, line.visualBlockContainerNumber };
                         Vector<String> optionParts { "option"_s };
                         if (option.isSelected)
                             optionParts.append("selected"_s);
@@ -1766,7 +1771,7 @@ static void addTextRepresentationRecursive(const TextExtraction::Item& item, std
 
     auto includeRectForParentItem = omitChildTextNode ? IncludeRectForParentItem::Yes : IncludeRectForParentItem::No;
 
-    TextExtractionLine line { aggregator.advanceToNextLine(), depth, item.enclosingBlockNumber, aggregator.superscriptLevel() };
+    TextExtractionLine line { aggregator.advanceToNextLine(), depth, item.enclosingBlockNumber, aggregator.superscriptLevel(), item.visualBlockContainerNumber };
     addPartsForItem(item, std::optional { identifier }, line, aggregator, includeRectForParentItem, hasAdjacentLinkAfter);
 
     auto closingTagName = [&] -> String {

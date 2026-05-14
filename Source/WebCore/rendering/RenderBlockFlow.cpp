@@ -83,6 +83,7 @@
 #include <ranges>
 #include <wtf/Scope.h>
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 
@@ -441,7 +442,7 @@ void RenderBlockFlow::computeColumnCountAndWidth()
     setComputedColumnCountAndWidth(desiredColumnCount, desiredColumnWidth);
 }
 
-bool RenderBlockFlow::willCreateColumns(std::optional<unsigned> desiredColumnCount) const
+bool RenderBlockFlow::willCreateColumns() const
 {
     // The following types are not supposed to create multicol context.
     if (isRenderFileUploadControl() || isRenderTextControl() || isRenderListBox())
@@ -472,12 +473,16 @@ bool RenderBlockFlow::willCreateColumns(std::optional<unsigned> desiredColumnCou
     if (!style().hasInlineColumnAxis())
         return true;
 
-    // Non-auto column-width or column-count always initiates MultiColumnFlow.
-    if (!style().columnWidth().isAuto() || !style().columnCount().isAuto())
+    // Non-auto column-width always initiates MultiColumnFlow.
+    if (!style().columnWidth().isAuto())
         return true;
-
-    if (desiredColumnCount)
-        return desiredColumnCount.value() > 1;
+    // Non-auto column-count always initiates MultiColumnFlow (except in iBooks, see bug 314330).
+#if PLATFORM(COCOA)
+    if (!style().columnCount().isAuto() && (!WTF::CocoaApplication::isAppleBooks() || style().columnCount().tryValue().value() > 1))
+#else
+    if (!style().columnCount().isAuto())
+#endif
+        return true;
 
     ASSERT_NOT_REACHED();
     return false;
@@ -1279,24 +1284,37 @@ void RenderBlockFlow::adjustOutOfFlowBlock(RenderBox& child, const MarginInfo& m
 {
     bool isHorizontal = isHorizontalWritingMode();
     bool hasStaticBlockPosition = child.style().hasStaticBlockPosition(isHorizontal);
-    
-    LayoutUnit logicalTop = logicalHeight();
-    updateStaticInlinePositionForChild(child, logicalTop);
 
-    if (!marginInfo.canCollapseWithMarginBefore()) {
-        // Positioned blocks don't collapse margins, so add the margin provided by
-        // the container now. The child's own margin is added later when calculating its logical top.
-        LayoutUnit collapsedBeforePos = marginInfo.positiveMargin();
-        LayoutUnit collapsedBeforeNeg = marginInfo.negativeMargin();
-        logicalTop += collapsedBeforePos - collapsedBeforeNeg;
+    LayoutUnit blockPosition = 0;
+    LayoutUnit inlinePosition = 0;
+
+    // https://drafts.csswg.org/css-position-3/#staticpos-rect
+    // > Boxes in the top layer always use the initial containing block as their static-position rectangle.
+    // In other cases, we compute the static position as usual.
+    if (RefPtr element = child.element(); !(element && element->isInTopLayer())) [[likely]] {
+        blockPosition = logicalHeight();
+        if (!marginInfo.canCollapseWithMarginBefore()) {
+            // Positioned blocks don't collapse margins, so add the margin provided by
+            // the container now. The child's own margin is added later when calculating its logical top.
+            LayoutUnit collapsedBeforePos = marginInfo.positiveMargin();
+            LayoutUnit collapsedBeforeNeg = marginInfo.negativeMargin();
+            blockPosition += collapsedBeforePos - collapsedBeforeNeg;
+        }
+
+        if (child.style().originalDisplay().isInlineType())
+            inlinePosition = staticInlinePositionForOriginalDisplayInline(blockPosition);
+        else
+            inlinePosition = startOffsetForContent();
     }
 
     CheckedPtr childLayer = child.layer();
-    if (childLayer->staticBlockPosition() != logicalTop) {
-        childLayer->setStaticBlockPosition(logicalTop);
+    if (childLayer->staticBlockPosition() != blockPosition) {
+        childLayer->setStaticBlockPosition(blockPosition);
         if (hasStaticBlockPosition)
             child.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
     }
+
+    setStaticInlinePositionForChild(child, inlinePosition);
 }
 
 void RenderBlockFlow::determineLogicalLeftPositionForChild(RenderBox& child, ApplyLayoutDeltaMode applyDelta)
@@ -1350,14 +1368,6 @@ void RenderBlockFlow::adjustFloatingBlock(const MarginInfo& marginInfo)
     setLogicalHeight(logicalHeight() + marginOffset);
     positionNewFloats();
     setLogicalHeight(logicalHeight() - marginOffset);
-}
-
-void RenderBlockFlow::updateStaticInlinePositionForChild(RenderBox& child, LayoutUnit logicalTop)
-{
-    if (child.style().originalDisplay().isInlineType())
-        setStaticInlinePositionForChild(child, staticInlinePositionForOriginalDisplayInline(logicalTop));
-    else
-        setStaticInlinePositionForChild(child, startOffsetForContent());
 }
 
 void RenderBlockFlow::setStaticInlinePositionForChild(RenderBox& child, LayoutUnit inlinePosition)
@@ -4229,7 +4239,8 @@ RenderBlockFlow::InlineContentStatus RenderBlockFlow::markInlineContentDirtyForL
 
         // Non inline box inline level elements (e.g. <img>) report self-needs-layout on style change, and RenderText also reports self-needs-layout on content change.
         // Inline boxes report normal-child-needs-layout when their children need (any) layout.
-        contentNeedsNormalChildLayoutOnly = contentNeedsNormalChildLayoutOnly.value_or(true) && (!renderer.needsLayout() || renderer.needsNormalChildOrSimplifiedLayoutOnly());
+        if (renderer.needsLayout())
+            contentNeedsNormalChildLayoutOnly = contentNeedsNormalChildLayoutOnly.value_or(true) && renderer.needsNormalChildOrSimplifiedLayoutOnly();
 
         if (isAnyOf<RenderLineBreak, RenderInline, RenderText>(renderer))
             renderer.clearNeedsLayout();
@@ -4633,14 +4644,13 @@ void RenderBlockFlow::checkForPaginationLogicalHeightChange(RelayoutChildren& re
     }
 }
 
-bool RenderBlockFlow::requiresColumns(int desiredColumnCount) const
-{    
-    return willCreateColumns(desiredColumnCount);
+bool RenderBlockFlow::requiresFragmentedFlow() const
+{
+    return willCreateColumns();
 }
 
 void RenderBlockFlow::setComputedColumnCountAndWidth(int count, LayoutUnit width)
 {
-    ASSERT(!!multiColumnFlow() == requiresColumns(count));
     if (!multiColumnFlow())
         return;
     multiColumnFlow()->setColumnCountAndWidth(count, width);
@@ -4822,7 +4832,6 @@ static inline void stripTrailingSpace(float& inlineMax, float& inlineMin, Render
 {
     if (auto* renderText = dynamicDowncast<RenderText>(trailingSpaceChild)) {
         // Collapse away the trailing space at the end of a block.
-        const char16_t space = ' ';
         const FontCascade& font = renderText->style().fontCascade(); // FIXME: This ignores first-line.
         float spaceWidth = font.width(RenderBlock::constructTextRun(span(space), renderText->style()));
         inlineMax -= spaceWidth + font.wordSpacing();

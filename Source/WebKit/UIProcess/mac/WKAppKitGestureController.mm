@@ -169,6 +169,7 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     bool _isClickHighlightIDValid;
     bool _hasHighlightForPotentialClick;
     bool _isExpectingFastClickCommit;
+    bool _isSuppressingSingleClickGestureForTextSelection;
 
     std::optional<WebKit::TransactionID> _layerTreeTransactionIdAtLastInteractionStart;
     Markable<WebKit::ClickIdentifier> _latestClickID;
@@ -273,7 +274,8 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     [webView addGestureRecognizer:_singleClickGestureRecognizer.get()];
     [webView addGestureRecognizer:_doubleClickGestureRecognizer.get()];
     [webView addGestureRecognizer:_secondaryClickGestureRecognizer.get()];
-    [webView addGestureRecognizer:_dragPressGestureRecognizer.get()];
+
+    // FIXME: Add drag press gesture after rdar://problem/176383341 is resolved.
 }
 
 - (void)enableGesturesIfNeeded
@@ -283,7 +285,8 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     [self enableGestureIfNeeded:_singleClickGestureRecognizer.get()];
     [self enableGestureIfNeeded:_doubleClickGestureRecognizer.get()];
     [self enableGestureIfNeeded:_secondaryClickGestureRecognizer.get()];
-    [self enableGestureIfNeeded:_dragPressGestureRecognizer.get()];
+
+    // FIXME: Enable drag press gesture after rdar://problem/176383341 is resolved.
 }
 
 - (void)enableGestureIfNeeded:(NSGestureRecognizer *)gesture
@@ -294,6 +297,35 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     bool gestureEnabled = protect(page->preferences())->useAppKitGestures();
     WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->logIdentifier(), "%@ setEnabled:%d", gesture, static_cast<int>(gestureEnabled));
     [gesture setEnabled:gestureEnabled];
+}
+
+- (void)beginSuppressingSingleClickGestureForTextSelection
+{
+    RefPtr page = _page.get();
+    if (!page) {
+        ASSERT_NOT_REACHED();
+        return;
+    }
+
+    WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->logIdentifier(), "Begin suppressing single-click gesture for text selection");
+
+    _isSuppressingSingleClickGestureForTextSelection = true;
+
+    [self _handleClickCancelled];
+    page->cancelPotentialClick();
+}
+
+- (void)endSuppressingSingleClickGestureForTextSelection
+{
+    RefPtr page = _page.get();
+    if (!page) {
+        ASSERT_NOT_REACHED();
+        return;
+    }
+
+    WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->logIdentifier(), "End suppressing single-click gesture for text selection");
+
+    _isSuppressingSingleClickGestureForTextSelection = false;
 }
 
 #pragma mark - Gesture Recognition
@@ -438,20 +470,35 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
 
 - (void)mouseTrackingGestureRecognized:(NSGestureRecognizer *)gesture
 {
-    if (_dragGestureHasSentMouseDown)
-        return;
-
     CheckedPtr viewImpl = _viewImpl.get();
-    if (!viewImpl)
+    if (!viewImpl) {
+        ASSERT_NOT_REACHED();
         return;
+    }
 
     RetainPtr webView = viewImpl->view();
-    if (!webView)
+    if (!webView) {
+        ASSERT_NOT_REACHED();
         return;
+    }
 
     RefPtr page = _page.get();
-    if (!page)
+    if (!page) {
+        ASSERT_NOT_REACHED();
         return;
+    }
+
+    WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->logIdentifier(), "%@", gesture);
+
+    if (_dragGestureHasSentMouseDown) {
+        WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->logIdentifier(), "Exiting early because _dragGestureHasSentMouseDown is true");
+        return;
+    }
+
+    if (_isSuppressingSingleClickGestureForTextSelection) {
+        WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->logIdentifier(), "Exiting early because _isSuppressingSingleClickGestureForTextSelection is true");
+        return;
+    }
 
     if (_mouseTrackingGestureRecognizer != gesture)
         return;
@@ -609,6 +656,9 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
 
 - (void)_handleClickBegan:(NSGestureRecognizer *)gesture
 {
+    if (_isSuppressingSingleClickGestureForTextSelection)
+        return;
+
     CheckedPtr viewImpl = _viewImpl.get();
     if (!viewImpl)
         return;
@@ -807,7 +857,8 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
         unacceleratedScrollingDelta,
         ioHIDEventTimestamp,
         rawPlatformDelta,
-        momentumEndType
+        momentumEndType,
+        WebKit::WebEventInputSource::Automation
     };
 
     WebKit::NativeWebWheelEvent nativeEvent { wheelEvent };
@@ -864,7 +915,8 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
         WebCore::FloatSize { },
         timestamp,
         std::nullopt,
-        WebKit::WebWheelEvent::MomentumEndType::Unknown
+        WebKit::WebWheelEvent::MomentumEndType::Unknown,
+        WebKit::WebEventInputSource::Automation
     };
     WebKit::NativeWebWheelEvent nativeMomentumEvent { momentumEvent };
 
@@ -925,6 +977,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
     [self _handleClickCancelled];
     _mouseTrackingHasSentMouseDown = false;
     _isMomentumActive = false;
+    _isSuppressingSingleClickGestureForTextSelection = false;
     _latestClickID.reset();
     _layerTreeTransactionIdAtLastInteractionStart.reset();
 }
@@ -1022,9 +1075,16 @@ static inline bool isSamePair(NSGestureRecognizer *a, NSGestureRecognizer *b, NS
 {
     WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(RefPtr { _page.get() }->logIdentifier(), "Gesture: %@", gestureRecognizer);
 
+    CheckedPtr viewImpl = _viewImpl.get();
+    if (!viewImpl)
+        return NO;
+
+    RetainPtr webView = viewImpl->view();
+    if (!webView)
+        return NO;
+
     if (gestureRecognizer == _doubleClickGestureRecognizer) {
-        CheckedPtr viewImpl = _viewImpl.get();
-        if (!viewImpl || !viewImpl->allowsMagnification())
+        if (!viewImpl->allowsMagnification())
             return NO;
     }
 
@@ -1033,17 +1093,24 @@ static inline bool isSamePair(NSGestureRecognizer *a, NSGestureRecognizer *b, NS
         return NO;
     }
 
+    if (gestureRecognizer == _singleClickGestureRecognizer || gestureRecognizer == _mouseTrackingGestureRecognizer) {
+        // The platform text selection interaction should handle any gestures on a selection.
+        NSPoint locationInViewCoordinates = [gestureRecognizer locationInView:webView];
+        return !viewImpl->isTextSelectedAtPoint(locationInViewCoordinates);
+    }
+
     return YES;
 }
 
 - (BOOL)_isScrollOrZoomGestureRecognizer:(NSGestureRecognizer *)gesture
 {
-    // FIXME: Should we account for any system pan gesture recognizers?
-    return gesture == _panGestureRecognizer || [gesture isKindOfClass:[NSMagnificationGestureRecognizer class]];
+    return gesture == _panGestureRecognizer || isBuiltInScrollViewPanGestureRecognizer(gesture) || [gesture isKindOfClass:[NSMagnificationGestureRecognizer class]];
 }
 
 - (BOOL)_gestureRecognizer:(NSGestureRecognizer *)preventingGestureRecognizer canPreventGestureRecognizer:(NSGestureRecognizer *)preventedGestureRecognizer
 {
+    WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(RefPtr { _page.get() }->logIdentifier(), "Preventing gesture: %@, Prevented gesture: %@", preventingGestureRecognizer, preventedGestureRecognizer);
+
     CheckedPtr viewImpl = _viewImpl.get();
     if (!viewImpl)
         return NO;

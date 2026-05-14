@@ -149,6 +149,14 @@ public:
         );
     }
 
+    bool holdsRTT() const { return std::holds_alternative<const RTT*>(m_storage); }
+
+    const RTT& rtt() const
+    {
+        ASSERT(holdsRTT());
+        return *std::get<const RTT*>(m_storage);
+    }
+
     void dump(PrintStream& out) const;
 
 private:

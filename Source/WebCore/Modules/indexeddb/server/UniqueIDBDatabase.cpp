@@ -1652,6 +1652,9 @@ std::optional<IDBDatabaseNameAndVersion> UniqueIDBDatabase::nameAndVersion() con
         return std::nullopt;
     }
 
+    if (!m_databaseInfo->version())
+        return std::nullopt;
+
     return IDBDatabaseNameAndVersion { m_databaseInfo->name(), m_databaseInfo->version() };
 }
 

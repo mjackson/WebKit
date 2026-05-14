@@ -150,7 +150,7 @@ RenderTreeBuilder::MultiColumn::MultiColumn(RenderTreeBuilder& builder)
 
 void RenderTreeBuilder::MultiColumn::updateAfterDescendants(RenderBlockFlow& flow)
 {
-    bool needsFragmentedFlow = flow.requiresColumns(flow.style().columnCount().tryValue().value_or(1).value);
+    bool needsFragmentedFlow = flow.requiresFragmentedFlow();
     bool hasFragmentedFlow = flow.multiColumnFlow();
 
     if (!hasFragmentedFlow && needsFragmentedFlow) {

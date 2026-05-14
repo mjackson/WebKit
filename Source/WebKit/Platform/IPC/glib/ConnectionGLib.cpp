@@ -482,11 +482,11 @@ bool Connection::sendOutputMessage(UnixMessage&& outputMessage)
 
     if (g_error_matches(error.get(), G_IO_ERROR, G_IO_ERROR_WOULD_BLOCK)) {
         m_hasPendingOutputMessage = true;
-        m_writeSocketMonitor.start(m_socket.get(), G_IO_OUT, m_connectionQueue->runLoop(), m_cancellable.get(), [this, protectedThis = Ref { *this }, message = WTF::move(outputMessage)] (GIOCondition condition) mutable -> gboolean {
+        m_writeSocketMonitor.start(m_socket.get(), G_IO_OUT, m_connectionQueue->runLoop(), m_cancellable.get(), [this, protectedThis = protect(*this), message = WTF::move(outputMessage)] (GIOCondition condition) mutable -> gboolean {
             if (condition & G_IO_OUT) {
                 ASSERT(m_hasPendingOutputMessage);
                 // We can't stop the monitor from this lambda, because stop destroys the lambda.
-                m_connectionQueue->dispatch([this, protectedThis = Ref { *this }, message = WTF::move(message)]() mutable {
+                m_connectionQueue->dispatch([this, protectedThis = protect(*this), message = WTF::move(message)]() mutable {
                     m_writeSocketMonitor.stop();
                     m_hasPendingOutputMessage = false;
                     if (m_isConnected) {
@@ -562,11 +562,11 @@ bool Connection::sendOutgoingHardwareBuffers()
         }
 
         if (result == -EAGAIN || result == -EWOULDBLOCK) {
-            m_writeSocketMonitor.start(m_socket.get(), G_IO_OUT, m_connectionQueue->runLoop(), m_cancellable.get(), [this, protectedThis = Ref { *this }] (GIOCondition condition) -> gboolean {
+            m_writeSocketMonitor.start(m_socket.get(), G_IO_OUT, m_connectionQueue->runLoop(), m_cancellable.get(), [this, protectedThis = protect(*this)] (GIOCondition condition) -> gboolean {
                 if (condition & G_IO_OUT) {
                     RELEASE_ASSERT(!m_outgoingHardwareBuffers.isEmpty());
                     // We can't stop the monitor from this lambda, because stop destroys the lambda.
-                    m_connectionQueue->dispatch([this, protectedThis = Ref { *this }] {
+                    m_connectionQueue->dispatch([this, protectedThis = protect(*this)] {
                         m_writeSocketMonitor.stop();
                         if (m_isConnected) {
                             if (sendOutgoingHardwareBuffers())

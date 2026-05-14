@@ -49,6 +49,9 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/glib/SelectionData.h
     platform/glib/SystemSettings.h
 
+    platform/graphics/DMABufBuffer.h
+    platform/graphics/DMABufBufferAttributes.h
+
     platform/graphics/android/BufferFormatAndroid.h
     platform/graphics/android/GraphicsContextGLTextureMapperAndroid.h
     platform/graphics/android/PlatformDisplayAndroid.h
@@ -147,6 +150,17 @@ if (ENABLE_GAMEPAD)
 
     list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
         platform/gamepad/libwpe/GamepadProviderLibWPE.h
+    )
+endif ()
+
+if (USE_VULKAN)
+    list(APPEND WebCore_PRIVATE_LIBRARIES volk::volk)
+    list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES
+        "${WEBCORE_DIR}/platform/graphics/vulkan"
+    )
+    list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
+        platform/graphics/vulkan/VulkanTypes.h
+        platform/graphics/vulkan/VulkanUtilities.h
     )
 endif ()
 

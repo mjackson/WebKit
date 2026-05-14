@@ -61,6 +61,7 @@ PACKAGES=(
     sysprof-capture-devel
     systemd-devel
     unifdef
+    vulkan-volk-devel
     wayland-devel
     wayland-protocols-devel
     woff2-devel

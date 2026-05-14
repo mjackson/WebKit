@@ -136,6 +136,8 @@ public:
     bool layerAccessPreventedSlow() const;
 #endif
 
+    AffineTransform computeRendererTransform() const;
+
 protected:
     RenderLayerModelObject(Type, Element&, RenderStyle&&, OptionSet<TypeFlag>, TypeSpecificFlags);
     RenderLayerModelObject(Type, Document&, RenderStyle&&, OptionSet<TypeFlag>, TypeSpecificFlags);

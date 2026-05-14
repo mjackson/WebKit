@@ -1,0 +1,21 @@
+{
+  "version": 0,
+  "roots": [
+    {
+      "name": "/usr/include/glib-2.0",
+      "type": "directory",
+      "contents": [
+        { "name": "module.modulemap", "type": "file",
+          "external-contents": "@_vfs_glib_modulemap@" }
+      ]
+    },
+    {
+      "name": "/usr/include/libsoup-3.0",
+      "type": "directory",
+      "contents": [
+        { "name": "module.modulemap", "type": "file",
+          "external-contents": "@_vfs_libsoup_modulemap@" }
+      ]
+    }
+  ]
+}

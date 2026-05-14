@@ -2106,10 +2106,10 @@ def runWebAssemblyThreadsSpecTest(mode)
     runWebAssemblySpecTestBase(mode, "threads-spec-harness", nil)
 end
 
-def runWebAssemblySIMDSpecTest(mode)
+def runWebAssemblySIMDSpecTest(mode, *optionalTestSpecificOptions)
     return if !$isSIMDPlatform
-    runWebAssemblySpecTestBase(mode, "spec-harness", nil, "--useWasmSIMD=true")
-    runWebAssemblySpecTestBase(mode, "spec-harness", "-eager", "--useWasmSIMD=true", "--useBBQJIT=1", "--useWasmIPInt=1", "--thresholdForBBQOptimizeAfterWarmUp=0", "--thresholdForBBQOptimizeSoon=0", "--thresholdForOMGOptimizeAfterWarmUp=0", "--thresholdForOMGOptimizeSoon=0")
+    runWebAssemblySpecTestBase(mode, "spec-harness", nil, "--useWasmSIMD=true", *optionalTestSpecificOptions)
+    runWebAssemblySpecTestBase(mode, "spec-harness", "-eager", "--useWasmSIMD=true", "--useBBQJIT=1", "--useWasmIPInt=1", "--thresholdForBBQOptimizeAfterWarmUp=0", "--thresholdForBBQOptimizeSoon=0", "--thresholdForOMGOptimizeAfterWarmUp=0", "--thresholdForOMGOptimizeSoon=0", *optionalTestSpecificOptions)
 end
 
 def runWebAssemblyTailCallSpecTest(mode)
@@ -2637,7 +2637,16 @@ def prepareBundle
         
         frameworkPath = frameworkFromJSCPath($jscPath)
         destinationFrameworkPath = Pathname.new(".vm") + "JavaScriptCore.framework"
-        $jscPath = destinationFrameworkPath + "Helpers" + "jsc"
+        # On Apple Cocoa CMake builds the jsc binary lives next to the
+        # framework rather than inside <framework>/Helpers/jsc as on Xcode
+        # builds. Detect that and stage jsc at .vm/jsc so we don't have to
+        # mutate the framework that .vm/JavaScriptCore.framework symlinks to.
+        jscOutsideFramework = frameworkPath && !File.file?(frameworkPath + "Helpers" + "jsc")
+        if jscOutsideFramework
+            $jscPath = Pathname.new(".vm") + "jsc"
+        else
+            $jscPath = destinationFrameworkPath + "Helpers" + "jsc"
+        end
         $testingFrameworkPath = Pathname.new("..") + destinationFrameworkPath
 
         if frameworkPath
@@ -2681,6 +2690,20 @@ def prepareBundle
                 rescue Exception
                     $stderr.puts "Warning: unable to create soft link, trying to copy."
                     FileUtils.cp_r source, destination
+                end
+            end
+
+            if jscOutsideFramework
+                jscDestination = Pathname.new(".vm") + "jsc"
+                if $copyVM
+                    FileUtils.cp originalJSCPath, jscDestination
+                else
+                    begin
+                        FileUtils.ln_s originalJSCPath, jscDestination
+                    rescue Exception
+                        $stderr.puts "Warning: unable to create soft link for jsc, trying to copy."
+                        FileUtils.cp originalJSCPath, jscDestination
+                    end
                 end
             end
 

@@ -61,6 +61,7 @@
 #include "dom/DOMHighResTimeStamp.h"
 #include <JavaScriptCore/ProfilerSupport.h>
 #include <ranges>
+#include <wtf/ReducedResolutionSeconds.h>
 #include <wtf/SystemTracing.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/StringToIntegerConversion.h>
@@ -167,8 +168,7 @@ DOMHighResTimeStamp Performance::timeOrigin() const
 
 ReducedResolutionSeconds Performance::nowInReducedResolutionSeconds() const
 {
-    Seconds now = MonotonicTime::now() - m_timeOrigin;
-    return reduceTimeResolution(now);
+    return ReducedResolutionSeconds::fromSeconds((MonotonicTime::now() - m_timeOrigin).reduceTimeResolution(timePrecision));
 }
 
 Seconds Performance::reduceTimeResolution(Seconds seconds)

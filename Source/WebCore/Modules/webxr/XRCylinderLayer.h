@@ -27,35 +27,57 @@
 
 #if ENABLE(WEBXR_LAYERS)
 
-#include "WebXRRigidTransform.h"
-#include "WebXRSpace.h"
+#include "ExceptionOr.h"
 #include "XRCompositionLayer.h"
+#include "XRCylinderLayerInit.h"
+#include <wtf/Ref.h>
+#include <wtf/RefPtr.h>
 
 namespace WebCore {
 
+class WebXRRigidTransform;
+class WebXRSession;
+class WebXRSpace;
+class XRLayerBacking;
+
 // https://immersive-web.github.io/layers/#xrcylinderayertype
 class XRCylinderLayer : public XRCompositionLayer {
+    WTF_MAKE_TZONE_ALLOCATED(XRCylinderLayer);
 public:
+    static Ref<XRCylinderLayer> create(ScriptExecutionContext& scriptExecutionContext, WebXRSession& session, Ref<XRLayerBacking>&& backing, const XRCylinderLayerInit& init)
+    {
+        return adoptRef(*new XRCylinderLayer(scriptExecutionContext, session, WTF::move(backing), init));
+    }
+
     virtual ~XRCylinderLayer();
 
-    const WebXRSpace& space() const { RELEASE_ASSERT_NOT_REACHED(); }
-    [[noreturn]] void setSpace(WebXRSpace&) { RELEASE_ASSERT_NOT_REACHED(); }
-    const WebXRRigidTransform& transform() const { RELEASE_ASSERT_NOT_REACHED(); }
-    [[noreturn]] void setTransform(WebXRRigidTransform&) { RELEASE_ASSERT_NOT_REACHED(); }
+    const WebXRSpace& space() const;
+    void setSpace(WebXRSpace&);
+    const WebXRRigidTransform& transform() const;
+    void setTransform(WebXRRigidTransform&);
 
-    float radius() const { RELEASE_ASSERT_NOT_REACHED(); }
-    [[noreturn]] void setRadius(float) { RELEASE_ASSERT_NOT_REACHED(); }
-    float centralAngle() const { RELEASE_ASSERT_NOT_REACHED(); }
-    [[noreturn]] void setCentralAngle(float) { RELEASE_ASSERT_NOT_REACHED(); }
-    float aspectRatio() const { RELEASE_ASSERT_NOT_REACHED(); }
-    [[noreturn]] void setAspectRatio(float) { RELEASE_ASSERT_NOT_REACHED(); }
+    float radius() const { return m_radius; }
+    void setRadius(float);
+    float centralAngle() const { return m_centralAngle; }
+    void setCentralAngle(float);
+    float aspectRatio() const { return m_aspectRatio; }
+    void setAspectRatio(float);
 
 private:
+    XRCylinderLayer(ScriptExecutionContext&, WebXRSession&, Ref<XRLayerBacking>&&, const XRCylinderLayerInit&);
     bool isXRCylinderLayer() const final { return true; }
+    void recomputePose();
+
+    RefPtr<WebXRSpace> m_space;
+    RefPtr<WebXRRigidTransform> m_transform;
+    float m_radius;
+    float m_centralAngle;
+    float m_aspectRatio;
+    PlatformXR::FrameData::Pose m_poseInLocalSpace;
 
     // WebXRLayer.
-    [[noreturn]] void startFrame(PlatformXR::FrameData&) final { RELEASE_ASSERT_NOT_REACHED(); }
-    [[noreturn]] PlatformXR::DeviceLayer endFrame() final { RELEASE_ASSERT_NOT_REACHED(); }
+    void startFrame(PlatformXR::FrameData&) final;
+    PlatformXR::DeviceLayer endFrame() final;
 };
 
 } // namespace WebCore
@@ -65,4 +87,3 @@ SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::XRCylinderLayer)
 SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // ENABLE(WEBXR_LAYERS)
-

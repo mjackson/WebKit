@@ -61,13 +61,14 @@
         testExpected('sourceBuffer.buffered.length', 1);
         testExpectedEqualWithTolerance('sourceBuffer.buffered.start(0)', 0, 0.01);
         testExpectedEqualWithTolerance('sourceBuffer.buffered.end(0)', 4, 0.01);
-
-        endTest();
     }
 
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

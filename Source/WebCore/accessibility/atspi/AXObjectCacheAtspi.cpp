@@ -32,6 +32,7 @@
 #include "Element.h"
 #include "HTMLSelectElement.h"
 #include "Range.h"
+#include "RenderView.h"
 #include "TextIterator.h"
 
 namespace WebCore {

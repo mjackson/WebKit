@@ -29,6 +29,7 @@
 
 #include "DateConstructor.h"
 #include "IntlObjectInlines.h"
+#include "Rounding.h"
 #include "JSCInlines.h"
 #include "LazyPropertyInlines.h"
 #include "TemporalDuration.h"
@@ -526,7 +527,7 @@ ISO8601::Duration TemporalPlainDate::since(JSGlobalObject* globalObject, Tempora
 
     auto [smallestUnit, largestUnit, roundingMode, increment] = extractDifferenceOptions(globalObject, optionsValue, UnitGroup::Date, TemporalUnit::Day, TemporalUnit::Day);
     RETURN_IF_EXCEPTION(scope, { });
-    roundingMode = negateTemporalRoundingMode(roundingMode);
+    roundingMode = TemporalCore::negateTemporalRoundingMode(roundingMode);
 
     RELEASE_AND_RETURN(scope, differenceTemporalPlainDate(globalObject,
         DifferenceOperation::Since, other, smallestUnit, largestUnit, roundingMode, increment));

@@ -34,6 +34,7 @@
 #include <WebCore/ThreadableWebSocketChannel.h>
 #include <WebCore/WebSocketChannelInspector.h>
 #include <WebCore/WebSocketFrame.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/WeakPtr.h>
 
 namespace IPC {

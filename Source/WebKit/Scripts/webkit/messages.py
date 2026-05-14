@@ -349,6 +349,11 @@ def message_to_struct_declaration(receiver, message):
 
 def atomic_object_identifier(type):
     # FIXME: This can be derived from *.serialization.in files.
+    uuid_object_identifiers = [
+        'WebCore::FileSystemHandleGlobalIdentifier',
+    ]
+    if type in uuid_object_identifiers:
+        return 'UUID'
     atomic_object_identifiers = [
         'WebCore::FileSystemHandleIdentifier',
         'WebCore::FileSystemSyncAccessHandleIdentifier',
@@ -429,10 +434,12 @@ def serialized_identifiers():
         'WebCore::BackForwardFrameItemIdentifierID',
         'WebCore::BackForwardItemIdentifierID',
         'WebCore::BackgroundFetchRecordIdentifier',
+        'WebCore::BrowsingContextGroupIdentifier',
         'WebCore::DOMCacheIdentifierID',
         'WebCore::DictationContext',
         'WebCore::NodeIdentifier',
         'WebCore::FetchIdentifier',
+        'WebCore::FileSystemHandleGlobalIdentifier',
         'WebCore::FileSystemHandleIdentifier',
         'WebCore::FileSystemSyncAccessHandleIdentifier',
         'WebCore::FileSystemWritableFileStreamIdentifier',
@@ -455,6 +462,7 @@ def serialized_identifiers():
         'WebCore::PageIdentifier',
         'WebCore::PlatformLayerIdentifierID',
         'WebCore::PlaybackTargetClientContextID',
+        'WebCore::NonSerializedDataIdentifier',
         'WebCore::PortIdentifier',
         'WebCore::ProcessIdentifier',
         'WebCore::PushSubscriptionIdentifier',
@@ -579,6 +587,7 @@ def types_that_cannot_be_forward_declared():
         'IPC::Signal',
         'Inspector::ExtensionAppearance',
         'Inspector::ExtensionTabID',
+        'Inspector::ResourceType',
         'MachSendRight',
         'MediaTime',
         'PlatformXR::CompositionLayerType',
@@ -659,6 +668,7 @@ def types_that_cannot_be_forward_declared():
         'WebKit::DisplayListRecorderFlushIdentifier',
         'WebKit::DragOperationResult',
         'WebKit::EditorStateIdentifier',
+        'WebCore::FileSystemHandleInfo',
         'WebKit::FileSystemStorageError',
         'WebKit::FileSystemSyncAccessHandleInfo',
         'WebKit::FocusedElementInformation',
@@ -728,7 +738,7 @@ def conditions_for_header(header):
         '<WebCore/AttributedString.h>': ["PLATFORM(COCOA)", ],
         '<WebCore/CVUtilities.h>': ["PLATFORM(COCOA)", ],
         '<WebCore/CurlProxySettings.h>': ["USE(CURL)"],
-        '<WebCore/DMABufBuffer.h>': ["USE(GBM)"],
+        '<WebCore/DMABufBufferAttributes.h>': ["PLATFORM(GTK)", "PLATFORM(WPE)"],
         '<WebCore/DataDetectorType.h>': ["ENABLE(DATA_DETECTION)"],
         '<WebCore/DynamicContentScalingDisplayList.h>': ["ENABLE(RE_DYNAMIC_CONTENT_SCALING)"],
         '<WebCore/ImageUtilities.h>': ["PLATFORM(COCOA)"],
@@ -1108,6 +1118,7 @@ def headers_for_type(type, for_implementation_file=False):
         'Inspector::ExtensionTabID': ['"InspectorExtensionTypes.h"'],
         'Inspector::FrontendChannel::ConnectionType': ['<JavaScriptCore/InspectorFrontendChannel.h>'],
         'Inspector::InspectorTargetType': ['<JavaScriptCore/InspectorTarget.h>'],
+        'Inspector::ResourceType': ['<WebCore/InspectorResourceType.h>'],
         'IPC::AsyncReplyID': ['"Connection.h"'],
         'IPC::Signal': ['"IPCEvent.h"'],
         'IPC::Semaphore': ['"IPCSemaphore.h"'],
@@ -1209,7 +1220,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::DiagnosticLoggingDictionary': ['<WebCore/DiagnosticLoggingClient.h>'],
         'WebCore::DiagnosticLoggingDomain': ['<WebCore/DiagnosticLoggingDomain.h>'],
         'WebCore::DictationContext': ['<WebCore/DictationContext.h>'],
-        'WebCore::DMABufBufferAttributes': ['<WebCore/DMABufBuffer.h>'],
+        'WebCore::DMABufBufferAttributes': ['<WebCore/DMABufBufferAttributes.h>'],
         'WebCore::DocumentMarkerLineStyle': ['<WebCore/GraphicsTypes.h>'],
         'WebCore::DocumentSyncSerializationData': ['<WebCore/DocumentSyncData.h>'],
         'WebCore::DOMCacheIdentifierID': ['"GeneratedSerializers.h"'],
@@ -1350,6 +1361,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::PlaybackTargetClientContextID': ['<WebCore/PlaybackTargetClientContextIdentifier.h>'],
         'WebCore::PluginInfo': ['<WebCore/PluginData.h>'],
         'WebCore::PolicyAction': ['<WebCore/FrameLoaderTypes.h>'],
+        'WebCore::NonSerializedDataIdentifier': ['<WebCore/NonSerializedDataIdentifier.h>'],
         'WebCore::PreserveResolution': ['<WebCore/ImageBufferBackend.h>'],
         'WebCore::ProcessIdentifier': ['<WebCore/ProcessIdentifier.h>'],
         'WebCore::PushSubscriptionIdentifier': ['<WebCore/PushSubscriptionIdentifier.h>'],

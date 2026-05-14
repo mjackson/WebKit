@@ -444,7 +444,6 @@ WI.contentLoaded = function()
     WI.tabBar.addNavigationItemBefore(WI._consoleDividerNavigationItem);
 
     WI._consoleWarningsTabBarButton = new WI.ButtonNavigationItem("console-warnings", WI.UIString("0 Console warnings"), "Images/IssuesEnabled.svg");
-    WI._consoleWarningsTabBarButton.imageType = WI.ButtonNavigationItem.ImageType.IMG;
     WI._consoleWarningsTabBarButton.hidden = true;
     WI._consoleWarningsTabBarButton.addEventListener(WI.ButtonNavigationItem.Event.Clicked, function(event) {
         WI.showConsoleTab({
@@ -454,7 +453,6 @@ WI.contentLoaded = function()
     }, WI);
 
     WI._consoleErrorsTabBarButton = new WI.ButtonNavigationItem("console-errors", WI.UIString("0 Console errors"), "Images/ErrorsEnabled.svg");
-    WI._consoleErrorsTabBarButton.imageType = WI.ButtonNavigationItem.ImageType.IMG;
     WI._consoleErrorsTabBarButton.hidden = true;
     WI._consoleErrorsTabBarButton.addEventListener(WI.ButtonNavigationItem.Event.Clicked, function(event) {
         WI.showConsoleTab({

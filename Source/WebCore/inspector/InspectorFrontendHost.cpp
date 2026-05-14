@@ -75,8 +75,10 @@
 #include "UserGestureIndicator.h"
 #include "WebCorePersistentCoders.h"
 #include <JavaScriptCore/FrameTracers.h>
+#include <JavaScriptCore/JSObjectInlines.h>
 #include <JavaScriptCore/ScriptFunctionCall.h>
 #include <JavaScriptCore/Strong.h>
+#include <JavaScriptCore/StrongInlines.h>
 #include <pal/system/Sound.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/JSONValues.h>

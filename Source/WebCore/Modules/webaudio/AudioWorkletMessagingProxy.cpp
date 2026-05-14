@@ -37,6 +37,7 @@
 #include "CacheStorageConnection.h"
 #include "DocumentPage.h"
 #include "DocumentSettingsValues.h"
+#include "FileSystemStorageConnection.h"
 #include "LocalFrame.h"
 #include "WebRTCProvider.h"
 #include "WorkletParameters.h"
@@ -60,7 +61,8 @@ static WorkletParameters generateWorkletParameters(AudioWorklet& worklet)
         document->referrerPolicy(),
         worklet.audioContext() ? !worklet.audioContext()->isOfflineContext() : false,
         document->advancedPrivacyProtections(),
-        document->noiseInjectionHashSalt()
+        document->noiseInjectionHashSalt(),
+        document->agentClusterID()
     };
 }
 
@@ -120,6 +122,11 @@ void AudioWorkletMessagingProxy::postTaskToAudioWorklet(Function<void(AudioWorkl
         if (protectedThis->m_worklet)
             task(*protectedThis->m_worklet);
     });
+}
+
+RefPtr<FileSystemStorageConnection> AudioWorkletMessagingProxy::createFileSystemStorageConnection()
+{
+    return nullptr;
 }
 
 } // namespace WebCore

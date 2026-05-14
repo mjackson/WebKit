@@ -454,14 +454,9 @@ void Interpreter::getAsyncStackTrace(JSCell* owner, Vector<StackFrame>& results,
     VM& vm = this->vm();
 
     auto getContextValueFromPromise = [&](JSPromise* promise) -> JSValue {
-        if (promise && promise->status() == JSPromise::Status::Pending) {
-            JSValue reactionsValue = promise->internalField(JSPromise::Field::ReactionsOrResult).get();
-            if (reactionsValue) {
-                if (JSValue context = JSPromiseReaction::tryGetContext(reactionsValue))
-                    return context;
-            }
-        }
-        return JSValue();
+        if (!promise)
+            return { };
+        return promise->asyncStackTraceContext();
     };
 
     auto getParentGenerator = [&](JSGenerator* gen) -> JSGenerator* {

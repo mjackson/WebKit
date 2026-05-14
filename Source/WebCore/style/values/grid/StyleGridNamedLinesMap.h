@@ -33,7 +33,7 @@ namespace WebCore {
 namespace Style {
 
 struct GridNamedLinesMap {
-    HashMap<Style::CustomIdent, Vector<unsigned>> map;
+    HashMap<CustomIdent, Vector<unsigned>> map;
 
     bool operator==(const GridNamedLinesMap&) const = default;
 };

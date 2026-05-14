@@ -117,3 +117,14 @@ TestWebKitAPI.WKWebViewSwiftOverlayTests/evaluateJavaScriptYieldsExpectedRespons
     def test_find_test_subset_no_match(self):
         superset = ["TestWebKitAPI.WebKit.SomeTest"]
         self.assertEqual([], Manager._find_test_subset(superset, ["NonExistent"]))
+
+    def test_args_specify_individual_tests(self):
+        self.assertTrue(Manager._args_specify_individual_tests(["WebKit.SomeTest"]))
+        self.assertTrue(Manager._args_specify_individual_tests(["TestWebKitAPI.WebKit.SomeTest"]))
+        self.assertTrue(Manager._args_specify_individual_tests([
+            "TestWebKitAPI.WebKit.SomeTest",
+            "TestWebKitAPI.WKWebViewSwiftOverlayTests/evaluateJavaScriptWithNilResponse()",
+        ]))
+        self.assertFalse(Manager._args_specify_individual_tests([]))
+        self.assertFalse(Manager._args_specify_individual_tests(["WebKit"]))
+        self.assertFalse(Manager._args_specify_individual_tests(["WebKit.SomeTest", "WebKit"]))

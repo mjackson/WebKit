@@ -73,7 +73,7 @@ uint64_t FileSystemStorageManager::allocatedUnusedCapacity() const
     return result;
 }
 
-Expected<WebCore::FileSystemHandleIdentifier, FileSystemStorageError> FileSystemStorageManager::createHandle(IPC::Connection::UniqueID connection, FileSystemStorageHandle::Type type, String&& path, String&& name, bool createIfNecessary)
+Expected<std::pair<WebCore::FileSystemHandleGlobalIdentifier, WebCore::FileSystemHandleIdentifier>, FileSystemStorageError> FileSystemStorageManager::createHandle(IPC::Connection::UniqueID connection, FileSystemStorageHandle::Type type, String&& path, String&& name, bool createIfNecessary)
 {
     ASSERT(!RunLoop::isMain());
 
@@ -99,17 +99,25 @@ Expected<WebCore::FileSystemHandleIdentifier, FileSystemStorageError> FileSystem
         }
     }
 
-    RefPtr newHandle = FileSystemStorageHandle::create(*this, type, WTF::move(path), WTF::move(name));
+    RefPtr newHandle = FileSystemStorageHandle::create(*this, type, String { path }, String { name });
     if (!newHandle)
         return makeUnexpected(FileSystemStorageError::Unknown);
+
+    auto globalIdentifier = WebCore::FileSystemHandleGlobalIdentifier::generate();
+    newHandle->setGlobalIdentifier(globalIdentifier);
+
     auto newHandleIdentifier = newHandle->identifier();
+    auto kind = newHandle->type() == FileSystemStorageHandle::Type::Directory ? WebCore::FileSystemHandleKind::Directory : WebCore::FileSystemHandleKind::File;
     m_handlesByConnection.ensure(connection, [&] {
         return HashSet<WebCore::FileSystemHandleIdentifier> { };
     }).iterator->value.add(newHandleIdentifier);
     if (RefPtr registry = m_registry.get())
         registry->registerHandle(newHandleIdentifier, *newHandle);
     m_handles.add(newHandleIdentifier, newHandle.releaseNonNull());
-    return newHandleIdentifier;
+
+    m_globalIdentifierRegistry.add(globalIdentifier, GlobalIdentifierEntry { kind, WTF::move(path), WTF::move(name), CheckedUint32 { 1 } });
+
+    return std::pair { globalIdentifier, newHandleIdentifier };
 }
 
 const String& FileSystemStorageManager::getPath(WebCore::FileSystemHandleIdentifier identifier)
@@ -127,6 +135,8 @@ FileSystemStorageHandle::Type FileSystemStorageManager::getType(WebCore::FileSys
 void FileSystemStorageManager::closeHandle(FileSystemStorageHandle& handle)
 {
     auto identifier = handle.identifier();
+    if (auto globalIdentifier = handle.globalIdentifier())
+        removeGlobalIdentifierReference(*globalIdentifier);
     auto takenHandle = m_handles.take(identifier);
     ASSERT(takenHandle.get() == &handle);
     for (auto& handles : m_handlesByConnection.values()) {
@@ -154,7 +164,7 @@ void FileSystemStorageManager::connectionClosed(IPC::Connection::UniqueID connec
     m_handlesByConnection.remove(connectionHandles);
 }
 
-Expected<WebCore::FileSystemHandleIdentifier, FileSystemStorageError> FileSystemStorageManager::getDirectory(IPC::Connection::UniqueID connection)
+Expected<std::pair<WebCore::FileSystemHandleGlobalIdentifier, WebCore::FileSystemHandleIdentifier>, FileSystemStorageError> FileSystemStorageManager::getDirectory(IPC::Connection::UniqueID connection)
 {
     ASSERT(!RunLoop::isMain());
 
@@ -244,6 +254,53 @@ void FileSystemStorageManager::close()
 void FileSystemStorageManager::requestSpace(uint64_t size, CompletionHandler<void(bool)>&& completionHandler)
 {
     m_quotaCheckFunction(size, WTF::move(completionHandler));
+}
+
+void FileSystemStorageManager::addGlobalIdentifierReference(WebCore::FileSystemHandleGlobalIdentifier globalIdentifier)
+{
+    ASSERT(!RunLoop::isMain());
+
+    auto it = m_globalIdentifierRegistry.find(globalIdentifier);
+    if (it != m_globalIdentifierRegistry.end() && !it->value.refcount.hasOverflowed())
+        it->value.refcount++;
+}
+
+void FileSystemStorageManager::removeGlobalIdentifierReference(WebCore::FileSystemHandleGlobalIdentifier globalIdentifier)
+{
+    ASSERT(!RunLoop::isMain());
+
+    auto it = m_globalIdentifierRegistry.find(globalIdentifier);
+    if (it == m_globalIdentifierRegistry.end())
+        return;
+    auto& entry = it->value;
+    if (entry.refcount.hasOverflowed() || !entry.refcount)
+        return;
+    --entry.refcount;
+    if (!entry.refcount)
+        m_globalIdentifierRegistry.remove(it);
+}
+
+Expected<WebCore::FileSystemHandleIdentifier, FileSystemStorageError> FileSystemStorageManager::resolveGlobalIdentifier(IPC::Connection::UniqueID connection, WebCore::FileSystemHandleGlobalIdentifier globalIdentifier)
+{
+    ASSERT(!RunLoop::isMain());
+
+    auto it = m_globalIdentifierRegistry.find(globalIdentifier);
+    if (it == m_globalIdentifierRegistry.end())
+        return makeUnexpected(FileSystemStorageError::Unknown);
+
+    auto& entry = it->value;
+    auto handleType = entry.kind == WebCore::FileSystemHandleKind::Directory ? FileSystemStorageHandle::Type::Directory : FileSystemStorageHandle::Type::File;
+    auto result = createHandle(connection, handleType, String { entry.path }, String { entry.name }, false);
+    if (!result)
+        return makeUnexpected(result.error());
+
+    auto& [autoGlobalIdentifier, newIdentifier] = result.value();
+    // Replace the auto-generated global identifier with the existing one being resolved.
+    m_globalIdentifierRegistry.remove(autoGlobalIdentifier);
+    if (auto handleIt = m_handles.find(newIdentifier); handleIt != m_handles.end())
+        handleIt->value->setGlobalIdentifier(globalIdentifier);
+    addGlobalIdentifierReference(globalIdentifier);
+    return newIdentifier;
 }
 
 } // namespace WebKit

@@ -366,7 +366,7 @@ void ScriptElement::updateTaintedOriginFromSourceURL()
     if (!page)
         return;
 
-    if (!page->requiresScriptTrackingPrivacyProtections(hasSourceAttribute() ? document->completeURL(sourceAttributeValue()) : document->url()))
+    if (!page->requiresScriptTrackingPrivacyProtections(hasSourceAttribute() ? document->encodingParseURL(sourceAttributeValue()) : document->url()))
         return;
 
     m_taintedOrigin = JSC::SourceTaintedOrigin::KnownTainted;
@@ -382,10 +382,10 @@ bool ScriptElement::requestClassicScript(const String& sourceURL)
         auto script = LoadableClassicScript::create(element->nonce(), element->attributeWithoutSynchronization(HTMLNames::integrityAttr), referrerPolicy(), fetchPriority(),
             element->attributeWithoutSynchronization(HTMLNames::crossoriginAttr), scriptCharset(), element->localName(), element->isInUserAgentShadowTree(), hasAsyncAttribute());
 
-        auto scriptURL = document->completeURL(sourceURL);
+        auto scriptURL = document->encodingParseURL(sourceURL);
         document->willLoadScriptElement(scriptURL);
 
-        if (!protect(document->contentSecurityPolicy())->allowNonParserInsertedScripts(scriptURL, URL(), m_startLineNumber, element->nonce(), script->integrity(), String(), m_parserInserted))
+        if (!protect(document->contentSecurityPolicy())->allowScriptForStrictDynamic(scriptURL, URL(), m_startLineNumber, element->nonce(), script->integrity(), String(), m_parserInserted))
             return false;
 
         if (script->load(document, scriptURL)) {
@@ -423,7 +423,7 @@ bool ScriptElement::requestModuleScript(const String& sourceText, const TextPosi
             return false;
         }
 
-        auto moduleScriptRootURL = document->completeURL(sourceURL);
+        auto moduleScriptRootURL = document->encodingParseURL(sourceURL);
         if (!moduleScriptRootURL.isValid()) {
             dispatchErrorEvent();
             return false;
@@ -435,6 +435,10 @@ bool ScriptElement::requestModuleScript(const String& sourceText, const TextPosi
             integrity = AtomString { document->globalObject()->importMap().integrityForURL(moduleScriptRootURL) };
         Ref script = LoadableModuleScript::create(LoadableModuleScript::IsInline::No, nonce, integrity, referrerPolicy(), fetchPriority(), crossOriginMode,
             scriptCharset(), element->localName(), element->isInUserAgentShadowTree());
+
+        if (!protect(document->contentSecurityPolicy())->allowScriptForStrictDynamic(moduleScriptRootURL, URL(), m_startLineNumber, nonce, String(integrity), String(), m_parserInserted))
+            return false;
+
         m_loadableScript = script.copyRef();
         if (RefPtr frame = element->document().frame())
             protect(frame->script())->loadModuleScript(script, moduleScriptRootURL, script->parameters());
@@ -449,7 +453,7 @@ bool ScriptElement::requestModuleScript(const String& sourceText, const TextPosi
     ASSERT(document->contentSecurityPolicy());
     {
         CheckedRef contentSecurityPolicy = *document->contentSecurityPolicy();
-        if (!contentSecurityPolicy->allowNonParserInsertedScripts(URL(), document->url(), m_startLineNumber, element->nonce(), script->parameters().integrity(), sourceCode.source(), m_parserInserted))
+        if (!contentSecurityPolicy->allowScriptForStrictDynamic(URL(), document->url(), m_startLineNumber, element->nonce(), script->parameters().integrity(), sourceCode.source(), m_parserInserted))
             return false;
 
         if (!contentSecurityPolicy->allowInlineScript(document->url().string(), m_startLineNumber, sourceCode.source(), element, nonce, element->isInUserAgentShadowTree()))
@@ -475,7 +479,7 @@ void ScriptElement::executeClassicScript(const ScriptSourceCode& sourceCode)
     if (!m_isExternalScript) {
         ASSERT(document->contentSecurityPolicy());
         CheckedRef contentSecurityPolicy = *document->contentSecurityPolicy();
-        if (!contentSecurityPolicy->allowNonParserInsertedScripts(URL(), document->url(), m_startLineNumber, element->nonce(), emptyString(), sourceCode.source(), m_parserInserted))
+        if (!contentSecurityPolicy->allowScriptForStrictDynamic(URL(), document->url(), m_startLineNumber, element->nonce(), emptyString(), sourceCode.source(), m_parserInserted))
             return;
 
         if (!contentSecurityPolicy->allowInlineScript(document->url().string(), m_startLineNumber, sourceCode.source(), element, element->nonce(), element->isInUserAgentShadowTree()))
@@ -513,7 +517,7 @@ void ScriptElement::registerImportMap(const ScriptSourceCode& sourceCode)
     if (!m_isExternalScript) {
         ASSERT(document->contentSecurityPolicy());
         CheckedRef contentSecurityPolicy = *document->contentSecurityPolicy();
-        if (!contentSecurityPolicy->allowNonParserInsertedScripts(URL(), document->url(), m_startLineNumber, element->nonce(), emptyString(), sourceCode.source(), m_parserInserted))
+        if (!contentSecurityPolicy->allowScriptForStrictDynamic(URL(), document->url(), m_startLineNumber, element->nonce(), emptyString(), sourceCode.source(), m_parserInserted))
             return;
 
         if (!contentSecurityPolicy->allowInlineScript(document->url().string(), m_startLineNumber, sourceCode.source(), element, element->nonce(), element->isInUserAgentShadowTree()))
@@ -686,7 +690,7 @@ void ScriptElement::registerSpeculationRules(const ScriptSourceCode& sourceCode)
         if (!contentSecurityPolicy)
             return;
 
-        if (!contentSecurityPolicy->allowNonParserInsertedScripts(URL(), document->url(), m_startLineNumber, element->nonce(), emptyString(), sourceCode.source(), m_parserInserted))
+        if (!contentSecurityPolicy->allowScriptForStrictDynamic(URL(), document->url(), m_startLineNumber, element->nonce(), emptyString(), sourceCode.source(), m_parserInserted))
             return;
 
         if (!contentSecurityPolicy->allowInlineScript(document->url().string(), m_startLineNumber, sourceCode.source(), element, element->nonce(), element->isInUserAgentShadowTree()))

@@ -622,13 +622,13 @@ inline bool MarkedBlock::isMarkedRaw(const void* p)
 //     Dependency dependency = Dependency::loadAndFence(&header().m_markingVersion, version);
 //     if (version != markingVersion) [[unlikely]]
 //         return false;
-//     return header().m_marks.get(atomNumber(p), dependency);
+//     return header().m_marks.concurrentGet(atomNumber(p), dependency);
 // }
 
 inline bool MarkedBlock::isMarked(const void* p, Dependency dependency)
 {
     assertMarksNotStale();
-    return header().m_marks.get(atomNumber(p), dependency);
+    return header().m_marks.concurrentGet(atomNumber(p), dependency);
 }
 
 inline bool MarkedBlock::testAndSetMarked(const void* p, Dependency dependency)

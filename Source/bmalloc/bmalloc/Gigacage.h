@@ -34,9 +34,7 @@
 #include "BPlatform.h"
 #include "GigacageConfig.h"
 #include "Sizes.h"
-#include <bit>
 #include <cstddef>
-#include <inttypes.h>
 
 #if BOS(DARWIN)
 #include <mach/vm_param.h>

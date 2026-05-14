@@ -38,6 +38,8 @@ namespace Style {
 
 auto CSSValueConversion<WebkitTextStrokeWidth>::operator()(BuilderState& state, const CSSValue& value) -> WebkitTextStrokeWidth
 {
+    using namespace CSS::Literals;
+
     if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(value)) {
         auto convertFromEms = [&](auto ems) -> WebkitTextStrokeWidth::Length {
             return emToPx<float>(ems, state.renderStyle());

@@ -757,6 +757,96 @@ TEST(ServiceWorkers, RestoreFromDisk)
     done = false;
 }
 
+#if PLATFORM(MAC)
+// Regression test for a NetworkProcess crash in SWRegistrationDatabase when the per-origin
+// SW registration database file exists on disk but its Records table is empty. The buggy
+// code called deleteAllFiles() while a SQLiteStatementAutoResetScope / CheckedPtr<SQLiteStatement>
+// was still live on the stack, leaving the cached statement as a zombie and crashing the
+// process with a PAC IB trap when the scope destructor ran on function return.
+TEST(ServiceWorkers, ImportRegistrationsForOriginWithEmptyDatabase)
+{
+    [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
+
+    NSURL *generalStorageDirectory = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/ImportRegistrationsWithEmptyDB" stringByExpandingTildeInPath] isDirectory:YES];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    [fileManager removeItemAtURL:generalStorageDirectory error:nil];
+
+    TestWebKitAPI::HTTPServer server({
+        { "/first.html"_s, { mainRegisteringWorkerBytes } },
+        { "/sw.js"_s, { { { "Content-Type"_s, "application/javascript"_s } }, scriptBytes } },
+    });
+
+    // Phase 1: register a service worker so the per-origin registration database is written to disk.
+    @autoreleasepool {
+        RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+        dataStoreConfiguration.get().generalStorageDirectory = generalStorageDirectory;
+        RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+        [dataStore _setResourceLoadStatisticsEnabled:NO];
+
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        configuration.get().websiteDataStore = dataStore.get();
+        RetainPtr<SWMessageHandlerForRestoreFromDiskTest> messageHandler = adoptNS([[SWMessageHandlerForRestoreFromDiskTest alloc] initWithExpectedMessage:@"PASS: Registration was successful and service worker was activated"]);
+        [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
+
+        RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        done = false;
+        [webView loadRequest:server.request("/first.html"_s)];
+        TestWebKitAPI::Util::run(&done);
+
+        // Give the service worker a moment to be persisted before terminating the network process.
+        TestWebKitAPI::Util::runFor(0.25_s);
+
+        [webView _close];
+        [dataStore _terminateNetworkProcess];
+    }
+    TestWebKitAPI::Util::runFor(0.25_s);
+
+    // Locate the SW registration database file.
+    RetainPtr<NSURL> dbFileURL;
+    NSDirectoryEnumerator *enumerator = [fileManager enumeratorAtURL:generalStorageDirectory includingPropertiesForKeys:nil options:0 errorHandler:nil];
+    for (NSURL *url in enumerator) {
+        if ([url.lastPathComponent isEqualToString:serviceWorkerRegistrationFilename]) {
+            dbFileURL = url;
+            break;
+        }
+    }
+    ASSERT_TRUE(!!dbFileURL);
+
+    // Empty the Records table, leaving a valid but record-less database file on disk.
+    // This mimics the state the crashing device ended up in and exercises the
+    // `result.isEmpty() && recordsCount() == 0 -> deleteAllFiles()` path.
+    RetainPtr task = adoptNS([[NSTask alloc] init]);
+    task.get().launchPath = @"/usr/bin/sqlite3";
+    task.get().arguments = @[dbFileURL.get().path, @"DELETE FROM Records;"];
+    [task.get() launch];
+    [task.get() waitUntilExit];
+    EXPECT_EQ([task.get() terminationStatus], 0);
+    // Also clean up any WAL sidecars so sqlite re-reads from the main file.
+    [fileManager removeItemAtURL:[dbFileURL.get() URLByAppendingPathExtension:@"-wal"] error:nil];
+    [fileManager removeItemAtURL:[dbFileURL.get() URLByAppendingPathExtension:@"-shm"] error:nil];
+
+    // Phase 2: reopen the data store and navigate to the same origin. SWServer start-up runs
+    // importOrigins() on the empty DB, and the subsequent navigation runs
+    // importRegistrations(topOrigin) on it. Both paths used to crash.
+    @autoreleasepool {
+        RetainPtr dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+        dataStoreConfiguration.get().generalStorageDirectory = generalStorageDirectory;
+        RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+        [dataStore _setResourceLoadStatisticsEnabled:NO];
+
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        configuration.get().websiteDataStore = dataStore.get();
+        RetainPtr<SWMessageHandlerForRestoreFromDiskTest> messageHandler = adoptNS([[SWMessageHandlerForRestoreFromDiskTest alloc] initWithExpectedMessage:@"PASS: Registration was successful and service worker was activated"]);
+        [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
+
+        RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+        done = false;
+        [webView loadRequest:server.request("/first.html"_s)];
+        TestWebKitAPI::Util::run(&done);
+    }
+}
+#endif // PLATFORM(MAC)
+
 // This test verifies that the lazy script loading path in SWServerJobQueue::scriptFetchFinished()
 // works correctly. When service worker registrations are restored from disk, scripts are not loaded
 // during import. When an update check triggers scriptFetchFinished(), the existing worker's scripts

@@ -291,14 +291,13 @@ module WebKit_Internal [system] {
         export *
     }
 
-    module IPCTesterReceiver {
-        requires cplusplus20
-        header "../../Shared/IPCTesterReceiver.h"
-        export *
-    }
-
     module ModelTypes {
         header "../../GPUProcess/graphics/Model/ModelTypes.h"
+        requires objc
+    }
+
+    module WKDeferringGestureRecognizer {
+        header "../../UIProcess/Cocoa/WKDeferringGestureRecognizer.h"
         export *
         requires objc
     }

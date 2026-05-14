@@ -31,6 +31,7 @@
 #import <wtf/RefCountedAndCanMakeWeakPtr.h>
 #import <wtf/SwiftBridging.h>
 #import <wtf/TZoneMalloc.h>
+#import <wtf/ThreadSafeWeakPtr.h>
 #import <wtf/WeakPtr.h>
 #import <wtf/threads/BinarySemaphore.h>
 

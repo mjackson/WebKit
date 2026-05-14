@@ -167,7 +167,7 @@ RefPtr<const Font> FontCascade::fontForCombiningCharacterSequence(StringView str
         }
     }
 
-    return nullptr;
+    return baseCharacterGlyphData.font.get();
 }
 
 } // namespace WebCore

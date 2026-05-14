@@ -186,6 +186,11 @@ private:
     bool m_hasEmitted { false };
     bool m_isBlockNewline { false };
 
+    // Tracks the last <tr> for which we emitted a row-exit '\n', so consecutive
+    // empty/effectively-empty rows can each contribute their own line break per the
+    // innerText spec, while preventing the same row from emitting twice.
+    WeakPtr<Node, WeakPtrImplWithEventTargetData> m_lastTableRowEmittedExitNewlineFor;
+
     // Used when deciding text fragment created by :first-letter should be looked into.
     bool m_handledFirstLetter { false };
 };

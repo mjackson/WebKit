@@ -1,3 +1,37 @@
+diff --git a/ANGLEPrefix.h b/ANGLEPrefix.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..67b497ba8496cb1655695c32ad9be3c39b5d6ea4
+--- /dev/null
++++ b/ANGLEPrefix.h
+@@ -0,0 +1,28 @@
++/*
++ * Copyright (C) 2026 Apple Inc. All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY APPLE INC. ``AS IS'' AND ANY
++ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE INC. OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
++ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
++ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
++ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
++ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#ifdef __cplusplus
++#include "common/PackedEnums.h"
++#endif
 diff --git a/doc/ExtensionSupport.md b/doc/ExtensionSupport.md
 index 10b4a338dc47d7c23ebb03573dd919b5f7fb56c7..653b1680bad2d777579437a30f104e43cebb5f1a 100644
 --- a/doc/ExtensionSupport.md
@@ -47,7 +81,7 @@ index 3c5c03366e7d78d48377f30d47dc0abfba97ebd0..fb13a3dd9a5f9ec1a95ea872618e8e27
  
  #endif  // INCLUDE_GLES2_GL2EXT_ANGLE_H_
 diff --git a/include/GLSLANG/ShaderLang.h b/include/GLSLANG/ShaderLang.h
-index 65ad2076c5449355c0adc34fcadc51a6d3aa4450..60e4923839be98351abb9bc65ff27a03fec77626 100644
+index d7a93496398ceaa7a2c4306e2cdb8644fa6da2c7..414792cf3a397bf8d564d4666d1922e52d754c32 100644
 --- a/include/GLSLANG/ShaderLang.h
 +++ b/include/GLSLANG/ShaderLang.h
 @@ -161,8 +161,8 @@ struct ShPixelLocalStorageOptions
@@ -61,7 +95,7 @@ index 65ad2076c5449355c0adc34fcadc51a6d3aa4450..60e4923839be98351abb9bc65ff27a03
  
      // Translates intermediate tree to glsl, hlsl, msl, or SPIR-V binary.  Can be queried by
      // calling sh::GetObjectCode().
-@@ -495,8 +495,8 @@ using ShHashFunction64 = khronos_uint64_t (*)(const char *, size_t);
+@@ -498,8 +498,8 @@ using ShHashFunction64 = khronos_uint64_t (*)(const char *, size_t);
  struct ShBuiltInResources
  {
      ShBuiltInResources();
@@ -133,7 +167,7 @@ index de0ca8f77984dacc4db9aa7b3600ab517648a70f..01d8452bb759de83fadb0a80a711a10f
      "dfc9209e0c76eddd9bed0601c6c189e5",
    "tools/flex-bison/linux/flex.sha1":
 diff --git a/scripts/code_generation_hashes/ANGLE_shader_translator.json b/scripts/code_generation_hashes/ANGLE_shader_translator.json
-index 28eca37ab7887cfaf8bfb859e4cb339e4931d448..7c792aa8bbb7e60330c43fc55e99ddcbf2a0b3a8 100644
+index 78f6062dd80b34ea2c3b78fd99015dfa437ccfb0..9f73f14a6a4bfb0e26709488d82e9f83b16cd074 100644
 --- a/scripts/code_generation_hashes/ANGLE_shader_translator.json
 +++ b/scripts/code_generation_hashes/ANGLE_shader_translator.json
 @@ -1,18 +1,18 @@
@@ -144,13 +178,13 @@ index 28eca37ab7887cfaf8bfb859e4cb339e4931d448..7c792aa8bbb7e60330c43fc55e99ddcb
    "src/compiler/translator/generate_parser.py":
      "ad919972a040d9b3b4aa5dc547fadc75",
    "src/compiler/translator/glslang.l":
--    "acb74a06d21b8835358767235beb969a",
-+    "b224e7a86bffef3b15c2e950c8f9e39e",
+-    "1df39894d142fa4ab29f117278a96230",
++    "b9dc6671cdcab214a66625cd626b7024",
    "src/compiler/translator/glslang.y":
      "c1e72fcb5ff3371f21e66092351059bd",
    "src/compiler/translator/glslang_lex_autogen.cpp":
--    "47e19f00c1734935c48daffb011ff7f2",
-+    "de44fef5519954676c5628dd465ae8d8",
+-    "36411eb86c65d157df7ebb8cc0eae7fc",
++    "9cb25357d9cc522b278e1e65ef4835b8",
    "src/compiler/translator/glslang_tab_autogen.cpp":
 -    "a678256fe6caaa595b5ab4e40453baa4",
 +    "099802556ab41e02fa94520d9d924e65",
@@ -231,7 +265,7 @@ index e38fcd8e05b946c3689b71685af56cbd7ec891b9..cbfb58832fcf2d61ec43502fefb7de16
      "373b062587eab8a163121255f54597dc",
    "util/windows/wgl_loader_autogen.h":
 diff --git a/scripts/code_generation_hashes/GL_EGL_entry_points.json b/scripts/code_generation_hashes/GL_EGL_entry_points.json
-index 77229f718b1a40eba872172afb075f652643110a..5ac9d13331495533f63c8642ac69854e1403ad0e 100644
+index 73336508fd09761a6cdbed4cba1cc2d98b7ea6a9..1a1239da8cc394d5dba1593b128e180b4db24296 100644
 --- a/scripts/code_generation_hashes/GL_EGL_entry_points.json
 +++ b/scripts/code_generation_hashes/GL_EGL_entry_points.json
 @@ -4,21 +4,21 @@
@@ -292,20 +326,20 @@ index 77229f718b1a40eba872172afb075f652643110a..5ac9d13331495533f63c8642ac69854e
 -    "a4aca78b837cc30c28de532e3f06e911",
 +    "acca9826aa14f0b60d7a826d737ee73d",
    "src/libEGL/libEGL_autogen.cpp":
-     "77d82db4a45c2f08108929ef7fe8b698",
+     "8c9edded59d8f12df7e6bb422763adad",
    "src/libEGL/libEGL_autogen.def":
 @@ -130,19 +130,19 @@
    "src/libGLESv2/entry_points_gles_3_2_autogen.h":
      "647f932a299cdb4726b60bbba059f0d2",
    "src/libGLESv2/entry_points_gles_ext_autogen.cpp":
--    "d5803a3263f8d3c8dcf1066a03a9977a",
-+    "dc8cb534147ffcd3be3a0d55ff038e2a",
+-    "a8d1ba89c05237a2c9642b2488b7e6b1",
++    "94fdff466ef27b732774217790209eb3",
    "src/libGLESv2/entry_points_gles_ext_autogen.h":
 -    "e90416833d1db32ee8ced785dcfee92f",
 +    "5775917ba3c291772d3cc2aae8300911",
    "src/libGLESv2/libGLESv2_autogen.cpp":
--    "de82370ef8f02869a773b71a32e1d548",
-+    "497b494c762b562c60e49e33ac74682f",
+-    "0975501eabf2b281f8b7963e24fea2a9",
++    "fcf266d913680a88729f6f3b3b49a392",
    "src/libGLESv2/libGLESv2_autogen.def":
 -    "46c43d32448cd30d01c0165eaba8aa0b",
 +    "7905acfb6cc49792c7dea0c61aff1875",
@@ -347,6 +381,41 @@ index 806e7d100ca221384453755360e966fec31e7460..8c2216c4433f7f08254707cbe9a2e4cf
    "src/common/gl_enum_utils_autogen.h":
      "2de2b2dfc98be173cc8d49dfc4a4510c",
    "third_party/OpenGL-Registry/src/xml/gl.xml":
+diff --git a/scripts/code_generation_hashes/Metal_default_shaders.json b/scripts/code_generation_hashes/Metal_default_shaders.json
+index 504c6e90c97de4d7a41aaaa8c480246abdab8f9f..b7c5fe7f58b48b0f8cce76791612a3d5f749e11f 100644
+--- a/scripts/code_generation_hashes/Metal_default_shaders.json
++++ b/scripts/code_generation_hashes/Metal_default_shaders.json
+@@ -22,11 +22,11 @@
+   "src/libANGLE/renderer/metal/shaders/gen_mtl_internal_shaders.py":
+     "368cb14cf2005e682edc4d4afce8d7b9",
+   "src/libANGLE/renderer/metal/shaders/mtl_internal_shaders_autogen.metal":
+-    "9056c1be9b9afffe12fe0f0bb3f1fce4",
++    "c58c81d29db598e29d5bb40a13f45c33",
+   "src/libANGLE/renderer/metal/shaders/mtl_internal_shaders_src_autogen.h":
+-    "9aedbda4c5d3c6689f606f40c19e1fce",
++    "7e5065b32cb49d229a3d7cbb69531c63",
+   "src/libANGLE/renderer/metal/shaders/rewrite_indices.metal":
+-    "a29210b023ed3393e1342d94e338d449",
++    "1a589aa35e3aef619d60634680b3f065",
+   "src/libANGLE/renderer/metal/shaders/visibility.metal":
+     "b82aa740cf4b0aed606aacef1024beea"
+ }
+diff --git a/scripts/code_generation_hashes/Metal_format_table.json b/scripts/code_generation_hashes/Metal_format_table.json
+index 1279b30723fa9464263cb5b5c85bb94aa41c46ef..59fa23192c8136beabd60ddc57ea358d424a1de6 100644
+--- a/scripts/code_generation_hashes/Metal_format_table.json
++++ b/scripts/code_generation_hashes/Metal_format_table.json
+@@ -4,9 +4,9 @@
+   "src/libANGLE/renderer/angle_format_map.json":
+     "abad08e462a0839d1600d83f83bcad8b",
+   "src/libANGLE/renderer/metal/gen_mtl_format_table.py":
+-    "552a693fc998b4c69d417f18c8f11887",
++    "14c55fb3e1e0be9d7cc6f08aad36f386",
+   "src/libANGLE/renderer/metal/mtl_format_map.json":
+     "4be758ae631e802863d77c9ad61f4374",
+   "src/libANGLE/renderer/metal/mtl_format_table_autogen.mm":
+-    "73143c29f9a6d296bf1c110575115053"
++    "8dffc8c66e5b6948ad1890b25fc74b5a"
+ }
 diff --git a/scripts/code_generation_hashes/interpreter_utils.json b/scripts/code_generation_hashes/interpreter_utils.json
 index cddb6da4ce368483b19a036226e392c2620a52d2..ac5681bc7b65ace97bd5b4c76c782cd41db35ea6 100644
 --- a/scripts/code_generation_hashes/interpreter_utils.json
@@ -986,10 +1055,21 @@ index ff5909fbadfeea9d77fb102ca9075e4120b916b1..9f0b594e70694e9d8c164fe41b176bc0
  
  }  // namespace angle
 diff --git a/src/common/PoolAlloc.h b/src/common/PoolAlloc.h
-index 016783ae32ac04437ec1b1ac152633e356dc3421..77c3189974fb32b44cdfbeac3c961b86d0def471 100644
+index 016783ae32ac04437ec1b1ac152633e356dc3421..f7b5cace273a1d4d1f21435015b251646c5f3575 100644
 --- a/src/common/PoolAlloc.h
 +++ b/src/common/PoolAlloc.h
-@@ -37,108 +37,112 @@
+@@ -14,7 +14,9 @@
+ #    pragma allow_unsafe_buffers
+ #endif
+ 
+-#if !defined(NDEBUG)
++#if defined(ANGLE_WITH_ASAN) || defined(ANGLE_WITH_TSAN)
++#    define ANGLE_DISABLE_POOL_ALLOC  // Use system allocator under sanitizers for accurate detection
++#elif !defined(NDEBUG)
+ #    define ANGLE_POOL_ALLOC_GUARD_BLOCKS  // define to enable guard block checking
+ #endif
+ 
+@@ -37,108 +39,112 @@
  
  #include <stdint.h>
  
@@ -1060,8 +1140,8 @@ index 016783ae32ac04437ec1b1ac152633e356dc3421..77c3189974fb32b44cdfbeac3c961b86
 -    // Call fastAllocate() for a faster allocate function that does minimal bookkeeping
 -    // preCondition: Allocator must have been created w/ alignment of 1
 -    ANGLE_INLINE uint8_t *fastAllocate(size_t numBytes)
-+#if !defined(ANGLE_DISABLE_POOL_ALLOC)
 +    static constexpr size_t kSegmentSize = 32768;
++#if !defined(ANGLE_DISABLE_POOL_ALLOC)
 +    bool allocateNewPoolSegment();
 +
 +    Span<uint8_t> mCurrentPool;  // The unused part of memory in last entry of mPoolSegments.
@@ -1798,6 +1878,19 @@ index cfb4bc1b2a0113b0d6ea863be78fbbd60afd922c..8702d01fef25765c4778172a2a45cd5e
  /* A Bison parser, made by GNU Bison 3.8.2.  */
  
  /* Bison implementation for Yacc-like parsers in C
+diff --git a/src/compiler/translator/IntermNode.cpp b/src/compiler/translator/IntermNode.cpp
+index afc49222881a709ebdb4acd09c9c8b755f13ee2f..42ca7e08bc297c4b139f699a4515243219515a61 100644
+--- a/src/compiler/translator/IntermNode.cpp
++++ b/src/compiler/translator/IntermNode.cpp
+@@ -880,7 +880,7 @@ const TConstantUnion *TIntermAggregate::getConstantValue() const
+         // http://crbug.com/498400132
+         angle::base::CheckedNumeric<size_t> checkedArraySize = elementSize;
+         checkedArraySize *= getOutermostArraySize();
+-        constArray = new TConstantUnion[checkedArraySize.ValueOrDie()];
++        constArray = new TConstantUnion[static_cast<size_t>(checkedArraySize.ValueOrDie())];
+ 
+         size_t elementOffset = 0u;
+         for (TIntermNode *constructorArg : mArguments)
 diff --git a/src/compiler/translator/ShaderLang.cpp b/src/compiler/translator/ShaderLang.cpp
 index 6477eef68e895a65dca6dc978c7d8acc0d48b670..654cf97611240d5a5414683e126f4b1c67cacefb 100644
 --- a/src/compiler/translator/ShaderLang.cpp
@@ -1843,7 +1936,7 @@ index 105d99c4692e5cf4d3a15a53a228d855baf67d16..79f2eb49bf0480976ea34815550f8cce
      bool canBeConstructed() const;
  
 diff --git a/src/compiler/translator/glslang.l b/src/compiler/translator/glslang.l
-index efc341f799f5d2157ee50b0734ee163612fd185e..4bbcb5d303ce51a0b2d712fa9244c2d904a648aa 100644
+index e660cddc57f7236f600b688b73d950d33b24b19e..04e1d3320af503797a4a7f7426a9a10a2a327b31 100644
 --- a/src/compiler/translator/glslang.l
 +++ b/src/compiler/translator/glslang.l
 @@ -49,6 +49,11 @@ WHICH GENERATES THE GLSL ES LEXER (glslang_lex_autogen.cpp).
@@ -1882,7 +1975,7 @@ index efc341f799f5d2157ee50b0734ee163612fd185e..4bbcb5d303ce51a0b2d712fa9244c2d9
  %option yylineno reentrant bison-bridge bison-locations
  %option extra-type="TParseContext*"
 diff --git a/src/compiler/translator/glslang_lex_autogen.cpp b/src/compiler/translator/glslang_lex_autogen.cpp
-index 6668b80f033c95955db975a02842c425d5cf7914..2cb1bb51f14fd8ec939de3b799ce60648c69d804 100644
+index 43ef8867b7eff5a28145b76fa307d816a6623303..d15d3125bb579f64058564a75d706dd2d3440ef6 100644
 --- a/src/compiler/translator/glslang_lex_autogen.cpp
 +++ b/src/compiler/translator/glslang_lex_autogen.cpp
 @@ -35,6 +35,11 @@
@@ -1912,7 +2005,7 @@ index 6668b80f033c95955db975a02842c425d5cf7914..2cb1bb51f14fd8ec939de3b799ce6064
  static yy_size_t string_input(char *buf, yy_size_t max_size, yyscan_t yyscanner);
  static int check_type(yyscan_t yyscanner);
  static int reserved_word(yyscan_t yyscanner);
-@@ -3882,35 +3895,6 @@ static int yy_flex_strlen(const char *s, yyscan_t yyscanner)
+@@ -3887,35 +3900,6 @@ static int yy_flex_strlen(const char *s, yyscan_t yyscanner)
  }
  #endif
  
@@ -1971,17 +2064,17 @@ index d5a48edd40f382359db76acf1a1ce75b6a6dc6d5..817bb46f9ca4b6fe0294c0fec72878a5
  
  /* Bison interface for Yacc-like parsers in C
 diff --git a/src/compiler/translator/msl/EmitMetal.cpp b/src/compiler/translator/msl/EmitMetal.cpp
-index 0cdc1bae0a16d62dd9ba7f56f26634797525ba5a..c11debf29b13885319b62e5a9ac48c4d3414c297 100644
+index 0cdc1bae0a16d62dd9ba7f56f26634797525ba5a..79711845904b8b51116148f823f356c69b7af975 100644
 --- a/src/compiler/translator/msl/EmitMetal.cpp
 +++ b/src/compiler/translator/msl/EmitMetal.cpp
-@@ -9,6 +9,7 @@
+@@ -8,6 +8,7 @@
+ #    pragma allow_unsafe_buffers
  #endif
  
- #include <cctype>
 +#include <atomic>
+ #include <cctype>
  #include <map>
  
- #include "common/system_utils.h"
 @@ -185,12 +186,17 @@ class GenMetalTraverser : public TIntermTraverser
  
      void emitSingleConstant(const TConstantUnion *const constUnion);
@@ -2301,6 +2394,24 @@ index 0cdc1bae0a16d62dd9ba7f56f26634797525ba5a..c11debf29b13885319b62e5a9ac48c4d
  
  bool sh::EmitMetal(TCompiler &compiler,
                     TIntermBlock &root,
+diff --git a/src/compiler/translator/msl/ModifyStruct.cpp b/src/compiler/translator/msl/ModifyStruct.cpp
+index 366ed366185ab0fb56057f75dfb6bce2b9ce8150..4353eb0999d2a1c877056d3d8e735d80b1f61c45 100644
+--- a/src/compiler/translator/msl/ModifyStruct.cpp
++++ b/src/compiler/translator/msl/ModifyStruct.cpp
+@@ -880,6 +880,13 @@ bool SaturateScalarOrVectorCommon(ConvertStructState &state,
+             }
+         });
+     }
++    for (uint8_t d = dim; d < saturation; ++d)
++    {
++        state.addConversion([=](Access::Env &, OriginalAccess &, ModifiedAccess &m) {
++            auto &m_ = AccessIndex(m, d);
++            return Access{*CreateZeroNode(m_.getType()), m_};
++        });
++    }
+ 
+     return true;
+ }
 diff --git a/src/compiler/translator/msl/ProgramPrelude.cpp b/src/compiler/translator/msl/ProgramPrelude.cpp
 index 652acfbd3a1cb7f0f20892f78ec3b89dceb8c47f..2243ad8c3bc1d1609b89b339f60dda970eadf582 100644
 --- a/src/compiler/translator/msl/ProgramPrelude.cpp
@@ -2817,6 +2928,77 @@ index 652acfbd3a1cb7f0f20892f78ec3b89dceb8c47f..2243ad8c3bc1d1609b89b339f60dda97
      switch (node->getChildCount())
      {
          case 0:
+diff --git a/src/compiler/translator/msl/TranslatorMSL.cpp b/src/compiler/translator/msl/TranslatorMSL.cpp
+index 29a19181759e91d811a61c6d39bf781e84673bba..957d557e774d62bd89ed66d6c36600d11d214235 100644
+--- a/src/compiler/translator/msl/TranslatorMSL.cpp
++++ b/src/compiler/translator/msl/TranslatorMSL.cpp
+@@ -18,6 +18,7 @@
+ #include "compiler/translator/msl/SymbolEnv.h"
+ #include "compiler/translator/msl/ToposortStructs.h"
+ #include "compiler/translator/msl/UtilsMSL.h"
++#include "compiler/translator/tree_ops/AddDefaultReturnStatements.h"
+ #include "compiler/translator/tree_ops/InitializeVariables.h"
+ #include "compiler/translator/tree_ops/MonomorphizeUnsupportedFunctions.h"
+ #include "compiler/translator/tree_ops/PreTransformTextureCubeGradDerivatives.h"
+@@ -881,6 +882,11 @@ bool TranslatorMSL::translateImpl(TInfoSinkBase &sink,
+     ProgramPreludeConfig ppc(metalShaderTypeFromGLSL(getShaderType()));
+     ppc.usesDerivatives = usesDerivatives();
+ 
++    if (!sh::AddDefaultReturnStatements(this, root))
++    {
++        return false;
++    }
++
+     if (!WrapMain(*this, idGen, *root))
+     {
+         return false;
+@@ -1249,12 +1255,21 @@ bool TranslatorMSL::translateImpl(TInfoSinkBase &sink,
+     else if (getShaderType() == GL_VERTEX_SHADER)
+     {
+         DeclareRightBeforeMain(*root, *BuiltInVariable::gl_Position());
+-
+-        if (FindSymbolNode(root, BuiltInVariable::gl_PointSize()->name()))
++        // Always declare gl_PointSize to get [[point_size]] defined in case
++        // client draws with GL_POINTS.
+         {
+-            const TVariable *pointSize = static_cast<const TVariable *>(
+-                getSymbolTable().findBuiltIn(ImmutableString("gl_PointSize"), getShaderVersion()));
++
++            const TVariable *pointSize = getShaderVersion() >= 300
++                                             ? BuiltInVariable::gl_PointSize300()
++                                             : BuiltInVariable::gl_PointSize();
+             DeclareRightBeforeMain(*root, *pointSize);
++            TIntermBinary *defaultPointSize =
++                new TIntermBinary(TOperator::EOpAssign, new TIntermSymbol(pointSize),
++                                  CreateFloatNode(1.0f, pointSize->getType().getPrecision()));
++            if (!RunAtTheBeginningOfShader(this, root, defaultPointSize))
++            {
++                return false;
++            }
+         }
+ 
+         // Append a macro for transform feedback substitution prior to modifying depth.
+diff --git a/src/compiler/translator/tree_ops/AddDefaultReturnStatements.h b/src/compiler/translator/tree_ops/AddDefaultReturnStatements.h
+index 885b9a16ad0af05ecab4953c9ca98ce70047cec4..d063dbc3228c662a7609061a76a0aadd3370f33e 100644
+--- a/src/compiler/translator/tree_ops/AddDefaultReturnStatements.h
++++ b/src/compiler/translator/tree_ops/AddDefaultReturnStatements.h
+@@ -7,8 +7,8 @@
+ //                               return.
+ //
+ 
+-#ifndef COMPILER_TRANSLATOR_TREEOPS_HLSL_ADDDEFAULTRETURNSTATEMENTS_H_
+-#define COMPILER_TRANSLATOR_TREEOPS_HLSL_ADDDEFAULTRETURNSTATEMENTS_H_
++#ifndef COMPILER_TRANSLATOR_TREEOPS_ADDDEFAULTRETURNSTATEMENTS_H_
++#define COMPILER_TRANSLATOR_TREEOPS_ADDDEFAULTRETURNSTATEMENTS_H_
+ 
+ #include "common/angleutils.h"
+ 
+@@ -21,4 +21,4 @@ class TIntermBlock;
+ 
+ }  // namespace sh
+ 
+-#endif  // COMPILER_TRANSLATOR_TREEOPS_HLSL_ADDDEFAULTRETURNSTATEMENTS_H_
++#endif  // COMPILER_TRANSLATOR_TREEOPS_ADDDEFAULTRETURNSTATEMENTS_H_
 diff --git a/src/compiler/translator/tree_ops/RewriteStructSamplers.cpp b/src/compiler/translator/tree_ops/RewriteStructSamplers.cpp
 index 77262ed6e5b598fde791b1b4b9ce9e76afaf288f..43b2ebb619854abc14e5db8ceda6feab5e73ef24 100644
 --- a/src/compiler/translator/tree_ops/RewriteStructSamplers.cpp
@@ -3164,7 +3346,7 @@ index 5cef5d49eea1b1f1e6c22543446b2e5391ee88f2..5bfff7a4587126abada2d0a2560fb32c
  
  
 diff --git a/src/libANGLE/Buffer.cpp b/src/libANGLE/Buffer.cpp
-index 82eed7deb38f7abc82885d1a9e9ff6bbe8391633..2fc6e094e7c30c9aa552efef8e1ae179d62a1d3b 100644
+index f472c6059f166ac58f6b793e57180748e02e1757..5bb8139c242f36a6276a8e2b79a9db1d5d79b052 100644
 --- a/src/libANGLE/Buffer.cpp
 +++ b/src/libANGLE/Buffer.cpp
 @@ -555,7 +555,9 @@ void Buffer::onStateChange(const Context *context, angle::SubjectMessage message
@@ -3189,11 +3371,26 @@ index 82eed7deb38f7abc82885d1a9e9ff6bbe8391633..2fc6e094e7c30c9aa552efef8e1ae179
                               mVertexArrayBufferBindingMaskAndContext.getBufferBindingMask(context));
  }
  
+diff --git a/src/libANGLE/Caps.h b/src/libANGLE/Caps.h
+index b79a856182350a41be77e49e766b859ef311ef6b..cb859d0c670a74194e1e244f061452558f857f57 100644
+--- a/src/libANGLE/Caps.h
++++ b/src/libANGLE/Caps.h
+@@ -157,6 +157,10 @@ struct Limitations
+     // D3D does not support compressed textures where the base mip level is not a multiple of 4
+     bool compressedBaseMipLevelMultipleOfFour = false;
+ 
++    // True if the underlying API uses `base instance + instance` as its native
++    // instance id representation.
++    bool instanceIdMayOverflow = false;
++
+     // An extra limit for WebGL texture size. Ignored if 0.
+     GLint webGLTextureSizeLimit = 0;
+ 
 diff --git a/src/libANGLE/Context.cpp b/src/libANGLE/Context.cpp
-index 9d5a6a94620191f8fe60612dcde84f67c239caeb..e6b1d17ed01f5e7212456119717260a74c8d32ad 100644
+index 742a1002bff863e54c03d11d7cca23c25a1bcad4..5c1c908d49a1071d3bf69cf593e61fc0c6241bb6 100644
 --- a/src/libANGLE/Context.cpp
 +++ b/src/libANGLE/Context.cpp
-@@ -9972,6 +9972,33 @@ void Context::textureFoveationParameters(TextureID texturePacked,
+@@ -10078,6 +10078,33 @@ void Context::textureFoveationParameters(TextureID texturePacked,
      texture->setFocalPoint(layer, focalPoint, focalX, focalY, gainX, gainY, foveaArea);
  }
  
@@ -3227,7 +3424,7 @@ index 9d5a6a94620191f8fe60612dcde84f67c239caeb..e6b1d17ed01f5e7212456119717260a7
  void Context::endTiling(GLbitfield preserveMask)
  {
      ANGLE_CONTEXT_TRY(mImplementation->endTiling(this, preserveMask));
-@@ -10046,6 +10073,16 @@ void Context::blobCacheCallbacks(GLSETBLOBPROCANGLE set,
+@@ -10152,6 +10179,16 @@ void Context::blobCacheCallbacks(GLSETBLOBPROCANGLE set,
      mState.getBlobCacheCallbacks() = {set, get, userParam};
  }
  
@@ -3244,7 +3441,7 @@ index 9d5a6a94620191f8fe60612dcde84f67c239caeb..e6b1d17ed01f5e7212456119717260a7
  void Context::texStorageAttribs2D(GLenum target,
                                    GLsizei levels,
                                    GLenum internalFormat,
-@@ -10199,6 +10236,18 @@ void Context::onProgramPipelineDestroy(const ProgramPipeline *programPipeline) c
+@@ -10305,6 +10342,18 @@ void Context::onProgramPipelineDestroy(const ProgramPipeline *programPipeline) c
      mState.mProgramPipelineManager->recycleHandle(programPipeline->id());
  }
  
@@ -3264,7 +3461,7 @@ index 9d5a6a94620191f8fe60612dcde84f67c239caeb..e6b1d17ed01f5e7212456119717260a7
  ErrorSet::ErrorSet(Debug *debug,
                     const angle::FrontendFeatures &frontendFeatures,
 diff --git a/src/libANGLE/Context.h b/src/libANGLE/Context.h
-index 0d0b4732fb0b2bd3bbba585cef94f5817fa9cab0..10a8359e1d4f4e27d271f63ee19ea2bea6fc15b7 100644
+index e223a0c357a4b409d42ab70e464e190dcd64da69..66975beb564eaca1599361666cfffa92d43b8dbe 100644
 --- a/src/libANGLE/Context.h
 +++ b/src/libANGLE/Context.h
 @@ -957,6 +957,7 @@ class Context final : public egl::LabeledObject, angle::NonCopyable, public angl
@@ -3286,7 +3483,7 @@ index 0d0b4732fb0b2bd3bbba585cef94f5817fa9cab0..10a8359e1d4f4e27d271f63ee19ea2be
      }
  
      AttributesMask getActiveBufferedAttribsMask() const;
-@@ -1052,6 +1057,7 @@ class Context final : public egl::LabeledObject, angle::NonCopyable, public angl
+@@ -1061,6 +1066,7 @@ class Context final : public egl::LabeledObject, angle::NonCopyable, public angl
      void updateActiveAttribsMaskIfNeeded() const;
  
      void endTilingImplicit();
@@ -3345,6 +3542,18 @@ index aea0acc7cb8b630ee9092ffde7bfae8e46503b4b..5c6ff476f4f7328a806d159dac0a531b
                           EGLNativePixmapType pixmap,
                           const AttributeMap &attributes) const;
  
+diff --git a/src/libANGLE/ErrorStrings.h b/src/libANGLE/ErrorStrings.h
+index a6ecd74451638f3d5ed8e297df6180403ac02c9b..2180065544fe500b851ed0becfb96f8debd7beee 100644
+--- a/src/libANGLE/ErrorStrings.h
++++ b/src/libANGLE/ErrorStrings.h
+@@ -243,6 +243,7 @@ inline constexpr const char *kInsufficientBufferSize = "Insufficient buffer size
+ inline constexpr const char *kInsufficientParamCount = "The paramCount is less than the number of returned values.";
+ inline constexpr const char *kInsufficientVertexBufferSize = "Vertex buffer is not big enough for the draw call.";
+ inline constexpr const char *kIntegerOverflow = "Integer overflow.";
++inline constexpr const char *kInstanceIdOverflow = "Implementation does not support baseinstance + primcount - 1 overflowing GLuint.";
+ inline constexpr const char *kInternalError = "Internal error.";
+ inline constexpr const char *kInternalErrorFormatNotFound = "Internal error: unknown internal format.";
+ inline constexpr const char *kInternalFormatRequiresTexture2D = "internalformat is an ETC1 or PVRTC1 format.";
 diff --git a/src/libANGLE/Framebuffer.cpp b/src/libANGLE/Framebuffer.cpp
 index cdfe0fc80082ad07457b3382931bed379a7b4cc0..fd9d2889cec691cbc681e5be16881540ea56157f 100644
 --- a/src/libANGLE/Framebuffer.cpp
@@ -3884,7 +4093,7 @@ index 67bc68df4686a23ed1c254cbc95e0a9236187321..4ca5f50beafbb3f569f48ee1ae9b55cf
      GLES1State mGLES1State;
  
 diff --git a/src/libANGLE/TransformFeedback.cpp b/src/libANGLE/TransformFeedback.cpp
-index 05608a2eafa5cb7a5a257e47d5efcd6e0a7d353f..2df80ef8402e75836d70635865f291156e96b9c2 100644
+index 6f31b93e44bfa8f1f9456b0d62b3cc68c5f467aa..e1c5a2af5b4fb29026196067f3bef5c117a8c9f0 100644
 --- a/src/libANGLE/TransformFeedback.cpp
 +++ b/src/libANGLE/TransformFeedback.cpp
 @@ -52,7 +52,6 @@ TransformFeedbackState::TransformFeedbackState(size_t maxIndexedBuffers)
@@ -3893,26 +4102,18 @@ index 05608a2eafa5cb7a5a257e47d5efcd6e0a7d353f..2df80ef8402e75836d70635865f29115
        mVerticesDrawn(0),
 -      mVertexCapacity(0),
        mProgram(nullptr),
+       mProgramPipeline(nullptr),
        mIndexedBuffers(maxIndexedBuffers)
- {}
-@@ -149,7 +148,6 @@ angle::Result TransformFeedback::begin(const Context *context,
-     mState.mPaused        = false;
-     mState.mVerticesDrawn = 0;
-     bindProgram(context, program);
--    recomputeVertexCapacity(context);
-     return angle::Result::Continue;
- }
- 
-@@ -160,7 +158,7 @@ angle::Result TransformFeedback::end(const Context *context)
+@@ -169,7 +168,7 @@ angle::Result TransformFeedback::end(const Context *context)
      mState.mPrimitiveMode  = PrimitiveMode::InvalidEnum;
      mState.mPaused         = false;
      mState.mVerticesDrawn  = 0;
 -    mState.mVertexCapacity = 0;
 +    mState.mVertexCapacity = std::nullopt;
-     if (mState.mProgram)
+     if (mState.mProgram != nullptr)
      {
          mState.mProgram->release(context);
-@@ -180,7 +178,6 @@ angle::Result TransformFeedback::resume(const Context *context)
+@@ -198,7 +197,6 @@ angle::Result TransformFeedback::resume(const Context *context)
  {
      ANGLE_TRY(mImplementation->resume(context));
      mState.mPaused = false;
@@ -3920,7 +4121,7 @@ index 05608a2eafa5cb7a5a257e47d5efcd6e0a7d353f..2df80ef8402e75836d70635865f29115
      return angle::Result::Continue;
  }
  
-@@ -194,9 +191,10 @@ PrimitiveMode TransformFeedback::getPrimitiveMode() const
+@@ -212,9 +210,10 @@ PrimitiveMode TransformFeedback::getPrimitiveMode() const
      return mState.mPrimitiveMode;
  }
  
@@ -3933,7 +4134,7 @@ index 05608a2eafa5cb7a5a257e47d5efcd6e0a7d353f..2df80ef8402e75836d70635865f29115
  {
      auto vertices = angle::CheckedNumeric<GLsizeiptr>(mState.mVerticesDrawn);
      for (GLsizei drawID = 0; drawID < drawcount; ++drawID)
-@@ -205,7 +203,32 @@ bool TransformFeedback::checkBufferSpaceForDraw(const GLsizei *counts,
+@@ -223,7 +222,33 @@ bool TransformFeedback::checkBufferSpaceForDraw(const GLsizei *counts,
          GLsizei count     = ANGLE_UNSAFE_BUFFERS(counts[drawID]);
          vertices += GetVerticesNeededForDraw(mState.mPrimitiveMode, count, primcount);
      }
@@ -3941,7 +4142,8 @@ index 05608a2eafa5cb7a5a257e47d5efcd6e0a7d353f..2df80ef8402e75836d70635865f29115
 +
 +    if (!mState.mVertexCapacity.has_value())
 +    {
-+        const ProgramExecutable *programExecutable = context->getState().getLinkedProgramExecutable(context);
++        const ProgramExecutable *programExecutable =
++            context->getState().getLinkedProgramExecutable(context);
 +        if (programExecutable)
 +        {
 +            // Compute the number of vertices we can draw before overflowing the bound buffers.
@@ -3967,51 +4169,18 @@ index 05608a2eafa5cb7a5a257e47d5efcd6e0a7d353f..2df80ef8402e75836d70635865f29115
  }
  
  void TransformFeedback::onVerticesDrawn(const Context *context, GLsizei count, GLsizei primcount)
-@@ -241,32 +264,6 @@ void TransformFeedback::bindProgram(const Context *context, Program *program)
-     }
- }
- 
--void TransformFeedback::recomputeVertexCapacity(const Context *context)
--{
--    // In one of the angle_unittests - "TransformFeedbackTest.SideEffectsOfStartAndStop"
--    // there is a code path where <context> is a nullptr, account for that possibility.
--    const ProgramExecutable *programExecutable =
--        context ? context->getState().getLinkedProgramExecutable(context) : nullptr;
--    if (programExecutable)
--    {
--        // Compute the number of vertices we can draw before overflowing the bound buffers.
--        auto strides = programExecutable->getTransformFeedbackStrides();
--        ASSERT(strides.size() <= mState.mIndexedBuffers.size() && !strides.empty());
--        GLsizeiptr minCapacity = std::numeric_limits<GLsizeiptr>::max();
--        for (size_t index = 0; index < strides.size(); index++)
--        {
--            GLsizeiptr capacity =
--                GetBoundBufferAvailableSize(mState.mIndexedBuffers[index]) / strides[index];
--            minCapacity = std::min(minCapacity, capacity);
--        }
--        mState.mVertexCapacity = minCapacity;
--    }
--    else
--    {
--        mState.mVertexCapacity = 0;
--    }
--}
--
- bool TransformFeedback::hasBoundProgram(ShaderProgramID program) const
- {
-     return mState.mProgram != nullptr && mState.mProgram->id().value == program.value;
 diff --git a/src/libANGLE/TransformFeedback.h b/src/libANGLE/TransformFeedback.h
-index a56c62e05216ad2c3c2d6d56bee0446d8c6425dc..cc7a05af64f64e939476d1372e2bf91cd8ea3749 100644
+index 8028d82f641e667e9d131d9c7743e7b5169a7c69..897274300e562870a5bb0c3de7668a4f87c32fdc 100644
 --- a/src/libANGLE/TransformFeedback.h
 +++ b/src/libANGLE/TransformFeedback.h
-@@ -14,6 +14,7 @@
+@@ -13,6 +13,7 @@
+ #include "common/angleutils.h"
  #include "libANGLE/Debug.h"
  
- #include "angle_gl.h"
 +#include <optional>
+ #include "angle_gl.h"
  
  namespace rx
- {
 @@ -50,7 +51,7 @@ class TransformFeedbackState final : angle::NonCopyable
      PrimitiveMode mPrimitiveMode;
      bool mPaused;
@@ -4020,8 +4189,8 @@ index a56c62e05216ad2c3c2d6d56bee0446d8c6425dc..cc7a05af64f64e939476d1372e2bf91c
 +    std::optional<GLsizeiptr> mVertexCapacity;
  
      Program *mProgram;
- 
-@@ -78,9 +79,10 @@ class TransformFeedback final : public RefCountObject<TransformFeedbackID>, publ
+     ProgramPipeline *mProgramPipeline;
+@@ -83,9 +84,10 @@ class TransformFeedback final : public RefCountObject<TransformFeedbackID>, publ
      PrimitiveMode getPrimitiveMode() const;
      // Validates that the vertices produced by a draw call will fit in the bound transform feedback
      // buffers. primcounts may be nullptr for non-instanced draw calls.
@@ -4034,7 +4203,7 @@ index a56c62e05216ad2c3c2d6d56bee0446d8c6425dc..cc7a05af64f64e939476d1372e2bf91c
      // This must be called after each draw call when transform feedback is enabled to keep track of
      // how many vertices have been written to the buffers. This information is needed by
      // checkBufferSpaceForDraw because each draw call appends vertices to the buffers starting just
-@@ -107,6 +109,7 @@ class TransformFeedback final : public RefCountObject<TransformFeedbackID>, publ
+@@ -116,6 +118,7 @@ class TransformFeedback final : public RefCountObject<TransformFeedbackID>, publ
      // Returns true if the buffer is bound to any of the indexed binding points in this transform
      // feedback.
      bool isBufferBound(BufferID bufferID) const;
@@ -4042,14 +4211,6 @@ index a56c62e05216ad2c3c2d6d56bee0446d8c6425dc..cc7a05af64f64e939476d1372e2bf91c
  
      angle::Result detachBuffer(const Context *context, BufferID bufferID);
  
-@@ -116,7 +119,6 @@ class TransformFeedback final : public RefCountObject<TransformFeedbackID>, publ
- 
-   private:
-     void bindProgram(const Context *context, Program *program);
--    void recomputeVertexCapacity(const Context *context);
- 
-     TransformFeedbackState mState;
-     rx::TransformFeedbackImpl *mImplementation;
 diff --git a/src/libANGLE/capture/capture_gles_2_0_params.cpp b/src/libANGLE/capture/capture_gles_2_0_params.cpp
 index f2d1d6872f9f1fdffe218c00c3321f15f08e62ff..a5e2d5d4ad2688c7222a74db4d2ebc6f2dfe7e16 100644
 --- a/src/libANGLE/capture/capture_gles_2_0_params.cpp
@@ -4463,10 +4624,10 @@ index e7366aaa2a8549333e334a2fe7bd647605ea8143..83622df590e7bb888838e7e2c8c6c117
                         (clippedArea.y - area.y) * outputPitch;
  
 diff --git a/src/libANGLE/renderer/d3d/d3d11/Image11.cpp b/src/libANGLE/renderer/d3d/d3d11/Image11.cpp
-index c0e8361916a7527a5134eac88c95bfc51869b651..5402d2823564d965ce983089cc6a46817d3b9b4e 100644
+index 843ece4645dc69b7ad00a579887fec06b3cc2d8d..bd44a072114741c6dd75772b5d5951da7d521725 100644
 --- a/src/libANGLE/renderer/d3d/d3d11/Image11.cpp
 +++ b/src/libANGLE/renderer/d3d/d3d11/Image11.cpp
-@@ -281,16 +281,14 @@ angle::Result Image11::loadData(const gl::Context *context,
+@@ -284,16 +284,14 @@ angle::Result Image11::loadData(const gl::Context *context,
      Context11 *context11 = GetImplAs<Context11>(context);
  
      const gl::InternalFormat &formatInfo = gl::GetSizedInternalFormatInfo(mInternalFormat);
@@ -4594,7 +4755,7 @@ index 0d2bf2a565a6a2178838d9aa8cbd1107e18de6f4..23b67464b2e270d187e98320cc93e597
                              UNREACHABLE();
                              break;
 diff --git a/src/libANGLE/renderer/gl/TextureGL.cpp b/src/libANGLE/renderer/gl/TextureGL.cpp
-index dfaae06e9662ee45a8702142fcbb2283dc659abb..c53f29bf85f344545f3b83aac1590ee7127d63be 100644
+index ab342c0024997b9bf3a775d1e8940fcab2424a44..b904bd683ef0dc9a346b9e669c39e8f2a4cb9c79 100644
 --- a/src/libANGLE/renderer/gl/TextureGL.cpp
 +++ b/src/libANGLE/renderer/gl/TextureGL.cpp
 @@ -443,17 +443,15 @@ angle::Result TextureGL::setSubImageRowByRowWorkaround(const gl::Context *contex
@@ -4720,7 +4881,7 @@ index 35be49424b289e7bc97861c533a882af3ab738cc..fc5ede573237519bb7505fc708dff24c
  };
  
 diff --git a/src/libANGLE/renderer/metal/ContextMtl.mm b/src/libANGLE/renderer/metal/ContextMtl.mm
-index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa62eeb0511 100644
+index c5645c325da956f0f540adc3e244121630cea240..cca7ba6f39398f096d2e73ae96fe266f1fd186b8 100644
 --- a/src/libANGLE/renderer/metal/ContextMtl.mm
 +++ b/src/libANGLE/renderer/metal/ContextMtl.mm
 @@ -85,19 +85,14 @@ constexpr uint32_t kMaxTriFanLineLoopBuffersPerFrame = 10;
@@ -4896,7 +5057,7 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
          }
      }
  
-@@ -548,15 +540,15 @@ angle::Result ContextMtl::drawTriFanElements(const gl::Context *context,
+@@ -548,15 +540,16 @@ angle::Result ContextMtl::drawTriFanElements(const gl::Context *context,
  {
      if (count > 3)
      {
@@ -4911,12 +5072,13 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
  
          ANGLE_TRY(getDisplay()->getUtils().generateTriFanBufferFromElementsArray(
 -            this, {type, count, indices, genIdxBuffer, genIdxBufferOffset, primitiveRestart},
-+            this, {type, count, indices, genIdxBuffer.buffer(),
-+                   static_cast<uint32_t>(genIdxBuffer.offset()), primitiveRestart},
++            this,
++            {type, count, indices, genIdxBuffer.buffer(),
++             static_cast<uint32_t>(genIdxBuffer.offset()), primitiveRestart},
              &genIndicesCount));
  
          ANGLE_TRY(mTriFanIndexBuffer.commit(this));
-@@ -567,14 +559,15 @@ angle::Result ContextMtl::drawTriFanElements(const gl::Context *context,
+@@ -567,14 +560,15 @@ angle::Result ContextMtl::drawTriFanElements(const gl::Context *context,
              if (baseVertex == 0 && baseInstance == 0)
              {
                  mRenderEncoder.drawIndexedInstanced(MTLPrimitiveTypeTriangle, genIndicesCount,
@@ -4936,7 +5098,7 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
              }
          }
  
-@@ -617,15 +610,15 @@ angle::Result ContextMtl::drawLineLoopElements(const gl::Context *context,
+@@ -617,15 +611,16 @@ angle::Result ContextMtl::drawLineLoopElements(const gl::Context *context,
                                                                        indices);
          }
  
@@ -4945,18 +5107,20 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
 +        mtl::BufferSlice genIdxBuffer;
          uint32_t reservedIndices = count * 2;
          uint32_t genIndicesCount;
-         ANGLE_TRY(AllocateBufferFromPool(this, reservedIndices, &mLineLoopIndexBuffer,
+-        ANGLE_TRY(AllocateBufferFromPool(this, reservedIndices, &mLineLoopIndexBuffer,
 -                                         &genIdxBuffer, &genIdxBufferOffset));
-+                                         &genIdxBuffer));
++        ANGLE_TRY(
++            AllocateBufferFromPool(this, reservedIndices, &mLineLoopIndexBuffer, &genIdxBuffer));
  
          ANGLE_TRY(getDisplay()->getUtils().generateLineLoopBufferFromElementsArray(
 -            this, {type, count, indices, genIdxBuffer, genIdxBufferOffset, primitiveRestart},
-+            this, {type, count, indices, genIdxBuffer.buffer(),
-+                   static_cast<uint32_t>(genIdxBuffer.offset()), primitiveRestart},
++            this,
++            {type, count, indices, genIdxBuffer.buffer(),
++             static_cast<uint32_t>(genIdxBuffer.offset()), primitiveRestart},
              &genIndicesCount));
  
          ANGLE_TRY(mLineLoopIndexBuffer.commit(this));
-@@ -636,14 +629,15 @@ angle::Result ContextMtl::drawLineLoopElements(const gl::Context *context,
+@@ -636,14 +631,15 @@ angle::Result ContextMtl::drawLineLoopElements(const gl::Context *context,
              if (baseVertex == 0 && baseInstance == 0)
              {
                  mRenderEncoder.drawIndexedInstanced(MTLPrimitiveTypeLineStrip, genIndicesCount,
@@ -4976,7 +5140,7 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
              }
          }
  
-@@ -768,17 +762,17 @@ angle::Result ContextMtl::drawElementsImpl(const gl::Context *context,
+@@ -768,17 +764,18 @@ angle::Result ContextMtl::drawElementsImpl(const gl::Context *context,
                                      baseInstance);
      }
  
@@ -4987,20 +5151,22 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
 +
      gl::DrawElementsType convertedType = type;
  
-     ANGLE_TRY(mVertexArray->getIndexBuffer(context, type, count, indices, &idxBuffer,
+-    ANGLE_TRY(mVertexArray->getIndexBuffer(context, type, count, indices, &idxBuffer,
 -                                           &convertedOffset, &convertedType));
-+                                           &convertedType));
++    ANGLE_TRY(
++        mVertexArray->getIndexBuffer(context, type, count, indices, &idxBuffer, &convertedType));
  
 -    ASSERT(idxBuffer);
 -    ASSERT((convertedType == gl::DrawElementsType::UnsignedShort && (convertedOffset % 2) == 0) ||
 -           (convertedType == gl::DrawElementsType::UnsignedInt && (convertedOffset % 4) == 0));
 +    ASSERT(idxBuffer.buffer());
-+    ASSERT((convertedType == gl::DrawElementsType::UnsignedShort && (idxBuffer.offset() % 2) == 0) ||
-+           (convertedType == gl::DrawElementsType::UnsignedInt && (idxBuffer.offset() % 4) == 0));
++    ASSERT(
++        (convertedType == gl::DrawElementsType::UnsignedShort && (idxBuffer.offset() % 2) == 0) ||
++        (convertedType == gl::DrawElementsType::UnsignedInt && (idxBuffer.offset() % 4) == 0));
  
      uint32_t convertedCounti32 = (uint32_t)count;
  
-@@ -788,13 +782,13 @@ angle::Result ContextMtl::drawElementsImpl(const gl::Context *context,
+@@ -788,21 +785,22 @@ angle::Result ContextMtl::drawElementsImpl(const gl::Context *context,
      {
          // Line strips and triangle strips are rewritten to flat line arrays and tri arrays.
          ANGLE_TRY(mProvokingVertexHelper.preconditionIndexBuffer(
@@ -5016,16 +5182,18 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
      }
      // Draw commands will only be broken up if transform feedback is enabled,
      // if the mode is a simple type, and if the buffer contained any restart
-@@ -802,7 +796,7 @@ angle::Result ContextMtl::drawElementsImpl(const gl::Context *context,
+     // indices.
      // It's safe to use idxBuffer in this case, as it will contain the same count and restart ranges
      // as drawIdxBuffer.
-     const std::vector<DrawCommandRange> drawCommands = mVertexArray->getDrawIndices(
+-    const std::vector<DrawCommandRange> drawCommands = mVertexArray->getDrawIndices(
 -        context, type, convertedType, mode, idxBuffer, convertedCounti32, convertedOffset);
-+        context, type, convertedType, mode, idxBuffer.buffer(), convertedCounti32, idxBuffer.offset());
++    const std::vector<DrawCommandRange> drawCommands =
++        mVertexArray->getDrawIndices(context, type, convertedType, mode, idxBuffer.buffer(),
++                                     convertedCounti32, idxBuffer.offset());
      bool isNoOp = false;
      ANGLE_TRY(setupDraw(context, 0, count, instances, type, indices, false, &isNoOp));
      if (!isNoOp)
-@@ -1050,6 +1044,13 @@ angle::Result ContextMtl::multiDrawElementsInstancedBaseVertexBaseInstance(
+@@ -1050,6 +1048,13 @@ angle::Result ContextMtl::multiDrawElementsInstancedBaseVertexBaseInstance(
  // Device loss
  gl::GraphicsResetStatus ContextMtl::getResetStatus()
  {
@@ -5039,7 +5207,7 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
      return gl::GraphicsResetStatus::NoError;
  }
  
-@@ -1388,6 +1389,9 @@ void ContextMtl::updateExtendedState(const gl::State &glState,
+@@ -1388,6 +1393,9 @@ void ContextMtl::updateExtendedState(const gl::State &glState,
              case gl::state::EXTENDED_DIRTY_BIT_POLYGON_OFFSET_LINE_ENABLED:
                  mDirtyBits.set(DIRTY_BIT_DEPTH_BIAS);
                  break;
@@ -5049,7 +5217,7 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
              default:
                  break;
          }
-@@ -1643,6 +1647,37 @@ angle::Result ContextMtl::memoryBarrierByRegion(const gl::Context *context, GLbi
+@@ -1643,6 +1651,37 @@ angle::Result ContextMtl::memoryBarrierByRegion(const gl::Context *context, GLbi
      return angle::Result::Stop;
  }
  
@@ -5087,7 +5255,7 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
  // override mtl::ErrorHandler
  void ContextMtl::handleError(GLenum glErrorCode,
                               const char *message,
-@@ -2480,8 +2515,22 @@ angle::Result ContextMtl::setupDraw(const gl::Context *context,
+@@ -2480,8 +2519,22 @@ angle::Result ContextMtl::setupDraw(const gl::Context *context,
              return checkCommandBufferError();
          }
          // Setup with flushed state should either produce a working encoder or fail with an error
@@ -5112,7 +5280,7 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
      }
      return angle::Result::Continue;
  }
-@@ -2589,10 +2638,14 @@ angle::Result ContextMtl::setupDrawImpl(const gl::Context *context,
+@@ -2589,10 +2642,14 @@ angle::Result ContextMtl::setupDrawImpl(const gl::Context *context,
                      mState.getBlendColor().blue, mState.getBlendColor().alpha);
                  break;
              case DIRTY_BIT_VIEWPORT:
@@ -5129,7 +5297,7 @@ index 88efc2374966b518f145cd6eb1d8b3b609ced470..1d432401d8dabf1acca58802f50cefa6
                  break;
              case DIRTY_BIT_DRAW_FRAMEBUFFER:
                  // Already handled.
-@@ -2617,6 +2670,15 @@ angle::Result ContextMtl::setupDrawImpl(const gl::Context *context,
+@@ -2617,6 +2674,15 @@ angle::Result ContextMtl::setupDrawImpl(const gl::Context *context,
              case DIRTY_BIT_RASTERIZER_DISCARD:
                  // Already handled.
                  break;
@@ -5158,7 +5326,7 @@ index 6901918d85ad1c32049d536950195d02262e8e1c..6cf3b5605c6e2b6c3e5c2ce32720c9ae
      bool isAMDBronzeDriver() const;
      bool isAMDFireProDevice() const;
 diff --git a/src/libANGLE/renderer/metal/DisplayMtl.mm b/src/libANGLE/renderer/metal/DisplayMtl.mm
-index cdfd06b3f782e19b5d691f3e3a44b9847a0100d8..c733791a79bfbae2e8c926f297c66204395a295e 100644
+index cdfd06b3f782e19b5d691f3e3a44b9847a0100d8..1ca973908c20b002483772b67942f9704d02f358 100644
 --- a/src/libANGLE/renderer/metal/DisplayMtl.mm
 +++ b/src/libANGLE/renderer/metal/DisplayMtl.mm
 @@ -180,12 +180,22 @@ void DisplayMtl::terminate()
@@ -5184,7 +5352,18 @@ index cdfd06b3f782e19b5d691f3e3a44b9847a0100d8..c733791a79bfbae2e8c926f297c66204
  }
  
  std::string DisplayMtl::getRendererDescription()
-@@ -1143,6 +1153,14 @@ void DisplayMtl::initializeExtensions() const
+@@ -909,6 +919,10 @@ void DisplayMtl::ensureCapsInitialized() const
+     // Apple platforms require PVRTC1 textures to be squares.
+     mNativeLimitations.squarePvrtc1 = true;
+ 
++    // MSL `uint32 instance_id = baseInstance + count`, so GLES baseinstance + primcount
++    // must not overflow GLuint.
++    mNativeLimitations.instanceIdMayOverflow = true;
++
+     if (mFeatures.disableProgrammableBlending.enabled || !supportsAppleGPUFamily(1))
+     {
+         const MTLReadWriteTextureTier readWriteTextureTier = [mMetalDevice readWriteTextureSupport];
+@@ -1143,6 +1157,14 @@ void DisplayMtl::initializeExtensions() const
      // qualifier on that hardware.
      mNativePLSOptions.supportsNoncoherent = !supportsAppleGPUFamily(1);
  
@@ -5199,7 +5378,7 @@ index cdfd06b3f782e19b5d691f3e3a44b9847a0100d8..c733791a79bfbae2e8c926f297c66204
      // "The GPUs in Apple3 through Apple8 families only support memory barriers for compute command
      // encoders, and for vertex-to-vertex and vertex-to-fragment stages of render command encoders."
      mHasFragmentMemoryBarriers = !supportsAppleGPUFamily(3);
-@@ -1209,6 +1227,8 @@ void DisplayMtl::initializeFeatures()
+@@ -1209,6 +1231,8 @@ void DisplayMtl::initializeFeatures()
      ANGLE_FEATURE_CONDITION((&mFeatures), hasExplicitMemBarrier, (isOSX || isCatalyst) && !isARM);
      ANGLE_FEATURE_CONDITION((&mFeatures), hasDepthAutoResolve, supportsEitherGPUFamily(3, 2));
      ANGLE_FEATURE_CONDITION((&mFeatures), hasStencilAutoResolve, supportsEitherGPUFamily(5, 2));
@@ -5208,7 +5387,7 @@ index cdfd06b3f782e19b5d691f3e3a44b9847a0100d8..c733791a79bfbae2e8c926f297c66204
      ANGLE_FEATURE_CONDITION((&mFeatures), allowMultisampleStoreAndResolve,
                              supportsEitherGPUFamily(3, 1));
  
-@@ -1392,6 +1412,17 @@ bool DisplayMtl::supportsDepth24Stencil8PixelFormat() const
+@@ -1392,6 +1416,17 @@ bool DisplayMtl::supportsDepth24Stencil8PixelFormat() const
      return false;
  #endif
  }
@@ -5636,7 +5815,7 @@ index 77353c00006a2ea6db458493628836f6f7b24953..062092b3f430987d6138abfb89bf96e3
      // into an argument buffer.
      std::vector<uint32_t> mArgumentBufferRenderStageUsages;
 diff --git a/src/libANGLE/renderer/metal/ProgramExecutableMtl.mm b/src/libANGLE/renderer/metal/ProgramExecutableMtl.mm
-index 4435b2f958dc3b6caa48d4d09acf6e87effc2ff4..2d1bf0b7743d99579539b421366c6b8d7c3832b4 100644
+index 4435b2f958dc3b6caa48d4d09acf6e87effc2ff4..2edf508f30956bb5b32fb8155dd28c7326ff08bd 100644
 --- a/src/libANGLE/renderer/metal/ProgramExecutableMtl.mm
 +++ b/src/libANGLE/renderer/metal/ProgramExecutableMtl.mm
 @@ -143,8 +143,7 @@ angle::Result ConvertUniformBufferData(ContextMtl *contextMtl,
@@ -5690,16 +5869,17 @@ index 4435b2f958dc3b6caa48d4d09acf6e87effc2ff4..2d1bf0b7743d99579539b421366c6b8d
                                    mtl::kDefaultUniformsBindingIndex);
          }
  
-@@ -1230,7 +1227,7 @@ angle::Result ProgramExecutableMtl::updateUniformBuffers(
+@@ -1230,8 +1227,7 @@ angle::Result ProgramExecutableMtl::updateUniformBuffers(
  
      // This array is only used inside this function and its callees.
      ScopedAutoClearVector<uint32_t> scopeArrayClear(&mArgumentBufferRenderStageUsages);
 -    ScopedAutoClearVector<std::pair<mtl::BufferRef, size_t>> scopeArrayClear2(
-+    ScopedAutoClearVector<mtl::BufferSlice> scopeArrayClear2(
-         &mLegalizedOffsetedUniformBuffers);
+-        &mLegalizedOffsetedUniformBuffers);
++    ScopedAutoClearVector<mtl::BufferSlice> scopeArrayClear2(&mLegalizedOffsetedUniformBuffers);
      mArgumentBufferRenderStageUsages.resize(blocks.size());
      mLegalizedOffsetedUniformBuffers.resize(blocks.size());
-@@ -1277,7 +1274,7 @@ angle::Result ProgramExecutableMtl::updateUniformBuffers(
+ 
+@@ -1277,7 +1273,7 @@ angle::Result ProgramExecutableMtl::updateUniformBuffers(
              continue;
          }
  
@@ -5708,21 +5888,22 @@ index 4435b2f958dc3b6caa48d4d09acf6e87effc2ff4..2d1bf0b7743d99579539b421366c6b8d
                                  MTLResourceUsageRead, static_cast<MTLRenderStages>(stages));
      }
  
-@@ -1321,9 +1318,12 @@ angle::Result ProgramExecutableMtl::legalizeUniformBufferOffsets(ContextMtl *con
+@@ -1321,9 +1317,11 @@ angle::Result ProgramExecutableMtl::legalizeUniformBufferOffsets(ContextMtl *con
                  angle::Span<const uint8_t> source =
                      bufferMtl->getBufferDataReadOnly(context, conversion->initialSrcOffset());
  
-+                mtl::BufferSlice converted;
-                 ANGLE_TRY(ConvertUniformBufferData(
-                     context, conversionInfo, &conversion->data, source.data(), source.size(),
+-                ANGLE_TRY(ConvertUniformBufferData(
+-                    context, conversionInfo, &conversion->data, source.data(), source.size(),
 -                    &conversion->convertedBuffer, &conversion->convertedOffset));
-+                    &converted));
++                mtl::BufferSlice converted;
++                ANGLE_TRY(ConvertUniformBufferData(context, conversionInfo, &conversion->data,
++                                                   source.data(), source.size(), &converted));
 +                conversion->convertedBuffer = converted.buffer();
 +                conversion->convertedOffset = converted.offset();
  
                  conversion->dirty = false;
              }
-@@ -1334,17 +1334,19 @@ angle::Result ProgramExecutableMtl::legalizeUniformBufferOffsets(ContextMtl *con
+@@ -1334,17 +1332,19 @@ angle::Result ProgramExecutableMtl::legalizeUniformBufferOffsets(ContextMtl *con
                  (unsigned int)(dstOffsetSource / conversionInfo.stdSize());
              size_t bytesToOffset = numBlocksToOffset * conversionInfo.metalSize();
  
@@ -5747,7 +5928,7 @@ index 4435b2f958dc3b6caa48d4d09acf6e87effc2ff4..2d1bf0b7743d99579539b421366c6b8d
          }
      }
      return angle::Result::Continue;
-@@ -1379,8 +1381,8 @@ angle::Result ProgramExecutableMtl::bindUniformBuffersToDiscreteSlots(
+@@ -1379,8 +1379,8 @@ angle::Result ProgramExecutableMtl::bindUniformBuffersToDiscreteSlots(
              continue;
          }
  
@@ -5758,7 +5939,7 @@ index 4435b2f958dc3b6caa48d4d09acf6e87effc2ff4..2d1bf0b7743d99579539b421366c6b8d
          cmdEncoder->setBuffer(shaderType, mtlBuffer, offset, actualBufferIdx);
      }
      return angle::Result::Continue;
-@@ -1402,19 +1404,18 @@ angle::Result ProgramExecutableMtl::encodeUniformBuffersInfoArgumentBuffer(
+@@ -1402,19 +1402,18 @@ angle::Result ProgramExecutableMtl::encodeUniformBuffersInfoArgumentBuffer(
      ProgramArgumentBufferEncoderMtl &bufferEncoder =
          mCurrentShaderVariants[shaderType]->uboArgBufferEncoder;
  
@@ -5784,7 +5965,7 @@ index 4435b2f958dc3b6caa48d4d09acf6e87effc2ff4..2d1bf0b7743d99579539b421366c6b8d
  
      constexpr gl::ShaderMap<MTLRenderStages> kShaderStageMap = {
          {gl::ShaderType::Vertex, MTLRenderStageVertex},
-@@ -1443,18 +1444,18 @@ angle::Result ProgramExecutableMtl::encodeUniformBuffersInfoArgumentBuffer(
+@@ -1443,18 +1442,18 @@ angle::Result ProgramExecutableMtl::encodeUniformBuffersInfoArgumentBuffer(
              continue;
          }
  
@@ -5799,8 +5980,9 @@ index 4435b2f958dc3b6caa48d4d09acf6e87effc2ff4..2d1bf0b7743d99579539b421366c6b8d
  
      // Flush changes made by MTLArgumentEncoder to GPU.
 -    argumentBuffer->unmapAndFlushSubset(context, argumentBufferOffset,
-+    argumentBuffer.buffer()->unmapAndFlushSubset(context, argumentBuffer.offset(),
-                                                  bufferEncoder.metalArgBufferEncoder.get().encodedLength);
+-                                        bufferEncoder.metalArgBufferEncoder.get().encodedLength);
++    argumentBuffer.buffer()->unmapAndFlushSubset(
++        context, argumentBuffer.offset(), bufferEncoder.metalArgBufferEncoder.get().encodedLength);
  
 -    cmdEncoder->setBuffer(shaderType, argumentBuffer, argumentBufferOffset,
 +    cmdEncoder->setBuffer(shaderType, argumentBuffer.buffer(), argumentBuffer.offset(),
@@ -5973,7 +6155,7 @@ index e57fb5018b02aede76376ae68f119fe777d5d2c8..3b94445ccc9a70da8c2ad40e3bae4db0
          // Now we have to resize depth stencil buffers if required.
          ANGLE_TRY(ensureCompanionTexturesSizeCorrect(context));
 diff --git a/src/libANGLE/renderer/metal/TextureMtl.h b/src/libANGLE/renderer/metal/TextureMtl.h
-index 2dfd58b0cd9b26258624285b58715378e99a904e..df0c964195f59b39bf442f880e8c18a712a13203 100644
+index 46d29c7115ead9bdf10282a826d074d4797192ec..b3241c586994fcbc43abe221d3d21949d34f20ca 100644
 --- a/src/libANGLE/renderer/metal/TextureMtl.h
 +++ b/src/libANGLE/renderer/metal/TextureMtl.h
 @@ -312,7 +312,7 @@ class TextureMtl : public TextureImpl
@@ -5986,10 +6168,10 @@ index 2dfd58b0cd9b26258624285b58715378e99a904e..df0c964195f59b39bf442f880e8c18a7
                                                  int slice,
                                                  const MTLRegion &mtlArea,
 diff --git a/src/libANGLE/renderer/metal/TextureMtl.mm b/src/libANGLE/renderer/metal/TextureMtl.mm
-index 803f46d7eb9ff37289e86a65d85d9c973ffbb928..2fe89c8de7609443f5c941506a6b30bc7e14da42 100644
+index a61b624ce61a12f1fd014f20e7565ab9a5f6c592..0f40fc057239290d3e106d5d3d553006b5ddcc8a 100644
 --- a/src/libANGLE/renderer/metal/TextureMtl.mm
 +++ b/src/libANGLE/renderer/metal/TextureMtl.mm
-@@ -2209,14 +2209,10 @@ angle::Result TextureMtl::setSubImageImpl(const gl::Context *context,
+@@ -2234,14 +2234,10 @@ angle::Result TextureMtl::setSubImageImpl(const gl::Context *context,
      GLuint sourceRowPitch   = 0;
      GLuint sourceDepthPitch = 0;
      GLuint sourceSkipBytes  = 0;
@@ -6008,7 +6190,7 @@ index 803f46d7eb9ff37289e86a65d85d9c973ffbb928..2fe89c8de7609443f5c941506a6b30bc
      // Get corresponding source data's ANGLE format
      angle::FormatID srcAngleFormatId;
 diff --git a/src/libANGLE/renderer/metal/VertexArrayMtl.h b/src/libANGLE/renderer/metal/VertexArrayMtl.h
-index b7981ba547b0c01c3a9ae2cc23f6999ceeaa6d0f..8992e9a07cbf668ff5ef7e1c3cec61343400fa47 100644
+index b7981ba547b0c01c3a9ae2cc23f6999ceeaa6d0f..690edea4b97bba054d7f501c14f308824a1384ce 100644
 --- a/src/libANGLE/renderer/metal/VertexArrayMtl.h
 +++ b/src/libANGLE/renderer/metal/VertexArrayMtl.h
 @@ -58,8 +58,7 @@ class VertexArrayMtl : public VertexArrayImpl
@@ -6028,18 +6210,18 @@ index b7981ba547b0c01c3a9ae2cc23f6999ceeaa6d0f..8992e9a07cbf668ff5ef7e1c3cec6134
 -                                     mtl::BufferRef *idxBufferOut,
 -                                     size_t *idxBufferOffsetOut);
 +                                     mtl::BufferSlice *outIdxBuffer);
-    angle::Result streamIndexBufferFromClient(const gl::Context *glContext,
-                                              gl::DrawElementsType indexType,
-                                              size_t indexCount,
-                                              const void *sourcePointer,
+     angle::Result streamIndexBufferFromClient(const gl::Context *glContext,
+                                               gl::DrawElementsType indexType,
+                                               size_t indexCount,
+                                               const void *sourcePointer,
 -                                              mtl::BufferRef *idxBufferOut,
 -                                              size_t *idxBufferOffsetOut);
-+                                             mtl::BufferSlice *outIdxBuffer);
++                                              mtl::BufferSlice *outIdxBuffer);
  
      angle::Result convertIndexBufferGPU(const gl::Context *glContext,
                                          gl::DrawElementsType indexType,
 diff --git a/src/libANGLE/renderer/metal/VertexArrayMtl.mm b/src/libANGLE/renderer/metal/VertexArrayMtl.mm
-index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60ab2aa61cc 100644
+index a0e48bffb01fb3d122f903618f7ec208a682e9ad..1b920bde913389f44be0d98917716d18eeae4d2b 100644
 --- a/src/libANGLE/renderer/metal/VertexArrayMtl.mm
 +++ b/src/libANGLE/renderer/metal/VertexArrayMtl.mm
 @@ -43,10 +43,10 @@ angle::Result StreamVertexData(ContextMtl *contextMtl,
@@ -6057,7 +6239,7 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
      dst += destOffset;
      vertexLoadFunction(sourceData, stride, vertexCount, dst);
  
-@@ -86,14 +86,14 @@ angle::Result StreamIndexData(ContextMtl *contextMtl,
+@@ -86,14 +86,13 @@ angle::Result StreamIndexData(ContextMtl *contextMtl,
                                gl::DrawElementsType indexType,
                                size_t indexCount,
                                bool primitiveRestartEnabled,
@@ -6068,14 +6250,14 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
      dynamicBuffer->releaseInFlightBuffers(contextMtl);
      const size_t amount = GetIndexConvertedBufferSize(indexType, indexCount);
      GLubyte *dst        = nullptr;
-+    mtl::BufferSlice buffer;
-     ANGLE_TRY(
+-    ANGLE_TRY(
 -        dynamicBuffer->allocate(contextMtl, amount, &dst, bufferOut, bufferOffsetOut, nullptr));
-+        dynamicBuffer->allocate(contextMtl, amount, &dst, &buffer));
++    mtl::BufferSlice buffer;
++    ANGLE_TRY(dynamicBuffer->allocate(contextMtl, amount, &dst, &buffer));
  
      if (indexType == gl::DrawElementsType::UnsignedByte)
      {
-@@ -130,6 +130,7 @@ angle::Result StreamIndexData(ContextMtl *contextMtl,
+@@ -130,6 +129,7 @@ angle::Result StreamIndexData(ContextMtl *contextMtl,
      }
      ANGLE_TRY(dynamicBuffer->commit(contextMtl));
  
@@ -6083,7 +6265,7 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
      return angle::Result::Continue;
  }
  
-@@ -701,8 +702,7 @@ angle::Result VertexArrayMtl::getIndexBuffer(const gl::Context *context,
+@@ -701,8 +701,7 @@ angle::Result VertexArrayMtl::getIndexBuffer(const gl::Context *context,
                                               gl::DrawElementsType type,
                                               size_t count,
                                               const void *indices,
@@ -6093,7 +6275,7 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
                                               gl::DrawElementsType *indexTypeOut)
  {
      const gl::Buffer *glElementArrayBuffer = getElementArrayBuffer();
-@@ -710,23 +710,21 @@ angle::Result VertexArrayMtl::getIndexBuffer(const gl::Context *context,
+@@ -710,23 +709,21 @@ angle::Result VertexArrayMtl::getIndexBuffer(const gl::Context *context,
      size_t convertedOffset = reinterpret_cast<size_t>(indices);
      if (!glElementArrayBuffer)
      {
@@ -6121,7 +6303,7 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
          }
      }
  
-@@ -847,8 +845,7 @@ std::vector<DrawCommandRange> VertexArrayMtl::getDrawIndices(const gl::Context *
+@@ -847,8 +844,7 @@ std::vector<DrawCommandRange> VertexArrayMtl::getDrawIndices(const gl::Context *
  angle::Result VertexArrayMtl::convertIndexBuffer(const gl::Context *glContext,
                                                   gl::DrawElementsType indexType,
                                                   size_t offset,
@@ -6131,18 +6313,18 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
  {
      size_t offsetModulo = offset % mtl::kIndexBufferOffsetAlignment;
      ASSERT(offsetModulo != 0 || indexType == gl::DrawElementsType::UnsignedByte);
-@@ -871,8 +868,8 @@ angle::Result VertexArrayMtl::convertIndexBuffer(const gl::Context *glContext,
+@@ -871,8 +867,8 @@ angle::Result VertexArrayMtl::convertIndexBuffer(const gl::Context *glContext,
      if (!conversion->dirty)
      {
          // reuse the converted buffer
 -        *idxBufferOut       = conversion->convertedBuffer;
 -        *idxBufferOffsetOut = conversion->convertedOffset + alignedOffset;
 +        size_t resultOffset = conversion->convertedOffset + alignedOffset;
-+        *outIdxBuffer = mtl::BufferSlice(conversion->convertedBuffer).subslice(resultOffset);
++        *outIdxBuffer       = mtl::BufferSlice(conversion->convertedBuffer).subslice(resultOffset);
          return angle::Result::Continue;
      }
  
-@@ -881,10 +878,14 @@ angle::Result VertexArrayMtl::convertIndexBuffer(const gl::Context *glContext,
+@@ -881,10 +877,14 @@ angle::Result VertexArrayMtl::convertIndexBuffer(const gl::Context *glContext,
           contextMtl->getRenderCommandEncoder()))
      {
          // We shouldn't use GPU to convert when we are in a middle of a render pass.
@@ -6154,22 +6336,22 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
 +                                  &streamed));
 +        conversion->convertedBuffer = streamed.buffer();
 +        conversion->convertedOffset = streamed.offset();
-+        conversion->dirty = false;
++        conversion->dirty           = false;
      }
      else
      {
-@@ -892,8 +893,8 @@ angle::Result VertexArrayMtl::convertIndexBuffer(const gl::Context *glContext,
+@@ -892,8 +892,8 @@ angle::Result VertexArrayMtl::convertIndexBuffer(const gl::Context *glContext,
                                          conversion));
      }
      // Calculate ranges for prim restart simple types.
 -    *idxBufferOut       = conversion->convertedBuffer;
 -    *idxBufferOffsetOut = conversion->convertedOffset + alignedOffset;
 +    size_t resultOffset = conversion->convertedOffset + alignedOffset;
-+    *outIdxBuffer = mtl::BufferSlice(conversion->convertedBuffer).subslice(resultOffset);
++    *outIdxBuffer       = mtl::BufferSlice(conversion->convertedBuffer).subslice(resultOffset);
  
      return angle::Result::Continue;
  }
-@@ -913,8 +914,10 @@ angle::Result VertexArrayMtl::convertIndexBufferGPU(const gl::Context *glContext
+@@ -913,8 +913,10 @@ angle::Result VertexArrayMtl::convertIndexBufferGPU(const gl::Context *glContext
      // Allocate new buffer, save it in conversion struct so that we can reuse it when the content
      // of the original buffer is not dirty.
      conversion->data.releaseInFlightBuffers(contextMtl);
@@ -6182,7 +6364,7 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
  
      // Do the conversion on GPU.
      ANGLE_TRY(display->getUtils().convertIndexBufferGPU(
-@@ -935,16 +938,14 @@ angle::Result VertexArrayMtl::streamIndexBufferFromClient(const gl::Context *con
+@@ -935,16 +937,14 @@ angle::Result VertexArrayMtl::streamIndexBufferFromClient(const gl::Context *con
                                                            gl::DrawElementsType indexType,
                                                            size_t indexCount,
                                                            const void *sourcePointer,
@@ -6201,7 +6383,7 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
  
      return angle::Result::Continue;
  }
-@@ -1079,26 +1080,36 @@ angle::Result VertexArrayMtl::convertVertexBufferGPU(const gl::Context *glContex
+@@ -1079,26 +1079,36 @@ angle::Result VertexArrayMtl::convertVertexBufferGPU(const gl::Context *glContex
  {
      ContextMtl *contextMtl = mtl::GetImpl(glContext);
  
@@ -6210,8 +6392,8 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
 -    ANGLE_TRY(conversion->data.allocate(contextMtl, numVertices * targetStride, nullptr, &newBuffer,
 -                                        &newBufferOffset));
 +    mtl::BufferSlice newBuffer;
-+    ANGLE_TRY(conversion->data.allocate(contextMtl, numVertices * targetStride, nullptr,
-+                                        &newBuffer));
++    ANGLE_TRY(
++        conversion->data.allocate(contextMtl, numVertices * targetStride, nullptr, &newBuffer));
 +
 +    GLintptr bindingOffset = binding.getOffset();
  
@@ -6248,7 +6430,7 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
      params.dstStride            = targetStride;
      params.dstComponents        = convertedFormat.actualAngleFormat().channelCount;
  
-@@ -1120,8 +1131,8 @@ angle::Result VertexArrayMtl::convertVertexBufferGPU(const gl::Context *glContex
+@@ -1120,8 +1130,8 @@ angle::Result VertexArrayMtl::convertVertexBufferGPU(const gl::Context *glContex
  
      ANGLE_TRY(conversion->data.commit(contextMtl));
  
@@ -6260,7 +6442,7 @@ index a0e48bffb01fb3d122f903618f7ec208a682e9ad..3ff8b0a28a392e27e93a1cc5b89fb60a
      return angle::Result::Continue;
  }
 diff --git a/src/libANGLE/renderer/metal/gen_mtl_format_table.py b/src/libANGLE/renderer/metal/gen_mtl_format_table.py
-index 46c1605f23684116449773bcf062c97a440ab8f9..ac7c5b59ac812c9dadf4b17541af8edb48786844 100644
+index 46c1605f23684116449773bcf062c97a440ab8f9..b7590f484d8f57b5e650939c0a6d1ef3fb2b67a4 100644
 --- a/src/libANGLE/renderer/metal/gen_mtl_format_table.py
 +++ b/src/libANGLE/renderer/metal/gen_mtl_format_table.py
 @@ -98,7 +98,10 @@ void FormatTable::initNativeFormatCapsAutogen(const DisplayMtl *display)
@@ -6275,7 +6457,7 @@ index 46c1605f23684116449773bcf062c97a440ab8f9..ac7c5b59ac812c9dadf4b17541af8edb
  }}
  
  }}  // namespace mtl
-@@ -220,6 +223,64 @@ def maybe_add_deprecation_warning_supression(is_deprecated_pixel_format,
+@@ -220,6 +223,66 @@ def maybe_add_deprecation_warning_supression(is_deprecated_pixel_format,
  def is_format_deprecated(pixel_format):
      return 'MTLPixelFormatPVRTC_RGB' in pixel_format
  
@@ -6309,7 +6491,9 @@ index 46c1605f23684116449773bcf062c97a440ab8f9..ac7c5b59ac812c9dadf4b17541af8edb
 +        'Depth32Float': (0, 4, 4),
 +        'Depth16Unorm': (0, 2, 2),
 +        'Stencil8': (0, 1, 1),
-+        'Depth32Float_Stencil8': (0, 5, 4), # "When using this format, some Metal device objects allocate 64-bits per pixel."
++        'Depth32Float_Stencil8':
++            (0, 5, 4
++            ),  # "When using this format, some Metal device objects allocate 64-bits per pixel."
 +        'Depth24Unorm_Stencil8': (0, 4, 4),
 +        'BGR10A2Unorm': (4, 4, 4),
 +        'RGB10A2Unorm': (4, 4, 4),
@@ -6340,7 +6524,7 @@ index 46c1605f23684116449773bcf062c97a440ab8f9..ac7c5b59ac812c9dadf4b17541af8edb
  # NOTE(hqle): This is a modified version of the get_vertex_copy_function() function in
  # src/libANGLE/renderer/angle_format.py
  # - Return value is a tuple {copy_function, default_alpha_value, have_same_gl_type}.
-@@ -720,22 +781,36 @@ def gen_mtl_format_caps_init_string(map_image):
+@@ -720,22 +783,36 @@ def gen_mtl_format_caps_init_string(map_image):
      ios_specific_caps = map_image['caps_ios_specific']
      caps_init_str = ''
  
@@ -6387,7 +6571,7 @@ index 46c1605f23684116449773bcf062c97a440ab8f9..ac7c5b59ac812c9dadf4b17541af8edb
  
              # Add deprecation warnings around MTLPixelFormatPVRTC_* enums.
              format_is_deprecated = is_format_deprecated(mtl_format)
-@@ -743,9 +818,21 @@ def gen_mtl_format_caps_init_string(map_image):
+@@ -743,9 +820,21 @@ def gen_mtl_format_caps_init_string(map_image):
                  format_is_deprecated, section_contains_deprecated_format)
              section_contains_deprecated_format = format_is_deprecated
  
@@ -9452,10 +9636,10 @@ index 64e0be79f52b70b35f107080424490955c0e0e4b..58904113fd2cc3bf1a0aefc0d73c3364
  
  void FormatTable::adjustFormatCapsForDevice(const mtl::ContextDevice &device,
 diff --git a/src/libANGLE/renderer/metal/mtl_render_utils.mm b/src/libANGLE/renderer/metal/mtl_render_utils.mm
-index 3ce2b88976205b1fb6ae526e685a1cab6a7d6b3e..8a84c8e6f513b3b8b9f26e3e3323b572ca2d8101 100644
+index 3ce2b88976205b1fb6ae526e685a1cab6a7d6b3e..0012a895dc60686d7ea36fc4a5a4c42ac3925e5b 100644
 --- a/src/libANGLE/renderer/metal/mtl_render_utils.mm
 +++ b/src/libANGLE/renderer/metal/mtl_render_utils.mm
-@@ -533,6 +533,25 @@ RenderPipelineDesc GetComputingVertexShaderOnlyRenderPipelineDesc(RenderCommandE
+@@ -533,6 +533,27 @@ RenderPipelineDesc GetComputingVertexShaderOnlyRenderPipelineDesc(RenderCommandE
      return pipelineDesc;
  }
  
@@ -9472,7 +9656,9 @@ index 3ce2b88976205b1fb6ae526e685a1cab6a7d6b3e..8a84c8e6f513b3b8b9f26e3e3323b572
 +        size_t numGroups      = (numThreads + threadgroupWidth - 1) / threadgroupWidth;
 +        size_t roundedThreads = numGroups * threadgroupWidth;
 +        if (roundedThreads <= std::numeric_limits<uint32_t>::max())
++        {
 +            break;
++        }
 +        threadgroupWidth >>= 1;
 +    }
 +    return threadgroupWidth;
@@ -9481,7 +9667,7 @@ index 3ce2b88976205b1fb6ae526e685a1cab6a7d6b3e..8a84c8e6f513b3b8b9f26e3e3323b572
  // Dispatch compute using 3D grid
  void DispatchCompute(ContextMtl *contextMtl,
                       ComputeCommandEncoder *encoder,
-@@ -560,8 +579,13 @@ void DispatchCompute(ContextMtl *contextMtl,
+@@ -560,8 +581,13 @@ void DispatchCompute(ContextMtl *contextMtl,
                       id<MTLComputePipelineState> pipelineState,
                       size_t numThreads)
  {
@@ -9497,7 +9683,7 @@ index 3ce2b88976205b1fb6ae526e685a1cab6a7d6b3e..8a84c8e6f513b3b8b9f26e3e3323b572
  
      if (contextMtl->getDisplay()->getFeatures().hasNonUniformDispatch.enabled)
      {
-@@ -570,7 +594,7 @@ void DispatchCompute(ContextMtl *contextMtl,
+@@ -570,7 +596,7 @@ void DispatchCompute(ContextMtl *contextMtl,
      }
      else
      {
@@ -9506,7 +9692,7 @@ index 3ce2b88976205b1fb6ae526e685a1cab6a7d6b3e..8a84c8e6f513b3b8b9f26e3e3323b572
          cmdEncoder->dispatch(groups, threadsPerThreadgroup);
      }
  }
-@@ -640,8 +664,9 @@ void SetupCommonBlitWithDrawStates(const gl::Context *context,
+@@ -640,8 +666,9 @@ void SetupCommonBlitWithDrawStates(const gl::Context *context,
          GetViewport(params.dstRect, params.dstTextureSize.height, params.dstFlipY);
      MTLScissorRect scissorRectMtl =
          GetScissorRect(params.dstScissorRect, params.dstTextureSize.height, params.dstFlipY);
@@ -9518,7 +9704,7 @@ index 3ce2b88976205b1fb6ae526e685a1cab6a7d6b3e..8a84c8e6f513b3b8b9f26e3e3323b572
  
      if (params.src)
      {
-@@ -1118,8 +1143,8 @@ angle::Result ClearUtils::setupClearWithDraw(const gl::Context *context,
+@@ -1118,8 +1145,8 @@ angle::Result ClearUtils::setupClearWithDraw(const gl::Context *context,
  
      scissorRect = GetScissorRect(params.clearArea, params.dstTextureSize.height, params.flipY);
  
@@ -9529,7 +9715,7 @@ index 3ce2b88976205b1fb6ae526e685a1cab6a7d6b3e..8a84c8e6f513b3b8b9f26e3e3323b572
  
      // uniform
      ClearParamsUniform uniformParams;
-@@ -2489,8 +2514,8 @@ angle::Result CopyPixelsUtils::unpackPixelsWithDraw(const gl::Context *context,
+@@ -2489,8 +2516,8 @@ angle::Result CopyPixelsUtils::unpackPixelsWithDraw(const gl::Context *context,
  
      scissorRect = GetScissorRect(rect);
  
@@ -9615,7 +9801,7 @@ index 3eaa9a64e79af26faa786102ece3f0bdea84d090..7ecb6db9d993df8985fcb6f701dfe7ca
 +
 +#endif /* LIBANGLE_RENDERER_METAL_RESOURCE_SPI_H_ */
 diff --git a/src/libANGLE/renderer/metal/mtl_resources.h b/src/libANGLE/renderer/metal/mtl_resources.h
-index bbae528911e83392796cd3e4f3d755847e8f8c4e..54f96b9906a2923db5c2f545346e9d8551fb14da 100644
+index bbae528911e83392796cd3e4f3d755847e8f8c4e..4be593e59d56e075a29157980776c25000c99c83 100644
 --- a/src/libANGLE/renderer/metal/mtl_resources.h
 +++ b/src/libANGLE/renderer/metal/mtl_resources.h
 @@ -45,6 +45,33 @@ using TextureWeakRef = std::weak_ptr<Texture>;
@@ -9625,7 +9811,7 @@ index bbae528911e83392796cd3e4f3d755847e8f8c4e..54f96b9906a2923db5c2f545346e9d85
 +class BufferSlice
 +{
 +  public:
-+    BufferSlice() = default;
++    BufferSlice()                               = default;
 +    BufferSlice(const BufferSlice &)            = default;
 +    BufferSlice(BufferSlice &&)                 = default;
 +    BufferSlice &operator=(const BufferSlice &) = default;
@@ -9966,6 +10152,254 @@ index 0000000000000000000000000000000000000000..23e8295bcc16412d3aef3fc8e85748fa
 +
 +if __name__ == '__main__':
 +    sys.exit(main())
+diff --git a/src/libANGLE/renderer/metal/shaders/mtl_internal_shaders_autogen.metal b/src/libANGLE/renderer/metal/shaders/mtl_internal_shaders_autogen.metal
+index d00029360435d59f1ac47a77ac6ba8594dfa5d8c..1b129c3b656151530b14474ebcfee963b5178ca1 100644
+--- a/src/libANGLE/renderer/metal/shaders/mtl_internal_shaders_autogen.metal
++++ b/src/libANGLE/renderer/metal/shaders/mtl_internal_shaders_autogen.metal
+@@ -2549,10 +2549,10 @@ constant bool outIndexBufferIsUint16 = (((fixIndexBufferKey >> 2U) & 0x03U) == 2
+ constant bool outIndexBufferIsUint32 = (((fixIndexBufferKey >> 2U) & 0x03U) == 3U);
+ constant bool doPrimRestart = (fixIndexBufferKey & 0x00100U);
+ constant uint fixIndexBufferMode = (fixIndexBufferKey >> 4U) & 0x0FU;
++constant uint restartIndex = indexBufferIsUint16 ? 0xFFFF : 0xFFFFFFFF;
+ static inline uint readIdx(
+                            const device ushort *indexBufferUint16,
+                            const device uint *indexBufferUint32,
+-                           const uint restartIndex,
+                            const uint indexCount,
+                            uint idx,
+                            thread bool &foundRestart,
+@@ -2588,7 +2588,6 @@ static inline void outputPrimitive(
+                                    const device uint *indexBufferUint32,
+                                    device ushort *outIndexBufferUint16,
+                                    device uint *outIndexBufferUint32,
+-                                   const uint restartIndex,
+                                    const uint indexCount,
+                                    thread uint &baseIndex,
+                                    uint onIndex,
+@@ -2602,7 +2601,7 @@ static inline void outputPrimitive(
+     {
+         case 0x00U:
+         {
+-            auto tmpIndex = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex, foundRestart, indexThatRestartedFirst);
+             if(foundRestart)
+             {
+                 baseIndex = indexThatRestartedFirst + 1;
+@@ -2613,8 +2612,8 @@ static inline void outputPrimitive(
+         break;
+         case 0x01U:
+         {
+-            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
+             if(foundRestart)
+             {
+                 baseIndex = indexThatRestartedFirst + 1;
+@@ -2635,8 +2634,8 @@ static inline void outputPrimitive(
+         break;
+         case 0x03U:
+         {
+-            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
+             if(foundRestart)
+             {
+                 baseIndex = indexThatRestartedFirst + 1;
+@@ -2656,9 +2655,9 @@ static inline void outputPrimitive(
+         break;
+         case 0x04U:
+         {
+-            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex2 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 2, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex2 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 2, foundRestart, indexThatRestartedFirst);
+             if(foundRestart)
+             {
+                 baseIndex = indexThatRestartedFirst + 1;
+@@ -2682,9 +2681,9 @@ static inline void outputPrimitive(
+         case 0x05U:
+         {
+             uint isOdd = ((onIndex - baseIndex) & 1);
+-            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 0 + isOdd, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 1 - isOdd, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex2 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 2, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 0 + isOdd, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 1 - isOdd, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex2 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 2, foundRestart, indexThatRestartedFirst);
+             if(foundRestart)
+             {
+                 baseIndex = indexThatRestartedFirst + 1;
+@@ -2726,7 +2725,6 @@ kernel void fixIndexBuffer(
+                            constant uint &primCount [[ buffer(3) ]],
+                            uint prim [[thread_position_in_grid]])
+ {
+-    constexpr uint restartIndex = 0xFFFFFFFF;
+     uint baseIndex = 0;
+     uint onIndex = onIndex;
+     uint onOutIndex = onOutIndex;
+@@ -2755,7 +2753,7 @@ kernel void fixIndexBuffer(
+                 onOutIndex = prim * 3;
+                 break;
+         }
+-        outputPrimitive(indexBufferUint16, indexBufferUint32, outIndexBufferUint16, outIndexBufferUint32, restartIndex, indexCount, baseIndex, onIndex, onOutIndex);
++        outputPrimitive(indexBufferUint16, indexBufferUint32, outIndexBufferUint16, outIndexBufferUint32, indexCount, baseIndex, onIndex, onOutIndex);
+     }
+ }
+ static inline void generatePrimitive(
+diff --git a/src/libANGLE/renderer/metal/shaders/mtl_internal_shaders_src_autogen.h b/src/libANGLE/renderer/metal/shaders/mtl_internal_shaders_src_autogen.h
+index ffd87b11dcaffc8dfad6d054ca8bf7e10911339a..a8a3127eef85c54678252dd86fb9fe640c8335d3 100644
+--- a/src/libANGLE/renderer/metal/shaders/mtl_internal_shaders_src_autogen.h
++++ b/src/libANGLE/renderer/metal/shaders/mtl_internal_shaders_src_autogen.h
+@@ -2550,10 +2550,10 @@ constant bool outIndexBufferIsUint16 = (((fixIndexBufferKey >> 2U) & 0x03U) == 2
+ constant bool outIndexBufferIsUint32 = (((fixIndexBufferKey >> 2U) & 0x03U) == 3U);
+ constant bool doPrimRestart = (fixIndexBufferKey & 0x00100U);
+ constant uint fixIndexBufferMode = (fixIndexBufferKey >> 4U) & 0x0FU;
++constant uint restartIndex = indexBufferIsUint16 ? 0xFFFF : 0xFFFFFFFF;
+ static inline uint readIdx(
+                            const device ushort *indexBufferUint16,
+                            const device uint *indexBufferUint32,
+-                           const uint restartIndex,
+                            const uint indexCount,
+                            uint idx,
+                            thread bool &foundRestart,
+@@ -2589,7 +2589,6 @@ static inline void outputPrimitive(
+                                    const device uint *indexBufferUint32,
+                                    device ushort *outIndexBufferUint16,
+                                    device uint *outIndexBufferUint32,
+-                                   const uint restartIndex,
+                                    const uint indexCount,
+                                    thread uint &baseIndex,
+                                    uint onIndex,
+@@ -2603,7 +2602,7 @@ static inline void outputPrimitive(
+     {
+         case 0x00U:
+         {
+-            auto tmpIndex = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex, foundRestart, indexThatRestartedFirst);
+             if(foundRestart)
+             {
+                 baseIndex = indexThatRestartedFirst + 1;
+@@ -2614,8 +2613,8 @@ static inline void outputPrimitive(
+         break;
+         case 0x01U:
+         {
+-            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
+             if(foundRestart)
+             {
+                 baseIndex = indexThatRestartedFirst + 1;
+@@ -2636,8 +2635,8 @@ static inline void outputPrimitive(
+         break;
+         case 0x03U:
+         {
+-            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
+             if(foundRestart)
+             {
+                 baseIndex = indexThatRestartedFirst + 1;
+@@ -2657,9 +2656,9 @@ static inline void outputPrimitive(
+         break;
+         case 0x04U:
+         {
+-            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex2 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 2, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 0, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 1, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex2 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 2, foundRestart, indexThatRestartedFirst);
+             if(foundRestart)
+             {
+                 baseIndex = indexThatRestartedFirst + 1;
+@@ -2683,9 +2682,9 @@ static inline void outputPrimitive(
+         case 0x05U:
+         {
+             uint isOdd = ((onIndex - baseIndex) & 1);
+-            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 0 + isOdd, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 1 - isOdd, foundRestart, indexThatRestartedFirst);
+-            auto tmpIndex2 = readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, onIndex + 2, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex0 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 0 + isOdd, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex1 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 1 - isOdd, foundRestart, indexThatRestartedFirst);
++            auto tmpIndex2 = readIdx(indexBufferUint16, indexBufferUint32, indexCount, onIndex + 2, foundRestart, indexThatRestartedFirst);
+             if(foundRestart)
+             {
+                 baseIndex = indexThatRestartedFirst + 1;
+@@ -2727,7 +2726,6 @@ kernel void fixIndexBuffer(
+                            constant uint &primCount [[ buffer(3) ]],
+                            uint prim [[thread_position_in_grid]])
+ {
+-    constexpr uint restartIndex = 0xFFFFFFFF;
+     uint baseIndex = 0;
+     uint onIndex = onIndex;
+     uint onOutIndex = onOutIndex;
+@@ -2756,7 +2754,7 @@ kernel void fixIndexBuffer(
+                 onOutIndex = prim * 3;
+                 break;
+         }
+-        outputPrimitive(indexBufferUint16, indexBufferUint32, outIndexBufferUint16, outIndexBufferUint32, restartIndex, indexCount, baseIndex, onIndex, onOutIndex);
++        outputPrimitive(indexBufferUint16, indexBufferUint32, outIndexBufferUint16, outIndexBufferUint32, indexCount, baseIndex, onIndex, onOutIndex);
+     }
+ }
+ static inline void generatePrimitive(
+diff --git a/src/libANGLE/renderer/metal/shaders/rewrite_indices.metal b/src/libANGLE/renderer/metal/shaders/rewrite_indices.metal
+index 10f940566c1f049218486f2a60e785c34900f080..62d5d0c654fecac08f55d19a59605e7a1fa358c9 100644
+--- a/src/libANGLE/renderer/metal/shaders/rewrite_indices.metal
++++ b/src/libANGLE/renderer/metal/shaders/rewrite_indices.metal
+@@ -18,12 +18,12 @@ constant bool outIndexBufferIsUint16 = (((fixIndexBufferKey >> MtlFixIndexBuffer
+ constant bool outIndexBufferIsUint32 = (((fixIndexBufferKey >> MtlFixIndexBufferKeyOutShift) & MtlFixIndexBufferKeyTypeMask) == MtlFixIndexBufferKeyUint32);
+ constant bool doPrimRestart = (fixIndexBufferKey & MtlFixIndexBufferKeyPrimRestart);
+ constant uint fixIndexBufferMode = (fixIndexBufferKey >> MtlFixIndexBufferKeyModeShift) & MtlFixIndexBufferKeyModeMask;
++constant uint restartIndex = indexBufferIsUint16 ? 0xFFFF : 0xFFFFFFFF;
+ 
+ 
+ static inline uint readIdx(
+                            const device ushort *indexBufferUint16,
+                            const device uint   *indexBufferUint32,
+-                           const uint restartIndex,
+                            const uint indexCount,
+                            uint idx,
+                            thread bool &foundRestart,
+@@ -60,7 +60,6 @@ static inline void outputPrimitive(
+                                    const device uint   *indexBufferUint32,
+                                    device ushort *outIndexBufferUint16,
+                                    device uint   *outIndexBufferUint32,
+-                                   const uint restartIndex,
+                                    const uint indexCount,
+                                    thread uint &baseIndex,
+                                    uint onIndex,
+@@ -70,7 +69,7 @@ static inline void outputPrimitive(
+     if(baseIndex > onIndex) return; // skipped indices while processing
+     bool foundRestart = false;
+     uint indexThatRestartedFirst = 0;
+-#define READ_IDX(_idx) readIdx(indexBufferUint16, indexBufferUint32, restartIndex, indexCount, _idx, foundRestart, indexThatRestartedFirst)
++#define READ_IDX(_idx) readIdx(indexBufferUint16, indexBufferUint32, indexCount, _idx, foundRestart, indexThatRestartedFirst)
+ #define WRITE_IDX(_idx, _val) \
+ ({ \
+     if(outIndexBufferIsUint16) \
+@@ -222,7 +221,6 @@ kernel void fixIndexBuffer(
+                            constant uint &primCount [[ buffer(3) ]],
+                            uint prim [[thread_position_in_grid]])
+ {
+-    constexpr uint restartIndex = 0xFFFFFFFF; // unused
+     uint baseIndex = 0;
+     uint onIndex = onIndex;
+     uint onOutIndex = onOutIndex;
+@@ -251,7 +249,7 @@ kernel void fixIndexBuffer(
+                 onOutIndex = prim * 3;
+                 break;
+         }
+-        outputPrimitive(indexBufferUint16, indexBufferUint32, outIndexBufferUint16, outIndexBufferUint32, restartIndex, indexCount, baseIndex, onIndex, onOutIndex);
++        outputPrimitive(indexBufferUint16, indexBufferUint32, outIndexBufferUint16, outIndexBufferUint32, indexCount, baseIndex, onIndex, onOutIndex);
+     }
+ }
+ 
 diff --git a/src/libANGLE/renderer/null/FramebufferNULL.cpp b/src/libANGLE/renderer/null/FramebufferNULL.cpp
 index e44faadbea6682d0ac88221ba6b871d38ab6f127..31d220267cb3f833b579ac888f742190134b884f 100644
 --- a/src/libANGLE/renderer/null/FramebufferNULL.cpp
@@ -10042,7 +10476,7 @@ index cab5e56ae928431771ea1ffd8e2db92121d84798..7520ee4ef485a0037fb27c15b2218d96
              {
                  case BuildType::BUILD:
 diff --git a/src/libANGLE/renderer/vulkan/ContextVk.cpp b/src/libANGLE/renderer/vulkan/ContextVk.cpp
-index 19b61caf1b3cc7ad6e9fbaf80e77be7cf38e62ef..0c7bdfe6a73ec4c57017ad13f2f620608ccae0b7 100644
+index e20e327ba201cc4dbfc4df94d4188f942cf89640..3f6a8152c1fd63d69ebc3c893f18eed993e90ce5 100644
 --- a/src/libANGLE/renderer/vulkan/ContextVk.cpp
 +++ b/src/libANGLE/renderer/vulkan/ContextVk.cpp
 @@ -6010,6 +6010,10 @@ angle::Result ContextVk::syncState(const gl::Context *context,
@@ -10057,10 +10491,10 @@ index 19b61caf1b3cc7ad6e9fbaf80e77be7cf38e62ef..0c7bdfe6a73ec4c57017ad13f2f62060
                              UNREACHABLE();
                      }
 diff --git a/src/libANGLE/renderer/vulkan/vk_format_utils.cpp b/src/libANGLE/renderer/vulkan/vk_format_utils.cpp
-index 1525f198f0bab9c503826ce462c345c5e531ed79..e975e956ffc6105f218df52ec37283cf47c961b1 100644
+index 75504229299e8525666ab0cc277e8d6e27a6815b..44cd99263d46ac67288307162227632322846e0c 100644
 --- a/src/libANGLE/renderer/vulkan/vk_format_utils.cpp
 +++ b/src/libANGLE/renderer/vulkan/vk_format_utils.cpp
-@@ -350,7 +350,7 @@ angle::FormatID ExternalFormatTable::getOrAllocExternalFormatID(uint64_t externa
+@@ -340,7 +340,7 @@ angle::FormatID ExternalFormatTable::getOrAllocExternalFormatID(uint64_t externa
  
      if (mExternalYuvFormats.size() >= kMaxExternalFormatCountSupported)
      {
@@ -10070,10 +10504,10 @@ index 1525f198f0bab9c503826ce462c345c5e531ed79..e975e956ffc6105f218df52ec37283cf
          ASSERT(false);
          return angle::FormatID::NONE;
 diff --git a/src/libANGLE/renderer/vulkan/vk_helpers.cpp b/src/libANGLE/renderer/vulkan/vk_helpers.cpp
-index 42588e7de19c4ce00f41e2d5e6940a3b5a575448..ba3ed7e6eb21eaef6902cb089dfab454ae2677f1 100644
+index 19af57016dda9c67f345a78272c23b57347b59fe..22f6a13ff884cdc45e9f4c04dd49a5b2c217dffa 100644
 --- a/src/libANGLE/renderer/vulkan/vk_helpers.cpp
 +++ b/src/libANGLE/renderer/vulkan/vk_helpers.cpp
-@@ -8896,18 +8896,9 @@ angle::Result ImageHelper::calculateBufferInfo(ContextVk *contextVk,
+@@ -8902,18 +8902,9 @@ angle::Result ImageHelper::calculateBufferInfo(ContextVk *contextVk,
          return angle::Result::Continue;
      }
  
@@ -10094,7 +10528,7 @@ index 42588e7de19c4ce00f41e2d5e6940a3b5a575448..ba3ed7e6eb21eaef6902cb089dfab454
      return angle::Result::Continue;
  }
  
-@@ -10952,11 +10943,8 @@ angle::Result ImageHelper::GetReadPixelsParams(ContextVk *contextVk,
+@@ -10958,11 +10949,8 @@ angle::Result ImageHelper::GetReadPixelsParams(ContextVk *contextVk,
      const gl::InternalFormat &sizedFormatInfo = gl::GetInternalFormatInfo(format, type);
  
      GLuint outputPitch = 0;
@@ -10177,10 +10611,34 @@ index 799a14c289568a8394d714c7a7df6c71f1cabed4..fdfce0eaf2e4604148e04b04512f2d5b
                  ValidateQuerySurface(val, dpy, surfaceID, attribute, &querySurfaceValue));
          }
 diff --git a/src/libANGLE/validationES.cpp b/src/libANGLE/validationES.cpp
-index 67f817ab86ff784c84c87d628121a7b485d65dd7..b46edbc4cf9293c5358efedb684c06e40f734d67 100644
+index eb06b24a808e01f17b3ca4f1fbcf9414872a9237..49a88da2d1980470d93bd99fad54919209f26426 100644
 --- a/src/libANGLE/validationES.cpp
 +++ b/src/libANGLE/validationES.cpp
-@@ -1556,7 +1556,7 @@ bool ValidateDrawArraysTransformFeedbackBufferSize(const Context *context,
+@@ -1003,6 +1003,11 @@ bool ValidateDrawElementsInstancedBase(const Context *context,
+         return true;
+     }
+ 
++    if (!ValidateDrawInstancedCounts(context, entryPoint, primcount, baseinstance))
++    {
++        return false;
++    }
++
+     return ValidateDrawInstancedAttribs(context, entryPoint, primcount, baseinstance);
+ }
+ 
+@@ -1037,6 +1042,11 @@ bool ValidateDrawArraysInstancedBase(const Context *context,
+         return true;
+     }
+ 
++    if (!ValidateDrawInstancedCounts(context, entryPoint, primcount, baseinstance))
++    {
++        return false;
++    }
++
+     return ValidateDrawInstancedAttribs(context, entryPoint, primcount, baseinstance);
+ }
+ 
+@@ -1545,7 +1555,7 @@ bool ValidateDrawArraysTransformFeedbackBufferSize(const Context *context,
      {
          const State &state                      = context->getState();
          TransformFeedback *curTransformFeedback = state.getCurrentTransformFeedback();
@@ -10189,6 +10647,100 @@ index 67f817ab86ff784c84c87d628121a7b485d65dd7..b46edbc4cf9293c5358efedb684c06e4
          {
              ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, err::kTransformFeedbackBufferTooSmall);
              return false;
+diff --git a/src/libANGLE/validationES.h b/src/libANGLE/validationES.h
+index cd0089c92b32f0eddc1c0bebeb5672031f885426..f19a566d8288e908729cc4c421adbadd75fb6cc7 100644
+--- a/src/libANGLE/validationES.h
++++ b/src/libANGLE/validationES.h
+@@ -898,15 +898,85 @@ ANGLE_INLINE bool ValidateDrawInstancedAttribs(const Context *context,
+         return true;
+     }
+ 
+-    // Validate that the buffers bound for the attributes can hold enough vertices for this
+-    // instanced draw.  For attributes with a divisor of 0, ValidateDrawAttribs already checks this.
+-    // Thus, the following only checks attributes with a non-zero divisor (i.e. "instanced").
++    // For each instance, attribute element index = floor(instance / attrib.divisor) + baseinstance.
++    // The instance runs [0..primcount - 1], so max instance is primcount - 1.
++    // For all attribs with attrib.divisor != 0, check max element index < attrib.elementIndex:
++    //    floor((primcount - 1) / attrib.divisor) + baseinstance < attrib.elementLimit.
++
++    if (ANGLE_LIKELY(baseinstance == 0))
++    {
++        // Fast path when baseinstance == 0:
++        // floor((primcount - 1) / attrib.divisor) < attrib.elementLimit
++        // ->
++        // primcount <= min(attrib.elementLimit * divisor)
+         const GLint64 limit = context->getInstancedVertexElementLimit();
+-    if (baseinstance >= limit || primcount > limit - baseinstance)
++        if (primcount > limit)
+         {
+             RecordDrawAttribsError(context, entryPoint);
+             return false;
+         }
++        return true;
++    }
++
++    const VertexArray *vao = context->getState().getVertexArray();
++    if (!vao)
++    {
++        return true;
++    }
++
++    const auto &vertexAttribs  = vao->getVertexAttributes();
++    const auto &vertexBindings = vao->getVertexBindings();
++
++    for (size_t attributeIndex : context->getActiveBufferedAttribsMask())
++    {
++        const VertexAttribute &attrib = vertexAttribs[attributeIndex];
++        const VertexBinding &binding  = vertexBindings[attrib.bindingIndex];
++
++        GLuint divisor = binding.getDivisor();
++        if (divisor == 0)
++        {
++            // Non-instanced attributes are validated by ValidateDrawAttribs.
++            continue;
++        }
++
++        GLint64 elementLimit = attrib.getCachedElementLimit();
++        if (elementLimit == VertexAttribute::kIntegerOverflow || elementLimit < 0)
++        {
++            RecordDrawAttribsError(context, entryPoint);
++            return false;
++        }
++        // Compute max instance attribute index = floor(instance / divisor) + baseinstance.
++        GLint64 lastIndex =
++            static_cast<GLint64>((static_cast<GLuint>(primcount) - 1u) / divisor) + baseinstance;
++
++        if (lastIndex >= elementLimit)
++        {
++            RecordDrawAttribsError(context, entryPoint);
++            return false;
++        }
++    }
++
++    return true;
++}
++
++ANGLE_INLINE bool ValidateDrawInstancedCounts(const Context *context,
++                                              angle::EntryPoint entryPoint,
++                                              GLsizei primcount,
++                                              GLuint baseinstance)
++{
++    if (ANGLE_UNLIKELY(!context->getLimitations().instanceIdMayOverflow))
++    {
++        return true;
++    }
++
++    angle::CheckedNumeric<GLuint> checkedSum = baseinstance;
++    checkedSum += primcount - 1;
++
++    if (ANGLE_UNLIKELY(!checkedSum.IsValid()))
++    {
++        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, err::kInstanceIdOverflow);
++        return false;
++    }
+ 
+     return true;
+ }
 diff --git a/src/libANGLE/validationES2.cpp b/src/libANGLE/validationES2.cpp
 index 2537b3a2ce48dad201012aa4b72418d8d80cf9d3..08cdd911a44dca4df9912e021248431b242df8da 100644
 --- a/src/libANGLE/validationES2.cpp
@@ -10224,7 +10776,7 @@ index 2537b3a2ce48dad201012aa4b72418d8d80cf9d3..08cdd911a44dca4df9912e021248431b
                                    angle::EntryPoint entryPoint,
                                    PrimitiveMode mode,
 diff --git a/src/libANGLE/validationES32.cpp b/src/libANGLE/validationES32.cpp
-index 8d8478f292e1597eef9f2bc90ba39741519d4244..3d6533cb673f62af2cf0569859c7093083112077 100644
+index eeabe2965d245c6abdea6fcfa48aac99d7b7bf4f..a4219f571d1a3b0fd5a20dae1cd6920b8bc7c80a 100644
 --- a/src/libANGLE/validationES32.cpp
 +++ b/src/libANGLE/validationES32.cpp
 @@ -435,12 +435,13 @@ bool ValidateGetPointerv(const Context *context,
@@ -10244,10 +10796,10 @@ index 8d8478f292e1597eef9f2bc90ba39741519d4244..3d6533cb673f62af2cf0569859c70930
  }
  
 diff --git a/src/libANGLE/validationESEXT.cpp b/src/libANGLE/validationESEXT.cpp
-index 40e1b9e3cc5e6ffe9717b5ecbb9d2d337a37b8ee..27e4595e6525297e0505235d3bc0186f8790445d 100644
+index db50a36247ac826e8ffccbcbe677ce5bf5d54498..1a8ddf770a9116a280861160d921f8442ebe8e00 100644
 --- a/src/libANGLE/validationESEXT.cpp
 +++ b/src/libANGLE/validationESEXT.cpp
-@@ -3994,6 +3994,29 @@ bool ValidateLogicOpANGLE(const PrivateState &state,
+@@ -3982,6 +3982,29 @@ bool ValidateLogicOpANGLE(const PrivateState &state,
      return ValidateLogicOpCommon(state, errors, entryPoint, opcodePacked);
  }
  
@@ -10330,10 +10882,10 @@ index 73c687962cf321bfa2307228cd16d40e66fbf261..af6af7647b4622544827acd89db5ae4f
      {"glFramebufferTexture", P(GL_FramebufferTexture)},
      {"glFramebufferTexture2D", P(GL_FramebufferTexture2D)},
 diff --git a/src/libGLESv2/entry_points_gles_ext_autogen.cpp b/src/libGLESv2/entry_points_gles_ext_autogen.cpp
-index f0c2e412fbdf8f41c68e2d070b2b9f44a409a159..90b6001a1dfa0a64d4247c41c7c56691a298089f 100644
+index be160817df1e4fb1edeecc6b122635226ddcd319..c528c6d8569515c9a7cdbc2838a5555a0b8f8e7e 100644
 --- a/src/libGLESv2/entry_points_gles_ext_autogen.cpp
 +++ b/src/libGLESv2/entry_points_gles_ext_autogen.cpp
-@@ -6218,6 +6218,55 @@ void GL_APIENTRY GL_GetTranslatedShaderSourceANGLE(GLuint shader,
+@@ -6216,6 +6216,55 @@ void GL_APIENTRY GL_GetTranslatedShaderSourceANGLE(GLuint shader,
      ASSERT(!egl::Display::GetCurrentThreadUnlockedTailCall()->any());
  }
  
@@ -10389,7 +10941,7 @@ index f0c2e412fbdf8f41c68e2d070b2b9f44a409a159..90b6001a1dfa0a64d4247c41c7c56691
  // GL_ANGLE_vulkan_image
  void GL_APIENTRY GL_AcquireTexturesANGLE(GLuint numTextures,
                                           const GLuint *textures,
-@@ -20293,4 +20342,60 @@ GL_StartTilingQCOM(GLuint x, GLuint y, GLuint width, GLuint height, GLbitfield p
+@@ -20290,4 +20339,60 @@ GL_StartTilingQCOM(GLuint x, GLuint y, GLuint width, GLuint height, GLbitfield p
      ASSERT(!egl::Display::GetCurrentThreadUnlockedTailCall()->any());
  }
  
@@ -10479,10 +11031,10 @@ index 49dd059e4f600da10022b7d58f56fdcbd160b3cf..e17e229791dcc7ca3ba5799d51b02dfd
  
  #endif  // LIBGLESV2_ENTRY_POINTS_GLES_EXT_AUTOGEN_H_
 diff --git a/src/libGLESv2/libGLESv2_autogen.cpp b/src/libGLESv2/libGLESv2_autogen.cpp
-index 0bb611ba5449ff18bab408bd956a480bccef68ec..1fe4dc82fb0f8006fd36165db9fb4e7f2aefb4a8 100644
+index 85b770b500352e21e039c6d82524b256c759e3df..50b0fda9af681fd000cf0524943cccb0a7778cf1 100644
 --- a/src/libGLESv2/libGLESv2_autogen.cpp
 +++ b/src/libGLESv2/libGLESv2_autogen.cpp
-@@ -3760,6 +3760,13 @@ void GL_APIENTRY glGetTranslatedShaderSourceANGLE(GLuint shader,
+@@ -3759,6 +3759,13 @@ void GL_APIENTRY glGetTranslatedShaderSourceANGLE(GLuint shader,
      return GL_GetTranslatedShaderSourceANGLE(shader, bufSize, length, source);
  }
  
@@ -10496,7 +11048,7 @@ index 0bb611ba5449ff18bab408bd956a480bccef68ec..1fe4dc82fb0f8006fd36165db9fb4e7f
  // GL_ANGLE_vulkan_image
  void GL_APIENTRY glAcquireTexturesANGLE(GLuint numTextures,
                                          const GLuint *textures,
-@@ -5981,4 +5988,14 @@ glStartTilingQCOM(GLuint x, GLuint y, GLuint width, GLuint height, GLbitfield pr
+@@ -5978,4 +5985,14 @@ glStartTilingQCOM(GLuint x, GLuint y, GLuint width, GLuint height, GLbitfield pr
      return GL_StartTilingQCOM(x, y, width, height, preserveMask);
  }
  
@@ -10621,7 +11173,7 @@ index 0943c311aec4ccee5cc4e15b08a4df8366caf2e6..d2b950c572580cbda24ee8223bfe8533
      // file access.
      angle::InitMetalFileAPIHooking(argc, argv);
 diff --git a/src/tests/angle_end2end_tests.gni b/src/tests/angle_end2end_tests.gni
-index b15c9cc144937edd4c61b5778ec9428c13be78e3..212f93c28d7bcf8bdc7815f7583915c63c304dc0 100644
+index 0992bbfc3a899a63fd6c700e07ef682ea478d0e3..598bf2cb214b437c6c210d565d739f9ad285dbc2 100644
 --- a/src/tests/angle_end2end_tests.gni
 +++ b/src/tests/angle_end2end_tests.gni
 @@ -95,6 +95,7 @@ angle_end2end_tests_sources = [
@@ -10633,10 +11185,10 @@ index b15c9cc144937edd4c61b5778ec9428c13be78e3..212f93c28d7bcf8bdc7815f7583915c6
    "gl_tests/GeometryShaderTest.cpp",
    "gl_tests/GetImageTest.cpp",
 diff --git a/src/tests/angle_end2end_tests_expectations.txt b/src/tests/angle_end2end_tests_expectations.txt
-index aaf575805cc7da8129901d0e3d66dbe68a1bcd88..8c4625a864d1694c59e96e2364e9a957e7f3ea3c 100644
+index 9ed941295c71df2433b1ab513016e5faa83fc715..38cd748ea5437b4f308a59678ab35658ad98fd4e 100644
 --- a/src/tests/angle_end2end_tests_expectations.txt
 +++ b/src/tests/angle_end2end_tests_expectations.txt
-@@ -531,6 +531,10 @@
+@@ -535,6 +535,10 @@
  351275980 MAC METAL : GLSLTest_ES3.DynamicIndexingOfSwizzledLValuesShouldWork2/* = SKIP
  351275980 IOS METAL : GLSLTest_ES3.DynamicIndexingOfSwizzledLValuesShouldWork2/* = SKIP
  
@@ -10851,6 +11403,146 @@ index b51b5f07cba261dddef39cc80115986108722bab..817668c08b7a018ad2525aa9999914c4
  
      EGLint dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(), EGL_NONE};
      EGLDisplay display = eglGetPlatformDisplayEXT(
+diff --git a/src/tests/gl_tests/BaseInstanceOverflowTest.cpp b/src/tests/gl_tests/BaseInstanceOverflowTest.cpp
+index 51a4e642c61c6baa731b71f6161611376ee1b199..eeca40b868e6d0cad9d5e9454549dcc3fd375c5d 100644
+--- a/src/tests/gl_tests/BaseInstanceOverflowTest.cpp
++++ b/src/tests/gl_tests/BaseInstanceOverflowTest.cpp
+@@ -72,12 +72,135 @@ TEST_P(BaseInstanceOverflowTest, BaseInstanceOverflow)
+     {
+         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+     }
++    else if (isMetalRenderer())
++    {
++        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
++    }
+     else
+     {
+         EXPECT_GL_NO_ERROR();
+     }
+ }
+ 
++// Test that baseinstance + primcount overflow is properly validated for backends that cannot draw
++// large baseInstance + primcount.
++TEST_P(BaseInstanceOverflowTest, BaseInstanceOverflow2)
++{
++    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance"));
++
++    constexpr char kVS[] = R"(
++        attribute vec4 a_position;
++        attribute float a_instanceData;
++        varying float v_data;
++        void main() {
++            gl_Position = a_position;
++            v_data = a_instanceData;
++        })";
++
++    constexpr char kFS[] = R"(
++        precision mediump float;
++        varying float v_data;
++        void main() {
++            gl_FragColor = vec4(0.0, v_data, 0.0, 1.0);
++        })";
++
++    GLProgram program;
++    program.makeRaster(kVS, kFS);
++    ASSERT_TRUE(program.valid());
++    glUseProgram(program);
++
++    GLint posLoc  = glGetAttribLocation(program, "a_position");
++    GLint dataLoc = glGetAttribLocation(program, "a_instanceData");
++    ASSERT_NE(posLoc, -1);
++    ASSERT_NE(dataLoc, -1);
++
++    // Non-instanced position buffer: full-screen triangle.
++    // clang-format off
++    const GLfloat kQuadVerts[] = {
++        -1.0f, -1.0f,
++         3.0f, -1.0f,
++        -1.0f,  3.0f,
++    };
++    // clang-format on
++    GLBuffer posBuffer;
++    glBindBuffer(GL_ARRAY_BUFFER, posBuffer);
++    glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVerts), kQuadVerts, GL_STATIC_DRAW);
++    glEnableVertexAttribArray(posLoc);
++    glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
++
++    // Instanced attribute setup.
++    // Use a large divisor so that all instances read the same element:
++    //   element index = baseInstance + floor(i / divisor)
++    // With divisor >= primcount, floor(i / divisor) == 0 for all i in [0, primcount-1].
++    // So only element at index baseInstance is accessed.
++    glEnableVertexAttribArray(dataLoc);
++
++    struct Subcase
++    {
++        GLsizei primcount;
++        GLuint baseInstance;
++    };
++
++    // Three subcases:
++    //   small:  5 + 100 = 105, well within GLuint range -> should pass
++    //   medium: 0x7FFFFFFF + 1000 = 0x800003E7, within GLuint range -> should pass
++    //   large:  0xFFFFFF00 + 300 = overflow past GLuint max -> should fail
++    Subcase subcases[] = {
++        {100, 5},
++        {1000, 0x7FFFFFFFu},
++        {300, 0xFFFFFF00u},
++    };
++
++    for (const auto &subcase : subcases)
++    {
++        SCOPED_TRACE(testing::Message() << "primcount: " << subcase.primcount
++                                        << " baseInstance:" << subcase.baseInstance);
++        // Use divisor = primcount so only one element (at baseInstance) is accessed.
++        const GLuint divisor = static_cast<GLuint>(subcase.primcount);
++        glVertexAttribDivisor(dataLoc, divisor);
++
++        // Allocate attribute buffer large enough for the one element at baseInstance.
++        // Size needed: (baseInstance + 1) * sizeof(GLfloat).
++        GLsizeiptr bufSize = (static_cast<GLsizeiptr>(subcase.baseInstance) + 1) * sizeof(GLfloat);
++
++        GLBuffer instBuffer;
++        glBindBuffer(GL_ARRAY_BUFFER, instBuffer);
++        glBufferData(GL_ARRAY_BUFFER, bufSize, nullptr, GL_DYNAMIC_DRAW);
++        ANGLE_SKIP_TEST_IF(glGetError() == GL_OUT_OF_MEMORY);
++
++        // Write 1.0f at element index baseInstance.
++        GLfloat one = 1.0f;
++        glBufferSubData(GL_ARRAY_BUFFER, subcase.baseInstance * sizeof(GLfloat), sizeof(GLfloat),
++                        &one);
++        ASSERT_GL_NO_ERROR();
++
++        glVertexAttribPointer(dataLoc, 1, GL_FLOAT, GL_FALSE, sizeof(GLfloat), nullptr);
++
++        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
++        glClear(GL_COLOR_BUFFER_BIT);
++        glDrawArraysInstancedBaseInstanceANGLE(GL_TRIANGLES, 0, 3, subcase.primcount,
++                                               subcase.baseInstance);
++
++        const bool expectOverflow =
++            static_cast<uint64_t>(subcase.primcount - 1) + subcase.baseInstance >
++            std::numeric_limits<GLuint>::max();
++        GLenum error = glGetError();
++        if (error == GL_INVALID_OPERATION)
++        {
++            EXPECT_TRUE(expectOverflow);
++        }
++        else
++        {
++            EXPECT_EQ(error, static_cast<GLenum>(GL_NO_ERROR));
++            EXPECT_TRUE(!(isMetalRenderer() && expectOverflow));
++
++            // No overflow; the draw should succeed and produce green.
++            ASSERT_GL_NO_ERROR();
++            EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
++        }
++    }
++}
++
+ GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(BaseInstanceOverflowTest);
+ ANGLE_INSTANTIATE_TEST(BaseInstanceOverflowTest,
+                        ES3_D3D11().enable(Feature::AlwaysEnableEmulatedMultidrawExtensions),
 diff --git a/src/tests/gl_tests/BufferDataTest.cpp b/src/tests/gl_tests/BufferDataTest.cpp
 index 45a3fc6381546af27e5b8e393e8600da2405e0ef..cedd36092c827e4c52066974e38cc5c58623d5ee 100644
 --- a/src/tests/gl_tests/BufferDataTest.cpp
@@ -10865,10 +11557,10 @@ index 45a3fc6381546af27e5b8e393e8600da2405e0ef..cedd36092c827e4c52066974e38cc5c5
  
      GLint positionLocation = glGetAttribLocation(program, essl3_shaders::PositionAttrib());
 diff --git a/src/tests/gl_tests/BufferPoolTestMetal.mm b/src/tests/gl_tests/BufferPoolTestMetal.mm
-index bf26671f935d42c66df055ba389447bfa8b88741..219272b9a20e9b54277a9d0d49f17bc15351a61a 100644
+index 98cf83e098588aa53298e451ab15babe1fac813f..0d5578737d19df656fe2c39c2ac38b1eb4f678d5 100644
 --- a/src/tests/gl_tests/BufferPoolTestMetal.mm
 +++ b/src/tests/gl_tests/BufferPoolTestMetal.mm
-@@ -74,16 +74,15 @@ TEST_P(BufferPoolTest, AllocationOffsetNoTruncation)
+@@ -77,16 +77,15 @@ TEST_P(BufferPoolTest, AllocationOffsetNoTruncation)
  
      // Perform first allocation
      uint8_t *ptr1       = nullptr;
@@ -10889,7 +11581,7 @@ index bf26671f935d42c66df055ba389447bfa8b88741..219272b9a20e9b54277a9d0d49f17bc1
  
      // Fill first allocation with a known pattern (0xAA)
      // We only fill the first 4KB to avoid spending too much time on this test
-@@ -95,11 +94,10 @@ TEST_P(BufferPoolTest, AllocationOffsetNoTruncation)
+@@ -98,11 +97,10 @@ TEST_P(BufferPoolTest, AllocationOffsetNoTruncation)
  
      // Perform second allocation
      uint8_t *ptr2       = nullptr;
@@ -10903,7 +11595,7 @@ index bf26671f935d42c66df055ba389447bfa8b88741..219272b9a20e9b54277a9d0d49f17bc1
                angle::Result::Continue);
  
      // With the fix (size_t), a new buffer should be allocated since the calculated offset
-@@ -108,12 +106,12 @@ TEST_P(BufferPoolTest, AllocationOffsetNoTruncation)
+@@ -111,12 +109,12 @@ TEST_P(BufferPoolTest, AllocationOffsetNoTruncation)
      EXPECT_TRUE(newBuffer2);
  
      // The offset should be 0 in the new buffer (not a truncated large value)
@@ -10919,7 +11611,7 @@ index bf26671f935d42c66df055ba389447bfa8b88741..219272b9a20e9b54277a9d0d49f17bc1
  
      // Fill second allocation with a different pattern (0xBB)
      memset(ptr2, 0xBB, kSmallSize);
-@@ -125,7 +123,7 @@ TEST_P(BufferPoolTest, AllocationOffsetNoTruncation)
+@@ -128,7 +126,7 @@ TEST_P(BufferPoolTest, AllocationOffsetNoTruncation)
      // With the uint32_t bug, ptr2 would have overwritten ptr1's data at offset 0
      // because the offset wrapped around to 0 or a small value.
      // Map the first buffer again to verify its contents
@@ -10928,7 +11620,7 @@ index bf26671f935d42c66df055ba389447bfa8b88741..219272b9a20e9b54277a9d0d49f17bc1
      ASSERT_FALSE(verifyPtr1.empty());
  
      // Check that the first pattern (0xAA) is still intact
-@@ -137,7 +135,7 @@ TEST_P(BufferPoolTest, AllocationOffsetNoTruncation)
+@@ -140,7 +138,7 @@ TEST_P(BufferPoolTest, AllocationOffsetNoTruncation)
              << " - uint32_t truncation bug likely caused second allocation to overlap!";
      }
  
@@ -10994,8 +11686,135 @@ index 3eb424c4b0328b32c3af788be289a9b480610cba..6a6e212bad94de2e3fcf1f1f2de9edcc
  
  using namespace angle;
  
+diff --git a/src/tests/gl_tests/DrawBaseVertexBaseInstanceTest.cpp b/src/tests/gl_tests/DrawBaseVertexBaseInstanceTest.cpp
+index 6de344f0fbf5c347948fc3ff4e790bc72142abbf..929e62f0e12a626d1f78dcf75804eb5c9799768e 100644
+--- a/src/tests/gl_tests/DrawBaseVertexBaseInstanceTest.cpp
++++ b/src/tests/gl_tests/DrawBaseVertexBaseInstanceTest.cpp
+@@ -7,6 +7,10 @@
+ // DrawBaseVertexBaseInstanceTest: Tests of GL_ANGLE_base_vertex_base_instance
+ // DrawBaseInstanceTest: Tests of GL_EXT_base_instance
+ 
++#ifdef UNSAFE_BUFFERS_BUILD
++#    pragma allow_unsafe_buffers
++#endif
++
+ #include "gpu_info_util/SystemInfo.h"
+ #include "test_utils/ANGLETest.h"
+ #include "test_utils/gl_raii.h"
+@@ -1308,6 +1312,111 @@ void main()
+     ASSERT_GL_NO_ERROR();
+ }
+ 
++TEST_P(DrawBaseVertexBaseInstanceTest_ES3, BaseInstanceDivisorIndexing)
++{
++    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance"));
++
++    // Vertex shader: pass per-instance integer value through a flat varying.
++    constexpr char kVS[] = R"(#version 300 es
++#extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
++in vec4 a_position;
++in int a_instValue;
++flat out int v_instValue;
++flat out int v_instanceID;
++flat out int v_baseInstance;
++void main()
++{
++    v_instValue = a_instValue;
++    v_instanceID = gl_InstanceID;
++    v_baseInstance = gl_BaseInstance;
++    gl_Position = a_position;
++})";
++
++    // Fragment shader: output the instanced value as an integer.
++    constexpr char kFS[] = R"(#version 300 es
++precision highp int;
++flat in int v_instValue;
++flat in int v_instanceID;
++flat in int v_baseInstance;
++out ivec4 o_color;
++void main()
++{
++    o_color = ivec4(v_instValue, v_instanceID, v_baseInstance, 1);
++})";
++
++    ANGLE_GL_PROGRAM(program, kVS, kFS);
++    glUseProgram(program);
++
++    GLint posLoc  = glGetAttribLocation(program, "a_position");
++    GLint instLoc = glGetAttribLocation(program, "a_instValue");
++    ASSERT_NE(-1, posLoc);
++    ASSERT_NE(-1, instLoc);
++
++    // Render to a GL_RGBA32I texture via FBO for exact integer readback.
++    GLTexture intTex;
++    glBindTexture(GL_TEXTURE_2D, intTex);
++    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32I, getWindowWidth(), getWindowHeight(), 0,
++                 GL_RGBA_INTEGER, GL_INT, nullptr);
++
++    GLFramebuffer fbo;
++    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
++    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, intTex, 0);
++    ASSERT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
++
++    // Position: a full-viewport triangle strip (4 vertices).
++    const float positions[] = {
++        -1.0f, -1.0f, 0.0f, 1.0f, 1.0f, -1.0f, 0.0f, 1.0f,
++        -1.0f, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f,  0.0f, 1.0f,
++    };
++    GLBuffer posBuffer;
++    glBindBuffer(GL_ARRAY_BUFFER, posBuffer);
++    glBufferData(GL_ARRAY_BUFFER, sizeof(positions), positions, GL_STATIC_DRAW);
++    glEnableVertexAttribArray(posLoc);
++    glVertexAttribPointer(posLoc, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
++
++    // Per-instance attribute: 8 distinct integer values, divisor = 3.
++    // Each value is a unique identifier for its buffer index.
++    const GLint instValues[] = {0, 1, 2, 3, 4, 5, 6, 7};
++    GLBuffer instBuffer;
++    glBindBuffer(GL_ARRAY_BUFFER, instBuffer);
++    glBufferData(GL_ARRAY_BUFFER, sizeof(instValues), instValues, GL_STATIC_DRAW);
++    glEnableVertexAttribArray(instLoc);
++    glVertexAttribIPointer(instLoc, 1, GL_INT, 0, nullptr);
++    glVertexAttribDivisor(instLoc, 3);
++    ASSERT_GL_NO_ERROR();
++
++    glViewport(0, 0, getWindowWidth(), getWindowHeight());
++    struct Subcase
++    {
++        GLsizei instanceCount;
++        GLuint baseInstance;
++    } subcases[]{
++        {.instanceCount = 1, .baseInstance = 0},
++        {.instanceCount = 1, .baseInstance = 4},
++        {.instanceCount = 1, .baseInstance = 7},
++        {.instanceCount = 6, .baseInstance = 3},
++    };
++
++    for (auto const &subcase : subcases)
++    {
++        SCOPED_TRACE(testing::Message()
++                     << "Subcase subcase{.instanceCount = " << subcase.instanceCount
++                     << ", .baseInstance = " << subcase.baseInstance << "}");
++        const GLint clearValue[] = {0, 0, 0, 0};
++        glClearBufferiv(GL_COLOR, 0, clearValue);
++        glDrawArraysInstancedBaseInstanceANGLE(GL_TRIANGLE_STRIP, 0, 4, subcase.instanceCount,
++                                               subcase.baseInstance);
++        ASSERT_GL_NO_ERROR();
++        GLint lastInstanceAttrIndex = subcase.baseInstance + (subcase.instanceCount - 1) / 3;
++        GLint lastInstValue         = instValues[lastInstanceAttrIndex];
++        GLint lastInstanceID        = subcase.instanceCount - 1;
++        // R == instValue (per-instance attribute), G == gl_InstanceID, B == gl_BaseInstance.
++        GLColor32I expected(lastInstValue, lastInstanceID, static_cast<GLint>(subcase.baseInstance),
++                            1);
++        EXPECT_PIXEL_32I_COLOR(0, 0, expected);
++    }
++}
++
+ GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(DrawBaseVertexBaseInstanceTest);
+ 
+ #define ANGLE_ALL_BASEVERTEXBASEINTANCE_TEST_PLATFORMS_ES3                                 \
 diff --git a/src/tests/gl_tests/GLSLTest.cpp b/src/tests/gl_tests/GLSLTest.cpp
-index a6cef45ff6f2e94cd819d7a61c865d7b5bf40598..f98a3e14893bc7619e61a8a441a0909f28281745 100644
+index eed6360214c8e31c78479d7ed0a71800a67b8bd0..ac762320d49954e8e6793bfa6bea9940228b5b57 100644
 --- a/src/tests/gl_tests/GLSLTest.cpp
 +++ b/src/tests/gl_tests/GLSLTest.cpp
 @@ -805,6 +805,29 @@ TEST_P(GLSLTest, SwizzledChainedAssignIncrement)
@@ -11028,7 +11847,75 @@ index a6cef45ff6f2e94cd819d7a61c865d7b5bf40598..f98a3e14893bc7619e61a8a441a0909f
  // Same test as above without unary increments.
  TEST_P(GLSLTest, SwizzledChainedAssign)
  {
-@@ -6994,6 +7017,94 @@ void main()
+@@ -6839,6 +6862,67 @@ void main()
+     EXPECT_PIXEL_NEAR(0, 0, 255, 127, 0, 255, 1);
+ }
+ 
++// Verify that functions without return statements return zero-initialized vec4
++TEST_P(WebGL2GLSLTest, MissingReturnZeroInitVec4)
++{
++    constexpr char kFS[] = R"(precision highp float;
++uniform float u0;
++uniform float u1;
++vec4 foo(float u)
++{
++    if (u > 0.0) { return vec4(1.0); }
++}
++void main()
++{
++    if (foo(u0) == vec4(0.0) && foo(u1) == vec4(1.0))
++        gl_FragColor = vec4(0, 1, 0, 1);
++    else
++        gl_FragColor = vec4(1, 0, 0, 1);
++})";
++
++    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), kFS);
++    glUseProgram(program);
++
++    GLint loc = glGetUniformLocation(program, "u1");
++    ASSERT_NE(-1, loc);
++    glUniform1f(loc, 1.0f);
++
++    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f, 1.0f, true);
++    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
++}
++
++// Verify that functions without return statements return zero-initialized struct
++TEST_P(WebGL2GLSLTest, MissingReturnZeroInitStruct)
++{
++    constexpr char kFS[] = R"(precision highp float;
++struct S { float a; int b; };
++uniform float u0;
++uniform float u1;
++S foo(float u)
++{
++    if (u > 0.0) { return S(1.0, 1); }
++}
++void main()
++{
++    S r0 = foo(u0);
++    S r1 = foo(u1);
++    if (r0.a == 0.0 && r0.b == 0 && r1.a == 1.0 && r1.b == 1)
++        gl_FragColor = vec4(0, 1, 0, 1);
++    else
++        gl_FragColor = vec4(1, 0, 0, 1);
++})";
++
++    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), kFS);
++    glUseProgram(program);
++
++    GLint loc = glGetUniformLocation(program, "u1");
++    ASSERT_NE(-1, loc);
++    glUniform1f(loc, 1.0f);
++
++    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f, 1.0f, true);
++    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
++}
++
+ // Tests nameless struct uniforms.
+ TEST_P(GLSLTest, EmbeddedStructUniform)
+ {
+@@ -6986,6 +7070,94 @@ void main()
      EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
  }
  
@@ -11123,7 +12010,7 @@ index a6cef45ff6f2e94cd819d7a61c865d7b5bf40598..f98a3e14893bc7619e61a8a441a0909f
  // Test that nested structs with samplers work when the nested struct is not the last element.
  TEST_P(GLSLTest_ES3, NestedStructWithSamplers)
  {
-@@ -10971,6 +11082,43 @@ void main()
+@@ -10963,6 +11135,43 @@ void main()
      EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::white);
  }
  
@@ -11167,10 +12054,26 @@ index a6cef45ff6f2e94cd819d7a61c865d7b5bf40598..f98a3e14893bc7619e61a8a441a0909f
  // Test a fragment shader that returns inside if (that being the only branch that actually gets
  // executed). Regression test for http://anglebug.com/42261034
  TEST_P(GLSLTest, IfElseIfAndReturn)
-@@ -22367,6 +22515,814 @@ void main()
+@@ -22359,6 +22568,830 @@ void main()
      ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), kFS);
      drawQuad(program, essl1_shaders::PositionAttrib(), 0.0);
      EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
++}
++
++// Verify that missing fragment output components are zero-initialized
++TEST_P(WebGL2GLSLTest, InitMissingFragmentOutputComponents)
++{
++    constexpr char kFS[] = R"(#version 300 es
++precision highp float;
++layout(location = 0) out float outColor;
++void main()
++{
++    outColor = 1.0;
++})";
++
++    ANGLE_GL_PROGRAM(program, essl3_shaders::vs::Simple(), kFS);
++    drawQuad(program, essl3_shaders::PositionAttrib(), 0.5f, 1.0f, true);
++    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor(255, 0, 0, 0));
 +}
 +
 +// Test highp int scalar + vec
@@ -12640,7 +13543,7 @@ index e16d5e0caefa7caea3e932fa78f21478052af0ff..7801fa39b2a80c452c22752057360efa
      window->makeCurrent();
  
 diff --git a/src/tests/gl_tests/PixelLocalStorageTest.cpp b/src/tests/gl_tests/PixelLocalStorageTest.cpp
-index bbd48ffce8db4fc648cf4940931a6677830b9f3a..07924e93bcc9a58560fb23bd77954b3004f78c9c 100644
+index a4da689c8270b37b9f09bc85a726e50733f8a383..1186ea59d81eb47ab606ca82a15cfbb359795681 100644
 --- a/src/tests/gl_tests/PixelLocalStorageTest.cpp
 +++ b/src/tests/gl_tests/PixelLocalStorageTest.cpp
 @@ -10,6 +10,7 @@
@@ -12651,7 +13554,7 @@ index bbd48ffce8db4fc648cf4940931a6677830b9f3a..07924e93bcc9a58560fb23bd77954b30
  #include "test_utils/ANGLETest.h"
  #include "test_utils/gl_raii.h"
  
-@@ -9207,7 +9208,6 @@ TEST_P(PixelLocalStorageCompilerTest, BlendEquationAdvanced_illegal_with_PLS)
+@@ -9286,7 +9287,6 @@ TEST_P(PixelLocalStorageCompilerTest, BlendEquationAdvanced_illegal_with_PLS)
      layout(binding=0, rgba8i) uniform lowp ipixelLocalANGLE pls;)";
      EXPECT_TRUE(log.compileFragmentShader(kRequireBlendAdvanced));
  
@@ -12659,7 +13562,7 @@ index bbd48ffce8db4fc648cf4940931a6677830b9f3a..07924e93bcc9a58560fb23bd77954b30
      for (const char *layoutQualifier : {
               "blend_support_multiply",
               "blend_support_screen",
-@@ -9227,44 +9227,34 @@ TEST_P(PixelLocalStorageCompilerTest, BlendEquationAdvanced_illegal_with_PLS)
+@@ -9306,44 +9306,34 @@ TEST_P(PixelLocalStorageCompilerTest, BlendEquationAdvanced_illegal_with_PLS)
               "blend_support_all_equations",
           })
      {
@@ -12761,7 +13664,7 @@ index c80df6c93426bfb422cd640170824f7c0a6a0067..2c1bcc1156342c45d734b6f762e38406
  
  namespace angle
 diff --git a/src/tests/gl_tests/TextureTest.cpp b/src/tests/gl_tests/TextureTest.cpp
-index c562a8693f8709192825b3c4123e6155994fae2b..4f60ef62c566d14efa739a473d03a9865e045171 100644
+index 4894a4d5456d651bb2cce3887badacff5c330bc5..1f867b0137f47885ed3942fb97a3b335ad9a67cf 100644
 --- a/src/tests/gl_tests/TextureTest.cpp
 +++ b/src/tests/gl_tests/TextureTest.cpp
 @@ -2010,6 +2010,7 @@ void Texture2DDepthStencilTestES3::TestSampleWithDepthStencilMode(GLenum format,
@@ -12873,7 +13776,7 @@ index c562a8693f8709192825b3c4123e6155994fae2b..4f60ef62c566d14efa739a473d03a986
  {
      GLint textureUnit = 2;
 diff --git a/src/tests/gl_tests/TransformFeedbackTest.cpp b/src/tests/gl_tests/TransformFeedbackTest.cpp
-index c7e3f13e17684701ff5ba0ea472a0b7e45829820..3d52113549b7d6dc490ad9026d6928444afa945f 100644
+index bc13f6456ee61d481f0e3a0e39fbb6fbfad8075b..ff8ecd6ab1212d468bd9db32dd2a40c7f1d72d2a 100644
 --- a/src/tests/gl_tests/TransformFeedbackTest.cpp
 +++ b/src/tests/gl_tests/TransformFeedbackTest.cpp
 @@ -11,7 +11,6 @@
@@ -12884,7 +13787,7 @@ index c7e3f13e17684701ff5ba0ea472a0b7e45829820..3d52113549b7d6dc490ad9026d692844
  #include "util/random_utils.h"
  #include "util/test_utils.h"
  
-@@ -783,9 +782,7 @@ TEST_P(TransformFeedbackTest, BlitWhileRecordingDoesNotContribute)
+@@ -1030,9 +1029,7 @@ TEST_P(TransformFeedbackTest, BlitWhileRecordingDoesNotContribute)
  }
  
  // Test that XFB does not allow writing more vertices than fit in the bound buffers.
@@ -12895,7 +13798,7 @@ index c7e3f13e17684701ff5ba0ea472a0b7e45829820..3d52113549b7d6dc490ad9026d692844
  {
      glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
      glClear(GL_COLOR_BUFFER_BIT);
-@@ -4442,13 +4439,21 @@ TEST_P(TransformFeedbackTest, RenderOnceChangeXfbBufferRenderAgain)
+@@ -4689,13 +4686,21 @@ TEST_P(TransformFeedbackTest, RenderOnceChangeXfbBufferRenderAgain)
      // Break the render pass
      EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
  
@@ -12941,7 +13844,7 @@ index fc742ddb4b03d07e6ebbd513360cd8118b245a07..5afd3663fb967b1f364d3ab353a05b0a
          {nullptr, nullptr, nullptr, nullptr, nullptr},
          {nullptr, nullptr, nullptr, nullptr, nullptr},
 diff --git a/src/tests/gl_tests/VertexAttributeTest.cpp b/src/tests/gl_tests/VertexAttributeTest.cpp
-index ebaaf8500701e72f779c3046179df20b7c408898..dac812d9f0569ad47dadebcb6bb76866734eac53 100644
+index ebaaf8500701e72f779c3046179df20b7c408898..63f054388b282a600fe0f246078127e20e84ca98 100644
 --- a/src/tests/gl_tests/VertexAttributeTest.cpp
 +++ b/src/tests/gl_tests/VertexAttributeTest.cpp
 @@ -5792,6 +5792,159 @@ void main(void)
@@ -13018,7 +13921,7 @@ index ebaaf8500701e72f779c3046179df20b7c408898..dac812d9f0569ad47dadebcb6bb76866
 +    ANGLE_GL_PROGRAM(program, kVS, kFS);
 +    glUseProgram(program);
 +
-+    GLint positionLocation = glGetAttribLocation(program, "position");
++    GLint positionLocation   = glGetAttribLocation(program, "position");
 +    GLint testAttribLocation = glGetAttribLocation(program, "testAttrib");
 +    ASSERT_NE(-1, positionLocation);
 +    ASSERT_NE(-1, testAttribLocation);
@@ -13073,7 +13976,7 @@ index ebaaf8500701e72f779c3046179df20b7c408898..dac812d9f0569ad47dadebcb6bb76866
 +    ANGLE_GL_PROGRAM(program, kVS, kFS);
 +    glUseProgram(program);
 +
-+    GLint positionLocation = glGetAttribLocation(program, "position");
++    GLint positionLocation   = glGetAttribLocation(program, "position");
 +    GLint testAttribLocation = glGetAttribLocation(program, "testAttrib");
 +    ASSERT_NE(-1, positionLocation);
 +    ASSERT_NE(-1, testAttribLocation);
@@ -13128,8 +14031,8 @@ index ebaaf8500701e72f779c3046179df20b7c408898..dac812d9f0569ad47dadebcb6bb76866
      GLBuffer posBuf;
      glBindBuffer(GL_ARRAY_BUFFER, posBuf);
 -    glBufferData(GL_ARRAY_BUFFER, quadVertices.size() * sizeof(Vector3), quadVertices.data(),
-+    glBufferData(GL_ARRAY_BUFFER, posData.size() * sizeof(Vector3), posData.data(),
-                  GL_STATIC_DRAW);
+-                 GL_STATIC_DRAW);
++    glBufferData(GL_ARRAY_BUFFER, posData.size() * sizeof(Vector3), posData.data(), GL_STATIC_DRAW);
      glEnableVertexAttribArray(posLoc);
      glVertexAttribPointer(posLoc, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
  
@@ -13137,7 +14040,8 @@ index ebaaf8500701e72f779c3046179df20b7c408898..dac812d9f0569ad47dadebcb6bb76866
 -    const int srcStride     = 20;  // 20 bytes stride for vec4 (16 bytes) forces slow path
 -    std::vector<uint8_t> instData(instanceCount * srcStride, 0);
 +    constexpr int instanceCount = 1024;
-+    struct Inst {
++    struct Inst
++    {
 +        float v0 = 1.0;
 +        float v1 = 0.0;
 +        float v2 = 0.0;
@@ -13180,10 +14084,216 @@ index ebaaf8500701e72f779c3046179df20b7c408898..dac812d9f0569ad47dadebcb6bb76866
          // Vertices 3, 4, 5: cover the left half of the framebuffer
          switch (i % 6)
 diff --git a/src/tests/gl_tests/WebGLCompatibilityTest.cpp b/src/tests/gl_tests/WebGLCompatibilityTest.cpp
-index d45f65adbcba14a4f2a0a74d0662fcc5688ec70f..bd2a61c0897675cce95b6660c7d93a65cc0290cb 100644
+index 030cb8202598607c8ba9b76b0b42b1988271939d..45ecca1b08470ec1b9682f91538a68ca1153043e 100644
 --- a/src/tests/gl_tests/WebGLCompatibilityTest.cpp
 +++ b/src/tests/gl_tests/WebGLCompatibilityTest.cpp
-@@ -7285,6 +7285,73 @@ TEST_P(WebGL2CompatibilityTest, PrimitiveRestartIndexAfterToggleIsError)
+@@ -7143,24 +7143,36 @@ void main()
+ 
+     if (hasBaseInstance)
+     {
+-        // The following passes because attribute 1 accesses vertices [0, 3)
++        // instanced attrib index = floor(instance / divisor) + baseInstance
++        // instance = 0..primcount - 1
++        // Attribute 1 has divisor=5 and buffer fits 5 elements (indices 0-4).
++        // The following passes because attribute 1 max index = floor(14/5)+0 = 2. In bounds.
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 15, 0);
+         EXPECT_GL_NO_ERROR();
+-        // The following passes because attribute 1 accesses vertices [1, 4)
++        // The following fails because attribute 1 max index = floor(14/5)+5 = 7, OOB (>4).
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 15, 5);
+-        EXPECT_GL_NO_ERROR();
+-        // The following passes because attribute 1 accesses vertices [0, 4)
++        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
++        // The following fails because attribute 1 max index = floor(16/5)+3 = 6, OOB (>4).
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 17, 3);
+-        EXPECT_GL_NO_ERROR();
+-        // The following passes because attribute 1 accesses vertices [3, 5)
++        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
++        // The following fails because attribute 1 max index = floor(9/5)+15 = 16, OOB (>4).
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 10, 15);
+-        EXPECT_GL_NO_ERROR();
+-        // The following fails because attribute 1 accesses vertices [3, 6)
++        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
++        // The following fails because attribute 1 max index = floor(10/5)+15 = 17, OOB (>4).
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 11, 15);
+         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+-        // The following fails because attribute 1 accesses vertex 6
++        // The following fails because attribute 1 max index = floor(0/5)+25 = 25, OOB (>4).
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 25);
+         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
++        // The following passes because attribute 1 max index = floor(0/5)+0 = 0. In bounds.
++        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 0);
++        EXPECT_GL_NO_ERROR();
++        // The following passes because attribute 1 max index = floor(0/5)+4 = 4. In bounds.
++        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 4);
++        EXPECT_GL_NO_ERROR();
++        // The following fails because attribute 1 max index = floor(0/5)+5 = 5. OOB (>4).
++        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 5);
++        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+     }
+ 
+     // With a divisor on attribute 3, that attribute can reference up to vertex #6 (as first
+@@ -7214,21 +7226,26 @@ void main()
+ 
+     if (hasBaseInstance)
+     {
+-        // The following passes because attribute 1 accesses vertices [0, 4), and attribute 3
+-        // accesses vertices [0, 6)
++        // instanced attrib index = floor(instance / divisor) + baseInstance
++        // Attribute 1 has divisor=5, buffer fits 5 elements (indices 0-4). Attribute
++        // 3 has divisor=3, buffer fits 6 elements (indices 0-5).
++        //
++        // attr1 max index = floor(17/5)+0 = 3, attr3 max index = floor(17/3)+0 = 5. Both in
++        // bounds.
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 18, 0);
+         EXPECT_GL_NO_ERROR();
+-        // The following fails because attribute 3 accesses vertices [0, 7)
++        // attr1 max index = floor(18/5)+0 = 3, attr3 max index = floor(18/3)+0 = 6. Attr3 OOB.
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 19, 0);
+         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+-        // The following fails because attribute 3 accesses vertices [1, 7)
++        // attr1 max index = floor(17/5)+1 = 4, attr3 max index = floor(17/3)+1 = 6. Attr3 OOB (>5).
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 18, 1);
+         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+-        // The following passes because attribute 3 accesses vertices [3, 6)
+-        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 7, 11);
++        // With baseInstance=3:
++        // attr1 max index = floor(0/5)+3 = 3, attr3 max index = floor(0/3)+3 = 3. Both in bounds.
++        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 3);
+         EXPECT_GL_NO_ERROR();
+-        // The following fails because attribute 3 accesses vertices [3, 7)
+-        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 8, 11);
++        // attr1 max index = floor(0/5)+5 = 5 (OOB for attr1 which fits 5 elements)
++        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 5);
+         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+     }
+ 
+@@ -7283,19 +7300,123 @@ void main()
+ 
+     if (hasBaseInstance)
+     {
++        // instanced attrib index = floor(instance / divisor) + baseInstance
++        // Attribute 1: divisor=5, buffer fits 5 elements (max index 4)
++        // Attribute 2: divisor=3, buffer fits 8 elements (max index 7)
++        // Attribute 3: divisor=3, buffer fits 6 elements (max index 5)
++        // Attribute 4: divisor=1, buffer fits 12 elements (max index 11)
++        //
++        //   attr1: floor(11/5)+0=2, attr2: floor(11/3)+0=3, attr3: floor(11/3)+0=3, attr4:
++        //   floor(11/1)+0=11 All in bounds.
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 12, 0);
+         EXPECT_GL_NO_ERROR();
++        //   attr1: floor(10/5)+1=3, attr2: floor(10/3)+1=4, attr3: floor(10/3)+1=4, attr4:
++        //   floor(10/1)+1=11. All in bounds.
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 11, 1);
+         EXPECT_GL_NO_ERROR();
++        //   attr1: floor(0/5)+11=11 (OOB, >4)
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 1, 11);
+-        EXPECT_GL_NO_ERROR();
++        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
++        //   attr1: floor(1/5)+11=11 (OOB, >4)
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 2, 11);
+         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
++        //   attr4: floor(0/1)+14=14 (OOB, >11)
+         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 1, 14);
+         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
++        //   attr1: floor(11/5)+0=2, attr2: floor(11/3)+0=3, attr3: floor(11/3)+0=3, attr4:
++        //    floor(11/1)+0=11. All in bounds.
++        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 12, 0);
++        EXPECT_GL_NO_ERROR();
++        //   attr1: floor(0/5)+4=4, attr2: floor(0/3)+4=4, attr3: floor(0/3)+4=4, attr4:
++        //   floor(0/1)+4=4. All in bounds.
++        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 1, 4);
++        EXPECT_GL_NO_ERROR();
+     }
+ }
+ 
++// Isolated regression test from the above.
++TEST_P(WebGL2CompatibilityTest, BaseInstancePerInstanceAttributeOOB)
++{
++    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance"));
++
++    // The vertex shader passes the instanced color attribute to the fragment shader.
++    // The non-instanced attribute provides the vertex position for a full-viewport triangle strip.
++    constexpr char kVS[] = R"(#version 300 es
++in vec4 a_position;
++in vec4 a_instColor;
++out vec4 v_color;
++void main()
++{
++    v_color = a_instColor;
++    gl_Position = a_position;
++})";
++
++    constexpr char kFS[] = R"(#version 300 es
++precision mediump float;
++in vec4 v_color;
++out vec4 fragColor;
++void main()
++{
++    fragColor = v_color;
++})";
++
++    ANGLE_GL_PROGRAM(program, kVS, kFS);
++    glUseProgram(program);
++
++    GLint posLoc   = glGetAttribLocation(program, "a_position");
++    GLint colorLoc = glGetAttribLocation(program, "a_instColor");
++    ASSERT_NE(-1, posLoc);
++    ASSERT_NE(-1, colorLoc);
++
++    // Non-instanced position attribute: full-viewport quad as triangle strip.
++    const float positions[] = {
++        -1.0f, -1.0f, 0.0f, 1.0f, 1.0f, -1.0f, 0.0f, 1.0f,
++        -1.0f, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f,  0.0f, 1.0f,
++    };
++    GLBuffer posBuffer;
++    glBindBuffer(GL_ARRAY_BUFFER, posBuffer);
++    glBufferData(GL_ARRAY_BUFFER, sizeof(positions), positions, GL_STATIC_DRAW);
++    glEnableVertexAttribArray(posLoc);
++    glVertexAttribPointer(posLoc, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
++
++    // Instanced color attribute: GL_SHORT*4, divisor=5, stride=12, offset=124.
++    // Buffer data region = 64 bytes -> fits 5 vertices (attrib=8 bytes, (64-8)/12+1=5).
++    // Total buffer = 64 + 124 = 188 bytes.
++    std::vector<uint8_t> instData(188, 0);
++    // Write GL_SHORT×4 green values (0, 0x7FFF, 0, 0x7FFF) at offset=124, stride=12 for 5 entries.
++    for (int i = 0; i < 5; ++i)
++    {
++        size_t base         = 124 + i * 12;
++        int16_t *components = reinterpret_cast<int16_t *>(&instData[base]);
++        components[0]       = 0;       // R = 0
++        components[1]       = 0x7FFF;  // G = 1.0 (normalized)
++        components[2]       = 0;       // B = 0
++        components[3]       = 0x7FFF;  // A = 1.0 (normalized)
++    }
++    GLBuffer instBuffer;
++    glBindBuffer(GL_ARRAY_BUFFER, instBuffer);
++    glBufferData(GL_ARRAY_BUFFER, instData.size(), instData.data(), GL_STATIC_DRAW);
++    glEnableVertexAttribArray(colorLoc);
++    glVertexAttribPointer(colorLoc, 4, GL_SHORT, GL_TRUE, 12, reinterpret_cast<void *>(124));
++    glVertexAttribDivisor(colorLoc, 5);
++    ASSERT_GL_NO_ERROR();
++
++    // Verify baseInstance=0 draw works and produces output.
++    // instanceCount=15, divisor=5 -> max instanced index = floor(14/5) = 2. Within bounds.
++    glClear(GL_COLOR_BUFFER_BIT);
++    glDrawArraysInstancedBaseInstanceANGLE(GL_TRIANGLE_STRIP, 0, 4, 15, 0);
++    ASSERT_GL_NO_ERROR();
++    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
++
++    // baseInstance=5, instanceCount=15, divisor=5.
++    // instanced attribute index = floor(instance / divisor) + baseInstance
++    // Max instanced index = floor(14/5) + 5 = 2 + 5 = 7. Buffer fits 5 elements (indices 0-4).
++    // Index 7 is out of bounds, so this must generate GL_INVALID_OPERATION.
++    glClear(GL_COLOR_BUFFER_BIT);
++    glDrawArraysInstancedBaseInstanceANGLE(GL_TRIANGLE_STRIP, 0, 4, 15, 5);
++    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
++}
++
+ // Tests that indexing with primitive restart index produces error, even
+ // if it's done after toggling GL_PRIMITIVE_RESTART_FIXED_INDEX.
+ // If there is MAX_ELEMENT_INDEX, it is smaller or equal than primitive
+@@ -7324,6 +7445,178 @@ TEST_P(WebGL2CompatibilityTest, PrimitiveRestartIndexAfterToggleIsError)
      EXPECT_GL_ERROR(GL_INVALID_OPERATION);
  }
  
@@ -13232,8 +14342,7 @@ index d45f65adbcba14a4f2a0a74d0662fcc5688ec70f..bd2a61c0897675cce95b6660c7d93a65
 +    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 +
 +    std::vector<GLColor> greenData(8 * 8, GLColor::green);
-+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-+                    greenData.data());
++    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, greenData.data());
 +    ASSERT_GL_NO_ERROR();
 +
 +    glActiveTexture(GL_TEXTURE0);
@@ -13246,12 +14355,118 @@ index d45f65adbcba14a4f2a0a74d0662fcc5688ec70f..bd2a61c0897675cce95b6660c7d93a65
 +
 +    // In WebGL, drawing with a sampler/texture format mismatch must fail.
 +    GLubyte texData[8 * 8 * 2] = {};
-+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R16UI, 8, 8, 0, GL_RED_INTEGER, GL_UNSIGNED_SHORT,
-+                    texData);
++    glTexImage2D(GL_TEXTURE_2D, 0, GL_R16UI, 8, 8, 0, GL_RED_INTEGER, GL_UNSIGNED_SHORT, texData);
 +    ASSERT_GL_NO_ERROR();
 +
 +    drawQuad(program, "a_position", 0.5f, 1.0f, true);
 +    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
++}
++
++// Test that drawing GL_POINTS without setting gl_PointSize in the vertex shader
++// renders points with a default size of 1.0 pixel.
++TEST_P(WebGLCompatibilityTest, PointSizeDefaultWhenNotSet)
++{
++    constexpr char kVSWithoutPointSize[] =
++        R"(attribute vec2 a_position;
++void main()
++{
++    gl_Position = vec4(a_position, 0.0, 1.0);
++})";
++
++    constexpr char kVSWithPointSize[] =
++        R"(attribute vec2 a_position;
++void main()
++{
++    gl_PointSize = 1.0;
++    gl_Position = vec4(a_position, 0.0, 1.0);
++})";
++    constexpr char kVSWithPointSize0[] =
++        R"(attribute vec2 a_position;
++void main()
++{
++    gl_PointSize = 0.0;
++    gl_Position = vec4(a_position, 0.0, 1.0);
++})";
++    constexpr char kVSWithPointSizeVarying[] =
++        R"(attribute vec2 a_position;
++varying float p;
++void main()
++{
++    gl_PointSize = p;
++    gl_Position = vec4(a_position, 0.0, 1.0);
++})";
++
++    constexpr char kFS[] =
++        R"(precision mediump float;
++void main()
++{
++    gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
++})";
++
++    ANGLE_GL_PROGRAM(programWithoutPointSize, kVSWithoutPointSize, kFS);
++    ANGLE_GL_PROGRAM(programWithPointSize, kVSWithPointSize, kFS);
++    ANGLE_GL_PROGRAM(programWithPointSize0, kVSWithPointSize0, kFS);
++    ANGLE_GL_PROGRAM(programWithPointSizeVarying, kVSWithPointSizeVarying, kFS);
++
++    const int w = getWindowWidth();
++    const int h = getWindowHeight();
++
++    // Place points at pixels (1,1), (w-2,1), (1,h-2), (w-2,h-2).
++    // NDC for pixel center: (pixel + 0.5) / size * 2.0 - 1.0.
++    const int px0 = 1;
++    const int py0 = 1;
++    const int px1 = w - 2;
++    const int py1 = h - 2;
++
++    const GLfloat vertices[] = {
++        (px0 + 0.5f) / w * 2.0f - 1.0f, (py0 + 0.5f) / h * 2.0f - 1.0f,
++        (px1 + 0.5f) / w * 2.0f - 1.0f, (py0 + 0.5f) / h * 2.0f - 1.0f,
++        (px0 + 0.5f) / w * 2.0f - 1.0f, (py1 + 0.5f) / h * 2.0f - 1.0f,
++        (px1 + 0.5f) / w * 2.0f - 1.0f, (py1 + 0.5f) / h * 2.0f - 1.0f,
++    };
++
++    GLBuffer vertexBuffer;
++    glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
++    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
++
++    struct Subcase
++    {
++        GLuint program;
++        const char *description;
++    } subcases[] = {
++        {programWithoutPointSize, "without gl_PointSize"},
++        {programWithPointSize, "with gl_PointSize = 1.0"},
++        {programWithPointSize0, "with gl_PointSize = 0.0"},
++        {programWithPointSizeVarying, "with gl_PointSize = v (unassigned varying == 0.0)"}};
++
++    for (const auto &subcase : subcases)
++    {
++        SCOPED_TRACE(testing::Message() << subcase.description);
++        glUseProgram(subcase.program);
++
++        GLint posLocation = glGetAttribLocation(subcase.program, "a_position");
++        ASSERT_NE(-1, posLocation);
++        glVertexAttribPointer(posLocation, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
++        glEnableVertexAttribArray(posLocation);
++
++        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
++        glClear(GL_COLOR_BUFFER_BIT);
++
++        glDrawArrays(GL_POINTS, 0, 4);
++        EXPECT_GL_NO_ERROR();
++
++        // Each point should be exactly 1 pixel.
++        EXPECT_PIXEL_COLOR_EQ(px0, py0, GLColor::green);
++        EXPECT_PIXEL_COLOR_EQ(px1, py0, GLColor::green);
++        EXPECT_PIXEL_COLOR_EQ(px0, py1, GLColor::green);
++        EXPECT_PIXEL_COLOR_EQ(px1, py1, GLColor::green);
++
++        // Neighbors should be black, confirming point size is 1.
++        EXPECT_PIXEL_COLOR_EQ(px0 - 1, py0, GLColor::black);
++        EXPECT_PIXEL_COLOR_EQ(px0 + 1, py0, GLColor::black);
++        EXPECT_PIXEL_COLOR_EQ(px0, py0 - 1, GLColor::black);
++        EXPECT_PIXEL_COLOR_EQ(px0, py0 + 1, GLColor::black);
++    }
 +}
 +
  ANGLE_INSTANTIATE_TEST_ES2_AND_ES3(WebGLCompatibilityTest);
@@ -13274,7 +14489,7 @@ index 144cd6f0c27ffe48f4cbb5d3e2cb90a36c74a7c5..0ffe2a20545b7c18eda8f4231863a00a
  }
  
 diff --git a/src/tests/test_utils/ANGLETest.cpp b/src/tests/test_utils/ANGLETest.cpp
-index 63476f2a6aee723c94b3a5908e43f57ba95e08b4..ece028ed6cb349051f90065e35ce3bb8abaae1a4 100644
+index 63476f2a6aee723c94b3a5908e43f57ba95e08b4..95b88867c3fcf12f70ee6158f74dd3240def7414 100644
 --- a/src/tests/test_utils/ANGLETest.cpp
 +++ b/src/tests/test_utils/ANGLETest.cpp
 @@ -29,9 +29,7 @@
@@ -13318,18 +14533,19 @@ index 63476f2a6aee723c94b3a5908e43f57ba95e08b4..ece028ed6cb349051f90065e35ce3bb8
  
      if (gEnableRenderDocCapture)
      {
-@@ -614,8 +621,8 @@ void ANGLETestBase::initOSWindow()
+@@ -614,8 +621,9 @@ void ANGLETestBase::initOSWindow()
          return;
      }
  
 -    // On Linux we must keep the test windows visible. On Windows it doesn't seem to need it.
 -    setWindowVisible(getOSWindow(), !IsWindows());
-+    // On Linux we must keep the test windows visible. On Windows or Metal it doesn't seem to need it.
++    // On Linux we must keep the test windows visible. On Windows or Metal it doesn't seem to need
++    // it.
 +    setWindowVisible(getOSWindow(), !(IsWindows() || IsMac() || IsIOS()));
  
      switch (mCurrentParams->driver)
      {
-@@ -703,9 +710,6 @@ void ANGLETestBase::ANGLETestSetUp()
+@@ -703,9 +711,6 @@ void ANGLETestBase::ANGLETestSetUp()
      fullTestNameStr << testInfo->test_suite_name() << "." << testInfo->name();
      std::string fullTestName = fullTestNameStr.str();
  
@@ -13339,7 +14555,7 @@ index 63476f2a6aee723c94b3a5908e43f57ba95e08b4..ece028ed6cb349051f90065e35ce3bb8
      TestSuite *testSuite = TestSuite::GetInstance();
      int32_t testExpectation =
          testSuite->getTestExpectationWithConfigAndUpdateTimeout(testConfig, fullTestName);
-@@ -714,7 +718,6 @@ void ANGLETestBase::ANGLETestSetUp()
+@@ -714,7 +719,6 @@ void ANGLETestBase::ANGLETestSetUp()
      {
          GTEST_SKIP() << "Test skipped on this config";
      }
@@ -13347,7 +14563,7 @@ index 63476f2a6aee723c94b3a5908e43f57ba95e08b4..ece028ed6cb349051f90065e35ce3bb8
  
      if (IsWindows())
      {
-@@ -1904,5 +1907,9 @@ void ANGLEProcessTestArgs(int *argc, char *argv[])
+@@ -1904,5 +1908,9 @@ void ANGLEProcessTestArgs(int *argc, char *argv[])
          {
              gEnableRenderDocCapture = false;
          }
@@ -13357,6 +14573,22 @@ index 63476f2a6aee723c94b3a5908e43f57ba95e08b4..ece028ed6cb349051f90065e35ce3bb8
 +        }
      }
  }
+diff --git a/src/tests/test_utils/ANGLETest.h b/src/tests/test_utils/ANGLETest.h
+index fd49f8f15dec9ab5525ce0ab7819d32a857c1317..e9ec66469fc6a1d354d81eca5de53219219460f0 100644
+--- a/src/tests/test_utils/ANGLETest.h
++++ b/src/tests/test_utils/ANGLETest.h
+@@ -592,6 +592,11 @@ class ANGLETestBase : public ::testing::Test
+                mCurrentParams->isSwiftshader();
+     }
+ 
++    bool isMetalRenderer() const
++    {
++        return mCurrentParams->getRenderer() == EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE;
++    }
++
+     bool isDriverSystemEgl() const
+     {
+         return mCurrentParams->driver == angle::GLESDriverType::SystemEGL;
 diff --git a/src/tests/test_utils/ANGLETestCL.cpp b/src/tests/test_utils/ANGLETestCL.cpp
 index 03e9037aaca4df6de668fac7ed2819b76dc2d936..28b076380cc304c6fd52af0ad0d23c95cfe3b52c 100644
 --- a/src/tests/test_utils/ANGLETestCL.cpp
@@ -13797,10 +15029,10 @@ index b57eea26ad74086c536b03727be9ea5ef7bd5ea8..fed3100959ee24a2fd14ecb83feceec8
  
      for (const std::string &path : searchPaths)
 diff --git a/util/autogen/angle_features_autogen.cpp b/util/autogen/angle_features_autogen.cpp
-index 761a8b99f681c02e9f6684e74f635036621ff790..b10a284c8f4c8a2a18ac832113fd359356974d6a 100644
+index 55389d015e6031c6c4e8d7df51b8ccf3a6651c84..1779a97f206b75a62eb16cbb127694a4da00de9b 100644
 --- a/util/autogen/angle_features_autogen.cpp
 +++ b/util/autogen/angle_features_autogen.cpp
-@@ -224,6 +224,7 @@ constexpr PackedEnumMap<Feature, const char *> kFeatureNames = {{
+@@ -227,6 +227,7 @@ constexpr PackedEnumMap<Feature, const char *> kFeatureNames = {{
      {Feature::HasShaderStencilOutput, "hasShaderStencilOutput"},
      {Feature::HasStencilAutoResolve, "hasStencilAutoResolve"},
      {Feature::HasTextureSwizzle, "hasTextureSwizzle"},
@@ -13809,10 +15041,10 @@ index 761a8b99f681c02e9f6684e74f635036621ff790..b10a284c8f4c8a2a18ac832113fd3593
      {Feature::InitializeCurrentVertexAttributes, "initializeCurrentVertexAttributes"},
      {Feature::InjectAsmStatementIntoLoopBodies, "injectAsmStatementIntoLoopBodies"},
 diff --git a/util/autogen/angle_features_autogen.h b/util/autogen/angle_features_autogen.h
-index 7aa29ac126d88554a367aa730f383b7b437902f9..17cebab611196acd08b94d03da8686ee9b4ec6ff 100644
+index d5016ce035c68208939053be45888eef5e45a283..3c68c6134b14da384e5a3a7726bcda9c71d0cb5a 100644
 --- a/util/autogen/angle_features_autogen.h
 +++ b/util/autogen/angle_features_autogen.h
-@@ -224,6 +224,7 @@ enum class Feature
+@@ -227,6 +227,7 @@ enum class Feature
      HasShaderStencilOutput,
      HasStencilAutoResolve,
      HasTextureSwizzle,

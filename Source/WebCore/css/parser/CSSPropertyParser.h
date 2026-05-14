@@ -69,8 +69,6 @@ public:
     static ComputedStyleDependencies collectParsedCustomPropertyValueDependencies(const CSSCustomPropertySyntax&, CSSParserTokenRange, const CSSParserContext&);
     static bool isValidCustomPropertyValueForSyntax(const CSSCustomPropertySyntax&, CSSParserTokenRange, const CSSParserContext&);
     static RefPtr<CSSValue> parseWithSyntax(const CSSCustomPropertySyntax&, CSSParserTokenRange, const CSSParserContext&);
-
-    static std::optional<CSSWideKeyword> parseCSSWideKeyword(CSSParserTokenRange);
 };
 
 // MARK: - CSSPropertyID parsing

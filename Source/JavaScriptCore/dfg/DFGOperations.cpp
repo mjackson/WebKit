@@ -95,6 +95,7 @@
 #include "ResourceExhaustion.h"
 #include "ScopedArguments.h"
 #include "StringConstructor.h"
+#include "StringPrototype.h"
 #include "StringPrototypeInlines.h"
 #include "SuperSampler.h"
 #include "Symbol.h"
@@ -105,7 +106,6 @@
 #include "WeakMapImplInlines.h"
 #include "WeakMapPrototype.h"
 #include "WeakSetPrototype.h"
-#include <wtf/text/MakeString.h>
 
 #if ENABLE(JIT)
 #if ENABLE(DFG_JIT)
@@ -1403,6 +1403,27 @@ JSC_DEFINE_JIT_OPERATION(operationArraySpliceIgnoreResult, EncodedJSValue, (JSGl
     OPERATION_RETURN(scope, result);
 }
 
+JSC_DEFINE_JIT_OPERATION(operationArrayConcatArray, JSArray*, (JSGlobalObject* globalObject, JSArray* firstArray, JSArray* secondArray))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    if (firstArray->mergeIndexingTypeForCopying(secondArray->indexingType(), /* allowPromotion */ true) == NonArray) [[unlikely]]
+        OPERATION_RETURN(scope, nullptr);
+    OPERATION_RETURN(scope, tryConcatAppendArrayFastWithWatchpoints(globalObject, vm, firstArray, secondArray));
+}
+
+JSC_DEFINE_JIT_OPERATION(operationArrayConcatAppendOne, JSArray*, (JSGlobalObject* globalObject, JSArray* firstArray, EncodedJSValue encodedSecond))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    OPERATION_RETURN(scope, tryConcatOneArgFast(globalObject, vm, firstArray, JSValue::decode(encodedSecond)));
+}
+
 JSC_DEFINE_JIT_OPERATION(operationRegExpExecString, EncodedJSValue, (JSGlobalObject* globalObject, RegExpObject* regExpObject, JSString* argument))
 {
     SuperSamplerScope superSamplerScope(false);
@@ -2157,6 +2178,65 @@ JSC_DEFINE_JIT_OPERATION(operationObjectDefineProperty, void, (JSGlobalObject* g
     OPERATION_RETURN(scope);
 }
 
+JSC_DEFINE_JIT_OPERATION(operationObjectDefinePropertyFromFields, void, (JSGlobalObject* globalObject, JSObject* target, EncodedJSValue encodedKey, EncodedJSValue encodedEnumerable, EncodedJSValue encodedConfigurable, EncodedJSValue encodedValue, EncodedJSValue encodedWritable, EncodedJSValue encodedGetter, EncodedJSValue encodedSetter))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    auto propertyName = JSValue::decode(encodedKey).toPropertyKey(globalObject);
+    OPERATION_RETURN_IF_EXCEPTION(scope);
+
+    JSValue enumerable = JSValue::decode(encodedEnumerable);
+    JSValue configurable = JSValue::decode(encodedConfigurable);
+    JSValue value = JSValue::decode(encodedValue);
+    JSValue writable = JSValue::decode(encodedWritable);
+    JSValue getter = JSValue::decode(encodedGetter);
+    JSValue setter = JSValue::decode(encodedSetter);
+
+    PropertyDescriptor desc;
+    if (enumerable)
+        desc.setEnumerable(enumerable.toBoolean(globalObject));
+    if (configurable)
+        desc.setConfigurable(configurable.toBoolean(globalObject));
+    if (value)
+        desc.setValue(value);
+    if (writable)
+        desc.setWritable(writable.toBoolean(globalObject));
+    if (getter) {
+        if (!getter.isUndefined() && !getter.isCallable()) [[unlikely]] {
+            throwTypeError(globalObject, scope, "Getter must be a function."_s);
+            OPERATION_RETURN(scope);
+        }
+        desc.setGetter(getter);
+    }
+    if (setter) {
+        if (!setter.isUndefined() && !setter.isCallable()) [[unlikely]] {
+            throwTypeError(globalObject, scope, "Setter must be a function."_s);
+            OPERATION_RETURN(scope);
+        }
+        desc.setSetter(setter);
+    }
+
+    if (desc.isAccessorDescriptor()) {
+        if (desc.value()) [[unlikely]] {
+            throwTypeError(globalObject, scope, "Invalid property.  'value' present on property with getter or setter."_s);
+            OPERATION_RETURN(scope);
+        }
+        if (desc.writablePresent()) [[unlikely]] {
+            throwTypeError(globalObject, scope, "Invalid property.  'writable' present on property with getter or setter."_s);
+            OPERATION_RETURN(scope);
+        }
+    }
+
+    ASSERT((desc.attributes() & PropertyAttribute::Accessor) || (!desc.isAccessorDescriptor()));
+
+    scope.release();
+    target->methodTable()->defineOwnProperty(target, globalObject, propertyName, desc, true);
+    OPERATION_RETURN(scope);
+}
+
 ALWAYS_INLINE static void defineDataProperty(JSGlobalObject* globalObject, JSObject* base, PropertyName propertyName, JSValue value, int32_t attributes)
 {
     PropertyDescriptor descriptor = toPropertyDescriptor(value, jsUndefined(), jsUndefined(), DefinePropertyAttributes(attributes));
@@ -2288,8 +2368,18 @@ JSC_DEFINE_JIT_OPERATION(operationNewEmptyArray, char*, (VM* vmPointer, Structur
     CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
-    
+
     OPERATION_RETURN(scope, std::bit_cast<char*>(JSArray::create(vm, arrayStructure)));
+}
+
+JSC_DEFINE_JIT_OPERATION(operationAcquireSortScratch, JSCell*, (VM* vmPointer))
+{
+    VM& vm = *vmPointer;
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    OPERATION_RETURN(scope, static_cast<JSCell*>(JSCellButterfly::create(vm, CopyOnWriteArrayWithContiguous, sortScratchSlotCount)));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationNewArrayWithSize, char*, (JSGlobalObject* globalObject, Structure* arrayStructure, int32_t size, Butterfly* butterfly))
@@ -3732,6 +3822,75 @@ JSC_DEFINE_JIT_OPERATION(operationStringEndsWithWithEndPosition, bool, (JSGlobal
     OPERATION_RETURN(scope, baseView->hasInfixEndingAt(suffixView, end));
 }
 
+JSC_DEFINE_JIT_OPERATION(operationStringSplit, JSCell*, (JSGlobalObject* globalObject, JSString* thisString, JSString* separatorString, EncodedJSValue encodedLimit))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    JSValue limitValue = JSValue::decode(encodedLimit);
+    unsigned limit = 0xFFFFFFFFu;
+    if (!limitValue.isUndefined()) {
+        limit = limitValue.toUInt32(globalObject);
+        OPERATION_RETURN_IF_EXCEPTION(scope, nullptr);
+    }
+
+    OPERATION_RETURN(scope, stringSplitFast(globalObject, thisString, separatorString, limit));
+}
+
+// JIT operation for the DFG StringSplit node when the separator is speculated as
+// a primordial RegExp instance. Skips the JS regExpPrototypeSplit body and calls
+// the C++ regExpSplitFast engine directly when the per-instance state is fast
+// (no own @@split override, prototype primordial). Falls back to the C++ host
+// for the non-fast path so that observable @@split overrides are honored.
+JSC_DEFINE_JIT_OPERATION(operationStringSplitRegExp, EncodedJSValue, (JSGlobalObject* globalObject, JSString* thisString, RegExpObject* separator, EncodedJSValue encodedLimit))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    JSValue limitValue = JSValue::decode(encodedLimit);
+
+    if (separator->isSymbolSplitFastAndNonObservable()) [[likely]] {
+        unsigned limit = 0xFFFFFFFFu;
+        if (!limitValue.isUndefined()) {
+            limit = limitValue.toUInt32(globalObject);
+            OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+        }
+        OPERATION_RETURN(scope, JSValue::encode(regExpSplitFast(globalObject, separator, thisString, limit)));
+    }
+
+    // Slow path: the instance has an own @@split override. Look it up and call it.
+    JSValue splitter = separator->get(globalObject, vm.propertyNames->splitSymbol);
+    OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    if (!splitter.isUndefinedOrNull()) {
+        auto callData = JSC::getCallData(splitter);
+        if (callData.type == CallData::Type::None) [[unlikely]] {
+            throwTypeError(globalObject, scope, "@@split method is not callable"_s);
+            OPERATION_RETURN(scope, encodedJSValue());
+        }
+        std::array<EncodedJSValue, 2> args { {
+            JSValue::encode(thisString),
+            JSValue::encode(limitValue),
+        } };
+        JSValue result = call(globalObject, splitter, callData, separator, ArgList { args.data(), args.size() });
+        OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+        OPERATION_RETURN(scope, JSValue::encode(result));
+    }
+    // No @@split — ToString the separator and use the string-separator engine.
+    JSString* separatorString = separator->toString(globalObject);
+    OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    unsigned limit = 0xFFFFFFFFu;
+    if (!limitValue.isUndefined()) {
+        limit = limitValue.toUInt32(globalObject);
+        OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    }
+    OPERATION_RETURN(scope, JSValue::encode(stringSplitFast(globalObject, thisString, separatorString, limit)));
+}
+
 JSC_DEFINE_JIT_OPERATION(operationStringProtoFuncReplaceGeneric, JSCell*, (JSGlobalObject* globalObject, EncodedJSValue thisValue, EncodedJSValue searchValue, EncodedJSValue replaceValue))
 {
     VM& vm = globalObject->vm();
@@ -3749,7 +3908,15 @@ JSC_DEFINE_JIT_OPERATION(operationStringProtoFuncReplaceAllGeneric, JSCell*, (JS
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    OPERATION_RETURN(scope, replace<StringReplaceMode::Global>(vm, globalObject, JSValue::decode(thisValue), JSValue::decode(searchValue), JSValue::decode(replaceValue)));
+    JSValue decodedSearchValue = JSValue::decode(searchValue);
+    if (decodedSearchValue.inherits<RegExpObject>()) [[unlikely]] {
+        if (!uncheckedDowncast<RegExpObject>(decodedSearchValue)->regExp()->global()) {
+            throwTypeError(globalObject, scope, "String.prototype.replaceAll argument must not be a non-global regular expression"_s);
+            OPERATION_RETURN(scope, nullptr);
+        }
+    }
+
+    OPERATION_RETURN(scope, replace<StringReplaceMode::Global>(vm, globalObject, JSValue::decode(thisValue), decodedSearchValue, JSValue::decode(replaceValue)));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationStringProtoFuncReplaceRegExpEmptyStr, JSCell*, (JSGlobalObject* globalObject, JSString* thisValue, RegExpObject* searchValue))
@@ -5036,6 +5203,19 @@ JSC_DEFINE_JIT_OPERATION(operationSpreadSet, JSCell*, (JSGlobalObject* globalObj
 
     ASSERT(is<JSSet>(cell));
     JSSet* set = uncheckedDowncast<JSSet>(cell);
+
+    if (!set->isIteratorProtocolFastAndNonObservable()) [[unlikely]] {
+        JSFunction* iterationFunction = globalObject->iteratorProtocolFunction();
+        auto callData = JSC::getCallData(iterationFunction);
+        ASSERT(callData.type != CallData::Type::None);
+        MarkedArgumentBuffer arguments;
+        arguments.append(set);
+        ASSERT(!arguments.hasOverflowed());
+        JSValue arrayResult = call(globalObject, iterationFunction, callData, jsNull(), arguments);
+        OPERATION_RETURN_IF_EXCEPTION(scope, nullptr);
+        JSArray* array = uncheckedDowncast<JSArray>(arrayResult);
+        OPERATION_RETURN(scope, JSCellButterfly::createFromArray(globalObject, vm, array));
+    }
 
     OPERATION_RETURN(scope, JSCellButterfly::createFromSet(globalObject, set));
 }

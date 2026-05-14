@@ -43,6 +43,7 @@
 #include "PutPropertySlot.h"
 #include "Structure.h"
 #include "StructureTransitionTable.h"
+#include <JavaScriptCore/JSCJSValueCell.h>
 #include <wtf/StdLibExtras.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN

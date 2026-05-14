@@ -31,6 +31,7 @@
 #include "WebPage.h"
 #include <WebCore/FrameInspectorController.h>
 #include <WebCore/LocalFrame.h>
+#include <WebCore/LocalFrameInlines.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
 

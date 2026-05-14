@@ -46,7 +46,7 @@ bool didFinishLoad;
 bool didFinishTest;
 
 #if PLATFORM(MAC) || PLATFORM(MACCATALYST)
-class SetContextCGL {
+struct SetContextCGL {
     SetContextCGL()
     {
         // TODO: implement properly. Skipped due to complicated instantiation.
@@ -59,7 +59,7 @@ class SetContextCGL {
     }
 };
 #else
-class SetContextCGL {
+struct SetContextCGL {
 
 };
 #endif

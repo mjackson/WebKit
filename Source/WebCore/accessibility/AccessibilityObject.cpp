@@ -146,6 +146,11 @@ AccessibilityObject::AccessibilityObject(AXID axID, AXObjectCache& cache)
 AccessibilityObject::~AccessibilityObject()
 {
     AX_ASSERT(isDetached());
+
+    if (!cachedIsIgnored()) {
+        if (auto* cache = m_axObjectCache.get())
+            cache->decrementUnignoredContentObjectCount(role());
+    }
 }
 
 String AccessibilityObject::debugDescriptionInternal(bool verbose, std::optional<OptionSet<AXDebugStringOption>> debugOptions) const
@@ -3463,26 +3468,31 @@ bool AccessibilityObject::supportsHasPopup() const
     return hasAttribute(aria_haspopupAttr) || isComboBox();
 }
 
-String AccessibilityObject::explicitPopupValue() const
+AccessibilityPopupValue AccessibilityObject::popupValue() const
 {
     auto& hasPopup = getAttribute(aria_haspopupAttr);
     if (hasPopup.isEmpty()) {
-        // In ARIA 1.1, the implicit value for datalists became "listbox."
         if (hasDatalist())
-            return "listbox"_s;
-        return { };
+            return AccessibilityPopupValue::Listbox;
+        if (isComboBox())
+            return AccessibilityPopupValue::Listbox;
+        return AccessibilityPopupValue::False;
     }
 
-    for (auto& value : { "menu"_s, "listbox"_s, "tree"_s, "grid"_s, "dialog"_s }) {
-        // FIXME: Should fix ambiguity so we don't have to write "characters", but also don't create/destroy a String when passing an ASCIILiteral to equalIgnoringASCIICase.
-        if (equalIgnoringASCIICase(hasPopup, value))
-            return value;
-    }
-
-    // aria-haspopup specification states that true must be treated as menu.
+    if (equalLettersIgnoringASCIICase(hasPopup, "menu"_s))
+        return AccessibilityPopupValue::Menu;
+    if (equalLettersIgnoringASCIICase(hasPopup, "listbox"_s))
+        return AccessibilityPopupValue::Listbox;
+    if (equalLettersIgnoringASCIICase(hasPopup, "tree"_s))
+        return AccessibilityPopupValue::Tree;
+    if (equalLettersIgnoringASCIICase(hasPopup, "grid"_s))
+        return AccessibilityPopupValue::Grid;
+    if (equalLettersIgnoringASCIICase(hasPopup, "dialog"_s))
+        return AccessibilityPopupValue::Dialog;
     if (equalLettersIgnoringASCIICase(hasPopup, "true"_s))
-        return "menu"_s;
-    return { };
+        return AccessibilityPopupValue::Menu;
+
+    return AccessibilityPopupValue::False;
 }
 
 bool AccessibilityObject::supportsSetSize() const
@@ -4263,6 +4273,12 @@ bool AccessibilityObject::isIgnoredWithoutCache(AXObjectCache* cache) const
     const_cast<AccessibilityObject*>(this)->setLastKnownIsIgnoredValue(ignored);
 
     if (cache) {
+        bool wasCountedAsUnignored = previousLastKnownIsIgnoredValue == AccessibilityObjectInclusion::IncludeObject;
+        if (!wasCountedAsUnignored && !ignored)
+            cache->incrementUnignoredContentObjectCount(role());
+        else if (wasCountedAsUnignored && ignored)
+            cache->decrementUnignoredContentObjectCount(role());
+
         bool becameUnignored = previousLastKnownIsIgnoredValue == AccessibilityObjectInclusion::IgnoreObject && !ignored;
         bool becameIgnored = !becameUnignored && previousLastKnownIsIgnoredValue == AccessibilityObjectInclusion::IncludeObject && ignored;
 

@@ -282,6 +282,8 @@ struct TraversalContext {
     WeakHashSet<Node, WeakPtrImplWithEventTargetData> additionalContainersToCollect;
     unsigned inAdditionalContainerToCollectCount { 0 };
     Vector<bool, 1> hasOverflowItemsStack;
+    Vector<unsigned, 2> visualBlockContainerStack { 0 };
+    unsigned nextVisualBlockContainerNumber { 1 };
     unsigned onlyCollectTextAndLinksCount { 0 };
     bool mergeParagraphs { false };
     bool skipNearlyTransparentContent { false };
@@ -292,6 +294,11 @@ struct TraversalContext {
     inline bool NODELETE shouldIncludeNodeWithRect(const FloatRect& rect) const
     {
         return !rectInRootView || rectInRootView->intersects(rect);
+    }
+
+    unsigned currentVisualBlockContainerNumber() const
+    {
+        return visualBlockContainerStack.isEmpty() ? 0 : visualBlockContainerStack.last();
     }
 
     void pushEnclosingBlock(const Node& node)
@@ -577,7 +584,7 @@ static inline Variant<SkipExtraction, ItemData, URL, Editable> extractItemData(N
 
     if (element->isLink()) {
         if (auto href = element->attributeWithoutSynchronization(HTMLNames::hrefAttr); !href.isEmpty()) {
-            if (auto url = protect(element->document())->completeURL(href); !url.isEmpty()) {
+            if (auto url = protect(element->document())->encodingParseURL(href); !url.isEmpty()) {
                 if (context.mergeParagraphs)
                     return { WTF::move(url) };
 
@@ -838,6 +845,18 @@ static bool areSameOrigin(Document& document, Document& other)
     return protect(document.securityOrigin())->isSameOriginAs(protect(other.securityOrigin()));
 }
 
+static bool isVisuallyDistinctContainer(const RenderStyle& style, const FloatRect& rect, const FloatRect&)
+{
+    bool hasEnclosingBorder = style.border().hasVisibleBorder() && style.usedBorderTopWidth() && style.usedBorderRightWidth() && style.usedBorderBottomWidth() && style.usedBorderLeftWidth();
+    bool hasVisualStyling = style.hasBackground() || style.hasOutline() || !style.boxShadow().isNone() || style.hasExplicitlySetBorderRadius() || hasEnclosingBorder;
+    if (!hasVisualStyling)
+        return false;
+
+    static constexpr auto minimumWidth = 150;
+    static constexpr auto minimumHeight = 90;
+    return rect.width() >= minimumWidth && rect.height() >= minimumHeight;
+}
+
 static inline void extractRecursive(Node& node, Item& parentItem, TraversalContext& context)
 {
     if (context.nodesToSkip.contains(node))
@@ -851,7 +870,18 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
     if (isAdditionalContainerToCollect)
         context.inAdditionalContainerToCollectCount++;
 
+    bool pushedVisualBlockContainer = false;
+    if (CheckedPtr renderer = node.renderer()) {
+        auto nodeBounds = rootViewBounds(node);
+        if (isBlock && isVisuallyDistinctContainer(protect(renderer->style()).get(), nodeBounds, parentItem.rectInRootView)) {
+            context.visualBlockContainerStack.append(context.nextVisualBlockContainerNumber++);
+            pushedVisualBlockContainer = true;
+        }
+    }
+
     auto extractionScope = makeScopeExit([&] {
+        if (pushedVisualBlockContainer)
+            context.visualBlockContainerStack.removeLast();
         if (isAdditionalContainerToCollect)
             context.inAdditionalContainerToCollectCount--;
         if (isBlock)
@@ -1066,6 +1096,9 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
 
     if (auto* renderer = node.renderer(); renderer && item)
         item->hasLineThrough = renderer->style().textDecorationLineInEffect().hasLineThrough();
+
+    if (item)
+        item->visualBlockContainerNumber = context.currentVisualBlockContainerNumber();
 
     ASSERT_IMPLIES(isScrollable, item);
 
@@ -2442,32 +2475,33 @@ static String textDescription(LocalFrame& frame, FloatPoint locationInRootView, 
     return textDescription(targetNode.get(), stringsToValidate);
 }
 
-InteractionDescription interactionDescription(const Interaction& interaction, LocalFrame& frame)
+InteractionDescription interactionDescription(const Interaction& interaction, LocalFrame& frame, Tense tense)
 {
     auto action = interaction.action;
+    bool pastTense = tense == Tense::Past;
     bool isSingleKeyPress = action == Action::KeyPress && PlatformKeyboardEvent::syntheticEventFromText(PlatformEvent::Type::KeyUp, interaction.text);
 
     StringBuilder description;
     description.append([&] -> String {
         if (isSingleKeyPress)
-            return makeString("Press the "_s, interaction.text, " key"_s);
+            return makeString(pastTense ? "Pressed"_s : "Press"_s, " the "_s, interaction.text, " key"_s);
 
         switch (action) {
         case Action::Click:
-            return "Click"_s;
+            return pastTense ? "Clicked"_s : "Click"_s;
         case Action::SelectText:
-            return "Select text"_s;
+            return makeString(pastTense ? "Selected"_s : "Select"_s, " text"_s);
         case Action::SelectMenuItem:
-            return "Select menu item"_s;
+            return makeString(pastTense ? "Selected"_s : "Select"_s, " menu item"_s);
         case Action::TextInput:
         case Action::KeyPress:
-            return "Enter text"_s;
+            return makeString(pastTense ? "Entered"_s : "Enter"_s, " text"_s);
         case Action::HighlightText:
-            return "Highlight text"_s;
+            return makeString(pastTense ? "Highlighted"_s : "Highlight"_s, " text"_s);
         case Action::Scroll:
-            return "Scroll"_s;
+            return pastTense ? "Scrolled"_s : "Scroll"_s;
         case Action::Hover:
-            return "Hover"_s;
+            return pastTense ? "Hovered"_s : "Hover"_s;
         }
         ASSERT_NOT_REACHED();
         return { };
@@ -2609,9 +2643,14 @@ RefPtr<Element> containerElementForSearchTexts(const LocalFrame& frame, Vector<S
         return { };
 
     std::optional<SimpleRange> encompassingMatchRange;
-    auto searchRange = makeSimpleRange(makeBoundaryPointBeforeNodeContents(*target), makeBoundaryPointAfterNodeContents(*body));
+    auto targetSearchRange = makeSimpleRange(makeBoundaryPointBeforeNodeContents(*target), makeBoundaryPointAfterNodeContents(*body));
+    auto bodySearchRange = makeRangeSelectingNodeContents(*body);
+    bool canFallBackToFullSearch = target != body;
     for (auto& text : searchTexts) {
-        auto matchRange = searchForText(searchRange, text);
+        auto matchRange = searchForText(targetSearchRange, text);
+        if (!matchRange && canFallBackToFullSearch)
+            matchRange = searchForText(bodySearchRange, text);
+
         if (!matchRange)
             continue;
 

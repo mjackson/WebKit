@@ -66,10 +66,7 @@
 #include <wtf/Assertions.h>
 #include <wtf/Compiler.h>
 #include <wtf/HashFunctions.h>
-#include <wtf/HashMap.h>
 #include <wtf/MathExtras.h>
-#include <wtf/PlatformRegisters.h>
-#include <wtf/SmallSet.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/MakeString.h>
 
@@ -1144,6 +1141,18 @@ Address BBQJIT::materializePointer(Location pointerLocation, uint32_t uoffset)
     ASSERT(count.type() == m_info.memory(memoryIndex).addressType());
     ASSERT(targetValue.type() == TypeKind::I32);
 
+    if (!m_info.memory(memoryIndex).isMemory64()) {
+        if (!dstAddress.isConst()) {
+            Location dstLoc = loadIfNecessary(dstAddress);
+            m_jit.zeroExtend32ToWord(dstLoc.asGPR(), dstLoc.asGPR());
+        }
+
+        if (!count.isConst()) {
+            Location countLoc = loadIfNecessary(count);
+            m_jit.zeroExtend32ToWord(countLoc.asGPR(), countLoc.asGPR());
+        }
+    }
+
     Vector<Value, 8> arguments = {
         instanceValue(),
         dstAddress, targetValue, count, Value::fromI32(memoryIndex)
@@ -1170,6 +1179,27 @@ Address BBQJIT::materializePointer(Location pointerLocation, uint32_t uoffset)
     else
         ASSERT(count.type() == TypeKind::I32);
 
+    if (!m_info.memory(dstMemoryIndex).isMemory64()) {
+        if (!dstAddress.isConst()) {
+            Location dstLoc = loadIfNecessary(dstAddress);
+            m_jit.zeroExtend32ToWord(dstLoc.asGPR(), dstLoc.asGPR());
+        }
+    }
+
+    if (!m_info.memory(srcMemoryIndex).isMemory64()) {
+        if (!srcAddress.isConst()) {
+            Location srcLoc = loadIfNecessary(srcAddress);
+            m_jit.zeroExtend32ToWord(srcLoc.asGPR(), srcLoc.asGPR());
+        }
+    }
+
+    if (!m_info.memory(srcMemoryIndex).isMemory64() || !m_info.memory(dstMemoryIndex).isMemory64()) {
+        if (!count.isConst()) {
+            Location countLoc = loadIfNecessary(count);
+            m_jit.zeroExtend32ToWord(countLoc.asGPR(), countLoc.asGPR());
+        }
+    }
+
     Vector<Value, 8> arguments = {
         instanceValue(),
         dstAddress, srcAddress, count, Value::fromI32(dstMemoryIndex), Value::fromI32(srcMemoryIndex)
@@ -1192,6 +1222,13 @@ Address BBQJIT::materializePointer(Location pointerLocation, uint32_t uoffset)
     ASSERT(dstAddress.type() == m_info.memory(memoryIndex).addressType());
     ASSERT(srcAddress.type() == TypeKind::I32);
     ASSERT(length.type() == TypeKind::I32);
+
+    if (!m_info.memory(memoryIndex).isMemory64()) {
+        if (!dstAddress.isConst()) {
+            Location dstLoc = loadIfNecessary(dstAddress);
+            m_jit.zeroExtend32ToWord(dstLoc.asGPR(), dstLoc.asGPR());
+        }
+    }
 
     Vector<Value, 8> arguments = {
         instanceValue(),
@@ -1222,9 +1259,12 @@ Address BBQJIT::materializePointer(Location pointerLocation, uint32_t uoffset)
 
 // Atomics
 
-[[nodiscard]] PartialResult BBQJIT::atomicLoad(ExtAtomicOpType loadOp, Type valueType, ExpressionType pointer, ExpressionType& result, uint32_t uoffset, uint8_t memoryIndex)
+[[nodiscard]] PartialResult BBQJIT::atomicLoad(ExtAtomicOpType loadOp, Type valueType, ExpressionType pointer, ExpressionType& result, uint64_t uoffset, uint8_t memoryIndex)
 {
-    if (sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(loadOp))) [[unlikely]] {
+    const bool overflow = m_info.memory(memoryIndex).isMemory64()
+        ? sumOverflows<uint64_t>(uoffset, sizeOfAtomicOpMemoryAccess(loadOp))
+        : sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(loadOp));
+    if (overflow) [[unlikely]] {
         // FIXME: Same issue as in AirIRGenerator::load(): https://bugs.webkit.org/show_bug.cgi?id=166435
         emitThrowException(ExceptionType::OutOfBoundsMemoryAccess);
         consume(pointer);
@@ -1237,10 +1277,13 @@ Address BBQJIT::materializePointer(Location pointerLocation, uint32_t uoffset)
     return { };
 }
 
-[[nodiscard]] PartialResult BBQJIT::atomicStore(ExtAtomicOpType storeOp, Type valueType, ExpressionType pointer, ExpressionType value, uint32_t uoffset, uint8_t memoryIndex)
+[[nodiscard]] PartialResult BBQJIT::atomicStore(ExtAtomicOpType storeOp, Type valueType, ExpressionType pointer, ExpressionType value, uint64_t uoffset, uint8_t memoryIndex)
 {
+    const bool overflow = m_info.memory(memoryIndex).isMemory64()
+        ? sumOverflows<uint64_t>(uoffset, sizeOfAtomicOpMemoryAccess(storeOp))
+        : sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(storeOp));
     Location valueLocation = locationOf(value);
-    if (sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(storeOp))) [[unlikely]] {
+    if (overflow) [[unlikely]] {
         // FIXME: Same issue as in AirIRGenerator::load(): https://bugs.webkit.org/show_bug.cgi?id=166435
         emitThrowException(ExceptionType::OutOfBoundsMemoryAccess);
         consume(pointer);
@@ -1253,10 +1296,13 @@ Address BBQJIT::materializePointer(Location pointerLocation, uint32_t uoffset)
     return { };
 }
 
-[[nodiscard]] PartialResult BBQJIT::atomicBinaryRMW(ExtAtomicOpType op, Type valueType, ExpressionType pointer, ExpressionType value, ExpressionType& result, uint32_t uoffset, uint8_t memoryIndex)
+[[nodiscard]] PartialResult BBQJIT::atomicBinaryRMW(ExtAtomicOpType op, Type valueType, ExpressionType pointer, ExpressionType value, ExpressionType& result, uint64_t uoffset, uint8_t memoryIndex)
 {
+    const bool overflow = m_info.memory(memoryIndex).isMemory64()
+        ? sumOverflows<uint64_t>(uoffset, sizeOfAtomicOpMemoryAccess(op))
+        : sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(op));
     Location valueLocation = locationOf(value);
-    if (sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(op))) [[unlikely]] {
+    if (overflow) [[unlikely]] {
         // FIXME: Even though this is provably out of bounds, it's not a validation error, so we have to handle it
         // as a runtime exception. However, this may change: https://bugs.webkit.org/show_bug.cgi?id=166435
         emitThrowException(ExceptionType::OutOfBoundsMemoryAccess);
@@ -1271,10 +1317,13 @@ Address BBQJIT::materializePointer(Location pointerLocation, uint32_t uoffset)
     return { };
 }
 
-[[nodiscard]] PartialResult BBQJIT::atomicCompareExchange(ExtAtomicOpType op, Type valueType, ExpressionType pointer, ExpressionType expected, ExpressionType value, ExpressionType& result, uint32_t uoffset, uint8_t memoryIndex)
+[[nodiscard]] PartialResult BBQJIT::atomicCompareExchange(ExtAtomicOpType op, Type valueType, ExpressionType pointer, ExpressionType expected, ExpressionType value, ExpressionType& result, uint64_t uoffset, uint8_t memoryIndex)
 {
+    const bool overflow = m_info.memory(memoryIndex).isMemory64()
+        ? sumOverflows<uint64_t>(uoffset, sizeOfAtomicOpMemoryAccess(op))
+        : sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(op));
     Location valueLocation = locationOf(value);
-    if (sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(op))) [[unlikely]] {
+    if (overflow) [[unlikely]] {
         // FIXME: Even though this is provably out of bounds, it's not a validation error, so we have to handle it
         // as a runtime exception. However, this may change: https://bugs.webkit.org/show_bug.cgi?id=166435
         emitThrowException(ExceptionType::OutOfBoundsMemoryAccess);
@@ -1290,12 +1339,12 @@ Address BBQJIT::materializePointer(Location pointerLocation, uint32_t uoffset)
     return { };
 }
 
-[[nodiscard]] PartialResult BBQJIT::atomicWait(ExtAtomicOpType op, ExpressionType pointer, ExpressionType value, ExpressionType timeout, ExpressionType& result, uint32_t uoffset, uint8_t memoryIndex)
+[[nodiscard]] PartialResult BBQJIT::atomicWait(ExtAtomicOpType op, ExpressionType pointer, ExpressionType value, ExpressionType timeout, ExpressionType& result, uint64_t uoffset, uint8_t memoryIndex)
 {
     Vector<Value, 8> arguments = {
         instanceValue(),
         pointer,
-        Value::fromI32(uoffset),
+        Value::fromI64(uoffset),
         value,
         timeout,
         Value::fromI32(memoryIndex)
@@ -1314,12 +1363,12 @@ Address BBQJIT::materializePointer(Location pointerLocation, uint32_t uoffset)
     return { };
 }
 
-[[nodiscard]] PartialResult BBQJIT::atomicNotify(ExtAtomicOpType op, ExpressionType pointer, ExpressionType count, ExpressionType& result, uint32_t uoffset, uint8_t memoryIndex)
+[[nodiscard]] PartialResult BBQJIT::atomicNotify(ExtAtomicOpType op, ExpressionType pointer, ExpressionType count, ExpressionType& result, uint64_t uoffset, uint8_t memoryIndex)
 {
     Vector<Value, 8> arguments = {
         instanceValue(),
         pointer,
-        Value::fromI32(uoffset),
+        Value::fromI64(uoffset),
         count,
         Value::fromI32(memoryIndex)
     };
@@ -3866,7 +3915,7 @@ void BBQJIT::prepareForExceptions()
 {
     // Use the function signature from the parser
     ASSERT(m_parser);
-    const RTT& functionSignature = m_parser->signature();
+    const RTT& functionSignature = m_parser->signatureRTT();
 
     CallInformation wasmCallInfo = wasmCallingConvention().callInformationFor(functionSignature, CallRole::Callee);
 
@@ -4354,6 +4403,8 @@ void BBQJIT::returnValuesFromCall(Vector<Value, N>& results, const RTT& function
 
 void BBQJIT::emitTailCall(FunctionSpaceIndex functionIndexSpace, const RTT& signature, ArgumentList& arguments)
 {
+    bool isImport = m_info.isImportedFunctionFromFunctionIndexSpace(functionIndexSpace);
+
     const auto& callingConvention = wasmCallingConvention();
     CallInformation callInfo = callingConvention.callInformationFor(signature, CallRole::Callee);
     Checked<int32_t> calleeStackSize = WTF::roundUpToMultipleOf(stackAlignmentBytes(), callInfo.headerAndArgumentStackSizeInBytes);
@@ -4382,6 +4433,25 @@ void BBQJIT::emitTailCall(FunctionSpaceIndex functionIndexSpace, const RTT& sign
     ScratchScope<1, 0> scratches(*this, WTF::move(preserved));
     GPRReg callerFramePointer = scratches.gpr(0);
     scratches.unbindPreserved();
+
+    if (isImport) {
+        int32_t topSource = -static_cast<int32_t>(m_frameSize);
+        for (unsigned i = 0; i < arguments.size(); i++) {
+            if (!arguments[i].value().isConst()) {
+                Location loc = locationOf(arguments[i]);
+                if (loc.isStack())
+                    topSource = std::max(topSource, loc.asStackOffset() + static_cast<int32_t>(sizeof(Register)));
+            }
+        }
+        Checked<int32_t> topSourceOffsetFromFP = static_cast<int32_t>(roundUpToMultipleOf<stackAlignmentBytes()>(topSource));
+
+        // We know we're going to do a cross instance call here since it's not semantically possible to import a function into the same instance.
+        auto targetInstOffset = JSWebAssemblyInstance::offsetOfTargetInstance(m_module.moduleInformation(), functionIndexSpace);
+        m_jit.loadPtr(Address(GPRInfo::wasmContextInstancePointer, targetInstOffset), wasmScratchGPR);
+
+        // We can trash wasmBaseMemoryPointer and wasmBoundsCheckingSizeRegister since we won't use them during argument setup and we'll restore them for our callee anyway.
+        emitRestoreInstanceFrameIfNeeded(m_jit, GPRInfo::wasmContextInstancePointer, callerStackSize, m_frameSize, topSourceOffsetFromFP, wasmScratchGPR, wasmBaseMemoryPointer);
+    }
 
 #if CPU(X86_64)
     m_jit.loadPtr(Address(MacroAssembler::framePointerRegister), callerFramePointer);
@@ -4440,7 +4510,7 @@ void BBQJIT::emitTailCall(FunctionSpaceIndex functionIndexSpace, const RTT& sign
 
     // Nothing should refer to FP after this point.
 
-    if (m_info.isImportedFunctionFromFunctionIndexSpace(functionIndexSpace)) {
+    if (isImport) {
         static_assert(sizeof(WasmOrJSImportableFunctionCallLinkInfo) * maxImports < std::numeric_limits<int32_t>::max());
         RELEASE_ASSERT(JSWebAssemblyInstance::offsetOfImportFunctionStub(m_module.moduleInformation(), functionIndexSpace) < std::numeric_limits<int32_t>::max());
         m_jit.farJump(Address(GPRInfo::wasmContextInstancePointer, JSWebAssemblyInstance::offsetOfImportFunctionStub(m_module.moduleInformation(), functionIndexSpace)), WasmEntryPtrTag);
@@ -4514,7 +4584,7 @@ void BBQJIT::emitTailCall(FunctionSpaceIndex functionIndexSpace, const RTT& sign
     // Our callee could have tail called someone else and changed SP so we need to restore it.
     m_jit.subPtr(GPRInfo::callFrameRegister, TrustedImm32(m_frameSize), MacroAssembler::stackPointerRegister);
 
-    if (m_info.callCanClobberInstance(functionIndexSpace) || m_info.isImportedFunctionFromFunctionIndexSpace(functionIndexSpace))
+    if (m_info.isImportedFunctionFromFunctionIndexSpace(functionIndexSpace))
         restoreWebAssemblyGlobalStateAfterWasmCall();
 
     LOG_INSTRUCTION("Call", functionIndexSpace, arguments, "=> ", results);
@@ -4604,18 +4674,6 @@ void BBQJIT::emitIndirectTailCall(const char* opcode, const Value& callee, GPRRe
     ASSERT(!RegisterSet::argumentGPRs().contains(importableFunction, IgnoreVectors));
     ASSERT(!RegisterSet::argumentGPRs().contains(wasmScratchGPR, IgnoreVectors));
 
-    m_jit.loadPtr(CCallHelpers::Address(importableFunction, WasmToWasmImportableFunction::offsetOfBoxedCallee()), wasmScratchGPR);
-    m_jit.storeWasmCalleeToCalleeCallFrame(wasmScratchGPR);
-
-    // Do a context switch if needed.
-    m_jit.loadPtr(CCallHelpers::Address(importableFunction, WasmToWasmImportableFunction::offsetOfTargetInstance()), wasmScratchGPR);
-    Jump isSameInstanceBefore = m_jit.branchPtr(RelationalCondition::Equal, wasmScratchGPR, GPRInfo::wasmContextInstancePointer);
-    m_jit.move(wasmScratchGPR, GPRInfo::wasmContextInstancePointer);
-#if USE(JSVALUE64)
-    loadWebAssemblyGlobalState(wasmBaseMemoryPointer, wasmBoundsCheckingSizeRegister);
-#endif
-    isSameInstanceBefore.link(&m_jit);
-
     const auto& callingConvention = wasmCallingConvention();
     CallInformation callInfo = callingConvention.callInformationFor(signature, CallRole::Callee);
     Checked<int32_t> calleeStackSize = WTF::roundUpToMultipleOf(stackAlignmentBytes(), callInfo.headerAndArgumentStackSizeInBytes);
@@ -4631,6 +4689,32 @@ void BBQJIT::emitIndirectTailCall(const char* opcode, const Value& callee, GPRRe
     ASSERT(callInfo.results.size() == wasmCallerInfo.results.size());
     ASSERT(arguments.size() == callInfo.params.size());
 
+    emitRestoreCalleeSaves();
+
+    {
+        int32_t topSource = -static_cast<int32_t>(m_frameSize);
+        for (unsigned i = 0; i < arguments.size(); i++) {
+            if (!arguments[i].value().isConst()) {
+                Location loc = locationOf(arguments[i]);
+                if (loc.isStack())
+                    topSource = std::max(topSource, loc.asStackOffset() + static_cast<int32_t>(sizeof(Register)));
+            }
+        }
+        Checked<int32_t> topSourceOffsetFromFP = static_cast<int32_t>(roundUpToMultipleOf<stackAlignmentBytes()>(topSource));
+
+        m_jit.loadPtr(CCallHelpers::Address(importableFunction, WasmToWasmImportableFunction::offsetOfTargetInstance()), wasmScratchGPR);
+        Jump isSameInstance = m_jit.branchPtr(RelationalCondition::Equal, wasmScratchGPR, GPRInfo::wasmContextInstancePointer);
+        emitRestoreInstanceFrameIfNeeded(m_jit, GPRInfo::wasmContextInstancePointer, callerStackSize, m_frameSize, topSourceOffsetFromFP, wasmScratchGPR, wasmBaseMemoryPointer);
+        m_jit.loadPtr(CCallHelpers::Address(importableFunction, WasmToWasmImportableFunction::offsetOfTargetInstance()), GPRInfo::wasmContextInstancePointer);
+#if USE(JSVALUE64)
+        loadWebAssemblyGlobalState(wasmBaseMemoryPointer, wasmBoundsCheckingSizeRegister);
+#endif
+        isSameInstance.link(m_jit);
+    }
+
+    m_jit.loadPtr(CCallHelpers::Address(importableFunction, WasmToWasmImportableFunction::offsetOfBoxedCallee()), wasmScratchGPR);
+    m_jit.storeWasmCalleeToCalleeCallFrame(wasmScratchGPR);
+
     Vector<Value, 8> resolvedArguments;
     const unsigned calleeArgument = 1;
     resolvedArguments.reserveInitialCapacity(arguments.size() + calleeArgument + isX86() * 2);
@@ -4642,8 +4726,6 @@ void BBQJIT::emitIndirectTailCall(const char* opcode, const Value& callee, GPRRe
     resolvedArguments.append(Value::pinned(TypeKind::I64, Location::fromStackArgument(CCallHelpers::addressOfCalleeCalleeFromCallerPerspective(0).offset)));
     parameterLocations.append(Location::fromStack(tailCallStackOffsetFromFP + Checked<int>(CallFrameSlot::callee * sizeof(Register))));
 
-    // Save the old Frame Pointer for later and make sure the return address gets saved to its canonical location.
-    emitRestoreCalleeSaves();
 #if CPU(X86_64)
     // There are no remaining non-argument non-preserved gprs left on X86_64 so we have to shuffle FP to a temp slot.
     resolvedArguments.append(Value::pinned(pointerType(), Location::fromStack(0)));

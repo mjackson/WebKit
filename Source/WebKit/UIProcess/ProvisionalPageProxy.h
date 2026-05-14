@@ -106,7 +106,7 @@ public:
     WebCore::PageIdentifier webPageID() const { return m_webPageID; }
     WebFrameProxy* mainFrame() const { return m_mainFrame.get(); }
     BrowsingContextGroup& browsingContextGroup() const { return m_browsingContextGroup.get(); }
-    WebProcessProxy& NODELETE process();
+    WebProcessProxy& NODELETE process() const;
     ProcessSwapRequestedByClient processSwapRequestedByClient() const { return m_processSwapRequestedByClient; }
     WebCore::NavigationIdentifier navigationID() const { return m_navigationID; }
     const URL& provisionalURL() const LIFETIME_BOUND { return m_provisionalLoadURL; }

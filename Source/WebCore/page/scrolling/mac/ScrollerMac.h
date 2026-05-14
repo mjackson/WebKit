@@ -32,6 +32,7 @@
 #include <WebCore/UserInterfaceLayoutDirection.h>
 #include <wtf/RecursiveLockAdapter.h>
 #include <wtf/RetainPtr.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 
 OBJC_CLASS CALayer;
 OBJC_CLASS NSColor;

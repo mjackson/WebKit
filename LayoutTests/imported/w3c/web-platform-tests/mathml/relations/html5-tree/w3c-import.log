@@ -53,7 +53,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/href-click-002.tentative.html
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/href-click-003.tentative.html
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/href-click-004.tentative.html
-/LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/html-or-foreign-element-interfaces.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/html-or-svg-or-mathml-element-interfaces.html
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/integration-point-1-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/integration-point-1-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/integration-point-1.html
@@ -81,9 +81,9 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/shadow-dom-mozilla-1066554-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/shadow-dom-mozilla-1066554-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/shadow-dom-mozilla-1066554.html
-/LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-001.tentative.html
-/LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-002.tentative.html
-/LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-focus-001.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-001.html
+/LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-002.html
+/LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-focus-001.html
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/unique-identifier-1-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/unique-identifier-1-iframe-1.html
 /LayoutTests/imported/w3c/web-platform-tests/mathml/relations/html5-tree/unique-identifier-1-iframe-2.html

@@ -704,6 +704,8 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         return TestController::singleton().lastAddedBackgroundFetchIdentifier();
     if (WKStringIsEqualToUTF8CString(messageName, "LastRemovedBackgroundFetchIdentifier"))
         return TestController::singleton().lastRemovedBackgroundFetchIdentifier();
+    if (WKStringIsEqualToUTF8CString(messageName, "LastProvisionalNavigationFailureURL"))
+        return TestController::singleton().lastProvisionalNavigationFailureURL();
     if (WKStringIsEqualToUTF8CString(messageName, "LastUpdatedBackgroundFetchIdentifier"))
         return TestController::singleton().lastUpdatedBackgroundFetchIdentifier();
     if (WKStringIsEqualToUTF8CString(messageName, "BackgroundFetchState"))

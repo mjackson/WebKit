@@ -45,6 +45,7 @@ PACKAGES=(
     sed
     sqlite
     texinfo
+    volk
     which
     woff2
 

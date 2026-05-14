@@ -150,7 +150,7 @@ void ProcessingInstruction::checkStyleSheet()
             if (m_isXSL) {
                 auto options = CachedResourceLoader::defaultCachedResourceOptions();
                 options.mode = FetchOptions::Mode::SameOrigin;
-                if (auto result = protect(document->cachedResourceLoader())->requestXSLStyleSheet({ ResourceRequest(document->completeURL(href)), options }))
+                if (auto result = protect(document->cachedResourceLoader())->requestXSLStyleSheet({ ResourceRequest(document->encodingParseURL(href)), options }))
                     m_cachedSheet = WTF::move(result.value());
                 else
                     m_cachedSheet = nullptr;
@@ -158,7 +158,7 @@ void ProcessingInstruction::checkStyleSheet()
 #endif
             {
                 String charset = attributes->get<HashTranslatorASCIILiteral>("charset"_s);
-                CachedResourceRequest request(document->completeURL(href), CachedResourceLoader::defaultCachedResourceOptions(), std::nullopt, charset.isEmpty() ? String::fromLatin1(document->charset()) : WTF::move(charset));
+                CachedResourceRequest request(document->encodingParseURL(href), CachedResourceLoader::defaultCachedResourceOptions(), std::nullopt, charset.isEmpty() ? String::fromLatin1(document->charset()) : WTF::move(charset));
 
                 if (auto result = protect(document->cachedResourceLoader())->requestCSSStyleSheet(WTF::move(request)))
                     m_cachedSheet = WTF::move(result.value());

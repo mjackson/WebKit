@@ -108,6 +108,8 @@ Vector<AudioStreamPacketDescription> getPacketDescriptions(CMSampleBufferRef);
 
 RetainPtr<CMSampleBufferRef> sampleBufferFromVideoData(std::span<const uint8_t>, CMVideoFormatDescriptionRef);
 
+WEBCORE_EXPORT bool isCMSampleBufferRandomAccess(CMSampleBufferRef);
+
 }
 
 #endif

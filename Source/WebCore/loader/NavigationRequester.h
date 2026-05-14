@@ -27,6 +27,7 @@
 
 #include <WebCore/GlobalFrameIdentifier.h>
 #include <WebCore/PolicyContainer.h>
+#include <WebCore/ProcessIdentifier.h>
 #include <WebCore/ScriptExecutionContextIdentifier.h>
 #include <WebCore/SecurityContext.h>
 #include <WebCore/SecurityOrigin.h>
@@ -52,6 +53,7 @@ struct NavigationRequester {
     bool hasLoadedThirdPartyFrame { false };
     bool hasHadUserInteraction { false };
     bool parentOriginIsSameAsTopOrigin { false };
+    std::optional<ProcessIdentifier> processIdentifier;
 };
 
 } // namespace WebCore

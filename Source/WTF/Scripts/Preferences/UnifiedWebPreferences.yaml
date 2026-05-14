@@ -493,6 +493,20 @@ AlwaysAllowLocalWebarchive:
     WebCore:
       default: false
 
+AlwaysUseTouchEventRegions:
+  type: bool
+  status: internal
+  humanReadableName: "Always use touch event regions"
+  humanReadableDescription: "Use touch event regions regardless of site isolation enablement"
+  condition: ENABLE(TOUCH_EVENT_REGIONS)
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 AlwaysZoomOnDoubleTap:
   type: bool
   status: internal
@@ -3040,6 +3054,22 @@ FileSystemEnabled:
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
 
+FileSystemHandleSerializationEnabled:
+  type: bool
+  status: preview
+  category: dom
+  humanReadableName: "File System Handle Serialization"
+  humanReadableDescription: "Enable FileSystemHandle for postMessage() and structuredClone()"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+  disableInLockdownMode: true
+  sharedPreferenceForWebProcess: true
+
 FileSystemWritableStreamEnabled:
   type: bool
   status: stable
@@ -3451,6 +3481,21 @@ GridLanesEnabled:
       default: true
     WebCore:
       default: true
+
+HDRAcceleratedApplyGainMapEnabled:
+  type: bool
+  status: testable
+  category: css
+  webcoreOnChange: setNeedsRelayoutAllFrames
+  humanReadableName: "HDR Accelerated Apply GainMap"
+  humanReadableDescription: "Enable HDR Accelerated Apply GainMap"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
 
 HTMLEnhancedSelectEnabled:
    type: bool
@@ -9442,6 +9487,7 @@ WebGLDraftExtensionsEnabled:
       default: false
     WebCore:
       default: false
+  sharedPreferenceForWebProcess: true
 
 WebGLEnabled:
   type: bool
@@ -10093,19 +10139,33 @@ WirelessPlaybackTargetAPIEnabled:
       "PLATFORM(VISION)" : false
       default: true
 
-WorkerAsynchronousURLErrorHandlingEnabled:
+WorkerInSharedWorkerEnabled:
   type: bool
-  status: stable
+  status: preview
   category: dom
-  humanReadableName: "Worker asynchronous URL error handling"
-  humanReadableDescription: "Worker asynchronous URL error handling"
+  humanReadableName: "Worker in SharedWorker"
+  humanReadableDescription: "Allow creating dedicated workers from shared workers"
   defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
     WebCore:
-      default: true
+      default: false
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+
+WorkerParseErrorReportingEnabled:
+  type: bool
+  status: preview
+  category: dom
+  humanReadableName: "Worker parse error reporting"
+  humanReadableDescription: "Report worker script parse errors on the Worker object"
+  defaultValue:
+    WebCore:
+      default: false
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
 
 WriteRichTextDataWhenCopyingOrDragging:
   type: bool

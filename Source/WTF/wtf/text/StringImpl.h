@@ -423,6 +423,7 @@ public:
         template<unsigned characterCount> explicit constexpr StaticStringImpl(const char16_t (&characters)[characterCount], StringKind = StringNormal);
         operator StringImpl&();
         operator const StringImpl&() const;
+        ASCIILiteral literal() const { return ASCIILiteral::fromLiteralUnsafe(m_data8Char); }
     };
 
     WTF_EXPORT_PRIVATE static StaticStringImpl s_emptyAtomString;
@@ -816,8 +817,12 @@ inline std::strong_ordering codePointCompare(std::span<const CharacterType1> cha
         using ChunkType = std::conditional_t<sizeof(CharacterType1) == 1, uint32_t, uint64_t>;
         constexpr size_t stride = sizeof(ChunkType) / sizeof(CharacterType1);
         for (; position + (stride - 1) < commonLength;) {
-            auto lhs = *std::bit_cast<const ChunkType*>(characters1Ptr);
-            auto rhs = *std::bit_cast<const ChunkType*>(characters2Ptr);
+            // Even though CPU does not need aligned access, we cannot
+            // simply dereference ChunkType* or the compiler may perform
+            // optimizations based on the assumption that all ChunkType
+            // objects are naturally aligned.
+            auto lhs = unalignedLoad<ChunkType>(characters1Ptr);
+            auto rhs = unalignedLoad<ChunkType>(characters2Ptr);
             if (lhs != rhs) {
                 if constexpr (sizeof(CharacterType1) == 1)
                     return (flipBytes(lhs) > flipBytes(rhs)) ? std::strong_ordering::greater : std::strong_ordering::less;
@@ -1286,6 +1291,21 @@ template<typename T> inline T* StringImpl::tailPointer()
     return reinterpret_cast_ptr<T*>(reinterpret_cast<uint8_t*>(this) + tailOffset<T>());
 }
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+
+template<typename CharacterType> inline Ref<StringImpl> StringImpl::createUninitializedInternalNonEmpty(size_t length, std::span<CharacterType>& data)
+{
+    ASSERT(length);
+
+    // Allocate a single buffer large enough to contain the StringImpl
+    // struct as well as the data which it contains. This removes one
+    // heap allocation from this call.
+    if (!isValidLength<CharacterType>(length))
+        CRASH();
+
+    SUPPRESS_UNCOUNTED_LOCAL StringImpl* string = static_cast<StringImpl*>(StringImplMalloc::malloc(allocationSize<CharacterType>(length)));
+    data = unsafeMakeSpan(string->tailPointer<CharacterType>(), length);
+    return constructInternal<CharacterType>(*string, length);
+}
 
 inline StringImpl* const& StringImpl::substringBuffer() const
 {

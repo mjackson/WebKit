@@ -37,13 +37,13 @@
 #include "EventTarget.h"
 #include "EventTargetInterfaces.h"
 #include "PerformanceEntry.h"
-#include "ReducedResolutionSeconds.h"
 #include "ScriptExecutionContext.h"
 #include "Timer.h"
 #include <array>
 #include <limits>
 #include <memory>
 #include <wtf/ContinuousTime.h>
+#include <wtf/Forward.h>
 #include <wtf/ListHashSet.h>
 #include <wtf/MonotonicTime.h>
 

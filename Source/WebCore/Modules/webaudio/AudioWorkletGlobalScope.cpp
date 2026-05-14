@@ -44,6 +44,7 @@
 #include "SerializedScriptValue.h"
 #include "WebCoreOpaqueRootInlines.h"
 #include <JavaScriptCore/JSLock.h>
+#include <JavaScriptCore/JSObjectInlines.h>
 #include <wtf/CrossThreadCopier.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>

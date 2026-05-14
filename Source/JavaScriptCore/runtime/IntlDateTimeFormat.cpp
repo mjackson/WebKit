@@ -64,12 +64,30 @@ void UDateIntervalFormatDeleter::operator()(UDateIntervalFormat* formatter)
 
 const ClassInfo IntlDateTimeFormat::s_info = { "Object"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(IntlDateTimeFormat) };
 
+WTF_MAKE_TZONE_ALLOCATED_IMPL(IntlDateTimeFormatImpl);
+
 // Approximate sizes of ICU objects for GC memory pressure reporting, measured empirically with udat_open + udat_format.
 static constexpr size_t estimatedUDateFormatSize = 30000;
 static constexpr size_t estimatedUDateIntervalFormatSize = 30000;
 
 namespace IntlDateTimeFormatInternal {
 static constexpr bool verbose = false;
+}
+
+static std::unique_ptr<UDateFormat, UDateFormatDeleter> openDateFormat(const CString& dataLocale, const String& timeZone, std::span<const char16_t> pattern, UErrorCode& status)
+{
+    auto timeZoneView = StringView(timeZone).upconvertedCharacters();
+    auto* dateFormat = udat_open(UDAT_PATTERN, UDAT_PATTERN, dataLocale.data(), timeZoneView.get(), timeZone.length(), pattern.data(), pattern.size(), &status);
+    if (U_FAILURE(status))
+        return nullptr;
+
+    // Gregorian calendar should be used from the beginning of ECMAScript time.
+    // Failure here means unsupported calendar, and can safely be ignored.
+    UErrorCode calStatus = U_ZERO_ERROR;
+    UCalendar* cal = const_cast<UCalendar*>(udat_getCalendar(dateFormat));
+    ucal_setGregorianChange(cal, minECMAScriptTime, &calStatus);
+
+    return std::unique_ptr<UDateFormat, UDateFormatDeleter>(dateFormat);
 }
 
 IntlDateTimeFormat* IntlDateTimeFormat::create(VM& vm, Structure* structure)
@@ -99,7 +117,8 @@ void IntlDateTimeFormat::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 
     visitor.append(thisObject->m_boundFormat);
 
-    if (thisObject->m_dateFormat)
+    // Reported per-instance even when the UDateFormat is cache-shared
+    if (thisObject->m_impl && thisObject->m_impl->m_dateFormat)
         visitor.reportExtraMemoryVisited(estimatedUDateFormatSize);
     if (thisObject->m_dateIntervalFormat)
         visitor.reportExtraMemoryVisited(estimatedUDateIntervalFormatSize);
@@ -183,7 +202,7 @@ static inline unsigned NODELETE skipLiteralText(const Container& container, unsi
     return length - 1;
 }
 
-void IntlDateTimeFormat::setFormatsFromPattern(StringView pattern)
+void IntlDateTimeFormat::setFormatsFromPattern(IntlDateTimeFormatImpl& impl, StringView pattern)
 {
     // Get all symbols from the pattern, and set format fields accordingly.
     // http://unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table
@@ -223,56 +242,56 @@ void IntlDateTimeFormat::setFormatsFromPattern(StringView pattern)
         switch (currentCharacter) {
         case 'G':
             if (count <= 3)
-                m_era = Era::Short;
+                impl.m_era = Era::Short;
             else if (count == 4)
-                m_era = Era::Long;
+                impl.m_era = Era::Long;
             else if (count == 5)
-                m_era = Era::Narrow;
+                impl.m_era = Era::Narrow;
             break;
         case 'y':
             if (count == 1)
-                m_year = Year::Numeric;
+                impl.m_year = Year::Numeric;
             else if (count == 2)
-                m_year = Year::TwoDigit;
+                impl.m_year = Year::TwoDigit;
             break;
         case 'M':
         case 'L':
             if (count == 1)
-                m_month = Month::Numeric;
+                impl.m_month = Month::Numeric;
             else if (count == 2)
-                m_month = Month::TwoDigit;
+                impl.m_month = Month::TwoDigit;
             else if (count == 3)
-                m_month = Month::Short;
+                impl.m_month = Month::Short;
             else if (count == 4)
-                m_month = Month::Long;
+                impl.m_month = Month::Long;
             else if (count == 5)
-                m_month = Month::Narrow;
+                impl.m_month = Month::Narrow;
             break;
         case 'E':
         case 'e':
         case 'c':
             if (count <= 3)
-                m_weekday = Weekday::Short;
+                impl.m_weekday = Weekday::Short;
             else if (count == 4)
-                m_weekday = Weekday::Long;
+                impl.m_weekday = Weekday::Long;
             else if (count == 5)
-                m_weekday = Weekday::Narrow;
+                impl.m_weekday = Weekday::Narrow;
             break;
         case 'd':
             if (count == 1)
-                m_day = Day::Numeric;
+                impl.m_day = Day::Numeric;
             else if (count == 2)
-                m_day = Day::TwoDigit;
+                impl.m_day = Day::TwoDigit;
             break;
         case 'a':
         case 'b':
         case 'B':
             if (count <= 3)
-                m_dayPeriod = DayPeriod::Short;
+                impl.m_dayPeriod = DayPeriod::Short;
             else if (count == 4)
-                m_dayPeriod = DayPeriod::Long;
+                impl.m_dayPeriod = DayPeriod::Long;
             else if (count == 5)
-                m_dayPeriod = DayPeriod::Narrow;
+                impl.m_dayPeriod = DayPeriod::Narrow;
             break;
         case 'h':
         case 'H':
@@ -285,46 +304,46 @@ void IntlDateTimeFormat::setFormatsFromPattern(StringView pattern)
             //     new Intl.DateTimeFormat(`de-u-hc-h11`, {
             //         dateStyle: "full"
             //     }).resolvedOptions().hourCycle === undefined
-            m_hourCycle = hourCycleFromSymbol(currentCharacter);
+            impl.m_hourCycle = hourCycleFromSymbol(currentCharacter);
             if (count == 1)
-                m_hour = Hour::Numeric;
+                impl.m_hour = Hour::Numeric;
             else if (count == 2)
-                m_hour = Hour::TwoDigit;
+                impl.m_hour = Hour::TwoDigit;
             break;
         }
         case 'm':
             if (count == 1)
-                m_minute = Minute::Numeric;
+                impl.m_minute = Minute::Numeric;
             else if (count == 2)
-                m_minute = Minute::TwoDigit;
+                impl.m_minute = Minute::TwoDigit;
             break;
         case 's':
             if (count == 1)
-                m_second = Second::Numeric;
+                impl.m_second = Second::Numeric;
             else if (count == 2)
-                m_second = Second::TwoDigit;
+                impl.m_second = Second::TwoDigit;
             break;
         case 'z':
             if (count == 1)
-                m_timeZoneName = TimeZoneName::Short;
+                impl.m_timeZoneName = TimeZoneName::Short;
             else if (count == 4)
-                m_timeZoneName = TimeZoneName::Long;
+                impl.m_timeZoneName = TimeZoneName::Long;
             break;
         case 'O':
             if (count == 1)
-                m_timeZoneName = TimeZoneName::ShortOffset;
+                impl.m_timeZoneName = TimeZoneName::ShortOffset;
             else if (count == 4)
-                m_timeZoneName = TimeZoneName::LongOffset;
+                impl.m_timeZoneName = TimeZoneName::LongOffset;
             break;
         case 'v':
         case 'V':
             if (count == 1)
-                m_timeZoneName = TimeZoneName::ShortGeneric;
+                impl.m_timeZoneName = TimeZoneName::ShortGeneric;
             else if (count == 4)
-                m_timeZoneName = TimeZoneName::LongGeneric;
+                impl.m_timeZoneName = TimeZoneName::LongGeneric;
             break;
         case 'S':
-            m_fractionalSecondDigits = count;
+            impl.m_fractionalSecondDigits = count;
             break;
         }
     }
@@ -643,6 +662,8 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
     JSObject* options = intlCoerceOptionsToObject(globalObject, originalOptions);
     RETURN_IF_EXCEPTION(scope, void());
 
+    Ref<IntlDateTimeFormatImpl> impl = IntlDateTimeFormatImpl::create();
+
     ResolveLocaleOptions localeOptions;
 
     LocaleMatcher localeMatcher = intlOption<LocaleMatcher>(globalObject, options, vm.propertyNames->localeMatcher, { { "lookup"_s, LocaleMatcher::Lookup }, { "best fit"_s, LocaleMatcher::BestFit } }, "localeMatcher must be either \"lookup\" or \"best fit\""_s, LocaleMatcher::BestFit);
@@ -685,8 +706,8 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
     const auto& availableLocales = intlDateTimeFormatAvailableLocales();
     auto resolved = resolveLocale(globalObject, availableLocales, requestedLocales, localeMatcher, localeOptions, { RelevantExtensionKey::Ca, RelevantExtensionKey::Hc, RelevantExtensionKey::Nu }, localeData);
 
-    m_locale = resolved.locale;
-    if (m_locale.isEmpty()) {
+    impl->m_locale = resolved.locale;
+    if (impl->m_locale.isEmpty()) {
         throwTypeError(globalObject, scope, "failed to initialize DateTimeFormat due to invalid locale"_s);
         return;
     }
@@ -700,21 +721,21 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
             if (calendar == "islamicc"_s)
                 calendar = "islamic-civil"_s;
         }
-        m_calendar = WTF::move(calendar);
+        impl->m_calendar = WTF::move(calendar);
     }
 
     hourCycle = parseHourCycle(resolved.extensions[static_cast<unsigned>(RelevantExtensionKey::Hc)]);
-    m_numberingSystem = resolved.extensions[static_cast<unsigned>(RelevantExtensionKey::Nu)];
-    m_dataLocale = resolved.dataLocale;
+    impl->m_numberingSystem = resolved.extensions[static_cast<unsigned>(RelevantExtensionKey::Nu)];
+    impl->m_dataLocale = resolved.dataLocale;
 
     StringBuilder localeBuilder;
-    localeBuilder.append(m_dataLocale);
-    if (!m_calendar.isNull() || !m_numberingSystem.isNull()) {
+    localeBuilder.append(impl->m_dataLocale);
+    if (!impl->m_calendar.isNull() || !impl->m_numberingSystem.isNull()) {
         localeBuilder.append("-u"_s);
-        if (!m_calendar.isNull())
-            localeBuilder.append("-ca-"_s, m_calendar);
-        if (!m_numberingSystem.isNull())
-            localeBuilder.append("-nu-"_s, m_numberingSystem);
+        if (!impl->m_calendar.isNull())
+            localeBuilder.append("-ca-"_s, impl->m_calendar);
+        if (!impl->m_numberingSystem.isNull())
+            localeBuilder.append("-nu-"_s, impl->m_numberingSystem);
     }
     CString dataLocaleWithExtensions = localeBuilder.toString().utf8();
 
@@ -746,8 +767,8 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
         tz = vm.dateCache.defaultTimeZone();
         tzForResolvedOptions = tz.toString();
     }
-    m_timeZone = tz;
-    m_timeZoneForResolvedOptions = WTF::move(tzForResolvedOptions);
+    impl->m_timeZone = tz;
+    impl->m_timeZoneForResolvedOptions = WTF::move(tzForResolvedOptions);
 
     Weekday weekday = intlOption<Weekday>(globalObject, options, vm.propertyNames->weekday, { { "narrow"_s, Weekday::Narrow }, { "short"_s, Weekday::Short }, { "long"_s, Weekday::Long } }, "weekday must be \"narrow\", \"short\", or \"long\""_s, Weekday::None);
     RETURN_IF_EXCEPTION(scope, void());
@@ -785,14 +806,14 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
     intlStringOption(globalObject, options, vm.propertyNames->formatMatcher, { "basic"_s, "best fit"_s }, "formatMatcher must be either \"basic\" or \"best fit\""_s, "best fit"_s);
     RETURN_IF_EXCEPTION(scope, void());
 
-    m_dateStyle = intlOption<DateTimeStyle>(globalObject, options, vm.propertyNames->dateStyle, { { "full"_s, DateTimeStyle::Full }, { "long"_s, DateTimeStyle::Long }, { "medium"_s, DateTimeStyle::Medium }, { "short"_s, DateTimeStyle::Short } }, "dateStyle must be \"full\", \"long\", \"medium\", or \"short\""_s, DateTimeStyle::None);
+    impl->m_dateStyle = intlOption<DateTimeStyle>(globalObject, options, vm.propertyNames->dateStyle, { { "full"_s, DateTimeStyle::Full }, { "long"_s, DateTimeStyle::Long }, { "medium"_s, DateTimeStyle::Medium }, { "short"_s, DateTimeStyle::Short } }, "dateStyle must be \"full\", \"long\", \"medium\", or \"short\""_s, DateTimeStyle::None);
     RETURN_IF_EXCEPTION(scope, void());
 
-    m_timeStyle = intlOption<DateTimeStyle>(globalObject, options, vm.propertyNames->timeStyle, { { "full"_s, DateTimeStyle::Full }, { "long"_s, DateTimeStyle::Long }, { "medium"_s, DateTimeStyle::Medium }, { "short"_s, DateTimeStyle::Short } }, "timeStyle must be \"full\", \"long\", \"medium\", or \"short\""_s, DateTimeStyle::None);
+    impl->m_timeStyle = intlOption<DateTimeStyle>(globalObject, options, vm.propertyNames->timeStyle, { { "full"_s, DateTimeStyle::Full }, { "long"_s, DateTimeStyle::Long }, { "medium"_s, DateTimeStyle::Medium }, { "short"_s, DateTimeStyle::Short } }, "timeStyle must be \"full\", \"long\", \"medium\", or \"short\""_s, DateTimeStyle::None);
     RETURN_IF_EXCEPTION(scope, void());
 
     Vector<char16_t, 32> patternBuffer;
-    if (m_dateStyle != DateTimeStyle::None || m_timeStyle != DateTimeStyle::None) {
+    if (impl->m_dateStyle != DateTimeStyle::None || impl->m_timeStyle != DateTimeStyle::None) {
         // 30. For each row in Table 1, except the header row, do
         //     i. Let prop be the name given in the Property column of the row.
         //     ii. Let p be opt.[[<prop>]].
@@ -819,12 +840,12 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
             return UDAT_NONE;
         };
 
-        if (required == RequiredComponent::Date && m_timeStyle != DateTimeStyle::None) [[unlikely]] {
+        if (required == RequiredComponent::Date && impl->m_timeStyle != DateTimeStyle::None) [[unlikely]] {
             throwTypeError(globalObject, scope, "timeStyle is specified while formatting date is requested"_s);
             return;
         }
 
-        if (required == RequiredComponent::Time && m_dateStyle != DateTimeStyle::None) [[unlikely]] {
+        if (required == RequiredComponent::Time && impl->m_dateStyle != DateTimeStyle::None) [[unlikely]] {
             throwTypeError(globalObject, scope, "dateStyle is specified while formatting time is requested"_s);
             return;
         }
@@ -833,9 +854,9 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
         // First, we create UDateFormat via dateStyle and timeStyle. And then convert it to pattern string.
         // After updating this pattern string with hourCycle, we create a final UDateFormat with the updated pattern string.
         UErrorCode status = U_ZERO_ERROR;
-        String timeZoneForICU = m_timeZone.toICUString();
+        String timeZoneForICU = impl->m_timeZone.toICUString();
         StringView timeZoneView(timeZoneForICU);
-        auto dateFormatFromStyle = std::unique_ptr<UDateFormat, UDateFormatDeleter>(udat_open(parseUDateFormatStyle(m_timeStyle), parseUDateFormatStyle(m_dateStyle), dataLocaleWithExtensions.data(), timeZoneView.upconvertedCharacters(), timeZoneView.length(), nullptr, -1, &status));
+        auto dateFormatFromStyle = std::unique_ptr<UDateFormat, UDateFormatDeleter>(udat_open(parseUDateFormatStyle(impl->m_timeStyle), parseUDateFormatStyle(impl->m_dateStyle), dataLocaleWithExtensions.data(), timeZoneView.upconvertedCharacters(), timeZoneView.length(), nullptr, -1, &status));
         if (U_FAILURE(status)) {
             throwTypeError(globalObject, scope, "failed to initialize DateTimeFormat"_s);
             return;
@@ -857,7 +878,7 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
         // We do not care about h11 vs. h12 and h23 vs. h24 difference here since this will be later adjusted by replaceHourCycleInPattern.
         //
         // test262/test/intl402/DateTimeFormat/prototype/format/timedatestyle-en.js includes the test for this behavior.
-        if (m_timeStyle != DateTimeStyle::None && (hourCycle != HourCycle::None || hour12 != TriState::Indeterminate)) {
+        if (impl->m_timeStyle != DateTimeStyle::None && (hourCycle != HourCycle::None || hour12 != TriState::Indeterminate)) {
             auto isHour12 = [](HourCycle hourCycle) {
                 return hourCycle == HourCycle::H11 || hourCycle == HourCycle::H12;
             };
@@ -929,25 +950,20 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
         replaceHourCycleInPattern(patternBuffer, hourCycle);
 
     StringView pattern(patternBuffer.span());
-    setFormatsFromPattern(pattern);
+    setFormatsFromPattern(impl, pattern);
 
-    dataLogLnIf(IntlDateTimeFormatInternal::verbose, "locale:(", m_locale, "),dataLocale:(", dataLocaleWithExtensions, "),pattern:(", pattern, ")");
+    dataLogLnIf(IntlDateTimeFormatInternal::verbose, "locale:(", impl->m_locale, "),dataLocale:(", dataLocaleWithExtensions, "),pattern:(", pattern, ")");
 
     UErrorCode status = U_ZERO_ERROR;
-    String timeZoneForICU = m_timeZone.toICUString();
-    StringView timeZoneView(timeZoneForICU);
-    m_dateFormat = std::unique_ptr<UDateFormat, UDateFormatDeleter>(udat_open(UDAT_PATTERN, UDAT_PATTERN, dataLocaleWithExtensions.data(), timeZoneView.upconvertedCharacters(), timeZoneView.length(), pattern.upconvertedCharacters(), pattern.length(), &status));
+    String timeZoneForICU = impl->m_timeZone.toICUString();
+    impl->m_dateFormat = openDateFormat(dataLocaleWithExtensions, timeZoneForICU, patternBuffer.span(), status);
     if (U_FAILURE(status)) {
         throwTypeError(globalObject, scope, "failed to initialize DateTimeFormat"_s);
         return;
     }
 
     vm.heap.reportExtraMemoryAllocated(this, estimatedUDateFormatSize);
-
-    // Gregorian calendar should be used from the beginning of ECMAScript time.
-    // Failure here means unsupported calendar, and can safely be ignored.
-    UCalendar* cal = const_cast<UCalendar*>(udat_getCalendar(m_dateFormat.get()));
-    ucal_setGregorianChange(cal, minECMAScriptTime, &status);
+    m_impl = WTF::move(impl);
 }
 
 ASCIILiteral IntlDateTimeFormat::hourCycleString(HourCycle hourCycle)
@@ -1163,61 +1179,61 @@ JSObject* IntlDateTimeFormat::resolvedOptions(JSGlobalObject* globalObject) cons
 {
     VM& vm = globalObject->vm();
 
-    if (m_calendar.isNull())
-        m_calendar = defaultCalendarForLocale(m_dataLocale);
-    if (m_numberingSystem.isNull())
-        m_numberingSystem = defaultNumberingSystemForLocale(m_dataLocale);
+    if (m_impl->m_calendar.isNull())
+        m_impl->m_calendar = defaultCalendarForLocale(m_impl->m_dataLocale);
+    if (m_impl->m_numberingSystem.isNull())
+        m_impl->m_numberingSystem = defaultNumberingSystemForLocale(m_impl->m_dataLocale);
 
     JSObject* options = constructEmptyObject(globalObject);
-    options->putDirect(vm, vm.propertyNames->locale, jsNontrivialString(vm, m_locale));
-    options->putDirect(vm, vm.propertyNames->calendar, jsNontrivialString(vm, m_calendar));
-    options->putDirect(vm, vm.propertyNames->numberingSystem, jsNontrivialString(vm, m_numberingSystem));
-    options->putDirect(vm, vm.propertyNames->timeZone, jsNontrivialString(vm, m_timeZoneForResolvedOptions));
+    options->putDirect(vm, vm.propertyNames->locale, jsNontrivialString(vm, m_impl->m_locale));
+    options->putDirect(vm, vm.propertyNames->calendar, jsNontrivialString(vm, m_impl->m_calendar));
+    options->putDirect(vm, vm.propertyNames->numberingSystem, jsNontrivialString(vm, m_impl->m_numberingSystem));
+    options->putDirect(vm, vm.propertyNames->timeZone, jsNontrivialString(vm, m_impl->m_timeZoneForResolvedOptions));
 
-    if (m_hourCycle != HourCycle::None) {
-        options->putDirect(vm, vm.propertyNames->hourCycle, jsNontrivialString(vm, hourCycleString(m_hourCycle)));
-        options->putDirect(vm, vm.propertyNames->hour12, jsBoolean(m_hourCycle == HourCycle::H11 || m_hourCycle == HourCycle::H12));
+    if (m_impl->m_hourCycle != HourCycle::None) {
+        options->putDirect(vm, vm.propertyNames->hourCycle, jsNontrivialString(vm, hourCycleString(m_impl->m_hourCycle)));
+        options->putDirect(vm, vm.propertyNames->hour12, jsBoolean(m_impl->m_hourCycle == HourCycle::H11 || m_impl->m_hourCycle == HourCycle::H12));
     }
 
-    if (m_dateStyle == DateTimeStyle::None && m_timeStyle == DateTimeStyle::None) {
-        if (m_weekday != Weekday::None)
-            options->putDirect(vm, vm.propertyNames->weekday, jsNontrivialString(vm, weekdayString(m_weekday)));
+    if (m_impl->m_dateStyle == DateTimeStyle::None && m_impl->m_timeStyle == DateTimeStyle::None) {
+        if (m_impl->m_weekday != Weekday::None)
+            options->putDirect(vm, vm.propertyNames->weekday, jsNontrivialString(vm, weekdayString(m_impl->m_weekday)));
 
-        if (m_era != Era::None)
-            options->putDirect(vm, vm.propertyNames->era, jsNontrivialString(vm, eraString(m_era)));
+        if (m_impl->m_era != Era::None)
+            options->putDirect(vm, vm.propertyNames->era, jsNontrivialString(vm, eraString(m_impl->m_era)));
 
-        if (m_year != Year::None)
-            options->putDirect(vm, vm.propertyNames->year, jsNontrivialString(vm, yearString(m_year)));
+        if (m_impl->m_year != Year::None)
+            options->putDirect(vm, vm.propertyNames->year, jsNontrivialString(vm, yearString(m_impl->m_year)));
 
-        if (m_month != Month::None)
-            options->putDirect(vm, vm.propertyNames->month, jsNontrivialString(vm, monthString(m_month)));
+        if (m_impl->m_month != Month::None)
+            options->putDirect(vm, vm.propertyNames->month, jsNontrivialString(vm, monthString(m_impl->m_month)));
 
-        if (m_day != Day::None)
-            options->putDirect(vm, vm.propertyNames->day, jsNontrivialString(vm, dayString(m_day)));
+        if (m_impl->m_day != Day::None)
+            options->putDirect(vm, vm.propertyNames->day, jsNontrivialString(vm, dayString(m_impl->m_day)));
 
-        if (m_dayPeriod != DayPeriod::None)
-            options->putDirect(vm, vm.propertyNames->dayPeriod, jsNontrivialString(vm, dayPeriodString(m_dayPeriod)));
+        if (m_impl->m_dayPeriod != DayPeriod::None)
+            options->putDirect(vm, vm.propertyNames->dayPeriod, jsNontrivialString(vm, dayPeriodString(m_impl->m_dayPeriod)));
 
-        if (m_hour != Hour::None)
-            options->putDirect(vm, vm.propertyNames->hour, jsNontrivialString(vm, hourString(m_hour)));
+        if (m_impl->m_hour != Hour::None)
+            options->putDirect(vm, vm.propertyNames->hour, jsNontrivialString(vm, hourString(m_impl->m_hour)));
 
-        if (m_minute != Minute::None)
-            options->putDirect(vm, vm.propertyNames->minute, jsNontrivialString(vm, minuteString(m_minute)));
+        if (m_impl->m_minute != Minute::None)
+            options->putDirect(vm, vm.propertyNames->minute, jsNontrivialString(vm, minuteString(m_impl->m_minute)));
 
-        if (m_second != Second::None)
-            options->putDirect(vm, vm.propertyNames->second, jsNontrivialString(vm, secondString(m_second)));
+        if (m_impl->m_second != Second::None)
+            options->putDirect(vm, vm.propertyNames->second, jsNontrivialString(vm, secondString(m_impl->m_second)));
 
-        if (m_fractionalSecondDigits)
-            options->putDirect(vm, vm.propertyNames->fractionalSecondDigits, jsNumber(m_fractionalSecondDigits));
+        if (m_impl->m_fractionalSecondDigits)
+            options->putDirect(vm, vm.propertyNames->fractionalSecondDigits, jsNumber(m_impl->m_fractionalSecondDigits));
 
-        if (m_timeZoneName != TimeZoneName::None)
-            options->putDirect(vm, vm.propertyNames->timeZoneName, jsNontrivialString(vm, timeZoneNameString(m_timeZoneName)));
+        if (m_impl->m_timeZoneName != TimeZoneName::None)
+            options->putDirect(vm, vm.propertyNames->timeZoneName, jsNontrivialString(vm, timeZoneNameString(m_impl->m_timeZoneName)));
     } else {
-        if (m_dateStyle != DateTimeStyle::None)
-            options->putDirect(vm, vm.propertyNames->dateStyle, jsNontrivialString(vm, formatStyleString(m_dateStyle)));
+        if (m_impl->m_dateStyle != DateTimeStyle::None)
+            options->putDirect(vm, vm.propertyNames->dateStyle, jsNontrivialString(vm, formatStyleString(m_impl->m_dateStyle)));
 
-        if (m_timeStyle != DateTimeStyle::None)
-            options->putDirect(vm, vm.propertyNames->timeStyle, jsNontrivialString(vm, formatStyleString(m_timeStyle)));
+        if (m_impl->m_timeStyle != DateTimeStyle::None)
+            options->putDirect(vm, vm.propertyNames->timeStyle, jsNontrivialString(vm, formatStyleString(m_impl->m_timeStyle)));
     }
 
     return options;
@@ -1246,7 +1262,7 @@ static void NODELETE replaceNarrowNoBreakSpaceOrThinSpaceWithNormalSpace(Contain
 // https://tc39.es/ecma402/#sec-formatdatetime
 JSValue IntlDateTimeFormat::format(JSGlobalObject* globalObject, double value) const
 {
-    ASSERT(m_dateFormat);
+    ASSERT(m_impl->m_dateFormat);
 
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -1255,7 +1271,7 @@ JSValue IntlDateTimeFormat::format(JSGlobalObject* globalObject, double value) c
         return throwRangeError(globalObject, scope, "date value is not finite in DateTimeFormat format()"_s);
 
     Vector<char16_t, 32> result;
-    auto status = callBufferProducingFunction(udat_format, m_dateFormat.get(), value, result, nullptr);
+    auto status = callBufferProducingFunction(udat_format, m_impl->m_dateFormat.get(), value, result, nullptr);
     if (U_FAILURE(status))
         return throwTypeError(globalObject, scope, "failed to format date value"_s);
     replaceNarrowNoBreakSpaceOrThinSpaceWithNormalSpace(result);
@@ -1329,7 +1345,7 @@ static ASCIILiteral partTypeString(UDateFormatField field)
 // https://tc39.es/ecma402/#sec-formatdatetimetoparts
 JSValue IntlDateTimeFormat::formatToParts(JSGlobalObject* globalObject, double value, JSString* sourceType) const
 {
-    ASSERT(m_dateFormat);
+    ASSERT(m_impl->m_dateFormat);
 
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -1343,7 +1359,7 @@ JSValue IntlDateTimeFormat::formatToParts(JSGlobalObject* globalObject, double v
         return throwTypeError(globalObject, scope, "failed to open field position iterator"_s);
 
     Vector<char16_t, 32> result;
-    status = callBufferProducingFunction(udat_formatForFields, m_dateFormat.get(), value, result, fields.get());
+    status = callBufferProducingFunction(udat_formatForFields, m_impl->m_dateFormat.get(), value, result, fields.get());
     if (U_FAILURE(status))
         return throwTypeError(globalObject, scope, "failed to format date value"_s);
     replaceNarrowNoBreakSpaceOrThinSpaceWithNormalSpace(result);
@@ -1390,7 +1406,7 @@ JSValue IntlDateTimeFormat::formatToParts(JSGlobalObject* globalObject, double v
 
 UDateIntervalFormat* IntlDateTimeFormat::createDateIntervalFormatIfNecessary(JSGlobalObject* globalObject)
 {
-    ASSERT(m_dateFormat);
+    ASSERT(m_impl->m_dateFormat);
 
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -1400,7 +1416,7 @@ UDateIntervalFormat* IntlDateTimeFormat::createDateIntervalFormatIfNecessary(JSG
 
     Vector<char16_t, 32> pattern;
     {
-        auto status = callBufferProducingFunction(udat_toPattern, m_dateFormat.get(), false, pattern);
+        auto status = callBufferProducingFunction(udat_toPattern, m_impl->m_dateFormat.get(), false, pattern);
         if (U_FAILURE(status)) {
             throwTypeError(globalObject, scope, "failed to initialize DateIntervalFormat"_s);
             return nullptr;
@@ -1421,20 +1437,20 @@ UDateIntervalFormat* IntlDateTimeFormat::createDateIntervalFormatIfNecessary(JSG
     // While the pattern is including right HourCycle patterns, UDateIntervalFormat does not follow.
     // We need to enforce HourCycle by setting "hc" extension if it is specified.
     StringBuilder localeBuilder;
-    localeBuilder.append(m_dataLocale);
-    if (!m_calendar.isNull() || !m_numberingSystem.isNull() || m_hourCycle != HourCycle::None) {
+    localeBuilder.append(m_impl->m_dataLocale);
+    if (!m_impl->m_calendar.isNull() || !m_impl->m_numberingSystem.isNull() || m_impl->m_hourCycle != HourCycle::None) {
         localeBuilder.append("-u"_s);
-        if (!m_calendar.isNull())
-            localeBuilder.append("-ca-"_s, m_calendar);
-        if (!m_numberingSystem.isNull())
-            localeBuilder.append("-nu-"_s, m_numberingSystem);
-        if (m_hourCycle != HourCycle::None)
-            localeBuilder.append("-hc-"_s, hourCycleString(m_hourCycle));
+        if (!m_impl->m_calendar.isNull())
+            localeBuilder.append("-ca-"_s, m_impl->m_calendar);
+        if (!m_impl->m_numberingSystem.isNull())
+            localeBuilder.append("-nu-"_s, m_impl->m_numberingSystem);
+        if (m_impl->m_hourCycle != HourCycle::None)
+            localeBuilder.append("-hc-"_s, hourCycleString(m_impl->m_hourCycle));
     }
     CString dataLocaleWithExtensions = localeBuilder.toString().utf8();
 
     UErrorCode status = U_ZERO_ERROR;
-    String timeZoneForICU = m_timeZone.toICUString();
+    String timeZoneForICU = m_impl->m_timeZone.toICUString();
     StringView timeZoneView(timeZoneForICU);
     m_dateIntervalFormat = std::unique_ptr<UDateIntervalFormat, UDateIntervalFormatDeleter>(udtitvfmt_open(dataLocaleWithExtensions.data(), skeleton.span().data(), skeleton.size(), timeZoneView.upconvertedCharacters(), timeZoneView.length(), &status));
     if (U_FAILURE(status)) {
@@ -1447,7 +1463,7 @@ UDateIntervalFormat* IntlDateTimeFormat::createDateIntervalFormatIfNecessary(JSG
     return m_dateIntervalFormat.get();
 }
 
-static std::unique_ptr<UFormattedDateInterval, ICUDeleter<udtitvfmt_closeResult>> formattedValueFromDateRange(UDateIntervalFormat& dateIntervalFormat, UDateFormat& dateFormat, double startDate, double endDate, UErrorCode& status)
+static std::unique_ptr<UFormattedDateInterval, ICUDeleter<udtitvfmt_closeResult>> formattedValueFromDateRange(UDateIntervalFormat& dateIntervalFormat, const UDateFormat& dateFormat, double startDate, double endDate, UErrorCode& status)
 {
     auto result = std::unique_ptr<UFormattedDateInterval, ICUDeleter<udtitvfmt_closeResult>>(udtitvfmt_openResult(&status));
     if (U_FAILURE(status))
@@ -1527,7 +1543,7 @@ static bool dateFieldsPracticallyEqual(const UFormattedValue* formattedValue, UE
 
 JSValue IntlDateTimeFormat::formatRange(JSGlobalObject* globalObject, double startDate, double endDate)
 {
-    ASSERT(m_dateFormat);
+    ASSERT(m_impl->m_dateFormat);
 
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -1544,7 +1560,7 @@ JSValue IntlDateTimeFormat::formatRange(JSGlobalObject* globalObject, double sta
     RETURN_IF_EXCEPTION(scope, { });
 
     UErrorCode status = U_ZERO_ERROR;
-    auto result = formattedValueFromDateRange(*dateIntervalFormat, *m_dateFormat, startDate, endDate, status);
+    auto result = formattedValueFromDateRange(*dateIntervalFormat, *m_impl->m_dateFormat, startDate, endDate, status);
     if (U_FAILURE(status)) {
         throwTypeError(globalObject, scope, "Failed to format date interval"_s);
         return { };
@@ -1584,7 +1600,7 @@ JSValue IntlDateTimeFormat::formatRange(JSGlobalObject* globalObject, double sta
 
 JSValue IntlDateTimeFormat::formatRangeToParts(JSGlobalObject* globalObject, double startDate, double endDate)
 {
-    ASSERT(m_dateFormat);
+    ASSERT(m_impl->m_dateFormat);
 
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -1601,7 +1617,7 @@ JSValue IntlDateTimeFormat::formatRangeToParts(JSGlobalObject* globalObject, dou
     RETURN_IF_EXCEPTION(scope, { });
 
     UErrorCode status = U_ZERO_ERROR;
-    auto result = formattedValueFromDateRange(*dateIntervalFormat, *m_dateFormat, startDate, endDate, status);
+    auto result = formattedValueFromDateRange(*dateIntervalFormat, *m_impl->m_dateFormat, startDate, endDate, status);
     if (U_FAILURE(status)) {
         throwTypeError(globalObject, scope, "Failed to format date interval"_s);
         return { };

@@ -58,6 +58,8 @@ class JSGlobalObject;
     v(resolvePromise, nullptr) \
     v(rejectPromise, nullptr) \
     v(fulfillPromise, nullptr) \
+    v(markPromiseAsHandled, nullptr) \
+    v(isPromiseStatePending, nullptr) \
     v(resolvePromiseWithFirstResolvingFunctionCallCheck, nullptr) \
     v(rejectPromiseWithFirstResolvingFunctionCallCheck, nullptr) \
     v(fulfillPromiseWithFirstResolvingFunctionCallCheck, nullptr) \
@@ -123,13 +125,10 @@ class JSGlobalObject;
     v(regExpPrototypeSymbolReplace, nullptr) \
     v(stringIncludesInternal, nullptr) \
     v(stringIndexOfInternal, nullptr) \
-    v(stringSplitFast, nullptr) \
     v(stringSubstring, nullptr) \
     v(handleNegativeProxyHasTrapResult, nullptr) \
     v(handlePositiveProxySetTrapResult, nullptr) \
     v(handleProxyGetTrapResult, nullptr) \
-    v(webAssemblyCompileStreamingInternal, nullptr) \
-    v(webAssemblyInstantiateStreamingInternal, nullptr) \
     v(Object, nullptr) \
     v(Array, nullptr) \
     v(applyFunction, nullptr) \

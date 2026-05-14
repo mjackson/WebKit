@@ -101,15 +101,16 @@ RefPtr<WebGLRenderingContextBase> WebXRWebGLSwapchain::context()
     return m_context;
 }
 
-std::unique_ptr<WebXRWebGLSharedImageSwapchain> WebXRWebGLSharedImageSwapchain::create(WebGLRenderingContextBase& context, SwapchainTargets targets, GCGLenum format, bool clearOnAccess, size_t imageCount)
+std::unique_ptr<WebXRWebGLSharedImageSwapchain> WebXRWebGLSharedImageSwapchain::create(WebGLRenderingContextBase& context, SwapchainTargets targets, GCGLenum format, IntSize initialSize, bool clearOnAccess, size_t imageCount)
 {
-    return std::unique_ptr<WebXRWebGLSharedImageSwapchain>(new WebXRWebGLSharedImageSwapchain(context, targets, format, clearOnAccess, imageCount));
+    return std::unique_ptr<WebXRWebGLSharedImageSwapchain>(new WebXRWebGLSharedImageSwapchain(context, targets, format, initialSize, clearOnAccess, imageCount));
 }
 
-WebXRWebGLSharedImageSwapchain::WebXRWebGLSharedImageSwapchain(WebGLRenderingContextBase& context, SwapchainTargets targets, GCGLenum format, bool clearOnAccess, size_t imageCount)
+WebXRWebGLSharedImageSwapchain::WebXRWebGLSharedImageSwapchain(WebGLRenderingContextBase& context, SwapchainTargets targets, GCGLenum format, IntSize initialSize, bool clearOnAccess, size_t imageCount)
     : WebXRWebGLSwapchain(context, targets, clearOnAccess, imageCount)
     , m_format(format)
 {
+    m_texSize = initialSize;
 }
 
 WebXRWebGLSharedImageSwapchain::~WebXRWebGLSharedImageSwapchain()

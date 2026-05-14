@@ -32,6 +32,7 @@
 #include <WebCore/BackForwardItemIdentifier.h>
 #include <WebCore/LocalFrameLoaderClient.h>
 #include <wtf/Ref.h>
+#include <wtf/ThreadGroup.h>
 #include <wtf/Vector.h>
 #include <wtf/WeakPtr.h>
 

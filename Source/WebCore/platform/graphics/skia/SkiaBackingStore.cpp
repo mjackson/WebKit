@@ -86,7 +86,7 @@ void SkiaBackingStore::paintToCanvas(SkCanvas& canvas, const SkPaint& paint)
         if (!image)
             continue;
 
-        tilePaint.setAntiAlias(allTileEdgesExposed(layerRect, tile.rect()));
+        tilePaint.setAntiAlias(paint.isAntiAlias() && allTileEdgesExposed(layerRect, tile.rect()));
         canvas.drawImageRect(image, SkRect::MakeWH(image->width(), image->height()), tile.rect(), SkSamplingOptions(SkFilterMode::kNearest, SkMipmapMode::kNone), &tilePaint, SkCanvas::kFast_SrcRectConstraint);
     }
 }

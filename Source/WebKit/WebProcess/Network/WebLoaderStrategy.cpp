@@ -422,6 +422,13 @@ static void addParametersShared(const LocalFrame* frame, NetworkResourceLoadPara
             parameters.parentCrossOriginEmbedderPolicy = ownerElement->document().crossOriginEmbedderPolicy();
             parameters.parentFrameURL = protect(ownerElement->document())->url();
         }
+    } else if (frame) {
+        RefPtr webFrame = WebFrame::webFrame(frame->frameID());
+        RefPtr parentWebFrame = webFrame ? webFrame->parentFrame() : nullptr;
+        if (RefPtr parentCoreFrame = parentWebFrame ? parentWebFrame->coreFrame() : nullptr) {
+            if (auto securityPolicy = parentCoreFrame->frameDocumentSecurityPolicy())
+                parameters.parentCrossOriginEmbedderPolicy = securityPolicy->crossOriginEmbedderPolicy;
+        }
     }
 
     auto advancedPrivacyProtections = policySourceDocumentLoader ? policySourceDocumentLoader->advancedPrivacyProtections() : OptionSet<AdvancedPrivacyProtections> { };
@@ -599,6 +606,8 @@ void WebLoaderStrategy::scheduleLoadFromNetworkProcess(ResourceLoader& resourceL
         if (RefPtr documentLoader = resourceLoader.documentLoader()) {
             loadParameters.navigationID = documentLoader->navigationID();
             loadParameters.navigationRequester = documentLoader->triggeringAction().requester();
+            if (loadParameters.navigationRequester && (!loadParameters.sourceOrigin || loadParameters.sourceOrigin->isOpaque()))
+                loadParameters.sourceOrigin = loadParameters.navigationRequester->securityOrigin.ptr();
         }
     }
     loadParameters.isCrossOriginOpenerPolicyEnabled = document && document->settings().crossOriginOpenerPolicyEnabled();
@@ -608,6 +617,12 @@ void WebLoaderStrategy::scheduleLoadFromNetworkProcess(ResourceLoader& resourceL
     if (RefPtr openerFrame = frame ? dynamicDowncast<LocalFrame>(frame->opener()) : nullptr) {
         if (RefPtr openerDocument = openerFrame->document())
             loadParameters.openerURL = openerDocument->url();
+    } else if (webFrame) {
+        // Populate openerURL when openerFrame is a RemoteFrame
+        if (RefPtr page = webFrame->page()) {
+            if (!page->mainFrameOpenerURL().isNull())
+                loadParameters.openerURL = page->mainFrameOpenerURL();
+        }
     }
 
     loadParameters.shouldEnableCrossOriginResourcePolicy = !loadParameters.isMainFrameNavigation;

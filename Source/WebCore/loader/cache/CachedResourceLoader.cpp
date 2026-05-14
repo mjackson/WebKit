@@ -253,7 +253,7 @@ CachedResource* CachedResourceLoader::cachedResource(const String& resourceURL) 
     ASSERT(!resourceURL.isNull());
     RefPtr document = m_document;
     ASSERT(document);
-    return document ? cachedResource(MemoryCache::removeFragmentIdentifierIfNeeded(document->completeURL(resourceURL))) : nullptr;
+    return document ? cachedResource(MemoryCache::removeFragmentIdentifierIfNeeded(document->encodingParseURL(resourceURL))) : nullptr;
 }
 
 CachedResource* CachedResourceLoader::cachedResource(const URL& url) const
@@ -1879,7 +1879,7 @@ bool CachedResourceLoader::isPreloaded(const String& urlString) const
     if (!document)
         return false;
 
-    const URL& url = document->completeURL(urlString);
+    const URL& url = document->encodingParseURL(urlString);
 
     if (!m_preloads)
         return false;

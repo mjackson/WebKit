@@ -28,12 +28,10 @@
 
 #pragma once
 
+#if PLATFORM(COCOA)
+
 #ifndef WTF_PLATFORM_GUARD_AGAINST_INDIRECT_INCLUSION
 #error "Please #include <wtf/Platform.h> instead of this file directly."
-#endif
-
-#if !PLATFORM(COCOA)
-#error "This file should only be included when building for one of Apple's Cocoa platforms."
 #endif
 
 /* Please keep the following in alphabetical order so we can notice duplicates. */
@@ -1185,3 +1183,5 @@
 #if !defined(ENABLE_NETWORK_CACHE_BLOB_STORAGE_MEMORY_CACHE)
 #define ENABLE_NETWORK_CACHE_BLOB_STORAGE_MEMORY_CACHE 1
 #endif
+
+#endif // PLATFORM(COCOA)

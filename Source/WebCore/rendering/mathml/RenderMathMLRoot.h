@@ -61,6 +61,7 @@ private:
     void computePreferredLogicalWidths() final;
     void layoutBlock(RelayoutChildren, LayoutUnit pageLogicalHeight = 0_lu) final;
     void paint(PaintInfo&, const LayoutPoint&) final;
+    std::optional<LayoutUnit> firstLineBaseline() const final;
 
     struct HorizontalParameters {
         LayoutUnit kernBeforeDegree;
@@ -73,7 +74,7 @@ private:
         LayoutUnit extraAscender;
         float degreeBottomRaisePercent;
     };
-    VerticalParameters verticalParameters();
+    VerticalParameters verticalParameters() const;
 
     MathOperator m_radicalOperator;
     LayoutUnit m_radicalOperatorTop;

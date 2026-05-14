@@ -89,6 +89,10 @@
                 "ENABLE_EXPERIMENTAL_FEATURES": {
                     "type": "BOOL",
                     "value": "OFF"
+                },
+                "CMAKE_MAKE_PROGRAM": {
+                    "type": "FILEPATH",
+                    "value": "${sourceDir}/Tools/Scripts/caffeinate-ninja"
                 }
             },
             "environment": {
@@ -209,6 +213,114 @@
             }
         },
         {
+            "name": "mac-tsan",
+            "displayName": "macOS TSan (ThreadSanitizer, RelWithDebInfo, ccache)",
+            "inherits": ["mac", "dev"],
+            "binaryDir": "WebKitBuild/cmake-mac/TSan",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": {
+                    "type": "STRING",
+                    "value": "RelWithDebInfo"
+                },
+                "ENABLE_SANITIZERS": {
+                    "type": "STRING",
+                    "value": "thread"
+                },
+                "ENABLE_EXPERIMENTAL_FEATURES": {
+                    "type": "BOOL",
+                    "value": "OFF"
+                }
+            }
+        },
+        {
+            "name": "ios",
+            "hidden": true,
+            "generator": "Ninja",
+            "cacheVariables": {
+                "PORT": {
+                    "type": "STRING",
+                    "value": "IOS"
+                }
+            },
+            "environment": {
+                "CCACHE_CONFIGPATH": "${sourceDir}/Tools/ccache/ccache-webkit.conf",
+                "CCACHE_BASEDIR": "${sourceDir}"
+            }
+        },
+        {
+            "name": "ios-release",
+            "displayName": "iOS Release",
+            "inherits": ["ios", "release"],
+            "binaryDir": "WebKitBuild/cmake-iphoneos/Release"
+        },
+        {
+            "name": "ios-debug",
+            "displayName": "iOS Debug",
+            "inherits": ["ios", "debug"],
+            "binaryDir": "WebKitBuild/cmake-iphoneos/Debug"
+        },
+        {
+            "name": "ios-dev-release",
+            "displayName": "iOS Development (Release, ccache, compile_commands)",
+            "inherits": ["ios-release", "dev"],
+            "cacheVariables": {
+                "ENABLE_EXPERIMENTAL_FEATURES": {
+                    "type": "BOOL",
+                    "value": "OFF"
+                }
+            }
+        },
+        {
+            "name": "ios-dev-debug",
+            "displayName": "iOS Development (Debug, ccache, compile_commands)",
+            "inherits": ["ios-debug", "dev"]
+        },
+        {
+            "name": "ios-sim",
+            "hidden": true,
+            "generator": "Ninja",
+            "cacheVariables": {
+                "PORT": {
+                    "type": "STRING",
+                    "value": "IOS"
+                },
+                "CMAKE_OSX_ARCHITECTURES": {
+                    "type": "STRING",
+                    "value": "arm64"
+                },
+                "CMAKE_IOS_SIMULATOR": {
+                    "type": "BOOL",
+                    "value": "ON"
+                }
+            },
+            "environment": {
+                "CCACHE_CONFIGPATH": "${sourceDir}/Tools/ccache/ccache-webkit.conf",
+                "CCACHE_BASEDIR": "${sourceDir}"
+            }
+        },
+        {
+            "name": "ios-sim-debug",
+            "displayName": "iOS Simulator Debug",
+            "inherits": ["ios-sim", "debug"],
+            "binaryDir": "WebKitBuild/cmake-iphonesimulator/Debug"
+        },
+        {
+            "name": "ios-sim-dev-debug",
+            "displayName": "iOS Simulator Development (Debug, ccache, compile_commands)",
+            "inherits": ["ios-sim-debug", "dev"]
+        },
+        {
+            "name": "ios-sim-release",
+            "displayName": "iOS Simulator Release",
+            "inherits": ["ios-sim", "release"],
+            "binaryDir": "WebKitBuild/cmake-iphonesimulator/Release"
+        },
+        {
+            "name": "ios-sim-dev-release",
+            "displayName": "iOS Simulator Development (Release, ccache, compile_commands)",
+            "inherits": ["ios-sim-release", "dev"]
+        },
+        {
             "name": "wpe",
             "hidden": true,
             "generator": "Ninja",
@@ -279,6 +391,11 @@
             "configurePreset": "mac-asan"
         },
         {
+            "name": "mac-tsan",
+            "displayName": "macOS TSan",
+            "configurePreset": "mac-tsan"
+        },
+        {
             "name": "gtk-release",
             "displayName": "GTK Release",
             "configurePreset": "gtk-release"
@@ -317,6 +434,46 @@
             "name": "wpe-dev-debug",
             "displayName": "WPE Development Debug",
             "configurePreset": "wpe-dev-debug"
+        },
+        {
+            "name": "ios-release",
+            "displayName": "iOS Release",
+            "configurePreset": "ios-release"
+        },
+        {
+            "name": "ios-debug",
+            "displayName": "iOS Debug",
+            "configurePreset": "ios-debug"
+        },
+        {
+            "name": "ios-dev-release",
+            "displayName": "iOS Development Release",
+            "configurePreset": "ios-dev-release"
+        },
+        {
+            "name": "ios-dev-debug",
+            "displayName": "iOS Development Debug",
+            "configurePreset": "ios-dev-debug"
+        },
+        {
+            "name": "ios-sim-debug",
+            "displayName": "iOS Simulator Debug",
+            "configurePreset": "ios-sim-debug"
+        },
+        {
+            "name": "ios-sim-dev-debug",
+            "displayName": "iOS Simulator Development Debug",
+            "configurePreset": "ios-sim-dev-debug"
+        },
+        {
+            "name": "ios-sim-release",
+            "displayName": "iOS Simulator Release",
+            "configurePreset": "ios-sim-release"
+        },
+        {
+            "name": "ios-sim-dev-release",
+            "displayName": "iOS Simulator Development Release",
+            "configurePreset": "ios-sim-dev-release"
         }
     ]
 }

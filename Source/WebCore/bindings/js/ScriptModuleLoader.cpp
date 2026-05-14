@@ -185,7 +185,7 @@ static void rejectWithFetchError(ScriptExecutionContext& context, Ref<DeferredPr
     context.eventLoop().queueTask(TaskSource::Networking, [deferred = WTF::move(deferred), ec, message = WTF::move(message)]() {
         deferred->rejectWithCallback([&] (JSDOMGlobalObject& jsGlobalObject) {
             JSC::VM& vm = jsGlobalObject.vm();
-            JSC::JSObject* error = uncheckedDowncast<JSC::JSObject>(createDOMException(&jsGlobalObject, ec, message));
+            JSC::JSObject* error = downcast<JSC::JSObject>(createDOMException(&jsGlobalObject, ec, message));
             ASSERT(error);
             error->putDirect(vm, vm.propertyNames->builtinNames().moduleFetchFailureKindPrivateName(), JSC::jsNumber(std::to_underlying(ModuleFetchFailureKind::WasFetchError)));
             return error;
@@ -197,7 +197,7 @@ JSC::JSPromise* ScriptModuleLoader::fetch(JSC::JSGlobalObject* jsGlobalObject, J
 {
     JSC::VM& vm = jsGlobalObject->vm();
 
-    auto& globalObject = *uncheckedDowncast<JSDOMGlobalObject>(jsGlobalObject);
+    auto& globalObject = *downcast<JSDOMGlobalObject>(jsGlobalObject);
     auto* jsPromise = JSC::JSPromise::create(vm, globalObject.promiseStructure());
     RELEASE_ASSERT(jsPromise);
     if (!m_context)
@@ -323,7 +323,7 @@ JSC::JSPromise* ScriptModuleLoader::importModule(JSC::JSGlobalObject* jsGlobalOb
 {
     JSC::VM& vm = jsGlobalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
-    auto& globalObject = *uncheckedDowncast<JSDOMGlobalObject>(jsGlobalObject);
+    auto& globalObject = *downcast<JSDOMGlobalObject>(jsGlobalObject);
 
     if (!m_context)
         return nullptr;

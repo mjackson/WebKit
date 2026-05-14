@@ -46,7 +46,7 @@ namespace Style {
 //
 // https://drafts.csswg.org/css-sizing-3/#max-size-properties
 // https://drafts.csswg.org/css-sizing-4/#sizing-values (additional values added)
-struct MaximumSize : LengthWrapperBase<LengthPercentage<CSS::NonnegativeUnzoomed>, CSS::Keyword::None, CSS::Keyword::MinContent, CSS::Keyword::MaxContent, CSS::Keyword::FitContent, CSS::Keyword::Stretch, CSS::Keyword::Intrinsic, CSS::Keyword::MinIntrinsic> {
+struct MaximumSize : LengthWrapperBase<LengthPercentage<CSS::NonnegativeLayoutUnitClampedUnzoomed>, CSS::Keyword::None, CSS::Keyword::MinContent, CSS::Keyword::MaxContent, CSS::Keyword::FitContent, CSS::Keyword::Stretch, CSS::Keyword::Intrinsic, CSS::Keyword::MinIntrinsic> {
     using Base::Base;
 
     ALWAYS_INLINE bool isNone() const { return holdsAlternative<CSS::Keyword::None>(); }

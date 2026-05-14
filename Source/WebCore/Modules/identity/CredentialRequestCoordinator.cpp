@@ -47,6 +47,7 @@
 #include "Page.h"
 #include "SecurityOriginData.h"
 #include <JavaScriptCore/JSObject.h>
+#include <JavaScriptCore/StrongInlines.h>
 #include <Logging.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/WTFString.h>

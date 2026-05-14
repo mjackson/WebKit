@@ -356,8 +356,9 @@ bool WebPage::handleEditingKeyboardEvent(KeyboardEvent& event)
             haveTextInsertionCommands = true;
     }
     // If there are no text insertion commands, default keydown handler is the right time to execute the commands.
-    // Keypress (Char event) handler is the latest opportunity to execute.
-    if (!haveTextInsertionCommands || platformEvent->type() == PlatformEvent::Type::Char) {
+    // Keypress (Char event) handler is the latest opportunity to execute. When the input method handled the
+    // keydown, no keypress will be dispatched, so text insertion commands must be executed here.
+    if (!haveTextInsertionCommands || platformEvent->type() == PlatformEvent::Type::Char || event.handledByInputMethod()) {
         eventWasHandled = executeKeypressCommandsInternal(commands, &event);
         commands.clear();
     }

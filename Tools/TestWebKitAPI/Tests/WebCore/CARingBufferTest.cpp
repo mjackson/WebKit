@@ -33,6 +33,7 @@
 #include <atomic>
 #include <wtf/MainThread.h>
 #include <wtf/Scope.h>
+#include <wtf/Threading.h>
 
 using namespace WebCore;
 

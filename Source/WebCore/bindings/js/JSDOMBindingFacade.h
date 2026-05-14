@@ -48,8 +48,10 @@
 #include <wtf/ScopedLambda.h>
 
 namespace JSC {
+class ArgList;
 class Identifier;
 class JSArray;
+class JSBoundFunction;
 class JSCell;
 class JSGlobalObject;
 class JSObject;
@@ -98,5 +100,7 @@ WEBCORE_EXPORT void forEachInIterable(JSC::JSGlobalObject*, JSC::JSValue iterabl
 WEBCORE_EXPORT void forEachInIterable(JSC::JSGlobalObject&, JSC::JSObject*, JSC::JSValue method, NOESCAPE const ScopedLambda<void(JSC::VM&, JSC::JSGlobalObject&, JSC::JSValue)>&);
 WEBCORE_EXPORT JSC::JSArray* constructArray(JSC::JSGlobalObject&, size_t, NOESCAPE const ScopedLambda<JSC::JSValue(size_t)>&);
 WEBCORE_EXPORT JSC::JSValue freezeObject(JSC::JSGlobalObject&, JSC::JSObject*);
+
+WEBCORE_EXPORT JSC::JSBoundFunction* createBoundFunction(JSC::VM&, JSC::JSGlobalObject*, JSC::JSObject* target, JSC::JSValue boundThis, JSC::ArgList, double length, ASCIILiteral sourceName);
 
 } // namespace WebCore

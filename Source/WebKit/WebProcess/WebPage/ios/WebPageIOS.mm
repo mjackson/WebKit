@@ -2582,7 +2582,7 @@ void WebPage::performActionOnElement(uint32_t action, const String& authorizatio
             }
             interactionNodeEditor->writeImageToPasteboard(*Pasteboard::createForCopyAndPaste(PagePasteboardContext::create(elementDocument->pageID())), *element, urlToCopy, titleToCopy);
         } else if (element->isLink())
-            interactionNodeEditor->copyURL(elementDocument->completeURL(element->attributeWithoutSynchronization(HTMLNames::hrefAttr)), element->textContent());
+            interactionNodeEditor->copyURL(elementDocument->encodingParseURL(element->attributeWithoutSynchronization(HTMLNames::hrefAttr)), element->textContent());
 #if ENABLE(ATTACHMENT_ELEMENT)
         else if (auto attachmentInfo = protect(elementDocument->editor())->promisedAttachmentInfo(*element))
             send(Messages::WebPageProxy::WritePromisedAttachmentToPasteboard(WTF::move(attachmentInfo), authorizationToken));

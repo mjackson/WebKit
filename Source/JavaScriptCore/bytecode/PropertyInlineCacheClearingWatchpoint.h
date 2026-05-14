@@ -32,7 +32,6 @@
 #include "ObjectPropertyCondition.h"
 #include "PackedCellPtr.h"
 #include "Watchpoint.h"
-#include <wtf/Bag.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/TZoneMalloc.h>
 
@@ -98,8 +97,9 @@ public:
         RELEASE_ASSERT(key.condition().kind() == PropertyCondition::Equivalence);
     }
 
-
 private:
+    AdaptiveValuePropertyInlineCacheClearingWatchpoint(ClangVTableWorkaroundTag, WatchpointSet&);
+
     PolymorphicAccessJITStubRoutine* m_owner;
     const Ref<WatchpointSet> m_watchpointSet;
 };

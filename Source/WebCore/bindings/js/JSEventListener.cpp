@@ -51,21 +51,24 @@
 namespace WebCore {
 using namespace JSC;
 
-JSEventListener::JSEventListener(JSObject* function, JSObject* wrapper, bool isAttribute, CreatedFromMarkup createdFromMarkup, DOMWrapperWorld& isolatedWorld)
+JSEventListener::JSEventListener(JSObject* function, JSObject* wrapper, bool isAttribute, CreatedFromMarkup createdFromMarkup, DOMWrapperWorld& world)
     : EventListener(JSEventListenerType)
     , m_isAttribute(isAttribute)
     , m_wasCreatedFromMarkup(createdFromMarkup == CreatedFromMarkup::Yes)
     , m_isInitialized(false)
     , m_wrapper(wrapper)
-    , m_isolatedWorld(&isolatedWorld)
+    , m_world(&world)
 {
     if (function) {
         ASSERT(wrapper);
         m_jsFunction = JSC::Weak<JSC::JSObject>(function);
         m_isInitialized = true;
     }
-    if (&isolatedWorld.vm() != commonVMOrNull())
-        downcast<JSVMClientData>(isolatedWorld.vm().clientData)->addClient(*this);
+    if (&world.vm() != commonVMOrNull())
+        downcast<JSVMClientData>(world.vm().clientData)->addClient(*this);
+
+    if (!world.isNormal())
+        world.addEventListener(*this);
 }
 
 JSEventListener::~JSEventListener() = default;
@@ -96,9 +99,9 @@ void JSEventListener::replaceJSFunctionForAttributeListener(JSObject* function, 
     }
 }
 
-JSValue eventHandlerAttribute(EventTarget& eventTarget, const AtomString& eventType, DOMWrapperWorld& isolatedWorld)
+JSValue eventHandlerAttribute(EventTarget& eventTarget, const AtomString& eventType, DOMWrapperWorld& world)
 {
-    if (RefPtr jsListener = eventTarget.attributeEventListener(eventType, isolatedWorld)) {
+    if (RefPtr jsListener = eventTarget.attributeEventListener(eventType, world)) {
         if (RefPtr context = eventTarget.scriptExecutionContext()) {
             if (auto* jsFunction = jsListener->ensureJSFunction(*context))
                 return jsFunction;
@@ -148,15 +151,15 @@ void JSEventListener::handleEvent(ScriptExecutionContext& scriptExecutionContext
     if (!jsFunction)
         return;
 
-    if (!m_isolatedWorld) [[unlikely]]
+    if (!m_world) [[unlikely]]
         return;
 
-    SUPPRESS_UNCOUNTED_ARG auto* globalObject = toJSDOMGlobalObject(scriptExecutionContext, *m_isolatedWorld);
+    SUPPRESS_UNCOUNTED_ARG auto* globalObject = toJSDOMGlobalObject(scriptExecutionContext, *m_world);
     if (!globalObject)
         return;
 
     if (scriptExecutionContext.isDocument()) {
-        auto* window = uncheckedDowncast<JSDOMWindow>(globalObject);
+        auto* window = downcast<JSDOMWindow>(globalObject);
         RefPtr localDOMWindow = dynamicDowncast<LocalDOMWindow>(window->wrapped());
         if (!localDOMWindow || !localDOMWindow->isCurrentlyDisplayedInFrame())
             return;
@@ -294,7 +297,7 @@ String JSEventListener::functionName() const
     if (!m_wrapper || !m_jsFunction)
         return { };
 
-    auto& vm = m_isolatedWorld->vm();
+    auto& vm = m_world->vm();
     JSC::JSLockHolder lock(vm);
 
     auto* handlerFunction = dynamicDowncast<JSC::JSFunction>(m_jsFunction.get());
@@ -304,12 +307,17 @@ String JSEventListener::functionName() const
     return handlerFunction->name(vm);
 }
 
-void JSEventListener::willDestroyVM()
+void JSEventListener::invalidate()
 {
     m_jsFunction.clear();
     m_wrapper.clear();
     m_isInitialized = false;
-    m_isolatedWorld = nullptr;
+    m_world = nullptr;
+}
+
+void JSEventListener::willDestroyVM()
+{
+    invalidate();
 }
 
 } // namespace WebCore

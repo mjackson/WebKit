@@ -97,6 +97,11 @@ void NativeImage::replacePlatformImage(PlatformImagePtr&& platformImage) const
 }
 
 #if !USE(CG)
+size_t NativeImage::sizeInBytes() const
+{
+    return size().area() * sizeof(uint32_t);
+}
+
 void NativeImage::computeHeadroom() const
 {
 }

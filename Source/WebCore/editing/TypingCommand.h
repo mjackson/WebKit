@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "SimpleRange.h"
 #include "TextInsertionBaseCommand.h"
 #include <wtf/CheckedRef.h>
 

@@ -89,6 +89,7 @@ static void runWebsiteDataStoreCustomPaths(ShouldEnableProcessPrewarming shouldE
     RetainPtr localStoragePath = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/CustomWebsiteData/LocalStorage/" stringByExpandingTildeInPath] isDirectory:YES];
     RetainPtr cookieStorageFile = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/CustomWebsiteData/CookieStorage/Cookie.File" stringByExpandingTildeInPath] isDirectory:NO];
     RetainPtr resourceLoadStatisticsPath = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/CustomWebsiteData/ResourceLoadStatistics/" stringByExpandingTildeInPath] isDirectory:YES];
+    RetainPtr generalStoragePath = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/CustomWebsiteData/Storage/" stringByExpandingTildeInPath] isDirectory:YES];
     RetainPtr defaultIDBPath = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/WebsiteData/IndexedDB/" stringByExpandingTildeInPath] isDirectory:YES];
     RetainPtr defaultLocalStoragePath = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/WebsiteData/LocalStorage/" stringByExpandingTildeInPath] isDirectory:YES];
     RetainPtr defaultResourceLoadStatisticsPath = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/WebsiteData/ResourceLoadStatistics/" stringByExpandingTildeInPath] isDirectory:YES];
@@ -97,6 +98,7 @@ static void runWebsiteDataStoreCustomPaths(ShouldEnableProcessPrewarming shouldE
     [[NSFileManager defaultManager] removeItemAtURL:localStoragePath.get() error:nil];
     [[NSFileManager defaultManager] removeItemAtURL:cookieStorageFile.get() error:nil];
     [[NSFileManager defaultManager] removeItemAtURL:resourceLoadStatisticsPath.get() error:nil];
+    [[NSFileManager defaultManager] removeItemAtURL:generalStoragePath.get() error:nil];
     [[NSFileManager defaultManager] removeItemAtURL:defaultIDBPath.get() error:nil];
     [[NSFileManager defaultManager] removeItemAtURL:defaultLocalStoragePath.get() error:nil];
     [[NSFileManager defaultManager] removeItemAtURL:defaultResourceLoadStatisticsPath.get() error:nil];
@@ -105,6 +107,7 @@ static void runWebsiteDataStoreCustomPaths(ShouldEnableProcessPrewarming shouldE
     EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:localStoragePath.get().path]);
     EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:cookieStorageFile.get().path]);
     EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:resourceLoadStatisticsPath.get().path]);
+    EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:generalStoragePath.get().path]);
     EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:defaultIDBPath.get().path]);
     EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:defaultLocalStoragePath.get().path]);
     EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:defaultResourceLoadStatisticsPath.get().path]);
@@ -115,6 +118,7 @@ static void runWebsiteDataStoreCustomPaths(ShouldEnableProcessPrewarming shouldE
     websiteDataStoreConfiguration.get()._webStorageDirectory = localStoragePath.get();
     websiteDataStoreConfiguration.get()._cookieStorageFile = cookieStorageFile.get();
     websiteDataStoreConfiguration.get()._resourceLoadStatisticsDirectory = resourceLoadStatisticsPath.get();
+    websiteDataStoreConfiguration.get().generalStorageDirectory = generalStoragePath.get();
 
     configuration.get().websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]).get();
     configuration.get().processPool = processPool.get();
@@ -270,22 +274,12 @@ static void runWebsiteDataStoreCustomPaths(ShouldEnableProcessPrewarming shouldE
     EXPECT_FALSE([WKWebsiteDataStore _defaultDataStoreExists]);
 }
 
-// FIXME when webkit.org/b/313786 is resolved.
-#if PLATFORM(MAC) && !defined(NDEBUG)
-TEST(WebKit, DISABLED_WebsiteDataStoreCustomPathsWithoutPrewarming)
-#else
 TEST(WebKit, WebsiteDataStoreCustomPathsWithoutPrewarming)
-#endif
 {
     runWebsiteDataStoreCustomPaths(ShouldEnableProcessPrewarming::No);
 }
 
-// FIXME when webkit.org/b/313786 is resolved.
-#if PLATFORM(MAC) && !defined(NDEBUG)
-TEST(WebKit, DISABLED_WebsiteDataStoreCustomPathsWithPrewarming)
-#else
 TEST(WebKit, WebsiteDataStoreCustomPathsWithPrewarming)
-#endif
 {
     runWebsiteDataStoreCustomPaths(ShouldEnableProcessPrewarming::Yes);
 }
@@ -1897,30 +1891,34 @@ TEST(WKWebsiteDataStore, DeleteEmptyServiceWorkerDirectory)
     websiteDataStoreConfiguration.get().generalStorageDirectory = generalStorageDirectory.get();
     RetainPtr websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
 
-    // Navigate to the origin whose empty database is on disk. This triggers the lazy per-origin
-    // import, which opens the database, finds it empty, and deletes the files. The navigation
-    // itself may fail (no internet) but the import is triggered regardless.
+    // Start a navigation to the origin whose empty database is on disk. This triggers the lazy
+    // per-origin import on the network process, which opens the database, finds it empty, and
+    // deletes the files. We don't wait for the navigation to finish — webkit.org is a real URL
+    // and the load would hang in offline test environments.
     RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setWebsiteDataStore:websiteDataStore.get()];
     RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    RetainPtr navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
-    [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) { done = true; }];
-    [navigationDelegate setDidFailProvisionalNavigation:^(WKWebView *, WKNavigation *, NSError *) { done = true; }];
-    [webView setNavigationDelegate:navigationDelegate.get()];
-    done = false;
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://webkit.org/"]]];
-    TestWebKitAPI::Util::run(&done);
 
-    // Verify record does not exist with empty database.
+    // Poll until the per-origin import has deleted the empty database and the record count
+    // drops to 0. The import runs asynchronously on the network process' work queue.
     __block RetainPtr<NSArray<WKWebsiteDataRecord *>> records;
     RetainPtr dataTypes = [NSSet setWithObjects:WKWebsiteDataTypeServiceWorkerRegistrations, nil];
-    done = false;
-    [websiteDataStore fetchDataRecordsOfTypes:dataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> * dataRecords) {
-        records = dataRecords;
-        done = true;
-    }];
-    TestWebKitAPI::Util::run(&done);
-    EXPECT_EQ([records count], 0u);
+    bool reachedZero = false;
+    for (size_t tries = 0; tries < 100; ++tries) {
+        done = false;
+        [websiteDataStore fetchDataRecordsOfTypes:dataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> * dataRecords) {
+            records = dataRecords;
+            done = true;
+        }];
+        TestWebKitAPI::Util::run(&done);
+        if ([records count] == 0u) {
+            reachedZero = true;
+            break;
+        }
+        TestWebKitAPI::Util::runFor(0.1_s);
+    }
+    EXPECT_TRUE(reachedZero);
 
     // Verify directory is deleted.
     EXPECT_FALSE([fileManager fileExistsAtPath:[serviceWorkerDirectory path]]);

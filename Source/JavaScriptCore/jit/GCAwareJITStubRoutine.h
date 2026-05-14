@@ -29,6 +29,7 @@
 #include "JITStubRoutine.h"
 #include "JSObject.h"
 #include "WriteBarrier.h"
+#include <wtf/Bag.h>
 #include <wtf/FixedVector.h>
 #include <wtf/Hasher.h>
 #include <wtf/Vector.h>

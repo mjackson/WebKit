@@ -50,7 +50,6 @@
 #include <wtf/DateMath.h>
 #include <wtf/GregorianDateTime.h>
 #include <wtf/Platform.h>
-#include <wtf/SaturatedArithmetic.h>
 #include <wtf/TZoneMalloc.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN

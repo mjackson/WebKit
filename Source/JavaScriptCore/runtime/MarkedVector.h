@@ -21,7 +21,6 @@
 
 #pragma once
 
-#include <JavaScriptCore/JSCast.h>
 #include <JavaScriptCore/VM.h>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/ForbidHeapAllocation.h>

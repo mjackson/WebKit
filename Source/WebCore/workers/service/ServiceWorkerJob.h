@@ -34,11 +34,11 @@
 #include <WebCore/WorkerScriptLoader.h>
 #include <WebCore/WorkerScriptLoaderClient.h>
 #include <wtf/CompletionHandler.h>
+#include <wtf/CurrentThread.h>
 #include <wtf/RefPtr.h>
 #include <wtf/RunLoop.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
-#include <wtf/Threading.h>
 
 namespace WebCore {
 
@@ -94,7 +94,7 @@ private:
     RefPtr<WorkerScriptLoader> m_scriptLoader;
 
 #if ASSERT_ENABLED
-    const Ref<Thread> m_creationThread { Thread::currentSingleton() };
+    const uint32_t m_creationThreadID { currentThreadID() };
 #endif
 };
 

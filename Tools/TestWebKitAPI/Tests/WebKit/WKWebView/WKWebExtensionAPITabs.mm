@@ -1577,12 +1577,7 @@ TEST(WKWebExtensionAPITabs, HighlightedAlsoActivatesTab)
     Util::loadAndRunExtension(tabsManifest, @{ @"background.js": backgroundScript });
 }
 
-// FIXME rdar://147858640
-#if PLATFORM(IOS) && !defined(NDEBUG)
-TEST(WKWebExtensionAPITabs, DISABLED_SendMessage)
-#else
 TEST(WKWebExtensionAPITabs, SendMessage)
-#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
@@ -1599,7 +1594,9 @@ TEST(WKWebExtensionAPITabs, SendMessage)
         @"  browser.test.assertEq(response?.content, 'Received', 'Should get the response from the content script')",
 
         @"  browser.test.notifyPass()",
-        @"})"
+        @"})",
+
+        @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *contentScript = Util::constructScript(@[
@@ -1620,24 +1617,22 @@ TEST(WKWebExtensionAPITabs, SendMessage)
         @"  sendResponse({ content: 'Received' })",
         @"})",
 
-        @"setTimeout(() => browser.runtime.sendMessage('Ready'), 1000)"
+        @"browser.runtime.sendMessage('Ready')"
     ]);
 
     auto manager = Util::loadExtension(tabsContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
 
     RetainPtr urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.get().URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
     [manager.get().defaultTab.webView loadRequest:urlRequest.get()];
 
     [manager run];
 }
 
-// FIXME rdar://147858640
-#if PLATFORM(IOS) && !defined(NDEBUG)
-TEST(WKWebExtensionAPITabs, DISABLED_SendMessageWithAsyncReply)
-#else
 TEST(WKWebExtensionAPITabs, SendMessageWithAsyncReply)
-#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
@@ -1654,7 +1649,9 @@ TEST(WKWebExtensionAPITabs, SendMessageWithAsyncReply)
         @"  browser.test.assertEq(response?.content, 'Received', 'Should get the response from the content script')",
 
         @"  browser.test.notifyPass()",
-        @"})"
+        @"})",
+
+        @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *contentScript = Util::constructScript(@[
@@ -1672,29 +1669,27 @@ TEST(WKWebExtensionAPITabs, SendMessageWithAsyncReply)
         @"  browser.test.assertEq(sender.tab, undefined, 'sender.tab should be undefined')",
         @"  browser.test.assertEq(sender.frameId, undefined, 'sender.frameId should be undefined')",
 
-        @"  setTimeout(() => sendResponse({ content: 'Received' }), 1000)",
+        @"  sendResponse({ content: 'Received' })",
 
         @"  return true",
         @"})",
 
-        @"setTimeout(() => browser.runtime.sendMessage('Ready'), 1000)"
+        @"browser.runtime.sendMessage('Ready')"
     ]);
 
     auto manager = Util::loadExtension(tabsContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
 
     RetainPtr urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.get().URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
     [manager.get().defaultTab.webView loadRequest:urlRequest.get()];
 
     [manager run];
 }
 
-// FIXME rdar://147858640
-#if PLATFORM(IOS) && !defined(NDEBUG)
-TEST(WKWebExtensionAPITabs, DISABLED_SendMessageWithPromiseReply)
-#else
 TEST(WKWebExtensionAPITabs, SendMessageWithPromiseReply)
-#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
@@ -1711,7 +1706,9 @@ TEST(WKWebExtensionAPITabs, SendMessageWithPromiseReply)
         @"  browser.test.assertEq(response?.content, 'Received', 'Should get the response from the content script')",
 
         @"  browser.test.notifyPass()",
-        @"})"
+        @"})",
+
+        @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *contentScript = Util::constructScript(@[
@@ -1732,24 +1729,22 @@ TEST(WKWebExtensionAPITabs, SendMessageWithPromiseReply)
         @"  return Promise.resolve({ content: 'Received' })",
         @"})",
 
-        @"setTimeout(() => browser.runtime.sendMessage('Ready'), 1000)"
+        @"browser.runtime.sendMessage('Ready')"
     ]);
 
     auto manager = Util::loadExtension(tabsContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
 
     RetainPtr urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.get().URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
     [manager.get().defaultTab.webView loadRequest:urlRequest.get()];
 
     [manager run];
 }
 
-// FIXME rdar://147858640
-#if PLATFORM(IOS) && !defined(NDEBUG)
-TEST(WKWebExtensionAPITabs, DISABLED_SendMessageWithAsyncPromiseReply)
-#else
 TEST(WKWebExtensionAPITabs, SendMessageWithAsyncPromiseReply)
-#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
@@ -1766,7 +1761,9 @@ TEST(WKWebExtensionAPITabs, SendMessageWithAsyncPromiseReply)
         @"  browser.test.assertEq(response?.content, 'Received', 'Should get the response from the content script')",
 
         @"  browser.test.notifyPass()",
-        @"})"
+        @"})",
+
+        @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *contentScript = Util::constructScript(@[
@@ -1785,28 +1782,26 @@ TEST(WKWebExtensionAPITabs, SendMessageWithAsyncPromiseReply)
         @"  browser.test.assertEq(sender.frameId, undefined, 'sender.frameId should be undefined')",
 
         @"  return new Promise((resolve) => {",
-        @"    setTimeout(() => resolve({ content: 'Received' }), 1000)",
+        @"    resolve({ content: 'Received' })",
         @"  })",
         @"})",
 
-        @"setTimeout(() => browser.runtime.sendMessage('Ready'), 1000)"
+        @"browser.runtime.sendMessage('Ready')"
     ]);
 
     auto manager = Util::loadExtension(tabsContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
 
     RetainPtr urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.get().URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
     [manager.get().defaultTab.webView loadRequest:urlRequest.get()];
 
     [manager run];
 }
 
-// FIXME rdar://147858640
-#if PLATFORM(IOS) && !defined(NDEBUG)
-TEST(WKWebExtensionAPITabs, DISABLED_SendMessageWithoutReply)
-#else
 TEST(WKWebExtensionAPITabs, SendMessageWithoutReply)
-#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
@@ -1821,7 +1816,9 @@ TEST(WKWebExtensionAPITabs, SendMessageWithoutReply)
         @"  browser.test.assertEq(response, undefined, 'Should resolve with undefined as there was no reply')",
 
         @"  browser.test.notifyPass()",
-        @"})"
+        @"})",
+
+        @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *contentScript = Util::constructScript(@[
@@ -1842,13 +1839,16 @@ TEST(WKWebExtensionAPITabs, SendMessageWithoutReply)
         @"  return false",
         @"})",
 
-        @"setTimeout(() => browser.runtime.sendMessage('Ready'), 1000)"
+        @"browser.runtime.sendMessage('Ready')"
     ]);
 
     auto manager = Util::loadExtension(tabsContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
 
     RetainPtr urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.get().URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
     [manager.get().defaultTab.webView loadRequest:urlRequest.get()];
 
     [manager run];
@@ -1926,7 +1926,14 @@ TEST(WKWebExtensionAPITabs, SendMessageFromBackgroundToSubframe)
     auto *backgroundScript = Util::constructScript(@[
         @"browser.test.sendMessage('Load Tab')",
 
-        @"await new Promise(resolve => setTimeout(resolve, 1500))",
+        @"await new Promise(resolve => {",
+        @"  browser.runtime.onMessage.addListener(function handler(message) {",
+        @"    if (message === 'Subframe Ready') {",
+        @"      browser.runtime.onMessage.removeListener(handler)",
+        @"      resolve()",
+        @"    }",
+        @"  })",
+        @"})",
 
         @"const tabs = await browser.tabs.query({ })",
         @"browser.test.assertEq(tabs.length, 1)",
@@ -1938,6 +1945,8 @@ TEST(WKWebExtensionAPITabs, SendMessageFromBackgroundToSubframe)
     ]);
 
     auto *contentScript = Util::constructScript(@[
+        @"browser.runtime.sendMessage('Subframe Ready')",
+
         @"browser.runtime.onMessage.addListener((message, sender) => {",
         @"  browser.test.assertEq(message?.content, 'Hello Subframe', 'Should receive the correct message from the background page')",
         @"  return Promise.resolve({ content: 'Received from subframe' })",
@@ -2556,7 +2565,8 @@ TEST(WKWebExtensionAPITabs, PortPostMessageWithoutUserGesture)
     [manager run];
 }
 
-TEST(WKWebExtensionAPITabs, PortPostMessageGestureFromContentScriptIsNotPropagated)
+// FIXME when webkit.org/b/314126 is resolved.
+TEST(WKWebExtensionAPITabs, DISABLED_PortPostMessageGestureFromContentScriptIsNotPropagated)
 {
     // Gestures from content scripts are intentionally not propagated to extension pages,
     // even when the content script sends a port message inside a user gesture.
@@ -2625,12 +2635,7 @@ TEST(WKWebExtensionAPITabs, PortPostMessageGestureFromContentScriptIsNotPropagat
     [manager run];
 }
 
-// FIXME rdar://147858640
-#if PLATFORM(IOS) && !defined(NDEBUG)
-TEST(WKWebExtensionAPITabs, DISABLED_Connect)
-#else
 TEST(WKWebExtensionAPITabs, Connect)
-#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
@@ -2655,7 +2660,9 @@ TEST(WKWebExtensionAPITabs, Connect)
 
         @"    browser.test.notifyPass()",
         @"  })",
-        @"})"
+        @"})",
+
+        @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *contentScript = Util::constructScript(@[
@@ -2677,15 +2684,16 @@ TEST(WKWebExtensionAPITabs, Connect)
         @"  })",
         @"})",
 
-        @"setTimeout(() => {",
-        @"  browser.runtime.sendMessage({ readyToConnect: true })",
-        @"}, 1000)"
+        @"browser.runtime.sendMessage({ readyToConnect: true })"
     ]);
 
     auto manager = Util::loadExtension(tabsContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
 
     RetainPtr urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.get().URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
     [manager.get().defaultTab.webView loadRequest:urlRequest.get()];
 
     [manager run];
@@ -2833,7 +2841,14 @@ TEST(WKWebExtensionAPITabs, ConnectToSubframe)
     auto *backgroundScript = Util::constructScript(@[
         @"browser.test.sendMessage('Load Tab')",
 
-        @"await new Promise(resolve => setTimeout(resolve, 1500))",
+        @"await new Promise(resolve => {",
+        @"  browser.runtime.onMessage.addListener(function handler(message) {",
+        @"    if (message === 'Subframe Ready') {",
+        @"      browser.runtime.onMessage.removeListener(handler)",
+        @"      resolve()",
+        @"    }",
+        @"  })",
+        @"})",
 
         @"const tabs = await browser.tabs.query({ })",
         @"browser.test.assertEq(tabs.length, 1)",
@@ -2851,6 +2866,8 @@ TEST(WKWebExtensionAPITabs, ConnectToSubframe)
     ]);
 
     auto *contentScript = Util::constructScript(@[
+        @"browser.runtime.sendMessage('Subframe Ready')",
+
         @"browser.runtime.onConnect.addListener((port) => {",
         @"  browser.test.assertEq(port.name, 'testPort', 'Port name should be testPort')",
 
@@ -2897,12 +2914,7 @@ TEST(WKWebExtensionAPITabs, ConnectToSubframe)
     [manager run];
 }
 
-// FIXME rdar://147858640
-#if PLATFORM(IOS) && !defined(NDEBUG)
-TEST(WKWebExtensionAPITabs, DISABLED_PortDisconnect)
-#else
 TEST(WKWebExtensionAPITabs, PortDisconnect)
-#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
@@ -2927,7 +2939,9 @@ TEST(WKWebExtensionAPITabs, PortDisconnect)
         @"  })",
 
         @"  port.disconnect()",
-        @"})"
+        @"})",
+
+        @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *contentScript = Util::constructScript(@[
@@ -2942,26 +2956,22 @@ TEST(WKWebExtensionAPITabs, PortDisconnect)
         @"  })",
         @"})",
 
-        @"setTimeout(() => {",
-        @"  browser.runtime.sendMessage({ readyToConnect: true })",
-        @"}, 1000)"
+        @"browser.runtime.sendMessage({ readyToConnect: true })"
     ]);
 
     auto manager = Util::loadExtension(tabsContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
 
     RetainPtr urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.get().URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
     [manager.get().defaultTab.webView loadRequest:urlRequest.get()];
 
     [manager run];
 }
 
-// FIXME rdar://147858640
-#if PLATFORM(IOS) && !defined(NDEBUG)
-TEST(WKWebExtensionAPITabs, DISABLED_ConnectWithMultipleListeners)
-#else
 TEST(WKWebExtensionAPITabs, ConnectWithMultipleListeners)
-#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
@@ -2988,7 +2998,9 @@ TEST(WKWebExtensionAPITabs, ConnectWithMultipleListeners)
         @"    if (++receivedMessages === 2)",
         @"      browser.test.notifyPass()",
         @"  })",
-        @"})"
+        @"})",
+
+        @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *contentScript = Util::constructScript(@[
@@ -3015,26 +3027,22 @@ TEST(WKWebExtensionAPITabs, ConnectWithMultipleListeners)
         @"  })",
         @"})",
 
-        @"setTimeout(() => {",
-        @"  browser.runtime.sendMessage({ readyToConnect: true })",
-        @"}, 1000)"
+        @"browser.runtime.sendMessage({ readyToConnect: true })"
     ]);
 
     auto manager = Util::loadExtension(tabsContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
 
     RetainPtr urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.get().URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
     [manager.get().defaultTab.webView loadRequest:urlRequest.get()];
 
     [manager run];
 }
 
-// FIXME rdar://147858640
-#if PLATFORM(IOS) && !defined(NDEBUG)
-TEST(WKWebExtensionAPITabs, DISABLED_PortDisconnectWithMultipleListeners)
-#else
 TEST(WKWebExtensionAPITabs, PortDisconnectWithMultipleListeners)
-#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
@@ -3061,7 +3069,9 @@ TEST(WKWebExtensionAPITabs, PortDisconnectWithMultipleListeners)
         @"    if (++receivedMessages === 2)",
         @"      browser.test.notifyPass()",
         @"  })",
-        @"})"
+        @"})",
+
+        @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *contentScript = Util::constructScript(@[
@@ -3080,15 +3090,16 @@ TEST(WKWebExtensionAPITabs, PortDisconnectWithMultipleListeners)
         @"  })",
         @"})",
 
-        @"setTimeout(() => {",
-        @"  browser.runtime.sendMessage({ readyToConnect: true })",
-        @"}, 1000)"
+        @"browser.runtime.sendMessage({ readyToConnect: true })"
     ]);
 
     auto manager = Util::loadExtension(tabsContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
 
     RetainPtr urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.get().URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
     [manager.get().defaultTab.webView loadRequest:urlRequest.get()];
 
     [manager run];

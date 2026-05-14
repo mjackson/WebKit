@@ -233,6 +233,7 @@ public:
     PAL::SessionID sessionID() const { return m_sessionID; }
     const String& storageDirectory() const LIFETIME_BOUND { return m_storageDirectory; }
     void fetchData(bool shouldComputeSize, CompletionHandler<void(Vector<WebsiteData::Entry>&&)>&&);
+    void fetchOriginAccessTimes(CompletionHandler<void(HashMap<WebCore::RegistrableDomain, WallTime>&&)>&&);
     void deleteData(const Vector<WebCore::SecurityOriginData>&, CompletionHandler<void()>&&);
     void deleteDataForRegistrableDomains(const Vector<WebCore::RegistrableDomain>&, CompletionHandler<void(HashSet<WebCore::RegistrableDomain>&&)>&&);
 

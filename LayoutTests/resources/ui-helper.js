@@ -736,8 +736,10 @@ window.UIHelper = class UIHelper {
 
     static resizeWindowTo(width, height)
     {
-        if (!this.isWebKit2())
-            return Promise.resolve();
+        if (!this.isWebKit2()) {
+            window.resizeTo(width, height);
+            return new Promise(resolve => requestAnimationFrame(resolve));
+        }
 
         return new Promise(resolve => testRunner.runUIScript(`uiController.resizeWindowTo(${width}, ${height})`, resolve));
     }

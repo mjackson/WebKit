@@ -36,16 +36,18 @@
 #include "CrossfadeGeneratedImage.h"
 #include "RenderElement.h"
 #include "SVGImageForContainer.h"
+#include "StylePrimitiveNumericTypes+Blending.h"
+#include "StylePrimitiveNumericTypes+Conversions.h"
 #include <wtf/PointerComparison.h>
 
 namespace WebCore {
 namespace Style {
 
-CrossfadeImage::CrossfadeImage(RefPtr<Image>&& from, RefPtr<Image>&& to, double percentage, bool isPrefixed)
+CrossfadeImage::CrossfadeImage(RefPtr<Image>&& from, RefPtr<Image>&& to, Progress progress, bool isPrefixed)
     : GeneratedImage { Type::CrossfadeImage, CrossfadeImage::isFixedSize }
     , m_from { WTF::move(from) }
     , m_to { WTF::move(to) }
-    , m_percentage { percentage }
+    , m_progress { progress }
     , m_isPrefixed { isPrefixed }
     , m_inputImagesAreReady { false }
 {
@@ -67,12 +69,14 @@ bool CrossfadeImage::operator==(const Image& other) const
 
 bool CrossfadeImage::equals(const CrossfadeImage& other) const
 {
-    return equalInputImages(other) && m_percentage == other.m_percentage;
+    return equalInputImages(other)
+        && m_progress == other.m_progress;
 }
 
 bool CrossfadeImage::equalInputImages(const CrossfadeImage& other) const
 {
-    return arePointingToEqualData(m_from, other.m_from) && arePointingToEqualData(m_to, other.m_to);
+    return arePointingToEqualData(m_from, other.m_from)
+        && arePointingToEqualData(m_to, other.m_to);
 }
 
 RefPtr<CrossfadeImage> CrossfadeImage::blend(const CrossfadeImage& from, const BlendingContext& context) const
@@ -82,15 +86,21 @@ RefPtr<CrossfadeImage> CrossfadeImage::blend(const CrossfadeImage& from, const B
     if (!m_cachedToImage || !m_cachedFromImage)
         return nullptr;
 
-    auto newPercentage = WebCore::blend(from.m_percentage, m_percentage, context);
-    return CrossfadeImage::create(m_from, m_to, newPercentage, from.m_isPrefixed && m_isPrefixed);
+    auto newProgress = Style::blend(from.m_progress, m_progress, context);
+    return CrossfadeImage::create(m_from, m_to, newProgress, from.m_isPrefixed && m_isPrefixed);
 }
 
 Ref<CSSValue> CrossfadeImage::computedStyleValue(const RenderStyle& style) const
 {
     auto fromComputedValue = m_from ? m_from->computedStyleValue(style) : upcast<CSSValue>(CSSKeywordValue::create(CSSValueNone));
     auto toComputedValue = m_to ? m_to->computedStyleValue(style) : upcast<CSSValue>(CSSKeywordValue::create(CSSValueNone));
-    return CSSCrossfadeValue::create(WTF::move(fromComputedValue), WTF::move(toComputedValue), CSSPrimitiveValue::create(m_percentage), m_isPrefixed);
+
+    return CSSCrossfadeValue::create(
+        WTF::move(fromComputedValue),
+        WTF::move(toComputedValue),
+        toCSS(m_progress, style),
+        m_isPrefixed
+    );
 }
 
 bool CrossfadeImage::isPending() const
@@ -167,7 +177,7 @@ RefPtr<WebCore::Image> CrossfadeImage::image(const RenderElement* renderer, cons
         protectedToImage = SVGImageForContainer::create(toSVGImage.get(), size, 1, toURL);
     }
 
-    return CrossfadeGeneratedImage::create(*protectedFromImage, *protectedToImage, m_percentage, fixedSize(*renderer), size);
+    return CrossfadeGeneratedImage::create(*protectedFromImage, *protectedToImage, m_progress.value.value, fixedSize(*renderer), size);
 }
 
 bool CrossfadeImage::currentFrameIsComplete(const RenderElement* renderer) const
@@ -201,10 +211,10 @@ FloatSize CrossfadeImage::fixedSize(const RenderElement& renderer) const
     if (fromImageSize == toImageSize)
         return fromImageSize;
 
-    float percentage = m_percentage;
-    float inversePercentage = 1 - percentage;
+    float progress = m_progress.value.value;
+    float inverseProgress = 1 - progress;
 
-    return fromImageSize * inversePercentage + toImageSize * percentage;
+    return fromImageSize * inverseProgress + toImageSize * progress;
 }
 
 void CrossfadeImage::imageChanged(WebCore::CachedImage*, const IntRect*)

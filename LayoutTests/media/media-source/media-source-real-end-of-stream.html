@@ -66,12 +66,14 @@
         run('source.endOfStream()');
         await waitFor(video, 'suspend');
         testExpected('video.networkState', HTMLMediaElement.NETWORK_IDLE);
-
-        endTest();
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

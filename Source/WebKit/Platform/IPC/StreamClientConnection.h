@@ -37,7 +37,6 @@
 #include <wtf/Scope.h>
 #include <wtf/SystemTracing.h>
 #include <wtf/TZoneMalloc.h>
-#include <wtf/Threading.h>
 
 namespace WebKit {
 namespace IPCTestingAPI {

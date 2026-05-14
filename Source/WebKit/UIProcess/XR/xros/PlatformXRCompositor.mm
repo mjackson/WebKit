@@ -23,6 +23,7 @@
 #import <WebCore/SecurityOriginData.h>
 #import <WebCore/TransformationMatrix.h>
 #import <pal/spi/cocoa/MetalSPI.h>
+#import <wtf/NeverDestroyed.h>
 #import <wtf/SystemTracing.h>
 
 #if HAVE(SPATIAL_CONTROLLERS)
@@ -31,6 +32,10 @@
 
 #import <pal/cocoa/ARKitSoftLink.h>
 #import <pal/cocoa/CompositorServicesSoftLink.h>
+
+namespace WebKit {
+WTF_MAKE_TZONE_ALLOCATED_IMPL(CompositorCoordinator);
+}
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
@@ -72,6 +77,19 @@ using namespace PAL;
 bool CompositorCoordinator::isCompositorServicesAvailable()
 {
     return isCompositorServicesFrameworkAvailable();
+}
+
+CompositorCoordinator* CompositorCoordinator::singleton()
+{
+    if (!isCompositorServicesAvailable())
+        return nullptr;
+
+    static LazyNeverDestroyed<CompositorCoordinator> singleton;
+    static std::once_flag once;
+    std::call_once(once, [] {
+        singleton.construct();
+    });
+    return &singleton.get();
 }
 
 CompositorCoordinator::CompositorCoordinator()
@@ -178,17 +196,15 @@ void CompositorCoordinator::requestPermissionOnSessionFeatures(WebPageProxy& pag
         return;
     }
 
-    page.uiClient().requestPermissionOnXRSessionFeatures(page, securityOriginData, mode, filterOutUnsupportedFeatures(granted), filterOutUnsupportedFeatures(consentRequired), filterOutUnsupportedFeatures(consentOptional), filterOutUnsupportedFeatures(requiredFeaturesRequested), filterOutUnsupportedFeatures(optionalFeaturesRequested), [weakThis = WeakPtr { *this }, this, securityOriginData, callback = WTF::move(callback)](std::optional<Vector<PlatformXR::SessionFeature>> userGranted) mutable {
+    page.uiClient().requestPermissionOnXRSessionFeatures(page, securityOriginData, mode, filterOutUnsupportedFeatures(granted), filterOutUnsupportedFeatures(consentRequired), filterOutUnsupportedFeatures(consentOptional), filterOutUnsupportedFeatures(requiredFeaturesRequested), filterOutUnsupportedFeatures(optionalFeaturesRequested), [this, securityOriginData, callback = WTF::move(callback)](std::optional<Vector<PlatformXR::SessionFeature>> userGranted) mutable {
         if (userGranted)
             userGranted = filterOutUnsupportedFeatures(*userGranted);
 
 #if ENABLE(WEBXR_HANDS) && !PLATFORM(IOS_FAMILY_SIMULATOR)
-        if (weakThis) {
-            if (userGranted && userGranted->contains(PlatformXR::SessionFeature::HandTracking))
-                m_lastSecurityOriginGrantedHandTracking = securityOriginData;
-            else
-                m_lastSecurityOriginGrantedHandTracking = std::nullopt;
-        }
+        if (userGranted && userGranted->contains(PlatformXR::SessionFeature::HandTracking))
+            m_lastSecurityOriginGrantedHandTracking = securityOriginData;
+        else
+            m_lastSecurityOriginGrantedHandTracking = std::nullopt;
 #else
         UNUSED_PARAM(this);
 #endif
@@ -227,11 +243,11 @@ void CompositorCoordinator::startSession(WebPageProxy& page, WeakPtr<PlatformXRC
 
     m_sessionEventClient = WTF::move(sessionEventClient);
 
-    page.uiClient().startXRSession(page, requestedFeatures, WTF::move(init), [weakThis = WeakPtr { *this }, this, weakPage = WeakPtr { page }, pageIdentifier, securityOriginData, requestedFeatures](RetainPtr<id> cpLayer, UIViewController *viewController) mutable {
+    page.uiClient().startXRSession(page, requestedFeatures, WTF::move(init), [this, weakPage = WeakPtr { page }, pageIdentifier, securityOriginData, requestedFeatures](RetainPtr<id> cpLayer, UIViewController *viewController) mutable {
         ASSERT(RunLoop::isMain());
         ASSERT(!cpLayer || [cpLayer.get() isKindOfClass:getCP_OBJECT_cp_layer_rendererClassSingleton()]);
-        auto strongPage = weakPage;
-        if (!weakThis || !strongPage)
+        RefPtr strongPage = weakPage;
+        if (!strongPage)
             return;
 
         m_cpLayer = cpLayer.get();
@@ -442,7 +458,7 @@ void CompositorCoordinator::update()
     }
 
     // FIXME: rdar://175742010
-    callOnMainThread([this, isRenderingStalled]() { // NOLINT
+    callOnMainRunLoop([this, isRenderingStalled]() {
         if (!m_terminationPending && isRenderingStalled) {
             if (RefPtr<WebPageProxy> page = m_sessionPage.get())
                 terminateSession(*page, PlatformXRSessionEndReason::NoFrameUpdateScheduled);
@@ -605,7 +621,7 @@ void CompositorCoordinator::render(cp_frame_t frame, cp_drawable_t drawable, NST
         tracePoint(WebXRCPFrameStartSubmissionEnd);
 
         // FIXME: rdar://175742010
-        callOnMainThread([callback = WTF::move(m_onFrameUpdate), frameData = WTF::move(frameData)]() mutable { // NOLINT
+        callOnMainRunLoop([callback = WTF::move(m_onFrameUpdate), frameData = WTF::move(frameData)]() mutable {
             callback(WTF::move(frameData));
         });
 

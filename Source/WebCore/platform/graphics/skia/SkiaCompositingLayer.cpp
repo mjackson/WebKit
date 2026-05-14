@@ -30,6 +30,7 @@
 #include "CoordinatedAnimatedBackingStoreClient.h"
 #include "CoordinatedImageBackingStore.h"
 #include "CoordinatedPlatformLayerBuffer.h"
+#include "CoordinatedPlatformLayerBufferHolePunch.h"
 #include "CoordinatedTileBuffer.h"
 #include "FilterOperations.h"
 #include "FontCache.h"
@@ -456,7 +457,8 @@ void SkiaCompositingLayer::paintSelf(SkCanvas& canvas, PaintContext& context)
 
     SkPaint paint;
     paint.setStyle(SkPaint::kFill_Style);
-    paint.setAntiAlias(true);
+    auto ctm = canvas.getLocalToDeviceAs3x3();
+    paint.setAntiAlias(!ctm.preservesAxisAlignment() && !ctm.preservesRightAngles());
     paint.setAlphaf(context.opacity);
     if (context.blendMode)
         paint.setBlendMode(*context.blendMode);
@@ -479,31 +481,33 @@ void SkiaCompositingLayer::paintSelf(SkCanvas& canvas, PaintContext& context)
                 canvas.clipRect(SkRect(m_contentsClippingRect.rect()));
         }
 
-        if (m_contentsBuffer)
-            m_contentsBuffer->paintToCanvas(canvas, m_contentsRect, paint);
-        else if (auto* buffer = m_imageBackingStore->buffer()) {
-            if (m_contentsTiling.size.isEmpty())
-                buffer->paintToCanvas(canvas, m_contentsRect, paint);
-            else {
-                SkAutoCanvasRestore autoRestore(&canvas, true);
-                canvas.clipRect(SkRect(m_contentsRect));
+        sk_sp<SkImage> image;
 
-                float startX = m_contentsRect.x() + m_contentsTiling.phase.width();
-                float startY = m_contentsRect.y() + m_contentsTiling.phase.height();
-
-                // Adjust start position to cover the contentsRect from the beginning.
-                while (startX > m_contentsRect.x())
-                    startX -= m_contentsTiling.size.width();
-                while (startY > m_contentsRect.y())
-                    startY -= m_contentsTiling.size.height();
-
-                for (float y = startY; y < m_contentsRect.maxY(); y += m_contentsTiling.size.height()) {
-                    for (float x = startX; x < m_contentsRect.maxX(); x += m_contentsTiling.size.width()) {
-                        FloatRect tileRect(x, y, m_contentsTiling.size.width(), m_contentsTiling.size.height());
-                        buffer->paintToCanvas(canvas, tileRect, paint);
-                    }
-                }
+        if (m_contentsBuffer) {
+            if (is<CoordinatedPlatformLayerBufferHolePunch>(*m_contentsBuffer)) {
+#if USE(GSTREAMER)
+                TransformationMatrix matrix = canvas.getLocalToDevice();
+                downcast<CoordinatedPlatformLayerBufferHolePunch>(*m_contentsBuffer).setHolePunchVideoRectangle(enclosingIntRect(matrix.mapRect(m_contentsRect)));
+#endif
+                paint.setColor(SK_ColorTRANSPARENT);
+                canvas.drawRect(SkRect(m_contentsRect), paint);
+            } else
+                image = m_contentsBuffer->skiaImage();
+        } else if (auto* buffer = m_imageBackingStore->buffer()) {
+            image = buffer->skiaImage();
+            if (!m_contentsTiling.size.isEmpty()) {
+                sk_sp<SkImage> tileImage = std::exchange(image, nullptr);
+                SkMatrix matrix;
+                matrix.setScale(m_contentsTiling.size.width() / tileImage->width(), m_contentsTiling.size.height() / tileImage->height());
+                matrix.postTranslate(-m_contentsTiling.phase.width(), -m_contentsTiling.phase.height());
+                paint.setShader(tileImage->makeShader(SkTileMode::kRepeat, SkTileMode::kRepeat, SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNone), matrix));
+                canvas.drawRect(m_contentsRect, paint);
             }
+        }
+
+        if (image) {
+            canvas.drawImageRect(image, SkRect::MakeSize(SkSize::Make(image->dimensions())), SkRect(m_contentsRect),
+                SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNone), &paint, SkCanvas::kFast_SrcRectConstraint);
         }
     }
 
@@ -709,8 +713,16 @@ sk_sp<SkImage> SkiaCompositingLayer::maskImage()
 
 void SkiaCompositingLayer::paintWithIntermediateSurface(SkCanvas& canvas, PaintContext& context, const IntRect& contentsRect, SkPaint* paint, PaintFunction&& paintFunction)
 {
+    auto bounds = clipBounds(canvas, context);
+    if (bounds.isEmpty())
+        return;
+
+    auto surfaceRect = intersection(bounds, contentsRect);
+    if (surfaceRect.isEmpty())
+        return;
+
     auto* grContext = PlatformDisplay::sharedDisplay().skiaGrContext();
-    auto imageInfo = SkImageInfo::Make(contentsRect.width(), contentsRect.height(), kRGBA_8888_SkColorType, kPremul_SkAlphaType, SkColorSpace::MakeSRGB());
+    auto imageInfo = SkImageInfo::Make(surfaceRect.width(), surfaceRect.height(), kRGBA_8888_SkColorType, kPremul_SkAlphaType, SkColorSpace::MakeSRGB());
     auto surface = SkSurfaces::RenderTarget(grContext, skgpu::Budgeted::kNo, imageInfo, 0, kTopLeft_GrSurfaceOrigin, nullptr);
     if (!surface)
         return;
@@ -720,12 +732,12 @@ void SkiaCompositingLayer::paintWithIntermediateSurface(SkCanvas& canvas, PaintC
         return;
 
     surfaceCanvas->clear(SK_ColorTRANSPARENT);
-    surfaceCanvas->translate(-contentsRect.x(), -contentsRect.y());
+    surfaceCanvas->translate(-surfaceRect.x(), -surfaceRect.y());
     SetForScope scopedOffset(context.offset, toIntSize(contentsRect.location()));
     paintFunction(*surfaceCanvas, context);
     grContext->flushAndSubmit(surface.get(), GrSyncCpu::kNo);
 
-    canvas.drawImageRect(surface->makeImageSnapshot(), SkRect::MakeWH(contentsRect.width(), contentsRect.height()), SkRect::Make(SkIRect(contentsRect)), SkSamplingOptions(SkFilterMode::kNearest, SkMipmapMode::kNone), paint, SkCanvas::kFast_SrcRectConstraint);
+    canvas.drawImageRect(surface->makeImageSnapshot(), SkRect::MakeWH(surfaceRect.width(), surfaceRect.height()), SkRect::Make(surfaceRect), SkSamplingOptions(SkFilterMode::kNearest, SkMipmapMode::kNone), paint, SkCanvas::kFast_SrcRectConstraint);
 }
 
 void SkiaCompositingLayer::paintSelfAndChildrenWithFilterAndMask(SkCanvas& canvas, PaintContext& context)
@@ -843,8 +855,11 @@ void SkiaCompositingLayer::recursivePaint(SkCanvas& canvas, PaintContext& contex
     if (!isVisible())
         return;
 
+    auto blendMode = m_blendMode;
+    if (!blendMode && m_shouldBlend)
+        blendMode = SkBlendMode::kSrcOver;
     SetForScope scopedOpacity(context.opacity, context.opacity * opacity());
-    SetForScope scopedBlendMode(context.blendMode, context.blendMode ? context.blendMode : m_blendMode);
+    SetForScope scopedBlendMode(context.blendMode, context.blendMode ? context.blendMode : blendMode);
 
     if (m_preserves3D) {
         paintUsing3DRenderingContext(canvas, context);

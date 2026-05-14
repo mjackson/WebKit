@@ -2187,12 +2187,14 @@ String RenderTheme::fileListNameForWidth(const FileList* fileList, const FontCas
 }
 
 #if USE(SYSTEM_PREVIEW)
-void RenderTheme::paintSystemPreviewBadge(Image& image, const PaintInfo& paintInfo, const FloatRect& rect)
+void RenderTheme::paintSystemPreviewBadge(Image&, const PaintInfo& paintInfo, const FloatRect& rect)
 {
-    // The default implementation paints a small marker
-    // in the upper right corner, as long as the image is big enough.
+    paintSystemPreviewBadge(paintInfo, rect);
+}
 
-    UNUSED_PARAM(image);
+void RenderTheme::paintSystemPreviewBadge(const PaintInfo& paintInfo, const FloatRect& rect)
+{
+    // Default imageless variant: draw the same fallback marker.
     auto& context = paintInfo.context();
 
     GraphicsContextStateSaver stateSaver { context };
@@ -2200,7 +2202,7 @@ void RenderTheme::paintSystemPreviewBadge(Image& image, const PaintInfo& paintIn
     if (rect.width() < 32 || rect.height() < 32)
         return;
 
-    auto markerRect = FloatRect {rect.x() + rect.width() - 24, rect.y() + 8, 16, 16 };
+    auto markerRect = FloatRect { rect.x() + rect.width() - 24, rect.y() + 8, 16, 16 };
     auto roundedMarkerRect = FloatRoundedRect { markerRect, CornerRadii { 8 } };
     context.fillRoundedRect(roundedMarkerRect, Color::red);
 }

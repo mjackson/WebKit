@@ -88,6 +88,7 @@ class TestDownloader(object):
         self.paths_to_skip_new_directories = []
         self.paths_to_skip = []
         self.paths_to_import = []
+        self.paths_to_not_rewrite = []
         for test_repository in self.test_repositories:
             self.paths_to_skip.extend([self._filesystem.join(test_repository['name'], path) for path in test_repository['paths_to_skip']])
             self.paths_to_import.extend([self._filesystem.join(test_repository['name'], path) for path in test_repository['paths_to_import']])
@@ -123,6 +124,9 @@ class TestDownloader(object):
                 self.paths_to_skip.append(path)
             elif policy == 'import':
                 self.paths_to_import.append(path)
+            elif policy == 'import-no-rewrite':
+                self.paths_to_import.append(path)
+                self.paths_to_not_rewrite.append(path)
             else:
                 _log.warning('Problem reading import lines ' + path)
 
@@ -137,11 +141,11 @@ class TestDownloader(object):
             for i in range(len(path_segs) - 1, 1, -1):
                 parent = path_segs[:i]
                 parent_expectation = import_lines.get("/".join(parent))
-                if parent_expectation == "import":
+                if parent_expectation in ("import", "import-no-rewrite"):
                     already_imported = True
                 if parent_expectation:
                     break
-            if not already_imported:
+            if not already_imported and import_lines.get(stripped_path) not in ("import", "import-no-rewrite"):
                 import_lines[stripped_path] = "import"
 
         for path in to_skip_new_directories:

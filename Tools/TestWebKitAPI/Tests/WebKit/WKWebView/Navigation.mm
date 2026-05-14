@@ -54,6 +54,7 @@
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
 #import <WebKit/_WKWebsiteDataStoreDelegate.h>
+#import <pal/spi/cf/CFNetworkSPI.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/Vector.h>
 #import <wtf/text/MakeString.h>
@@ -5023,15 +5024,6 @@ TEST(WKNavigation, FrameNavigationWithPrivateTokenPermissionAndAllowOriginsAndWi
     didReceiveAllowPrivateToken = false;
 }
 #endif
-
-@interface NSURLSessionTask ()
-@property (nonatomic, copy) NSArray<NSHTTPCookie*>* (^_cookieTransformCallback)(NSArray<NSHTTPCookie*>* cookies);
-@end
-
-
-@interface NSURLSessionConfiguration ()
-@property BOOL _usesNWLoader;
-@end
 
 @interface SessionDelegate : NSObject <NSURLSessionDelegate>
 @end

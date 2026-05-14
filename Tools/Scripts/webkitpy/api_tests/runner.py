@@ -115,7 +115,7 @@ class Runner(object):
 
     instance = None
 
-    def __init__(self, port, printer, log_limit=250):
+    def __init__(self, port, printer, log_limit=250, expectations=None):
         self.port = port
         self.printer = printer
         self.tests_run = 0
@@ -123,6 +123,7 @@ class Runner(object):
         self.log_limit = log_limit
         self._has_logged_for_test = True  # Suppress an empty line between "Running tests" and the first test's output.
         self.results = {}
+        self.expectations = expectations
 
     # FIXME API tests should run as an app, we won't need this function <https://bugs.webkit.org/show_bug.cgi?id=175204>
     @staticmethod
@@ -322,6 +323,18 @@ class _Worker(object):
         return result.rstrip()
 
     def _run_single_test(self, binary_name, test):
+        full_test_name = f'{binary_name}.{test}'
+
+        timeout = self._timeout
+        if Runner.instance and Runner.instance.expectations:
+            exp = Runner.instance.expectations.get_expectation(full_test_name)
+            if exp and exp.is_slow():
+                custom_timeout = exp.slow_timeout
+                if custom_timeout is not None and custom_timeout > 0:
+                    timeout = custom_timeout
+                else:
+                    timeout = self._timeout * 5
+
         server_process = ServerProcess(
             self._port, binary_name,
             Runner.command_for_port(self._port, [self._port.path_to_api_test(binary_name), '--filter', test]),
@@ -342,7 +355,7 @@ class _Worker(object):
                 server_process.start()
 
             while status == Runner.STATUS_RUNNING:
-                stdout_line, stderr_line = server_process.read_either_stdout_or_stderr_line(started + self._timeout)
+                stdout_line, stderr_line = server_process.read_either_stdout_or_stderr_line(started + timeout)
                 if not stderr_line and not stdout_line:
                     break
                 if stdout_line:

@@ -87,7 +87,7 @@ JSC::JSValue WebKitNamespace::evaluateScript(JSC::JSGlobalObject& globalObject, 
 {
     if (!globalObject.inherits<JSDOMGlobalObject>())
         return JSC::jsNull();
-    Ref world = uncheckedDowncast<JSDOMGlobalObject>(&globalObject)->world();
+    Ref world = downcast<JSDOMGlobalObject>(&globalObject)->world();
     RefPtr frame = this->frame();
     if (!frame)
         return JSC::jsNull();

@@ -30,6 +30,7 @@
 #include "SessionState.h"
 #include "WebPageProxyIdentifier.h"
 #include "WebsiteDataStore.h"
+#include <WebCore/ProcessIdentifier.h>
 #include <wtf/CheckedPtr.h>
 #include <wtf/Ref.h>
 #include <wtf/SwiftBridging.h>
@@ -84,6 +85,7 @@ public:
     void wasRemovedFromBackForwardList();
 
     WebBackForwardCacheEntry* backForwardCacheEntry() const { return m_backForwardCacheEntry.get(); }
+    WebBackForwardCacheEntry* NODELETE backForwardCacheEntryForProcess(WebCore::ProcessIdentifier) const;
 
     SuspendedPageProxy* NODELETE suspendedPage() const;
 

@@ -122,7 +122,7 @@ Ref<Inspector::Protocol::Network::WebSocketFrame> buildWebSocketMessage(const We
 } // namespace
 
 InspectorNetworkAgent::InspectorNetworkAgent(WebAgentContext& context, const NetworkResourcesData::Settings& networkResourcesDataSettings)
-    : InspectorAgentBase("Network"_s, context)
+    : Inspector::NetworkAgentInstrumentation(context)
     , m_frontendDispatcher(makeUniqueRef<Inspector::NetworkFrontendDispatcher>(context.frontendRouter))
     , m_backendDispatcher(Inspector::NetworkBackendDispatcher::create(context.backendDispatcher, this))
     , m_injectedScriptManager(context.injectedScriptManager)
@@ -435,12 +435,12 @@ static ResourceType resourceTypeForCachedResource(const CachedResource* resource
     return ResourceType::Other;
 }
 
-static ResourceType NODELETE resourceTypeForLoadType(InspectorInstrumentation::LoadType loadType)
+static ResourceType resourceTypeForLoadType(UncachedLoadType loadType)
 {
     switch (loadType) {
-    case InspectorInstrumentation::LoadType::Ping:
+    case UncachedLoadType::Ping:
         return ResourceType::Ping;
-    case InspectorInstrumentation::LoadType::Beacon:
+    case UncachedLoadType::Beacon:
         return ResourceType::Beacon;
     }
 
@@ -476,7 +476,7 @@ void InspectorNetworkAgent::willSendRequest(ResourceLoaderIdentifier identifier,
     willSendRequest(identifier, loader, request, redirectResponse, type, resourceLoader);
 }
 
-void InspectorNetworkAgent::willSendRequestOfType(ResourceLoaderIdentifier identifier, DocumentLoader* loader, ResourceRequest& request, InspectorInstrumentation::LoadType loadType)
+void InspectorNetworkAgent::willSendRequestOfType(ResourceLoaderIdentifier identifier, DocumentLoader* loader, ResourceRequest& request, UncachedLoadType loadType)
 {
     willSendRequest(identifier, loader, request, ResourceResponse(), resourceTypeForLoadType(loadType), nullptr);
 }
@@ -965,7 +965,7 @@ void InspectorNetworkAgent::loadResource(const Inspector::Protocol::Network::Fra
         return;
     }
 
-    URL url = context->completeURL(urlString);
+    URL url = context->encodingParseURL(urlString);
     ResourceRequest request(WTF::move(url));
     request.setHTTPMethod("GET"_s);
     request.setHiddenFromInspector(true);

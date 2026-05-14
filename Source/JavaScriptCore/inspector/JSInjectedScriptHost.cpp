@@ -67,7 +67,6 @@
 #include "SourceCode.h"
 #include "StructureCreateInlines.h"
 #include <wtf/Function.h>
-#include <wtf/HashFunctions.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/Lock.h>

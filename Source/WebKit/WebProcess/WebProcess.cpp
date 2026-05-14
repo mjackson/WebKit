@@ -90,6 +90,7 @@
 #include "WebSharedWorkerContextManagerConnection.h"
 #include "WebSharedWorkerContextManagerConnectionMessages.h"
 #include "WebSharedWorkerProvider.h"
+#include "WebStorageNamespaceProvider.h"
 #include "WebTransportSession.h"
 #include "WebUserContentController.h"
 #include "WebsiteData.h"
@@ -145,6 +146,7 @@
 #include <WebCore/Settings.h>
 #include <WebCore/SharedWorkerContextManager.h>
 #include <WebCore/SharedWorkerThreadProxy.h>
+#include <WebCore/StorageNamespaceProvider.h>
 #include <WebCore/UserGestureIndicator.h>
 #include <WebCore/WebKitJSHandle.h>
 #include <WebCore/WorkerGlobalScope.h>
@@ -1229,6 +1231,12 @@ void WebProcess::garbageCollectJavaScriptObjects()
     GarbageCollectionController::singleton().garbageCollectNow();
 }
 
+void WebProcess::getStorageAreaMapCountForTesting(CompletionHandler<void(uint64_t)>&& completionHandler)
+{
+    GarbageCollectionController::singleton().garbageCollectNow();
+    completionHandler(WebStorageNamespaceProvider::getOrCreate()->localStorageAreaMapCountForTesting());
+}
+
 void WebProcess::backgroundResponsivenessPing()
 {
     protect(parentProcessConnection())->send(Messages::WebProcessProxy::DidReceiveBackgroundResponsivenessPing(), 0);
@@ -2210,7 +2218,7 @@ LibWebRTCNetwork& WebProcess::libWebRTCNetwork()
 }
 #endif
 
-void WebProcess::establishRemoteWorkerContextConnectionToNetworkProcess(RemoteWorkerType workerType, PageGroupIdentifier pageGroupID, WebPageProxyIdentifier webPageProxyID, PageIdentifier pageID, const WebPreferencesStore& store, Site&& site, std::optional<ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, RemoteWorkerInitializationData&& initializationData, CompletionHandler<void()>&& completionHandler)
+void WebProcess::establishRemoteWorkerContextConnectionToNetworkProcess(RemoteWorkerType workerType, PageGroupIdentifier pageGroupID, WebPageProxyIdentifier webPageProxyID, PageIdentifier pageID, const WebPreferencesStore& store, Site&& site, std::optional<ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, RemoteWorkerInitializationData&& initializationData, CrossOriginEmbedderPolicyValue workerCrossOriginEmbedderPolicy, CompletionHandler<void()>&& completionHandler)
 {
     // We are in the Remote Worker context process and the call below establishes our connection to the Network Process
     // by calling ensureNetworkProcessConnection. SWContextManager / SharedWorkerContextManager need to use the same underlying IPC::Connection as the
@@ -2218,11 +2226,11 @@ void WebProcess::establishRemoteWorkerContextConnectionToNetworkProcess(RemoteWo
     Ref ipcConnection = ensureNetworkProcessConnection().connection();
     switch (workerType) {
     case RemoteWorkerType::ServiceWorker:
-        SWContextManager::singleton().setConnection(WebSWContextManagerConnection::create(WTF::move(ipcConnection), WTF::move(site), serviceWorkerPageIdentifier, pageGroupID, webPageProxyID, pageID, store, WTF::move(initializationData)));
+        SWContextManager::singleton().setConnection(WebSWContextManagerConnection::create(WTF::move(ipcConnection), WTF::move(site), serviceWorkerPageIdentifier, pageGroupID, webPageProxyID, pageID, store, WTF::move(initializationData), workerCrossOriginEmbedderPolicy));
         protect(SWContextManager::singleton().connection())->establishConnection(WTF::move(completionHandler));
         break;
     case RemoteWorkerType::SharedWorker:
-        SharedWorkerContextManager::singleton().setConnection(WebSharedWorkerContextManagerConnection::create(WTF::move(ipcConnection), WTF::move(site), pageGroupID, webPageProxyID, pageID, store, WTF::move(initializationData)));
+        SharedWorkerContextManager::singleton().setConnection(WebSharedWorkerContextManagerConnection::create(WTF::move(ipcConnection), WTF::move(site), pageGroupID, webPageProxyID, pageID, store, WTF::move(initializationData), workerCrossOriginEmbedderPolicy));
         protect(SharedWorkerContextManager::singleton().connection())->establishConnection(WTF::move(completionHandler));
         break;
     }

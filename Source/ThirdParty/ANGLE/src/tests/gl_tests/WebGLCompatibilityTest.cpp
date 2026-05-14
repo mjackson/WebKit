@@ -1812,8 +1812,6 @@ void main()
     ANGLE_GL_PROGRAM(program, kVS, essl1_shaders::fs::Red());
     glUseProgram(program);
 
-    glEnableVertexAttribArray(glGetAttribLocation(program, "a_Position"));
-
     constexpr float kVertexData[] = {
         1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
     };
@@ -1822,12 +1820,17 @@ void main()
     glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(kVertexData), kVertexData, GL_STREAM_DRAW);
 
+    GLuint positionLocation = glGetAttribLocation(program, "a_Position");
+    glEnableVertexAttribArray(positionLocation);
+    glVertexAttribPointer(positionLocation, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+
     constexpr GLuint kMaxIntAsGLuint = static_cast<GLuint>(std::numeric_limits<GLint>::max());
+    constexpr GLuint kMaxGLuint      = std::numeric_limits<GLuint>::max();
     constexpr GLuint kIndexData[]    = {
+        0,
         kMaxIntAsGLuint,
         kMaxIntAsGLuint + 1,
-        kMaxIntAsGLuint + 2,
-        kMaxIntAsGLuint + 3,
+        kMaxGLuint,
     };
 
     GLBuffer indexBuffer;
@@ -1837,11 +1840,11 @@ void main()
     EXPECT_GL_NO_ERROR();
 
     // First index is representable as 32-bit int but second is not
-    glDrawElements(GL_LINES, 2, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_POINTS, 4, GL_UNSIGNED_INT, 0);
     EXPECT_GL_ERROR(GL_INVALID_OPERATION);
 
     // Neither index is representable as 32-bit int
-    glDrawElements(GL_LINES, 2, GL_UNSIGNED_INT, reinterpret_cast<void *>(sizeof(GLuint) * 2));
+    glDrawElements(GL_POINTS, 4, GL_UNSIGNED_INT, reinterpret_cast<void *>(sizeof(GLuint) * 2));
     EXPECT_GL_ERROR(GL_INVALID_OPERATION);
 }
 
@@ -6245,6 +6248,42 @@ void main()
     destroyHardenedContext(hardenedContext);
 }
 
+// Similar to WebGL2GLSLTest.InitUninitializedLocals, but ensure the same validation is done in
+// non-webgl contexts with the EGL_CONTEXT_HARDENED_ANGLE flag.
+TEST_P(HardenedContextTest, InitUninitializedLocals)
+{
+    constexpr char kFS[] = R"(#version 300 es
+precision mediump float;
+out vec4 my_FragColor;
+int result = 0;
+void main()
+{
+    int u;
+    result += u;
+    int k = 0;
+    for (int i[2], j = i[0] + 1; k < 2; ++k)
+    {
+        result += j;
+    }
+    if (result == 2)
+    {
+        my_FragColor = vec4(0, 1, 0, 1);
+    }
+    else
+    {
+        my_FragColor = vec4(1, 0, 0, 1);
+    }
+})";
+
+    EGLContext hardenedContext = setupHardenedContext();
+
+    ANGLE_GL_PROGRAM(program, essl3_shaders::vs::Simple(), kFS);
+    drawQuad(program, essl3_shaders::PositionAttrib(), 0.5f, 1.0f, true);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+
+    destroyHardenedContext(hardenedContext);
+}
+
 // Ensure that new type size validation code added for
 // http://crbug.com/40056230 does not crash.
 TEST_P(WebGL2CompatibilityTest, ValidatingTypeSizesShouldNotCrash)
@@ -7104,23 +7143,35 @@ void main()
 
     if (hasBaseInstance)
     {
-        // The following passes because attribute 1 accesses vertices [0, 3)
+        // instanced attrib index = floor(instance / divisor) + baseInstance
+        // instance = 0..primcount - 1
+        // Attribute 1 has divisor=5 and buffer fits 5 elements (indices 0-4).
+        // The following passes because attribute 1 max index = floor(14/5)+0 = 2. In bounds.
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 15, 0);
         EXPECT_GL_NO_ERROR();
-        // The following passes because attribute 1 accesses vertices [1, 4)
+        // The following fails because attribute 1 max index = floor(14/5)+5 = 7, OOB (>4).
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 15, 5);
-        EXPECT_GL_NO_ERROR();
-        // The following passes because attribute 1 accesses vertices [0, 4)
+        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+        // The following fails because attribute 1 max index = floor(16/5)+3 = 6, OOB (>4).
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 17, 3);
-        EXPECT_GL_NO_ERROR();
-        // The following passes because attribute 1 accesses vertices [3, 5)
+        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+        // The following fails because attribute 1 max index = floor(9/5)+15 = 16, OOB (>4).
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 10, 15);
-        EXPECT_GL_NO_ERROR();
-        // The following fails because attribute 1 accesses vertices [3, 6)
+        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+        // The following fails because attribute 1 max index = floor(10/5)+15 = 17, OOB (>4).
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 11, 15);
         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
-        // The following fails because attribute 1 accesses vertex 6
+        // The following fails because attribute 1 max index = floor(0/5)+25 = 25, OOB (>4).
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 25);
+        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+        // The following passes because attribute 1 max index = floor(0/5)+0 = 0. In bounds.
+        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 0);
+        EXPECT_GL_NO_ERROR();
+        // The following passes because attribute 1 max index = floor(0/5)+4 = 4. In bounds.
+        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 4);
+        EXPECT_GL_NO_ERROR();
+        // The following fails because attribute 1 max index = floor(0/5)+5 = 5. OOB (>4).
+        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 5);
         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
     }
 
@@ -7175,21 +7226,26 @@ void main()
 
     if (hasBaseInstance)
     {
-        // The following passes because attribute 1 accesses vertices [0, 4), and attribute 3
-        // accesses vertices [0, 6)
+        // instanced attrib index = floor(instance / divisor) + baseInstance
+        // Attribute 1 has divisor=5, buffer fits 5 elements (indices 0-4). Attribute
+        // 3 has divisor=3, buffer fits 6 elements (indices 0-5).
+        //
+        // attr1 max index = floor(17/5)+0 = 3, attr3 max index = floor(17/3)+0 = 5. Both in
+        // bounds.
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 18, 0);
         EXPECT_GL_NO_ERROR();
-        // The following fails because attribute 3 accesses vertices [0, 7)
+        // attr1 max index = floor(18/5)+0 = 3, attr3 max index = floor(18/3)+0 = 6. Attr3 OOB.
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 19, 0);
         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
-        // The following fails because attribute 3 accesses vertices [1, 7)
+        // attr1 max index = floor(17/5)+1 = 4, attr3 max index = floor(17/3)+1 = 6. Attr3 OOB (>5).
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 18, 1);
         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
-        // The following passes because attribute 3 accesses vertices [3, 6)
-        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 7, 11);
+        // With baseInstance=3:
+        // attr1 max index = floor(0/5)+3 = 3, attr3 max index = floor(0/3)+3 = 3. Both in bounds.
+        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 3);
         EXPECT_GL_NO_ERROR();
-        // The following fails because attribute 3 accesses vertices [3, 7)
-        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 8, 11);
+        // attr1 max index = floor(0/5)+5 = 5 (OOB for attr1 which fits 5 elements)
+        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 2, 4, 1, 5);
         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
     }
 
@@ -7244,17 +7300,121 @@ void main()
 
     if (hasBaseInstance)
     {
+        // instanced attrib index = floor(instance / divisor) + baseInstance
+        // Attribute 1: divisor=5, buffer fits 5 elements (max index 4)
+        // Attribute 2: divisor=3, buffer fits 8 elements (max index 7)
+        // Attribute 3: divisor=3, buffer fits 6 elements (max index 5)
+        // Attribute 4: divisor=1, buffer fits 12 elements (max index 11)
+        //
+        //   attr1: floor(11/5)+0=2, attr2: floor(11/3)+0=3, attr3: floor(11/3)+0=3, attr4:
+        //   floor(11/1)+0=11 All in bounds.
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 12, 0);
         EXPECT_GL_NO_ERROR();
+        //   attr1: floor(10/5)+1=3, attr2: floor(10/3)+1=4, attr3: floor(10/3)+1=4, attr4:
+        //   floor(10/1)+1=11. All in bounds.
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 11, 1);
         EXPECT_GL_NO_ERROR();
+        //   attr1: floor(0/5)+11=11 (OOB, >4)
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 1, 11);
-        EXPECT_GL_NO_ERROR();
+        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+        //   attr1: floor(1/5)+11=11 (OOB, >4)
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 2, 11);
         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+        //   attr4: floor(0/1)+14=14 (OOB, >11)
         glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 1, 14);
         EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+        //   attr1: floor(11/5)+0=2, attr2: floor(11/3)+0=3, attr3: floor(11/3)+0=3, attr4:
+        //    floor(11/1)+0=11. All in bounds.
+        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 12, 0);
+        EXPECT_GL_NO_ERROR();
+        //   attr1: floor(0/5)+4=4, attr2: floor(0/3)+4=4, attr3: floor(0/3)+4=4, attr4:
+        //   floor(0/1)+4=4. All in bounds.
+        glDrawArraysInstancedBaseInstanceANGLE(GL_POINTS, 120, 359, 1, 4);
+        EXPECT_GL_NO_ERROR();
     }
+}
+
+// Isolated regression test from the above.
+TEST_P(WebGL2CompatibilityTest, BaseInstancePerInstanceAttributeOOB)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance"));
+
+    // The vertex shader passes the instanced color attribute to the fragment shader.
+    // The non-instanced attribute provides the vertex position for a full-viewport triangle strip.
+    constexpr char kVS[] = R"(#version 300 es
+in vec4 a_position;
+in vec4 a_instColor;
+out vec4 v_color;
+void main()
+{
+    v_color = a_instColor;
+    gl_Position = a_position;
+})";
+
+    constexpr char kFS[] = R"(#version 300 es
+precision mediump float;
+in vec4 v_color;
+out vec4 fragColor;
+void main()
+{
+    fragColor = v_color;
+})";
+
+    ANGLE_GL_PROGRAM(program, kVS, kFS);
+    glUseProgram(program);
+
+    GLint posLoc   = glGetAttribLocation(program, "a_position");
+    GLint colorLoc = glGetAttribLocation(program, "a_instColor");
+    ASSERT_NE(-1, posLoc);
+    ASSERT_NE(-1, colorLoc);
+
+    // Non-instanced position attribute: full-viewport quad as triangle strip.
+    const float positions[] = {
+        -1.0f, -1.0f, 0.0f, 1.0f, 1.0f, -1.0f, 0.0f, 1.0f,
+        -1.0f, 1.0f,  0.0f, 1.0f, 1.0f, 1.0f,  0.0f, 1.0f,
+    };
+    GLBuffer posBuffer;
+    glBindBuffer(GL_ARRAY_BUFFER, posBuffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(positions), positions, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(posLoc);
+    glVertexAttribPointer(posLoc, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+    // Instanced color attribute: GL_SHORT*4, divisor=5, stride=12, offset=124.
+    // Buffer data region = 64 bytes -> fits 5 vertices (attrib=8 bytes, (64-8)/12+1=5).
+    // Total buffer = 64 + 124 = 188 bytes.
+    std::vector<uint8_t> instData(188, 0);
+    // Write GL_SHORT×4 green values (0, 0x7FFF, 0, 0x7FFF) at offset=124, stride=12 for 5 entries.
+    for (int i = 0; i < 5; ++i)
+    {
+        size_t base         = 124 + i * 12;
+        int16_t *components = reinterpret_cast<int16_t *>(&instData[base]);
+        components[0]       = 0;       // R = 0
+        components[1]       = 0x7FFF;  // G = 1.0 (normalized)
+        components[2]       = 0;       // B = 0
+        components[3]       = 0x7FFF;  // A = 1.0 (normalized)
+    }
+    GLBuffer instBuffer;
+    glBindBuffer(GL_ARRAY_BUFFER, instBuffer);
+    glBufferData(GL_ARRAY_BUFFER, instData.size(), instData.data(), GL_STATIC_DRAW);
+    glEnableVertexAttribArray(colorLoc);
+    glVertexAttribPointer(colorLoc, 4, GL_SHORT, GL_TRUE, 12, reinterpret_cast<void *>(124));
+    glVertexAttribDivisor(colorLoc, 5);
+    ASSERT_GL_NO_ERROR();
+
+    // Verify baseInstance=0 draw works and produces output.
+    // instanceCount=15, divisor=5 -> max instanced index = floor(14/5) = 2. Within bounds.
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDrawArraysInstancedBaseInstanceANGLE(GL_TRIANGLE_STRIP, 0, 4, 15, 0);
+    ASSERT_GL_NO_ERROR();
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+
+    // baseInstance=5, instanceCount=15, divisor=5.
+    // instanced attribute index = floor(instance / divisor) + baseInstance
+    // Max instanced index = floor(14/5) + 5 = 2 + 5 = 7. Buffer fits 5 elements (indices 0-4).
+    // Index 7 is out of bounds, so this must generate GL_INVALID_OPERATION.
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDrawArraysInstancedBaseInstanceANGLE(GL_TRIANGLE_STRIP, 0, 4, 15, 5);
+    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
 }
 
 // Tests that indexing with primitive restart index produces error, even

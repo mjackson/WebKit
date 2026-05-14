@@ -493,8 +493,6 @@ private:
     void cancelFakeMouseMoveEvent();
 #endif
 
-    bool isInsideScrollbar(const IntPoint&) const;
-
 #if ENABLE(TOUCH_EVENTS)
     bool dispatchSyntheticTouchEventIfEnabled(const PlatformMouseEvent&);
 #endif

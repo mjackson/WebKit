@@ -78,9 +78,9 @@ sk_sp<SkImage> rewrapImageForContext(GrDirectContext* grContext, const SkImage& 
     return SkImages::BorrowTextureFrom(grContext, backendTexture, kTopLeft_GrSurfaceOrigin, image.colorType(), image.alphaType(), image.refColorSpace());
 }
 
-sk_sp<SkImage> borrowBackendTextureAsImage(GrDirectContext* grContext, const GrBackendTexture& backendTexture)
+sk_sp<SkImage> borrowBackendTextureAsImage(GrDirectContext* grContext, const GrBackendTexture& backendTexture, GrSurfaceOrigin origin)
 {
-    return SkImages::BorrowTextureFrom(grContext, backendTexture, kTopLeft_GrSurfaceOrigin, kRGBA_8888_SkColorType, kPremul_SkAlphaType, sRGBColorSpaceSingleton());
+    return SkImages::BorrowTextureFrom(grContext, backendTexture, origin, kRGBA_8888_SkColorType, kPremul_SkAlphaType, sRGBColorSpaceSingleton());
 }
 
 std::optional<unsigned> retrieveGLTextureID(const SkImage& image)

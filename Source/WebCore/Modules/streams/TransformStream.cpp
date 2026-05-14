@@ -62,12 +62,12 @@ ExceptionOr<Ref<TransformStream>> TransformStream::create(JSC::JSGlobalObject& g
     if (readableStrategy)
         readableStrategyValue = readableStrategy.get();
 
-    auto result = createInternalTransformStream(uncheckedDowncast<JSDOMGlobalObject>(globalObject), transformerValue, writableStrategyValue, readableStrategyValue);
+    auto result = createInternalTransformStream(downcast<JSDOMGlobalObject>(globalObject), transformerValue, writableStrategyValue, readableStrategyValue);
     if (result.hasException())
         return result.releaseException();
 
     auto transformResult = result.releaseReturnValue();
-    return adoptRef(*new TransformStream(uncheckedDowncast<JSDOMGlobalObject>(globalObject), transformResult.transform, WTF::move(transformResult.readable), WTF::move(transformResult.writable)));
+    return adoptRef(*new TransformStream(downcast<JSDOMGlobalObject>(globalObject), transformResult.transform, WTF::move(transformResult.readable), WTF::move(transformResult.writable)));
 }
 
 Ref<TransformStream> TransformStream::create(Ref<ReadableStream>&& readable, Ref<WritableStream>&& writable)

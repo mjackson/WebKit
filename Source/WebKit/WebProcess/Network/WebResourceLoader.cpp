@@ -59,6 +59,7 @@
 #include <WebCore/SubstituteData.h>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/CompletionHandler.h>
+#include <wtf/PageBlock.h>
 #include <wtf/text/MakeString.h>
 
 #if ENABLE(CONTENT_EXTENSIONS)

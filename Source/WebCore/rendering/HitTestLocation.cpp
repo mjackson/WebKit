@@ -34,12 +34,12 @@ HitTestLocation::HitTestLocation(const LayoutPoint& point)
 {
 }
 
-HitTestLocation::HitTestLocation(const FloatPoint& point, const FloatQuad& quad)
+HitTestLocation::HitTestLocation(const FloatPoint& point, const FloatQuad& quad, RectBased rectBased)
     : m_point { flooredLayoutPoint(point) }
     , m_boundingBox { quad.enclosingBoundingBox() }
     , m_transformedPoint { point }
     , m_transformedRect { quad }
-    , m_isRectBased { true }
+    , m_isRectBased { rectBased == RectBased::Yes }
     , m_isRectilinear { quad.isRectilinear() }
 {
 }

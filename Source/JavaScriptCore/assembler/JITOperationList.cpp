@@ -35,7 +35,6 @@
 #include "WebAssemblyBuiltin.h"
 
 #if HAVE(DLADDR)
-#include <cxxabi.h>
 #include <dlfcn.h>
 #endif
 
@@ -117,6 +116,7 @@ LLINT_DECLARE_ROUTINE_VALIDATE(llint_throw_during_call_trampoline);
 LLINT_DECLARE_ROUTINE_VALIDATE(llint_handle_uncaught_exception);
 LLINT_DECLARE_ROUTINE_VALIDATE(checkpoint_osr_exit_trampoline);
 LLINT_DECLARE_ROUTINE_VALIDATE(checkpoint_osr_exit_from_inlined_call_trampoline);
+LLINT_DECLARE_ROUTINE_VALIDATE(array_sort_comparator_return_trampoline);
 LLINT_DECLARE_ROUTINE_VALIDATE(normal_osr_exit_trampoline);
 LLINT_DECLARE_ROUTINE_VALIDATE(fuzzer_return_early_from_loop_hint);
 LLINT_DECLARE_ROUTINE_VALIDATE(js_to_wasm_wrapper_entry);
@@ -200,6 +200,7 @@ static LLIntOperations llintOperations()
             LLINT_ROUTINE(llint_handle_uncaught_exception)
             LLINT_ROUTINE(checkpoint_osr_exit_trampoline)
             LLINT_ROUTINE(checkpoint_osr_exit_from_inlined_call_trampoline)
+            LLINT_ROUTINE(array_sort_comparator_return_trampoline)
             LLINT_ROUTINE(normal_osr_exit_trampoline)
             LLINT_ROUTINE(fuzzer_return_early_from_loop_hint)
             LLINT_ROUTINE(js_to_wasm_wrapper_entry)

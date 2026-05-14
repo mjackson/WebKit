@@ -253,6 +253,10 @@
 #define HAVE_DLADDR 1
 #endif
 
+#if OS(LINUX)
+#define HAVE_FALLOCATE 1
+#endif
+
 #if OS(WINDOWS)
 #define HAVE_ISDEBUGGERPRESENT 1
 #endif

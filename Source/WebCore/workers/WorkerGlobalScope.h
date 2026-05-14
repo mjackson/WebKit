@@ -109,7 +109,7 @@ public:
     WorkerStorageConnection& storageConnection();
     static void postFileSystemStorageTask(Function<void()>&&);
     WorkerFileSystemStorageConnection& getFileSystemStorageConnection(Ref<FileSystemStorageConnection>&&);
-    WEBCORE_EXPORT WorkerFileSystemStorageConnection* NODELETE fileSystemStorageConnection();
+    WEBCORE_EXPORT WorkerFileSystemStorageConnection* fileSystemStorageConnection();
     CacheStorageConnection& cacheStorageConnection();
     MessagePortChannelProvider& messagePortChannelProvider();
 
@@ -136,7 +136,7 @@ public:
     void clearInterval(int timeoutId);
 
     bool isSecureContext() const final;
-    bool NODELETE crossOriginIsolated() const;
+    bool NODELETE crossOriginIsolated() const final;
 
     WorkerNavigator* optionalNavigator() const { return m_navigator.get(); }
     WorkerLocation* optionalLocation() const { return m_location.get(); }
@@ -177,6 +177,8 @@ public:
 
     WorkerClient* workerClient() LIFETIME_BOUND { return m_workerClient.get(); }
 
+    String agentClusterID() const final { return m_agentClusterID; }
+
     void reportErrorToWorkerObject(const String&);
 
 protected:
@@ -199,7 +201,7 @@ private:
     void deleteJSCodeAndGC(Synchronous);
     void clearDecodedScriptData();
 
-    URL completeURL(const String&, ForceUTF8 = ForceUTF8::No) const final;
+    URL parseURL(const String&) const final;
     String userAgent(const URL&) const final;
 
     EventTarget* errorEventTarget() final;
@@ -251,6 +253,7 @@ private:
     SettingsValues m_settingsValues;
     WorkerType m_workerType;
     FetchOptions::Credentials m_credentials;
+    String m_agentClusterID;
     const RefPtr<WorkerStorageConnection> m_storageConnection;
     RefPtr<WorkerFileSystemStorageConnection> m_fileSystemStorageConnection;
 };

@@ -94,7 +94,7 @@ Ref<DOMPromise> FetchBodySource::cancel(JSDOMGlobalObject& globalObject, Readabl
 static JSDOMGlobalObject* globalObjectFromBodyOwner(RefPtr<FetchBodyOwner>&& bodyOwner)
 {
     RefPtr context = bodyOwner ? bodyOwner->scriptExecutionContext() : nullptr;
-    return uncheckedDowncast<JSDOMGlobalObject>(context->globalObject());
+    return downcast<JSDOMGlobalObject>(context->globalObject());
 }
 
 // FIXME: We should be able to take a FragmentedSharedBuffer

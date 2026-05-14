@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2024-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,7 +38,9 @@
 namespace WebCore {
 namespace Style {
 
-// Out of line to avoid inclusion of RenderStyle+GettersInlines.h
+// Out of line to avoid additional includes.
+double canonicalizeLength(double, CSS::LengthUnit, NoConversionDataRequiredToken);
+double canonicalizeLength(double, CSS::LengthUnit, const CSSToLengthConversionData&);
 float NODELETE adjustForZoom(float, const RenderStyle&);
 bool NODELETE evaluationTimeZoomEnabled(const RenderStyle&);
 bool NODELETE evaluationTimeZoomEnabled(const BuilderState&);
@@ -52,7 +54,7 @@ template<typename T> struct ConversionDataSpecializer {
     }
 };
 
-template<auto R, typename V> struct ConversionDataSpecializer<CSS::LengthRaw<R, V>> {
+template<auto R, typename V> struct ConversionDataSpecializer<Style::Length<R, V>> {
     CSSToLengthConversionData operator()(const BuilderState& state)
     {
         if constexpr (R.zoomOptions == CSS::RangeZoomOptions::Default) {
@@ -70,7 +72,7 @@ template<auto R, typename V> struct ConversionDataSpecializer<CSS::LengthRaw<R, 
     }
 };
 
-template<auto R, typename V> struct ConversionDataSpecializer<CSS::LengthPercentageRaw<R, V>> {
+template<auto R, typename V> struct ConversionDataSpecializer<Style::LengthPercentage<R, V>> {
     CSSToLengthConversionData operator()(const BuilderState& state)
     {
         if constexpr (R.zoomOptions == CSS::RangeZoomOptions::Default) {
@@ -118,147 +120,71 @@ template<CSS::Numeric T> struct CSSToRawMapping {
 
 // MARK: - Raw canonicalization
 
-// MARK: Length
-
-double canonicalizeLength(double, CSS::LengthUnit, NoConversionDataRequiredToken);
-double canonicalizeLength(double, CSS::LengthUnit, const CSSToLengthConversionData&);
-float NODELETE clampLengthToAllowedLimits(double);
-float canonicalizeAndClampLength(double, CSS::LengthUnit, NoConversionDataRequiredToken);
-float canonicalizeAndClampLength(double, CSS::LengthUnit, const CSSToLengthConversionData&);
-
-template<auto R, typename V, typename... Rest> constexpr Integer<R, V> canonicalize(const CSS::IntegerRaw<R, V>& raw, NoConversionDataRequiredToken, Rest&&...)
+template<auto R, typename V, typename... Rest> constexpr Integer<R, V> canonicalize(const CSS::IntegerRaw<R, V>& raw, Rest&&...)
 {
-    return { clampTo<V>(raw.value) };
+    return { CSS::clampToRangeOf<Integer<R, V>>(CSS::canonicalize(raw)) };
 }
 
-template<auto R, typename V, typename... Rest> constexpr Integer<R, V> canonicalize(const CSS::IntegerRaw<R, V>& raw, const CSSToLengthConversionData&, Rest&&... rest)
+template<auto R, typename V, typename... Rest> constexpr Number<R, V> canonicalize(const CSS::NumberRaw<R, V>& raw, Rest&&...)
 {
-    return canonicalize(raw, NoConversionDataRequiredToken { }, std::forward<Rest>(rest)...);
+    return { CSS::clampToRangeOf<Number<R, V>>(CSS::canonicalize(raw)) };
 }
 
-template<auto R, typename V, typename... Rest> constexpr Number<R, V> canonicalize(const CSS::NumberRaw<R, V>& raw, NoConversionDataRequiredToken, Rest&&...)
+template<auto R, typename V, typename... Rest> constexpr Percentage<R, V> canonicalize(const CSS::PercentageRaw<R, V>& raw, Rest&&...)
 {
-    return { raw.value };
+    return { CSS::clampToRangeOf<Percentage<R, V>>(CSS::canonicalize(raw)) };
 }
 
-template<auto R, typename V, typename... Rest> constexpr Number<R, V> canonicalize(const CSS::NumberRaw<R, V>& raw, const CSSToLengthConversionData&, Rest&&... rest)
+template<auto R, typename V, typename... Rest> Angle<R, V> canonicalize(const CSS::AngleRaw<R, V>& raw, Rest&&...)
 {
-    return canonicalize(raw, NoConversionDataRequiredToken { }, std::forward<Rest>(rest)...);
+    return { CSS::clampToRangeOf<Angle<R, V>>(CSS::canonicalize(raw)) };
 }
 
-template<auto R, typename V, typename... Rest> constexpr Percentage<R, V> canonicalize(const CSS::PercentageRaw<R, V>& raw, NoConversionDataRequiredToken, Rest&&...)
+template<auto R, typename V, typename... Rest> Time<R, V> canonicalize(const CSS::TimeRaw<R, V>& raw, Rest&&...)
 {
-    return { static_cast<V>(raw.value) };
+    return { CSS::clampToRangeOf<Time<R, V>>(CSS::canonicalize(raw)) };
 }
 
-template<auto R, typename V, typename... Rest> constexpr Percentage<R, V> canonicalize(const CSS::PercentageRaw<R, V>& raw, const CSSToLengthConversionData&, Rest&&... rest)
+template<auto R, typename V, typename... Rest> Frequency<R, V> canonicalize(const CSS::FrequencyRaw<R, V>& raw, Rest&&...)
 {
-    return canonicalize(raw, NoConversionDataRequiredToken { }, std::forward<Rest>(rest)...);
+    return { CSS::clampToRangeOf<Frequency<R, V>>(CSS::canonicalize(raw)) };
 }
 
-template<auto R, typename V, typename... Rest> Angle<R, V> canonicalize(const CSS::AngleRaw<R, V>& raw, NoConversionDataRequiredToken, Rest&&...)
+template<auto R, typename V, typename... Rest> Resolution<R, V> canonicalize(const CSS::ResolutionRaw<R, V>& raw, Rest&&...)
 {
-    return { static_cast<V>(CSS::canonicalize(raw)) };
+    return { CSS::clampToRangeOf<Resolution<R, V>>(CSS::canonicalize(raw)) };
 }
 
-template<auto R, typename V, typename... Rest> Angle<R, V> canonicalize(const CSS::AngleRaw<R, V>& raw, const CSSToLengthConversionData&, Rest&&... rest)
+template<auto R, typename V, typename... Rest> constexpr Flex<R, V> canonicalize(const CSS::FlexRaw<R, V>& raw, Rest&&...)
 {
-    return canonicalize(raw, NoConversionDataRequiredToken { }, std::forward<Rest>(rest)...);
+    return { CSS::clampToRangeOf<Flex<R, V>>(CSS::canonicalize(raw)) };
 }
 
-template<auto R, typename V, typename... Rest> Length<R, V> canonicalize(const CSS::LengthRaw<R, V>& raw, NoConversionDataRequiredToken token, Rest&&... rest)
+template<auto R, typename V, typename... Rest> Length<R, V> canonicalize(const CSS::LengthRaw<R, V>& raw, Rest&&... rest)
 {
-    ASSERT(!requiresConversionData(raw));
-
-    return { canonicalizeAndClampLength(raw.value, raw.unit, token, std::forward<Rest>(rest)...) };
+    return { CSS::clampToRangeOf<Length<R, V>>(canonicalizeLength(raw.value, raw.unit, std::forward<Rest>(rest)...)) };
 }
 
-template<auto R, typename V, typename... Rest> Length<R, V> canonicalize(const CSS::LengthRaw<R, V>& raw, const CSSToLengthConversionData& conversionData, Rest&&...)
-{
-    ASSERT(CSS::collectComputedStyleDependencies(raw).canResolveDependenciesWithConversionData(conversionData));
-
-    return { canonicalizeAndClampLength(raw.value, raw.unit, conversionData) };
-}
-
-template<auto R, typename V, typename... Rest> Time<R, V> canonicalize(const CSS::TimeRaw<R, V>& raw, NoConversionDataRequiredToken, Rest&&...)
-{
-    return { static_cast<V>(CSS::canonicalize(raw)) };
-}
-
-template<auto R, typename V, typename... Rest> Time<R, V> canonicalize(const CSS::TimeRaw<R, V>& raw, const CSSToLengthConversionData&, Rest&&... rest)
-{
-    return canonicalize(raw, NoConversionDataRequiredToken { }, std::forward<Rest>(rest)...);
-}
-
-template<auto R, typename V, typename... Rest> Frequency<R, V> canonicalize(const CSS::FrequencyRaw<R, V>& raw, NoConversionDataRequiredToken, Rest&&...)
-{
-    return { static_cast<V>(CSS::canonicalize(raw)) };
-}
-
-template<auto R, typename V, typename... Rest> Frequency<R, V> canonicalize(const CSS::FrequencyRaw<R, V>& raw, const CSSToLengthConversionData&, Rest&&... rest)
-{
-    return canonicalize(raw, NoConversionDataRequiredToken { }, std::forward<Rest>(rest)...);
-}
-
-template<auto R, typename V, typename... Rest> Resolution<R, V> canonicalize(const CSS::ResolutionRaw<R, V>& raw, NoConversionDataRequiredToken, Rest&&...)
-{
-    return { static_cast<V>(CSS::canonicalize(raw)) };
-}
-
-template<auto R, typename V, typename... Rest> Resolution<R, V> canonicalize(const CSS::ResolutionRaw<R, V>& raw, const CSSToLengthConversionData&, Rest&&... rest)
-{
-    return canonicalize(raw, NoConversionDataRequiredToken { }, std::forward<Rest>(rest)...);
-}
-
-template<auto R, typename V, typename... Rest> constexpr Flex<R, V> canonicalize(const CSS::FlexRaw<R, V>& raw, NoConversionDataRequiredToken, Rest&&...)
-{
-    return { static_cast<V>(raw.value) };
-}
-
-template<auto R, typename V, typename... Rest> constexpr Flex<R, V> canonicalize(const CSS::FlexRaw<R, V>& raw, const CSSToLengthConversionData&, Rest&&... rest)
-{
-    return canonicalize(raw, NoConversionDataRequiredToken { }, std::forward<Rest>(rest)...);
-}
-
-template<auto R, typename V, typename... Rest> AnglePercentage<R, V> canonicalize(const CSS::AnglePercentageRaw<R, V>& raw, NoConversionDataRequiredToken token, Rest&&... rest)
+template<auto R, typename V, typename... Rest> AnglePercentage<R, V> canonicalize(const CSS::AnglePercentageRaw<R, V>& raw, Rest&&... rest)
 {
     return CSS::switchOnUnitType(raw.unit,
         [&](CSS::PercentageUnit) -> AnglePercentage<R, V> {
-            return { canonicalize(CSS::PercentageRaw<R, V> { raw.value }, token, std::forward<Rest>(rest)...) };
+            return { canonicalize(CSS::PercentageRaw<R, V> { raw.value }, std::forward<Rest>(rest)...) };
         },
         [&](CSS::AngleUnit angleUnit) -> AnglePercentage<R, V> {
-            return { canonicalize(CSS::AngleRaw<R, V> { angleUnit, raw.value }, token, std::forward<Rest>(rest)...) };
+            return { canonicalize(CSS::AngleRaw<R, V> { angleUnit, raw.value }, std::forward<Rest>(rest)...) };
         }
     );
 }
 
-template<auto R, typename V, typename... Rest> AnglePercentage<R, V> canonicalize(const CSS::AnglePercentageRaw<R, V>& raw, const CSSToLengthConversionData&, Rest&&... rest)
-{
-    return canonicalize(raw, NoConversionDataRequiredToken { }, std::forward<Rest>(rest)...);
-}
-
-template<auto R, typename V, typename... Rest> LengthPercentage<R, V> canonicalize(const CSS::LengthPercentageRaw<R, V>& raw, NoConversionDataRequiredToken token, Rest&&... rest)
+template<auto R, typename V, typename... Rest> LengthPercentage<R, V> canonicalize(const CSS::LengthPercentageRaw<R, V>& raw, Rest&&... rest)
 {
     return CSS::switchOnUnitType(raw.unit,
         [&](CSS::PercentageUnit) -> LengthPercentage<R, V> {
-            return canonicalize(CSS::PercentageRaw<R, V> { raw.value }, token, std::forward<Rest>(rest)...);
+            return canonicalize(CSS::PercentageRaw<R, V> { raw.value }, std::forward<Rest>(rest)...);
         },
         [&](CSS::LengthUnit lengthUnit) -> LengthPercentage<R, V> {
-            return canonicalize(CSS::LengthRaw<R, V> { lengthUnit, raw.value }, token, std::forward<Rest>(rest)...);
-        }
-    );
-}
-
-template<auto R, typename V, typename... Rest> LengthPercentage<R, V> canonicalize(const CSS::LengthPercentageRaw<R, V>& raw, const CSSToLengthConversionData& conversionData, Rest&&... rest)
-{
-    // ASSERT(CSS::collectComputedStyleDependencies(raw).canResolveDependenciesWithConversionData(conversionData));
-
-    return CSS::switchOnUnitType(raw.unit,
-        [&](CSS::PercentageUnit) -> LengthPercentage<R, V> {
-            return canonicalize(CSS::PercentageRaw<R, V> { raw.value }, conversionData, std::forward<Rest>(rest)...);
-        },
-        [&](CSS::LengthUnit lengthUnit) -> LengthPercentage<R, V> {
-            return canonicalize(CSS::LengthRaw<R, V> { lengthUnit, raw.value }, conversionData, std::forward<Rest>(rest)...);
+            return canonicalize(CSS::LengthRaw<R, V> { lengthUnit, raw.value }, std::forward<Rest>(rest)...);
         }
     );
 }
@@ -351,6 +277,42 @@ template<auto nR, auto pR, typename V> struct ToCSS<NumberOrPercentageResolvedTo
 
 // MARK: - Conversion from CSS -> Style
 
+// Integer and Number require specialized implementations to allow for either <integer> or <number> category values.
+
+template<auto R, typename V> struct ToStyle<CSS::UnevaluatedCalc<CSS::IntegerRaw<R, V>>> {
+    using From = CSS::UnevaluatedCalc<CSS::IntegerRaw<R, V>>;
+    using To = Integer<R, V>;
+
+    template<typename... Rest> auto operator()(const From& value, Rest&&... rest) -> To
+    {
+        ASSERT(value.calcValue().category() == CSS::Category::Number || value.calcValue().category() == CSS::Category::Integer);
+        return { canonicalize(CSS::IntegerRaw<R, V> { To::unit, value.evaluate(value.calcValue().category(), rest...) }, rest...) };
+    }
+
+    // Implement `BuilderState` overload to explicitly forward to the `CSSToLengthConversionData` overload.
+    template<typename... Rest> auto operator()(const From& value, const BuilderState& state, Rest&&... rest) -> To
+    {
+        return toStyle(value, conversionData<To>(state), std::forward<Rest>(rest)...);
+    }
+};
+
+template<auto R, typename V> struct ToStyle<CSS::UnevaluatedCalc<CSS::NumberRaw<R, V>>> {
+    using From = CSS::UnevaluatedCalc<CSS::NumberRaw<R, V>>;
+    using To = Number<R, V>;
+
+    template<typename... Rest> auto operator()(const From& value, Rest&&... rest) -> To
+    {
+        ASSERT(value.calcValue().category() == CSS::Category::Number || value.calcValue().category() == CSS::Category::Integer);
+        return { canonicalize(CSS::NumberRaw<R, V> { To::unit, value.evaluate(value.calcValue().category(), rest...) }, rest...) };
+    }
+
+    // Implement `BuilderState` overload to explicitly forward to the `CSSToLengthConversionData` overload.
+    template<typename... Rest> auto operator()(const From& value, const BuilderState& state, Rest&&... rest) -> To
+    {
+        return toStyle(value, conversionData<To>(state), std::forward<Rest>(rest)...);
+    }
+};
+
 // AnglePercentage and LengthPercentage require specialized implementations for their calc canonicalization.
 
 template<auto R, typename V> struct ToStyle<CSS::UnevaluatedCalc<CSS::AnglePercentageRaw<R, V>>> {
@@ -392,6 +354,12 @@ template<auto R, typename V> struct ToStyle<CSS::UnevaluatedCalc<CSS::AnglePerce
             return canonicalize(CSS::PercentageRaw<R, V> { doubleValue }, std::forward<Rest>(rest)...);
         }
         return typename To::Calc { simplifiedCalc->createCalculationValue(std::forward<Rest>(rest)...) };
+    }
+
+    // Implement `BuilderState` overload to explicitly forward to the `CSSToLengthConversionData` overload.
+    template<typename... Rest> auto operator()(const From& value, const BuilderState& state, Rest&&... rest) -> To
+    {
+        return toStyle(value, conversionData<To>(state), std::forward<Rest>(rest)...);
     }
 };
 
@@ -435,6 +403,12 @@ template<auto R, typename V> struct ToStyle<CSS::UnevaluatedCalc<CSS::LengthPerc
         }
         return typename To::Calc { simplifiedCalc->createCalculationValue(std::forward<Rest>(rest)...) };
     }
+
+    // Implement `BuilderState` overload to explicitly forward to the `CSSToLengthConversionData` overload.
+    template<typename... Rest> auto operator()(const From& value, const BuilderState& state, Rest&&... rest) -> To
+    {
+        return toStyle(value, conversionData<To>(state), std::forward<Rest>(rest)...);
+    }
 };
 
 // Partial specialization for remaining numeric types.
@@ -447,6 +421,12 @@ template<CSS::NumericRaw RawType> struct ToStyle<RawType> {
     {
         return { canonicalize(value, std::forward<Rest>(rest)...) };
     }
+
+    // Implement `BuilderState` overload to explicitly forward to the `CSSToLengthConversionData` overload.
+    template<typename... Rest> auto operator()(const From& value, const BuilderState& state, Rest&&... rest) -> To
+    {
+        return toStyle(value, conversionData<To>(state), std::forward<Rest>(rest)...);
+    }
 };
 
 template<CSS::NumericRaw RawType> struct ToStyle<CSS::UnevaluatedCalc<RawType>> {
@@ -456,6 +436,12 @@ template<CSS::NumericRaw RawType> struct ToStyle<CSS::UnevaluatedCalc<RawType>> 
     template<typename... Rest> auto operator()(const From& value, Rest&&... rest) -> To
     {
         return { canonicalize(RawType { To::unit, value.evaluate(From::category, rest...) }, rest...) };
+    }
+
+    // Implement `BuilderState` overload to explicitly forward to the `CSSToLengthConversionData` overload.
+    template<typename... Rest> auto operator()(const From& value, const BuilderState& state, Rest&&... rest) -> To
+    {
+        return toStyle(value, conversionData<To>(state), std::forward<Rest>(rest)...);
     }
 };
 
@@ -467,12 +453,6 @@ template<CSS::Numeric NumericType> struct ToStyle<NumericType> {
     {
         return WTF::switchOn(value, [&](const auto& value) -> To { return toStyle(value, std::forward<Rest>(rest)...); });
     }
-
-    // Implement `BuilderState` overload to explicitly forward to the `CSSToLengthConversionData` overload.
-    template<typename... Rest> auto operator()(const From& value, const BuilderState& state, Rest&&... rest) -> To
-    {
-        return toStyle(value, conversionData<typename From::Raw>(state), std::forward<Rest>(rest)...);
-    }
 };
 
 // NumberOrPercentageResolvedToNumber, as the name implies, resolves its percentage to a number.
@@ -482,11 +462,7 @@ template<auto nR, auto pR, typename V> struct ToStyle<CSS::NumberOrPercentageRes
 
     template<typename... Rest> auto operator()(const From& value, Rest&&... rest) -> To
     {
-        return WTF::switchOn(value,
-            [&](const auto& numberOrPercentage) -> To {
-                return { toStyle(numberOrPercentage, std::forward<Rest>(rest)...) };
-            }
-        );
+        return WTF::switchOn(value, [&](const auto& value) -> To { return toStyle(value, std::forward<Rest>(rest)...); });
     }
 };
 

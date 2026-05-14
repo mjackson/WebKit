@@ -49,12 +49,14 @@
         await waitFor(sourceBuffer, 'updateend');
 
         testExpected('sourceBuffer.buffered.start(0)', 4);
-
-        endTest();
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <div>Tests SourceBuffer.remove() with real MP4 data. Removes [0, 4) and verifies
     removal extends to the sync frame boundary at PTS=4.</div>
     <video></video>

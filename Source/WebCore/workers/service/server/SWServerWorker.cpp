@@ -185,7 +185,7 @@ const ClientOrigin& SWServerWorker::origin() const
 SWServerToContextConnection* SWServerWorker::contextConnection()
 {
     RefPtr server = m_server;
-    return server ? server->contextConnectionForRegistrableDomain(topRegistrableDomain()) : nullptr;
+    return server ? server->contextConnectionForRegistrableDomain(topRegistrableDomain(), m_crossOriginEmbedderPolicy.value) : nullptr;
 }
 
 void SWServerWorker::scriptContextFailedToStart(const std::optional<ServiceWorkerJobDataIdentifier>& jobDataIdentifier, const String& message)

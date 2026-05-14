@@ -51,11 +51,7 @@ template<typename Primitive, typename Validator> struct NumberConsumerForInteger
         if (range.peek().numericValueType() != IntegerValueType)
             return std::nullopt;
 
-        auto rawValue = typename Primitive::Raw { CSS::IntegerUnit::Integer, range.peek().numericValue() };
-
-        if constexpr (rawValue.range.clampOptions != CSS::RangeClampOptions::Default)
-            rawValue = performParseTimeClamp(rawValue);
-
+        auto rawValue = performOptionalParseTimeClamp(typename Primitive::Raw { CSS::IntegerUnit::Integer, range.peek().numericValue() });
         if (!Validator::isValid(rawValue, options))
             return std::nullopt;
 

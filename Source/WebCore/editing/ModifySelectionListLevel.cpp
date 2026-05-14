@@ -36,6 +36,8 @@
 #include "LocalFrame.h"
 #include "LocalFrameInlines.h"
 #include "RenderObject.h"
+#include "SimpleRange.h"
+#include "RenderObjectInlines.h"
 
 namespace WebCore {
 

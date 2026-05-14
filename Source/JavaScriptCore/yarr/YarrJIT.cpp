@@ -43,11 +43,9 @@
 #include "YarrMatchingContextHolder.h"
 #include <wtf/ASCIICType.h>
 #include <wtf/BitVector.h>
-#include <wtf/HexNumber.h>
 #include <wtf/ListDump.h>
 #include <wtf/MathExtras.h>
 #include <wtf/TZoneMallocInlines.h>
-#include <wtf/Threading.h>
 #include <wtf/text/MakeString.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -5241,6 +5239,10 @@ class YarrGenerator final : public YarrJITInfo {
                     m_backtrackingState.fallthrough();
                 }
                 m_backtrackingState.takeBacktracksToJumpList(op.m_jumps, &m_jit);
+                // Assertions are atomic to backtracking. Once assertion completes, we can do anything at backtracking: since assertion does not consume any characters,
+                // this does not change character position at this place, thus, once it completes, no backtracking exists to change the status to do the following matching again.
+                // Thus, we should just jump to corresponding ParentheticalAssertionBegin's backtracking state.
+                op.m_jumps.append(m_jit.jump());
                 break;
             }
 

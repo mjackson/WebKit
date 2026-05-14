@@ -29,7 +29,6 @@
 #include "CodeBlock.h"
 #include "CodeOrigin.h"
 #include "InlineCacheCompiler.h"
-#include "Instruction.h"
 #include "JITStubRoutine.h"
 #include "MacroAssembler.h"
 #include "Options.h"
@@ -37,8 +36,6 @@
 #include "PropertyInlineCacheSummary.h"
 #include "RegisterSet.h"
 #include "Structure.h"
-#include "StructureSet.h"
-#include <wtf/Box.h>
 #include <wtf/Lock.h>
 #include <wtf/TZoneMalloc.h>
 

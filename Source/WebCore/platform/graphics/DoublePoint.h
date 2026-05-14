@@ -106,7 +106,6 @@ public:
     WEBCORE_EXPORT DoublePoint(const POINT&);
 #endif
 
-    WEBCORE_EXPORT String toJSONString() const;
     WEBCORE_EXPORT Ref<JSON::Object> toJSONObject() const;
 
     friend bool operator==(const DoublePoint&, const DoublePoint&) = default;
@@ -155,16 +154,4 @@ WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const DoublePoint&)
 
 } // namespace WebCore
 
-namespace WTF {
-
-template<typename Type> struct LogArgument;
-template <>
-struct LogArgument<WebCore::DoublePoint> {
-    static String toString(const WebCore::DoublePoint& point)
-    {
-        return point.toJSONString();
-    }
-};
-
-} // namespace WTF
 

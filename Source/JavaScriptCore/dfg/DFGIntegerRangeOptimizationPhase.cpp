@@ -1822,6 +1822,15 @@ private:
             break;
         }
 
+        case ArithMod:
+        case ArithDiv: {
+            // Regardless of whether we have a check, these nodes cleared MustGenerate flag when input is Int32Use / Int52RepUse / DoubleRepUse.
+            // If nobody is using the output (including MovHint), we do not need to perform checks and keep this node.
+            // But the above assumption gets broken when we leverages these checks to put additional constraint onto *input* of this node.
+            // This comment is noting about these condition to avoid introducing bugs.
+            break;
+        }
+
         case Phi: {
             setEquivalence(
                 NodeFlowProjection(node, NodeFlowProjection::Shadow),

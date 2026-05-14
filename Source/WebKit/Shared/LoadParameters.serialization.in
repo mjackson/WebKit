@@ -59,6 +59,7 @@ enum class WebCore::LockBackForwardList : bool;
     bool hadUserGesture;
     WebCore::NavigationUpgradeToHTTPSBehavior navigationUpgradeToHTTPSBehavior;
     bool isHandledByAboutSchemeHandler;
+    bool isHistoryItemNavigation;
 
     std::optional<OptionSet<WebCore::AdvancedPrivacyProtections>> advancedPrivacyProtections;
     uint64_t requiredCookiesVersion;

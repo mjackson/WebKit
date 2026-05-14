@@ -60,9 +60,10 @@ JSC::JSValue evaluateHandlerFromAnyThread(JSC::JSGlobalObject* lexicalGlobalObje
 
 ScriptExecutionContext* executionContext(JSC::JSGlobalObject* globalObject)
 {
-    if (!globalObject || !globalObject->inherits<JSDOMGlobalObject>())
+    auto* domGlobalObject = dynamicDowncast<JSDOMGlobalObject>(globalObject);
+    if (!domGlobalObject)
         return nullptr;
-    return uncheckedDowncast<JSDOMGlobalObject>(globalObject)->scriptExecutionContext();
+    return domGlobalObject->scriptExecutionContext();
 }
 
 } // namespace WebCore

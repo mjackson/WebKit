@@ -134,6 +134,24 @@ template<typename Numeric, CSS::SpecificKeyword... Ks> struct LengthWrapperBase 
         RELEASE_ASSERT_NOT_REACHED();
     }
 
+    template<typename... F> decltype(auto) switchOnUsingSpecified(F&&... f) const
+    {
+        auto visitor = WTF::makeVisitor(std::forward<F>(f)...);
+
+        auto opaqueType = m_value.type();
+
+        if constexpr (hasKeywords) {
+             if (opaqueType <= indexForLastKeyword)
+                return Keywords::visitKeywordAtOffset(opaqueType, visitor);
+        }
+
+             if (opaqueType == indexForFixed)       return visitor(Specified(Fixed { m_value.value() }));
+        else if (opaqueType == indexForPercentage)  return visitor(Specified(Percentage { m_value.value() }));
+        else if (opaqueType == indexForCalc)        return visitor(Specified(Calc { m_value.calculationValue() }));
+
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+
     bool hasQuirk() const { return m_value.hasQuirk(); }
 
     bool hasSameType(const LengthWrapperBase& other) const { return m_value.type() == other.m_value.type(); }

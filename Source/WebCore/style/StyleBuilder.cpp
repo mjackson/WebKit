@@ -35,6 +35,7 @@
 #include "CSSFontSelector.h"
 #include "CSSPaintImageValue.h"
 #include "CSSPropertyParser.h"
+#include "CSSPropertyParserConsumer+Ident.h"
 #include "CSSRegisteredCustomProperty.h"
 #include "CSSShorthandSubstitutionValue.h"
 #include "CSSValuePair.h"
@@ -700,7 +701,9 @@ std::optional<Variant<Ref<const Style::CustomProperty>, CSSWideKeyword>> Builder
 
     if (!registered) {
         // CSS-wide keywords are allowed in var() fallbacks of unregistered properties.
-        if (auto keyword = CSSPropertyParser::parseCSSWideKeyword(resolvedData->tokens()))
+        auto tokens = resolvedData->tokenRange();
+        tokens.consumeWhitespace();
+        if (auto keyword = CSSPropertyParserHelpers::consumeCSSWideKeyword(tokens))
             return { { *keyword } };
 
         return { { CustomProperty::createForVariableData(name, *resolvedData) } };

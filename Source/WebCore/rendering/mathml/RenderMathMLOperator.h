@@ -60,8 +60,8 @@ public:
 
     void updateTokenContent() final;
     void updateFromElement() final;
-    virtual char32_t textContent() const;
-    bool isStretchy() const { return textContent() && hasOperatorFlag(MathMLOperatorDictionary::Stretchy); }
+    virtual char32_t singleCharCodePoint() const;
+    bool isStretchy() const { return singleCharCodePoint() && hasOperatorFlag(MathMLOperatorDictionary::Stretchy); }
 
 protected:
     virtual void updateMathOperator();

@@ -33,6 +33,7 @@
 #include "ErrorEvent.h"
 #include "EventLoop.h"
 #include "EventNames.h"
+#include "FileSystemStorageConnection.h"
 #include "FrameLoader.h"
 #include "IDBConnectionProxy.h"
 #include "LoaderStrategy.h"
@@ -41,12 +42,14 @@
 #include "MessagePort.h"
 #include "Page.h"
 #include "PlatformStrategies.h"
+#include "ProcessIdentifier.h"
 #include "RTCDataChannelRemoteHandlerConnection.h"
 #include "SharedWorker.h"
 #include "SharedWorkerContextManager.h"
 #include "SharedWorkerGlobalScope.h"
 #include "SharedWorkerThread.h"
 #include "SocketProvider.h"
+#include "StorageConnection.h"
 #include "WebRTCProvider.h"
 #include "WorkerClient.h"
 #include "WorkerFetchResult.h"
@@ -86,7 +89,8 @@ static WorkerParameters generateWorkerParameters(const WorkerFetchResult& worker
         WTF::move(initializationData.serviceWorkerData),
         *initializationData.clientIdentifier,
         document.advancedPrivacyProtections(),
-        document.noiseInjectionHashSalt()
+        document.noiseInjectionHashSalt(),
+        makeString(Process::identifier().toUInt64(), "-sharedworker-"_s, initializationData.clientIdentifier->toString())
     };
 }
 
@@ -152,6 +156,9 @@ void SharedWorkerThreadProxy::postExceptionToWorkerObject(const String& errorMes
 {
     ASSERT(!isMainThread());
     if (!m_workerThread->isInStaticScriptEvaluation())
+        return;
+
+    if (protect(m_workerThread->WorkerOrWorkletThread::globalScope())->settingsValues().workerParseErrorReportingEnabled)
         return;
 
     callOnMainThread([sharedWorkerIdentifier = m_workerThread->identifier(), errorMessage = errorMessage.isolatedCopy(), lineNumber, columnNumber, sourceURL = sourceURL.isolatedCopy()] {
@@ -243,6 +250,14 @@ void SharedWorkerThreadProxy::setAppBadge(std::optional<uint64_t> badge)
     callOnMainRunLoop([badge = WTF::move(badge), this, protectedThis = Ref { *this }] {
         m_page->badgeClient().setAppBadge(nullptr, m_clientOrigin.clientOrigin, badge);
     });
+}
+
+RefPtr<FileSystemStorageConnection> SharedWorkerThreadProxy::createFileSystemStorageConnection()
+{
+    ASSERT(isMainThread());
+    if (RefPtr storageConnection = m_document->storageConnection())
+        return storageConnection->fileSystemStorageConnection();
+    return nullptr;
 }
 
 } // namespace WebCore

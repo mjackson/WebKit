@@ -307,7 +307,7 @@ void MathMLElement::defaultEventHandler(Event& event)
             const auto& href = attributeWithoutSynchronization(hrefAttr);
             event.setDefaultHandled();
             if (RefPtr frame = document().frame())
-                frame->loader().changeLocation(document().completeURL(href), selfTargetFrameName(), &event, ReferrerPolicy::EmptyString, document().shouldOpenExternalURLsPolicyToPropagate());
+                frame->loader().changeLocation(document().encodingParseURL(href), selfTargetFrameName(), &event, ReferrerPolicy::EmptyString, document().shouldOpenExternalURLsPolicyToPropagate());
             return;
         }
     }
@@ -364,6 +364,18 @@ bool MathMLElement::supportsFocus() const
         return StyledElement::supportsFocus();
     // If not a link we should still be able to focus the element if it has tabIndex.
     return isLink() || StyledElement::supportsFocus();
+}
+
+int MathMLElement::defaultTabIndex() const
+{
+    return localName() == HTMLNames::aTag ? 0 : -1;
+}
+
+Node::NeedsPostConnectionSteps MathMLElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+{
+    auto result = StyledElement::insertionSteps(insertionType, parentOfInsertedTree);
+    hideNonce();
+    return result;
 }
 
 }

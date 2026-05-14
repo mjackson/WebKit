@@ -38,7 +38,6 @@
 #include "MicrotaskQueueInlines.h"
 #include "ScriptProfilingScope.h"
 #include "SlotVisitorInlines.h"
-#include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN

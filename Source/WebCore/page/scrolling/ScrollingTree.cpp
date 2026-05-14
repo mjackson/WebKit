@@ -309,7 +309,7 @@ void ScrollingTree::scrollingTreeNodeDidScroll(ScrollingTreeScrollingNode& node,
 
 void ScrollingTree::mainFrameViewportChangedViaDelegatedScrolling(const FloatPoint& scrollPosition, const FloatRect& layoutViewport, double)
 {
-    LOG_WITH_STREAM(Scrolling, stream << "ScrollingTree::viewportChangedViaDelegatedScrolling - layoutViewport " << layoutViewport);
+    LOG_WITH_STREAM(Scrolling, stream << "ScrollingTree::mainFrameViewportChangedViaDelegatedScrolling - layoutViewport " << layoutViewport);
     
     if (RefPtr rootNode = m_rootNode)
         rootNode->wasScrolledByDelegatedScrolling(scrollPosition, layoutViewport);

@@ -37,6 +37,62 @@
 namespace WebCore {
 namespace Style {
 
+// MARK: - ShapeOutside
+
+ShapeOutside::ShapeOutside(Shape&& value)
+    : m_value { Value::create(WTF::move(value)) }
+{
+}
+
+ShapeOutside::ShapeOutside(ShapeBox&& value)
+    : m_value { Value::create(WTF::move(value)) }
+{
+}
+
+ShapeOutside::ShapeOutside(ShapeAndShapeBox&& value)
+    : m_value { Value::create(WTF::move(value)) }
+{
+}
+
+ShapeOutside::ShapeOutside(Image&& value)
+    : m_value { Value::create(WTF::move(value)) }
+{
+}
+
+// MARK: - ShapeOutside::Value
+
+Ref<ShapeOutside::Value> ShapeOutside::Value::create(Kind&& value)
+{
+    return adoptRef(*new Value(WTF::move(value)));
+}
+
+ShapeOutside::Value::Value(Kind&& value)
+    : value { WTF::move(value) }
+{
+}
+
+ShapeOutside::Value::~Value() = default;
+
+bool ShapeOutside::Value::operator==(const Value& other) const
+{
+    return value == other.value;
+}
+
+// MARK: - ShapeOutside::ShapeAndShapeBox
+
+ShapeOutside::ShapeAndShapeBox::ShapeAndShapeBox(Shape&& shape, ShapeBox box)
+    : shape(WTF::move(shape))
+    , box(box)
+{
+}
+
+ShapeOutside::ShapeAndShapeBox::ShapeAndShapeBox(ShapeAndShapeBox&&) = default;
+ShapeOutside::ShapeAndShapeBox::ShapeAndShapeBox(const ShapeAndShapeBox&) = default;
+ShapeOutside::ShapeAndShapeBox& ShapeOutside::ShapeAndShapeBox::operator=(ShapeAndShapeBox&&) = default;
+ShapeOutside::ShapeAndShapeBox& ShapeOutside::ShapeAndShapeBox::operator=(const ShapeAndShapeBox&) = default;
+ShapeOutside::ShapeAndShapeBox::~ShapeAndShapeBox() = default;
+bool ShapeOutside::ShapeAndShapeBox::operator==(const ShapeAndShapeBox&) const = default;
+
 bool ShapeOutside::Image::isValid() const
 {
     Ref styleImage = image.value;
@@ -88,7 +144,7 @@ auto CSSValueConversion<ShapeOutside>::operator()(BuilderState& state, const CSS
         }
 
         if (referenceBox != CSSBoxType::BoxMissing)
-            return ShapeOutside::ShapeAndShapeBox { .shape = WTF::move(*shape), .box = referenceBox };
+            return ShapeOutside::ShapeAndShapeBox { WTF::move(*shape), referenceBox };
         return ShapeOutside::Shape { WTF::move(*shape) };
     }
 
@@ -137,8 +193,8 @@ auto Blending<ShapeOutside>::blend(const ShapeOutside& a, const ShapeOutside& b,
     return WTF::visit(WTF::makeVisitor(
         [&](const ShapeOutside::ShapeAndShapeBox& a, const ShapeOutside::ShapeAndShapeBox& b) -> ShapeOutside {
             return ShapeOutside::ShapeAndShapeBox {
-                .shape = Style::blend(a.shape, b.shape, context),
-                .box = a.box
+                Style::blend(a.shape, b.shape, context),
+                a.box
             };
         },
         [&](const ShapeOutside::Shape& a, const ShapeOutside::Shape& b) -> ShapeOutside {

@@ -381,7 +381,7 @@ TEST(TextExtractionTests, InteractionResultSummary)
         [interaction setNodeIdentifier:testButtonID.get()];
         RetainPtr result = [webView synchronouslyPerformInteraction:interaction.get()];
         EXPECT_NULL([result error]);
-        EXPECT_WK_STREQ("Click on button labeled “Click Me” with id “test-button”, with rendered text “Test”", [result summary]);
+        EXPECT_WK_STREQ("Clicked on button labeled “Click Me” with id “test-button”, with rendered text “Test”", [result summary]);
     }
     {
         RetainPtr interaction = adoptNS([[_WKTextExtractionInteraction alloc] initWithAction:_WKTextExtractionActionTextInput]);
@@ -405,7 +405,7 @@ TEST(TextExtractionTests, InteractionResultSummary)
         [interaction setText:@"Subject"];
         RetainPtr result = [webView synchronouslyPerformInteraction:interaction.get()];
         EXPECT_NULL([result error]);
-        EXPECT_WK_STREQ("Click on “Subject” in child node of editable h3 labeled “Heading”, with rendered text “Subject”", [result summary]);
+        EXPECT_WK_STREQ("Clicked on “Subject” in child node of editable h3 labeled “Heading”, with rendered text “Subject”", [result summary]);
     }
     {
         RetainPtr interaction = adoptNS([[_WKTextExtractionInteraction alloc] initWithAction:_WKTextExtractionActionClick]);
@@ -824,6 +824,44 @@ TEST(TextExtractionTests, RequestContainerJSHandleForSearchTexts)
     EXPECT_TRUE([debugText containsString:@"Ships within 24 hours"]);
     EXPECT_FALSE([debugText containsString:@"Customers Also Bought"]);
     EXPECT_FALSE([debugText containsString:@"The noise cancellation is incredible"]);
+}
+
+TEST(TextExtractionTests, RequestContainerJSHandleForSearchTextsFallsBackToBodyWhenTargetMisses)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:^{
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        [[configuration preferences] _setTextExtractionEnabled:YES];
+        return configuration.autorelease();
+    }()]);
+
+    [webView synchronouslyLoadTestPageNamed:@"debug-text-product"];
+
+    RetainPtr extractionResult = [webView synchronouslyExtractDebugTextResult:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setIncludeRects:NO];
+        [configuration setIncludeURLs:NO];
+        [configuration setIncludeAccessibilityAttributes:YES];
+        [configuration setNodeIdentifierInclusion:_WKTextExtractionNodeIdentifierInclusionAllContainers];
+        return configuration.autorelease();
+    }()];
+
+    RetainPtr reviewsSectionID = extractNodeIdentifier([extractionResult textContent], @"5 Reviews");
+    EXPECT_NOT_NULL(reviewsSectionID.get());
+
+    RetainPtr debugText = [webView synchronouslyGetDebugText:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setIncludeRects:NO];
+        [configuration setOutputFormat:_WKTextExtractionOutputFormatMarkdown];
+        [configuration setNodeIdentifierInclusion:_WKTextExtractionNodeIdentifierInclusionNone];
+
+        RetainPtr handle = [extractionResult containerJSHandleForSearchTexts:@[ @"Premium Wireless Headphones", @"Ships within 24 hours" ] nodeIdentifier:reviewsSectionID.get()];
+        [configuration setTargetNode:handle.get()];
+        return configuration.autorelease();
+    }()];
+
+    EXPECT_TRUE([debugText containsString:@"Premium Wireless Headphones"]);
+    EXPECT_TRUE([debugText containsString:@"Ships within 24 hours"]);
+    EXPECT_FALSE([debugText containsString:@"Customer Reviews"]);
 }
 
 TEST(TextExtractionTests, ResolveTargetNodeFromSelectorData)

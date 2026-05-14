@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2024-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -64,7 +64,7 @@ public:
 
     // Decoding & animation
     bool isPendingDecodingAtIndex(unsigned index, SubsamplingLevel, const DecodingOptions&) const;
-    void destroyNativeImageAtIndex(unsigned index, std::optional<ShouldDecodeToHDR> = std::nullopt);
+    void destroyNativeImageAtIndex(unsigned index, std::optional<DecodingDestination> = std::nullopt);
     void imageFrameAtIndexAvailable(unsigned index, ImageAnimatingState, DecodingStatus);
     void imageFrameDecodeAtIndexHasFinished(unsigned index, SubsamplingLevel, ImageAnimatingState, const DecodingOptions&, RefPtr<NativeImage>&&);
 
@@ -123,6 +123,7 @@ private:
     bool hasEverAnimated() const final;
 
     // Decoding
+    DecodingDestination preferredDecodingDestination(GraphicsContext&, ImagePaintingOptions) const final;
     bool isLargeForDecoding() const final;
     bool NODELETE isDecodingWorkQueueIdle() const;
     bool isCompatibleWithOptionsAtIndex(unsigned index, SubsamplingLevel, const DecodingOptions&) const;

@@ -37,13 +37,13 @@
 #include "OscillatorType.h"
 #include "PeriodicWaveConstraints.h"
 #include <atomic>
+#include <wtf/CurrentThread.h>
 #include <wtf/Forward.h>
 #include <wtf/LoggerHelper.h>
 #include <wtf/MainThread.h>
 #include <wtf/RecursiveLockAdapter.h>
 #include <wtf/RobinHoodHashMap.h>
 #include <wtf/ThreadSafeRefCounted.h>
-#include <wtf/Threading.h>
 
 namespace JSC {
 class ArrayBuffer;
@@ -188,8 +188,8 @@ public:
     // Thread Safety and Graph Locking:
     //
     
-    void setAudioThread(Thread& thread) { m_audioThreadUID = thread.uid(); } // FIXME: check either not initialized or the same
-    bool isAudioThread() const { return m_audioThreadUID == Thread::currentSingleton().uid(); }
+    void setAudioThread(uint32_t threadUID) { m_audioThreadUID = threadUID; } // FIXME: check either not initialized or the same
+    bool isAudioThread() const { return m_audioThreadUID == currentThreadID(); }
 
     // Returns true only after the audio thread has been started and then shutdown.
     bool isAudioThreadFinished() const { return m_isAudioThreadFinished; }

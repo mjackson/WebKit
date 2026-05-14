@@ -29,8 +29,10 @@
 #include <JavaScriptCore/ArgList.h>
 #include <JavaScriptCore/IteratorOperations.h>
 #include <JavaScriptCore/JSArrayInlines.h>
+#include <JavaScriptCore/JSBoundFunction.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/ObjectConstructor.h>
+#include <JavaScriptCore/SourceCode.h>
 
 namespace WebCore {
 
@@ -220,6 +222,11 @@ JSC::JSArray* constructArray(JSC::JSGlobalObject& globalObject, size_t count, NO
 JSC::JSValue freezeObject(JSC::JSGlobalObject& globalObject, JSC::JSObject* object)
 {
     return JSC::objectConstructorFreeze(&globalObject, object);
+}
+
+JSC::JSBoundFunction* createBoundFunction(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSObject* target, JSC::JSValue boundThis, JSC::ArgList boundArgs, double length, ASCIILiteral sourceName)
+{
+    return JSC::JSBoundFunction::create(vm, globalObject, target, boundThis, boundArgs, length, JSC::jsEmptyString(vm), JSC::makeSource(sourceName, JSC::SourceOrigin(), JSC::SourceTaintedOrigin::Untainted));
 }
 
 } // namespace WebCore

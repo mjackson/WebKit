@@ -26,6 +26,7 @@
 #import "config.h"
 #import "WebCoreDecompressionSession.h"
 
+#import "CMUtilities.h"
 #import "FormatDescriptionUtilities.h"
 #import "IOSurface.h"
 #import "Logging.h"
@@ -249,6 +250,13 @@ static RetainPtr<CMTaggedBufferGroupRef> createTaggedBufferGroupWithRequiredVide
 
 Expected<RefPtr<VideoDecoderVTB>, OSStatus> WebCoreDecompressionSession::ensureDecoderForSample(CMSampleBufferRef cmSample)
 {
+    if (m_waitingForKeyframe) {
+        if (!isCMSampleBufferRandomAccess(cmSample))
+            return RefPtr<VideoDecoderVTB> { };
+        RELEASE_LOG_INFO(Media, "VTDecompressionSession received keyframe after format change, creating new VTDecompressionSession");
+        m_waitingForKeyframe = false;
+    }
+
     Locker lock { m_lock };
 
     if (isInvalidated())
@@ -266,15 +274,16 @@ Expected<RefPtr<VideoDecoderVTB>, OSStatus> WebCoreDecompressionSession::ensureD
     RefPtr videoDecoderVTB = m_videoDecoderVTB;
     if (videoFormatDescriptionChanged && videoDecoderVTB && !videoDecoderVTB->canAccept(videoFormatDescription.get())) {
         auto status = videoDecoderVTB->flush();
-        Ref sample = MediaSampleAVFObjC::create(cmSample, 0);
         m_videoDecoderVTB = nullptr;
         m_isHardwareAccelerated.reset();
-        if (!(sample->flags() & MediaSample::IsSync)) {
-            RELEASE_LOG_INFO(Media, "VTDecompressionSession can't accept format description change on non-keyframe status:%d", int(status));
-            return makeUnexpected(status == kVTInvalidSessionErr ? status : kVTVideoDecoderBadDataErr);
+        if (!isCMSampleBufferRandomAccess(cmSample)) {
+            RELEASE_LOG_ERROR(Media, "VTDecompressionSession can't accept format description change on non-keyframe, waiting for keyframe status:%d", int(status));
+            m_waitingForKeyframe = true;
+            return RefPtr<VideoDecoderVTB> { };
         }
         RELEASE_LOG_INFO(Media, "VTDecompressionSession can't accept format description change on keyframe, creating new VTDecompressionSession status:%d", int(status));
     }
+
     m_lastFormatDescription = videoFormatDescription;
 
     if (!m_videoDecoderVTB) {
@@ -417,6 +426,9 @@ Ref<WebCoreDecompressionSession::DecodingPromise> WebCoreDecompressionSession::d
     if (!result)
         return DecodingPromise::createAndReject(result.error());
     RefPtr videoDecoderVTB = WTF::move(*result);
+
+    if (m_waitingForKeyframe)
+        return DecodingPromise::createAndResolve(Vector<RetainPtr<CMSampleBufferRef>> { });
 
     if (!videoDecoderVTB && !m_videoDecoderCreationFailed) {
         RefPtr<MediaPromise> initPromise;
@@ -593,6 +605,9 @@ RetainPtr<CVPixelBufferRef> WebCoreDecompressionSession::decodeSampleSync(CMSamp
 void WebCoreDecompressionSession::flush()
 {
     m_flushId++;
+    m_dispatcher->dispatch([protectedThis = RefPtr { this }] {
+        protectedThis->m_waitingForKeyframe = true;
+    });
 }
 
 Ref<MediaPromise> WebCoreDecompressionSession::initializeVideoDecoder(FourCharCode codec, std::span<const uint8_t> description, const std::optional<PlatformVideoColorSpace>& colorSpace)

@@ -31,7 +31,6 @@
 #include <WebCore/IntPoint.h>
 #include <wtf/Hasher.h>
 #include <wtf/MathExtras.h>
-#include <wtf/Platform.h>
 #include <wtf/TZoneMalloc.h>
 
 #if USE(CG)

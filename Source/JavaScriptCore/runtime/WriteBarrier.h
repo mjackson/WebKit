@@ -29,6 +29,7 @@
 #include "HandleTypes.h"
 #include "StructureID.h"
 #include <type_traits>
+#include <wtf/ForbidHeapAllocation.h>
 #include <wtf/RawPtrTraits.h>
 #include <wtf/RawValueTraits.h>
 #include <wtf/TZoneMalloc.h>
@@ -243,7 +244,7 @@ enum UndefinedWriteBarrierTagType { UndefinedWriteBarrierTag };
 enum NullWriteBarrierTagType { NullWriteBarrierTag };
 template <>
 class WriteBarrier<Unknown, RawValueTraits<Unknown>> : public WriteBarrierBase<Unknown, RawValueTraits<Unknown>> {
-    WTF_MAKE_TZONE_ALLOCATED_TEMPLATE(WriteBarrier);
+    WTF_FORBID_HEAP_ALLOCATION_ALLOWING_PLACEMENT_NEW;
 public:
     WriteBarrier()
     {

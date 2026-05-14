@@ -334,7 +334,7 @@ inline WebCore::Color ColorPropertyTraits<PropertyNameConstant<CSSPropertyTextDe
                     return strokeColor;
             }
         }
-        return style.textFillColor().resolveColor(style.color());
+        return style.color();
     }
     return result.resolveColor(style.color());
 }
@@ -355,7 +355,7 @@ inline WebCore::Color ColorPropertyTraits<PropertyNameConstant<CSSPropertyTextDe
                     return strokeColor;
             }
         }
-        return style.visitedLinkTextFillColor().resolveColor(style.visitedLinkColor());
+        return style.visitedLinkColor();
     }
     return result.resolveColor(style.visitedLinkColor());
 }

@@ -82,18 +82,6 @@ BytecodeIntrinsicRegistry::BytecodeIntrinsicRegistry(VM& vm)
     m_ModuleSatisfy.set(m_vm, jsNumber(static_cast<unsigned>(JSModuleLoader::Status::Satisfy)));
     m_ModuleLink.set(m_vm, jsNumber(static_cast<unsigned>(JSModuleLoader::Status::Link)));
     m_ModuleReady.set(m_vm, jsNumber(static_cast<unsigned>(JSModuleLoader::Status::Ready)));
-    m_promiseRejectionReject.set(m_vm, jsNumber(static_cast<unsigned>(JSPromiseRejectionOperation::Reject)));
-    m_promiseRejectionHandle.set(m_vm, jsNumber(static_cast<unsigned>(JSPromiseRejectionOperation::Handle)));
-    m_promiseStatePending.set(m_vm, jsNumber(static_cast<int32_t>(JSPromise::Status::Pending)));
-    m_promiseStateFulfilled.set(m_vm, jsNumber(static_cast<int32_t>(JSPromise::Status::Fulfilled)));
-    m_promiseStateRejected.set(m_vm, jsNumber(static_cast<int32_t>(JSPromise::Status::Rejected)));
-    m_promiseStateMask.set(m_vm, jsNumber(JSPromise::stateMask));
-    m_promiseFlagsIsHandled.set(m_vm, jsNumber(JSPromise::isHandledFlag));
-    m_promiseFlagsIsFirstResolvingFunctionCalled.set(m_vm, jsNumber(JSPromise::isFirstResolvingFunctionCalledFlag));
-    // FIXME: Clean up JSInternalObjectImpl field registry.
-    // https://bugs.webkit.org/show_bug.cgi?id=201894
-    m_promiseFieldFlags.set(m_vm, jsNumber(static_cast<unsigned>(JSPromise::Field::Flags)));
-    m_promiseFieldReactionsOrResult.set(m_vm, jsNumber(static_cast<unsigned>(JSPromise::Field::ReactionsOrResult)));
     m_generatorFieldState.set(m_vm, jsNumber(static_cast<unsigned>(JSGenerator::Field::State)));
     m_generatorFieldNext.set(m_vm, jsNumber(static_cast<unsigned>(JSGenerator::Field::Next)));
     m_generatorFieldThis.set(m_vm, jsNumber(static_cast<unsigned>(JSGenerator::Field::This)));

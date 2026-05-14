@@ -107,6 +107,18 @@ void AccessibilitySVGObject::accessibilityText(Vector<AccessibilityText>& textOr
         textOrder.append(AccessibilityText(WTF::move(helptext), AccessibilityTextSource::Help));
 }
 
+void AccessibilitySVGObject::alternativeText(Vector<AccessibilityText>& textOrder) const
+{
+    // https://w3c.github.io/svg-aam/#mapping_additional_nd
+    // Per SVG-AAM §7.1, the accessible name comes from aria-labelledby/aria-label,
+    // a <title> child, xlink:title (on <a>), the <use> target, or alt (on <image>).
+    // Expose this as Alternative text so host-language parents (e.g. <a> or <button>)
+    // pick it up via textUnderElement when deriving their own accname.
+    String descriptionText = description();
+    if (!descriptionText.isEmpty())
+        textOrder.append(AccessibilityText(WTF::move(descriptionText), AccessibilityTextSource::Alternative));
+}
+
 auto AccessibilitySVGObject::matchingTitleAndDescChildren() const -> MatchingLanguageChildren
 {
     RefPtr element = this->element();

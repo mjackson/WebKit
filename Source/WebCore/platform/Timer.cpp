@@ -35,6 +35,7 @@
 #include <wtf/MainThread.h>
 #include <wtf/RuntimeApplicationChecks.h>
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/Threading.h>
 #include <wtf/Vector.h>
 
 #if PLATFORM(IOS_FAMILY)
@@ -275,7 +276,9 @@ struct SameSizeAsTimer {
 #if CPU(ADDRESS32)
     uint8_t bitfields;
 #endif
-    void* pointer;
+#if ASSERT_ENABLED
+    uint32_t threadID;
+#endif
 };
 
 static_assert(sizeof(Timer) == sizeof(SameSizeAsTimer), "Timer should stay small");
@@ -293,10 +296,25 @@ TimerBase::TimerBase()
 #endif
 }
 
+bool TimerBase::canAccessOnCurrentThread() const
+{
+#if ASSERT_ENABLED
+#if USE(WEB_THREAD)
+    if (m_creationThreadID == currentThreadID())
+        return true;
+    return WebThreadIsCurrent() || pthread_main_np();
+#else
+    return m_creationThreadID == currentThreadID();
+#endif
+#else
+    return true;
+#endif
+}
+
 TimerBase::~TimerBase()
 {
-    ASSERT(canCurrentThreadAccessThreadLocalData(m_thread));
-    RELEASE_ASSERT(canCurrentThreadAccessThreadLocalData(m_thread) || shouldSuppressThreadSafetyCheck());
+    ASSERT(canAccessOnCurrentThread());
+    RELEASE_ASSERT(canAccessOnCurrentThread() || shouldSuppressThreadSafetyCheck());
     stop();
     ASSERT(!inHeap());
     if (auto* item = m_heapItemWithBitfields.pointer())
@@ -306,7 +324,7 @@ TimerBase::~TimerBase()
 
 void TimerBase::start(Seconds nextFireInterval, Seconds repeatInterval)
 {
-    ASSERT(canCurrentThreadAccessThreadLocalData(m_thread));
+    ASSERT(canAccessOnCurrentThread());
 
     m_repeatInterval = repeatInterval;
     setNextFireTime(MonotonicTime::now() + nextFireInterval);
@@ -314,7 +332,7 @@ void TimerBase::start(Seconds nextFireInterval, Seconds repeatInterval)
 
 void TimerBase::stopSlowCase()
 {
-    ASSERT(canCurrentThreadAccessThreadLocalData(m_thread));
+    ASSERT(canAccessOnCurrentThread());
 
     m_repeatInterval = 0_s;
     setNextFireTime(MonotonicTime { });
@@ -513,8 +531,8 @@ void TimerBase::setNextFireTime(MonotonicTime newTime)
 #if USE(WEB_THREAD)
     RELEASE_ASSERT(WebThreadIsLockedOrDisabledInMainOrWebThread());
 #endif
-    ASSERT(canCurrentThreadAccessThreadLocalData(m_thread));
-    RELEASE_ASSERT(canCurrentThreadAccessThreadLocalData(m_thread) || shouldSuppressThreadSafetyCheck());
+    ASSERT(canAccessOnCurrentThread());
+    RELEASE_ASSERT(canAccessOnCurrentThread() || shouldSuppressThreadSafetyCheck());
     bool timerHasBeenDeleted = m_unalignedNextFireTime.isNaN();
     RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(!timerHasBeenDeleted);
 

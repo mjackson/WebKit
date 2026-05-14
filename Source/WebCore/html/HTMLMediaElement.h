@@ -45,7 +45,6 @@
 #include <WebCore/MediaUniqueIdentifier.h>
 #include <WebCore/MessageTargetForTesting.h>
 #include <WebCore/PlatformDynamicRangeLimit.h>
-#include <WebCore/ReducedResolutionSeconds.h>
 #include <WebCore/TextTrackClient.h>
 #include <WebCore/URLKeepingBlobAlive.h>
 #include <WebCore/VideoTrackClient.h>
@@ -1072,6 +1071,7 @@ private:
     bool shouldOverrideBackgroundPlaybackRestriction(PlatformMediaSession::InterruptionType) const override;
     bool shouldOverrideBackgroundLoadingRestriction() const override;
     bool canProduceAudio() const final;
+    bool computeCanProduceAudio() const;
     bool isEnded() const final { return ended(); }
     MediaTime mediaSessionDuration() const final;
     bool hasMediaStreamSource() const final;
@@ -1215,6 +1215,7 @@ private:
     TaskCancellationGroup m_updateShouldAutoplayTaskCancellationGroup;
     RefPtr<TimeRanges> m_playedTimeRanges;
     TaskCancellationGroup m_asyncEventsCancellationGroup;
+    TaskCancellationGroup m_periodicTimeupdateCancellationGroup;
     TaskCancellationGroup m_volumeRevertTaskCancellationGroup;
 
     PlayPromiseVector m_pendingPlayPromises;
@@ -1465,6 +1466,9 @@ private:
     bool m_wasInterruptedForInvisibleAutoplay { false };
 
     bool m_showingStats { false };
+
+    // Cached by canProduceAudioChanged() so virtualHasPendingActivity() can read it safely from the GC thread.
+    std::atomic<bool> m_cachedCanProduceAudio { false };
 
 #if ENABLE(SPEECH_SYNTHESIS)
     RefPtr<SpeechSynthesis> m_speechSynthesis;

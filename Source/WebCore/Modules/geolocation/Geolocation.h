@@ -41,6 +41,7 @@
 #include <wtf/CheckedRef.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
+#include <wtf/OrderedHashMap.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 
 namespace WebCore {
@@ -114,7 +115,7 @@ private:
         bool NODELETE isEmpty() const;
         void getNotifiersVector(GeoNotifierVector&) const;
     private:
-        typedef HashMap<int, Ref<GeoNotifier>> IdToNotifierMap;
+        typedef WTF::OrderedHashMap<int, Ref<GeoNotifier>> IdToNotifierMap;
         typedef HashMap<Ref<GeoNotifier>, int> NotifierToIdMap;
         IdToNotifierMap m_idToNotifierMap;
         NotifierToIdMap m_notifierToIdMap;

@@ -797,6 +797,13 @@ RefPtr<DMABufBuffer> VideoFrameGStreamer::getDMABuf()
         return nullptr;
 
     auto buffer = gst_sample_get_buffer(m_sample.get());
+
+    static GQuark dmabufQuark = g_quark_from_static_string("wk-dmabuf-buffer");
+    auto memory = GST_MINI_OBJECT_CAST(gst_buffer_peek_memory(buffer, 0));
+    RefPtr cachedDmaBuf = static_cast<DMABufBuffer*>(gst_mini_object_get_qdata(memory, dmabufQuark));
+    if (cachedDmaBuf)
+        return cachedDmaBuf;
+
     const auto* videoMeta = gst_buffer_get_video_meta(buffer);
     if (!videoMeta) [[unlikely]] {
         GST_WARNING("Unable to retrieve DMABuf information due to missing video meta");
@@ -848,6 +855,11 @@ RefPtr<DMABufBuffer> VideoFrameGStreamer::getDMABuf()
         colorSpace = DMABufBuffer::ColorSpace::Smpte240M;
     dmabuf->setColorSpace(colorSpace);
     dmabuf->setTransferFunction(transferFunction);
+
+    dmabuf->ref();
+    gst_mini_object_set_qdata(memory, dmabufQuark, dmabuf.ptr(), [](gpointer data) {
+        static_cast<DMABufBuffer*>(data)->deref();
+    });
 
     return dmabuf;
 }

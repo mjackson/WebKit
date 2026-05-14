@@ -26,7 +26,8 @@
 import SwiftUI
 import Observation
 import Testing
-@_spi(Private) @_spi(Testing) import WebKit
+@_spi(CrossImportOverlay) @_spi(Private) @_spi(Testing) import WebKit
+import WebKit_Private.WKWebViewPrivate
 @_spi(Private) import _WebKit_SwiftUI
 private import TestWebKitAPILibrary
 
@@ -136,6 +137,26 @@ struct WebPageTests {
         let responses = await Array(decider.navigationResponseStream.prefix(1))
 
         #expect(responses[0].response.url!.absoluteString == simpleURL.absoluteString)
+    }
+
+    @Test
+    func clearContentWorld() async throws {
+        let worldConfiguration = WKContentWorldConfiguration()
+        worldConfiguration.nodeSerializationEnabled = true
+        let world = WKContentWorld.world(with: worldConfiguration)
+
+        let page = WebPage()
+        try await page.load(html: "<body></body>").wait()
+
+        try await page.callJavaScript("document.body.foo = Number(42)", contentWorld: world)
+
+        let beforeClear = try await page.callJavaScript("return document.body.foo", contentWorld: world) as? Int
+        #expect(beforeClear == 42)
+
+        await page.backingWebView._clearContentWorld(world)
+
+        let afterClear = try await page.callJavaScript("return document.body.foo", contentWorld: world)
+        #expect(afterClear == nil)
     }
 }
 

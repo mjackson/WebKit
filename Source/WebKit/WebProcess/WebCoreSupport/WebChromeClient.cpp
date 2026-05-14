@@ -1171,6 +1171,7 @@ RefPtr<GraphicsContextGL> WebChromeClient::createGraphicsContextGL(const Graphic
 {
 #if PLATFORM(GTK)
     WebProcess::singleton().initializePlatformDisplayIfNeeded();
+    WebProcess::singleton().initializeVulkanIfNeeded();
 #endif
 #if ENABLE(GPU_PROCESS)
     if (WebProcess::singleton().shouldUseRemoteRenderingForWebGL()) {

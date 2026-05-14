@@ -35,7 +35,6 @@
 #include <WebCore/GraphicsContextState.h>
 #include <WebCore/Image.h>
 #include <WebCore/ImageBufferFormat.h>
-#include <WebCore/ImageOrientation.h>
 #include <WebCore/ImagePaintingOptions.h>
 #include <WebCore/IntRect.h>
 #include <WebCore/Pattern.h>
@@ -43,7 +42,6 @@
 #include <WebCore/RenderingMode.h>
 #include <wtf/Function.h>
 #include <wtf/Noncopyable.h>
-#include <wtf/OptionSet.h>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {

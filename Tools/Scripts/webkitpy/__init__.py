@@ -140,6 +140,7 @@ AutoInstall.register(Package('zipp', Version(1, 2, 0)))
 AutoInstall.register(Package('zope.interface', Version(7, 0, 1), aliases=['zope'], pypi_name='zope-interface', wheel=True))
 AutoInstall.register(Package('webkitscmpy', Version(4, 0, 0)), local=True)
 AutoInstall.register(Package('webkitbugspy', Version(0, 3, 1)), local=True)
+AutoInstall.register(Package('webkitexpectationspy', Version(1, 0, 0)), local=True)
 AutoInstall.register(Package('yaml', Version(6, 0, 2), pypi_name='PyYAML'))
 
 import webkitscmpy

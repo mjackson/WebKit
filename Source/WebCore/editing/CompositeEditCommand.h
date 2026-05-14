@@ -26,7 +26,7 @@
 
 #pragma once
 
-#include "AXObjectCache.h"
+#include "AXObjectTypes.h"
 #include "EditCommand.h"
 #include "CSSPropertyNames.h"
 #include "UndoStep.h"
@@ -36,6 +36,7 @@
 
 namespace WebCore {
 
+class AXObjectCache;
 class EditingStyle;
 class DataTransfer;
 class HTMLElement;

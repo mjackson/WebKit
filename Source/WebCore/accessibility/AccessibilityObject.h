@@ -318,7 +318,7 @@ public:
 
     bool supportsARIAOwns() const override { return false; }
 
-    String explicitPopupValue() const final;
+    AccessibilityPopupValue popupValue() const final;
     bool hasDatalist() const;
     bool supportsHasPopup() const final;
     bool pressedIsPresent() const final;
@@ -575,11 +575,14 @@ public:
 
     void performDismissActionIgnoringResult() final { performDismissAction(); }
     bool press() override;
+    bool syncPress() override { return press(); }
     bool performShowMenuAction();
 
     std::optional<AccessibilityOrientation> explicitOrientation() const override { return std::nullopt; }
     void increment() override { }
     void decrement() override { }
+    void syncIncrement() override { increment(); }
+    void syncDecrement() override { decrement(); }
     virtual bool toggleDetailsAncestor() { return false; }
     // Reveals details elements and hidden="until-found" elements.
     virtual void revealAncestors() { }

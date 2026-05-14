@@ -36,6 +36,7 @@
 namespace WebCore {
 
 class CacheStorageConnection;
+class FileSystemStorageConnection;
 class StorageConnection;
 struct ReportingClient;
 
@@ -52,6 +53,8 @@ public:
     virtual RefPtr<CacheStorageConnection> createCacheStorageConnection() = 0;
 
     virtual RefPtr<RTCDataChannelRemoteHandlerConnection> createRTCDataChannelRemoteHandlerConnection() = 0;
+
+    virtual RefPtr<FileSystemStorageConnection> createFileSystemStorageConnection() = 0;
 
     virtual ScriptExecutionContextIdentifier loaderContextIdentifier() const = 0;
 

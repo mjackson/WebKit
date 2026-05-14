@@ -32,6 +32,7 @@
 #include "StyleCursorImage.h"
 #include "StyleInvalidImage.h"
 #include "StyleKeyword+CSSValueConversion.h"
+#include "StylePrimitiveNumericTypes+Logging.h"
 
 namespace WebCore {
 namespace Style {
@@ -51,18 +52,16 @@ auto CSSValueConversion<Cursor>::operator()(BuilderState& state, const CSSValue&
         Ref item = list->item(index);
         RefPtr image = requiredDowncast<CSSCursorImageValue>(state, item);
         if (!image)
-            return CursorImageAndHotSpot { InvalidImage::create() };
+            return CursorImageAndHotSpot { InvalidImage::create(), std::nullopt };
 
         auto styleImage = image->createStyleImage(state);
         if (!styleImage) {
             state.setCurrentPropertyInvalidAtComputedValueTime();
-            return CursorImageAndHotSpot { InvalidImage::create() };
+            return CursorImageAndHotSpot { InvalidImage::create(), std::nullopt };
         }
 
-        // Point outside the image is how we tell the cursor machinery there is no hot spot, and it should generate one (done in the Cursor class).
-        // FIXME: Would it be better to extend the concept of "no hot spot" deeper, into CursorImage and beyond, rather than using -1/-1 for it?
-        auto hotSpot = styleImage->hotSpot().value_or(IntPoint { -1, -1 });
-        return CursorImageAndHotSpot { styleImage.releaseNonNull(), hotSpot };
+        auto hotSpot = styleImage->hotSpot();
+        return CursorImageAndHotSpot { styleImage.releaseNonNull(), WTF::move(hotSpot) };
     });
 
     return { WTF::move(images), toStyleFromCSSValue<CursorType>(state, list->item(list->size() - 1)) };

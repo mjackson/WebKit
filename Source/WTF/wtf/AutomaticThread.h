@@ -30,9 +30,10 @@
 #include <wtf/CheckedPtr.h>
 #include <wtf/Condition.h>
 #include <wtf/Lock.h>
+#include <wtf/StackAllocation.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
-#include <wtf/Threading.h>
+#include <wtf/ThreadingEnums.h>
 #include <wtf/Vector.h>
 
 namespace WTF {
@@ -118,6 +119,7 @@ public:
     
     // Sometimes it's possible to optimize for the case that there is no underlying thread.
     bool hasUnderlyingThread(const AbstractLocker&) const { return m_hasUnderlyingThread; }
+    void requestTemporaryStop(const AbstractLocker&);
     
     // This attempts to quickly stop the thread. This will succeed if the thread happens to not be
     // running. Returns true if the thread has been stopped. A good idiom for stopping your automatic
@@ -200,6 +202,7 @@ protected:
     bool m_isRunning { true };
     bool m_isWaiting { false };
     bool m_hasUnderlyingThread { false };
+    bool m_temporaryStopRequested { false };
     Condition m_waitCondition;
     Condition m_isRunningCondition;
 };

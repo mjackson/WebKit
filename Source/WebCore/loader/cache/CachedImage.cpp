@@ -308,39 +308,54 @@ void CachedImage::setContainerContextForClient(const CachedImageClient& client, 
     m_svgImageCache->setContainerContextForClient(client, containerSize, containerZoom, imageURL);
 }
 
-FloatSize CachedImage::imageSizeForRenderer(const RenderElement* renderer, SizeType sizeType) const
+FloatSize CachedImage::internalImageSizeForRenderer(const RenderElement* renderer, float multiplier, SizeType sizeType, float density) const
 {
     RefPtr image = m_image;
     if (!image)
         return { };
 
+    if (RefPtr svgImage = dynamicDowncast<SVGImage>(*image)) {
+        FloatSize size;
+        if (sizeType == UsedSize) {
+            // The SVG cache size is already in CSS pixels (set by the layout
+            // system via setContainerContextForClient), so density does not apply.
+            size = m_svgImageCache->imageSizeForRenderer(renderer);
+        } else
+            size = svgImage->resolvedIntrinsicSize(density);
+        if (multiplier != 1.0f)
+            size.scale(multiplier);
+        return size;
+    }
+
+    FloatSize imageSize;
 #if ENABLE(MULTI_REPRESENTATION_HEIC)
     if (CheckedPtr renderImage = dynamicDowncast<RenderImage>(renderer); renderImage && renderImage->isMultiRepresentationHEIC())
-        return renderImage->style().fontCascade().primaryFont().metricsForMultiRepresentationHEIC().size();
+        imageSize = renderImage->style().fontCascade().primaryFont().metricsForMultiRepresentationHEIC().size();
+    else
 #endif
+        imageSize = image->size(renderer ? renderer->imageOrientation() : ImageOrientation(ImageOrientation::Orientation::FromImage));
 
-    if (image->drawsSVGImage() && sizeType == UsedSize)
-        return m_svgImageCache->imageSizeForRenderer(renderer);
-
-    return image->size(renderer ? renderer->imageOrientation() : ImageOrientation(ImageOrientation::Orientation::FromImage));
+    float scaleFactor = multiplier * density;
+    float widthScale = image->hasRelativeWidth() ? 1.0f : scaleFactor;
+    float heightScale = image->hasRelativeHeight() ? 1.0f : scaleFactor;
+    if (widthScale != 1.0f || heightScale != 1.0f)
+        imageSize.scale(widthScale, heightScale);
+    return imageSize;
 }
 
-
-LayoutSize CachedImage::unclampedImageSizeForRenderer(const RenderElement* renderer, float multiplier, SizeType sizeType) const
+FloatSize CachedImage::imageSizeForRenderer(const RenderElement* renderer) const
 {
-    LayoutSize imageSize = LayoutSize(imageSizeForRenderer(renderer, sizeType));
-    if (imageSize.isEmpty() || multiplier == 1.0f)
-        return imageSize;
-
-    float widthScale = m_image->hasRelativeWidth() ? 1.0f : multiplier;
-    float heightScale = m_image->hasRelativeHeight() ? 1.0f : multiplier;
-    imageSize.scale(widthScale, heightScale);
-    return imageSize;    
+    return internalImageSizeForRenderer(renderer, 1.0f, UsedSize, 1.0f);
 }
 
-LayoutSize CachedImage::imageSizeForRenderer(const RenderElement* renderer, float multiplier, SizeType sizeType) const
+LayoutSize CachedImage::unclampedImageSizeForRenderer(const RenderElement* renderer, float multiplier, SizeType sizeType, float density) const
 {
-    auto imageSize = unclampedImageSizeForRenderer(renderer, multiplier, sizeType);
+    return LayoutSize(internalImageSizeForRenderer(renderer, multiplier, sizeType, density));
+}
+
+LayoutSize CachedImage::imageSizeForRenderer(const RenderElement* renderer, float multiplier, SizeType sizeType, float density) const
+{
+    auto imageSize = unclampedImageSizeForRenderer(renderer, multiplier, sizeType, density);
     if (imageSize.isEmpty() || multiplier == 1.0f)
         return imageSize;
 
@@ -746,8 +761,11 @@ void CachedImage::scheduleRenderingUpdate(const Image& image)
 bool CachedImage::useSystemDarkAppearance() const
 {
     CachedResourceClientWalker<CachedImageClient> walker(*this);
-    if (RefPtr client = walker.next())
-        return client->useSystemDarkAppearance();
+    while (RefPtr client = walker.next()) {
+        if (client->useSystemDarkAppearance())
+            return true;
+    }
+
     return false;
 }
 

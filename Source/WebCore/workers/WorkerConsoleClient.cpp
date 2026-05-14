@@ -88,10 +88,8 @@ void WorkerConsoleClient::messageWithTypeAndLevel(MessageType type, MessageLevel
     protect(m_globalScope.get())->addConsoleMessage(WTF::move(message));
 
     auto* domGlobalObject = dynamicDowncast<JSDOMGlobalObject>(exec);
-    if (level == MessageLevel::Error && domGlobalObject && domGlobalObject->hasScriptErrorCallbacks()) {
-        auto fullMessageText = makeStringByJoining(arguments->getArgumentsAsStrings(), " "_s);
-        domGlobalObject->invokeScriptErrorCallbacks(fullMessageText, url, line, column);
-    }
+    if (level == MessageLevel::Error && domGlobalObject && domGlobalObject->hasScriptErrorCallbacks())
+        domGlobalObject->invokeScriptErrorCallbacks(messageText, url, line, column);
 }
 
 void WorkerConsoleClient::count(JSC::JSGlobalObject* exec, const String& label)

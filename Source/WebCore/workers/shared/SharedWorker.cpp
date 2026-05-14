@@ -89,7 +89,7 @@ ExceptionOr<Ref<SharedWorker>> SharedWorker::create(Document& document, Variant<
     if (!document.hasBrowsingContext())
         return Exception { ExceptionCode::InvalidStateError, "No browsing context"_s };
 
-    auto url = document.completeURL(compliantScriptURLString.releaseReturnValue());
+    auto url = document.encodingParseURL(compliantScriptURLString.releaseReturnValue());
     if (!url.isValid())
         return Exception { ExceptionCode::SyntaxError, "Invalid script URL"_s };
 
@@ -115,9 +115,7 @@ ExceptionOr<Ref<SharedWorker>> SharedWorker::create(Document& document, Variant<
     auto sharedWorker = adoptRef(*new SharedWorker(document, key, channel->port1()));
     sharedWorker->suspendIfNeeded();
 
-    if (auto exception = validateURL(document, url)) {
-        if (!document.settings().workerAsynchronousURLErrorHandlingEnabled())
-            return Exception { ExceptionCode::SecurityError, "URL of the shared worker is cross-origin"_s };
+    if (!validateURL(document, url)) {
         sharedWorker->m_isActive = false;
         sharedWorker->queueTaskToDispatchEvent(sharedWorker.get(), TaskSource::DOMManipulation, Event::create(eventNames().errorEvent, Event::CanBubble::No, Event::IsCancelable::Yes));
         return sharedWorker;

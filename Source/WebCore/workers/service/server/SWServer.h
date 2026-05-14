@@ -51,7 +51,6 @@
 #include <wtf/RunLoop.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
-#include <wtf/Threading.h>
 #include <wtf/URLHash.h>
 #include <wtf/UniqueRef.h>
 #include <wtf/WeakPtr.h>
@@ -248,8 +247,10 @@ public:
     WEBCORE_EXPORT void removeContextConnection(SWServerToContextConnection&);
     WEBCORE_EXPORT void terminateIdleServiceWorkers(SWServerToContextConnection&);
 
-    WEBCORE_EXPORT SWServerToContextConnection* contextConnectionForRegistrableDomain(const RegistrableDomain&);
-    WEBCORE_EXPORT void createContextConnection(const Site&, std::optional<ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier);
+    using ContextConnectionKey = std::pair<RegistrableDomain, CrossOriginEmbedderPolicyValue>;
+    WEBCORE_EXPORT SWServerToContextConnection* contextConnectionForRegistrableDomain(const RegistrableDomain&, CrossOriginEmbedderPolicyValue);
+    WEBCORE_EXPORT void forEachContextConnectionForRegistrableDomain(const RegistrableDomain&, NOESCAPE const Function<void(SWServerToContextConnection&)>&);
+    WEBCORE_EXPORT void createContextConnection(const Site&, std::optional<ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, CrossOriginEmbedderPolicyValue);
 
     WEBCORE_EXPORT bool isImportCompletedForOrigin(const SecurityOriginData& topOrigin) const;
     WEBCORE_EXPORT void importRegistrationsForOrigin(const SecurityOriginData& topOrigin, CompletionHandler<void()>&&);
@@ -384,15 +385,15 @@ private:
 
     const UniqueRef<SWOriginStore> m_originStore;
     RefPtr<SWRegistrationStore> m_registrationStore;
-    HashMap<RegistrableDomain, Vector<ServiceWorkerContextData>> m_pendingContextDatas;
-    HashMap<RegistrableDomain, HashMap<ServiceWorkerIdentifier, Vector<RunServiceWorkerCallback>>> m_serviceWorkerRunRequests;
+    HashMap<ContextConnectionKey, Vector<ServiceWorkerContextData>> m_pendingContextDatas;
+    HashMap<ContextConnectionKey, HashMap<ServiceWorkerIdentifier, Vector<RunServiceWorkerCallback>>> m_serviceWorkerRunRequests;
     PAL::SessionID m_sessionID;
     bool m_isProcessTerminationDelayEnabled { true };
     Vector<CompletionHandler<void(const HashSet<SecurityOriginData>&)>> m_getOriginsWithRegistrationsCallbacks;
     Vector<CompletionHandler<void(HashSet<ClientOrigin>&&)>> m_getAllOriginsCallbacks;
-    HashMap<RegistrableDomain, WeakRef<SWServerToContextConnection>> m_contextConnections;
+    HashMap<ContextConnectionKey, WeakRef<SWServerToContextConnection>> m_contextConnections;
 
-    HashSet<RegistrableDomain> m_pendingConnectionDomains;
+    HashSet<ContextConnectionKey> m_pendingConnectionDomains;
 
     // Top origins whose registrations have been fully imported from the store into m_scopeToRegistrationMap.
     HashSet<SecurityOriginData> m_importedTopOrigins;

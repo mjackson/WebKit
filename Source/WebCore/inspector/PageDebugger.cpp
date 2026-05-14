@@ -27,6 +27,7 @@
 #include "config.h"
 #include "PageDebugger.h"
 
+#include "ActiveDOMObject.h"
 #include "CommonVM.h"
 #include "Document.h"
 #include "InspectorFrontendClient.h"

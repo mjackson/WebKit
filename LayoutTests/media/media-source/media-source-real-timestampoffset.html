@@ -50,12 +50,14 @@
         testExpected('sourceBuffer.buffered.length', 1);
         testExpected('sourceBuffer.buffered.start(0)', 10);
         testExpected('sourceBuffer.buffered.end(0)', 16);
-
-        endTest();
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

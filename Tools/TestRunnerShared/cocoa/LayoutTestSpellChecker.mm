@@ -247,7 +247,10 @@ static LayoutTestSpellChecker *swizzledInitializeTextChecker()
                 NSNumber *detailFrom = detail[@"from"];
                 NSNumber *detailTo = detail[@"to"];
                 auto detailRange = NSMakeRange(detailFrom.intValue, detailTo.intValue - detailFrom.intValue);
-                [details addObject:@{ NSGrammarRange: [NSValue valueWithRange:detailRange], NSGrammarCorrections: detail[@"corrections"] ?: @[ ] }];
+                RetainPtr detailDict = adoptNS([[NSMutableDictionary alloc] initWithDictionary:@{ NSGrammarRange: [NSValue valueWithRange:detailRange], NSGrammarCorrections: detail[@"corrections"] ?: @[ ] }]);
+                if (NSString *uuid = detail[@"uuid"])
+                    [detailDict setObject:uuid forKey:@"NSGrammarUUID"];
+                [details addObject:detailDict.get()];
             }
             [resultsForWord addObject:adoptNS([[LayoutTestTextCheckingResult alloc] initWithType:nsTextCheckingType(type) range:NSMakeRange(from, to - from) replacement:replacement details:details.get()]).get()];
         }

@@ -62,7 +62,7 @@ struct GridPositionExplicit {
 
 // <grid-line-span> = [ span && [ <integer [1,∞]> || <custom-ident>  ] ]
 struct GridPositionSpan {
-    using Position = Integer<CSS::Range{1,CSS::Range::infinity}>;
+    using Position = Integer<CSS::Positive>;
 
     Position position { 1 };
     CustomIdent name { nullAtom() };
@@ -83,7 +83,7 @@ struct GridPositionSpan {
 
 // <grid-line> = auto | <custom-ident> | <grid-line-explicit> | <grid-line-span>
 // https://drafts.csswg.org/css-grid/#typedef-grid-row-start-grid-line
-// FIXME: The standard calls this type "grid-line". We should consider matching it.
+// FIXME: The standard calls this type "grid-line" and the CSS equivalent type is CSS::GridLine. We should consider matching it.
 struct GridPosition {
     using Explicit = GridPositionExplicit;
     using Span = GridPositionSpan;
@@ -148,10 +148,7 @@ private:
 // MARK: - Conversion
 
 template<> struct CSSValueConversion<GridPosition> { auto operator()(BuilderState&, const CSSValue&) -> GridPosition; };
-
-// MARK: - Logging
-
-WTF::TextStream& operator<<(WTF::TextStream&, const GridPosition&);
+template<> struct CSSValueCreation<GridPosition> { Ref<CSSValue> operator()(CSSValuePool&, const RenderStyle&, const GridPosition&); };
 
 } // namespace Style
 } // namespace WebCore

@@ -5,7 +5,7 @@ PASS: select.role.toLowerCase().includes('popup') === true
 PASS: select.stringValue.includes('Banana') === true
 PASS: select.isExpanded === false
 PASS: select.isExpanded === true
-PASS: select.childrenCount === 1
+PASS: menu != null === true
 PASS: menu.role.toLowerCase().includes('menu') === true
 PASS: menu.childrenCount === 3
 PASS: (menu.childAtIndex(0)).role.toLowerCase().includes('menuitem') === true

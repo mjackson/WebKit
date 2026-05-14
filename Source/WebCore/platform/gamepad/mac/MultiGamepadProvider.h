@@ -30,9 +30,12 @@
 #include <WebCore/GamepadProvider.h>
 #include <WebCore/GamepadProviderClient.h>
 #include <WebCore/PlatformGamepad.h>
+#include <WebCore/SharedGamepadValue.h>
 #include <wtf/Forward.h>
 #include <wtf/HashSet.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/WeakHashMap.h>
+#include <wtf/WeakPtr.h>
 
 namespace WebCore {
 

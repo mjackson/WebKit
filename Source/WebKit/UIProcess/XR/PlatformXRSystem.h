@@ -105,12 +105,7 @@ private:
     void submitFrame(IPC::Connection&);
 #endif
 #if ENABLE(WEBXR_LAYERS)
-#if !USE(OPENXR) && !defined(NDEBUG)
-#define XR_NORETURN [[noreturn]]
-#else
-#define XR_NORETURN
-#endif
-    XR_NORETURN void NODELETE createCompositionLayer(IPC::Connection&, PlatformXR::CompositionLayerType, WebCore::IntSize, PlatformXR::LayerLayout, CompletionHandler<void(std::optional<PlatformXR::LayerInfo>)>&&);
+    void NODELETE createCompositionLayer(IPC::Connection&, PlatformXR::CompositionLayerType, WebCore::IntSize, PlatformXR::LayerLayout, CompletionHandler<void(std::optional<PlatformXR::LayerInfo>)>&&);
 #endif
 #if ENABLE(WEBXR_HIT_TEST)
     void requestHitTestSource(const PlatformXR::HitTestOptions&, CompletionHandler<void(Expected<PlatformXR::HitTestSource, WebCore::ExceptionData>)>&&);

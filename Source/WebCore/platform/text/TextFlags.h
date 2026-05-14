@@ -26,10 +26,8 @@
 #pragma once
 
 #include <WebCore/FontTaggedSettings.h>
-#include <optional>
-#include <vector>
-#include <wtf/Hasher.h>
 #include <wtf/Markable.h>
+#include <wtf/text/WTFString.h>
 
 namespace WTF {
 class TextStream;

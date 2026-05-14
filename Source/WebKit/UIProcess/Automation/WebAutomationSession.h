@@ -301,6 +301,8 @@ public:
     WebDriverBidiProcessor& bidiProcessor() const { return m_bidiProcessor; }
 #endif
 
+    void performApplicationCommand(const Inspector::Protocol::Automation::BrowsingContextHandle&, const String& commandName, const String& arguments, Inspector::CommandCallback<String>&&) override;
+
 #if PLATFORM(MAC)
     void inspectBrowsingContext(const Inspector::Protocol::Automation::BrowsingContextHandle&, std::optional<bool>&& enableAutoCapturing, Inspector::CommandCallback<void>&&) override;
 #endif

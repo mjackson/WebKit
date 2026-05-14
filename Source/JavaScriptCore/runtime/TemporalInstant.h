@@ -26,18 +26,19 @@
 
 #pragma once
 
-#include "ISO8601.h"
-#include "JSObject.h"
-#include "TemporalDuration.h"
-#include "TemporalObject.h"
-#include "VM.h"
-#include <wtf/Packed.h>
+#include <JavaScriptCore/ISO8601.h>
+#include <JavaScriptCore/JSObject.h>
+#include <JavaScriptCore/TemporalDuration.h>
+#include <JavaScriptCore/TemporalObject.h>
+#include <JavaScriptCore/VM.h>
 
 namespace JSC {
 
 class TemporalInstant final : public JSNonFinalObject {
 public:
     using Base = JSNonFinalObject;
+
+    static constexpr uint8_t numberOfLowerTierPreciseCells = 0;
 
     template<typename CellType, SubspaceAccess mode>
     static GCClient::IsoSubspace* subspaceFor(VM& vm)
@@ -58,7 +59,7 @@ public:
     static TemporalInstant* fromEpochNanoseconds(JSGlobalObject*, JSValue);
     static JSValue compare(JSGlobalObject*, JSValue, JSValue);
 
-    ISO8601::ExactTime exactTime() const { return m_exactTime.get(); }
+    ISO8601::ExactTime exactTime() const { return m_exactTime; }
 
     ISO8601::Duration difference(JSGlobalObject*, TemporalInstant*, JSValue options) const;
     ISO8601::ExactTime round(JSGlobalObject*, JSValue options) const;
@@ -77,7 +78,7 @@ private:
 
     static String toString(ISO8601::ExactTime, JSObject* timeZone, PrecisionData);
 
-    Packed<ISO8601::ExactTime> m_exactTime;
+    ISO8601::ExactTime m_exactTime;
 };
 
 } // namespace JSC

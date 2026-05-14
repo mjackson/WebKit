@@ -431,6 +431,7 @@ UIProcess/RemotePagePlaybackSessionManagerProxy.cpp
 UIProcess/RemotePageProxy.cpp
 UIProcess/RemotePageScreenOrientationManagerProxy.cpp
 UIProcess/RemotePageVideoPresentationManagerProxy.cpp
+UIProcess/RemotePageWebAuthenticatorCoordinatorProxy.cpp
 UIProcess/RemotePageWebDeviceOrientationUpdateProviderProxy.cpp
 UIProcess/ResponsivenessTimer.cpp
 UIProcess/SpeechRecognitionRemoteRealtimeMediaSource.cpp
@@ -641,6 +642,7 @@ UIProcess/Inspector/WebPageDebuggable.cpp
 UIProcess/Inspector/WebPageInspectorController.cpp
 
 UIProcess/Inspector/Agents/InspectorBrowserAgent.cpp
+UIProcess/Inspector/Agents/ProxyingNetworkAgent.cpp
 
 UIProcess/Media/AudioSessionRoutingArbitratorProxy.cpp
 UIProcess/Media/MediaUsageManager.cpp
@@ -747,6 +749,7 @@ WebProcess/Inspector/UIProcessForwardingFrontendChannel.cpp
 WebProcess/Inspector/FrameInspectorTarget.cpp
 WebProcess/Inspector/WebInspectorBackend.cpp
 WebProcess/Inspector/WebInspectorBackendClient.cpp
+WebProcess/Inspector/FrameNetworkAgentProxy.cpp
 WebProcess/Inspector/WebInspectorInterruptDispatcher.cpp
 WebProcess/Inspector/WebInspectorUI.cpp
 

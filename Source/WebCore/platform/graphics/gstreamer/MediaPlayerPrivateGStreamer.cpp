@@ -226,14 +226,9 @@ void MediaPlayerPrivateGStreamer::tearDown(bool clearMediaPlayer)
 
     m_sinkTaskQueue.startAborting();
 
-    for (auto& track : m_audioTracks.values())
-        track->disconnect();
-
-    for (auto& track : m_textTracks.values())
-        track->disconnect();
-
-    for (auto& track : m_videoTracks.values())
-        track->disconnect();
+    m_audioTracks.clear();
+    m_videoTracks.clear();
+    m_textTracks.clear();
 
     if (m_fillTimer.isActive())
         m_fillTimer.stop();
@@ -254,9 +249,6 @@ void MediaPlayerPrivateGStreamer::tearDown(bool clearMediaPlayer)
     if (m_videoSink)
         g_signal_handlers_disconnect_matched(m_videoSink.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, this);
 
-    if (m_volumeElement)
-        g_signal_handlers_disconnect_matched(m_volumeElement.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, this);
-
     // This will release the GStreamer thread from m_drawCondition in non AC mode in case there's an ongoing triggerRepaint call
     // waiting there, and ensure that any triggerRepaint call reaching the lock won't wait on m_drawCondition.
     cancelRepaint(true);
@@ -273,6 +265,8 @@ void MediaPlayerPrivateGStreamer::tearDown(bool clearMediaPlayer)
     if (m_pipeline) {
         unregisterPipeline(m_pipeline);
         gst_element_set_state(m_pipeline.get(), GST_STATE_NULL);
+
+        m_source = nullptr;
 
         auto bus = adoptGRef(gst_pipeline_get_bus(GST_PIPELINE(m_pipeline.get())));
         gst_bus_disable_sync_message_emission(bus.get());
@@ -389,13 +383,27 @@ void MediaPlayerPrivateGStreamer::load(const String& urlString)
         m_isDelayingLoad = true;
     }
 
-    // Reset network and ready states. Those will be set properly once
-    // the pipeline pre-rolled.
-    m_networkState = m_isDelayingLoad ? MediaPlayer::NetworkState::Idle : MediaPlayer::NetworkState::Loading;
-    player->networkStateChanged();
-    m_readyState = MediaPlayer::ReadyState::HaveNothing;
-    player->readyStateChanged();
+    // Reset network and ready states. Those will be set properly once the pipeline pre-rolled.
+    // Those states are managed directly by the MSE player sub-class.
+    if (!isMediaSource()) {
+        m_networkState = m_isDelayingLoad ? MediaPlayer::NetworkState::Idle : MediaPlayer::NetworkState::Loading;
+        player->networkStateChanged();
+        m_readyState = MediaPlayer::ReadyState::HaveNothing;
+        player->readyStateChanged();
+    }
+
     m_areVolumeAndMuteInitialized = false;
+    m_isEndReached = false;
+    m_isCachedPositionValid = false;
+    m_cachedDuration = MediaTime::invalidTime();
+    m_isSeeking = false;
+    m_isSeekPending = false;
+    m_seekTarget = { };
+
+#if ENABLE(ENCRYPTED_MEDIA)
+    if (m_cdmContext)
+        gst_element_set_context(GST_ELEMENT(m_pipeline.get()), m_cdmContext.get());
+#endif
 
     if (!m_isDelayingLoad)
         commitLoad();
@@ -606,8 +614,10 @@ bool MediaPlayerPrivateGStreamer::doSeek(const SeekTarget& target, float rate, b
     }
     auto seekFlags = static_cast<GstSeekFlags>(flag | GST_SEEK_FLAG_ACCURATE);
 
-    if (rate >= 0.0 && startTime >= duration()) {
-        GST_DEBUG_OBJECT(pipeline(), "Seek requested beyond duration, triggering EOS handler");
+    // Seeking towards the end is not well supported in oggdemux, sometimes it receives EOS
+    // while trying to retrieve a chain and thus disables seeking in push mode.
+    if (rate >= 0 && startTime == duration() && m_containerType == ContainerType::Ogg) {
+        GST_DEBUG_OBJECT(pipeline(), "Seek requested at duration for ogg media, triggering EOS handler");
         didEnd();
         return false;
     }
@@ -1524,7 +1534,8 @@ void MediaPlayerPrivateGStreamer::loadStateChanged()
 
 void MediaPlayerPrivateGStreamer::timeChanged(const MediaTime& seekedTime)
 {
-    updateStates();
+    if (!isMediaSource())
+        updateStates();
     GST_DEBUG_OBJECT(pipeline(), "Emitting timeChanged notification (seekCompleted:%d)", seekedTime.isValid());
     if (RefPtr player = m_player.get()) {
         if (seekedTime.isValid())
@@ -1943,13 +1954,6 @@ bool MediaPlayerPrivateGStreamer::handleNeedContextMessage(GstMessage* message)
     return false;
 }
 
-void MediaPlayerPrivateGStreamer::handleSyncErrorMessage(GstMessage*)
-{
-    GST_DEBUG_OBJECT(pipeline(), "Accounting queued sync error");
-    // This attribute is decremented later from handleMessage() in the main thread.
-    m_queuedSyncErrors.exchangeAdd(1);
-}
-
 // Returns the size of the video.
 FloatSize MediaPlayerPrivateGStreamer::naturalSize() const
 {
@@ -1992,20 +1996,22 @@ void MediaPlayerPrivateGStreamer::setVolumeDouble(double volume)
         return;
     }
 
-    if (!m_volumeElement)
+    auto streamVolume = GST_STREAM_VOLUME(m_pipeline.get());
+    if (!streamVolume)
         return;
 
     GST_DEBUG_OBJECT(pipeline(), "Setting volume: %f", volume);
-    gst_stream_volume_set_volume(m_volumeElement.get(), GST_STREAM_VOLUME_FORMAT_LINEAR, volume);
+    gst_stream_volume_set_volume(streamVolume, GST_STREAM_VOLUME_FORMAT_LINEAR, volume);
     configureMediaStreamAudioTracks();
 }
 
 float MediaPlayerPrivateGStreamer::volume() const
 {
-    if (!m_volumeElement)
+    auto streamVolume = GST_STREAM_VOLUME(m_pipeline.get());
+    if (!streamVolume)
         return 0;
 
-    auto volume = gst_stream_volume_get_volume(m_volumeElement.get(), GST_STREAM_VOLUME_FORMAT_LINEAR);
+    auto volume = gst_stream_volume_get_volume(streamVolume, GST_STREAM_VOLUME_FORMAT_LINEAR);
     GST_DEBUG_OBJECT(pipeline(), "Volume: %f", volume);
     return volume;
 }
@@ -2013,7 +2019,7 @@ float MediaPlayerPrivateGStreamer::volume() const
 void MediaPlayerPrivateGStreamer::notifyPlayerOfVolumeChange()
 {
     RefPtr player = m_player.get();
-    if (!player || !m_volumeElement)
+    if (!player)
         return;
 
     // get_volume() can return values superior to 1.0 if the user applies software user gain via
@@ -2031,7 +2037,6 @@ void MediaPlayerPrivateGStreamer::volumeChangedCallback(MediaPlayerPrivateGStrea
     if (player->isPlayerShuttingDown())
         return;
 
-    // This is called when m_volumeElement receives the notify::volume signal.
     GST_DEBUG_OBJECT(player->pipeline(), "Volume changed to: %f", player->volume());
 
     player->m_notifier->notify(MainThreadNotification::VolumeChanged, [player] {
@@ -2053,23 +2058,31 @@ void MediaPlayerPrivateGStreamer::setMuted(bool shouldMute)
 {
     GST_DEBUG_OBJECT(pipeline(), "Attempting to set muted state to %s", boolForPrinting(shouldMute));
 
-    if (!m_volumeElement || shouldMute == isMuted())
+    if (shouldMute == isMuted())
+        return;
+
+    auto streamVolume = GST_STREAM_VOLUME(m_pipeline.get());
+    if (!streamVolume)
         return;
 
     GST_INFO_OBJECT(pipeline(), "Setting muted state to %s", boolForPrinting(shouldMute));
-    g_object_set(m_volumeElement.get(), "mute", static_cast<gboolean>(shouldMute), nullptr);
+    g_object_set(streamVolume, "mute", static_cast<gboolean>(shouldMute), nullptr);
     configureMediaStreamAudioTracks();
 }
 
 void MediaPlayerPrivateGStreamer::notifyPlayerOfMute()
 {
     RefPtr player = m_player.get();
-    if (!player || !m_volumeElement)
+    if (!player)
+        return;
+
+    auto streamVolume = GST_STREAM_VOLUME(m_pipeline.get());
+    if (!streamVolume)
         return;
 
     gboolean value;
     bool isMuted;
-    g_object_get(m_volumeElement.get(), "mute", &value, nullptr);
+    g_object_get(streamVolume, "mute", &value, nullptr);
     isMuted = value;
     if (isMuted == m_isMuted)
         return;
@@ -2081,7 +2094,6 @@ void MediaPlayerPrivateGStreamer::notifyPlayerOfMute()
 
 void MediaPlayerPrivateGStreamer::muteChangedCallback(MediaPlayerPrivateGStreamer* player)
 {
-    // This is called when m_volumeElement receives the notify::mute signal.
     player->m_notifier->notify(MainThreadNotification::MuteChanged, [player] {
         player->notifyPlayerOfMute();
     });
@@ -2116,68 +2128,54 @@ void MediaPlayerPrivateGStreamer::handleMessage(GstMessage* message)
 
     GST_LOG_OBJECT(pipeline(), "Message %s received from element %s", GST_MESSAGE_TYPE_NAME(message), GST_MESSAGE_SRC_NAME(message));
     switch (GST_MESSAGE_TYPE(message)) {
-    case GST_MESSAGE_ERROR:
-        {
-            auto onScopeExit = makeScopeExit([this] {
-                GST_DEBUG_OBJECT(pipeline(), "Decreasing m_queuedSyncErrors");
-                m_queuedSyncErrors.exchangeSub(1);
-            });
+    case GST_MESSAGE_ERROR: {
+        gst_message_parse_error(message, &err.outPtr(), nullptr);
 
-            gst_message_parse_error(message, &err.outPtr(), nullptr);
-
-            if (m_shouldResetPipeline || m_didErrorOccur || m_ignoreErrors) {
-                GST_WARNING_OBJECT(pipeline(), "Ignoring error: %s (url=%s) (code=%d)", err->message, m_url.string().utf8().data(), err->code);
-                // Deferred reset of m_ignoreErrors because there were queued sync errors not yet processed and
-                // we're processing the last one now.
-                if (m_ignoreErrors && m_queuedSyncErrors.loadFullyFenced() == 1) {
-                    m_ignoreErrors = false;
-                    GST_DEBUG_OBJECT(pipeline(), "Last queued error processed while on ignoring state. Not ignoring errors anymore.");
-                }
-                break;
-            }
-
-            GST_ERROR_OBJECT(pipeline(), "%s (url=%s) (code=%d)", err->message, m_url.string().utf8().data(), err->code);
-
-            m_errorMessage = String(byteCast<char8_t>(unsafeSpan(err->message)));
-#if ENABLE(MEDIA_TELEMETRY)
-            MediaTelemetryReport::singleton().reportPlaybackState(MediaTelemetryReport::AVPipelineState::PlaybackError,
-                m_errorMessage);
-#endif
-
-            error = MediaPlayer::NetworkState::Empty;
-            if (g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_CODEC_NOT_FOUND)
-                || g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_DECRYPT)
-                || g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_DECRYPT_NOKEY)
-                || g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_WRONG_TYPE)
-                || g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_FAILED)
-                || g_error_matches(err.get(), GST_CORE_ERROR, GST_CORE_ERROR_MISSING_PLUGIN)
-                || g_error_matches(err.get(), GST_CORE_ERROR, GST_CORE_ERROR_PAD)
-                || g_error_matches(err.get(), GST_RESOURCE_ERROR, GST_RESOURCE_ERROR_NOT_FOUND))
-                error = MediaPlayer::NetworkState::FormatError;
-            else if (g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_TYPE_NOT_FOUND)) {
-                GST_ERROR_OBJECT(pipeline(), "Decode error, let the Media element emit a stalled event.");
-                m_loadingStalled = true;
-                error = MediaPlayer::NetworkState::DecodeError;
-                attemptNextLocation = true;
-            } else if (err->domain == GST_STREAM_ERROR
-                || g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_DECODE)) {
-                error = MediaPlayer::NetworkState::DecodeError;
-                attemptNextLocation = true;
-            } else if (err->domain == GST_RESOURCE_ERROR)
-                error = MediaPlayer::NetworkState::NetworkError;
-
-            if (attemptNextLocation)
-                issueError = !loadNextLocation();
-            if (issueError) {
-                m_didErrorOccur = true;
-                if (m_networkState != error) {
-                    m_networkState = error;
-                    if (player)
-                        player->networkStateChanged();
-                }
-            }
+        if (m_shouldResetPipeline || m_didErrorOccur) {
+            GST_WARNING_OBJECT(pipeline(), "Ignoring error: %s (url=%s) (code=%d)", err->message, m_url.string().utf8().data(), err->code);
             break;
         }
+
+        GST_ERROR_OBJECT(pipeline(), "%s (url=%s) (code=%d)", err->message, m_url.string().utf8().data(), err->code);
+
+        m_errorMessage = String(byteCast<char8_t>(unsafeSpan(err->message)));
+#if ENABLE(MEDIA_TELEMETRY)
+        MediaTelemetryReport::singleton().reportPlaybackState(MediaTelemetryReport::AVPipelineState::PlaybackError, m_errorMessage);
+#endif
+
+        error = MediaPlayer::NetworkState::Empty;
+        if (g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_CODEC_NOT_FOUND)
+            || g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_DECRYPT)
+            || g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_DECRYPT_NOKEY)
+            || g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_WRONG_TYPE)
+            || g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_FAILED)
+            || g_error_matches(err.get(), GST_CORE_ERROR, GST_CORE_ERROR_MISSING_PLUGIN)
+            || g_error_matches(err.get(), GST_CORE_ERROR, GST_CORE_ERROR_PAD)
+            || g_error_matches(err.get(), GST_RESOURCE_ERROR, GST_RESOURCE_ERROR_NOT_FOUND))
+            error = MediaPlayer::NetworkState::FormatError;
+        else if (g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_TYPE_NOT_FOUND)) {
+            GST_ERROR_OBJECT(pipeline(), "Decode error, let the Media element emit a stalled event.");
+            m_loadingStalled = true;
+            error = MediaPlayer::NetworkState::DecodeError;
+            attemptNextLocation = true;
+        } else if (err->domain == GST_STREAM_ERROR || g_error_matches(err.get(), GST_STREAM_ERROR, GST_STREAM_ERROR_DECODE)) {
+            error = MediaPlayer::NetworkState::DecodeError;
+            attemptNextLocation = true;
+        } else if (err->domain == GST_RESOURCE_ERROR)
+            error = MediaPlayer::NetworkState::NetworkError;
+
+        if (attemptNextLocation)
+            issueError = !loadNextLocation();
+        if (issueError) {
+            m_didErrorOccur = true;
+            if (m_networkState != error) {
+                m_networkState = error;
+                if (player)
+                    player->networkStateChanged();
+            }
+        }
+        break;
+    }
     case GST_MESSAGE_WARNING:
         gst_message_parse_warning(message, &err.outPtr(), nullptr);
         GST_WARNING_OBJECT(pipeline(), "%s (url=%s) (code=%d)", err->message, m_url.string().utf8().data(), err->code);
@@ -3495,7 +3493,22 @@ void MediaPlayerPrivateGStreamer::createGSTPlayBin(const URL& url)
         gst_element_set_start_time(m_pipeline.get(), GST_CLOCK_TIME_NONE);
     }
 
-    setStreamVolumeElement(GST_STREAM_VOLUME(m_pipeline.get()));
+    auto streamVolume = GST_STREAM_VOLUME(m_pipeline.get());
+
+    // We don't set the initial volume because we trust the sink to keep it for us. See
+    // https://bugs.webkit.org/show_bug.cgi?id=118974 for more information.
+    if (!player->platformVolumeConfigurationRequired()) {
+        GST_DEBUG_OBJECT(pipeline(), "Setting stream volume to %f", player->volume());
+        gst_stream_volume_set_volume(streamVolume, GST_STREAM_VOLUME_FORMAT_LINEAR, static_cast<double>(player->volume()));
+    } else
+        GST_DEBUG_OBJECT(pipeline(), "Not setting stream volume, trusting system one");
+
+    m_isMuted = player->muted();
+    GST_DEBUG_OBJECT(pipeline(), "Setting stream muted %s", boolForPrinting(m_isMuted));
+    g_object_set(streamVolume, "mute", static_cast<gboolean>(m_isMuted), nullptr);
+
+    g_signal_connect_swapped(streamVolume, "notify::volume", G_CALLBACK(volumeChangedCallback), this);
+    g_signal_connect_swapped(streamVolume, "notify::mute", G_CALLBACK(muteChangedCallback), this);
 
     GST_INFO_OBJECT(pipeline(), "Using legacy playbin element: %s", boolForPrinting(m_isLegacyPlaybin));
 
@@ -3534,10 +3547,6 @@ void MediaPlayerPrivateGStreamer::createGSTPlayBin(const URL& url)
     // later than "updateend".
     g_signal_connect_swapped(bus.get(), "sync-message::stream-collection", G_CALLBACK(+[](MediaPlayerPrivateGStreamer* player, GstMessage* message) {
         player->handleStreamCollectionMessage(message);
-    }), this);
-
-    g_signal_connect_swapped(bus.get(), "sync-message::error", G_CALLBACK(+[](MediaPlayerPrivateGStreamer* player, GstMessage* message) {
-        player->handleSyncErrorMessage(message);
     }), this);
 
     g_object_set(m_pipeline.get(), "mute", static_cast<gboolean>(player->muted()), nullptr);
@@ -4404,31 +4413,6 @@ GstElement* MediaPlayerPrivateGStreamer::createVideoSink()
     return m_videoSink.get();
 }
 
-void MediaPlayerPrivateGStreamer::setStreamVolumeElement(GstStreamVolume* volume)
-{
-    RefPtr player = m_player.get();
-    if (!player)
-        return;
-
-    ASSERT(!m_volumeElement);
-    m_volumeElement = volume;
-
-    // We don't set the initial volume because we trust the sink to keep it for us. See
-    // https://bugs.webkit.org/show_bug.cgi?id=118974 for more information.
-    if (!player->platformVolumeConfigurationRequired()) {
-        GST_DEBUG_OBJECT(pipeline(), "Setting stream volume to %f", player->volume());
-        gst_stream_volume_set_volume(m_volumeElement.get(), GST_STREAM_VOLUME_FORMAT_LINEAR, static_cast<double>(player->volume()));
-    } else
-        GST_DEBUG_OBJECT(pipeline(), "Not setting stream volume, trusting system one");
-
-    m_isMuted = player->muted();
-    GST_DEBUG_OBJECT(pipeline(), "Setting stream muted %s", boolForPrinting(m_isMuted));
-    g_object_set(m_volumeElement.get(), "mute", static_cast<gboolean>(m_isMuted), nullptr);
-
-    g_signal_connect_swapped(m_volumeElement.get(), "notify::volume", G_CALLBACK(volumeChangedCallback), this);
-    g_signal_connect_swapped(m_volumeElement.get(), "notify::mute", G_CALLBACK(muteChangedCallback), this);
-}
-
 bool MediaPlayerPrivateGStreamer::updateVideoSinkStatistics()
 {
     if (!m_videoSink)
@@ -4581,10 +4565,12 @@ void MediaPlayerPrivateGStreamer::cdmInstanceAttached(CDMInstance& instance)
     RELEASE_ASSERT(m_cdmInstance);
     m_cdmInstance->setPlayer(m_player.get());
 
-    GRefPtr<GstContext> context = adoptGRef(gst_context_new("drm-cdm-proxy", FALSE));
-    GstStructure* contextStructure = gst_context_writable_structure(context.get());
-    gst_structure_set(contextStructure, "cdm-proxy", G_TYPE_POINTER, m_cdmInstance->proxy().get(), nullptr);
-    gst_element_set_context(GST_ELEMENT(m_pipeline.get()), context.get());
+    if (!m_cdmContext) {
+        m_cdmContext = adoptGRef(gst_context_new("drm-cdm-proxy", TRUE));
+        GstStructure* contextStructure = gst_context_writable_structure(m_cdmContext.get());
+        gst_structure_set(contextStructure, "cdm-proxy", G_TYPE_POINTER, m_cdmInstance->proxy().get(), nullptr);
+    }
+    gst_element_set_context(GST_ELEMENT(m_pipeline.get()), m_cdmContext.get());
 
     GST_DEBUG_OBJECT(m_pipeline.get(), "CDM proxy instance %p dispatched as context", m_cdmInstance->proxy().get());
 
@@ -4605,8 +4591,9 @@ void MediaPlayerPrivateGStreamer::cdmInstanceDetached(CDMInstance& instance)
     ASSERT(m_cdmInstance == &instance);
     GST_DEBUG_OBJECT(m_pipeline.get(), "detaching CDM instance %p, setting empty context", m_cdmInstance.get());
     m_cdmInstance = nullptr;
-    GRefPtr<GstContext> context = adoptGRef(gst_context_new("drm-cdm-proxy", FALSE));
-    gst_element_set_context(GST_ELEMENT(m_pipeline.get()), context.get());
+    m_cdmContext = nullptr;
+    auto emptyContext = adoptGRef(gst_context_new("drm-cdm-proxy", TRUE));
+    gst_element_set_context(GST_ELEMENT(m_pipeline.get()), emptyContext.get());
 }
 
 void MediaPlayerPrivateGStreamer::attemptToDecryptWithInstance([[maybe_unused]] CDMInstance& instance)

@@ -110,7 +110,7 @@ private:
     void UnregisterObserver(webrtc::ObserverInterface*) final { }
 
     // VideoTrackSourceInterface API
-    bool is_screencast() const final { return false; }
+    bool is_screencast() const final;
     std::optional<bool> needs_denoising() const final { return std::optional<bool>(); }
     bool GetStats(Stats*) final;
     bool SupportsEncodedOutput() const final { return false; }
@@ -155,6 +155,7 @@ private:
     std::optional<double> m_maxFrameRate;
     std::optional<double> m_maxPixelCount;
     std::atomic<double> m_videoFrameScaling { 1.0 };
+    std::atomic<bool> m_isScreencast { false };
     bool m_enableVideoFrameScaling { true };
     bool m_isObservingVideoFrames { false };
 

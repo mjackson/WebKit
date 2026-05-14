@@ -28,6 +28,7 @@
 #include "TemporalPlainYearMonth.h"
 
 #include "IntlObjectInlines.h"
+#include "Rounding.h"
 #include "JSCInlines.h"
 #include "LazyPropertyInlines.h"
 #include "TemporalDuration.h"
@@ -260,7 +261,7 @@ ISO8601::Duration TemporalPlainYearMonth::sinceOrUntil(JSGlobalObject* globalObj
     RETURN_IF_EXCEPTION(scope, { });
 
     if (op == DifferenceOperation::Since)
-        roundingMode = negateTemporalRoundingMode(roundingMode);
+        roundingMode = TemporalCore::negateTemporalRoundingMode(roundingMode);
 
     RELEASE_AND_RETURN(scope, TemporalCalendar::differenceTemporalPlainYearMonth<op>(globalObject, plainYearMonth(), other->plainYearMonth(), increment, smallestUnit, largestUnit, roundingMode));
 }

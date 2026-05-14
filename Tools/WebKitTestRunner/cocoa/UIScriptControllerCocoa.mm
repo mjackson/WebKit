@@ -322,6 +322,20 @@ unsigned long UIScriptControllerCocoa::countOfUpdatesWithLayerChanges() const
     return webView()._countOfUpdatesWithLayerChanges;
 }
 
+void UIScriptControllerCocoa::simulateAvailableSpeechVoicesDidChangeOnBackgroundThread(JSValueRef callback)
+{
+    unsigned callbackID = m_context->prepareForAsyncTask(callback, CallbackTypeNonPersistent);
+
+    dispatch_async(globalDispatchQueueSingleton(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), makeBlockPtr([this, protectedThis = Ref { *this }, callbackID] {
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"AVSpeechSynthesisAvailableVoicesDidChangeNotification" object:nil];
+        dispatch_async(mainDispatchQueueSingleton(), makeBlockPtr([this, protectedThis, callbackID] {
+            if (!m_context)
+                return;
+            m_context->asyncTaskComplete(callbackID);
+        }).get());
+    }).get());
+}
+
 #if ENABLE(IMAGE_ANALYSIS)
 
 uint64_t UIScriptControllerCocoa::currentImageAnalysisRequestID() const

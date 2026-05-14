@@ -120,8 +120,9 @@ my %directoryCache;
 buildDirectoryCache();
 
 my @idlFilesToUpdate = grep &{sub {
-    if (defined($oldSupplements{$_})
-        && @{$oldSupplements{$_}} ne @{$newSupplements{$_} or []}) {
+    my $absPath = Cwd::abs_path($_) || $_;
+    if (defined($oldSupplements{$absPath})
+        && @{$oldSupplements{$absPath}} ne @{$newSupplements{$absPath} or []}) {
         # Re-process the IDL file if its supplemental dependencies were added or removed
         return 1;
     }
@@ -133,7 +134,7 @@ my @idlFilesToUpdate = grep &{sub {
     my @deps = ($_,
                 $idlAttributesFile,
                 @generatorDependency,
-                @{$newSupplements{$_} or []},
+                @{$newSupplements{$absPath} or []},
                 implicitDependencies($depFile));
     needsUpdate(\@output, \@deps);
 }}, @idlFiles;
@@ -297,7 +298,7 @@ sub readSupplementalDependencyFile
     open(my $fh, '<', $filename) or die "Cannot open $filename";
     while (<$fh>) {
         my ($idlFile, @followingIdlFiles) = split(/\s+/);
-        $supplements->{$idlFile} = [sort @followingIdlFiles];
+        $supplements->{Cwd::abs_path($idlFile) || $idlFile} = [sort @followingIdlFiles];
     }
     close($fh) or die;
 }

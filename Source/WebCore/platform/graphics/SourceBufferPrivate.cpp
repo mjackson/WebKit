@@ -46,6 +46,7 @@
 #include <wtf/MainThread.h>
 #include <wtf/MediaTime.h>
 #include <wtf/StringPrintStream.h>
+#include <wtf/Threading.h>
 
 namespace WebCore {
 

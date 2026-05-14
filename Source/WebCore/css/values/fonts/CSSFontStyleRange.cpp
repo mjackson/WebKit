@@ -27,6 +27,8 @@
 #include "CSSFontStyleRange.h"
 
 #include "CSSFontStyleRangeValue.h"
+#include "CSSPrimitiveNumericTypes+CSSValueVisitation.h"
+#include "CSSPrimitiveNumericTypes+Serialization.h"
 
 namespace WebCore {
 namespace CSS {

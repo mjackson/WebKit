@@ -28,9 +28,11 @@ namespace WebCore {
 
 class HitTestLocation {
 public:
+    enum class RectBased : bool { No, Yes };
+
     WEBCORE_EXPORT HitTestLocation();
     HitTestLocation(const LayoutPoint&);
-    HitTestLocation(const FloatPoint&, const FloatQuad&);
+    HitTestLocation(const FloatPoint&, const FloatQuad&, RectBased = RectBased::Yes);
 
     HitTestLocation(const LayoutRect&);
 

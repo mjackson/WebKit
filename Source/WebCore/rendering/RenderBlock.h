@@ -330,6 +330,8 @@ protected:
     RenderBlockRareData* NODELETE blockRareData() const LIFETIME_BOUND;
     bool recomputeLogicalWidth();
 
+    LayoutSize intrinsicSize() const override;
+
 private:
     // FIXME-BLOCKFLOW: Remove virtualizaion when all callers have moved to RenderBlockFlow
     virtual LayoutUnit logicalRightFloatOffsetForLine(LayoutUnit, LayoutUnit fixedOffset, LayoutUnit) const { return fixedOffset; };

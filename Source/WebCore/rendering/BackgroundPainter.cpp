@@ -549,6 +549,7 @@ template<typename Layer> void BackgroundPainter::paintFillLayerImpl(const Color&
                 m_renderer.chooseInterpolationQuality(context, *image, &layer.layer, geometry.tileSize),
                 document().settings().imageSubsamplingEnabled() ? AllowImageSubsampling::Yes : AllowImageSubsampling::No,
                 document().settings().showDebugBorders() ? ShowDebugBackground::Yes : ShowDebugBackground::No,
+                document().settings().hdrAcceleratedApplyGainMapEnabled() ? AllowAcceleratedApplyGainMap::Yes : AllowAcceleratedApplyGainMap::No,
                 m_paintInfo.paintBehavior.contains(PaintBehavior::DrawsHDRContent) ? DrawsHDRContent::Yes : DrawsHDRContent::No,
                 style.dynamicRangeLimit().toPlatformDynamicRangeLimit()
             };

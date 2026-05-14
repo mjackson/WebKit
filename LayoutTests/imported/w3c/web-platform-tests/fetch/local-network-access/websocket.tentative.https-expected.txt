@@ -1,0 +1,6 @@
+
+FAIL LNA Public to loopback websocket with permission Can't find variable: resolveUrl
+FAIL LNA Public to loopback websocket without permission Can't find variable: resolveUrl
+FAIL LNA local to loopback websocket with permission Can't find variable: resolveUrl
+FAIL LNA local to loopback websocket without permission Can't find variable: resolveUrl
+

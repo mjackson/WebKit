@@ -1,5 +1,7 @@
 if (DEVELOPER_MODE)
-    add_subdirectory(flatpak)
+    if (EXISTS "${CMAKE_SOURCE_DIR}/flatpak")
+        add_subdirectory(flatpak)
+    endif ()
 endif ()
 
 if (ENABLE_API_TESTS)

@@ -87,10 +87,6 @@ public:
     static bool canCompileStrings(JSC::JSGlobalObject*, JSC::CompilationType, String, const JSC::ArgList&);
     static JSC::Structure* trustedScriptStructure(JSC::JSGlobalObject*);
 
-    // https://tc39.es/ecma262/#sec-agent-clusters
-    String agentClusterID() const;
-    static String defaultAgentClusterID();
-
     // Make binding code generation easier.
     JSDOMGlobalObject* realm() { return this; }
 
@@ -136,8 +132,8 @@ protected:
     static void promiseRejectionTracker(JSC::JSGlobalObject*, JSC::JSPromise*, JSC::JSPromiseRejectionOperation);
 
 #if ENABLE(WEBASSEMBLY)
-    static JSC::JSPromise* compileStreaming(JSC::JSGlobalObject*, JSC::JSValue, std::optional<JSC::WebAssemblyCompileOptions>&&);
-    static JSC::JSPromise* instantiateStreaming(JSC::JSGlobalObject*, JSC::JSValue, JSC::JSObject* importObject, std::optional<JSC::WebAssemblyCompileOptions>&&);
+    static void compileStreaming(JSC::JSGlobalObject*, JSC::JSPromise*, JSC::JSValue, std::optional<JSC::WebAssemblyCompileOptions>&&);
+    static void instantiateStreaming(JSC::JSGlobalObject*, JSC::JSPromise*, JSC::JSValue, JSC::JSObject* importObject, std::optional<JSC::WebAssemblyCompileOptions>&&);
 #endif
 
     static JSC::Identifier moduleLoaderResolve(JSC::JSGlobalObject*, JSC::JSModuleLoader*, JSC::JSValue, JSC::JSValue, RefPtr<JSC::ScriptFetcher>, bool useImportMap);

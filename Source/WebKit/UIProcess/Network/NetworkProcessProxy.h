@@ -38,6 +38,7 @@
 #include "SharedPreferencesForWebProcess.h"
 #include "UserContentControllerIdentifier.h"
 #include "WebsiteDataStore.h"
+#include <WebCore/CrossOriginEmbedderPolicyValue.h>
 #include <WebCore/CrossSiteNavigationDataTransfer.h>
 #include <WebCore/FrameIdentifier.h>
 #include <WebCore/NotificationEventType.h>
@@ -416,7 +417,7 @@ private:
     void requestBackgroundFetchPermission(PAL::SessionID, const WebCore::ClientOrigin&, CompletionHandler<void(bool)>&&);
     void notifyBackgroundFetchChange(PAL::SessionID, const String&, BackgroundFetchChange);
     void remoteWorkerContextConnectionNoLongerNeeded(RemoteWorkerType, WebCore::ProcessIdentifier);
-    void establishRemoteWorkerContextConnectionToNetworkProcess(RemoteWorkerType, WebCore::Site&&, std::optional<WebCore::ProcessIdentifier> requestingProcessIdentifier, std::optional<WebCore::ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, PAL::SessionID, CompletionHandler<void(std::optional<WebCore::ProcessIdentifier>)>&&);
+    void establishRemoteWorkerContextConnectionToNetworkProcess(RemoteWorkerType, WebCore::Site&&, std::optional<WebCore::ProcessIdentifier> requestingProcessIdentifier, std::optional<WebCore::ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, PAL::SessionID, WebCore::CrossOriginEmbedderPolicyValue, CompletionHandler<void(std::optional<WebCore::ProcessIdentifier>)>&&);
     void registerRemoteWorkerClientProcess(RemoteWorkerType, WebCore::ProcessIdentifier clientProcessIdentifier, WebCore::ProcessIdentifier remoteWorkerProcessIdentifier);
     void unregisterRemoteWorkerClientProcess(RemoteWorkerType, WebCore::ProcessIdentifier clientProcessIdentifier, WebCore::ProcessIdentifier remoteWorkerProcessIdentifier);
     void reportConsoleMessage(PAL::SessionID, const URL&, const WebCore::SecurityOriginData&, MessageSource, MessageLevel, const String& message, uint64_t requestIdentifier);

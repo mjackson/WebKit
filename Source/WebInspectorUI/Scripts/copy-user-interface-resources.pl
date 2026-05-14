@@ -25,7 +25,6 @@
 
 use warnings;
 use English;
-use Cwd qw(abs_path);
 use File::Basename qw(dirname);
 use File::Copy qw(copy);
 use File::Path qw(make_path remove_tree);
@@ -71,35 +70,6 @@ sub ditto($$)
         closedir $dh;
     } else {
         die "Please install the PEP module File::Copy::Recursive";
-    }
-}
-
-sub readInputFileList()
-{
-    my $fileListPath = $ENV{'SCRIPT_INPUT_FILE_LIST_0'};
-    open(my $fh, '<', $fileListPath) or die "Unable to open $fileListPath: $!";
-    my @files;
-    while (my $line = <$fh>) {
-        chomp $line;
-        my $resolved = abs_path($line);
-        push @files, ($resolved ? $resolved : $line);
-    }
-    close($fh);
-    return @files;
-}
-
-sub copyFilesFromList($$\@)
-{
-    my ($sourcePrefix, $destRoot, $fileListRef) = @_;
-    $sourcePrefix = abs_path($sourcePrefix) || $sourcePrefix;
-    $sourcePrefix .= '/' unless $sourcePrefix =~ /\/$/;
-    for my $file (@$fileListRef) {
-        next unless index($file, $sourcePrefix) == 0;
-        my $relPath = substr($file, length($sourcePrefix));
-        my $destFile = File::Spec->catfile($destRoot, $relPath);
-        my $destDir = dirname($destFile);
-        make_path($destDir) unless -d $destDir;
-        copy($file, $destFile) or die "Failed to copy $file to $destFile: $!";
     }
 }
 
@@ -217,17 +187,12 @@ my $shouldCombineMain = defined $ENV{'COMBINE_INSPECTOR_RESOURCES'} && ($ENV{'CO
 my $shouldCombineTest = defined $ENV{'COMBINE_TEST_RESOURCES'} && ($ENV{'COMBINE_TEST_RESOURCES'} eq 'YES');
 my $shouldIncludeBrowserInspectorFrontendHost = defined $ENV{'INCLUDE_BROWSER_INSPECTOR_FRONTEND_HOST'} && ($ENV{'INCLUDE_BROWSER_INSPECTOR_FRONTEND_HOST'} eq 'YES');
 my $combineResourcesCmd = File::Spec->catfile($scriptsRoot, 'combine-resources.pl');
-my @inputFiles = readInputFileList() if exists $ENV{'SCRIPT_INPUT_FILE_LIST_0'};
 
 if ($forceToolInstall) {
     # Copy all files over individually to ensure we have Test.html / Test.js and files included from Test.html.
     # We may then proceed to include combined & optimized resources which will output mostly to different paths
     # but overwrite Main.html / Main.js with optimized versions.
-    if (@inputFiles) {
-        copyFilesFromList($uiRoot, $targetResourcePath, @inputFiles);
-    } else {
-        ditto($uiRoot, $targetResourcePath);
-    }
+    ditto($uiRoot, $targetResourcePath);
 
     # Also force combining test resources for tool installs.
     $shouldCombineTest = 1;
@@ -236,11 +201,7 @@ if ($forceToolInstall) {
 if (!$shouldCombineMain) {
     # Keep the files separate for engineering builds. Copy these before altering Main.html
     # in other ways, such as combining for WebKitAdditions or inlining files.
-    if (@inputFiles) {
-        copyFilesFromList($uiRoot, $targetResourcePath, @inputFiles);
-    } else {
-        ditto($uiRoot, $targetResourcePath);
-    }
+    ditto($uiRoot, $targetResourcePath);
 
     if (!$shouldIncludeBrowserInspectorFrontendHost) {
         unlink File::Spec->catfile($targetResourcePath, 'Base', 'BrowserInspectorFrontendHost.js');
@@ -509,20 +470,11 @@ if ($shouldCombineMain) {
     appendFile($targetMainJS, $derivedSourcesNonMinifiedJS);
 
     # Copy over the Images directory.
-    if (@inputFiles) {
-        copyFilesFromList(File::Spec->catdir($uiRoot, 'Images'), File::Spec->catdir($targetResourcePath, 'Images'), @inputFiles);
-    } else {
-        ditto(File::Spec->catdir($uiRoot, 'Images'), File::Spec->catdir($targetResourcePath, 'Images'));
-    }
+    ditto(File::Spec->catdir($uiRoot, 'Images'), File::Spec->catdir($targetResourcePath, 'Images'));
 
     # Copy the Protocol/Legacy and Workers directories.
-    if (@inputFiles) {
-        copyFilesFromList(File::Spec->catfile($uiRoot, 'Protocol', 'Legacy'), File::Spec->catfile($protocolDir, 'Legacy'), @inputFiles);
-        copyFilesFromList(File::Spec->catfile($uiRoot, 'Workers'), $workersDir, @inputFiles);
-    } else {
-        ditto(File::Spec->catfile($uiRoot, 'Protocol', 'Legacy'), File::Spec->catfile($protocolDir, 'Legacy'));
-        ditto(File::Spec->catfile($uiRoot, 'Workers'), $workersDir);
-    }
+    ditto(File::Spec->catfile($uiRoot, 'Protocol', 'Legacy'), File::Spec->catfile($protocolDir, 'Legacy'));
+    ditto(File::Spec->catfile($uiRoot, 'Workers'), $workersDir);
 
     # Remove console.assert calls from the Worker js files.
     system($perl, File::Spec->catfile($scriptsRoot, 'remove-console-asserts.pl'),
@@ -626,9 +578,5 @@ if ($shouldCombineTest) {
     copy(File::Spec->catfile($derivedSourcesDir, 'TestStubCombined.js'), File::Spec->catfile($targetResourcePath, 'TestStubCombined.js'));
 
     # Copy the Legacy directory.
-    if (@inputFiles) {
-        copyFilesFromList(File::Spec->catfile($uiRoot, 'Protocol', 'Legacy'), File::Spec->catfile($protocolDir, 'Legacy'), @inputFiles);
-    } else {
-        ditto(File::Spec->catfile($uiRoot, 'Protocol', 'Legacy'), File::Spec->catfile($protocolDir, 'Legacy'));
-    }
+    ditto(File::Spec->catfile($uiRoot, 'Protocol', 'Legacy'), File::Spec->catfile($protocolDir, 'Legacy'));
 }

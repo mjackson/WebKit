@@ -26,6 +26,7 @@
 #import "config.h"
 #import "_WKWebsiteDataStoreConfigurationInternal.h"
 
+#import "TimeBasedEvictionMode.h"
 #import "UnifiedOriginStorageLevel.h"
 #import <WebCore/WebCoreObjCExtras.h>
 #import <wtf/RetainPtr.h>
@@ -500,6 +501,77 @@ static WebKit::UnifiedOriginStorageLevel NODELETE toUnifiedOriginStorageLevel(_W
 - (void)setPerOriginStorageQuota:(NSUInteger)quota
 {
     _configuration->setPerOriginStorageQuota(quota);
+}
+
+- (_WKTimeBasedEvictionMode)timeBasedEvictionMode
+{
+    switch (_configuration->timeBasedEvictionMode()) {
+    case WebKit::TimeBasedEvictionMode::Disabled:
+        return _WKTimeBasedEvictionModeDisabled;
+    case WebKit::TimeBasedEvictionMode::ServiceWorkerRegistrationsOnly:
+        return _WKTimeBasedEvictionModeServiceWorkerRegistrationsOnly;
+    case WebKit::TimeBasedEvictionMode::AllTypes:
+        return _WKTimeBasedEvictionModeAllTypes;
+    }
+}
+
+- (void)setTimeBasedEvictionMode:(_WKTimeBasedEvictionMode)mode
+{
+    switch (mode) {
+    case _WKTimeBasedEvictionModeDisabled:
+        _configuration->setTimeBasedEvictionMode(WebKit::TimeBasedEvictionMode::Disabled);
+        break;
+    case _WKTimeBasedEvictionModeServiceWorkerRegistrationsOnly:
+        _configuration->setTimeBasedEvictionMode(WebKit::TimeBasedEvictionMode::ServiceWorkerRegistrationsOnly);
+        break;
+    case _WKTimeBasedEvictionModeAllTypes:
+        _configuration->setTimeBasedEvictionMode(WebKit::TimeBasedEvictionMode::AllTypes);
+        break;
+    }
+}
+
+- (NSTimeInterval)timeBasedEvictionThreshold
+{
+    return _configuration->timeBasedEvictionThreshold().seconds();
+}
+
+- (void)setTimeBasedEvictionThreshold:(NSTimeInterval)seconds
+{
+    _configuration->setTimeBasedEvictionThreshold(Seconds(seconds));
+}
+
+- (NSNumber *)lastModificationTimeUpdateIntervalOverride
+{
+    auto interval = _configuration->lastModificationTimeUpdateIntervalOverride();
+    if (!interval)
+        return nil;
+
+    return [NSNumber numberWithDouble:interval->seconds()];
+}
+
+- (void)setLastModificationTimeUpdateIntervalOverride:(NSNumber *)seconds
+{
+    if (seconds)
+        _configuration->setLastModificationTimeUpdateIntervalOverride(Seconds([seconds doubleValue]));
+    else
+        _configuration->setLastModificationTimeUpdateIntervalOverride(std::nullopt);
+}
+
+- (NSNumber *)timeBasedEvictionIntervalOverride
+{
+    auto interval = _configuration->timeBasedEvictionIntervalOverride();
+    if (!interval)
+        return nil;
+
+    return [NSNumber numberWithDouble:interval->seconds()];
+}
+
+- (void)setTimeBasedEvictionIntervalOverride:(NSNumber *)seconds
+{
+    if (seconds)
+        _configuration->setTimeBasedEvictionIntervalOverride(Seconds([seconds doubleValue]));
+    else
+        _configuration->setTimeBasedEvictionIntervalOverride(std::nullopt);
 }
 
 - (NSNumber *)originQuotaRatio

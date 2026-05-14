@@ -29,6 +29,7 @@
 #include <WebCore/TransformationMatrix.h>
 #include <wtf/Forward.h>
 #include <wtf/RefCounted.h>
+#include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/TypeCasts.h>
 
 namespace WebCore {

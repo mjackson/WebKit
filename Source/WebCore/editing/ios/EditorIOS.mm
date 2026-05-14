@@ -109,7 +109,7 @@ void Editor::writeImageToPasteboard(Pasteboard& pasteboard, Element& imageElemen
         return;
     ASSERT(cachedImage);
 
-    auto imageSourceURL = imageElement.document().completeURL(imageElement.imageSourceURL());
+    auto imageSourceURL = imageElement.document().encodingParseURL(imageElement.imageSourceURL());
 
     auto pasteboardImageURL = url.isEmpty() ? imageSourceURL : url;
     if (!pasteboardImageURL.protocolIsFile()) {

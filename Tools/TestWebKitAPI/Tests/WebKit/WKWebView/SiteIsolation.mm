@@ -8743,4 +8743,238 @@ TEST(SiteIsolation, NoRedundantFocusPolicyCallbackAfterBlurAndRefocusInCrossOrig
 }
 #endif
 
+TEST(SiteIsolation, MultiProcessBFCacheSameSiteCaching)
+{
+    HTTPServer server({
+        { "/a1"_s, { "page a1"_s } },
+        { "/a2"_s, { "page a2"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto *configuration = server.httpsProxyConfiguration();
+    enableFeature(configuration, @"MultiProcessBackForwardCacheEnabled");
+    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(configuration);
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://a.com/a1"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker = true"];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://a.com/a2"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker = true"];
+
+    [webView goBack];
+    [navigationDelegate waitForDidFinishNavigation];
+    EXPECT_WK_STREQ(@"https://a.com/a1", [webView URL].absoluteString);
+    EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker ? true : false"] boolValue]);
+
+    [webView goForward];
+    [navigationDelegate waitForDidFinishNavigation];
+    EXPECT_WK_STREQ(@"https://a.com/a2", [webView URL].absoluteString);
+    EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker ? true : false"] boolValue]);
+}
+
+TEST(SiteIsolation, MultiProcessBFCacheSameSiteWithCrossSiteIframeBlocked)
+{
+    HTTPServer server({
+        { "/a1"_s, { "<iframe src='https://b.com/frame'></iframe>"_s } },
+        { "/frame"_s, { "iframe content"_s } },
+        { "/a2"_s, { "page a2"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto *configuration = server.httpsProxyConfiguration();
+    enableFeature(configuration, @"MultiProcessBackForwardCacheEnabled");
+    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(configuration);
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://a.com/a1"]]];
+    [navigationDelegate waitForDidFinishNavigationAndLoadInSubframe];
+    [webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker = true"];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://a.com/a2"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    [webView goBack];
+    [navigationDelegate waitForDidFinishNavigation];
+    EXPECT_WK_STREQ(@"https://a.com/a1", [webView URL].absoluteString);
+    // BFCache marker should be gone — page was NOT cached due to cross-site iframe
+    EXPECT_FALSE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker ? true : false"] boolValue]);
+}
+
+TEST(SiteIsolation, ClearSiteDataClearsRemoteProcessMemoryCache)
+{
+    HTTPServer server({
+        { "/example"_s, { "<iframe src='https://webkit.org/iframe'></iframe>"_s } },
+        { "/iframe"_s, { "<script src='https://example.com/resource'></script>"
+            "<script>window.onmessage = e => {"
+            "   var s = document.createElement('script');"
+            "   s.onload = function() { alert('reloaded'); };"
+            "   s.src = 'https://example.com/resource';"
+            "   document.body.appendChild(s);"
+            "};</script>"_s } },
+        { "/resource"_s, { { { "Content-Type"_s, "application/javascript"_s }, { "Cache-Control"_s, "max-age=3600"_s } }, "/* script */"_s } },
+        { "/clear"_s, { { { "Content-Type"_s, "text/html"_s }, { "Clear-Site-Data"_s, "\"cache\""_s } }, "cleared"_s } },
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server);
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    checkFrameTreesInProcesses(webView.get(), {
+        { "https://example.com"_s,
+            { { RemoteFrame } }
+        }, { RemoteFrame,
+            { { "https://webkit.org"_s } }
+        },
+    });
+
+    auto requestCountAfterLoad = server.totalRequests();
+
+    [webView callAsyncJavaScript:@"await fetch('/clear'); document.querySelector('iframe').contentWindow.postMessage('reload', '*');" arguments:nil inFrame:nil inContentWorld:WKContentWorld.pageWorld completionHandler:nil];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "reloaded");
+
+    EXPECT_EQ(server.totalRequests(), requestCountAfterLoad + 2u);
+}
+
+TEST(SiteIsolation, MultiProcessBFCacheGoForwardSimple)
+{
+    HTTPServer server({
+        { "/a"_s, { "page a"_s } },
+        { "/b"_s, { "page b"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto *configuration = server.httpsProxyConfiguration();
+    enableFeature(configuration, @"MultiProcessBackForwardCacheEnabled");
+    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(configuration);
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://a.com/a"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker = true"];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://b.com/b"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker = true"];
+
+    // Cycle through back/forward 5 times to exercise BFCache eviction and
+    // re-suspension. Without fixes for stale RemotePageProxy, wrong
+    // frameItemID in SetIsSuspended, and SuspendedPageProxy eviction
+    // killing the live WebPage, this loop fails on cycle 3+.
+    for (int i = 0; i < 5; i++) {
+        [webView goBack];
+        [navigationDelegate waitForDidFinishNavigation];
+        EXPECT_WK_STREQ(@"https://a.com/a", [webView URL].absoluteString);
+        EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker ? true : false"] boolValue]);
+
+        [webView goForward];
+        [navigationDelegate waitForDidFinishNavigation];
+        EXPECT_WK_STREQ(@"https://b.com/b", [webView URL].absoluteString);
+        EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker ? true : false"] boolValue]);
+    }
+}
+
+TEST(SiteIsolation, MultiProcessBFCacheGoForward)
+{
+    // The bug requires C to have an iframe from a.com so that when C is
+    // suspended during goBack, SetSubframesSuspended(true) is sent to
+    // a.com's process — the same process that just restored A from BFCache.
+    HTTPServer server({
+        { "/a"_s, { "<iframe src='https://b.com/frame'></iframe>"_s } },
+        { "/frame"_s, { "iframe content"_s } },
+        { "/c"_s, { "<iframe src='https://a.com/aframe'></iframe>"_s } },
+        { "/aframe"_s, { "a.com iframe in c"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto *configuration = server.httpsProxyConfiguration();
+    enableFeature(configuration, @"MultiProcessBackForwardCacheEnabled");
+    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(configuration);
+
+    // Step 1: Load A (a.com) with cross-site iframe (b.com).
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://a.com/a"]]];
+    [navigationDelegate waitForDidFinishNavigationAndLoadInSubframe];
+    [webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_a = true"];
+
+    checkFrameTreesInProcesses(webView.get(), {
+        { "https://a.com"_s, { { RemoteFrame } } },
+        { RemoteFrame, { { "https://b.com"_s } } },
+    });
+
+    // Step 2: Navigate to C (c.com with iframe from a.com).
+    // This triggers BFCache suspension of A.
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://c.com/c"]]];
+    [navigationDelegate waitForDidFinishNavigationAndLoadInSubframe];
+    [webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_c = true"];
+
+    checkFrameTreesInProcesses(webView.get(), {
+        { "https://c.com"_s, { { RemoteFrame } } },
+        { RemoteFrame, { { "https://a.com"_s } } },
+    });
+
+    // Step 3: Go back (BFCache restore of A).
+    // During commit, C is suspended and SuspendWithFrameItem is
+    // sent to a.com's process for C's iframe — same process as A's main.
+    [webView goBack];
+    [navigationDelegate waitForDidFinishNavigation];
+    EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_a ? true : false"] boolValue]);
+
+    // Step 4: Go forward (navigate to C again) — this triggers the bug.
+    // goToBackForwardItem is sent to a.com's process but
+    // m_mainFrame->coreLocalFrame() is null, causing a silent bail-out.
+    [webView goForward];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    EXPECT_WK_STREQ(@"https://c.com/c", [webView URL].absoluteString);
+    EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_c ? true : false"] boolValue]);
+}
+
+TEST(SiteIsolation, MultiProcessBFCacheSameSiteNavAfterRestore)
+{
+    // Regression test for stale process in processForTheFrameItem.
+    // History: a.com/a1 → a.com/a2 → b.com/b
+    // Cycling back through same-site pages (a2→a1) and then forward
+    // to b.com exercises the code path where processForTheFrameItem
+    // could return a stale cross-site process with no RemotePageProxy.
+    HTTPServer server({
+        { "/a1"_s, { "page a1"_s } },
+        { "/a2"_s, { "page a2"_s } },
+        { "/b"_s, { "page b"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto *configuration = server.httpsProxyConfiguration();
+    enableFeature(configuration, @"MultiProcessBackForwardCacheEnabled");
+    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(configuration);
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://a.com/a1"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_a1 = true"];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://a.com/a2"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_a2 = true"];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://b.com/b"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_b = true"];
+
+    for (int i = 0; i < 3; i++) {
+        [webView goBack];
+        [navigationDelegate waitForDidFinishNavigation];
+        EXPECT_WK_STREQ(@"https://a.com/a2", [webView URL].absoluteString);
+        EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_a2 ? true : false"] boolValue]);
+
+        [webView goBack];
+        [navigationDelegate waitForDidFinishNavigation];
+        EXPECT_WK_STREQ(@"https://a.com/a1", [webView URL].absoluteString);
+        EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_a1 ? true : false"] boolValue]);
+
+        [webView goForward];
+        [navigationDelegate waitForDidFinishNavigation];
+        EXPECT_WK_STREQ(@"https://a.com/a2", [webView URL].absoluteString);
+        EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_a2 ? true : false"] boolValue]);
+
+        [webView goForward];
+        [navigationDelegate waitForDidFinishNavigation];
+        EXPECT_WK_STREQ(@"https://b.com/b", [webView URL].absoluteString);
+        EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_b ? true : false"] boolValue]);
+    }
+}
+
 }

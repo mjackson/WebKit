@@ -65,6 +65,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-019-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-019.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-020-expected.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-020-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-020.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-021-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-021.html
@@ -76,3 +77,4 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-024.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-025-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-025.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-singleton-subtag-matching.html

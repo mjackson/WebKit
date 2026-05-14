@@ -2207,6 +2207,18 @@ void WebAutomationSession::sendBidiMessage(const String& message)
 }
 #endif // ENABLE(WEBDRIVER_BIDI)
 
+void WebAutomationSession::performApplicationCommand(const Inspector::Protocol::Automation::BrowsingContextHandle& browsingContextHandle, const String& commandName, const String& arguments, Inspector::CommandCallback<String>&& callback)
+{
+    auto page = webPageProxyForHandle(browsingContextHandle);
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!page, WindowNotFound);
+
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS_IF(!m_client, InternalError, "The remote session could not perform the application command."_s);
+
+    m_client->performApplicationCommand(*this, *page, commandName, arguments, [protectedThis = Ref { *this }, callback = WTF::move(callback)](const String& result) mutable {
+        callback(result);
+    });
+}
+
 bool WebAutomationSession::shouldAllowGetUserMediaForPage(const WebPageProxy&) const
 {
     return m_permissionForGetUserMedia;

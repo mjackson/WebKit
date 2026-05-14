@@ -59,16 +59,51 @@ Ref<MathMLOperatorElement> MathMLOperatorElement::create(const QualifiedName& ta
 MathMLOperatorElement::OperatorChar MathMLOperatorElement::parseOperatorChar(const String& string)
 {
     OperatorChar operatorChar;
-    StringView view = string;
-    // FIXME: This operator dictionary does not accept multiple characters (https://webkit.org/b/124828).
-    if (auto codePoint = view.trim(isASCIIWhitespaceWithoutFF<char16_t>).convertToSingleCodePoint()) {
-        auto character = codePoint.value();
-        // The minus sign renders better than the hyphen sign used in some MathML formulas.
-        if (character == hyphenMinus)
-            character = minusSign;
+    String trimmed = string.trim(isASCIIWhitespaceWithoutFF<UChar>);
+    if (trimmed.isEmpty())
+        return operatorChar;
+
+    auto setOperatorChar = [&](char32_t character) {
         operatorChar.character = character;
         operatorChar.isVertical = isVertical(operatorChar.character);
+    };
+
+    // https://w3c.github.io/mathml-core/#dfn-algorithm-to-determine-the-category-of-an-operator
+    // Only operators with UTF-16 length 1 or 2 are recognized.
+    unsigned length = trimmed.length();
+    if (length == 1) {
+        char32_t character = trimmed[0];
+        // The minus sign renders better than the hyphen sign used in some MathML formulas.
+        // This is not in MathML Core, see https://github.com/w3c/mathml-core/issues/70
+        if (character == hyphenMinus)
+            character = minusSign;
+        setOperatorChar(character);
+        return operatorChar;
     }
+
+    if (length == 2) {
+        // A surrogate pair encoding a single code point (e.g. U+1EEF0, U+1EEF1).
+        if (auto codePoint = StringView(trimmed).convertToSingleCodePoint()) {
+            setOperatorChar(codePoint.value());
+            return operatorChar;
+        }
+        // Base character followed by U+0338 COMBINING LONG SOLIDUS OVERLAY
+        // or U+20D2 COMBINING LONG VERTICAL LINE OVERLAY. The base character
+        // is used for dictionary lookup and must not be substituted.
+        constexpr UChar combiningLongSolidusOverlay = 0x0338;
+        constexpr UChar combiningLongVerticalLineOverlay = 0x20D2;
+        UChar second = trimmed[1];
+        if (second == combiningLongSolidusOverlay || second == combiningLongVerticalLineOverlay) {
+            setOperatorChar(trimmed[0]);
+            return operatorChar;
+        }
+        // Otherwise, a multi-character operator such as "&&", "!=" or "->".
+        // Store both code units for a second-pass lookup in the multi-character
+        // operator dictionary.
+        operatorChar.hasTwoCharacters = true;
+        operatorChar.characters = { trimmed[0], trimmed[1] };
+    }
+
     return operatorChar;
 }
 
@@ -104,7 +139,10 @@ Property MathMLOperatorElement::computeDictionaryProperty()
     }
 
     // We then try and find an entry in the operator dictionary to override the default values.
-    if (auto entry = search(operatorChar().character, dictionaryProperty.form, explicitForm))
+    if (!operatorChar().hasTwoCharacters) {
+        if (auto entry = search(operatorChar().character, dictionaryProperty.form, explicitForm))
+            dictionaryProperty = entry.value();
+    } else if (auto entry = search(operatorChar().characters, dictionaryProperty.form, explicitForm))
         dictionaryProperty = entry.value();
 
     return dictionaryProperty;
@@ -214,6 +252,23 @@ void MathMLOperatorElement::childrenChanged(const ChildChange& change)
     m_dictionaryProperty = std::nullopt;
     m_properties.dirtyFlags = MathMLOperatorDictionary::allFlags;
     MathMLTokenElement::childrenChanged(change);
+}
+
+void MathMLOperatorElement::setOperatorFormDirty()
+{
+    // Nothing to invalidate if the dictionary entry has never been computed; the
+    // renderer will read the up-to-date value the first time it asks for it.
+    if (!m_dictionaryProperty)
+        return;
+
+    // Invalidate the cached dictionary entry and ensure the renderer re-reads it so
+    // that spacing changes from a sibling-triggered form switch take effect at layout.
+    m_dictionaryProperty = std::nullopt;
+    m_properties.dirtyFlags = MathMLOperatorDictionary::allFlags;
+    if (CheckedPtr renderOperator = dynamicDowncast<RenderMathMLOperator>(renderer())) {
+        renderOperator->updateFromElement();
+        renderOperator->setNeedsLayoutAndPreferredWidthsUpdate();
+    }
 }
 
 void MathMLOperatorElement::attributeChanged(const QualifiedName& name, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason attributeModificationReason)

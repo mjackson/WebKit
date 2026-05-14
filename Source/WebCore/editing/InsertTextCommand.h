@@ -84,6 +84,7 @@ private:
     bool m_selectInsertedText;
     RebalanceType m_rebalanceType;
     RefPtr<TextInsertionMarkerSupplier> m_markerSupplier;
+    RefPtr<EditingStyle> m_styleToPreserveForSmartList;
 };
 
 } // namespace WebCore

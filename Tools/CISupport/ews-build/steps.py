@@ -2660,7 +2660,7 @@ class CheckStatusOfPR(buildstep.BuildStep, GitHubMixin, AddToLogMixin):
     flunkOnFailure = False
     haltOnFailure = False
     EMBEDDED_CHECKS = ['ios', 'ios-safer-cpp', 'ios-sim', 'ios-wk2', 'ios-wk2-wpt', 'api-ios', 'vision', 'vision-sim', 'vision-wk2', 'tv', 'tv-sim', 'watch', 'watch-sim']
-    MACOS_CHECKS = ['mac', 'mac-AS-debug', 'api-mac', 'api-mac-debug', 'mac-wk1', 'mac-wk2', 'mac-AS-debug-wk2', 'mac-wk2-stress', 'mac-safer-cpp', 'jsc', 'jsc-debug-arm64']
+    MACOS_CHECKS = ['mac', 'mac-AS-debug', 'api-mac', 'api-mac-debug', 'mac-wk1', 'mac-wk2', 'mac-AS-debug-wk2', 'mac-wk2-stress', 'mac-safer-cpp', 'jsc-x86-64', 'jsc-debug-arm64']
     LINUX_CHECKS = ['gtk', 'gtk-wk2', 'api-gtk', 'wpe', 'gtk3-libwebrtc', 'wpe-wk2', 'api-wpe']
     WINDOWS_CHECKS = ['win']
     EWS_WEBKIT_FAILED = 0
@@ -3381,6 +3381,7 @@ class CompileWebKit(shell.Compile, AddToLogMixin, ShellMixin):
             if CompileJSC.name not in self.name:
                 build_command += ['-hideShellScriptEnvironment']
             build_command += ['WK_VALIDATE_DEPENDENCIES=YES']
+            build_command += ['WK_ENABLE_SLOW_BUILD_VERIFICATION=YES']
             if buildOnly:
                 # For build-only bots, the expectation is that tests will be run on separate machines,
                 # so we need to package debug info as dSYMs. Only generating line tables makes
@@ -4550,6 +4551,85 @@ class RunWebKitTestsInSiteIsolationMode(RunWebKitTestsInStressMode):
 
     def doStepIf(self, step):
         return self.getProperty('modified_tests', False) and self.getProperty('stress_mode_passed', False)
+
+
+class RunWebKitTestsEWSSiteIsolation(RunWebKitTests):
+    name = 'layout-tests-site-isolation'
+
+    @defer.inlineCallbacks
+    def filter_failures_using_results_db(self, failing_tests):
+        self.failing_tests_filtered = failing_tests.copy()
+        identifier = self.getProperty('identifier', None)
+        # Use flavor='site-isolation' without a platform filter so that results from
+        # Apple-Tahoe-Release-WK2-Site-Isolation-Tree-Tests (the closest post-commit queue)
+        # are consulted. Once a mac-sequoia site-isolation post-commit bot exists its
+        # results will automatically be included as well.
+        configuration = {'flavor': 'site-isolation'}
+        style = self.getProperty('configuration', None)
+        if style and style in ['debug', 'release']:
+            configuration['style'] = style
+
+        yield self._addToLog(self.results_db_log_name, f'Checking Results database for failing tests. Identifier: {identifier}, configuration: {configuration}')
+        has_commit = False
+        if failing_tests and identifier:
+            has_commit = yield ResultsDatabase.has_commit(commit=identifier)
+            if not has_commit:
+                yield self._addToLog(self.results_db_log_name, f"'{identifier}' could not be found on the results database, falling back to tip-of-tree\n")
+
+        for test in failing_tests:
+            data = yield ResultsDatabase.is_test_pre_existing_failure(
+                test, configuration=configuration,
+                commit=identifier if has_commit else None,
+            )
+            yield self._addToLog(self.results_db_log_name, f"\n{test}: pass_rate: {data['pass_rate']}, pre-existing-failure={data['is_existing_failure']}\nResponse from results-db: {data['raw_data']}\n{data['logs']}")
+            if data['is_existing_failure']:
+                self.preexisting_failures_in_results_db.append(test)
+                self.failing_tests_filtered.remove(test)
+            else:
+                break
+
+    def evaluateCommand(self, cmd):
+        rc = self.evaluateResult(cmd)
+        previous_build_summary = self.getProperty('build_summary', '')
+        steps_to_add = []
+
+        if SHOULD_FILTER_LOGS is True:
+            steps_to_add = [
+                GenerateS3URL(
+                    f"{self.getProperty('fullPlatform')}-{self.getProperty('archForUpload')}-{self.getProperty('configuration')}-{self.name}",
+                    extension='txt',
+                    additions=f'{self.build.number}',
+                    content_type='text/plain',
+                ), UploadFileToS3(
+                    'logs.txt',
+                    links={self.name: 'Full logs'},
+                    content_type='text/plain',
+                )
+            ]
+
+        if rc == SUCCESS or rc == WARNINGS:
+            message = 'Passed layout tests'
+            self.descriptionDone = message
+            self.build.results = SUCCESS
+            if RunWebKitTestsInStressMode.FAILURE_MSG_IN_STRESS_MODE not in previous_build_summary:
+                self.setProperty('build_summary', message)
+        elif (self.preexisting_failures_in_results_db and len(self.failing_tests_filtered) == 0):
+            message = f"Ignored pre-existing failure: {', '.join(self.preexisting_failures_in_results_db)}"
+            self.descriptionDone = message
+            self.build.results = SUCCESS
+            if RunWebKitTestsInStressMode.FAILURE_MSG_IN_STRESS_MODE not in previous_build_summary:
+                self.setProperty('build_summary', message)
+            steps_to_add += [ArchiveTestResults(), UploadTestResults(), ExtractTestResults()]
+            self.build.addStepsAfterCurrentStep(steps_to_add)
+            return WARNINGS
+        else:
+            steps_to_add += [
+                ArchiveTestResults(),
+                UploadTestResults(),
+                ExtractTestResults(),
+            ]
+        self.build.addStepsAfterCurrentStep(steps_to_add)
+        return rc
 
 
 class ReRunWebKitTests(RunWebKitTests):

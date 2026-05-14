@@ -64,12 +64,14 @@
         run('video.currentTime = 4');
         await waitFor(video, 'seeked');
         testExpectedEqualWithTolerance('video.currentTime', 4, 0.1);
-
-        endTest();
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

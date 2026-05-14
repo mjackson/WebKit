@@ -418,7 +418,7 @@ public:
 
     void updateRemoteWorkerUserAgent(const String& userAgent);
     Ref<WebUserContentControllerProxy> userContentControllerForRemoteWorkers();
-    static void establishRemoteWorkerContextConnectionToNetworkProcess(RemoteWorkerType, WebCore::Site&&, std::optional<WebCore::ProcessIdentifier> requestingProcessIdentifier, std::optional<WebCore::ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, PAL::SessionID, CompletionHandler<void(WebCore::ProcessIdentifier)>&&);
+    static void establishRemoteWorkerContextConnectionToNetworkProcess(RemoteWorkerType, WebCore::Site&&, std::optional<WebCore::ProcessIdentifier> requestingProcessIdentifier, std::optional<WebCore::ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, PAL::SessionID, WebCore::CrossOriginEmbedderPolicyValue, CompletionHandler<void(WebCore::ProcessIdentifier)>&&);
 
 #if PLATFORM(COCOA)
     bool NODELETE processSuppressionEnabled() const;

@@ -210,6 +210,23 @@ set(BUILD_VARIANTS
     "normal"
 )
 
+# Offline assembler arguments shared across settings extractor, offset extractor, and asm.rb.
+set(OFFLINE_ASM_INCLUDE_DIRS "")
+set(OFFLINE_ASM_ARGS "")
+set(OFFLINE_ASM_FORMAT_ARGS "")
+if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    list(APPEND OFFLINE_ASM_FORMAT_ARGS --binary-format=ELF)
+endif ()
+if (MSVC AND NOT ENABLE_C_LOOP)
+    list(APPEND OFFLINE_ASM_FORMAT_ARGS --platform=Windows)
+endif ()
+if (WEBKIT_ADDITIONS_INCLUDE_PATH AND EXISTS "${WEBKIT_ADDITIONS_INCLUDE_PATH}/WebKitAdditions/Additions")
+    list(APPEND OFFLINE_ASM_ARGS "--webkit-additions-path=${WEBKIT_ADDITIONS_INCLUDE_PATH}/WebKitAdditions")
+    if (EXISTS "${WEBKIT_ADDITIONS_INCLUDE_PATH}/WebKitAdditions/Additions/llint")
+        list(APPEND OFFLINE_ASM_INCLUDE_DIRS "-I${WEBKIT_ADDITIONS_INCLUDE_PATH}/WebKitAdditions/Additions/llint/")
+    endif ()
+endif ()
+
 set(LLINT_ASM
     llint/InPlaceInterpreter.asm
     llint/InPlaceInterpreter64.asm
@@ -276,7 +293,11 @@ list(APPEND JavaScriptCore_HEADERS
 if (WTF_CPU_X86_64)
     set(OFFLINE_ASM_BACKEND "X86_64")
 elseif (WTF_CPU_ARM64)
-    set(OFFLINE_ASM_BACKEND "ARM64")
+    if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64e")
+        set(OFFLINE_ASM_BACKEND "ARM64E")
+    else ()
+        set(OFFLINE_ASM_BACKEND "ARM64")
+    endif ()
 elseif (ARM_THUMB2_DETECTED)
     set(OFFLINE_ASM_BACKEND "ARMv7")
 elseif (WTF_CPU_RISCV64)
@@ -306,14 +327,14 @@ add_custom_command(
     OUTPUT ${JavaScriptCore_DERIVED_SOURCES_DIR}/LLIntDesiredSettings.h
     MAIN_DEPENDENCY ${JAVASCRIPTCORE_DIR}/offlineasm/generate_settings_extractor.rb
     DEPENDS ${LLINT_ASM} ${OFFLINE_ASM} ${JavaScriptCore_DERIVED_SOURCES_DIR}/InitBytecodes.asm
-    COMMAND ${Ruby_EXECUTABLE} ${JAVASCRIPTCORE_DIR}/offlineasm/generate_settings_extractor.rb -I${JavaScriptCore_DERIVED_SOURCES_DIR}/ ${JAVASCRIPTCORE_DIR}/llint/LowLevelInterpreter.asm ${JavaScriptCore_DERIVED_SOURCES_DIR}/LLIntDesiredSettings.h ${OFFLINE_ASM_BACKEND}
+    COMMAND ${Ruby_EXECUTABLE} ${JAVASCRIPTCORE_DIR}/offlineasm/generate_settings_extractor.rb -I${JavaScriptCore_DERIVED_SOURCES_DIR}/ ${OFFLINE_ASM_INCLUDE_DIRS} ${JAVASCRIPTCORE_DIR}/llint/LowLevelInterpreter.asm ${JavaScriptCore_DERIVED_SOURCES_DIR}/LLIntDesiredSettings.h ${OFFLINE_ASM_BACKEND} ${OFFLINE_ASM_ARGS}
     VERBATIM)
 
 add_custom_command(
     OUTPUT ${JavaScriptCore_DERIVED_SOURCES_DIR}/LLIntDesiredOffsets.h
     MAIN_DEPENDENCY ${JAVASCRIPTCORE_DIR}/offlineasm/generate_offset_extractor.rb
     DEPENDS LLIntSettingsExtractor ${LLINT_ASM} ${OFFLINE_ASM} ${JavaScriptCore_DERIVED_SOURCES_DIR}/InitBytecodes.asm ${JavaScriptCore_DERIVED_SOURCES_DIR}/AirOpcode.h ${JavaScriptCore_DERIVED_SOURCES_DIR}/WasmOps.h
-    COMMAND ${Ruby_EXECUTABLE} ${JAVASCRIPTCORE_DIR}/offlineasm/generate_offset_extractor.rb -I${JavaScriptCore_DERIVED_SOURCES_DIR}/ ${JAVASCRIPTCORE_DIR}/llint/LowLevelInterpreter.asm $<TARGET_FILE:LLIntSettingsExtractor> ${JavaScriptCore_DERIVED_SOURCES_DIR}/LLIntDesiredOffsets.h ${OFFLINE_ASM_BACKEND} ${BUILD_VARIANTS}
+    COMMAND ${Ruby_EXECUTABLE} ${JAVASCRIPTCORE_DIR}/offlineasm/generate_offset_extractor.rb -I${JavaScriptCore_DERIVED_SOURCES_DIR}/ ${OFFLINE_ASM_INCLUDE_DIRS} ${JAVASCRIPTCORE_DIR}/llint/LowLevelInterpreter.asm $<TARGET_FILE:LLIntSettingsExtractor> ${JavaScriptCore_DERIVED_SOURCES_DIR}/LLIntDesiredOffsets.h ${OFFLINE_ASM_BACKEND} ${BUILD_VARIANTS} ${OFFLINE_ASM_ARGS}
     VERBATIM)
 
 # JSCBuiltins
@@ -368,7 +389,6 @@ set(JavaScriptCore_BUILTINS_SOURCES
     ${JAVASCRIPTCORE_DIR}/builtins/StringPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/TypedArrayConstructor.js
     ${JAVASCRIPTCORE_DIR}/builtins/TypedArrayPrototype.js
-    ${JAVASCRIPTCORE_DIR}/builtins/WebAssembly.js
     ${JAVASCRIPTCORE_DIR}/builtins/WrapForValidIteratorPrototype.js
     ${JAVASCRIPTCORE_DIR}/inspector/InjectedScriptSource.js
 )
@@ -446,7 +466,7 @@ add_custom_command(
     OUTPUT ${JavaScriptCore_DERIVED_SOURCES_DIR}/${LLIntOutput}
     MAIN_DEPENDENCY ${JAVASCRIPTCORE_DIR}/offlineasm/asm.rb
     DEPENDS LLIntOffsetsExtractor ${LLINT_ASM} ${OFFLINE_ASM} ${JavaScriptCore_DERIVED_SOURCES_DIR}/InitBytecodes.asm
-    COMMAND ${CMAKE_COMMAND} -E env CMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID} GCC_OFFLINEASM_SOURCE_MAP=${GCC_OFFLINEASM_SOURCE_MAP} ${Ruby_EXECUTABLE} ${JAVASCRIPTCORE_DIR}/offlineasm/asm.rb -I${JavaScriptCore_DERIVED_SOURCES_DIR}/ ${JAVASCRIPTCORE_DIR}/llint/LowLevelInterpreter.asm $<TARGET_FILE:LLIntOffsetsExtractor> ${JavaScriptCore_DERIVED_SOURCES_DIR}/${LLIntOutput} ${BUILD_VARIANTS} ${OFFLINE_ASM_ARGS}
+    COMMAND ${CMAKE_COMMAND} -E env CMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID} GCC_OFFLINEASM_SOURCE_MAP=${GCC_OFFLINEASM_SOURCE_MAP} ${Ruby_EXECUTABLE} ${JAVASCRIPTCORE_DIR}/offlineasm/asm.rb -I${JavaScriptCore_DERIVED_SOURCES_DIR}/ ${OFFLINE_ASM_INCLUDE_DIRS} ${JAVASCRIPTCORE_DIR}/llint/LowLevelInterpreter.asm $<TARGET_FILE:LLIntOffsetsExtractor> ${JavaScriptCore_DERIVED_SOURCES_DIR}/${LLIntOutput} ${BUILD_VARIANTS} ${OFFLINE_ASM_ARGS} ${OFFLINE_ASM_FORMAT_ARGS}
     COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${JavaScriptCore_DERIVED_SOURCES_DIR}/${LLIntOutput}
     WORKING_DIRECTORY ${JavaScriptCore_DERIVED_SOURCES_DIR}
     VERBATIM)
@@ -908,6 +928,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     heap/WeakHandleOwner.h
     heap/WeakImpl.h
     heap/WeakInlines.h
+    heap/WeakInlinesLight.h
     heap/WeakSet.h
     heap/WeakSetInlines.h
     heap/WriteBarrierSupport.h
@@ -1040,7 +1061,6 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     lol/LOLRegisterAllocator.h
 
     parser/ASTBuilder.h
-    parser/EagerIIFERegistry.h
     parser/Lexer.h
     parser/LexerUnicodeProperties.h
     parser/ModuleAnalyzer.h
@@ -1729,9 +1749,15 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/TemporalPlainDateTime.h
     runtime/TemporalPlainDateTimeConstructor.h
     runtime/TemporalPlainDateTimePrototype.h
+    runtime/TemporalPlainMonthDay.h
+    runtime/TemporalPlainMonthDayConstructor.h
+    runtime/TemporalPlainMonthDayPrototype.h
     runtime/TemporalPlainTime.h
     runtime/TemporalPlainTimeConstructor.h
     runtime/TemporalPlainTimePrototype.h
+    runtime/TemporalPlainYearMonth.h
+    runtime/TemporalPlainYearMonthConstructor.h
+    runtime/TemporalPlainYearMonthPrototype.h
     runtime/TemporalTimeZone.h
     runtime/TemporalTimeZoneConstructor.h
     runtime/TemporalTimeZonePrototype.h
@@ -1792,6 +1818,15 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/WrapForValidIteratorPrototypeInlines.h
     runtime/WriteBarrier.h
     runtime/WriteBarrierInlines.h
+
+    runtime/temporal/core/CalendarArithmetic.h
+    runtime/temporal/core/CalendarICUBridge.h
+    runtime/temporal/core/ISOArithmetic.h
+    runtime/temporal/core/InstantCore.h
+    runtime/temporal/core/Rounding.h
+    runtime/temporal/core/TemporalCoreTypes.h
+    runtime/temporal/core/TemporalEnums.h
+    runtime/temporal/core/TimeZoneICUBridge.h
 
     tools/Integrity.h
     tools/IntegrityInlines.h
@@ -1894,6 +1929,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     wasm/js/JSWebAssemblyLinkError.h
     wasm/js/JSWebAssemblyMemory.h
     wasm/js/JSWebAssemblyModule.h
+    wasm/js/JSWebAssemblyStreamingContext.h
     wasm/js/WebAssemblyPromising.h
     wasm/js/WebAssemblySuspending.h
     wasm/js/JSWebAssemblyTable.h
@@ -2259,9 +2295,35 @@ else()
 endif()
 
 WEBKIT_COMPUTE_SOURCES(JavaScriptCore)
+
+# WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX moves jit/dfg/ftl/bytecode/... sources
+# into a separate JavaScriptCoreJIT object library and propagates the objects
+# back to consumers through INTERFACE link properties. That works for cmake
+# targets (jsc, testapi) but not for embedders that link libJavaScriptCore.a
+# directly: the JIT objects never make it into the archive, leaving the
+# archive's own pch-codegen object referencing undefined operationCall*
+# symbols. Skip the subtargeting so the JIT sources stay in the archive.
+if(NOT USE_BUN_JSC_ADDITIONS)
+    WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(JavaScriptCore JavaScriptCoreJIT
+        PREFIX JavaScriptCoreJITPrefix.h
+        PREFIX_LANGUAGES CXX
+        DIRS jit dfg ftl bytecode bytecompiler llint lol tools)
+endif()
+
 WEBKIT_FRAMEWORK(JavaScriptCore)
 
-ADD_WEBKIT_PREFIX_HEADERS(JavaScriptCore JavaScriptCorePrefix.h)
+if (USE_BUN_JSC_ADDITIONS)
+    # Without the JavaScriptCoreJIT subtarget there is no second translation
+    # unit guaranteed to emit the inline functions that the pch-codegen stub
+    # object externalizes. Headers like DeferredWorkTimer.h declare inline
+    # methods whose bodies live in *Inlines.h files that the prefix header
+    # does not pull in, so the stub references them as external and nothing
+    # in libJavaScriptCore.a defines them. Disable -fpch-codegen and let each
+    # TU emit its own copy as usual.
+    WEBKIT_ADD_PREFIX_HEADER(JavaScriptCore JavaScriptCorePrefix.h PREFIX_NO_CODEGEN PREFIX_LANGUAGES CXX)
+else ()
+    WEBKIT_ADD_PREFIX_HEADER(JavaScriptCore JavaScriptCorePrefix.h PREFIX_LANGUAGES CXX)
+endif ()
 
 if(NOT "${PORT}" STREQUAL "Mac")
     if(${JavaScriptCore_LIBRARY_TYPE} STREQUAL "SHARED")

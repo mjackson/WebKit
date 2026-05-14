@@ -110,7 +110,8 @@ private:
     PlatformXR::FrameData populateFrameData(Box<RenderState>);
     void beginFrame(Box<RenderState>);
     void endFrame(Box<RenderState>, Vector<PlatformXR::DeviceLayer>&&);
-    void renderLoop(Box<RenderState>);
+    void maybeBeginFrame(Box<RenderState>);
+    void waitForSessionReady(Box<RenderState>, Function<void()>&&);
     XrEnvironmentBlendMode blendModeForSessionMode(Box<RenderState>) const;
 
     XRDeviceIdentifier m_deviceIdentifier { XRDeviceIdentifier::generate() };

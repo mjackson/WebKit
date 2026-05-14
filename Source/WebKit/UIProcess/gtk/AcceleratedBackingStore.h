@@ -28,7 +28,7 @@
 #include "FenceMonitor.h"
 #include "MessageReceiver.h"
 #include "RendererBufferDescription.h"
-#include <WebCore/DMABufBufferAttributes.h>
+#include <WebCore/DMABufBuffer.h>
 #include <WebCore/IntRect.h>
 #include <WebCore/IntSize.h>
 #include <WebCore/RefPtrCairo.h>
@@ -44,7 +44,6 @@
 typedef void *EGLImage;
 
 #if USE(GBM)
-#include <WebCore/DMABufBuffer.h>
 struct gbm_bo;
 #endif
 

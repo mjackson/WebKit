@@ -36,13 +36,9 @@
 #include <WebCore/PaintPhase.h>
 #include <WebCore/RenderPtr.h>
 #include <WebCore/SimpleRange.h>
-#include <memory>
-#include <wtf/Forward.h>
 #include <wtf/Function.h>
 #include <wtf/HashSet.h>
 #include <wtf/ListHashSet.h>
-#include <wtf/OptionSet.h>
-#include <wtf/Platform.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakHashSet.h>
 #include <wtf/WeakRef.h>
@@ -69,6 +65,7 @@ class RenderEmbeddedObject;
 class RenderLayer;
 class RenderLayerModelObject;
 class RenderObject;
+class RenderReplaced;
 class RenderScrollbarPart;
 class RenderStyle;
 class RenderView;
@@ -582,7 +579,7 @@ public:
 
     bool NODELETE shouldSuspendScrollAnimations() const final;
 
-    RenderBox* embeddedContentBox() const;
+    RenderReplaced* embeddedSVGRoot() const;
     
     WEBCORE_EXPORT void setTracksRepaints(bool);
     bool isTrackingRepaints() const { return m_isTrackingRepaints; }

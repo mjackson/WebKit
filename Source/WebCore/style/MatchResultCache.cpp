@@ -46,6 +46,7 @@ namespace Style {
 
 struct OriginalInlineProperty {
     CSSPropertyID propertyID;
+    bool wasImportant { false };
     RefPtr<const CSSValue> valueIfUnchanged;
 };
 
@@ -62,6 +63,7 @@ struct MatchResultCache::Entry : CanMakeCheckedPtr<MatchResultCache::Entry> {
         for (auto property : inlineStyle) {
             originalInlineProperties.append({
                 .propertyID = property.id(),
+                .wasImportant = property.isImportant(),
                 .valueIfUnchanged = property.value()
             });
         }
@@ -119,10 +121,11 @@ PropertyCascade::IncludedProperties MatchResultCache::computeAndUpdateChangedPro
 
         ASSERT(originalProperties[index].propertyID == propertyID);
 
-        if (originalProperties[index].valueIfUnchanged == currentProperty.value())
+        if (originalProperties[index].valueIfUnchanged == currentProperty.value()
+            && originalProperties[index].wasImportant == currentProperty.isImportant())
             continue;
 
-        // Assume that if a value changes ones then it will change more. Don't track changes anymore.
+        // Assume that if a value or priority changes once then it will change more. Don't track changes anymore.
         originalProperties[index].valueIfUnchanged = nullptr;
 
         // FIXME: Support custom properties.

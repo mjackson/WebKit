@@ -215,7 +215,7 @@ void SVGImageElement::addSubresourceAttributeURLs(ListHashSet<URL>& urls) const
 {
     SVGGraphicsElement::addSubresourceAttributeURLs(urls);
 
-    addSubresourceURL(urls, document().completeURL(href()));
+    addSubresourceURL(urls, document().encodingParseURL(href()));
 }
 
 void SVGImageElement::didMoveToNewDocument(Document& oldDocument, Document& newDocument)

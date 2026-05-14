@@ -51,7 +51,11 @@ TEST(WebKit, FontdSandboxCheck)
 
     [webView _switchFromStaticFontRegistryToUserFontRegistry];
 
+#if ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
+    ASSERT_FALSE(sandboxAccess());
+#else
     ASSERT_TRUE(sandboxAccess());
+#endif
 }
 
 TEST(WebKit, UserInstalledFontsWork)

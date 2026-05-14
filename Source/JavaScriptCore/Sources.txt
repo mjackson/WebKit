@@ -714,7 +714,6 @@ llint/LLIntExceptions.cpp
 llint/LLIntSlowPaths.cpp
 llint/LLIntThunks.cpp
 
-parser/EagerIIFERegistry.cpp
 parser/Lexer.cpp
 parser/LexerUnicodeProperties.cpp
 parser/ModuleAnalyzer.cpp
@@ -1153,6 +1152,13 @@ runtime/WeakSetPrototype.cpp
 runtime/WideningNumberPredictionFuzzerAgent.cpp
 runtime/WrapForValidIteratorPrototype.cpp
 
+runtime/temporal/core/CalendarArithmetic.cpp
+runtime/temporal/core/CalendarICUBridge.cpp
+runtime/temporal/core/InstantCore.cpp
+runtime/temporal/core/ISOArithmetic.cpp
+runtime/temporal/core/Rounding.cpp
+runtime/temporal/core/TimeZoneICUBridge.cpp
+
 tools/CellList.cpp
 tools/CharacterPropertyDataGenerator.cpp
 tools/CompilerTimingScope.cpp
@@ -1232,6 +1238,7 @@ wasm/js/JSWebAssemblyInstance.cpp
 wasm/js/JSWebAssemblyLinkError.cpp
 wasm/js/JSWebAssemblyMemory.cpp
 wasm/js/JSWebAssemblyModule.cpp
+wasm/js/JSWebAssemblyStreamingContext.cpp
 wasm/js/WebAssemblyPromising.cpp
 wasm/js/JSWebAssemblyRuntimeError.cpp
 wasm/js/JSWebAssemblySuspendError.cpp

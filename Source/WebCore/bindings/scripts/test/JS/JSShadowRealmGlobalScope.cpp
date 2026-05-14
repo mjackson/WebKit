@@ -62,8 +62,8 @@ using JSShadowRealmGlobalScopeDOMConstructor = JSDOMConstructorNotConstructable<
 /* Hash table */
 
 static const struct CompactHashIndex JSShadowRealmGlobalScopeTableIndex[2] = {
-    { 0, -1 },
     { -1, -1 },
+    { 0, -1 },
 };
 
 

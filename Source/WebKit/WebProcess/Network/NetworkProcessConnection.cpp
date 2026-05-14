@@ -42,6 +42,7 @@
 #include "WebIDBConnectionToServer.h"
 #include "WebIDBConnectionToServerMessages.h"
 #include "WebLoaderStrategy.h"
+#include "WebMessagePortChannelProvider.h"
 #include "WebPage.h"
 #include "WebPageMessages.h"
 #include "WebPaymentCoordinator.h"
@@ -339,6 +340,11 @@ WebSharedWorkerObjectConnection& NetworkProcessConnection::sharedWorkerConnectio
 void NetworkProcessConnection::messagesAvailableForPort(const WebCore::MessagePortIdentifier& messagePortIdentifier)
 {
     WebProcess::singleton().messagesAvailableForPort(messagePortIdentifier);
+}
+
+void NetworkProcessConnection::dropNonSerializableInProcessCache(WebCore::NonSerializedDataIdentifier identifier)
+{
+    WebMessagePortChannelProvider::singleton().dropNonSerializableInProcessCache(identifier);
 }
 
 void NetworkProcessConnection::broadcastConsoleMessage(MessageSource source, MessageLevel level, const String& message)

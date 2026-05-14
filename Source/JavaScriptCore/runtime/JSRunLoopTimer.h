@@ -31,7 +31,6 @@
 #include <wtf/HashSet.h>
 #include <wtf/Lock.h>
 #include <wtf/RefPtr.h>
-#include <wtf/RetainPtr.h>
 #include <wtf/RunLoop.h>
 #include <wtf/SharedTask.h>
 #include <wtf/TZoneMalloc.h>

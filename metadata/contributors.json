@@ -2643,7 +2643,7 @@
       "nicks" : [
          "dmazzoni"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -5254,12 +5254,13 @@
          "tho22@apple.com",
          "tuankiet65@gmail.com"
       ],
+      "expertise" : "CSS, Style resolution",
       "github" : "tuankiet65",
       "name" : "Kiet Ho",
       "nicks" : [
          "tuankiet65"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [

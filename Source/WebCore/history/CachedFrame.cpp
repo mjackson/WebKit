@@ -26,6 +26,7 @@
 #include "config.h"
 #include "CachedFrame.h"
 
+#include "ActiveDOMObject.h"
 #include "BackForwardCache.h"
 #include "CachedFramePlatformData.h"
 #include "CachedPage.h"
@@ -252,6 +253,10 @@ void CachedFrame::open()
 
 void CachedFrame::clear()
 {
+    // Always clear children, even for RemoteFrame-backed CachedFrames.
+    for (int i = m_childFrames.size() - 1; i >= 0; --i)
+        m_childFrames[i]->clear();
+
     if (!m_document)
         return;
 
@@ -263,9 +268,6 @@ void CachedFrame::clear()
     ASSERT(m_view);
     ASSERT(!m_document->frame() || m_document->frame() == &m_view->frame());
 
-    for (int i = m_childFrames.size() - 1; i >= 0; --i)
-        m_childFrames[i]->clear();
-
     m_document = nullptr;
     m_view = nullptr;
     m_url = URL();
@@ -276,6 +278,11 @@ void CachedFrame::clear()
 
 void CachedFrame::destroy()
 {
+    // Always destroy children first, even for RemoteFrame-backed CachedFrames
+    // whose m_document is null. Children may be LocalFrames with documents.
+    for (int i = m_childFrames.size() - 1; i >= 0; --i)
+        m_childFrames[i]->destroy();
+
     RefPtr document = m_document;
     if (!document)
         return;
@@ -294,9 +301,6 @@ void CachedFrame::destroy()
             localFrame->loader().detachViewsAndDocumentLoader();
         frame->detachFromPage();
     }
-    
-    for (int i = m_childFrames.size() - 1; i >= 0; --i)
-        m_childFrames[i]->destroy();
 
     if (m_cachedFramePlatformData)
         m_cachedFramePlatformData->clear();

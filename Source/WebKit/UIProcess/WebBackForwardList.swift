@@ -622,7 +622,7 @@ final class WebBackForwardList {
         }
 
         for (i, entry) in entries.enumerated() {
-            if filterSpecified(filter) && !callFilter(filter, entry) {
+            if filter.pointee.__convertToBool() && !filter.pointee(entry) {
                 if let stateCurrentIndex = Optional(fromCxx: backForwardListState.currentIndex) {
                     if i <= stateCurrentIndex && stateCurrentIndex != 0 {
                         setOptionalUInt32Value(&backForwardListState.currentIndex, stateCurrentIndex - 1)
@@ -666,7 +666,7 @@ final class WebBackForwardList {
     }
 
     func setItemsAsRestoredFromSessionIf(functor: WebBackForwardListItemFilter) {
-        for entry in entries where callFilter(functor, entry) {
+        for entry in entries where functor.pointee(entry) {
             entry.setWasRestoredFromSession()
         }
     }
@@ -1052,7 +1052,7 @@ final class WebBackForwardList {
         // value. Since the load is really going on in a new provisional process, we want to ignore such requests from the committed process.
         // Any real new load in the committed process would have cleared m_provisionalPage.
         if let webPageProxy = page.get(), webPageProxy.hasProvisionalPage() {
-            callCompletionHandler(completionHandler, consuming: counts())
+            completionHandler.pointee(consuming: counts())
             return
         }
 
@@ -1063,7 +1063,7 @@ final class WebBackForwardList {
         itemID: WebCore.BackForwardItemIdentifier,
         completionHandler: CompletionHandlers.WebBackForwardList.BackForwardListContainsItemCompletionHandler
     ) {
-        callCompletionHandler(completionHandler, itemForID(identifier: itemID) != nil)
+        completionHandler.pointee(itemForID(identifier: itemID) != nil)
     }
 
     func backForwardGoToItemShared(
@@ -1073,7 +1073,7 @@ final class WebBackForwardList {
         if let webPageProxy = page.get() {
             if messageCheckCompletion(
                 process: WebKit.RefWebProcessProxy(webPageProxy.legacyMainFrameProcess()),
-                completionHandler: { callCompletionHandler(completionHandler, consuming: counts()) },
+                completionHandler: { completionHandler.pointee(consuming: counts()) },
                 !WebKit.isInspectorPage(webPageProxy)
             ) {
                 return
@@ -1084,7 +1084,7 @@ final class WebBackForwardList {
             goToItem(item: item)
         }
 
-        callCompletionHandler(completionHandler, consuming: counts())
+        completionHandler.pointee(consuming: counts())
     }
 
     func backForwardAllItems(
@@ -1097,7 +1097,7 @@ final class WebBackForwardList {
                 frameStates.append(frameItem.copyFrameStateWithChildren().ptr())
             }
         }
-        callCompletionHandler(completionHandler, consuming: WebKit.VectorRefFrameState(array: frameStates))
+        completionHandler.pointee(consuming: WebKit.VectorRefFrameState(array: frameStates))
     }
 
     func backForwardItemAtIndexForWebContent(
@@ -1108,18 +1108,18 @@ final class WebBackForwardList {
         // FIXME: This should verify that the web process requesting the item hosts the specified frame.
         let delta = Int(delta)
         guard let item = itemAtDeltaFromCurrentIndex(delta: delta, allowSkipping: false) else {
-            callCompletionHandler(completionHandler, consuming: WebKit.RefPtrFrameState())
+            completionHandler.pointee(consuming: WebKit.RefPtrFrameState())
             return
         }
         guard let frameItem = item.mainFrameItem().childItemForFrameID(frameID) else {
-            callCompletionHandler(completionHandler, consuming: WebKit.RefPtrFrameState(item.copyMainFrameStateWithChildren().ptr()))
+            completionHandler.pointee(consuming: WebKit.RefPtrFrameState(item.copyMainFrameStateWithChildren().ptr()))
             return
         }
-        callCompletionHandler(completionHandler, consuming: WebKit.RefPtrFrameState(frameItem.copyFrameStateWithChildren().ptr()))
+        completionHandler.pointee(consuming: WebKit.RefPtrFrameState(frameItem.copyFrameStateWithChildren().ptr()))
     }
 
     func backForwardListCounts(completionHandler: CompletionHandlers.WebBackForwardList.BackForwardListCountsCompletionHandler) {
-        callCompletionHandler(completionHandler, consuming: counts())
+        completionHandler.pointee(consuming: counts())
     }
 }
 

@@ -92,6 +92,9 @@ static bool urlRequiresFirefoxBrowser(const String& domain)
 #if ENABLE(THUNDER)
     if (domain == "www.netflix.com"_s)
         return true;
+
+    if (domain == "www.disneyplus.com"_s)
+        return true;
 #endif
 
     return false;

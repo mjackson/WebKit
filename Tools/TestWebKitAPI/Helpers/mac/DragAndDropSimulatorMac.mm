@@ -452,6 +452,20 @@ static BOOL getFilePathsAndTypeIdentifiers(NSArray<NSURL *> *fileURLs, NSArray<N
     [_externalDragPasteboard setPropertyList:names forType:NSFilenamesPboardType];
 }
 
+- (void)writePromisedFilesWithWebArchive:(NSArray<NSURL *> *)fileURLs
+{
+    NSArray *paths = nil;
+    NSArray *types = nil;
+    if (!getFilePathsAndTypeIdentifiers(fileURLs, &paths, &types))
+        return;
+
+    _externalPromisedFiles = fileURLs;
+    _externalDragPasteboard = [NSPasteboard pasteboardWithUniqueName];
+    [_externalDragPasteboard declareTypes:@[NSFilesPromisePboardType, @"Apple Web Archive pasteboard type"] owner:nil];
+    [_externalDragPasteboard setPropertyList:types forType:NSFilesPromisePboardType];
+    [_externalDragPasteboard setData:[NSData data] forType:@"Apple Web Archive pasteboard type"];
+}
+
 - (void)writeFiles:(NSArray<NSURL *> *)fileURLs
 {
     NSArray *paths = nil;

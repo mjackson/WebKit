@@ -373,6 +373,18 @@ std::optional<Vector<ServiceWorkerContextData>> SWRegistrationDatabase::importRe
 
 std::optional<Vector<ServiceWorkerContextData>> SWRegistrationDatabase::importRegistrations(const SecurityOriginData& topOrigin)
 {
+    auto result = importRegistrationsImpl(topOrigin);
+    if (result && result->isEmpty() && m_database) {
+        // No registrations for this origin; clean up the database file if it has no records for any origin.
+        if (auto count = recordsCount(); count && !count.value())
+            deleteAllFiles();
+    }
+
+    return result;
+}
+
+std::optional<Vector<ServiceWorkerContextData>> SWRegistrationDatabase::importRegistrationsImpl(const SecurityOriginData& topOrigin)
+{
     if (!prepareDatabase(ShouldCreateIfNotExists::No))
         return std::nullopt;
 
@@ -393,14 +405,7 @@ std::optional<Vector<ServiceWorkerContextData>> SWRegistrationDatabase::importRe
         return std::nullopt;
     }
 
-    auto result = collectRegistrationsFromStatement(*statement);
-    if (result.isEmpty()) {
-        // No registrations for this origin; clean up the database file if it has no records for any origin.
-        if (auto count = recordsCount(); count && !count.value())
-            deleteAllFiles();
-    }
-
-    return result;
+    return collectRegistrationsFromStatement(*statement);
 }
 
 Vector<ServiceWorkerContextData> SWRegistrationDatabase::collectRegistrationsFromStatement(SQLiteStatement& statement)
@@ -522,6 +527,17 @@ Vector<ServiceWorkerContextData> SWRegistrationDatabase::collectRegistrationsFro
 
 std::optional<HashSet<ClientOrigin>> SWRegistrationDatabase::importOrigins()
 {
+    auto result = importOriginsImpl();
+
+    // Clean up the database file if it exists but contains no registrations.
+    if (result && result->isEmpty() && m_database)
+        deleteAllFiles();
+
+    return result;
+}
+
+std::optional<HashSet<ClientOrigin>> SWRegistrationDatabase::importOriginsImpl()
+{
     if (!prepareDatabase(ShouldCreateIfNotExists::No))
         return std::nullopt;
 
@@ -549,10 +565,6 @@ std::optional<HashSet<ClientOrigin>> SWRegistrationDatabase::importOrigins()
 
     if (result != SQLITE_DONE)
         RELEASE_LOG_ERROR(Storage, "SWRegistrationDatabase::importOrigins failed on executing statement (%d) - %s", m_database->lastError(), m_database->lastErrorMsg());
-
-    // Clean up the database file if it exists but contains no registrations.
-    if (origins.isEmpty())
-        deleteAllFiles();
 
     return origins;
 }

@@ -1239,11 +1239,6 @@ void JSObject::notifyPresenceOfIndexedAccessors(VM& vm)
     globalObject->haveABadTime(vm);
 }
 
-static inline size_t NODELETE nextLength(size_t length)
-{
-    return length + length / 2;
-}
-
 Butterfly* JSObject::createInitialIndexedStorage(VM& vm, unsigned length)
 {
     ASSERT(length <= MAX_STORAGE_VECTOR_LENGTH);

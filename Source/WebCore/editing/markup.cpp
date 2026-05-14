@@ -1112,7 +1112,7 @@ static RefPtr<Node> highestAncestorToWrapMarkup(const Position& start, const Pos
             specialCommonAncestor = WTF::move(highestMailBlockquote);
     }
 
-    RefPtr checkAncestor = specialCommonAncestor ? specialCommonAncestor : RefPtr { &commonAncestor };
+    RefPtr checkAncestor = specialCommonAncestor ? specialCommonAncestor : protect(commonAncestor);
     if (checkAncestor->renderer() && checkAncestor->renderer()->containingBlock()) {
         RefPtr newSpecialCommonAncestor = highestEnclosingNodeOfType(firstPositionInNode(*checkAncestor), &isElementPresentational, CanCrossEditingBoundary, protect(checkAncestor->renderer()->containingBlock()->element()).get());
         if (newSpecialCommonAncestor)

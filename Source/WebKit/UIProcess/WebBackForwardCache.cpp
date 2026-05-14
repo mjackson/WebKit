@@ -108,6 +108,15 @@ void WebBackForwardCache::addEntry(WebBackForwardListItem& item, Ref<WebBackForw
 void WebBackForwardCache::addEntry(WebBackForwardListItem& item, Ref<SuspendedPageProxy>&& suspendedPage)
 {
     auto coreProcessIdentifier = suspendedPage->process().coreProcessIdentifier();
+
+    // Share the SuspendedPageProxy with existing entries in the same process.
+    // When a process is suspended, ALL items cached in that process need access
+    // to the SuspendedPageProxy to unsuspend it during back/forward navigation.
+    for (RefPtr otherItem : m_itemsWithCachedPage) {
+        if (RefPtr entry = otherItem->backForwardCacheEntryForProcess(coreProcessIdentifier); entry && !entry->suspendedPage())
+            entry->setSuspendedPage(suspendedPage.copyRef());
+    }
+
     addEntry(item, WebBackForwardCacheEntry::create(*this, item.identifier(), item.mainFrameItem().identifier(), coreProcessIdentifier, WTF::move(suspendedPage)));
 }
 
@@ -137,7 +146,20 @@ Ref<SuspendedPageProxy> WebBackForwardCache::takeSuspendedPage(WebBackForwardLis
 
     ASSERT(m_itemsWithCachedPage.contains(item));
     ASSERT(item.backForwardCacheEntry());
+
+    auto processIdentifier = item.backForwardCacheEntry()->processIdentifier();
     Ref suspendedPage = protect(item.backForwardCacheEntry())->takeSuspendedPage();
+
+    // Clear SuspendedPageProxy from other entries in the same process.
+    // The process is about to be unsuspended, so these entries become
+    // regular in-process BFCache entries.
+    for (RefPtr otherItem : m_itemsWithCachedPage) {
+        if (otherItem.get() == &item)
+            continue;
+        if (RefPtr entry = otherItem->backForwardCacheEntryForProcess(processIdentifier); entry && entry->suspendedPage())
+            entry->clearSuspendedPage();
+    }
+
     removeEntry(item);
     return suspendedPage;
 }

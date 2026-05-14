@@ -2380,6 +2380,21 @@ Reviewed by NOBODY (OOPS!).
             pr = remote.GitHub(self.remote).pull_requests.get(1)
             self.assertEqual(pr.title, 'New Title')
 
+    def test_update_head_mismatch(self):
+        with self.webserver():
+            pr = remote.GitHub(self.remote).pull_requests.get(1)
+            self.assertEqual(pr.head, 'eng/pull-request')
+            with self.assertRaises(ValueError):
+                pr.generator.update(pr, head='eng/different-branch', title='New Title')
+
+    def test_update_same_head(self):
+        with self.webserver():
+            pr = remote.GitHub(self.remote).pull_requests.get(1)
+            self.assertEqual(pr.head, 'eng/pull-request')
+            pr.generator.update(pr, head='eng/pull-request', title='New Title')
+            pr = remote.GitHub(self.remote).pull_requests.get(1)
+            self.assertEqual(pr.title, 'New Title')
+
     def test_reviewers(self):
         with self.webserver():
             pr = remote.GitHub(self.remote).pull_requests.get(1)

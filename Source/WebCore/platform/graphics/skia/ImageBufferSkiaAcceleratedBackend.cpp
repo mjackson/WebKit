@@ -108,6 +108,11 @@ std::unique_ptr<ImageBufferSkiaAcceleratedBackend> ImageBufferSkiaAcceleratedBac
     if (parameters.purpose != RenderingPurpose::Canvas && !ProcessCapabilities::canUseAcceleratedBuffers())
         return nullptr;
 
+#if !PLATFORM(WIN)
+    if (!PlatformDisplay::sharedDisplayIfExists())
+        return nullptr;
+#endif
+
     auto* glContext = PlatformDisplay::sharedDisplay().skiaGLContext();
     if (!glContext || !glContext->makeContextCurrent())
         return nullptr;

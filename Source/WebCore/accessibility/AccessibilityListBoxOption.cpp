@@ -59,6 +59,18 @@ AccessibilityListBoxOption::AccessibilityListBoxOption(AXID axID, HTMLElement& e
 
 AccessibilityListBoxOption::~AccessibilityListBoxOption() = default;
 
+AccessibilityRole AccessibilityListBoxOption::determineAccessibilityRole()
+{
+    // Base-appearance select options live inside a popover and behave as menu
+    // items (activate to select and close), not listbox options (toggle selection
+    // in an always-visible list).
+    if (RefPtr option = dynamicDowncast<HTMLOptionElement>(m_node.get())) {
+        if (RefPtr select = option->ownerSelectElement(); select && select->usesBaseAppearancePicker())
+            return AccessibilityRole::MenuItem;
+    }
+    return AccessibilityRole::ListBoxOption;
+}
+
 Ref<AccessibilityListBoxOption> AccessibilityListBoxOption::create(AXID axID, HTMLElement& element, AXObjectCache& cache)
 {
     if (CheckedPtr renderer = element.renderer())

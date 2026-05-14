@@ -35,6 +35,7 @@
 #include "RendererBufferTransportMode.h"
 #include "WebPageProxy.h"
 #include "WebProcessProxy.h"
+#include <WebCore/DMABufBuffer.h>
 #include <WebCore/GLContext.h>
 #include <WebCore/IntRect.h>
 #include <WebCore/NativeImage.h>
@@ -52,7 +53,6 @@
 #endif
 
 #if USE(GBM)
-#include <WebCore/DMABufBuffer.h>
 #include <WebCore/DRMDeviceManager.h>
 #include <WebCore/GBMDevice.h>
 #include <gbm.h>
@@ -799,7 +799,7 @@ void AcceleratedBackingStore::update(const LayerTreeContext& context)
     m_surfaceID = context.contextID;
     if (m_surfaceID && m_webPage) {
         m_legacyMainFrameProcess = m_webPage->legacyMainFrameProcess();
-        Ref { *m_legacyMainFrameProcess }->addMessageReceiver(Messages::AcceleratedBackingStore::messageReceiverName(), m_surfaceID, *this);
+        protect(*m_legacyMainFrameProcess)->addMessageReceiver(Messages::AcceleratedBackingStore::messageReceiverName(), m_surfaceID, *this);
     }
 }
 

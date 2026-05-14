@@ -43,6 +43,10 @@ struct UDateIntervalFormatDeleter {
     JS_EXPORT_PRIVATE void operator()(UDateIntervalFormat*);
 };
 
+using UDateFormatDeleter = ICUDeleter<udat_close>;
+
+class IntlDateTimeFormatImpl;
+
 class IntlDateTimeFormat final : public JSNonFinalObject {
 public:
     using Base = JSNonFinalObject;
@@ -69,6 +73,8 @@ public:
 
     enum class RequiredComponent : uint8_t { Date, Time, Any };
     enum class Defaults : uint8_t { Date, Time, All };
+    enum class HourCycle : uint8_t { None, H11, H12, H23, H24 };
+
     void initializeDateTimeFormat(JSGlobalObject*, JSValue locales, JSValue options, RequiredComponent, Defaults);
     JSValue format(JSGlobalObject*, double value) const;
     JSValue formatToParts(JSGlobalObject*, double value, JSString* sourceType = nullptr) const;
@@ -81,10 +87,14 @@ public:
 
     static IntlDateTimeFormat* unwrapForOldFunctions(JSGlobalObject*, JSValue);
 
-    enum class HourCycle : uint8_t { None, H11, H12, H23, H24 };
     static HourCycle NODELETE hourCycleFromPattern(const Vector<char16_t, 32>&);
 
+    const IntlDateTimeFormatImpl& impl() const LIFETIME_BOUND { return *m_impl; }
+    void setImpl(Ref<const IntlDateTimeFormatImpl>&& impl) { m_impl = WTF::move(impl); }
+
 private:
+    friend class IntlDateTimeFormatImpl;
+
     IntlDateTimeFormat(VM&, Structure*);
     DECLARE_DEFAULT_FINISH_CREATION;
 
@@ -104,7 +114,7 @@ private:
     enum class TimeZoneName : uint8_t { None, Short, Long, ShortOffset, LongOffset, ShortGeneric, LongGeneric };
     enum class DateTimeStyle : uint8_t { None, Full, Long, Medium, Short };
 
-    void NODELETE setFormatsFromPattern(StringView);
+    static void NODELETE setFormatsFromPattern(IntlDateTimeFormatImpl&, StringView);
     static ASCIILiteral hourCycleString(HourCycle);
     static ASCIILiteral weekdayString(Weekday);
     static ASCIILiteral eraString(Era);
@@ -124,11 +134,16 @@ private:
     static void NODELETE replaceHourCycleInPattern(Vector<char16_t, 32>&, HourCycle);
     static String buildSkeleton(Weekday, Era, Year, Month, Day, TriState, HourCycle, Hour, DayPeriod, Minute, Second, unsigned, TimeZoneName);
 
-    using UDateFormatDeleter = ICUDeleter<udat_close>;
-
     WriteBarrier<JSBoundFunction> m_boundFormat;
-    std::unique_ptr<UDateFormat, UDateFormatDeleter> m_dateFormat;
     std::unique_ptr<UDateIntervalFormat, UDateIntervalFormatDeleter> m_dateIntervalFormat;
+    RefPtr<const IntlDateTimeFormatImpl> m_impl;
+};
+
+class IntlDateTimeFormatImpl : public RefCounted<IntlDateTimeFormatImpl> {
+    WTF_MAKE_TZONE_ALLOCATED(IntlDateTimeFormatImpl);
+    WTF_MAKE_NONCOPYABLE(IntlDateTimeFormatImpl);
+public:
+    static Ref<IntlDateTimeFormatImpl> create() { return adoptRef(*new IntlDateTimeFormatImpl); }
 
     String m_locale;
     String m_dataLocale;
@@ -141,20 +156,24 @@ private:
     // this is the canonical "+HH:MM" form. m_timeZone holds the canonicalized
     // primary used for ICU formatting.
     String m_timeZoneForResolvedOptions;
-    HourCycle m_hourCycle { HourCycle::None };
-    Weekday m_weekday { Weekday::None };
-    Era m_era { Era::None };
-    Year m_year { Year::None };
-    Month m_month { Month::None };
-    Day m_day { Day::None };
-    DayPeriod m_dayPeriod { DayPeriod::None };
-    Hour m_hour { Hour::None };
-    Minute m_minute { Minute::None };
-    Second m_second { Second::None };
+    IntlDateTimeFormat::HourCycle m_hourCycle { IntlDateTimeFormat::HourCycle::None };
+    IntlDateTimeFormat::Weekday m_weekday { IntlDateTimeFormat::Weekday::None };
+    IntlDateTimeFormat::Era m_era { IntlDateTimeFormat::Era::None };
+    IntlDateTimeFormat::Year m_year { IntlDateTimeFormat::Year::None };
+    IntlDateTimeFormat::Month m_month { IntlDateTimeFormat::Month::None };
+    IntlDateTimeFormat::Day m_day { IntlDateTimeFormat::Day::None };
+    IntlDateTimeFormat::DayPeriod m_dayPeriod { IntlDateTimeFormat::DayPeriod::None };
+    IntlDateTimeFormat::Hour m_hour { IntlDateTimeFormat::Hour::None };
+    IntlDateTimeFormat::Minute m_minute { IntlDateTimeFormat::Minute::None };
+    IntlDateTimeFormat::Second m_second { IntlDateTimeFormat::Second::None };
     uint8_t m_fractionalSecondDigits { 0 };
-    TimeZoneName m_timeZoneName { TimeZoneName::None };
-    DateTimeStyle m_dateStyle { DateTimeStyle::None };
-    DateTimeStyle m_timeStyle { DateTimeStyle::None };
+    IntlDateTimeFormat::TimeZoneName m_timeZoneName { IntlDateTimeFormat::TimeZoneName::None };
+    IntlDateTimeFormat::DateTimeStyle m_dateStyle { IntlDateTimeFormat::DateTimeStyle::None };
+    IntlDateTimeFormat::DateTimeStyle m_timeStyle { IntlDateTimeFormat::DateTimeStyle::None };
+    std::unique_ptr<UDateFormat, UDateFormatDeleter> m_dateFormat;
+
+private:
+    IntlDateTimeFormatImpl() = default;
 };
 
 } // namespace JSC

@@ -37,6 +37,7 @@ public:
     static Ref<HTMLOptGroupElement> create(const QualifiedName&, Document&);
 
     bool isDisabledFormControl() const final;
+    bool isActuallyDisabled() const final;
     WEBCORE_EXPORT HTMLSelectElement* NODELETE ownerSelectElement() const;
     
     WEBCORE_EXPORT String groupLabelText() const;

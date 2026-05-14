@@ -250,6 +250,11 @@
                 "url": "https://webidl.spec.whatwg.org/#Exposed"
             }
         },
+        "ExposedEnabledBySetting": {
+            "contextsAllowed": ["interface"],
+            "values": ["*"],
+            "note": "Gates exposure in a specific context behind a runtime setting. Value is Context|SettingName, e.g., ExposedEnabledBySetting=SharedWorker|WorkerInSharedWorkerEnabled"
+        },
         "GenerateAddOpaqueRoot": {
             "contextsAllowed": ["interface"],
             "values": ["*"]

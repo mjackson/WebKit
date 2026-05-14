@@ -2561,6 +2561,10 @@ void WebPage::updateFocusBeforeSelectingTextAtLocation(const IntPoint& point)
 #if ENABLE(PDF_PLUGIN)
     if (RefPtr pluginView = pluginViewForFrame(frame.get()))
         pluginView->focusPluginElement();
+    else if (RefPtr pluginElement = dynamicDowncast<HTMLPlugInElement>(hitNode.get())) {
+        if (RefPtr pluginView = dynamicDowncast<PluginView>(pluginElement->pluginWidget()))
+            pluginView->focusPluginElement();
+    }
 #endif
 }
 

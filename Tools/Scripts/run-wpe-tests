@@ -21,9 +21,11 @@ import logging
 import optparse
 import os
 import sys
+
+from webkitpy.port.linux_container_sdk_utils import maybe_enter_webkit_container_sdk, maybe_use_container_sdk_root_dir
+maybe_enter_webkit_container_sdk()
 from webkitpy.results.options import upload_options
 
-from webkitpy.port.linux_container_sdk_utils import maybe_use_container_sdk_root_dir
 maybe_use_container_sdk_root_dir()
 
 top_level_directory = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))

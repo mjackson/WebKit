@@ -642,6 +642,9 @@ const GLContext::GLExtensions& GLContext::glExtensions() const
         m_glExtensions.APPLE_sync = isExtensionSupported(extensionsString, "GL_APPLE_sync");
         m_glExtensions.OES_packed_depth_stencil = isExtensionSupported(extensionsString, "GL_OES_packed_depth_stencil");
         m_glExtensions.EXT_YUV_target = isExtensionSupported(extensionsString, "GL_EXT_YUV_target");
+#if USE(VULKAN)
+        m_glExtensions.EXT_memory_object = isExtensionSupported(extensionsString, "GL_EXT_memory_object");
+#endif
     });
     return m_glExtensions;
 }

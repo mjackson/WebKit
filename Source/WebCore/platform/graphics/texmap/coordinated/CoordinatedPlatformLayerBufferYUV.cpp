@@ -33,6 +33,7 @@
 
 #if USE(SKIA)
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
+#include <skia/core/SkColorSpace.h>
 #include <skia/core/SkImage.h>
 #include <skia/core/SkYUVAInfo.h>
 #include <skia/gpu/ganesh/GrBackendSurface.h>
@@ -161,7 +162,7 @@ void CoordinatedPlatformLayerBufferYUV::paintToTextureMapper(TextureMapper& text
 }
 
 #if USE(SKIA)
-void CoordinatedPlatformLayerBufferYUV::paintToCanvas(SkCanvas& canvas, const FloatRect& targetRect, const SkPaint& paint)
+sk_sp<SkImage> CoordinatedPlatformLayerBufferYUV::skiaImage()
 {
     waitForContentsIfNeeded();
 
@@ -255,7 +256,7 @@ void CoordinatedPlatformLayerBufferYUV::paintToCanvas(SkCanvas& canvas, const Fl
     }
 
     if (planeConfig == SkYUVAInfo::PlaneConfig::kUnknown)
-        return;
+        return nullptr;
 
     SkYUVColorSpace yuvaColorSpace = [&] {
         switch (m_yuvToRgbColorSpace) {
@@ -274,7 +275,7 @@ void CoordinatedPlatformLayerBufferYUV::paintToCanvas(SkCanvas& canvas, const Fl
     SkYUVAInfo info(SkISize::Make(m_size.width(), m_size.height()), planeConfig, subsampling, yuvaColorSpace);
     GrYUVABackendTextures yuvaBackendTextures(info, backendTextures.data(), kTopLeft_GrSurfaceOrigin);
     if (!yuvaBackendTextures.isValid())
-        return;
+        return nullptr;
 
     sk_sp<SkColorSpace> colorSpace = [&] {
         switch (m_transferFunction) {
@@ -287,8 +288,8 @@ void CoordinatedPlatformLayerBufferYUV::paintToCanvas(SkCanvas& canvas, const Fl
     }();
 
     auto* grContext = PlatformDisplay::sharedDisplay().skiaGrContext();
-    auto image = SkImages::TextureFromYUVATextures(grContext, yuvaBackendTextures, colorSpace);
-    canvas.drawImageRect(image, SkRect::MakeWH(m_size.width(), m_size.height()), targetRect, SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNone), &paint, SkCanvas::kFast_SrcRectConstraint);
+    ASSERT(grContext);
+    return SkImages::TextureFromYUVATextures(grContext, yuvaBackendTextures, colorSpace);
 }
 #endif
 

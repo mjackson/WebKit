@@ -101,7 +101,7 @@ void XSLImportRule::loadSheet()
 
     auto options = CachedResourceLoader::defaultCachedResourceOptions();
     options.mode = FetchOptions::Mode::SameOrigin;
-    if (auto result = cachedResourceLoader->requestXSLStyleSheet({ ResourceRequest(protect(cachedResourceLoader->document())->completeURL(absHref)), options }))
+    if (auto result = cachedResourceLoader->requestXSLStyleSheet({ ResourceRequest(protect(cachedResourceLoader->document())->encodingParseURL(absHref)), options }))
         m_cachedSheet = WTF::move(result.value());
     else
         m_cachedSheet = nullptr;

@@ -146,6 +146,7 @@
 #if PLATFORM(IOS_FAMILY)
 #import "AccessibilityUtilitiesSPI.h"
 #import "UIKitSPI.h"
+#import <WebCore/RenderThemeIOS.h>
 #import <wtf/spi/darwin/MemoryStatusSPI.h>
 #endif
 
@@ -235,13 +236,15 @@ void WebProcess::bindAccessibilityFrameWithData(WebCore::FrameIdentifier frameID
 
 id WebProcess::accessibilityFocusedUIElement()
 {
-    auto retrieveFocusedUIElementFromMainThread = [] () {
-        return Accessibility::retrieveAutoreleasedValueFromMainThread<id>([] () -> RetainPtr<id> {
+    auto retrieveFocusedUIElementFromMainThread = [] () -> id {
+        auto result = Accessibility::retrieveValueFromMainThreadWithTimeout([] () -> RetainPtr<id> {
             RefPtr page = WebProcess::singleton().focusedWebPage();
             if (!page || !page->accessibilityRemoteObject())
                 return nil;
             return [protect(page->accessibilityRemoteObject()) accessibilityFocusedUIElement];
-        });
+        }, Accessibility::InteractiveTimeout);
+
+        return result.value ? (*result.value).autorelease() : nil;
     };
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)

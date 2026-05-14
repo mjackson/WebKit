@@ -1,5 +1,4 @@
 Modules/notifications/NotificationPayload.cpp
-Modules/permissions/WorkerNavigatorPermissions.cpp
 Modules/streams/ReadableByteStreamController.cpp
 Modules/streams/ReadableStreamBYOBRequest.cpp
 Modules/webauthn/cbor/CBORValue.cpp

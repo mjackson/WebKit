@@ -2140,7 +2140,7 @@ public:
     }
 
 #if USE(JSVALUE64)
-    void wangsInt64Hash(GPRReg inputAndResult, GPRReg scratch);
+    void rapidHashMix64(GPRReg inputAndResult, GPRReg scratch1, GPRReg scratch2);
 #endif
 
 #if ENABLE(WEBASSEMBLY)

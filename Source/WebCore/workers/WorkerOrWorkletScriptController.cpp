@@ -50,9 +50,11 @@
 #include "WorkerScriptFetcher.h"
 #include <JavaScriptCore/AbstractModuleRecord.h>
 #include <JavaScriptCore/BuiltinNames.h>
+#include <JavaScriptCore/CommonIdentifiers.h>
 #include <JavaScriptCore/Completion.h>
 #include <JavaScriptCore/DeferTermination.h>
 #include <JavaScriptCore/DeferredWorkTimer.h>
+#include <JavaScriptCore/ErrorInstance.h>
 #include <JavaScriptCore/Exception.h>
 #include <JavaScriptCore/ExceptionHelpers.h>
 #include <JavaScriptCore/GCActivityCallback.h>
@@ -237,10 +239,10 @@ void WorkerOrWorkletScriptController::evaluate(const ScriptSourceCode& sourceCod
     }
 }
 
-void WorkerOrWorkletScriptController::evaluate(const ScriptSourceCode& sourceCode, NakedPtr<JSC::Exception>& returnedException, String* returnedExceptionMessage)
+auto WorkerOrWorkletScriptController::evaluate(const ScriptSourceCode& sourceCode, NakedPtr<JSC::Exception>& returnedException, String* returnedExceptionMessage) -> ParseResult
 {
     if (isExecutionForbidden())
-        return;
+        return ParseResult::Failed;
 
     initScriptIfNeeded();
 
@@ -260,10 +262,19 @@ void WorkerOrWorkletScriptController::evaluate(const ScriptSourceCode& sourceCod
 
     if ((returnedException && vm.isTerminationException(returnedException)) || isTerminatingExecution()) {
         forbidExecution();
-        return;
+        return ParseResult::Failed;
     }
 
     if (returnedException) {
+        bool isParseErrorForThisSource = false;
+        if (auto* errorInstance = dynamicDowncast<JSC::ErrorInstance>(returnedException->value())) {
+            if (errorInstance->isParseError()) {
+                JSValue errorSourceURL = errorInstance->getDirect(vm, vm.propertyNames->sourceURL);
+                if (errorSourceURL && errorSourceURL.isString() && asString(errorSourceURL)->tryGetValue() == jsSourceCode.provider()->sourceURL())
+                    isParseErrorForThisSource = true;
+            }
+        }
+
         if (globalScope->canIncludeErrorDetails(protect(sourceCode.cachedScript()), sourceCode.url().string())) {
             // FIXME: It's not great that this can run arbitrary code to string-ify the value of the exception.
             // Do we need to do anything to handle that properly, if it, say, raises another exception?
@@ -276,7 +287,11 @@ void WorkerOrWorkletScriptController::evaluate(const ScriptSourceCode& sourceCod
                 *returnedExceptionMessage = genericErrorMessage;
             returnedException = JSC::Exception::create(vm, createError(&globalObject, genericErrorMessage));
         }
+
+        return isParseErrorForThisSource ? ParseResult::Failed : ParseResult::Succeeded;
     }
+
+    return ParseResult::Succeeded;
 }
 
 static Identifier jsValueToModuleKey(JSGlobalObject* lexicalGlobalObject, JSValue value)
@@ -306,7 +321,7 @@ JSC::JSValue WorkerOrWorkletScriptController::evaluateModule(const URL& sourceUR
     } else if (moduleRecord.inherits<JSC::SyntheticModuleRecord>())
         InspectorInstrumentation::willEvaluateScript(*globalScope, sourceURL.string(), 1, 1);
     else {
-        auto* jsModuleRecord = uncheckedDowncast<JSModuleRecord>(&moduleRecord);
+        auto* jsModuleRecord = downcast<JSModuleRecord>(&moduleRecord);
         const auto& jsSourceCode = jsModuleRecord->sourceCode();
         InspectorInstrumentation::willEvaluateScript(*globalScope, sourceURL.string(), jsSourceCode.firstLine().oneBasedInt(), jsSourceCode.startColumn().oneBasedInt());
     }
@@ -525,7 +540,7 @@ void WorkerOrWorkletScriptController::loadAndEvaluateModule(const URL& moduleURL
             RETURN_IF_EXCEPTION(scope, { });
             scriptFetcher->notifyLoadCompleted(*moduleKey.impl());
 
-            RefPtr context = downcast<WorkerOrWorkletGlobalScope>(uncheckedDowncast<JSDOMGlobalObject>(globalObject)->scriptExecutionContext());
+            RefPtr context = downcast<WorkerOrWorkletGlobalScope>(downcast<JSDOMGlobalObject>(globalObject)->scriptExecutionContext());
             if (!context || !context->script()) {
                 task->run(std::nullopt);
                 return JSValue::encode(jsUndefined());

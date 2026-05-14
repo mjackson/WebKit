@@ -35,16 +35,16 @@ namespace WebKit {
 
 PlatformXRCoordinator* PlatformXRSystem::xrCoordinator()
 {
-    if (!CompositorCoordinator::isCompositorServicesAvailable())
-        return nullptr;
-
-    static LazyNeverDestroyed<CompositorCoordinator> xrCoordinator;
-    static std::once_flag once;
-    std::call_once(once, [] {
-        xrCoordinator.construct();
-    });
-    return &xrCoordinator.get();
+    return CompositorCoordinator::singleton();
 }
+
+#if ENABLE(WEBXR_LAYERS)
+void PlatformXRSystem::createCompositionLayer(IPC::Connection&, PlatformXR::CompositionLayerType, WebCore::IntSize, PlatformXR::LayerLayout, CompletionHandler<void(std::optional<PlatformXR::LayerInfo>)>&& reply)
+{
+    RELEASE_LOG_ERROR(XR, "VisionOS does not support composition layers yet");
+    reply(std::nullopt);
+}
+#endif // ENABLE(WEBXR_LAYERS)
 
 } // namespace WebKit
 

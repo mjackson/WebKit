@@ -25,10 +25,10 @@
 
 #pragma once
 
-#include "MediaPromiseTypes.h"
-#include "ProcessIdentity.h"
 #include <CoreMedia/CMFormatDescription.h>
 #include <CoreMedia/CMTime.h>
+#include <WebCore/MediaPromiseTypes.h>
+#include <WebCore/ProcessIdentity.h>
 #include <atomic>
 #include <wtf/Expected.h>
 #include <wtf/Function.h>
@@ -74,7 +74,7 @@ public:
     using DecodingFlags = OptionSet<DecodingFlag>;
 
     WEBCORE_EXPORT Ref<DecodingPromise> decodeSample(CMSampleBufferRef, DecodingFlags);
-    WEBCORE_EXPORT void NODELETE flush();
+    WEBCORE_EXPORT void flush();
 
     void setResourceOwner(const ProcessIdentity& resourceOwner) { m_resourceOwner = resourceOwner; }
     bool isHardwareAccelerated() const;
@@ -109,6 +109,12 @@ private:
     Vector<RetainPtr<CMSampleBufferRef>> m_lastDecodedSamples WTF_GUARDED_BY_CAPABILITY(m_dispatcher.get());
     RetainPtr<CMFormatDescriptionRef> m_lastFormatDescription WTF_GUARDED_BY_LOCK(m_lock);
     OSStatus m_lastDecodingError WTF_GUARDED_BY_CAPABILITY(m_dispatcher.get()) { noErr };
+    // Only ever accessed from a single thread per instance: either m_dispatcher
+    // (MSE path, where flush() dispatches its write to serialize with
+    // ensureDecoderForSample()), or the caller thread of decodeSampleSync()
+    // (ImageDecoderAVFObjC path, which never calls flush()). Not annotated
+    // with a capability guard because the owning thread differs per instance.
+    bool m_waitingForKeyframe { true };
     RetainPtr<CMFormatDescriptionRef> m_currentImageDescription WTF_GUARDED_BY_CAPABILITY(m_dispatcher.get());
 
     // Stereo playback support

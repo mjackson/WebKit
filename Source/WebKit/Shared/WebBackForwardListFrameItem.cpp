@@ -200,6 +200,8 @@ String WebBackForwardListFrameItem::loggingStringAtIndent(size_t indent)
         if (m_frameState->wasCreatedByJSWithoutUserInteraction)
             builder.append(" (no user gesture)"_s);
         builder.append('\n');
+        builder.append(indentString);
+        builder.append("("_s, m_frameState->title, ")\n"_s);
     }
 
     for (size_t i = 0; i < m_children.size(); ++i) {

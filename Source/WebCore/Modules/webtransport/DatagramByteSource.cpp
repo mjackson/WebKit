@@ -187,7 +187,7 @@ void DatagramByteSource::tryEnqueuing(JSC::ArrayBuffer& buffer, ReadableByteStre
 void DatagramByteSource::error(JSC::JSGlobalObject& globalObject, JSC::JSValue value)
 {
     if (RefPtr controller = m_controller) {
-        auto& jsDOMGlobalObject = uncheckedDowncast<JSDOMGlobalObject>(globalObject);
+        auto& jsDOMGlobalObject = downcast<JSDOMGlobalObject>(globalObject);
         controller->error(jsDOMGlobalObject, value);
     }
 }

@@ -226,7 +226,7 @@ String JSVMClientData::overrideSourceURL(const JSC::StackFrame& frame, const Str
     if (!globalObject->inherits<JSDOMWindowBase>())
         return nullString();
 
-    RefPtr document = uncheckedDowncast<JSDOMWindowBase>(globalObject)->wrapped().documentIfLocal();
+    RefPtr document = downcast<JSDOMWindowBase>(globalObject)->wrapped().documentIfLocal();
     if (!document)
         return nullString();
 

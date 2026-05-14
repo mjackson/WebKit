@@ -3747,19 +3747,24 @@ private:
                     break;
                 }
 
-                if (auto child = SIMDShuffle::isOnlyOneSideMask(pattern)) {
-                    switch (child.value()) {
+                if (auto result = SIMDShuffle::isOnlyOneSideMask(pattern)) {
+                    auto [child, newPattern] = result.value();
+                    switch (child) {
                     case 0: {
-                        replaceWithNew<SIMDValue>(m_value->origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, m_value->child(0), m_value->child(2));
+                        Value* newPatternValue = m_proc.addConstant(m_value->origin(), B3::V128, newPattern);
+                        m_insertionSet.insertValue(m_index, newPatternValue);
+                        replaceWithNew<SIMDValue>(m_value->origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, m_value->child(0), newPatternValue);
                         break;
                     }
                     case 1: {
-                        v128_t newPattern = pattern;
-                        for (unsigned i = 0; i < 16; ++i)
-                            newPattern.u8x16[i] = pattern.u8x16[i] - 16;
                         Value* newPatternValue = m_proc.addConstant(m_value->origin(), B3::V128, newPattern);
                         m_insertionSet.insertValue(m_index, newPatternValue);
                         replaceWithNew<SIMDValue>(m_value->origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, m_value->child(1), newPatternValue);
+                        break;
+                    }
+                    case 2: {
+                        // All OOB.
+                        replaceWithNewValue(m_proc.addConstant(m_value->origin(), B3::V128, vectorAllZeros()));
                         break;
                     }
                     }
@@ -3805,19 +3810,27 @@ private:
                     // If all composed indices reference only one side (0..15 or 16..31),
                     // emit a 2-child unary shuffle instead of a 3-child binary shuffle.
                     // This enables further optimizations like DUP detection in ReduceStrength.
-                    if (auto side = SIMDShuffle::isOnlyOneSideMask(newPattern)) {
-                        Value* src;
-                        v128_t unaryPattern = newPattern;
-                        if (*side == 0)
-                            src = newChild0;
-                        else {
-                            src = newChild1;
-                            for (unsigned i = 0; i < 16; ++i)
-                                unaryPattern.u8x16[i] -= 16;
+                    if (auto result = SIMDShuffle::isOnlyOneSideMask(newPattern)) {
+                        auto [child, unaryPattern] = result.value();
+                        switch (child) {
+                        case 0: {
+                            Value* newPatternValue = m_proc.addConstant(m_value->origin(), B3::V128, unaryPattern);
+                            m_insertionSet.insertValue(m_index, newPatternValue);
+                            replaceWithNew<SIMDValue>(m_value->origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, newChild0, newPatternValue);
+                            break;
                         }
-                        Value* newPat = m_proc.addConstant(m_value->origin(), B3::V128, unaryPattern);
-                        m_insertionSet.insertValue(m_index, newPat);
-                        replaceWithNew<SIMDValue>(m_value->origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, src, newPat);
+                        case 1: {
+                            Value* newPatternValue = m_proc.addConstant(m_value->origin(), B3::V128, unaryPattern);
+                            m_insertionSet.insertValue(m_index, newPatternValue);
+                            replaceWithNew<SIMDValue>(m_value->origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, newChild1, newPatternValue);
+                            break;
+                        }
+                        case 2: {
+                            // All OOB.
+                            replaceWithNewValue(m_proc.addConstant(m_value->origin(), B3::V128, vectorAllZeros()));
+                            break;
+                        }
+                        }
                         return true;
                     }
 

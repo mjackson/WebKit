@@ -34,6 +34,12 @@
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <wtf/RetainPtr.h>
 
+#if PLATFORM(MAC)
+#import <WebKit/DOM.h>
+#import <WebKit/WebPreferencesPrivate.h>
+#import <WebKit/WebViewPrivate.h>
+#endif // PLATFORM(MAC)
+
 static void runTest(NSArray<NSString *> *additionalSupportedImageTypes, NSString *imageURL, NSString *imageExtension, CGFloat imageWidth)
 {
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
@@ -55,6 +61,56 @@ static void runTest(NSArray<NSString *> *additionalSupportedImageTypes, NSString
     }];
     TestWebKitAPI::Util::run(&isDone);
 }
+
+#if PLATFORM(MAC)
+
+@interface AdditionalSupportedImageTypesTest : NSObject <WebFrameLoadDelegate> {
+}
+@end
+
+static bool didFinishLoadAdditionalSupportedImageTypesTest;
+
+@implementation AdditionalSupportedImageTypesTest
+
+- (void)webView:(WebView *)sender didFinishLoadForFrame:(WebFrame *)frame
+{
+    didFinishLoadAdditionalSupportedImageTypesTest = true;
+}
+@end
+
+static void runLegacyTest(NSArray *additionalSupportedImageTypes, Boolean expectedToLoad)
+{
+    RetainPtr<WebPreferences> preferences = adoptNS([[WebPreferences alloc] initWithIdentifier:nil]);
+    [preferences setAdditionalSupportedImageTypes:additionalSupportedImageTypes];
+
+    RetainPtr<WebView> webView = adoptNS([[WebView alloc] initWithFrame:NSMakeRect(0, 0, 120, 200) frameName:nil groupName:nil]);
+    [webView setPreferences:preferences.get()];
+
+    RetainPtr<AdditionalSupportedImageTypesTest> testController = adoptNS([AdditionalSupportedImageTypesTest new]);
+    webView.get().frameLoadDelegate = testController.get();
+
+    RetainPtr<NSURL> testURL = [NSBundle.test_resourcesBundle URLForResource:@"AdditionalSupportedImageTypes" withExtension:@"html"];
+    [[webView.get() mainFrame] loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
+
+    TestWebKitAPI::Util::run(&didFinishLoadAdditionalSupportedImageTypesTest);
+    didFinishLoad = false;
+
+    DOMDocument *document = webView.get().mainFrameDocument;
+    DOMElement *documentElement = [document documentElement];
+    DOMNodeList *images = [documentElement querySelectorAll:@"img"];
+
+    EXPECT_NE(images, nullptr);
+    EXPECT_EQ([images length] == 2, expectedToLoad);
+
+    for (unsigned index = 0; index < 2; ++index) {
+        DOMHTMLImageElement *image = (DOMHTMLImageElement *)[images item:index];
+        EXPECT_EQ(image != nullptr, expectedToLoad);
+        if (image)
+            EXPECT_EQ([image width], 100);
+    }
+}
+
+#endif // PLATFORM(MAC)
 
 TEST(WebKit, AddSupportedImageType)
 {
@@ -87,4 +143,33 @@ TEST(WebKit, AddUnsupportedAndBogusImageTypesTwice)
     runTest(@[@"com.truevision.tga-image", @"public.bogus", @"com.truevision.tga-image", @"public.bogus"], @"100x100-red", @"tga", 100);
 }
 
-#endif
+#if PLATFORM(MAC)
+
+TEST(WebKitLegacy, AddUnsupportedImageTypes)
+{
+    runLegacyTest(@[@"com.truevision.tga-image", @"public.jpeg-2000"], true);
+}
+
+TEST(WebKitLegacy, AddBogusImageTypes)
+{
+    runLegacyTest(@[@"public.bogus"], false);
+}
+
+TEST(WebKitLegacy, AddEmptyArrayOfImageTypes)
+{
+    runLegacyTest(@[], false);
+}
+
+TEST(WebKitLegacy, AddArrayOfNullImageTypes)
+{
+    runLegacyTest(@[[NSNull null]], false);
+}
+
+TEST(WebKitLegacy, AddArraysOfUnsupportedImageTypes)
+{
+    runLegacyTest(@[@[@"com.truevision.tga-image"], @[@"public.jpeg-2000"]], false);
+}
+
+#endif // PLATFORM(MAC)
+
+#endif // PLATFORM(COCOA)

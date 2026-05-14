@@ -406,6 +406,60 @@ TEST(WTF_StringCommon, CharactersAreAllASCII)
     EXPECT_TRUE(WTF::charactersAreAllASCII(u8""_span));
 }
 
+TEST(WTF_StringCommon, CharactersAreAllLatin1)
+{
+    // Latin1Character overload — always true.
+    EXPECT_TRUE(WTF::charactersAreAllLatin1(std::span<const Latin1Character>()));
+    {
+        std::array<Latin1Character, 3> buf { 0x00, 0x80, 0xFF };
+        EXPECT_TRUE(WTF::charactersAreAllLatin1(std::span<const Latin1Character> { buf }));
+    }
+
+    // char16_t overload — cover every size regime of the SIMD scan:
+    //   - empty (no iters, no tail)
+    //   - size < 8 (only scalar tail)
+    //   - size == 8 (one SIMD iter, empty tail)
+    //   - size 9..15 (one SIMD iter + scalar tail)
+    //   - size 16, 64, 128 (many SIMD iters + varying tail)
+    // In each regime, verify both the all-Latin1 and has-non-Latin1 cases, and
+    // that a single non-Latin1 char is detected at the start, middle, and end.
+
+    EXPECT_TRUE(WTF::charactersAreAllLatin1(std::span<const char16_t>()));
+
+    auto checkSize = [](size_t size) {
+        Vector<char16_t> buf(size, [](size_t i) {
+            // Full Latin1 range including 0x80..0xFF (which differentiate Latin1 from ASCII).
+            return static_cast<char16_t>(i & 0xFF);
+        });
+
+        // All-Latin1.
+        EXPECT_TRUE(WTF::charactersAreAllLatin1(buf.span())) << "size=" << size;
+
+        if (!size)
+            return;
+
+        // Non-Latin1 at every single position — covers SIMD first/last iter,
+        // chunk tail, scalar tail, depending on size.
+        for (size_t poison : { size_t { 0 }, size / 2, size - 1 }) {
+            auto corrupted = buf;
+            corrupted[poison] = static_cast<char16_t>(0x0100); // first non-Latin1 code point
+            EXPECT_FALSE(WTF::charactersAreAllLatin1(corrupted.span()))
+                << "size=" << size << " poison=" << poison;
+
+            corrupted[poison] = static_cast<char16_t>(0x4E2D); // CJK — tests upper bits too
+            EXPECT_FALSE(WTF::charactersAreAllLatin1(corrupted.span()))
+                << "size=" << size << " poison=" << poison << " (CJK)";
+
+            corrupted[poison] = static_cast<char16_t>(0xFFFF); // highest code unit
+            EXPECT_FALSE(WTF::charactersAreAllLatin1(corrupted.span()))
+                << "size=" << size << " poison=" << poison << " (0xFFFF)";
+        }
+    };
+
+    for (size_t size : { 1, 3, 7, 8, 9, 15, 16, 17, 31, 32, 63, 64, 65, 127, 128, 129 })
+        checkSize(size);
+}
+
 TEST(WTF_StringCommon, CopyElements64To8)
 {
     Vector<uint8_t> destination;

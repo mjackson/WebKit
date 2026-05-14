@@ -106,9 +106,7 @@ JSC_DEFINE_HOST_FUNCTION(structuredCloneForStream, (JSGlobalObject* globalObject
         return JSValue::encode(JSArrayBuffer::create(globalObject->vm(), globalObject->arrayBufferStructure(ArrayBufferSharingMode::Default), result.releaseNonNull()));
     }
 
-    if (value.inherits<JSArrayBufferView>()) {
-        auto* bufferView = uncheckedDowncast<JSArrayBufferView>(value);
-        ASSERT(bufferView);
+    if (auto* bufferView = dynamicDowncast<JSArrayBufferView>(value)) {
 
         auto* buffer = bufferView->unsharedBuffer();
         if (!buffer || buffer->isDetached()) [[unlikely]] {

@@ -263,7 +263,7 @@ ExceptionOr<void> Location::replace(LocalDOMWindow& activeWindow, LocalDOMWindow
     if (!firstFrame || !firstFrame->document())
         return { };
 
-    URL completedURL = firstFrame->document()->completeURL(urlString);
+    URL completedURL = firstFrame->document()->encodingParseURL(urlString);
     if (!completedURL.isValid())
         return Exception { ExceptionCode::SyntaxError };
 
@@ -322,7 +322,7 @@ ExceptionOr<void> Location::setLocation(LocalDOMWindow& incumbentWindow, LocalDO
     if (!firstFrame || !firstFrame->document())
         return { };
 
-    URL completedURL = firstFrame->document()->completeURL(urlString);
+    URL completedURL = firstFrame->document()->encodingParseURL(urlString);
 
     if (!completedURL.isValid())
         return Exception { ExceptionCode::SyntaxError, "Invalid URL"_s };

@@ -140,6 +140,13 @@ void WebBackForwardListItem::setBackForwardCacheEntry(RefPtr<WebBackForwardCache
     m_backForwardCacheEntry = WTF::move(backForwardCacheEntry);
 }
 
+WebBackForwardCacheEntry* WebBackForwardListItem::backForwardCacheEntryForProcess(WebCore::ProcessIdentifier processIdentifier) const
+{
+    if (m_backForwardCacheEntry && m_backForwardCacheEntry->processIdentifier() == processIdentifier)
+        return m_backForwardCacheEntry.get();
+    return nullptr;
+}
+
 SuspendedPageProxy* WebBackForwardListItem::suspendedPage() const
 {
     return m_backForwardCacheEntry ? m_backForwardCacheEntry->suspendedPage() : nullptr;

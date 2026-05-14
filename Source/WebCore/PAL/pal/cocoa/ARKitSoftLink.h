@@ -30,7 +30,9 @@
 
 #if HAVE(ARKIT)
 
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 #import <ARKit/ARKit.h>
+ALLOW_DEPRECATED_DECLARATIONS_END
 #import <pal/spi/cocoa/ARKitSPI.h>
 #import <wtf/SoftLinking.h>
 

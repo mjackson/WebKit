@@ -37,14 +37,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "WeakImpl.h"
 #include <wtf/CagedPtr.h>
 #include <wtf/CheckedArithmetic.h>
-#include <wtf/PackedRefPtr.h>
 #include <wtf/SharedTask.h>
-#include <wtf/StdIntExtras.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/WeakPtr.h>
-#include <wtf/text/WTFString.h>
 
 namespace JSC {
 

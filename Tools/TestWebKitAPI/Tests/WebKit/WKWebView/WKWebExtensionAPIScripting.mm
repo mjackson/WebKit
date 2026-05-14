@@ -429,7 +429,12 @@ TEST(WKWebExtensionAPIScripting, ExecuteScriptWithDocumentIds)
     [manager run];
 }
 
+// FIXME when webkit.org/b/314126 is resolved.
+#if PLATFORM(MAC)
+TEST(WKWebExtensionAPIScripting, DISABLED_ExecuteScriptWithUserGesture)
+#else
 TEST(WKWebExtensionAPIScripting, ExecuteScriptWithUserGesture)
+#endif
 {
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },

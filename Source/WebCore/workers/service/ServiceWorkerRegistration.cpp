@@ -332,7 +332,7 @@ void ServiceWorkerRegistration::showNotification(ScriptExecutionContext& context
 
         if (RefPtr pushEvent = serviceWorkerGlobalScope->pushEvent()) {
             auto& globalObject = *promise->globalObject();
-            auto& jsPromise = *uncheckedDowncast<JSC::JSPromise>(promise->promise());
+            auto& jsPromise = *downcast<JSC::JSPromise>(promise->promise());
             pushEvent->waitUntil(DOMPromise::create(globalObject, jsPromise));
         }
 
@@ -377,7 +377,7 @@ void ServiceWorkerRegistration::addCookieChangeSubscriptions(Vector<CookieStoreG
         if (subscription.url.isNull())
             url = scope();
         else {
-            url = protect(scriptExecutionContext())->completeURL(subscription.url).string();
+            url = protect(scriptExecutionContext())->encodingParseURL(subscription.url).string();
             if (!url.startsWith(scope())) {
                 promise->reject(Exception { ExceptionCode::TypeError, "The service worker cannot subcribe to cookie changes for URLs outside of its scope"_s });
                 return;
@@ -405,7 +405,7 @@ void ServiceWorkerRegistration::removeCookieChangeSubscriptions(Vector<CookieSto
         if (subscription.url.isNull())
             url = scope();
         else {
-            url = protect(scriptExecutionContext())->completeURL(subscription.url).string();
+            url = protect(scriptExecutionContext())->encodingParseURL(subscription.url).string();
             if (!url.startsWith(scope())) {
                 promise->reject(Exception { ExceptionCode::TypeError, "The service worker cannot unsubcribe from cookie changes for URLs outside of its scope"_s });
                 return;

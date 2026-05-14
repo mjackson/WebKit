@@ -347,6 +347,7 @@ JSWebAssemblyInstance* JSWebAssemblyInstance::tryCreate(VM& vm, Structure* insta
                 moduleRecord->appendRequestedModule(moduleName, nullptr);
             moduleRecord->addImportEntry(WebAssemblyModuleRecord::ImportEntry {
                 WebAssemblyModuleRecord::ImportEntryType::Single,
+                WebAssemblyModuleRecord::ModulePhase::Evaluation,
                 moduleName,
                 fieldName,
                 Identifier::fromUid(PrivateName(PrivateName::Description, "WebAssemblyImportName"_s)),

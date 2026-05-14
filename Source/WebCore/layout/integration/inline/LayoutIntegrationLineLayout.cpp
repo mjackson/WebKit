@@ -1384,7 +1384,7 @@ void LineLayout::shiftLinesByInBlockDirection(LayoutUnit blockShift)
         else
             box.moveHorizontally(blockShift);
 
-        if (box.isAtomicInlineBox()) {
+        if (box.isAtomicInlineBox() || box.isBlockLevelBox()) {
             auto& renderer = downcast<RenderBox>(*box.layoutBox().rendererForIntegration());
             renderer.move(deltaX, deltaY);
         }

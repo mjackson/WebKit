@@ -153,7 +153,11 @@ public:
     using ArgumentList = typename FunctionParser::ArgumentList;
     using CatchHandler = typename FunctionParser::CatchHandler;
 
-    FunctionParser(Context&, std::span<const uint8_t> function, const RTT&, const ModuleInformation&);
+    FunctionParser(Context&, std::span<const uint8_t> function, BlockSignature, const ModuleInformation&);
+    FunctionParser(Context& context, std::span<const uint8_t> function, const RTT& signature, const ModuleInformation& info)
+        : FunctionParser(context, function, BlockSignature { signature }, info)
+    {
+    }
 
     [[nodiscard]] Result parse();
     [[nodiscard]] Result parseConstantExpression();
@@ -161,7 +165,7 @@ public:
     OpType currentOpcode() const { return m_currentOpcode; }
     uint32_t currentExtendedOpcode() const { return m_currentExtOp; }
     size_t currentOpcodeStartingOffset() const { return m_currentOpcodeStartingOffset; }
-    const RTT& signature() const { return m_signature; }
+    const RTT& signatureRTT() const { return m_signature.rtt(); }
     const Type& typeOfLocal(uint32_t localIndex) const { return m_locals[localIndex]; }
     bool unreachableBlocks() const { return m_unreachableBlocks; }
 
@@ -390,7 +394,7 @@ private:
     Stack m_expressionStack;
     ControlStack m_controlStack;
     Vector<Type, 16> m_locals;
-    const Ref<const RTT> m_signature;
+    const BlockSignature m_signature;
     const ModuleInformation& m_info;
 
     Vector<uint32_t> m_localInitStack;
@@ -423,7 +427,7 @@ static bool isTryOrCatch(ControlType& data)
 }
 
 template<typename Context>
-FunctionParser<Context>::FunctionParser(Context& context, std::span<const uint8_t> function, const RTT& signature, const ModuleInformation& info)
+FunctionParser<Context>::FunctionParser(Context& context, std::span<const uint8_t> function, BlockSignature signature, const ModuleInformation& info)
     : Parser(function)
     , m_context(context)
     , m_signature(signature)
@@ -439,19 +443,20 @@ auto FunctionParser<Context>::parse() -> Result
 {
     uint32_t localGroupsCount;
 
-    WASM_PARSER_FAIL_IF(m_signature->kind() != RTTKind::Function, "type signature was not a function signature"_s);
-    if (m_signature->numberOfV128() || m_signature->numberOfReturnedV128())
+    const auto& signature = m_signature.rtt();
+    WASM_PARSER_FAIL_IF(signature.kind() != RTTKind::Function, "type signature was not a function signature"_s);
+    if (signature.numberOfV128() || signature.numberOfReturnedV128())
         m_context.notifyFunctionUsesSIMD();
 
-    WASM_ALLOCATOR_FAIL_IF(!m_context.addArguments(m_signature.get()), "can't add "_s, m_signature->argumentCount(), " arguments to Function"_s);
+    WASM_ALLOCATOR_FAIL_IF(!m_context.addArguments(signature), "can't add "_s, signature.argumentCount(), " arguments to Function"_s);
     WASM_PARSER_FAIL_IF(!parseVarUInt32(localGroupsCount), "can't get local groups count"_s);
 
-    WASM_ALLOCATOR_FAIL_IF(!m_locals.tryReserveCapacity(m_signature->argumentCount()), "can't allocate enough memory for function's "_s, m_signature->argumentCount(), " arguments"_s);
-    m_locals.appendUsingFunctor(m_signature->argumentCount(), [&](size_t i) {
-        return m_signature->argumentType(i);
+    WASM_ALLOCATOR_FAIL_IF(!m_locals.tryReserveCapacity(signature.argumentCount()), "can't allocate enough memory for function's "_s, signature.argumentCount(), " arguments"_s);
+    m_locals.appendUsingFunctor(signature.argumentCount(), [&](size_t i) {
+        return signature.argumentType(i);
     });
 
-    uint64_t totalNumberOfLocals = m_signature->argumentCount();
+    uint64_t totalNumberOfLocals = signature.argumentCount();
     uint64_t totalNonDefaultableLocals = 0;
     for (uint32_t i = 0; i < localGroupsCount; ++i) {
         uint32_t numberOfLocals;
@@ -476,8 +481,8 @@ auto FunctionParser<Context>::parse() -> Result
     WASM_ALLOCATOR_FAIL_IF(!m_localInitStack.tryReserveCapacity(totalNonDefaultableLocals), "can't allocate enough memory for tracking function's local initialization"_s);
     m_localInitFlags.ensureSize(totalNumberOfLocals);
     // Param locals are always considered initialized, so we need to pre-set them.
-    for (uint32_t i = 0; i < m_signature->argumentCount(); ++i) {
-        if (!isDefaultableType(m_signature->argumentType(i)))
+    for (uint32_t i = 0; i < signature.argumentCount(); ++i) {
+        if (!isDefaultableType(signature.argumentType(i)))
             m_localInitFlags.quickSet(i);
     }
 
@@ -491,11 +496,10 @@ auto FunctionParser<Context>::parse() -> Result
 template<typename Context>
 auto FunctionParser<Context>::parseConstantExpression() -> Result
 {
-    WASM_PARSER_FAIL_IF(m_signature->kind() != RTTKind::Function, "type signature was not a function signature"_s);
-    if (m_signature->numberOfV128() || m_signature->numberOfReturnedV128())
+    if (m_signature.hasReturnedV128())
         m_context.notifyFunctionUsesSIMD();
 
-    ASSERT(!m_signature->argumentCount());
+    ASSERT(!m_signature.argumentCount());
 
     WASM_FAIL_IF_HELPER_FAILS(parseBody());
 
@@ -505,7 +509,7 @@ auto FunctionParser<Context>::parseConstantExpression() -> Result
 template<typename Context>
 auto FunctionParser<Context>::parseBody() -> PartialResult
 {
-    m_controlStack.append({ { }, { }, 0, m_context.addTopLevel(BlockSignature { m_signature.get() }) });
+    m_controlStack.append({ { }, { }, 0, m_context.addTopLevel(BlockSignature { m_signature }) });
     uint8_t op = 0;
     while (m_controlStack.size()) {
         m_currentOpcodeStartingOffset = m_offset;
@@ -728,11 +732,7 @@ auto FunctionParser<Context>::load(Type memoryType) -> PartialResult
 
     WASM_TRY_POP_EXPRESSION_STACK_INTO(pointer, "load pointer"_s);
 
-    if (m_info.memory(memoryIndex).isMemory64())
-        WASM_VALIDATOR_FAIL_IF(!pointer.type().isI64(), m_currentOpcode, " pointer type mismatch"_s);
-    else
-        WASM_VALIDATOR_FAIL_IF(!pointer.type().isI32(), m_currentOpcode, " pointer type mismatch"_s);
-
+    WASM_VALIDATOR_FAIL_IF(pointer.type().kind != m_info.memory(memoryIndex).addressType().asWasmTypeKind(), m_currentOpcode, " pointer type mismatch"_s);
     ExpressionType result;
     WASM_TRY_ADD_TO_CONTEXT(load(static_cast<LoadOpType>(m_currentOpcode), pointer, result, offset, memoryIndex));
     m_expressionStack.constructAndAppend(memoryType, result);
@@ -765,10 +765,7 @@ auto FunctionParser<Context>::store(Type memoryType) -> PartialResult
     WASM_TRY_POP_EXPRESSION_STACK_INTO(value, "store value"_s);
     WASM_TRY_POP_EXPRESSION_STACK_INTO(pointer, "store pointer"_s);
 
-    if (m_info.memory(memoryIndex).isMemory64())
-        WASM_VALIDATOR_FAIL_IF(!pointer.type().isI64(), m_currentOpcode, " pointer type mismatch"_s);
-    else
-        WASM_VALIDATOR_FAIL_IF(!pointer.type().isI32(), m_currentOpcode, " pointer type mismatch"_s);
+    WASM_VALIDATOR_FAIL_IF(pointer.type().kind != m_info.memory(memoryIndex).addressType().asWasmTypeKind(), m_currentOpcode, " pointer type mismatch"_s);
 
     WASM_VALIDATOR_FAIL_IF(value.type() != memoryType, m_currentOpcode, " value type mismatch"_s);
 
@@ -796,16 +793,23 @@ auto FunctionParser<Context>::atomicLoad(ExtAtomicOpType op, Type memoryType) ->
     WASM_VALIDATOR_FAIL_IF(!m_info.memoryCount(), "atomic instruction without memory"_s);
 
     uint32_t alignment;
-    uint32_t offset;
+    uint64_t offset;
     TypedExpression pointer;
     WASM_PARSER_FAIL_IF(!parseVarUInt32(alignment), "can't get load alignment"_s);
     uint8_t memoryIndex;
     WASM_PARSER_FAIL_IF(!parseMemoryIndexAndFixupAlignment(alignment, memoryIndex), "can't get memory index");
     WASM_PARSER_FAIL_IF(alignment != memoryLog2Alignment(op), "byte alignment "_s, 1ull << alignment, " does not match against atomic op's natural alignment "_s, 1ull << memoryLog2Alignment(op));
-    WASM_PARSER_FAIL_IF(!parseVarUInt32(offset), "can't get load offset"_s);
+
+    if (m_info.memory(memoryIndex).isMemory64())
+        WASM_PARSER_FAIL_IF(!parseVarUInt64(offset), "can't get load offset"_s);
+    else {
+        uint32_t offset32;
+        WASM_PARSER_FAIL_IF(!parseVarUInt32(offset32), "can't get load offset"_s);
+        offset = offset32;
+    }
     WASM_TRY_POP_EXPRESSION_STACK_INTO(pointer, "load pointer"_s);
 
-    WASM_VALIDATOR_FAIL_IF(!pointer.type().isI32(), static_cast<unsigned>(op), " pointer type mismatch"_s);
+    WASM_VALIDATOR_FAIL_IF(pointer.type().kind != m_info.memory(memoryIndex).addressType().asWasmTypeKind(), static_cast<unsigned>(op), " pointer type mismatch"_s);
 
     ExpressionType result;
     WASM_TRY_ADD_TO_CONTEXT(atomicLoad(op, memoryType, pointer, result, offset, memoryIndex));
@@ -819,18 +823,25 @@ auto FunctionParser<Context>::atomicStore(ExtAtomicOpType op, Type memoryType) -
     WASM_VALIDATOR_FAIL_IF(!m_info.memoryCount(), "atomic instruction without memory"_s);
 
     uint32_t alignment;
-    uint32_t offset;
+    uint64_t offset;
     TypedExpression value;
     TypedExpression pointer;
     WASM_PARSER_FAIL_IF(!parseVarUInt32(alignment), "can't get store alignment"_s);
     uint8_t memoryIndex;
     WASM_PARSER_FAIL_IF(!parseMemoryIndexAndFixupAlignment(alignment, memoryIndex), "can't get memory index");
     WASM_PARSER_FAIL_IF(alignment != memoryLog2Alignment(op), "byte alignment "_s, 1ull << alignment, " does not match against atomic op's natural alignment "_s, 1ull << memoryLog2Alignment(op));
-    WASM_PARSER_FAIL_IF(!parseVarUInt32(offset), "can't get store offset"_s);
+    if (m_info.memory(memoryIndex).isMemory64())
+        WASM_PARSER_FAIL_IF(!parseVarUInt64(offset), "can't get store offset"_s);
+    else {
+        uint32_t offset32;
+        WASM_PARSER_FAIL_IF(!parseVarUInt32(offset32), "can't get store offset"_s);
+        offset = offset32;
+    }
+
     WASM_TRY_POP_EXPRESSION_STACK_INTO(value, "store value"_s);
     WASM_TRY_POP_EXPRESSION_STACK_INTO(pointer, "store pointer"_s);
 
-    WASM_VALIDATOR_FAIL_IF(!pointer.type().isI32(), m_currentOpcode, " pointer type mismatch"_s);
+    WASM_VALIDATOR_FAIL_IF(pointer.type().kind != m_info.memory(memoryIndex).addressType().asWasmTypeKind(), m_currentOpcode, " pointer type mismatch"_s);
     WASM_VALIDATOR_FAIL_IF(value.type() != memoryType, m_currentOpcode, " value type mismatch"_s);
 
     WASM_TRY_ADD_TO_CONTEXT(atomicStore(op, memoryType, pointer, value, offset, memoryIndex));
@@ -843,18 +854,24 @@ auto FunctionParser<Context>::atomicBinaryRMW(ExtAtomicOpType op, Type memoryTyp
     WASM_VALIDATOR_FAIL_IF(!m_info.memoryCount(), "atomic instruction without memory"_s);
 
     uint32_t alignment;
-    uint32_t offset;
+    uint64_t offset;
     TypedExpression pointer;
     TypedExpression value;
     WASM_PARSER_FAIL_IF(!parseVarUInt32(alignment), "can't get load alignment"_s);
     uint8_t memoryIndex;
     WASM_PARSER_FAIL_IF(!parseMemoryIndexAndFixupAlignment(alignment, memoryIndex), "can't get memory index");
     WASM_PARSER_FAIL_IF(alignment != memoryLog2Alignment(op), "byte alignment "_s, 1ull << alignment, " does not match against atomic op's natural alignment "_s, 1ull << memoryLog2Alignment(op));
-    WASM_PARSER_FAIL_IF(!parseVarUInt32(offset), "can't get load offset"_s);
+    if (m_info.memory(memoryIndex).isMemory64())
+        WASM_PARSER_FAIL_IF(!parseVarUInt64(offset), "can't get load offset"_s);
+    else {
+        uint32_t offset32;
+        WASM_PARSER_FAIL_IF(!parseVarUInt32(offset32), "can't get load offset"_s);
+        offset = offset32;
+    }
     WASM_TRY_POP_EXPRESSION_STACK_INTO(value, "value"_s);
     WASM_TRY_POP_EXPRESSION_STACK_INTO(pointer, "pointer"_s);
 
-    WASM_VALIDATOR_FAIL_IF(!pointer.type().isI32(), static_cast<unsigned>(op), " pointer type mismatch"_s);
+    WASM_VALIDATOR_FAIL_IF(pointer.type().kind != m_info.memory(memoryIndex).addressType().asWasmTypeKind(), static_cast<unsigned>(op), " pointer type mismatch"_s);
     WASM_VALIDATOR_FAIL_IF(value.type() != memoryType, static_cast<unsigned>(op), " value type mismatch"_s);
 
     ExpressionType result;
@@ -869,7 +886,7 @@ auto FunctionParser<Context>::atomicCompareExchange(ExtAtomicOpType op, Type mem
     WASM_VALIDATOR_FAIL_IF(!m_info.memoryCount(), "atomic instruction without memory"_s);
 
     uint32_t alignment;
-    uint32_t offset;
+    uint64_t offset;
     TypedExpression pointer;
     TypedExpression expected;
     TypedExpression value;
@@ -877,12 +894,18 @@ auto FunctionParser<Context>::atomicCompareExchange(ExtAtomicOpType op, Type mem
     uint8_t memoryIndex;
     WASM_PARSER_FAIL_IF(!parseMemoryIndexAndFixupAlignment(alignment, memoryIndex), "can't get memory index");
     WASM_PARSER_FAIL_IF(alignment !=  memoryLog2Alignment(op), "byte alignment "_s, 1ull << alignment, " does not match against atomic op's natural alignment "_s, 1ull << memoryLog2Alignment(op));
-    WASM_PARSER_FAIL_IF(!parseVarUInt32(offset), "can't get load offset"_s);
+    if (m_info.memory(memoryIndex).isMemory64())
+        WASM_PARSER_FAIL_IF(!parseVarUInt64(offset), "can't get load offset"_s);
+    else {
+        uint32_t offset32;
+        WASM_PARSER_FAIL_IF(!parseVarUInt32(offset32), "can't get load offset"_s);
+        offset = offset32;
+    }
     WASM_TRY_POP_EXPRESSION_STACK_INTO(value, "value"_s);
     WASM_TRY_POP_EXPRESSION_STACK_INTO(expected, "expected"_s);
     WASM_TRY_POP_EXPRESSION_STACK_INTO(pointer, "pointer"_s);
 
-    WASM_VALIDATOR_FAIL_IF(!pointer.type().isI32(), static_cast<unsigned>(op), " pointer type mismatch"_s);
+    WASM_VALIDATOR_FAIL_IF(pointer.type().kind != m_info.memory(memoryIndex).addressType().asWasmTypeKind(), static_cast<unsigned>(op), " pointer type mismatch"_s);
     WASM_VALIDATOR_FAIL_IF(expected.type() != memoryType, static_cast<unsigned>(op), " expected type mismatch"_s);
     WASM_VALIDATOR_FAIL_IF(value.type() != memoryType, static_cast<unsigned>(op), " value type mismatch"_s);
 
@@ -898,7 +921,7 @@ auto FunctionParser<Context>::atomicWait(ExtAtomicOpType op, Type memoryType) ->
     WASM_VALIDATOR_FAIL_IF(!m_info.memoryCount(), "atomic instruction without memory"_s);
 
     uint32_t alignment;
-    uint32_t offset;
+    uint64_t offset;
     TypedExpression pointer;
     TypedExpression value;
     TypedExpression timeout;
@@ -906,12 +929,18 @@ auto FunctionParser<Context>::atomicWait(ExtAtomicOpType op, Type memoryType) ->
     uint8_t memoryIndex;
     WASM_PARSER_FAIL_IF(!parseMemoryIndexAndFixupAlignment(alignment, memoryIndex), "can't get memory index");
     WASM_PARSER_FAIL_IF(alignment != memoryLog2Alignment(op), "byte alignment "_s, 1ull << alignment, " does not match against atomic op's natural alignment "_s, 1ull << memoryLog2Alignment(op));
-    WASM_PARSER_FAIL_IF(!parseVarUInt32(offset), "can't get load offset"_s);
+    if (m_info.memory(memoryIndex).isMemory64())
+        WASM_PARSER_FAIL_IF(!parseVarUInt64(offset), "can't get load offset"_s);
+    else {
+        uint32_t offset32;
+        WASM_PARSER_FAIL_IF(!parseVarUInt32(offset32), "can't get load offset"_s);
+        offset = offset32;
+    }
     WASM_TRY_POP_EXPRESSION_STACK_INTO(timeout, "timeout"_s);
     WASM_TRY_POP_EXPRESSION_STACK_INTO(value, "value"_s);
     WASM_TRY_POP_EXPRESSION_STACK_INTO(pointer, "pointer"_s);
 
-    WASM_VALIDATOR_FAIL_IF(!pointer.type().isI32(), static_cast<unsigned>(op), " pointer type mismatch"_s);
+    WASM_VALIDATOR_FAIL_IF(pointer.type().kind != m_info.memory(memoryIndex).addressType().asWasmTypeKind(), static_cast<unsigned>(op), " pointer type mismatch"_s);
     WASM_VALIDATOR_FAIL_IF(value.type() != memoryType, static_cast<unsigned>(op), " value type mismatch"_s);
     WASM_VALIDATOR_FAIL_IF(!timeout.type().isI64(), static_cast<unsigned>(op), " timeout type mismatch"_s);
 
@@ -927,18 +956,24 @@ auto FunctionParser<Context>::atomicNotify(ExtAtomicOpType op) -> PartialResult
     WASM_VALIDATOR_FAIL_IF(!m_info.memoryCount(), "atomic instruction without memory"_s);
 
     uint32_t alignment;
-    uint32_t offset;
+    uint64_t offset;
     TypedExpression pointer;
     TypedExpression count;
     WASM_PARSER_FAIL_IF(!parseVarUInt32(alignment), "can't get load alignment"_s);
     uint8_t memoryIndex;
     WASM_PARSER_FAIL_IF(!parseMemoryIndexAndFixupAlignment(alignment, memoryIndex), "can't get memory index");
     WASM_PARSER_FAIL_IF(alignment != memoryLog2Alignment(op), "byte alignment "_s, 1ull << alignment, " does not match against atomic op's natural alignment "_s, 1ull << memoryLog2Alignment(op));
-    WASM_PARSER_FAIL_IF(!parseVarUInt32(offset), "can't get load offset"_s);
+    if (m_info.memory(memoryIndex).isMemory64())
+        WASM_PARSER_FAIL_IF(!parseVarUInt64(offset), "can't get load offset"_s);
+    else {
+        uint32_t offset32;
+        WASM_PARSER_FAIL_IF(!parseVarUInt32(offset32), "can't get load offset"_s);
+        offset = offset32;
+    }
     WASM_TRY_POP_EXPRESSION_STACK_INTO(count, "count"_s);
     WASM_TRY_POP_EXPRESSION_STACK_INTO(pointer, "pointer"_s);
 
-    WASM_VALIDATOR_FAIL_IF(!pointer.type().isI32(), static_cast<unsigned>(op), " pointer type mismatch"_s);
+    WASM_VALIDATOR_FAIL_IF(pointer.type().kind != m_info.memory(memoryIndex).addressType().asWasmTypeKind(), static_cast<unsigned>(op), " pointer type mismatch"_s);
     WASM_VALIDATOR_FAIL_IF(!count.type().isI32(), static_cast<unsigned>(op), " count type mismatch"_s); // The spec's definition is saying i64, but all implementations (including tests) are using i32. So looks like the spec is wrong.
 
     ExpressionType result;
@@ -3268,12 +3303,10 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
         ResultList results;
 
         if (m_currentOpcode == TailCall) {
-            const auto& callerSignature = m_signature.get();
-
-            WASM_PARSER_FAIL_IF(calleeSignature.returnCount() != callerSignature.returnCount(), "tail call function index "_s, functionIndex, " with return count "_s, calleeSignature.returnCount(), ", but the caller's signature has "_s, callerSignature.returnCount(), " return values"_s);
+            WASM_PARSER_FAIL_IF(calleeSignature.returnCount() != m_signature.returnCount(), "tail call function index "_s, functionIndex, " with return count "_s, calleeSignature.returnCount(), ", but the caller's signature has "_s, m_signature.returnCount(), " return values"_s);
 
             for (unsigned i = 0; i < calleeSignature.returnCount(); ++i)
-                WASM_VALIDATOR_FAIL_IF(!isSubtype(calleeSignature.returnType(i), callerSignature.returnType(i)), "tail call function index "_s, functionIndex, " return type mismatch: "_s , "expected "_s, callerSignature.returnType(i), ", got "_s, calleeSignature.returnType(i));
+                WASM_VALIDATOR_FAIL_IF(!isSubtype(calleeSignature.returnType(i), m_signature.returnType(i)), "tail call function index "_s, functionIndex, " return type mismatch: "_s , "expected "_s, m_signature.returnType(i), ", got "_s, calleeSignature.returnType(i));
 
             WASM_TRY_ADD_TO_CONTEXT(addCall(m_callProfileIndex++, functionIndex, calleeSignature, args, results, CallType::TailCall));
 
@@ -3335,12 +3368,10 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
         ResultList results;
 
         if (m_currentOpcode == TailCallIndirect) {
-            const auto& callerSignature = m_signature.get();
-
-            WASM_PARSER_FAIL_IF(calleeSignature.returnCount() != callerSignature.returnCount(), "tail call indirect function with return count "_s, calleeSignature.returnCount(), "_s, but the caller's signature has "_s, callerSignature.returnCount(), " return values"_s);
+            WASM_PARSER_FAIL_IF(calleeSignature.returnCount() != m_signature.returnCount(), "tail call indirect function with return count "_s, calleeSignature.returnCount(), "_s, but the caller's signature has "_s, m_signature.returnCount(), " return values"_s);
 
             for (unsigned i = 0; i < calleeSignature.returnCount(); ++i)
-                WASM_VALIDATOR_FAIL_IF(!isSubtype(calleeSignature.returnType(i), callerSignature.returnType(i)), "tail call indirect return type mismatch: "_s , "expected "_s, callerSignature.returnType(i), ", got "_s, calleeSignature.returnType(i));
+                WASM_VALIDATOR_FAIL_IF(!isSubtype(calleeSignature.returnType(i), m_signature.returnType(i)), "tail call indirect return type mismatch: "_s , "expected "_s, m_signature.returnType(i), ", got "_s, calleeSignature.returnType(i));
 
             WASM_TRY_ADD_TO_CONTEXT(addCallIndirect(m_callProfileIndex++, tableIndex, calleeSignature, args, results, CallType::TailCall));
 
@@ -3399,12 +3430,10 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
         ResultList results;
 
         if (m_currentOpcode == TailCallRef) {
-            const auto& callerSignature = m_signature.get();
-
-            WASM_PARSER_FAIL_IF(calleeSignature.returnCount() != callerSignature.returnCount(), "tail call indirect function with return count "_s, calleeSignature.returnCount(), "_s, but the caller's signature has "_s, callerSignature.returnCount(), " return values"_s);
+            WASM_PARSER_FAIL_IF(calleeSignature.returnCount() != m_signature.returnCount(), "tail call indirect function with return count "_s, calleeSignature.returnCount(), "_s, but the caller's signature has "_s, m_signature.returnCount(), " return values"_s);
 
             for (unsigned i = 0; i < calleeSignature.returnCount(); ++i)
-                WASM_VALIDATOR_FAIL_IF(!isSubtype(calleeSignature.returnType(i), callerSignature.returnType(i)), "tail call ref return type mismatch: "_s , "expected "_s, callerSignature.returnType(i), ", got "_s, calleeSignature.returnType(i));
+                WASM_VALIDATOR_FAIL_IF(!isSubtype(calleeSignature.returnType(i), m_signature.returnType(i)), "tail call ref return type mismatch: "_s , "expected "_s, m_signature.returnType(i), ", got "_s, calleeSignature.returnType(i));
 
             WASM_TRY_ADD_TO_CONTEXT(addCallRef(m_callProfileIndex++, calleeSignature, args, results, CallType::TailCall));
 

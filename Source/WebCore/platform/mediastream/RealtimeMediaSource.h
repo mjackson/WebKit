@@ -55,6 +55,7 @@
 #include <wtf/Forward.h>
 #include <wtf/Lock.h>
 #include <wtf/LoggerHelper.h>
+#include <wtf/MonotonicTime.h>
 #include <wtf/NativePromise.h>
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/Vector.h>

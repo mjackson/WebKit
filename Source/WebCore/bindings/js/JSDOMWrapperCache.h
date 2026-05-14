@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <JavaScriptCore/GetVM.h>
 #include <JavaScriptCore/HeapCellInlines.h>
 #include <JavaScriptCore/InternalFunction.h>
 #include <JavaScriptCore/JSArrayBuffer.h>

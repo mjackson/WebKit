@@ -493,6 +493,27 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
                 CoreIPCSecTrustData::InfoOption v = WTF::move(revocationInfo);
                 vector.append(std::make_pair(WTF::move(k), WTF::move(v)));
+            } else if ([value isKindOfClass:NSDictionary.class]) {
+                NSDictionary *subDict = value;
+                CoreIPCSecTrustData::InfoSubDict infoSubDict;
+                infoSubDict.reserveCapacity([subDict count]);
+                for (NSString *subKey in subDict) {
+                    if (![subKey isKindOfClass:NSString.class]) {
+                        RELEASE_LOG_ERROR(IPC, "CoreIPCSecTrust 'info' sub-dictionary key is not a string");
+                        ASSERT_NOT_REACHED();
+                        return;
+                    }
+                    id subValue = [subDict objectForKey:subKey];
+                    if (![subValue isKindOfClass:NSNumber.class]) {
+                        RELEASE_LOG_ERROR(IPC, "CoreIPCSecTrust 'info' sub-dictionary value has unexpected type");
+                        ASSERT_NOT_REACHED();
+                        return;
+                    }
+                    CoreIPCString subKeyString { subKey };
+                    infoSubDict.append(std::make_pair(WTF::move(subKeyString), [(NSNumber *)subValue boolValue]));
+                }
+                CoreIPCSecTrustData::InfoOption v = WTF::move(infoSubDict);
+                vector.append(std::make_pair(WTF::move(k), WTF::move(v)));
             } else {
                 RELEASE_LOG_ERROR(IPC, "CoreIPCSecTrust 'info' dictionary contains unexpected type");
                 ASSERT_NOT_REACHED();
@@ -860,6 +881,12 @@ ALLOW_DEPRECATED_DECLARATIONS_END
                         [array addObject:entryDict.get()];
                     }
                     value = array;
+                },
+                [&] (const CoreIPCSecTrustData::InfoSubDict& infoSubDict) {
+                    RetainPtr subDict = adoptNS([[NSMutableDictionary alloc] initWithCapacity:infoSubDict.size()]);
+                    for (const auto& subPair : infoSubDict)
+                        [subDict setObject:@(subPair.second) forKey:subPair.first.toID().get()];
+                    value = subDict;
                 }
             );
             [info setObject:value.get() forKey:key.get()];

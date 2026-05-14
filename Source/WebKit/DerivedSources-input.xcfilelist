@@ -8,6 +8,7 @@ $(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/AdditionalFeatureDefines
 $(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/AdditionalPlatform.h
 $(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/AdditionalPlatformHave.h
 $(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/TestWebKitAPILibraryAdditions.swift.in
+$(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/WKDeferringGestureRecognizerExtras.swift.in
 $(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/WKWebView+SystemTextExtraction.swift.in
 $(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/WKWebView+WKBannerViewOverlay.swift.in
 $(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/WebViewRepresentable+Extras.swift.in
@@ -330,6 +331,7 @@ $(PROJECT_DIR)/Shared/Extensions/WebExtensionStorage.serialization.in
 $(PROJECT_DIR)/Shared/Extensions/WebExtensionTab.serialization.in
 $(PROJECT_DIR)/Shared/Extensions/WebExtensionTabParameters.serialization.in
 $(PROJECT_DIR)/Shared/Extensions/WebExtensionWindow.serialization.in
+$(PROJECT_DIR)/Shared/FileSystemHandleInfo.serialization.in
 $(PROJECT_DIR)/Shared/FileSystemSyncAccessHandleInfo.serialization.in
 $(PROJECT_DIR)/Shared/FocusedElementInformation.serialization.in
 $(PROJECT_DIR)/Shared/FrameInfoData.serialization.in
@@ -349,6 +351,7 @@ $(PROJECT_DIR)/Shared/IPCTester.serialization.in
 $(PROJECT_DIR)/Shared/IPCTesterReceiver.messages.in
 $(PROJECT_DIR)/Shared/ImageOptions.serialization.in
 $(PROJECT_DIR)/Shared/InspectorExtensionTypes.serialization.in
+$(PROJECT_DIR)/Shared/InspectorNetworkTypes.serialization.in
 $(PROJECT_DIR)/Shared/JavaScriptCore.serialization.in
 $(PROJECT_DIR)/Shared/JavaScriptEvaluationResult.serialization.in
 $(PROJECT_DIR)/Shared/KeyEventInterpretationContext.serialization.in
@@ -506,6 +509,7 @@ $(PROJECT_DIR)/Shared/WebPushMessage.serialization.in
 $(PROJECT_DIR)/Shared/WebUserContentControllerDataTypes.serialization.in
 $(PROJECT_DIR)/Shared/WebsiteAutoplayPolicy.serialization.in
 $(PROJECT_DIR)/Shared/WebsiteAutoplayQuirk.serialization.in
+$(PROJECT_DIR)/Shared/WebsiteData/TimeBasedEvictionMode.serialization.in
 $(PROJECT_DIR)/Shared/WebsiteData/UnifiedOriginStorageLevel.serialization.in
 $(PROJECT_DIR)/Shared/WebsiteData/WebsiteData.serialization.in
 $(PROJECT_DIR)/Shared/WebsiteData/WebsiteDataFetchOption.serialization.in
@@ -561,6 +565,7 @@ $(PROJECT_DIR)/UIProcess/Extensions/WebExtensionContext.messages.in
 $(PROJECT_DIR)/UIProcess/Extensions/WebExtensionController.messages.in
 $(PROJECT_DIR)/UIProcess/GPU/GPUProcessProxy.messages.in
 $(PROJECT_DIR)/UIProcess/Inspector/RemoteWebInspectorUIProxy.messages.in
+$(PROJECT_DIR)/UIProcess/Inspector/Agents/ProxyingNetworkAgent.messages.in
 $(PROJECT_DIR)/UIProcess/Inspector/WebInspectorBackendProxy.messages.in
 $(PROJECT_DIR)/UIProcess/Inspector/WebInspectorUIExtensionControllerProxy.messages.in
 $(PROJECT_DIR)/UIProcess/Inspector/WebInspectorUIProxy.messages.in

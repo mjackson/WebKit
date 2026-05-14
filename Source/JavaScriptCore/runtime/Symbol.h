@@ -29,6 +29,8 @@
 #include "ErrorType.h"
 #include "JSString.h"
 #include "PrivateName.h"
+#include <JavaScriptCore/JSCell.h>
+#include <JavaScriptCore/VM.h>
 #include <wtf/Expected.h>
 
 namespace JSC {

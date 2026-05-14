@@ -763,6 +763,24 @@ void Cache::fetchData(bool shouldComputeSize, CompletionHandler<void(Vector<Webs
     });
 }
 
+void Cache::fetchOriginAccessTimes(CompletionHandler<void(HashMap<WebCore::RegistrableDomain, WallTime>&&)>&& completionHandler)
+{
+    HashMap<WebCore::RegistrableDomain, WallTime> originAccessTimes;
+    m_storage->traverse(resourceType(), { Storage::TraverseFlag::LastAccessedRecordPerPartition }, [completionHandler = WTF::move(completionHandler), originAccessTimes = WTF::move(originAccessTimes)](const Storage::Record* record, const Storage::RecordInfo& recordInfo) mutable {
+        if (!record) {
+            completionHandler(WTF::move(originAccessTimes));
+            return;
+        }
+
+        auto& partition = record->key.partition();
+        if (partition.isEmpty())
+            return;
+
+        auto domain = WebCore::RegistrableDomain::uncheckedCreateFromRegistrableDomainString(partition);
+        originAccessTimes.set(WTF::move(domain), recordInfo.lastAccessTime);
+    });
+}
+
 void Cache::deleteData(const Vector<WebCore::SecurityOriginData>& origins, CompletionHandler<void()>&& completionHandler)
 {
     HashSet<WebCore::SecurityOriginData> originSet;

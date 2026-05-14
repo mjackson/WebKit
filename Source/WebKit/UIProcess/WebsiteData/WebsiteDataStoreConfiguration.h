@@ -34,6 +34,7 @@
 namespace WebKit {
 
 enum class UnifiedOriginStorageLevel : uint8_t;
+enum class TimeBasedEvictionMode : uint8_t;
 
 namespace WebPushD {
 struct WebPushDaemonConnectionConfiguration;
@@ -69,6 +70,16 @@ public:
 
     std::optional<double> originQuotaRatio() const { return m_originQuotaRatio; }
     void setOriginQuotaRatio(std::optional<double> ratio) { m_originQuotaRatio = ratio; }
+
+    static TimeBasedEvictionMode defaultTimeBasedEvictionMode();
+    TimeBasedEvictionMode timeBasedEvictionMode() const { return m_timeBasedEvictionMode; }
+    void setTimeBasedEvictionMode(TimeBasedEvictionMode mode) { m_timeBasedEvictionMode = mode; }
+    Seconds timeBasedEvictionThreshold() const { return m_timeBasedEvictionThreshold; }
+    void setTimeBasedEvictionThreshold(Seconds threshold) { m_timeBasedEvictionThreshold = threshold; }
+    std::optional<Seconds> lastModificationTimeUpdateIntervalOverride() const { return m_lastModificationTimeUpdateIntervalOverride; }
+    void setLastModificationTimeUpdateIntervalOverride(std::optional<Seconds> interval) { m_lastModificationTimeUpdateIntervalOverride = interval; }
+    std::optional<Seconds> timeBasedEvictionIntervalOverride() const { return m_timeBasedEvictionIntervalOverride; }
+    void setTimeBasedEvictionIntervalOverride(std::optional<Seconds> interval) { m_timeBasedEvictionIntervalOverride = interval; }
 
     std::optional<double> totalQuotaRatio() const { return m_totalQuotaRatio; }
     void setTotalQuotaRatio(std::optional<double> ratio) { m_totalQuotaRatio = ratio; }
@@ -303,6 +314,10 @@ private:
     Directories m_directories;
     uint64_t m_perOriginStorageQuota;
     std::optional<double> m_originQuotaRatio;
+    TimeBasedEvictionMode m_timeBasedEvictionMode { defaultTimeBasedEvictionMode() };
+    Seconds m_timeBasedEvictionThreshold { 180 * 24_h };
+    std::optional<Seconds> m_lastModificationTimeUpdateIntervalOverride;
+    std::optional<Seconds> m_timeBasedEvictionIntervalOverride;
     std::optional<double> m_totalQuotaRatio;
     std::optional<uint64_t> m_standardVolumeCapacity;
     std::optional<uint64_t> m_volumeCapacityOverride;

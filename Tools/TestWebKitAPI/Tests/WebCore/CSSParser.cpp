@@ -28,7 +28,7 @@
 
 #include <WebCore/CSSColorValue.h>
 #include <WebCore/CSSCustomPropertyValue.h>
-#include <WebCore/CSSGridIntegerRepeatValue.h>
+#include <WebCore/CSSGridTemplateListValue.h>
 #include <WebCore/CSSKeywordValueInlines.h>
 #include <WebCore/CSSParser.h>
 #include <WebCore/CSSSerializationContext.h>
@@ -158,20 +158,57 @@ TEST(CSSParser, ParseTextTransformPropertyWithNewlineBetweenTwoIdentInput)
     check(properties2);
 }
 
-static unsigned computeNumberOfTracks(const CSSValueContainingVector& valueList)
+static unsigned computeNumberOfTracks(const SpaceSeparatedVector<Variant<CSS::GridLineNames, CSS::GridTrackSize>>& repeatedTracks)
 {
     unsigned numberOfTracks = 0;
-    for (auto& value : valueList) {
-        if (value.isGridLineNamesValue())
-            continue;
-        if (is<CSSGridIntegerRepeatValue>(value)) {
-            auto& repeatValue = downcast<CSSGridIntegerRepeatValue>(value);
-            numberOfTracks += repeatValue.repetitions().resolveAsIntegerNoConversionDataRequired() * computeNumberOfTracks(repeatValue);
-            continue;
-        }
-        ++numberOfTracks;
+    for (auto& repeatedTrack : repeatedTracks) {
+        if (WTF::holdsAlternative<CSS::GridTrackSize>(repeatedTrack))
+            ++numberOfTracks;
     }
     return numberOfTracks;
+}
+
+static unsigned computeNumberOfTracks(const CSSGridTemplateListValue& templateListValue)
+{
+    return WTF::switchOn(templateListValue.list(),
+        [](CSS::Keyword::None) -> unsigned {
+            return 0;
+        },
+        [](const CSS::GridSubgrid&) -> unsigned {
+            return 0;
+        },
+        [](const CSS::GridTrackList& trackList) -> unsigned {
+            unsigned numberOfTracks = 0;
+            for (auto& track : trackList.value) {
+                WTF::switchOn(track,
+                    [&](const CSS::GridLineNames&) {
+                        // Ignored in count.
+                    },
+                    [&](const CSS::GridTrackSize&) {
+                        ++numberOfTracks;
+                    },
+                    [&](const CSS::GridTrackRepeatFunction& repeatFunction) {
+                        WTF::switchOn(repeatFunction->repetitions,
+                            [&](const CSS::Integer<CSS::Positive, unsigned>& numberOfRepetitions) {
+                                return WTF::switchOn(numberOfRepetitions,
+                                    [&](const CSS::Integer<CSS::Positive, unsigned>::Raw& numberOfRepetitions) {
+                                        numberOfTracks += numberOfRepetitions.value * computeNumberOfTracks(repeatFunction->repeated);
+                                    },
+                                    [&](const CSS::Integer<CSS::Positive, unsigned>::Calc&) {
+                                        // Number of repetitions is not yet calculated.
+                                    }
+                                );
+                            },
+                            [&](CSS::SpecificKeyword auto const& /* auto-fit or auto-fill */) {
+                                // Ignored in count.
+                            }
+                        );
+                    }
+                );
+            }
+            return numberOfTracks;
+        }
+    );
 }
 
 TEST(CSSPropertyParser, GridTrackLimits)
@@ -207,8 +244,8 @@ TEST(CSSPropertyParser, GridTrackLimits)
         ASSERT_TRUE(CSSParser::parseDeclarationList(properties, testCase.input, strictCSSParserContext()));
         RefPtr<CSSValue> value = properties->getPropertyCSSValue(testCase.propertyID);
 
-        ASSERT_TRUE(is<CSSValueContainingVector>(value.get()));
-        EXPECT_EQ(computeNumberOfTracks(downcast<CSSValueContainingVector>(*value)), testCase.output);
+        ASSERT_TRUE(is<CSSGridTemplateListValue>(value.get()));
+        EXPECT_EQ(computeNumberOfTracks(downcast<CSSGridTemplateListValue>(*value)), testCase.output);
     }
 }
 

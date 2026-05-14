@@ -32,7 +32,6 @@
 #include <wtf/JSONValues.h>
 #include <wtf/Forward.h>
 #include <wtf/MathExtras.h>
-#include <wtf/Platform.h>
 
 #if USE(CG)
 typedef struct CGSize CGSize;

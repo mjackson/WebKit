@@ -66,12 +66,14 @@
         run('video.fastSeek(2)');
         await waitFor(video, 'seeked');
         testExpected('video.currentTime.toFixed(1)', 0);
-
-        endTest();
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

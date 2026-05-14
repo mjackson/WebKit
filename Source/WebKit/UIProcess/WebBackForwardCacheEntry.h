@@ -51,6 +51,8 @@ public:
     WebBackForwardCache* NODELETE backForwardCache() const;
 
     SuspendedPageProxy* suspendedPage() const { return m_suspendedPage.get(); }
+    void setSuspendedPage(Ref<SuspendedPageProxy>&&);
+    void clearSuspendedPage();
     Ref<SuspendedPageProxy> takeSuspendedPage();
     WebCore::ProcessIdentifier processIdentifier() const { return m_processIdentifier; }
     RefPtr<WebProcessProxy> process() const;

@@ -2171,20 +2171,6 @@ Result<const Type*> TypeChecker::chooseOverload(ASCIILiteral kind, const SourceS
         } else if (auto* validate = overload->validationFunction) {
             if (auto error = validate(WTF::move(validationArguments)))
                 TYPE_ERROR(span, *error);
-
-            m_shaderModule.addOverrideValidation([&shaderModule = m_shaderModule, span, callArguments, validate](auto& overrideValues) -> std::optional<Error> {
-                unsigned argumentCount = callArguments.size();
-                FixedVector<std::optional<ConstantValue>> validationArguments(argumentCount);
-                for (unsigned i = 0; i < argumentCount; ++i) {
-                    if (auto value = evaluate(shaderModule, callArguments[i], overrideValues))
-                        validationArguments[i] = { *value };
-                }
-
-                if (auto error = validate(WTF::move(validationArguments)))
-                    return Error(*error, span);
-
-                return std::nullopt;
-            });
         }
 
         return { selectedOverload->result };

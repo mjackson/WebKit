@@ -3512,11 +3512,12 @@ class GenerateCSSPropertyNames:
         to.write("};")
         to.newline()
 
-        all_property_name_strings = quote_iterable((f"{property.name}" for property in self.properties_and_descriptors.all_unique), suffix="_s,")
-        to.write(f"constexpr ASCIILiteral propertyNameStrings[numCSSProperties] = {{")
+        property_count = len(self.properties_and_descriptors.all_unique)
+        to.write(f"static constexpr std::array<StringImpl::StaticStringImpl, {property_count}> propertyNameData = {{{{")
         with to.indent():
-            to.write_lines(all_property_name_strings)
-        to.write("};")
+            for property in self.properties_and_descriptors.all_unique:
+                to.write(f'StringImpl::StaticStringImpl("{property.name}", StringImpl::StringAtom),')
+        to.write("}};")
         to.newline()
 
         to.write("%}")
@@ -3583,7 +3584,7 @@ class GenerateCSSPropertyNames:
                 unsigned index = id - firstCSSProperty;
                 if (index >= numCSSProperties)
                     return { };
-                return propertyNameStrings[index];
+                return propertyNameData[index].literal();
             }
 
             const AtomString& nameString(CSSPropertyID id)
@@ -3597,7 +3598,7 @@ class GenerateCSSPropertyNames:
                 static NeverDestroyed<std::array<AtomString, numCSSProperties>> atomStrings;
                 auto& string = atomStrings.get()[index];
                 if (string.isNull())
-                    string = propertyNameStrings[index];
+                    string = propertyNameData[index];
                 return string;
             }
 

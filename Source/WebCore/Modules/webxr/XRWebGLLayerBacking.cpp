@@ -28,11 +28,17 @@
 
 #if ENABLE(WEBXR_LAYERS)
 
+#include "FloatSize.h"
 #include "GraphicsContextGL.h"
+#include "PlatformXR.h"
 #include "WebGLOpaqueTexture.h"
 #include "WebGLRenderingContextBase.h"
 #include "WebXROpaqueFramebuffer.h"
+#include "WebXRSession.h"
 #include "WebXRWebGLSwapchain.h"
+#include "XRLayerInit.h"
+#include "XRLayerLayout.h"
+#include "XRProjectionLayerInit.h"
 
 #include <wtf/TZoneMallocInlines.h>
 
@@ -121,6 +127,68 @@ RefPtr<WebGLOpaqueTexture> XRWebGLLayerBacking::currentDepthTexture() const
     return nullptr;
 }
 
+static std::pair<IntSize, PlatformXR::LayerLayout> computeNonProjectionLayerSize(uint32_t viewPixelWidth, uint32_t viewPixelHeight, XRLayerLayout layout)
+{
+    switch (layout) {
+    case XRLayerLayout::Mono:
+        return { IntSize { static_cast<int>(viewPixelWidth), static_cast<int>(viewPixelHeight) }, PlatformXR::LayerLayout::Mono };
+    case XRLayerLayout::Stereo:
+    case XRLayerLayout::StereoLeftRight:
+        return { IntSize { static_cast<int>(viewPixelWidth * 2), static_cast<int>(viewPixelHeight) }, PlatformXR::LayerLayout::StereoLeftRight };
+    case XRLayerLayout::StereoTopBottom:
+        return { IntSize { static_cast<int>(viewPixelWidth), static_cast<int>(viewPixelHeight * 2) }, PlatformXR::LayerLayout::StereoTopBottom };
+    default:
+    case XRLayerLayout::Default:
+        ASSERT_NOT_REACHED_WITH_MESSAGE("Default layout is not supported for non-projection Layers");
+        return { IntSize(), PlatformXR::LayerLayout::Mono };
+    };
+}
+
+ExceptionOr<XRWebGLLayerBacking::XRLayerSwapchains> XRWebGLLayerBacking::createCompositionLayerSwapchains(WebXRSession& session, WebGLRenderingContextBase& context, PlatformXR::CompositionLayerType layerType, const XRLayerInit& init)
+{
+    auto device = session.device();
+    if (!device)
+        return Exception { ExceptionCode::OperationError, "Cannot create a composition layer without a valid device."_s };
+
+    auto [layerSize, layerLayout] = computeNonProjectionLayerSize(init.viewPixelWidth, init.viewPixelHeight, init.layout);
+
+    auto layerInfo = device->createCompositionLayer(layerType, layerSize, layerLayout);
+    if (!layerInfo)
+        return Exception { ExceptionCode::OperationError, "Unable to create a composition layer."_s };
+
+    return createColorAndDepthSwapchains(context, layerInfo->handle, init.colorFormat, init.depthFormat, layerSize, init.clearOnAccess, layerInfo->numImages);
+}
+
+ExceptionOr<XRWebGLLayerBacking::XRLayerSwapchains> XRWebGLLayerBacking::createProjectionLayerSwapchains(WebXRSession& session, WebGLRenderingContextBase& context, const XRProjectionLayerInit& init)
+{
+    constexpr double MinTextureScalingFactor = 0.2;
+    auto device = session.device();
+    if (!device)
+        return Exception { ExceptionCode::OperationError, "Cannot create a projection layer without a valid device."_s };
+
+    double clampedScaleFactor = std::clamp(init.scaleFactor, MinTextureScalingFactor, device->maxFramebufferScalingFactor());
+    FloatSize recommendedSize = session.recommendedWebGLFramebufferResolution();
+    IntSize size = expandedIntSize(recommendedSize.scaled(static_cast<float>(clampedScaleFactor)));
+
+    auto layerInfo = device->createLayerProjection(size.width(), size.height(), true);
+    if (!layerInfo)
+        return Exception { ExceptionCode::OperationError, "Unable to create a projection layer."_s };
+
+    return createColorAndDepthSwapchains(context, layerInfo->handle, init.colorFormat, init.depthFormat, size, init.clearOnAccess, layerInfo->numImages);
+}
+
+ExceptionOr<XRWebGLLayerBacking::XRLayerSwapchains> XRWebGLLayerBacking::createColorAndDepthSwapchains(WebGLRenderingContextBase& context, PlatformXR::LayerHandle handle, GCGLenum colorFormat, std::optional<GCGLenum> depthFormat, IntSize size, bool clearOnAccess, size_t numImages)
+{
+    auto colorSwapchain = WebXRWebGLSharedImageSwapchain::create(context, WebXRSwapchain::SwapchainTargetFlags::Color, colorFormat, size, clearOnAccess, numImages);
+    if (!colorSwapchain)
+        return Exception { ExceptionCode::OperationError, "Failed to create a WebGL swapchain."_s };
+
+    std::unique_ptr<WebXRWebGLSwapchain> depthSwapchain;
+    if (depthFormat && *depthFormat)
+        depthSwapchain = createDepthSwapchain(context, *depthFormat, size, clearOnAccess, numImages);
+
+    return XRLayerSwapchains { handle, WTF::move(colorSwapchain), WTF::move(depthSwapchain) };
+}
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/modules/xr/xr_webgl_binding.cc
 struct SwapchainFormats {

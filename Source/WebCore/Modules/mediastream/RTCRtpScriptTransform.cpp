@@ -35,6 +35,7 @@
 #include "MessageChannel.h"
 #include "RTCRtpScriptTransformer.h"
 #include "RTCRtpTransformBackend.h"
+#include "ScriptExecutionContext.h"
 #include "Worker.h"
 #include <JavaScriptCore/HeapCellInlines.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -49,7 +50,7 @@ ExceptionOr<Ref<RTCRtpScriptTransform>> RTCRtpScriptTransform::create(JSC::JSGlo
     if (!worker.scriptExecutionContext())
         return Exception { ExceptionCode::InvalidStateError, "Worker frame is detached"_s };
 
-    RefPtr context = uncheckedDowncast<JSDOMGlobalObject>(&state)->scriptExecutionContext();
+    RefPtr context = downcast<JSDOMGlobalObject>(&state)->scriptExecutionContext();
     if (!context)
         return Exception { ExceptionCode::InvalidStateError, "Invalid context"_s };
 

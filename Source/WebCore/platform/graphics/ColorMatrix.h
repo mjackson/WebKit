@@ -188,16 +188,6 @@ inline ColorMatrix<3, 3> hueRotateColorMatrix(float angleInDegrees)
     };
 }
 
-constexpr ColorMatrix<5, 4> swapRedBlueMatrix()
-{
-    return ColorMatrix<5, 4> {
-        0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
-    };
-}
-
 template<size_t ColumnCount, size_t RowCount>
 template<size_t NumberOfComponents>
 constexpr auto ColorMatrix<ColumnCount, RowCount>::transformedColorComponents(const ColorComponents<float, NumberOfComponents>& inputVector) const -> ColorComponents<float, NumberOfComponents>

@@ -49,12 +49,14 @@
         run('source.endOfStream()');
         testExpected('source.readyState', 'ended');
         testExpectedEqualWithTolerance('source.duration', 10, 0.01);
-
-        endTest();
     }
+
+    window.addEventListener('load', event => {
+        runTest().then(endTest).catch(failTest);
+    });
     </script>
 </head>
-<body onload="runTest()">
+<body>
     <video></video>
 </body>
 </html>

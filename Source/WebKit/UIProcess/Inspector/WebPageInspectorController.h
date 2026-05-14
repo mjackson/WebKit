@@ -43,6 +43,7 @@ namespace Inspector {
 class BackendDispatcher;
 class FrontendChannel;
 class FrontendRouter;
+class ProxyingNetworkAgent;
 }
 
 namespace WebKit {
@@ -75,8 +76,10 @@ public:
 
     void sendMessageToInspectorFrontend(const String& targetId, const String& message);
 
-    bool shouldPauseLoading(const ProvisionalPageProxy&) const;
-    void setContinueLoadingCallback(const ProvisionalPageProxy&, WTF::Function<void()>&&);
+    bool shouldPauseLoadingForPage(const ProvisionalPageProxy&) const;
+    void setContinueLoadingCallbackForPage(const ProvisionalPageProxy&, WTF::Function<void()>&&);
+    bool shouldPauseLoadingForFrame(const ProvisionalFrameProxy&) const;
+    void setContinueLoadingCallbackForFrame(const ProvisionalFrameProxy&, WTF::Function<void()>&&);
 
     void didCreateProvisionalPage(ProvisionalPageProxy&, WebCore::FrameIdentifier mainFrameID, WebProcessProxy& mainFrameProcess);
     void willDestroyProvisionalPage(const ProvisionalPageProxy&, WebCore::FrameIdentifier mainFrameID, WebCore::ProcessIdentifier mainFrameProcessID);
@@ -92,6 +95,8 @@ public:
 
     void browserExtensionsEnabled(HashMap<String, String>&&);
     void browserExtensionsDisabled(HashSet<String>&&);
+
+    bool isNetworkInstrumentationEnabled() const;
 
 private:
     WebPageAgentContext NODELETE webPageAgentContext();
@@ -112,6 +117,7 @@ private:
     HashMap<String, std::unique_ptr<InspectorTargetProxy>> m_targets;
 
     CheckedPtr<InspectorBrowserAgent> m_enabledBrowserAgent;
+    RefPtr<Inspector::ProxyingNetworkAgent> m_networkAgent;
 
     bool m_didCreateLazyAgents { false };
 };

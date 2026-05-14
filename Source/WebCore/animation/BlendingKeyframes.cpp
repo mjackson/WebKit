@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 1999 Antti Koivisto (koivisto@kde.org)
- * Copyright (C) 2004-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2026 Apple Inc. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -285,6 +285,15 @@ bool BlendingKeyframes::usesViewportUnits() const
 {
     for (auto& keyframe : m_keyframes) {
         if (keyframe.style()->usesViewportUnits())
+            return true;
+    }
+    return false;
+}
+
+bool BlendingKeyframes::usesTreeCountingFunctions() const
+{
+    for (auto& keyframe : m_keyframes) {
+        if (keyframe.style()->useTreeCountingFunctions())
             return true;
     }
     return false;

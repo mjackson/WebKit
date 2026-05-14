@@ -32,6 +32,7 @@
 #include "StructureChain.h"
 #include "StructureRareData.h"
 #include "VM.h"
+#include <wtf/Bag.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 

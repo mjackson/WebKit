@@ -30,6 +30,7 @@
 
 #include "AccessCaseSnippetParams.h"
 #include "BaselineJITCode.h"
+#include "BaselineJITRegisters.h"
 #include "BinarySwitch.h"
 #include "CCallHelpers.h"
 #include "CacheableIdentifierInlines.h"

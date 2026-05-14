@@ -207,7 +207,11 @@ void BrowsingContextGroup::removeFrameProcess(FrameProcess& process)
 
 void BrowsingContextGroup::addPage(WebPageProxy& page)
 {
-    ASSERT(!m_pages.contains(page));
+    if (m_pages.contains(page)) {
+        // This only happens when restoring a page from a suspended BCG, which holds exactly this one page.
+        ASSERT(!hasMultiplePages());
+        return;
+    }
     m_pages.add(page);
     auto& set = m_remotePages.ensure(page, [] {
         return HashSet<Ref<RemotePageProxy>> { };

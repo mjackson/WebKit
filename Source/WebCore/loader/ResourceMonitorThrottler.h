@@ -30,6 +30,7 @@
 #include <wtf/HashMap.h>
 #include <wtf/PriorityQueue.h>
 #include <wtf/Vector.h>
+#include <wtf/text/StringHash.h>
 #include <wtf/text/WTFString.h>
 
 namespace WebCore {

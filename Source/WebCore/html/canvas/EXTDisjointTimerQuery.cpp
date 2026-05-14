@@ -56,10 +56,10 @@ bool EXTDisjointTimerQuery::supported(GraphicsContextGL& context)
     return context.supportsExtension(GCGLExtension::EXT_disjoint_timer_query);
 }
 
-RefPtr<WebGLTimerQueryEXT> EXTDisjointTimerQuery::createQueryEXT()
+Ref<WebGLTimerQueryEXT> EXTDisjointTimerQuery::createQueryEXT()
 {
     if (isContextLost())
-        return nullptr;
+        return WebGLTimerQueryEXT::createLost();
     return WebGLTimerQueryEXT::create(context().get());
 }
 

@@ -1512,6 +1512,11 @@ TEST(IPCSerialization, SecTrustRef)
             @{ },
         ],
         @"info" : @{
+            @"Builder" : @{
+                @"RevocationDbIgnored" : @(NO),
+                @"RevocationIfTrusted" : @(YES),
+                @"RevocationOnline" : @(NO)
+            },
             @"CertificateTransparency" : @(YES),
             @"CompanyName" : @"Apple Inc.",
             @"ExtendedValidation" : @(YES),

@@ -198,6 +198,8 @@ public:
     void dump(PrintStream& out) const final;
 
 private:
+    explicit StructureFireDetail(ClangVTableWorkaroundTag);
+
     const Structure* m_structure;
 };
 

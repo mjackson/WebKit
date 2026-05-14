@@ -30,6 +30,7 @@
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMGlobalObject.h"
 #include "MessagePort.h"
+#include "ScriptExecutionContext.h"
 #include "SerializedScriptValue.h"
 #include "StructuredSerializeOptions.h"
 #include <JavaScriptCore/Exception.h>

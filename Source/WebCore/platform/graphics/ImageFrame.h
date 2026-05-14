@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,6 +31,7 @@
 #include <WebCore/ImageTypes.h>
 #include <WebCore/IntSize.h>
 #include <WebCore/NativeImage.h>
+#include <wtf/EnumeratedArray.h>
 #include <wtf/Seconds.h>
 
 namespace WebCore {
@@ -52,9 +53,8 @@ public:
 
     ImageFrame& operator=(const ImageFrame&);
 
-    unsigned clearSourceImage(ShouldDecodeToHDR);
-    unsigned clearImage(std::optional<ShouldDecodeToHDR> = std::nullopt);
-    unsigned clear();
+    size_t clearImage(std::optional<DecodingDestination> = std::nullopt);
+    size_t clear();
 
     void NODELETE setDecodingStatus(DecodingStatus);
     DecodingStatus NODELETE decodingStatus() const;
@@ -66,7 +66,7 @@ public:
     void setSize(const IntSize& size) { m_size = size; }
     IntSize size() const { return m_size; }
 
-    unsigned sizeInBytes() const { return (size().area() * sizeof(uint32_t)).value(); }
+    size_t sizeInBytes() const;
 
     void setDensity(const FloatSize& density) { m_density = density; }
     FloatSize density() const { return m_density; }
@@ -76,9 +76,9 @@ public:
 
     SubsamplingLevel subsamplingLevel() const { return m_subsamplingLevel; }
 
-    RefPtr<NativeImage> nativeImage(std::optional<ShouldDecodeToHDR> shouldDecodeToHDR) const { return source(shouldDecodeToHDR).nativeImage; }
-    DecodingOptions decodingOptions(std::optional<ShouldDecodeToHDR> shouldDecodeToHDR) const { return source(shouldDecodeToHDR).decodingOptions; }
-    Headroom headroom(std::optional<ShouldDecodeToHDR> shouldDecodeToHDR) const { return source(shouldDecodeToHDR).headroom; }
+    RefPtr<NativeImage> nativeImage(std::optional<DecodingDestination> decodingDestination) const { return destination(decodingDestination).nativeImage; }
+    DecodingOptions decodingOptions(std::optional<DecodingDestination> decodingDestination) const { return destination(decodingDestination).decodingOptions; }
+    Headroom headroom(std::optional<DecodingDestination> decodingDestination) const { return destination(decodingDestination).headroom; }
 
     void setOrientation(ImageOrientation orientation) { m_orientation = orientation; };
     ImageOrientation orientation() const { return m_orientation; }
@@ -89,14 +89,14 @@ public:
     void setHasAlpha(bool hasAlpha) { m_hasAlpha = hasAlpha; }
     bool hasAlpha() const { return !hasMetadata() || m_hasAlpha; }
 
-    bool hasNativeImage(ShouldDecodeToHDR shouldDecodeToHDR) const { return source(shouldDecodeToHDR).hasNativeImage(); }
-    bool NODELETE hasNativeImage(ShouldDecodeToHDR, SubsamplingLevel) const;
-    bool NODELETE hasFullSizeNativeImage(ShouldDecodeToHDR, SubsamplingLevel) const;
+    bool hasNativeImage(DecodingDestination decodingDestination) const { return m_destinations[decodingDestination].hasNativeImage(); }
+    bool NODELETE hasNativeImage(DecodingDestination, SubsamplingLevel) const;
+    bool NODELETE hasFullSizeNativeImage(DecodingDestination, SubsamplingLevel) const;
     bool hasDecodedNativeImageCompatibleWithOptions(const DecodingOptions&, SubsamplingLevel) const;
     bool hasMetadata() const { return !size().isEmpty(); }
 
 private:
-    struct Source {
+    struct Destination {
         RefPtr<NativeImage> nativeImage;
         DecodingOptions decodingOptions { DecodingMode::Auto };
         Headroom headroom { Headroom::None };
@@ -113,35 +113,40 @@ private:
             return hasNativeImage() && this->decodingOptions.isCompatibleWith(decodingOptions);
         }
 
-        void clear()
+        size_t sizeInBytes() const
         {
-            if (RefPtr image = std::exchange(nativeImage, nullptr)) {
-                image->clearSubimages();
+            if (RefPtr nativeImage = this->nativeImage)
+                return nativeImage->sizeInBytes();
+            return 0;
+        }
+
+        size_t clear()
+        {
+            if (RefPtr nativeImage = std::exchange(this->nativeImage, nullptr)) {
+                nativeImage->clearSubimages();
                 decodingOptions = DecodingOptions();
                 headroom = Headroom::None;
+                return nativeImage->sizeInBytes();
             }
+            return 0;
         }
     };
 
-    ShouldDecodeToHDR shouldDecodeToHDRIfExists() const
+    DecodingDestination decodingDestinationIfExists() const
     {
-        return hasNativeImage(ShouldDecodeToHDR::Yes) ? ShouldDecodeToHDR::Yes : ShouldDecodeToHDR::No;
+        if (m_destinations[DecodingDestination::ShouldDecodeToHDR].hasNativeImage())
+            return DecodingDestination::ShouldDecodeToHDR;
+        return DecodingDestination::Base;
     }
 
-    Source& source(std::optional<ShouldDecodeToHDR> shouldDecodeToHDR)
+    Destination& destination(std::optional<DecodingDestination> decodingDestination)
     {
-        if (shouldDecodeToHDR)
-            return *shouldDecodeToHDR == ShouldDecodeToHDR::No ? m_source : m_hdrSource;
-
-        return shouldDecodeToHDRIfExists() == ShouldDecodeToHDR::No ? m_source : m_hdrSource;
+        return m_destinations[decodingDestination.value_or(decodingDestinationIfExists())];
     }
 
-    const Source& source(std::optional<ShouldDecodeToHDR> shouldDecodeToHDR) const
+    const Destination& destination(std::optional<DecodingDestination> decodingDestination) const
     {
-        if (shouldDecodeToHDR)
-            return *shouldDecodeToHDR == ShouldDecodeToHDR::No ? m_source : m_hdrSource;
-
-        return shouldDecodeToHDRIfExists() == ShouldDecodeToHDR::No ? m_source : m_hdrSource;
+        return m_destinations[decodingDestination.value_or(decodingDestinationIfExists())];
     }
 
     DecodingStatus m_decodingStatus { DecodingStatus::Invalid };
@@ -156,8 +161,7 @@ private:
     Seconds m_duration;
     bool m_hasAlpha { true };
 
-    Source m_source;
-    Source m_hdrSource;
+    EnumeratedArray<DecodingDestination, Destination, DecodingDestination::ShouldDecodeToHDR> m_destinations;
 };
 
 } // namespace WebCore

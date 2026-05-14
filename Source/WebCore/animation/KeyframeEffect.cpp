@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -1341,6 +1341,7 @@ void KeyframeEffect::setBlendingKeyframes(BlendingKeyframes&& blendingKeyframes)
     computeHasAcceleratedPropertyOverriddenByCascadeProperty();
     computeHasReferenceFilter();
     computeHasSizeDependentTransform();
+    computeAnimationIsAcceleratedAndAffectsAnchorGeometry();
     analyzeAcceleratedProperties();
 
     checkForMatchingTransformFunctionLists();
@@ -1964,6 +1965,9 @@ bool KeyframeEffect::canBeAccelerated(AccountForTimelineAccelerationAbility acco
     if (m_hasReferenceFilter)
         return false;
 
+    if (m_animationIsAcceleratedAndAffectsAnchorGeometry)
+        return false;
+
     if (m_animatesSizeAndSizeDependentTransform)
         return false;
 
@@ -2237,9 +2241,10 @@ std::optional<KeyframeEffect::RecomputationReason> KeyframeEffect::recomputeKeyf
     }();
 
     auto usesAnchorFunctions = m_blendingKeyframes.usesAnchorFunctions();
+    auto usesTreeCountingFunctions = m_blendingKeyframes.usesTreeCountingFunctions();
     auto hasPropertiesWithRevert = m_blendingKeyframes.hasPropertiesWithRevertRuleOrLayer();
 
-    if (logicalPropertyChanged || fontSizeChanged() || fontWeightChanged() || cssVariableChanged() || hasPropertyExplicitlySetToInherit() || propertySetToCurrentColorChanged() || usesAnchorFunctions || hasPropertiesWithRevert) {
+    if (logicalPropertyChanged || fontSizeChanged() || fontWeightChanged() || cssVariableChanged() || hasPropertyExplicitlySetToInherit() || propertySetToCurrentColorChanged() || usesAnchorFunctions || usesTreeCountingFunctions || hasPropertiesWithRevert) {
         switch (m_animationType) {
         case WebAnimationType::CSSTransition:
             ASSERT_NOT_REACHED();
@@ -2947,6 +2952,59 @@ void KeyframeEffect::computeHasReferenceFilter()
         }
 
         return false;
+    }();
+}
+
+void KeyframeEffect::computeAnimationIsAcceleratedAndAffectsAnchorGeometry()
+{
+    m_animationIsAcceleratedAndAffectsAnchorGeometry = [&]() {
+        bool animationIsAcceleratedAndAffectsGeometry = [&] () {
+            if (m_blendingKeyframes.isEmpty())
+                return false;
+
+            if (m_acceleratedPropertiesState == AcceleratedProperties::None)
+                return false;
+
+            RefPtr protectedDocument = document();
+            if (!protectedDocument)
+                return false;
+
+            HashSet<CSSPropertyID> geometryAffectingAcceleratedProperty { CSSProperty::allAcceleratedAnimationProperties(protectedDocument->settings()) };
+            // Allow properties we know don't affect geometry.
+            geometryAffectingAcceleratedProperty.remove(CSSPropertyOpacity);
+            geometryAffectingAcceleratedProperty.remove(CSSPropertyFilter);
+            geometryAffectingAcceleratedProperty.remove(CSSPropertyBackdropFilter);
+
+            for (auto property : geometryAffectingAcceleratedProperty) {
+                if (m_blendingKeyframes.properties().contains(property))
+                    return true;
+            }
+
+            return false;
+        }();
+
+        if (!animationIsAcceleratedAndAffectsGeometry)
+            return false;
+
+        bool targetIsAncestorContainerOfAnchors = [target = targetStyleable()] () {
+            if (!target)
+                return false;
+
+            CheckedPtr<const RenderObject> targetRenderer = target->renderer();
+            if (!targetRenderer)
+                return false;
+
+            // FIXME: could optimize this loop?
+            CheckedRef view = targetRenderer->view();
+            for (CheckedRef anchor : view->anchors()) {
+                if (targetRenderer->isAncestorContainerOfRenderer(anchor))
+                    return true;
+            }
+
+            return false;
+        }();
+
+        return targetIsAncestorContainerOfAnchors;
     }();
 }
 

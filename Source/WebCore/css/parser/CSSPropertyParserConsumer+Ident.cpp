@@ -150,5 +150,23 @@ RefPtr<CSSValue> consumeDashedIdent(CSSParserTokenRange& range, CSS::PropertyPar
     return nullptr;
 }
 
+// MARK: <CSS-wide keyword>
+// https://drafts.csswg.org/css-values/#common-keywords
+
+std::optional<CSSWideKeyword> consumeCSSWideKeyword(CSSParserTokenRange& range)
+{
+    auto rangeCopy = range;
+    auto valueID = rangeCopy.consumeIncludingWhitespace().id();
+    if (!rangeCopy.atEnd())
+        return { };
+
+    auto keyword = parseCSSWideKeyword(valueID);
+    if (!keyword)
+        return { };
+
+    range = rangeCopy;
+    return keyword;
+}
+
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

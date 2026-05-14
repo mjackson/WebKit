@@ -443,13 +443,8 @@ PlatformXRCoordinator* PlatformXRSystem::xrCoordinator()
 }
 #endif // !USE(APPLE_INTERNAL_SDK) && !USE(OPENXR) && !PLATFORM(IOS) && !PLATFORM(VISION)
 
-#if ENABLE(WEBXR_LAYERS) && PLATFORM(VISION)
-void PlatformXRSystem::createCompositionLayer(IPC::Connection&, PlatformXR::CompositionLayerType, WebCore::IntSize, PlatformXR::LayerLayout, CompletionHandler<void(std::optional<PlatformXR::LayerInfo>)>&& reply)
-{
-    ASSERT_NOT_REACHED_WITH_MESSAGE("VisionOS does not support composition layers yet");
-    reply(std::nullopt);
-}
-#endif // ENABLE(WEBXR_LAYERS) && PLATFORM(VISION)
+/*
+*/
 
 } // namespace WebKit
 

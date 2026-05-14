@@ -30,7 +30,6 @@
 #include <WebCore/WritingMode.h>
 #include <array>
 #include <concepts>
-#include <wtf/OptionSet.h>
 #include <wtf/text/TextStream.h>
 
 namespace WebCore {

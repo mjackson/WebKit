@@ -1603,7 +1603,7 @@ void EditingStyle::removeEquivalentProperties(T& style)
         auto id = property.id();
         if (alreadyHandled.contains(id))
             continue;
-        if (!style.propertyMatches(property.id(), RefPtr { property.value() }.get()))
+        if (!style.propertyMatches(property.id(), protect(property.value())))
             continue;
 
         // Only the text-decoration longhands support serializing with the shorthand in all editing properties.
@@ -1755,7 +1755,7 @@ RefPtr<EditingStyle> EditingStyle::styleAtSelectionStart(const VisibleSelection&
     // and find the background color of the common ancestor.
     if (shouldUseBackgroundColorInEffect && (selection.isRange() || hasTransparentBackgroundColor(protect(style->style()).get()))) {
         if (auto range = selection.toNormalizedRange()) {
-            if (RefPtr value = backgroundColorInEffect(RefPtr { commonInclusiveAncestor<ComposedTree>(*range) }.get()))
+            if (RefPtr value = backgroundColorInEffect(protect(commonInclusiveAncestor<ComposedTree>(*range))))
                 style->setProperty(CSSPropertyBackgroundColor, value->cssText(CSS::defaultSerializationContext()));
         }
     }

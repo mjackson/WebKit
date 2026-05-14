@@ -31,7 +31,7 @@
 #include "ModuleMap.h"
 #include "ScriptFetchParameters.h"
 #include "ScriptFetcher.h"
-#include <wtf/ListHashSet.h>
+#include <wtf/OrderedHashSet.h>
 #include <wtf/RefPtr.h>
 
 namespace JSC {
@@ -94,8 +94,10 @@ public:
         Identifier localName;
     };
 
+    enum class ModulePhase : uint8_t { Evaluation, Defer };
+
     enum class ImportEntryType {
-        Single, 
+        Single,
 #if USE(BUN_JSC_ADDITIONS)
         // If the corresponding export is not found, do not emit an error.
         SingleTypeScript,
@@ -104,18 +106,20 @@ public:
     };
     struct ImportEntry {
         ImportEntryType type;
+        ModulePhase phase { ModulePhase::Evaluation };
         Identifier moduleRequest;
         Identifier importName;
         Identifier localName;
     };
 
-    typedef WTF::ListHashSet<RefPtr<UniquedStringImpl>, IdentifierRepHash> OrderedIdentifierSet;
+    typedef WTF::OrderedHashSet<RefPtr<UniquedStringImpl>, IdentifierRepHash> OrderedIdentifierSet;
     typedef UncheckedKeyHashMap<RefPtr<UniquedStringImpl>, ImportEntry, IdentifierRepHash, HashTraits<RefPtr<UniquedStringImpl>>> ImportEntries;
     typedef UncheckedKeyHashMap<RefPtr<UniquedStringImpl>, ExportEntry, IdentifierRepHash, HashTraits<RefPtr<UniquedStringImpl>>> ExportEntries;
 
     struct ModuleRequest {
         Identifier m_specifier;
         RefPtr<ScriptFetchParameters> m_attributes;
+        ModulePhase m_phase { ModulePhase::Evaluation };
 
         ScriptFetchParameters::Type type(ScriptFetchParameters::Type fallback = ScriptFetchParameters::Type::JavaScript) const;
         bool operator==(const ModuleRequest&) const;
@@ -129,7 +133,7 @@ public:
 
     DECLARE_EXPORT_INFO;
 
-    void appendRequestedModule(const Identifier&, RefPtr<ScriptFetchParameters>&&);
+    void appendRequestedModule(const Identifier&, RefPtr<ScriptFetchParameters>&&, ModulePhase = ModulePhase::Evaluation);
     void addStarExportEntry(const Identifier&);
     void addImportEntry(const ImportEntry&);
     void addExportEntry(const ExportEntry&);
@@ -205,7 +209,17 @@ public:
     AbstractModuleRecord* hostResolveImportedModule(JSGlobalObject*, const Identifier& moduleName);
     void setImportedModule(JSGlobalObject*, const ModuleRequest&, AbstractModuleRecord*);
 
-    JSModuleNamespaceObject* getModuleNamespace(JSGlobalObject*, bool shouldPreventExtensions = true);
+    JSModuleNamespaceObject* getModuleNamespace(JSGlobalObject*, ModulePhase = ModulePhase::Evaluation, bool shouldPreventExtensions = true);
+#if USE(BUN_JSC_ADDITIONS)
+    JSModuleNamespaceObject* getModuleNamespace(JSGlobalObject* globalObject, bool shouldPreventExtensions)
+    {
+        return getModuleNamespace(globalObject, ModulePhase::Evaluation, shouldPreventExtensions);
+    }
+#endif
+
+    void gatherAsynchronousTransitiveDependencies(WTF::OrderedHashSet<AbstractModuleRecord*>& result, UncheckedKeyHashSet<AbstractModuleRecord*>& seen);
+    bool readyForSyncExecution();
+    void evaluateSync(JSGlobalObject*);
 
     JSPromise* asyncCapability() const;
     void asyncCapability(VM&, JSPromise*);
@@ -284,6 +298,7 @@ private:
     Vector<ModuleRequest> m_requestedModules;
 
     WriteBarrier<JSModuleNamespaceObject> m_moduleNamespaceObject;
+    WriteBarrier<JSModuleNamespaceObject> m_deferredNamespaceObject;
 
     WriteBarrier<JSPromise> m_asyncCapability;
 

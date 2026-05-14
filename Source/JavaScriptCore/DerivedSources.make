@@ -135,7 +135,6 @@ JavaScriptCore_BUILTINS_SOURCES = \
     $(JavaScriptCore)/builtins/StringPrototype.js \
     $(JavaScriptCore)/builtins/TypedArrayConstructor.js \
     $(JavaScriptCore)/builtins/TypedArrayPrototype.js \
-    $(JavaScriptCore)/builtins/WebAssembly.js \
     $(JavaScriptCore)/builtins/WrapForValidIteratorPrototype.js \
     $(JavaScriptCore)/inspector/InjectedScriptSource.js \
 #

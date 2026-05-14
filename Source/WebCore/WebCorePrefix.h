@@ -162,13 +162,93 @@
 #ifdef __cplusplus
 
 #if !PLATFORM(WIN)
+
+#include <JavaScriptCore/ArrayBuffer.h>
+#include <JavaScriptCore/CPU.h>
+#include <JavaScriptCore/Forward.h>
+#include <JavaScriptCore/JSCConfig.h>
+#include <JavaScriptCore/OptionsList.h>
+#include <JavaScriptCore/SourceID.h>
+#include <JavaScriptCore/Weak.h>
+#include <JavaScriptCore/WeakInlinesLight.h>
+#include <set>
+#include <unicode/uscript.h>
+#include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
+#include <wtf/ArgumentCoder.h>
+#include <wtf/Box.h>
+#include <wtf/CheckedPtr.h>
+#include <wtf/CompletionHandler.h>
+#include <wtf/CrossThreadCopier.h>
+#include <wtf/CryptographicallyRandomNumber.h>
+#include <wtf/DataLog.h>
+#include <wtf/DoublyLinkedList.h>
 #include <wtf/FastMalloc.h>
+#include <wtf/FileSystem.h>
+#include <wtf/FixedVector.h>
+#include <wtf/HashCountedSet.h>
 #include <wtf/HashMap.h>
+#include <wtf/HashSet.h>
+#include <wtf/ListHashSet.h>
+#include <wtf/Logger.h>
+#include <wtf/MappedFileData.h>
+#include <wtf/NumberOfCores.h>
+#include <wtf/RefCountedAndCanMakeWeakPtr.h>
+#include <wtf/RobinHoodHashMap.h>
+#include <wtf/RobinHoodHashSet.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/ThreadSafeWeakHashSet.h>
+#include <wtf/TriState.h>
+#include <wtf/URLHash.h>
+#include <wtf/WeakHashMap.h>
+#include <wtf/WorkQueue.h>
 #include <wtf/text/AtomString.h>
+#include <wtf/text/AtomStringHash.h>
+#include <wtf/text/ParsingUtilities.h>
+#include <wtf/text/StringHash.h>
 #include <wtf/text/WTFString.h>
+
+#if USE(CF)
+#include <wtf/cf/TypeCastsCF.h>
+#endif
+
+#if PLATFORM(COCOA)
+#include <objc/runtime.h>
+#include <wtf/OSObjectPtr.h>
+#endif
+
+#include "Color.h"
+#include "ContextDestructionObserver.h"
+#include "EventTarget.h"
+#include "ExceptionOr.h"
+#include "FloatConversion.h"
+#include "FloatRect.h"
+#include "FrameIdentifier.h"
+#include "GraphicsTypes.h"
+#include "HitTestRequest.h"
+#include "ImageTypes.h"
+#include "IntRect.h"
+#include "LayoutRect.h"
+#include "LayoutSize.h"
+#include "NodeIdentifier.h"
+#include "NodeType.h"
+#include "PageIdentifier.h"
+#include "ProcessQualified.h"
+#include "PublicSuffixStore.h"
+#include "QualifiedName.h"
+#include "RenderPtr.h"
+#include "RenderStyleConstants.h"
+#include "RenderingResource.h"
+#include "ScriptExecutionContext.h"
+#include "ScriptExecutionContextIdentifier.h"
+#include "ScriptWrappable.h"
+#include "ScrollTypes.h"
+#include "SecurityContext.h"
+#include "SecurityOriginData.h"
+#include "ServiceWorkerIdentifier.h"
+#include "SharedBuffer.h"
+#include "Timer.h"
 #endif
 
 #define new ("if you use new/delete make sure to include config.h at the top of the file"()) 

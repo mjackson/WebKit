@@ -49,7 +49,7 @@ public:
     JSDOMGlobalObject* globalObject() final
     {
         RefPtr context = m_context.get();
-        return context ? uncheckedDowncast<JSDOMGlobalObject>(context->globalObject()): nullptr;
+        return context ? downcast<JSDOMGlobalObject>(context->globalObject()): nullptr;
     }
 
     ScriptExecutionContext* NODELETE context() const { return m_context.get(); }
@@ -115,7 +115,7 @@ ReadableStreamToSharedBufferSink::~ReadableStreamToSharedBufferSink() = default;
 void ReadableStreamToSharedBufferSink::pipeFrom(ReadableStream& stream)
 {
     RefPtr context = stream.scriptExecutionContext();
-    auto* globalObject = context ? uncheckedDowncast<JSDOMGlobalObject>(context->globalObject()): nullptr;
+    auto* globalObject = context ? downcast<JSDOMGlobalObject>(context->globalObject()): nullptr;
     if (!globalObject) {
         error(Exception { ExceptionCode::TypeError, "no global object"_s });
         return;

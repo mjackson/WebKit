@@ -100,6 +100,45 @@ RefPtr<SVGSVGElement> SVGImage::rootElement() const
     return DocumentSVG::rootElement(*localMainFrame->document());
 }
 
+FloatSize SVGImage::resolvedIntrinsicSize(float density) const
+{
+    constexpr float defaultWidth = 300;
+    constexpr float defaultHeight = 150;
+
+    RefPtr rootElement = this->rootElement();
+    if (!rootElement)
+        return { defaultWidth, defaultHeight };
+
+    std::optional<float> aspectRatio;
+    auto viewBox = rootElement->viewBox();
+    if (!viewBox.isEmpty())
+        aspectRatio = viewBox.width() / viewBox.height();
+
+    constexpr float defaultRatio = defaultWidth / defaultHeight;
+    float width = defaultWidth;
+    float height = defaultHeight;
+
+    // Four cases for { hasIntrinsicWidth, hasIntrinsicHeight }.
+    if (rootElement->hasIntrinsicWidth()) {
+        width = rootElement->intrinsicWidth() * density;
+        if (rootElement->hasIntrinsicHeight())
+            height = rootElement->intrinsicHeight() * density;  // Case 1: { true, true }
+        else if (aspectRatio)                                   // Case 2: { true, false }
+            height = width / *aspectRatio;
+    } else if (rootElement->hasIntrinsicHeight()) {
+        height = rootElement->intrinsicHeight() * density;
+        if (aspectRatio)                                        // Case 3: { false, true }
+            width = height * *aspectRatio;
+    } else if (aspectRatio) {
+        if (*aspectRatio >= defaultRatio)                       // Case 4: { false, false }
+            height = width / *aspectRatio;
+        else
+            width = height * *aspectRatio;
+    }
+
+    return { width, height };
+}
+
 bool SVGImage::renderingTaintsOrigin() const
 {
     RefPtr rootElement = this->rootElement();
@@ -237,8 +276,8 @@ RefPtr<NativeImage> SVGImage::nativeImage(const FloatSize& size, const Destinati
     auto renderingMode = m_page->settings().acceleratedDrawingEnabled() ? RenderingMode::Accelerated : RenderingMode::Unaccelerated;
 
     HostWindow* hostWindow = nullptr;
-    if (CheckedPtr contentRenderer = embeddedContentBox())
-        hostWindow = contentRenderer->hostWindow();
+    if (CheckedPtr svgRoot = embeddedSVGRoot())
+        hostWindow = svgRoot->hostWindow();
 
     RefPtr imageBuffer = ImageBuffer::create(size, renderingMode, RenderingPurpose::DOM, 1, colorSpace, PixelFormat::BGRA8, hostWindow);
     if (!imageBuffer)
@@ -353,12 +392,12 @@ ImageDrawResult SVGImage::draw(GraphicsContext& context, const FloatRect& dstRec
     return ImageDrawResult::DidDraw;
 }
 
-RenderBox* SVGImage::embeddedContentBox() const
+RenderReplaced* SVGImage::embeddedSVGRoot() const
 {
     RefPtr rootElement = this->rootElement();
     if (!rootElement)
         return nullptr;
-    return downcast<RenderBox>(rootElement->renderer());
+    return downcast<RenderReplaced>(rootElement->renderer());
 }
 
 LocalFrameView* SVGImage::frameView() const
@@ -373,15 +412,27 @@ LocalFrameView* SVGImage::frameView() const
     return localMainFrame->view();
 }
 
+bool SVGImage::hasIntrinsicWidth() const
+{
+    RefPtr rootElement = this->rootElement();
+    return rootElement && rootElement->hasIntrinsicWidth();
+}
+
+bool SVGImage::hasIntrinsicHeight() const
+{
+    RefPtr rootElement = this->rootElement();
+    return rootElement && rootElement->hasIntrinsicHeight();
+}
+
 bool SVGImage::hasRelativeWidth() const
 {
-    // FIXME: This seems wrong.
+    // FIXME: Delete this function and replace all the calls to it with !hasIntrinsicWidth().
     return false;
 }
 
 bool SVGImage::hasRelativeHeight() const
 {
-    // FIXME: This seems wrong.
+    // FIXME: Delete this function and replace all the calls to it with !hasIntrinsicHeight().
     return false;
 }
 

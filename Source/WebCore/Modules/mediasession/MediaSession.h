@@ -160,6 +160,8 @@ public:
     void setCaptionsEnabled(bool);
     bool captionsEnabled() const { return m_captionsEnabled; }
 
+    void presentationModeChanged();
+
 private:
     explicit MediaSession(Navigator&);
 
@@ -227,6 +229,10 @@ private:
     std::optional<CaptionUserPreferencesDisplayMode> m_captionDisplayMode;
     Vector<MediaSessionCaptionTrack> m_captionTracks;
     bool m_captionsEnabled { false };
+#if PLATFORM(COCOA)
+    bool m_shouldSuppressMediaSessionPauseActionOnInterruption { false };
+#endif
+    bool m_needsYouTubeCaptionsQuirk { false };
 };
 
 String convertEnumerationToString(MediaSessionPlaybackState);

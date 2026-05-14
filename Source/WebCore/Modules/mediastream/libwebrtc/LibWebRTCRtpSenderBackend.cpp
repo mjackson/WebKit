@@ -111,6 +111,14 @@ bool LibWebRTCRtpSenderBackend::replaceTrack(RTCRtpSender& sender, MediaStreamTr
     }
 
     if (sender.track()) {
+        if (auto rtcTrack = protect(m_rtcSender)->track()) {
+            if (rtcTrack->kind() == webrtc::MediaStreamTrackInterface::kVideoKind) {
+                // This is a cast from a webrtc type, not much we can do to make it safe.
+                SUPPRESS_MEMORY_UNSAFE_CAST webrtc::scoped_refptr<webrtc::VideoTrackInterface> videoTrack { static_cast<webrtc::VideoTrackInterface*>(rtcTrack.get()) };
+                videoTrack->set_content_hint(toWebRTCContentHint(track->privateTrack().contentHint()));
+            }
+        }
+
         switchOn(m_source, [&](Ref<RealtimeOutgoingAudioSource>& source) {
             ASSERT(track->source().type() == RealtimeMediaSource::Type::Audio);
             source->stop();

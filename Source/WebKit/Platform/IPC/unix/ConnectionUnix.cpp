@@ -43,6 +43,7 @@
 #include <wtf/SafeStrerror.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/Threading.h>
 #include <wtf/UniStdExtras.h>
 
 #if OS(DARWIN)

@@ -443,7 +443,7 @@ void NetworkDataTaskSoup::dispatchDidReceiveResponse()
     // FIXME: This cannot be eliminated until other code no longer relies on ResourceResponse's NetworkLoadMetrics.
     m_response.setDeprecatedNetworkLoadMetrics(Box<NetworkLoadMetrics>::create(m_networkLoadMetrics));
 
-    didReceiveResponse(ResourceResponse(m_response), NegotiatedLegacyTLS::No, PrivateRelayed::No, std::nullopt, [this, protectedThis = Ref { *this }](PolicyAction policyAction) {
+    didReceiveResponse(ResourceResponse(m_response), NegotiatedLegacyTLS::No, PrivateRelayed::No, std::nullopt, [this, protectedThis = protect(*this)](PolicyAction policyAction) {
         if (m_state == State::Canceling || m_state == State::Completed) {
             clearRequest();
             return;
@@ -668,7 +668,7 @@ void NetworkDataTaskSoup::authenticate(AuthenticationChallenge&& challenge)
     if (m_storedCredentialsPolicy == StoredCredentialsPolicy::Use && persistentCredentialStorageEnabled()) {
         auto protectionSpace = challenge.protectionSpace();
         protect(m_session->networkStorageSession())->getCredentialFromPersistentStorage(protectionSpace, m_cancellable.get(),
-            [this, protectedThis = Ref { *this }, authChallenge = WTF::move(challenge)] (Credential&& credential) mutable {
+            [this, protectedThis = protect(*this), authChallenge = WTF::move(challenge)] (Credential&& credential) mutable {
                 if (m_state == State::Canceling || m_state == State::Completed || !m_client) {
                     clearRequest();
                     return;
@@ -683,7 +683,7 @@ void NetworkDataTaskSoup::authenticate(AuthenticationChallenge&& challenge)
 
 void NetworkDataTaskSoup::continueAuthenticate(AuthenticationChallenge&& challenge)
 {
-    m_client->didReceiveChallenge(AuthenticationChallenge(challenge), NegotiatedLegacyTLS::No, [this, protectedThis = Ref { *this }, challenge](AuthenticationChallengeDisposition disposition, const Credential& credential) {
+    m_client->didReceiveChallenge(AuthenticationChallenge(challenge), NegotiatedLegacyTLS::No, [this, protectedThis = protect(*this), challenge](AuthenticationChallengeDisposition disposition, const Credential& credential) {
         if (m_state == State::Canceling || m_state == State::Completed) {
             cancelAuthentication(challenge);
             clearRequest();
@@ -853,7 +853,7 @@ void NetworkDataTaskSoup::continueHTTPRedirection()
     clearRequest();
 
     auto response = ResourceResponse(m_response);
-    m_client->willPerformHTTPRedirection(WTF::move(response), WTF::move(request), [this, protectedThis = Ref { *this }, wasBlockingCookies, userAgent = WTF::move(userAgent)](const ResourceRequest& newRequest) {
+    m_client->willPerformHTTPRedirection(WTF::move(response), WTF::move(request), [this, protectedThis = protect(*this), wasBlockingCookies, userAgent = WTF::move(userAgent)](const ResourceRequest& newRequest) {
         if (newRequest.isNull() || m_state == State::Canceling)
             return;
 

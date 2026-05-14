@@ -37,6 +37,8 @@ class AffineTransform;
 class Document;
 class SVGAnimatedPropertyBase;
 class SVGAnimatedString;
+
+enum class ColorInterpolation : uint8_t;
 class SVGAttributeAnimator;
 class SVGConditionalProcessingAttributes;
 class SVGDocumentExtensions;

@@ -96,6 +96,7 @@ public:
 
     bool shouldPreventOrientationMediaQueryFromEvaluatingToLandscape() const;
     bool NODELETE shouldFlipScreenDimensions() const;
+    bool shouldAvoidProgrammaticScrollClamping() const;
 
     WEBCORE_EXPORT bool shouldDispatchSyntheticMouseEventsWhenModifyingSelection() const;
     WEBCORE_EXPORT bool NODELETE shouldSuppressAutocorrectionAndAutocapitalizationInHiddenEditableAreas() const;
@@ -123,10 +124,7 @@ public:
     WEBCORE_EXPORT static bool needsIPadMiniUserAgent(const URL&);
     WEBCORE_EXPORT static bool NODELETE needsIPhoneUserAgent(const URL&, UseDesktopClassBrowsing = UseDesktopClassBrowsing::Unspecified);
     WEBCORE_EXPORT static bool NODELETE needsDesktopUserAgent(const URL&);
-    WEBCORE_EXPORT static bool NODELETE needsChromeForAndroidUserAgent(const URL&);
     WEBCORE_EXPORT static std::optional<String> needsCustomUserAgentOverride(const URL&, const String& applicationNameForUserAgent, const String& currentUserAgent);
-
-    WEBCORE_EXPORT static bool NODELETE needsMediaSourceEnabled(const URL&);
 
     WEBCORE_EXPORT static bool needsPartitionedCookies(const ResourceRequest&);
 
@@ -176,6 +174,7 @@ public:
     bool shouldEnableEnumerateDeviceQuirk() const;
     bool shouldEnableCameraAndMicrophonePermissionStateQuirk() const;
     bool shouldEnableRemoteTrackLabelQuirk() const;
+    bool shouldEnableCameraBackgroundPlayback() const;
 #endif
 #if ENABLE(WEB_RTC)
     bool shouldEnableRTCEncodedStreamsQuirk() const;
@@ -340,8 +339,15 @@ public:
     bool shouldComparareUsedValuesForBorderWidthForTriggeringTransitions() const;
 
     bool shouldLimitHLSPlaybackRate() const;
+    bool shouldSuppressHLSSubtitles() const;
+
+    bool shouldSuppressMediaSessionPauseActionOnInterruption() const;
 
     void determineRelevantQuirks();
+
+#if PLATFORM(IOS_FAMILY)
+    bool NODELETE shouldSendFakeTouchForceChangeEvent() const;
+#endif
 
 private:
     bool needsQuirks() const;

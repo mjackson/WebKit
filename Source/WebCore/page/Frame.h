@@ -30,7 +30,6 @@
 #include <WebCore/FrameTreeSyncData.h>
 #include <WebCore/PageIdentifier.h>
 #include <wtf/CheckedRef.h>
-#include <wtf/Ref.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/UniqueRef.h>
 #include <wtf/WeakHashSet.h>
@@ -128,6 +127,7 @@ public:
     virtual String customUserAgentAsSiteSpecificQuirks() const = 0;
     virtual String customNavigatorPlatform() const = 0;
     virtual OptionSet<AdvancedPrivacyProtections> advancedPrivacyProtections() const = 0;
+    virtual bool allowPrivacyProxy() const = 0;
     virtual AutoplayPolicy autoplayPolicy() const = 0;
 
     virtual void updateSandboxFlags(SandboxFlags, NotifyUIProcess);

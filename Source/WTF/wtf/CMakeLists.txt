@@ -74,6 +74,7 @@ set(WTF_PUBLIC_HEADERS
     CrossThreadTaskHandler.h
     CryptographicUtilities.h
     CryptographicallyRandomNumber.h
+    CurrentThread.h
     DataLog.h
     DataMutex.h
     DataRef.h
@@ -198,6 +199,7 @@ set(WTF_PUBLIC_HEADERS
     MetaAllocatorHandle.h
     MmapSpan.h
     MonotonicTime.h
+    module.modulemap
     NakedPtr.h
     NativePromise.h
     NaturalLoops.h
@@ -220,6 +222,9 @@ set(WTF_PUBLIC_HEADERS
     OptionalOrReference.h
     OptionSetHash.h
     OrderMaker.h
+    OrderedHashMap.h
+    OrderedHashSet.h
+    OrderedHashTable.h
     OverflowHandler.h
     OverflowPolicy.h
     Packed.h
@@ -239,6 +244,7 @@ set(WTF_PUBLIC_HEADERS
     PlatformCallingConventions.h
     PlatformCPU.h
     PlatformEnable.h
+    PlatformEnableCocoa.h
     PlatformHave.h
     PlatformLegacy.h
     PlatformOS.h
@@ -266,6 +272,7 @@ set(WTF_PUBLIC_HEADERS
     RecursableLambda.h
     RecursiveLockAdapter.h
     RedBlackTree.h
+    ReducedResolutionSeconds.h
     Ref.h
     RefCountable.h
     RefCountDebugger.h
@@ -357,6 +364,7 @@ set(WTF_PUBLIC_HEADERS
     ThreadAssertions.h
     ThreadGroup.h
     ThreadMessage.h
+    ThreadSafeLazyUniquePtr.h
     ThreadSafetyAnalysis.h
     ThreadSafeRefCounted.h
     ThreadSafeRefCountedWithSuppressingSaferCPPChecking.h
@@ -365,6 +373,7 @@ set(WTF_PUBLIC_HEADERS
     ThreadSanitizerSupport.h
     ThreadSpecific.h
     Threading.h
+    ThreadingEnums.h
     ThreadingPrimitives.h
     TimeWithDynamicClockType.h
     TimingScope.h
@@ -447,6 +456,8 @@ set(WTF_PUBLIC_HEADERS
 
     fast_float/fast_float.h
 
+    ios/WebCoreThread.h
+
     persistence/PersistentCoders.h
     persistence/PersistentDecoder.h
     persistence/PersistentEncoder.h
@@ -481,6 +492,7 @@ set(WTF_PUBLIC_HEADERS
     text/NullTextBreakIterator.h
     text/OrdinalNumber.h
     text/ParsingUtilities.h
+    text/RapidHash.h
     text/StringBuffer.h
     text/StringBuilder.h
     text/StringBuilderInternals.h
@@ -492,7 +504,6 @@ set(WTF_PUBLIC_HEADERS
     text/StringHasher.h
     text/StringHasherInlines.h
     text/SuperFastHash.h
-    text/WYHash.h
     text/StringImpl.h
     text/StringParsingBuffer.h
     text/StringSearch.h
@@ -557,6 +568,7 @@ set(WTF_SOURCES
     CrossThreadTaskHandler.cpp
     CryptographicUtilities.cpp
     CryptographicallyRandomNumber.cpp
+    CurrentThread.cpp
     CurrentTime.cpp
     DataLog.cpp
     DateMath.cpp
@@ -843,6 +855,14 @@ WEBKIT_COPY_FILES(WTF_CopyHeaders
     DESTINATION ${WTF_FRAMEWORK_HEADERS_DIR}/wtf
     FILES ${WTF_PUBLIC_HEADERS}
 )
+
+if (NOT APPLE AND SWIFT_REQUIRED)
+    # module.modulemap has "umbrella spi" for the wtf.SPI submodule; Clang requires
+    # the umbrella directory to be non-empty or it fails with "cannot create includes file".
+    # Provide a stub header so the directory has at least one entry.
+    file(MAKE_DIRECTORY "${WTF_FRAMEWORK_HEADERS_DIR}/wtf/spi")
+    file(WRITE "${WTF_FRAMEWORK_HEADERS_DIR}/wtf/spi/wtf_spi_stub.h" "")
+endif ()
 
 WEBKIT_FRAMEWORK(WTF)
 

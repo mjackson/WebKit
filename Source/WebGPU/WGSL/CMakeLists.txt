@@ -44,7 +44,7 @@ add_custom_target(wgsl-types
     ALL
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/TypeDeclarations.h ${CMAKE_CURRENT_BINARY_DIR}/TypeOverloads.h)
 
-set(wgslc_SOURCES
+set(WGSLCore_SOURCES
     AliasAnalysis.cpp
     AttributeValidator.cpp
     BoundsCheck.cpp
@@ -196,17 +196,9 @@ set(wgslc_HEADERS
     Metal/MetalFunctionWriter.h
     )
 
-set(wgslc_FRAMEWORKS WTF bmalloc)
-set(wgslc_PRIVATE_INCLUDE_DIRECTORIES
-    ${CMAKE_CURRENT_BINARY_DIR}/../../..  # for cmakeconfig.h
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/AST
-    ${CMAKE_CURRENT_SOURCE_DIR}/Metal)
-set(wgslc_DEPENDENCIES wgsl-types)
-
 # WGSLCore static library -- shared between wgslc and TestWGSL.
-add_library(WGSLCore STATIC ${wgslc_SOURCES})
+add_library(WGSLCore STATIC ${WGSLCore_SOURCES})
+WEBKIT_ADD_PREFIX_HEADER(WGSLCore WGSLPrefix.h PREFIX_LANGUAGES CXX)
 target_include_directories(WGSLCore PUBLIC
     ${CMAKE_CURRENT_BINARY_DIR}/../../..
     ${CMAKE_CURRENT_BINARY_DIR}
@@ -221,8 +213,10 @@ if (DEVELOPER_MODE_CXX_FLAGS)
 endif ()
 
 # wgslc executable
-list(APPEND wgslc_SOURCES wgslc.cpp)
+set(wgslc_SOURCES wgslc.cpp)
+set(wgslc_LIBRARIES WGSLCore)
 WEBKIT_EXECUTABLE_DECLARE(wgslc)
 WEBKIT_EXECUTABLE(wgslc)
+WEBKIT_REUSE_PREFIX_HEADER(wgslc WGSLCore WGSLPrefix.h PREFIX_LANGUAGES CXX)
 
 install(TARGETS wgslc EXCLUDE_FROM_ALL)
