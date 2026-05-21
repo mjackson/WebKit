@@ -585,6 +585,12 @@ ALWAYS_INLINE void JSPromise::settleInlineInternalMicrotask(VM& vm, JSGlobalObje
     uint16_t settledFlags = (flagsSnapshot & ~(inlineReactionKindMask | inlineReactionMicrotaskMask)) | static_cast<uint16_t>(newStatus);
     setSlot(vm, argument);
     setPackedCell(vm, settledFlags, nullptr);
+#if USE(BUN_JSC_ADDITIONS)
+    if (vm.m_synchronousModuleQueue && isModuleLoaderInternalMicrotask(task)) [[unlikely]] {
+        vm.m_synchronousModuleQueue->tasks.append({ task, static_cast<uint8_t>(newStatus), cellValue, argument, context });
+        return;
+    }
+#endif
     globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(newStatus), cellValue, argument, context);
 }
 
