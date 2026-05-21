@@ -420,8 +420,14 @@ set(LLIntSettingsExtractor_PRIVATE_INCLUDE_DIRECTORIES
     $<TARGET_PROPERTY:JavaScriptCore,INCLUDE_DIRECTORIES>
     "${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS_DIR}/JavaScriptCore"
 )
-set(LLIntSettingsExtractor_FRAMEWORKS ${JavaScriptCore_FRAMEWORKS})
-set(LLIntSettingsExtractor_DEPENDENCIES JavaScriptCore_CopyHeaders JavaScriptCore_CopyPrivateHeaders)
+
+set(LLIntSettingsExtractor_FRAMEWORKS)
+set(LLIntSettingsExtractor_DEPENDENCIES
+    JavaScriptCore_CopyHeaders
+    JavaScriptCore_CopyPrivateHeaders
+    WTF_CopyHeaders
+    bmalloc_CopyHeaders
+)
 WEBKIT_EXECUTABLE(LLIntSettingsExtractor)
 set_target_properties(LLIntSettingsExtractor PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -441,8 +447,15 @@ set(LLIntOffsetsExtractor_PRIVATE_INCLUDE_DIRECTORIES
     $<TARGET_PROPERTY:JavaScriptCore,INCLUDE_DIRECTORIES>
     "${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS_DIR}/JavaScriptCore"
 )
-set(LLIntOffsetsExtractor_FRAMEWORKS ${JavaScriptCore_FRAMEWORKS})
-set(LLIntOffsetsExtractor_DEPENDENCIES JavaScriptCore_CopyHeaders JavaScriptCore_CopyPrivateHeaders JSCBuiltins)
+
+set(LLIntOffsetsExtractor_FRAMEWORKS)
+set(LLIntOffsetsExtractor_DEPENDENCIES
+    JSCBuiltins
+    JavaScriptCore_CopyHeaders
+    JavaScriptCore_CopyPrivateHeaders
+    WTF_CopyHeaders
+    bmalloc_CopyHeaders
+)
 WEBKIT_EXECUTABLE(LLIntOffsetsExtractor)
 set_target_properties(LLIntOffsetsExtractor PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -1820,13 +1833,17 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/WriteBarrierInlines.h
 
     runtime/temporal/core/CalendarArithmetic.h
+    runtime/temporal/core/CalendarFields.h
     runtime/temporal/core/CalendarICUBridge.h
+    runtime/temporal/core/DurationArithmetic.h
     runtime/temporal/core/ISOArithmetic.h
     runtime/temporal/core/InstantCore.h
+    runtime/temporal/core/PlainDateTimeCore.h
     runtime/temporal/core/Rounding.h
     runtime/temporal/core/TemporalCoreTypes.h
     runtime/temporal/core/TemporalEnums.h
     runtime/temporal/core/TimeZoneICUBridge.h
+    runtime/temporal/core/ZonedDateTimeCore.h
 
     tools/Integrity.h
     tools/IntegrityInlines.h
@@ -2173,14 +2190,7 @@ set(JavaScriptCore_INTERFACE_DEPENDENCIES
 
 WEBKIT_FRAMEWORK_DECLARE(JavaScriptCore)
 WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS()
-
-if (NOT WIN32)
-    WEBKIT_ADD_TARGET_CXX_FLAGS(JavaScriptCore
-        -Wunsafe-buffer-usage
-        -Wunsafe-buffer-usage-in-libc-call
-        -fsafe-buffer-usage-suggestions
-    )
-endif ()
+WEBKIT_ADD_TARGET_UNSAFE_BUFFER_WARNINGS(JavaScriptCore)
 
 if (COMPILER_IS_GCC_OR_CLANG)
     # Avoid using fused multiply-add instructions since this could give different results

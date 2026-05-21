@@ -672,7 +672,6 @@ public:
     RenderLayer* enclosingFilterLayer(IncludeSelfOrNot = IncludeSelf) const;
     RenderLayer* enclosingFilterRepaintLayer() const;
     void setFilterBackendNeedsRepaintingInRect(const LayoutRect&);
-    bool hasAncestorWithFilterOutsets() const;
 
     inline bool NODELETE canUseOffsetFromAncestor() const;
     bool NODELETE canUseOffsetFromAncestor(const RenderLayer& ancestor) const;
@@ -785,6 +784,7 @@ public:
         PreserveAncestorFlags                          = 1 << 10,
         UseLocalClipRectExcludingCompositingIfPossible = 1 << 11,
         ExcludeViewTransitionCapturedDescendants       = 1 << 12,
+        ExcludeFilterOutsetsFromSelfBounds             = 1 << 13,
     };
     static constexpr OptionSet<CalculateLayerBoundsFlag> defaultCalculateLayerBoundsFlags() { return { IncludeSelfTransform, UseLocalClipRectIfPossible, IncludePaintedFilterOutsets, UseFragmentBoxesExcludingCompositing }; }
 
@@ -856,8 +856,10 @@ public:
 
     inline bool hasFilter() const;
     bool hasFilterOutsets() const { return !filterOutsets().isZero(); }
+    bool hasAncestorWithFilterOutsets() const;
     IntOutsets filterOutsets() const;
     void clearFilters();
+
     inline bool hasBackdropFilter() const;
 
     bool hasBackdropFilterDescendantsWithoutRoot() const { return m_hasBackdropFilterDescendantsWithoutRoot; }
@@ -1117,6 +1119,7 @@ private:
     LayoutRect clipRectRelativeToAncestor(const RenderLayer* ancestor, LayoutSize offsetFromAncestor, const LayoutRect& constrainingRect, bool temporaryClipRects = false) const;
 
     void clipToRect(GraphicsContext&, GraphicsContextStateSaver&, RegionContextStateSaver&, const LayerPaintingInfo&, OptionSet<PaintBehavior>, const ClipRect&, BorderRadiusClippingRule = IncludeSelfForBorderRadius);
+    void applyAncestorClippingForBorderRadius(GraphicsContext&, const LayerPaintingInfo&, OptionSet<PaintBehavior>, BorderRadiusClippingRule = IncludeSelfForBorderRadius);
 
     bool shouldRepaintAfterLayout() const;
 

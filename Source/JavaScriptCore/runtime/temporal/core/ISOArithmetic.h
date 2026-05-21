@@ -53,5 +53,11 @@ ISO8601::Duration JS_EXPORT_PRIVATE diffISODate(const ISO8601::PlainDate& one, c
 
 ISO8601::InternalDuration JS_EXPORT_PRIVATE diffISODateTime(const ISO8601::PlainDate& d1, const ISO8601::PlainTime& t1, const ISO8601::PlainDate& d2, const ISO8601::PlainTime& t2, TemporalUnit largestUnit);
 
+struct RoundedISODateTime {
+    ISO8601::PlainDate date;
+    ISO8601::PlainTime time;
+};
+RoundedISODateTime JS_EXPORT_PRIVATE roundISODateTime(ISO8601::PlainDate, ISO8601::PlainTime, Int128 incrementNs, TemporalUnit, RoundingMode);
+
 } // namespace TemporalCore
 } // namespace JSC

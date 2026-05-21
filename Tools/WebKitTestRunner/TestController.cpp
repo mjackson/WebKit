@@ -1424,6 +1424,7 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
         WKPreferencesSetMinimumFontSize(preferences, 0);
 
         WKPreferencesSetBoolValueForKeyForTesting(preferences, options.allowTestOnlyIPC(), toWK("AllowTestOnlyIPC").get());
+        WKPreferencesSetBoolValueForKeyForTesting(preferences, false, toWK("GlobalPrivacyControlEnabled").get());
 
         for (const auto& [key, value] : options.boolWebPreferenceFeatures())
             WKPreferencesSetBoolValueForKeyForTesting(preferences, value, toWK(key).get());
@@ -2008,7 +2009,7 @@ if (window.testRunner) {
     testRunner.findString = (target, options) => post(['FindString', target, options]);
     testRunner.runUIScript = (script, callback) => post(['RunUIScript', script, createHandle(callback)]);
     testRunner.runUIScriptImmediately = (script, callback) => post(['RunUIScriptImmediately', script, createHandle(callback)]);
-    testRunner.getApplicationManifestThen = async (callback) => { await post(['GetApplicationManifest']); callback() }; // NOLINT
+    testRunner.getApplicationManifest = () => post(['GetApplicationManifest']);
     testRunner.scrollDuringEnterFullscreen = () => post(['ScrollDuringEnterFullscreen']);
     testRunner.waitBeforeFinishingFullscreenExit = () => post(['WaitBeforeFinishingFullscreenExit']);
     testRunner.finishFullscreenExit = () => post(['FinishFullscreenExit']);
@@ -2570,8 +2571,12 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         return completionHandler(nullptr);
     }
 
-    if (WKStringIsEqualToUTF8CString(command, "GetApplicationManifest"))
-        return WKPageGetApplicationManifest(mainWebView()->page(), completionHandler.leak(), adoptAndCallCompletionHandler);
+    if (WKStringIsEqualToUTF8CString(command, "GetApplicationManifest")) {
+        return WKPageGetApplicationManifest(mainWebView()->page(), completionHandler.leak(), [] (void* context, bool success) {
+            auto completionHandler = WTF::adopt(static_cast<CompletionHandler<void(WKTypeRef)>::Impl*>(context));
+            completionHandler(adoptWK(WKBooleanCreate(success)).get());
+        });
+    }
 
     if (WKStringIsEqualToUTF8CString(command, "IndicateFindMatch")) {
         auto index = static_cast<uint32_t>(WKDoubleGetValue(static_cast<WKDoubleRef>(argument)));

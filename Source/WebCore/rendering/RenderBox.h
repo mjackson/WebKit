@@ -160,6 +160,7 @@ public:
     inline const LayoutRect scrollableContentAreaOverflowRect() const;
     inline const LayoutRect scrollablePaddingAreaOverflowRect() const;
     LayoutRect layoutOverflowRect() const { return m_overflow ? m_overflow->layoutOverflowRect() : flippedClientBoxRect(); }
+    bool hasLayoutOverflow() const;
     inline LayoutUnit logicalLeftLayoutOverflow() const;
     inline LayoutUnit logicalRightLayoutOverflow() const;
     LayoutRect visualOverflowRect() const { return m_overflow ? m_overflow->visualOverflowRect() : borderBoxRect(); }
@@ -174,8 +175,14 @@ public:
     void clearOverflow();
     RenderOverflow& ensureOverflow();
 
+    IntBoxExtent computeFilterOutsets() const;
+
     void addVisualEffectOverflow();
-    LayoutRect applyVisualEffectOverflow(const LayoutRect&) const;
+
+    enum class VisualEffectOverflowOption : uint8_t {
+        ExcludeFilterOutsets,
+    };
+    LayoutRect applyVisualEffectOverflow(const LayoutRect&, EnumSet<VisualEffectOverflowOption> = { }) const;
 
     enum class ComputeOverflowOptions : uint8_t {
         None,
@@ -690,8 +697,8 @@ protected:
 
     void incrementVisuallyNonEmptyPixelCountIfNeeded(const IntSize&);
     bool NODELETE shouldIgnoreAspectRatio() const;
-    bool isResolveableStretchSize(const auto& size) const { return size.isStretch() && containingBlockHasDefiniteBlockSize(); }
-    bool isUnresolveableStretchSize(const auto& size) const { return size.isStretch() && !containingBlockHasDefiniteBlockSize(); }
+    bool isResolveableStretchSize(const auto& size) const { return size.isStretch() && isBlockSizeResolvableForStretch(); }
+    bool isUnresolveableStretchSize(const auto& size) const { return size.isStretch() && !isBlockSizeResolvableForStretch(); }
     LayoutUnit computeLogicalWidthFromAspectRatio() const;
     void applyAutomaticContentBasedMinimumSize(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const;
     void applyTransferredMinMaxSizesFromAspectRatio(LayoutUnit& minPreferredLogicalWidth, LayoutUnit& maxPreferredLogicalWidth) const;
@@ -717,7 +724,7 @@ protected:
     }
 
 private:
-    bool containingBlockHasDefiniteBlockSize() const;
+    bool isBlockSizeResolvableForStretch() const;
 
     void addOverflowWithRendererOffset(const RenderBox&, LayoutSize, OptionSet<ComputeOverflowOptions> = { });
     void addMarginBoxOverflow(const RenderBox&, LayoutSize offsetFromThis, OptionSet<ComputeOverflowOptions>);

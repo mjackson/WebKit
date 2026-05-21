@@ -905,6 +905,7 @@ runtime/JSArrayBufferPrototype.cpp
 runtime/JSArrayBufferView.cpp
 runtime/JSAsyncDisposableStack.cpp
 runtime/JSAsyncFunction.cpp
+runtime/JSAsyncFunctionGenerator.cpp
 runtime/JSAsyncFromSyncIterator.cpp
 runtime/JSAsyncGenerator.cpp
 runtime/JSAsyncGeneratorFunction.cpp
@@ -913,7 +914,6 @@ runtime/JSBigInt.cpp
 runtime/JSBoundFunction.cpp
 runtime/JSCBytecodeCacheVersion.cpp
 runtime/JSCConfig.cpp
-runtime/JSHeapDouble.cpp
 runtime/JSCJSValue.cpp
 runtime/JSCPtrTag.cpp
 runtime/JSCallee.cpp
@@ -939,7 +939,6 @@ runtime/JSGlobalObjectDebuggable.cpp
 runtime/JSGlobalObjectFunctions.cpp
 runtime/JSGlobalProxy.cpp
 runtime/JSCellButterfly.cpp
-runtime/JSHeapInt32.cpp
 runtime/JSIterator.cpp
 runtime/JSIteratorConstructor.cpp
 runtime/JSIteratorHelper.cpp
@@ -985,6 +984,10 @@ runtime/JSTypedArrayConstructors.cpp
 runtime/JSTypedArrayPrototypes.cpp
 runtime/JSTypedArrayViewConstructor.cpp
 runtime/JSTypedArrayViewPrototype.cpp
+runtime/JSTypedArrayViewPrototypeFunctions1.cpp @no-unify
+runtime/JSTypedArrayViewPrototypeFunctions2.cpp @no-unify
+runtime/JSTypedArrayViewPrototypeFunctions3.cpp @no-unify
+runtime/JSTypedArrayViewPrototypeFunctions4.cpp @no-unify
 runtime/JSTypedArrays.cpp
 runtime/JSWeakMap.cpp
 runtime/JSWeakObjectRef.cpp
@@ -1153,11 +1156,15 @@ runtime/WideningNumberPredictionFuzzerAgent.cpp
 runtime/WrapForValidIteratorPrototype.cpp
 
 runtime/temporal/core/CalendarArithmetic.cpp
+runtime/temporal/core/CalendarFields.cpp
 runtime/temporal/core/CalendarICUBridge.cpp
+runtime/temporal/core/DurationArithmetic.cpp
 runtime/temporal/core/InstantCore.cpp
 runtime/temporal/core/ISOArithmetic.cpp
+runtime/temporal/core/PlainDateTimeCore.cpp
 runtime/temporal/core/Rounding.cpp
 runtime/temporal/core/TimeZoneICUBridge.cpp
+runtime/temporal/core/ZonedDateTimeCore.cpp
 
 tools/CellList.cpp
 tools/CharacterPropertyDataGenerator.cpp

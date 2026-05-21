@@ -102,6 +102,7 @@ runtime/TypeSet.cpp
 runtime/VMTraps.cpp
 runtime/WaiterListManager.h
 tools/JSDollarVM.cpp
+wasm/WasmCalleeGroup.cpp
 wasm/WasmBBQJIT.cpp
 wasm/WasmBBQJIT64.cpp
 wasm/WasmBBQPlan.cpp
@@ -119,10 +120,12 @@ wasm/WasmOperations.cpp
 wasm/WasmOperationsInlines.h
 wasm/WasmSectionParser.cpp
 wasm/WasmStreamingCompiler.cpp
+wasm/WasmTable.cpp
 wasm/WasmTypeDefinition.cpp
 wasm/WasmWorklist.cpp
 wasm/js/JSWebAssembly.cpp
 wasm/js/JSWebAssemblyHelpers.h
 wasm/js/JSWebAssemblyInstance.cpp
 wasm/js/WasmToJS.cpp
+wasm/js/WebAssemblyFunction.cpp
 wasm/js/WebAssemblyModuleRecord.cpp

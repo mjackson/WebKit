@@ -369,21 +369,21 @@ std::optional<CSSSelector::PseudoElement> CSSSelector::parsePseudoElementName(St
 }
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-const CSSSelector* CSSSelector::firstInCompound() const
+const CSSSelector* CSSSelector::rightmostInCompound() const
 {
     auto* selector = this;
-    while (!selector->isFirstInComplexSelector()) {
+    while (auto* preceding = selector->precedingInComplexSelector()) {
         if (selector->relation() != Relation::Subselector)
             break;
-        ++selector;
+        selector = preceding;
     }
     return selector;
 }
 
-const CSSSelector* CSSSelector::lastInCompound() const
+const CSSSelector* CSSSelector::leftmostInCompound() const
 {
     auto* selector = this;
-    while (!selector->isLastInComplexSelector()) {
+    while (!selector->m_isLastInComplexSelector) {
         auto* next = selector - 1;
         if (next->relation() != Relation::Subselector)
             break;
@@ -393,7 +393,7 @@ const CSSSelector* CSSSelector::lastInCompound() const
 }
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
-const CSSSelector* CSSSelector::precedingInCompound() const
+const CSSSelector* CSSSelector::followingInCompound() const
 {
     if (relation() != Relation::Subselector)
         return nullptr;
@@ -667,10 +667,17 @@ String CSSSelector::selectorText(StringView separator, StringView rightSide) con
             }
             if (selector->match() != Match::Set) {
                 serializeString(builder, selector->serializingValue());
-                if (selector->attributeValueMatchingIsCaseInsensitive())
-                    builder.append(" i]"_s);
-                else
+                switch (selector->attributeMatchType()) {
+                case AttributeMatchType::Default:
                     builder.append(']');
+                    break;
+                case AttributeMatchType::CaseInsensitive:
+                    builder.append(" i]"_s);
+                    break;
+                case AttributeMatchType::CaseSensitive:
+                    builder.append(" s]"_s);
+                    break;
+                }
             }
         } else if (selector->match() == Match::PagePseudoClass) {
             switch (selector->pagePseudoClass()) {
@@ -742,7 +749,7 @@ void CSSSelector::setAttribute(const QualifiedName& value, AttributeMatchType ma
 {
     createRareData();
     m_data.rareData->attribute = value;
-    m_caseInsensitiveAttributeValueMatching = matchType == CaseInsensitive;
+    m_attributeMatchType = std::to_underlying(matchType);
 }
 
 void CSSSelector::setArgument(const AtomString& value)
@@ -865,7 +872,7 @@ CSSSelector::CSSSelector(const CSSSelector& other)
     , m_hasRareData(other.m_hasRareData)
     , m_isForPage(other.m_isForPage)
     , m_tagIsForNamespaceRule(other.m_tagIsForNamespaceRule)
-    , m_caseInsensitiveAttributeValueMatching(other.m_caseInsensitiveAttributeValueMatching)
+    , m_attributeMatchType(other.m_attributeMatchType)
     , m_isImplicit(other.m_isImplicit)
 {
     // Manually ref count the m_data union because they are stored as raw ptr, not as Ref.
@@ -993,7 +1000,7 @@ bool complexSelectorMatchesElementBackedPseudoElement(const CSSSelector& complex
     };
 
     auto result = false;
-    for (auto* simpleSelector = &complexSelector; simpleSelector; simpleSelector = simpleSelector->precedingInCompound()) {
+    for (auto* simpleSelector = &complexSelector; simpleSelector; simpleSelector = simpleSelector->followingInCompound()) {
         if (simpleSelector->matchesPseudoElement()) {
             if (!isElementBacked(simpleSelector->pseudoElement()))
                 return false;
@@ -1018,7 +1025,7 @@ bool CSSSelector::simpleSelectorEqual(const CSSSelector& other) const
         && m_pseudoType == other.m_pseudoType
         && m_hasRareData == other.m_hasRareData
         && m_tagIsForNamespaceRule == other.m_tagIsForNamespaceRule
-        && m_caseInsensitiveAttributeValueMatching == other.m_caseInsensitiveAttributeValueMatching
+        && m_attributeMatchType == other.m_attributeMatchType
         && m_isImplicit == other.m_isImplicit
         && valuesEqual();
 }

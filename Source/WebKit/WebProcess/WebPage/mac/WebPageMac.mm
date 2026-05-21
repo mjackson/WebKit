@@ -248,7 +248,7 @@ static String commandNameForSelectorName(const String& selectorName)
 {
     // Map selectors into Editor command names.
     // This is not needed for any selectors that have the same name as the Editor command.
-    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, ASCIILiteral>>({
+    static constexpr SortedArrayMap map { WTF::toArray<std::pair<ComparableASCIILiteral, ASCIILiteral>>({
         { "insertNewlineIgnoringFieldEditor:"_s, "InsertNewline"_s },
         { "insertParagraphSeparator:"_s, "InsertNewline"_s },
         { "insertTabIgnoringFieldEditor:"_s, "InsertTab"_s },
@@ -293,6 +293,15 @@ bool WebPage::executeKeypressCommandsInternal(const Vector<WebCore::KeypressComm
             } else {
                 if (!editor->canEdit())
                     continue;
+
+                // Modeless input methods (Vietnamese Simple Telex, Korean Hangul) call insertText:
+                // with a replacementRange to commit a previously-inserted character into a longer
+                // sequence (e.g. replace 'v' with 'vi'). Set the selection to the replacement range
+                // first so editor->insertText replaces it, mirroring insertTextAsync.
+                if (currentCommand.replacementRange.location != WTF::notFound) {
+                    if (auto replacementSimpleRange = EditingRange::toRange(*frame, EditingRange { currentCommand.replacementRange }))
+                        protect(frame->selection())->setSelection(VisibleSelection(*replacementSimpleRange));
+                }
 
                 // An insertText: might be handled by other responders in the chain if we don't handle it.
                 // One example is space bar that results in scrolling down the page.

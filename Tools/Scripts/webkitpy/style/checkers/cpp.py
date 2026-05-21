@@ -2882,6 +2882,28 @@ def check_wtf_move(clean_lines, line_number, file_state, error):
         error(line_number, 'runtime/wtf_move', 4, "Use 'WTF::move()' instead of 'WTFMove()'.")
 
 
+def check_wtf_to_array(clean_lines, line_number, file_state, error):
+    """Looks for use of 'std::to_array' which should be replaced with 'WTF::toArray()'.
+
+    Args:
+      clean_lines: A CleansedLines instance containing the file.
+      line_number: The number of the line to check.
+      file_state: A _FileState instance which maintains information about
+                  the state of things in the file.
+      error: The function to call with any errors found.
+    """
+
+    # This check doesn't apply to C or Objective-C implementation files.
+    if file_state.is_c_or_objective_c():
+        return
+
+    line = clean_lines.elided[line_number]  # Get rid of comments and strings.
+
+    using_std_to_array = search(r'\bstd::to_array\s*[<(]', line)
+    if using_std_to_array:
+        error(line_number, 'runtime/wtf_to_array', 4, "Use 'WTF::toArray()' instead of 'std::to_array()'.")
+
+
 def check_unsafe_get(clean_lines, line_number, file_state, error):
     """Looks for use of 'unsafeGet()' or 'unsafePtr()' which should be avoided.
 
@@ -3741,26 +3763,6 @@ def check_objc_protocol(clean_lines, line_number, file_extension, error):
     error(line_number, 'spacing/objc-protocol', 2, "Protocol names shouldn't have a space before them.")
 
 
-def check_rbs_assertion(clean_lines, line_number, error):
-    """Looks for uses of [RBSAssertion alloc]
-
-    Before an RBSAssertion is deallocated, we must call invalidate on it.
-    This is easy to forget, and will cause a crash if forgotten. So we
-    must instead use WKRBSAssertion which automatically calls invalidate
-    before deallocation.
-
-    Args:
-      clean_lines: A CleansedLines instance containing the file.
-      line_number: The number of the line to check.
-      error: The function to call with any errors found.
-    """
-
-    line = clean_lines.elided[line_number]  # Get rid of comments and strings.
-
-    if search(r'\bRBSAssertion\s+alloc\b', line):
-        error(line_number, 'runtime/rbs_assertion', 5, 'Do not directly allocate RBSAssertion. Use WKRBSAssertion instead.')
-
-
 def check_safer_cpp(clean_lines, line_number, error):
     """Looks for safer C++ errors.
 
@@ -3968,6 +3970,7 @@ def check_style(clean_lines, line_number, file_extension, class_state, file_stat
     check_max_min_macros(clean_lines, line_number, file_state, error)
     check_wtf_checked_size(clean_lines, line_number, file_state, error)
     check_wtf_move(clean_lines, line_number, file_state, error)
+    check_wtf_to_array(clean_lines, line_number, file_state, error)
     check_unsafe_get(clean_lines, line_number, file_state, error)
     check_wtf_make_unique(clean_lines, line_number, file_state, error)
     check_wtf_never_destroyed(clean_lines, line_number, file_state, error)
@@ -5113,7 +5116,6 @@ def process_line(filename, file_extension,
     check_ismainthread(filename, clean_lines, line, file_state, error)
     check_mainthreadneverdestroyed(filename, clean_lines, line, file_state, error)
     check_mainthreadlazyneverdestroyed(filename, clean_lines, line, file_state, error)
-    check_rbs_assertion(clean_lines, line, error)
 
 
 class _InlineASMState(object):
@@ -5257,7 +5259,6 @@ class CppChecker(object):
         'runtime/once_flag',
         'runtime/printf',
         'runtime/printf_format',
-        'runtime/rbs_assertion',
         'runtime/references',
         'runtime/retainptr',
         'runtime/rtti',
@@ -5274,6 +5275,7 @@ class CppChecker(object):
         'runtime/wtf_checked_size',
         'runtime/wtf_make_unique',
         'runtime/wtf_move',
+        'runtime/wtf_to_array',
         'runtime/wtf_never_destroyed',
         'runtime/wtf_os_object_ptr',
         'runtime/wtf_xpc_object_ptr',

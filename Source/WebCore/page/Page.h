@@ -117,6 +117,7 @@ class Document;
 class DOMRectList;
 class DOMWrapperWorld;
 class DatabaseProvider;
+class DeviceOrientationAndMotionAccessController;
 class DeviceOrientationUpdateProvider;
 class DiagnosticLoggingClient;
 class DocumentSyncData;
@@ -671,7 +672,7 @@ public:
     const FloatBoxExtent& obscuredContentInsets() const LIFETIME_BOUND { return m_obscuredContentInsets; }
     WEBCORE_EXPORT void setObscuredContentInsets(const FloatBoxExtent&);
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     bool hasBannerViewOverlay() const { return m_hasBannerViewOverlay; }
     WEBCORE_EXPORT void setHasBannerViewOverlay(bool);
 #endif
@@ -1076,9 +1077,6 @@ public:
 
     IDBClient::IDBConnectionToServer& idbConnection();
     WEBCORE_EXPORT IDBClient::IDBConnectionToServer* NODELETE optionalIDBConnection();
-    WEBCORE_EXPORT void clearIDBConnection();
-    WEBCORE_EXPORT void clearIDBConnectionOnAllDocuments();
-    WEBCORE_EXPORT void refreshIDBConnectionForWorkers();
 
     void setShowAllPlugins(bool showAll) { m_showAllPlugins = showAll; }
     bool showAllPlugins() const;
@@ -1148,6 +1146,11 @@ public:
 
 #if ENABLE(DEVICE_ORIENTATION) && PLATFORM(IOS_FAMILY)
     DeviceOrientationUpdateProvider* deviceOrientationUpdateProvider() const { return m_deviceOrientationUpdateProvider.get(); }
+#endif
+
+#if ENABLE(DEVICE_ORIENTATION)
+    DeviceOrientationAndMotionAccessController& deviceOrientationAndMotionAccessController();
+    WEBCORE_EXPORT void clearDeviceOrientationAndMotionPermissions();
 #endif
 
     WEBCORE_EXPORT void forEachDocument(NOESCAPE const Function<void(Document&)>&) const;
@@ -1567,7 +1570,7 @@ private:
     
     bool m_suppressScrollbarAnimations { false };
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     bool m_hasBannerViewOverlay { false };
 #endif
     ScrollElasticity m_verticalScrollElasticity { ScrollElasticity::Allowed };
@@ -1739,6 +1742,10 @@ private:
 
 #if ENABLE(DEVICE_ORIENTATION) && PLATFORM(IOS_FAMILY)
     RefPtr<DeviceOrientationUpdateProvider> m_deviceOrientationUpdateProvider;
+#endif
+
+#if ENABLE(DEVICE_ORIENTATION)
+    std::unique_ptr<DeviceOrientationAndMotionAccessController> m_deviceOrientationAndMotionAccessController;
 #endif
 
 #if ENABLE(MEDIA_SESSION_COORDINATOR)

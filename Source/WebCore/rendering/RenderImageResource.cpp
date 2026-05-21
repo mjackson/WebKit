@@ -31,6 +31,7 @@
 #include "CachedImage.h"
 #include "NullGraphicsContext.h"
 #include "RenderElement.h"
+#include "RenderObjectDocument.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleCachedImage.h"
 #include "StyleInvalidImage.h"
@@ -60,9 +61,11 @@ void RenderImageResource::initialize(RenderElement& renderer)
 
 void RenderImageResource::willBeDestroyed()
 {
-    image()->stopAnimation();
+    RefPtr cachedImage = this->cachedImage();
     if (m_styleImage && m_renderer)
         m_styleImage->removeClient(*m_renderer);
+    if (cachedImage && m_renderer && !cachedImage->isVisibleInViewport(m_renderer->document()))
+        image()->stopAnimation();
 }
 
 void RenderImageResource::clearCachedImage()

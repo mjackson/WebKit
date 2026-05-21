@@ -56,13 +56,12 @@ RelayoutScopeForScrollbarChange::~RelayoutScopeForScrollbarChange()
     if (m_renderBlock->style().overflowX() == Overflow::Auto || m_renderBlock->style().overflowY() == Overflow::Auto) {
         if (m_inOverflowRelayout == InOverflowRelayout::No) {
             if (auto& subtreeScrollbarChangesState = m_renderBlock->layoutContext().subtreeScrollbarChangesState(); subtreeScrollbarChangesState && subtreeScrollbarChangesState->isEligibleForScrollbarHandlingByAncestor(m_renderBlock.get())) {
+                ASSERT(m_renderBlock.ptr() != subtreeScrollbarChangesState->subtreeRoot.ptr());
                 subtreeScrollbarChangesState->renderersWithScrollbarChange.add(m_renderBlock);
                 return;
             }
-            m_renderBlock->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
-            auto scope = LayoutScope { m_renderBlock.get(), InOverflowRelayout::Yes };
             m_renderBlock->scrollbarsChanged(scrollbarChanges.contains(ScrollbarChange::AutoHorizontalScrollbarChanged), scrollbarChanges.contains(ScrollbarChange::AutoVerticalScrollBarChanged));
-            m_renderBlock->layoutBlock(RelayoutChildren::Yes);
+            RenderBlock::relayoutRenderBlockForScrollbarChange(m_renderBlock.get());
         }
     }
 

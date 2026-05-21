@@ -121,6 +121,7 @@
 #include "PolicyChecker.h"
 #include "ProgressTracker.h"
 #include "RemoteFrame.h"
+#include "RemoteFrameClient.h"
 #include "RenderWidgetInlines.h"
 #include "ReportingScope.h"
 #include "ResourceLoadInfo.h"
@@ -1239,8 +1240,19 @@ void FrameLoader::resetMultipleFormSubmissionProtection()
 
 void FrameLoader::updateFirstPartyForCookies()
 {
-    if (RefPtr page = m_frame->page())
-        setFirstPartyForCookies(page->mainFrameURL());
+    RefPtr page = m_frame->page();
+    if (!page)
+        return;
+
+    auto firstPartyForCookies = page->mainFrameURL();
+    if (SecurityPolicy::shouldInheritSecurityOriginFromOwner(firstPartyForCookies)) {
+        if (RefPtr opener = dynamicDowncast<LocalFrame>(page->mainFrame().opener())) {
+            if (RefPtr openerDocument = opener->document())
+                firstPartyForCookies = openerDocument->firstPartyForCookies();
+        }
+    }
+
+    setFirstPartyForCookies(firstPartyForCookies);
 }
 
 void FrameLoader::setFirstPartyForCookies(const URL& url)
@@ -2402,8 +2414,20 @@ void FrameLoader::commitProvisionalLoad()
         m_documentPrefetcher->clearPrefetchedResourcesExcept(pdl->url());
 
     std::unique_ptr<CachedPage> cachedPage;
-    if (m_loadingFromCachedPage && history().provisionalItem())
-        cachedPage = BackForwardCache::singleton().take(*protect(history().provisionalItem()), protect(frame->page()).get());
+    if (m_loadingFromCachedPage && history().provisionalItem()) {
+        Ref provisionalItem = *history().provisionalItem();
+        cachedPage = BackForwardCache::singleton().take(provisionalItem->frameItemID(), protect(frame->page()).get());
+        if (cachedPage) {
+            // Fire DidTakeBackForwardItemForRestoration before any subsequent
+            // DidCacheBackForwardItem for the outgoing page, so the UIProcess
+            // WebBackForwardCache observes remove(provisional) → add(current)
+            // in the same order the WebProcess BackForwardCache did. Firing
+            // late (after the Document is swapped in) inverts that ordering
+            // and can drop a same-process sibling SPP entry as the new
+            // "oldest" entry under capacity pressure.
+            m_client->didTakeBackForwardItemForRestoration(provisionalItem->itemID());
+        }
+    }
 
     LOG(BackForwardCache, "WebCoreLoading frame %" PRIu64 ": About to commit provisional load from previous URL '%s' to new URL '%s' with cached page %p", m_frame->frameID().toUInt64(),
         frame->document() ? frame->document()->url().stringCenterEllipsizedToLength().utf8().data() : "",
@@ -2449,7 +2473,9 @@ void FrameLoader::commitProvisionalLoad()
     if (!frame->tree().parent() && history().currentItem() && (!history().provisionalItem() || history().currentItem()->itemID() != history().provisionalItem()->itemID())) {
         // Check to see if we need to cache the page we are navigating away from into the back/forward cache.
         // We are doing this here because we know for sure that a new page is about to be loaded.
-        BackForwardCache::singleton().addIfCacheable(*protect(history().currentItem()), protect(frame->page()).get());
+        Ref currentItem = *history().currentItem();
+        if (BackForwardCache::singleton().addIfCacheable(currentItem.get(), protect(frame->page()).get()))
+            m_client->didCacheBackForwardItem(currentItem->itemID(), currentItem->frameItemID());
 
         WebCore::jettisonExpensiveObjectsOnTopLevelNavigation();
     }
@@ -3896,12 +3922,10 @@ bool FrameLoader::shouldClose()
         return true;
 
     // Store all references to each subframe in advance since beforeunload's event handler may modify frame
-    Vector<Ref<LocalFrame>, 16> targetFrames;
+    Vector<Ref<Frame>, 16> targetFrames;
     targetFrames.append(frame.copyRef());
-    for (RefPtr child = frame->tree().firstChild(); child; child = child->tree().traverseNext(frame.ptr())) {
-        if (RefPtr localChild = dynamicDowncast<LocalFrame>(*child))
-            targetFrames.append(localChild.releaseNonNull());
-    }
+    for (RefPtr child = frame->tree().firstChild(); child; child = child->tree().traverseNext(frame.ptr()))
+        targetFrames.append(*child);
 
     bool shouldClose = false;
     {
@@ -3912,8 +3936,14 @@ bool FrameLoader::shouldClose()
         for (i = 0; i < targetFrames.size(); i++) {
             if (!targetFrames[i]->tree().isDescendantOf(frame.ptr()))
                 continue;
-            if (!targetFrames[i]->loader().dispatchBeforeUnloadEvent(page->chrome(), this))
-                break;
+            if (RefPtr localTargetFrame = dynamicDowncast<LocalFrame>(targetFrames[i])) {
+                if (!localTargetFrame->loader().dispatchBeforeUnloadEvent(page->chrome(), this))
+                    break;
+            } else if (RefPtr remoteTargetFrame = dynamicDowncast<RemoteFrame>(targetFrames[i])) {
+                if (RefPtr document = frame->document())
+                    remoteTargetFrame->client().dispatchCrossOriginBeforeUnloadCheck(document->securityOrigin().data());
+                continue;
+            }
         }
 
         if (i == targetFrames.size())

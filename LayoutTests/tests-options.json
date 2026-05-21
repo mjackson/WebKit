@@ -761,6 +761,9 @@
     "imported/w3c/web-platform-tests/IndexedDB/database-names-by-origin.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/IndexedDB/interleaved-cursors-small.any.serviceworker.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/XMLHttpRequest/progress-events-response-data-gzip.htm": [
         "slow"
     ],
@@ -843,6 +846,15 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/clipboard-apis/async-idlharness.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/close-watcher/iframes/dialog-same-origin-nn.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/close-watcher/iframes/dialog-same-origin-ynn.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/close-watcher/iframes/dialog-same-origin-ynyn.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/content-security-policy/embedded-enforcement/required_csp-header-crlf.html": [
@@ -1890,9 +1902,6 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/css/css-values/calc-size/animation/calc-size-width-interpolation.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/css/css-values/random-computed.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/css/css-values/vh-update-and-transition-in-subframe.html": [

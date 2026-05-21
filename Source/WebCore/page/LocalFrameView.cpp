@@ -1854,11 +1854,11 @@ LayoutRect LocalFrameView::computeUpdatedLayoutViewportRect(const LayoutRect& la
         // The max stable layout viewport origin really depends on the size of the layout viewport itself, so we need to adjust the location of the layout viewport one final time to make sure it does not end up out of bounds of the document.
         // Without this adjustment (and with using the non-constrained unobscuredContentRect's size as the size of the layout viewport) the layout viewport can be pushed past the bounds of the document during rubber-banding, and cannot be pushed
         // back in until the user scrolls back in the other direction.
-        layoutViewportOrigin.setX(clampTo<float>(layoutViewportOrigin.x().toFloat(), 0, documentRect.width() - layoutViewportRect.width()));
-        layoutViewportOrigin.setY(clampTo<float>(layoutViewportOrigin.y().toFloat(), 0, documentRect.height() - layoutViewportRect.height()));
+        layoutViewportOrigin.setX(clampTo<float>(layoutViewportOrigin.x().toFloat(), documentRect.x(), documentRect.maxX() - layoutViewportRect.width()));
+        layoutViewportOrigin.setY(clampTo<float>(layoutViewportOrigin.y().toFloat(), documentRect.y(), documentRect.maxY() - layoutViewportRect.height()));
     }
     layoutViewportRect.setLocation(layoutViewportOrigin);
-    
+
     return layoutViewportRect;
 }
 
@@ -2669,7 +2669,16 @@ FloatRect LocalFrameView::insetClipLayerRect(const FloatPoint& scrollPosition, c
 
     auto adjustedSize = sizeForVisibleContent;
     if (obscuredContentInset.top())
-        adjustedSize.setHeight(std::max(0.f, sizeForVisibleContent.height() - position.y()));
+        adjustedSize.setHeight(std::max(0.f, adjustedSize.height() - position.y()));
+
+    if (obscuredContentInset.bottom())
+        adjustedSize.setHeight(std::max(0.f, adjustedSize.height() - obscuredContentInset.bottom()));
+
+    if (obscuredContentInset.left())
+        adjustedSize.setWidth(std::max(0.f, adjustedSize.width() - position.x()));
+
+    if (obscuredContentInset.right())
+        adjustedSize.setWidth(std::max(0.f, adjustedSize.width() - obscuredContentInset.right()));
 
     return { position, adjustedSize };
 }
@@ -4428,7 +4437,7 @@ LocalFrameView::ExtendedBackgroundMode LocalFrameView::calculateExtendedBackgrou
         mode.add(BoxSide::Bottom);
     }
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     if (mode.contains(BoxSide::Top)) {
         if (RefPtr page = m_frame->page(); page && page->hasBannerViewOverlay())
             mode.remove(BoxSide::Top);

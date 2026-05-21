@@ -1386,6 +1386,7 @@ JS_BINDING_IDLS := \
     $(WebCore)/html/HTMLVideoElement.idl \
 	$(WebCore)/html/HTMLVideoElement+CaptionDisplaySettings.idl \
     $(WebCore)/html/HTMLVideoElement+RequestVideoFrameCallback.idl \
+    $(WebCore)/html/HyperlinkElementUtils.idl \
     $(WebCore)/html/ImageBitmap.idl \
     $(WebCore)/html/ImageBitmapOptions.idl \
     $(WebCore)/html/ImageData.idl \
@@ -1583,6 +1584,7 @@ JS_BINDING_IDLS := \
     $(WebCore)/page/NavigatorUABrandVersion.idl \
     $(WebCore)/page/NavigatorUAData.idl \
     $(WebCore)/page/Navigator+LoginStatus.idl \
+    $(WebCore)/page/NavigatorGlobalPrivacyControl.idl \
     $(WebCore)/page/Navigator+UserActivation.idl \
     $(WebCore)/page/NavigatorCookies.idl \
     $(WebCore)/page/NavigatorID.idl \

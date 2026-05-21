@@ -167,7 +167,7 @@ struct WebPageCreationParameters {
 
     WebCore::FloatBoxExtent obscuredContentInsets { };
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     bool hasBannerViewOverlay { false };
 #endif
     float mediaVolume { 0 };
@@ -235,7 +235,7 @@ struct WebPageCreationParameters {
 #if ENABLE(TILED_CA_DRAWING_AREA)
     SandboxExtension::Handle renderServerMachExtensionHandle { };
 #endif
-#if HAVE(STATIC_FONT_REGISTRY)
+#if HAVE(STATIC_FONT_REGISTRY) && !ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
     Vector<SandboxExtension::Handle> fontMachExtensionHandles { };
 #endif
 #if HAVE(APP_ACCENT_COLORS)

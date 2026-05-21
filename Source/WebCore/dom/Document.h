@@ -125,7 +125,6 @@ class Database;
 class DatabaseThread;
 class DeviceMotionClient;
 class DeviceMotionController;
-class DeviceOrientationAndMotionAccessController;
 class DeviceOrientationClient;
 class DeviceOrientationController;
 class DocumentFontLoader;
@@ -921,7 +920,6 @@ public:
     bool requiresTrustedTypes() const { return m_requiresTrustedTypes && !shouldBypassMainWorldContentSecurityPolicy(); }
 
     IDBClient::IDBConnectionProxy* idbConnectionProxy() final;
-    void clearIDBConnectionProxy();
     StorageConnection* storageConnection();
     SocketProvider* NODELETE socketProvider() final;
     RefPtr<RTCDataChannelRemoteHandlerConnection> createRTCDataChannelRemoteHandlerConnection() final;
@@ -1424,6 +1422,7 @@ public:
     void initContentSecurityPolicy();
 
     void inheritPolicyContainerFrom(const PolicyContainer&) final;
+    void enforceSandboxFlags(SandboxFlags, SandboxFlagsSource = SandboxFlagsSource::Other) final;
 
     void updateURLForPushOrReplaceState(const URL&);
     void statePopped(Ref<SerializedScriptValue>&&);
@@ -1510,10 +1509,6 @@ public:
 
     DeviceOrientationController& NODELETE deviceOrientationController() const;
     WEBCORE_EXPORT void simulateDeviceOrientationChange(double alpha, double beta, double gamma);
-#endif
-
-#if ENABLE(DEVICE_ORIENTATION)
-    DeviceOrientationAndMotionAccessController& deviceOrientationAndMotionAccessController();
 #endif
 
     WEBCORE_EXPORT double monotonicTimestamp() const;
@@ -2506,10 +2501,6 @@ private:
     std::unique_ptr<DeviceMotionController> m_deviceMotionController;
     std::unique_ptr<DeviceOrientationClient> m_deviceOrientationClient;
     std::unique_ptr<DeviceOrientationController> m_deviceOrientationController;
-#endif
-
-#if ENABLE(DEVICE_ORIENTATION)
-    std::unique_ptr<DeviceOrientationAndMotionAccessController> m_deviceOrientationAndMotionAccessController;
 #endif
 
     Timer m_pendingTasksTimer;

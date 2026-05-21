@@ -888,8 +888,10 @@ css/CSSAppleColorFilterValue.cpp
 css/CSSAttrValue.cpp
 css/CSSBackgroundRepeatValue.cpp
 css/CSSBasicShapeValue.cpp
-css/CSSBorderImage.cpp
+css/CSSBorderImageOutsetValue.cpp
+css/CSSBorderImageRepeatValue.cpp
 css/CSSBorderImageSliceValue.cpp
+css/CSSBorderImageSourceValue.cpp
 css/CSSBorderImageWidthValue.cpp
 css/CSSBoxShadowPropertyValue.cpp
 css/CSSCanvasValue.cpp
@@ -946,6 +948,11 @@ css/CSSKeyframesRule.cpp
 css/CSSLayerBlockRule.cpp
 css/CSSLayerStatementRule.cpp
 css/CSSMarkup.cpp
+css/CSSMaskBorderOutsetValue.cpp
+css/CSSMaskBorderRepeatValue.cpp
+css/CSSMaskBorderSliceValue.cpp
+css/CSSMaskBorderSourceValue.cpp
+css/CSSMaskBorderWidthValue.cpp
 css/CSSMediaRule.cpp
 css/CSSNamedImageValue.cpp
 css/CSSNamespaceRule.cpp
@@ -968,7 +975,6 @@ css/CSSQuadValue.cpp
 css/CSSRatioValue.cpp
 css/CSSRayValue.cpp
 css/CSSRectValue.cpp
-css/CSSReflectValue.cpp
 css/CSSRegisteredCounterStyle.cpp
 css/CSSRegisteredCustomProperty.cpp
 css/CSSRule.cpp
@@ -1000,6 +1006,7 @@ css/CSSVariableData.cpp
 css/CSSSubstitutionValue.cpp
 css/CSSViewTransitionRule.cpp
 css/CSSViewValue.cpp
+css/CSSWebkitBoxReflectValue.cpp
 css/ComputedStyleDependencies.cpp
 css/DOMCSSNamespace.cpp
 css/DOMCSSPaintWorklet.cpp
@@ -1164,6 +1171,12 @@ css/typedom/transform/CSSTransformValue.cpp
 css/typedom/transform/CSSTranslate.cpp
 css/values/CSSSerializationContext.cpp
 css/values/CSSValueTypes.cpp
+css/values/backgrounds/CSSBorderImageOutset.cpp
+css/values/backgrounds/CSSBorderImageRepeat.cpp
+css/values/backgrounds/CSSBorderImageSlice.cpp
+css/values/backgrounds/CSSBorderImageSource.cpp
+css/values/backgrounds/CSSBorderImageWidth.cpp
+css/values/backgrounds/CSSBorderImage.cpp
 css/values/borders/CSSBorderRadius.cpp
 css/values/color-adjust/CSSColorScheme.cpp
 css/values/color/CSSColor.cpp
@@ -1189,7 +1202,14 @@ css/values/grid/CSSGridSubgrid.cpp
 css/values/grid/CSSGridTemplateList.cpp
 css/values/grid/CSSGridTrackSizes.cpp
 css/values/images/CSSGradient.cpp
+css/values/masking/CSSMaskBorderOutset.cpp
+css/values/masking/CSSMaskBorderRepeat.cpp
+css/values/masking/CSSMaskBorderSlice.cpp
+css/values/masking/CSSMaskBorderSource.cpp
+css/values/masking/CSSMaskBorderWidth.cpp
+css/values/masking/CSSMaskBorder.cpp
 css/values/motion/CSSRayFunction.cpp
+css/values/non-standard/CSSWebkitBoxReflect.cpp
 css/values/primitives/CSSCustomIdent.cpp
 css/values/primitives/CSSKeyword.cpp
 css/values/primitives/CSSPosition.cpp
@@ -2217,6 +2237,7 @@ page/NavigationHistoryEntry.cpp
 page/NavigationTransition.cpp
 page/Navigator.cpp
 page/NavigatorBase.cpp
+page/NavigatorGlobalPrivacyControl.cpp
 page/NavigatorLoginStatus.cpp
 page/NavigatorUAData.cpp
 page/OpportunisticTaskScheduler.cpp
@@ -3403,7 +3424,6 @@ style/values/page/StylePageSize.cpp
 style/values/pointerevents/StyleTouchAction.cpp
 style/values/primitives/StyleCustomIdent.cpp
 style/values/primitives/StyleLengthResolution.cpp @header:RenderStyleGetters
-style/values/primitives/StyleLengthWrapper+DeprecatedCSSValueConversion.cpp
 style/values/primitives/StyleLengthWrapperData.cpp
 style/values/primitives/StylePosition.cpp
 style/values/primitives/StylePrimitiveNumericTypes+Conversions.cpp @header:RenderStyleGetters
@@ -4087,7 +4107,7 @@ JSDOMStringList.cpp
 JSDOMStringMap.cpp
 JSDOMTokenList.cpp
 JSDOMURL.cpp
-JSDOMWindow.cpp
+JSDOMWindow.cpp @no-unify
 JSDataCue.cpp
 JSDataTransfer.cpp
 JSDataTransferItem.cpp
@@ -4459,6 +4479,7 @@ JSHighlightRegistry.cpp
 JSHistory.cpp
 JSHkdfParams.cpp
 JSHmacKeyParams.cpp
+JSHyperlinkElementUtils.cpp
 JSIDBCursor.cpp
 JSIDBCursorDirection.cpp
 JSIDBCursorWithValue.cpp

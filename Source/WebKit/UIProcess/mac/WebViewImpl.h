@@ -57,6 +57,7 @@
 #include <wtf/BlockPtr.h>
 #include <wtf/CheckedPtr.h>
 #include <wtf/CompletionHandler.h>
+#include <wtf/Deque.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakObjCPtr.h>
@@ -599,6 +600,7 @@ public:
 
     NSDragOperation dragSourceOperationMask(NSDraggingSession *, NSDraggingContext);
     void draggingSessionEnded(NSDraggingSession *, NSPoint, NSDragOperation);
+    void cancelDrag();
 
     NSString *fileNameForFilePromiseProvider(NSFilePromiseProvider *, NSString *fileType);
     void writeToURLForFilePromiseProvider(NSFilePromiseProvider *, NSURL *, void(^)(NSError *));
@@ -629,6 +631,9 @@ public:
     ViewGestureController& ensureGestureController();
 #if HAVE(APPKIT_GESTURES_SUPPORT)
     WKAppKitGestureController *appKitGestureController() const LIFETIME_BOUND { return m_appKitGestureController.get(); }
+    void setTextSelectionDragGesture(NSGestureRecognizer *, void (^completionHandler)(NSDraggingSession *));
+    void invalidateCachedPositionInformation();
+    void positionInformationDidChange(const InteractionInformationAtPosition&);
 #endif
     void NODELETE setAllowsBackForwardNavigationGestures(bool);
     bool allowsBackForwardNavigationGestures() const { return m_allowsBackForwardNavigationGestures; }
@@ -858,7 +863,7 @@ public:
     void setClientImplicitlyRequestedTopScrollPocket();
 #endif
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     void setBannerView(WKBannerView *);
     WKBannerView *bannerView() const LIFETIME_BOUND { return m_bannerView.get(); }
 
@@ -1121,9 +1126,9 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     // that has been already sent to WebCore.
     RetainPtr<NSEvent> m_keyDownEventBeingResent;
 
-    std::optional<Vector<WebCore::KeypressCommand>> m_collectedKeypressCommands;
     std::optional<NSRange> m_stagedMarkedRange;
-    Vector<Function<void()>> m_interpretKeyEventHoldingTank;
+    Deque<Vector<WebCore::KeypressCommand>> m_collectedKeypressCommands;
+    Deque<Function<void()>> m_interpretKeyEventHoldingTank;
 
     String m_lastStringForCandidateRequest;
     NSInteger m_lastCandidateRequestSequenceNumber;
@@ -1187,7 +1192,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     bool m_clientImplicitlyRequestedTopScrollPocket { false };
 #endif
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     RetainPtr<WKBannerView> m_bannerView;
     RetainPtr<CAShapeLayer> m_bannerViewMask;
     CGFloat m_bannerViewHeight { 0 };

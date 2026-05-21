@@ -105,6 +105,7 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/css/typedom/numeric"
     "${WEBCORE_DIR}/css/typedom/transform"
     "${WEBCORE_DIR}/css/values"
+    "${WEBCORE_DIR}/css/values/backgrounds"
     "${WEBCORE_DIR}/css/values/borders"
     "${WEBCORE_DIR}/css/values/color"
     "${WEBCORE_DIR}/css/values/color-adjust"
@@ -114,7 +115,9 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/css/values/fonts"
     "${WEBCORE_DIR}/css/values/grid"
     "${WEBCORE_DIR}/css/values/images"
+    "${WEBCORE_DIR}/css/values/masking"
     "${WEBCORE_DIR}/css/values/motion"
+    "${WEBCORE_DIR}/css/values/non-standard"
     "${WEBCORE_DIR}/css/values/primitives"
     "${WEBCORE_DIR}/css/values/shapes"
     "${WEBCORE_DIR}/css/values/text-decoration"
@@ -2081,6 +2084,7 @@ set(WebCore_SUPPLEMENTAL_IDL_FILES
     html/HTMLOrSVGOrMathMLElement.idl
     html/HTMLVideoElement+CaptionDisplaySettings.idl
     html/HTMLVideoElement+RequestVideoFrameCallback.idl
+    html/HyperlinkElementUtils.idl
     html/PopoverInvokerElement.idl
 
     html/canvas/CanvasCompositing.idl
@@ -2112,6 +2116,7 @@ set(WebCore_SUPPLEMENTAL_IDL_FILES
     page/DOMWindow+VisualViewport.idl
     page/Navigator+UserActivation.idl
     page/NavigatorCookies.idl
+    page/NavigatorGlobalPrivacyControl.idl
     page/NavigatorID.idl
     page/NavigatorLanguage.idl
     page/NavigatorOnLine.idl
@@ -2791,14 +2796,7 @@ if (ENABLE_WEBCORE_TEST_SUPPORT)
     WEBKIT_LIBRARY_DECLARE(WebCoreTestSupport)
 endif ()
 WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS()
-
-if (PORT STREQUAL GTK OR PORT STREQUAL WPE)
-    WEBKIT_ADD_TARGET_CXX_FLAGS(WebCore
-        -Wunsafe-buffer-usage
-        -Wunsafe-buffer-usage-in-libc-call
-        -fsafe-buffer-usage-suggestions
-    )
-endif ()
+WEBKIT_ADD_TARGET_UNSAFE_BUFFER_WARNINGS(WebCore)
 
 if (ENABLE_MALLOC_HEAP_BREAKDOWN)
     list(APPEND WebCore_LIBRARIES ${MALLOC_HEAP_BREAKDOWN_LIBRARIES})
@@ -3145,7 +3143,9 @@ WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreJSBindings
 WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreDOMAndRendering
     PREFIX WebCoreDOMAndRenderingPrefix.h
     PREFIX_LANGUAGES CXX OBJCXX
-    DIRS accessibility animation dom html page rendering style)
+    DIRS accessibility animation css cssjit dom domjit editing history html
+         layout loader page plugins rendering storage style svg workers
+         worklets xml)
 WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreInspector
     PREFIX WebCoreInspectorPrefix.h
     PREFIX_LANGUAGES CXX

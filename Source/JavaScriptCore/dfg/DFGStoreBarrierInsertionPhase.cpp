@@ -268,8 +268,9 @@ private:
                 }
                 break;
             }
-                
-            case ArrayPush: {
+
+            case ArrayPush:
+            case ArrayUnshift: {
                 switch (m_node->arrayMode().type()) {
                 case Array::Contiguous:
                 case Array::ArrayStorage:
@@ -289,6 +290,7 @@ private:
                 }
                 break;
             }
+
             case ArraySortCommit: {
                 considerBarrier(m_node->child1());
                 break;
@@ -346,6 +348,12 @@ private:
             case SetRegExpObjectLastIndex:
             case PutInternalField: {
                 considerBarrier(m_node->child1(), m_node->child2());
+                break;
+            }
+
+            case PerformPromiseThenOneHandler: {
+                considerBarrier(m_node->child1(), m_node->child2());
+                considerBarrier(m_node->child1(), m_node->child3());
                 break;
             }
 
@@ -527,6 +535,10 @@ private:
                         break;
                     case NukeStructureAndSetButterfly:
                         escape(m_node->child2().node());
+                        break;
+                    case PerformPromiseThenOneHandler:
+                        escape(m_node->child2().node());
+                        escape(m_node->child3().node());
                         break;
                     case SetLocal:
                     case PutStack:

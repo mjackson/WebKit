@@ -1716,6 +1716,8 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSHkdfParams.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSHkdfParams.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSHmacKeyParams.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSHmacKeyParams.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSHyperlinkElementUtils.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSHyperlinkElementUtils.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBCursor.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBCursor.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBCursorDirection.cpp
@@ -2097,6 +2099,8 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSNavigator+Geolocation.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSNavigator+Geolocation.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSNavigator+LoginStatus.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSNavigator+LoginStatus.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSNavigatorGlobalPrivacyControl.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSNavigatorGlobalPrivacyControl.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSNavigator+MediaCapabilities.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSNavigator+MediaCapabilities.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSNavigator+MediaDevices.cpp

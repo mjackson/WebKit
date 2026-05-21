@@ -520,10 +520,45 @@ std::optional<ScrollbarUpdateScope> RenderBlock::updateScrollInfoAfterLayout()
     return { };
 }
 
+void RenderBlock::relayoutRenderBlockForScrollbarChange(RenderBlock& block)
+{
+    if (block.sizesPreferredLogicalWidthToFitContent())
+        block.setNeedsPreferredWidthsUpdate();
+    block.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
+    auto scope = LayoutScope { block, InOverflowRelayout::Yes };
+    block.layoutBlock(RelayoutChildren::Yes);
+}
+
 static bool needsToTrackDescendantScrollbarChanges(const RenderBlock& renderBlock, const LocalFrameViewLayoutContext& layoutContext)
 {
-    auto computedLogicalWidth = renderBlock.style().logicalWidth();
-    return computedLogicalWidth.isIntrinsic() && !layoutContext.subtreeScrollbarChangesState();
+    if (renderBlock.isRenderView())
+        return false;
+
+    // FIXME: This list contains content that should be supported
+    // but need additional invesigation to get working correctly.
+    auto isSupportedForDescendantTracking = [&] {
+        if (renderBlock.writingMode().computedTextDirection() == TextDirection::RTL)
+            return false;
+        return true;
+    };
+    if (!isSupportedForDescendantTracking())
+        return false;
+
+    if (layoutContext.subtreeScrollbarChangesState())
+        return false;
+
+    auto& style = renderBlock.style();
+    auto& computedLogicalWidth = style.logicalWidth();
+    if (computedLogicalWidth.isFixed())
+        return false;
+
+    if (computedLogicalWidth.isIntrinsic() || computedLogicalWidth.isMinIntrinsic())
+        return true;
+
+    if (renderBlock.sizesPreferredLogicalWidthToFitContent())
+        return true;
+
+    return false;
 }
 
 static bool canContainDescendantScrollbarChanges(const RenderBlock& renderBlock, const LocalFrameViewLayoutContext& layoutContext)
@@ -539,13 +574,12 @@ void RenderBlock::layout()
 
     // Table cells call layoutBlock directly, so don't add any logic here. Put code into layoutBlock().
     {
-        std::optional<SubtreeScrollbarChangesStateScope> subtreeScrollbarChangesStateScope;
-        if (needsToTrackDescendantScrollbarChanges(*this, layoutContext))
-            subtreeScrollbarChangesStateScope.emplace(layoutContext, *this);
-
-        bool willHandleDescendantScrollbarChanges = subtreeScrollbarChangesStateScope.has_value() || canContainDescendantScrollbarChanges(*this, layoutContext);
         auto scope = LayoutScope { *this };
-        if (willHandleDescendantScrollbarChanges) {
+        if (needsToTrackDescendantScrollbarChanges(*this, layoutContext)) {
+            SubtreeScrollbarChangesStateScope subtreeScrollbarChangesStateScope(layoutContext, *this);
+            SubtreeScrollbarChangesHandler descendantScrollbarChangesHandler(*this);
+            layoutBlock(RelayoutChildren::No);
+        } else if (canContainDescendantScrollbarChanges(*this, layoutContext)) {
             SubtreeScrollbarChangesHandler descendantScrollbarChangesHandler(*this);
             layoutBlock(RelayoutChildren::No);
         } else
@@ -2245,7 +2279,8 @@ void RenderBlock::computePreferredLogicalWidths()
         computeIntrinsicLogicalWidths(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
         m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth;
     } else if (shouldComputeLogicalWidthFromAspectRatio()) {
-        m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth = (computeLogicalWidthFromAspectRatio() - borderAndPaddingLogicalWidth());
+        m_maxPreferredLogicalWidth = computeLogicalWidthFromAspectRatio() - borderAndPaddingLogicalWidth();
+        m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth;
         m_minPreferredLogicalWidth = std::max(0_lu, m_minPreferredLogicalWidth);
         m_maxPreferredLogicalWidth = std::max(0_lu, m_maxPreferredLogicalWidth);
         applyAutomaticContentBasedMinimumSize(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);

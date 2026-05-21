@@ -1719,6 +1719,7 @@ $(PROJECT_DIR)/html/HTMLUnknownElement.idl
 $(PROJECT_DIR)/html/HTMLVideoElement+CaptionDisplaySettings.idl
 $(PROJECT_DIR)/html/HTMLVideoElement+RequestVideoFrameCallback.idl
 $(PROJECT_DIR)/html/HTMLVideoElement.idl
+$(PROJECT_DIR)/html/HyperlinkElementUtils.idl
 $(PROJECT_DIR)/html/ImageBitmap.idl
 $(PROJECT_DIR)/html/ImageBitmapOptions.idl
 $(PROJECT_DIR)/html/ImageData.idl
@@ -1927,6 +1928,7 @@ $(PROJECT_DIR)/page/NavigationNavigationType.idl
 $(PROJECT_DIR)/page/NavigationTransition.idl
 $(PROJECT_DIR)/page/Navigator+LoginStatus.idl
 $(PROJECT_DIR)/page/Navigator+UserActivation.idl
+$(PROJECT_DIR)/page/NavigatorGlobalPrivacyControl.idl
 $(PROJECT_DIR)/page/Navigator.idl
 $(PROJECT_DIR)/page/NavigatorCookies.idl
 $(PROJECT_DIR)/page/NavigatorID.idl

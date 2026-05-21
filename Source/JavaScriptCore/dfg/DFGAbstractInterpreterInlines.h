@@ -1508,6 +1508,11 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
     }
 
+    case DateNow: {
+        setNonCellTypeForNode(node, SpecDoubleReal);
+        break;
+    }
+
     case ArithRound:
     case ArithFloor:
     case ArithCeil:
@@ -1634,7 +1639,8 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     }
 
     case StringSubstring:
-    case StringSlice: {
+    case StringSlice:
+    case StringSubstr: {
         setTypeForNode(node, SpecString);
         break;
     }
@@ -2704,6 +2710,11 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             setTypeForNode(node, SpecArray);
         break;
 
+    case StringMatch:
+        clobberWorld();
+        makeHeapTopForNode(node);
+        break;
+
     case StringFromCharCode: {
         if (node->child1().useKind() == Int32Use || node->child1().useKind() == KnownInt32Use) {
             if (node->child1()->isInt32Constant() && node->child1()->asUInt32() <= maxSingleCharacterString) {
@@ -3275,6 +3286,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     }
 
     case ArrayPush:
+    case ArrayUnshift:
         switch (node->arrayMode().type()) {
         case Array::ForceExit:
             m_state.setIsValid(false);
@@ -3338,7 +3350,12 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         clobberWorld();
         makeHeapTopForNode(node);
         break;
-        
+
+    case ArrayShift:
+        clobberWorld();
+        makeHeapTopForNode(node);
+        break;
+
     case GetMyArgumentByVal:
     case GetMyArgumentByValOutOfBounds: {
         JSValue index = forNode(node->child2()).m_value;
@@ -3780,10 +3797,25 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             break;
         default:
             if (!m_graph.canDoFastSpread(node, forNode(node->child1()))) {
-                // SetObjectUse has no side effects since we iterate directly over internal storage.
-                if (node->child1().useKind() == SetObjectUse)
-                    didFoldClobberWorld();
-                else
+                if (node->child1().useKind() == SetObjectUse) {
+                    // The lowering routes Sets that don't carry the original Set structure to operationSpreadSet,
+                    // which falls back to the JS iterator protocol. We can retain structure proofs across this
+                    // node only when the operand is proven to carry the original Set structure (the same condition
+                    // under which the lowering elides its runtime structure check). Such instances have no own
+                    // Symbol.iterator, and any mutation to Set.prototype[Symbol.iterator] invalidates this code
+                    // via the prototype-change watchpoints installed during compilation, so the slow path can
+                    // never reach a user-defined iterator from here.
+                    bool canFold = false;
+                    JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
+                    if (Structure* originalSetStructure = globalObject->setStructureConcurrently()) {
+                        if (forNode(node->child1()).m_structure.isSubsetOf(RegisteredStructureSet(m_graph.registerStructure(originalSetStructure))))
+                            canFold = true;
+                    }
+                    if (canFold)
+                        didFoldClobberWorld();
+                    else
+                        clobberWorld();
+                } else
                     clobberWorld();
             } else
                 didFoldClobberWorld();
@@ -3854,7 +3886,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
 
     case ArraySortCompact:
-        setTypeForNode(node, SpecObjectOther);
+        setTypeForNode(node, SpecCellOther);
         break;
 
     case ArraySortCommit:
@@ -4012,6 +4044,11 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     }
 
     case NewResolvedPromise:
+        if (!node->isResolvedValueKnownNonThenable())
+            clobberWorld();
+        setTypeForNode(node, SpecPromiseObject);
+        break;
+
     case NewRejectedPromise: {
         clobberWorld();
         setTypeForNode(node, SpecPromiseObject);
@@ -4126,6 +4163,11 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     case ObjectToString: {
         clobberWorld();
         setTypeForNode(node, SpecString);
+        break;
+    }
+
+    case SymbolToString: {
+        setTypeForNode(node, SpecStringResolved);
         break;
     }
 
@@ -4542,7 +4584,9 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             && value.m_structure.isFinite()
             && (node->child1().useKind() == CellUse || !(value.m_type & ~SpecCell))) {
             CacheableIdentifier identifier = node->cacheableIdentifier();
-            GetByStatus status = GetByStatus::computeFor(m_graph.globalObjectFor(node->origin.semantic), value.m_structure.toStructureSet(), identifier);
+            GetByStatus::LookupMode lookupMode = node->propertyLookupMode();
+
+            GetByStatus status = GetByStatus::computeFor(m_graph.globalObjectFor(node->origin.semantic), value.m_structure.toStructureSet(), identifier, lookupMode);
             if (status.isSimple()) {
                 if (status.numVariants() == 1) {
                     auto& variant = status[0];
@@ -5992,6 +6036,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     }
 
     case PerformPromiseThen:
+    case PerformPromiseThenOneHandler:
         clobberWorld();
         break;
 

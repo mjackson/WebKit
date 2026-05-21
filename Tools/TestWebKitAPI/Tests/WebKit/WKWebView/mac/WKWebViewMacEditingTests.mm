@@ -131,6 +131,7 @@
 
 @interface MockTextInputContext : NSTextInputContext
 @property (nonatomic, assign) NSMutableArray<MockTextInputContextAction *> *actions;
+@property (nonatomic, assign) NSMutableArray<NSString *> *eventLog;
 @end
 
 @implementation MockTextInputContext
@@ -144,8 +145,11 @@
         }
         MockTextInputContextAction *lastItem = _actions.firstObject;
         [_actions removeObjectAtIndex:0];
+        NSString *label = lastItem.markedText ?: lastItem.insertedText;
+        [_eventLog addObject:[NSString stringWithFormat:@"received_%@", label]];
         double delay = lastItem ? lastItem.delay : 10;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), mainDispatchQueueSingleton(), ^{
+            [_eventLog addObject:[NSString stringWithFormat:@"fired_%@", label]];
             if (lastItem.markedText)
                 [self.client setMarkedText:lastItem.markedText selectedRange:lastItem.selectedRange replacementRange:lastItem.replacementRange];
             else
@@ -369,6 +373,151 @@ TEST(WKWebViewMacEditingTests, KeyDownForInputMethodCommitUsesCompositionKeyCode
 
     EXPECT_STREQ(@"\u3093".UTF8String, [webView stringByEvaluatingJavaScript:@"document.getElementById('q').value"].UTF8String);
     EXPECT_STREQ("229,229", [webView stringByEvaluatingJavaScript:@"window.keyCodes.join(',')"].UTF8String);
+}
+
+TEST(WKWebViewMacEditingTests, KeyDownForModelessInputMethodInsertUsesRealKeyCode)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    for (_WKFeature *feature in WKPreferences._features) {
+        NSString *key = feature.key;
+        if ([key isEqualToString:@"InputMethodUsesCorrectKeyEventOrder"])
+            [[configuration preferences] _setEnabled:YES forFeature:feature];
+    }
+
+    RetainPtr webView = adoptNS([[TestWebViewWithMockTextInputContext alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    // Modeless IME: calls insertText: directly (no setMarkedText:) with no prior composition.
+    // This is Vietnamese Simple Telex / Korean Hangul typing a character that commits inline.
+    [webView _web_superInputContext].actions = [@[
+        [[[MockTextInputContextAction alloc] initWithInsertText:@"v" replacementRange:NSMakeRange(NSNotFound, 0)] autorelease],
+    ].mutableCopy autorelease];
+    [webView synchronouslyLoadHTMLString:@"<input type='text' id='q'>"];
+    // The keydown should report the real keyCode (not 229), a keypress should fire, and the
+    // text insertion should happen during the Char phase with underlyingEvent=keypress. Without
+    // the modeless routing, the keydown would be reported as handled-by-input-method, keyCode
+    // would be 229, no keypress would fire, and the Char-phase TextInput event would trip the
+    // underlyingEvent=keydown assertion in EventHandler::handleTextInputEvent.
+    [webView stringByEvaluatingJavaScript:@"window.events = [];"
+        "const q = document.getElementById('q');"
+        "q.addEventListener('keydown', (event) => window.events.push('keydown:' + event.keyCode), true);"
+        "q.addEventListener('keypress', (event) => window.events.push('keypress:' + event.keyCode), true);"
+        "q.focus();"];
+    [webView waitForNextPresentationUpdate];
+    [webView removeFromSuperview];
+    [webView typeCharacter:'v'];
+    Util::runFor(1_s);
+
+    EXPECT_STREQ("v", [webView stringByEvaluatingJavaScript:@"document.getElementById('q').value"].UTF8String);
+    // keydown reports 'V' (86); keypress reports 'v' (118).
+    EXPECT_STREQ("keydown:86,keypress:118", [webView stringByEvaluatingJavaScript:@"window.events.join(',')"].UTF8String);
+}
+
+TEST(WKWebViewMacEditingTests, ModelessInputMethodInsertTextWithReplacementRangeInsertsCorrectly)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    for (_WKFeature *feature in WKPreferences._features) {
+        NSString *key = feature.key;
+        if ([key isEqualToString:@"InputMethodUsesCorrectKeyEventOrder"])
+            [[configuration preferences] _setEnabled:YES forFeature:feature];
+    }
+
+    RetainPtr webView = adoptNS([[TestWebViewWithMockTextInputContext alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    // Modeless IME continuation: first keystroke inserts 'v', second keystroke extends the
+    // syllable by inserting "vi" with replacementRange=(0,1) to replace the prior 'v'. The
+    // replacement-range path must not trip the queue's assertion and must end up with "vi".
+    [webView _web_superInputContext].actions = [@[
+        [[[MockTextInputContextAction alloc] initWithInsertText:@"v" replacementRange:NSMakeRange(NSNotFound, 0)] autorelease],
+        [[[MockTextInputContextAction alloc] initWithInsertText:@"vi" replacementRange:NSMakeRange(0, 1)] autorelease],
+    ].mutableCopy autorelease];
+    [webView synchronouslyLoadHTMLString:@"<input type='text' id='q'>"];
+    [webView stringByEvaluatingJavaScript:@"document.getElementById('q').focus();"];
+    [webView waitForNextPresentationUpdate];
+    [webView removeFromSuperview];
+    [webView typeCharacter:'v'];
+    Util::runFor(1_s);
+    [webView typeCharacter:'i'];
+    Util::runFor(1_s);
+
+    EXPECT_STREQ("vi", [webView stringByEvaluatingJavaScript:@"document.getElementById('q').value"].UTF8String);
+}
+
+TEST(WKWebViewMacEditingTests, ModelessInputMethodEventOrderingMatchesNormalTyping)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    for (_WKFeature *feature in WKPreferences._features) {
+        NSString *key = feature.key;
+        if ([key isEqualToString:@"InputMethodUsesCorrectKeyEventOrder"])
+            [[configuration preferences] _setEnabled:YES forFeature:feature];
+    }
+
+    RetainPtr webView = adoptNS([[TestWebViewWithMockTextInputContext alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    // Two modeless keystrokes: 'v' as a plain insertText:, then 'i' as a replacement-range
+    // insertText: that extends the syllable to "vi" (mirroring Vietnamese Simple Telex). Both
+    // should produce the same JS event ordering as plain typing — keydown, keypress, then input
+    // from the queued execution during the keydown default handler in the web process. No
+    // composition events should fire (no setMarkedText: was called). 297270@main's keydown-first
+    // ordering must hold for both the plain and replacement-range insertText: paths.
+    [webView _web_superInputContext].actions = [@[
+        [[[MockTextInputContextAction alloc] initWithInsertText:@"v" replacementRange:NSMakeRange(NSNotFound, 0)] autorelease],
+        [[[MockTextInputContextAction alloc] initWithInsertText:@"vi" replacementRange:NSMakeRange(0, 1)] autorelease],
+    ].mutableCopy autorelease];
+    [webView synchronouslyLoadHTMLString:@"<body contenteditable></body>"];
+    [webView stringByEvaluatingJavaScript:@"window.events = [];"
+        "['keydown', 'keypress', 'keyup', 'input', 'compositionstart', 'compositionupdate', 'compositionend']"
+        ".forEach((type) => { document.body.addEventListener(type, (event) => window.events.push(type), true); });"
+        "document.body.focus();"];
+    [webView waitForNextPresentationUpdate];
+    [webView removeFromSuperview];
+    [webView typeCharacter:'v'];
+    Util::runFor(1_s);
+    [webView typeCharacter:'i'];
+    Util::runFor(1_s);
+
+    EXPECT_STREQ("vi", [webView stringByEvaluatingJavaScript:@"document.body.textContent"].UTF8String);
+    // Per keystroke: keydown -> keypress -> input -> keyup. No composition events for modeless.
+    EXPECT_STREQ("keydown,keypress,input,keyup,keydown,keypress,input,keyup",
+        [webView stringByEvaluatingJavaScript:@"window.events.join(',')"].UTF8String);
+}
+
+TEST(WKWebViewMacEditingTests, ConcurrentInputMethodKeyDownsScopeQueueingPerKey)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    for (_WKFeature *feature in WKPreferences._features) {
+        NSString *key = feature.key;
+        if ([key isEqualToString:@"InputMethodUsesCorrectKeyEventOrder"])
+            [[configuration preferences] _setEnabled:YES forFeature:feature];
+    }
+
+    RetainPtr webView = adoptNS([[TestWebViewWithMockTextInputContext alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    // Two keydowns dispatched back-to-back. The mock's 0.1s delay on each keydown action
+    // means both keydowns must reach the IM (super.handleEventByInputMethod:) before
+    // either action fires. With the rdar://177042301 fix (Zhuyin Traditional stall),
+    // keydowns flow through to the IM directly and each gets its own deque entry, so
+    // both are claimed before action 1 runs. Without the fix, the second keydown is
+    // held in WebKit until the first keydown's IM completion fires (after action 1
+    // runs), serializing the events.
+    RetainPtr action1 = adoptNS([[MockTextInputContextAction alloc] initWithMarkedText:@"a" selectedRange:NSMakeRange(0, 1) replacementRange:NSMakeRange(NSNotFound, 0)]);
+    [action1 setDelay:0.1];
+    RetainPtr action2 = adoptNS([[MockTextInputContextAction alloc] initWithMarkedText:@"ab" selectedRange:NSMakeRange(0, 2) replacementRange:NSMakeRange(NSNotFound, 0)]);
+    [action2 setDelay:0.1];
+    [webView _web_superInputContext].actions = [@[action1.get(), action2.get()].mutableCopy autorelease];
+    [webView _web_superInputContext].eventLog = [NSMutableArray array];
+
+    [webView synchronouslyLoadHTMLString:@"<body contenteditable></body>"];
+    [webView stringByEvaluatingJavaScript:@"document.body.focus();"];
+    [webView waitForNextPresentationUpdate];
+    [webView removeFromSuperview];
+
+    [webView typeCharacter:'a'];
+    [webView typeCharacter:'b'];
+    Util::runFor(2_s);
+
+    EXPECT_STREQ("ab", [webView stringByEvaluatingJavaScript:@"document.body.textContent"].UTF8String);
+    // The mock log records "received_<text>" when super.handleEventByInputMethod: completes
+    // for a keydown (the IM has been told about it) and "fired_<text>" when the action's
+    // dispatch_after block runs (the IM responds with setMarkedText:). With per-key queue
+    // scoping, both keydowns are received before either action fires.
+    EXPECT_STREQ("received_a,received_ab,fired_a,fired_ab",
+        [[[webView _web_superInputContext].eventLog componentsJoinedByString:@","] UTF8String]);
 }
 
 TEST(WKWebViewMacEditingTests, DoNotCrashWhenInterpretingKeyEventWhileDeallocatingView)

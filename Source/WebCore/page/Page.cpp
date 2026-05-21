@@ -61,6 +61,7 @@
 #include "DatabaseProvider.h"
 #include "DebugOverlayRegions.h"
 #include "DebugPageOverlays.h"
+#include "DeviceOrientationAndMotionAccessController.h"
 #include "DiagnosticLoggingClient.h"
 #include "DiagnosticLoggingKeys.h"
 #include "DisplayRefreshMonitorManager.h"
@@ -1967,7 +1968,7 @@ void Page::setShouldSuppressScrollbarAnimations(bool suppressAnimations)
     m_suppressScrollbarAnimations = suppressAnimations;
 }
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
 void Page::setHasBannerViewOverlay(bool hasBannerViewOverlay)
 {
     if (m_hasBannerViewOverlay == hasBannerViewOverlay)
@@ -4212,33 +4213,18 @@ void Page::setAllowsMediaDocumentInlinePlayback(bool flag)
 
 IDBClient::IDBConnectionToServer& Page::idbConnection()
 {
+    if (RefPtr cached = m_idbConnectionToServer; cached && !cached->isValid())
+        m_idbConnectionToServer = nullptr;
+
     if (!m_idbConnectionToServer)
         m_idbConnectionToServer = m_databaseProvider->idbConnectionToServerForSession(m_sessionID);
-    
+
     return *m_idbConnectionToServer;
 }
 
 IDBClient::IDBConnectionToServer* Page::optionalIDBConnection()
 {
     return m_idbConnectionToServer.get();
-}
-
-void Page::clearIDBConnection()
-{
-    m_idbConnectionToServer = nullptr;
-}
-
-void Page::clearIDBConnectionOnAllDocuments()
-{
-    clearIDBConnection();
-    forEachDocument([](Document& document) {
-        document.clearIDBConnectionProxy();
-    });
-}
-
-void Page::refreshIDBConnectionForWorkers()
-{
-    WorkerGlobalScope::replaceIDBConnectionProxyOnAllWorkers(idbConnection().proxy());
 }
 
 #if ENABLE(RESOURCE_USAGE)
@@ -4506,6 +4492,10 @@ void Page::didChangeMainDocument(Document* newDocument)
 
     clearSampledPageTopColor();
 
+#if ENABLE(DEVICE_ORIENTATION)
+    clearDeviceOrientationAndMotionPermissions();
+#endif
+
     m_elementTargetingController->didChangeMainDocument(newDocument);
 
     updateActiveNowPlayingSessionNow();
@@ -4542,6 +4532,21 @@ void Page::forEachDocument(NOESCAPE const Function<void(Document&)>& functor) co
 {
     forEachDocumentFromMainFrame(protect(mainFrame()), functor);
 }
+
+#if ENABLE(DEVICE_ORIENTATION)
+DeviceOrientationAndMotionAccessController& Page::deviceOrientationAndMotionAccessController()
+{
+    if (!m_deviceOrientationAndMotionAccessController)
+        m_deviceOrientationAndMotionAccessController = makeUnique<DeviceOrientationAndMotionAccessController>(*this);
+    return *m_deviceOrientationAndMotionAccessController;
+}
+
+void Page::clearDeviceOrientationAndMotionPermissions()
+{
+    if (m_deviceOrientationAndMotionAccessController)
+        protect(m_deviceOrientationAndMotionAccessController)->clearPermissions();
+}
+#endif
 
 bool Page::findMatchingLocalDocument(NOESCAPE const Function<bool(Document&)>& functor) const
 {

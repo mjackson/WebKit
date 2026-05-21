@@ -191,7 +191,7 @@ void dumpSelectorOperationStats()
 {
     constexpr bool resetStatsOnDump = true;
 
-    static constexpr auto selectorNames = std::to_array<const char*>({
+    static constexpr auto selectorNames = WTF::toArray<const char*>({
 #define SELECTOR_OPERATION_NAME(selector) #selector,
         FOR_EACH_SELECTOR_OPERATION(SELECTOR_OPERATION_NAME)
 #undef SELECTOR_OPERATION_NAME
@@ -387,8 +387,14 @@ static AttributeCaseSensitivity attributeSelectorCaseSensitivity(const CSSSelect
     if (selector.match() == CSSSelector::Match::Set)
         return AttributeCaseSensitivity::CaseSensitive;
 
-    if (selector.attributeValueMatchingIsCaseInsensitive())
+    switch (selector.attributeMatchType()) {
+    case CSSSelector::AttributeMatchType::CaseInsensitive:
         return AttributeCaseSensitivity::CaseInsensitive;
+    case CSSSelector::AttributeMatchType::CaseSensitive:
+        return AttributeCaseSensitivity::CaseSensitive;
+    case CSSSelector::AttributeMatchType::Default:
+        break;
+    }
     if (HTMLDocument::isCaseSensitiveAttribute(selector.attribute()))
         return AttributeCaseSensitivity::CaseSensitive;
     return AttributeCaseSensitivity::HTMLLegacyCaseInsensitive;
@@ -400,7 +406,7 @@ public:
         : m_selector(&selector)
         , m_attributeCaseSensitivity(attributeSelectorCaseSensitivity(selector))
     {
-        ASSERT(!(m_attributeCaseSensitivity == AttributeCaseSensitivity::CaseInsensitive && !selector.attributeValueMatchingIsCaseInsensitive()));
+        ASSERT(!(m_attributeCaseSensitivity == AttributeCaseSensitivity::CaseInsensitive && selector.attributeMatchType() != CSSSelector::AttributeMatchType::CaseInsensitive));
         ASSERT(!(selector.match() == CSSSelector::Match::Set && m_attributeCaseSensitivity != AttributeCaseSensitivity::CaseSensitive));
     }
 
@@ -1659,7 +1665,7 @@ static FunctionType constructFragmentsInternal(const CSSSelector& rootSelector, 
         if (relation == CSSSelector::Relation::Subselector)
             continue;
 
-        if ((relation == CSSSelector::Relation::ShadowDescendant || relation == CSSSelector::Relation::ShadowPartDescendant) && !selector->isFirstInComplexSelector())
+        if ((relation == CSSSelector::Relation::ShadowDescendant || relation == CSSSelector::Relation::ShadowPartDescendant) && selector->precedingInComplexSelector())
             return FunctionType::CannotCompile;
 
         if (relation == CSSSelector::Relation::ShadowSlotted)
