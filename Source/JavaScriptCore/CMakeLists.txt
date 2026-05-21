@@ -1392,6 +1392,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSAsyncFromSyncIterator.h
     runtime/JSAsyncFromSyncIteratorInlines.h
     runtime/JSAsyncFunction.h
+    runtime/JSAsyncFunctionGenerator.h
     runtime/JSAsyncFunctionInlines.h
     runtime/JSAsyncGenerator.h
     runtime/JSAsyncGeneratorFunction.h
@@ -1460,8 +1461,6 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSGlobalObjectInlines.h
     runtime/JSGlobalProxy.h
     runtime/JSGlobalProxyInlines.h
-    runtime/JSHeapDouble.h
-    runtime/JSHeapInt32.h
     runtime/JSInt16Array.h
     runtime/JSInt32Array.h
     runtime/JSInt8Array.h

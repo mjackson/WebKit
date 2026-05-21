@@ -113,8 +113,9 @@ size_t AbstractModuleRecord::estimatedSize(JSCell* cell, VM& vm)
     auto* thisObject = uncheckedDowncast<AbstractModuleRecord>(cell);
     size += thisObject->m_starExportEntries.capacity() * sizeof(ExportEntry);
     size += thisObject->m_requestedModules.capacity() * sizeof(ModuleRequest);
-    size += thisObject->m_exportEntries.byteSize();
-    size += thisObject->m_importEntries.byteSize();
+    // OrderedHashMap does not expose byteSize(); approximate with capacity * entry size.
+    size += thisObject->m_exportEntries.capacity() * (sizeof(RefPtr<UniquedStringImpl>) + sizeof(ExportEntry));
+    size += thisObject->m_importEntries.capacity() * (sizeof(RefPtr<UniquedStringImpl>) + sizeof(ImportEntry));
     return size;
 }
 
