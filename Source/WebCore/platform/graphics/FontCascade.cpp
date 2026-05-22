@@ -528,7 +528,7 @@ bool FontCascade::hasValidAverageCharWidth() const
         return false;
 #endif
 
-    static constexpr SortedArraySet set { std::to_array<ComparableASCIILiteral>({
+    static constexpr SortedArraySet set { WTF::toArray<ComparableASCIILiteral>({
         "#GungSeo"_s,
         "#HeadLineA"_s,
         "#PCMyungjo"_s,
@@ -923,6 +923,10 @@ FontCascade::CodePath FontCascade::characterRangeCodePath(std::span<const char16
                 return CodePath::Complex;
             if (supplementaryCharacter < 0x11CC0) // Marchen
                 return CodePath::Complex;
+            if (supplementaryCharacter < 0x16B00)
+                continue;
+            if (supplementaryCharacter < 0x16B90) // Pahawh Hmong
+                return CodePath::Complex;
             if (supplementaryCharacter < 0x1E900)
                 continue;
             if (supplementaryCharacter < 0x1E960) // Adlam
@@ -1004,9 +1008,29 @@ bool FontCascade::isCJKIdeograph(char32_t c)
     // CJK Unified Ideographs Extension D.
     if (c >= 0x2B740 && c <= 0x2B81F)
         return true;
-    
+
+    // CJK Unified Ideographs Extension E.
+    if (c >= 0x2B820 && c <= 0x2CEAF)
+        return true;
+
+    // CJK Unified Ideographs Extension F.
+    if (c >= 0x2CEB0 && c <= 0x2EBEF)
+        return true;
+
+    // CJK Unified Ideographs Extension I.
+    if (c >= 0x2EBF0 && c <= 0x2EE5F)
+        return true;
+
     // CJK Compatibility Ideographs Supplement.
     if (c >= 0x2F800 && c <= 0x2FA1F)
+        return true;
+
+    // CJK Unified Ideographs Extension G.
+    if (c >= 0x30000 && c <= 0x3134F)
+        return true;
+
+    // CJK Unified Ideographs Extension H.
+    if (c >= 0x31350 && c <= 0x323AF)
         return true;
 
     return false;

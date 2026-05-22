@@ -325,6 +325,9 @@ public:
     bool NODELETE ensureCaptionVisibilityInFullscreenAndPictureInPicture() const;
 
     bool shouldPreventKeyframeEffectAcceleration(const KeyframeEffect&) const;
+#if ENABLE(THREADED_ANIMATIONS)
+    bool shouldDisableThreadedAnimationsQuirk() const;
+#endif
 
     bool shouldEnterNativeFullscreenWhenCallingElementRequestFullscreenQuirk() const;
 
@@ -342,6 +345,8 @@ public:
     bool shouldSuppressHLSSubtitles() const;
 
     bool shouldSuppressMediaSessionPauseActionOnInterruption() const;
+
+    void clearLogoutSurvivingIdentityCookiesIfNeeded(const URL& fetchURL, int httpStatusCode);
 
     void determineRelevantQuirks();
 

@@ -130,6 +130,9 @@ WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WRITING_TOOLS PRIVATE ON)
 
 WEBKIT_OPTION_END()
 
+# rdar://177360289
+SET_AND_EXPOSE_TO_BUILD(ENABLE_BACK_FORWARD_LIST_SWIFT ON)
+
 # -----------------------------------------------------------------------------
 # Toolchain / SDK resolution
 # -----------------------------------------------------------------------------
@@ -147,10 +150,14 @@ if (EXISTS "${_clang}")
     set(CMAKE_OBJCXX_COMPILER "${_clang}++")
 endif ()
 
-# Ask xcrun directly; CMake's default sysroot discovery can lag Xcode versions.
-if (NOT CMAKE_OSX_SYSROOT)
-    WEBKIT_XCRUN(CMAKE_OSX_SYSROOT --show-sdk-path)
+# Resolve the real swiftc alongside clang so both are pinned to the same SDK.
+WEBKIT_XCRUN(_swiftc --find swiftc)
+if (_swiftc)
+    set(ORIGINAL_Swift_COMPILER "${_swiftc}" CACHE FILEPATH "Original Swift compiler" FORCE)
+else ()
+    message(FATAL_ERROR "xcrun --sdk ${WEBKIT_SDK} --find swiftc failed")
 endif ()
+unset(_swiftc)
 
 # Deployment target must match SDK version -- PlatformHave.h SPI guards depend on
 # __MAC_OS_X_VERSION_MIN_REQUIRED. Auto-bump if the preset floor is below the SDK.
@@ -188,6 +195,11 @@ if (_bindir_name STREQUAL "ASan" AND NOT ENABLE_SANITIZERS MATCHES "address")
     message(FATAL_ERROR
         "Build directory '${CMAKE_BINARY_DIR}' is an ASan tree but ENABLE_SANITIZERS='${ENABLE_SANITIZERS}'. "
         "CMakeCache.txt was likely deleted or never configured via the preset. Re-run: cmake --preset mac-asan")
+endif ()
+if (_bindir_name STREQUAL "TSan" AND NOT ENABLE_SANITIZERS MATCHES "thread")
+    message(FATAL_ERROR
+        "Build directory '${CMAKE_BINARY_DIR}' is a TSan tree but ENABLE_SANITIZERS='${ENABLE_SANITIZERS}'. "
+        "CMakeCache.txt was likely deleted or never configured via the preset. Re-run: cmake --preset mac-tsan")
 endif ()
 unset(_bindir_name)
 

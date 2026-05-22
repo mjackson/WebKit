@@ -792,6 +792,7 @@ public:
 
     virtual void willRecalcStyle(OptionSet<Style::Change>);
     virtual void didRecalcStyle(OptionSet<Style::Change>);
+    virtual void willResetComputedStyle();
     virtual void willAttachRenderers();
     virtual void didAttachRenderers();
     virtual void willDetachRenderers();
@@ -929,6 +930,7 @@ protected:
 
     NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) override;
     void removingSteps(RemovalType, ContainerNode&) override;
+    void movingSteps(bool, ContainerNode&) override;
     void childrenChanged(const ChildChange&) override;
     void removeAllEventListeners() override;
 

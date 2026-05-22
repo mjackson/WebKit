@@ -4740,6 +4740,7 @@ PDFSelection *UnifiedPDFPlugin::selectionAtPoint(FloatPoint pointInPage, PDFPage
         case TextGranularity::WordGranularity:
             return PDFSelectionGranularityWord;
         case TextGranularity::LineGranularity:
+        case TextGranularity::ParagraphGranularity:
             return PDFSelectionGranularityLine;
         default:
             ASSERT_NOT_REACHED();
@@ -4945,6 +4946,7 @@ void UnifiedPDFPlugin::effectiveAppearanceDidChange()
     if (RefPtr rootLayer = m_rootLayer)
         rootLayer->setBackgroundColor(pluginBackgroundColor());
 
+    updateFullFramePluginBackgroundColor();
     updateScrollbarOverlayStyle();
 }
 

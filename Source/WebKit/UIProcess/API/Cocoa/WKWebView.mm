@@ -5066,8 +5066,10 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 - (void)_switchFromStaticFontRegistryToUserFontRegistry
 {
     THROW_IF_SUSPENDED;
+#if !ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
     if (_page)
         _page->switchFromStaticFontRegistryToUserFontRegistry();
+#endif
 }
 
 - (void)_didLoadAppInitiatedRequest:(void (^)(BOOL result))completionHandler
@@ -7602,7 +7604,12 @@ static OptionSet<WebCore::DataDetectorType> NODELETE coreDataDetectorTypes(_WKTe
     RELEASE_LOG(TextExtraction, "<%@: %p> Starting text extraction", [self class], self);
     auto results = Box<WebCore::TextExtraction::PageResults>::create();
     auto aggregator = MainRunLoopCallbackAggregator::create([results, completion = WTF::move(completion)] mutable {
-        completion(WebCore::TextExtraction::collatePageResults(WTF::move(*results)));
+        auto result = WebCore::TextExtraction::collatePageResults(WTF::move(*results));
+        auto rootData = result.rootItem.dataAs<WebCore::TextExtraction::ScrollableItemData>();
+        if (!rootData || !rootData->isRoot)
+            return completion(std::nullopt);
+
+        completion(WTF::move(result));
     });
 
     mainFrame->requestTextExtraction(makeRequest({ *mainFrame }), [weakSelf, startTime, aggregator, results](auto&& result) {
@@ -7941,7 +7948,7 @@ static OptionSet<WebCore::DataDetectorType> NODELETE coreDataDetectorTypes(_WKTe
     });
 }
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
 
 - (CGFloat)_bannerViewOverlayHeight
 {

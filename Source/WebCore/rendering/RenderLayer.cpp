@@ -153,6 +153,7 @@
 #include "ShadowRoot.h"
 #include "SourceGraphic.h"
 #include "StyleAttributeMutationScope.h"
+#include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StyleProperties.h"
 #include "StyleResolver.h"
 #include "StyleScaleTransformFunction.h"
@@ -3234,7 +3235,6 @@ void RenderLayer::paint(GraphicsContext& context, const LayoutRect& damageRect, 
 
 void RenderLayer::clipToRect(GraphicsContext& context, GraphicsContextStateSaver& stateSaver, RegionContextStateSaver& regionContextStateSaver, const LayerPaintingInfo& paintingInfo, OptionSet<PaintBehavior> paintBehavior, const ClipRect& clipRect, BorderRadiusClippingRule rule)
 {
-    float deviceScaleFactor = renderer().document().deviceScaleFactor();
     bool needsClipping = !clipRect.isInfinite() && clipRect.rect() != paintingInfo.paintDirtyRect;
     if (needsClipping || clipRect.affectedByRadius())
         stateSaver.save();
@@ -3247,27 +3247,33 @@ void RenderLayer::clipToRect(GraphicsContext& context, GraphicsContextStateSaver
         regionContextStateSaver.pushClip(enclosingIntRect(snappedClipRect));
     }
 
-    if (clipRect.affectedByRadius()) {
-        // If the clip rect has been tainted by a border radius, then we have to walk up our layer chain applying the clips from
-        // any layers with overflow. The condition for being able to apply these clips is that the overflow object be in our
-        // containing block chain so we check that also.
-        for (RenderLayer* layer = rule == IncludeSelfForBorderRadius ? this : parent(); layer; layer = layer->parent()) {
-            if (paintBehavior.contains(PaintBehavior::CompositedOverflowScrollContent) && layer->usesCompositedScrolling())
-                break;
-        
-            if (layer->renderer().hasNonVisibleOverflow() && layer->renderer().style().border().hasBorderRadius() && ancestorLayerIsInContainingBlockChain(*layer)) {
-                auto adjustedClipRect = LayoutRect { LayoutPoint { layer->offsetFromAncestor(paintingInfo.rootLayer, AdjustForColumns) }, layer->rendererBorderBoxRect().size() };
-                adjustedClipRect.move(paintingInfo.subpixelOffset);
-                auto borderShape = BorderShape::shapeForBorderRect(layer->renderer().style(), adjustedClipRect);
-                if (borderShape.innerShapeContains(paintingInfo.paintDirtyRect))
-                    context.clip(snapRectToDevicePixels(intersection(paintingInfo.paintDirtyRect, adjustedClipRect), deviceScaleFactor));
-                else
-                    borderShape.clipToInnerShape(context, deviceScaleFactor);
-            }
-            
-            if (layer == paintingInfo.rootLayer)
-                break;
+    if (clipRect.affectedByRadius())
+        applyAncestorClippingForBorderRadius(context, paintingInfo, paintBehavior, rule);
+}
+
+void RenderLayer::applyAncestorClippingForBorderRadius(GraphicsContext& context, const LayerPaintingInfo& paintingInfo, OptionSet<PaintBehavior> paintBehavior, BorderRadiusClippingRule rule)
+{
+    float deviceScaleFactor = renderer().document().deviceScaleFactor();
+
+    // If the clip rect has been tainted by a border radius, then we have to walk up our layer chain applying the clips from
+    // any layers with overflow. The condition for being able to apply these clips is that the overflow object be in our
+    // containing block chain so we check that also.
+    for (RenderLayer* layer = rule == IncludeSelfForBorderRadius ? this : parent(); layer; layer = layer->parent()) {
+        if (paintBehavior.contains(PaintBehavior::CompositedOverflowScrollContent) && layer->usesCompositedScrolling())
+            break;
+
+        if (layer->renderer().hasNonVisibleOverflow() && layer->renderer().style().border().hasBorderRadius() && ancestorLayerIsInContainingBlockChain(*layer)) {
+            auto adjustedClipRect = LayoutRect { LayoutPoint { layer->offsetFromAncestor(paintingInfo.rootLayer, AdjustForColumns) }, layer->rendererBorderBoxRect().size() };
+            adjustedClipRect.move(paintingInfo.subpixelOffset);
+            auto borderShape = BorderShape::shapeForBorderRect(layer->renderer().style(), adjustedClipRect);
+            if (borderShape.innerShapeContains(paintingInfo.paintDirtyRect))
+                context.clip(snapRectToDevicePixels(intersection(paintingInfo.paintDirtyRect, adjustedClipRect), deviceScaleFactor));
+            else
+                borderShape.clipToInnerShape(context, deviceScaleFactor);
         }
+
+        if (layer == paintingInfo.rootLayer)
+            break;
     }
 }
 
@@ -3622,9 +3628,20 @@ GraphicsContext* RenderLayer::setupFilters(GraphicsContext& destinationContext, 
     LayoutRect filterRepaintRect = paintingFilters->dirtySourceRect();
     filterRepaintRect.move(offsetFromRoot);
 
-    auto rootRelativeBounds = calculateLayerBounds(paintingInfo.rootLayer, offsetFromRoot, { RenderLayer::PreserveAncestorFlags });
+    auto rootRelativeBounds = calculateLayerBounds(paintingInfo.rootLayer, offsetFromRoot, { });
 
-    GraphicsContext* filterContext = paintingFilters->beginFilterEffect(renderer(), destinationContext, enclosingIntRect(rootRelativeBounds), enclosingIntRect(paintingInfo.paintDirtyRect), enclosingIntRect(filterRepaintRect), backgroundRect.rect());
+    // When the filter is applied via a transparency layer directly on the destination context (e.g. CG drop-shadow),
+    // the switcher doesn't consult applyFilters's clipToRect path, so the ancestor border-radius clip would be lost.
+    // Provide a callback that applies that rounded clip on the destination before the transparency layer begins.
+    Function<void(GraphicsContext&)> applyAdditionalDestinationClip;
+    if (backgroundRect.affectedByRadius()) {
+        applyAdditionalDestinationClip = [checkedThis = CheckedPtr { this }, &paintingInfo](GraphicsContext& context) {
+            checkedThis->applyAncestorClippingForBorderRadius(context, paintingInfo, paintingInfo.paintBehavior);
+        };
+    }
+
+    GraphicsContext* filterContext = paintingFilters->beginFilterEffect(renderer(), destinationContext, paintingInfo.paintBehavior, enclosingIntRect(rootRelativeBounds), enclosingIntRect(paintingInfo.paintDirtyRect), enclosingIntRect(filterRepaintRect),
+        backgroundRect.rect(), applyAdditionalDestinationClip);
     if (!filterContext)
         return nullptr;
 
@@ -4985,16 +5002,7 @@ RenderLayer::HitLayer RenderLayer::hitTestLayerByApplyingTransform(RenderLayer* 
 bool RenderLayer::hitTestContents(const HitTestRequest& request, HitTestResult& result, const LayoutRect& layerBounds, const HitTestLocation& hitTestLocation, HitTestFilter hitTestFilter) const
 {
     ASSERT(isSelfPaintingLayer() || hasSelfPaintingLayerDescendant());
-
-    if (auto* svgModelObject = dynamicDowncast<RenderSVGModelObject>(renderer()); svgModelObject && transform()) {
-        // After hitTestLayerByApplyingTransform(), hit-test coordinates are layer-local;
-        // the nominal/current location delta carries children's coordinate origin.
-        auto accumulatedOffset = toLayoutPoint(toLayoutSize(svgModelObject->nominalSVGLayoutLocation()) - toLayoutSize(svgModelObject->currentSVGLayoutLocation()));
-        if (!renderer().hitTest(request, result, hitTestLocation, accumulatedOffset, hitTestFilter)) {
-            ASSERT(!result.innerNode() || (request.resultIsElementList() && result.listBasedTestResult().size()));
-            return false;
-        }
-    } else if (!renderer().hitTest(request, result, hitTestLocation, toLayoutPoint(layerBounds.location() - rendererLocation()), hitTestFilter)) {
+    if (!renderer().hitTest(request, result, hitTestLocation, toLayoutPoint(layerBounds.location() - rendererLocation()), hitTestFilter)) {
         // It's wrong to set innerNode, but then claim that you didn't hit anything, unless it is
         // a rect-based test.
         ASSERT(!result.innerNode() || (request.resultIsElementList() && result.listBasedTestResult().size()));
@@ -5562,6 +5570,9 @@ LayoutRect RenderLayer::localBoundingBox(OptionSet<CalculateLayerBoundsFlag> fla
         if (!(flags & DontConstrainForMask) && box->hasMask()) {
             result = box->maskClipRect(LayoutPoint());
             box->flipForWritingMode(result); // The mask clip rect is in physical coordinates, so we have to flip, since localBoundingBox is not.
+        } else if (flags.contains(ExcludeFilterOutsetsFromSelfBounds) && !box->hasLayoutOverflow()) {
+            ASSERT(box->hasFilter());
+            result = box->applyVisualEffectOverflow(box->borderBoxRect(), { RenderBox::VisualEffectOverflowOption::ExcludeFilterOutsets });
         } else
             result = box->visualOverflowRect();
 
@@ -5655,6 +5666,7 @@ LayoutRect RenderLayer::overlapBounds() const
 
     return localBoundingBox();
 }
+
 LayoutRect RenderLayer::calculateLayerBounds(const RenderLayer* ancestorLayer, const LayoutSize& offsetFromRoot, OptionSet<CalculateLayerBoundsFlag> flags) const
 {
     if (!isSelfPaintingLayer())
@@ -5672,7 +5684,14 @@ LayoutRect RenderLayer::calculateLayerBounds(const RenderLayer* ancestorLayer, c
         return renderer().view().unscaledDocumentRect();
     }
 
-    LayoutRect boundingBoxRect = localBoundingBox(flags | IncludeRootBackgroundPaintingArea);
+    auto localBoundingBoxFlags = flags | IncludeRootBackgroundPaintingArea;
+    // When filters are composited, the compositor applies the filter effect, so the backing
+    // layer should not be inflated by filter outsets; compute bounds excluding
+    // filter outsets when possible.
+    if (isComposited() && renderer().hasFilter() && !shouldPaintWithFilters())
+        localBoundingBoxFlags.add(ExcludeFilterOutsetsFromSelfBounds);
+
+    LayoutRect boundingBoxRect = localBoundingBox(localBoundingBoxFlags);
     if (renderer().view().frameView().hasFlippedBlockRenderers()) {
         if (CheckedPtr box = dynamicDowncast<RenderBox>(renderer()))
             box->flipForWritingMode(boundingBoxRect);
@@ -6492,9 +6511,16 @@ void RenderLayer::updateFilterPaintingStrategy()
 
 IntOutsets RenderLayer::filterOutsets() const
 {
+    if (!renderer().hasFilter())
+        return { };
+
     if (m_filters)
         return m_filters->calculateOutsets(renderer(), localBoundingBox());
-    return renderer().style().filter().calculateOutsets(renderer().style().usedZoomForLength());
+
+    if (CheckedPtr boxRenderer = renderBox())
+        return boxRenderer->computeFilterOutsets();
+
+    return { };
 }
 
 void RenderLayer::clearFilters()
@@ -6517,7 +6543,7 @@ bool RenderLayer::isTransparentRespectingParentFrames() const
 
     float currentOpacity = 1;
     for (auto* layer = this; layer; layer = parentLayerCrossFrame(*layer)) {
-        currentOpacity *= layer->renderer().style().opacity().value.value;
+        currentOpacity *= Style::evaluate<float>(layer->renderer().style().opacity());
         if (currentOpacity < minimumVisibleOpacity)
             return true;
     }
@@ -6734,6 +6760,7 @@ TextStream& operator<<(TextStream& ts, PaintBehavior behavior)
     case PaintBehavior::DrawsHDRContent: ts << "DrawsHDRContent"_s; break;
     case PaintBehavior::DraggableSnapshot: ts << "DraggableSnapshot"_s; break;
     case PaintBehavior::IncludeDocumentMarkers: ts << "IncludeDocumentMarkers"_s; break;
+    case PaintBehavior::FastAndLowQualityFilters: ts << "FastAndLowQualityFilters"_s; break;
     }
 
     return ts;

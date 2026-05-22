@@ -28,7 +28,6 @@ imported/w3c/web-platform-tests/css/CSS2/linebox/vertical-align-baseline-009.xht
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-to-sticky-003.html [ Pass ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-to-sticky-004.html [ Pass ]
 
-imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/color_rgba.html [ Pass ]
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/lang_object/lang_attribute.html [ Pass ]
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/root_selector.html [ Pass ]
 
@@ -70,6 +69,8 @@ imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-mode
 
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue_function/not_allowed_properties.html [ ImageOnlyFailure ]
 
+imported/w3c/web-platform-tests/web-animations/responsive/toggle-animated-iframe-visibility.html [ Pass ]
+
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of PASSING tests. See below where to put expected failures.
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -101,10 +102,6 @@ webkit.org/b/223862 accessibility/gtk/text-for-range-with-link.html [ Failure ]
 webkit.org/b/235941 accessibility/gtk/text-at-offset-embedded-objects.html [ Failure ]
 webkit.org/b/235941 accessibility/gtk/text-at-offset-special-chars.html [ Failure ]
 webkit.org/b/235941 accessibility/gtk/caret-offsets.html [ Timeout ]
-
-# Scrollbar displays are different.
-webkit.org/b/266349 imported/w3c/web-platform-tests/css/css-contain/contain-size-block-003.html [ ImageOnlyFailure ]
-webkit.org/b/266349 imported/w3c/web-platform-tests/css/css-contain/contain-size-inline-block-003.html [ ImageOnlyFailure ]
 
 imported/w3c/web-platform-tests/css/CSS2/normal-flow/max-width-107.xht [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/CSS2/stacking-context/composite-change-after-scroll-preserves-stacking-order.html [ ImageOnlyFailure ]
@@ -358,7 +355,6 @@ fast/forms/validation-message-on-textarea.html [ Skip ]
 webkit.org/b/301556 transforms/2d/zoom-menulist.html [ Skip ]
 
 webkit.org/b/137096 svg/W3C-SVG-1.1/text-altglyph-01-b.svg [ Failure ]
-webkit.org/b/137096 svg/custom/altglyph.svg [ Failure ]
 webkit.org/b/137096 svg/text/text-altglyph-01-b.svg [ Failure ]
 
 # Since r200320 resource-timing feature is a runtime flag.
@@ -607,7 +603,6 @@ imported/w3c/web-platform-tests/html/dom/render-blocking/remove-element-unblocks
 webkit.org/b/252878 fast/frames/exponential-frames.html [ Pass Timeout ]
 webkit.org/b/252878 fast/frames/lots-of-objects.html [ Pass Timeout ]
 webkit.org/b/252878 http/wpt/mediarecorder/MediaRecorder-video-h264-profiles.html [ Pass Failure ]
-webkit.org/b/252878 imported/w3c/web-platform-tests/css/css-transforms/huge-length-tiny-scale.html [ Pass Timeout ]
 webkit.org/b/252878 imported/w3c/web-platform-tests/css/css-writing-modes/forms/text-input-vertical-overflow-no-scroll.html [ Failure Pass Timeout ]
 webkit.org/b/252878 imported/w3c/web-platform-tests/encoding/legacy-mb-japanese/euc-jp/eucjp-encode-form-errors-han.html?13001-14000 [ Failure Pass ]
 webkit.org/b/252878 imported/w3c/web-platform-tests/encoding/legacy-mb-japanese/euc-jp/eucjp-encode-form-errors-han.html?14001-15000 [ Failure Pass ]
@@ -825,6 +820,9 @@ webkit.org/b/211566 http/tests/resourceLoadStatistics/exemptDomains/app-bound-do
 # Test is flaky timing out. Also skipped in Mac and iOS.
 editing/selection/select-bidi-run.html [ Skip ]
 
+# 'beginDragWithFiles' is only implemented in Mac. All other platforms skip this test.
+fast/events/drop-with-file-paths.html [ Skip ]
+
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Tests timing out
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -832,9 +830,6 @@ editing/selection/select-bidi-run.html [ Skip ]
 #////////////////////////////////////////////////////////////////////////////////////////
 # 7. TESTS WITH ARCHITECTURE-SPECIFIC RESULTS
 #////////////////////////////////////////////////////////////////////////////////////////
-
-# Fails on 32-bit release and 64-bit debug builders
-webkit.org/b/83560 fast/events/drop-with-file-paths.html [ Failure ]
 
 # Tests passing in GTK3 (begin).
 # This test print console messages in GTK4.
@@ -902,7 +897,6 @@ webkit.org/b/157179 fast/forms/drag-out-of-textarea.html [ Failure ]
 webkit.org/b/157179 fast/forms/file/file-input-reset-validation.html [ Failure ]
 webkit.org/b/157179 fast/forms/file/file-input-empty-validation.html [ Failure ]
 webkit.org/b/157179 fast/forms/range/slider-delete-while-dragging-thumb.html [ Failure ]
-webkit.org/b/157179 fast/lists/drag-into-marker.html [ Failure ]
 webkit.org/b/157179 http/tests/security/resources/drag-drop-allowed.html [ Skip ]
 webkit.org/b/157179 editing/pasteboard/cleanup-on-move.html [ Failure ]
 webkit.org/b/157179 editing/pasteboard/drag-list-item.html [ Failure ]
@@ -1016,9 +1010,6 @@ webkit.org/b/250610 fast/scrolling/rtl-scrollbars-listbox-scroll.html [ Skip ]
 webkit.org/b/250610 scrollbars/scroll-rtl-or-bt-layer.html [ Skip ]
 webkit.org/b/250610 fast/events/wheel/wheel-event-destroys-overflow.html [ Skip ]
 
-# Missing glyph symbol is not rendered properly.
-webkit.org/b/140252 fast/text/emphasis-vertical.html [ Failure ]
-
 webkit.org/b/142479 svg/text/select-textLength-spacingAndGlyphs-squeeze-2.svg [ Failure ]
 webkit.org/b/142479 svg/text/select-textLength-spacingAndGlyphs-squeeze-3.svg [ Failure ]
 webkit.org/b/142479 svg/text/select-textLength-spacingAndGlyphs-squeeze-4.svg [ Failure ]
@@ -1048,10 +1039,6 @@ webkit.org/b/168427 fast/scrolling/rtl-scrollbars-listbox.html [ ImageOnlyFailur
 webkit.org/b/168427 fast/scrolling/rtl-scrollbars-overflow-contents.html [ ImageOnlyFailure ]
 
 webkit.org/b/172270 fast/text/font-interstitial-invisible-width-while-loading.html [ Failure ]
-
-webkit.org/b/172271 fast/text/softbank-emoji.html [ Failure ]
-
-webkit.org/b/172811 fast/forms/number/number-appearance-spinbutton-disabled-readonly.html [ Failure ]
 
 webkit.org/b/174460 fast/canvas/canvas-blend-image.html [ Failure ]
 webkit.org/b/174460 fast/canvas/canvas-blend-solid.html [ Failure ]
@@ -1118,7 +1105,6 @@ webkit.org/b/304279 pointer-lock/pointerlockchange-pointerlockerror-events.html 
 
 webkit.org/b/224062 webgl/1.0.x/conformance/rendering/gl-scissor-test.html [ Failure ]
 
-imported/w3c/web-platform-tests/css/css-transforms/ttwf-css-3d-polygon-cycle.html [ ImageOnlyFailure ]
 
 webkit.org/b/279023 imported/w3c/web-platform-tests/css/css-transforms/composited-under-rotateY-180deg-perspective.html [ ImageOnlyFailure ]
 
@@ -1233,7 +1219,6 @@ webgl/2.0.y/conformance2/textures/misc/tex-image-with-bad-args-from-dom-elements
 
 # Flaky tests on Aug-2023
 webkit.org/b/261024 imported/w3c/web-platform-tests/media-source/mediasource-play.html [ Failure Pass ]
-webkit.org/b/261024 inspector/canvas/recording-webgl-full.html [ Failure ]
 
 imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-plus-filter.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/filtered-block-is-container.html [ ImageOnlyFailure ]
@@ -1445,15 +1430,8 @@ webkit.org/b/313043 transitions/remove-transition-style.html [ Pass Failure ]
 
 imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-target-margin-005.html [ Pass Failure ]
 
-webkit.org/b/313649 editing/pasteboard/block-wrappers-necessary.html [ Failure ]
-webkit.org/b/313649 editing/pasteboard/copy-picture-and-text.html [ Failure ]
-webkit.org/b/313649 editing/pasteboard/copy-picture.html [ Failure ]
-webkit.org/b/313649 editing/pasteboard/copy-resolves-urls.html [ Failure ]
-webkit.org/b/313649 editing/pasteboard/copy-text-with-wrapped-tag.html [ Failure ]
-webkit.org/b/313649 editing/pasteboard/paste-4039777-fix.html [ Failure ]
-webkit.org/b/313649 editing/pasteboard/paste-noscript.html [ Failure ]
-webkit.org/b/313649 editing/pasteboard/reveal-selection-after-pasting-images.html [ Failure ]
-
 webkit.org/b/313985 fullscreen/fullscreen-clears-hover-on-overlay.html [ Failure Pass ]
 
 webkit.org/b/303859 imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.disconnected.html [ Pass ImageOnlyFailure ]
+
+webkit.org/b/314817 imported/w3c/web-platform-tests/svg/geometry/reftests/circle-004.svg [ ImageOnlyFailure ]

@@ -1527,7 +1527,7 @@ void WebViewImpl::didRelaunchProcess()
 
 void WebViewImpl::scrollingCoordinatorWasCreated()
 {
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     if (CheckedPtr scrollingCoordinator = m_page->scrollingCoordinatorProxy()) {
         scrollingCoordinator->setHasBannerViewOverlay(!!m_bannerView);
         scrollingCoordinator->setBannerViewMaximumHeight(bannerViewMaximumHeight());
@@ -1840,7 +1840,7 @@ void WebViewImpl::setFrameSize(CGSize)
     [m_layoutStrategy didChangeFrameSize];
     [m_warningView setFrame:[m_view.get() bounds]];
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     updateBannerViewFrame();
 #endif
 }
@@ -2011,7 +2011,7 @@ void WebViewImpl::setObscuredContentInsets(const FloatBoxExtent& insets)
 {
     m_page->setObscuredContentInsetsAsync(insets);
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     updateBannerViewFrame();
 #endif
 }
@@ -4703,6 +4703,14 @@ void WebViewImpl::draggingSessionEnded(NSDraggingSession *, NSPoint endPoint, NS
 #endif
 }
 
+void WebViewImpl::cancelDrag()
+{
+    m_page->dragCancelled();
+#if HAVE(APPKIT_GESTURES_SUPPORT)
+    [appKitGestureController() clearGestureDragState];
+#endif
+}
+
 #endif // ENABLE(DRAG_SUPPORT)
 
 void WebViewImpl::startWindowDrag()
@@ -4714,7 +4722,7 @@ void WebViewImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::Hand
 {
     auto dragImageAsBitmap = ShareableBitmap::create(WTF::move(dragImageHandle));
     if (!dragImageAsBitmap) {
-        m_page->dragCancelled();
+        cancelDrag();
         return;
     }
 
@@ -4757,7 +4765,7 @@ void WebViewImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::Hand
             bool missingDragInitiator = !lastMouseDownEvent;
 #endif
             if (missingDragInitiator) {
-                page->dragCancelled();
+                protectedThis->cancelDrag();
                 return;
             }
 
@@ -4772,13 +4780,13 @@ void WebViewImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::Hand
             if (promisedAttachmentInfo) {
                 RefPtr attachment = page->attachmentForIdentifier(promisedAttachmentInfo.attachmentIdentifier);
                 if (!attachment) {
-                    page->dragCancelled();
+                    protectedThis->cancelDrag();
                     return;
                 }
 
                 RetainPtr utiType = attachment->utiType().createNSString();
                 if (![utiType length]) {
-                    page->dragCancelled();
+                    protectedThis->cancelDrag();
                     return;
                 }
 
@@ -4814,8 +4822,7 @@ void WebViewImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::Hand
                 RetainPtr session = [view beginDraggingSessionWithItems:@[ draggingItem ] gesture:gesture source:static_cast<id<NSDraggingSource>>(view.get())];
                 [gestureController setGestureDraggingSession:session.get()];
                 if (!session) {
-                    page->dragCancelled();
-                    [gestureController clearGestureDragState];
+                    protectedThis->cancelDrag();
                     return;
                 }
             } else
@@ -5380,7 +5387,7 @@ void WebViewImpl::scrollWheel(NSEvent *event)
     if (event.phase == NSEventPhaseBegan)
         dismissContentRelativeChildWindowsWithAnimation(false);
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     updateBannerViewForWheelEvent(event);
 #endif
 
@@ -5539,16 +5546,17 @@ Vector<WebCore::KeypressCommand> WebViewImpl::collectKeyboardLayoutCommandsForEv
     if ([event type] != NSEventTypeKeyDown)
         return { };
 
-    ASSERT(!m_collectedKeypressCommands);
-    m_collectedKeypressCommands = Vector<WebCore::KeypressCommand> { };
+    // Push a fresh queue at the FRONT of the deque so the synchronous interpretKeyEvents
+    // call below routes our doCommandBySelector:/insertText: callbacks into our queue,
+    // even if other (IM-driven) keys are also in flight at the back.
+    m_collectedKeypressCommands.prepend(Vector<WebCore::KeypressCommand> { });
 
     if (RetainPtr context = inputContext())
         [context handleEventByKeyboardLayout:event];
     else
         [m_view.get() interpretKeyEvents:@[event]];
 
-    auto commands = WTF::move(*m_collectedKeypressCommands);
-    m_collectedKeypressCommands = std::nullopt;
+    auto commands = m_collectedKeypressCommands.takeFirst();
 
     if (RetainPtr<NSMenu> menu = NSApp.mainMenu; event.modifierFlags & NSEventModifierFlagFunction
         && [menu respondsToSelector:@selector(_containsItemMatchingEvent:includingDisabledItems:)] && [menu _containsItemMatchingEvent:event includingDisabledItems:YES]) {
@@ -5570,18 +5578,43 @@ void WebViewImpl::interpretKeyEvent(NSEvent *event, void(^completionHandler)(BOO
 
 #if PLATFORM(MAC)
     if (m_page->editorState().inputMethodUsesCorrectKeyEventOrder) {
-        if (m_collectedKeypressCommands) {
+        // Keydowns flow through to the IM directly. Each gets its own queue at the BACK
+        // of the deque; the IM serializes its handleEventByInputMethod: processing on its
+        // main thread, so its setMarkedText:/insertText:/doCommandBySelector: callbacks
+        // arrive in dispatch order — the front of the deque is always the queue for the
+        // keydown the IM is currently processing. Concurrent keydowns reach the IM's XPC
+        // queue immediately, which avoids starving TCIM's runloop and triggering the
+        // Zhuyin Traditional stall in Mail (rdar://177042301).
+        //
+        // Keyups instead wait in m_interpretKeyEventHoldingTank until the in-flight
+        // keydown's IM completion has fired (and dispatched its keyboard event IPC).
+        // Each keydown completion releases one keyup from the tank front, preserving
+        // the strict keydown→keyup→keydown→keyup IPC ordering to the web process; the
+        // released keyup dispatches handleEventByInputMethod: directly (bypassing the
+        // tank-check) so it doesn't re-tank when other keydowns are still in flight.
+        if ([event type] == NSEventTypeKeyDown)
+            m_collectedKeypressCommands.append(Vector<WebCore::KeypressCommand> { });
+        else if (!m_collectedKeypressCommands.isEmpty()) {
             m_interpretKeyEventHoldingTank.append([weakThis = WeakPtr { *this }, capturedEvent = retainPtr(event), capturedBlock = makeBlockPtr(completionHandler)] {
                 CheckedPtr checkedThis = weakThis.get();
-                if (!checkedThis)
+                if (!checkedThis) {
                     capturedBlock(NO, { });
-                else
-                    checkedThis->interpretKeyEvent(capturedEvent.get(), capturedBlock.get());
+                    return;
+                }
+                LOG(TextInput, "-> handleEventByInputMethod:%p %@ (released keyup)", capturedEvent.get(), capturedEvent.get());
+                RetainPtr inputContext { checkedThis->inputContext() };
+                [inputContext handleEventByInputMethod:capturedEvent completionHandler:[weakThis, capturedEvent, capturedBlock](BOOL handled) mutable {
+                    if (!weakThis.get()) {
+                        capturedBlock(NO, { });
+                        return;
+                    }
+                    // Released keyups don't take from the deque or produce commands; they
+                    // just need their keyboard-event IPC dispatched.
+                    capturedBlock(handled, { });
+                }];
             });
             return;
         }
-
-        m_collectedKeypressCommands = Vector<WebCore::KeypressCommand> { };
     }
 #endif
 
@@ -5596,38 +5629,50 @@ void WebViewImpl::interpretKeyEvent(NSEvent *event, void(^completionHandler)(BOO
 
         Vector<WebCore::KeypressCommand> commands;
 #if PLATFORM(MAC)
-        if (checkedThis->m_page->editorState().inputMethodUsesCorrectKeyEventOrder) {
-            commands = WTF::move(*checkedThis->m_collectedKeypressCommands);
-            checkedThis->m_collectedKeypressCommands = std::nullopt;
+        if (checkedThis->m_page->editorState().inputMethodUsesCorrectKeyEventOrder && [capturedEvent type] == NSEventTypeKeyDown) {
+            ASSERT(!checkedThis->m_collectedKeypressCommands.isEmpty());
+            commands = checkedThis->m_collectedKeypressCommands.takeFirst();
             checkedThis->m_stagedMarkedRange = std::nullopt;
         }
 #endif
 
         bool hasInsertText = false;
+        bool hasOnlyInsertText = !commands.isEmpty();
         for (auto& command : commands) {
             if (command.commandName == "insertText:"_s)
                 hasInsertText = true;
+            else
+                hasOnlyInsertText = false;
         }
+
+        // If the input method only produced insertText: commands (no setMarkedText:, no other
+        // commands) AND there is no existing composition, this is a modeless insertion — e.g.
+        // Simple Telex or Korean Hangul typing a character that commits inline. Route it through
+        // the keypress flow (handled=NO) so the keydown reports the real keyCode, a keypress
+        // fires, and executeKeypressCommandsInternal runs the insertText: during the Char phase
+        // with underlyingEvent=keypress. Composition activity (setMarkedText:), and insertText:
+        // that commits an existing composition (e.g. Japanese Enter on a marked candidate), keep
+        // handled=YES so the keydown reports keyCode 229 and google.com's keyCode==13 listener
+        // doesn't treat it as a real Enter.
+        if (handled && hasOnlyInsertText && !checkedThis->m_page->editorState().hasComposition)
+            handled = NO;
 
         LOG(TextInput, "... handleEventByInputMethod%s handled", handled ? "" : " not");
         if (handled) {
             capturedBlock(YES, WTF::move(commands));
-            auto holdingTank = WTF::move(checkedThis->m_interpretKeyEventHoldingTank);
-            for (auto& function : holdingTank)
-                function();
+            // Release the next held keyup (if any) so it follows this keydown's IPC,
+            // preserving sequential keydown→keyup ordering to the web process.
+            if ([capturedEvent type] == NSEventTypeKeyDown && !checkedThis->m_interpretKeyEventHoldingTank.isEmpty())
+                checkedThis->m_interpretKeyEventHoldingTank.takeFirst()();
             return;
         }
 
-        auto additionalCommands = checkedThis->collectKeyboardLayoutCommandsForEvent(capturedEvent.get());
+        auto additionalCommands = checkedThis->collectKeyboardLayoutCommandsForEvent(capturedEvent);
         if (!hasInsertText)
             commands.appendVector(additionalCommands);
         capturedBlock(NO, commands);
-#if PLATFORM(MAC)
-        ASSERT(checkedThis->m_page->editorState().inputMethodUsesCorrectKeyEventOrder || checkedThis->m_interpretKeyEventHoldingTank.isEmpty());
-#endif
-        auto holdingTank = WTF::move(checkedThis->m_interpretKeyEventHoldingTank);
-        for (auto& function : holdingTank)
-            function();
+        if ([capturedEvent type] == NSEventTypeKeyDown && !checkedThis->m_interpretKeyEventHoldingTank.isEmpty())
+            checkedThis->m_interpretKeyEventHoldingTank.takeFirst()();
     }];
 }
 
@@ -5635,9 +5680,9 @@ void WebViewImpl::doCommandBySelector(SEL selector)
 {
     LOG(TextInput, "doCommandBySelector:\"%s\"", sel_getName(selector));
 
-    if (m_collectedKeypressCommands) {
+    if (!m_collectedKeypressCommands.isEmpty()) {
         WebCore::KeypressCommand command(NSStringFromSelector(selector));
-        m_collectedKeypressCommands->append(command);
+        m_collectedKeypressCommands.first().append(command);
         LOG(TextInput, "...stored");
         m_page->registerKeypressCommandName(command.commandName);
     } else {
@@ -5689,10 +5734,15 @@ void WebViewImpl::insertText(id string, NSRange replacementRange)
     // - If it's from an input method, then we should insert the text now.
     // - If it's sent outside of keyboard event processing (e.g. from Character Viewer, or when confirming an inline input area with a mouse),
     // then we also execute it immediately, as there will be no other chance.
-    if (m_collectedKeypressCommands && !m_isTextInsertionReplacingSoftSpace) {
-        ASSERT(replacementRange.location == NSNotFound);
-        WebCore::KeypressCommand command("insertText:"_s, text.get());
-        m_collectedKeypressCommands->append(command);
+    if (!m_collectedKeypressCommands.isEmpty() && !m_isTextInsertionReplacingSoftSpace) {
+        // Modeless input methods (Vietnamese Simple Telex, Korean Hangul) call insertText: with a
+        // replacementRange during their handleEventByInputMethod: callback to commit a previously
+        // inserted character into a longer sequence (e.g. replace 'v' with 'vi'). Queue it with
+        // the replacement range preserved so executeKeypressCommandsInternal can replay it during
+        // the keydown default handler, after keydown has fired but before composition/input —
+        // matching the event ordering 297270@main set up for plain insertText:.
+        WebCore::KeypressCommand command("insertText:"_s, text.get(), { }, { }, { }, EditingRange { replacementRange }.toCharacterRange());
+        m_collectedKeypressCommands.first().append(command);
         LOG(TextInput, "...stored");
         m_page->registerKeypressCommandName(command.commandName);
         return;
@@ -5718,7 +5768,32 @@ void WebViewImpl::selectedRangeWithCompletionHandler(void(^completionHandlerPtr)
     auto completionHandler = adoptNS([completionHandlerPtr copy]);
 
     LOG(TextInput, "selectedRange");
-    m_page->getSelectedRangeAsync([completionHandler, stagedSelectedRange = m_stagedMarkedRange](const EditingRange& editingRangeResult, const EditingRange& compositionRange) {
+
+    // When the IME calls insertText: during its handleEventByInputMethod: callback and then polls
+    // selectedRange to verify, the queued insertText: hasn't reached the web process yet, so the
+    // cursor appears not to have advanced. Modeless input methods (Vietnamese Simple Telex,
+    // Korean Hangul) interpret that stale cursor as "my insertion didn't stick" and fall back to
+    // setMarkedText: for the rest of the session. Surface the cumulative insertText: advance from
+    // the queue so the IME observes the cursor it expects, while leaving the actual execution
+    // (and 310826's event ordering) untouched. Only applies when every queued command is
+    // insertText:; if setMarkedText: is in the mix, the IME is already in composition mode and
+    // the unstaged selectedRange is the right answer.
+    size_t stagedInsertLength = 0;
+    if (!m_collectedKeypressCommands.isEmpty() && !m_collectedKeypressCommands.first().isEmpty()) {
+        bool onlyInsertText = true;
+        size_t total = 0;
+        for (auto& command : m_collectedKeypressCommands.first()) {
+            if (command.commandName != "insertText:"_s) {
+                onlyInsertText = false;
+                break;
+            }
+            total += command.text.length();
+        }
+        if (onlyInsertText)
+            stagedInsertLength = total;
+    }
+
+    m_page->getSelectedRangeAsync([completionHandler, stagedSelectedRange = m_stagedMarkedRange, stagedInsertLength](const EditingRange& editingRangeResult, const EditingRange& compositionRange) {
         void (^completionHandlerBlock)(NSRange) = (void (^)(NSRange))completionHandler.get();
 
         if (stagedSelectedRange) {
@@ -5727,6 +5802,10 @@ void WebViewImpl::selectedRangeWithCompletionHandler(void(^completionHandlerPtr)
         }
 
         NSRange result = editingRangeResult;
+        if (stagedInsertLength && result.location != NSNotFound) {
+            result.location += stagedInsertLength;
+            result.length = 0;
+        }
         if (result.location == NSNotFound)
             LOG(TextInput, "    -> selectedRange returned (NSNotFound, %zu)", result.length);
         else
@@ -6026,10 +6105,10 @@ void WebViewImpl::setMarkedText(id string, NSRange selectedRange, NSRange replac
     }
 
 #if PLATFORM(MAC)
-    if (m_page->editorState().inputMethodUsesCorrectKeyEventOrder && m_collectedKeypressCommands) {
+    if (m_page->editorState().inputMethodUsesCorrectKeyEventOrder && !m_collectedKeypressCommands.isEmpty()) {
         WebCore::KeypressCommand command("setMarkedText:"_s, text.get(), WTF::move(underlines), WTF::move(highlights),
             EditingRange { selectedRange }.toCharacterRange(), EditingRange { replacementRange }.toCharacterRange());
-        m_collectedKeypressCommands->append(command);
+        m_collectedKeypressCommands.first().append(command);
         m_stagedMarkedRange = selectedRange;
         LOG(TextInput, "...stored");
         m_page->registerKeypressCommandName(command.commandName);
@@ -7648,6 +7727,21 @@ void WebViewImpl::addTextSelectionManager()
 bool WebViewImpl::isTextSelectedAtPoint(NSPoint point)
 {
     return [m_textSelectionController isTextSelectedAtPoint:point];
+}
+
+void WebViewImpl::setTextSelectionDragGesture(NSGestureRecognizer *gesture, void (^completionHandler)(NSDraggingSession *))
+{
+    [m_appKitGestureController setTextSelectionDragGesture:gesture completionHandler:completionHandler];
+}
+
+void WebViewImpl::invalidateCachedPositionInformation()
+{
+    [m_appKitGestureController didCommitLoadForMainFrame];
+}
+
+void WebViewImpl::positionInformationDidChange(const InteractionInformationAtPosition& info)
+{
+    [m_appKitGestureController positionInformationDidChange:info];
 }
 
 void WebViewImpl::beginSuppressingSingleClickGestureForTextSelection()

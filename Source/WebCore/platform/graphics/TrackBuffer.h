@@ -52,6 +52,11 @@ public:
     MediaTime NODELETE maximumBufferedTime() const;
     void addBufferedRange(const MediaTime& start, const MediaTime& end, AddTimeRangeOption = AddTimeRangeOption::None);
     void addSample(MediaSample&);
+    // Replace an already-buffered sample with a copy whose presentation and
+    // decode timestamps are shifted forward by `offset` (duration shrinks
+    // accordingly; presentationEndTime is preserved). Updates both the
+    // SampleMap and m_decodeQueue, and adjusts m_buffered to match.
+    void adjustSampleStartTime(MediaSample& original, const MediaTime& offset);
 
     bool reenqueueMediaForTime(const MediaTime&, const MediaTime& timeFudgeFactor, bool isEnded = false);
     MediaTime findSeekTimeForTargetTime(const MediaTime& targetTime, const MediaTime& negativeThreshold, const MediaTime& positiveThreshold);
@@ -127,6 +132,20 @@ private:
     DecodeOrderSampleMap::MapType& decodeQueue() LIFETIME_BOUND { return m_decodeQueue; }
     void updateMinimumUpcomingPresentationTime();
     void clearDecodeQueue();
+
+    // Result of attempting to split the sample whose presentation range contains a given time.
+    struct DivideResult {
+        // Presentation timestamp of the "after" piece (the piece whose range starts at the split
+        // point). Invalid if no split happened (no containing sample, not divisible, or
+        // MediaSample::divide returned null halves).
+        MediaTime afterSplitPresentationTime { MediaTime::invalidTime() };
+        // Byte sizes of the pieces produced by the split, valid only when
+        // afterSplitPresentationTime is valid.
+        int64_t beforeSplitSize { 0 };
+        int64_t afterSplitSize { 0 };
+    };
+    enum class ApplyDivide : bool { No, Yes };
+    DivideResult tryDivideSampleAtTime(const MediaTime&, ApplyDivide);
 
     SampleMap m_samples;
     DecodeOrderSampleMap::MapType m_decodeQueue;

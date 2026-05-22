@@ -185,6 +185,15 @@ static bool isSiblingCombinator(CSSSelector::Relation relation)
     return relation == CSSSelector::Relation::DirectAdjacent || relation == CSSSelector::Relation::IndirectAdjacent;
 }
 
+static bool compoundContainsHostPseudoClass(const CSSSelector& anySimpleInCompound)
+{
+    for (auto* simple = anySimpleInCompound.leftmostInCompound(); simple; simple = simple->followingInCompound()) {
+        if (simple->match() == CSSSelector::Match::PseudoClass && simple->isHostPseudoClass())
+            return true;
+    }
+    return false;
+}
+
 static MatchElement computeSubSelectorMatchElement(MatchElement matchElement, const CSSSelector& selector, const CSSSelector& childSelector)
 {
     if (selector.match() == CSSSelector::Match::PseudoClass) {
@@ -204,6 +213,14 @@ static MatchElement computeSubSelectorMatchElement(MatchElement matchElement, co
 
         if (type == CSSSelector::PseudoClass::Has) {
             auto hasArgumentRelation = computeHasArgumentRelation(childSelector);
+            // :host:has(...) — has-bearer is the shadow host. Collapse Child/Descendant to
+            // HostDescendant so the invalidator can cross the shadow boundary upward.
+            // Sibling relations are kept as-is (the host has no shadow-tree siblings, so
+            // these will simply not match at runtime).
+            if (compoundContainsHostPseudoClass(selector)) {
+                if (hasArgumentRelation == MatchElement::HasRelation::Child || hasArgumentRelation == MatchElement::HasRelation::Descendant)
+                    hasArgumentRelation = MatchElement::HasRelation::HostDescendant;
+            }
             return { matchElement.relation, hasArgumentRelation };
         }
     }
@@ -234,6 +251,7 @@ static bool isHasScopeBreakingCombinator(CSSSelector::Relation relation, MatchEl
         case MatchElement::HasRelation::Descendant:
         case MatchElement::HasRelation::SiblingChild:
         case MatchElement::HasRelation::SiblingDescendant:
+        case MatchElement::HasRelation::HostDescendant:
             return false;
         }
     }
@@ -309,7 +327,7 @@ void RuleFeatureSet::recursivelyCollectFeaturesFromSelector(SelectorFeatures& se
             auto compoundIsAffectedByChildMutation = [&] {
                 if (isSiblingCombinator(selector->relation()))
                     return true;
-                for (auto* simple = selector; simple; simple = simple->precedingInCompound()) {
+                for (auto* simple = selector; simple; simple = simple->followingInCompound()) {
                     if (simple->match() == CSSSelector::Match::PseudoClass && pseudoClassIsRelativeToSiblings(simple->pseudoClass()))
                         return true;
                 }
@@ -418,7 +436,7 @@ static PseudoClassInvalidationKey makePseudoClassInvalidationKey(CSSSelector::Ps
     AtomString attributeName;
     AtomString className;
     AtomString tagName;
-    for (auto* simpleSelector = selector.lastInCompound(); simpleSelector; simpleSelector = simpleSelector->precedingInComplexSelector()) {
+    for (auto* simpleSelector = selector.leftmostInCompound(); simpleSelector; simpleSelector = simpleSelector->followingInCompound()) {
         if (simpleSelector->match() == CSSSelector::Match::Id)
             return makePseudoClassInvalidationKey(pseudoClass, InvalidationKeyType::Id, simpleSelector->value());
 
@@ -430,9 +448,6 @@ static PseudoClassInvalidationKey makePseudoClassInvalidationKey(CSSSelector::Ps
 
         if (simpleSelector->isAttributeSelector() && !unlikelyToHaveSelectorForAttribute(simpleSelector->attribute().localNameLowercase()))
             attributeName = simpleSelector->attribute().localNameLowercase();
-
-        if (simpleSelector->relation() != CSSSelector::Relation::Subselector)
-            break;
     }
     if (!attributeName.isEmpty())
         return makePseudoClassInvalidationKey(pseudoClass, InvalidationKeyType::Attribute, attributeName);
@@ -580,7 +595,7 @@ void RuleFeatureSet::collectPseudoElementFeatures(const RuleData& ruleData)
     ASSERT(ruleData.canMatchPseudoElement());
 
     auto& selector = ruleData.selector();
-    for (auto* simpleSelector = &selector; simpleSelector; simpleSelector = simpleSelector->precedingInCompound()) {
+    for (auto* simpleSelector = &selector; simpleSelector; simpleSelector = simpleSelector->followingInCompound()) {
         if (simpleSelector->match() != CSSSelector::Match::PseudoElement)
             continue;
         switch (simpleSelector->pseudoElement()) {

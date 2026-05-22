@@ -162,6 +162,8 @@ BasicBlock* CloneHelper::cloneBlock(BasicBlock* const block, const CustomizeSucc
     CLONE_STATUS(ArrayIndexOf, Common) \
     CLONE_STATUS(ArrayPop, Common) \
     CLONE_STATUS(ArrayPush, Common) \
+    CLONE_STATUS(ArrayShift, Common) \
+    CLONE_STATUS(ArrayUnshift, Common) \
     CLONE_STATUS(ArraySlice, Common) \
     CLONE_STATUS(ArrayConcatArray, Common) \
     CLONE_STATUS(ArrayConcatAppendOne, Common) \
@@ -206,6 +208,7 @@ BasicBlock* CloneHelper::cloneBlock(BasicBlock* const block, const CustomizeSucc
     CLONE_STATUS(DataViewGetInt, Common) \
     CLONE_STATUS(DataViewSet, Common) \
     CLONE_STATUS(DateGetTime, Common) \
+    CLONE_STATUS(DateNow, Common) \
     CLONE_STATUS(DateSetTime, Common) \
     CLONE_STATUS(Dec, Common) \
     CLONE_STATUS(DeleteById, Common) \
@@ -349,7 +352,9 @@ BasicBlock* CloneHelper::cloneBlock(BasicBlock* const block, const CustomizeSucc
     CLONE_STATUS(StringReplaceString, Common) \
     CLONE_STATUS(StringSlice, Common) \
     CLONE_STATUS(StringSplit, Common) \
+    CLONE_STATUS(StringMatch, Common) \
     CLONE_STATUS(StringSubstring, Common) \
+    CLONE_STATUS(StringSubstr, Common) \
     CLONE_STATUS(StrCat, Common) \
     CLONE_STATUS(Switch, Special) \
     CLONE_STATUS(TailCallForwardVarargsInlinedCaller, Special) \

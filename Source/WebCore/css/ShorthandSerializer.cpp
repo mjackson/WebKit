@@ -27,6 +27,7 @@
 #include "ShorthandSerializer.h"
 
 #include "CSSBorderImageWidthValue.h"
+#include "CSSCalcValue.h"
 #include "CSSCustomIdentValue.h"
 #include "CSSGridAutoFlowValue.h"
 #include "CSSGridLineValue.h"
@@ -130,6 +131,7 @@ private:
 
     String serializeBorder(unsigned sectionLength) const;
     String serializeBorderImage() const;
+    String serializeMaskBorder() const;
     String serializeBorderRadius() const;
     String serializeBreakInside() const;
     String serializeColumnBreak() const;
@@ -380,9 +382,10 @@ String ShorthandSerializer::serialize()
         return serializeQuad();
     case CSSPropertyBorderImage:
     case CSSPropertyWebkitBorderImage:
+        return serializeBorderImage();
     case CSSPropertyWebkitMaskBoxImage:
     case CSSPropertyMaskBorder:
-        return serializeBorderImage();
+        return serializeMaskBorder();
     case CSSPropertyBorderRadius:
     case CSSPropertyWebkitBorderRadius:
         return serializeBorderRadius();
@@ -840,9 +843,8 @@ String ShorthandSerializer::serializeBorder(unsigned sectionLength) const
 
 String ShorthandSerializer::serializeBorderImage() const
 {
-    auto isLength = [](const CSSValue& value) {
-        RefPtr primitive = dynamicDowncast<CSSPrimitiveValue>(value);
-        return primitive && primitive->isLength();
+    auto isLength = [](const CSS::BorderImageWidth::Value& value) {
+        return value.isLength();
     };
 
     ASSERT(length() == 5);
@@ -852,13 +854,13 @@ String ShorthandSerializer::serializeBorderImage() const
     auto separator = ""_s;
     for (auto longhand : longhands()) {
         if (isInitialValue(longhand)) {
-            if (longhand.property == CSSPropertyBorderImageSlice || longhand.property == CSSPropertyMaskBorderSlice)
+            if (longhand.property == CSSPropertyBorderImageSlice)
                 omittedSlice = true;
-            else if (longhand.property == CSSPropertyBorderImageWidth || longhand.property == CSSPropertyMaskBorderWidth)
+            else if (longhand.property == CSSPropertyBorderImageWidth)
                 omittedWidth = true;
             continue;
         }
-        if (omittedSlice && (longhand.property == CSSPropertyBorderImageWidth || longhand.property == CSSPropertyBorderImageOutset || longhand.property == CSSPropertyMaskBorderWidth || longhand.property == CSSPropertyMaskBorderOutset))
+        if (omittedSlice && (longhand.property == CSSPropertyBorderImageWidth || longhand.property == CSSPropertyBorderImageOutset))
             return String();
 
         String valueText;
@@ -866,17 +868,50 @@ String ShorthandSerializer::serializeBorderImage() const
         // -webkit-border-image has a legacy behavior that makes fixed border slices also set the border widths.
         if (RefPtr width = dynamicDowncast<CSSBorderImageWidthValue>(longhand.value)) {
             auto& widths = width->widths();
-            bool overridesBorderWidths = m_shorthand.id() == CSSPropertyWebkitBorderImage && (isLength(widths.top()) || isLength(widths.right()) || isLength(widths.bottom()) || isLength(widths.left()));
-            if (overridesBorderWidths != width->overridesBorderWidths())
+            bool overridesBorderWidths = m_shorthand.id() == CSSPropertyWebkitBorderImage && widths.values.anyOf([&](auto& edge) { return isLength(edge); });
+            if (overridesBorderWidths != widths.overridesBorderWidths())
                 return String();
-            valueText = widths.cssText(m_serializationContext);
+            valueText = CSS::serializationForCSS(m_serializationContext, widths.values);
         } else
             valueText = serializeValue(longhand);
 
         // Append separator and text.
-        if (longhand.property == CSSPropertyBorderImageWidth || longhand.property == CSSPropertyMaskBorderWidth)
+        if (longhand.property == CSSPropertyBorderImageWidth)
             separator = " / "_s;
-        else if (longhand.property == CSSPropertyBorderImageOutset || longhand.property == CSSPropertyMaskBorderOutset)
+        else if (longhand.property == CSSPropertyBorderImageOutset)
+            separator = omittedWidth ? " / / "_s : " / "_s;
+        result.append(separator, valueText);
+        separator = " "_s;
+    }
+    if (result.isEmpty())
+        return nameString(CSSValueNone);
+    return result.toString();
+}
+
+String ShorthandSerializer::serializeMaskBorder() const
+{
+    ASSERT(length() == 5);
+    StringBuilder result;
+    bool omittedSlice = false;
+    bool omittedWidth = false;
+    auto separator = ""_s;
+    for (auto longhand : longhands()) {
+        if (isInitialValue(longhand)) {
+            if (longhand.property == CSSPropertyMaskBorderSlice)
+                omittedSlice = true;
+            else if (longhand.property == CSSPropertyMaskBorderWidth)
+                omittedWidth = true;
+            continue;
+        }
+        if (omittedSlice && (longhand.property == CSSPropertyMaskBorderWidth || longhand.property == CSSPropertyMaskBorderOutset))
+            return String();
+
+        auto valueText = serializeValue(longhand);
+
+        // Append separator and text.
+        if (longhand.property == CSSPropertyMaskBorderWidth)
+            separator = " / "_s;
+        else if (longhand.property == CSSPropertyMaskBorderOutset)
             separator = omittedWidth ? " / / "_s : " / "_s;
         result.append(separator, valueText);
         separator = " "_s;
@@ -1004,9 +1039,16 @@ String ShorthandSerializer::serializeFont() const
     auto widthKeyword = longhandValueID(widthIndex);
     if (widthKeyword == CSSValueInvalid) {
         Ref widthValue = downcast<CSSPrimitiveValue>(longhandValue(widthIndex));
-        if (widthValue->isCalculated() || !widthValue->isPercentage())
-            return String();
-        auto keyword = fontWidthKeyword(widthValue->resolveAsPercentageNoConversionDataRequired());
+        auto keyword = WTF::switchOn(widthValue.get(),
+            [](const CSSPrimitiveValue::Calc&) -> std::optional<CSSValueID> {
+                return std::nullopt;
+            },
+            [](const CSSPrimitiveValue::Raw& raw) -> std::optional<CSSValueID> {
+                if (raw.unit != CSSUnitType::CSS_PERCENTAGE)
+                    return std::nullopt;
+                return fontWidthKeyword(raw.value);
+            }
+        );
         if (!keyword)
             return String();
         widthKeyword = *keyword;
@@ -1457,12 +1499,20 @@ String ShorthandSerializer::serializeTextWrap() const
 String ShorthandSerializer::serializeSingleAnimationRange(const CSSValue& value, Style::SingleAnimationRangeType type, CSSValueID startValueID) const
 {
     auto isDefault = [](const auto& primitiveValue, auto type) {
-        if (!primitiveValue || !primitiveValue->isPercentage() || primitiveValue->isCalculated())
+        if (!primitiveValue)
             return false;
-        auto percentageValue = primitiveValue->resolveAsPercentageNoConversionDataRequired();
-        if (type == Style::SingleAnimationRangeType::Start)
-            return percentageValue == 0;
-        return percentageValue == 100;
+        return WTF::switchOn(*primitiveValue,
+            [](const CSSPrimitiveValue::Calc&) {
+                return false;
+            },
+            [type](const CSSPrimitiveValue::Raw& raw) {
+                if (raw.unit != CSSUnitType::CSS_PERCENTAGE)
+                    return false;
+                if (type == Style::SingleAnimationRangeType::Start)
+                    return raw.value == 0;
+                return raw.value == 100;
+            }
+        );
     };
 
     auto isRangeOffset = [](const auto& value) {

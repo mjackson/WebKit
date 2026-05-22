@@ -270,6 +270,8 @@ static void addBoxShadowIfNeeded(Node& node, const String& colorAsString)
 
 using ClientNodeAttributesMap = WeakHashMap<Node, HashMap<String, String>, WeakPtrImplWithEventTargetData>;
 
+static constexpr unsigned maxExtractionRecursionDepth = 255;
+
 struct TraversalContext {
     const Request originalRequest;
     const ClientNodeAttributesMap clientNodeAttributes;
@@ -280,7 +282,9 @@ struct TraversalContext {
     Vector<WeakPtr<Node, WeakPtrImplWithEventTargetData>> enclosingBlocks;
     WeakHashMap<Node, unsigned, WeakPtrImplWithEventTargetData> enclosingBlockNumberMap;
     WeakHashSet<Node, WeakPtrImplWithEventTargetData> additionalContainersToCollect;
+    WeakHashSet<Node, WeakPtrImplWithEventTargetData> visitedContainers;
     unsigned inAdditionalContainerToCollectCount { 0 };
+    unsigned depth { 0 };
     Vector<bool, 1> hasOverflowItemsStack;
     Vector<unsigned, 2> visualBlockContainerStack { 0 };
     unsigned nextVisualBlockContainerNumber { 1 };
@@ -528,6 +532,17 @@ static bool isInDisabledFormControl(Node& node)
     return control && control->isDisabledFormControl();
 }
 
+static String normalizedLabelText(const Element& element)
+{
+    for (auto attribute : { HTMLNames::aria_labelAttr.get(), HTMLNames::labelAttr.get() }) {
+        auto text = normalizeText(element.attributeWithoutSynchronization(attribute));
+        if (!text.isEmpty())
+            return text;
+    }
+
+    return { };
+}
+
 enum class SkipExtraction : bool {
     Self,
     SelfAndSubtree
@@ -610,13 +625,21 @@ static inline Variant<SkipExtraction, ItemData, URL, Editable> extractItemData(N
         return { SkipExtraction::Self };
     }
 
+    bool focused = protect(element->document())->activeElement() == element;
+
     if (!element->isInUserAgentShadowTree() && element->isRootEditableElement()) {
-        if (context.mergeParagraphs)
-            return { Editable { } };
+        if (context.mergeParagraphs) {
+            return { Editable {
+                .label = normalizedLabelText(*element),
+                .placeholder = { },
+                .isSecure = false,
+                .isFocused = focused,
+            } };
+        }
 
         return { ContentEditableData {
             .isPlainTextOnly = !element->hasRichlyEditableStyle(),
-            .isFocused = protect(element->document())->activeElement() == element,
+            .isFocused = focused,
         } };
     }
 
@@ -859,8 +882,21 @@ static bool isVisuallyDistinctContainer(const RenderStyle& style, const FloatRec
 
 static inline void extractRecursive(Node& node, Item& parentItem, TraversalContext& context)
 {
+    if (context.depth >= maxExtractionRecursionDepth)
+        return;
+
     if (context.nodesToSkip.contains(node))
         return;
+
+    if (RefPtr container = dynamicDowncast<ContainerNode>(node)) {
+        if (!context.visitedContainers.add(*container).isNewEntry)
+            return;
+    }
+
+    ++context.depth;
+    auto depthScope = makeScopeExit([&] {
+        --context.depth;
+    });
 
     bool isBlock = WebCore::isBlock(node);
     if (isBlock)
@@ -951,7 +987,7 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
 
         if (!role.isEmpty()) {
             auto shouldSuppressRole = [&] {
-                static constexpr auto ignoredRoles = std::to_array({ "presentation"_s, "none"_s, "generic"_s, "group"_s, "rowgroup"_s, "directory"_s, "complementary"_s, "contentinfo"_s });
+                static constexpr auto ignoredRoles = WTF::toArray({ "presentation"_s, "none"_s, "generic"_s, "group"_s, "rowgroup"_s, "directory"_s, "complementary"_s, "contentinfo"_s });
                 for (auto ignoredRole : ignoredRoles) {
                     if (equalLettersIgnoringASCIICase(role, ignoredRole))
                         return true;
@@ -1382,7 +1418,9 @@ Result extractItem(Request&& request, LocalFrame& frame)
             .enclosingBlocks = { },
             .enclosingBlockNumberMap = { },
             .additionalContainersToCollect = WTF::move(additionalContainersToCollect),
+            .visitedContainers = { },
             .inAdditionalContainerToCollectCount = 0,
+            .depth = 0,
             .hasOverflowItemsStack = { false },
             .onlyCollectTextAndLinksCount = 0,
             .mergeParagraphs = request.mergeParagraphs,
@@ -1989,8 +2027,103 @@ static void highlightText(LocalFrame& frame, std::optional<NodeIdentifier>&& ide
     return completion(true, { });
 }
 
+static String wrapWithDoubleQuotes(StringView text)
+{
+    return makeString(u"“", text, u"”");
+}
+
+struct ScrollableContainer {
+    RefPtr<Element> element;
+    WeakPtr<ScrollableArea> scrollableArea;
+};
+
+static ScrollableContainer findLargeScrollableContainer(LocalFrame& frame)
+{
+    RefPtr view = frame.view();
+    if (!view)
+        return { };
+
+    auto viewportArea = view->visibleSize().area<RecordOverflow>();
+    if (viewportArea.hasOverflowed() || viewportArea <= 0)
+        return { };
+
+    RefPtr document = frame.document();
+    CheckedPtr renderView = document ? document->renderView() : nullptr;
+    if (!renderView)
+        return { };
+
+    ScrollableContainer best;
+    unsigned bestArea = 0;
+
+    for (CheckedRef descendant : descendantsOfType<RenderBox>(*renderView)) {
+        if (!descendant->canBeScrolledAndHasScrollableArea())
+            continue;
+
+        RefPtr element = descendant->element();
+        if (!element || is<HTMLIFrameElement>(*element))
+            continue;
+
+        CheckedPtr layer = descendant->layer();
+        if (!layer)
+            continue;
+
+        CheckedPtr scrollableArea = layer->scrollableArea();
+        if (!scrollableArea)
+            continue;
+
+        auto maxOffset = scrollableArea->maximumScrollOffset();
+        if (!maxOffset.x() && !maxOffset.y())
+            continue;
+
+        auto area = scrollableArea->visibleSize().area<RecordOverflow>();
+        if (area.hasOverflowed())
+            continue;
+
+        if (area < viewportArea / 2)
+            continue;
+
+        if (area <= bestArea)
+            continue;
+
+        bestArea = area;
+        best.element = WTF::move(element);
+        best.scrollableArea = scrollableArea.get();
+    }
+
+    return best;
+}
+
+static std::optional<std::pair<String, ScrollableContainer>> redirectToLargeScrollableContainerIfNeeded(LocalFrame& frame, bool identifierProvided, ScrollableArea* scroller)
+{
+    if (identifierProvided)
+        return { };
+
+    if (!scroller)
+        return { };
+
+    auto maxOffset = protect(scroller)->maximumScrollOffset();
+    if (!maxOffset.isZero())
+        return { };
+
+    auto [element, scrollableArea] = findLargeScrollableContainer(frame);
+    if (!element || !scrollableArea)
+        return { };
+
+    StringBuilder description;
+    auto tagName = protect(element)->tagName().convertToASCIILowercase();
+    description.append(tagName);
+
+    if (auto label = normalizedLabelText(*protect(element)); !label.isEmpty())
+        description.append(makeString(" labeled "_s, wrapWithDoubleQuotes(WTF::move(label))));
+    else if (auto role = normalizeText(element->attributeWithoutSynchronization(HTMLNames::roleAttr)); !role.isEmpty() && role != tagName)
+        description.append(makeString(" with role "_s, wrapWithDoubleQuotes(WTF::move(role))));
+
+    return { { description.toString(), { WTF::move(element), WTF::move(scrollableArea) } } };
+}
+
 static void scrollBy(LocalFrame& frame, std::optional<NodeIdentifier>&& identifier, FloatSize scrollDelta, CompletionHandler<void(bool, String&&)>&& completion)
 {
+    bool identifierProvided = identifier.has_value();
     RefPtr foundNode = resolveNodeWithBodyAsFallback(frame, identifier);
     if (!foundNode)
         return completion(false, invalidNodeIdentifierDescription(WTF::move(identifier)));
@@ -1999,13 +2132,26 @@ static void scrollBy(LocalFrame& frame, std::optional<NodeIdentifier>&& identifi
     if (!scroller)
         return completion(false, "No scrollable area found"_s);
 
+    String fallbackDescription;
+    if (auto fallbackResult = redirectToLargeScrollableContainerIfNeeded(protect(frame), identifierProvided, protect(scroller))) {
+        fallbackDescription = WTF::move(fallbackResult->first);
+        foundNode = WTF::move(fallbackResult->second.element);
+        scroller = WTF::move(fallbackResult->second.scrollableArea);
+    }
+
     addBoxShadowIfNeeded(*foundNode, "#34c759"_s);
     scroller->scrollToOffsetWithoutAnimation(FloatPoint { scroller->scrollOffset() } + scrollDelta);
-    completion(true, { });
+
+    String summary;
+    if (!fallbackDescription.isEmpty())
+        summary = makeString("Scrolled within "_s, WTF::move(fallbackDescription), " (root frame is unscrollable)"_s);
+
+    completion(true, WTF::move(summary));
 }
 
 static void scrollToNextPage(LocalFrame& frame, std::optional<NodeIdentifier>&& identifier, CompletionHandler<void(bool, String&&)>&& completion)
 {
+    bool identifierProvided = identifier.has_value();
     RefPtr foundNode = resolveNodeWithBodyAsFallback(frame, identifier);
     if (!foundNode)
         return completion(false, invalidNodeIdentifierDescription(WTF::move(identifier)));
@@ -2013,6 +2159,13 @@ static void scrollToNextPage(LocalFrame& frame, std::optional<NodeIdentifier>&& 
     WeakPtr scroller = CheckedRef { frame.eventHandler() }->enclosingScrollableArea(foundNode.get());
     if (!scroller)
         return completion(false, "No scrollable area found"_s);
+
+    String fallbackDescription;
+    if (auto fallbackResult = redirectToLargeScrollableContainerIfNeeded(frame, identifierProvided, protect(scroller))) {
+        fallbackDescription = WTF::move(fallbackResult->first);
+        foundNode = WTF::move(fallbackResult->second.element);
+        scroller = WTF::move(fallbackResult->second.scrollableArea);
+    }
 
     addBoxShadowIfNeeded(*foundNode, "#34c759"_s);
 
@@ -2023,11 +2176,25 @@ static void scrollToNextPage(LocalFrame& frame, std::optional<NodeIdentifier>&& 
     bool isAtEnd = scrollsHorizontally ? currentOffset.x() >= maxOffset.x() : currentOffset.y() >= maxOffset.y();
     bool isRTL = scroller->shouldPlaceVerticalScrollbarOnLeft();
 
+    auto buildSummary = [&](int distance, ASCIILiteral direction, ASCIILiteral wrapNote) -> String {
+        StringBuilder builder;
+        builder.append(makeString("Scrolled "_s, distance, "px "_s, direction));
+        if (!fallbackDescription.isEmpty()) {
+            builder.append(makeString(" within "_s, fallbackDescription));
+            if (wrapNote.isNull())
+                builder.append(" (root frame is unscrollable)"_s);
+            else
+                builder.append(makeString(" (root frame is unscrollable, "_s, wrapNote, ')'));
+        } else if (!wrapNote.isNull())
+            builder.append(makeString(" ("_s, wrapNote, ')'));
+        return builder.toString();
+    };
+
     if (isAtEnd) {
         scroller->scrollToOffsetWithoutAnimation({ });
         auto direction = scrollsHorizontally ? (isRTL ? "right"_s : "left"_s) : "up"_s;
         auto distance = scrollsHorizontally ? roundToInt(currentOffset.x()) : roundToInt(currentOffset.y());
-        completion(true, makeString("Scrolled "_s, distance, "px "_s, direction, " (wrapped to start)"_s));
+        completion(true, buildSummary(distance, direction, "wrapped to start"_s));
     } else {
         auto visibleSize = scroller->visibleSize();
         auto delta = scrollsHorizontally ? FloatSize { static_cast<float>(visibleSize.width()), 0 } : FloatSize { 0, static_cast<float>(visibleSize.height()) };
@@ -2035,7 +2202,7 @@ static void scrollToNextPage(LocalFrame& frame, std::optional<NodeIdentifier>&& 
         auto newOffset = scroller->scrollOffset();
         auto direction = scrollsHorizontally ? (isRTL ? "left"_s : "right"_s) : "down"_s;
         auto distance = scrollsHorizontally ? roundToInt(newOffset.x() - currentOffset.x()) : roundToInt(newOffset.y() - currentOffset.y());
-        completion(true, makeString("Scrolled "_s, distance, "px "_s, direction));
+        completion(true, buildSummary(distance, direction, ASCIILiteral { }));
     }
 }
 
@@ -2259,22 +2426,6 @@ void handleInteraction(Interaction&& interaction, LocalFrame& frame, CompletionH
     });
 }
 
-static String normalizedLabelText(const Element& element)
-{
-    for (auto attribute : { HTMLNames::aria_labelAttr.get(), HTMLNames::labelAttr.get() }) {
-        auto text = normalizeText(element.attributeWithoutSynchronization(attribute));
-        if (!text.isEmpty())
-            return text;
-    }
-
-    return { };
-}
-
-static String wrapWithDoubleQuotes(StringView text)
-{
-    return makeString(u"“", text, u"”");
-}
-
 static String textDescription(const Element& element, Vector<String>& stringsToValidate, bool isTargetElement = true)
 {
     StringBuilder description;
@@ -2439,6 +2590,9 @@ static String textDescription(LocalFrame& frame, std::optional<NodeIdentifier> i
         return { };
 
     RefPtr target = resolveNodeWithBodyAsFallback(frame, identifier);
+    if (!target)
+        return { };
+
     auto searchTextPrefix = emptyString();
     if (!searchText.isEmpty()) {
         auto range = action == Action::Click ? searchForClickTarget(*target, searchText) : searchForText(*target, searchText);
@@ -2446,14 +2600,13 @@ static String textDescription(LocalFrame& frame, std::optional<NodeIdentifier> i
             return { };
 
         target = commonInclusiveAncestor<ComposedTree>(*range);
+        if (!target)
+            return { };
 
         auto escapedSearchText = normalizeText(searchText);
         stringsToValidate.append(escapedSearchText);
         searchTextPrefix = makeString(wrapWithDoubleQuotes(escapedSearchText), " in "_s);
     }
-
-    if (!target)
-        return { };
 
     return makeString(WTF::move(searchTextPrefix), textDescription(target.get(), stringsToValidate));
 }

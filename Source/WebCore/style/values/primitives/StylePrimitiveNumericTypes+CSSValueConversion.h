@@ -37,15 +37,15 @@ namespace Style {
 // Generic implementation of conversion for numeric types.
 
 template<Numeric StyleType, typename... Rest>
-auto convertNumericFromCSSValue(const CSSToLengthConversionData& conversionData, const CSSPrimitiveValue& value, Rest&&... rest) -> std::optional<StyleType>
+auto convertNumericFromCSSValue(const CSSToLengthConversionData& conversionData, const CSSPrimitiveValue& value, Rest&&... rest) -> StyleType
 {
     using CSSRaw = typename StyleType::CSS::Raw;
 
     return WTF::switchOn(value,
-        [&](const CSSPrimitiveValue::Calc& calc) -> std::optional<StyleType> {
+        [&](const CSSPrimitiveValue::Calc& calc) -> StyleType {
             return toStyle(CSS::UnevaluatedCalc<CSSRaw>(const_cast<CSSPrimitiveValue::Calc&>(calc)), conversionData, std::forward<Rest>(rest)...);
         },
-        [&](const CSSPrimitiveValue::Raw& raw) -> std::optional<StyleType> {
+        [&](const CSSPrimitiveValue::Raw& raw) -> StyleType {
             if constexpr (DimensionPercentageNumeric<StyleType>) {
                 using CSSDimensionRaw = typename StyleType::Dimension::CSS::Raw;
                 using CSSPercentageRaw = typename StyleType::Percentage::CSS::Raw;
@@ -63,7 +63,12 @@ auto convertNumericFromCSSValue(const CSSToLengthConversionData& conversionData,
             }
 
             ASSERT_NOT_REACHED();
-            return std::nullopt;
+
+            if constexpr (DimensionPercentageNumeric<StyleType>) {
+                return StyleType { typename StyleType::Dimension { 0 } };
+            } else {
+                return StyleType { 0 };
+            }
         }
     );
 }
@@ -106,130 +111,27 @@ auto convertNumericFromCSSValue(BuilderState& state, const CSSPrimitiveValue& va
     );
 }
 
-// NOTE: This overload that takes a `CSSValue` does not constrain `StyleType` to `Numeric` as it
-// is useful for `NumberOrPercentage` and `NumberOrPercentageResolvedToNumber` which do not conform
-// to the `Numeric` concept. It is useful because all it does is forward to a `CSSValueConversion`
-// for the `StyleType` if the value is a `CSSPrimitiveValue`.
-template<typename StyleType, typename... Rest>
+template<Numeric StyleType, typename... Rest>
 auto convertNumericFromCSSValue(BuilderState& state, const CSSValue& value, Rest&&... rest) -> StyleType
 {
     RefPtr protectedValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!protectedValue)
-        return StyleType { 0 };
+    if (!protectedValue) {
+        if constexpr (DimensionPercentageNumeric<StyleType>) {
+            return StyleType { typename StyleType::Dimension { 0 } };
+        } else {
+            return StyleType { 0 };
+        }
+    }
     return toStyleFromCSSValue<StyleType>(state, *protectedValue, std::forward<Rest>(rest)...);
 }
 
-template<auto R, typename V> struct CSSValueConversion<Integer<R, V>> {
-    using StyleType = Integer<R, V>;
+template<Numeric NumericType> struct CSSValueConversion<NumericType> {
+    using StyleType = NumericType;
 
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSPrimitiveValue& value, Rest&&... rest) -> StyleType
+    template<typename... Rest> auto operator()(const CSSToLengthConversionData& conversionData, const CSSPrimitiveValue& value, Rest&&... rest) -> StyleType
     {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
+        return convertNumericFromCSSValue<StyleType>(conversionData, value, std::forward<Rest>(rest)...);
     }
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-};
-
-template<auto R, typename V> struct CSSValueConversion<Number<R, V>> {
-    using StyleType = Number<R, V>;
-
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSPrimitiveValue& value, Rest&&... rest) -> Number<R, V>
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSValue& value, Rest&&... rest) -> Number<R, V>
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-};
-
-template<auto R, typename V> struct CSSValueConversion<Percentage<R, V>> {
-    using StyleType = Percentage<R, V>;
-
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSPrimitiveValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-};
-
-template<auto R, typename V> struct CSSValueConversion<Angle<R, V>> {
-    using StyleType = Angle<R, V>;
-
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSPrimitiveValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-};
-
-template<auto R, typename V> struct CSSValueConversion<Length<R, V>> {
-    using StyleType = Length<R, V>;
-
-    template<typename... Rest> auto operator()(const CSSToLengthConversionData& conversionData, const CSSPrimitiveValue& value, Rest&&... rest) -> Length<R, V>
-    {
-        return convertNumericFromCSSValue<StyleType>(conversionData, value, std::forward<Rest>(rest)...).value_or(StyleType { 0 });
-    }
-
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSPrimitiveValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-};
-
-template<auto R, typename V> struct CSSValueConversion<Time<R, V>> {
-    using StyleType = Time<R, V>;
-
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSPrimitiveValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-};
-
-template<auto R, typename V> struct CSSValueConversion<Resolution<R, V>> {
-    using StyleType = Resolution<R, V>;
-
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSPrimitiveValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-};
-
-template<auto R, typename V> struct CSSValueConversion<Flex<R, V>> {
-    using StyleType = Flex<R, V>;
-
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSPrimitiveValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-    template<typename... Rest> auto operator()(BuilderState& state, const CSSValue& value, Rest&&... rest) -> StyleType
-    {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
-    }
-};
-
-template<auto R, typename V> struct CSSValueConversion<LengthPercentage<R, V>> {
-    using StyleType = LengthPercentage<R, V>;
 
     template<typename... Rest> auto operator()(BuilderState& state, const CSSPrimitiveValue& value, Rest&&... rest) -> StyleType
     {
@@ -252,7 +154,10 @@ template<auto nR, auto pR, typename V> struct CSSValueConversion<NumberOrPercent
     }
     template<typename... Rest> auto operator()(BuilderState& state, const CSSValue& value, Rest&&... rest) -> StyleType
     {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
+        RefPtr protectedValue = requiredDowncast<CSSPrimitiveValue>(state, value);
+        if (!protectedValue)
+            return StyleType { typename StyleType::Number { 0 } };
+        return toStyleFromCSSValue<StyleType>(state, *protectedValue, std::forward<Rest>(rest)...);
     }
 };
 
@@ -267,7 +172,10 @@ template<auto nR, auto pR, typename V> struct CSSValueConversion<NumberOrPercent
     }
     template<typename... Rest> auto operator()(BuilderState& state, const CSSValue& value, Rest&&... rest) -> StyleType
     {
-        return convertNumericFromCSSValue<StyleType>(state, value, std::forward<Rest>(rest)...);
+        RefPtr protectedValue = requiredDowncast<CSSPrimitiveValue>(state, value);
+        if (!protectedValue)
+            return StyleType { 0 };
+        return toStyleFromCSSValue<StyleType>(state, *protectedValue, std::forward<Rest>(rest)...);
     }
 };
 

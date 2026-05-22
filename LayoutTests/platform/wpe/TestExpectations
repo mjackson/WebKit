@@ -407,8 +407,6 @@ webkit.org/b/298634 fast/repaint/horizontal-bt-overflow-same.html [ Skip ]
 webkit.org/b/252954 imported/w3c/web-platform-tests/html/rendering/replaced-elements/attributes-for-embedded-content-and-images/video-default-object-height-constrained-by-max-width.html [ ImageOnlyFailure ]
 webkit.org/b/252954 imported/w3c/web-platform-tests/html/rendering/replaced-elements/attributes-for-embedded-content-and-images/video-default-object-width-constrained-by-max-height.html [ ImageOnlyFailure ]
 
-webkit.org/b/264660 imported/w3c/web-platform-tests/html/semantics/disabled-elements/event-propagate-disabled-keyboard.tentative.html [ Failure ]
-
 # Lockdown Mode does not apply
 dom/xsl/lockdown-mode [ Skip ]
 fast/speechsynthesis/lockdown-mode [ Skip ]
@@ -474,6 +472,8 @@ imported/w3c/web-platform-tests/pointerevents/pointerevent_attributes.html?pen-r
 imported/w3c/web-platform-tests/pointerevents/pointerevent_attributes.html?touch-nonstandard [ Skip ]
 
 css3/scroll-snap/resnap-after-layout.html [ Skip ] # Timeout.
+
+webkit.org/b/314537 imported/w3c/web-platform-tests/css/filter-effects/css-filters-animation-combined-001.html [ ImageOnlyFailure ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # 4. TESTS CRASHING
@@ -543,8 +543,6 @@ webkit.org/b/119253 fast/workers/dedicated-worker-lifecycle.html [ Pass ]
 
 webkit.org/b/200304 svg/as-image/svg-image-with-data-uri-background.html [ ImageOnlyFailure Pass ]
 
-webkit.org/b/212082 imported/w3c/web-platform-tests/mathml/presentation-markup/operators/mo-form-minus-plus.html [ ImageOnlyFailure ]
-
 webkit.org/b/213717 fast/scrolling/overflow-scrollable-after-back.html [ Timeout ]
 
 webkit.org/b/219465 [ Debug ] imported/w3c/web-platform-tests/html/browsers/browsing-the-web/history-traversal/persisted-user-state-restoration/resume-timer-on-history-back.html [ Failure Pass ]
@@ -562,7 +560,6 @@ webkit.org/b/252878 imported/blink/fast/transforms/transform-update-frame-overfl
 webkit.org/b/214454 imported/w3c/web-platform-tests/css/css-backgrounds/background-attachment-margin-root-001.html [ ImageOnlyFailure ]
 webkit.org/b/214454 imported/w3c/web-platform-tests/css/css-backgrounds/background-margin-root.html [ ImageOnlyFailure ]
 webkit.org/b/252878 imported/w3c/web-platform-tests/css/css-pseudo/backdrop-animate-002.html [ ImageOnlyFailure ]
-webkit.org/b/252878 imported/w3c/web-platform-tests/fetch/metadata/generated/element-meta-refresh.https.optional.sub.html [ Failure ]
 webkit.org/b/252878 imported/w3c/web-platform-tests/mediacapture-streams/MediaStream-MediaElement-firstframe.https.html [ Failure Pass ]
 
 # Constant timeout.
@@ -657,7 +654,7 @@ webkit.org/b/186262 imported/w3c/web-platform-tests/css/css-text/word-break/word
 
 webkit.org/b/180645 imported/w3c/web-platform-tests/html/semantics/forms/the-input-element/valueMode.html [ Failure ]
 
-webkit.org/b/127676 imported/w3c/web-platform-tests/xhr/send-redirect-bogus.htm [ Skip ]
+webkit.org/b/127676 imported/w3c/web-platform-tests/xhr/send-redirect-bogus.sub.htm [ Skip ]
 webkit.org/b/127676 imported/w3c/web-platform-tests/xhr/send-redirect-to-cors.htm [ Skip ]
 webkit.org/b/127676 imported/w3c/web-platform-tests/xhr/send-redirect-to-non-cors.htm [ Skip ]
 
@@ -880,8 +877,6 @@ imported/w3c/web-platform-tests/css/css-text-decor/text-combine-emphasis.html [ 
 webkit.org/b/273396 imported/w3c/web-platform-tests/css/css-text-decor/text-shadow/basic-negcoord.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-text-decor/text-shadow/basic.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-text-decor/text-shadow/basic-opacity.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-transforms/animation/transform-interpolation-rotate.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-transforms/ttwf-css-3d-polygon-cycle.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-writing-modes/text-shadow-orientation-upright-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-with-src-rect.tentative.html [ ImageOnlyFailure ]
 
@@ -915,8 +910,6 @@ webkit.org/b/264680 imported/w3c/web-platform-tests/webcodecs/videoFrame-constru
 
 # Also webkit.org/b/266573
 webkit.org/b/266577 webgl/2.0.y/conformance2/textures/video/tex-2d-rgb16f-rgb-half_float.html [ Failure Timeout Pass ]
-
-webkit.org/b/285298 imported/w3c/web-platform-tests/webcodecs/videoFrame-canvasImageSource.html [ Failure ]
 
 # [WPE] Missing implementation of TestController::setHidden()
 webkit.org/b/268470 fast/mediastream/device-change-event-2.html [ Timeout ]
@@ -956,7 +949,6 @@ compositing/visible-rect/nested-transform.html [ Failure ]
 compositing/visible-rect/scrolled.html [ Failure ]
 
 # No support for blend modes on compositing layers
-imported/w3c/web-platform-tests/css/compositing/mix-blend-mode/mix-blend-mode-blended-element-overflow-scroll.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/compositing/mix-blend-mode/mix-blend-mode-parent-element-overflow-scroll.html [ ImageOnlyFailure ]
 
 media/media-source/media-detachablemse-append.html [ Timeout Pass ]
@@ -1119,9 +1111,7 @@ webkit.org/b/287572 svg/animations/animateMotion-accumulate-2a.svg [ ImageOnlyFa
 webkit.org/b/287572 svg/animations/animateMotion-accumulate-2b.svg [ ImageOnlyFailure ]
 webkit.org/b/287572 svg/canvas/canvas-global-alpha-svg.html [ ImageOnlyFailure ]
 webkit.org/b/287572 svg/compositing/outermost-svg-directly-composited-transformed-group-child.html [ ImageOnlyFailure ]
-webkit.org/b/287572 svg/compositing/outermost-svg-with-border.html [ ImageOnlyFailure ]
 webkit.org/b/287572 svg/compositing/outermost-svg-with-border-overflow-visible.html [ ImageOnlyFailure ]
-webkit.org/b/287572 svg/compositing/outermost-svg-with-border-padding-margin.html [ ImageOnlyFailure ]
 webkit.org/b/131347 svg/compositing/hidpi-legacy-svg-compositing-sibling-no-shift.html [ ImageOnlyFailure Pass ]
 webkit.org/b/287572 svg/filters/filter-on-root-tile-boundary.html [ ImageOnlyFailure ]
 webkit.org/b/287572 svg/W3C-SVG-1.2-Tiny/struct-use-recursion-01-t.svg [ ImageOnlyFailure ]
@@ -1283,6 +1273,9 @@ webkit.org/b/309863 [ arm64 ] media/video-seek-have-nothing.html [ Pass Failure 
 webkit.org/b/312150 [ arm64 ] imported/w3c/web-platform-tests/encoding/textdecoder-mistakes.any.html [ Failure ]
 webkit.org/b/312150 [ arm64 ] imported/w3c/web-platform-tests/encoding/textdecoder-mistakes.any.worker.html [ Failure ]
 
+webkit.org/b/315145 [ arm64 ] fast/images/animated-avif.html [ ImageOnlyFailure ]
+webkit.org/b/315145 [ arm64 ] imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-image-size-filter-size-mismatch.html [ ImageOnlyFailure ]
+
 [ arm64 ] imported/w3c/web-platform-tests/content-security-policy/frame-ancestors/frame-ancestors-none-block.html [ Failure Pass ]
 
 webkit.org/b/309575 imported/w3c/web-platform-tests/uievents/textInput/enter-textarea-contenteditable.html [ Pass Failure ]
@@ -1328,3 +1321,5 @@ webkit.org/b/313112 [ arm64 ] webrtc/video-mute.html [ Pass Failure Timeout ]
 imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-target-margin-005.html [ Failure ]
 
 webkit.org/b/314218 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/track/track-element/track-cues-enter-seeking.html [ Failure Pass ]
+
+webkit.org/b/314811 imported/w3c/web-platform-tests/css/mediaqueries/test_media_queries.html [ Failure ]

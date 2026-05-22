@@ -1688,6 +1688,7 @@ public:
     void compileArraySplice(Node*);
     void compileArrayIndexOfOrArrayIncludes(Node*);
     void compileArrayPush(Node*);
+    void compileArrayUnshift(Node*);
     void compileNotifyWrite(Node*);
     void compileRegExpExec(Node*);
     void compileRegExpExecNonGlobalOrSticky(Node*);
@@ -1734,6 +1735,7 @@ public:
     void compileObjectDefinePropertyFromFields(Node*);
     void compileStringSlice(Node*);
     void compileStringSubstring(Node*);
+    void compileStringSubstr(Node*);
     void compileToUpperCase(Node*);
     void compileToLowerCase(Node*);
     void compileThrow(Node*);
@@ -1779,6 +1781,7 @@ public:
     void compileObjectAssign(Node*);
     void compileObjectCreate(Node*);
     void compileObjectToString(Node*);
+    void compileSymbolToString(Node*);
     void compileCreateThis(Node*);
     void compileCreatePromise(Node*);
     void compileCreateGenerator(Node*);
@@ -1802,7 +1805,12 @@ public:
     void compileStringIndexOf(Node*);
     void compileStringLastIndexOf(Node*);
     void compileStringStartsOrEndsWith(Node*);
+#if USE(JSVALUE64)
+    void compileStringStartsOrEndsWithConstant(Node*, bool isStartsWith, std::span<const Latin1Character> search);
+#endif
     void compileStringSplit(Node*);
+    void compileStringMatch(Node*);
+    void compileDateNow(Node*);
     void compileDateGet(Node*);
     void compileDateSet(Node*);
     void compileGlobalIsNaN(Node*);
@@ -1821,6 +1829,7 @@ public:
     void compilePromiseReject(Node*);
     void compilePromiseThen(Node*);
     void compilePerformPromiseThen(Node*);
+    void compilePerformPromiseThenOneHandler(Node*);
 
     template<typename JSClass, typename Operation>
     void compileCreateInternalFieldObject(Node*, Operation);

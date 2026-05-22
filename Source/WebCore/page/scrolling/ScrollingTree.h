@@ -234,6 +234,21 @@ public:
     virtual void lockLayersForHitTesting() { }
     virtual void unlockLayersForHitTesting() { }
 
+    class HitTestLocker {
+    public:
+        HitTestLocker(ScrollingTree& tree)
+            : m_tree(tree)
+        {
+            m_tree->lockLayersForHitTesting();
+        }
+        ~HitTestLocker()
+        {
+            m_tree->unlockLayersForHitTesting();
+        }
+    private:
+        const Ref<ScrollingTree> m_tree;
+    };
+
     virtual bool isScrollingSynchronizedWithMainThread() WTF_REQUIRES_LOCK(m_treeLock) { return true; }
 
     Lock& treeLock() LIFETIME_BOUND WTF_RETURNS_LOCK(m_treeLock) { return m_treeLock; }
@@ -251,7 +266,7 @@ public:
 
     WEBCORE_EXPORT FloatBoxExtent mainFrameObscuredContentInsets() const;
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     virtual float bannerViewHeight() const { return 0; }
     virtual float bannerViewMaximumHeight() const { return 0; }
     virtual bool hasBannerViewOverlay() const { return false; }

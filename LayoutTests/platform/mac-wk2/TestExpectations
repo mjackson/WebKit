@@ -898,8 +898,6 @@ webkit.org/b/230485 [ Release ] imported/w3c/web-platform-tests/webrtc/RTCSctpTr
 
 webkit.org/b/214824 [ Debug ] js/throw-large-string-oom.html [ Skip ]
 
-webkit.org/b/215304 fast/forms/auto-fill-button/caps-lock-indicator-should-be-visible-after-hiding-auto-fill-strong-password-button.html [ Pass Failure ]
-
 # Some WPT encoding tests run too slowly under ASan (and too slowly in debug builds).
 # Since there is no convenient way to skip them under ASan only, skip all encoding tests here.
 # The tests will still be run on other platforms and also when testing with Legacy WebKit.
@@ -2225,6 +2223,7 @@ webkit.org/b/306444 [ Release ] imported/w3c/web-platform-tests/editing/other/ty
 webkit.org/b/306444 [ Release ] imported/w3c/web-platform-tests/editing/other/typing-around-link-element-at-non-collapsed-selection.tentative.html?target=DesignMode&child=b [ Pass Failure ]
 
 webkit.org/b/307850 media/modern-media-controls/tracks-support/audio-single-track.html [ Pass Timeout ]
+webkit.org/b/307850 media/modern-media-controls/tracks-support/audio-text-tracks-not-shown.html [ Pass Timeout ]
 
 webkit.org/b/313259 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/preserves-pitch.html [ Pass Failure ]
 
@@ -2242,8 +2241,6 @@ webkit.org/b/310302 imported/w3c/web-platform-tests/uievents/mouse/mouse_boundar
 http/tests/site-isolation/inspector/debugger/scriptParsed-frame-target.html [ Skip ]
 http/tests/site-isolation/inspector/debugger/pause-in-cross-origin-iframe.html [ Skip ]
 http/tests/site-isolation/inspector/debugger/setBreakpoint-cross-origin-iframe.html [ Skip ]
-http/tests/site-isolation/inspector/runtime/evaluate-in-cross-origin-iframe.html [ Failure Crash ]
-http/tests/site-isolation/inspector/runtime/execution-context-from-frame-target.html [ Failure ]
 http/tests/site-isolation/inspector/runtime/executionContextCreated-frame-target.html [ Failure ]
 http/tests/site-isolation/inspector/page/override-setting-cross-origin-iframe.html [ Pass Failure ]
 webkit.org/b/311836 http/tests/site-isolation/inspector/page/set-emulated-media-cross-origin-iframe.html [ Pass Failure ]
@@ -2254,17 +2251,10 @@ webkit.org/b/314746 [ Release ] fast/images/decode-render-animated-image.html [ 
 
 # Site Isolation Inspector: Network proxying (webkit.org/b/310163)
 # Tests that require the full ProxyingNetworkAgent + event routing stack.
-# Expectations will be narrowed as the stack lands incrementally.
-webkit.org/b/310163 http/tests/site-isolation/inspector/console/message-from-iframe.html [ Pass Failure ]
-webkit.org/b/310163 http/tests/site-isolation/inspector/console/message-from-worker.html [ Pass Failure ]
 webkit.org/b/310163 http/tests/site-isolation/inspector/network/cross-origin-iframe-network-events-have-correct-frame-id.html [ Pass Failure ]
 webkit.org/b/310163 http/tests/site-isolation/inspector/network/cross-origin-iframe-network-loading-finished.html [ Pass Failure ]
 webkit.org/b/310163 http/tests/site-isolation/inspector/network/cross-origin-iframe-resource-appears-in-network-domain.html [ Pass Failure ]
-webkit.org/b/310163 http/tests/site-isolation/inspector/page/override-user-agent-cross-origin-iframe.html [ Pass Failure ]
-webkit.org/b/310163 http/tests/site-isolation/inspector/target/target-cross-origin-page-navigation.html [ Pass Failure ]
-webkit.org/b/310163 http/tests/site-isolation/inspector/target/target.html [ Pass Failure ]
-webkit.org/b/310163 http/tests/site-isolation/inspector/unit-tests/target-manager.html [ Pass Failure ]
-webkit.org/b/310163 http/tests/site-isolation/inspector/worker/worker-in-cross-origin-iframe.html [ Pass Failure ]
+webkit.org/b/315225 http/tests/site-isolation/inspector/network/cross-origin-iframe-request-id-uniqueness.html [ Skip ]
 
 webkit.org/b/308165 [ Debug ] scrollingcoordinator/mac/latching/simple-page-rubberbands.html [ Pass Failure ]
 
@@ -2295,6 +2285,8 @@ webkit.org/b/314668 webrtc/getUserMedia-webaudio-autoplay.html [ Pass Failure ]
 
 webkit.org/b/314136 accessibility/mac/client/div-bounds.html [ Pass Failure ]
 
+webkit.org/b/314851 http/tests/site-isolation/inspector/debugger/provisional-frame-target-pausing.html [ Failure ]
+
 webkit.org/b/308334 [ Debug ] http/tests/webgpu/webgpu/api/validation/gpu_external_texture_expiration.html [ Skip ]
 
 webkit.org/b/311677 [ Tahoe+ Release ] imported/w3c/web-platform-tests/svg/animations/svglength-animation-invalid-value-5.html [ Pass Failure ]
@@ -2312,3 +2304,13 @@ webkit.org/b/313554 [ Debug ] http/tests/security/javascriptURL/xss-ALLOWED-from
 webkit.org/b/313664 [ Tahoe+ ] imported/w3c/web-platform-tests/css/filter-effects/filter-function/filter-function-linear-gradient.html [ ImageOnlyFailure ]
 
 webkit.org/b/313764 [ Tahoe+ Debug ] webrtc/ephemeral-certificates-and-cnames.html [ Pass Timeout ]
+
+# webkit.org/b/315048 REGRESSION(313302@main): [macOS]: 2 tests in imported/w3c/web-platform-tests/dom/nodes/moveBefore are flaky crashes
+imported/w3c/web-platform-tests/dom/nodes/moveBefore/style-applies.html [ Skip ]
+imported/w3c/web-platform-tests/dom/nodes/moveBefore/throws-exception.html [ Skip ]
+
+webkit.org/b/315238 [ Sequoia+ ] imported/w3c/web-platform-tests/webrtc/RTCRtpReceiver-video-jitterBufferTarget-stats.html [ Pass Failure ]
+
+webkit.org/b/315242 [ Tahoe x86_64 ] fast/forms/select/mac-wk2/inactive-appearance.html [ ImageOnlyFailure ]
+
+webkit.org/b/315246 [ Tahoe x86_64 ] http/tests/resourceLoadStatistics/website-data-removal-for-site-navigated-to-with-filtered-link-decoration-after-long-deletion.html [ Pass Failure ]

@@ -96,6 +96,12 @@
 @end
 #endif
 
+#if PLATFORM(MAC)
+@interface NSMenu ()
+- (id)_menuImpl;
+@end
+#endif
+
 @interface SiteIsolationTextManipulationDelegate : NSObject <_WKTextManipulationDelegate>
 - (void)_webView:(WKWebView *)webView didFindTextManipulationItems:(NSArray<_WKTextManipulationItem *> *)items;
 @property (nonatomic, readonly, copy) NSArray<_WKTextManipulationItem *> *items;
@@ -7581,6 +7587,57 @@ TEST(SiteIsolation, DragOverStateInfo)
     EXPECT_TRUE(dragStarted);
 }
 
+TEST(SiteIsolation, DropExternalFileInCrossOriginSubframe)
+{
+    static constexpr ASCIILiteral mainframeHTML = "<body style='margin: 0'>"
+    "<iframe width='400' height='400' style='border: none;' src='https://domain2.com/subframe'></iframe>"
+    "</body>"_s;
+
+    static constexpr ASCIILiteral subframeHTML = "<body style='margin: 0; width: 100%; height: 100vh;'>"
+    "<script>"
+    "    window.dropFileName = '';"
+    "    document.addEventListener('dragover', (e) => e.preventDefault());"
+    "    document.addEventListener('drop', (e) => {"
+    "        e.preventDefault();"
+    "        window.dropFileName = e.dataTransfer.files[0].name;"
+    "    });"
+    "</script>"
+    "</body>"_s;
+
+    HTTPServer server({
+        { "/mainframe"_s, { mainframeHTML } },
+        { "/subframe"_s, { subframeHTML } }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate allowAnyTLSCertificate];
+
+    RetainPtr configuration = server.httpsProxyConfiguration();
+    enableSiteIsolation(configuration.get());
+
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = [simulator webView];
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView waitForNextPresentationUpdate];
+
+    RetainPtr fileURL = [NSBundle.test_resourcesBundle URLForResource:@"apple" withExtension:@"gif"];
+    [simulator writeFiles:@[ fileURL.get() ]];
+    [simulator runFrom:CGPointMake(200, 200) to:CGPointMake(200, 200)];
+
+    __block RetainPtr<NSString> dropFileName;
+    __block bool done = false;
+    [webView evaluateJavaScript:@"window.dropFileName" inFrame:[webView firstChildFrame] completionHandler:^(id result, NSError *error) {
+        dropFileName = result;
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+
+    EXPECT_WK_STREQ(dropFileName.get(), "apple.gif");
+}
+
 #endif // ENABLE(DRAG_SUPPORT) && PLATFORM(MAC)
 
 TEST(SiteIsolation, AlternateRequest)
@@ -7735,6 +7792,70 @@ TEST(SiteIsolation, ColorInputPickerLocation)
 
     NSRect popoverPositioningViewBoundsInWebViewCoordinates = [popoverPositioningView convertRect:[popoverPositioningView bounds] toView:webView.get()];
     EXPECT_EQ(popoverPositioningViewBoundsInWebViewCoordinates, NSMakeRect(168, 168, 50, 50));
+}
+
+TEST(SiteIsolation, SelectElementPopupAfterFocusChangesDuringTracking)
+{
+    auto mainframeHTML = "<body style='margin:0'>"
+        "<select id='sel' style='width:200px;height:30px;'>"
+        "<option value='a'>Alpha</option>"
+        "<option value='b'>Bravo</option>"
+        "<option value='c'>Charlie</option>"
+        "</select>"
+        "<iframe id='iframe' style='display:block;width:100%;height:500px;border:none;' src='https://domain2.com/subframe'></iframe>"
+        "</body>"_s;
+    auto subframeHTML = "<body style='margin:0'><script>alert('iframe loaded');</script></body>"_s;
+
+    HTTPServer server({
+        { "/mainframe"_s, { mainframeHTML } },
+        { "/subframe"_s, { subframeHTML } }
+    }, HTTPServer::Protocol::HttpsProxy);
+    RetainPtr configuration = server.httpsProxyConfiguration();
+    enableFeature(configuration.get(), @"SelectShowPickerEnabled");
+    auto [webViewBinding, navigationDelegate] = siteIsolatedViewAndDelegate(configuration, CGRectMake(0, 0, 800, 600));
+    RetainPtr webView = webViewBinding;
+
+    // Replace AppKit's modal popUpMenu: tracking with a synchronous poke at the
+    // backing NSPopUpButtonCell. WebPopupMenuProxyMac::showPopupMenu reads
+    // [m_popup indexOfSelectedItem] after this returns to compute the
+    // value-change IPC payload. The cell is normally the NSMenu's delegate;
+    // fall back to a menu item's target in case AppKit's wiring changes.
+    RetainPtr menuProto = adoptNS([NSMenu new]);
+    InstanceMethodSwizzler popUpSwizzler {
+        [[menuProto _menuImpl] class],
+        NSSelectorFromString(@"popUpMenu:atLocation:width:forView:withSelectedItem:withFont:withFlags:withOptions:"),
+        imp_implementationWithBlock(^(id, NSMenu *menu, NSPoint, CGFloat, NSView *, NSInteger, NSFont *, NSUInteger, NSDictionary *) {
+            id delegate = [menu delegate];
+            NSPopUpButtonCell *popupCell = [delegate isKindOfClass:[NSPopUpButtonCell class]] ? (NSPopUpButtonCell *)delegate : nil;
+            if (!popupCell) {
+                for (NSMenuItem *item in [menu itemArray]) {
+                    if ([item.target isKindOfClass:[NSPopUpButtonCell class]]) {
+                        popupCell = (NSPopUpButtonCell *)item.target;
+                        break;
+                    }
+                }
+            }
+            [popupCell selectItemAtIndex:2];
+        })
+    };
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
+    EXPECT_WK_STREQ("iframe loaded", [webView _test_waitForAlert]);
+
+    // Park focus in the remote iframe so that focusedOrMainFrame() resolves to
+    // the iframe's process when valueChangedForPopupMenu fires — that's the
+    // bug condition under the old code.
+    [webView evaluateJavaScript:@"document.getElementById('iframe').focus()" completionHandler:nil];
+    while ([webView mainFrame].info._isFocused || ![webView firstChildFrame]._isFocused)
+        Util::spinRunLoop();
+
+    // showPicker() opens the popup without focusing the <select>, so focus
+    // remains in the iframe through to the IPC.
+    [webView objectByEvaluatingJavaScriptWithUserGesture:@"document.getElementById('sel').showPicker()"];
+
+    EXPECT_TRUE(Util::waitFor([&] {
+        return [[webView objectByEvaluatingJavaScript:@"document.getElementById('sel').value"] isEqualToString:@"c"];
+    }));
 }
 
 #endif
@@ -8975,6 +9096,30 @@ TEST(SiteIsolation, MultiProcessBFCacheSameSiteNavAfterRestore)
         EXPECT_WK_STREQ(@"https://b.com/b", [webView URL].absoluteString);
         EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.__bfcacheMarker_b ? true : false"] boolValue]);
     }
+}
+
+TEST(SiteIsolation, ScriptMessageHandlerDocumentIdentifierOnPageHide)
+{
+    HTTPServer server({
+        { "/main"_s, { "<iframe id='child' src='https://webkit.org/iframe'></iframe><iframe id='keeper' src='https://webkit.org/keeper'></iframe>"_s } },
+        { "/iframe"_s, { "<input type='text'>"_s } },
+        { "/keeper"_s, { "keepalive"_s } },
+        { "/next"_s, { "navigated"_s } },
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    RetainPtr handler = adoptNS([TestScriptMessageHandler new]);
+    RetainPtr configuration = server.httpsProxyConfiguration();
+    [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
+    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(configuration);
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/main"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    EXPECT_NE([webView mainFrame].info._processIdentifier, [webView firstChildFrame]._processIdentifier);
+
+    [webView evaluateJavaScript:@"window.addEventListener('pagehide', () => { window.webkit.messageHandlers.testHandler.postMessage('pagehide'); })" inFrame:[webView firstChildFrame] completionHandler:nil];
+    [webView evaluateJavaScript:@"document.getElementById('child').src = 'https://example.com/next'" completionHandler:nil];
+    WKScriptMessage *message = [handler waitForMessage];
+    EXPECT_WK_STREQ(@"pagehide", message.body);
+    EXPECT_NOT_NULL(message.frameInfo._documentIdentifier);
 }
 
 }

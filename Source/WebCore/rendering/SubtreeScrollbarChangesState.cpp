@@ -27,7 +27,6 @@
 #include "SubtreeScrollbarChangesState.h"
 
 #include "HTMLTextAreaElement.h"
-#include "LayoutScope.h"
 #include "LocalFrameViewLayoutContext.h"
 #include "RenderBlock.h"
 #include "RenderElementInlines.h"
@@ -94,9 +93,7 @@ SubtreeScrollbarChangesHandler::~SubtreeScrollbarChangesHandler()
     if (!isSubtreeRootHandlingScrollbarChanges) {
         while (!descendantsWithScrollbarChange.isEmpty()) {
             CheckedPtr rendererWithScrollbarChange = descendantsWithScrollbarChange.takeFirst();
-            auto scope = LayoutScope { *rendererWithScrollbarChange };
-            rendererWithScrollbarChange->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
-            rendererWithScrollbarChange->layoutBlock(RelayoutChildren::Yes);
+            RenderBlock::relayoutRenderBlockForScrollbarChange(*rendererWithScrollbarChange);
         }
         return;
     }
@@ -104,10 +101,9 @@ SubtreeScrollbarChangesHandler::~SubtreeScrollbarChangesHandler()
     auto& subtreeRoot = subtreeScrollbarChangesState->subtreeRoot;
     while (!descendantsWithScrollbarChange.isEmpty()) {
         CheckedPtr rendererWithScrollbarChange = descendantsWithScrollbarChange.takeFirst();
-        rendererWithScrollbarChange->setNeedsPreferredWidthsUpdate(MarkingBehavior::MarkContainingBlockChain, subtreeRoot.ptr());
+        rendererWithScrollbarChange->setNeedsPreferredWidthsUpdate(MarkingBehavior::MarkContainingBlockChain, protect(subtreeRoot->containingBlock()));
     }
 
-    auto scope = LayoutScope { subtreeRoot };
     subtreeRoot->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
     subtreeRoot->layoutBlock(RelayoutChildren::Yes);
 }

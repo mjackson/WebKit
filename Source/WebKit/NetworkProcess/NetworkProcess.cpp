@@ -223,6 +223,7 @@ DownloadManager& NetworkProcess::downloadManager()
 
 void NetworkProcess::removeNetworkConnectionToWebProcess(NetworkConnectionToWebProcess& connection)
 {
+    RELEASE_LOG(Process, "%p - NetworkProcess::removeNetworkConnectionToWebProcess: Removing process %" PRIu64, this, connection.webProcessIdentifier().toUInt64());
     ASSERT(m_webProcessConnections.contains(connection.webProcessIdentifier()));
     m_webProcessConnections.remove(connection.webProcessIdentifier());
     m_allowedFirstPartiesForCookies.remove(connection.webProcessIdentifier());
@@ -343,9 +344,6 @@ void NetworkProcess::initializeNetworkProcess(NetworkProcessCreationParameters&&
 #endif
     m_ftpEnabled = parameters.ftpEnabled;
 
-    for (auto [processIdentifier, domain] : parameters.allowedFirstPartiesForCookies)
-        addAllowedFirstPartyForCookies(processIdentifier, WTF::move(domain), LoadedWebArchive::No, [] { });
-
     for (auto& [processIdentifier, paths] : parameters.allowedFilePaths)
         allowFilesAccessFromWebProcess(processIdentifier, paths, [] { });
 
@@ -403,6 +401,14 @@ void NetworkProcess::createNetworkConnectionToWebProcess(ProcessIdentifier ident
         completionHandler({ }, HTTPCookieAcceptPolicy::Never);
         return;
     }
+
+    auto& [currentLoadedWebArchive, currentDomains] = m_allowedFirstPartiesForCookies.ensure(identifier, [&] {
+        return std::make_pair(parameters.loadedWebArchive, HashSet<RegistrableDomain> { });
+    }).iterator->value;
+    if (parameters.loadedWebArchive == LoadedWebArchive::Yes)
+        currentLoadedWebArchive = LoadedWebArchive::Yes;
+    for (auto& domain : parameters.allowedFirstPartiesForCookies)
+        currentDomains.add(domain);
 
     auto newConnection = NetworkConnectionToWebProcess::create(*this, identifier, sessionID, WTF::move(parameters), WTF::move(connectionIdentifiers->server));
     Ref connection = newConnection;
@@ -706,6 +712,23 @@ void NetworkProcess::diskCacheOriginAccessTimes(PAL::SessionID sessionID, Comple
             return;
         }
     }
+    completionHandler({ });
+}
+
+void NetworkProcess::getAllPushSubscriptionOrigins(PAL::SessionID sessionID, CompletionHandler<void(Vector<WebCore::SecurityOriginData>&&)>&& completionHandler)
+{
+    CheckedPtr session = networkSession(sessionID);
+    if (session && !session->mockPushSubscriptionOriginsForTesting().isEmpty()) {
+        completionHandler(Vector { session->mockPushSubscriptionOriginsForTesting() });
+        return;
+    }
+
+#if ENABLE(WEB_PUSH_NOTIFICATIONS)
+    if (session) {
+        session->notificationManager().getAllPushSubscriptionOrigins(WTF::move(completionHandler));
+        return;
+    }
+#endif
     completionHandler({ });
 }
 

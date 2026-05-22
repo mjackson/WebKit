@@ -808,6 +808,7 @@ enum ContentsFormat {
     const unsigned short LAYER_TREE_INCLUDES_EVENT_REGION = 512;
     const unsigned short LAYER_TREE_INCLUDES_EXTENDED_COLOR = 1024;
     const unsigned short LAYER_TREE_INCLUDES_DEVICE_SCALE = 2048;
+    const unsigned short LAYER_TREE_INCLUDES_ROOT_LAYERS = 4096;
     DOMString layerTreeAsText(Document document, optional unsigned short flags = 0);
 
     unsigned long long layerIDForElement(Element element);
@@ -1168,7 +1169,7 @@ enum ContentsFormat {
     float pageMediaVolume();
     undefined setPageMediaVolume(float volume);
 
-    [Conditional=BANNER_VIEW_OVERLAYS] undefined setPageHasBannerViewOverlayForTesting(boolean hasFakeBannerViewOverlay);
+    [Conditional=TOP_BANNER_VIEW_OVERLAYS] undefined setPageHasBannerViewOverlayForTesting(boolean hasFakeBannerViewOverlay);
 
     undefined setShowAllPlugins(boolean showAll);
 
@@ -1239,6 +1240,7 @@ enum ContentsFormat {
     [Conditional=WEB_RTC] undefined setSFrameCounter(RTCRtpSFrameTransform transform, DOMString counter);
     [Conditional=WEB_RTC] unsigned long long sframeCounter(RTCRtpSFrameTransform transform);
     [Conditional=WEB_RTC] unsigned long long sframeKeyId(RTCRtpSFrameTransform transform);
+    [Conditional=WEB_RTC] boolean isSupportingAV1HardwareDecoder();
 
     [Conditional=MEDIA_STREAM] undefined setMockAudioTrackChannelNumber(MediaStreamTrack track, unsigned short count);
     [Conditional=MEDIA_STREAM] undefined setShouldInterruptAudioOnPageVisibilityChange(boolean shouldInterrupt);

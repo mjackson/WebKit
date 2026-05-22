@@ -289,8 +289,6 @@ public:
     NetworkProcessConnection& ensureNetworkProcessConnection();
 
     void networkProcessConnectionClosed(NetworkProcessConnection*);
-    void refreshIDBConnectionForWorkers();
-    void setNeedsIDBConnectionRefreshForWorkers() { m_needsIDBConnectionRefreshForWorkers = true; }
     NetworkProcessConnection* existingNetworkProcessConnection() { return m_networkProcessConnection.get(); }
     WebLoaderStrategy& NODELETE webLoaderStrategy() LIFETIME_BOUND;
     WebFileSystemStorageConnection& fileSystemStorageConnection();
@@ -460,8 +458,9 @@ public:
 
     void grantAccessToAssetServices(Vector<WebKit::SandboxExtensionHandle>&& assetServicesHandles);
     void revokeAccessToAssetServices();
+#if !ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
     void switchFromStaticFontRegistryToUserFontRegistry(Vector<SandboxExtension::Handle>&& fontMachExtensionHandles);
-
+#endif
     void disableURLSchemeCheckInDataDetectors() const;
 
 #if PLATFORM(MAC)
@@ -821,7 +820,6 @@ private:
 
     String m_uiProcessBundleIdentifier;
     RefPtr<NetworkProcessConnection> m_networkProcessConnection;
-    bool m_needsIDBConnectionRefreshForWorkers { false };
     const UniqueRef<WebLoaderStrategy> m_webLoaderStrategy;
     RefPtr<WebFileSystemStorageConnection> m_fileSystemStorageConnection;
 

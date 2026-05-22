@@ -1136,6 +1136,10 @@ RenderText::Widths RenderText::trimmedPreferredWidths(float leadWidth, bool& str
 
     unsigned length = this->length();
 
+    widths.hasBreakableChar = m_hasBreakableChar;
+    widths.hasBreak = m_hasBreak;
+    widths.endsWithBreak = m_hasBreak && length && text()[length - 1] == '\n';
+
     if (!length || (stripFrontSpaces && text().containsOnly<isASCIIWhitespace>()))
         return widths;
 
@@ -1146,10 +1150,6 @@ RenderText::Widths RenderText::trimmedPreferredWidths(float leadWidth, bool& str
 
     widths.beginMin = m_beginMinWidth;
     widths.endMin = m_endMinWidth;
-
-    widths.hasBreakableChar = m_hasBreakableChar;
-    widths.hasBreak = m_hasBreak;
-    widths.endsWithBreak = m_hasBreak && text()[length - 1] == '\n';
 
     if (text()[0] == ' ' || (text()[0] == '\n' && !style.preserveNewline()) || text()[0] == '\t') {
         auto& font = style.fontCascade(); // FIXME: This ignores first-line.
@@ -1656,7 +1656,7 @@ char32_t RenderText::previousCharacter() const
 static String convertToFullSizeKana(const String& string)
 {
     // https://www.w3.org/TR/css-text-3/#small-kana
-    static constexpr SortedArrayMap sortedMap { std::to_array<std::pair<char32_t, char16_t>>({
+    static constexpr SortedArrayMap sortedMap { WTF::toArray<std::pair<char32_t, char16_t>>({
         { 0x3041, 0x3042 },
         { 0x3043, 0x3044 },
         { 0x3045, 0x3046 },

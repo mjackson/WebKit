@@ -453,7 +453,7 @@ JSC_DEFINE_HOST_FUNCTION(webAssemblyCompileStreamingFunc, (JSGlobalObject* globa
     JSPromise* sourcePromise = JSPromise::resolvedPromise(globalObject, callFrame->argument(0));
     RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
 
-    sourcePromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::WebAssemblyCompileStreaming, jsUndefined(), context);
+    sourcePromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::WebAssemblyCompileStreaming, nullptr, context);
     return JSValue::encode(promise);
 }
 
@@ -497,7 +497,7 @@ JSC_DEFINE_HOST_FUNCTION(webAssemblyInstantiateStreamingFunc, (JSGlobalObject* g
     JSPromise* sourcePromise = JSPromise::resolvedPromise(globalObject, callFrame->argument(0));
     RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
 
-    sourcePromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::WebAssemblyInstantiateStreaming, jsUndefined(), context);
+    sourcePromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::WebAssemblyInstantiateStreaming, nullptr, context);
     return JSValue::encode(promise);
 }
 

@@ -171,6 +171,20 @@ static bool NODELETE isFastPromiseConstructor(JSGlobalObject* globalObject, JSVa
     return true;
 }
 
+static ALWAYS_INLINE bool canSkipIntermediatePromise(JSGlobalObject* globalObject, JSValue value)
+{
+    if (!globalObject->promiseThenWatchpointSet().isStillValid()) [[unlikely]]
+        return false;
+    if (!value.isCell())
+        return true;
+    JSCell* cell = value.asCell();
+    if (cell->type() == JSPromiseType)
+        return false;
+    if (!cell->isObject())
+        return true;
+    return isDefinitelyNonThenable(uncheckedDowncast<JSObject>(cell), globalObject);
+}
+
 static JSObject* promiseRaceSlow(JSGlobalObject* globalObject, CallFrame* callFrame, JSValue thisValue)
 {
     VM& vm = globalObject->vm();
@@ -283,6 +297,12 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncRace, (JSGlobalObject* globalObje
     JSFunction* reject = nullptr;
     forEachInIterable(globalObject, iterable, [&](VM& vm, JSGlobalObject* globalObject, JSValue value) {
         auto scope = DECLARE_THROW_SCOPE(vm);
+
+        if (canSkipIntermediatePromise(globalObject, value)) {
+            scope.release();
+            globalObject->queueMicrotask(vm, InternalMicrotask::PromiseRaceResolveJob, static_cast<uint8_t>(JSPromise::Status::Fulfilled), promise, value, promise);
+            return;
+        }
 
         JSPromise* nextPromise = JSPromise::resolvedPromise(globalObject, value);
         RETURN_IF_EXCEPTION(scope, void());
@@ -496,6 +516,16 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAll, (JSGlobalObject* globalObjec
         values->putDirectIndex(globalObject, index, jsUndefined());
         RETURN_IF_EXCEPTION(scope, void());
 
+        if (canSkipIntermediatePromise(globalObject, value)) {
+            uint64_t count = globalContext->remainingElementsCount().toIndex(globalObject, "count exceeds size"_s);
+            RETURN_IF_EXCEPTION(scope, void());
+            globalContext->setRemainingElementsCount(vm, jsNumber(count + 1));
+            scope.release();
+            globalObject->queueMicrotask(vm, InternalMicrotask::PromiseAllResolveJob, static_cast<uint8_t>(JSPromise::Status::Fulfilled), globalContext, value, jsNumber(index));
+            ++index;
+            return;
+        }
+
         JSPromise* nextPromise = JSPromise::resolvedPromise(globalObject, value);
         RETURN_IF_EXCEPTION(scope, void());
 
@@ -503,23 +533,19 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAll, (JSGlobalObject* globalObjec
         RETURN_IF_EXCEPTION(scope, void());
         globalContext->setRemainingElementsCount(vm, jsNumber(count + 1));
 
-        JSPromiseCombinatorsContext* context = JSPromiseCombinatorsContext::create(vm, globalContext, index);
-
         if (nextPromise->isThenFastAndNonObservable()) [[likely]] {
             auto* constructor = promiseSpeciesConstructor(globalObject, nextPromise);
             RETURN_IF_EXCEPTION(scope, void());
             if (constructor == globalObject->promiseConstructor()) [[likely]] {
                 scope.release();
-                nextPromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::PromiseAllResolveJob, promise, context);
+                nextPromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::PromiseAllResolveJob, globalContext, jsNumber(index));
                 ++index;
                 return;
             }
         }
 
-        if (!onRejected) {
-            auto [resolve, reject] = promise->createFirstResolvingFunctions(vm, globalObject);
-            onRejected = reject;
-        }
+        if (!onRejected)
+            onRejected = promise->createFirstRejectFunction(vm, globalObject);
         JSValue then = nextPromise->get(globalObject, vm.propertyNames->then);
         RETURN_IF_EXCEPTION(scope, void());
         CallData thenCallData = getCallDataInline(then);
@@ -528,6 +554,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAll, (JSGlobalObject* globalObjec
             return;
         }
 
+        JSPromiseCombinatorsContext* context = JSPromiseCombinatorsContext::create(vm, globalContext, index);
         auto* onFulfilled = JSFunctionWithFields::create(vm, globalObject, vm.promiseAllFulfillFunctionExecutable(), 1, emptyString());
         onFulfilled->setField(vm, JSFunctionWithFields::Field::PromiseAllContext, context);
 
@@ -821,6 +848,16 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAllSettled, (JSGlobalObject* glob
         values->putDirectIndex(globalObject, index, jsUndefined());
         RETURN_IF_EXCEPTION(scope, void());
 
+        if (canSkipIntermediatePromise(globalObject, value)) {
+            uint64_t count = globalContext->remainingElementsCount().toIndex(globalObject, "count exceeds size"_s);
+            RETURN_IF_EXCEPTION(scope, void());
+            globalContext->setRemainingElementsCount(vm, jsNumber(count + 1));
+            scope.release();
+            globalObject->queueMicrotask(vm, InternalMicrotask::PromiseAllSettledResolveJob, static_cast<uint8_t>(JSPromise::Status::Fulfilled), globalContext, value, jsNumber(index));
+            ++index;
+            return;
+        }
+
         JSPromise* nextPromise = JSPromise::resolvedPromise(globalObject, value);
         RETURN_IF_EXCEPTION(scope, void());
 
@@ -828,19 +865,18 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAllSettled, (JSGlobalObject* glob
         RETURN_IF_EXCEPTION(scope, void());
         globalContext->setRemainingElementsCount(vm, jsNumber(count + 1));
 
-        JSPromiseCombinatorsContext* context = JSPromiseCombinatorsContext::create(vm, globalContext, index);
-
         if (nextPromise->isThenFastAndNonObservable()) [[likely]] {
             auto* constructor = promiseSpeciesConstructor(globalObject, nextPromise);
             RETURN_IF_EXCEPTION(scope, void());
             if (constructor == globalObject->promiseConstructor()) [[likely]] {
                 scope.release();
-                nextPromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::PromiseAllSettledResolveJob, promise, context);
+                nextPromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::PromiseAllSettledResolveJob, globalContext, jsNumber(index));
                 ++index;
                 return;
             }
         }
 
+        JSPromiseCombinatorsContext* context = JSPromiseCombinatorsContext::create(vm, globalContext, index);
         auto* onFulfilled = JSFunctionWithFields::create(vm, globalObject, vm.promiseAllSettledFulfillFunctionExecutable(), 1, emptyString());
         onFulfilled->setField(vm, JSFunctionWithFields::Field::PromiseAllSettledContext, context);
 
@@ -1295,6 +1331,16 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAny, (JSGlobalObject* globalObjec
         errors->putDirectIndex(globalObject, index, jsUndefined());
         RETURN_IF_EXCEPTION(scope, void());
 
+        if (canSkipIntermediatePromise(globalObject, value)) {
+            uint64_t count = globalContext->remainingElementsCount().toIndex(globalObject, "count exceeds size"_s);
+            RETURN_IF_EXCEPTION(scope, void());
+            globalContext->setRemainingElementsCount(vm, jsNumber(count + 1));
+            scope.release();
+            globalObject->queueMicrotask(vm, InternalMicrotask::PromiseAnyResolveJob, static_cast<uint8_t>(JSPromise::Status::Fulfilled), globalContext, value, jsNumber(index));
+            ++index;
+            return;
+        }
+
         JSPromise* nextPromise = JSPromise::resolvedPromise(globalObject, value);
         RETURN_IF_EXCEPTION(scope, void());
 
@@ -1302,25 +1348,22 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAny, (JSGlobalObject* globalObjec
         RETURN_IF_EXCEPTION(scope, void());
         globalContext->setRemainingElementsCount(vm, jsNumber(count + 1));
 
-        JSPromiseCombinatorsContext* context = JSPromiseCombinatorsContext::create(vm, globalContext, index);
-
         if (nextPromise->isThenFastAndNonObservable()) [[likely]] {
             auto* constructor = promiseSpeciesConstructor(globalObject, nextPromise);
             RETURN_IF_EXCEPTION(scope, void());
             if (constructor == globalObject->promiseConstructor()) [[likely]] {
                 scope.release();
-                nextPromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::PromiseAnyResolveJob, promise, context);
+                nextPromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::PromiseAnyResolveJob, globalContext, jsNumber(index));
                 ++index;
                 return;
             }
         }
 
         // For Promise.any, onFulfilled just resolves the main promise directly
-        if (!resolve) {
-            auto [onFulfilled, onRejected] = promise->createFirstResolvingFunctions(vm, globalObject);
-            resolve = onFulfilled;
-        }
+        if (!resolve)
+            resolve = promise->createFirstResolveFunction(vm, globalObject);
 
+        JSPromiseCombinatorsContext* context = JSPromiseCombinatorsContext::create(vm, globalContext, index);
         auto* onRejected = JSFunctionWithFields::create(vm, globalObject, vm.promiseAnyRejectFunctionExecutable(), 1, emptyString());
         onRejected->setField(vm, JSFunctionWithFields::Field::PromiseAnyContext, context);
 
