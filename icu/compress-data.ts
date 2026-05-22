@@ -197,6 +197,29 @@ function padTo16(buf: Buffer, absoluteStart: number): Buffer {
   return pad ? Buffer.concat([buf, Buffer.alloc(pad, 0xaa)]) : buf;
 }
 
+/** Prove writePackage is exact for this input: rebuild with raw bodies and
+ *  require byte-identity with the original package. */
+function assertRoundTrip(inDat: string, header: Header, names: readonly string[], itemsDir: string): void {
+  const original: Buffer = readFileSync(inDat);
+  const raw: Item[] = names.map((bare): Item => ({ bare, body: readFileSync(join(itemsDir, bare)) }));
+  const rebuilt: Buffer = writePackage(header, raw);
+  if (Buffer.compare(original, rebuilt) !== 0) {
+    const at = firstDiff(original, rebuilt);
+    die(
+      `round-trip FAILED: writePackage(raw items) != input ` +
+      `(sizes ${original.length}/${rebuilt.length}, first diff at byte ${at}). ` +
+      `UDataOffsetTOC layout assumption is wrong for this ICU package.`
+    );
+  }
+  console.error(`[icu-compress] round-trip OK: writePackage reproduces input exactly (${original.length} bytes)`);
+}
+
+function firstDiff(a: Buffer, b: Buffer): number {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) if (a[i] !== b[i]) return i;
+  return n;
+}
+
 /** Minimal sanity check on the output TOC (count + first/last names). Can't
  *  use `icupkg -l` here — it validates item bodies and rejects zstd frames. */
 function verifyPackage(dat: Buffer, header: Header, expected: readonly string[]): void {
@@ -247,6 +270,11 @@ function main(): void {
   const names: string[] = listItems(inDat, ICUPKG);
   const itemsDir: string = join(work, "items");
   extractItems(inDat, itemsDir, ICUPKG);
+
+  // Round-trip invariant: writePackage on the raw items must reproduce the
+  // input byte-for-byte. If this fails, our offset/padding math doesn't match
+  // ICU's UDataOffsetTOC for this package and the build must not proceed.
+  assertRoundTrip(inDat, header, names, itemsDir);
 
   const dictPath: string = join(work, "dict.zstdict");
   trainDict(itemsDir, dictPath, DICT_SIZE);
