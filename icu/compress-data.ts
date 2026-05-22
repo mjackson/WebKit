@@ -39,6 +39,8 @@ if (!inDat || !outA)
   die("usage: node compress-data.ts <in.dat> <out.a> [--skip file] [--icupkg path] [--level N] [--dict-size N] [--cc CC]");
 const ZSTD_LEVEL: number = Number(args.values.level);
 const DICT_SIZE: number = Number(args.values["dict-size"]);
+const MIN_COMPRESS_BYTES = 64;
+const MIN_SAVINGS_BYTES = 4;
 const ICUPKG: string = args.values.icupkg;
 const CC: string = args.values.cc;
 const SKIP_FILE: string = args.values.skip;
@@ -302,9 +304,11 @@ function main(): void {
     const raw = readFileSync(path);
     rawB += raw.length;
     let body: Buffer = raw;
-    if (raw.length >= 64 && !keepRaw(bare)) {
+    if (raw.length >= MIN_COMPRESS_BYTES && !keepRaw(bare)) {
       const z = compressFile(path, dictPath, ZSTD_LEVEL, tmpOut);
-      if (z.length + 4 < raw.length) { body = z; comp++; } else kept++;
+      // Only worth a runtime decode if compression actually beat the frame
+      // overhead (4-byte magic + a few header bytes). Otherwise keep raw.
+      if (z.length + MIN_SAVINGS_BYTES < raw.length) { body = z; comp++; } else kept++;
     } else kept++;
     outB += body.length;
     return { bare, body };
