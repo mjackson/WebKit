@@ -14,6 +14,7 @@
         "-/ExemplarCharactersPunctuation",
         "-/MoreInformation",
         "-/calendar/*/DateTimeSkeletons",
+        "-/calendar/*/quarters",
         "-/characterLabel",
         "-/delimiters",
         "-/measurementSystemNames",
