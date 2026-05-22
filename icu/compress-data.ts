@@ -128,13 +128,17 @@ function globToRegExp(glob: string): RegExp {
 // ---------------------------------------------------------------------------
 
 function trainDict(samplesDir: string, out: string, size: number): void {
-  run(["zstd", "-q", "--train", "-r", samplesDir, "-o", out, `--maxdict=${size}`]);
+  // --train-cover (exhaustive segment search) yields a better dict than the
+  // default fastcover for this corpus — slower to train, build-time only.
+  run(["zstd", "-q", "--train", "--train-cover", "-r", samplesDir, "-o", out, `--maxdict=${size}`]);
 }
 
 /** Compress one file with the shared dict. Reads from disk so the frame
- *  header carries the content size (zstd omits it for stdin). */
+ *  header carries the content size (zstd omits it for stdin). --no-check
+ *  drops the per-frame XXH64 (data lives in .rodata); --no-dictID drops the
+ *  per-frame dict identifier (we have exactly one). */
 function compressFile(path: string, dict: string, level: number, tmpOut: string): Buffer {
-  run(["zstd", "-q", "-f", `-${level}`, "-D", dict, path, "-o", tmpOut]);
+  run(["zstd", "-q", "-f", "--no-check", "--no-dictID", `-${level}`, "-D", dict, path, "-o", tmpOut]);
   return readFileSync(tmpOut);
 }
 
