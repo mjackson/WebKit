@@ -72,7 +72,7 @@ RUN --mount=type=tmpfs,target=/icu \
     mv -f data/in/icudt75l_filtered.dat data/in/icudt75l.dat && \
     rm -rf data/out lib/libicudata.a && make -j$(nproc) && \
     make install && cp -r /icu/source/lib/* /output/lib && cp -r /icu/source/i18n/unicode/* /icu/source/common/unicode/* /output/include/unicode && \
-    node --experimental-strip-types /icu-bun/compress-data.ts data/in/icudt75l.dat /output/lib/libicudata.a --skip /icu-bun/hot-items.txt --cc "$CC"
+    node --experimental-strip-types /icu-bun/compress-data.ts data/in/icudt75l.dat /output/lib/libicudata.a --skip /icu-bun/hot-items.txt --icupkg bin/icupkg
 
 FROM base as build_webkit
 

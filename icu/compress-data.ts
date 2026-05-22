@@ -1,181 +1,298 @@
 #!/usr/bin/env node
 // Per-item zstd compression of an ICU common-data package.
 //
-// Reads an ICU CmnD package (.dat), compresses each item as an individual zstd
-// frame using a shared trained dictionary, and emits a libicudata.a containing:
+// Reads items from an ICU CmnD package using ICU's own `icupkg` (no manual
+// parsing of the input), compresses each as an individual zstd frame with a
+// shared trained dictionary, and writes a new package keeping the same header
+// and TOC layout. Items matching --skip globs stay raw so the en-locale cold
+// path is zero-cost.
 //
-//   icudt<NN>_dat          the repacked package (header+TOC unchanged)
-//   bun_icu_zstd_dict      the trained dictionary
-//   bun_icu_zstd_dict_size u32 dict length
+// Output is a libicudata.a containing:
+//   icudt<NN>_dat           the repacked package
+//   bun_icu_zstd_dict       the trained dictionary
+//   bun_icu_zstd_dict_size  u32 dict length
 //
-// Items matching globs in --skip stay raw so the en-locale cold path is
-// zero-cost. The runtime hook lives in Bun (bun_icu_maybe_decompress); ICU's
-// udata.cpp calls it via a weak extern (see udata-decompress-hook.patch).
+// The runtime hook lives in Bun (bun_icu_maybe_decompress); ICU's udata.cpp
+// calls it via a weak extern (see udata-decompress-hook.patch).
 //
-// Node stdlib only; shells out to `zstd`. Written for Node's native type
-// stripping (erasable annotations only).
+// Node stdlib only; shells out to `icupkg` and `zstd`. Written for Node's
+// native type stripping (erasable annotations only).
 
 import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseArgs } from "node:util";
 
-interface Entry { name: string; nameOff: number; dataOff: number; len: number; out: Uint8Array }
+const args = parseArgs({
+  allowPositionals: true,
+  options: {
+    skip: { type: "string", default: "" },
+    icupkg: { type: "string", default: "icupkg" },
+    level: { type: "string", default: "19" },
+    "dict-size": { type: "string", default: String(128 * 1024) },
+    cc: { type: "string", default: process.env.CC || "cc" },
+  },
+});
+const [inDat, outA] = args.positionals;
+if (!inDat || !outA)
+  die("usage: node compress-data.ts <in.dat> <out.a> [--skip file] [--icupkg path] [--level N] [--dict-size N] [--cc CC]");
+const ZSTD_LEVEL: number = Number(args.values.level);
+const DICT_SIZE: number = Number(args.values["dict-size"]);
+const ICUPKG: string = args.values.icupkg;
+const CC: string = args.values.cc;
+const SKIP_FILE: string = args.values.skip;
 
-const argv = process.argv.slice(2);
-const inPath = argv.shift();
-const outA = argv.shift();
-let level = 19;
-let dictSize = 128 * 1024;
-let skipFile = "";
-let cc = process.env.CC || "cc";
-for (let i = 0; i < argv.length; i++) {
-  if (argv[i] === "--level") level = +argv[++i];
-  else if (argv[i] === "--dict-size") dictSize = +argv[++i];
-  else if (argv[i] === "--skip") skipFile = argv[++i];
-  else if (argv[i] === "--cc") cc = argv[++i];
-}
-if (!inPath || !outA) {
-  console.error("usage: node compress-data.ts <in.dat> <out.a> [--level N] [--dict-size N] [--skip file] [--cc CC]");
-  process.exit(1);
-}
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
-// hot-items.txt globs use only `*` (single path segment) — convert to regex.
-const skipRes: RegExp[] = skipFile
-  ? readFileSync(skipFile, "utf8")
-      .split("\n")
-      .map(l => l.replace(/#.*$/, "").trim())
-      .filter(Boolean)
-      .map(g => new RegExp("^" + g.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*") + "$"))
-  : [];
-const isHot = (name: string) => {
-  const bare = name.replace(/^icudt\d+[lb]\//, "");
-  return skipRes.some(r => r.test(bare));
-};
-
-// --- parse package ---
-const raw = readFileSync(inPath);
-const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-const headerSize = dv.getUint16(0, true);
-if (raw[2] !== 0xda || raw[3] !== 0x27) throw new Error("not an ICU data file");
-if (String.fromCharCode(raw[12], raw[13], raw[14], raw[15]) !== "CmnD")
-  throw new Error("not a CmnD package");
-
-const toc = headerSize;
-const count = dv.getUint32(toc, true);
-const entries: Entry[] = [];
-for (let i = 0; i < count; i++) {
-  const o = toc + 4 + i * 8;
-  entries.push({
-    name: "", nameOff: dv.getUint32(o, true), dataOff: dv.getUint32(o + 4, true), len: 0, out: null as any,
-  });
-}
-for (const e of entries) {
-  let p = toc + e.nameOff, end = p;
-  while (raw[end] !== 0) end++;
-  e.name = raw.subarray(p, end).toString("latin1");
-}
-const byOff = [...entries].sort((a, b) => a.dataOff - b.dataOff);
-for (let i = 0; i < byOff.length; i++) {
-  const next = i + 1 < byOff.length ? toc + byOff[i + 1].dataOff : raw.length;
-  byOff[i].len = next - (toc + byOff[i].dataOff);
+interface Item {
+  /** Bare name as `icupkg -l` reports it, e.g. "curr/de.res". */
+  bare: string;
+  /** Body to write: either the original bytes (hot) or a zstd frame. */
+  body: Buffer;
 }
 
-// --- train shared dictionary ---
-const work = mkdtempSync(join(tmpdir(), "icu-compress-"));
-process.on("exit", () => { try { rmSync(work, { recursive: true, force: true }); } catch {} });
-const itemsDir = join(work, "items"); mkdirSync(itemsDir);
-for (let i = 0; i < byOff.length; i++) {
-  const e = byOff[i];
-  writeFileSync(join(itemsDir, String(i).padStart(4, "0")), raw.subarray(toc + e.dataOff, toc + e.dataOff + e.len));
+/** Verbatim package header — copied byte-for-byte to the output. */
+interface Header {
+  bytes: Buffer;
+  /** TOC name prefix, e.g. "icudt75l" — every TOC entry is "<prefix>/<bare>". */
+  tocPrefix: string;
+  /** Linker symbol stem, e.g. "icudt75" — what genccode/ICU emit. */
+  pkg: string;
 }
-const dictPath = join(work, "dict.zstdict");
-run(["zstd", "-q", "--train", "-r", itemsDir, "-o", dictPath, `--maxdict=${dictSize}`]);
-const dict = readFileSync(dictPath);
 
-// --- compress per item (from file, not stdin, so frame header carries content-size) ---
-const tmpIn = join(work, "z.in"), tmpOut = join(work, "z.out");
-function z(buf: Uint8Array): Uint8Array {
-  writeFileSync(tmpIn, buf);
-  run(["zstd", "-q", "-f", `-${level}`, "-D", dictPath, tmpIn, "-o", tmpOut]);
+// ---------------------------------------------------------------------------
+// Read side — delegated to ICU's own `icupkg`
+// ---------------------------------------------------------------------------
+
+/** List item names (bare, without the "icudtNNl/" TOC prefix), sorted as stored. */
+function listItems(dat: string, icupkg: string): string[] {
+  const r: SpawnSyncReturns<string> = spawnSync(icupkg, ["-l", dat], { encoding: "utf8" });
+  if (r.status !== 0) die(`icupkg -l failed: ${r.stderr}`);
+  return r.stdout.split("\n").map((s) => s.trim()).filter(Boolean);
+}
+
+/** Extract every item to <dir>/<bare-name> using ICU's own unpacker. */
+function extractItems(dat: string, dir: string, icupkg: string): void {
+  mkdirSync(dir, { recursive: true });
+  run([icupkg, "-x", "*", "-d", dir, dat]);
+}
+
+/**
+ * Copy the input package's DataHeader verbatim. This is the only place we
+ * touch the input file directly: ICU's header format (ucmndata.h DataHeader)
+ * is `[u16 headerSize][u8 0xda][u8 0x27][UDataInfo …][copyright pad]` —
+ * we read `headerSize` and copy that many bytes unchanged.
+ */
+function readHeader(dat: string): Header {
+  const raw: Buffer = readFileSync(dat);
+  const headerSize: number = raw.readUInt16LE(0);
+  if (raw[2] !== 0xda || raw[3] !== 0x27) die(`${dat}: not an ICU data file (no 0xda27 magic)`);
+  if (raw.toString("latin1", 12, 16) !== "CmnD") die(`${dat}: not a CmnD package`);
+  // First TOC name gives the prefix: header | u32 count | {u32,u32}[count] | "<prefix>/..."\0
+  const count: number = raw.readUInt32LE(headerSize);
+  const firstName: number = headerSize + raw.readUInt32LE(headerSize + 4);
+  const slash: number = raw.indexOf(0x2f, firstName);
+  const tocPrefix: string = raw.toString("latin1", firstName, slash);
+  if (!/^icudt\d+[lb]$/.test(tocPrefix)) die(`unexpected TOC prefix '${tocPrefix}' (count=${count})`);
+  return {
+    bytes: Buffer.from(raw.subarray(0, headerSize)),
+    tocPrefix,
+    pkg: tocPrefix.replace(/[lb]$/, ""),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Hot-list matching
+// ---------------------------------------------------------------------------
+
+function loadSkipGlobs(file: string): RegExp[] {
+  if (!file) return [];
+  return readFileSync(file, "utf8")
+    .split("\n")
+    .map((l) => l.replace(/#.*$/, "").trim())
+    .filter(Boolean)
+    .map(globToRegExp);
+}
+
+/** hot-items.txt globs use only `*` (single path segment). */
+function globToRegExp(glob: string): RegExp {
+  const re = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*");
+  return new RegExp(`^${re}$`);
+}
+
+// ---------------------------------------------------------------------------
+// Compression — zstd CLI
+// ---------------------------------------------------------------------------
+
+function trainDict(samplesDir: string, out: string, size: number): void {
+  run(["zstd", "-q", "--train", "-r", samplesDir, "-o", out, `--maxdict=${size}`]);
+}
+
+/** Compress one file with the shared dict. Reads from disk so the frame
+ *  header carries the content size (zstd omits it for stdin). */
+function compressFile(path: string, dict: string, level: number, tmpOut: string): Buffer {
+  run(["zstd", "-q", "-f", `-${level}`, "-D", dict, path, "-o", tmpOut]);
   return readFileSync(tmpOut);
 }
 
-let kept = 0, comp = 0, rawB = 0, outB = 0;
-for (const e of byOff) {
-  const src = raw.subarray(toc + e.dataOff, toc + e.dataOff + e.len);
-  rawB += src.length;
-  if (src.length < 64 || isHot(e.name)) { e.out = src; kept++; outB += src.length; continue; }
-  const c = z(src);
-  e.out = c.length + 4 >= src.length ? (kept++, src) : (comp++, c);
-  outB += e.out.length;
+// ---------------------------------------------------------------------------
+// Write side — the only hand-rolled binary code.
+//
+// ICU's CmnD package layout after the DataHeader (ucmndata.h UDataOffsetTOC):
+//
+//   u32  count
+//   { u32 nameOffset; u32 dataOffset; }[count]   // offsets relative to TOC start
+//   char names[]                                 // NUL-terminated, in TOC order
+//   item bodies[]                                // each 16-byte aligned
+//
+// We rebuild this verbatim with the (possibly compressed) bodies. icupkg -a
+// would do this for us, but it validates each item's 0xda27 magic and rejects
+// zstd frames — so writing the TOC ourselves is unavoidable. The output is
+// verified by re-listing it with `icupkg -l` below.
+// ---------------------------------------------------------------------------
+
+function writePackage(header: Header, items: readonly Item[]): Buffer {
+  const tocStart: number = header.bytes.length;
+  const tocBytes: number = 4 + items.length * 8;
+
+  // Name pool: NUL-terminated "<prefix>/<bare>" in TOC order, padded so items start 16-aligned.
+  let nameOff: number = tocBytes;
+  const nameOffsets: number[] = [];
+  const namePool: Buffer[] = [];
+  for (const it of items) {
+    nameOffsets.push(nameOff);
+    const n = Buffer.from(`${header.tocPrefix}/${it.bare}\0`, "latin1");
+    namePool.push(n);
+    nameOff += n.length;
+  }
+  const namesBuf: Buffer = padTo16(Buffer.concat(namePool), tocStart + tocBytes);
+  let dataOff: number = tocBytes + namesBuf.length;
+
+  // Item bodies, each 16-aligned relative to file start.
+  const dataOffsets: number[] = [];
+  const bodies: Buffer[] = [];
+  for (const it of items) {
+    const pad = (16 - ((tocStart + dataOff) % 16)) % 16;
+    if (pad) { bodies.push(Buffer.alloc(pad, 0xaa)); dataOff += pad; }
+    dataOffsets.push(dataOff);
+    bodies.push(it.body);
+    dataOff += it.body.length;
+  }
+
+  // Assemble: header | count | (nameOff, dataOff)[] | names | bodies.
+  const toc: Buffer = Buffer.alloc(tocBytes);
+  toc.writeUInt32LE(items.length, 0);
+  for (let i = 0; i < items.length; i++) {
+    toc.writeUInt32LE(nameOffsets[i], 4 + i * 8);
+    toc.writeUInt32LE(dataOffsets[i], 8 + i * 8);
+  }
+  return Buffer.concat([header.bytes, toc, namesBuf, ...bodies]);
 }
 
-// --- rebuild: header verbatim, fresh TOC + name pool + 16-aligned items ---
-const tocBytes = 4 + count * 8;
-let nameOff = tocBytes;
-const nameOffs = new Map<string, number>();
-const pool: number[] = [];
-for (const e of entries) {
-  nameOffs.set(e.name, nameOff);
-  for (let i = 0; i < e.name.length; i++) pool.push(e.name.charCodeAt(i));
-  pool.push(0);
-  nameOff += e.name.length + 1;
-}
-while ((headerSize + nameOff) % 16) { pool.push(0xaa); nameOff++; }
-
-let dataOff = nameOff;
-const dataOffs = new Map<string, number>();
-const chunks: Uint8Array[] = [];
-for (const e of entries) {
-  const pad = (16 - ((headerSize + dataOff) % 16)) % 16;
-  if (pad) { chunks.push(new Uint8Array(pad).fill(0xaa)); dataOff += pad; }
-  dataOffs.set(e.name, dataOff);
-  chunks.push(e.out);
-  dataOff += e.out.length;
+function padTo16(buf: Buffer, absoluteStart: number): Buffer {
+  const pad = (16 - ((absoluteStart + buf.length) % 16)) % 16;
+  return pad ? Buffer.concat([buf, Buffer.alloc(pad, 0xaa)]) : buf;
 }
 
-const out = Buffer.allocUnsafe(headerSize + dataOff);
-raw.copy(out, 0, 0, headerSize);
-out.writeUInt32LE(count, headerSize);
-for (let i = 0; i < entries.length; i++) {
-  out.writeUInt32LE(nameOffs.get(entries[i].name)!, headerSize + 4 + i * 8);
-  out.writeUInt32LE(dataOffs.get(entries[i].name)!, headerSize + 8 + i * 8);
-}
-Buffer.from(pool).copy(out, headerSize + tocBytes);
-let p = headerSize + nameOff;
-for (const c of chunks) { Buffer.from(c.buffer, c.byteOffset, c.byteLength).copy(out, p); p += c.length; }
-
-// --- assemble libicudata.a: package + dict + dict-size as .rodata symbols ---
-const pkg = entries[0].name.match(/^(icudt\d+)[lb]\//)![1];
-const datOut = join(work, "out.dat");
-writeFileSync(datOut, out);
-writeFileSync(join(work, "dict.bin"), dict);
-const asm = join(work, "icudt.S");
-writeFileSync(asm, [
-  ".section .rodata", ".balign 16",
-  `.global ${pkg}_dat`, `.type ${pkg}_dat, @object`, `${pkg}_dat:`,
-  `.incbin "${datOut}"`, "",
-  ".balign 16", ".global bun_icu_zstd_dict", ".type bun_icu_zstd_dict, @object",
-  "bun_icu_zstd_dict:", `.incbin "${join(work, "dict.bin")}"`, ".Ldict_end:", "",
-  ".balign 4", ".global bun_icu_zstd_dict_size", ".type bun_icu_zstd_dict_size, @object",
-  "bun_icu_zstd_dict_size:", ".long .Ldict_end - bun_icu_zstd_dict", "",
-].join("\n"));
-const obj = join(work, `${pkg}l_dat.o`);
-run([cc, "-c", asm, "-o", obj]);
-try { rmSync(outA); } catch {}
-run(["ar", "rcs", outA, obj]);
-
-console.error(
-  `[icu-compress] ${count} items: ${comp} compressed, ${kept} raw  ` +
-  `${rawB}→${outB} (${((100 * outB) / rawB).toFixed(0)}%)  ` +
-  `pkg ${raw.length}→${out.length} + dict ${dict.length}`
-);
-
-function run(cmd: string[]) {
-  const r = spawnSync(cmd[0], cmd.slice(1), { stdio: ["ignore", "ignore", "inherit"] });
-  if (r.status !== 0) {
-    console.error(`[icu-compress] ${cmd.join(" ")} exited ${r.status}`);
-    process.exit(1);
+/** Minimal sanity check on the output TOC (count + first/last names). Can't
+ *  use `icupkg -l` here — it validates item bodies and rejects zstd frames. */
+function verifyPackage(dat: Buffer, header: Header, expected: readonly string[]): void {
+  const toc: number = header.bytes.length;
+  const count: number = dat.readUInt32LE(toc);
+  if (count !== expected.length) die(`verify: count ${count} != ${expected.length}`);
+  const nameAt = (i: number): string => {
+    const off = toc + dat.readUInt32LE(toc + 4 + i * 8);
+    return dat.toString("latin1", off, dat.indexOf(0, off));
+  };
+  for (const i of [0, count - 1]) {
+    const want = `${header.tocPrefix}/${expected[i]}`;
+    if (nameAt(i) !== want) die(`verify: name[${i}] '${nameAt(i)}' != '${want}'`);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Archive — embed package + dict as .rodata symbols
+// ---------------------------------------------------------------------------
+
+function emitArchive(datPath: string, dictPath: string, pkg: string, outA: string, cc: string, work: string): void {
+  const asm = join(work, "icudt.S");
+  writeFileSync(asm, [
+    ".section .rodata", ".balign 16",
+    `.global ${pkg}_dat`, `.type ${pkg}_dat, @object`, `${pkg}_dat:`, `.incbin "${datPath}"`,
+    "",
+    ".balign 16", ".global bun_icu_zstd_dict", ".type bun_icu_zstd_dict, @object",
+    "bun_icu_zstd_dict:", `.incbin "${dictPath}"`, ".Ldict_end:",
+    "",
+    ".balign 4", ".global bun_icu_zstd_dict_size", ".type bun_icu_zstd_dict_size, @object",
+    "bun_icu_zstd_dict_size:", ".long .Ldict_end - bun_icu_zstd_dict", "",
+  ].join("\n"));
+  const obj = join(work, `${pkg}l_dat.o`);
+  run([cc, "-c", asm, "-o", obj]);
+  rmSync(outA, { force: true });
+  run(["ar", "rcs", outA, obj]);
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+function main(): void {
+  const work = mkdtempSync(join(tmpdir(), "icu-compress-"));
+  process.on("exit", () => rmSync(work, { recursive: true, force: true }));
+
+  const header: Header = readHeader(inDat);
+  const names: string[] = listItems(inDat, ICUPKG);
+  const itemsDir: string = join(work, "items");
+  extractItems(inDat, itemsDir, ICUPKG);
+
+  const dictPath: string = join(work, "dict.zstdict");
+  trainDict(itemsDir, dictPath, DICT_SIZE);
+
+  const skip: RegExp[] = loadSkipGlobs(SKIP_FILE);
+  const isHot = (bare: string): boolean => skip.some((r) => r.test(bare));
+
+  const tmpOut: string = join(work, "z.out");
+  let kept = 0, comp = 0, rawB = 0, outB = 0;
+  const items: Item[] = names.map((bare): Item => {
+    const path = join(itemsDir, bare);
+    const raw = readFileSync(path);
+    rawB += raw.length;
+    let body: Buffer = raw;
+    if (raw.length >= 64 && !isHot(bare)) {
+      const z = compressFile(path, dictPath, ZSTD_LEVEL, tmpOut);
+      if (z.length + 4 < raw.length) { body = z; comp++; } else kept++;
+    } else kept++;
+    outB += body.length;
+    return { bare, body };
+  });
+
+  const pkg: Buffer = writePackage(header, items);
+  verifyPackage(pkg, header, names);
+  const outDat: string = join(work, `${header.tocPrefix}.dat`);
+  writeFileSync(outDat, pkg);
+
+  emitArchive(outDat, dictPath, header.pkg, outA, CC, work);
+
+  console.error(
+    `[icu-compress] ${names.length} items: ${comp} compressed, ${kept} raw  ` +
+    `${rawB}→${outB} (${((100 * outB) / rawB).toFixed(0)}%)  ` +
+    `pkg ${readFileSync(inDat).length}→${readFileSync(outDat).length} + dict ${readFileSync(dictPath).length}`
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+function run(cmd: readonly string[]): void {
+  const r = spawnSync(cmd[0], cmd.slice(1), { stdio: ["ignore", "ignore", "inherit"] });
+  if (r.status !== 0) die(`${cmd.join(" ")} exited ${r.status}`);
+}
+
+function die(msg: string): never {
+  console.error(`[icu-compress] ${msg}`);
+  process.exit(1);
+}
+
+main();
