@@ -4,8 +4,8 @@
 // Reads items from an ICU CmnD package using ICU's own `icupkg` (no manual
 // parsing of the input), compresses each as an individual zstd frame with a
 // shared trained dictionary, and writes a new package keeping the same header
-// and TOC layout. Items matching --skip globs stay raw so the en-locale cold
-// path is zero-cost.
+// and TOC layout. Items matching --skip globs stay uncompressed (those that
+// would be too expensive to decompress on first use — see keep-raw.txt).
 //
 // Output is a libicudata.a containing:
 //   icudt<NN>_dat           the repacked package
@@ -50,7 +50,7 @@ const SKIP_FILE: string = args.values.skip;
 interface Item {
   /** Bare name as `icupkg -l` reports it, e.g. "curr/de.res". */
   bare: string;
-  /** Body to write: either the original bytes (hot) or a zstd frame. */
+  /** Body to write: either the original bytes (kept raw) or a zstd frame. */
   body: Buffer;
 }
 
@@ -105,7 +105,7 @@ function readHeader(dat: string): Header {
 }
 
 // ---------------------------------------------------------------------------
-// Hot-list matching
+// keep-raw.txt glob matching
 // ---------------------------------------------------------------------------
 
 function loadSkipGlobs(file: string): RegExp[] {
@@ -117,7 +117,7 @@ function loadSkipGlobs(file: string): RegExp[] {
     .map(globToRegExp);
 }
 
-/** hot-items.txt globs use only `*` (single path segment). */
+/** keep-raw.txt globs use only `*` (single path segment). */
 function globToRegExp(glob: string): RegExp {
   const re = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*");
   return new RegExp(`^${re}$`);
@@ -281,19 +281,19 @@ function main(): void {
   assertRoundTrip(inDat, header, names, itemsDir);
 
   const skip: RegExp[] = loadSkipGlobs(SKIP_FILE);
-  const isHot = (bare: string): boolean => skip.some((r) => r.test(bare));
+  const keepRaw = (bare: string): boolean => skip.some((r) => r.test(bare));
 
-  // Train the dictionary on cold items only — hot items are never compressed,
-  // so including them wastes dict capacity and slows decode of the items that are.
-  const coldDir: string = join(work, "cold");
-  mkdirSync(coldDir);
+  // Train the dictionary only on items we will actually compress — including
+  // kept-raw items wastes dict capacity and slows decode of the rest.
+  const trainDir: string = join(work, "to-compress");
+  mkdirSync(trainDir);
   for (const bare of names) {
-    if (isHot(bare)) continue;
-    const dst = join(coldDir, bare.replace(/\//g, "_"));
+    if (keepRaw(bare)) continue;
+    const dst = join(trainDir, bare.replace(/\//g, "_"));
     writeFileSync(dst, readFileSync(join(itemsDir, bare)));
   }
   const dictPath: string = join(work, "dict.zstdict");
-  trainDict(coldDir, dictPath, DICT_SIZE);
+  trainDict(trainDir, dictPath, DICT_SIZE);
 
   const tmpOut: string = join(work, "z.out");
   let kept = 0, comp = 0, rawB = 0, outB = 0;
@@ -302,7 +302,7 @@ function main(): void {
     const raw = readFileSync(path);
     rawB += raw.length;
     let body: Buffer = raw;
-    if (raw.length >= 64 && !isHot(bare)) {
+    if (raw.length >= 64 && !keepRaw(bare)) {
       const z = compressFile(path, dictPath, ZSTD_LEVEL, tmpOut);
       if (z.length + 4 < raw.length) { body = z; comp++; } else kept++;
     } else kept++;
