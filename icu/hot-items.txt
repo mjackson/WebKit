@@ -1,36 +1,17 @@
 # Compress ONLY the five display-name trees (curr/ lang/ region/ unit/ zone/).
 # Everything else stays raw so Collator, Segmenter, DateTimeFormat,
-# NumberFormat (default), Date, URL, normalize, regex \p{} pay zero decompression
-# in any locale. Compressed items are tiny (median ~5 KB) and only loaded by
-# Intl.DisplayNames and the long-name variants of NumberFormat/DateTimeFormat.
+# NumberFormat (default), Date, URL, normalize, regex \p{} pay zero
+# decompression in any locale.
+#
+# Within the trees, only */pool.res stays raw: it's a shared string table
+# (85-191 KB per tree) that every locale bundle references into, so
+# compressing it would add ~100-150 us to the first call of each tree's API
+# regardless of locale. Everything else (root, en, en_*, supplemental,
+# tzdbNames, and all ~500 locale bundles) is compressed.
 
-# Everything not under curr/ lang/ region/ unit/ zone/ is hot.
 *.icu
 *.nrm
 *.res
 brkitr/*
 coll/*
-
-# en + root + shared string pool stay hot inside the name trees too.
-zone/root.res
-zone/en.res
-zone/en_*.res
-zone/pool.res
-zone/tzdbNames.res
-curr/root.res
-curr/en.res
-curr/en_*.res
-curr/pool.res
-curr/supplementalData.res
-lang/root.res
-lang/en.res
-lang/en_*.res
-lang/pool.res
-region/root.res
-region/en.res
-region/en_*.res
-region/pool.res
-unit/root.res
-unit/en.res
-unit/en_*.res
-unit/pool.res
+*/pool.res
