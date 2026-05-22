@@ -13,10 +13,60 @@
         "-/ExemplarCharactersNumbers",
         "-/ExemplarCharactersPunctuation",
         "-/MoreInformation",
+        "-/NumberElements/*/miscPatterns/approximately",
+        "-/NumberElements/*/miscPatterns/atLeast",
+        "-/NumberElements/*/miscPatterns/atMost",
+        "-/NumberElements/*/patterns/accountingFormat%alphaNextToNumber",
+        "-/NumberElements/*/patterns/accountingFormat%noCurrency",
+        "-/NumberElements/*/patterns/currencyFormat%alphaNextToNumber",
+        "-/NumberElements/*/patterns/currencyFormat%noCurrency",
+        "-/NumberElements/*/patterns/currencyPatternAppendISO",
+        "-/NumberElements/*/patternsShort/currencyFormat%alphaNextToNumber",
+        "-/NumberElements/*/symbols/list",
+        "-/NumberElements/minimalPairs",
+        "-/calendar/*/AmPmMarkers%variant",
+        "-/calendar/*/AmPmMarkersAbbr%variant",
         "-/calendar/*/DateTimeSkeletons",
+        "-/calendar/*/NoonMarker",
+        "-/calendar/*/NoonMarkerNarrow",
+        "-/calendar/*/cyclicNameSets/dayParts/format/narrow",
+        "-/calendar/*/cyclicNameSets/dayParts/format/wide",
+        "-/calendar/*/cyclicNameSets/days",
+        "-/calendar/*/cyclicNameSets/months",
+        "-/calendar/*/cyclicNameSets/solarTerms",
+        "-/calendar/*/cyclicNameSets/years/format/narrow",
+        "-/calendar/*/cyclicNameSets/years/format/wide",
+        "-/calendar/*/cyclicNameSets/zodiacs/format/narrow",
+        "-/calendar/*/cyclicNameSets/zodiacs/format/wide",
+        "-/calendar/*/dayPeriod/stand-alone",
+        "-/calendar/*/eras/abbreviated%variant",
+        "-/calendar/*/eras/narrow%variant",
+        "-/calendar/*/eras/wide%variant",
         "-/calendar/*/quarters",
         "-/characterLabel",
         "-/delimiters",
+        "-/fields/*/relativePeriod",
+        "-/fields/fri",
+        "-/fields/fri-narrow",
+        "-/fields/fri-short",
+        "-/fields/mon",
+        "-/fields/mon-narrow",
+        "-/fields/mon-short",
+        "-/fields/sat",
+        "-/fields/sat-narrow",
+        "-/fields/sat-short",
+        "-/fields/sun",
+        "-/fields/sun-narrow",
+        "-/fields/sun-short",
+        "-/fields/thu",
+        "-/fields/thu-narrow",
+        "-/fields/thu-short",
+        "-/fields/tue",
+        "-/fields/tue-narrow",
+        "-/fields/tue-short",
+        "-/fields/wed",
+        "-/fields/wed-narrow",
+        "-/fields/wed-short",
         "-/measurementSystemNames",
         "-/parse",
         "-/personNames"
@@ -33,6 +83,36 @@
         "-/Languages%variant",
         "-/Scripts%stand-alone",
         "-/Scripts%variant",
+        "-/Types%short",
+        "-/Types/cf",
+        "-/Types/colAlternate",
+        "-/Types/colBackwards",
+        "-/Types/colCaseFirst",
+        "-/Types/colCaseLevel",
+        "-/Types/colNormalization",
+        "-/Types/colNumeric",
+        "-/Types/colReorder",
+        "-/Types/colStrength",
+        "-/Types/collation",
+        "-/Types/d0",
+        "-/Types/dx",
+        "-/Types/em",
+        "-/Types/fw",
+        "-/Types/h0",
+        "-/Types/hc",
+        "-/Types/i0",
+        "-/Types/k0",
+        "-/Types/kr",
+        "-/Types/lb",
+        "-/Types/m0",
+        "-/Types/ms",
+        "-/Types/mu",
+        "-/Types/numbers",
+        "-/Types/s0",
+        "-/Types/ss",
+        "-/Types/t0",
+        "-/Types/va",
+        "-/Types/x0",
         "-/Variants",
         "-/characterLabelPattern",
         "-/codePatterns"
@@ -492,6 +572,94 @@
         "-/Currencies%formal",
         "-/Currencies%variant"
       ]
+    },
+    {
+      "categories": [
+        "coll_tree"
+      ],
+      "rules": [
+        "-/UCARules"
+      ]
+    },
+    {
+      "categories": [
+        "brkitr_tree"
+      ],
+      "rules": [
+        "-/boundaries/line",
+        "-/boundaries/line_loose",
+        "-/boundaries/line_normal",
+        "-/boundaries/line_strict",
+        "-/exceptions"
+      ]
+    },
+    {
+      "categories": [
+        "zone_tree"
+      ],
+      "rules": [
+        "-/zoneStrings/regionFormatDaylight",
+        "-/zoneStrings/regionFormatStandard"
+      ]
+    },
+    {
+      "categories": [
+        "misc"
+      ],
+      "rules": [
+        "-/alias/unit",
+        "-/alias/usage",
+        "-/codeMappingsCurrency",
+        "-/defaultContent",
+        "-/idValidity/currency",
+        "-/idValidity/language",
+        "-/idValidity/script",
+        "-/idValidity/subdivision",
+        "-/idValidity/unit",
+        "-/idValidity/variant",
+        "-/languageData",
+        "-/languageMatchingInfo",
+        "-/languageMatchingNew",
+        "-/measurementData",
+        "-/metazoneIds",
+        "-/parentLocales",
+        "-/personNamesDefaults",
+        "-/subdivisionContainment",
+        "-/territoryInfo",
+        "-/unitConstants",
+        "-/unitPreferenceData",
+        "-/unitPrefixes",
+        "-/weekOfPreference"
+      ]
     }
-  ]
+  ],
+  "featureFilters": {
+    "brkitr_rules": {
+      "blacklist": [
+        "line",
+        "line_cj",
+        "line_loose",
+        "line_loose_cj",
+        "line_normal",
+        "line_normal_cj",
+        "line_strict",
+        "line_phrase_cj",
+        "line_loose_phrase_cj",
+        "line_normal_phrase_cj",
+        "title"
+      ]
+    },
+    "normalization": {
+      "blacklist": [
+        "nfkc_cf",
+        "nfkc_scf"
+      ]
+    },
+    "misc": {
+      "blacklist": [
+        "genderList",
+        "currencyNumericCodes"
+      ]
+    }
+  }
 }
