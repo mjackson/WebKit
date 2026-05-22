@@ -33,6 +33,7 @@
 #include "SyntaxChecker.h"
 #include "VariableEnvironment.h"
 #include <utility>
+#include <wtf/MathExtras.h>
 
 namespace JSC {
 
@@ -182,9 +183,9 @@ public:
     {
         return new (m_parserArena) SuperNode(location);
     }
-    ExpressionNode* createImportExpr(const JSTokenLocation& location, ExpressionNode* expr, ExpressionNode* option, const JSTextPosition& start, const JSTextPosition& divot, const JSTextPosition& end)
+    ExpressionNode* createImportExpr(const JSTokenLocation& location, ExpressionNode* expr, ExpressionNode* option, bool deferred, const JSTextPosition& start, const JSTextPosition& divot, const JSTextPosition& end)
     {
-        auto* node = new (m_parserArena) ImportNode(location, expr, option);
+        auto* node = new (m_parserArena) ImportNode(location, expr, option, deferred);
         setExceptionLocation(node, start, divot, end);
         return node;
     }
@@ -1331,7 +1332,7 @@ ExpressionNode* ASTBuilder::makeDivNode(const JSTokenLocation& location, Express
         const NumberNode& numberExpr1 = static_cast<NumberNode&>(*expr1);
         const NumberNode& numberExpr2 = static_cast<NumberNode&>(*expr2);
         double result = numberExpr1.value() / numberExpr2.value();
-        if (static_cast<int64_t>(result) == result)
+        if (truncateDoubleToInt64(result) == result)
             return createNumberFromBinaryOperation(location, result, numberExpr1, numberExpr2);
         return createDoubleLikeNumber(location, result);
     }

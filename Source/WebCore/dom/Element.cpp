@@ -499,7 +499,12 @@ static ShouldIgnoreMouseEvent dispatchPointerEventIfNeeded(Element& element, con
         UNUSED_PARAM(platformEvent);
 #endif
 
-        if (platformEvent.syntheticClickType() != SyntheticClickType::NoTap && !isAnyClick(mouseEvent) && mouseEvent.type() != eventNames().contextmenuEvent)
+        // FIXME: <https://webkit.org/b/314881> This early-return is using synthetic click type
+        // and input source to approximate "pointer events for this interaction have already been
+        // dispatched upstream by other compat paths."
+        // That state should live in PointerCaptureController, not be inferred from event tags.
+        // Migrating there would make this short circuit unnecessary.
+        if (platformEvent.syntheticClickType() != SyntheticClickType::NoTap && !isAnyClick(mouseEvent) && mouseEvent.type() != eventNames().contextmenuEvent && platformEvent.inputSource() != MouseEventInputSource::Automation)
             return ShouldIgnoreMouseEvent::No;
 
         if (RefPtr pointerEvent = pointerCaptureController.pointerEventForMouseEvent(mouseEvent, platformEvent.pointerId(), platformEvent.pointerType())) {
@@ -635,7 +640,14 @@ bool Element::dispatchKeyEvent(const PlatformKeyboardEvent& platformEvent)
 
 bool Element::dispatchSimulatedClick(Event* underlyingEvent, SimulatedClickMouseEventOptions eventOptions, SimulatedClickVisualOptions visualOptions)
 {
-    return simulateClick(*this, underlyingEvent, eventOptions, visualOptions, SimulatedClickSource::UserAgent);
+    auto simulatedClickSource = [&] {
+        if (!underlyingEvent)
+            return SimulatedClickSource::UserAgent;
+
+        return underlyingEvent->isTrusted() ? SimulatedClickSource::UserAgent : SimulatedClickSource::Bindings;
+    }();
+
+    return simulateClick(*this, underlyingEvent, eventOptions, visualOptions, simulatedClickSource);
 }
 
 Ref<Node> Element::cloneNodeInternal(Document& document, CloningOperation type, CustomElementRegistry* fallbackRegistry) const
@@ -3280,6 +3292,49 @@ void Element::removingSteps(RemovalType removalType, ContainerNode& oldParentOfR
     }
 }
 
+void Element::movingSteps(bool isSubtreeRoot, ContainerNode& oldParent)
+{
+    ContainerNode::movingSteps(isSubtreeRoot, oldParent);
+
+    Ref oldTreeScope = oldParent.treeScope();
+    Ref newTreeScope = treeScope();
+    RefPtr<HTMLDocument> oldHTMLDocument = oldTreeScope->rootNode().isDocumentNode()
+        ? dynamicDowncast<HTMLDocument>(oldTreeScope->documentScope()) : nullptr;
+    RefPtr<HTMLDocument> newHTMLDocument = newTreeScope->rootNode().isDocumentNode()
+        ? dynamicDowncast<HTMLDocument>(newTreeScope->documentScope()) : nullptr;
+
+    if (auto& idValue = getIdAttribute(); !idValue.isEmpty()) {
+        oldTreeScope->removeElementById(idValue, *this);
+        newTreeScope->addElementById(idValue, *this);
+        if (oldHTMLDocument)
+            updateIdForDocument(*oldHTMLDocument, idValue, nullAtom(), HTMLDocumentNamedItemMapsUpdatingCondition::Always);
+        if (newHTMLDocument)
+            updateIdForDocument(*newHTMLDocument, nullAtom(), idValue, HTMLDocumentNamedItemMapsUpdatingCondition::Always);
+    }
+
+    if (auto& nameValue = getNameAttribute(); !nameValue.isEmpty()) {
+        oldTreeScope->removeElementByName(nameValue, *this);
+        newTreeScope->addElementByName(nameValue, *this);
+        if (oldHTMLDocument)
+            updateNameForDocument(*oldHTMLDocument, nameValue, nullAtom());
+        if (newHTMLDocument)
+            updateNameForDocument(*newHTMLDocument, nullAtom(), nameValue);
+    }
+
+    if (!isSubtreeRoot || !hasFocusWithin())
+        return;
+
+    if (RefPtr oldParentElement = dynamicDowncast<Element>(oldParent))
+        oldParentElement->setHasFocusWithin(false);
+    for (Ref oldAncestor : composedTreeAncestors(oldParent))
+        oldAncestor->setHasFocusWithin(false);
+
+    for (Ref newAncestor : composedTreeAncestors(*this))
+        newAncestor->setHasFocusWithin(true);
+
+    // FIXME(314066): Audit removingSteps and insertionSteps and handle all internal state that needs updating here.
+}
+
 PopoverData* Element::popoverData() const
 {
     return hasRareData() ? elementRareData()->popoverData() : nullptr;
@@ -3527,8 +3582,8 @@ RefPtr<Element> Element::retargetReferenceTargetForBindings(RefPtr<Element> elem
 
 ShadowRoot* Element::userAgentShadowRoot() const
 {
-    ASSERT(!shadowRoot() || shadowRoot()->mode() == ShadowRootMode::UserAgent);
-    return shadowRoot();
+    auto* root = shadowRoot();
+    return root && root->mode() == ShadowRootMode::UserAgent ? root : nullptr;
 }
 
 ShadowRoot& Element::ensureUserAgentShadowRoot()
@@ -5819,11 +5874,18 @@ void Element::resetComputedStyle()
     if (!hasRareData() || !elementRareData()->computedStyle())
         return;
 
-    elementRareData()->setComputedStyle(nullptr);
+    auto reset = [](Element& element) {
+        // FIXME: This fires whenever computed style is cleared, even if the new
+        // style ends up identical, so observers may do redundant work.
+        if (element.hasCustomStyleResolveCallbacks() && !element.renderer())
+            element.willResetComputedStyle();
+        element.elementRareData()->setComputedStyle(nullptr);
+    };
+    reset(*this);
     for (Ref child : descendantsOfType<Element>(*this)) {
         if (!child->hasRareData() || !child->elementRareData()->computedStyle() || child->hasDisplayContents() || child->hasDisplayNone())
             continue;
-        child->elementRareData()->setComputedStyle(nullptr);
+        reset(child);
     }
 }
 
@@ -5882,6 +5944,11 @@ void Element::willRecalcStyle(OptionSet<Style::Change>)
 }
 
 void Element::didRecalcStyle(OptionSet<Style::Change>)
+{
+    ASSERT(hasCustomStyleResolveCallbacks());
+}
+
+void Element::willResetComputedStyle()
 {
     ASSERT(hasCustomStyleResolveCallbacks());
 }
@@ -6008,7 +6075,11 @@ String Element::resolveURLStringIfNeeded(const String& urlString, ResolveURLs re
     case ResolveURLs::YesExcludingURLsForPrivacy: {
         if (document().shouldMaskURLForBindings(completeURL))
             return maskedURLStringForBindings.get();
+#if PLATFORM(GTK)
+        return document().url().protocolIsFile() ? urlString : completeURL.string();
+#else
         return completeURL.string();
+#endif
     }
 
     case ResolveURLs::NoExcludingURLsForPrivacy:

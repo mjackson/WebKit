@@ -177,6 +177,18 @@ private:
             m_graph.block(i)->ensureTmps(newNumTmps);
     }
 
+    struct PrivateTmpRange {
+        unsigned base { 0 };
+        unsigned count { 0 };
+        Operand operandAt(unsigned i) const
+        {
+            ASSERT_UNUSED(count, i < count);
+            return Operand::tmp(base + i);
+        }
+    };
+
+    static unsigned tmpOffsetForInlineeOf(InlineStackEntry* caller);
+    PrivateTmpRange allocatePrivateTmps(unsigned slotCount);
 
     // Helper for min and max.
     template<typename ChecksFunctor>
@@ -1310,6 +1322,8 @@ private:
         BasicBlock* m_continuationBlock;
         BasicBlock* m_entryBlockForRecursiveTailCall { nullptr };
 
+        unsigned m_numPrivateTmps { 0 };
+
         Operand m_returnValue;
         
         // Speculations about variable types collected from the profiled code block,
@@ -1827,7 +1841,7 @@ void ByteCodeParser::inlineCall(Node* callTargetNode, Operand result, CallVarian
         inlineCallFrameStart.toLocal() + 1 +
         CallFrame::headerSizeInRegisters + codeBlock->numCalleeLocals());
     
-    ensureTmps((m_inlineStackTop->m_inlineCallFrame ? m_inlineStackTop->m_inlineCallFrame->tmpOffset : 0) + m_inlineStackTop->m_codeBlock->numTmps() + codeBlock->numTmps());
+    ensureTmps(tmpOffsetForInlineeOf(m_inlineStackTop) + codeBlock->numTmps());
 
     size_t argumentPositionStart = m_graph.m_argumentPositions.size();
 
@@ -2708,11 +2722,11 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             setResult(iterator);
             return CallOptimizationResult::Inlined;
         }
-            
+
         case ArrayPushIntrinsic: {
             if (static_cast<unsigned>(argumentCountIncludingThis) >= MIN_SPARSE_ARRAY_INDEX)
                 return CallOptimizationResult::DidNothing;
-            
+
             ArrayMode arrayMode = getArrayMode(Array::Write);
             if (!arrayMode.isJSArray())
                 return CallOptimizationResult::DidNothing;
@@ -2725,6 +2739,34 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             Node* arrayPush = addToGraph(Node::VarArg, ArrayPush, OpInfo(arrayMode.asWord()), OpInfo(prediction));
             setResult(arrayPush);
             return CallOptimizationResult::Inlined;
+        }
+
+        case ArrayUnshiftIntrinsic: {
+            if (!is64Bit())
+                return CallOptimizationResult::DidNothing;
+
+            if (static_cast<unsigned>(argumentCountIncludingThis) >= MIN_SPARSE_ARRAY_INDEX)
+                return CallOptimizationResult::DidNothing;
+
+            ArrayMode arrayMode = getArrayMode(Array::Write);
+            if (!arrayMode.isJSArray())
+                return CallOptimizationResult::DidNothing;
+            switch (arrayMode.type()) {
+            case Array::Int32:
+            case Array::Double:
+            case Array::Contiguous: {
+                insertChecks();
+                addVarArgChild(nullptr); // For storage.
+                for (int i = 0; i < argumentCountIncludingThis; ++i)
+                    addVarArgChild(get(virtualRegisterForArgumentIncludingThis(i, registerOffset)));
+                Node* arrayUnshift = addToGraph(Node::VarArg, ArrayUnshift, OpInfo(arrayMode.asWord()), OpInfo(prediction));
+                setResult(arrayUnshift);
+                return CallOptimizationResult::Inlined;
+            }
+
+            default:
+                return CallOptimizationResult::DidNothing;
+            }
         }
 
         case ArraySliceIntrinsic: {
@@ -2968,7 +3010,29 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
                 setResult(arrayPop);
                 return CallOptimizationResult::Inlined;
             }
-                
+
+            default:
+                return CallOptimizationResult::DidNothing;
+            }
+        }
+
+        case ArrayShiftIntrinsic: {
+            if (!is64Bit())
+                return CallOptimizationResult::DidNothing;
+
+            ArrayMode arrayMode = getArrayMode(Array::Write);
+            if (!arrayMode.isJSArray())
+                return CallOptimizationResult::DidNothing;
+            switch (arrayMode.type()) {
+            case Array::Int32:
+            case Array::Double:
+            case Array::Contiguous: {
+                insertChecks();
+                Node* arrayShift = addToGraph(ArrayShift, OpInfo(arrayMode.asWord()), OpInfo(prediction), get(virtualRegisterForArgumentIncludingThis(0, registerOffset)));
+                setResult(arrayShift);
+                return CallOptimizationResult::Inlined;
+            }
+
             default:
                 return CallOptimizationResult::DidNothing;
             }
@@ -3222,6 +3286,30 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             Node* thisValue = get(virtualRegisterForArgumentIncludingThis(0, registerOffset));
             Node* limit = argumentCountIncludingThis >= 3 ? get(virtualRegisterForArgumentIncludingThis(2, registerOffset)) : jsConstant(jsUndefined());
             Node* result = addToGraph(StringSplit, thisValue, separator, limit);
+            setResult(result);
+            return CallOptimizationResult::Inlined;
+        }
+
+        case StringPrototypeMatchIntrinsic: {
+            if (argumentCountIncludingThis < 2)
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType))
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadConstantValue))
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadCache))
+                return CallOptimizationResult::DidNothing;
+
+            if (!m_graph.isWatchingStringSymbolMatchWatchpoint(currentCodeOrigin()))
+                return CallOptimizationResult::DidNothing;
+
+            insertChecks();
+            Node* thisValue = get(virtualRegisterForArgumentIncludingThis(0, registerOffset));
+            Node* regexp = get(virtualRegisterForArgumentIncludingThis(1, registerOffset));
+            Node* result = addToGraph(StringMatch, thisValue, regexp);
             setResult(result);
             return CallOptimizationResult::Inlined;
         }
@@ -3684,7 +3772,20 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             setResult(resultNode);
             return CallOptimizationResult::Inlined;
         }
-            
+
+        case SymbolPrototypeToStringIntrinsic: {
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType))
+                return CallOptimizationResult::DidNothing;
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadConstantValue))
+                return CallOptimizationResult::DidNothing;
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadCache))
+                return CallOptimizationResult::DidNothing;
+
+            insertChecks();
+            setResult(addToGraph(SymbolToString, Edge(get(virtualRegisterForArgumentIncludingThis(0, registerOffset)), SymbolUse)));
+            return CallOptimizationResult::Inlined;
+        }
+
         case RoundIntrinsic:
         case FloorIntrinsic:
         case CeilIntrinsic:
@@ -3750,6 +3851,14 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
         case RandomIntrinsic: {
             insertChecks();
             setResult(addToGraph(ArithRandom));
+            return CallOptimizationResult::Inlined;
+        }
+
+        case DateNowIntrinsic: {
+            if (!is64Bit())
+                return CallOptimizationResult::DidNothing;
+            insertChecks();
+            setResult(addToGraph(DateNow));
             return CallOptimizationResult::Inlined;
         }
             
@@ -4476,6 +4585,24 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             if (argumentCountIncludingThis > 2)
                 end = get(virtualRegisterForArgumentIncludingThis(2, registerOffset));
             Node* resultNode = addToGraph(intrinsic == StringPrototypeSubstringIntrinsic ? StringSubstring : StringSlice, thisString, start, end);
+            setResult(resultNode);
+            return CallOptimizationResult::Inlined;
+        }
+
+        case StringPrototypeSubstrIntrinsic: {
+            if (argumentCountIncludingThis < 2)
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType))
+                return CallOptimizationResult::DidNothing;
+
+            insertChecks();
+            Node* thisString = get(virtualRegisterForArgumentIncludingThis(0, registerOffset));
+            Node* start = get(virtualRegisterForArgumentIncludingThis(1, registerOffset));
+            Node* length = nullptr;
+            if (argumentCountIncludingThis > 2)
+                length = get(virtualRegisterForArgumentIncludingThis(2, registerOffset));
+            Node* resultNode = addToGraph(StringSubstr, thisString, start, length);
             setResult(resultNode);
             return CallOptimizationResult::Inlined;
         }
@@ -7497,7 +7624,14 @@ void ByteCodeParser::parseBlock(unsigned limit)
             set(bytecode.m_dst, addToGraph(NewInternalFieldObject, OpInfo(m_graph.registerStructure(globalObject->generatorStructure()))));
             NEXT_OPCODE(op_new_generator);
         }
-            
+
+        case op_new_async_function_generator: {
+            auto bytecode = currentInstruction->as<OpNewAsyncFunctionGenerator>();
+            JSGlobalObject* globalObject = m_graph.globalObjectFor(currentNodeOrigin().semantic);
+            set(bytecode.m_dst, addToGraph(NewInternalFieldObject, OpInfo(m_graph.registerStructure(globalObject->asyncFunctionGeneratorStructure()))));
+            NEXT_OPCODE(op_new_async_function_generator);
+        }
+
         case op_new_array: {
             auto bytecode = currentInstruction->as<OpNewArray>();
             int startOperand = bytecode.m_argv.offset();
@@ -9538,7 +9672,12 @@ void ByteCodeParser::parseBlock(unsigned limit)
                 SpeculatedType prediction = getPrediction();
 
                 CacheableIdentifier identifier = CacheableIdentifier::createFromIdentifierOwnedByCodeBlock(m_inlineStackTop->m_profiledBlock, uid);
-                GetByStatus status = GetByStatus::computeFor(globalObject, structure, identifier);
+
+                // op_get_from_scope for a global property should walk the
+                // proto chain of the global object searching for the desired property
+                GetByStatus::LookupMode lookupMode = GetByStatus::LookupMode::Normal;
+                GetByStatus status = GetByStatus::computeFor(globalObject, structure, identifier, lookupMode);
+
                 if (status.state() != GetByStatus::Simple
                     || status.numVariants() != 1
                     || status[0].structureSet().size() != 1) {
@@ -10467,6 +10606,24 @@ void ByteCodeParser::linkBlocks(Vector<BasicBlock*>& unlinkedBlocks, Vector<Basi
     }
 }
 
+unsigned ByteCodeParser::tmpOffsetForInlineeOf(InlineStackEntry* caller)
+{
+    unsigned callerOffset = caller->m_inlineCallFrame ? caller->m_inlineCallFrame->tmpOffset : 0;
+    return callerOffset + caller->m_codeBlock->numTmps() + caller->m_numPrivateTmps;
+}
+
+auto ByteCodeParser::allocatePrivateTmps(unsigned slotCount) -> PrivateTmpRange
+{
+    InlineStackEntry* top = m_inlineStackTop;
+    unsigned currentTmpOffset = top->m_inlineCallFrame ? top->m_inlineCallFrame->tmpOffset : 0;
+    unsigned relativeBase = top->m_codeBlock->numTmps() + top->m_numPrivateTmps;
+
+    ensureTmps(currentTmpOffset + relativeBase + slotCount);
+    top->m_numPrivateTmps += slotCount;
+
+    return { relativeBase, slotCount };
+}
+
 ByteCodeParser::InlineStackEntry::InlineStackEntry(
     ByteCodeParser* byteCodeParser,
     CodeBlock* codeBlock,
@@ -10519,7 +10676,7 @@ ByteCodeParser::InlineStackEntry::InlineStackEntry(
         // The owner is the machine code block, and we already have a barrier on that when the
         // plan finishes.
         m_inlineCallFrame->baselineCodeBlock.setWithoutWriteBarrier(codeBlock->baselineVersion());
-        m_inlineCallFrame->setTmpOffset((m_caller->m_inlineCallFrame ? m_caller->m_inlineCallFrame->tmpOffset : 0) + m_caller->m_codeBlock->numTmps());
+        m_inlineCallFrame->setTmpOffset(tmpOffsetForInlineeOf(m_caller));
         m_inlineCallFrame->setStackOffset(inlineCallFrameStart.offset() - CallFrame::headerSizeInRegisters);
         m_inlineCallFrame->argumentCountIncludingThis = argumentCountIncludingThis;
         RELEASE_ASSERT(m_inlineCallFrame->argumentCountIncludingThis == argumentCountIncludingThis);
@@ -11718,31 +11875,21 @@ auto ByteCodeParser::handleArraySort(Node* callee, Operand resultOperand, CallVa
     // local to the block where the GetArrayLength lives, avoiding a CPS validation
     // failure from cross-block ordering of the inserted Check vs. its producer.
 
-    // Allocate fresh tmps for cross-block flow. `tmpLength` caches the array length once
-    // (fetched just before entering the outer loop) so the sort loop doesn't re-fetch
-    // butterfly+length every iteration, and so Commit can check length stability against
-    // the original pre-sort length.
-    //
-    // tmpBase is *relative* to the current inline frame: set()/get() remap through
-    // tmpOffset, while ensureTmps() is keyed off the absolute m_numTmps. We place our tmps
-    // at `current_frame_numTmps + maxNumCheckpointTmps` in relative coordinates so they
-    // sit above any inlined comparator's checkpoint tmps (whose inline-call-frame claims
-    // the slot range [tmpOffset + caller_numTmps, tmpOffset + caller_numTmps + callee_numTmps),
-    // where callee_numTmps <= maxNumCheckpointTmps). Then we ensureTmps() to the absolute
-    // upper bound so the parser's bounds check (operand.value() >= m_numTmps) accepts the
-    // remapped indices.
-    unsigned tmpBase = m_inlineStackTop->m_codeBlock->numTmps() + maxNumCheckpointTmps;
-    unsigned currentTmpOffset = m_inlineStackTop->m_inlineCallFrame ? m_inlineStackTop->m_inlineCallFrame->tmpOffset : 0;
-    ensureTmps(currentTmpOffset + tmpBase + 9);
-    Operand tmpI = Operand::tmp(tmpBase + 0);
-    Operand tmpJ = Operand::tmp(tmpBase + 1);
-    Operand tmpPivot = Operand::tmp(tmpBase + 2);
-    Operand tmpArray = Operand::tmp(tmpBase + 3);
-    Operand tmpCallee = Operand::tmp(tmpBase + 4);
-    Operand tmpComparator = Operand::tmp(tmpBase + 5);
-    Operand tmpCmpResult = Operand::tmp(tmpBase + 6);
-    Operand tmpScratch = Operand::tmp(tmpBase + 7);
-    Operand tmpLength = Operand::tmp(tmpBase + 8);
+    // Cross-block tmps. tmpLength caches the original length so Commit can detect
+    // mutation. The slots must not alias the inlined comparator's tmps -- if the
+    // comparator itself contains a sort that satisfies ArraySortIntrinsic, its
+    // private range would otherwise overlap ours and corrupt the JSArray cell.
+    constexpr unsigned numArraySortTmps = 9;
+    auto sortTmps = allocatePrivateTmps(numArraySortTmps);
+    Operand tmpI = sortTmps.operandAt(0);
+    Operand tmpJ = sortTmps.operandAt(1);
+    Operand tmpPivot = sortTmps.operandAt(2);
+    Operand tmpArray = sortTmps.operandAt(3);
+    Operand tmpCallee = sortTmps.operandAt(4);
+    Operand tmpComparator = sortTmps.operandAt(5);
+    Operand tmpCmpResult = sortTmps.operandAt(6);
+    Operand tmpScratch = sortTmps.operandAt(7);
+    Operand tmpLength = sortTmps.operandAt(8);
 
     // Stash cross-block values into tmps before the Branch so successor blocks see
     // them via phi merges. Explicitly flush each tmp after the set: Flush changes
@@ -11977,8 +12124,8 @@ auto ByteCodeParser::handleArraySort(Node* callee, Operand resultOperand, CallVa
             auto callLinkStatus = comparatorFunction ? CallLinkStatus(CallVariant(comparatorFunction)) : CallLinkStatus(CallVariant(comparatorExecutable));
             auto* callTargetNode = comparatorFunction ? jsConstant(comparatorFunction) : get(tmpComparator);
             handleCall(tmpCmpResult, Call, InlineCallFrame::ArraySortComparatorCall, osrExitIndex, callTargetNode, comparatorArgcIncludingThis, newRegisterOffset, callLinkStatus, SpecBytecodeTop, nullptr);
-            processSetLocalQueue();
             emitExitOK();
+            processSetLocalQueue();
             cmpResult = get(tmpCmpResult);
         } else {
             cmpResult = addCallWithoutSettingResult(Call, OpInfo(), get(tmpComparator), comparatorArgcIncludingThis, newRegisterOffset, OpInfo(SpecBytecodeTop));

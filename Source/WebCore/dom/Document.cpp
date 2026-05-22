@@ -397,7 +397,6 @@
 #if ENABLE(DEVICE_ORIENTATION)
 #include "DeviceMotionData.h"
 #include "DeviceMotionEvent.h"
-#include "DeviceOrientationAndMotionAccessController.h"
 #include "DeviceOrientationData.h"
 #include "DeviceOrientationEvent.h"
 #endif
@@ -1821,7 +1820,7 @@ CustomElementRegistry* Document::effectiveGlobalCustomElementRegistry()
 
 static inline bool isPotentialCustomElementNameCharacter(char32_t character)
 {
-    static constexpr auto ranges = std::to_array<UnicodeCodePointRange>({
+    static constexpr auto ranges = WTF::toArray<UnicodeCodePointRange>({
         { '-', '.' },
         { '0', '9' },
         { '_', '_' },
@@ -3578,7 +3577,8 @@ void Document::willBeRemovedFromFrame()
     clearTouchEventHandlersAndListeners();
 #endif
 
-    protect(undoManager())->removeAllItems();
+    if (m_undoManager)
+        m_undoManager->removeAllItems();
 
     m_textManipulationController = nullptr; // Free nodes kept alive by TextManipulationController.
 
@@ -4953,6 +4953,8 @@ void Document::setTrustedTypesEnforcement(JSC::TrustedTypesEnforcement enforceme
 
 IDBClient::IDBConnectionProxy* Document::idbConnectionProxy()
 {
+    if (RefPtr connectionProxy = m_idbConnectionProxy; connectionProxy && !connectionProxy->isValid())
+        m_idbConnectionProxy = nullptr;
     if (!m_idbConnectionProxy) {
         RefPtr currentPage = page();
         if (!currentPage)
@@ -4960,11 +4962,6 @@ IDBClient::IDBConnectionProxy* Document::idbConnectionProxy()
         m_idbConnectionProxy = currentPage->idbConnection().proxy();
     }
     return m_idbConnectionProxy.get();
-}
-
-void Document::clearIDBConnectionProxy()
-{
-    m_idbConnectionProxy = nullptr;
 }
 
 StorageConnection* Document::storageConnection()
@@ -8386,6 +8383,20 @@ void Document::inheritPolicyContainerFrom(const PolicyContainer& policyContainer
     SecurityContext::inheritPolicyContainerFrom(policyContainer);
 }
 
+void Document::enforceSandboxFlags(SandboxFlags flags, SandboxFlagsSource source)
+{
+    bool wasSandboxedOrigin = isSandboxed(SandboxFlag::Origin);
+    SecurityContext::enforceSandboxFlags(flags, source);
+
+    if (m_frame && settings().siteIsolationEnabled()) {
+        bool sandboxedStateDidChange = wasSandboxedOrigin != isSandboxed(SandboxFlag::Origin);
+        if (!sandboxedStateDidChange)
+            return;
+
+        m_frame->loader().client().broadcastFrameDocumentIsSandboxedOriginToOtherProcesses(isSandboxed(SandboxFlag::Origin));
+    }
+}
+
 // https://html.spec.whatwg.org/#the-rules-for-choosing-a-browsing-context-given-a-browsing-context-name (Step 8.2)
 bool Document::shouldForceNoOpenerBasedOnCOOP() const
 {
@@ -11365,24 +11376,6 @@ bool Document::hitTest(const HitTestRequest& request, const HitTestLocation& loc
     }
     return resultLayer;
 }
-
-#if ENABLE(DEVICE_ORIENTATION)
-
-DeviceOrientationAndMotionAccessController& Document::deviceOrientationAndMotionAccessController()
-{
-    if (!isTopDocument()) {
-        if (RefPtr mainFrameDocument = this->mainFrameDocument())
-            return mainFrameDocument->deviceOrientationAndMotionAccessController();
-
-        LOG_ONCE(SiteIsolation, "Unable to properly access Document::deviceOrientationAndMotionAccessController() without access to the main frame document ");
-    }
-
-    if (!m_deviceOrientationAndMotionAccessController)
-        m_deviceOrientationAndMotionAccessController = makeUnique<DeviceOrientationAndMotionAccessController>(*this);
-    return *m_deviceOrientationAndMotionAccessController;
-}
-
-#endif
 
 PaintWorklet& Document::ensurePaintWorklet()
 {

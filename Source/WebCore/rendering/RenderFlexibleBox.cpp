@@ -889,6 +889,21 @@ static bool flexItemHasAspectRatio(const RenderBox& flexItem)
         || isSVGRootWithIntrinsicAspectRatio(flexItem);
 }
 
+bool RenderFlexibleBox::hasStretchedFlexItemWithAspectRatio() const
+{
+    for (auto& flexItem : childrenOfType<RenderBox>(*this)) {
+        if (flexItem.isOutOfFlowPositioned() || flexItem.isExcludedFromNormalLayout())
+            continue;
+        if (!flexItemHasAspectRatio(flexItem))
+            continue;
+        if (alignmentForFlexItem(flexItem) == ItemPosition::Stretch
+            && !hasAutoMarginsInCrossAxis(flexItem)
+            && preferredCrossSizeLengthForFlexItem(flexItem).isAuto())
+            return true;
+    }
+    return false;
+}
+
 template<typename SizeType> std::optional<LayoutUnit> RenderFlexibleBox::computeMainAxisExtentForFlexItem(RenderBox& flexItem, const SizeType& size)
 {
     // If we have a horizontal flow, that means the main size is the width.
@@ -1397,9 +1412,7 @@ bool RenderFlexibleBox::flexItemHasComputableAspectRatio(const RenderBox& flexIt
 {
     if (!flexItemHasAspectRatio(flexItem))
         return false;
-    return flexItem.intrinsicSize().height()
-        || flexItem.style().aspectRatio().hasRatio()
-        || isSVGRootWithIntrinsicAspectRatio(flexItem);
+    return flexItem.preferredAspectRatioAsSize().aspectRatioDouble() > 0;
 }
 
 bool RenderFlexibleBox::flexItemHasComputableAspectRatioAndCrossSizeIsConsideredDefinite(const RenderBox& flexItem)
@@ -1436,8 +1449,19 @@ bool RenderFlexibleBox::hasDefiniteCrossSizeForFlexItem(const RenderBox& flexIte
             return true;
         if (canResolveFullyConstrainedLogicalHeight(*this))
             return true;
+        if (canResolveCrossSizeFromAspectRatioDuringLayout())
+            return true;
     }
     return false;
+}
+
+bool RenderFlexibleBox::canResolveCrossSizeFromAspectRatioDuringLayout() const
+{
+    // CSS Sizing 4 section 5.1: "When a box has a preferred aspect ratio and an automatic
+    // size in one axis, the automatic size is resolved from the definite size in the other axis."
+    // During layout the container's width is set, so aspect-ratio can resolve the height.
+    auto& crossSize = isHorizontalFlow() ? style().height() : style().width();
+    return m_inLayout && crossSize.isAuto() && style().aspectRatio().hasRatio();
 }
 
 template<typename SizeType> bool RenderFlexibleBox::flexItemCrossSizeIsDefinite(const RenderBox& flexItem, const SizeType& size)
@@ -2352,7 +2376,7 @@ LayoutUnit RenderFlexibleBox::innerCrossSizeForFlexItem(const RenderBox& flexIte
             innerCrossSize = adjustContentBoxLogicalHeightForBoxSizing(LayoutUnit { fixedSize->resolveZoom(style().usedZoomForLength()) });
         else if (size.isPercent())
             innerCrossSize = availableLogicalHeightForPercentageComputation().value_or(0_lu);
-        else if (canResolveFullyConstrainedLogicalHeight(*this))
+        else if (canResolveFullyConstrainedLogicalHeight(*this) || canResolveCrossSizeFromAspectRatioDuringLayout())
             innerCrossSize = std::max(0_lu, computeLogicalHeight(logicalHeight(), 0_lu).extent - borderAndPaddingLogicalHeight() - scrollbarLogicalHeight());
         else
             ASSERT_NOT_REACHED();

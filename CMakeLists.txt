@@ -61,6 +61,26 @@ if (PORT STREQUAL "IOS")
     endif ()
 endif ()
 
+if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin" AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT CMAKE_OSX_SYSROOT)
+    # Set CMAKE_OSX_SYSROOT before the project() call below. project() runs ABI
+    # detection tests whose results are cached; having the wrong sysroot there
+    # would cause those cached results to refer to a different SDK than actual
+    # builds use. OptionsMac.cmake (which sets this via WEBKIT_XCRUN) is loaded
+    # only after project() via include(WebKitCommon), so it is too late.
+    # WEBKIT_XCRUN is also unavailable here because WebKitXcrun.cmake is
+    # included by OptionsMac.cmake.
+    execute_process(COMMAND xcrun --sdk macosx --show-sdk-path
+        OUTPUT_VARIABLE _macos_sysroot
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE _xcrun_result
+        ERROR_QUIET)
+    if (_xcrun_result EQUAL 0 AND _macos_sysroot)
+        set(CMAKE_OSX_SYSROOT "${_macos_sysroot}" CACHE PATH "macOS SDK path" FORCE)
+    endif ()
+    unset(_macos_sysroot)
+    unset(_xcrun_result)
+endif ()
+
 project(WebKit LANGUAGES C CXX)
 
 # -----------------------------------------------------------------------------
@@ -111,23 +131,24 @@ if (SWIFT_REQUIRED)
     endif ()
 
     # Override Swift compiler to a wrapper script to work around the
-    # fact pkg-config feeds CFLAGS even to swiftc.
-    # Guard against cache poisoning: if CMAKE_Swift_COMPILER already IS the
-    # wrapper (from a previous configure), find the real compiler via 'which'.
+    # fact CMake feeds incorrect flags to swiftc.
     set(_swift_wrapper "${CMAKE_SOURCE_DIR}/Tools/Scripts/swift/swiftc-wrapper.sh")
     if (CMAKE_Swift_COMPILER STREQUAL _swift_wrapper)
-        execute_process(COMMAND which swiftc RESULT_VARIABLE _which_retcode OUTPUT_VARIABLE _real_swiftc OUTPUT_STRIP_TRAILING_WHITESPACE)
-        if (NOT _which_retcode EQUAL 0)
-            message(FATAL_ERROR "swiftc not found in PATH")
+        if (NOT ORIGINAL_Swift_COMPILER)
+            find_program(ORIGINAL_Swift_COMPILER NAMES swiftc REQUIRED)
         endif ()
     else ()
-        set(_real_swiftc "${CMAKE_Swift_COMPILER}")
+        set(ORIGINAL_Swift_COMPILER "${CMAKE_Swift_COMPILER}" CACHE FILEPATH "Original Swift compiler" FORCE)
     endif ()
-    set(ORIGINAL_Swift_COMPILER "${_real_swiftc}" CACHE FILEPATH "Original Swift compiler" FORCE)
-    set(CMAKE_Swift_COMPILER "${_swift_wrapper}" CACHE FILEPATH "Swift compiler wrapper" FORCE)
+    set(CMAKE_Swift_COMPILER "${_swift_wrapper}")
     add_compile_options($<$<COMPILE_LANGUAGE:Swift>:--original-swift-compiler=${ORIGINAL_Swift_COMPILER}>)
+    add_link_options($<$<LINK_LANGUAGE:Swift>:--original-swift-compiler=${ORIGINAL_Swift_COMPILER}>)
+    # The static archive rule (<CMAKE_Swift_CREATE_STATIC_LIBRARY>) uses neither
+    # <FLAGS> nor link options, so inject the flag directly into the template.
+    string(REPLACE "<CMAKE_Swift_COMPILER>"
+        "<CMAKE_Swift_COMPILER> --original-swift-compiler=${ORIGINAL_Swift_COMPILER}"
+        CMAKE_Swift_CREATE_STATIC_LIBRARY "${CMAKE_Swift_CREATE_STATIC_LIBRARY}")
     unset(_swift_wrapper)
-    unset(_real_swiftc)
 endif ()
 
 # -----------------------------------------------------------------------------

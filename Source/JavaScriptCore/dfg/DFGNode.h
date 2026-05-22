@@ -50,9 +50,11 @@
 #include "DFGVariableAccessData.h"
 #include "DOMJITSignature.h"
 #include "DeleteByVariant.h"
+#include "GetByStatus.h"
 #include "GetByVariant.h"
 #include "InlineCacheCompiler.h"
 #include "JSCJSValue.h"
+#include "JSPromise.h"
 #include "JSPropertyNameEnumerator.h"
 #include "Operands.h"
 #include "PrivateFieldPutKind.h"
@@ -930,13 +932,19 @@ public:
         children = AdjacencyList();
     }
 
-    void convertToNewResolvedPromise(Edge argument)
+    void convertToNewResolvedPromise(Edge argument, bool isResolvedValueKnownNonThenable)
     {
         ASSERT(m_op == PromiseResolve);
         setOpAndDefaultFlags(NewResolvedPromise);
         children = AdjacencyList(AdjacencyList::Fixed, argument);
-        m_opInfo = OpInfoWrapper();
+        m_opInfo = static_cast<uint32_t>(isResolvedValueKnownNonThenable);
         m_opInfo2 = OpInfoWrapper();
+    }
+
+    bool isResolvedValueKnownNonThenable()
+    {
+        ASSERT(op() == NewResolvedPromise);
+        return m_opInfo.as<bool>();
     }
 
     void NODELETE convertToNewArrayBuffer(FrozenValue* immutableButterfly);
@@ -954,6 +962,7 @@ public:
 
     void NODELETE convertToRegExpExecNonGlobalOrStickyWithoutChecks(FrozenValue* regExp);
     void NODELETE convertToRegExpMatchFastGlobalWithoutChecks(FrozenValue* regExp);
+    void NODELETE convertToRegExpMatchFast(Node* globalObjectNode);
     void NODELETE convertToRegExpTestInline(FrozenValue* globalObject, FrozenValue* regExp);
 
     enum DescriptorSlot : unsigned {
@@ -1613,6 +1622,12 @@ public:
         ASSERT(hasInternalFieldIndex());
         return m_opInfo.as<uint32_t>();
     }
+
+    JSPromise::InlineReactionKind performPromiseThenInlineReactionKind()
+    {
+        ASSERT(op() == PerformPromiseThenOneHandler);
+        return static_cast<JSPromise::InlineReactionKind>(m_opInfo.as<uint32_t>());
+    }
     
     bool hasDirectArgumentsOffset()
     {
@@ -2112,6 +2127,8 @@ public:
         case GetArgument:
         case ArrayPop:
         case ArrayPush:
+        case ArrayShift:
+        case ArrayUnshift:
         case ArraySplice:
         case RegExpExec:
         case RegExpExecNonGlobalOrSticky:
@@ -2304,6 +2321,8 @@ public:
         case AtomicsXor:
         case ArrayPush:
         case ArrayPop:
+        case ArrayShift:
+        case ArrayUnshift:
         case GetArrayLength:
         case GetUndetachedTypeArrayLength:
         case GetTypedArrayLengthAsInt52:
@@ -2343,9 +2362,11 @@ public:
         case AtomicsXor:
             return 2 + numExtraAtomicsArgs(op());
         case ArrayPush:
+        case ArrayUnshift:
             return 0;
 
         case ArrayPop:
+        case ArrayShift:
         case GetArrayLength:
         case GetUndetachedTypeArrayLength:
         case GetTypedArrayLengthAsInt52:
@@ -2718,6 +2739,8 @@ public:
         case ArrayifyToStructure:
         case ArrayPush:
         case ArrayPop:
+        case ArrayShift:
+        case ArrayUnshift:
         case ArrayIncludes:
         case ArrayIndexOf:
         case HasIndexedProperty:
@@ -3668,6 +3691,22 @@ public:
     bool hasNumberOfArgumentsToSkip()
     {
         return op() == CreateRest || op() == PhantomCreateRest || op() == GetMyArgumentByVal || op() == GetMyArgumentByValOutOfBounds;
+    }
+
+    GetByStatus::LookupMode propertyLookupMode()
+    {
+        switch (op()) {
+        case GetByIdDirect:
+        case GetByIdDirectFlush:
+        case GetPrivateNameById:
+            return GetByStatus::LookupMode::Direct;
+        case GetById:
+        case GetByIdFlush:
+        case GetByIdMegamorphic:
+            return GetByStatus::LookupMode::Normal;
+        default:
+            RELEASE_ASSERT_NOT_REACHED();
+        }
     }
 
     unsigned numberOfArgumentsToSkip()

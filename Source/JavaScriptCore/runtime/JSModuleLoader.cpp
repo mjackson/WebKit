@@ -346,7 +346,7 @@ void JSModuleLoader::provideFetch(JSGlobalObject* globalObject, const Identifier
         entry->provideFetch(globalObject, jsSourceCode); // can throw
 }
 
-JSPromise* JSModuleLoader::loadModule(JSGlobalObject* globalObject, const Identifier& specifier, RefPtr<ScriptFetchParameters> parameters, RefPtr<ScriptFetcher> scriptFetcher, bool evaluate, bool dynamic, bool useImportMap)
+JSPromise* JSModuleLoader::loadModule(JSGlobalObject* globalObject, const Identifier& specifier, RefPtr<ScriptFetchParameters> parameters, RefPtr<ScriptFetcher> scriptFetcher, OptionSet<ModuleLoadFlag> flags)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -380,7 +380,7 @@ JSPromise* JSModuleLoader::loadModule(JSGlobalObject* globalObject, const Identi
 #else
     AbstractModuleRecord::ModuleRequest request { specifier, ScriptFetchParameters::create(type) };
 #endif
-    auto* context = ModuleLoadingContext::create(vm, request, WTF::move(scriptFetcher), evaluate, dynamic, useImportMap);
+    auto* context = ModuleLoadingContext::create(vm, request, WTF::move(scriptFetcher), flags);
 
     JSPromise* intermediatePromise = JSPromise::create(vm, globalObject->promiseStructure());
     intermediatePromise->markAsHandled();
@@ -437,7 +437,7 @@ JSPromise* JSModuleLoader::linkAndEvaluateModule(JSGlobalObject* globalObject, c
     return promise;
 }
 
-JSPromise* JSModuleLoader::requestImportModule(JSGlobalObject* globalObject, const Identifier& moduleName, const Identifier& referrer, RefPtr<ScriptFetchParameters> parameters, RefPtr<ScriptFetcher> scriptFetcher)
+JSPromise* JSModuleLoader::requestImportModule(JSGlobalObject* globalObject, const Identifier& moduleName, const Identifier& referrer, RefPtr<ScriptFetchParameters> parameters, RefPtr<ScriptFetcher> scriptFetcher, bool deferred)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -445,7 +445,10 @@ JSPromise* JSModuleLoader::requestImportModule(JSGlobalObject* globalObject, con
     Identifier resolved = resolve(globalObject, moduleName, referrer, scriptFetcher, /* useImportMap */ true);
     RETURN_IF_EXCEPTION(scope, nullptr);
 
-    JSPromise* promise = loadModule(globalObject, resolved, WTF::move(parameters), WTF::move(scriptFetcher), /* evaluate */ true, /* dynamic */ true, /* useImportMap */ false);
+    OptionSet<ModuleLoadFlag> flags { ModuleLoadFlag::Evaluate, ModuleLoadFlag::Dynamic };
+    if (deferred)
+        flags.add(ModuleLoadFlag::Deferred);
+    JSPromise* promise = loadModule(globalObject, resolved, WTF::move(parameters), WTF::move(scriptFetcher), flags);
     RETURN_IF_EXCEPTION(scope, nullptr);
 
     JSPromise* resultPromise = JSPromise::create(vm, globalObject->promiseStructure());
@@ -455,7 +458,7 @@ JSPromise* JSModuleLoader::requestImportModule(JSGlobalObject* globalObject, con
     return resultPromise;
 }
 
-JSPromise* JSModuleLoader::importModule(JSGlobalObject* globalObject, JSString* moduleName, JSValue parameters, const SourceOrigin& referrer)
+JSPromise* JSModuleLoader::importModule(JSGlobalObject* globalObject, JSString* moduleName, JSValue parameters, const SourceOrigin& referrer, bool deferred)
 {
     dataLogLnIf(Options::dumpModuleLoadingState(), "Loader [import] ", printableModuleKey(globalObject, moduleName));
 
@@ -486,7 +489,7 @@ JSPromise* JSModuleLoader::importModule(JSGlobalObject* globalObject, JSString* 
 #endif
 
     if (globalObject->globalObjectMethodTable()->moduleLoaderImportModule)
-        RELEASE_AND_RETURN(scope, globalObject->globalObjectMethodTable()->moduleLoaderImportModule(globalObject, this, moduleName, WTF::move(fetchParams), referrer));
+        RELEASE_AND_RETURN(scope, globalObject->globalObjectMethodTable()->moduleLoaderImportModule(globalObject, this, moduleName, WTF::move(fetchParams), referrer, deferred));
 
     auto* promise = JSPromise::create(vm, globalObject->promiseStructure());
     auto moduleNameString = moduleName->value(globalObject);
@@ -776,22 +779,23 @@ JSPromise* JSModuleLoader::hostLoadImportedModule(JSGlobalObject* globalObject, 
     return loadPromise;
 }
 
-JSPromise* JSModuleLoader::loadModule(JSGlobalObject* globalObject, const ModuleReferrer& referrer, const ModuleRequest& moduleRequest, JSCell* payload, RefPtr<ScriptFetcher> scriptFetcher, bool evaluate, bool useImportMap)
+JSPromise* JSModuleLoader::loadModule(JSGlobalObject* globalObject, const ModuleReferrer& referrer, const ModuleRequest& moduleRequest, JSCell* payload, RefPtr<ScriptFetcher> scriptFetcher, OptionSet<ModuleLoadFlag> flags)
 {
     ASSERT(isModuleLoaderHostDefinedPayload(payload));
+    ASSERT(!flags.contains(ModuleLoadFlag::Dynamic));
 
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    JSPromise* promise = hostLoadImportedModule(globalObject, referrer, moduleRequest, payload, scriptFetcher, useImportMap);
+    JSPromise* promise = hostLoadImportedModule(globalObject, referrer, moduleRequest, payload, scriptFetcher, flags.contains(ModuleLoadFlag::UseImportMap));
     RETURN_IF_EXCEPTION(scope, nullptr);
 
-    auto* context = ModuleLoadingContext::create(vm, moduleRequest, WTF::move(scriptFetcher), evaluate, /* dynamic */ false, useImportMap);
+    auto* context = ModuleLoadingContext::create(vm, moduleRequest, WTF::move(scriptFetcher), flags);
     JSPromise* resultPromise = JSPromise::create(vm, globalObject->promiseStructure());
     resultPromise->markAsHandled();
 
     promise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::ModuleLoadLinkEvaluateSettled, resultPromise, context);
-    resultPromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::ModuleLoadStoreError, jsUndefined(), context);
+    resultPromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::ModuleLoadStoreError, nullptr, context);
 
     return resultPromise;
 }
@@ -868,7 +872,7 @@ void JSModuleLoader::innerModuleLoading(JSGlobalObject* globalObject, ModuleGrap
                     ASSERT(module->loadedModules().size() <= loadedModulesCountBefore + 1);
                     ASSERT(needsErrorReaction != module->loadedModules().contains(ModuleMapKey { request.m_specifier.impl(), request.type() }));
                     if (needsErrorReaction)
-                        promise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::ModuleGraphLoadingError, jsUndefined(), state);
+                        promise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::ModuleGraphLoadingError, nullptr, state);
                     // 2.d.iv. If state.[[IsLoading]] is false, return UNUSED.
                     if (!state->isLoading())
                         break;
@@ -952,7 +956,7 @@ void JSModuleLoader::finishLoadingImportedModule(JSGlobalObject* globalObject, c
     } else {
         // 3.a. Perform ContinueDynamicImport(payload, result).
         auto* dynamicPayload = uncheckedDowncast<ModuleLoaderPayload>(payload);
-        continueDynamicImport(globalObject, dynamicPayload->promise(), result, WTF::move(scriptFetcher));
+        continueDynamicImport(globalObject, dynamicPayload->promise(), result, WTF::move(scriptFetcher), dynamicPayload->deferred());
         RETURN_IF_EXCEPTION(scope, void());
     }
 
@@ -1004,7 +1008,7 @@ void JSModuleLoader::continueModuleLoading(JSGlobalObject* globalObject, ModuleG
     scope.release();
 }
 
-void JSModuleLoader::continueDynamicImport(JSGlobalObject* globalObject, JSPromise* promise, ModuleCompletion completion, RefPtr<ScriptFetcher> scriptFetcher)
+void JSModuleLoader::continueDynamicImport(JSGlobalObject* globalObject, JSPromise* promise, ModuleCompletion completion, RefPtr<ScriptFetcher> scriptFetcher, bool deferred)
 {
     // ContinueDynamicImport(promiseCapability, moduleCompletion)
     // https://tc39.es/ecma262/#sec-ContinueDynamicImport
@@ -1026,7 +1030,7 @@ void JSModuleLoader::continueDynamicImport(JSGlobalObject* globalObject, JSPromi
     JSPromise* loadPromise = loadRequestedModules(globalObject, module, WTF::move(scriptFetcher));
     RETURN_IF_EXCEPTION(scope, void());
     // 4-8. Link and evaluate using microtask dispatch instead of closures.
-    loadPromise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::DynamicImportLoadSettled, promise, module);
+    loadPromise->performPromiseThenWithInternalMicrotask(vm, globalObject, deferred ? InternalMicrotask::DynamicImportDeferLoadSettled : InternalMicrotask::DynamicImportLoadSettled, promise, module);
     // 9. Return UNUSED.
     scope.release();
 }
@@ -1173,7 +1177,7 @@ JSPromise* JSModuleLoader::loadModuleSync(JSGlobalObject* globalObject, const Id
         vm.m_synchronousModuleQueue = queue.prev;
     });
 
-    JSPromise* result = loadModule(globalObject, moduleName, WTF::move(parameters), WTF::move(scriptFetcher), /* evaluate */ true, /* dynamic */ false, /* useImportMap */ false);
+    JSPromise* result = loadModule(globalObject, moduleName, WTF::move(parameters), WTF::move(scriptFetcher), { ModuleLoadFlag::Evaluate });
     RETURN_IF_EXCEPTION(scope, result);
 
     scope.release();

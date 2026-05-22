@@ -83,7 +83,7 @@ private:
         if (!eventDispatcher)
             return;
 
-        if (!eventDispatcher->scrollingTreeWasRecentlyActive())
+        if (!eventDispatcher->scrollingThreadNeedsDisplayDidRefresh())
             return;
 
         ScrollingThread::dispatch([dispatcher = Ref { *eventDispatcher }, displayID] {
@@ -237,7 +237,7 @@ void RemoteLayerTreeEventDispatcher::scrollingThreadHandleWheelEvent(const WebWh
     if (!scrollingTree)
         return;
 
-    auto locker = RemoteLayerTreeHitTestLocker { *scrollingTree };
+    ScrollingTree::HitTestLocker locker { *scrollingTree };
 
     auto platformWheelEvent = platform(webWheelEvent);
     auto processingSteps = determineWheelEventProcessing(platformWheelEvent, rubberBandableEdges);
@@ -468,7 +468,7 @@ void RemoteLayerTreeEventDispatcher::didRefreshDisplay(PlatformDisplayID display
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER)
     {
         // Make sure the lock is held for the handleSyntheticWheelEvent callback.
-        auto locker = RemoteLayerTreeHitTestLocker { *scrollingTree };
+        ScrollingTree::HitTestLocker locker { *scrollingTree };
         m_momentumEventDispatcher->displayDidRefresh(displayID);
     }
 #endif
@@ -577,6 +577,18 @@ void RemoteLayerTreeEventDispatcher::waitForRenderingUpdateCompletionOrTimeout()
         tracePoint(ScrollingThreadRenderUpdateSyncEnd);
 }
 
+bool RemoteLayerTreeEventDispatcher::scrollingThreadNeedsDisplayDidRefresh()
+{
+    auto scrollingTree = this->scrollingTree();
+    if (!scrollingTree)
+        return false;
+
+    if (scrollingTree->hasRecentActivity())
+        return true;
+
+    return haveLayersWithAnimations();
+}
+
 bool RemoteLayerTreeEventDispatcher::scrollingTreeWasRecentlyActive()
 {
     auto scrollingTree = this->scrollingTree();
@@ -586,6 +598,11 @@ bool RemoteLayerTreeEventDispatcher::scrollingTreeWasRecentlyActive()
     if (scrollingTree->hasRecentActivity())
         return true;
 
+    return false;
+}
+
+bool RemoteLayerTreeEventDispatcher::haveLayersWithAnimations()
+{
 #if ENABLE(THREADED_ANIMATIONS)
     Locker lock { m_animationLock };
     return !m_animationStacks.isEmpty();
@@ -598,6 +615,14 @@ void RemoteLayerTreeEventDispatcher::mainThreadDisplayDidRefresh(PlatformDisplay
 {
     if (!scrollingTreeWasRecentlyActive())
         return;
+
+    {
+        Locker locker { m_scrollingTreeLock };
+        // The state can be Desynchronized if CommitDelayState is Delayed, since we skip sending DisplayDidRefresh to the web process.
+        // There's no point trying to synchronize in that case.
+        if (m_state == SynchronizationState::Desynchronized)
+            return;
+    }
 
     tracePoint(ScrollingThreadRenderUpdateSyncStart);
 
@@ -619,7 +644,10 @@ void RemoteLayerTreeEventDispatcher::renderingUpdateComplete()
     ASSERT(isMainRunLoop());
 
 #if ENABLE(THREADED_ANIMATIONS)
-    updateAnimations();
+    // We only want to update scroll-driven animations in this situation
+    // as time-based animations will always be udpated from the scrolling
+    // following a call to didRefreshDisplay().
+    updateAnimations(AnimationStacksToUpdate::ProgressBasedOnly);
 #endif
 
     Locker locker { m_scrollingTreeLock };
@@ -687,7 +715,7 @@ RefPtr<const RemoteAnimationTimeline> RemoteLayerTreeEventDispatcher::timeline(c
     return nullptr;
 }
 
-void RemoteLayerTreeEventDispatcher::updateAnimations()
+void RemoteLayerTreeEventDispatcher::updateAnimations(AnimationStacksToUpdate animationStacksToUpdate)
 {
     ASSERT(isMainRunLoop() || ScrollingThread::isCurrentThread());
     Locker lock { m_animationLock };
@@ -695,13 +723,14 @@ void RemoteLayerTreeEventDispatcher::updateAnimations()
     // FIXME: Rather than using 'now' at the point this is called, we
     // should probably be using the timestamp of the (next?) display
     // link update or vblank refresh.
-    if (m_monotonicTimelineRegistry)
+    if (m_monotonicTimelineRegistry && animationStacksToUpdate == AnimationStacksToUpdate::All)
         m_monotonicTimelineRegistry->advanceCurrentTime(MonotonicTime::now());
 
     auto animationStacks = std::exchange(m_animationStacks, { });
     for (auto [layerID, currentAnimationStack] : animationStacks) {
         Ref animationStack = currentAnimationStack;
-        animationStack->applyEffects();
+        if (animationStacksToUpdate == AnimationStacksToUpdate::All || animationStack->hasProgressBasedAnimations())
+            animationStack->applyEffects();
 
         // We can clear the effect stack if it's empty, but the previous
         // call to applyEffects() is important so that the base values

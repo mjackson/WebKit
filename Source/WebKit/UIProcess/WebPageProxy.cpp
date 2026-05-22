@@ -149,6 +149,7 @@
 #include "WebAutomationSession.h"
 #include "WebAutomationSessionProxyMessages.h"
 #include "WebBackForwardCache.h"
+#include "WebBackForwardCacheEntry.h"
 #include "WebBackForwardList.h"
 #include "WebBackForwardListCounts.h"
 #include "WebBackForwardListFrameItem.h"
@@ -3020,7 +3021,7 @@ const WebCore::FloatBoxExtent& WebPageProxy::obscuredContentInsets() const
     return m_internals->obscuredContentInsets;
 }
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
 void WebPageProxy::setHasBannerViewOverlay(bool hasBannerViewOverlay)
 {
     if (m_internals->hasBannerViewOverlay == hasBannerViewOverlay)
@@ -3995,7 +3996,9 @@ void WebPageProxy::dragExited(DragData& dragData)
 #if PLATFORM(COCOA)
 void WebPageProxy::propagateDragAndDrop(DragEventForwardingData&& forwardingData, const String& dragStorageName, DragData&& dragData)
 {
-    grantAccessToCurrentPasteboardData(dragStorageName, [weakThis = WeakPtr { *this }, &forwardingData, dragStorageName, dragData = WTF::move(dragData)] () mutable {
+    auto targetFrameID = forwardingData.targetFrameID;
+
+    grantAccessToCurrentPasteboardData(dragStorageName, [weakThis = WeakPtr { *this }, forwardingData = WTF::move(forwardingData), dragStorageName, dragData = WTF::move(dragData)] () mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -4010,7 +4013,7 @@ void WebPageProxy::propagateDragAndDrop(DragEventForwardingData&& forwardingData
                     protectedThis->propagateDragAndDrop(WTF::move(forwardingData), dragStorageName, WTF::move(dragDataCopy));
             });
         });
-    }, forwardingData.targetFrameID);
+    }, targetFrameID);
 }
 #endif
 
@@ -8726,6 +8729,14 @@ void WebPageProxy::didChangeMainDocument(IPC::Connection& connection, FrameIdent
     m_isQuotaIncreaseDenied = false;
 
     m_speechRecognitionPermissionManager = nullptr;
+
+#if ENABLE(DEVICE_ORIENTATION)
+    if (frame && frame->isMainFrame()) {
+        protect(browsingContextGroup())->forEachRemotePage(*this, [](auto& remotePageProxy) {
+            remotePageProxy.clearDeviceOrientationAndMotionPermissions();
+        });
+    }
+#endif
 }
 
 void WebPageProxy::viewIsBecomingVisible()
@@ -11421,11 +11432,10 @@ void WebPageProxy::startTextIndicatorFadeOut()
 #if !PLATFORM(IOS_FAMILY)
 void WebPageProxy::Internals::valueChangedForPopupMenu(WebPopupMenuProxy*, int32_t newSelectedIndex)
 {
-    Ref protectedPage = page.get();
-    RefPtr frame = protectedPage->focusedOrMainFrame();
-    if (!frame)
+    auto frameID = page->m_activePopupMenuFrameID;
+    if (!frameID)
         return;
-    protectedPage->sendToProcessContainingFrame(frame->frameID(), Messages::WebPage::DidChangeSelectedIndexForActivePopupMenu(newSelectedIndex));
+    protect(page)->sendToProcessContainingFrame(*frameID, Messages::WebPage::DidChangeSelectedIndexForActivePopupMenu(newSelectedIndex));
 }
 
 NativeWebMouseEvent* WebPageProxy::Internals::currentlyProcessedMouseDownEvent()
@@ -11449,7 +11459,10 @@ NativeWebMouseEvent* WebPageProxy::Internals::currentlyProcessedMouseDownEvent()
 #if !PLATFORM(COCOA)
 void WebPageProxy::Internals::setTextFromItemForPopupMenu(WebPopupMenuProxy*, int32_t index)
 {
-    protect(page)->send(Messages::WebPage::SetTextForActivePopupMenu(index));
+    auto frameID = page->m_activePopupMenuFrameID;
+    if (!frameID)
+        return;
+    protect(page)->sendToProcessContainingFrame(*frameID, Messages::WebPage::SetTextForActivePopupMenu(index));
 }
 #endif // !PLATFORM(COCOA)
 
@@ -11521,15 +11534,15 @@ void WebPageProxy::showPopupMenuFromFrame(IPC::Connection& connection, FrameIden
     if (!frame)
         return;
 
-    convertRectToMainFrameCoordinates(rect, frame->rootFrame()->frameID(), [weakThis = WeakPtr { *this }, textDirection, selectedIndex, data, items = WTF::move(items), connection = protect(connection)] (std::optional<FloatRect> convertedRect) {
+    convertRectToMainFrameCoordinates(rect, frame->rootFrame()->frameID(), [weakThis = WeakPtr { *this }, frameID, textDirection, selectedIndex, data, items = WTF::move(items), connection = protect(connection)] (std::optional<FloatRect> convertedRect) {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis || !convertedRect)
             return;
-        protectedThis->showPopupMenu(connection, IntRect(*convertedRect), textDirection, items, selectedIndex, data);
+        protectedThis->showPopupMenu(connection, frameID, IntRect(*convertedRect), textDirection, items, selectedIndex, data);
     });
 }
 
-void WebPageProxy::showPopupMenu(IPC::Connection& connection, const IntRect& rect, uint64_t textDirection, const Vector<WebPopupItem>& items, int32_t selectedIndex, const PlatformPopupMenuData& data)
+void WebPageProxy::showPopupMenu(IPC::Connection& connection, FrameIdentifier frameID, const IntRect& rect, uint64_t textDirection, const Vector<WebPopupItem>& items, int32_t selectedIndex, const PlatformPopupMenuData& data)
 {
     // FIXME: Move all IPC callers of this to WebPageProxy::showPopupMenuFromFrame and move the message check to there before converting coordinates.
     MESSAGE_CHECK_BASE(selectedIndex == -1 || static_cast<uint32_t>(selectedIndex) < items.size(), connection);
@@ -11550,6 +11563,7 @@ void WebPageProxy::showPopupMenu(IPC::Connection& connection, const IntRect& rec
     RefPtr pageClient = this->pageClient();
     RefPtr activePopupMenu = pageClient ? pageClient->createPopupMenuProxy(*this) : nullptr;
     m_activePopupMenu = activePopupMenu;
+    m_activePopupMenuFrameID = frameID;
 
     if (!activePopupMenu)
         return;
@@ -11568,6 +11582,7 @@ void WebPageProxy::hidePopupMenu()
         activePopupMenu->hidePopupMenu();
         activePopupMenu->invalidate();
     }
+    m_activePopupMenuFrameID = std::nullopt;
 }
 
 #if ENABLE(CONTEXT_MENUS)
@@ -11852,24 +11867,28 @@ void WebPageProxy::didChooseFilesForOpenPanelWithDisplayStringAndIcon(const Vect
     if (!hasRunningProcess())
         return;
 
-    auto completionHandler = [weakThis = WeakPtr { *this }, fileURLs, displayString, iconData = protect(iconData)] () mutable {
+    RefPtr openPanelResultListener = std::exchange(m_openPanelResultListener, nullptr);
+    if (!openPanelResultListener)
+        return;
+    RefPtr process = openPanelResultListener->process();
+    if (!process)
+        return;
+
+    auto completionHandler = [weakThis = WeakPtr { *this }, openPanelResultListener = WTF::move(openPanelResultListener), fileURLs, displayString, iconData = protect(iconData)] () mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
-            return;
-        RefPtr openPanelResultListener = std::exchange(protectedThis->m_openPanelResultListener, nullptr);
-        if (!openPanelResultListener)
             return;
         if (RefPtr process = openPanelResultListener->process()) {
 #if ENABLE(SANDBOX_EXTENSIONS)
             auto sandboxExtensionHandles = SandboxExtension::createReadOnlyHandlesForFiles("WebPageProxy::didChooseFilesForOpenPanelWithDisplayStringAndIcon"_s, fileURLs);
-            process->send(Messages::WebPage::ExtendSandboxForFilesFromOpenPanel(WTF::move(sandboxExtensionHandles)), protectedThis->webPageIDInMainFrameProcess());
+            process->send(Messages::WebPage::ExtendSandboxForFilesFromOpenPanel(WTF::move(sandboxExtensionHandles)), protectedThis->webPageIDInProcess(*process));
 #endif
-            process->send(Messages::WebPage::DidChooseFilesForOpenPanelWithDisplayStringAndIcon(fileURLs, displayString, iconData ? iconData->span() : std::span<const uint8_t>()), protectedThis->webPageIDInMainFrameProcess());
+            process->send(Messages::WebPage::DidChooseFilesForOpenPanelWithDisplayStringAndIcon(fileURLs, displayString, iconData ? iconData->span() : std::span<const uint8_t>()), protectedThis->webPageIDInProcess(*process));
         }
 
         openPanelResultListener->invalidate();
     };
-    protect(protect(websiteDataStore())->networkProcess())->sendWithAsyncReply(Messages::NetworkProcess::AllowFilesAccessFromWebProcess(m_legacyMainFrameProcess->coreProcessIdentifier(), fileURLs), WTF::move(completionHandler));
+    protect(protect(websiteDataStore())->networkProcess())->sendWithAsyncReply(Messages::NetworkProcess::AllowFilesAccessFromWebProcess(process->coreProcessIdentifier(), fileURLs), WTF::move(completionHandler));
 }
 #endif
 
@@ -12802,9 +12821,7 @@ void WebPageProxy::resetState(ResetStateReason resetStateReason)
 
 #if PLATFORM(COCOA)
     m_scrollingPerformanceData = nullptr;
-#if PLATFORM(MAC)
     m_scrollPerformanceDataCollectionEnabled = false;
-#endif
     internals().firstLayerTreeTransactionIdAfterDidCommitLoad = { };
 #endif
 
@@ -12915,6 +12932,7 @@ void WebPageProxy::resetState(ResetStateReason resetStateReason)
         editCommand->invalidate();
 
     m_activePopupMenu = nullptr;
+    m_activePopupMenuFrameID = std::nullopt;
 
     internals().mainFrameMediaState = MediaProducer::IsNotPlaying;
     updatePlayingMediaDidChange();
@@ -13216,7 +13234,7 @@ WebPageCreationParameters WebPageProxy::creationParameters(WebProcessProxy& proc
     parameters.textZoomFactor = m_textZoomFactor;
     parameters.pageZoomFactor = m_pageZoomFactor;
     parameters.obscuredContentInsets = m_internals->obscuredContentInsets;
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     parameters.hasBannerViewOverlay = m_internals->hasBannerViewOverlay;
 #endif
     parameters.mediaVolume = m_mediaVolume;
@@ -16112,6 +16130,24 @@ void WebPageProxy::hideValidationMessage()
 #endif
 }
 
+#if PLATFORM(COCOA) || PLATFORM(GTK)
+void WebPageProxy::showValidationMessage(const IntRect& anchorClientRect, String&& message, std::optional<WebCore::FrameIdentifier>&& rootFrameID)
+{
+    RefPtr pageClient = this->pageClient();
+    if (!pageClient)
+        return;
+
+    m_validationBubble = pageClient->createValidationBubble(WTF::move(message), { protect(preferences())->minimumFontSize() });
+
+    convertRectToMainFrameCoordinates(anchorClientRect, rootFrameID, [weakThis = WeakPtr { *this }](std::optional<FloatRect> convertedRect) {
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis || !convertedRect)
+            return;
+        protectedThis->showValidationMessageWithMainFrameRect(IntRect(*convertedRect));
+    });
+}
+#endif
+
 // FIXME: Consolidate with dismissContentRelativeChildWindows
 void WebPageProxy::closeOverlayedViews()
 {
@@ -17194,7 +17230,9 @@ void WebPageProxy::getLoadedSubresourceDomains(CompletionHandler<void(Vector<Reg
 
 void WebPageProxy::clearLoadedSubresourceDomains()
 {
-    send(Messages::WebPage::ClearLoadedSubresourceDomains());
+    forEachWebContentProcess([](auto& process, auto pageID) {
+        process.send(Messages::WebPage::ClearLoadedSubresourceDomains(), pageID);
+    });
 }
 
 #if ENABLE(GPU_PROCESS)
@@ -17966,6 +18004,11 @@ void WebPageProxy::layerTreeAsTextForTesting(FrameIdentifier frameID, uint64_t b
     completionHandler(WTF::move(result));
 }
 
+void WebPageProxy::dispatchCrossOriginBeforeUnloadCheckForFrame(WebCore::FrameIdentifier frameID, WebCore::SecurityOriginData&& navigatingFrameOrigin)
+{
+    sendToProcessContainingFrame(frameID, Messages::WebPage::DispatchCrossOriginBeforeUnloadCheckForFrame(frameID, WTF::move(navigatingFrameOrigin)));
+}
+
 void WebPageProxy::addMessageToConsoleForTesting(String&& message)
 {
     m_uiClient->addMessageToConsoleForTesting(*this, WTF::move(message));
@@ -18108,6 +18151,56 @@ void WebPageProxy::reportMixedContentViolation(FrameIdentifier frameID, bool blo
 void WebPageProxy::drawFrameToSnapshot(FrameIdentifier frameID, const IntRect& rect, RemoteSnapshotIdentifier snapshotIdentifier, CompletionHandler<void(bool)>&& completionHandler)
 {
     sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawFrameToSnapshot(frameID, rect, snapshotIdentifier), WTF::move(completionHandler));
+}
+
+void WebPageProxy::didCacheBackForwardItem(BackForwardItemIdentifier itemID, CompletionHandler<void(bool)>&& completionHandler)
+{
+    RefPtr item = WebBackForwardListItem::itemForID(itemID);
+    if (!item) {
+        WEBPAGEPROXY_RELEASE_LOG_ERROR(ProcessSwapping, "didCacheBackForwardItem: unknown itemID %" PUBLIC_LOG_STRING, itemID.toString().utf8().data());
+        return completionHandler(false);
+    }
+
+    // Create the UI-side cache entry explicitly. Sole driver for the
+    // WebBackForwardCacheEntry lifecycle — no implicit flag-relay path remains.
+    protect(backForwardCache())->addEntry(*item, legacyMainFrameProcess().coreProcessIdentifier());
+    completionHandler(true);
+}
+
+void WebPageProxy::didEvictBackForwardItem(BackForwardItemIdentifier itemID)
+{
+    // WP-initiated eviction (capacity / expiration). Idempotent: drop our entry
+    // if any. UI→WP discard IPCs are NOT sent because the WP that informed us
+    // has already evicted on its side.
+    RefPtr item = WebBackForwardListItem::itemForID(itemID);
+    if (!item || !item->backForwardCacheEntry())
+        return;
+    protect(backForwardCache())->removeEntry(*item);
+}
+
+void WebPageProxy::didTakeBackForwardItemForRestoration(BackForwardItemIdentifier itemID)
+{
+    // Explicit restore notification from WebProcess. Fired in commitProvisionalLoad
+    // immediately after BackForwardCache::take() succeeds, ahead of any
+    // DidCacheBackForwardItem for the outgoing page in the same load. Drops
+    // the UI-side entry.
+    RefPtr item = WebBackForwardListItem::itemForID(itemID);
+    if (!item) {
+        WEBPAGEPROXY_RELEASE_LOG_ERROR(ProcessSwapping, "didTakeBackForwardItemForRestoration: unknown itemID %" PUBLIC_LOG_STRING, itemID.toString().utf8().data());
+        return;
+    }
+    if (!item->backForwardCacheEntry())
+        return;
+    if (item->suspendedPage()) {
+        // SuspendedPageProxy entries follow their own restore path (consumed
+        // via takeSuspendedPage at the policy-decision callback chain). They
+        // must never reach the same-site UI-driven restore handler with their
+        // SPP intact.
+        ASSERT_NOT_REACHED();
+        return;
+    }
+    protect(backForwardCache())->removeEntry(*item);
+    ASSERT(!item->backForwardCacheEntry());
 }
 
 void WebPageProxy::resetVisibilityAdjustmentsForTargetedElements(const Vector<Ref<API::TargetedElementInfo>>& elements, CompletionHandler<void(bool)>&& completion)

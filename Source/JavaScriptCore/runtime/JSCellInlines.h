@@ -43,8 +43,6 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "JSCast.h"
 #include "JSDestructibleObject.h"
 #include "JSFunction.h"
-#include "JSHeapDouble.h"
-#include "JSHeapInt32.h"
 #include "JSObject.h"
 #include "JSString.h"
 #include "LocalAllocatorInlines.h"

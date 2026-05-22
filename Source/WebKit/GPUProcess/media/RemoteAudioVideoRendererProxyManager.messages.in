@@ -54,9 +54,9 @@ messages -> RemoteAudioVideoRendererProxyManager {
     ApplicationWillResignActive(WebKit::RemoteAudioVideoRendererIdentifier identifier)
     SetSpatialTrackingInfo(WebKit::RemoteAudioVideoRendererIdentifier identifier, bool prefersSpatialAudioExperience, enum:uint8_t WebCore::MediaPlayerSoundStageSize soundStageSize, String sceneIdentifier, String defaultLabel, String label)
 
-    Play(WebKit::RemoteAudioVideoRendererIdentifier identifier, std::optional<MonotonicTime> hostTime)
-    Pause(WebKit::RemoteAudioVideoRendererIdentifier identifier, std::optional<MonotonicTime> hostTime)
-    SetRate(WebKit::RemoteAudioVideoRendererIdentifier identifier, double rate)
+    Play(WebKit::RemoteAudioVideoRendererIdentifier identifier, std::optional<MonotonicTime> hostTime) -> (struct WebCore::MediaTimeUpdateData timeUpdateData)
+    Pause(WebKit::RemoteAudioVideoRendererIdentifier identifier, std::optional<MonotonicTime> hostTime) -> (struct WebCore::MediaTimeUpdateData timeUpdateData)
+    SetRate(WebKit::RemoteAudioVideoRendererIdentifier identifier, double rate) -> (struct WebCore::MediaTimeUpdateData timeUpdateData)
     Stall(WebKit::RemoteAudioVideoRendererIdentifier identifier)
     PrepareToSeek(WebKit::RemoteAudioVideoRendererIdentifier identifier, MediaTime seekTime) -> (Expected<MediaTime, WebCore::PlatformMediaError> result)
     FinishSeek(WebKit::RemoteAudioVideoRendererIdentifier identifier, MediaTime seekTime) -> (GenericPromise::Result result)
@@ -79,6 +79,7 @@ messages -> RemoteAudioVideoRendererProxyManager {
     SetShouldDisableHDR(WebKit::RemoteAudioVideoRendererIdentifier identifier, bool disable)
     SetPlatformDynamicRangeLimit(WebKit::RemoteAudioVideoRendererIdentifier identifier, WebCore::PlatformDynamicRangeLimit limit)
     SetResourceOwner(WebKit::RemoteAudioVideoRendererIdentifier identifier, WebCore::ProcessIdentity resourceOwner)
+    SetVideoPlaybackMetricsUpdateInterval(WebKit::RemoteAudioVideoRendererIdentifier identifier, double interval)
     FlushAndRemoveImage(WebKit::RemoteAudioVideoRendererIdentifier identifier)
     CurrentVideoFrame(WebKit::RemoteAudioVideoRendererIdentifier identifier) -> (struct std::optional<WebKit::RemoteVideoFrameProxyProperties> videoFrame) Synchronous
     CurrentBitmapImage(WebKit::RemoteAudioVideoRendererIdentifier identifier) -> (std::optional<WebCore::ShareableBitmapHandle> image)

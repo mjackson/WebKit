@@ -31,10 +31,12 @@ namespace JSC {
     /* The CellType value must come before any JSType that is a JSCell. */ \
     macro(CellType, SpecCellOther) \
     macro(StructureType, SpecCellOther) \
+    \
+    /* These JSCells require non-pointer-comparison identity check */ \
+    /* (e.g. String value comparison). Keep in sync with LastValueCompareCellType. */ \
     macro(StringType, SpecString) \
     macro(HeapBigIntType, SpecHeapBigInt) \
-    macro(HeapDoubleType, SpecCellOther) \
-    macro(HeapInt32Type, SpecCellOther) \
+    \
     macro(SymbolType, SpecSymbol) \
     \
     macro(GetterSetterType, SpecCellOther) \
@@ -133,6 +135,7 @@ namespace JSC {
     macro(JSDateType, SpecDateObject) \
     macro(ProxyObjectType, SpecProxyObject) \
     macro(JSGeneratorType, SpecObjectOther) \
+    macro(JSAsyncFunctionGeneratorType, SpecObjectOther) \
     macro(JSAsyncGeneratorType, SpecObjectOther) \
     macro(JSArrayIteratorType, SpecObjectOther) \
     macro(JSIteratorType, SpecObjectOther) \
@@ -168,7 +171,7 @@ enum JSType : uint8_t {
 
 static constexpr uint8_t EmbedderArrayLikeType = 0b11101101;
 
-static constexpr uint32_t LastMaybeFalsyCellPrimitive = HeapBigIntType;
+static constexpr uint32_t LastValueCompareCellType = HeapBigIntType;
 
 static constexpr uint32_t FirstTypedArrayType = Int8ArrayType;
 static constexpr uint32_t LastTypedArrayType = DataViewType;

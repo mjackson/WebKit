@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2020 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,6 +44,7 @@
 #include "IntersectionObserverCallback.h"
 #include "IntersectionObserverEntry.h"
 #include "JSNodeCustom.h"
+#include "LegacyRenderSVGModelObject.h"
 #include "LocalDOMWindow.h"
 #include "Logging.h"
 #include "Performance.h"
@@ -52,6 +53,7 @@
 #include "RenderInline.h"
 #include "RenderLineBreak.h"
 #include "RenderObjectInlines.h"
+#include "RenderSVGModelObject.h"
 #include "RenderView.h"
 #include "StyleKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
@@ -469,8 +471,10 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
 {
     bool isFirstObservation = !registration.previousThresholdIndex;
 
-    float rootUsedZoom = 1.0;
+    // This is only set for explicit roots.
+    // FIXME: remove one remaining place that needs this to work with implicit root.
     CheckedPtr<RenderBlock> rootRenderer;
+
     CheckedPtr<RenderElement> targetRenderer;
     IntersectionObservationState intersectionState;
 
@@ -507,8 +511,6 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
             else
                 intersectionState.rootBounds = { FloatPoint(), rootRenderer->size() };
 
-            rootUsedZoom = rootRenderer->style().usedZoom();
-
             return;
         }
 
@@ -521,7 +523,6 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
 
         intersectionState.canComputeIntersection = true;
         intersectionState.rootBounds = layoutViewportRectForIntersection();
-        rootUsedZoom = rootRenderer->style().usedZoom();
     };
 
     computeRootBounds();
@@ -531,6 +532,26 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
     }
 
     if (applyRootMargin == ApplyRootMargin::Yes) {
+        auto rootUsedZoom = [&] () -> float {
+            if (rootRenderer)
+                return rootRenderer->style().usedZoom();
+
+            // If applyRootMargin is Yes, the root and target frames are same-origin.
+            // Therefore the root frame should be in the same process as the target frame
+            // (with or without Site Isolation)
+            auto* hostLocalFrameView = dynamicDowncast<LocalFrameView>(hostFrameView);
+            ASSERT(hostLocalFrameView);
+            if (!hostLocalFrameView)
+                return 1;
+
+            CheckedPtr hostRenderView = hostLocalFrameView->renderView();
+            ASSERT(hostRenderView);
+            if (!hostRenderView)
+                return 1;
+
+            return hostRenderView->style().usedZoom();
+        }();
+
         expandRootBoundsWithRootMargin(intersectionState.rootBounds, scrollMarginBox(), rootUsedZoom);
         expandRootBoundsWithRootMargin(intersectionState.rootBounds, rootMarginBox(), rootUsedZoom);
     }
@@ -548,7 +569,12 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
         if (CheckedPtr renderLineBreak = dynamicDowncast<RenderLineBreak>(targetRenderer.get()))
             return renderLineBreak->linesBoundingBox();
 
-        // FIXME: Implement for SVG etc.
+        if (CheckedPtr svgModelObject = dynamicDowncast<RenderSVGModelObject>(*targetRenderer))
+            return svgModelObject->borderBoxRectEquivalent();
+
+        if (CheckedPtr legacySVGModelObject = dynamicDowncast<LegacyRenderSVGModelObject>(*targetRenderer))
+            return enclosingLayoutRect(legacySVGModelObject->strokeBoundingBox());
+
         return { };
     }();
 
@@ -675,12 +701,13 @@ auto IntersectionObserver::updateObservations(const Frame& hostFrame) -> NeedNot
                 ASSERT(intersectionState.absoluteRootBounds);
 
                 RefPtr targetFrameView = target.document().view();
-                targetBoundingClientRect = targetFrameView->absoluteToClientRect(*intersectionState.absoluteTargetRect, target.renderer()->style().usedZoom());
+                auto targetZoomForClient = target.document().zoomForClient(target.renderer()->style());
+                targetBoundingClientRect = targetFrameView->absoluteToClientRect(*intersectionState.absoluteTargetRect, targetZoomForClient);
                 clientRootBounds = hostFrameView->absoluteToLayoutViewportRect(*intersectionState.absoluteRootBounds);
 
                 if (intersectionState.isIntersecting) {
                     ASSERT(intersectionState.absoluteIntersectionRect);
-                    clientIntersectionRect = targetFrameView->absoluteToClientRect(*intersectionState.absoluteIntersectionRect, target.renderer()->style().usedZoom());
+                    clientIntersectionRect = targetFrameView->absoluteToClientRect(*intersectionState.absoluteIntersectionRect, targetZoomForClient);
                 }
             }
 

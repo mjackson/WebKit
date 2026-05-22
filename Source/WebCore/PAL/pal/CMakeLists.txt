@@ -83,6 +83,7 @@ set(PAL_INTERFACE_DEPENDENCIES PAL_CopyHeaders)
 
 WEBKIT_FRAMEWORK_DECLARE(PAL)
 WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS()
+WEBKIT_ADD_TARGET_UNSAFE_BUFFER_WARNINGS(PAL)
 
 WEBKIT_COPY_FILES(PAL_CopyHeaders
     DESTINATION ${PAL_FRAMEWORK_HEADERS_DIR}/pal
@@ -117,13 +118,6 @@ if (SWIFT_REQUIRED AND NOT (PORT STREQUAL GTK OR PORT STREQUAL WPE))
         list(APPEND PAL_SWIFT_EXTRA_OPTIONS "-Xcc" "-I${CMAKE_BINARY_DIR}/ICU/Headers")
     endif ()
 
-    # Declare a header-only dependency for WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER below.
-    set(PAL_SWIFT_HEADER_DEPENDS
-        PAL_CopyHeaders
-        WTF_CopyHeaders
-        bmalloc_CopyHeaders
-    )
-
     WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER(PAL pal
         "${PAL_FRAMEWORK_HEADERS_DIR}/pal"
         "PALSwift-Generated.h")
@@ -143,14 +137,6 @@ if (SWIFT_REQUIRED AND NOT (PORT STREQUAL GTK OR PORT STREQUAL WPE))
         "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xcc -I${CMAKE_BINARY_DIR}/bmalloc/Headers>"
         "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xcc -I${CMAKE_BINARY_DIR}>"
         "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xcc -I${PAL_DERIVED_SOURCES_DIR}>"
-    )
-endif ()
-
-if (PORT STREQUAL GTK OR PORT STREQUAL WPE)
-    WEBKIT_ADD_TARGET_CXX_FLAGS(PAL
-        -Wunsafe-buffer-usage
-        -Wunsafe-buffer-usage-in-libc-call
-        -fsafe-buffer-usage-suggestions
     )
 endif ()
 

@@ -537,7 +537,7 @@ void AudioVideoRendererAVFObjC::notifyTimeReachedAndStall(const MediaTime& timeB
         [protectedThis->m_synchronizer setRate:0 time:PAL::toCMTime(timeBoundary)];
         protectedThis->m_lastSetSyncRate = 0;
 
-        callback(now);
+        callback(timeBoundary);
     }).get()];
 }
 
@@ -857,13 +857,7 @@ std::optional<VideoPlaybackQualityMetrics> AudioVideoRendererAVFObjC::videoPlayb
     if (!videoRenderer)
         return std::nullopt;
 
-    return VideoPlaybackQualityMetrics {
-        videoRenderer->totalVideoFrames(),
-        videoRenderer->droppedVideoFrames(),
-        videoRenderer->corruptedVideoFrames(),
-        videoRenderer->totalFrameDelay().toDouble(),
-        videoRenderer->totalDisplayedFrames()
-    };
+    return videoRenderer->videoPlaybackQualityMetrics();
 }
 
 PlatformLayer* AudioVideoRendererAVFObjC::platformVideoLayer() const

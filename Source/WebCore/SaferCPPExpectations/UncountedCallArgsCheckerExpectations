@@ -185,7 +185,6 @@ css/typedom/InlineStylePropertyMap.cpp
 css/typedom/numeric/CSSMathMax.cpp
 css/typedom/numeric/CSSMathMin.cpp
 css/typedom/numeric/CSSMathValue.h
-css/typedom/transform/CSSPerspective.cpp
 css/typedom/transform/CSSRotate.cpp
 css/typedom/transform/CSSScale.cpp
 css/typedom/transform/CSSSkew.cpp
@@ -644,7 +643,6 @@ style/RuleSet.cpp
 style/RuleSetBuilder.cpp
 style/StyleAdjuster.cpp
 style/StyleBuilder.cpp
-style/StyleBuilderCustom.h
 style/StyleBuilderState.cpp
 style/StyleDifference.cpp
 style/StyleExtractor.cpp

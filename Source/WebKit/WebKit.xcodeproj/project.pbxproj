@@ -682,7 +682,6 @@
 		2ADBEA4C2F358BEF00EDB398 /* WKWebView+WKBannerViewOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ADBEA4B2F358BEF00EDB398 /* WKWebView+WKBannerViewOverlay.swift */; };
 		2AE6D2B72F501404002BE327 /* WebViewRepresentable+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ADBEA4B2F358BEF00EDB399 /* WebViewRepresentable+Extras.swift */; };
 		2BBCCE242EB2B3F500FE7E5A /* RemotePageScreenOrientationManagerProxy.h in Headers */ = {isa = PBXBuildFile; fileRef = 2BBCCE232EB2B3F500FE7E5A /* RemotePageScreenOrientationManagerProxy.h */; };
-		F5AE074483234F46B7D93F3F /* RemotePageWebAuthenticatorCoordinatorProxy.h in Headers */ = {isa = PBXBuildFile; fileRef = 729F145827DA4BFB83A7C750 /* RemotePageWebAuthenticatorCoordinatorProxy.h */; };
 		2D0C56FD229F1DEA00BD33E7 /* DeviceManagementSoftLink.h in Headers */ = {isa = PBXBuildFile; fileRef = 2D0C56FB229F1DEA00BD33E7 /* DeviceManagementSoftLink.h */; };
 		2D0C56FE229F1DEA00BD33E7 /* DeviceManagementSoftLink.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2D0C56FC229F1DEA00BD33E7 /* DeviceManagementSoftLink.mm */; };
 		2D0FD45E2F75127900B1A53C /* SwipeProgressTrackerMac.h in Headers */ = {isa = PBXBuildFile; fileRef = 2D0FD45C2F75126800B1A53C /* SwipeProgressTrackerMac.h */; };
@@ -2710,6 +2709,7 @@
 		F4FE87B72E2F25030065A3F5 /* _WKTextExtractionInternal.h in Headers */ = {isa = PBXBuildFile; fileRef = F4FE87B62E2F25030065A3F5 /* _WKTextExtractionInternal.h */; };
 		F4FE87B82E2F25030065A3F5 /* _WKTextExtraction.h in Headers */ = {isa = PBXBuildFile; fileRef = F4FE87B42E2F25030065A3F5 /* _WKTextExtraction.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		F4FE87B92E2F25030065A3F5 /* _WKTextExtraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FE87B52E2F25030065A3F5 /* _WKTextExtraction.swift */; };
+		F5AE074483234F46B7D93F3F /* RemotePageWebAuthenticatorCoordinatorProxy.h in Headers */ = {isa = PBXBuildFile; fileRef = 729F145827DA4BFB83A7C750 /* RemotePageWebAuthenticatorCoordinatorProxy.h */; };
 		F6113E25126CE1820057D0A7 /* APIUserContentURLPattern.h in Headers */ = {isa = PBXBuildFile; fileRef = F6113E24126CE1820057D0A7 /* APIUserContentURLPattern.h */; };
 		F6113E29126CE19B0057D0A7 /* WKUserContentURLPattern.h in Headers */ = {isa = PBXBuildFile; fileRef = F6113E27126CE19B0057D0A7 /* WKUserContentURLPattern.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		F634445612A885C8000612D8 /* APISecurityOrigin.h in Headers */ = {isa = PBXBuildFile; fileRef = F634445512A885C8000612D8 /* APISecurityOrigin.h */; };
@@ -2799,6 +2799,8 @@
 			inputFiles = (
 				"$(SRCROOT)/Scripts/postprocess-header-rule",
 				"$(SRCROOT)/mac/replace-webkit-additions-includes.py",
+				"$(WK_WEBKITADDITIONS_POSTPROCESS_SCRIPTS_INPUT)",
+				"$(WK_WEBKITADDITIONS_BRANCH_CONFIG_INPUT)",
 			);
 			isEditable = 1;
 			outputFiles = (
@@ -4878,8 +4880,6 @@
 		2B1B1C3C2E3A86F400D7D9ED /* UnretainedLocalVarsCheckerExpectations */ = {isa = PBXFileReference; lastKnownFileType = text; path = UnretainedLocalVarsCheckerExpectations; sourceTree = "<group>"; };
 		2BBCCE222EB2B3DA00FE7E5A /* RemotePageScreenOrientationManagerProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemotePageScreenOrientationManagerProxy.cpp; sourceTree = "<group>"; };
 		2BBCCE232EB2B3F500FE7E5A /* RemotePageScreenOrientationManagerProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemotePageScreenOrientationManagerProxy.h; sourceTree = "<group>"; };
-		729F145827DA4BFB83A7C750 /* RemotePageWebAuthenticatorCoordinatorProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemotePageWebAuthenticatorCoordinatorProxy.h; sourceTree = "<group>"; };
-		729F145827DA4BFB83A7C751 /* RemotePageWebAuthenticatorCoordinatorProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemotePageWebAuthenticatorCoordinatorProxy.cpp; sourceTree = "<group>"; };
 		2D0035221BC7414800DA8716 /* PDFPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = PDFPlugin.h; path = PDF/PDFPlugin.h; sourceTree = "<group>"; };
 		2D0035231BC7414800DA8716 /* PDFPlugin.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = PDFPlugin.mm; path = PDF/PDFPlugin.mm; sourceTree = "<group>"; };
 		2D0440922D58810D00E98A2E /* RemoteImageBufferSetConfiguration.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteImageBufferSetConfiguration.h; sourceTree = "<group>"; };
@@ -6968,6 +6968,8 @@
 		727A7F492408AEE6004D2931 /* RemoteImageBufferProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteImageBufferProxy.h; sourceTree = "<group>"; };
 		728E86EF1795188C0087879E /* WebColorPickerMac.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebColorPickerMac.h; sourceTree = "<group>"; };
 		728E86F01795188C0087879E /* WebColorPickerMac.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = WebColorPickerMac.mm; sourceTree = "<group>"; };
+		729F145827DA4BFB83A7C750 /* RemotePageWebAuthenticatorCoordinatorProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemotePageWebAuthenticatorCoordinatorProxy.h; sourceTree = "<group>"; };
+		729F145827DA4BFB83A7C751 /* RemotePageWebAuthenticatorCoordinatorProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemotePageWebAuthenticatorCoordinatorProxy.cpp; sourceTree = "<group>"; };
 		72A87BBB287678A700289098 /* RemoteRenderingBackend.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemoteRenderingBackend.cpp; sourceTree = "<group>"; };
 		72B53157253C1E4D0049295A /* RemoteResourceCacheProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemoteResourceCacheProxy.cpp; sourceTree = "<group>"; };
 		72B53158253C1E4D0049295A /* RemoteResourceCacheProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteResourceCacheProxy.h; sourceTree = "<group>"; };
@@ -7613,7 +7615,7 @@
 		996D00412D7AA0CD0049C7D8 /* BidiBrowsingContext.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = BidiBrowsingContext.json; sourceTree = "<group>"; };
 		996D00422D7AA0CD0049C7D8 /* BidiLog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = BidiLog.json; sourceTree = "<group>"; };
 		996D00432D7AA0CD0049C7D8 /* BidiScript.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = BidiScript.json; sourceTree = "<group>"; };
-		996D00452D7AA0FD0049C7D8 /* CombinedWebDriverBidiDomains.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = CombinedWebDriverBidiDomains.json; sourceTree = "<group>"; };
+		996D00452D7AA0FD0049C7D8 /* CombinedWebDriverBidiDomains.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = CombinedWebDriverBidiDomains.json; path = DerivedSources/WebKit/CombinedWebDriverBidiDomains.json; sourceTree = BUILT_PRODUCTS_DIR; };
 		99788AC91F421DCA00C08000 /* _WKAutomationSessionConfiguration.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = _WKAutomationSessionConfiguration.h; sourceTree = "<group>"; };
 		99788ACA1F421DCA00C08000 /* _WKAutomationSessionConfiguration.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = _WKAutomationSessionConfiguration.mm; sourceTree = "<group>"; };
 		9979659A25310A4800B31AE3 /* WebInspectorUIExtensionControllerMessages.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebInspectorUIExtensionControllerMessages.h; sourceTree = "<group>"; };
@@ -8722,6 +8724,8 @@
 		E3DCC9AA2DA07FA0008712FE /* WebKitServiceNames.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebKitServiceNames.h; sourceTree = "<group>"; };
 		E3E1B33C2F85021400B584C4 /* com.apple.WebProcess.x86.sb */ = {isa = PBXFileReference; lastKnownFileType = file; path = com.apple.WebProcess.x86.sb; sourceTree = "<group>"; };
 		E3E1B33F2F85084300B584C4 /* com.apple.WebProcess.x86.sb.in */ = {isa = PBXFileReference; lastKnownFileType = text; name = com.apple.WebProcess.x86.sb.in; path = WebProcess/com.apple.WebProcess.x86.sb.in; sourceTree = "<group>"; };
+		E3E1B3402F85274B00B584C4 /* xpc-parent.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "xpc-parent.plist"; sourceTree = "<group>"; };
+		E3E1B3412F85274B00B584C4 /* xpc-self.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "xpc-self.plist"; sourceTree = "<group>"; };
 		E3E6297C2D5FA8F200DAE50C /* ServiceWorkerDebuggableProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ServiceWorkerDebuggableProxy.h; sourceTree = "<group>"; };
 		E3E6297D2D5FA8F200DAE50C /* ServiceWorkerDebuggableProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ServiceWorkerDebuggableProxy.cpp; sourceTree = "<group>"; };
 		E3E84BED2AE1AA5A0091B3C2 /* ExtensionKitSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ExtensionKitSPI.h; sourceTree = "<group>"; };
@@ -10124,6 +10128,7 @@
 		1A4F9769100E7B6600637A18 /* Configurations */ = {
 			isa = PBXGroup;
 			children = (
+				E3E1B3422F85274B00B584C4 /* LaunchConstraints */,
 				07275C5F2D00CAAD002315A5 /* _WebKit_SwiftUI.xcconfig */,
 				5CAF7AA626F93AA50003F19E /* adattributiond.xcconfig */,
 				A1EDD2D91884ACE000BBFE98 /* All.xcconfig */,
@@ -17578,6 +17583,15 @@
 			path = macOS;
 			sourceTree = "<group>";
 		};
+		E3E1B3422F85274B00B584C4 /* LaunchConstraints */ = {
+			isa = PBXGroup;
+			children = (
+				E3E1B3402F85274B00B584C4 /* xpc-parent.plist */,
+				E3E1B3412F85274B00B584C4 /* xpc-self.plist */,
+			);
+			path = LaunchConstraints;
+			sourceTree = "<group>";
+		};
 		E404906F21DE65D70037F0DB /* mac */ = {
 			isa = PBXGroup;
 			children = (
@@ -20440,11 +20454,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -20474,6 +20490,7 @@
 			);
 			name = "Add Symlink in /System/Library/PrivateFrameworks";
 			outputPaths = (
+				"$(INSTALL_ROOT)/$(WK_ALTERNATE_FRAMEWORKS_DIR)$(SYSTEM_LIBRARY_DIR)/PrivateFrameworks/WebKit.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/sh;
@@ -20518,11 +20535,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -20616,6 +20635,7 @@
 			);
 			inputPaths = (
 				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
+				"$(SRCROOT)/../../Tools/Scripts/check-for-inappropriate-objc-class-names",
 			);
 			name = "Check For Inappropriate Objective-C Class Names";
 			outputPaths = (
@@ -20785,6 +20805,7 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/DerivedSources.make",
+				"$(SRCROOT)/Scripts/check-xcfilelists.sh",
 			);
 			name = "Check .xcfilelists";
 			outputFileListPaths = (
@@ -20825,11 +20846,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create symlink";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -20862,11 +20885,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -20963,6 +20988,7 @@
 			);
 			inputPaths = (
 				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
+				"$(SRCROOT)/../../Tools/Scripts/check-for-weak-vtables-and-externals",
 			);
 			name = "Check For Weak VTables and Externals";
 			outputPaths = (
@@ -20979,6 +21005,7 @@
 			);
 			inputPaths = (
 				"$(CPP_HEADERMAP_PRODUCT_HEADERS_VFS_FILE)",
+				"$(SRCROOT)/../../Tools/Scripts/check-for-webkit-framework-include-consistency",
 			);
 			name = "Check For Framework Include Consistency";
 			outputPaths = (
@@ -21038,11 +21065,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -21056,11 +21085,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -21074,11 +21105,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -21092,11 +21125,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -21110,11 +21145,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -21128,11 +21165,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -21146,11 +21185,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -21288,6 +21329,7 @@
 			);
 			inputPaths = (
 				"$(CPP_HEADERMAP_PRODUCT_HEADERS_VFS_FILE)",
+				"$(SRCROOT)/../../Tools/Scripts/check-for-inappropriate-macros-in-external-headers",
 			);
 			name = "Check For Inappropriate Macros in External Headers";
 			outputPaths = (
@@ -21415,6 +21457,11 @@
 			);
 			inputPaths = (
 				"$(WTF_BUILD_SCRIPTS_DIR)/audit-spi-if-needed.sh",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/platform-enabled-swift-args.arm64.resp",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/platform-enabled-swift-args.arm64_32.resp",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/platform-enabled-swift-args.arm64e.resp",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/platform-enabled-swift-args.armv7k.resp",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/platform-enabled-swift-args.x86_64.resp",
 			);
 			name = "Audit SPI use";
 			outputFileListPaths = (
@@ -21547,11 +21594,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create symlink";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -21565,11 +21614,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create symlink";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -21583,11 +21634,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create symlink";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
@@ -21601,11 +21654,13 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Scripts/create-symlink-to-cryptex.sh",
 			);
 			name = "Create symlink";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(OUTPUT_CRYPTEX_SYMLINK_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;

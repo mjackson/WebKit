@@ -31,6 +31,7 @@
 #include "BorderPainter.h"
 #include "BorderShape.h"
 #include "ContainerNodeInlines.h"
+#include "CSSFilter.h"
 #include "CSSFontSelector.h"
 #include "Document.h"
 #include "EditingInlines.h"
@@ -2928,25 +2929,29 @@ LayoutUnit RenderBox::fillAvailableMeasure(LayoutUnit availableLogicalWidth, Lay
 template<typename Keyword> void RenderBox::computeIntrinsicKeywordLogicalWidths(Keyword, LayoutUnit borderAndPadding, LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
 {
     if constexpr (std::same_as<Keyword, CSS::Keyword::MinIntrinsic>)
-        computeIntrinsicKeywordLogicalWidths(minLogicalWidth, maxLogicalWidth);
-    else {
-        if (shouldComputeLogicalWidthFromAspectRatio()) {
-            minLogicalWidth = maxLogicalWidth = computeLogicalWidthFromAspectRatio() - borderAndPadding;
-            applyAutomaticContentBasedMinimumSize(minLogicalWidth, maxLogicalWidth);
-        } else if (CheckedPtr renderReplaced = dynamicDowncast<RenderReplaced>(*this)) {
-            // For replaced elements with an intrinsic aspect ratio (e.g. <img>) and a
-            // specified block size, compute the transferred min/max-content inline size
-            // through the intrinsic ratio rather than using the raw natural width.
-            auto preferredRatio = renderReplaced->preferredAspectRatioAsSize().aspectRatioDouble();
-            if (preferredRatio && style().logicalHeight().isSpecified()) {
-                auto computedValues = computeLogicalHeight(logicalHeight(), logicalTop());
-                auto contentBlockSize = std::max(0_lu, computedValues.extent - borderAndPaddingLogicalHeight());
-                minLogicalWidth = maxLogicalWidth = LayoutUnit(contentBlockSize * preferredRatio);
-            } else
-                computeIntrinsicKeywordLogicalWidths(minLogicalWidth, maxLogicalWidth);
-        } else
-            computeIntrinsicKeywordLogicalWidths(minLogicalWidth, maxLogicalWidth);
+        return computeIntrinsicKeywordLogicalWidths(minLogicalWidth, maxLogicalWidth);
+
+    if (shouldComputeLogicalWidthFromAspectRatio()) {
+        maxLogicalWidth = computeLogicalWidthFromAspectRatio() - borderAndPadding;
+        minLogicalWidth = maxLogicalWidth;
+        applyAutomaticContentBasedMinimumSize(minLogicalWidth, maxLogicalWidth);
+        return;
     }
+
+    if (CheckedPtr renderReplaced = dynamicDowncast<RenderReplaced>(*this)) {
+        // For replaced elements with an intrinsic aspect ratio (e.g. <img>) and a
+        // specified block size, compute the transferred min/max-content inline size
+        // through the intrinsic ratio rather than using the raw natural width.
+        auto preferredRatio = renderReplaced->preferredAspectRatioAsSize().aspectRatioDouble();
+        if (preferredRatio && style().logicalHeight().isSpecified()) {
+            auto computedValues = computeLogicalHeight(logicalHeight(), logicalTop());
+            auto contentBlockSize = std::max(0_lu, computedValues.extent - borderAndPaddingLogicalHeight());
+            maxLogicalWidth = LayoutUnit { contentBlockSize * preferredRatio };
+            minLogicalWidth = maxLogicalWidth;
+            return;
+        }
+    }
+    computeIntrinsicKeywordLogicalWidths(minLogicalWidth, maxLogicalWidth);
 }
 
 static inline bool NODELETE isOrthogonal(const RenderBox& renderer, const RenderElement& ancestor)
@@ -3140,7 +3145,8 @@ bool RenderBox::sizesPreferredLogicalWidthToFitContent() const
 
     // This code may look a bit strange.  Basically width:intrinsic should clamp the size when testing both
     // min-width and width.  max-width is only clamped if it is also intrinsic.
-    auto& logicalWidth = style().logicalWidth();
+    auto& style = this->style();
+    auto& logicalWidth = style.logicalWidth();
     if (logicalWidth.isIntrinsicKeyword())
         return true;
 
@@ -3188,6 +3194,9 @@ bool RenderBox::sizesPreferredLogicalWidthToFitContent() const
 
     if (isHorizontalWritingMode() != containingBlock()->isHorizontalWritingMode())
         return true;
+
+    if (isOutOfFlowPositioned() && logicalWidth.isAuto() && !shouldComputeLogicalWidthFromAspectRatio())
+        return style.logicalLeft().isAuto() || style.logicalRight().isAuto();
 
     return false;
 }
@@ -3732,7 +3741,7 @@ template<typename SizeType> std::optional<LayoutUnit> RenderBox::computeSizingKe
 
                 if (!isOrthogonal(*this, containingBlock))
                     view().addPercentHeightDescendant(const_cast<RenderBox&>(*this));
-                if (!containingBlockHasDefiniteBlockSize())
+                if (!isBlockSizeResolvableForStretch())
                     return { };
                 if (isOrthogonal(*this, containingBlock))
                     return containingBlockLogicalWidthForContent();
@@ -4627,12 +4636,28 @@ bool RenderBox::avoidsFloats() const
     return false;
 }
 
+IntBoxExtent RenderBox::computeFilterOutsets() const
+{
+    if (!hasFilter())
+        return { };
+
+    auto zoom = style().usedZoomForLength();
+
+    if (auto outsets = style().filter().calculateOutsets(zoom))
+        return *outsets;
+
+    // FIXME: Need to compute outsets for reference filters: webkit.org/b/237538.
+    return { };
+}
+
 void RenderBox::addVisualEffectOverflow()
 {
     bool hasBoxShadow = !style().boxShadow().isNone();
     bool hasBorderImageOutsets = style().hasBorderImageOutsets();
     bool hasOutline = outlineStyleForRepaint().hasOutlineInVisualOverflow();
-    if (!hasBoxShadow && !hasBorderImageOutsets && !hasOutline)
+    bool hasInflatingFilters = hasFilter() && !computeFilterOutsets().isZero();
+
+    if (!hasBoxShadow && !hasBorderImageOutsets && !hasOutline && !hasInflatingFilters)
         return;
 
     addVisualOverflow(applyVisualEffectOverflow(borderBoxRect()));
@@ -4641,7 +4666,8 @@ void RenderBox::addVisualEffectOverflow()
         fragmentedFlow->addFragmentsVisualEffectOverflow(*this);
 }
 
-static void NODELETE convertOutsetsToOverflowCoordinates(LayoutBoxExtent& outsets, WritingMode writingMode)
+template<typename T>
+static void NODELETE convertOutsetsToOverflowCoordinates(RectEdges<T>& outsets, WritingMode writingMode)
 {
     switch (writingMode.blockDirection()) {
     case FlowDirection::TopToBottom:
@@ -4656,7 +4682,7 @@ static void NODELETE convertOutsetsToOverflowCoordinates(LayoutBoxExtent& outset
     }
 }
 
-LayoutRect RenderBox::applyVisualEffectOverflow(const LayoutRect& borderBox) const
+LayoutRect RenderBox::applyVisualEffectOverflow(const LayoutRect& borderBox, EnumSet<VisualEffectOverflowOption> options) const
 {
     LayoutUnit overflowMinX = borderBox.x();
     LayoutUnit overflowMaxX = borderBox.maxX();
@@ -4689,12 +4715,24 @@ LayoutRect RenderBox::applyVisualEffectOverflow(const LayoutRect& borderBox) con
     }
 
     if (outlineStyleForRepaint().hasOutlineInVisualOverflow()) {
-        LayoutUnit outlineSize { outlineStyleForRepaint().usedOutlineSize() };
+        auto outlineSize = LayoutUnit { outlineStyleForRepaint().usedOutlineSize() };
+
         overflowMinX = std::min(overflowMinX, borderBox.x() - outlineSize);
         overflowMaxX = std::max(overflowMaxX, borderBox.maxX() + outlineSize);
         overflowMinY = std::min(overflowMinY, borderBox.y() - outlineSize);
         overflowMaxY = std::max(overflowMaxY, borderBox.maxY() + outlineSize);
     }
+
+    if (hasFilter() && !options.contains(VisualEffectOverflowOption::ExcludeFilterOutsets)) {
+        auto outsets = computeFilterOutsets();
+        convertOutsetsToOverflowCoordinates(outsets, writingMode());
+
+        overflowMinX = std::min(overflowMinX, borderBox.x() - outsets.left());
+        overflowMaxX = std::max(overflowMaxX, borderBox.maxX() + outsets.right());
+        overflowMinY = std::min(overflowMinY, borderBox.y() - outsets.top());
+        overflowMaxY = std::max(overflowMaxY, borderBox.maxY() + outsets.bottom());
+    }
+
     // Add in the final overflow with shadows and outsets combined.
     return LayoutRect(overflowMinX, overflowMinY, overflowMaxX - overflowMinX, overflowMaxY - overflowMinY);
 }
@@ -4775,6 +4813,14 @@ void RenderBox::addOverflowWithRendererOffset(const RenderBox& renderer, LayoutS
     if (!childVisualOverflowRect)
         computeChildVisualOverflowRect();
     addVisualOverflow(*childVisualOverflowRect);
+}
+
+bool RenderBox::hasLayoutOverflow() const
+{
+    if (!m_overflow)
+        return false;
+
+    return !flippedClientBoxRect().contains(m_overflow->layoutOverflowRect());
 }
 
 LayoutOptionalOutsets RenderBox::allowedLayoutOverflow() const
@@ -5186,10 +5232,45 @@ static inline bool shouldComputeLogicalWidthFromAspectRatioAndInsets(const Rende
     return style.logicalHeight().isAuto();
 }
 
-bool RenderBox::containingBlockHasDefiniteBlockSize() const
+static RenderBlock* containingBlockForStretchResolution(const RenderBox& box)
 {
-    CheckedPtr containingBlock = this->containingBlock();
-    ASSERT(containingBlock);
+    auto isIgnoredAsContainingBlock = [](auto& candidate) {
+        // Flow threads (multicol/paged) are invisible to the DOM; their children should
+        // resolve against the multicol or paged container.
+        if (candidate.isRenderFragmentedFlow())
+            return true;
+
+        // Only anonymous boxes are subject to the CSS 2 Section 9.2.1.1 "ignored when
+        // resolving values" rule. RenderView and view-transition pseudos are excluded
+        // because they are not anonymous boxes in the spec sense.
+        if (!candidate.shouldSkipForPercentageResolution())
+            return false;
+
+        // Among anonymous boxes, only the implementation-detail kinds are spec-ignored:
+        // block-flow wrappers around inlines that have block siblings, multicol flow
+        // threads, and inline-flow-root wrappers for ruby runs. Anonymous flex items,
+        // grid items, table cells, and ruby bases are CSS-mandated structures that
+        // remain as legitimate containing blocks.
+        auto display = candidate.style().display();
+        return display == Style::DisplayType::BlockFlow || display == Style::DisplayType::InlineFlowRoot;
+    };
+
+    // Walks past anonymous boxes that the CSS 2 Section 9.2.1.1 rule says to ignore
+    // when resolving values that would refer to them, returning the first ancestor
+    // that is a legitimate containing block for value resolution.
+    auto* ancestor = box.containingBlock();
+    while (ancestor && isIgnoredAsContainingBlock(*ancestor))
+        ancestor = ancestor->containingBlock();
+    return ancestor;
+}
+
+bool RenderBox::isBlockSizeResolvableForStretch() const
+{
+    // css-sizing-4 Section 6.7 defines stretch as behaving like 100%, so stretch
+    // resolution shares the percent rule from CSS 2 Section 9.2.1.1.
+    CheckedPtr containingBlock = containingBlockForStretchResolution(*this);
+    if (!containingBlock)
+        return false;
 
     // Orthogonal children's block axis maps to the parent's inline axis, which is always definite.
     if (isOrthogonal(*this, *containingBlock))

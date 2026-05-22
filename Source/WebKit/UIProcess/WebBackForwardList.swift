@@ -441,7 +441,7 @@ final class WebBackForwardList {
         return (entries[index], index)
     }
 
-    func backListCount() -> Int {
+    private func rawBackListEntryCount() -> Int {
         assertValidIndex()
 
         guard page.__convertToBool() else {
@@ -455,7 +455,7 @@ final class WebBackForwardList {
         return currentIndex
     }
 
-    func forwardListCount() -> Int {
+    private func rawForwardListEntryCount() -> Int {
         assertValidIndex()
 
         guard page.__convertToBool() else {
@@ -469,32 +469,67 @@ final class WebBackForwardList {
         return entries.count - (currentIndex + 1)
     }
 
-    private func counts() -> WebKit.WebBackForwardListCounts {
-        WebKit.WebBackForwardListCounts(backCount: UInt32(backListCount()), forwardCount: UInt32(forwardListCount()))
+    private enum MakeAPIArray {
+        case no
+        case yes
+    }
+
+    func backListCountForAPI() -> Int {
+        backListWithLimitInternal(limit: UInt(rawBackListEntryCount()), makeAPIArray: .no).count
+    }
+
+    func forwardListCountForAPI() -> Int {
+        forwardListWithLimitInternal(limit: UInt(rawForwardListEntryCount()), makeAPIArray: .no).count
+    }
+
+    private func rawCounts() -> WebKit.WebBackForwardListCounts {
+        WebKit.WebBackForwardListCounts(backCount: UInt32(rawBackListEntryCount()), forwardCount: UInt32(rawForwardListEntryCount()))
+    }
+
+    private static func makeListPairResult(
+        items: [WebKit.WebBackForwardListItem],
+        makeAPIArray: MakeAPIArray
+    ) -> (count: Int, array: API.RefAPIArray?) {
+        let count = items.count
+        guard makeAPIArray == .yes else {
+            return (count: count, array: nil)
+        }
+        let array = count > 0 ? API.Array.create(list: items.map { WebKit.toAPIObject($0) }) : API.Array.create()
+        return (count: count, array: array)
     }
 
     func backListAsAPIArrayWithLimit(limit: UInt) -> API.RefAPIArray {
+        // swift-format-ignore: NeverForceUnwrap
+        backListWithLimitInternal(limit: limit, makeAPIArray: .yes).array!
+    }
+
+    func forwardListAsAPIArrayWithLimit(limit: UInt) -> API.RefAPIArray {
+        // swift-format-ignore: NeverForceUnwrap
+        forwardListWithLimitInternal(limit: limit, makeAPIArray: .yes).array!
+    }
+
+    private func backListWithLimitInternal(limit: UInt, makeAPIArray: MakeAPIArray) -> (count: Int, array: API.RefAPIArray?) {
         assertValidIndex()
 
         guard page.__convertToBool() else {
-            return API.Array.create()
+            return WebBackForwardList.makeListPairResult(items: [], makeAPIArray: makeAPIArray)
         }
 
         guard let unwrappedCurrentIndex = currentIndex else {
-            return API.Array.create()
+            return WebBackForwardList.makeListPairResult(items: [], makeAPIArray: makeAPIArray)
         }
 
-        var backListSize = backListCount()
-        let size = min(backListSize, Int(limit))
+        let backListSize = rawBackListEntryCount()
+        var size = min(backListSize, Int(limit))
         guard size > 0 else {
-            return API.Array.create()
+            return WebBackForwardList.makeListPairResult(items: [], makeAPIArray: makeAPIArray)
         }
         assert(backListSize >= size)
 
         guard !WebBackForwardList.shouldSkipItemsWithoutUserGestureForWebKitAPI else {
             var items: [WebKit.WebBackForwardListItem] = []
             var nextStartingIndex = unwrappedCurrentIndex
-            while backListSize > 0 {
+            while size > 0 {
                 let result = itemStartingAtIndexSkippingItemsAddedByJSWithoutUserGesture(
                     direction: .backward,
                     startingIndex: nextStartingIndex
@@ -502,34 +537,35 @@ final class WebBackForwardList {
                 if let item = result.item {
                     items.append(item)
                 }
-                backListSize -= 1
-                if result.item == nil || backListSize == 0 || result.index == 0 {
+                size -= 1
+                if result.item == nil || size == 0 || result.index == 0 {
                     break
                 }
                 nextStartingIndex = result.index
             }
             items.reverse()
-            return API.Array.create(list: items.map { WebKit.toAPIObject($0) })
+            return WebBackForwardList.makeListPairResult(items: items, makeAPIArray: makeAPIArray)
         }
 
         let startIndex = backListSize - size
-        return API.Array.create(list: entries[startIndex..<startIndex + size].map { WebKit.toAPIObject($0) })
+        let backItems = Array(entries[startIndex..<startIndex + size])
+        return WebBackForwardList.makeListPairResult(items: backItems, makeAPIArray: makeAPIArray)
     }
 
-    func forwardListAsAPIArrayWithLimit(limit: UInt) -> API.RefAPIArray {
+    private func forwardListWithLimitInternal(limit: UInt, makeAPIArray: MakeAPIArray) -> (count: Int, array: API.RefAPIArray?) {
         assertValidIndex()
 
         guard page.__convertToBool() else {
-            return API.Array.create()
+            return WebBackForwardList.makeListPairResult(items: [], makeAPIArray: makeAPIArray)
         }
 
         guard let unwrappedCurrentIndex = currentIndex else {
-            return API.Array.create()
+            return WebBackForwardList.makeListPairResult(items: [], makeAPIArray: makeAPIArray)
         }
 
-        var size = min(forwardListCount(), Int(limit))
+        var size = min(rawForwardListEntryCount(), Int(limit))
         guard size > 0 else {
-            return API.Array.create()
+            return WebBackForwardList.makeListPairResult(items: [], makeAPIArray: makeAPIArray)
         }
 
         guard !WebBackForwardList.shouldSkipItemsWithoutUserGestureForWebKitAPI else {
@@ -549,11 +585,12 @@ final class WebBackForwardList {
                 }
                 nextStartingIndex = result.index
             }
-            return API.Array.create(list: items.map { WebKit.toAPIObject($0) })
+            return WebBackForwardList.makeListPairResult(items: items, makeAPIArray: makeAPIArray)
         }
 
         let startIndex = unwrappedCurrentIndex + 1
-        return API.Array.create(list: entries[startIndex..<startIndex + size].map { WebKit.toAPIObject($0) })
+        let forwardItems = Array(entries[startIndex..<startIndex + size])
+        return WebBackForwardList.makeListPairResult(items: forwardItems, makeAPIArray: makeAPIArray)
     }
 
     func removeAllItems() {
@@ -1012,18 +1049,6 @@ final class WebBackForwardList {
         }
         // We can't use == here due to rdar://162357139
         assert(contentsMatch(webPageProxy.identifier(), item.pageID()) && contentsMatch(itemID, item.identifier()))
-        if let process = WebKit.AuxiliaryProcessProxy.fromConnection(connection) {
-            // The downcast in C++ is really just used to assert that the process is a WebProcessProxy
-            assert(WebKit.downcastToWebProcessProxy(process).__convertToBool())
-            let hasBackForwardCacheEntry = item.backForwardCacheEntry() != nil
-            if hasBackForwardCacheEntry != frameState.ptr().hasCachedPage {
-                if frameState.ptr().hasCachedPage {
-                    webPageProxy.backForwardCache().addEntry(item, process.coreProcessIdentifier())
-                } else if item.suspendedPage() == nil {
-                    webPageProxy.backForwardCache().removeEntry(item)
-                }
-            }
-        }
         let oldFrameID = frameItem.frameID()
         frameItem.setFrameState(consuming: frameState)
         let newFrameID = frameItem.frameID()
@@ -1052,7 +1077,7 @@ final class WebBackForwardList {
         // value. Since the load is really going on in a new provisional process, we want to ignore such requests from the committed process.
         // Any real new load in the committed process would have cleared m_provisionalPage.
         if let webPageProxy = page.get(), webPageProxy.hasProvisionalPage() {
-            completionHandler.pointee(consuming: counts())
+            completionHandler.pointee(consuming: rawCounts())
             return
         }
 
@@ -1073,7 +1098,7 @@ final class WebBackForwardList {
         if let webPageProxy = page.get() {
             if messageCheckCompletion(
                 process: WebKit.RefWebProcessProxy(webPageProxy.legacyMainFrameProcess()),
-                completionHandler: { completionHandler.pointee(consuming: counts()) },
+                completionHandler: { completionHandler.pointee(consuming: rawCounts()) },
                 !WebKit.isInspectorPage(webPageProxy)
             ) {
                 return
@@ -1084,7 +1109,7 @@ final class WebBackForwardList {
             goToItem(item: item)
         }
 
-        completionHandler.pointee(consuming: counts())
+        completionHandler.pointee(consuming: rawCounts())
     }
 
     func backForwardAllItems(
@@ -1119,7 +1144,7 @@ final class WebBackForwardList {
     }
 
     func backForwardListCounts(completionHandler: CompletionHandlers.WebBackForwardList.BackForwardListCountsCompletionHandler) {
-        completionHandler.pointee(consuming: counts())
+        completionHandler.pointee(consuming: rawCounts())
     }
 }
 

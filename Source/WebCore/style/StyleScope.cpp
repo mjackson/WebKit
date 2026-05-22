@@ -156,7 +156,7 @@ void Scope::createOrFindSharedShadowTreeResolver()
         m_resolver->ruleSets().setUsesSharedUserStyle(!isForUserAgentShadowTree());
         m_resolver->appendAuthorStyleSheets(m_activeStyleSheets);
 
-        return Ref { *m_resolver };
+        return protect(*m_resolver);
     });
 
     if (!result.isNewEntry) {
@@ -181,7 +181,7 @@ auto Scope::makeResolverSharingKey() -> ResolverSharingKey
 {
     constexpr bool isNonEmptyHashTableValue = true;
     return {
-        m_activeStyleSheets.map([&](auto& sheet) { return RefPtr { &sheet->contents() }; }),
+        m_activeStyleSheets.map([&](auto& sheet) { return protect(&sheet->contents()); }),
         isForUserAgentShadowTree(),
         isNonEmptyHashTableValue
     };

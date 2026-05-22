@@ -563,6 +563,7 @@ public:
         LAYER_TREE_INCLUDES_EVENT_REGION = 512,
         LAYER_TREE_INCLUDES_EXTENDED_COLOR = 1024,
         LAYER_TREE_INCLUDES_DEVICE_SCALE = 2048,
+        LAYER_TREE_INCLUDES_ROOT_LAYERS = 4096,
     };
     ExceptionOr<String> layerTreeAsText(Document&, unsigned short flags) const;
     ExceptionOr<uint64_t> layerIDForElement(Element&);
@@ -831,6 +832,7 @@ public:
     void disableWebRTCHardwareVP9();
     bool isSupportingVP9HardwareDecoder() const;
     void isVP9HardwareDecoderUsed(RTCPeerConnection&, DOMPromiseDeferred<IDLBoolean>&&);
+    bool isSupportingAV1HardwareDecoder() const;
 
     void setSFrameCounter(RTCRtpSFrameTransform&, const String&);
     uint64_t NODELETE sframeCounter(const RTCRtpSFrameTransform&);
@@ -998,7 +1000,7 @@ public:
     float NODELETE pageMediaVolume();
     void setPageMediaVolume(float);
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     void setPageHasBannerViewOverlayForTesting(bool);
 #endif
 

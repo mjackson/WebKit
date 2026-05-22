@@ -30,6 +30,7 @@
 #include "BackgroundProcessResponsivenessTimer.h"
 #include "EnhancedSecurity.h"
 #include "GPUProcessConnectionIdentifier.h"
+#include "LoadedWebArchive.h"
 #include "MessageReceiverMap.h"
 #include "NetworkProcessProxy.h"
 #include "PageClient.h"
@@ -207,7 +208,8 @@ public:
     ~WebProcessProxy();
 
     static void forWebPagesWithOrigin(PAL::SessionID, const WebCore::SecurityOriginData&, NOESCAPE const Function<void(WebPageProxy&)>&);
-    static Vector<std::pair<WebCore::ProcessIdentifier, WebCore::RegistrableDomain>> allowedFirstPartiesForCookies();
+    void addAllowedFirstPartyForCookies(const WebCore::RegistrableDomain&, LoadedWebArchive);
+    const std::pair<LoadedWebArchive, HashSet<WebCore::RegistrableDomain>>& allowedFirstPartiesForCookiesData() const { return m_allowedFirstPartiesForCookies; }
 
     void initializeWebProcess(WebProcessCreationParameters&&);
 
@@ -543,8 +545,10 @@ public:
 
 #if PLATFORM(COCOA)
     std::optional<audit_token_t> auditToken() const;
+#if !ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
     std::optional<Vector<SandboxExtension::Handle>> fontdMachExtensionHandles();
 #endif
+#endif // PLATFORM(COCOA)
 
     bool isConnectedToHardwareConsole() const { return m_isConnectedToHardwareConsole; }
 
@@ -829,6 +833,7 @@ private:
     Expected<WebCore::Site, SiteState> m_site { std::unexpected<SiteState> { SiteState::NotYetSpecified } };
     std::optional<WebCore::Site> m_sharedProcessMainFrameSite;
     HashSet<WebCore::RegistrableDomain> m_sharedProcessDomains;
+    std::pair<LoadedWebArchive, HashSet<WebCore::RegistrableDomain>> m_allowedFirstPartiesForCookies { LoadedWebArchive::No, { } };
     bool m_isInProcessCache { false };
 
     IsolatedProcessType m_isolatedProcessType { IsolatedProcessType::Unspecified };

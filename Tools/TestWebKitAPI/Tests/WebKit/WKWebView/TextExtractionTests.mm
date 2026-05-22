@@ -72,6 +72,12 @@ SOFT_LINK_CLASS(SafariSafeBrowsing, SSBLookupContext);
 
 #endif
 
+@class WKTextExtractionItem;
+
+@interface WKWebView (TextExtractionTestsSPI)
+- (void)_requestTextExtraction:(_WKTextExtractionConfiguration *)configuration completionHandler:(void(^)(WKTextExtractionItem *))completionHandler;
+@end
+
 @interface WKWebView (TextExtractionTests)
 - (NSString *)synchronouslyGetDebugText:(_WKTextExtractionConfiguration *)configuration;
 - (_WKTextExtractionResult *)synchronouslyExtractDebugTextResult:(_WKTextExtractionConfiguration *)configuration;
@@ -357,6 +363,22 @@ TEST(TextExtractionTests, InteractionDebugDescription)
         EXPECT_WK_STREQ("Click on “Subject” in child node of editable h3 labeled “Heading”, with rendered text “Subject”", description);
         EXPECT_NULL(error);
     }
+}
+
+TEST(TextExtractionTests, InteractionDebugDescriptionWithStaleNodeIdentifier)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [[configuration preferences] _setTextExtractionEnabled:YES];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView synchronouslyLoadTestPageNamed:@"debug-text-extraction"];
+
+    NSError *error = nil;
+    RetainPtr interaction = adoptNS([[_WKTextExtractionInteraction alloc] initWithAction:_WKTextExtractionActionClick]);
+    [interaction setNodeIdentifier:@"999999999_999999999"];
+    [interaction setText:@"Test"];
+
+    EXPECT_NOT_NULL([interaction debugDescriptionInWebView:webView error:&error]);
 }
 
 TEST(TextExtractionTests, InteractionResultSummary)
@@ -1736,5 +1758,48 @@ TEST(TextExtractionTests, InteractedElementBounds)
         EXPECT_TRUE(CGRectIsNull([result interactedElementBounds]));
     }
 }
+
+TEST(TextExtractionTests, RequestTextExtractionInSVGDocument)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [[configuration preferences] _setTextExtractionEnabled:YES];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration]);
+    RetainPtr request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Ctext%20x%3D%2210%22%20y%3D%2220%22%3EHello%3C%2Ftext%3E%3C%2Fsvg%3E"]];
+    [webView synchronouslyLoadRequest:request];
+
+    __block bool done = false;
+    __block RetainPtr<WKTextExtractionItem> resultItem;
+    [webView _requestTextExtraction:nil completionHandler:^(WKTextExtractionItem *item) {
+        resultItem = item;
+        done = true;
+    }];
+    Util::run(&done);
+
+    EXPECT_NULL(resultItem);
+}
+
+#if PLATFORM(MAC)
+
+TEST(TextExtractionTests, KeyPressInsertsCharactersInOrder)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [[configuration preferences] _setTextExtractionEnabled:YES];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400) configuration:configuration.get()]);
+    [webView synchronouslyLoadHTMLString:@"<input type='text' id='q'>"];
+    [webView stringByEvaluatingJavaScript:@"document.getElementById('q').focus()"];
+
+    for (NSString *character in @[ @"a", @"b", @"c" ]) {
+        RetainPtr interaction = adoptNS([[_WKTextExtractionInteraction alloc] initWithAction:_WKTextExtractionActionKeyPress]);
+        [interaction setText:character];
+        RetainPtr result = [webView synchronouslyPerformInteraction:interaction.get()];
+        EXPECT_NULL([result error]);
+    }
+
+    EXPECT_WK_STREQ("abc", [webView stringByEvaluatingJavaScript:@"document.getElementById('q').value"]);
+}
+
+#endif // PLATFORM(MAC)
 
 } // namespace TestWebKitAPI

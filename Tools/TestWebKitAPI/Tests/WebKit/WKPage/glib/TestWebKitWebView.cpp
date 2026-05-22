@@ -1316,8 +1316,12 @@ static void testWebViewSnapshot(SnapshotWebViewTest* test, gconstpointer)
 #else
     g_assert_nonnull(snapshot1.get());
     g_assert_true(WEBKIT_IS_IMAGE(snapshot1.get()));
-    g_assert_cmpint(webkit_image_get_width(snapshot1.get()), ==, 50);
-    g_assert_cmpint(webkit_image_get_height(snapshot1.get()), ==, 50);
+#if ENABLE(WPE_PLATFORM)
+    if (test->m_display) {
+        g_assert_cmpint(webkit_image_get_width(snapshot1.get()), ==, 50);
+        g_assert_cmpint(webkit_image_get_height(snapshot1.get()), ==, 50);
+    }
+#endif
 #endif
 
     // Select all text in the WebView, request a snapshot ignoring selection.
@@ -2318,9 +2322,14 @@ void beforeAll()
 #endif
     WebViewTest::add("WebKitWebView", "is-audio-muted", testWebViewIsAudioMuted);
     WebViewTest::add("WebKitWebView", "autoplay-policy", testWebViewAutoplayPolicy);
-    WebViewTest::add("WebKitWebView", "is-web-process-responsive", testWebViewIsWebProcessResponsive);
     WebViewTerminateWebProcessTest::add("WebKitWebView", "terminate-web-process", testWebViewTerminateWebProcess);
+#if defined(NDEBUG)
+    // ResponsivenessTimer::mayBecomeUnresponsive() short-circuits to false in
+    // Debug builds, so the web process is never reported as unresponsive and
+    // these tests would hang waiting for the property change.
+    WebViewTest::add("WebKitWebView", "is-web-process-responsive", testWebViewIsWebProcessResponsive);
     WebViewTerminateWebProcessTest::add("WebKitWebView", "terminate-unresponsive-web-process", testWebViewTerminateUnresponsiveWebProcess);
+#endif
     WebViewTest::add("WebKitWebView", "cors-allowlist", testWebViewCORSAllowlist);
     WebViewTest::add("WebKitWebView", "default-content-security-policy", testWebViewDefaultContentSecurityPolicy);
     WebViewTest::add("WebKitWebView", "web-extension-mode", testWebViewWebExtensionMode);

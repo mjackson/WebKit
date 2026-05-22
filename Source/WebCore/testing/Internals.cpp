@@ -634,7 +634,7 @@ void Internals::resetToConsistentState(Page& page)
         page.setHeaderHeight(0);
         page.setFooterHeight(0);
         page.setObscuredContentInsets({ });
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
         page.setHasBannerViewOverlay(false);
 #endif
         mainFrameView->setUseFixedLayout(false);
@@ -2015,6 +2015,17 @@ bool Internals::isSupportingVP9HardwareDecoder() const
     return false;
 }
 
+bool Internals::isSupportingAV1HardwareDecoder() const
+{
+#if USE(LIBWEBRTC)
+    if (auto* page = contextDocument()->page()) {
+        auto& rtcProvider = downcast<LibWebRTCProvider>(page->webRTCProvider());
+        return rtcProvider.isSupportingAV1HardwareDecoder();
+    }
+#endif
+    return false;
+}
+
 void Internals::isVP9HardwareDecoderUsed(RTCPeerConnection& connection, DOMPromiseDeferred<IDLBoolean>&& promise)
 {
     connection.gatherDecoderImplementationName([promise = WTF::move(promise)](auto&& name) mutable {
@@ -3263,7 +3274,7 @@ static ExceptionOr<FindOptions> parseFindOptions(const Vector<String>& optionLis
         ASCIILiteral name;
         FindOption value;
     };
-    static constexpr auto flagList = std::to_array<FlagListEntry>({
+    static constexpr auto flagList = WTF::toArray<FlagListEntry>({
         { "CaseInsensitive"_s, FindOption::CaseInsensitive },
         { "AtWordStarts"_s, FindOption::AtWordStarts },
         { "TreatMedialCapitalAsWordStart"_s, FindOption::TreatMedialCapitalAsWordStart },
@@ -3549,6 +3560,8 @@ static OptionSet<LayerTreeAsTextOptions> NODELETE toLayerTreeAsTextOptions(unsig
         layerTreeFlags.add(LayerTreeAsTextOptions::IncludeExtendedColor);
     if (flags & Internals::LAYER_TREE_INCLUDES_DEVICE_SCALE)
         layerTreeFlags.add(LayerTreeAsTextOptions::IncludeDeviceScale);
+    if (flags & Internals::LAYER_TREE_INCLUDES_ROOT_LAYERS)
+        layerTreeFlags.add(LayerTreeAsTextOptions::IncludeRootLayers);
 
     return layerTreeFlags;
 }
@@ -6223,7 +6236,7 @@ float Internals::pageMediaVolume()
     return page->mediaVolume();
 }
 
-#if ENABLE(BANNER_VIEW_OVERLAYS)
+#if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
 void Internals::setPageHasBannerViewOverlayForTesting(bool hasBannerViewOverlay)
 {
     RefPtr document = contextDocument();

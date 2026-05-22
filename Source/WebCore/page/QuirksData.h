@@ -81,6 +81,7 @@ struct QuirksData {
         NeedsBodyScrollbarWidthNoneDisabledQuirk,
         NeedsCanPlayAfterSeekedQuirk,
         NeedsChromeMediaControlsPseudoElementQuirk,
+        NeedsLogoutCookieCleanupQuirk,
 #if PLATFORM(IOS_FAMILY)
         NeedsClaudeSidebarViewportUnitQuirk,
 #endif
@@ -173,6 +174,9 @@ struct QuirksData {
         ShouldDisablePointerEventsQuirk,
 #endif
         ShouldDisablePushStateFilePathRestrictions,
+#if ENABLE(THREADED_ANIMATIONS)
+        ShouldDisableThreadedAnimationsQuirk,
+#endif
         ShouldDisableWritingSuggestionsByDefaultQuirk,
         ShouldDispatchPlayPauseEventsOnResume,
 #if ENABLE(TOUCH_EVENTS)

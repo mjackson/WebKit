@@ -24,6 +24,7 @@
 #include "HitTestResult.h"
 #include "ReferencedSVGResources.h"
 #include "RenderAncestorIterator.h"
+#include "RenderBoxInlines.h"
 #include "RenderDescendantIterator.h"
 #include "RenderElementInlines.h"
 #include "RenderLayerBacking.h"

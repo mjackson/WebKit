@@ -7,6 +7,9 @@ SET_PROJECT_VERSION(2 53 2)
 
 set(USER_AGENT_BRANDING "" CACHE STRING "Branding to add to user agent string")
 
+set(ENABLE_UNSAFE_BUFFER_USAGE_WARNING ON)
+list(APPEND WEBKIT_UNSAFE_BUFFER_WARNING_FLAGS -Wno-unsafe-buffer-usage-in-format-attr-call)
+
 # Update Source/WTF/wtf/Platform.h to match required GLib versions.
 find_package(GLib 2.70.0 REQUIRED COMPONENTS GioUnix Thread Module)
 find_package(Cairo 1.16.0 REQUIRED)
@@ -414,6 +417,7 @@ if (ENABLE_WEBXR)
     SET_AND_EXPOSE_TO_BUILD(USE_OPENXR ${OpenXR_FOUND})
     SET_AND_EXPOSE_TO_BUILD(XR_USE_PLATFORM_EGL TRUE)
     SET_AND_EXPOSE_TO_BUILD(XR_USE_GRAPHICS_API_OPENGL_ES TRUE)
+    SET_AND_EXPOSE_TO_BUILD(ENABLE_WEBXR_AR TRUE)
     SET_AND_EXPOSE_TO_BUILD(ENABLE_WEBXR_HANDS TRUE)
 endif ()
 

@@ -2564,12 +2564,15 @@ sub maybeEnterWebKitContainerSDK()
     # Mirror the cheap opt-out checks from maybe_enter_webkit_container_sdk so
     # that the overwhelmingly common no-op case avoids forking a Python
     # interpreter on every wrapper invocation. Keep in sync with that function.
-    return if ($ENV{'WEBKIT_CONTAINER_SDK_ENABLE_AUTOENTER'} // '') ne '1';
-    return if ($ENV{'WEBKIT_CONTAINER_SDK'} // '') eq '1';
     return if ($ENV{'WEBKIT_FLATPAK'} // '') eq '1';
     return if ($ENV{'WEBKIT_JHBUILD'} // '') eq '1';
     return if ($ENV{'WEBKIT_CONTAINER_SDK_INSIDE_MOUNT_NAMESPACE'} // '') eq '1';
     return unless -f File::Spec->catfile(sourceDir(), ".wkdev-sdk-version");
+
+    # Auto-enter is opt-in on the host. Inside the container we always invoke
+    # the helper so the version-mismatch warning fires regardless of opt-in.
+    return if (($ENV{'WEBKIT_CONTAINER_SDK'} // '') ne '1'
+               and ($ENV{'WEBKIT_CONTAINER_SDK_ENABLE_AUTOENTER'} // '') ne '1');
 
     # Delegate to the Python helper. It either replaces this process with
     # `podman exec ...` (never returning), or exits with

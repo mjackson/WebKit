@@ -32,17 +32,23 @@
 #import "Helpers/cocoa/TestNavigationDelegate.h"
 #import "Helpers/cocoa/TestUIDelegate.h"
 #import "Helpers/cocoa/TestWKWebView.h"
+#import "TestURLSchemeHandler.h"
+#import <WebKit/WKArray.h>
 #import <WebKit/WKBackForwardListItemPrivate.h>
 #import <WebKit/WKBackForwardListPrivate.h>
+#import <WebKit/WKBackForwardListRef.h>
 #import <WebKit/WKNavigationDelegatePrivate.h>
 #import <WebKit/WKNavigationPrivate.h>
+#import <WebKit/WKPagePrivate.h>
 #import <WebKit/WKProcessPoolPrivate.h>
+#import <WebKit/WKRetainPtr.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/_WKFrameTreeNode.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <WebKit/_WKSessionState.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/cocoa/SpanCocoa.h>
 #import <wtf/darwin/DispatchExtras.h>
 #import <wtf/text/MakeString.h>
 #import <wtf/text/WTFString.h>
@@ -392,7 +398,6 @@ TEST(WKBackForwardList, InteractionStateRestorationMultipleItems)
 
 @interface WKBackForwardNavigationDelegate : NSObject <WKNavigationDelegatePrivate>
 - (void)waitForDidFinishNavigationOrDidSameDocumentNavigation;
-- (BOOL)waitForDidFinishNavigationOrDidSameDocumentNavigationWithTimeout:(NSTimeInterval)seconds;
 @end
 
 static RetainPtr<WKNavigation> lastNavigation;
@@ -433,12 +438,6 @@ static RetainPtr<WKNavigation> lastNavigation;
 {
     _navigated = false;
     TestWebKitAPI::Util::run(&_navigated);
-}
-
-- (BOOL)waitForDidFinishNavigationOrDidSameDocumentNavigationWithTimeout:(NSTimeInterval)seconds
-{
-    _navigated = false;
-    return TestWebKitAPI::Util::runFor(&_navigated, Seconds { seconds });
 }
 
 - (void)waitForDidFinishNavigation
@@ -529,170 +528,290 @@ TEST(WKBackForwardList, BackSwipeNavigationDoesNotSkipItemsWithUserGesture)
     EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
 }
 
-static void runBackForwardNavigationSkipsItemsWithoutUserGestureTest(Function<void(WKWebView *, ASCIILiteral destination)>&& navigate)
-{
-    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+struct SkipItemsBackForwardListFixture {
+    RetainPtr<WKWebView> webView;
+    RetainPtr<WKBackForwardNavigationDelegate> navigationDelegate;
+    RetainPtr<NSURL> url1;
+    RetainPtr<NSURL> url2;
+    RetainPtr<NSURL> url3;
+};
 
+@interface WKWebView (WKBackForwardListTestingPrivate)
+- (WKPageRef)_pageForTesting;
+@end
+
+static void verifyBackForwardListCountsMatchArraySizes(WKWebView *webView)
+{
+    WKBackForwardListRef list = WKPageGetBackForwardList([webView _pageForTesting]);
+
+    unsigned forwardCount = WKBackForwardListGetForwardListCount(list);
+    auto forwardArray = adoptWK(WKBackForwardListCopyForwardListWithLimit(list, forwardCount));
+    EXPECT_EQ(static_cast<size_t>(forwardCount), WKArrayGetSize(forwardArray.get()));
+
+    unsigned backCount = WKBackForwardListGetBackListCount(list);
+    auto backArray = adoptWK(WKBackForwardListCopyBackListWithLimit(list, backCount));
+    EXPECT_EQ(static_cast<size_t>(backCount), WKArrayGetSize(backArray.get()));
+}
+
+// Builds the back/forward list:
+// url1 -> url2 -> url2#a (no user gesture) -> url2#b (no user gesture) -> url2#c (no user gesture) -> url3 **
+static SkipItemsBackForwardListFixture setupBackForwardListWithItemsWithoutUserGesture(NOESCAPE Function<void(WKWebView *, ASCIILiteral destination)>&& navigate)
+{
+    static RetainPtr url1 = adoptNS([[NSURL alloc] initWithString:@"test://example/simple.html"]);
+    static RetainPtr url2 = adoptNS([[NSURL alloc] initWithString:@"test://example/simple2.html"]);
+    static RetainPtr url3 = adoptNS([[NSURL alloc] initWithString:@"test://example/simple3.html"]);
+
+    // Build a single shared WKWebViewConfiguration once: the URL scheme handler (with
+    // pre-built per-URL responses), a shared WKProcessPool so WebProcesses get cached
+    // across fixtures and --gtest_repeat iterations, and a shared ephemeral
+    // WKWebsiteDataStore so cookies/cache stay in memory (avoiding disk I/O entirely).
+    static RetainPtr configuration = ([] {
+        static constexpr auto htmlBytes = "<html><body>simple</body></html>"_s;
+        RetainPtr data = toNSDataNoCopy(htmlBytes.span8(), FreeWhenDone::No);
+        auto makeResponse = [&data](NSURL *url) {
+            return adoptNS([[NSURLResponse alloc] initWithURL:url MIMEType:@"text/html" expectedContentLength:[data length] textEncodingName:nil]);
+        };
+        RetainPtr<NSDictionary> responseByURL = adoptNS([[NSDictionary alloc] initWithObjectsAndKeys:
+            makeResponse(url1.get()).get(), url1.get(),
+            makeResponse(url2.get()).get(), url2.get(),
+            makeResponse(url3.get()).get(), url3.get(),
+            nil]);
+
+        RetainPtr schemeHandler = adoptNS([[TestURLSchemeHandler alloc] init]);
+        [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
+            [task didReceiveResponse:[responseByURL objectForKey:[[task request] URL]]];
+            [task didReceiveData:data.get()];
+            [task didFinish];
+        }];
+
+        RetainPtr config = adoptNS([[WKWebViewConfiguration alloc] init]);
+        [config setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
+        [config setProcessPool:adoptNS([WKProcessPool new]).get()];
+        [config setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
+        return config;
+    }());
+
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    [webView _launchInitialProcessIfNecessary];
     RetainPtr navigationDelegate = adoptNS([WKBackForwardNavigationDelegate new]);
     webView.get().navigationDelegate = navigationDelegate.get();
 
-    RetainPtr url1 = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
-    RetainPtr url2 = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
-    RetainPtr url3 = [NSBundle.test_resourcesBundle URLForResource:@"simple3" withExtension:@"html"];
-
-    // Waits for the navigation delegate to see didFinishNavigation or didSameDocumentNavigation,
-    // with a finite timeout so that a rare hang (webkit.org/b/313844) surfaces as a fast EXPECT
-    // failure with the context we were waiting for rather than a silent test-framework timeout.
-    // Returns false on timeout so callers can bail out before the next wait also times out,
-    // keeping total runtime bounded.
-    auto waitForNavigation = [&](const char* context) -> bool {
-        if ([navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigationWithTimeout:10])
-            return true;
-        NSLog(@"WKBackForwardNavigationDelegate wait timed out (%s); webView.URL = %@", context, [webView URL]);
-        EXPECT_TRUE(false);
-        return false;
-    };
-
     [webView loadRequest:[NSURLRequest requestWithURL:url1.get()]];
-    if (!waitForNavigation("loadRequest url1"))
-        return;
+    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
     [webView loadRequest:[NSURLRequest requestWithURL:url2.get()]];
-    if (!waitForNavigation("loadRequest url2"))
-        return;
-
-    // Test case:
-    // url1 -> url2 -> url2#a (no user gesture) -> url2#b (no user gesture) -> url2#c (no user gesture) -> url3.
+    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
     // Add back/forward list items without user gestures.
     navigate(webView.get(), "location.pathname + '#a'"_s);
-    if (!waitForNavigation("navigate to url2#a"))
-        return;
+    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
     EXPECT_FALSE([lastNavigation _isUserInitiated]);
     EXPECT_TRUE(webView.get().backForwardList.currentItem._wasCreatedByJSWithoutUserInteraction);
     RetainPtr expectedURLString = makeString(String([url2 absoluteString]), "#a"_s).createNSString();
     EXPECT_WK_STREQ([lastNavigation _request].URL.absoluteString.UTF8String, expectedURLString.get().UTF8String);
 
     navigate(webView.get(), "location.pathname + '#b'"_s);
-    if (!waitForNavigation("navigate to url2#b"))
-        return;
+    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
     EXPECT_FALSE([lastNavigation _isUserInitiated]);
     EXPECT_TRUE(webView.get().backForwardList.currentItem._wasCreatedByJSWithoutUserInteraction);
     expectedURLString = makeString(String([url2 absoluteString]), "#b"_s).createNSString();
     EXPECT_WK_STREQ([lastNavigation _request].URL.absoluteString.UTF8String, expectedURLString.get().UTF8String);
 
     navigate(webView.get(), "location.pathname + '#c'"_s);
-    if (!waitForNavigation("navigate to url2#c"))
-        return;
+    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
     EXPECT_FALSE([lastNavigation _isUserInitiated]);
     EXPECT_TRUE(webView.get().backForwardList.currentItem._wasCreatedByJSWithoutUserInteraction);
     expectedURLString = makeString(String([url2 absoluteString]), "#c"_s).createNSString();
     EXPECT_WK_STREQ([lastNavigation _request].URL.absoluteString.UTF8String, expectedURLString.get().UTF8String);
 
     [webView loadRequest:[NSURLRequest requestWithURL:url3.get()]];
-    if (!waitForNavigation("loadRequest url3"))
-        return;
+    [navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
     EXPECT_FALSE([webView backForwardList].currentItem._wasCreatedByJSWithoutUserInteraction);
 
-    // url1 -> url2 -> url2#a (no user gesture) -> url2#b (no user gesture) -> url2#c (no user gesture) -> url3 **
     EXPECT_EQ([webView backForwardList].backList.count, 2U);
     EXPECT_EQ([webView backForwardList].forwardList.count, 0U);
+    verifyBackForwardListCountsMatchArraySizes(webView.get());
 
+    SkipItemsBackForwardListFixture fixture;
+    fixture.webView = WTF::move(webView);
+    fixture.navigationDelegate = WTF::move(navigationDelegate);
+    fixture.url1 = url1;
+    fixture.url2 = url2;
+    fixture.url3 = url3;
+    return fixture;
+}
+
+// Phase 1 check: idempotent — leaves state unchanged (back to url3, backList=2, forwardList=0).
+static void runBackForwardNavigationSkipsItemsWithoutUserGestureCheck(const SkipItemsBackForwardListFixture& fixture)
+{
     // We are now on url3. Let's go back.
-    [webView goBack];
-    if (!waitForNavigation("goBack from url3"))
-        return;
+    [fixture.webView goBack];
+    [fixture.navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
     // url1 -> url2 -> url2#a (no user gesture) -> url2#b (no user gesture) -> url2#c (no user gesture) ** -> url3
-    expectedURLString = makeString(String([url2 absoluteString]), "#c"_s).createNSString();
-    EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
-    EXPECT_EQ([webView backForwardList].backList.count, 1U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
+    RetainPtr expectedURLString = makeString(String([fixture.url2 absoluteString]), "#c"_s).createNSString();
+    EXPECT_STREQ([fixture.webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
+    EXPECT_EQ([fixture.webView backForwardList].backList.count, 1U);
+    EXPECT_EQ([fixture.webView backForwardList].forwardList.count, 1U);
+    verifyBackForwardListCountsMatchArraySizes(fixture.webView.get());
 
     // Let's go back again.
-    [webView goBack];
-    if (!waitForNavigation("goBack from url2#c (skipping)"))
-        return;
+    [fixture.webView goBack];
+    [fixture.navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
     // We should have skipped over url2#b, url2#a and url2, to end up on url1.
     // url1 ** -> url2 -> url2#a (no user gesture) -> url2#b (no user gesture) -> url2#c (no user gesture) -> url3
-    EXPECT_STREQ([webView URL].absoluteString.UTF8String, [url1 absoluteString].UTF8String);
-    EXPECT_EQ([webView backForwardList].backList.count, 0U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 2U);
+    EXPECT_STREQ([fixture.webView URL].absoluteString.UTF8String, [fixture.url1 absoluteString].UTF8String);
+    EXPECT_EQ([fixture.webView backForwardList].backList.count, 0U);
+    EXPECT_EQ([fixture.webView backForwardList].forwardList.count, 2U);
+    verifyBackForwardListCountsMatchArraySizes(fixture.webView.get());
 
     // Now let's go forward.
-    [webView goForward];
-    if (!waitForNavigation("goForward from url1"))
-        return;
+    [fixture.webView goForward];
+    [fixture.navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
     // We should get to the latest url2 URL, that is url2#c.
     // url1 -> url2 -> url2#a (no user gesture) -> url2#b (no user gesture) -> url2#c (no user gesture) ** -> url3
-    expectedURLString = makeString(String([url2 absoluteString]), "#c"_s).createNSString();
-    EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
-    EXPECT_EQ([webView backForwardList].backList.count, 1U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
+    expectedURLString = makeString(String([fixture.url2 absoluteString]), "#c"_s).createNSString();
+    EXPECT_STREQ([fixture.webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
+    EXPECT_EQ([fixture.webView backForwardList].backList.count, 1U);
+    EXPECT_EQ([fixture.webView backForwardList].forwardList.count, 1U);
+    verifyBackForwardListCountsMatchArraySizes(fixture.webView.get());
 
     // Let's go forward again.
-    [webView goForward];
-    if (!waitForNavigation("goForward from url2#c"))
-        return;
+    [fixture.webView goForward];
+    [fixture.navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
     // We should now be on url3.
-    EXPECT_STREQ([webView URL].absoluteString.UTF8String, [url3 absoluteString].UTF8String);
+    EXPECT_STREQ([fixture.webView URL].absoluteString.UTF8String, [fixture.url3 absoluteString].UTF8String);
 
-    EXPECT_EQ([webView backForwardList].backList.count, 2U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 0U);
+    EXPECT_EQ([fixture.webView backForwardList].backList.count, 2U);
+    EXPECT_EQ([fixture.webView backForwardList].forwardList.count, 0U);
+    verifyBackForwardListCountsMatchArraySizes(fixture.webView.get());
+}
 
+// Phase 2 check: mutating — leaves state on url2#b. Must run after the Phase 1 check.
+static void runJSHistoryBackDoesNotSkipItemsWithoutUserGestureCheck(const SkipItemsBackForwardListFixture& fixture)
+{
     // Navigating via the JS API shouldn't skip those back/forward list items.
-    [webView _evaluateJavaScriptWithoutUserGesture:@"history.back();" completionHandler:^(id, NSError *) { }];
-    if (!waitForNavigation("history.back() from url3"))
-        return;
+    [fixture.webView _evaluateJavaScriptWithoutUserGesture:@"history.back();" completionHandler:^(id, NSError *) { }];
+    [fixture.navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
 
-    expectedURLString = makeString(String([url2 absoluteString]), "#c"_s).createNSString();
-    EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
-    EXPECT_EQ([webView backForwardList].backList.count, 1U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
+    RetainPtr expectedURLString = makeString(String([fixture.url2 absoluteString]), "#c"_s).createNSString();
+    EXPECT_STREQ([fixture.webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
+    EXPECT_EQ([fixture.webView backForwardList].backList.count, 1U);
+    EXPECT_EQ([fixture.webView backForwardList].forwardList.count, 1U);
+    verifyBackForwardListCountsMatchArraySizes(fixture.webView.get());
 
-    [webView _evaluateJavaScriptWithoutUserGesture:@"history.back();" completionHandler:^(id, NSError *) { }];
-    if (!waitForNavigation("history.back() from url2#c (same-document)"))
-        return;
-    expectedURLString = makeString(String([url2 absoluteString]), "#b"_s).createNSString();
-    EXPECT_STREQ([webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
-    EXPECT_EQ([webView backForwardList].backList.count, 1U);
-    EXPECT_EQ([webView backForwardList].forwardList.count, 1U);
+    [fixture.webView _evaluateJavaScriptWithoutUserGesture:@"history.back();" completionHandler:^(id, NSError *) { }];
+    [fixture.navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    expectedURLString = makeString(String([fixture.url2 absoluteString]), "#b"_s).createNSString();
+    EXPECT_STREQ([fixture.webView URL].absoluteString.UTF8String, expectedURLString.get().UTF8String);
+    EXPECT_EQ([fixture.webView backForwardList].backList.count, 1U);
+    EXPECT_EQ([fixture.webView backForwardList].forwardList.count, 1U);
+    verifyBackForwardListCountsMatchArraySizes(fixture.webView.get());
 }
 
-TEST(WKBackForwardList, BackForwardNavigationSkipsItemsWithoutUserGesturePushState)
+// Test fixtures: the back/forward list setup is built once per fixture (via SetUpTestSuite)
+// and reused across both Phase 1 (skip checks) and Phase 2 (JS history.back checks). Phase 1
+// is idempotent, so it must come first; Phase 2 mutates and runs last. Tests within a fixture
+// are run in source order.
+
+static void pushStateNavigate(WKWebView *webView, ASCIILiteral destination)
 {
-    runBackForwardNavigationSkipsItemsWithoutUserGestureTest([](WKWebView* webView, ASCIILiteral destination) {
-        [webView _evaluateJavaScriptWithoutUserGesture:makeString("history.pushState(null, document.title, "_s, destination, ");"_s).createNSString().get() completionHandler:nil];
-    });
+    [webView _evaluateJavaScriptWithoutUserGesture:makeString("history.pushState(null, document.title, "_s, destination, ");"_s).createNSString().get() completionHandler:nil];
 }
 
-// FIXME when webkit.org/b/313844 is resolved.
-#if PLATFORM(MAC)
-TEST(WKBackForwardList, DISABLED_BackForwardNavigationSkipsItemsWithoutUserGestureFragment)
-#else
-TEST(WKBackForwardList, BackForwardNavigationSkipsItemsWithoutUserGestureFragment)
-#endif
+static void fragmentNavigate(WKWebView *webView, ASCIILiteral destination)
 {
-    runBackForwardNavigationSkipsItemsWithoutUserGestureTest([](WKWebView* webView, ASCIILiteral destination) {
-        [webView _evaluateJavaScriptWithoutUserGesture:makeString("location.href = "_s, destination, ";"_s).createNSString().get() completionHandler:nil];
-    });
+    [webView _evaluateJavaScriptWithoutUserGesture:makeString("location.href = "_s, destination, ";"_s).createNSString().get() completionHandler:nil];
 }
 
-TEST(WKBackForwardList, BackForwardNavigationSkipsItemsWithoutUserGesturePushStateAfterEvaluateJS)
+static void pushStateAfterEvaluateJSNavigate(WKWebView *webView, ASCIILiteral destination)
 {
-    runBackForwardNavigationSkipsItemsWithoutUserGestureTest([](WKWebView* webView, ASCIILiteral destination) {
-        // Do a call to evaluateJavaScript (with user gesture) *BEFORE* the pushState and make sure it doesn't count
-        // as a user gesture for the pushState().
-        __block bool didRunScript = false;
-        [webView evaluateJavaScript:@"window.foo = 1;" completionHandler:^(id, NSError *) {
-            didRunScript = true;
-        }];
-        TestWebKitAPI::Util::run(&didRunScript);
-        [webView _evaluateJavaScriptWithoutUserGesture:makeString("history.pushState(null, document.title, "_s, destination, ");"_s).createNSString().get() completionHandler:nil];
-    });
+    // Do a call to evaluateJavaScript (with user gesture) *BEFORE* the pushState and make sure it doesn't count
+    // as a user gesture for the pushState().
+    __block bool didRunScript = false;
+    [webView evaluateJavaScript:@"window.foo = 1;" completionHandler:^(id, NSError *) {
+        didRunScript = true;
+    }];
+    TestWebKitAPI::Util::run(&didRunScript);
+    pushStateNavigate(webView, destination);
+}
+
+template<auto navigate>
+class WKBackForwardListSkipItemsTestBase : public testing::Test {
+public:
+    static void SetUpTestSuite() { s_fixture = setupBackForwardListWithItemsWithoutUserGesture(navigate); }
+    static void TearDownTestSuite() { s_fixture.reset(); }
+    static std::optional<SkipItemsBackForwardListFixture> s_fixture;
+};
+template<auto navigate>
+std::optional<SkipItemsBackForwardListFixture> WKBackForwardListSkipItemsTestBase<navigate>::s_fixture;
+
+class WKBackForwardListSkipItemsPushStateTest : public WKBackForwardListSkipItemsTestBase<pushStateNavigate> { };
+class WKBackForwardListSkipItemsFragmentTest : public WKBackForwardListSkipItemsTestBase<fragmentNavigate> { };
+class WKBackForwardListSkipItemsPushStateAfterEvaluateJSTest : public WKBackForwardListSkipItemsTestBase<pushStateAfterEvaluateJSNavigate> { };
+
+TEST_F(WKBackForwardListSkipItemsPushStateTest, BackForwardNavigationSkipsItemsWithoutUserGesture)
+{
+    runBackForwardNavigationSkipsItemsWithoutUserGestureCheck(*s_fixture);
+}
+
+TEST_F(WKBackForwardListSkipItemsPushStateTest, JSHistoryBackDoesNotSkipItemsWithoutUserGesture)
+{
+    runJSHistoryBackDoesNotSkipItemsWithoutUserGestureCheck(*s_fixture);
+}
+
+TEST_F(WKBackForwardListSkipItemsFragmentTest, BackForwardNavigationSkipsItemsWithoutUserGesture)
+{
+    runBackForwardNavigationSkipsItemsWithoutUserGestureCheck(*s_fixture);
+}
+
+TEST_F(WKBackForwardListSkipItemsFragmentTest, JSHistoryBackDoesNotSkipItemsWithoutUserGesture)
+{
+    runJSHistoryBackDoesNotSkipItemsWithoutUserGestureCheck(*s_fixture);
+}
+
+TEST_F(WKBackForwardListSkipItemsPushStateAfterEvaluateJSTest, BackForwardNavigationSkipsItemsWithoutUserGesture)
+{
+    runBackForwardNavigationSkipsItemsWithoutUserGestureCheck(*s_fixture);
+}
+
+TEST_F(WKBackForwardListSkipItemsPushStateAfterEvaluateJSTest, JSHistoryBackDoesNotSkipItemsWithoutUserGesture)
+{
+    runJSHistoryBackDoesNotSkipItemsWithoutUserGestureCheck(*s_fixture);
+}
+
+TEST(WKBackForwardList, BackForwardListAsAPIArrayWithLimitRespectsLimit)
+{
+    // bf list: url1 -> url2 -> url2#a (no UG) -> url2#b (no UG) -> url2#c (no UG) -> url3 **
+    // Raw back entry count is 5; the filter only exposes 2 items in the back list (url1, url2).
+    auto fixture = setupBackForwardListWithItemsWithoutUserGesture(pushStateNavigate);
+    EXPECT_EQ([fixture.webView backForwardList].backList.count, 2U);
+
+    WKBackForwardListRef list = WKPageGetBackForwardList([fixture.webView _pageForTesting]);
+
+    // Limit must cap the array; once limit exceeds the visible count, the visible count is the cap.
+    EXPECT_EQ(0u, WKArrayGetSize(adoptWK(WKBackForwardListCopyBackListWithLimit(list, 0)).get()));
+    EXPECT_EQ(1u, WKArrayGetSize(adoptWK(WKBackForwardListCopyBackListWithLimit(list, 1)).get()));
+    EXPECT_EQ(2u, WKArrayGetSize(adoptWK(WKBackForwardListCopyBackListWithLimit(list, 2)).get()));
+    EXPECT_EQ(2u, WKArrayGetSize(adoptWK(WKBackForwardListCopyBackListWithLimit(list, 3)).get()));
+    EXPECT_EQ(2u, WKArrayGetSize(adoptWK(WKBackForwardListCopyBackListWithLimit(list, 100)).get()));
+
+    // Navigate to url1 so the visible items are in the forward list:
+    [fixture.webView goBack];
+    [fixture.navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    [fixture.webView goBack];
+    [fixture.navigationDelegate waitForDidFinishNavigationOrDidSameDocumentNavigation];
+    EXPECT_STREQ([fixture.webView URL].absoluteString.UTF8String, [fixture.url1 absoluteString].UTF8String);
+    EXPECT_EQ([fixture.webView backForwardList].forwardList.count, 2U);
+
+    EXPECT_EQ(0u, WKArrayGetSize(adoptWK(WKBackForwardListCopyForwardListWithLimit(list, 0)).get()));
+    EXPECT_EQ(1u, WKArrayGetSize(adoptWK(WKBackForwardListCopyForwardListWithLimit(list, 1)).get()));
+    EXPECT_EQ(2u, WKArrayGetSize(adoptWK(WKBackForwardListCopyForwardListWithLimit(list, 2)).get()));
+    EXPECT_EQ(2u, WKArrayGetSize(adoptWK(WKBackForwardListCopyForwardListWithLimit(list, 3)).get()));
+    EXPECT_EQ(2u, WKArrayGetSize(adoptWK(WKBackForwardListCopyForwardListWithLimit(list, 100)).get()));
 }
 
 TEST(WKBackForwardList, BackForwardNavigationSkipsItemsWithoutUserGestureSubframe)
