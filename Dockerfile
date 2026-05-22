@@ -41,6 +41,8 @@ RUN ( apt-get update || \
     git \
     python3 \
     python3-pip \
+    zstd \
+    xz-utils \
     ninja-build \
     software-properties-common \
     apt-transport-https \
@@ -48,6 +50,12 @@ RUN ( apt-get update || \
     gnupg \
     lsb-release \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node (for icu/compress-data.ts; needs >=23.6 for default type stripping)
+ARG NODE_VERSION=24.16.0
+RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/').tar.xz" \
+    | tar -xJ -C /usr/local --strip-components=1 \
+    && node --version
 
 # Install modern CMake for Ubuntu
 RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null \
@@ -177,12 +185,17 @@ RUN echo "#include <iostream>\n#include <numbers>\nint main() { std::cout << std
 
 # Download and build ICU.
 #
+# After tar, patch udata.cpp with a per-item decompression hook (a weak extern
+# Bun defines; null in ICU's own tools).
+#
 # After the first `make` (which produces bin/icupkg), filter data/in/icudt75l.dat
-# to drop converters/translit/rbnf/stringprep/confusables/unames, then rebuild
-# the data target. Bun has zero ucnv_/utrans_/usprep_/uspoof_ consumers
-# (TextCodecICU is removed in src/bun.js/bindings/TextEncodingRegistry.cpp and
-# UCONFIG_NO_LEGACY_CONVERSION=1 is set below), so this is unreachable data.
-# Cuts libicudata.a by ~7.4 MB with no observable change.
+# to drop converters/translit/rbnf/stringprep/confusables/unames — Bun has zero
+# ucnv_/utrans_/usprep_/uspoof_ consumers — then rebuild.
+#
+# Finally, repack the filtered .dat with per-item zstd (icu/compress-data.ts).
+# Items in icu/hot-items.txt stay raw so the en-locale cold path is zero-cost.
+# The repacked libicudata.a also embeds the trained zstd dictionary.
+COPY icu/ /icu-bun/
 ADD https://github.com/unicode-org/icu/releases/download/release-75-1/icu4c-75_1-src.tgz /icu.tgz
 RUN --mount=type=tmpfs,target=/icu \
     export CFLAGS="$CFLAGS -Os -std=c17 $LTO_FLAG" && \
@@ -191,6 +204,7 @@ RUN --mount=type=tmpfs,target=/icu \
     cd /icu && \
     tar -xf /icu.tgz --strip-components=1 && \
     rm /icu.tgz && \
+    patch -p1 < /icu-bun/udata-decompress-hook.patch && \
     cd source && \
     ./configure --enable-static --disable-shared --disable-layoutex --disable-layout --with-data-packaging=static --disable-samples --disable-debug --disable-tests --disable-extras --disable-icuio && \
     make -j$(nproc) && \
@@ -198,7 +212,8 @@ RUN --mount=type=tmpfs,target=/icu \
     bin/icupkg --auto_toc_prefix -r data/in/rm.lst data/in/icudt75l.dat data/in/icudt75l_filtered.dat && \
     mv -f data/in/icudt75l_filtered.dat data/in/icudt75l.dat && \
     rm -rf data/out lib/libicudata.a && make -j$(nproc) && \
-    make install && cp -r /icu/source/lib/* /output/lib && cp -r /icu/source/i18n/unicode/* /icu/source/common/unicode/* /output/include/unicode
+    make install && cp -r /icu/source/lib/* /output/lib && cp -r /icu/source/i18n/unicode/* /icu/source/common/unicode/* /output/include/unicode && \
+    node --experimental-strip-types /icu-bun/compress-data.ts data/in/icudt75l.dat /output/lib/libicudata.a --skip /icu-bun/hot-items.txt --cc "$CC"
 
 # Copy WebKit source and build
 COPY . /webkit

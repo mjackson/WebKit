@@ -1,0 +1,66 @@
+# ICU data items left UNCOMPRESSED so the en-locale cold path pays zero
+# decompression cost. Everything not matched here is per-item zstd'd and
+# decompressed on first lookup by bun_icu_maybe_decompress.
+
+# Unicode property tries / normalization tables — already packed; used by
+# the JS lexer, regex \p{}, String.normalize, IDNA, emoji width.
+*.icu
+*.nrm
+
+# Break-iteration rules + en — Intl.Segmenter, WTF::TextBreakIterator.
+brkitr/*.brk
+brkitr/root.res
+brkitr/en.res
+brkitr/en_*.res
+
+# Collation root — every Intl.Collator. (Per-locale tailorings stay compressed.)
+coll/ucadata.icu
+coll/root.res
+coll/en.res
+coll/en_*.res
+
+# Root + en locale bundles (date/time/number patterns) and their string pool.
+root.res
+en.res
+en_*.res
+pool.res
+
+# Supplemental tables touched by Date / Intl.Locale / Intl.DateTimeFormat.
+supplementalData.res
+zoneinfo64.res
+metaZones.res
+timezoneTypes.res
+windowsZones.res
+numberingSystems.res
+plurals.res
+pluralRanges.res
+dayPeriods.res
+genderList.res
+likelySubtags.res
+metadata.res
+units.res
+langInfo.res
+keyTypeData.res
+
+# en + root for the five display-name trees.
+zone/root.res
+zone/en.res
+zone/en_*.res
+zone/pool.res
+curr/root.res
+curr/en.res
+curr/en_*.res
+curr/pool.res
+curr/supplementalData.res
+lang/root.res
+lang/en.res
+lang/en_*.res
+lang/pool.res
+region/root.res
+region/en.res
+region/en_*.res
+region/pool.res
+unit/root.res
+unit/en.res
+unit/en_*.res
+unit/pool.res
