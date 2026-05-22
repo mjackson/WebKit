@@ -7,18 +7,18 @@
       ],
       "rules": [
         "-/AuxExemplarCharacters",
+        "-/Ellipsis",
         "-/ExemplarCharacters",
         "-/ExemplarCharactersIndex",
         "-/ExemplarCharactersNumbers",
         "-/ExemplarCharactersPunctuation",
-        "-/Ellipsis",
         "-/MoreInformation",
+        "-/calendar/*/DateTimeSkeletons",
         "-/characterLabel",
-        "-/personNames",
-        "-/measurementSystemNames",
         "-/delimiters",
+        "-/measurementSystemNames",
         "-/parse",
-        "-/calendar/*/DateTimeSkeletons"
+        "-/personNames"
       ]
     },
     {
@@ -26,7 +26,15 @@
         "lang_tree"
       ],
       "rules": [
-        "-/characterLabelPattern"
+        "-/Keys",
+        "-/Languages%long",
+        "-/Languages%menu",
+        "-/Languages%variant",
+        "-/Scripts%stand-alone",
+        "-/Scripts%variant",
+        "-/Variants",
+        "-/characterLabelPattern",
+        "-/codePatterns"
       ]
     },
     {
@@ -464,6 +472,24 @@
         "-/units/volume/teaspoon",
         "-/unitsShort/volume/teaspoon",
         "-/unitsNarrow/volume/teaspoon"
+      ]
+    },
+    {
+      "categories": [
+        "region_tree"
+      ],
+      "rules": [
+        "-/Countries%chagos",
+        "-/Countries%variant"
+      ]
+    },
+    {
+      "categories": [
+        "curr_tree"
+      ],
+      "rules": [
+        "-/Currencies%formal",
+        "-/Currencies%variant"
       ]
     }
   ]
