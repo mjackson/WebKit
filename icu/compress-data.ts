@@ -276,11 +276,20 @@ function main(): void {
   // ICU's UDataOffsetTOC for this package and the build must not proceed.
   assertRoundTrip(inDat, header, names, itemsDir);
 
-  const dictPath: string = join(work, "dict.zstdict");
-  trainDict(itemsDir, dictPath, DICT_SIZE);
-
   const skip: RegExp[] = loadSkipGlobs(SKIP_FILE);
   const isHot = (bare: string): boolean => skip.some((r) => r.test(bare));
+
+  // Train the dictionary on cold items only — hot items are never compressed,
+  // so including them wastes dict capacity and slows decode of the items that are.
+  const coldDir: string = join(work, "cold");
+  mkdirSync(coldDir);
+  for (const bare of names) {
+    if (isHot(bare)) continue;
+    const dst = join(coldDir, bare.replace(/\//g, "_"));
+    writeFileSync(dst, readFileSync(join(itemsDir, bare)));
+  }
+  const dictPath: string = join(work, "dict.zstdict");
+  trainDict(coldDir, dictPath, DICT_SIZE);
 
   const tmpOut: string = join(work, "z.out");
   let kept = 0, comp = 0, rawB = 0, outB = 0;
