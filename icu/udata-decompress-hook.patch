@@ -5,7 +5,7 @@ decompress individual data items; ICU's own tools get the no-op default.
 --- a/source/common/udata.cpp
 +++ b/source/common/udata.cpp
 @@ -27,6 +27,16 @@
-
+ 
  #include "unicode/putil.h"
  #include "unicode/udata.h"
 +
@@ -21,9 +21,9 @@ decompress individual data items; ICU's own tools get the no-op default.
  #include "unicode/uversion.h"
  #include "charstr.h"
  #include "cmemory.h"
-@@ -1078,6 +1088,7 @@ static UDataMemory *doLoadFromCommonData(UBool isICUData, const char * /*pkgName
+@@ -1078,6 +1088,7 @@
  #endif
-
+ 
              if(pHeader!=nullptr) {
 +                pHeader = (const DataHeader*)bun_icu_maybe_decompress(pHeader, &length);
                  pEntryData = checkDataItem(pHeader, isAcceptable, context, type, name, subErrorCode, pErrorCode);
