@@ -133,7 +133,9 @@ function phase1(): Phase1 {
     const m = line.match(/ [TtWw] (\S+)$/);
     if (m && (/^_ZN6icu_\d+/.test(m[1]) || (/^u[a-z]{2,}_/.test(m[1]) && !m[1].startsWith("uv_")))) binSyms.add(m[1]);
   }
-  if (binSyms.size > 100) {
+  // NARROWING DISABLED: it excluded dictbe.cpp (local-only symbols in .a),
+  // breaking CJK segmentation. Analyzing all archive objects is sound.
+  if (false && binSyms.size > 100) {
     for (const lib of ["libicuuc.a", "libicui18n.a"]) {
       for (const line of sh("nm", ["-A", "--defined-only", `${WEBKIT_LIBS}/${lib}`]).split("\n")) {
         const m = line.match(/:(\w+)\.ao?:\w+ [TtWw] (\S+)$/);
@@ -275,6 +277,9 @@ function analyzeFile(path: string, keep: Keep, useAnnotations: boolean) {
     "ucln_in.cpp": [],
     "brkiter.cpp": ["brkitr_tree"],
     "filteredbrk.cpp": ["brkitr_tree"],
+    "dictbe.cpp": ["brkitr_tree"],
+    "dictionarydata.cpp": ["brkitr_tree"],
+    "brkeng.cpp": ["brkitr_tree"],
     "rbbi.cpp": ["brkitr_tree"],
     "locdspnm.cpp": ["lang_tree", "region_tree", "locales_tree"],
     "locresdata.cpp": ["locales_tree"],
@@ -310,12 +315,20 @@ function analyzeFile(path: string, keep: Keep, useAnnotations: boolean) {
       unit: "unit_tree", zone: "zone_tree", coll: "coll_tree", brkitr: "brkitr_tree", "": "locales_tree",
     };
     cats = [...treesOpened].map(t => TREE_CAT[t] || "misc");
-    if (cats.length === 0) cats = ["misc"];
+    if (cats.length === 0) {
+      // SOUNDNESS: unknown file → attribute reads to EVERY tree.
+      // An unknown file's reads being mis-attributed to one tree is how
+      // dictbe.cpp's /extensions ended up missing from brkitr_tree. Over-
+      // approximating to all trees can only cause spurious KEEPs, never drops.
+      cats = ["locales_tree","curr_tree","lang_tree","region_tree","unit_tree","zone_tree","coll_tree","brkitr_tree","misc"];
+    }
   }
 
-  const fnPat = new RegExp(`\\b(${READ_FNS.join("|")})\\s*\\(`, "g");
+  const cFns = READ_FNS.filter(f => f.startsWith("ures_") || f.startsWith("udata_"));
+  const cppFns = READ_FNS.filter(f => !cFns.includes(f));
+  const fnPat = new RegExp("(?:\\b(" + cFns.join("|") + ")|\\.(" + cppFns.join("|") + "))\\s*\\(", "g");
   for (const m of src.matchAll(fnPat)) {
-    const fn = m[1];
+    const fn = m[1] || m[2];
     const argList = balancedArgs(src, m.index! + m[0].length);
     if (!argList) continue;
     const argv = splitArgs(argList);
@@ -328,7 +341,8 @@ function analyzeFile(path: string, keep: Keep, useAnnotations: boolean) {
       continue;
     }
     let keyArg = argv[1] || "";
-    if (fn.startsWith("getAll")) keyArg = argv[0];
+    // C++ ResourceBundle methods: receiver is the bundle, argv[0] is the key
+    if (fn.startsWith("getAll") || fn === "get" || fn === "getStringEx" || fn === "getWithFallback") keyArg = argv[0] || "";
     lastAnn = null;
     const key = resolveExpr(keyArg);
 
