@@ -41,7 +41,6 @@ RUN ( apt-get update || \
     git \
     python3 \
     python3-pip \
-    zstd \
     xz-utils \
     ninja-build \
     software-properties-common \
@@ -50,6 +49,15 @@ RUN ( apt-get update || \
     gnupg \
     lsb-release \
     && rm -rf /var/lib/apt/lists/*
+
+# Install zstd (for icu/compress-data.ts). Pinned: focal's apt has 1.4.4 which
+# compresses meaningfully worse than 1.5.x; this matches Bun's vendored decoder.
+ARG ZSTD_VERSION=1.5.7
+RUN curl -fsSL "https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/zstd-${ZSTD_VERSION}.tar.gz" | tar xz -C /tmp \
+    && make -C /tmp/zstd-${ZSTD_VERSION}/programs zstd -j$(nproc) \
+    && cp /tmp/zstd-${ZSTD_VERSION}/programs/zstd /usr/local/bin/ \
+    && rm -rf /tmp/zstd-${ZSTD_VERSION} \
+    && zstd --version
 
 # Install Node (for icu/compress-data.ts; needs >=23.6 for default type stripping)
 ARG NODE_VERSION=24.16.0
