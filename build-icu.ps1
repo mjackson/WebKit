@@ -75,12 +75,29 @@ if (-not (Test-Path $ICU_SOURCE_DIR)) {
     tar.exe -xzf $ICU_TARBALL -C $extractDir
     if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE" }
 
-    Write-Host ":: Applying udata decompress hook patch"
-    $patchFile = Join-Path $PSScriptRoot "icu/udata-decompress-hook.patch"
-    Push-Location (Split-Path -Parent $ICU_SOURCE_DIR)
-    git apply --unsafe-paths --directory=. $patchFile
-    if ($LASTEXITCODE -ne 0) { throw "patch failed with exit code $LASTEXITCODE" }
-    Pop-Location
+    Write-Host ":: Applying udata decompress hook (icu/udata-decompress-hook.patch equivalent)"
+    $udata = Join-Path $ICU_SOURCE_DIR "common\udata.cpp"
+    $src = Get-Content $udata -Raw
+    if ($src -notmatch 'bun_icu_maybe_decompress') {
+        $hook = @'
+
+// Embedder-overridable per-item transform. Bun's strong definition decompresses
+// zstd-framed items; this no-op default is used by ICU's own tools.
+extern "C" const void* bun_icu_maybe_decompress(const void*, int32_t*);
+#if defined(_MSC_VER)
+extern "C" const void* bun_icu_maybe_decompress_stub(const void* p, int32_t*) { return p; }
+#pragma comment(linker, "/alternatename:bun_icu_maybe_decompress=bun_icu_maybe_decompress_stub")
+#else
+extern "C" __attribute__((weak)) const void* bun_icu_maybe_decompress(const void* p, int32_t*) { return p; }
+#endif
+'@
+        $src = $src -replace '(#include "unicode/udata.h")', ('$1' + $hook)
+        $src = $src -replace '(\bif\(pHeader!=nullptr\) \{)',
+            ('$1' + "`n                pHeader = (const DataHeader*)bun_icu_maybe_decompress(pHeader, &length);")
+        Set-Content $udata $src -NoNewline
+        if ($src -notmatch 'bun_icu_maybe_decompress') { throw "udata.cpp hook insertion failed" }
+        Write-Host "  Patched: udata.cpp"
+    }
 }
 
 # --- Fetch zstd (for icu/compress-data.ts; pinned to match Bun's vendored decoder) ---
