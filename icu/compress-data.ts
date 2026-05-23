@@ -204,20 +204,32 @@ function padTo16(buf: Buffer, absoluteStart: number): Buffer {
 }
 
 /** Prove writePackage is exact for this input: rebuild with raw bodies and
- *  require byte-identity with the original package. */
+ *  require byte-identity with the original package. ICU's pkgdata may or may
+ *  not 16-pad after the final item, so a trailing-0xaa-only suffix on either
+ *  side is accepted. */
 function assertRoundTrip(inDat: string, header: Header, names: readonly string[], itemsDir: string): void {
   const original: Buffer = readFileSync(inDat);
   const raw: Item[] = names.map((bare): Item => ({ bare, body: readFileSync(join(itemsDir, bare)) }));
   const rebuilt: Buffer = writePackage(header, raw);
-  if (Buffer.compare(original, rebuilt) !== 0) {
-    const at = firstDiff(original, rebuilt);
+  const at = firstDiff(original, rebuilt);
+  const common = Math.min(original.length, rebuilt.length);
+  const onlyTrailingPad =
+    at === common &&
+    isAllAA(original.subarray(common)) &&
+    isAllAA(rebuilt.subarray(common));
+  if (at < common || !onlyTrailingPad) {
     die(
       `round-trip FAILED: writePackage(raw items) != input ` +
       `(sizes ${original.length}/${rebuilt.length}, first diff at byte ${at}). ` +
       `UDataOffsetTOC layout assumption is wrong for this ICU package.`
     );
   }
-  console.error(`[icu-compress] round-trip OK: writePackage reproduces input exactly (${original.length} bytes)`);
+  console.error(`[icu-compress] round-trip OK: writePackage reproduces input (${original.length} bytes)`);
+}
+
+function isAllAA(b: Uint8Array): boolean {
+  for (const x of b) if (x !== 0xaa) return false;
+  return true;
 }
 
 function firstDiff(a: Buffer, b: Buffer): number {
@@ -246,22 +258,28 @@ function verifyPackage(dat: Buffer, header: Header, expected: readonly string[])
 // Archive — embed package + dict as .rodata symbols
 // ---------------------------------------------------------------------------
 
-function emitArchive(datPath: string, dictPath: string, pkg: string, outA: string, cc: string, work: string): void {
+function emitArchive(datPath: string, dictPath: string, pkg: string, out: string, cc: string, work: string): void {
+  const win = process.platform === "win32";
+  // ELF wants .rodata + .type @object; COFF wants .rdata and no .type. clang's
+  // integrated assembler handles .incbin/.balign on both.
+  const sect = win ? '.section .rdata,"dr"' : ".section .rodata";
+  const type = (s: string) => (win ? "" : `.type ${s}, @object\n`);
   const asm = join(work, "icudt.S");
   writeFileSync(asm, [
-    ".section .rodata", ".balign 16",
-    `.global ${pkg}_dat`, `.type ${pkg}_dat, @object`, `${pkg}_dat:`, `.incbin "${datPath}"`,
+    sect, ".balign 16",
+    `.global ${pkg}_dat`, type(`${pkg}_dat`) + `${pkg}_dat:`,
+    `.incbin "${datPath.replace(/\\/g, "/")}"`,
     "",
-    ".balign 16", ".global bun_icu_zstd_dict", ".type bun_icu_zstd_dict, @object",
-    "bun_icu_zstd_dict:", `.incbin "${dictPath}"`, ".Ldict_end:",
+    ".balign 16", ".global bun_icu_zstd_dict", type("bun_icu_zstd_dict") + "bun_icu_zstd_dict:",
+    `.incbin "${dictPath.replace(/\\/g, "/")}"`, ".Ldict_end:",
     "",
-    ".balign 4", ".global bun_icu_zstd_dict_size", ".type bun_icu_zstd_dict_size, @object",
-    "bun_icu_zstd_dict_size:", ".long .Ldict_end - bun_icu_zstd_dict", "",
+    ".balign 4", ".global bun_icu_zstd_dict_size", type("bun_icu_zstd_dict_size") + "bun_icu_zstd_dict_size:",
+    ".long .Ldict_end - bun_icu_zstd_dict", "",
   ].join("\n"));
-  const obj = join(work, `${pkg}l_dat.o`);
+  const obj = join(work, `${pkg}l_dat.${win ? "obj" : "o"}`);
   run([cc, "-c", asm, "-o", obj]);
-  rmSync(outA, { force: true });
-  run(["ar", "rcs", outA, obj]);
+  rmSync(out, { force: true });
+  run(win ? ["llvm-lib", `/OUT:${out}`, obj] : ["ar", "rcs", out, obj]);
 }
 
 // ---------------------------------------------------------------------------

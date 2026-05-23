@@ -31,7 +31,8 @@ if (-not $OutputDir) {
 $ICU_LIB_DIR = Join-Path $OutputDir "lib"
 $ICU_INCLUDE_DIR = Join-Path $OutputDir "include"
 
-$ICU_SOURCE_URL = "https://github.com/unicode-org/icu/releases/download/release-73-2/icu4c-73_2-src.tgz"
+$ICU_SOURCE_URL = "https://github.com/unicode-org/icu/releases/download/release-75-1/icu4c-75_1-src.tgz"
+$ZSTD_VERSION = "1.5.7"
 
 # Verify Python 3 is available (required for ICU data build)
 try {
@@ -73,6 +74,36 @@ if (-not (Test-Path $ICU_SOURCE_DIR)) {
     $extractDir = Split-Path -Parent $OutputDir
     tar.exe -xzf $ICU_TARBALL -C $extractDir
     if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE" }
+
+    Write-Host ":: Applying udata decompress hook patch"
+    $patchFile = Join-Path $PSScriptRoot "icu/udata-decompress-hook.patch"
+    Push-Location (Split-Path -Parent $ICU_SOURCE_DIR)
+    git apply --unsafe-paths --directory=. $patchFile
+    if ($LASTEXITCODE -ne 0) { throw "patch failed with exit code $LASTEXITCODE" }
+    Pop-Location
+}
+
+# --- Fetch zstd (for icu/compress-data.ts; pinned to match Bun's vendored decoder) ---
+$ZSTD_DIR = Join-Path $OutputDir "zstd"
+$ZSTD_EXE = Join-Path $ZSTD_DIR "zstd.exe"
+if (-not (Test-Path $ZSTD_EXE)) {
+    Write-Host ":: Downloading zstd $ZSTD_VERSION"
+    $zstdZip = Join-Path $OutputDir "zstd.zip"
+    Invoke-WebRequest -Uri "https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd-v$ZSTD_VERSION-win64.zip" -OutFile $zstdZip
+    Expand-Archive -Path $zstdZip -DestinationPath $ZSTD_DIR -Force
+    $found = Get-ChildItem -Path $ZSTD_DIR -Recurse -Filter zstd.exe | Select-Object -First 1
+    if (-not $found) { throw "zstd.exe not found in archive" }
+    Move-Item $found.FullName $ZSTD_EXE -Force
+    Remove-Item $zstdZip
+}
+$env:PATH = "$ZSTD_DIR;$env:PATH"
+
+# --- Find Node (for icu/compress-data.ts; needs >=23.6 for type stripping) ---
+$NODE_EXE = (Get-Command node -ErrorAction SilentlyContinue).Source
+if (-not $NODE_EXE) { throw "node.exe not found in PATH (required for icu/compress-data.ts)" }
+$nodeVer = (& $NODE_EXE --version).TrimStart('v').Split('.')
+if ([int]$nodeVer[0] -lt 23 -or ([int]$nodeVer[0] -eq 23 -and [int]$nodeVer[1] -lt 6)) {
+    throw "Node >=23.6 required for type stripping (found $($nodeVer -join '.'))"
 }
 
 if ($Platform -eq "x64") {
@@ -233,6 +264,22 @@ if ((Test-Path $icupkg) -and $datFile) {
 }
 
 # ========================================================================
+# STAGE 1c: Compress ICU data
+# ========================================================================
+# Per-item zstd compression of the filtered package; sicudt.lib is rewritten
+# with the compressed package + trained dict (see icu/compress-data.ts).
+# udata.cpp (patched above) calls bun_icu_maybe_decompress at lookup time.
+$compressedLib = Join-Path $OutputDir "sicudt-compressed.lib"
+Write-Host ":: STAGE 1c: Compressing ICU data ($($datFile.Name))"
+& $NODE_EXE --experimental-strip-types (Join-Path $PSScriptRoot "icu/compress-data.ts") `
+    $datFile.FullName $compressedLib `
+    --skip (Join-Path $PSScriptRoot "icu/keep-raw.txt") `
+    --icupkg $icupkg `
+    --cc clang
+if ($LASTEXITCODE -ne 0) { throw "compress-data.ts failed with exit code $LASTEXITCODE" }
+Write-Host ":: Wrote $compressedLib ($('{0:N0}' -f (Get-Item $compressedLib).Length) bytes)"
+
+# ========================================================================
 # STAGE 2: Rebuild common and i18n as static libraries with /MT
 # ========================================================================
 Write-Host ""
@@ -310,34 +357,12 @@ if (Test-Path $i18nLibSrc) {
     throw "ICU i18n library not found at: $i18nLibSrc"
 }
 
-# ICU data library - output location depends on platform
-$binDir = if ($Platform -eq "x64") { "bin64" } else { "bin$Platform" }
-$icuDataLibSrc = Join-Path $ICU_SOURCE_DIR "..\$binDir\sicudt73.lib"
-
-# Check alternative locations
-if (-not (Test-Path $icuDataLibSrc)) {
-    $icuDataLibSrc = Join-Path $ICU_SOURCE_DIR "data\out\tmp\sicudt73.lib"
-}
-if (-not (Test-Path $icuDataLibSrc)) {
-    $icuDataLibSrc = Join-Path $ICU_SOURCE_DIR "data\out\sicudt73.lib"
-}
-if (-not (Test-Path $icuDataLibSrc)) {
-    $foundLib = Get-ChildItem -Path $OutputDir -Recurse -Filter "sicudt*.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($foundLib) {
-        $icuDataLibSrc = $foundLib.FullName
-        Write-Host ":: Found ICU data library at: $icuDataLibSrc"
-    }
-}
-
-if (Test-Path $icuDataLibSrc) {
-    Copy-Item $icuDataLibSrc "$ICU_LIB_DIR/sicudt.lib" -Force
-    Write-Host "  Copied: $(Split-Path -Leaf $icuDataLibSrc) -> sicudt.lib"
+# ICU data library — the compressed one from Stage 1c.
+if (Test-Path $compressedLib) {
+    Copy-Item $compressedLib "$ICU_LIB_DIR/sicudt.lib" -Force
+    Write-Host "  Copied: sicudt-compressed.lib -> sicudt.lib"
 } else {
-    Write-Host ":: WARNING: ICU data library not found. Listing generated files..."
-    Get-ChildItem -Path $OutputDir -Recurse -Filter "*.lib" | ForEach-Object {
-        Write-Host "    Found: $($_.FullName)"
-    }
-    throw "ICU data library not found. Expected at: $icuDataLibSrc"
+    throw "Compressed ICU data library not found at: $compressedLib"
 }
 
 Write-Host ":: ICU build completed successfully!"
