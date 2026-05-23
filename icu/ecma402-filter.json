@@ -34,6 +34,24 @@
   "resourceFilters": [
     {
       "categories": [
+        "coll_tree"
+      ],
+      "rules": [
+        "-/%%DEPENDENCY"
+      ]
+    },
+    {
+      "categories": [
+        "brkitr_tree"
+      ],
+      "rules": [
+        "-/%%DEPENDENCY",
+        "-/exceptions",
+        "-/extensions"
+      ]
+    },
+    {
+      "categories": [
         "lang_tree"
       ],
       "rules": [
@@ -131,14 +149,6 @@
         "-/subdivisionContainment",
         "-/territoryInfo",
         "-/weekOfPreference"
-      ]
-    },
-    {
-      "categories": [
-        "brkitr_tree"
-      ],
-      "rules": [
-        "-/exceptions"
       ]
     },
     {
