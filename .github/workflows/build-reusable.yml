@@ -189,11 +189,10 @@ jobs:
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: "Release"
             lto_flag: ""
-          - label: bun-webkit-windows-arm64-lto
-            win_arch: arm64
-            package_json_arch: "arm64"
-            CMAKE_BUILD_TYPE: "Release"
-            lto_flag: "/clang:-flto=full"
+          # No arm64-lto variant: LLVM 21's CodeView emitter has no register
+          # mapping for ARM64 NEON quad-register tuples ("LLVM ERROR: unknown
+          # codeview register Q22_Q23_Q24_Q25") and the LTO codegen allocates
+          # values into them. Re-add once that's fixed upstream.
           # arm64-debug stays on the native Windows runner: /MTd needs the
           # ARM64 *debug* CRT (libcmtd.lib), which xwin's splat doesn't
           # produce (no CRT.arm64.Debug package in the VS manifest mapping).
@@ -702,10 +701,6 @@ jobs:
           path: ${{runner.temp}}/bun-webkit-windows-amd64-lto
       - uses: actions/download-artifact@v4
         with:
-          name: bun-webkit-windows-arm64-lto
-          path: ${{runner.temp}}/bun-webkit-windows-arm64-lto
-      - uses: actions/download-artifact@v4
-        with:
           name: bun-webkit-linux-amd64-musl
           path: ${{runner.temp}}/bun-webkit-linux-amd64-musl
       - uses: actions/download-artifact@v4
@@ -806,7 +801,6 @@ jobs:
           mv ${{runner.temp}}/bun-webkit-windows-arm64/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-arm64-debug/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64-lto/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-lto.tar.gz
-          mv ${{runner.temp}}/bun-webkit-windows-arm64-lto/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-android/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-android.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-android-debug/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-android-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-amd64-android/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-android.tar.gz
@@ -899,4 +893,3 @@ jobs:
             ./out/bun-webkit-windows-arm64.tar.gz
             ./out/bun-webkit-windows-arm64-debug.tar.gz
             ./out/bun-webkit-windows-amd64-lto.tar.gz
-            ./out/bun-webkit-windows-arm64-lto.tar.gz
