@@ -150,68 +150,54 @@ jobs:
           name: ${{matrix.label}}
           path: ${{runner.temp}}/bun-webkit.tar.gz
 
-  windows:
+  windows-cross:
+    name: Windows (cross-compiled from Linux)
+    # Cross-compiled from a Linux host: clang-cl --target + an xwin-downloaded
+    # MSVC CRT/Windows SDK + lld-link (see Dockerfile.windows). Replaces the
+    # native Windows runner job and adds the -lto variants it never built.
+    # windows-release.ps1 remains for building on a real Windows machine.
+    runs-on: linux-x64-gh
     strategy:
       matrix:
         include:
-          - runner: windows
-            build-type: Release
+          - label: bun-webkit-windows-amd64
+            win_arch: x64
             package_json_arch: "x64"
-            label: bun-webkit-windows-amd64
-            platform: x64
-          - runner: windows
-            build-type: Debug
+            CMAKE_BUILD_TYPE: "Release"
+            lto_flag: ""
+          - label: bun-webkit-windows-amd64-lto
+            win_arch: x64
             package_json_arch: "x64"
-            label: bun-webkit-windows-amd64-debug
-            platform: x64
-          - runner: windows
-            build-type: Release
+            CMAKE_BUILD_TYPE: "Release"
+            lto_flag: "/clang:-flto=full /clang:-fwhole-program-vtables /clang:-fforce-emit-vtables"
+          - label: bun-webkit-windows-amd64-debug
+            win_arch: x64
             package_json_arch: "x64"
-            label: bun-webkit-windows-amd64-baseline
-            platform: x64
-            baseline: true
-          - runner: windows-11-arm
-            build-type: Release
+            CMAKE_BUILD_TYPE: "Debug"
+            lto_flag: ""
+          - label: bun-webkit-windows-amd64-baseline
+            win_arch: x64
+            package_json_arch: "x64"
+            CMAKE_BUILD_TYPE: "Release"
+            lto_flag: ""
+            baseline: "true"
+          - label: bun-webkit-windows-arm64
+            win_arch: arm64
             package_json_arch: "arm64"
-            label: bun-webkit-windows-arm64
-            platform: ARM64
-          - runner: windows-11-arm
-            build-type: Debug
+            CMAKE_BUILD_TYPE: "Release"
+            lto_flag: ""
+          - label: bun-webkit-windows-arm64-lto
+            win_arch: arm64
             package_json_arch: "arm64"
-            label: bun-webkit-windows-arm64-debug
-            platform: ARM64
-    runs-on: ${{ matrix.runner }}
+            CMAKE_BUILD_TYPE: "Release"
+            lto_flag: "/clang:-flto=full /clang:-fwhole-program-vtables /clang:-fforce-emit-vtables"
+          - label: bun-webkit-windows-arm64-debug
+            win_arch: arm64
+            package_json_arch: "arm64"
+            CMAKE_BUILD_TYPE: "Debug"
+            lto_flag: ""
     timeout-minutes: 90
     steps:
-      - name: Install Scoop
-        run: |
-          Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-          Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
-          Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
-      - name: Install LLVM and Ninja (x64)
-        if: matrix.platform == 'x64'
-        # Downloads from 7-zip.org fail with SSL errors on GHA runners.
-        # Use the pre-installed 7zip on Windows runners instead.
-        run: |
-          "C:\Program Files\7-Zip" >> $Env:GITHUB_PATH
-          scoop config use_external_7zip true
-          scoop install ninja llvm@21.1.8
-          Join-Path (Resolve-Path ~).Path "scoop\apps\llvm\current\bin" >> $Env:GITHUB_PATH
-      - name: Install LLVM and Ninja (ARM64)
-        if: matrix.platform == 'ARM64'
-        run: |
-          "C:\Program Files\7-Zip" >> $Env:GITHUB_PATH
-          scoop config use_external_7zip true
-          scoop install ninja
-          # Install LLVM ARM64 from official LLVM releases
-          # Use LLVM 21 for ARM64 - has better Windows ARM64 support and fixes SEH unwind bugs
-          $llvmVersion = "21.1.8"
-          $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/LLVM-$llvmVersion-woa64.exe"
-          $llvmPath = "C:\LLVM"
-          Invoke-WebRequest -Uri $llvmUrl -OutFile "$env:TEMP\llvm-arm64.exe"
-          & "C:\Program Files\7-Zip\7z.exe" x "$env:TEMP\llvm-arm64.exe" -o"$llvmPath" -y
-          "$llvmPath\bin" >> $Env:GITHUB_PATH
-      # Note: Cygwin is no longer needed - ICU is now built with MSBuild
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.build_ref }}
@@ -220,26 +206,23 @@ jobs:
             /*
             !LayoutTests/
             !JSTests/
-      - name: Build WebKit
+      - uses: docker/setup-buildx-action@v2
+        id: buildx
+        with:
+          install: true
+      - name: Run
         run: |
-          if ("${{matrix.platform}}" -eq "ARM64") {
-            $env:Path = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\arm64\;" + $env:Path
-          } else {
-            $env:Path = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\;" + $env:Path
-          }
-          $env:WEBKIT_OUTPUT_DIR = "bun-webkit"
-          $env:BUN_WEBKIT_VERSION = "${{ inputs.build_ref }}"
-          $env:CMAKE_BUILD_TYPE = "${{matrix.build-type}}"
-          $env:PACKAGE_JSON_LABEL = "${{matrix.label}}"
-          $env:GITHUB_SHA = "${{ inputs.build_ref }}"
-          $env:PACKAGE_JSON_ARCH = "${{matrix.package_json_arch}}"
-          $env:GITHUB_REPOSITORY = "${{ github.repository }}"
-          $Baseline = "${{ matrix.baseline }}" -eq "true"
-          ./windows-release.ps1 -Platform ${{matrix.platform}} -Baseline:$Baseline
+          rm -rf ${{runner.temp}}/bun-webkit ${{runner.temp}}/bun-webkit.tar.gz
+          WIN_ARCH="${{matrix.win_arch}}" WEBKIT_RELEASE_TYPE="${{matrix.CMAKE_BUILD_TYPE}}" LTO_FLAG="${{matrix.lto_flag}}" BASELINE="${{matrix.baseline}}" temp=${{runner.temp}} bash windows-cross-release.sh
+          cd ${{runner.temp}}
+          echo "#define BUN_WEBKIT_VERSION \"${{ inputs.build_ref }}\"" >> bun-webkit/include/cmakeconfig.h
+          echo '{ "name": "${{matrix.label}}", "version": "0.0.1-${{ inputs.build_ref }}", "os": ["windows"], "cpu": ["${{matrix.package_json_arch}}"], "repository": "https://github.com/${{github.repository}}" }' > bun-webkit/package.json
+          tar -czf bun-webkit.tar.gz bun-webkit
+          rm -rf bun-webkit
       - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
-          path: bun-webkit.tar.gz
+          path: ${{runner.temp}}/bun-webkit.tar.gz
 
   linux-musl:
     name: Linux musl
@@ -529,7 +512,7 @@ jobs:
     needs:
       - linux
       - macos-cross
-      - windows
+      - windows-cross
       - linux-musl
       - linux-android
       - freebsd
@@ -648,6 +631,14 @@ jobs:
           path: ${{runner.temp}}/bun-webkit-windows-arm64-debug
       - uses: actions/download-artifact@v4
         with:
+          name: bun-webkit-windows-amd64-lto
+          path: ${{runner.temp}}/bun-webkit-windows-amd64-lto
+      - uses: actions/download-artifact@v4
+        with:
+          name: bun-webkit-windows-arm64-lto
+          path: ${{runner.temp}}/bun-webkit-windows-arm64-lto
+      - uses: actions/download-artifact@v4
+        with:
           name: bun-webkit-linux-amd64-musl
           path: ${{runner.temp}}/bun-webkit-linux-amd64-musl
       - uses: actions/download-artifact@v4
@@ -747,6 +738,8 @@ jobs:
           mv ${{runner.temp}}/bun-webkit-windows-amd64-debug/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-arm64/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-arm64-debug/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64-debug.tar.gz
+          mv ${{runner.temp}}/bun-webkit-windows-amd64-lto/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-lto.tar.gz
+          mv ${{runner.temp}}/bun-webkit-windows-arm64-lto/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-android/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-android.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-android-debug/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-android-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-amd64-android/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-android.tar.gz
@@ -838,3 +831,5 @@ jobs:
             ./out/bun-webkit-windows-amd64-debug.tar.gz
             ./out/bun-webkit-windows-arm64.tar.gz
             ./out/bun-webkit-windows-arm64-debug.tar.gz
+            ./out/bun-webkit-windows-amd64-lto.tar.gz
+            ./out/bun-webkit-windows-arm64-lto.tar.gz
