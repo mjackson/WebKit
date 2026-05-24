@@ -154,10 +154,13 @@ jobs:
     name: Windows (cross-compiled from Linux)
     # Cross-compiled from a Linux host: clang-cl --target + an xwin-downloaded
     # MSVC CRT/Windows SDK + lld-link (see Dockerfile.windows). Replaces the
-    # native Windows runner job and adds the -lto variants it never built.
-    # windows-release.ps1 remains for building on a real Windows machine.
+    # native Windows runner job (except arm64-debug — see the `windows` job
+    # below) and adds the -lto variants it never built. windows-release.ps1
+    # remains for building on a real Windows machine.
     runs-on: linux-x64-gh
     strategy:
+      # One variant's failure shouldn't cancel the other six.
+      fail-fast: false
       matrix:
         include:
           - label: bun-webkit-windows-amd64
@@ -191,11 +194,9 @@ jobs:
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: "Release"
             lto_flag: "/clang:-flto=full /clang:-fwhole-program-vtables /clang:-fforce-emit-vtables"
-          - label: bun-webkit-windows-arm64-debug
-            win_arch: arm64
-            package_json_arch: "arm64"
-            CMAKE_BUILD_TYPE: "Debug"
-            lto_flag: ""
+          # arm64-debug stays on the native Windows runner: /MTd needs the
+          # ARM64 *debug* CRT (libcmtd.lib), which xwin's splat doesn't
+          # produce (no CRT.arm64.Debug package in the VS manifest mapping).
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -223,6 +224,71 @@ jobs:
         with:
           name: ${{matrix.label}}
           path: ${{runner.temp}}/bun-webkit.tar.gz
+
+  windows:
+    name: Windows
+    # Only arm64-debug still builds on a native Windows runner: the /MTd
+    # debug CRT for ARM64 (libcmtd.lib) isn't available via xwin, so it
+    # can't be cross-compiled from Linux yet. Everything else moved to the
+    # `windows-cross` job above.
+    strategy:
+      matrix:
+        include:
+          - runner: windows-11-arm
+            build-type: Debug
+            package_json_arch: "arm64"
+            label: bun-webkit-windows-arm64-debug
+            platform: ARM64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - name: Install Scoop
+        run: |
+          Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+          Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+          Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
+      - name: Install LLVM and Ninja (ARM64)
+        if: matrix.platform == 'ARM64'
+        run: |
+          "C:\Program Files\7-Zip" >> $Env:GITHUB_PATH
+          scoop config use_external_7zip true
+          scoop install ninja
+          # Install LLVM ARM64 from official LLVM releases
+          # Use LLVM 21 for ARM64 - has better Windows ARM64 support and fixes SEH unwind bugs
+          $llvmVersion = "21.1.8"
+          $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/LLVM-$llvmVersion-woa64.exe"
+          $llvmPath = "C:\LLVM"
+          Invoke-WebRequest -Uri $llvmUrl -OutFile "$env:TEMP\llvm-arm64.exe"
+          & "C:\Program Files\7-Zip\7z.exe" x "$env:TEMP\llvm-arm64.exe" -o"$llvmPath" -y
+          "$llvmPath\bin" >> $Env:GITHUB_PATH
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.build_ref }}
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !LayoutTests/
+            !JSTests/
+      - name: Build WebKit
+        run: |
+          if ("${{matrix.platform}}" -eq "ARM64") {
+            $env:Path = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\arm64\;" + $env:Path
+          } else {
+            $env:Path = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\;" + $env:Path
+          }
+          $env:WEBKIT_OUTPUT_DIR = "bun-webkit"
+          $env:BUN_WEBKIT_VERSION = "${{ inputs.build_ref }}"
+          $env:CMAKE_BUILD_TYPE = "${{matrix.build-type}}"
+          $env:PACKAGE_JSON_LABEL = "${{matrix.label}}"
+          $env:GITHUB_SHA = "${{ inputs.build_ref }}"
+          $env:PACKAGE_JSON_ARCH = "${{matrix.package_json_arch}}"
+          $env:GITHUB_REPOSITORY = "${{ github.repository }}"
+          $Baseline = "${{ matrix.baseline }}" -eq "true"
+          ./windows-release.ps1 -Platform ${{matrix.platform}} -Baseline:$Baseline
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{matrix.label}}
+          path: bun-webkit.tar.gz
 
   linux-musl:
     name: Linux musl
@@ -512,6 +578,7 @@ jobs:
     needs:
       - linux
       - macos-cross
+      - windows
       - windows-cross
       - linux-musl
       - linux-android

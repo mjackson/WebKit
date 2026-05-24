@@ -289,9 +289,9 @@ RUN --mount=type=tmpfs,target=/webkitbuild \
     cmake --build /webkitbuild --config ${WEBKIT_RELEASE_TYPE} --target jsc && \
     \
     mkdir -p /output/lib /output/include/JavaScriptCore /output/include/wtf /output/include/bmalloc && \
-    cp -r $WEBKIT_OUT_DIR/lib/* /output/lib/ && \
-    cp -r $WEBKIT_OUT_DIR/bin /output/bin && \
-    cp $WEBKIT_OUT_DIR/cmakeconfig.h /output/include/cmakeconfig.h && \
+    cp -rL $WEBKIT_OUT_DIR/lib/* /output/lib/ && \
+    cp -rL $WEBKIT_OUT_DIR/bin /output/bin && \
+    cp -L $WEBKIT_OUT_DIR/cmakeconfig.h /output/include/cmakeconfig.h && \
     if [ "${WEBKIT_RELEASE_TYPE}" = "Debug" ]; then \
       cp /icu-out/lib/sicudt.lib /output/lib/sicudtd.lib && \
       cp /icu-out/lib/sicuin.lib /output/lib/sicuind.lib && \
@@ -301,17 +301,21 @@ RUN --mount=type=tmpfs,target=/webkitbuild \
       cp /icu-out/lib/sicuin.lib /output/lib/sicuin.lib && \
       cp /icu-out/lib/sicuuc.lib /output/lib/sicuuc.lib; \
     fi && \
-    cp -r $WEBKIT_OUT_DIR/JavaScriptCore/DerivedSources/* /output/include/JavaScriptCore/ && \
-    cp -rf $WEBKIT_OUT_DIR/JavaScriptCore/Headers/JavaScriptCore/* /output/include/JavaScriptCore/ && \
-    cp -rf $WEBKIT_OUT_DIR/JavaScriptCore/PrivateHeaders/JavaScriptCore/* /output/include/JavaScriptCore/ && \
-    cp -f $WEBKIT_OUT_DIR/JavaScriptCore/DerivedSources/*.h /output/include/JavaScriptCore/ && \
-    cp -f $WEBKIT_OUT_DIR/JavaScriptCore/DerivedSources/*/*.h /output/include/JavaScriptCore/ && \
-    cp -f $WEBKIT_OUT_DIR/JavaScriptCore/DerivedSources/*.json /output/ && \
-    cp -r $WEBKIT_OUT_DIR/WTF/DerivedSources/* /output/include/wtf/ 2>/dev/null || true && \
-    cp -r $WEBKIT_OUT_DIR/WTF/Headers/wtf/* /output/include/wtf/ && \
-    cp -r $WEBKIT_OUT_DIR/bmalloc/Headers/bmalloc/* /output/include/bmalloc/ && \
+    # -L everywhere: WebKit's cmake stages the framework headers as symlinks
+    # into the source tree. Copied verbatim they'd dangle outside this
+    # container, so dereference every copy into /output.
+    cp -rL $WEBKIT_OUT_DIR/JavaScriptCore/DerivedSources/* /output/include/JavaScriptCore/ && \
+    cp -rfL $WEBKIT_OUT_DIR/JavaScriptCore/Headers/JavaScriptCore/* /output/include/JavaScriptCore/ && \
+    cp -rfL $WEBKIT_OUT_DIR/JavaScriptCore/PrivateHeaders/JavaScriptCore/* /output/include/JavaScriptCore/ && \
+    cp -fL $WEBKIT_OUT_DIR/JavaScriptCore/DerivedSources/*.h /output/include/JavaScriptCore/ && \
+    cp -fL $WEBKIT_OUT_DIR/JavaScriptCore/DerivedSources/*/*.h /output/include/JavaScriptCore/ && \
+    cp -fL $WEBKIT_OUT_DIR/JavaScriptCore/DerivedSources/*.json /output/ && \
+    { cp -rL $WEBKIT_OUT_DIR/WTF/DerivedSources/* /output/include/wtf/ 2>/dev/null || true; } && \
+    cp -rL $WEBKIT_OUT_DIR/WTF/Headers/wtf/* /output/include/wtf/ && \
+    cp -rL $WEBKIT_OUT_DIR/bmalloc/Headers/bmalloc/* /output/include/bmalloc/ && \
     sed -i 's|#import <JavaScriptCore/JSValuePrivate.h>|#include <JavaScriptCore/JSValuePrivate.h>|' /output/include/JavaScriptCore/JSValueInternal.h && \
-    cp -r /icu-out/include/* /output/include/
+    cp -rL /icu-out/include/* /output/include/ && \
+    test -z "$(find /output/include -type l -print -quit)" || { echo "ERROR: dangling symlinks in /output/include"; find /output/include -type l | head; exit 1; }
 
 FROM scratch AS artifact
 COPY --from=build_webkit /output /
