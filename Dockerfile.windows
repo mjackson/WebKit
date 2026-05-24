@@ -240,6 +240,12 @@ RUN rm -rf /webkit/WebKitLibraries/windows && ln -s /winsdk /webkit/WebKitLibrar
 # reads it. It must be set for cmake's initial compiler detection — that
 # try_compile links an executable before OptionsMSVC.cmake has a chance to
 # add the -libpath: flags.
+#
+# ${LTO_FLAG} goes in the _RELEASE config flags, not CMAKE_C(XX)_FLAGS:
+# cmake's compiler detection compiles a test object with CMAKE_C_FLAGS and
+# sniffs the target architecture out of it, and an LLVM bitcode object (which
+# is what -flto produces) defeats the sniffing — cmake falls back to x64 and
+# passes /machine:x64 to an arm64 link.
 RUN --mount=type=tmpfs,target=/webkitbuild \
     export LIB="/winsdk/crt/lib/${WIN_ARCH};/winsdk/sdk/lib/um/${WIN_ARCH};/winsdk/sdk/lib/ucrt/${WIN_ARCH};/winsdk" && \
     export CRT="MultiThreaded"; if [ "${WEBKIT_RELEASE_TYPE}" = "Debug" ]; then CRT="MultiThreadedDebug"; fi && \
@@ -278,10 +284,10 @@ RUN --mount=type=tmpfs,target=/webkitbuild \
     -DICU_DATA_LIBRARY_RELEASE=/icu-out/lib/sicudt.lib \
     -DICU_I18N_LIBRARY_RELEASE=/icu-out/lib/sicuin.lib \
     -DICU_UC_LIBRARY_RELEASE=/icu-out/lib/sicuuc.lib \
-    "-DCMAKE_C_FLAGS=--target=${WIN_TRIPLE_ARCH}-pc-windows-msvc /Zi /DU_STATIC_IMPLEMENTATION ${MARCH_FLAG} ${LTO_FLAG} ${SAN_FLAGS}" \
-    "-DCMAKE_CXX_FLAGS=--target=${WIN_TRIPLE_ARCH}-pc-windows-msvc /Zi /DU_STATIC_IMPLEMENTATION ${MARCH_FLAG} ${LTO_FLAG} ${SAN_FLAGS} /clang:-fno-c++-static-destructors" \
-    "-DCMAKE_C_FLAGS_RELEASE=/O2 /Ob2 /DNDEBUG" \
-    "-DCMAKE_CXX_FLAGS_RELEASE=/O2 /Ob2 /DNDEBUG" \
+    "-DCMAKE_C_FLAGS=--target=${WIN_TRIPLE_ARCH}-pc-windows-msvc /Zi /DU_STATIC_IMPLEMENTATION ${MARCH_FLAG} ${SAN_FLAGS}" \
+    "-DCMAKE_CXX_FLAGS=--target=${WIN_TRIPLE_ARCH}-pc-windows-msvc /Zi /DU_STATIC_IMPLEMENTATION ${MARCH_FLAG} ${SAN_FLAGS} /clang:-fno-c++-static-destructors" \
+    "-DCMAKE_C_FLAGS_RELEASE=/O2 /Ob2 /DNDEBUG ${LTO_FLAG}" \
+    "-DCMAKE_CXX_FLAGS_RELEASE=/O2 /Ob2 /DNDEBUG ${LTO_FLAG}" \
     "-DCMAKE_C_FLAGS_DEBUG=/FS /O0 /Ob0" \
     "-DCMAKE_CXX_FLAGS_DEBUG=/FS /O0 /Ob0" \
     -G Ninja \
@@ -315,7 +321,7 @@ RUN --mount=type=tmpfs,target=/webkitbuild \
     cp -rL $WEBKIT_OUT_DIR/bmalloc/Headers/bmalloc/* /output/include/bmalloc/ && \
     sed -i 's|#import <JavaScriptCore/JSValuePrivate.h>|#include <JavaScriptCore/JSValuePrivate.h>|' /output/include/JavaScriptCore/JSValueInternal.h && \
     cp -rL /icu-out/include/* /output/include/ && \
-    test -z "$(find /output/include -type l -print -quit)" || { echo "ERROR: dangling symlinks in /output/include"; find /output/include -type l | head; exit 1; }
+    if find /output/include -type l -print -quit | grep -q .; then echo "ERROR: dangling symlinks in /output/include"; find /output/include -type l | head; exit 1; fi
 
 FROM scratch AS artifact
 COPY --from=build_webkit /output /

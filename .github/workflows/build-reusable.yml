@@ -172,7 +172,7 @@ jobs:
             win_arch: x64
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "Release"
-            lto_flag: "/clang:-flto=full /clang:-fwhole-program-vtables /clang:-fforce-emit-vtables"
+            lto_flag: "/clang:-flto=full"
           - label: bun-webkit-windows-amd64-debug
             win_arch: x64
             package_json_arch: "x64"
@@ -193,7 +193,7 @@ jobs:
             win_arch: arm64
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: "Release"
-            lto_flag: "/clang:-flto=full /clang:-fwhole-program-vtables /clang:-fforce-emit-vtables"
+            lto_flag: "/clang:-flto=full"
           # arm64-debug stays on the native Windows runner: /MTd needs the
           # ARM64 *debug* CRT (libcmtd.lib), which xwin's splat doesn't
           # produce (no CRT.arm64.Debug package in the VS manifest mapping).
