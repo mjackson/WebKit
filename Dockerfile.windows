@@ -29,8 +29,8 @@ ARG WEBKIT_RELEASE_TYPE="Release"
 ARG LTO_FLAG=""
 ARG MARCH_FLAG="/clang:-march=haswell"
 ARG ICU_MARCH_FLAG="-march=haswell"
-# "address,undefined" for a future -asan variant. x64 only: LLVM does not
-# ship a Windows ARM64 ASAN runtime.
+# "address,undefined" for the -asan variant. x64 only: LLVM does not ship a
+# Windows ARM64 ASAN runtime.
 ARG ENABLE_SANITIZERS=""
 ARG LLVM_VERSION="21"
 ARG XWIN_VERSION="0.9.0"
@@ -127,6 +127,24 @@ ADD --checksum=sha256:9cff03d2c5218693b1f91efc0074957c710eeddd932d57a681c8f558b8
     https://github.com/oven-sh/WebKit/releases/download/compiler-rt-windows-21.1.8/clang_rt.builtins-x86_64.lib /winsdk/clang_rt.builtins-x86_64.lib
 ADD --checksum=sha256:b1bfec6276dde6166aa038de10c378ec17996779786fe1747c40b833cb826e16 \
     https://github.com/oven-sh/WebKit/releases/download/compiler-rt-windows-21.1.8/clang_rt.builtins-aarch64.lib /winsdk/clang_rt.builtins-aarch64.lib
+
+# Windows ASAN/UBSan runtime for the -asan variant, mirrored from the same
+# LLVM release as the builtins above (x64 only: LLVM ships no Windows ARM64
+# ASAN runtime). Since LLVM 17 the ASAN runtime is a DLL even for /MT builds:
+# executables link the clang_rt.asan_dynamic import lib plus the runtime
+# thunk matching the CRT flavor (clang_rt.asan_static_runtime_thunk for /MT),
+# and need the DLL next to them at run time. The import lib also provides the
+# UBSan handlers, so -fsanitize=address,undefined needs no separate
+# ubsan_standalone libraries. A Linux LLVM install doesn't ship any of these;
+# WebKitCompilerFlags.cmake locates them via CLANG_LIB_PATH (set below).
+ADD --checksum=sha256:3dff47943143ab2c1a786a7c90c88f897bfa34e8b5a4c9382eadf8373fd19ec0 \
+    https://github.com/oven-sh/WebKit/releases/download/compiler-rt-windows-21.1.8/clang_rt.asan_dynamic-x86_64.lib /winsdk/clang_rt.asan_dynamic-x86_64.lib
+ADD --checksum=sha256:d4a0398ed7d2e1361674fbb2cfceec4df502052cfe17b51718b061e9fe523719 \
+    https://github.com/oven-sh/WebKit/releases/download/compiler-rt-windows-21.1.8/clang_rt.asan_static_runtime_thunk-x86_64.lib /winsdk/clang_rt.asan_static_runtime_thunk-x86_64.lib
+ADD --checksum=sha256:b3c1d6c988792651cc0b0b61b4114cbe513a5e2f6beb067fd54a96b98be9b328 \
+    https://github.com/oven-sh/WebKit/releases/download/compiler-rt-windows-21.1.8/clang_rt.asan_dynamic_runtime_thunk-x86_64.lib /winsdk/clang_rt.asan_dynamic_runtime_thunk-x86_64.lib
+ADD --checksum=sha256:14025e779d3c67c53027312d7542aea8f814e5237e59f41cfc6165666189f886 \
+    https://github.com/oven-sh/WebKit/releases/download/compiler-rt-windows-21.1.8/clang_rt.asan_dynamic-x86_64.dll /winsdk/clang_rt.asan_dynamic-x86_64.dll
 
 # Sanity check: compile + link a PE executable for both arches.
 RUN for pair in "x86_64 x64" "aarch64 arm64"; do \
@@ -348,6 +366,7 @@ RUN --mount=type=tmpfs,target=/webkitbuild \
     -DENABLE_BUN_SKIP_FAILING_ASSERTIONS=ON \
     -DENABLE_REMOTE_INSPECTOR=ON \
     -DENABLE_SANITIZERS="${ENABLE_SANITIZERS}" \
+    -DCLANG_LIB_PATH=/winsdk \
     -DCMAKE_MSVC_RUNTIME_LIBRARY=${CRT} \
     -DICU_ROOT=/icu-out \
     -DICU_INCLUDE_DIR=/icu-out/include \
@@ -368,6 +387,14 @@ RUN --mount=type=tmpfs,target=/webkitbuild \
     mkdir -p /output/lib /output/include/JavaScriptCore /output/include/wtf /output/include/bmalloc && \
     cp -rL $WEBKIT_OUT_DIR/lib/* /output/lib/ && \
     cp -rL $WEBKIT_OUT_DIR/bin /output/bin && \
+    # Sanitizer builds ship the ASAN runtime with the artifact: anything that
+    # links these instrumented static libs needs the version-matched import
+    # lib and /MT runtime thunk, and anything that runs (bin/jsc.exe, a
+    # consumer's bun.exe) needs clang_rt.asan_dynamic-x86_64.dll next to it.
+    if [ -n "${ENABLE_SANITIZERS}" ]; then \
+      cp /winsdk/clang_rt.asan_dynamic-x86_64.lib /winsdk/clang_rt.asan_static_runtime_thunk-x86_64.lib /winsdk/clang_rt.asan_dynamic-x86_64.dll /output/lib/ && \
+      cp /winsdk/clang_rt.asan_dynamic-x86_64.dll /output/bin/; \
+    fi && \
     cp -L $WEBKIT_OUT_DIR/cmakeconfig.h /output/include/cmakeconfig.h && \
     if [ "${WEBKIT_RELEASE_TYPE}" = "Debug" ]; then \
       cp /icu-out/lib/sicudt.lib /output/lib/sicudtd.lib && \

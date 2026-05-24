@@ -159,7 +159,7 @@ jobs:
     # remains for building on a real Windows machine.
     runs-on: linux-x64-gh
     strategy:
-      # One variant's failure shouldn't cancel the other six.
+      # One variant's failure shouldn't cancel the others.
       fail-fast: false
       matrix:
         include:
@@ -204,6 +204,15 @@ jobs:
             # LTO too — matching bun-webkit-linux-amd64-baseline-lto.
             lto_flag: "/clang:-flto=thin /clang:-fno-split-lto-unit"
             baseline: "true"
+          # ASAN is x64-only: LLVM ships no Windows ARM64 ASAN runtime. The
+          # sanitizer runtime (import lib, /MT runtime thunk, DLL) comes from
+          # the compiler-rt-windows-* release tag (see Dockerfile.windows).
+          - label: bun-webkit-windows-amd64-asan
+            win_arch: x64
+            package_json_arch: "x64"
+            CMAKE_BUILD_TYPE: "Release"
+            lto_flag: ""
+            ENABLE_SANITIZERS: "address,undefined"
           - label: bun-webkit-windows-arm64
             win_arch: arm64
             package_json_arch: "arm64"
@@ -233,7 +242,7 @@ jobs:
       - name: Run
         run: |
           rm -rf ${{runner.temp}}/bun-webkit ${{runner.temp}}/bun-webkit.tar.gz
-          WIN_ARCH="${{matrix.win_arch}}" WEBKIT_RELEASE_TYPE="${{matrix.CMAKE_BUILD_TYPE}}" LTO_FLAG="${{matrix.lto_flag}}" BASELINE="${{matrix.baseline}}" temp=${{runner.temp}} bash windows-cross-release.sh
+          WIN_ARCH="${{matrix.win_arch}}" WEBKIT_RELEASE_TYPE="${{matrix.CMAKE_BUILD_TYPE}}" LTO_FLAG="${{matrix.lto_flag}}" BASELINE="${{matrix.baseline}}" ENABLE_SANITIZERS="${{matrix.ENABLE_SANITIZERS}}" temp=${{runner.temp}} bash windows-cross-release.sh
           cd ${{runner.temp}}
           echo "#define BUN_WEBKIT_VERSION \"${{ inputs.build_ref }}\"" >> bun-webkit/include/cmakeconfig.h
           echo '{ "name": "${{matrix.label}}", "version": "0.0.1-${{ inputs.build_ref }}", "os": ["windows"], "cpu": ["${{matrix.package_json_arch}}"], "repository": "https://github.com/${{github.repository}}" }' > bun-webkit/package.json
@@ -705,6 +714,10 @@ jobs:
           path: ${{runner.temp}}/bun-webkit-windows-amd64-baseline
       - uses: actions/download-artifact@v4
         with:
+          name: bun-webkit-windows-amd64-asan
+          path: ${{runner.temp}}/bun-webkit-windows-amd64-asan
+      - uses: actions/download-artifact@v4
+        with:
           name: bun-webkit-windows-amd64-debug
           path: ${{runner.temp}}/bun-webkit-windows-amd64-debug
       - uses: actions/download-artifact@v4
@@ -817,6 +830,7 @@ jobs:
           mv ${{runner.temp}}/bun-webkit-linux-amd64-musl-baseline-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-musl-baseline-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64-baseline/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-baseline.tar.gz
+          mv ${{runner.temp}}/bun-webkit-windows-amd64-asan/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-asan.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64-debug/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-arm64/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-arm64-debug/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64-debug.tar.gz
@@ -909,6 +923,7 @@ jobs:
           files: |
             ./out/bun-webkit-windows-amd64.tar.gz
             ./out/bun-webkit-windows-amd64-baseline.tar.gz
+            ./out/bun-webkit-windows-amd64-asan.tar.gz
             ./out/bun-webkit-windows-amd64-debug.tar.gz
             ./out/bun-webkit-windows-arm64.tar.gz
             ./out/bun-webkit-windows-arm64-debug.tar.gz

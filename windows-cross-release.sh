@@ -33,6 +33,12 @@ case "$WIN_ARCH" in
 esac
 export WIN_TRIPLE_ARCH MARCH_FLAG ICU_MARCH_FLAG
 
+# Sanitizers are x64-only: LLVM ships no Windows ARM64 ASAN runtime.
+if [ -n "$ENABLE_SANITIZERS" ] && [ "$WIN_ARCH" != "x64" ]; then
+    echo "error: ENABLE_SANITIZERS requires WIN_ARCH=x64 (no Windows ARM64 ASAN runtime)" >&2
+    exit 1
+fi
+
 export CONTAINER_NAME="bun-webkit-windows-cross-${WIN_ARCH}"
 if [ "$WEBKIT_RELEASE_TYPE" == "Debug" ]; then
     CONTAINER_NAME="${CONTAINER_NAME}-debug"
