@@ -178,11 +178,12 @@ RUN mkdir -p /icu-host && cd /icu-host && \
 # equivalent to the native flow.
 RUN set -eu && \
     DAT=$(ls /icu-src/source/data/in/icudt*l.dat) && \
+    FILTERED="${DAT%.dat}-filtered.dat" && \
     /icu-host/bin/icupkg -l "$DAT" | \
       grep -E '\.(cnv|spp|cfu)$|^cnvalias\.icu$|^translit/|^rbnf/|^unames\.icu$' > /tmp/icu-rm.lst && \
     test -s /tmp/icu-rm.lst && \
-    /icu-host/bin/icupkg --auto_toc_prefix -r /tmp/icu-rm.lst "$DAT" "$DAT.filtered" && \
-    mv "$DAT.filtered" "$DAT" && \
+    /icu-host/bin/icupkg --auto_toc_prefix -r /tmp/icu-rm.lst "$DAT" "$FILTERED" && \
+    mv "$FILTERED" "$DAT" && \
     ls -la "$DAT" && \
     test "$(stat -c%s "$DAT")" -lt 27000000
 
