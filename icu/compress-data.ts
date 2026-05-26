@@ -32,17 +32,29 @@ const args = parseArgs({
     level: { type: "string", default: "19" },
     "dict-size": { type: "string", default: String(128 * 1024) },
     cc: { type: "string", default: process.env.CC || "cc" },
+    // Archiver. llvm-ar takes the same "rcs out members" argv shape as binutils ar
+    // and handles COFF members, so the Windows cross build passes --ar llvm-ar.
+    ar: { type: "string", default: "ar" },
+    // Object format for the embedded-data assembly. "elf" (default) matches the
+    // Linux/musl artifacts; "coff" is used by the Windows cross build (no ELF-only
+    // `.type` directives, data goes in `.rdata`, and --cc should be a clang
+    // invocation with `--target=<arch>-pc-windows-msvc`).
+    "obj-format": { type: "string", default: "elf" },
   },
 });
 const [inDat, outA] = args.positionals;
 if (!inDat || !outA)
-  die("usage: node compress-data.ts <in.dat> <out.a> [--skip file] [--icupkg path] [--level N] [--dict-size N] [--cc CC]");
+  die("usage: node compress-data.ts <in.dat> <out.a> [--skip file] [--icupkg path] [--level N] [--dict-size N] [--cc CC] [--ar AR] [--obj-format elf|coff]");
 const ZSTD_LEVEL: number = Number(args.values.level);
 const DICT_SIZE: number = Number(args.values["dict-size"]);
 const MIN_COMPRESS_BYTES = 64;
 const MIN_SAVINGS_BYTES = 4;
 const ICUPKG: string = args.values.icupkg;
+// --cc may be a multi-word command ("clang --target=x86_64-pc-windows-msvc"); it is split on whitespace when invoked.
 const CC: string = args.values.cc;
+const AR: string = args.values.ar;
+const OBJ_FORMAT: string = args.values["obj-format"];
+if (OBJ_FORMAT !== "elf" && OBJ_FORMAT !== "coff") die(`--obj-format must be "elf" or "coff", got "${OBJ_FORMAT}"`);
 const SKIP_FILE: string = args.values.skip;
 
 // ---------------------------------------------------------------------------
@@ -243,25 +255,31 @@ function verifyPackage(dat: Buffer, header: Header, expected: readonly string[])
 }
 
 // ---------------------------------------------------------------------------
-// Archive — embed package + dict as .rodata symbols
+// Archive — embed package + dict as read-only-data symbols
 // ---------------------------------------------------------------------------
 
 function emitArchive(datPath: string, dictPath: string, pkg: string, outA: string, cc: string, work: string): void {
+  // ELF: .rodata + `.type ..., @object` (proper object type/size in the symbol
+  // table). COFF: the conventional read-only section is .rdata, and `.type` is
+  // an ELF-only directive — COFF symbols carry no object type.
+  const coff: boolean = OBJ_FORMAT === "coff";
+  const section: string = coff ? ".section .rdata" : ".section .rodata";
+  const type = (sym: string): string[] => (coff ? [] : [`.type ${sym}, @object`]);
   const asm = join(work, "icudt.S");
   writeFileSync(asm, [
-    ".section .rodata", ".balign 16",
-    `.global ${pkg}_dat`, `.type ${pkg}_dat, @object`, `${pkg}_dat:`, `.incbin "${datPath}"`,
+    section, ".balign 16",
+    `.global ${pkg}_dat`, ...type(`${pkg}_dat`), `${pkg}_dat:`, `.incbin "${datPath}"`,
     "",
-    ".balign 16", ".global bun_icu_zstd_dict", ".type bun_icu_zstd_dict, @object",
+    ".balign 16", ".global bun_icu_zstd_dict", ...type("bun_icu_zstd_dict"),
     "bun_icu_zstd_dict:", `.incbin "${dictPath}"`, ".Ldict_end:",
     "",
-    ".balign 4", ".global bun_icu_zstd_dict_size", ".type bun_icu_zstd_dict_size, @object",
+    ".balign 4", ".global bun_icu_zstd_dict_size", ...type("bun_icu_zstd_dict_size"),
     "bun_icu_zstd_dict_size:", ".long .Ldict_end - bun_icu_zstd_dict", "",
   ].join("\n"));
   const obj = join(work, `${pkg}l_dat.o`);
-  run([cc, "-c", asm, "-o", obj]);
+  run([...cc.split(/\s+/), "-c", asm, "-o", obj]);
   rmSync(outA, { force: true });
-  run(["ar", "rcs", outA, obj]);
+  run([AR, "rcs", outA, obj]);
 }
 
 // ---------------------------------------------------------------------------
