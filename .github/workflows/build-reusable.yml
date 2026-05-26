@@ -172,7 +172,17 @@ jobs:
             win_arch: x64
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "Release"
-            lto_flag: "/clang:-flto=full"
+            # ThinLTO like the macOS -lto variants: the bitcode carries ThinLTO
+            # summaries so the consumer's link gets parallel backends + cross
+            # -language importing instead of one giant serial full-LTO module.
+            # -fno-split-lto-unit keeps every module a pure summary module
+            # (consistent with rustc's bitcode, which never splits).
+            # Unlike linux/macos there is no -fwhole-program-vtables
+            # -fforce-emit-vtables here: WPD drops vtable symbols that COFF
+            # associative COMDAT sections still name as their parent and the
+            # LTO codegen aborts ("Associative COMDAT symbol '??_7...' does
+            # not exist").
+            lto_flag: "/clang:-flto=thin /clang:-fno-split-lto-unit"
           - label: bun-webkit-windows-amd64-debug
             win_arch: x64
             package_json_arch: "x64"
