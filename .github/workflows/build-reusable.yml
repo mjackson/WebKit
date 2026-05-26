@@ -194,6 +194,16 @@ jobs:
             CMAKE_BUILD_TYPE: "Release"
             lto_flag: ""
             baseline: "true"
+          - label: bun-webkit-windows-amd64-baseline-lto
+            win_arch: x64
+            package_json_arch: "x64"
+            CMAKE_BUILD_TYPE: "Release"
+            # Same ThinLTO configuration as bun-webkit-windows-amd64-lto above
+            # (see that entry's comment), compiled for the nehalem baseline so
+            # bun's windows-x64-baseline release links can do cross-language
+            # LTO too — matching bun-webkit-linux-amd64-baseline-lto.
+            lto_flag: "/clang:-flto=thin /clang:-fno-split-lto-unit"
+            baseline: "true"
           - label: bun-webkit-windows-arm64
             win_arch: arm64
             package_json_arch: "arm64"
