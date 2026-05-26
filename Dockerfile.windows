@@ -142,8 +142,10 @@ RUN for pair in "x86_64 x64" "aarch64 arm64"; do \
 # ICU — two-stage cross build. Host tools first (icupkg/pkgdata/genccode run
 # on the build machine), then the target build with clang's GNU driver
 # producing COFF objects archived by llvm-ar. --with-data-packaging=static
-# embeds the full 32 MB data table as a static library, matching the
-# `makedata` MSBuild project the native build uses.
+# embeds the data table as a static library, matching the `makedata` MSBuild
+# project the native build uses — including build-icu.ps1's STAGE 1b data
+# filter (drop converters/translit/rbnf/stringprep/confusables/unames, which
+# bun never uses), so sicudt.lib stays ~24 MB instead of the full ~32 MB.
 # ───────────────────────────────────────────────────────────────────────────
 FROM base AS build_icu
 
@@ -164,7 +166,25 @@ RUN mkdir -p /icu-src && tar -xzf /icu-src.tgz -C /icu-src --strip-components=1 
 RUN mkdir -p /icu-host && cd /icu-host && \
     CC=clang CXX=clang++ /icu-src/source/runConfigureICU Linux \
       --enable-static --disable-shared --disable-samples --disable-tests --disable-extras && \
-    make -j$(nproc) && test -x bin/pkgdata
+    make -j$(nproc) && test -x bin/pkgdata && test -x bin/icupkg
+
+# Filter the prebuilt data package the same way the native build does
+# (build-icu.ps1 STAGE 1b): drop charset converters, transliteration rules,
+# rule-based number formats, stringprep profiles, confusables, and character
+# names. Bun has zero ucnv_/utrans_/usprep_/uspoof_ consumers (TextCodecICU
+# is removed in bun's TextEncodingRegistry.cpp), and this is what keeps the
+# native sicudt.lib at ~24 MB instead of ~32 MB. pkgdata packages
+# data/in/icudt*l.dat verbatim in a cross build, so filtering it here is
+# equivalent to the native flow.
+RUN set -eu && \
+    DAT=$(ls /icu-src/source/data/in/icudt*l.dat) && \
+    /icu-host/bin/icupkg -l "$DAT" | \
+      grep -E '\.(cnv|spp|cfu)$|^cnvalias\.icu$|^translit/|^rbnf/|^unames\.icu$' > /tmp/icu-rm.lst && \
+    test -s /tmp/icu-rm.lst && \
+    /icu-host/bin/icupkg --auto_toc_prefix -r /tmp/icu-rm.lst "$DAT" "$DAT.filtered" && \
+    mv "$DAT.filtered" "$DAT" && \
+    ls -la "$DAT" && \
+    test "$(stat -c%s "$DAT")" -lt 27000000
 
 # ICU's configure for non-GNU compilers insists that `link` on PATH is MS
 # link.exe; coreutils' link(1) trips the check. Shadow it with lld-link.
@@ -202,7 +222,7 @@ RUN mkdir -p /icu-build && cd /icu-build && \
 # pkgdata names the data entry point with a leading underscore (the i386
 # convention); x64 and arm64 COFF symbols are unprefixed, so rename it to
 # the icudt<major>_dat the headers declare. Verify the data table actually
-# made it in (the stub is ~12 KB; the real table is ~32 MB).
+# made it in (the stub is ~12 KB; the real, filtered table is ~24 MB).
 RUN mkdir -p /icu-out/lib /icu-out/include && \
     cp -r /icu-src/source/common/unicode /icu-out/include/ && \
     cp /icu-src/source/i18n/unicode/*.h /icu-out/include/unicode/ && \
