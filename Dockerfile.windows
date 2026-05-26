@@ -264,8 +264,8 @@ RUN mkdir -p /icu-out/lib /icu-out/include && \
       --cc "clang --target=${WIN_TRIPLE_ARCH}-pc-windows-msvc" --ar llvm-ar --obj-format coff && \
     SIZE=$(stat -c%s /icu-out/lib/sicudt.lib) && echo "sicudt.lib: ${SIZE} bytes" && \
     test "$SIZE" -gt 8000000 && test "$SIZE" -lt 16000000 && \
-    llvm-nm /icu-out/lib/sicudt.lib | grep -q " R icudt${ICU_MAJOR}_dat" && \
-    llvm-nm /icu-out/lib/sicudt.lib | grep -q " R bun_icu_zstd_dict"
+    llvm-nm-${LLVM_VERSION} /icu-out/lib/sicudt.lib | grep -q " R icudt${ICU_MAJOR}_dat" && \
+    llvm-nm-${LLVM_VERSION} /icu-out/lib/sicudt.lib | grep -q " R bun_icu_zstd_dict"
 
 # ───────────────────────────────────────────────────────────────────────────
 # WebKit (JSCOnly)
