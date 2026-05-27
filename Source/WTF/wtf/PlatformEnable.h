@@ -756,6 +756,34 @@
 #define ENABLE_DFG_JIT 0
 #endif
 
+/* The JIT disassembler is a debugging-only facility: it is reached solely by
+   diagnostic options such as dumpDisassembly, dumpDFGDisassembly,
+   dumpFTLDisassembly and logJIT. Its instruction tables are large - the
+   x86_64 Zydis tables and the ARM64 Binja tables each add well over 1MB of
+   code - so compile it out of release builds. ASSERT_ENABLED is on only in
+   debug builds, where the size cost does not matter. With the disassembler
+   off, tryToDisassemble() becomes a no-op and disassemble() prints the code
+   range instead, which is the configuration WebKit already supports on CPUs
+   that lack a disassembler backend. Define BUN_ENABLE_JIT_DISASSEMBLER=1 (via
+   a compiler flag) to force it on in an optimized build for JIT debugging. */
+#if !defined(BUN_ENABLE_JIT_DISASSEMBLER)
+#define BUN_ENABLE_JIT_DISASSEMBLER ASSERT_ENABLED
+#endif
+#if !BUN_ENABLE_JIT_DISASSEMBLER
+#if !defined(ENABLE_ZYDIS)
+#define ENABLE_ZYDIS 0
+#endif
+#if !defined(ENABLE_ARM64_DISASSEMBLER)
+#define ENABLE_ARM64_DISASSEMBLER 0
+#endif
+#if !defined(ENABLE_RISCV64_DISASSEMBLER)
+#define ENABLE_RISCV64_DISASSEMBLER 0
+#endif
+#if !defined(ENABLE_DISASSEMBLER)
+#define ENABLE_DISASSEMBLER 0
+#endif
+#endif
+
 /* If possible, try to enable a disassembler. This is optional. We proceed in two
    steps: first we try to find some disassembler that we can use, and then we
    decide if the high-level disassembler API can be enabled. */
