@@ -33,8 +33,8 @@ ARG ICU_MARCH_FLAG="-march=haswell"
 # ship a Windows ARM64 ASAN runtime.
 ARG ENABLE_SANITIZERS=""
 ARG LLVM_VERSION="21"
-ARG XWIN_VERSION="0.6.7"
-ARG XWIN_SHA256="0a2411665ba8cce7d841528566d2eedc7c88dccb12b087aac394811c61e6751b"
+ARG XWIN_VERSION="0.9.0"
+ARG XWIN_SHA256="31e1033f30608ba6b821d17f1461042bd54c23424813c9b4e9ae15b6d32fa4cd"
 # Pinned MSVC CRT + Windows SDK versions. Bump deliberately; the manifest on
 # Microsoft's CDN gains new versions with every VS release and old ones are
 # eventually retired.
