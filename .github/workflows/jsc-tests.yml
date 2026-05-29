@@ -4,10 +4,9 @@ name: JSC Tests
 # against a release jsc shell. The existing Preview Build workflow only
 # verifies that the tree compiles; this is the first correctness gate.
 #
-# Scope: Linux x64 release, --quick mode (default + no-cjit-validate test
-# variants only), stress/mozilla/chakra/layout corpora, no native test
-# binaries (testmasm/testair/testb3/testdfg/testapi). Upstream EWS budgets
-# ~1h for the full suite; --quick is the documented fast subset.
+# Scope: Linux x64 release, full mode set (matches upstream EWS),
+# stress/mozilla/chakra/layout/wasm corpora, no native test binaries
+# (testmasm/testair/testb3/testdfg/testapi/testwasmdebugger).
 
 on:
   pull_request:
@@ -42,7 +41,7 @@ jobs:
             }
 
   test:
-    name: Linux x64 (quick)
+    name: Linux x64
     needs: [permission-check]
     if: always() && (needs.permission-check.result == 'success' || github.event_name == 'workflow_dispatch')
     runs-on: linux-x64-gh
@@ -113,7 +112,6 @@ jobs:
           Tools/Scripts/run-javascriptcore-tests \
             --jsc-only --release --no-build --no-fail-fast \
             --root="$PWD/WebKitBuild/Release" \
-            --quick --memory-limited \
             --no-testmasm --no-testair --no-testb3 --no-testdfg --no-testapi \
             --no-testwasmdebugger \
             --json-output="$PWD/jsc_results.json" \
