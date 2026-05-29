@@ -2255,6 +2255,12 @@ if (WIN32 AND WTF_CPU_ARM64)
     )
 endif()
 
+# Highway: <hwy/...> needs a real -I (the headermap collapses subdir paths).
+set_source_files_properties(
+    runtime/HighwayKernels.cpp
+    PROPERTIES COMPILE_FLAGS "-I${WTF_DIR}/wtf/highway -DHWY_STATIC_DEFINE -Wno-error=undef -Wno-undef"
+)
+
 if(CMAKE_COMPILER_IS_GNUCXX AND GCC_OFFLINEASM_SOURCE_MAP)
     message(STATUS "Enabling asm postprocessing")
 

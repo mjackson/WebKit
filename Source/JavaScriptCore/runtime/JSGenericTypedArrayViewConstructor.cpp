@@ -24,6 +24,7 @@
  */
 
 #include "config.h"
+#include "HighwayKernels.h"
 #include "JSGenericTypedArrayView.h"
 #include "JSGenericTypedArrayViewConstructor.h"
 #include "JSGenericTypedArrayViewConstructorInlines.h"
@@ -110,96 +111,12 @@ template<typename CharacterType>
 [[nodiscard]] inline static size_t decodeHexImpl(std::span<CharacterType> span, std::span<uint8_t> result)
 {
     ASSERT(span.size() == result.size() * 2);
-
-    // http://0x80.pl/notesen/2022-01-17-validating-hex-parse.html
-    auto vectorDecode8 = [&](simde_uint8x16_t input, uint8_t* output) ALWAYS_INLINE_LAMBDA {
-        auto decodeNibbles = [&](simde_uint8x16_t v) ALWAYS_INLINE_LAMBDA {
-            // Move digits '0'..'9' into range 0xf6..0xff.
-            auto t1 = simde_vaddq_u8(v, SIMD::splat8(0xff - '9'));
-            // And then correct the range to 0xf0..0xf9. All other bytes become less than 0xf0.
-            auto t2 = simde_vqsubq_u8(t1, SIMD::splat8(6));
-            // Convert '0'..'9' into nibbles 0..9. Non-digit bytes become greater than 0x0f.
-            auto t3 = simde_vsubq_u8(t2, SIMD::splat8(0xf0));
-            // Convert into uppercase 'a'..'f' => 'A'..'F'.
-            auto t4 = simde_vandq_u8(v, SIMD::splat8(0xdf));
-            // Move hex letter 'A'..'F' into range 0..5.
-            auto t5 = simde_vsubq_u8(t4, SIMD::splat8('A'));
-            // And correct the range into 10..15. The non-hex letters bytes become greater than 0x0f.
-            auto t6 = simde_vqaddq_u8(t5, SIMD::splat8(10));
-            // Finally choose the result: either valid nibble (0..9/10..15) or some byte greater than 0x0f.
-            auto t7 = simde_vminq_u8(t3, t6);
-            // Detect errors, i.e. bytes greater than 15.
-            auto t8 = SIMD::greaterThan(t7, SIMD::splat8(15));
-            return std::tuple { t7, t8 };
-        };
-
-        auto [nibbles, flags] = decodeNibbles(input);
-        if (SIMD::isNonZero(flags)) [[unlikely]]
-            return false;
-
-        auto converted = simde_vreinterpretq_u16_u8(nibbles);
-        auto low = simde_vshrq_n_u16(converted, 8);
-        auto high = simde_vshlq_n_u16(converted, 4);
-        simde_vst1_u8(output, simde_vmovn_u16(simde_vorrq_u16(low, high)));
-        return true;
-    };
-
-    const auto* begin = span.data();
-    const auto* end = std::to_address(span.end());
-    const auto* cursor = begin;
-
-    auto* output = result.data();
-    auto* outputEnd = std::to_address(result.end());
-
-    constexpr size_t stride = 16;
-    constexpr size_t halfStride = stride / 2;
-    if (span.size() >= stride) {
-        auto doStridedDecode = [&]() ALWAYS_INLINE_LAMBDA {
-            if constexpr (sizeof(CharacterType) == 1) {
-                for (; cursor + stride <= end; cursor += stride, output += halfStride) {
-                    if (!vectorDecode8(SIMD::load(std::bit_cast<const uint8_t*>(cursor)), output))
-                        return false;
-                }
-                if (cursor < end) {
-                    if (!vectorDecode8(SIMD::load(std::bit_cast<const uint8_t*>(end - stride)), outputEnd - halfStride))
-                        return false;
-                }
-                return true;
-            } else {
-                auto vectorDecode16 = [&](simde_uint8x16x2_t input, uint8_t* output) ALWAYS_INLINE_LAMBDA {
-                    if (SIMD::isNonZero(input.val[1])) [[unlikely]]
-                        return false;
-                    return vectorDecode8(input.val[0], output);
-                };
-
-                for (; cursor + stride <= end; cursor += stride, output += halfStride) {
-                    if (!vectorDecode16(simde_vld2q_u8(std::bit_cast<const uint8_t*>(cursor)), output))
-                        return false;
-                }
-                if (cursor < end) {
-                    if (!vectorDecode16(simde_vld2q_u8(std::bit_cast<const uint8_t*>(end - stride)), outputEnd - halfStride))
-                        return false;
-                }
-                return true;
-            }
-        };
-
-        if (doStridedDecode())
-            return WTF::notFound;
-    }
-
-    // 1. For small strings less than stride.
-    // 2. Vector decoding failed due to incorrect character. Now, we do decoding character by character to decode up to the incorrect character position.
-    for (; cursor < end; cursor += 2, output += 1) {
-        int tens = parseDigit(*cursor, 16);
-        if (tens == -1) [[unlikely]]
-            return cursor - begin;
-        int ones = parseDigit(*(cursor + 1), 16);
-        if (ones == -1) [[unlikely]]
-            return (cursor + 1) - begin;
-        *output = (tens * 16) + ones;
-    }
-    return WTF::notFound;
+    size_t r;
+    if constexpr (sizeof(CharacterType) == 1)
+        r = Highway::decodeHex8(std::bit_cast<const uint8_t*>(span.data()), result.data(), result.size());
+    else
+        r = Highway::decodeHex16(std::bit_cast<const uint16_t*>(span.data()), result.data(), result.size());
+    return r == SIZE_MAX ? WTF::notFound : r;
 }
 
 [[nodiscard]] size_t decodeHex(std::span<const Latin1Character> span, std::span<uint8_t> result)

@@ -622,6 +622,12 @@ set(WTF_SOURCES
     RuntimeApplicationChecks.cpp
     SHA1.cpp
     SIMDUTF.cpp
+    highway/hwy/abort.cc
+    highway/hwy/aligned_allocator.cc
+    highway/hwy/per_target.cc
+    highway/hwy/print.cc
+    highway/hwy/targets.cc
+    highway/hwy/timer.cc
     SafeStrerror.cpp
     Seconds.cpp
     SegmentedVector.cpp
@@ -690,6 +696,7 @@ set(WTF_SOURCES
     text/StringBuilder.cpp
     text/StringBuilderJSON.cpp
     text/StringCommon.cpp
+    text/StringCommonHighway.cpp
     text/StringImpl.cpp
     text/StringView.cpp
     text/SymbolImpl.cpp
@@ -873,6 +880,19 @@ else ()
         unicode/UTF8Conversion.cpp
         text/StringCommon.cpp
         PROPERTIES COMPILE_FLAGS "-Wno-error=undef -Wno-undef")
+    # Highway: <hwy/...> includes need a real -I (the headermap collapses by
+    # basename, which loses the hwy/ prefix). Put our vendored copy first so it
+    # shadows any system /usr/include/hwy.
+    set(_highway_flags "-I${WTF_DIR}/wtf/highway -DHWY_STATIC_DEFINE -Wno-error=undef -Wno-undef")
+    set_source_files_properties(
+        highway/hwy/abort.cc
+        highway/hwy/aligned_allocator.cc
+        highway/hwy/per_target.cc
+        highway/hwy/print.cc
+        highway/hwy/targets.cc
+        highway/hwy/timer.cc
+        text/StringCommonHighway.cpp
+        PROPERTIES COMPILE_FLAGS "${_highway_flags}")
 endif ()
 
 file(MAKE_DIRECTORY ${WTF_SCRIPTS_DIR})

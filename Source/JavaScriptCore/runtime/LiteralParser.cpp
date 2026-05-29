@@ -27,6 +27,8 @@
 #include "config.h"
 #include "LiteralParser.h"
 
+#include "HighwayKernels.h"
+
 #include "CodeBlock.h"
 #include "JSArray.h"
 #include "JSCInlines.h"
@@ -931,49 +933,22 @@ ALWAYS_INLINE TokenType LiteralParser<CharType, reviverMode>::Lexer::lexString(L
             while (m_ptr < m_end && isSafeStringCharacterForIdentifier<SafeStringCharacterSet::Strict>(*m_ptr, terminator))
                 ++m_ptr;
         } else {
-            using UnsignedType = SameSizeUnsignedInteger<CharType>;
-            constexpr auto quoteMask = SIMD::splat<UnsignedType>('"');
-            constexpr auto escapeMask = SIMD::splat<UnsignedType>('\\');
-            constexpr auto controlMask = SIMD::splat<UnsignedType>(' ');
-            auto vectorMatch = [&](auto input) ALWAYS_INLINE_LAMBDA {
-                auto quotes = SIMD::equal(input, quoteMask);
-                auto escapes = SIMD::equal(input, escapeMask);
-                auto controls = SIMD::lessThan(input, controlMask);
-                auto mask = SIMD::bitOr(quotes, escapes, controls);
-                return SIMD::findFirstNonZeroIndex(mask);
-            };
-
-            auto scalarMatch = [&](CharType character) ALWAYS_INLINE_LAMBDA {
-                return !isSafeStringCharacter<SafeStringCharacterSet::Strict>(character, terminator);
-            };
-
-            m_ptr = SIMD::find(std::span { m_ptr, m_end }, vectorMatch, scalarMatch);
+            size_t length = static_cast<size_t>(m_end - m_ptr);
+            if constexpr (sizeof(CharType) == 1)
+                m_ptr += Highway::findJSONStringEnd8(std::bit_cast<const uint8_t*>(m_ptr), length);
+            else
+                m_ptr += Highway::findJSONStringEnd16(std::bit_cast<const uint16_t*>(m_ptr), length);
         }
     } else {
         if constexpr (hint == JSONIdentifierHint::MaybeIdentifier) {
             while (m_ptr < m_end && isSafeStringCharacterForIdentifier<SafeStringCharacterSet::Sloppy>(*m_ptr, terminator))
                 ++m_ptr;
         } else {
-            using UnsignedType = SameSizeUnsignedInteger<CharType>;
-            auto quoteMask = SIMD::splat<UnsignedType>(terminator);
-            constexpr auto escapeMask = SIMD::splat<UnsignedType>('\\');
-            constexpr auto controlMask = SIMD::splat<UnsignedType>(' ');
-            constexpr auto tabMask = SIMD::splat<UnsignedType>('\t');
-            auto vectorMatch = [&](auto input) ALWAYS_INLINE_LAMBDA {
-                auto quotes = SIMD::equal(input, quoteMask);
-                auto escapes = SIMD::equal(input, escapeMask);
-                auto controls = SIMD::lessThan(input, controlMask);
-                auto notTabs = SIMD::bitNot(SIMD::equal(input, tabMask));
-                auto controlsExceptTabs = SIMD::bitAnd(notTabs, controls);
-                auto mask = SIMD::bitOr(quotes, escapes, controlsExceptTabs);
-                return SIMD::findFirstNonZeroIndex(mask);
-            };
-
-            auto scalarMatch = [&](auto character) ALWAYS_INLINE_LAMBDA {
-                return !isSafeStringCharacter<SafeStringCharacterSet::Sloppy>(character, terminator);
-            };
-
-            m_ptr = SIMD::find(std::span { m_ptr, m_end }, vectorMatch, scalarMatch);
+            size_t length = static_cast<size_t>(m_end - m_ptr);
+            if constexpr (sizeof(CharType) == 1)
+                m_ptr += Highway::findJSONStringEndSloppy8(std::bit_cast<const uint8_t*>(m_ptr), length, static_cast<uint8_t>(terminator));
+            else
+                m_ptr += Highway::findJSONStringEndSloppy16(std::bit_cast<const uint16_t*>(m_ptr), length, static_cast<uint16_t>(terminator));
         }
     }
 

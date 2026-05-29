@@ -1042,7 +1042,6 @@ ALWAYS_INLINE const Float16* NODELETE findFloat16(const Float16* pointer, Float1
 
 WTF_EXPORT_PRIVATE const float* NODELETE findFloatAlignedImpl(const float* pointer, float target, size_t length);
 
-#if CPU(ARM64)
 SUPPRESS_NODELETE ALWAYS_INLINE const float* NODELETE findFloat(const float* pointer, float target, size_t length)
 {
     constexpr size_t thresholdLength = 32;
@@ -1062,20 +1061,9 @@ SUPPRESS_NODELETE ALWAYS_INLINE const float* NODELETE findFloat(const float* poi
     ASSERT(index < length);
     return findFloatAlignedImpl(pointer + index, target, length - index);
 }
-#else
-ALWAYS_INLINE const float* NODELETE findFloat(const float* pointer, float target, size_t length)
-{
-    for (size_t index = 0; index < length; ++index) {
-        if (pointer[index] == target)
-            return pointer + index;
-    }
-    return nullptr;
-}
-#endif
 
 WTF_EXPORT_PRIVATE const double* NODELETE findDoubleAlignedImpl(const double* pointer, double target, size_t length);
 
-#if CPU(ARM64)
 SUPPRESS_NODELETE ALWAYS_INLINE const double* NODELETE findDouble(const double* pointer, double target, size_t length)
 {
     constexpr size_t thresholdLength = 32;
@@ -1095,16 +1083,6 @@ SUPPRESS_NODELETE ALWAYS_INLINE const double* NODELETE findDouble(const double* 
     ASSERT(index < length);
     return findDoubleAlignedImpl(pointer + index, target, length - index);
 }
-#else
-ALWAYS_INLINE const double* NODELETE findDouble(const double* pointer, double target, size_t length)
-{
-    for (size_t index = 0; index < length; ++index) {
-        if (pointer[index] == target)
-            return pointer + index;
-    }
-    return nullptr;
-}
-#endif
 
 WTF_EXPORT_PRIVATE const Latin1Character* NODELETE find8NonASCIIAlignedImpl(std::span<const Latin1Character>);
 WTF_EXPORT_PRIVATE const char16_t* NODELETE find16NonASCIIAlignedImpl(std::span<const char16_t>);
@@ -1112,7 +1090,6 @@ WTF_EXPORT_PRIVATE const char16_t* NODELETE find16NonASCIIAlignedImpl(std::span<
 WTF_EXPORT_PRIVATE bool NODELETE isWellFormedUTF16(std::span<const char16_t>);
 WTF_EXPORT_PRIVATE void NODELETE toWellFormedUTF16(std::span<const char16_t> input, std::span<char16_t> output);
 
-#if CPU(ARM64)
 SUPPRESS_NODELETE ALWAYS_INLINE const Latin1Character* NODELETE find8NonASCII(std::span<const Latin1Character> data)
 {
     constexpr size_t thresholdLength = 16;
@@ -1154,7 +1131,6 @@ SUPPRESS_NODELETE ALWAYS_INLINE const char16_t* NODELETE find16NonASCII(std::spa
     ASSERT(index < length);
     return find16NonASCIIAlignedImpl({ pointer + index, length - index });
 }
-#endif
 
 template<std::integral CharacterType1, std::integral CharacterType2>
     requires (sizeof(CharacterType1) == sizeof(CharacterType2))

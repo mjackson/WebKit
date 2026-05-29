@@ -26,6 +26,8 @@
 #include "config.h"
 #include "JSGenericTypedArrayViewPrototype.h"
 
+#include "HighwayKernels.h"
+
 #include "JSGenericTypedArrayView.h"
 #include "JSGenericTypedArrayViewConstructor.h"
 #include "JSGenericTypedArrayViewInlines.h"
@@ -236,44 +238,8 @@ JSC_DEFINE_HOST_FUNCTION(uint8ArrayPrototypeToHex, (JSGlobalObject* globalObject
 
     std::span<Latin1Character> buffer;
     auto result = StringImpl::createUninitialized(resultLength, buffer);
-    constexpr size_t stride = 8; // Because loading uint8x8_t.
-    if (length >= stride) {
-        auto encodeVector = [&](auto input) {
-            // Hex conversion characters are only 16 characters. This perfectly fits in vqtbl1q_u8's table lookup.
-            // Thus, this function leverages vqtbl1q_u8 to convert vector characters in a bulk manner.
-            //
-            // L => low nibble (4bits)
-            // H => high nibble (4bits)
-            //
-            // original uint8x8_t : LHLHLHLHLHLHLHLH
-            // widen uint16x8_t   : 00LH00LH00LH00LH00LH00LH00LH00LH
-            // high               : LH00LH00LH00LH00LH00LH00LH00LH00
-            // low                : 000L000L000L000L000L000L000L000L
-            // merged             : LH0LLH0LLH0LLH0LLH0LLH0LLH0LLH0L
-            // masked             : 0H0L0H0L0H0L0H0L0H0L0H0L0H0L0H0L
-            constexpr simde_uint8x16_t characters { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
-            auto widen = simde_vmovl_u8(input);
-            auto high = simde_vshlq_n_u16(widen, 8);
-            auto low = simde_vshrq_n_u16(widen, 4);
-            auto merged = SIMD::bitOr(high, low);
-            auto masked = SIMD::bitAnd(simde_vreinterpretq_u8_u16(merged), SIMD::splat<uint8_t>(0xf));
-            return simde_vqtbl1q_u8(characters, masked);
-        };
-
-        const auto* cursor = data;
-        for (auto* output = byteCast<uint8_t>(buffer.data()); cursor + stride <= end; cursor += stride, output += stride * 2)
-            simde_vst1q_u8(output, encodeVector(simde_vld1_u8(cursor)));
-        if (cursor < end)
-            simde_vst1q_u8(byteCast<uint8_t>(std::to_address(buffer.end())) - stride * 2, encodeVector(simde_vld1_u8(end - stride)));
-    } else {
-        const auto* cursor = data;
-        auto* output = buffer.data();
-        for (; cursor < end; cursor += 1, output += 2) {
-            auto character = *cursor;
-            *output = radixDigits[character / 16];
-            *(output + 1) = radixDigits[character % 16];
-        }
-    }
+    UNUSED_VARIABLE(end);
+    Highway::encodeHex(data, byteCast<uint8_t>(buffer.data()), length);
 
     return JSValue::encode(jsNontrivialString(vm, WTF::move(result)));
 }

@@ -26,6 +26,7 @@
 #include "Lexer.h"
 
 #include "BuiltinNames.h"
+#include "HighwayKernels.h"
 #include "Identifier.h"
 #include "KeywordLookup.h"
 #include "Lexer.lut.h"
@@ -977,31 +978,7 @@ template <bool shouldCreateIdentifier> ALWAYS_INLINE JSTokenType Lexer<Latin1Cha
 
     ASSERT(isIdentStart(m_current) || m_current == '\\');
 
-    // Attempt SIMD scan first
-    // caseFoldMask: OR-ing with 0x20 maps 'A'-'Z' to 'a'-'z', so one range check covers both cases.
-    constexpr auto caseFoldMask = SIMD::splat<Latin1Character>(0x20);
-    constexpr auto lowerA = SIMD::splat<Latin1Character>('a');
-    constexpr auto lowerZ = SIMD::splat<Latin1Character>('z');
-    constexpr auto zero = SIMD::splat<Latin1Character>('0');
-    constexpr auto nine = SIMD::splat<Latin1Character>('9');
-    constexpr auto dollar = SIMD::splat<Latin1Character>('$');
-    constexpr auto underscore = SIMD::splat<Latin1Character>('_');
-
-    auto vectorMatch = [&](auto input) ALWAYS_INLINE_LAMBDA {
-        auto folded = SIMD::bitOr(input, caseFoldMask);
-        auto isAlpha = SIMD::bitAnd(SIMD::greaterThanOrEqual(folded, lowerA), SIMD::lessThanOrEqual(folded, lowerZ));
-        auto isDigit = SIMD::bitAnd(SIMD::greaterThanOrEqual(input, zero), SIMD::lessThanOrEqual(input, nine));
-        auto isDollar = SIMD::equal(input, dollar);
-        auto isUnderscore = SIMD::equal(input, underscore);
-        auto isIdentContinue = SIMD::bitOr(isAlpha, isDigit, isDollar, isUnderscore);
-        return SIMD::findFirstNonZeroIndex(SIMD::bitNot(isIdentContinue));
-    };
-
-    auto scalarMatch = [](Latin1Character c) ALWAYS_INLINE_LAMBDA {
-        return !isIdentPart(c);
-    };
-
-    auto* found = SIMD::find(std::span { currentSourcePtr(), m_codeEnd }, vectorMatch, scalarMatch);
+    auto* found = currentSourcePtr() + Highway::findIdentifierEnd8(std::bit_cast<const uint8_t*>(currentSourcePtr()), static_cast<size_t>(m_codeEnd - currentSourcePtr()));
     m_code = found;
     m_current = (found < m_codeEnd) ? *found : 0;
 
@@ -1085,30 +1062,7 @@ template <bool shouldCreateIdentifier> ALWAYS_INLINE JSTokenType Lexer<char16_t>
     char16_t orAllChars = 0;
     ASSERT(isSingleCharacterIdentStart(m_current) || U16_IS_SURROGATE(m_current) || m_current == '\\');
 
-    // Attempt SIMD scan first
-    constexpr auto caseFoldMask = SIMD::splat<uint16_t>(0x20);
-    constexpr auto lowerA = SIMD::splat<uint16_t>('a');
-    constexpr auto lowerZ = SIMD::splat<uint16_t>('z');
-    constexpr auto zero = SIMD::splat<uint16_t>('0');
-    constexpr auto nine = SIMD::splat<uint16_t>('9');
-    constexpr auto dollar = SIMD::splat<uint16_t>('$');
-    constexpr auto underscore = SIMD::splat<uint16_t>('_');
-
-    auto vectorMatch = [&](auto input) ALWAYS_INLINE_LAMBDA {
-        auto folded = SIMD::bitOr(input, caseFoldMask);
-        auto isAlpha = SIMD::bitAnd(SIMD::greaterThanOrEqual(folded, lowerA), SIMD::lessThanOrEqual(folded, lowerZ));
-        auto isDigit = SIMD::bitAnd(SIMD::greaterThanOrEqual(input, zero), SIMD::lessThanOrEqual(input, nine));
-        auto isDollar = SIMD::equal(input, dollar);
-        auto isUnderscore = SIMD::equal(input, underscore);
-        auto isIdentContinue = SIMD::bitOr(isAlpha, isDigit, isDollar, isUnderscore);
-        return SIMD::findFirstNonZeroIndex(SIMD::bitNot(isIdentContinue));
-    };
-
-    auto scalarMatch = [](char16_t c) ALWAYS_INLINE_LAMBDA {
-        return !isASCIIAlphanumeric(c) && c != '_' && c != '$';
-    };
-
-    auto* found = SIMD::find(std::span { currentSourcePtr(), m_codeEnd }, vectorMatch, scalarMatch);
+    auto* found = currentSourcePtr() + Highway::findIdentifierEnd16(std::bit_cast<const uint16_t*>(currentSourcePtr()), static_cast<size_t>(m_codeEnd - currentSourcePtr()));
     m_code = found;
     m_current = (found < m_codeEnd) ? *found : 0;
     // No need to update orAllChars: all SIMD-matched chars are ASCII, so they don't affect orAllChars & ~0xFF
@@ -1267,40 +1221,15 @@ template <bool shouldBuildStrings> ALWAYS_INLINE typename Lexer<T>::StringParseR
 
     const T* stringStart = currentSourcePtr();
 
-    using UnsignedType = SameSizeUnsignedInteger<T>;
-    auto quoteMask = SIMD::splat<UnsignedType>(stringQuoteCharacter);
-    constexpr auto escapeMask = SIMD::splat<UnsignedType>('\\');
-    constexpr auto controlMask = SIMD::splat<UnsignedType>(0xE);
-    constexpr auto nonLatin1Mask = SIMD::splat<UnsignedType>(0xff);
-    auto vectorMatch = [&](auto input) ALWAYS_INLINE_LAMBDA {
-        auto quotes = SIMD::equal(input, quoteMask);
-        auto escapes = SIMD::equal(input, escapeMask);
-        auto controls = SIMD::lessThan(input, controlMask);
-        if constexpr (std::is_same_v<T, Latin1Character> || !shouldBuildStrings) {
-            auto mask = SIMD::bitOr(quotes, escapes, controls);
-            return SIMD::findFirstNonZeroIndex(mask);
-        } else {
-            auto nonLatin1 = SIMD::greaterThan(input, nonLatin1Mask);
-            auto mask = SIMD::bitOr(quotes, escapes, controls, nonLatin1);
-            return SIMD::findFirstNonZeroIndex(mask);
-        }
-    };
-
-    auto scalarMatch = [&](auto character) ALWAYS_INLINE_LAMBDA {
-        if (character == stringQuoteCharacter)
-            return true;
-        if (character == '\\')
-            return true;
-        if (character < 0xE)
-            return true;
-
-        if constexpr (std::is_same_v<T, Latin1Character> || !shouldBuildStrings)
-            return false;
+    auto findStringEnd = [&](const T* start) ALWAYS_INLINE_LAMBDA -> const T* {
+        size_t length = static_cast<size_t>(m_codeEnd - start);
+        if constexpr (std::is_same_v<T, Latin1Character>)
+            return start + Highway::findStringEnd8(std::bit_cast<const uint8_t*>(start), length, static_cast<uint8_t>(stringQuoteCharacter));
         else
-            return !isLatin1(character);
+            return start + Highway::findStringEnd16(std::bit_cast<const uint16_t*>(start), length, static_cast<uint16_t>(stringQuoteCharacter), shouldBuildStrings);
     };
 
-    const T* found = SIMD::find(std::span { stringStart, m_codeEnd }, vectorMatch, scalarMatch);
+    const T* found = findStringEnd(stringStart);
     if (found == m_codeEnd) [[unlikely]] {
         setOffset(startingOffset, startingLineStartOffset);
         setLineNumber(startingLineNumber);
@@ -1354,7 +1283,7 @@ template <bool shouldBuildStrings> ALWAYS_INLINE typename Lexer<T>::StringParseR
             stringStart = currentSourcePtr();
 
             // Retry SIMD to skip the next plain segment to an interesting character
-            found = SIMD::find(std::span { stringStart, m_codeEnd }, vectorMatch, scalarMatch);
+            found = findStringEnd(stringStart);
             if (found == m_codeEnd) [[unlikely]] {
                 setOffset(startingOffset, startingLineStartOffset);
                 setLineNumber(startingLineNumber);
@@ -1987,35 +1916,7 @@ ALWAYS_INLINE void Lexer<T>::parseCommentDirective()
 
 ALWAYS_INLINE const Latin1Character* parseCommentDirectiveValueSIMD(const Latin1Character* start, const Latin1Character* end)
 {
-    constexpr auto controlMinChar = SIMD::splat<Latin1Character>(0x09); // '\t'
-    constexpr auto controlMaxChar = SIMD::splat<Latin1Character>(0x0D); // '\r'
-    constexpr auto spaceChar = SIMD::splat<Latin1Character>(0x20); // ' '
-    constexpr auto quoteChar = SIMD::splat<Latin1Character>(0x22); // '"'
-    constexpr auto squoteChar = SIMD::splat<Latin1Character>(0x27); // '\''
-    constexpr auto nbspChar = SIMD::splat<Latin1Character>(0xA0); // non-breaking space
-
-    auto vectorMatch = [&](auto input) ALWAYS_INLINE_LAMBDA {
-        auto controls = SIMD::bitAnd(
-            SIMD::greaterThanOrEqual(input, controlMinChar),
-            SIMD::lessThanOrEqual(input, controlMaxChar)
-        );
-        auto spaces = SIMD::equal(input, spaceChar);
-        auto quotes = SIMD::equal(input, quoteChar);
-        auto squotes = SIMD::equal(input, squoteChar);
-        auto nbsps = SIMD::equal(input, nbspChar);
-
-        auto mask = SIMD::bitOr(controls, spaces, quotes, squotes, nbsps);
-        return SIMD::findFirstNonZeroIndex(mask);
-    };
-
-    auto scalarMatch = [&](auto character) ALWAYS_INLINE_LAMBDA {
-        return Lexer<Latin1Character>::isWhiteSpace(character)
-            || Lexer<Latin1Character>::isLineTerminator(character)
-            || character == '"'
-            || character == '\'';
-    };
-
-    return SIMD::find(std::span { start, end }, vectorMatch, scalarMatch);
+    return start + Highway::findCommentDirectiveEnd8(std::bit_cast<const uint8_t*>(start), static_cast<size_t>(end - start));
 }
 
 IGNORE_WARNINGS_BEGIN("unused-but-set-variable")
@@ -3073,30 +2974,11 @@ inSingleLineComment:
     {
         auto endPosition = currentPosition();
 
-        using UnsignedType = SameSizeUnsignedInteger<T>;
-        constexpr auto lineFeedMask = SIMD::splat<UnsignedType>('\n');
-        constexpr auto carriageReturnMask = SIMD::splat<UnsignedType>('\r');
-        constexpr auto u2028Mask = SIMD::splat<UnsignedType>(static_cast<UnsignedType>(0x2028));
-        constexpr auto u2029Mask = SIMD::splat<UnsignedType>(static_cast<UnsignedType>(0x2029));
-        auto vectorMatch = [&](auto input) ALWAYS_INLINE_LAMBDA {
-            auto lineFeed = SIMD::equal(input, lineFeedMask);
-            auto carriageReturn = SIMD::equal(input, carriageReturnMask);
-            if constexpr (std::is_same_v<T, Latin1Character>) {
-                auto mask = SIMD::bitOr(lineFeed, carriageReturn);
-                return SIMD::findFirstNonZeroIndex(mask);
-            } else {
-                auto u2028 = SIMD::equal(input, u2028Mask);
-                auto u2029 = SIMD::equal(input, u2029Mask);
-                auto mask = SIMD::bitOr(lineFeed, carriageReturn, u2028, u2029);
-                return SIMD::findFirstNonZeroIndex(mask);
-            }
-        };
-
-        auto scalarMatch = [&](auto character) ALWAYS_INLINE_LAMBDA {
-            return isLineTerminator(character);
-        };
-
-        m_code = SIMD::find(std::span { currentSourcePtr(), m_codeEnd }, vectorMatch, scalarMatch);
+        size_t length = static_cast<size_t>(m_codeEnd - currentSourcePtr());
+        if constexpr (std::is_same_v<T, Latin1Character>)
+            m_code = currentSourcePtr() + Highway::findLineTerminator8(std::bit_cast<const uint8_t*>(currentSourcePtr()), length);
+        else
+            m_code = currentSourcePtr() + Highway::findLineTerminator16(std::bit_cast<const uint16_t*>(currentSourcePtr()), length);
         if (m_code == m_codeEnd) {
             m_current = 0;
             token = EOFTOK;
