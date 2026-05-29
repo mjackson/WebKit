@@ -1,0 +1,156 @@
+name: JSC Tests
+
+# Runs the upstream JavaScriptCore test suite (run-javascriptcore-tests)
+# against a release jsc shell. The existing Preview Build workflow only
+# verifies that the tree compiles; this is the first correctness gate.
+#
+# Scope: Linux x64 release, --quick mode (default + no-cjit-validate test
+# variants only), stress/mozilla/chakra/layout corpora, no native test
+# binaries (testmasm/testair/testb3/testdfg/testapi). Upstream EWS budgets
+# ~1h for the full suite; --quick is the documented fast subset.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jsc-tests-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  LLVM_VERSION: "21"
+
+jobs:
+  permission-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: p } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor,
+            });
+            if (!['admin', 'write'].includes(p.permission)) {
+              core.setFailed(`${context.actor} lacks write access; trigger via workflow_dispatch.`);
+            }
+
+  test:
+    name: Linux x64 (quick)
+    needs: [permission-check]
+    if: always() && (needs.permission-check.result == 'success' || github.event_name == 'workflow_dispatch')
+    runs-on: linux-x64-gh
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # JSTests/ + LayoutTests/js/ are ~550 MB; we need them. Everything
+          # under LayoutTests/ that the jsc-layout-tests.yaml driver doesn't
+          # touch is excluded.
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/Websites/
+            !/LayoutTests/
+            /LayoutTests/jsc-layout-tests.yaml
+            /LayoutTests/resources/standalone-pre.js
+            /LayoutTests/resources/standalone-post.js
+            /LayoutTests/resources/js-test-pre.js
+            /LayoutTests/resources/js-test-post.js
+            /LayoutTests/js/
+            /LayoutTests/fast/regex/
+
+      - name: Install toolchain
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build cmake ruby perl libicu-dev \
+            python3 ca-certificates curl gnupg lsb-release
+          # Match the LLVM major used by the Docker artifact build.
+          curl -fsSL https://apt.llvm.org/llvm.sh | sudo bash -s ${LLVM_VERSION}
+          for t in clang clang++ lld llvm-ar llvm-ranlib ld.lld; do
+            sudo ln -sf /usr/bin/${t}-${LLVM_VERSION} /usr/bin/${t}
+          done
+          clang --version
+          cmake --version
+          ruby --version
+
+      - name: Build jsc (release)
+        run: |
+          set -euxo pipefail
+          export CC=clang CXX=clang++
+          cmake -S . -B WebKitBuild/Release -G Ninja \
+            -DPORT=JSCOnly \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_STATIC_JSC=ON \
+            -DUSE_THIN_ARCHIVES=OFF \
+            -DUSE_BUN_JSC_ADDITIONS=ON \
+            -DUSE_BUN_EVENT_LOOP=ON \
+            -DENABLE_FTL_JIT=ON \
+            -DENABLE_BUN_SKIP_FAILING_ASSERTIONS=ON \
+            -DENABLE_REMOTE_INSPECTOR=ON \
+            -DALLOW_LINE_AND_COLUMN_NUMBER_IN_BUILTINS=ON \
+            -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld" \
+            -DCMAKE_AR=$(which llvm-ar) \
+            -DCMAKE_RANLIB=$(which llvm-ranlib) \
+            -DCMAKE_C_FLAGS="-march=haswell" \
+            -DCMAKE_CXX_FLAGS="-march=haswell -fno-c++-static-destructors"
+          cmake --build WebKitBuild/Release --target jsc -- -k0
+          WebKitBuild/Release/bin/jsc -e 'print("jsc OK", version())'
+
+      - name: Run JavaScriptCore tests
+        run: |
+          set -euxo pipefail
+          # --root sets productDir; on non-Apple, executableProductDir() then
+          # appends /bin, so point at the cmake build dir, not bin/.
+          Tools/Scripts/run-javascriptcore-tests \
+            --jsc-only --release --no-build --no-fail-fast \
+            --root="$PWD/WebKitBuild/Release" \
+            --quick --memory-limited \
+            --no-testmasm --no-testair --no-testb3 --no-testdfg --no-testapi \
+            --no-testwasmdebugger \
+            --json-output="$PWD/jsc_results.json" \
+            2>&1 | tee jsc_test_output.log
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jsc-test-results
+          path: |
+            jsc_results.json
+            jsc_test_output.log
+          retention-days: 14
+
+      - name: Summarize
+        if: always()
+        run: |
+          if [ -f jsc_results.json ]; then
+            python3 - <<'EOF'
+          import json, sys
+          with open("jsc_results.json") as f:
+              r = json.load(f)
+          stress = r.get("stressTestFailures", [])
+          print(f"## JSC test summary", file=sys.stderr)
+          print(f"stress failures: {len(stress)}")
+          for t in stress[:50]:
+              print(f"  FAIL {t}")
+          if len(stress) > 50:
+              print(f"  ... and {len(stress)-50} more")
+          with open("${{ runner.temp }}/summary.md", "w") as out:
+              out.write(f"### JSC tests (quick)\n\n")
+              out.write(f"- stress failures: **{len(stress)}**\n")
+              if stress:
+                  out.write("\n<details><summary>failures</summary>\n\n```\n")
+                  out.write("\n".join(stress[:200]))
+                  out.write("\n```\n</details>\n")
+          EOF
+            cat "${{ runner.temp }}/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
