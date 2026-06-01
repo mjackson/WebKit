@@ -177,7 +177,7 @@ static ALWAYS_INLINE void putWithThis(JSGlobalObject* globalObject, EncodedJSVal
 
 static ALWAYS_INLINE EncodedJSValue parseIntResult(double input)
 {
-    int asInt = static_cast<int>(input);
+    int32_t asInt = truncateDoubleToInt32(input);
     if (static_cast<double>(asInt) == input && (asInt || !std::signbit(input))) [[likely]]
         return JSValue::encode(jsNumber(asInt));
     return JSValue::encode(jsNumber(input));
