@@ -398,9 +398,24 @@ if (COMPILER_IS_GCC_OR_CLANG)
     # unsupported, because it causes the build to fail if not used when linking.
     if (ENABLE_SANITIZERS)
         if (MSVC AND WTF_CPU_X86_64)
-            find_library(CLANG_ASAN_LIBRARY clang_rt.asan_dynamic_runtime_thunk-x86_64 ${CLANG_LIB_PATH})
+            # The executables are linked with lld-link/link.exe directly, so the ASAN
+            # runtime has to be spelled out here instead of letting the clang driver
+            # add it. Mirror the driver's choices: the runtime thunk must match the
+            # CRT flavor — a static CRT (/MT, /MTd) needs clang_rt.asan_static_runtime_thunk,
+            # which carries the allocator overrides the runtime cannot patch into a
+            # statically linked CRT, while the DLL CRT (/MD, /MDd) uses
+            # clang_rt.asan_dynamic_runtime_thunk. Both forward to clang_rt.asan_dynamic,
+            # the only ASAN runtime on Windows since LLVM 17.
+            if (CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL")
+                find_library(CLANG_ASAN_LIBRARY clang_rt.asan_static_runtime_thunk-x86_64 ${CLANG_LIB_PATH})
+            else ()
+                find_library(CLANG_ASAN_LIBRARY clang_rt.asan_dynamic_runtime_thunk-x86_64 ${CLANG_LIB_PATH})
+            endif ()
             find_library(CLANG_ASAN_RT_LIBRARY clang_rt.asan_dynamic-x86_64 PATHS ${CLANG_LIB_PATH})
-            set(SANITIZER_LINK_FLAGS "\"${CLANG_ASAN_LIBRARY}\" \"${CLANG_ASAN_RT_LIBRARY}\"")
+            # /WHOLEARCHIVE the thunk (as the clang driver does) so its interceptor
+            # overrides and CRT-section registration objects aren't dropped by lazy
+            # archive member selection.
+            set(SANITIZER_LINK_FLAGS "/WHOLEARCHIVE:\"${CLANG_ASAN_LIBRARY}\" \"${CLANG_ASAN_RT_LIBRARY}\"")
         else ()
             set(SANITIZER_LINK_FLAGS "-lpthread")
         endif ()
