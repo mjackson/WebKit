@@ -1352,9 +1352,7 @@ ALWAYS_INLINE bool JSValue::getUInt32(uint32_t& v) const
     }
     if (isDouble()) {
         double d = asDouble();
-        if (!(d >= 0 && d <= static_cast<double>(std::numeric_limits<uint32_t>::max())))
-            return false;
-        v = static_cast<uint32_t>(d);
+        v = static_cast<uint32_t>(truncateDoubleToInt32(d));
         return v == d;
     }
     return false;
