@@ -1885,7 +1885,7 @@ LLINT_SLOW_PATH_DECL(slow_path_switch_imm)
     auto bytecode = pc->as<OpSwitchImm>();
     JSValue scrutinee = getOperand(callFrame, bytecode.m_scrutinee);
     double value = scrutinee.asNumber();
-    int32_t intValue = static_cast<int32_t>(value);
+    int32_t intValue = truncateDoubleToInt32(value);
     auto& unlinkedTable = codeBlock->unlinkedSwitchJumpTable(bytecode.m_tableIndex);
     if (value == intValue) [[likely]] {
         if (!unlinkedTable.isList()) {
