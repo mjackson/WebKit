@@ -613,7 +613,7 @@ JSValue JSInjectedScriptHost::weakMapEntries(JSGlobalObject* globalObject, CallF
 
     MarkedArgumentBuffer buffer;
     auto fetchCount = callFrame->argument(1).toIntegerOrInfinity(globalObject);
-    weakMap->takeSnapshot(buffer, fetchCount >= 0 ? static_cast<unsigned>(fetchCount) : 0);
+    weakMap->takeSnapshot(buffer, clampTo<unsigned>(fetchCount));
     ASSERT(!buffer.hasOverflowed());
 
     JSArray* array = constructEmptyArray(globalObject, nullptr);
@@ -740,7 +740,7 @@ JSValue JSInjectedScriptHost::iteratorEntries(JSGlobalObject* globalObject, Call
     double fetchDouble = numberToFetchArg.toIntegerOrInfinity(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
     if (fetchDouble >= 0)
-        numberToFetch = static_cast<unsigned>(fetchDouble);
+        numberToFetch = clampTo<unsigned>(fetchDouble);
 
     JSArray* array = constructEmptyArray(globalObject, nullptr);
     RETURN_IF_EXCEPTION(scope, { });
