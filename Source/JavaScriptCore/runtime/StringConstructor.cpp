@@ -129,10 +129,10 @@ JSC_DEFINE_HOST_FUNCTION(stringFromCodePoint, (JSGlobalObject* globalObject, Cal
         double codePointAsDouble = callFrame->uncheckedArgument(i).toNumber(globalObject);
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
-        if (!(codePointAsDouble >= 0 && codePointAsDouble <= UCHAR_MAX_VALUE) || codePointAsDouble != std::trunc(codePointAsDouble))
-            return throwVMError(globalObject, scope, createRangeError(globalObject, "Arguments contain a value that is out of range of code points"_s));
+        uint32_t codePoint = truncateDoubleToUint32(codePointAsDouble);
 
-        uint32_t codePoint = static_cast<uint32_t>(codePointAsDouble);
+        if (codePoint != codePointAsDouble || codePoint > UCHAR_MAX_VALUE)
+            return throwVMError(globalObject, scope, createRangeError(globalObject, "Arguments contain a value that is out of range of code points"_s));
 
         if (U_IS_BMP(codePoint))
             builder.append(static_cast<char16_t>(codePoint));
