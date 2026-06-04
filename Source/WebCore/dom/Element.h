@@ -150,8 +150,8 @@ struct ShadowRootInit;
 
 using AnimatableCSSProperty = Variant<CSSPropertyID, AtomString>;
 using AnimatableCSSPropertyToTransitionMap = HashMap<AnimatableCSSProperty, Ref<CSSTransition>>;
-using AnimationCollection = ListHashSet<Ref<WebAnimation>>;
-using CSSAnimationCollection = ListHashSet<Ref<CSSAnimation>>;
+using AnimationCollection = OrderedHashSet<Ref<WebAnimation>>;
+using CSSAnimationCollection = OrderedHashSet<Ref<CSSAnimation>>;
 using ElementName = NodeName;
 using ExplicitlySetAttrElementsMap = HashMap<QualifiedName, Vector<WeakPtr<Element, WeakPtrImplWithEventTargetData>>>;
 using TrustedTypeOrString = Variant<Ref<TrustedHTML>, Ref<TrustedScript>, Ref<TrustedScriptURL>, AtomString>;
@@ -396,7 +396,7 @@ public:
     ElementName elementName() const { return m_tagName.nodeName(); }
     Namespace nodeNamespace() const { return m_tagName.nodeNamespace(); }
 
-    ExceptionOr<void> setPrefix(const AtomString&) final;
+    void setPrefixForCustomElementUpgrade(const AtomString&);
 
     String nodeName() const override;
 
@@ -844,9 +844,7 @@ public:
     void invalidateStyleAndRenderersForSubtree();
     void invalidateRenderer();
 
-    void invalidateStyleInternal();
     void invalidateStyleForAnimation();
-    void invalidateStyleForSubtreeInternal();
     void invalidateForQueryContainerSizeChange();
     void invalidateForAnchorRectChange();
     void invalidateForResumingQueryContainerResolution();
@@ -1118,7 +1116,6 @@ inline void Element::disconnectFromResizeObservers()
     disconnectFromResizeObserversSlow(*observerData);
 }
 
-void invalidateForSiblingCombinators(Element* sibling);
 inline bool isInTopLayerOrBackdrop(const RenderStyle&, const Element*);
 
 WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, ContentRelevancy);

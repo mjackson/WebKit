@@ -219,14 +219,12 @@ LayoutUnit formattingContextRootLogicalWidthForType(const Layout::ElementBox& bo
     CheckedRef renderer = downcast<RenderBox>(*box.rendererForIntegration());
     switch (logicalWidthType) {
     case LogicalWidthType::PreferredMaximum:
-        return renderer->maxPreferredLogicalWidth();
+        return renderer->maxContentLogicalWidthContribution();
     case LogicalWidthType::PreferredMinimum:
-        return renderer->minPreferredLogicalWidth();
+        return renderer->minContentLogicalWidthContribution();
     case LogicalWidthType::MaxContent:
     case LogicalWidthType::MinContent: {
-        auto minimunLogicalWidth = LayoutUnit { };
-        auto maximumLogicalWidth = LayoutUnit { };
-        renderer->computeIntrinsicLogicalWidths(minimunLogicalWidth, maximumLogicalWidth);
+        auto [minimunLogicalWidth, maximumLogicalWidth] = renderer->computeIntrinsicLogicalWidths();
         return logicalWidthType == LogicalWidthType::MaxContent ? maximumLogicalWidth : minimunLogicalWidth;
     }
     default:
@@ -246,7 +244,7 @@ LayoutUnit formattingContextRootLogicalHeightForType(const Layout::ElementBox& b
         // where the legacy flex layout "fixed" this by caching the content height in RenderBox::updateLogicalHeight
         // before additional height constraints applied.
         if (CheckedPtr flexContainer = dynamicDowncast<RenderFlexibleBox>(renderer->parent()))
-            return flexContainer->cachedFlexItemIntrinsicContentLogicalHeight(renderer.get());
+            return flexContainer->flexItemContentLogicalHeight(renderer.get());
         ASSERT_NOT_IMPLEMENTED_YET();
         return { };
     }

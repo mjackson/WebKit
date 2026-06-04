@@ -25,6 +25,7 @@
 #include "config.h"
 #include "RenderSVGRoot.h"
 
+#include "BorderShape.h"
 #include "GraphicsContext.h"
 #include "HitTestResult.h"
 #include "LayoutRepainter.h"
@@ -164,6 +165,21 @@ LayoutUnit RenderSVGRoot::computeReplacedLogicalWidth(ShouldComputePreferred sho
     if (isEmbeddedThroughFrameContainingSVGDocument())
         return containingBlock()->contentBoxLogicalWidth();
 
+    // For intrinsic sizing keywords (e.g. max-content), when the SVG has no intrinsic width
+    // but has an intrinsic ratio (from viewBox), compute the width using the default height
+    // and the aspect ratio.
+    if (style().logicalWidth().isIntrinsic()) {
+        Ref element = svgSVGElement();
+        if (!element->hasIntrinsicWidth()) {
+            FloatSize viewBoxSize = element->currentViewBoxRect().size();
+            if (!viewBoxSize.isEmpty()) {
+                float height = element->hasIntrinsicHeight() ? element->intrinsicHeight() : defaultHeight;
+                double ratio = viewBoxSize.width() / viewBoxSize.height();
+                return computeReplacedLogicalWidthRespectingMinMaxWidth(LayoutUnit(height * ratio), shouldComputePreferred);
+            }
+        }
+    }
+
     // Standalone SVG / SVG embedded via SVGImage (background-image/border-image/etc) / Inline SVG.
     auto result = RenderReplaced::computeReplacedLogicalWidth(shouldComputePreferred);
     if (svgSVGElement().hasIntrinsicWidth())
@@ -184,6 +200,21 @@ LayoutUnit RenderSVGRoot::computeReplacedLogicalHeight(std::optional<LayoutUnit>
 
     if (isEmbeddedThroughFrameContainingSVGDocument())
         return containingBlock()->availableLogicalHeight(AvailableLogicalHeightType::IncludeMarginBorderPadding);
+
+    // For intrinsic sizing keywords (e.g. max-content), when the SVG has no intrinsic height
+    // but has an intrinsic ratio (from viewBox), compute the height using the width and the
+    // aspect ratio.
+    if (style().logicalHeight().isIntrinsic()) {
+        Ref element = svgSVGElement();
+        if (!element->hasIntrinsicHeight()) {
+            FloatSize viewBoxSize = element->currentViewBoxRect().size();
+            if (!viewBoxSize.isEmpty()) {
+                float width = element->hasIntrinsicWidth() ? element->intrinsicWidth() : defaultWidth;
+                double ratio = viewBoxSize.height() / viewBoxSize.width();
+                return computeReplacedLogicalHeightRespectingMinMaxHeight(LayoutUnit(width * ratio));
+            }
+        }
+    }
 
     // Standalone SVG / SVG embedded via SVGImage (background-image/border-image/etc) / Inline SVG.
     auto result = RenderReplaced::computeReplacedLogicalHeight(estimatedUsedWidth);
@@ -247,7 +278,11 @@ void RenderSVGRoot::layoutChildren()
     containerLayout.layoutChildren(selfNeedsLayout());
 
     SVGBoundingBoxComputation boundingBoxComputation(*this);
-    m_objectBoundingBox = boundingBoxComputation.computeDecoratedBoundingBox(SVGBoundingBoxComputation::objectBoundingBoxDecoration);
+    // The transform-dependent bounding boxes (objectBoundingBox / strokeBoundingBox) are
+    // recomputed lazily on demand in updateSVGTransformDependentBoundingBoxesIfNeeded(); layout
+    // only needs the without-transform box below for currentSVGLayoutRect, so just mark them
+    // dirty instead of paying a full subtree walk that is usually never read before the next layout.
+    m_transformDependentBoundingBoxesDirty = true;
     m_strokeBoundingBox = std::nullopt;
     m_cachedVisualOverflowRect = std::nullopt;
 
@@ -257,8 +292,14 @@ void RenderSVGRoot::layoutChildren()
     containerLayout.positionChildrenRelativeToContainer();
 }
 
+void RenderSVGRoot::updateSVGTransformDependentBoundingBoxesIfNeeded() const
+{
+    SVGBoundingBoxComputation::recomputeTransformDependentBoundingBoxes(*this, m_transformDependentBoundingBoxesDirty, m_objectBoundingBox, m_strokeBoundingBox);
+}
+
 FloatRect RenderSVGRoot::strokeBoundingBox() const
 {
+    updateSVGTransformDependentBoundingBoxesIfNeeded();
     if (!m_strokeBoundingBox) {
         // Initialize m_strokeBoundingBox before calling computeDecoratedBoundingBox, since recursively referenced markers can cause us to re-enter here.
         m_strokeBoundingBox = FloatRect { };
@@ -281,8 +322,9 @@ bool RenderSVGRoot::shouldApplyViewportClip() const
 // on LFC/SVG integration once the LBSE is upstreamed.
 void RenderSVGRoot::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 {
-    // Don't paint, if the context explicitly disabled it.
-    if (paintInfo.context().paintingDisabled() && !paintInfo.context().detectingContentfulPaint())
+    // Don't paint, if the context explicitly disabled it. The event region phase still needs to
+    // run so the SVG root contributes its bounds even when descendants don't cover the area.
+    if (paintInfo.phase != PaintPhase::EventRegion && paintInfo.context().paintingDisabled() && !paintInfo.context().detectingContentfulPaint())
         return;
 
     // An empty viewport disables rendering.
@@ -331,6 +373,17 @@ void RenderSVGRoot::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOf
     if (paintInfo.phase == PaintPhase::ClippingMask && style().usedVisibility() == Visibility::Visible) {
         paintSVGClippingMask(paintInfo, objectBoundingBox());
         return;
+    }
+
+    if (paintInfo.phase == PaintPhase::EventRegion && visibleToHitTesting() && !isSkippedContentRoot(*this)) {
+        // Add the SVG root's own border rect so events targeting the <svg> element dispatch
+        // even where descendants don't cover its area. Children still register their precise
+        // bounds via paintContents below. Skip the interaction-region contribution so the
+        // SVG root's border rect doesn't change the interaction-region shape — only the
+        // children should contribute to interaction regions.
+        auto borderRect = LayoutRect(adjustedPaintOffset, size());
+        auto borderShape = BorderShape::shapeForBorderRect(style(), borderRect);
+        paintInfo.eventRegionContext()->unite(borderShape.deprecatedPixelSnappedRoundedRect(document().deviceScaleFactor()), *this, style(), false, EventRegionContext::ContributeToInteractionRegions::No);
     }
 
     if (paintInfo.paintRootBackgroundOnly())

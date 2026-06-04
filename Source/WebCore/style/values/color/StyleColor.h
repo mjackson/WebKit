@@ -61,6 +61,7 @@ class ComputedStyle;
 struct ColorLayers;
 struct ColorMix;
 struct ContrastColor;
+struct RelativeAlphaColor;
 template<typename Descriptor> struct RelativeColor;
 
 struct Color {
@@ -76,6 +77,7 @@ private:
         UniqueRef<ColorLayers>,
         UniqueRef<ColorMix>,
         UniqueRef<ContrastColor>,
+        UniqueRef<RelativeAlphaColor>,
         UniqueRef<RelativeColor<RGBFunctionModernRelative>>,
         UniqueRef<RelativeColor<HSLFunctionModern>>,
         UniqueRef<RelativeColor<HWBFunction>>,
@@ -115,6 +117,7 @@ public:
     Color(ColorLayers&&);
     Color(ColorMix&&);
     Color(ContrastColor&&);
+    Color(RelativeAlphaColor&&);
     Color(RelativeColor<RGBFunctionModernRelative>&&);
     Color(RelativeColor<HSLFunctionModern>&&);
     Color(RelativeColor<HWBFunction>&&);
@@ -148,6 +151,7 @@ public:
     bool NODELETE isCurrentColor() const;
     bool NODELETE isColorMix() const;
     bool NODELETE isContrastColor() const;
+    bool NODELETE isRelativeAlphaColor() const;
     bool NODELETE isRelativeColor() const;
 
     bool NODELETE isResolvedColor() const;
@@ -201,8 +205,13 @@ template<> struct CSSValueConversion<Color> {
     auto operator()(BuilderState&, const CSSValue&, ForVisitedLink) -> Color;
     auto operator()(BuilderState&, const CSSValue&) -> Color;
 };
+
 template<> struct CSSValueCreation<Color> {
     auto operator()(CSSValuePool&, const RenderStyle&, const Color&) -> Ref<CSSValue>;
+};
+
+template<> struct DeprecatedCSSOMValueCreation<Color> {
+    Ref<DeprecatedCSSOMValue> operator()(CSSValuePool&, const RenderStyle&, CSSStyleDeclaration&, const Color&);
 };
 
 // MARK: - Blending

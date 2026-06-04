@@ -559,6 +559,7 @@ class WebCore::IDBValue {
     WebCore::ThreadSafeDataBuffer data()
     Vector<String> blobURLs()
     Vector<String> blobFilePaths()
+    Vector<WebCore::FileSystemHandleGlobalIdentifier> fileSystemHandleGlobalIdentifiers()
 };
 
 class WebCore::IDBOpenRequestData {
@@ -604,6 +605,7 @@ struct WebCore::IDBDatabaseNameAndVersion {
     std::unique_ptr<WebCore::IDBGetResult> m_getResult;
     std::unique_ptr<WebCore::IDBGetAllResult> m_getAllResult;
     uint64_t m_resultInteger;
+    [NotSerialized] std::unique_ptr<WebCore::ClientOrigin> m_clientOrigin;
 }
 
 class WebCore::IDBKeyData {
@@ -1308,7 +1310,9 @@ struct WebCore::ApplicationManifest {
     URL startURL
     URL id
     WebCore::Color backgroundColor
+    WebCore::Color backgroundColorDark
     WebCore::Color themeColor
+    WebCore::Color themeColorDark
     Vector<String> categories
     Vector<WebCore::ApplicationManifest::Icon> icons
     Vector<WebCore::ApplicationManifest::Shortcut> shortcuts
@@ -1412,7 +1416,7 @@ struct WebCore::NotificationData {
     WTF::UUID notificationID;
     std::optional<WebCore::ScriptExecutionContextIdentifier> contextIdentifier;
     PAL::SessionID sourceSession;
-    MonotonicTime creationTime;
+    WallTime creationTime;
     Vector<uint8_t> data;
     std::optional<bool> silent;
 };
@@ -2202,10 +2206,11 @@ class WebCore::LayoutRect {
     ExplicitlySet
 };
 
-struct WebCore::RemoteFrameLayoutInfo {
-    std::optional<WebCore::LayoutRect> visibleRectInParent;
-    float usedZoom;
-    OptionSet<WebCore::FrameOwnerElementAppearance> ownerElementAppearance;
+[RefCounted] class WebCore::RemoteFrameLayoutInfo {
+    std::optional<WebCore::LayoutRect> visibleRectInParent();
+    float usedZoom();
+    WebCore::LayoutPoint contentBoxLocation();
+    OptionSet<WebCore::FrameOwnerElementAppearance> ownerElementAppearance();
 };
 
 header: <WebCore/VP9Utilities.h>
@@ -4294,6 +4299,8 @@ enum class WebCore::MediaPlayerViewportVisibility : uint8_t {
     NotVisible,
     IntersectingViewport,
     VisibleInViewport,
+    VisibleInFullscreen,
+    VisibleInPictureInPicture,
 };
 
 class WebCore::GeolocationPositionData {
@@ -6489,6 +6496,13 @@ struct WebCore::AcceleratedEffectTransformOrigin {
     WebCore::FloatPoint value;
 };
 
+struct WebCore::AcceleratedEffectClipPath {
+    Variant<WebCore::AcceleratedEffectClipPath::None, WebCore::AcceleratedEffectReferencePath, WebCore::AcceleratedEffectBasicShapePath, WebCore::AcceleratedEffectBoxPath> value;
+};
+
+[Nested] struct WebCore::AcceleratedEffectClipPath::None {
+};
+
 struct WebCore::AcceleratedEffectValues {
     WebCore::AcceleratedEffectOpacity opacity;
     std::optional<WebCore::TransformOperationData> transformOperationData;
@@ -6830,6 +6844,7 @@ header: <WebCore/TextExtractionTypes.h>
     String target;
     URL completedURL;
     String shortenedURLString;
+    bool linksToCurrentURL;
 };
 
 header: <WebCore/TextExtractionTypes.h>
@@ -8885,6 +8900,12 @@ using WebCore::CSSValueToSystemColorMap = HashMap<WebCore::CSSValueKey, WebCore:
 
 enum class WebCore::WorkerThreadMode : bool
 enum class WebCore::WillContinueLoading : bool
+enum class WebCore::ShouldRestoreFromBackForwardCache : uint8_t {
+    Yes,
+    No,
+    Unspecified,
+};
+enum class WebCore::RestoredFromBackForwardCache : bool
 
 #if ENABLE(GPU_PROCESS) && ENABLE(ENCRYPTED_MEDIA)
 header: <WebCore/CDMPrivate.h>

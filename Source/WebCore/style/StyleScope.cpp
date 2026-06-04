@@ -884,6 +884,7 @@ void Scope::didChangeStyleSheetEnvironment()
             const_cast<ShadowRoot&>(descendantShadowRoot).styleScope().scheduleUpdate(UpdateType::ContentsOrInterpretation);
 
         m_document->invalidateCachedCSSParserContext();
+        m_document->invalidateCachedInitialStyle();
     }
 
     scheduleUpdate(UpdateType::ContentsOrInterpretation);
@@ -1014,14 +1015,11 @@ bool Scope::invalidateForContainerDependencies(LayoutDependencyUpdateContext& co
         auto size = containerRenderer.logicalSize();
 
         auto sizeChanged = [&](LayoutSize oldSize) {
-            switch (containerRenderer.style().containerType()) {
-            case ContainerType::InlineSize:
+            auto& type = containerRenderer.style().containerType();
+            if (type.hasInlineSize())
                 return size.width() != oldSize.width();
-            case ContainerType::Size:
+            if (type.hasSize())
                 return size != oldSize;
-            case ContainerType::Normal:
-                RELEASE_ASSERT_NOT_REACHED();
-            }
             RELEASE_ASSERT_NOT_REACHED();
         };
 

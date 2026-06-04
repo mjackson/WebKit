@@ -73,7 +73,7 @@ void CommandEncoder::generateInvalidEncoderStateError()
     GENERATE_INVALID_ENCODER_STATE_ERROR();
 }
 
-static MTLLoadAction NODELETE loadAction(WGPULoadOp loadOp)
+static MTLLoadAction NODELETE loadAction(WGPULoadOp loadOp, bool readOnly = false)
 {
     switch (loadOp) {
     case WGPULoadOp_Load:
@@ -81,7 +81,7 @@ static MTLLoadAction NODELETE loadAction(WGPULoadOp loadOp)
     case WGPULoadOp_Clear:
         return MTLLoadActionClear;
     case WGPULoadOp_Undefined:
-        return MTLLoadActionDontCare;
+        return readOnly ? MTLLoadActionLoad : MTLLoadActionDontCare;
     case WGPULoadOp_Force32:
         ASSERT_NOT_REACHED();
         return MTLLoadActionDontCare;
@@ -474,6 +474,19 @@ void CommandEncoder::runClearEncoder(NSMutableDictionary<NSNumber*, TextureAndCl
             clearDescriptor.stencilAttachment.storeAction = MTLStoreActionStore;
             clearDescriptor.stencilAttachment.clearStencil = stencilClearValue;
             clearDescriptor.stencilAttachment.texture = depthStencilAttachmentToClear;
+        } else if (depthAttachmentToClear && depthStencilAttachmentToClear) {
+            // Depth is being pre-cleared but stencil has valid data (previously cleared).
+            // Load the stencil to preserve it — without this, the pre-clear pass uses
+            // MTLLoadActionDontCare for stencil, silently discarding what was written.
+            MTLPixelFormat fmt = depthStencilAttachmentToClear.pixelFormat;
+            bool hasStencil = (fmt == MTLPixelFormatDepth32Float_Stencil8
+                || fmt == MTLPixelFormatX32_Stencil8
+                || fmt == MTLPixelFormatStencil8);
+            if (hasStencil) {
+                clearDescriptor.stencilAttachment.loadAction = MTLLoadActionLoad;
+                clearDescriptor.stencilAttachment.storeAction = MTLStoreActionStore;
+                clearDescriptor.stencilAttachment.texture = depthStencilAttachmentToClear;
+            }
         }
 
         if (!attachmentsToClear.count) {
@@ -695,6 +708,7 @@ Ref<RenderPassEncoder> CommandEncoder::beginRenderPass(const WGPURenderPassDescr
     bool hasStencilComponent = false;
     id<MTLTexture> depthStencilAttachmentToClear = nil;
     bool depthAttachmentToClear = false;
+    bool hasDepthComponent = false;
     if (const auto* attachment = descriptor.depthStencilAttachment) {
         auto textureView = attachment->view ? TextureOrTextureView(fromAPI(attachment->view)) : TextureOrTextureView(fromAPI(attachment->texture));
         if (!isValidToUseWith(textureView, *this))
@@ -702,7 +716,7 @@ Ref<RenderPassEncoder> CommandEncoder::beginRenderPass(const WGPURenderPassDescr
         id<MTLTexture> metalDepthStencilTexture = textureView.texture();
         auto textureFormat = textureView.format();
         hasStencilComponent = Texture::containsStencilAspect(textureFormat);
-        bool hasDepthComponent = Texture::containsDepthAspect(textureFormat);
+        hasDepthComponent = Texture::containsDepthAspect(textureFormat);
         bool isDestroyed = textureView.isDestroyed();
         if (!isDestroyed) {
             if (textureWidth && (textureView.width() != textureWidth || textureView.height() != textureHeight || sampleCount != textureView.sampleCount()))
@@ -724,7 +738,7 @@ Ref<RenderPassEncoder> CommandEncoder::beginRenderPass(const WGPURenderPassDescr
             mtlAttachment.clearDepth = attachment->depthLoadOp == WGPULoadOp_Clear ? clearDepth : 1.0;
             mtlAttachment.texture = metalDepthStencilTexture;
             mtlAttachment.level = 0;
-            mtlAttachment.loadAction = loadAction(attachment->depthLoadOp);
+            mtlAttachment.loadAction = loadAction(attachment->depthLoadOp, attachment->depthReadOnly);
             mtlAttachment.storeAction = storeAction(attachment->depthStoreOp);
 
             if (mtlDescriptor.rasterizationRateMap && metalDepthStencilTexture.sampleCount > 1) {
@@ -771,7 +785,7 @@ Ref<RenderPassEncoder> CommandEncoder::beginRenderPass(const WGPURenderPassDescr
         if (hasStencilComponent)
             mtlAttachment.texture = textureView.texture();
         mtlAttachment.clearStencil = attachment->stencilClearValue;
-        mtlAttachment.loadAction = loadAction(attachment->stencilLoadOp);
+        mtlAttachment.loadAction = loadAction(attachment->stencilLoadOp, attachment->stencilReadOnly);
         mtlAttachment.storeAction = storeAction(attachment->stencilStoreOp);
 
         bool isDestroyed = textureView.isDestroyed();
@@ -2337,11 +2351,6 @@ size_t CommandEncoder::computeSize(TrackedResourceContainer& container, const De
     return container.size();
 }
 
-void CommandEncoder::trackEncoder(TrackedResourceContainer& encoderContainer)
-{
-    encoderContainer.add(uniqueId());
-}
-
 void CommandEncoder::clearTracking()
 {
     auto identifier = uniqueId();
@@ -2363,30 +2372,32 @@ void CommandEncoder::clearTracking()
     m_trackedQuerySets.clear();
 }
 
-void CommandEncoder::trackEncoderForBuffer(const Buffer& buffer, TrackedResourceContainer& encoderContainer)
+bool CommandEncoder::trackEncoderForBuffer(const Buffer& buffer, TrackedResourceContainer& encoderContainer)
 {
-    trackEncoder(encoderContainer);
-    m_trackedBuffers.append(buffer);
+    auto addResult = encoderContainer.add(uniqueId());
+    if (addResult.isNewEntry)
+        m_trackedBuffers.append(buffer);
+    return addResult.isNewEntry;
 }
 void CommandEncoder::trackEncoderForTexture(const Texture& texture, TrackedResourceContainer& encoderContainer)
 {
-    trackEncoder(encoderContainer);
-    m_trackedTextures.append(texture);
+    if (encoderContainer.add(uniqueId()).isNewEntry)
+        m_trackedTextures.append(texture);
 }
 void CommandEncoder::trackEncoderForTextureView(const TextureView& textureView, TrackedResourceContainer& encoderContainer)
 {
-    trackEncoder(encoderContainer);
-    m_trackedTextureViews.append(textureView);
+    if (encoderContainer.add(uniqueId()).isNewEntry)
+        m_trackedTextureViews.append(textureView);
 }
 void CommandEncoder::trackEncoderForExternalTexture(const ExternalTexture& externalTexture, TrackedResourceContainer& encoderContainer)
 {
-    trackEncoder(encoderContainer);
-    m_trackedExternalTextures.append(externalTexture);
+    if (encoderContainer.add(uniqueId()).isNewEntry)
+        m_trackedExternalTextures.append(externalTexture);
 }
 void CommandEncoder::trackEncoderForQuerySet(const QuerySet& querySet, TrackedResourceContainer& encoderContainer)
 {
-    trackEncoder(encoderContainer);
-    m_trackedQuerySets.append(querySet);
+    if (encoderContainer.add(uniqueId()).isNewEntry)
+        m_trackedQuerySets.append(querySet);
 }
 
 void CommandEncoder::trackEncoder(CommandEncoder& commandEncoder, HashSet<uint64_t, DefaultHash<uint64_t>, WTF::UnsignedWithZeroKeyHashTraits<uint64_t>>& encoderContainer)

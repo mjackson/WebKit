@@ -162,7 +162,7 @@ void StreamingCompiler::didComplete()
 
             if (!result.has_value()) [[unlikely]] {
                 throwException(globalObject, scope, createJSWebAssemblyCompileError(globalObject, vm, result.error()));
-                promise->rejectWithCaughtException(globalObject, scope);
+                promise->rejectWithCaughtException(vm, scope);
                 return;
             }
 
@@ -170,7 +170,7 @@ void StreamingCompiler::didComplete()
                 auto errorMessage = compileOptions->validateBuiltinsAndImportedStrings(result.value());
                 if (errorMessage.has_value()) {
                     throwException(globalObject, scope, createJSWebAssemblyCompileError(globalObject, vm, errorMessage.value()));
-                    promise->rejectWithCaughtException(globalObject, scope);
+                    promise->rejectWithCaughtException(vm, scope);
                     return;
                 }
                 result.value()->applyCompileOptions(compileOptions.value());
@@ -195,7 +195,7 @@ void StreamingCompiler::didComplete()
 
             if (!result.has_value()) [[unlikely]] {
                 throwException(globalObject, scope, createJSWebAssemblyCompileError(globalObject, vm, result.error()));
-                promise->rejectWithCaughtException(globalObject, scope);
+                promise->rejectWithCaughtException(vm, scope);
                 return;
             }
 
@@ -203,7 +203,7 @@ void StreamingCompiler::didComplete()
                 auto errorMessage = compileOptions->validateBuiltinsAndImportedStrings(result.value());
                 if (errorMessage.has_value()) {
                     throwException(globalObject, scope, createJSWebAssemblyCompileError(globalObject, vm, errorMessage.value()));
-                    promise->rejectWithCaughtException(globalObject, scope);
+                    promise->rejectWithCaughtException(vm, scope);
                     return;
                 }
                 result.value()->applyCompileOptions(compileOptions.value());
@@ -212,7 +212,7 @@ void StreamingCompiler::didComplete()
             JSWebAssemblyModule* module = JSWebAssemblyModule::create(vm, globalObject->webAssemblyModuleStructure(), WTF::move(result.value()));
             JSWebAssembly::instantiateForStreaming(vm, globalObject, promise, module, importObject, WTF::move(provider));
             if (scope.exception()) [[unlikely]] {
-                promise->rejectWithCaughtException(globalObject, scope);
+                promise->rejectWithCaughtException(vm, scope);
                 return;
             }
         });
@@ -235,7 +235,7 @@ void StreamingCompiler::finalize(JSGlobalObject* globalObject)
     }
 }
 
-void StreamingCompiler::fail(JSGlobalObject* globalObject, JSValue error)
+void StreamingCompiler::fail(JSGlobalObject*, JSValue error)
 {
     {
         Locker locker { m_lock };
@@ -252,7 +252,7 @@ void StreamingCompiler::fail(JSGlobalObject* globalObject, JSValue error)
     // scannable by the GC.
     WTF::compilerFence();
     m_vm.deferredWorkTimer->cancelPendingWork(ticket);
-    promise->reject(m_vm, globalObject, error);
+    promise->reject(m_vm, error);
 }
 
 void StreamingCompiler::cancel()

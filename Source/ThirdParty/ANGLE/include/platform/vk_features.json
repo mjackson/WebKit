@@ -45,6 +45,13 @@
             ]
         },
         {
+            "name": "force_renderable_fallback_format",
+            "category": "Workarounds",
+            "description": [
+                "Force a fallback renderable format for angle_end2end_tests"
+            ]
+        },
+        {
             "name": "clamp_point_size",
             "category": "Workarounds",
             "description": [
@@ -2224,6 +2231,13 @@
                 "VkDevice supports the VK_EXT_shader_demote_to_helper_invocation extension"
             ],
             "issue": "http://anglebug.com/490910899"
+        },
+        {
+            "name": "avoid_image_ghost_outside_render_pass",
+            "category": "Features",
+            "description": [
+                "Avoid ghosting the image if it is not used in an active render pass."
+            ]
         }
     ]
 }

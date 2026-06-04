@@ -242,8 +242,8 @@ void RenderLayerScrollableArea::applyPostLayoutScrollPositionIfNeeded()
     if (!m_postLayoutScrollPosition)
         return;
 
-    scrollToOffset(scrollOffsetFromPosition(m_postLayoutScrollPosition.value()));
-    m_postLayoutScrollPosition = std::nullopt;
+    auto position = std::exchange(m_postLayoutScrollPosition, std::nullopt);
+    scrollToOffset(scrollOffsetFromPosition(*position));
 }
 
 void RenderLayerScrollableArea::scrollToXPosition(int x, const ScrollPositionChangeOptions& options)
@@ -1329,20 +1329,20 @@ std::optional<ScrollbarUpdateScope> RenderLayerScrollableArea::updateScrollInfoA
     updateScrollbarPresenceAndState(hasHorizontalOverflow, hasVerticalOverflow);
 
     // Scrollbars with auto behavior may need to lay out again if scrollbars got added or removed.
-    OptionSet<ScrollbarUpdateScope::ScrollbarChange> scrollbarChanges;
+    EnumSet<ScrollbarOrientation> autoScrollbarChanges;
     if (box->hasAutoScrollbar(ScrollbarOrientation::Horizontal) && (hadHorizontalScrollbar != hasHorizontalScrollbar()))
-        scrollbarChanges.add(ScrollbarUpdateScope::ScrollbarChange::AutoHorizontalScrollbarChanged);
+        autoScrollbarChanges.add(ScrollbarOrientation::Horizontal);
 
     if (box->hasAutoScrollbar(ScrollbarOrientation::Vertical) && (hadVerticalScrollbar != hasVerticalScrollbar()))
-        scrollbarChanges.add(ScrollbarUpdateScope::ScrollbarChange::AutoVerticalScrollBarChanged);
+        autoScrollbarChanges.add(ScrollbarOrientation::Vertical);
 
-    if (!scrollbarChanges.isEmpty()) {
-        if (scrollbarChanges.contains(ScrollbarUpdateScope::ScrollbarChange::AutoVerticalScrollBarChanged) && shouldPlaceVerticalScrollbarOnLeft())
+    if (!autoScrollbarChanges.isEmpty()) {
+        if (autoScrollbarChanges.contains(ScrollbarOrientation::Vertical) && shouldPlaceVerticalScrollbarOnLeft())
             computeScrollOrigin();
         m_layer.updateSelfPaintingLayer();
     }
 
-    return ScrollbarUpdateScope { *this, originalScrollPosition, scrollbarChanges, hasHorizontalOverflow ? HasHorizontalOverflow::Yes : HasHorizontalOverflow::No, hasVerticalOverflow ? HasVerticalOverflow::Yes : HasVerticalOverflow::No };
+    return ScrollbarUpdateScope { *this, originalScrollPosition, autoScrollbarChanges, hasHorizontalOverflow ? HasHorizontalOverflow::Yes : HasHorizontalOverflow::No, hasVerticalOverflow ? HasVerticalOverflow::Yes : HasVerticalOverflow::No };
 }
 
 void RenderLayerScrollableArea::updateScrollbarSteps()
@@ -1761,7 +1761,7 @@ void RenderLayerScrollableArea::updateScrollCornerStyle()
 {
     auto& renderer = m_layer.renderer();
     RenderElement* actualRenderer = rendererForScrollbar(renderer);
-    auto corner = (renderer.hasNonVisibleOverflow() && !renderer.style().usesStandardScrollbarStyle()) ? actualRenderer->getUncachedPseudoStyle({ PseudoElementType::WebKitScrollbarCorner }, &actualRenderer->style()) : nullptr;
+    auto corner = (renderer.hasNonVisibleOverflow() && !renderer.style().usesStandardScrollbarStyle()) ? actualRenderer->resolvePseudoElementStyle({ PseudoElementType::WebKitScrollbarCorner }, &actualRenderer->style()) : nullptr;
 
     if (!corner) {
         clearScrollCorner();
@@ -1792,7 +1792,7 @@ void RenderLayerScrollableArea::updateResizerStyle()
 
     auto& renderer = m_layer.renderer();
     RenderElement* actualRenderer = rendererForScrollbar(renderer);
-    auto resizer = renderer.hasNonVisibleOverflow() ? actualRenderer->getUncachedPseudoStyle({ PseudoElementType::WebKitResizer }, &actualRenderer->style()) : nullptr;
+    auto resizer = renderer.hasNonVisibleOverflow() ? actualRenderer->resolvePseudoElementStyle({ PseudoElementType::WebKitResizer }, &actualRenderer->style()) : nullptr;
 
     if (!resizer) {
         clearResizer();

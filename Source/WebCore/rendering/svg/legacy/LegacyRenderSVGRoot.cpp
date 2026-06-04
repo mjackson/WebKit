@@ -57,8 +57,8 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(LegacyRenderSVGRoot);
 
-const int defaultWidth = 300;
-const int defaultHeight = 150;
+const int legacySVGRootDefaultWidth = 300;
+const int legacySVGRootDefaultHeight = 150;
 
 LegacyRenderSVGRoot::LegacyRenderSVGRoot(SVGSVGElement& element, RenderStyle&& style)
     : RenderReplaced(Type::LegacySVGRoot, element, WTF::move(style), ReplacedFlag::UsesBoundaryCaching)
@@ -66,9 +66,9 @@ LegacyRenderSVGRoot::LegacyRenderSVGRoot(SVGSVGElement& element, RenderStyle&& s
     ASSERT(isLegacyRenderSVGRoot());
     LayoutSize intrinsicSize(computeIntrinsicSize());
     if (!svgSVGElement().hasIntrinsicWidth())
-        intrinsicSize.setWidth(defaultWidth);
+        intrinsicSize.setWidth(legacySVGRootDefaultWidth);
     if (!svgSVGElement().hasIntrinsicHeight())
-        intrinsicSize.setHeight(defaultHeight);
+        intrinsicSize.setHeight(legacySVGRootDefaultHeight);
     setIntrinsicSize(intrinsicSize);
 }
 
@@ -154,6 +154,21 @@ LayoutUnit LegacyRenderSVGRoot::computeReplacedLogicalWidth(ShouldComputePreferr
     if (isEmbeddedThroughFrameContainingSVGDocument())
         return containingBlock()->contentBoxLogicalWidth();
 
+    // For intrinsic sizing keywords (e.g. max-content), when the SVG has no intrinsic width
+    // but has an intrinsic ratio (from viewBox), compute the width using the default height
+    // and the aspect ratio.
+    if (style().logicalWidth().isIntrinsic()) {
+        Ref element = svgSVGElement();
+        if (!element->hasIntrinsicWidth()) {
+            FloatSize viewBoxSize = element->currentViewBoxRect().size();
+            if (!viewBoxSize.isEmpty()) {
+                float height = element->hasIntrinsicHeight() ? element->intrinsicHeight() : legacySVGRootDefaultHeight;
+                double ratio = viewBoxSize.width() / viewBoxSize.height();
+                return computeReplacedLogicalWidthRespectingMinMaxWidth(LayoutUnit(height * ratio), shouldComputePreferred);
+            }
+        }
+    }
+
     // SVG embedded via SVGImage (background-image/border-image/etc) / Inline SVG.
     return RenderReplaced::computeReplacedLogicalWidth(shouldComputePreferred);
 }
@@ -166,6 +181,21 @@ LayoutUnit LegacyRenderSVGRoot::computeReplacedLogicalHeight(std::optional<Layou
 
     if (isEmbeddedThroughFrameContainingSVGDocument())
         return containingBlock()->availableLogicalHeight(AvailableLogicalHeightType::IncludeMarginBorderPadding);
+
+    // For intrinsic sizing keywords (e.g. max-content), when the SVG has no intrinsic height
+    // but has an intrinsic ratio (from viewBox), compute the height using the width and the
+    // aspect ratio.
+    if (style().logicalHeight().isIntrinsic()) {
+        Ref element = svgSVGElement();
+        if (!element->hasIntrinsicHeight()) {
+            FloatSize viewBoxSize = element->currentViewBoxRect().size();
+            if (!viewBoxSize.isEmpty()) {
+                float width = element->hasIntrinsicWidth() ? element->intrinsicWidth() : legacySVGRootDefaultWidth;
+                double ratio = viewBoxSize.height() / viewBoxSize.width();
+                return computeReplacedLogicalHeightRespectingMinMaxHeight(LayoutUnit(width * ratio));
+            }
+        }
+    }
 
     // SVG embedded via SVGImage (background-image/border-image/etc) / Inline SVG.
     return RenderReplaced::computeReplacedLogicalHeight(estimatedUsedWidth);
@@ -297,10 +327,10 @@ void LegacyRenderSVGRoot::paintReplaced(PaintInfo& paintInfo, const LayoutPoint&
 
     // Apply initial viewport clip
     if (clipViewport) {
-        auto clipRect = snappedIntRect(overflowClipRect(paintOffset));
+        auto clipRect = snapRectToDevicePixels(overflowClipRect(paintOffset), document().deviceScaleFactor());
         childPaintInfo.context().clip(clipRect);
         if (paintInfo.phase == PaintPhase::EventRegion && childPaintInfo.eventRegionContext())
-            childPaintInfo.eventRegionContext()->pushClip(clipRect);
+            childPaintInfo.eventRegionContext()->pushClip(enclosingIntRect(clipRect));
     }
 
     // Convert from container offsets (html renderers) to a relative transform (svg renderers).

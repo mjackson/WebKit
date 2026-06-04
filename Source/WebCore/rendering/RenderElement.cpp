@@ -192,9 +192,9 @@ static RefPtr<Style::Image> minimallySupportedContentDataImage(const Style::Cont
     auto* data = content.tryData();
     if (!data)
         return nullptr;
-    if (data->list.size() != 1)
+    if (data->visible.size() != 1)
         return nullptr;
-    auto* image = std::get_if<Style::Content::Image>(&data->list[0]);
+    auto* image = std::get_if<Style::Content::Image>(&data->visible[0]);
     if (!image)
         return nullptr;
     return image->image.value.ptr();
@@ -291,13 +291,13 @@ const RenderStyle& RenderElement::firstLineStyle() const
     // FIXME: It would be better to just set anonymous block first-line styles correctly.
     if (isAnonymousBlock()) {
         if (!previousInFlowSibling()) {
-            if (auto* firstLineStyle = parent()->style().getCachedPseudoStyle({ PseudoElementType::FirstLine }))
+            if (auto* firstLineStyle = parent()->style().pseudoElementStyle({ PseudoElementType::FirstLine }))
                 return *firstLineStyle;
         }
         return style();
     }
 
-    if (auto* firstLineStyle = style().getCachedPseudoStyle({ PseudoElementType::FirstLine }))
+    if (auto* firstLineStyle = style().pseudoElementStyle({ PseudoElementType::FirstLine }))
         return *firstLineStyle;
 
     return style();
@@ -505,13 +505,7 @@ bool RenderElement::repaintBeforeStyleChange(Style::Difference diff, const Rende
         if (auto* modelObject = dynamicDowncast<RenderLayerModelObject>(*this)) {
             // If we don't have a layer yet, but we are going to get one because of transform or opacity, then we need to repaint the old position of the object.
             bool hasLayer = modelObject->hasLayer();
-            bool willHaveLayer = newStyle.affectsTransform()
-                || !newStyle.opacity().isOpaque()
-#if HAVE(CORE_MATERIAL)
-                || newStyle.appleVisualEffect() != AppleVisualEffect::None
-#endif
-                || !newStyle.filter().isNone()
-                || !newStyle.backdropFilter().isNone();
+            bool willHaveLayer = !newStyle.usedZIndex().isAuto();
             if (!hasLayer && willHaveLayer)
                 return RequiredRepaint::RendererOnly;
         }
@@ -1104,7 +1098,7 @@ void RenderElement::styleDidChange(Style::Difference diff, const RenderStyle* ol
     registerImages(&style(), oldStyle);
 
     // Are there other pseudo-elements that need the resources to be registered?
-    registerImages(style().getCachedPseudoStyle({ PseudoElementType::FirstLine }), oldStyle ? oldStyle->getCachedPseudoStyle({ PseudoElementType::FirstLine }) : nullptr);
+    registerImages(style().pseudoElementStyle({ PseudoElementType::FirstLine }), oldStyle ? oldStyle->pseudoElementStyle({ PseudoElementType::FirstLine }) : nullptr);
 
     SVGRenderSupport::styleChanged(*this, oldStyle);
 
@@ -1330,7 +1324,7 @@ void RenderElement::willBeDestroyed()
         if (style().hasOutline())
             view().decrementRendersWithOutline();
 
-        if (auto* firstLineStyle = style().getCachedPseudoStyle({ PseudoElementType::FirstLine }))
+        if (auto* firstLineStyle = style().pseudoElementStyle({ PseudoElementType::FirstLine }))
             unregisterImages(*firstLineStyle);
     }
 
@@ -1368,7 +1362,7 @@ void RenderElement::clearChildNeedsLayout()
 void RenderElement::setNeedsLayoutForStyleDifference(Style::Difference diff, const RenderStyle* oldStyle)
 {
     if (diff == Style::DifferenceResult::Layout)
-        setNeedsLayoutAndPreferredWidthsUpdate();
+        setNeedsLayoutAndInvalidateContentLogicalWidths();
     else if (diff == Style::DifferenceResult::LayoutOutOfFlowMovementOnly)
         setNeedsOutOfFlowMovementLayout(oldStyle);
     else if (diff == Style::DifferenceResult::OverflowAndOutOfFlowMovement) {
@@ -1903,22 +1897,25 @@ bool RenderElement::repaintForPausedImageAnimationsIfNeeded(const IntRect& visib
     return true;
 }
 
-const RenderStyle* RenderElement::getCachedPseudoStyle(const Style::PseudoElementIdentifier& pseudoElementIdentifier, const RenderStyle* parentStyle) const
+const RenderStyle* RenderElement::lazyPseudoElementStyle(const Style::PseudoElementIdentifier& pseudoElementIdentifier, const RenderStyle* parentStyle) const
 {
+    ASSERT(Style::isHighlightPseudoElement(pseudoElementIdentifier.type) || pseudoElementIdentifier.type == PseudoElementType::InternalWritingSuggestions);
+
+    // hasPseudoStyle is only tracked for public pseudo types.
     if (allPublicPseudoElementTypes.contains(pseudoElementIdentifier.type) && !style().hasPseudoStyle(pseudoElementIdentifier.type))
         return nullptr;
 
-    auto* cachedStyle = style().getCachedPseudoStyle(pseudoElementIdentifier);
+    auto* cachedStyle = style().pseudoElementStyle(pseudoElementIdentifier);
     if (cachedStyle)
         return cachedStyle;
 
-    std::unique_ptr<RenderStyle> result = getUncachedPseudoStyle(pseudoElementIdentifier, parentStyle);
+    std::unique_ptr<RenderStyle> result = resolvePseudoElementStyle(pseudoElementIdentifier, parentStyle);
     if (result)
-        return const_cast<RenderStyle&>(m_style).addCachedPseudoStyle(WTF::move(result));
+        return const_cast<RenderStyle&>(m_style).addPseudoElementStyle(WTF::move(result));
     return nullptr;
 }
 
-std::unique_ptr<RenderStyle> RenderElement::getUncachedPseudoStyle(const Style::PseudoElementRequest& pseudoElementRequest, const RenderStyle* parentStyle, const RenderStyle* ownStyle) const
+std::unique_ptr<RenderStyle> RenderElement::resolvePseudoElementStyle(const Style::PseudoElementRequest& pseudoElementRequest, const RenderStyle* parentStyle, const RenderStyle* ownStyle) const
 {
     if (allPublicPseudoElementTypes.contains(pseudoElementRequest.type()) && !ownStyle && !style().hasPseudoStyle(pseudoElementRequest.type()))
         return nullptr;
@@ -1965,7 +1962,7 @@ const RenderStyle* RenderElement::textSegmentPseudoStyle(PseudoElementType pseud
     if (isAnonymous())
         return nullptr;
 
-    if (auto* pseudoStyle = getCachedPseudoStyle({ pseudoElementType })) {
+    if (auto* pseudoStyle = lazyPseudoElementStyle({ pseudoElementType })) {
         // We intentionally return the pseudo style here if it exists before ascending to the
         // shadow host element. This allows us to apply pseudo styles in user agent shadow
         // roots, instead of always deferring to the shadow host's selection pseudo style.
@@ -1973,7 +1970,7 @@ const RenderStyle* RenderElement::textSegmentPseudoStyle(PseudoElementType pseud
     }
 
     if (auto* renderer = rendererForPseudoStyleAcrossShadowBoundary())
-        return renderer->getCachedPseudoStyle({ pseudoElementType });
+        return renderer->lazyPseudoElementStyle({ pseudoElementType });
 
     return nullptr;
 }
@@ -2005,7 +2002,7 @@ std::unique_ptr<RenderStyle> RenderElement::selectionPseudoStyle() const
     if (isAnonymous())
         return nullptr;
 
-    if (auto selectionStyle = getUncachedPseudoStyle({ PseudoElementType::Selection })) {
+    if (auto selectionStyle = resolvePseudoElementStyle({ PseudoElementType::Selection })) {
         // We intentionally return the pseudo selection style here if it exists before ascending to
         // the shadow host element. This allows us to apply selection pseudo styles in user agent
         // shadow roots, instead of always deferring to the shadow host's selection pseudo style.
@@ -2013,7 +2010,7 @@ std::unique_ptr<RenderStyle> RenderElement::selectionPseudoStyle() const
     }
 
     if (auto* renderer = rendererForPseudoStyleAcrossShadowBoundary())
-        return renderer->getUncachedPseudoStyle({ PseudoElementType::Selection });
+        return renderer->resolvePseudoElementStyle({ PseudoElementType::Selection });
 
     return nullptr;
 }
@@ -2824,14 +2821,13 @@ void RenderElement::markRendererDirtyAfterTopLayerChange(RenderElement* renderer
 
 bool RenderElement::hasEligibleContainmentForSizeQuery() const
 {
-    switch (style().containerType()) {
-    case ContainerType::InlineSize:
-        return shouldApplyInlineSizeContainment();
-    case ContainerType::Size:
+    auto& type = style().containerType();
+    if (type.hasSize())
         return shouldApplySizeContainment();
-    case ContainerType::Normal:
+    if (type.hasInlineSize())
+        return shouldApplyInlineSizeContainment();
+    if (type.isNormal())
         return true;
-    }
     ASSERT_NOT_REACHED();
     return false;
 }

@@ -110,6 +110,7 @@
 #include "FocusController.h"
 #include "FocusEvent.h"
 #include "FocusOptions.h"
+#include "FontCascadeInlines.h"
 #include "FontFaceSet.h"
 #include "FormController.h"
 #include "FragmentDirective.h"
@@ -190,6 +191,7 @@
 #include "LocalFrame.h"
 #include "LocalFrameLoaderClient.h"
 #include "LocalFrameView.h"
+#include "LocalFrameViewLayoutContext.h"
 #include "Logging.h"
 #include "MediaCanStartListener.h"
 #include "MediaProducer.h"
@@ -253,6 +255,7 @@
 #include "RenderElementInlines.h"
 #include "RenderInline.h"
 #include "RenderLayerCompositor.h"
+#include "RenderLayerModelObject.h"
 #include "RenderLayoutState.h"
 #include "RenderLineBreak.h"
 #include "RenderObjectInlines.h"
@@ -314,6 +317,7 @@
 #include "StyleAdjuster.h"
 #include "StyleColorOptions.h"
 #include "StyleColorScheme.h"
+#include "StyleFontSizeFunctions.h"
 #include "StyleOriginatedTimelinesController.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StyleProperties.h"
@@ -323,6 +327,7 @@
 #include "StyleSheetContents.h"
 #include "StyleSheetList.h"
 #include "StyleTreeResolverInlines.h"
+#include "StyleUpdate.h"
 #include "StyleZoomPrimitivesInlines.h"
 #include "SubresourceLoader.h"
 #include "SystemPreviewInfo.h"
@@ -1335,6 +1340,11 @@ void Document::invalidateQuerySelectorAllResultsForClassAttributeChange(Node& st
 
 void Document::clearQuerySelectorAllResults()
 {
+    // The map holds only weak references, so its keyed nodes outlive this clear. Reset their per-node flag too, or a
+    // surviving node keeps claiming valid cached results after its entry is gone, asserting in the invalidation path
+    // (invalidateQuerySelectorAllResultsForClassAttributeChange) when it looks up an entry the clear already removed.
+    for (auto entry : m_querySelectorAllResults)
+        entry.key.setHasValidQuerySelectorAllResults(false);
     m_querySelectorAllResults.clear();
 }
 
@@ -1392,8 +1402,13 @@ const Color& Document::themeColor()
         if (m_activeThemeColorMetaElement)
             m_cachedThemeColor = m_activeThemeColorMetaElement->contentColor();
 
-        if (!m_cachedThemeColor.isValid())
-            m_cachedThemeColor = m_applicationManifestThemeColor;
+        if (!m_cachedThemeColor.isValid()) {
+            if (RefPtr page = this->page(); page && page->useDarkAppearance())
+                m_cachedThemeColor = m_applicationManifestThemeColorDark;
+
+            if (!m_cachedThemeColor.isValid())
+                m_cachedThemeColor = m_applicationManifestThemeColor;
+        }
     }
     return m_cachedThemeColor;
 }
@@ -2906,10 +2921,20 @@ void Document::updateTextRenderer(Text& text, unsigned offsetOfReplacedText, uns
     ensurePendingRenderTreeUpdate().addText(text, { offsetOfReplacedText, lengthOfReplacedText, std::nullopt });
 }
 
-void Document::updateSVGRenderer(SVGElement& element)
+void Document::updateSVGRenderer(SVGElement& element, Style::SVGRendererUpdateType kind)
 {
     if (!hasLivingRenderTree())
         return;
+
+    // TransformAttributeOnly bypasses Style::Update so it does not flip needsStyleRecalc()
+    // true and force a resolveStyle pass every animation frame.
+    if (kind == Style::SVGRendererUpdateType::TransformAttributeOnly) {
+        if (CheckedPtr layerRenderer = dynamicDowncast<RenderLayerModelObject>(element.renderer())) {
+            if (RefPtr frameView = view())
+                frameView->layoutContext().addPendingSVGTransformAttributeUpdate(*layerRenderer);
+        }
+        return;
+    }
 
     ensurePendingRenderTreeUpdate().addSVGRendererUpdate(element);
 }
@@ -3052,6 +3077,11 @@ auto Document::updateLayout(OptionSet<LayoutOptions> layoutOptions, const Elemen
         if (updateStyleIfNeeded())
             result = UpdateLayoutResult::ChangesDone;
 
+        // LBSE: drain queued transform-attribute updates after style recalc so updateLayerTransform
+        // sees post-style geometry and re-enqueues from style callbacks land in this pass.
+        if (frameView)
+            frameView->layoutContext().flushPendingSVGTransformAttributeUpdatesIfNeeded();
+
         StackStats::LayoutCheckPoint layoutCheckPoint;
 
         if (frameView && renderView()) {
@@ -3181,6 +3211,12 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<Dim
 
     // Check for re-entrancy and assert (same code that is in updateLayout()).
     RefPtr frameView = view();
+
+    // LBSE: drain before the re-entrancy early-return so re-entrant geometry queries see
+    // the fresh layer transform.
+    if (frameView)
+        frameView->layoutContext().flushPendingSVGTransformAttributeUpdatesIfNeeded();
+
     if (frameView && frameView->layoutContext().isInRenderTreeLayout()) {
         // View layout should not be re-entrant.
         ASSERT_NOT_REACHED();
@@ -3200,6 +3236,11 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<Dim
     updateRelevancyOfContentVisibilityElements();
 
     updateStyleIfNeeded();
+
+    // LBSE: drain queued transform-attribute updates after style recalc so updateLayerTransform
+    // sees post-style geometry, and re-enqueues from style callbacks land here.
+    if (frameView)
+        frameView->layoutContext().flushPendingSVGTransformAttributeUpdatesIfNeeded();
 
     if (layoutOptions.containsAll({ LayoutOptions::TreatContentVisibilityHiddenAsVisible, LayoutOptions::TreatContentVisibilityAutoAsVisible })) {
         if (CheckedPtr renderer = element.renderer(); renderer &&  renderer->style().isSkippedRootOrSkippedContent()) {
@@ -3243,7 +3284,7 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<Dim
         // Check our containing block chain. If anything in the chain needs a layout, then require a full layout.
         for (CheckedPtr currentRenderer = renderer; currentRenderer && !currentRenderer->isRenderView(); currentRenderer = currentRenderer->container()) {
 
-            if (currentRenderer->style().containerType() != ContainerType::Normal) {
+            if (!currentRenderer->style().containerType().isNormal()) {
                 requireFullLayout = true;
                 break;
             }
@@ -5529,6 +5570,7 @@ void Document::processApplicationManifest(const ApplicationManifest& application
 {
     auto oldThemeColor = std::exchange(m_cachedThemeColor, Color());
     m_applicationManifestThemeColor = applicationManifest.themeColor;
+    m_applicationManifestThemeColorDark = applicationManifest.themeColorDark;
     if (themeColor() == oldThemeColor)
         return;
 
@@ -6355,8 +6397,12 @@ void Document::flushAutofocusCandidates()
             continue;
 
         // FIXME: Need to ignore if the inclusive ancestor documents has a target element.
-        // FIXME: Use the result of getting the focusable area for element if element is not focusable.
-        if (element->isFocusable()) {
+        bool isFocusableArea = element->isFocusable();
+        if (!isFocusableArea) {
+            if (RefPtr root = element->shadowRoot(); root && root->delegatesFocus())
+                isFocusableArea = !!Element::findFocusDelegateForTarget(*root, FocusTrigger::Other);
+        }
+        if (isFocusableArea) {
             clearAutofocusCandidates();
             page->setAutofocusProcessed();
             element->runFocusingStepsForAutofocus();
@@ -6457,7 +6503,7 @@ void Document::invalidateEventListenerRegions()
     if (changed)
         scheduleFullStyleRebuild();
     else
-        protect(documentElement())->invalidateStyleInternal();
+        protect(documentElement())->invalidateStyle();
 }
 
 void Document::invalidateRenderingDependentRegions()
@@ -6850,6 +6896,17 @@ void Document::nodeWillBeRemoved(Node& node)
 
     if (is<Text>(node) && m_markers)
         m_markers->removeMarkers(node);
+}
+
+void Document::nodeWillBeMoved(Node& node)
+{
+    ASSERT(ScriptDisallowedScope::InMainThread::hasDisallowedScope());
+
+    for (Ref nodeIterator : m_nodeIterators)
+        nodeIterator->nodeWillBeRemoved(node);
+
+    for (Ref range : m_ranges)
+        range->nodeWillBeRemoved(node);
 }
 
 void Document::parentlessNodeMovedToNewDocument(Node& node)
@@ -7315,6 +7372,7 @@ String Document::referrerForBindings()
     return shouldHideFromBindings ? emptyString() : referrer();
 }
 
+// https://html.spec.whatwg.org/multipage/origin.html#dom-document-domain
 String Document::domain() const
 {
     return securityOrigin().domain();
@@ -7339,6 +7397,9 @@ ExceptionOr<void> Document::setDomain(const String& newDomain)
 
     if (!securityOrigin().isMatchingRegistrableDomainSuffix(newDomain, settings().treatIPAddressAsDomain()))
         return Exception { ExceptionCode::SecurityError, "Attempted to use a non-registrable domain."_s };
+
+    if (originAgentCluster())
+        return { };
 
     securityOrigin().setDomainFromDOM(newDomain);
     return { };
@@ -8324,6 +8385,7 @@ void Document::initSecurityContext()
     contentSecurityPolicy->updateSourceSelf(protect(ownerFrame->document()->securityOrigin()));
 
     setCrossOriginEmbedderPolicy(ownerFrame->document()->crossOriginEmbedderPolicy());
+    setIsOriginKeyed(ownerFrame->document()->isOriginKeyed());
 
     // https://html.spec.whatwg.org/multipage/browsers.html#creating-a-new-browsing-context (Step 12)
     // If creator is non-null and creator's origin is same origin with creator's relevant settings object's top-level origin, then set coop
@@ -8468,9 +8530,25 @@ String Document::agentClusterID() const
     Ref origin = securityOrigin();
     auto& data = origin->data();
     auto browsingContextGroupIdentifier = page() && page()->browsingContextGroupIdentifier() ? page()->browsingContextGroupIdentifier()->toUInt64() : 0;
+    if (origin->isOpaque()) {
+        auto opaqueID = data.opaqueOriginIdentifier();
+        return makeString(browsingContextGroupIdentifier, "-opaque-"_s, opaqueID ? opaqueID->toString() : String { });
+    }
     if (crossOriginIsolated())
         return makeString(browsingContextGroupIdentifier, "-coi-"_s, data.toString());
+    if (m_isOriginKeyed == OriginKeyed::Yes)
+        return makeString(browsingContextGroupIdentifier, "-oac-"_s, data.toString());
     return makeString(browsingContextGroupIdentifier, '-', Site(data).toString());
+}
+
+// https://html.spec.whatwg.org/multipage/origin.html#dom-originagentcluster
+bool Document::originAgentCluster() const
+{
+    if (securityOrigin().isOpaque())
+        return true;
+    if (crossOriginIsolated())
+        return true;
+    return m_isOriginKeyed == OriginKeyed::Yes;
 }
 
 void Document::updateURLForPushOrReplaceState(const URL& url)
@@ -9760,11 +9838,14 @@ void Document::updateHoverActiveState(const HitTestRequest& request, Element* in
 
         Style::PseudoClassChangeInvalidation styleInvalidation { elements.last(), pseudoClass, value, Style::InvalidationScope::Descendants };
 
-        // We need to do descendant invalidation for each shadow tree separately as the style is per-scope.
-        Vector<Style::PseudoClassChangeInvalidation> shadowDescendantStyleInvalidations;
+        // Style is resolved per tree scope, and the composed chain can cross scopes where a host's
+        // children are slotted into its shadow tree. styleInvalidation covers the chain's topmost scope;
+        // root one more at the top of each lower scope it crosses so a slotted subtree is invalidated in
+        // the scope whose stylesheet has the rule.
+        Vector<Style::PseudoClassChangeInvalidation> descendantStyleInvalidations;
         for (auto& element : elements) {
-            if (hasShadowRootParent(element))
-                shadowDescendantStyleInvalidations.append({ element, pseudoClass, value, Style::InvalidationScope::Descendants });
+            if (hasShadowRootParent(element) || element->assignedSlot())
+                descendantStyleInvalidations.append({ element, pseudoClass, value, Style::InvalidationScope::Descendants });
         }
 
         for (auto& element : elements)
@@ -9882,6 +9963,12 @@ bool Document::useDarkAppearance([[maybe_unused]] const Style::ComputedStyle* st
 #endif
 
     return false;
+}
+
+void Document::appearanceDidChange()
+{
+    if (std::exchange(m_cachedThemeColor, Color()) != themeColor())
+        themeColorChanged();
 }
 
 bool Document::useElevatedUserInterfaceLevel() const
@@ -11037,6 +11124,9 @@ void Document::handlePopoverLightDismiss(const PointerEvent& event, Node& target
                                 invokerPopover = WTF::move(popover);
                             else if (RefPtr popover = button->popoverTargetElement(); popover && isShowingAutoPopover(*popover))
                                 invokerPopover = WTF::move(popover);
+                        } else if (RefPtr input = dynamicDowncast<HTMLInputElement>(*htmlElement)) {
+                            if (RefPtr popover = input->popoverTargetElement(); popover && isShowingAutoPopover(*popover))
+                                invokerPopover = WTF::move(popover);
                         } else if (settings().htmlEnhancedSelectEnabled()) {
                             if (auto* select = dynamicDowncast<HTMLSelectElement>(*htmlElement)) {
                                 if (RefPtr popover = select->pickerPopoverElement(); popover && isShowingAutoPopover(*popover))
@@ -11293,6 +11383,45 @@ const CSSCounterStyleRegistry& Document::counterStyleRegistry() const
 CSSCounterStyleRegistry& Document::counterStyleRegistry()
 {
     return styleScope().counterStyleRegistry();
+}
+
+const RenderStyle& Document::initialStyle() const
+{
+    if (!m_cachedInitialStyle) {
+        float zoom = 1;
+        float zoomForFontDescription = 1;
+        if (RefPtr frame = this->frame()) {
+            zoom = !printing() ? frame->pageZoomFactor() : 1;
+            zoomForFontDescription = zoom * frame->textZoomFactor();
+        }
+
+        m_cachedInitialStyle = RenderStyle::createPtr();
+
+        m_cachedInitialStyle->setZoom(zoom);
+        m_cachedInitialStyle->setEvaluationTimeZoomEnabled(settings().evaluationTimeZoomEnabled());
+
+        auto initialFontFamily = FontFamily { standardFamily, FontFamilyKind::Generic };
+        auto initialSpecifiedFontSize = Style::fontSizeForKeyword(CSSValueMedium, false, settingsValues(), inQuirksMode());
+        auto initialComputedFontSize = Style::computedFontSizeFromSpecifiedSize(initialSpecifiedFontSize, false, zoomForFontDescription, Style::MinimumFontSizeRule::AbsoluteAndRelative, settingsValues());
+        auto allowUserInstalledFonts = settings().shouldAllowUserInstalledFonts() ? AllowUserInstalledFonts::Yes : AllowUserInstalledFonts::No;
+
+        FontCascadeDescription fontDescription;
+        fontDescription.setSpecifiedLocale(contentLanguage());
+        fontDescription.setOneFamily(WTF::move(initialFontFamily));
+        fontDescription.setKeywordSizeFromIdentifier(CSSValueMedium);
+        fontDescription.setSpecifiedSize(initialSpecifiedFontSize);
+        fontDescription.setComputedSize(initialComputedFontSize, zoomForFontDescription);
+        fontDescription.setShouldAllowUserInstalledFonts(allowUserInstalledFonts);
+        fontDescription.setEvaluationTimeZoomEnabled(settings().evaluationTimeZoomEnabled());
+
+        m_cachedInitialStyle->setFontDescription(WTF::move(fontDescription));
+    }
+    return *m_cachedInitialStyle;
+}
+
+void Document::invalidateCachedInitialStyle()
+{
+    m_cachedInitialStyle = { };
 }
 
 const CSSParserContext& Document::cssParserContext() const

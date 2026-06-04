@@ -438,10 +438,11 @@ JSC_DEFINE_HOST_FUNCTION(numberProtoFuncToFixed, (JSGlobalObject* globalObject, 
     if (!toThisNumber(callFrame->thisValue(), x))
         return throwVMToThisNumberError(globalObject, scope, callFrame->thisValue());
 
-    int decimalPlaces = static_cast<int>(callFrame->argument(0).toIntegerOrInfinity(globalObject));
+    double decimalPlacesDouble = callFrame->argument(0).toIntegerOrInfinity(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
-    if (decimalPlaces < 0 || decimalPlaces > 100)
+    if (decimalPlacesDouble < 0 || decimalPlacesDouble > 100)
         return throwVMRangeError(globalObject, scope, "toFixed() argument must be between 0 and 100"_s);
+    int decimalPlaces = static_cast<int>(decimalPlacesDouble);
 
     // 15.7.4.5.7 states "If x >= 10^21, then let m = ToString(x)"
     // This also covers Ininity, and structure the check so that NaN

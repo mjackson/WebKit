@@ -124,11 +124,6 @@ inline bool ComputedStyleBase::isLink() const
     return m_nonInheritedFlags.isLink;
 }
 
-inline bool ComputedStyleBase::emptyState() const
-{
-    return m_nonInheritedFlags.emptyState;
-}
-
 inline bool ComputedStyleBase::firstChildState() const
 {
     return m_nonInheritedFlags.firstChildState;
@@ -310,6 +305,11 @@ inline bool ComputedStyleBase::useSVGZoomRulesForLength() const
 inline float ComputedStyleBase::usedZoom() const
 {
     return m_inheritedRareData->usedZoom;
+}
+
+inline float ComputedStyleBase::deviceScaleFactor() const
+{
+    return m_inheritedRareData->deviceScaleFactor;
 }
 
 inline ZoomFactor ComputedStyleBase::usedZoomForLength() const

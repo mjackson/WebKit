@@ -413,7 +413,7 @@ void SpeculativeJIT::compileNeitherDoubleNorHeapBigIntToNotDoubleStrictEquality(
     if (needsTypeCheck(rightNotDoubleChild, SpecString))
         falseCase.append(branchIfNotString(rightRegs.payloadGPR()));
 
-    compileStringEquality(node, leftRegs.payloadGPR(), rightRegs.payloadGPR(), tempGPR, leftTempGPR, rightTempGPR, leftTemp2GPR, rightTemp2GPR, trueCase, falseCase);
+    compileStringEquality(node, leftRegs.payloadGPR(), rightRegs.payloadGPR(), tempGPR, leftTempGPR, rightTempGPR, leftTemp2GPR, rightTemp2GPR, trueCase, falseCase, Edge(), Edge());
 }
 
 void SpeculativeJIT::nonSpeculativePeepholeStrictEq(Node* node, Node* branchNode, bool invert)
@@ -3794,6 +3794,11 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
+    case StringSearch: {
+        compileStringSearch(node);
+        break;
+    }
+
     case StringLastIndexOf: {
         compileStringLastIndexOf(node);
         break;
@@ -3820,8 +3825,9 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
-    case StringFromCharCode: {
-        compileFromCharCode(node);
+    case StringFromCharCode:
+    case StringFromCodePoint: {
+        compileStringFromCharCodeOrCodePoint(node);
         break;
     }
 
@@ -4278,6 +4284,11 @@ void SpeculativeJIT::compile(Node* node)
         compileArrayIndexOfOrArrayIncludes(node);
         break;
     }
+
+    case ArrayJoin: {
+        compileArrayJoin(node);
+        break;
+    }
         
     case ArrayPop: {
         ASSERT(node->arrayMode().isJSArray());
@@ -4482,13 +4493,14 @@ void SpeculativeJIT::compile(Node* node)
         
     case BooleanToNumber: {
         switch (node->child1().useKind()) {
-        case BooleanUse: {
+        case BooleanUse:
+        case KnownBooleanUse: {
             JSValueOperand value(this, node->child1(), ManualOperandSpeculation);
             GPRTemporary result(this); // FIXME: We could reuse, but on speculation fail would need recovery to restore tag (akin to add).
 
             GPRReg valueGPR = value.gpr();
             GPRReg resultGPR = result.gpr();
-            
+
             xor64(TrustedImm32(JSValue::ValueFalse), valueGPR, resultGPR);
             DFG_TYPE_CHECK(
                 JSValueRegs(valueGPR), node->child1(), SpecBoolean, branchTest64(
@@ -4721,6 +4733,16 @@ void SpeculativeJIT::compile(Node* node)
 
     case NewSet: {
         compileNewSet(node);
+        break;
+    }
+
+    case NewWeakMap: {
+        compileNewWeakMap(node);
+        break;
+    }
+
+    case NewWeakSet: {
+        compileNewWeakSet(node);
         break;
     }
 
@@ -6109,6 +6131,11 @@ void SpeculativeJIT::compile(Node* node)
 
     case EnumeratorNextUpdateIndexAndMode: {
         compileEnumeratorNextUpdateIndexAndMode(node);
+        break;
+    }
+
+    case StringIteratorNext: {
+        compileStringIteratorNext(node);
         break;
     }
 

@@ -670,13 +670,10 @@ bool HTMLLinkElement::mediaAttributeMatches() const
         return true;
 
     Ref document = this->document();
-    std::optional<RenderStyle> documentStyle;
-    if (document->hasLivingRenderTree())
-        documentStyle = Style::resolveForDocument(document.get());
     auto mediaQueryList = MQ::MediaQueryParser::parse(m_media, document->cssParserContext());
     LOG(MediaQueries, "HTMLLinkElement::mediaAttributeMatches");
 
-    MQ::MediaQueryEvaluator evaluator(document->frame()->view()->mediaType(), document.get(), documentStyle ? &*documentStyle : nullptr);
+    MQ::MediaQueryEvaluator evaluator(document->frame()->view()->mediaType(), document.get());
     return evaluator.evaluate(mediaQueryList);
 }
 
@@ -750,9 +747,10 @@ void HTMLLinkElement::startLoadingDynamicSheet()
 
 bool HTMLLinkElement::isURLAttribute(const Attribute& attribute) const
 {
-    return attribute.name().localName() == hrefAttr
+    // FIXME: Should these be attribute.name().matches(...) to also enforce the namespace?
+    return hrefAttr->hasLocalName(attribute.name().localName())
 #if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-    || attribute.name().localName() == environmentmapAttr
+    || environmentmapAttr->hasLocalName(attribute.name().localName())
 #endif
     || HTMLElement::isURLAttribute(attribute);
 }
@@ -801,7 +799,7 @@ static bool NODELETE mayFetchResource(LinkRelAttribute relAttribute)
         || !!relAttribute.iconType;
 }
 
-void HTMLLinkElement::addSubresourceAttributeURLs(ListHashSet<URL>& urls) const
+void HTMLLinkElement::addSubresourceAttributeURLs(OrderedHashSet<URL>& urls) const
 {
     HTMLElement::addSubresourceAttributeURLs(urls);
 

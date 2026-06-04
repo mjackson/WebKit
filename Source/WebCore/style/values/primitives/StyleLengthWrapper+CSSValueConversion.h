@@ -63,11 +63,6 @@ static auto processKeywordForCSSValueConversion(const K& keyword, CSSValueID val
             result = StyleType { keyword };
             return true;
         }
-    } else if constexpr (std::same_as<K, CSS::Keyword::Stretch>) {
-        if (valueID == CSSValueWebkitFillAvailable) {
-            result = StyleType { keyword };
-            return true;
-        }
     }
 
     return false;
@@ -118,7 +113,7 @@ auto convertLengthWrapperFromCSSValue(const CSSToLengthConversionData& conversio
 
     return WTF::switchOn(value,
         [&](const CSSPrimitiveValue::Calc& calc) -> std::optional<StyleType> {
-            return StyleType { toStyle(CSS::UnevaluatedCalc<CSSRaw>(const_cast<CSSPrimitiveValue::Calc&>(calc)), conversionData, std::forward<Rest>(rest)...) };
+            return StyleType { toStyle(CSS::UnevaluatedCalc<CSSRaw> { calc }, conversionData, std::forward<Rest>(rest)...) };
         },
         [&](const CSSPrimitiveValue::Raw& raw) -> std::optional<StyleType> {
             if (auto unit = CSSPercentageRaw::UnitTraits::validate(raw.unit))
@@ -143,7 +138,7 @@ auto convertLengthWrapperFromCSSValue(BuilderState& state, const CSSPrimitiveVal
 
     return WTF::switchOn(value,
         [&](const CSSPrimitiveValue::Calc& calc) -> StyleType {
-            return StyleType { toStyle(CSS::UnevaluatedCalc<CSSRaw>(const_cast<CSSPrimitiveValue::Calc&>(calc)), state, std::forward<Rest>(rest)...) };
+            return StyleType { toStyle(CSS::UnevaluatedCalc<CSSRaw> { calc }, state, std::forward<Rest>(rest)...) };
         },
         [&](const CSSPrimitiveValue::Raw& raw) -> StyleType {
             if (auto unit = CSSPercentageRaw::UnitTraits::validate(raw.unit))

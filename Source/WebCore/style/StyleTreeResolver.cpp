@@ -376,7 +376,7 @@ auto TreeResolver::resolveElement(Element& element, const RenderStyle* existingS
     }
 
     auto resolveAndAddPseudoElementStyle = [&](const PseudoElementIdentifier& pseudoElementIdentifier) {
-        const RenderStyle* existingPseudoStyle = existingStyle ? existingStyle->getCachedPseudoStyle(pseudoElementIdentifier) : nullptr;
+        const RenderStyle* existingPseudoStyle = existingStyle ? existingStyle->pseudoElementStyle(pseudoElementIdentifier) : nullptr;
         auto pseudoElementUpdate = resolvePseudoElement(element, pseudoElementIdentifier, update, parent().isInDisplayNoneTree, existingPseudoStyle);
 
         auto pseudoElementChanges = [&]() -> OptionSet<Change> {
@@ -387,7 +387,7 @@ auto TreeResolver::resolveElement(Element& element, const RenderStyle* existingS
                     return { };
                 return { Change::NonInherited };
             }
-            if (!existingStyle || !existingStyle->getCachedPseudoStyle(pseudoElementIdentifier))
+            if (!existingStyle || !existingStyle->pseudoElementStyle(pseudoElementIdentifier))
                 return { };
             // If ::first-letter goes aways rebuild the renderers.
             if (pseudoElementIdentifier.type == PseudoElementType::FirstLetter)
@@ -399,7 +399,7 @@ auto TreeResolver::resolveElement(Element& element, const RenderStyle* existingS
             return pseudoElementChanges;
         if (pseudoElementUpdate->recompositeLayer)
             update.recompositeLayer = true;
-        update.style->addCachedPseudoStyle(WTF::move(pseudoElementUpdate->style));
+        update.style->addPseudoElementStyle(WTF::move(pseudoElementUpdate->style));
         return pseudoElementUpdate->changes;
     };
 
@@ -428,6 +428,15 @@ auto TreeResolver::resolveElement(Element& element, const RenderStyle* existingS
             resolveAndAddPseudoElementStyle({ PseudoElementType::ViewTransitionImagePair, name });
             resolveAndAddPseudoElementStyle({ PseudoElementType::ViewTransitionNew, name });
             resolveAndAddPseudoElementStyle({ PseudoElementType::ViewTransitionOld, name });
+        }
+    }
+
+    // Highlight pseudo-elements are resolved lazily and have no other resolution trigger.
+    // Re-resolve any that were previously cached.
+    if (existingStyle) {
+        for (auto& [identifier, _] : existingStyle->pseudoElementStyles()) {
+            if (isHighlightPseudoElement(identifier.type))
+                resolveAndAddPseudoElementStyle(identifier);
         }
     }
 
@@ -557,13 +566,13 @@ std::optional<ElementUpdate> TreeResolver::resolvePseudoElement(Element& element
             if (auto firstLineContext = makeResolutionContextForInheritedFirstLine(elementUpdate, *elementUpdate.style)) {
                 auto firstLineStyle = scope().resolver->styleForPseudoElement(element, pseudoElementIdentifier, *firstLineContext);
                 firstLineStyle->style->setPseudoElementIdentifier({ { PseudoElementType::FirstLine } });
-                animatedUpdate.style->addCachedPseudoStyle(WTF::move(firstLineStyle->style));
+                animatedUpdate.style->addPseudoElementStyle(WTF::move(firstLineStyle->style));
             }
         }
         if (scope().resolver->usesFirstLetterRules()) {
             auto beforeAfterContext = makeResolutionContextForPseudoElement(animatedUpdate, { PseudoElementType::FirstLetter });
             if (auto firstLetterStyle = resolveAncestorFirstLetterPseudoElement(element, elementUpdate, beforeAfterContext))
-                animatedUpdate.style->addCachedPseudoStyle(WTF::move(firstLetterStyle->style));
+                animatedUpdate.style->addPseudoElementStyle(WTF::move(firstLetterStyle->style));
         }
     }
 
@@ -714,7 +723,7 @@ ResolutionContext TreeResolver::makeResolutionContextForPseudoElement(const Elem
 {
     auto parentStyle = [&]() -> const RenderStyle* {
         if (auto parentPseudoId = parentPseudoElement(pseudoElementIdentifier.type)) {
-            if (auto* parentPseudoStyle = elementUpdate.style->getCachedPseudoStyle({ *parentPseudoId, (*parentPseudoId == PseudoElementType::ViewTransitionGroup || *parentPseudoId == PseudoElementType::ViewTransitionImagePair) ? pseudoElementIdentifier.nameOrPart : nullAtom() }))
+            if (auto* parentPseudoStyle = elementUpdate.style->pseudoElementStyle({ *parentPseudoId, (*parentPseudoId == PseudoElementType::ViewTransitionGroup || *parentPseudoId == PseudoElementType::ViewTransitionImagePair) ? pseudoElementIdentifier.nameOrPart : nullAtom() }))
                 return parentPseudoStyle;
         }
         return elementUpdate.style.get();
@@ -731,7 +740,7 @@ ResolutionContext TreeResolver::makeResolutionContextForPseudoElement(const Elem
 
 std::optional<ResolutionContext> TreeResolver::makeResolutionContextForInheritedFirstLine(const ElementUpdate& elementUpdate, const RenderStyle& inheritStyle)
 {
-    auto parentFirstLineStyle = inheritStyle.getCachedPseudoStyle({ PseudoElementType::FirstLine });
+    auto parentFirstLineStyle = inheritStyle.pseudoElementStyle({ PseudoElementType::FirstLine });
     if (!parentFirstLineStyle)
         return { };
 
@@ -1093,7 +1102,7 @@ void TreeResolver::pushParent(Element& element, const RenderStyle& style, Option
 #endif
 {
     scope().selectorMatchingState.selectorFilter.pushParent(&element);
-    if (style.containerType() != ContainerType::Normal)
+    if (!style.containerType().isNormal())
         scope().selectorMatchingState.containerQueryEvaluationState.sizeQueryContainers.append(element);
 
     Parent parent(element, style, changes, descendantsToResolve, isInDisplayNoneTree);
@@ -1456,7 +1465,7 @@ auto TreeResolver::updateStateForQueryContainer(Element& element, const RenderSt
         return LayoutInterleavingAction::None;
 
     auto* existingStyle = element.renderOrDisplayContentsStyle();
-    if (style->containerType() != ContainerType::Normal || (existingStyle && existingStyle->containerType() != ContainerType::Normal)) {
+    if (!style->containerType().isNormal() || (existingStyle && !existingStyle->containerType().isNormal())) {
         // If any of the queries use font-size relative units then a font size change
         // may affect their evaluation, so force re-evaluating all descendants.
         if (styleChangeAffectsRelativeUnits(*style, existingStyle))
@@ -1597,8 +1606,8 @@ auto TreeResolver::updateAnchorPositioningState(Element& element, const RenderSt
     };
 
     update(style);
-    update(style->getCachedPseudoStyle({ PseudoElementType::Before }));
-    update(style->getCachedPseudoStyle({ PseudoElementType::After }));
+    update(style->pseudoElementStyle({ PseudoElementType::Before }));
+    update(style->pseudoElementStyle({ PseudoElementType::After }));
 
     auto needsInterleavedLayout = hasUnresolvedAnchorPosition({ element, { } });
     if (needsInterleavedLayout)
@@ -1904,7 +1913,7 @@ const RenderStyle* TreeResolver::beforeResolutionStyle(const Element& element, s
             return style;
         if (!style)
             return nullptr;
-        return style->getCachedPseudoStyle(*pseudo);
+        return style->pseudoElementStyle(*pseudo);
     };
 
     auto it = m_savedBeforeResolutionStylesForInterleaving.find(element);

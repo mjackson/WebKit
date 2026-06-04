@@ -112,7 +112,7 @@ void WebProcess::stopRunLoop()
     // ensure the threaded compositor is invalidated and GL resources
     // released (see https://bugs.webkit.org/show_bug.cgi?id=217655).
     for (auto& webPage : copyToVector(m_pageMap.values()))
-        webPage->close();
+        webPage->close([] { });
 
     if (auto* display = PlatformDisplay::sharedDisplayIfExists())
         display->clearGLContexts();
@@ -261,14 +261,14 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters& para
         FontRenderOptions::singleton().disableHintingForTesting();
 
 #if PLATFORM(GTK)
-    WebCore::setScreenProperties(parameters.screenProperties);
+    WebCore::PlatformScreen::updateSingletonProperties(WTF::move(parameters.screenProperties));
 
     WebCore::SystemSoundManager::singleton().setSystemSoundDelegate(makeUnique<WebSystemSoundDelegate>());
 #endif
 
 #if PLATFORM(WPE) && ENABLE(WPE_PLATFORM)
     if (!m_rendererBufferTransportMode.isEmpty())
-        WebCore::setScreenProperties(parameters.screenProperties);
+        WebCore::PlatformScreen::updateSingletonProperties(WTF::move(parameters.screenProperties));
 #endif
 }
 
@@ -315,10 +315,10 @@ void WebProcess::releaseSystemMallocMemory()
 }
 
 #if PLATFORM(GTK) || PLATFORM(WPE)
-void WebProcess::setScreenProperties(const WebCore::ScreenProperties& properties)
+void WebProcess::setScreenProperties(WebCore::ScreenProperties&& properties)
 {
 #if PLATFORM(GTK) || (PLATFORM(WPE) && ENABLE(WPE_PLATFORM))
-    WebCore::setScreenProperties(properties);
+    WebCore::PlatformScreen::updateSingletonProperties(WTF::move(properties));
 #endif
     for (auto& page : m_pageMap.values())
         page->screenPropertiesDidChange();

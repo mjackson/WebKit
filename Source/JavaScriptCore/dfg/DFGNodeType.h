@@ -351,6 +351,7 @@ namespace JSC { namespace DFG {
     macro(ArrayConcatAppendOne, NodeResultJS | NodeMustGenerate) \
     macro(ArrayIncludes, NodeResultBoolean | NodeHasVarArgs) \
     macro(ArrayIndexOf, NodeResultInt32 | NodeHasVarArgs) \
+    macro(ArrayJoin, NodeResultJS | NodeMustGenerate | NodeHasVarArgs) \
     macro(ArraySplice, NodeResultJS | NodeMustGenerate | NodeHasVarArgs) \
     \
     /* Optimizations for regular expression matching. */\
@@ -372,13 +373,16 @@ namespace JSC { namespace DFG {
     macro(StringEndsWith, NodeResultBoolean) \
     macro(StringSplit, NodeResultJS | NodeMustGenerate) \
     macro(StringMatch, NodeResultJS | NodeMustGenerate) \
+    macro(StringSearch, NodeResultJS | NodeMustGenerate) \
     \
     /* Optimizations for string access */ \
     macro(StringAt, NodeResultJS) \
     macro(StringCharCodeAt, NodeResultInt32) \
     macro(StringCodePointAt, NodeResultInt32) \
     macro(StringCharAt, NodeResultJS) \
+    macro(StringIteratorNext, 0) \
     macro(StringFromCharCode, NodeResultJS | NodeMustGenerate) \
+    macro(StringFromCodePoint, NodeResultJS | NodeMustGenerate) \
     \
     /* Nodes for comparison operations. */\
     macro(CompareLess, NodeResultBoolean | NodeMustGenerate) \
@@ -441,6 +445,8 @@ namespace JSC { namespace DFG {
     macro(NewStringObject, NodeResultJS) \
     macro(NewMap, NodeResultJS) \
     macro(NewSet, NodeResultJS) \
+    macro(NewWeakMap, NodeResultJS) \
+    macro(NewWeakSet, NodeResultJS) \
     /* Rest Parameter */\
     macro(CreateRest, NodeResultJS | NodeMustGenerate) \
     \

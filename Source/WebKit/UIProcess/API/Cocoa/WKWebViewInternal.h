@@ -77,6 +77,8 @@
 
 #endif // !__has_feature(modules) || (defined(WK_SUPPORTS_SWIFT_OBJCXX_INTEROP) && WK_SUPPORTS_SWIFT_OBJCXX_INTEROP)
 
+#import "ScrollPerfIntervalState.h"
+
 NS_HEADER_AUDIT_BEGIN(nullability, sendability)
 
 #if PLATFORM(IOS_FAMILY)
@@ -177,6 +179,12 @@ enum class HideScrollPocketReason : uint8_t {
 enum class PreferSolidColorHardPocketReason : uint8_t {
     AttachedInspector   = 1 << 0,
     RequestedByClient   = 1 << 1,
+};
+
+enum class AdjustedColorExtensionsForBannerViewOverlaysEnablement : uint8_t {
+    EnabledIfHorizontalBannerViewPresent      = 1 << 0,
+    ForcedOnForTesting                        = 1 << 1,
+    ForcedOffForTesting                       = 1 << 2,
 };
 }
 
@@ -540,6 +548,9 @@ struct PerWebProcessState {
     BOOL _isScrollingWithOverlayRegion;
 #endif
 
+    ScrollPerfIntervalState _scrollPerfIntervalState;
+    BOOL _scrollPerfRubberbandingNotified;
+
     WebCore::FixedContainerEdges _fixedContainerEdges;
 
     RetainPtr<WKScrollGeometry> _currentScrollGeometry;
@@ -557,6 +568,11 @@ struct PerWebProcessState {
     OptionSet<WebKit::HideScrollPocketReason> _reasonsToHideTopScrollPocket;
     BOOL _needsTopScrollPocketDueToVisibleContentInset;
     BOOL _shouldUpdateNeedsTopScrollPocketDueToVisibleContentInset;
+#endif
+
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+    WebCore::RectEdges<RetainPtr<WKColorExtensionView>> _systemBackgroundColorExtensionViews;
+    WebKit::AdjustedColorExtensionsForBannerViewOverlaysEnablement _adjustedColorExtensionsForBannerViewOverlaysEnablement;
 #endif
 
 #if ENABLE(TEXT_EXTRACTION_FILTER)
@@ -645,8 +661,8 @@ struct PerWebProcessState {
 - (void)_didAccessBackForwardList NS_DIRECT;
 
 #if ENABLE(WEB_AUTHN)
-- (void)_showDigitalCredentialsPicker:(const WebCore::DigitalCredentialsRequestData&)requestData completionHandler:(WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&)completionHandler;
-- (void)_dismissDigitalCredentialsPicker:(WTF::CompletionHandler<void(bool)>&&)completionHandler;
+- (void)_showDigitalCredentialsChooser:(const WebCore::DigitalCredentialsRequestData&)requestData completionHandler:(WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&)completionHandler;
+- (void)_dismissDigitalCredentialsChooser:(WTF::CompletionHandler<void(bool)>&&)completionHandler;
 #endif
 
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
@@ -667,6 +683,13 @@ struct PerWebProcessState {
 - (void)_addReasonToPreferSolidColorHardPocket:(WebKit::PreferSolidColorHardPocketReason)reason;
 - (void)_removeReasonToPreferSolidColorHardPocket:(WebKit::PreferSolidColorHardPocketReason)reason;
 #endif
+
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+- (BOOL)_hasDetectedHorizontalBannerViewOverlays;
+- (void)_updateAppearanceForSystemBackgroundColorExtensionViews;
+#endif
+
+- (BOOL)_shouldAdjustColorExtensionsForHorizontalBannerViewOverlays;
 
 #if ENABLE(GAMEPAD)
 - (void)_setGamepadsRecentlyAccessed:(BOOL)gamepadsRecentlyAccessed;

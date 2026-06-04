@@ -55,6 +55,7 @@
 #include "WebEvent.h"
 #include "WebFrame.h"
 #include "WebFrameNetworkingContext.h"
+#include "WebFrameProxyMessages.h"
 #include "WebFullScreenManager.h"
 #include "WebHitTestResultData.h"
 #include "WebInspectorBackend.h"
@@ -465,6 +466,13 @@ void WebLocalFrameLoaderClient::dispatchDidChangeMainDocument()
     webPage->send(Messages::WebPageProxy::DidChangeMainDocument(m_frame->frameID(), navigationID));
 }
 
+void WebLocalFrameLoaderClient::dispatchDidChangeCSPOriginsThatUpgradeInsecureNavigations(const HashSet<WebCore::SecurityOriginData>& cspOriginsThatUpgradeInsecureNavigations)
+{
+    if (!siteIsolationEnabled())
+        return;
+    m_frame->send(Messages::WebFrameProxy::DidChangeCSPOriginsThatUpgradeInsecureNavigations(cspOriginsThatUpgradeInsecureNavigations));
+}
+
 void WebLocalFrameLoaderClient::dispatchWillChangeDocument(const URL& currentURL, const URL& newURL)
 {
     if (m_frame->isMainFrame())
@@ -671,8 +679,9 @@ void WebLocalFrameLoaderClient::dispatchDidCommitLoad(std::optional<HasInsecureC
 #endif
 
     RefPtr<Frame> coreLocalFrame = m_localFrame.ptr();
+    auto& cspOriginsThatUpgradeInsecureNavigations = protect(protect(m_localFrame->document())->contentSecurityPolicy())->insecureNavigationRequestsToUpgrade();
     // Notify the UIProcess.
-    webPage->send(Messages::WebPageProxy::DidCommitLoadForFrame(frame->frameID(), frame->info(), documentLoader->request(), documentLoader->navigationID(), documentLoader->response().mimeType(), m_frameHasCustomContentProvider, m_localFrame->loader().loadType(), certificateInfo, usedLegacyTLS, wasPrivateRelayed, documentLoader->response().proxyName(), documentLoader->response().source(), m_localFrame->document()->isPluginDocument(), *hasInsecureContent, documentLoader->mouseEventPolicy(), *coreLocalFrame->frameDocumentSecurityPolicy(),  UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())));
+    webPage->send(Messages::WebPageProxy::DidCommitLoadForFrame(frame->frameID(), frame->info(), documentLoader->request(), documentLoader->navigationID(), documentLoader->response().mimeType(), m_frameHasCustomContentProvider, m_localFrame->loader().loadType(), certificateInfo, usedLegacyTLS, wasPrivateRelayed, documentLoader->response().proxyName(), documentLoader->response().source(), m_localFrame->document()->isPluginDocument(), *hasInsecureContent, documentLoader->mouseEventPolicy(), *coreLocalFrame->frameDocumentSecurityPolicy(), cspOriginsThatUpgradeInsecureNavigations, UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get()), m_localFrame->loader().loadingFromCachedPage() ? RestoredFromBackForwardCache::Yes : RestoredFromBackForwardCache::No));
     webPage->didCommitLoad(m_frame.ptr());
 }
 
@@ -1747,6 +1756,7 @@ void WebLocalFrameLoaderClient::didCacheBackForwardItem(BackForwardItemIdentifie
     if (!webPage)
         return;
     webPage->sendWithAsyncReply(Messages::WebPageProxy::DidCacheBackForwardItem(itemID), [itemID, frameItemID](bool success) {
+        UNUSED_PARAM(itemID);
         if (success)
             return;
         // UIProcess rejected the cache: roll back the WebProcess-side entry
@@ -2156,13 +2166,17 @@ void WebLocalFrameLoaderClient::didExceedNetworkUsageThreshold()
     ASSERT(!m_frame->isMainFrame());
 
     RefPtr webPage = m_frame->page();
-    RefPtr localMainFrame = webPage ? dynamicDowncast<LocalFrame>(webPage->mainFrame()) : nullptr;
-    RefPtr document = localMainFrame ? localMainFrame->document() : nullptr;
-    if (!document)
+    RefPtr coreFrame = m_frame->coreLocalFrame();
+    RefPtr corePage = coreFrame ? coreFrame->page() : nullptr;
+    if (!webPage || !corePage)
         return;
 
-    auto url = document->url();
+    URL url = corePage->mainFrameURL();
     if (url.isEmpty())
+        return;
+
+    RefPtr frameDocument = coreFrame->document();
+    if (!frameDocument)
         return;
 
     WebLocalFrameLoaderClient_RELEASE_LOG(ResourceMonitoring, "didExceedNetworkUsageThreshold host=%" SENSITIVE_LOG_STRING, url.host().utf8().data());
@@ -2177,10 +2191,18 @@ void WebLocalFrameLoaderClient::didExceedNetworkUsageThreshold()
             frame->reportResourceMonitoringWarning();
     };
 
-    if (document->shouldSkipResourceMonitorThrottling())
+    if (frameDocument->shouldSkipResourceMonitorThrottling())
         action(true);
     else
         WebProcess::singleton().ensureNetworkProcessConnection().connection().sendWithAsyncReply(Messages::NetworkConnectionToWebProcess::ShouldOffloadIFrameForHost(url.host().toStringWithoutCopying()), WTF::move(action), 0);
+}
+
+void WebLocalFrameLoaderClient::applyResourceMonitorUnloadToOwnerFrame()
+{
+    RefPtr webPage = m_frame->page();
+    if (!webPage)
+        return;
+    webPage->send(Messages::WebPageProxy::ApplyResourceMonitorUnloadToFrameOwner(m_frame->frameID()));
 }
 
 #endif

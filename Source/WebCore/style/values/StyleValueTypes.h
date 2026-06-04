@@ -420,9 +420,9 @@ template<TupleLike StyleType> struct CSSValueCreation<StyleType> {
             return createCSSValue(pool, style, get<0>(value), std::forward<Rest>(rest)...);
         } else if constexpr (std::tuple_size_v<StyleType> == 2 && SerializationCoalescing<StyleType> == SerializationCoalescingType::Minimal) {
             return CSS::makeCoalescingPairCSSValue<SerializationSeparator<StyleType>>(createCSSValue(pool, style, get<0>(value), rest...), createCSSValue(pool, style, get<1>(value), rest...));
-        } else if constexpr (std::tuple_size_v<StyleType> == 4 && SerializationCoalescing<StyleType> == SerializationCoalescingType::Minimal) {
-            return CSS::makeCoalescingQuadCSSValue<SerializationSeparator<StyleType>>(createCSSValue(pool, style, get<0>(value), rest...), createCSSValue(pool, style, get<1>(value), rest...), createCSSValue(pool, style, get<2>(value), rest...), createCSSValue(pool, style, get<3>(value), rest...));
         } else {
+            static_assert(SerializationCoalescing<StyleType> == SerializationCoalescingType::None);
+
             CSSValueListBuilder list;
 
             auto caller = WTF::makeVisitor(
@@ -469,6 +469,25 @@ template<CSSValueID Name, typename StyleType> struct CSSValueCreation<FunctionNo
         return CSS::makeFunctionCSSValue(value.name, createCSSValue(pool, style, value.parameters, std::forward<Rest>(rest)...));
     }
 };
+
+// MARK: - Conversion directly from "Style to "Ref<DeprecatedCSSOMValue>"
+
+// All leaf types must implement the following:
+//
+//    template<> struct WebCore::Style::DeprecatedCSSOMValueCreation<StyleType> {
+//        Ref<DeprecatedCSSOMValue> operator()(CSSValuePool&, const RenderStyle&, CSSStyleDeclaration&, const StyleType&);
+//    };
+
+template<typename StyleType> struct DeprecatedCSSOMValueCreation;
+
+struct DeprecatedCSSOMValueCreationInvoker {
+    template<typename StyleType, typename... Rest> Ref<DeprecatedCSSOMValue> operator()(CSSValuePool& pool, const RenderStyle& style, CSSStyleDeclaration& owner, const StyleType& value, Rest&&... rest) const
+    {
+        return DeprecatedCSSOMValueCreation<StyleType>{}(pool, style, owner, value, std::forward<Rest>(rest)...);
+    }
+};
+
+inline constexpr DeprecatedCSSOMValueCreationInvoker createDeprecatedCSSOMValue{};
 
 // MARK: - Conversion directly from "Ref<CSSValue>" to "Style"
 

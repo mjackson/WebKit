@@ -66,7 +66,7 @@ RenderListItem::~RenderListItem()
 RenderStyle RenderListItem::computeMarkerStyle() const
 {
     if (!is<PseudoElement>(element())) {
-        if (auto markerStyle = getCachedPseudoStyle({ PseudoElementType::Marker }, &style()))
+        if (auto markerStyle = style().pseudoElementStyle({ PseudoElementType::Marker }))
             return RenderStyle::clone(*markerStyle);
     }
 
@@ -284,7 +284,7 @@ void RenderListItem::updateValue()
 {
     m_value = std::nullopt;
     if (m_marker)
-        m_marker->setNeedsLayoutAndPreferredWidthsUpdate();
+        m_marker->setNeedsLayoutAndInvalidateContentLogicalWidths();
 }
 
 void RenderListItem::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
@@ -295,13 +295,13 @@ void RenderListItem::styleDidChange(Style::Difference diff, const RenderStyle* o
         usedCounterDirectivesChanged();
 }
 
-void RenderListItem::computePreferredLogicalWidths()
+void RenderListItem::computeIntrinsicLogicalWidthContributions()
 {
     // FIXME: RenderListMarker::updateInlineMargins() mutates margin style which affects preferred widths.
-    if (m_marker && m_marker->needsPreferredLogicalWidthsUpdate())
+    if (m_marker && m_marker->hasInvalidContentLogicalWidths())
         m_marker->updateInlineMarginsAndContent();
 
-    RenderBlockFlow::computePreferredLogicalWidths();
+    RenderBlockFlow::computeIntrinsicLogicalWidthContributions();
 }
 
 void RenderListItem::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
@@ -332,7 +332,7 @@ String RenderListItem::markerTextWithSuffix() const
 void RenderListItem::usedCounterDirectivesChanged()
 {
     if (m_marker)
-        m_marker->setNeedsLayoutAndPreferredWidthsUpdate();
+        m_marker->setNeedsLayoutAndInvalidateContentLogicalWidths();
 
     updateValue();
     RefPtr list = enclosingList(*this);

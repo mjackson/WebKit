@@ -61,6 +61,13 @@ find_package(LibXml2 2.8.0 REQUIRED)
 find_package(LibXslt 1.1.13 REQUIRED)
 find_package(Threads REQUIRED)
 
+# Strip ${SDK}/usr/include from these imported targets; reachable via -isysroot.
+foreach (_t SQLite::SQLite3 LibXml2::LibXml2 LibXslt::LibXslt LibXslt::LibExslt)
+    if (TARGET ${_t})
+        set_target_properties(${_t} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+    endif ()
+endforeach ()
+
 string(REGEX MATCH "^[0-9]+" _sdk_major "${_sdk_version}")
 set(_additions_candidates
     "${CMAKE_SOURCE_DIR}/WebKitLibraries/SDKs/${_sdk_prefix}${_sdk_major}.0-additions.sdk/usr/local/include"
@@ -122,7 +129,6 @@ add_compile_options(
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-cast-align>")
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-undefined-inline>")
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-nonportable-include-path>")
-add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-unused-parameter>")
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-missing-field-initializers>")
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-Wno-null-conversion>")
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-fobjc-weak>")
@@ -138,15 +144,20 @@ if (CMAKE_OSX_SYSROOT MATCHES "\\.Internal\\.sdk$")
 endif ()
 
 if (CMAKE_CXX_COMPILER_LAUNCHER OR CMAKE_C_COMPILER_LAUNCHER)
+    string(APPEND CMAKE_C_FLAGS " -fno-record-command-line")
+    string(APPEND CMAKE_CXX_FLAGS " -fno-record-command-line")
+    string(APPEND CMAKE_OBJC_FLAGS " -fno-record-command-line")
+    string(APPEND CMAKE_OBJCXX_FLAGS " -fno-record-command-line")
+endif ()
+
+option(RELATIVE_DEBUG_INFO "Write relative paths into DWARF debug info for portable build artifacts." OFF)
+
+if (RELATIVE_DEBUG_INFO)
     add_compile_options(
         "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-fdebug-prefix-map=${CMAKE_SOURCE_DIR}=.>"
         "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-fdebug-prefix-map=${CMAKE_BINARY_DIR}=build>"
         "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.>"
     )
-    string(APPEND CMAKE_C_FLAGS " -fno-record-command-line")
-    string(APPEND CMAKE_CXX_FLAGS " -fno-record-command-line")
-    string(APPEND CMAKE_OBJC_FLAGS " -fno-record-command-line")
-    string(APPEND CMAKE_OBJCXX_FLAGS " -fno-record-command-line")
 endif ()
 
 if (ENABLE_SANITIZERS)

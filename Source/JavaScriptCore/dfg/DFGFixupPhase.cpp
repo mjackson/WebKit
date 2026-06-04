@@ -1121,6 +1121,15 @@ private:
                 fixEdge<UntypedUse>(node->child1());
             break;
 
+        case StringFromCodePoint:
+            // Unlike StringFromCharCode, this can throw a RangeError even for an Int32 argument,
+            // so NodeMustGenerate is never cleared.
+            if (node->child1()->shouldSpeculateInt32())
+                fixEdge<Int32Use>(node->child1());
+            else
+                fixEdge<UntypedUse>(node->child1());
+            break;
+
         case StringAt:
         case StringCharAt:
         case StringCharCodeAt:
@@ -1173,7 +1182,7 @@ private:
         case StringMatch: {
             if (node->child2()->shouldSpeculateRegExpObject()) {
                 if (m_graph.isWatchingRegExpPrimordialPropertiesWatchpoint(node)) {
-                    addStringMatchPrimordialChecks(node->child2().node());
+                    addStringMatchAndSearchPrimordialChecks(node->child2().node());
 
                     JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
                     Node* globalObjectNode = m_insertionSet.insertNode(
@@ -1181,6 +1190,32 @@ private:
                         OpInfo(m_graph.freeze(globalObject)));
 
                     node->convertToRegExpMatchFast(globalObjectNode);
+
+                    fixEdge<KnownCellUse>(node->child1());
+                    fixEdge<RegExpObjectUse>(node->child2());
+                    fixEdge<StringUse>(node->child3());
+                    break;
+                }
+                fixEdge<StringUse>(node->child1());
+                fixEdge<RegExpObjectUse>(node->child2());
+                break;
+            }
+            fixEdge<StringUse>(node->child1());
+            fixEdge<StringUse>(node->child2());
+            break;
+        }
+
+        case StringSearch: {
+            if (node->child2()->shouldSpeculateRegExpObject()) {
+                if (m_graph.isWatchingRegExpPrimordialPropertiesWatchpoint(node)) {
+                    addStringMatchAndSearchPrimordialChecks(node->child2().node());
+
+                    JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
+                    Node* globalObjectNode = m_insertionSet.insertNode(
+                        m_indexInBlock, SpecObjectOther, JSConstant, node->origin,
+                        OpInfo(m_graph.freeze(globalObject)));
+
+                    node->convertToRegExpSearch(globalObjectNode);
 
                     fixEdge<KnownCellUse>(node->child1());
                     fixEdge<RegExpObjectUse>(node->child2());
@@ -1822,6 +1857,20 @@ private:
             fixEdge<ArrayUse>(m_graph.child(node, 0));
             fixEdge<Int32Use>(m_graph.child(node, 1));
             fixEdge<Int32Use>(m_graph.child(node, 2));
+            break;
+        }
+
+        case ArrayJoin: {
+            Edge& array = m_graph.varArgChild(node, 0);
+            Edge& storage = m_graph.varArgChild(node, 2);
+            blessArrayOperation(array, Edge(), storage);
+            ASSERT_WITH_MESSAGE(storage.node(), "blessArrayOperation for ArrayJoin must set Butterfly for storage edge.");
+            fixEdge<KnownCellUse>(array);
+            Edge& separator = m_graph.varArgChild(node, 1);
+            if (separator->shouldSpeculateString())
+                fixEdge<StringUse>(separator);
+            else
+                fixEdge<UntypedUse>(separator);
             break;
         }
 
@@ -2963,6 +3012,14 @@ private:
             break;
         }
 
+        case StringIteratorNext: {
+            fixEdge<StringUse>(node->child1());
+            fixEdge<Int32Use>(node->child2());
+            m_graph.m_tupleData.at(node->tupleOffset()).resultFlags = NodeResultJS;
+            m_graph.m_tupleData.at(node->tupleOffset() + 1).resultFlags = NodeResultInt32;
+            break;
+        }
+
         case ExtractFromTuple: {
             node->setResult(m_graph.m_tupleData.at(node->tupleIndex()).resultFlags);
             ASSERT(node->hasResult());
@@ -3679,6 +3736,8 @@ private:
         case NewRegExp:
         case NewMap:
         case NewSet:
+        case NewWeakMap:
+        case NewWeakSet:
         case IsTypedArrayView:
         case IsEmpty:
         case TypeOfIsUndefined:
@@ -4572,7 +4631,7 @@ private:
         emitPrimordialCheckFor(globalObject->regExpProtoSymbolReplaceFunction(), vm().propertyNames->replaceSymbol.impl());
     }
 
-    void addStringMatchPrimordialChecks(Node* regExp)
+    void addStringMatchAndSearchPrimordialChecks(Node* regExp)
     {
         Node* node = m_currentNode;
         JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);

@@ -432,6 +432,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     Modules/filesystem/FileSystemHandleIdentifier.h
     Modules/filesystem/FileSystemHandleInfo.h
     Modules/filesystem/FileSystemHandleKind.h
+    Modules/filesystem/FileSystemHandleRecord.h
+    Modules/filesystem/FileSystemHandleStorageKeepAlive.h
     Modules/filesystem/FileSystemStorageConnection.h
     Modules/filesystem/FileSystemSyncAccessHandleIdentifier.h
     Modules/filesystem/FileSystemWritableFileStreamIdentifier.h
@@ -813,6 +815,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     Modules/webtransport/WorkerWebTransportSession.h
 
     Modules/webxr/XRCanvasConfiguration.h
+    Modules/webxr/XRCompositionLayerPose.h
     Modules/webxr/XRGPUProjectionLayerInit.h
     Modules/webxr/XRHitTestTrackableType.h
     Modules/webxr/XRLayerBacking.h
@@ -1074,7 +1077,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSComputedStyleDeclaration.h
     css/CSSConditionRule.h
     css/CSSCounterStyleDescriptors.h
-    css/CSSCounterValue.h
     css/CSSCustomPropertyValue.h
     css/CSSFontFaceDescriptors.h
     css/CSSFontFaceRule.h
@@ -1091,8 +1093,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSPrimitiveValue.h
     css/CSSProperty.h
     css/CSSPropertyInitialValues.h
-    css/CSSQuadValue.h
-    css/CSSRectValue.h
     css/CSSRegisteredCustomProperty.h
     css/CSSRule.h
     css/CSSRuleList.h
@@ -1113,12 +1113,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSWideKeyword.h
     css/ComputedStyleDependencies.h
     css/DOMCSSPaintWorklet.h
-    css/DeprecatedCSSOMCounter.h
-    css/DeprecatedCSSOMPrimitiveValue.h
-    css/DeprecatedCSSOMRGBColor.h
-    css/DeprecatedCSSOMRect.h
-    css/DeprecatedCSSOMValue.h
-    css/DeprecatedCSSOMValueList.h
     css/FontLoadTimingOverride.h
     css/ImmutableStyleProperties.h
     css/IsImportant.h
@@ -1126,9 +1120,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/MediaQueryParserContext.h
     css/MutableStyleProperties.h
     css/PropertySetCSSDescriptors.h
-    css/Quad.h
-    css/Rect.h
-    css/RectBase.h
     css/ShorthandSerializer.h
     css/StyleProperties.h
     css/StylePropertiesInlines.h
@@ -1146,6 +1137,13 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/calc/CSSCalcTree.h
     css/calc/CSSCalcType.h
     css/calc/CSSCalcValue.h
+
+    css/deprecated-cssom/DeprecatedCSSOMCounter.h
+    css/deprecated-cssom/DeprecatedCSSOMPrimitiveValue.h
+    css/deprecated-cssom/DeprecatedCSSOMRGBColor.h
+    css/deprecated-cssom/DeprecatedCSSOMRect.h
+    css/deprecated-cssom/DeprecatedCSSOMValue.h
+    css/deprecated-cssom/DeprecatedCSSOMValueList.h
 
     css/parser/CSSParser.h
     css/parser/CSSParserContext.h
@@ -1353,6 +1351,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     dom/LoadableScript.h
     dom/LoadableScriptClient.h
     dom/LoadableScriptError.h
+    dom/LocalNameWithNamespace.h
     dom/MessagePort.h
     dom/MessagePortIdentifier.h
     dom/ModuleFetchParameters.h
@@ -1376,6 +1375,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     dom/NodeRenderStyle.h
     dom/NodeTraversal.h
     dom/NodeType.h
+    dom/OriginKeyed.h
     dom/ParserContentPolicy.h
     dom/PointerEvent.h
     dom/PointerEventTypeNames.h
@@ -1727,6 +1727,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     inspector/WebInjectedScriptManager.h
 
     inspector/hooks/NetworkAgentInstrumentation.h
+    inspector/hooks/PageAgentInstrumentation.h
 
     inspector/agents/InspectorPageAgent.h
 
@@ -1893,6 +1894,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     loader/NavigationRequester.h
     loader/NavigationScheduler.h
     loader/NetscapePlugInStreamLoader.h
+    loader/OriginAgentClusterPolicy.h
     loader/PCMSites.h
     loader/PCMTokens.h
     loader/PingLoader.h
@@ -2316,6 +2318,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/SharedBufferChunkReader.h
     platform/SharedMemory.h
     platform/SharedStringHash.h
+    platform/SharedTimebase.h
+    platform/SharedTimebaseHandle.h
     platform/SharedTimer.h
     platform/Site.h
     platform/SleepDisabler.h
@@ -2364,6 +2368,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/animation/ProgressResolutionData.h
     platform/animation/TimelineIdentifier.h
     platform/animation/TimingFunction.h
+
+    platform/animation/values/AcceleratedEffectClipPath.h
     platform/animation/values/AcceleratedEffectOffsetAnchor.h
     platform/animation/values/AcceleratedEffectOffsetDistance.h
     platform/animation/values/AcceleratedEffectOffsetPath.h
@@ -3247,6 +3253,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/contain/StyleContain.h
     style/values/contain/StyleContainerName.h
+    style/values/contain/StyleContainerType.h
 
     style/values/content/StyleContent.h
     style/values/content/StyleQuotes.h
@@ -3456,7 +3463,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/svg/StyleSVGBaselineShift.h
     style/values/svg/StyleSVGCenterCoordinateComponent.h
     style/values/svg/StyleSVGCoordinateComponent.h
-    style/values/svg/StyleSVGGlyphOrientationHorizontal.h
     style/values/svg/StyleSVGGlyphOrientationVertical.h
     style/values/svg/StyleSVGMarkerResource.h
     style/values/svg/StyleSVGPaint.h

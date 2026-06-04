@@ -274,7 +274,11 @@ AccessibilityObject* AccessibilityNodeObject::parentObject() const
 
     if (RefPtr areaElement = dynamicDowncast<HTMLAreaElement>(*node)) {
         RefPtr map = ancestorsOfType<HTMLMapElement>(*areaElement).first();
-        return map ? cache->getOrCreate(map->imageElement().get()) : nullptr;
+        if (RefPtr imageElement = map ? map->imageElement() : nullptr)
+            return cache->getOrCreate(imageElement.get());
+        // The usemap-associated image was removed from the DOM. Fall through and use
+        // the area's DOM parent (the <map>) as the AX parent so the area stays
+        // connected to the AX tree instead of being orphaned.
     }
 
     if (RefPtr ownerParent = ownerParentObject()) [[unlikely]]
@@ -772,7 +776,7 @@ AccessibilityRole AccessibilityNodeObject::roleFromInputElement(const HTMLInputE
     return AccessibilityRole::TextField;
 }
 
-bool AccessibilityNodeObject::isDescendantOfElementType(const HashSet<QualifiedName>& tagNames) const
+bool AccessibilityNodeObject::isDescendantOfElementType(const HashSet<LocalNameWithNamespace>& tagNames) const
 {
     if (!m_node)
         return false;
@@ -1068,16 +1072,16 @@ static bool NODELETE isFlowContent(Node& node)
         // https://html.spec.whatwg.org/#flow-content
         // Below represents a non-comprehensive list of common flow content elements.
         const AtomString& tag = element->localName();
-        if (tag == blockquoteTag
-        || tag == canvasTag
-        || tag == codeTag
-        || tag == divTag
-        || tag == olTag
-        || tag == pictureTag
-        || tag == preTag
-        || tag == pTag
-        || tag == spanTag
-        || tag == ulTag)
+        if (blockquoteTag->hasLocalName(tag)
+        || canvasTag->hasLocalName(tag)
+        || codeTag->hasLocalName(tag)
+        || divTag->hasLocalName(tag)
+        || olTag->hasLocalName(tag)
+        || pictureTag->hasLocalName(tag)
+        || preTag->hasLocalName(tag)
+        || pTag->hasLocalName(tag)
+        || spanTag->hasLocalName(tag)
+        || ulTag->hasLocalName(tag))
             return true;
     }
 

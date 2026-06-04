@@ -62,6 +62,7 @@
 
 #if PLATFORM(COCOA)
 #include "CocoaWindow.h"
+#include "TransientZoomState.h"
 #include "WKBrowserEngineDefinitions.h"
 #include "WKFoundation.h"
 
@@ -189,6 +190,7 @@ enum class TapHandlingResult : uint8_t;
 
 class ContextMenuContextData;
 class DrawingAreaProxy;
+class LayerHostingVisibilityPropagator;
 class NativeWebGestureEvent;
 class NativeWebKeyboardEvent;
 class NativeWebMouseEvent;
@@ -343,11 +345,11 @@ public:
     virtual bool showShareSheet(WebCore::ShareDataWithParsedURL&&, WTF::CompletionHandler<void (bool)>&&) { return false; }
     virtual void showContactPicker(WebCore::ContactsRequestData&&, WTF::CompletionHandler<void(std::optional<Vector<WebCore::ContactInfo>>&&)>&& completionHandler) { completionHandler(std::nullopt); }
 
-    virtual void showDigitalCredentialsPicker(const WebCore::DigitalCredentialsRequestData&, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
+    virtual void showDigitalCredentialsChooser(const WebCore::DigitalCredentialsRequestData&, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
     {
         completionHandler(makeUnexpected(WebCore::ExceptionData { WebCore::ExceptionCode::NotSupportedError, "Digital credentials are not supported."_s }));
     }
-    virtual void dismissDigitalCredentialsPicker(WTF::CompletionHandler<void(bool)>&& completionHandler) { completionHandler(true); }
+    virtual void dismissDigitalCredentialsChooser(WTF::CompletionHandler<void(bool)>&& completionHandler) { completionHandler(true); }
     virtual void dismissAnyOpenPicker() { }
 
     virtual void didChangeContentSize(const WebCore::IntSize&) = 0;
@@ -454,6 +456,9 @@ public:
 #endif
     virtual RetainPtr<UIView> createVisibilityPropagationView() { return nullptr; }
     virtual void removeVisibilityPropagationView(UIView *) { }
+#if ENABLE(ENDOWMENT_BASED_APPLICATION_STATE_TRACKING)
+    virtual RefPtr<LayerHostingVisibilityPropagator> createLayerHostingVisibilityPropagator() { return nullptr; }
+#endif
 #endif // HAVE(VISIBILITY_PROPAGATION_VIEW)
 
 #if ENABLE(GPU_PROCESS)
@@ -557,6 +562,10 @@ public:
 
     virtual void setEditableElementIsFocused(bool) = 0;
 #endif // PLATFORM(MAC)
+
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+    virtual void didUpdateTransientZoomStateForScrollPocket(std::optional<TransientZoomState>) { }
+#endif
 
 #if PLATFORM(COCOA)
     virtual void didCommitLayerTree(const RemoteLayerTreeTransaction&, const std::optional<MainFrameData>&, const PageData&, const TransactionID&) = 0;
@@ -738,7 +747,7 @@ public:
     virtual void refView() = 0;
     virtual void derefView() = 0;
 
-    virtual void pageDidScroll(const WebCore::IntPoint&) { }
+    virtual void pageDidScroll(const WebCore::IntPoint& scrollOffset) { }
 
     virtual void didRestoreScrollPosition() = 0;
 

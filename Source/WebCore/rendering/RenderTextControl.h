@@ -68,8 +68,8 @@ private:
     void element() const = delete;
 
     ASCIILiteral renderName() const override { return "RenderTextControl"_s; }
-    void computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const override;
-    void computePreferredLogicalWidths() override;
+    std::pair<LayoutUnit, LayoutUnit> computeIntrinsicLogicalWidths() const override;
+    void computeIntrinsicLogicalWidthContributions() override;
     bool canHaveGeneratedChildren() const override { return false; }
     bool canBeProgramaticallyScrolled() const override { return true; }
 };

@@ -25,7 +25,6 @@
 
 #pragma once
 
-#include "APIDictionary.h"
 #include "APIObject.h"
 #include "APIProcessPoolConfiguration.h"
 #include "EnhancedSecurity.h"
@@ -40,10 +39,7 @@
 #include "WebPreferencesStore.h"
 #include "WebProcessProxy.h"
 #include "WebsiteDataStore.h"
-#include <WebCore/CrossSiteNavigationDataTransfer.h>
 #include <WebCore/ProcessIdentifier.h>
-#include <WebCore/SecurityOriginHash.h>
-#include <WebCore/SharedStringHash.h>
 #include <pal/SessionID.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/Forward.h>
@@ -62,13 +58,7 @@
 #if PLATFORM(COCOA)
 OBJC_CLASS NSMutableDictionary;
 OBJC_CLASS NSObject;
-OBJC_CLASS NSSet;
-OBJC_CLASS NSString;
-OBJC_CLASS WKPreferenceObserver;
 OBJC_CLASS WKProcessPoolWeakObserver;
-#if PLATFORM(MAC)
-OBJC_CLASS WKWebInspectorPreferenceObserver;
-#endif
 #endif
 
 #if PLATFORM(MAC)
@@ -93,12 +83,12 @@ OBJC_CLASS WKWebInspectorPreferenceObserver;
 #endif
 
 namespace API {
+class Array;
 class AutomationClient;
+class Data;
 class DownloadClient;
-class HTTPCookieStore;
 class InjectedBundleClient;
 class LegacyContextHistoryClient;
-class LegacyDownloadClient;
 class Navigation;
 class PageConfiguration;
 }
@@ -132,7 +122,6 @@ class WebPageGroup;
 class WebPageProxy;
 class WebProcessCache;
 struct GPUProcessConnectionParameters;
-struct GPUProcessCreationParameters;
 struct NetworkProcessCreationParameters;
 struct WebProcessCreationParameters;
 struct WebProcessDataStoreParameters;
@@ -328,9 +317,6 @@ public:
     static Statistics& statistics();    
 
     void terminateAllWebContentProcesses(ProcessTerminationReason);
-    void sendNetworkProcessPrepareToSuspendForTesting(CompletionHandler<void()>&&);
-    void sendNetworkProcessWillSuspendImminentlyForTesting();
-    void sendNetworkProcessDidResume();
     void terminateServiceWorkersForSession(PAL::SessionID);
     void terminateServiceWorkers();
 
@@ -858,7 +844,6 @@ private:
     RetainPtr<NSObject> m_didBeginSuppressingHighDynamicRange;
     RetainPtr<NSObject> m_didEndSuppressingHighDynamicRange;
 #endif
-    RetainPtr<WKWebInspectorPreferenceObserver> m_webInspectorPreferenceObserver;
 
     const UniqueRef<PerActivityStateCPUUsageSampler> m_perActivityStateCPUUsageSampler;
 #endif

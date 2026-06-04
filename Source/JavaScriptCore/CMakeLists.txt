@@ -41,6 +41,7 @@ set(JavaScriptCore_PRIVATE_INCLUDE_DIRECTORIES
     "${JAVASCRIPTCORE_DIR}/parser"
     "${JAVASCRIPTCORE_DIR}/profiler"
     "${JAVASCRIPTCORE_DIR}/runtime"
+    "${JAVASCRIPTCORE_DIR}/runtime/temporal/core"
     "${JAVASCRIPTCORE_DIR}/tools"
     "${JAVASCRIPTCORE_DIR}/wasm"
     "${JAVASCRIPTCORE_DIR}/wasm/debugger"
@@ -113,8 +114,6 @@ set(JavaScriptCore_OBJECT_LUT_SOURCES
     runtime/StringPrototype.cpp
     runtime/SymbolConstructor.cpp
     runtime/SymbolPrototype.cpp
-    runtime/TemporalCalendarConstructor.cpp
-    runtime/TemporalCalendarPrototype.cpp
     runtime/TemporalDurationConstructor.cpp
     runtime/TemporalDurationPrototype.cpp
     runtime/TemporalInstantConstructor.cpp
@@ -386,7 +385,6 @@ set(JavaScriptCore_BUILTINS_SOURCES
     ${JAVASCRIPTCORE_DIR}/builtins/ShadowRealmPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/StringConstructor.js
     ${JAVASCRIPTCORE_DIR}/builtins/StringIteratorPrototype.js
-    ${JAVASCRIPTCORE_DIR}/builtins/StringPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/TypedArrayConstructor.js
     ${JAVASCRIPTCORE_DIR}/builtins/TypedArrayPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/WrapForValidIteratorPrototype.js
@@ -629,6 +627,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     assembler/X86_64Registers.h
 
     b3/B3Common.h
+    b3/B3Compile.h
     b3/B3Type.h
     b3/B3ValueRep.h
 
@@ -1497,6 +1496,8 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSONObjectInlines.h
     runtime/JSObject.h
     runtime/JSObjectInlines.h
+    runtime/JSOrderedHashTable.h
+    runtime/JSOrderedHashTableHelper.h
     runtime/JSPromise.h
     runtime/JSPromiseConstructor.h
     runtime/JSPromisePrototype.h
@@ -1511,6 +1512,8 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSRunLoopTimer.h
     runtime/JSScope.h
     runtime/JSSegmentedVariableObject.h
+    runtime/JSSentinel.h
+    runtime/JSSentinelInlines.h
     runtime/JSSet.h
     runtime/JSSetInlines.h
     runtime/JSSetIterator.h
@@ -1612,8 +1615,6 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/OperationsInlines.h
     runtime/Options.h
     runtime/OptionsList.h
-    runtime/OrderedHashTable.h
-    runtime/OrderedHashTableHelper.h
     runtime/PageCount.h
     runtime/ParseInt.h
     runtime/PinballCompletion.h
@@ -1745,8 +1746,6 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/SyntheticModuleRecord.h
     runtime/TemplateObjectDescriptor.h
     runtime/TemporalCalendar.h
-    runtime/TemporalCalendarConstructor.h
-    runtime/TemporalCalendarPrototype.h
     runtime/TemporalDuration.h
     runtime/TemporalDurationConstructor.h
     runtime/TemporalDurationPrototype.h
@@ -2345,14 +2344,7 @@ endif()
 # Force staging of shared scripts, even if they aren't directly used to build JavaScriptCore.
 add_custom_target(JavaScriptCoreSharedScripts DEPENDS ${JavaScriptCore_SCRIPTS})
 add_dependencies(JavaScriptCore JavaScriptCoreSharedScripts ${JavaScriptCore_EXTRA_DEPENDENCIES})
-
-if(CMAKE_GENERATOR MATCHES "Visual Studio")
-    # JavaScriptCoreSharedScripts and JSCBuiltins targets need to have
-    # a direct or indirect dependency for CMake Visual Studio
-    # generator to eliminate duplicated custom commands. Otherwise,
-    # JavaScriptCore_SCRIPTS will be generated in both projects.
-    add_dependencies(JavaScriptCoreSharedScripts JSCBuiltins)
-endif()
+add_dependencies(JavaScriptCoreSharedScripts JSCBuiltins)
 
 if (ENABLE_JAVASCRIPT_SHELL)
   add_subdirectory(shell)

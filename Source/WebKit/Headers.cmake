@@ -90,6 +90,7 @@ set(WebKit_PUBLIC_FRAMEWORK_HEADERS
     UIProcess/API/C/WKPagePolicyClient.h
     UIProcess/API/C/WKPagePrivate.h
     UIProcess/API/C/WKPageRenderingProgressEvents.h
+    UIProcess/API/C/WKPageResourceLoadClient.h
     UIProcess/API/C/WKPageStateClient.h
     UIProcess/API/C/WKPageUIClient.h
     UIProcess/API/C/WKPluginLoadPolicy.h
@@ -107,7 +108,6 @@ set(WebKit_PUBLIC_FRAMEWORK_HEADERS
     UIProcess/API/C/WKTextChecker.h
     UIProcess/API/C/WKUserContentControllerRef.h
     UIProcess/API/C/WKUserContentExtensionStoreRef.h
-    UIProcess/API/C/WKUserMediaPermissionCheck.h
     UIProcess/API/C/WKUserMediaPermissionRequest.h
     UIProcess/API/C/WKUserScriptRef.h
     UIProcess/API/C/WKViewportAttributes.h
@@ -121,7 +121,6 @@ set(WebKit_PUBLIC_FRAMEWORK_HEADERS
     UIProcess/API/cpp/WKRetainPtr.h
 
     WebProcess/InjectedBundle/API/c/WKBundle.h
-    WebProcess/InjectedBundle/API/c/WKBundleAPICast.h
     WebProcess/InjectedBundle/API/c/WKBundleBackForwardList.h
     WebProcess/InjectedBundle/API/c/WKBundleBackForwardListItem.h
     WebProcess/InjectedBundle/API/c/WKBundleDOMWindowExtension.h

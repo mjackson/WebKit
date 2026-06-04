@@ -166,6 +166,7 @@ MESSAGE_RECEIVERS = \
 	UIProcess/WebPasteboardProxy \
 	UIProcess/Inspector/WebInspectorBackendProxy \
 	UIProcess/Inspector/Agents/ProxyingNetworkAgent \
+	UIProcess/Inspector/Agents/ProxyingPageAgent \
 	UIProcess/Inspector/WebInspectorUIProxy \
 	UIProcess/Inspector/RemoteWebInspectorUIProxy \
 	UIProcess/Inspector/WebInspectorUIExtensionControllerProxy \
@@ -394,7 +395,7 @@ FEATURE_AND_PLATFORM_DEFINES := $(patsubst -D%, %, $(filter -D%, $(FEATURE_AND_P
 MESSAGE_RECEIVER_FILES := $(addsuffix MessageReceiver.cpp,$(notdir $(MESSAGE_RECEIVERS)))
 MESSAGES_FILES := $(addsuffix Messages.h,$(notdir $(MESSAGE_RECEIVERS)))
 
-GENERATED_MESSAGES_FILES := $(addprefix IPC/,$(MESSAGE_RECEIVER_FILES) $(MESSAGES_FILES) MessageNames.h MessageNames.cpp MessageArgumentDescriptions.cpp module.private.modulemap)
+GENERATED_MESSAGES_FILES := $(addprefix IPC/,$(MESSAGE_RECEIVER_FILES) $(MESSAGES_FILES) MessageNames.h MessageNames.cpp MessageArgumentDescriptions.cpp)
 GENERATED_MESSAGES_FILES_AS_PATTERNS := $(call to-pattern, $(GENERATED_MESSAGES_FILES))
 
 MESSAGES_IN_FILES := $(addsuffix .messages.in,$(MESSAGE_RECEIVERS))
@@ -445,7 +446,7 @@ $(GENERATED_MESSAGES_FILES_AS_PATTERNS) : $(LOG_OUTPUT_FILES) $(MESSAGES_IN_FILE
 TEXT_PREPROCESSOR_FLAGS=-E -P -w
 
 ifeq ($(USE_SYSTEM_CONTENT_PATH),YES)
-	SANDBOX_DEFINES = -DUSE_SYSTEM_CONTENT_PATH=1 -DSYSTEM_CONTENT_PATH=$(SYSTEM_CONTENT_PATH) -DUSE_SANDBOX_PARAMS=0
+	SANDBOX_DEFINES = -DUSE_SYSTEM_CONTENT_PATH=1 -DSYSTEM_CONTENT_PATH=$(SYSTEM_CONTENT_PATH)
 endif
 
 SANDBOX_PROFILES_WITHOUT_WEBPUSHD = \
@@ -986,6 +987,7 @@ WEBCORE_SERIALIZATION_DESCRIPTION_FILES = \
 	PlaybackSessionModel.serialization.in \
 	ProtectionSpaceBase.serialization.in \
 	ScrollTypes.serialization.in \
+	SharedTimebase.serialization.in \
 	WebGPU.serialization.in \
 #
 

@@ -39,6 +39,7 @@
 #import "FrameInfoData.h"
 #import "InteractionInformationAtPosition.h"
 #import "KeyEventInterpretationContext.h"
+#import "LayerHostingVisibilityPropagator.h"
 #import "Logging.h"
 #import "NativeWebKeyboardEvent.h"
 #import "NavigationState.h"
@@ -307,6 +308,13 @@ void PageClientImpl::removeVisibilityPropagationView(UIView *view)
 {
     [contentView() _removeVisibilityPropagationView:view];
 }
+
+#if ENABLE(ENDOWMENT_BASED_APPLICATION_STATE_TRACKING)
+RefPtr<LayerHostingVisibilityPropagator> PageClientImpl::createLayerHostingVisibilityPropagator()
+{
+    return [contentView() _createLayerHostingVisibilityPropagator];
+}
+#endif
 #endif // HAVE(VISIBILITY_PROPAGATION_VIEW)
 
 #if ENABLE(GPU_PROCESS)
@@ -850,14 +858,14 @@ void PageClientImpl::showContactPicker(WebCore::ContactsRequestData&& requestDat
 }
 
 #if ENABLE(WEB_AUTHN)
-void PageClientImpl::showDigitalCredentialsPicker(const WebCore::DigitalCredentialsRequestData& requestData, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
+void PageClientImpl::showDigitalCredentialsChooser(const WebCore::DigitalCredentialsRequestData& requestData, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
 {
-    [contentView() _showDigitalCredentialsPicker:requestData completionHandler:WTF::move(completionHandler)];
+    [contentView() _showDigitalCredentialsChooser:requestData completionHandler:WTF::move(completionHandler)];
 }
 
-void PageClientImpl::dismissDigitalCredentialsPicker(CompletionHandler<void(bool)>&& completionHandler)
+void PageClientImpl::dismissDigitalCredentialsChooser(CompletionHandler<void(bool)>&& completionHandler)
 {
-    [contentView() _dismissDigitalCredentialsPicker:WTF::move(completionHandler)];
+    [contentView() _dismissDigitalCredentialsChooser:WTF::move(completionHandler)];
 }
 #endif
 

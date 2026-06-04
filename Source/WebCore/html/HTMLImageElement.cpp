@@ -302,8 +302,7 @@ ImageCandidate HTMLImageElement::bestFitSourceFromPictureElement()
         }
 
         Ref document = this->document();
-        RefPtr documentElement = document->documentElement();
-        MQ::MediaQueryEvaluator evaluator { document->printing() ? printAtom() : screenAtom(), document.get(), documentElement ? documentElement->computedStyle() : nullptr };
+        MQ::MediaQueryEvaluator evaluator { document->printing() ? printAtom() : screenAtom(), document.get() };
         auto& queries = source->parsedMediaAttribute(document.get());
         LOG(MediaQueries, "HTMLImageElement %p bestFitSourceFromPictureElement evaluating media queries", this);
 
@@ -348,8 +347,7 @@ void HTMLImageElement::setIsUserAgentShadowRootResource()
 
 void HTMLImageElement::evaluateDynamicMediaQueryDependencies()
 {
-    RefPtr documentElement = document().documentElement();
-    MQ::MediaQueryEvaluator evaluator { protect(document())->printing() ? printAtom() : screenAtom(), document(), documentElement ? documentElement->computedStyle() : nullptr };
+    MQ::MediaQueryEvaluator evaluator { protect(document())->printing() ? printAtom() : screenAtom(), document() };
 
     auto hasChanges = [&] {
         for (auto& results : m_dynamicMediaQueryResults) {
@@ -837,7 +835,7 @@ void HTMLImageElement::decode(Ref<DeferredPromise>&& promise)
     return m_imageLoader->decode(WTF::move(promise));
 }
 
-void HTMLImageElement::addSubresourceAttributeURLs(ListHashSet<URL>& urls) const
+void HTMLImageElement::addSubresourceAttributeURLs(OrderedHashSet<URL>& urls) const
 {
     HTMLElement::addSubresourceAttributeURLs(urls);
 
@@ -847,7 +845,7 @@ void HTMLImageElement::addSubresourceAttributeURLs(ListHashSet<URL>& urls) const
     addSubresourceURL(urls, document->encodingParseURL(attributeWithoutSynchronization(usemapAttr)));
 }
 
-void HTMLImageElement::addCandidateSubresourceURLs(ListHashSet<URL>& urls) const
+void HTMLImageElement::addCandidateSubresourceURLs(OrderedHashSet<URL>& urls) const
 {
     auto src = attributeWithoutSynchronization(srcAttr);
     if (!src.isEmpty()) {

@@ -67,8 +67,18 @@
 #include "VideoPresentationManagerProxy.h"
 #endif
 
+#if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+#include "PlaybackSessionManagerProxy.h"
+#include "RemotePagePlaybackSessionManagerProxy.h"
+#endif
+
 #if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
 #include "WebDeviceOrientationUpdateProviderProxy.h"
+#endif
+
+#if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+#include "PlaybackSessionManagerProxy.h"
+#include "RemotePagePlaybackSessionManagerProxy.h"
 #endif
 
 // FIXME: https://bugs.webkit.org/show_bug.cgi?id=306415
@@ -113,10 +123,11 @@ RemotePageProxy::RemotePageProxy(WebPageProxy& page, WebProcessProxy& process, c
 
 void RemotePageProxy::disconnect()
 {
-    if (RefPtr page = m_page.get())
+    RefPtr page = m_page;
+    if (page)
         page->isNoLongerAssociatedWithRemotePage(*this);
     if (m_drawingArea)
-        m_process->send(Messages::WebPage::Close(), m_webPageID);
+        m_process->sendPageCloseMessage(page ? std::optional { page->identifier() } : std::nullopt, m_webPageID);
     m_process->removeRemotePageProxy(*this);
 
     m_drawingArea = nullptr;

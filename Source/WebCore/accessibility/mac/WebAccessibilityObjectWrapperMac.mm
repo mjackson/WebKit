@@ -172,6 +172,12 @@ static inline NSInteger gmtToLocalTimeOffset(DateComponentsType type)
 
 @implementation WebAccessibilityObjectWrapper
 
+- (void)dealloc
+{
+    AX_ASSERT(!self.axBackingObject);
+    [super dealloc];
+}
+
 - (void)detach
 {
     AX_ASSERT(isMainThread());
@@ -2915,7 +2921,8 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
         NSAccessibilityTextOperationParameterizedAttribute,
         NSAccessibilityTextMarkerForIndexAttribute,
         NSAccessibilityTextMarkerIsValidAttribute,
-        NSAccessibilityIndexForTextMarkerAttribute
+        NSAccessibilityIndexForTextMarkerAttribute,
+        NSAccessibilityRelativeIndexForTextMarkerAttribute
     ];
 
     static NeverDestroyed textParamAttrs = [] {
@@ -3881,6 +3888,13 @@ static id handleIndexForTextMarkerAttribute(WebAccessibilityObjectWrapper*, AXCo
     return [NSNumber numberWithInteger:markerLocation];
 }
 
+static id handleRelativeIndexForTextMarkerAttribute(WebAccessibilityObjectWrapper*, AXCoreObject& backingObject, const ParameterizedAttributeContext& context)
+{
+    auto marker = AXTextMarker { context.textMarker };
+    auto offset = backingObject.relativeIndexForTextMarker(marker);
+    return offset.has_value() ? [NSNumber numberWithUnsignedInt:*offset] : @(NSNotFound);
+}
+
 static id handleTextMarkerForIndexAttribute(WebAccessibilityObjectWrapper* wrapper, AXCoreObject& backingObject, const ParameterizedAttributeContext& context)
 {
     if (AXObjectCache::useAXThreadTextApis()) {
@@ -4257,6 +4271,7 @@ static MemoryCompactLookupOnlyRobinHoodHashMap<String, ParameterizedAttributeHan
         { NSAccessibilityMisspellingTextMarkerRangeAttribute, { handleMisspellingTextMarkerRangeAttribute } },
         { NSAccessibilityTextMarkerIsValidAttribute, { handleTextMarkerIsValidAttribute } },
         { NSAccessibilityIndexForTextMarkerAttribute, { handleIndexForTextMarkerAttribute } },
+        { NSAccessibilityRelativeIndexForTextMarkerAttribute, { handleRelativeIndexForTextMarkerAttribute } },
         { NSAccessibilityTextMarkerForIndexAttribute, { handleTextMarkerForIndexAttribute } },
         { NSAccessibilityLineForTextMarkerAttribute, { handleLineForTextMarkerAttribute } },
         { NSAccessibilityTextMarkerRangeForLineAttribute, { handleTextMarkerRangeForLineAttribute } },

@@ -98,6 +98,7 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/crypto/parameters"
     "${WEBCORE_DIR}/css"
     "${WEBCORE_DIR}/css/calc"
+    "${WEBCORE_DIR}/css/deprecated-cssom"
     "${WEBCORE_DIR}/css/parser"
     "${WEBCORE_DIR}/css/query"
     "${WEBCORE_DIR}/css/typedom"
@@ -109,6 +110,7 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/css/values/borders"
     "${WEBCORE_DIR}/css/values/color"
     "${WEBCORE_DIR}/css/values/color-adjust"
+    "${WEBCORE_DIR}/css/values/content"
     "${WEBCORE_DIR}/css/values/counter-styles"
     "${WEBCORE_DIR}/css/values/easing"
     "${WEBCORE_DIR}/css/values/filter-effects"
@@ -239,9 +241,11 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/style/values/line-grid"
     "${WEBCORE_DIR}/style/values/lists"
     "${WEBCORE_DIR}/style/values/masking"
+    "${WEBCORE_DIR}/style/values/math"
     "${WEBCORE_DIR}/style/values/motion"
     "${WEBCORE_DIR}/style/values/multicol"
     "${WEBCORE_DIR}/style/values/non-standard"
+    "${WEBCORE_DIR}/style/values/outline"
     "${WEBCORE_DIR}/style/values/overflow"
     "${WEBCORE_DIR}/style/values/page"
     "${WEBCORE_DIR}/style/values/pointerevents"
@@ -354,12 +358,10 @@ set(WebCore_NON_SVG_IDL_FILES
 
     Modules/audiosession/DOMAudioSession.idl
 
-
-
     Modules/cache/CacheQueryOptions.idl
     Modules/cache/DOMCache.idl
-    Modules/cache/MultiCacheQueryOptions.idl
     Modules/cache/DOMCacheStorage.idl
+    Modules/cache/MultiCacheQueryOptions.idl
 
     Modules/compression/CompressionStream.idl
     Modules/compression/CompressionStreamEncoder.idl
@@ -393,8 +395,8 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/credentialmanagement/OTPCredentialRequestOptions.idl
 
     Modules/encryptedmedia/MediaKeyEncryptionScheme.idl
-    Modules/encryptedmedia/MediaKeyMessageEventInit.idl
     Modules/encryptedmedia/MediaKeyMessageEvent.idl
+    Modules/encryptedmedia/MediaKeyMessageEventInit.idl
     Modules/encryptedmedia/MediaKeyMessageType.idl
     Modules/encryptedmedia/MediaKeySession.idl
     Modules/encryptedmedia/MediaKeySessionType.idl
@@ -1033,12 +1035,6 @@ set(WebCore_NON_SVG_IDL_FILES
     css/DOMMatrix2DInit.idl
     css/DOMMatrixInit.idl
     css/DOMMatrixReadOnly.idl
-    css/DeprecatedCSSOMCounter.idl
-    css/DeprecatedCSSOMPrimitiveValue.idl
-    css/DeprecatedCSSOMRGBColor.idl
-    css/DeprecatedCSSOMRect.idl
-    css/DeprecatedCSSOMValue.idl
-    css/DeprecatedCSSOMValueList.idl
     css/FontFace.idl
     css/FontFaceSet.idl
     css/MediaList.idl
@@ -1047,6 +1043,13 @@ set(WebCore_NON_SVG_IDL_FILES
     css/StyleMedia.idl
     css/StyleSheet.idl
     css/StyleSheetList.idl
+
+    css/deprecated-cssom/DeprecatedCSSOMCounter.idl
+    css/deprecated-cssom/DeprecatedCSSOMPrimitiveValue.idl
+    css/deprecated-cssom/DeprecatedCSSOMRGBColor.idl
+    css/deprecated-cssom/DeprecatedCSSOMRect.idl
+    css/deprecated-cssom/DeprecatedCSSOMValue.idl
+    css/deprecated-cssom/DeprecatedCSSOMValueList.idl
 
     css/typedom/CSSNumericValue.idl
     css/typedom/CSSOMKeywordValue.idl
@@ -2470,7 +2473,7 @@ if (ENABLE_WEBGL)
         platform/graphics/angle/GraphicsContextGLANGLE.cpp
     )
 
-    list(APPEND WebCore_LIBRARIES ANGLE::GLES)
+    list(APPEND WebCore_PRIVATE_LIBRARIES ANGLE::GLES)
 elseif (USE_ANGLE_EGL)
     list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES
         ${WEBCORE_DIR}/platform/graphics/angle
@@ -3140,6 +3143,16 @@ WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreJSBindings
     PREFIX WebCoreJSBindingsPrefix.h
     PREFIX_LANGUAGES CXX
     DIRS JSBindings bindings)
+WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreRenderStyleInlines
+    PREFIX WebCoreRenderStyleInlinesPrefix.h
+    PREFIX_LANGUAGES CXX
+    HEADER_GROUPS RenderStyleGetters
+    CHAIN_PARENT WebCoreDOMAndRendering)
+WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreStyle
+    PREFIX WebCoreStylePrefix.h
+    PREFIX_LANGUAGES CXX
+    DIRS style
+    CHAIN_PARENT WebCoreDOMAndRendering)
 WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreDOMAndRendering
     PREFIX WebCoreDOMAndRenderingPrefix.h
     PREFIX_LANGUAGES CXX OBJCXX
@@ -3174,9 +3187,12 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/PlatformScreen.serialization.in
     platform/PlatformWheelEvent.serialization.in
     platform/ScrollTypes.serialization.in
+    platform/SharedTimebase.serialization.in
 
     platform/audio/PlatformMediaSession.serialization.in
+
     platform/graphics/InbandTextTrackPrivate.serialization.in
+
     platform/mediastream/MDNSRegisterError.serialization.in
     platform/network/ProtectionSpaceBase.serialization.in
 )
@@ -3192,6 +3208,22 @@ if (ENABLE_WEBCORE_TEST_SUPPORT)
 endif ()
 
 WEBKIT_FRAMEWORK(WebCore)
+
+# Specify dependencies explicitly so we can generate derived sources before our
+# upstream targets finish linking.
+set(_WebCore_generated_sources ${WebCore_SOURCES})
+string(REPLACE "." "\\." _WebCore_derived_re "${WebCore_DERIVED_SOURCES_DIR}")
+list(FILTER _WebCore_generated_sources INCLUDE REGEX "^${_WebCore_derived_re}/")
+add_custom_target(WebCoreGeneratedSources DEPENDS
+    ${_WebCore_generated_sources}
+    ${WebCore_DERIVED_BUILTIN_HEADERS}
+    ${WebCore_DERIVED_SOURCES_DIR}/ModernMediaControls.css
+    ${WebCore_DERIVED_SOURCES_DIR}/ModernMediaControls.js
+)
+unset(_WebCore_generated_sources)
+unset(_WebCore_derived_re)
+add_dependencies(WebCoreGeneratedSources JavaScriptCoreSharedScripts WTF_CopyPreferences)
+add_dependencies(WebCore WebCoreGeneratedSources)
 
 if (DEFINED WebCore_EXTRA_LINK_OPTIONS)
     target_link_options(WebCore PRIVATE ${WebCore_EXTRA_LINK_OPTIONS})
@@ -3214,6 +3246,7 @@ if (APPLE)
         "LINKER:-allowable_client,WebKitLegacy"
         "LINKER:-allowable_client,WebKitTestRunner"
         "LINKER:-allowable_client,WebKitTestRunnerInjectedBundle"
+        "LINKER:-allowable_client,DumpRenderTree"
         "LINKER:-allowable_client,InjectedBundleTestWebKitAPI"
         "LINKER:-allowable_client,TestWebCore"
         "LINKER:-allowable_client,TestWebKitAPI"
@@ -3237,7 +3270,7 @@ if (WTF_CPU_ARM AND NOT CMAKE_CROSSCOMPILING)
 endif ()
 
 if (ENABLE_WEBCORE_TEST_SUPPORT)
-    WEBKIT_ADD_PREFIX_HEADER(WebCoreTestSupport testing/js/WebCoreTestSupportPrefix.h PREFIX_LANGUAGES CXX)
+    WEBKIT_ADD_PREFIX_HEADER(WebCoreTestSupport WebCorePrefix.h PREFIX_NO_CODEGEN PREFIX_LANGUAGES CXX OBJCXX)
 
     WEBKIT_COPY_FILES(Copy_WebCoreTestSupportPrivateHeaders
         DESTINATION ${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}/WebCoreTestSupport
@@ -3251,6 +3284,7 @@ if (ENABLE_WEBCORE_TEST_SUPPORT)
     list(APPEND WebCoreTestSupport_SYSTEM_INCLUDE_DIRECTORIES ${WebCore_SYSTEM_INCLUDE_DIRECTORIES})
 
     WEBKIT_LIBRARY(WebCoreTestSupport)
+    set_target_properties(WebCoreTestSupport PROPERTIES LINKER_LANGUAGE CXX)
 endif ()
 
 if (${WebCore_LIBRARY_TYPE} MATCHES "SHARED")

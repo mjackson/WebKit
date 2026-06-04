@@ -11,6 +11,7 @@
 
 #include "common/PackedEnums.h"
 #include "common/angleutils.h"
+#include "common/mathutil.h"
 #include "libANGLE/Debug.h"
 
 #include <optional>
@@ -29,6 +30,10 @@ class Buffer;
 struct Caps;
 class Context;
 class Program;
+
+angle::CheckedNumeric<GLsizeiptr> GetVerticesNeededForDraw(PrimitiveMode primitiveMode,
+                                                           GLsizei count,
+                                                           GLsizei primcount);
 
 class TransformFeedbackState final : angle::NonCopyable
 {
@@ -130,7 +135,6 @@ class TransformFeedback final : public RefCountObject<TransformFeedbackID>, publ
     void bindProgram(const Context *context, Program *program);
     void bindProgramPipeline(const Context *context, ProgramPipeline *programPipeline);
     void bindPPOPrograms(ProgramPipeline *programPipeline);
-    void recomputeVertexCapacity(const Context *context);
 
     TransformFeedbackState mState;
     rx::TransformFeedbackImpl *mImplementation;

@@ -86,6 +86,7 @@
 #include "JSPromiseConstructor.h"
 #include "JSPromiseReaction.h"
 #include "JSPropertyNameEnumeratorInlines.h"
+#include "JSSentinelInlines.h"
 #include "JSSet.h"
 #include "JSSourceCodeInlines.h"
 #include "JSTemplateObjectDescriptorInlines.h"
@@ -141,6 +142,7 @@
 #include "VMEntryScopeInlines.h"
 #include "VMInlines.h"
 #include "VMManager.h"
+#include "VMTrapsInlines.h"
 #include "VariableEnvironment.h"
 #include "WaiterListManager.h"
 #include "WasmDebugServerUtilities.h"
@@ -381,9 +383,23 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     evalCodeBlockStructure.setWithoutWriteBarrier(EvalCodeBlock::createStructure(*this, nullptr, jsNull()));
     functionCodeBlockStructure.setWithoutWriteBarrier(FunctionCodeBlock::createStructure(*this, nullptr, jsNull()));
     bigIntStructure.setWithoutWriteBarrier(JSBigInt::createStructure(*this, nullptr, jsNull()));
-    m_orderedHashTableDeletedValue.setWithoutWriteBarrier(OrderedHashMap::createDeletedValue(*this));
-    m_orderedHashTableSentinel.setWithoutWriteBarrier(OrderedHashMap::createSentinel(*this));
+    m_orderedHashTableDeletedValue.setWithoutWriteBarrier(JSOrderedHashMap::createDeletedValue(*this));
+    m_orderedHashTableSentinel.setWithoutWriteBarrier(JSOrderedHashMap::createSentinel(*this));
     m_sortScratchSentinel.setWithoutWriteBarrier(JSCellButterfly::create(*this, CopyOnWriteArrayWithContiguous, 0));
+
+    {
+        Structure* sentinelStructure = JSSentinel::createStructure(*this, nullptr, jsNull());
+        m_sentinelStructure.setWithoutWriteBarrier(sentinelStructure);
+        m_fastArrayValuesSentinel.setWithoutWriteBarrier(JSSentinel::create(*this, sentinelStructure));
+        m_fastArrayKeysSentinel.setWithoutWriteBarrier(JSSentinel::create(*this, sentinelStructure));
+        m_fastArrayEntriesSentinel.setWithoutWriteBarrier(JSSentinel::create(*this, sentinelStructure));
+        m_fastMapKeysSentinel.setWithoutWriteBarrier(JSSentinel::create(*this, sentinelStructure));
+        m_fastMapValuesSentinel.setWithoutWriteBarrier(JSSentinel::create(*this, sentinelStructure));
+        m_fastMapEntriesSentinel.setWithoutWriteBarrier(JSSentinel::create(*this, sentinelStructure));
+        m_fastSetValuesSentinel.setWithoutWriteBarrier(JSSentinel::create(*this, sentinelStructure));
+        m_fastSetEntriesSentinel.setWithoutWriteBarrier(JSSentinel::create(*this, sentinelStructure));
+        m_fastStringValuesSentinel.setWithoutWriteBarrier(JSSentinel::create(*this, sentinelStructure));
+    }
 
     // Eagerly initialize constant cells since the concurrent compiler can access them.
     if (Options::useJIT()) {
@@ -394,6 +410,17 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         auto* bigInt = JSBigInt::tryCreateFrom(*this, 1);
         if (bigInt)
             heapBigIntConstantOne.setWithoutWriteBarrier(bigInt);
+        else {
+            if (success)
+                *success = false;
+            else
+                RELEASE_ASSERT_RESOURCE_AVAILABLE(bigInt, MemoryExhaustion, "Crash intentionally because memory is exhausted.");
+        }
+    }
+    {
+        auto* bigInt = JSBigInt::tryCreateWithLength(*this, 0);
+        if (bigInt)
+            heapBigIntConstantZero.setWithoutWriteBarrier(bigInt);
         else {
             if (success)
                 *success = false;
@@ -752,6 +779,8 @@ static ThunkGenerator NODELETE thunkGeneratorForIntrinsic(Intrinsic intrinsic)
         return clz32ThunkGenerator;
     case FromCharCodeIntrinsic:
         return fromCharCodeThunkGenerator;
+    case FromCodePointIntrinsic:
+        return fromCodePointThunkGenerator;
     case GlobalIsNaNIntrinsic:
         return globalIsNaNThunkGenerator;
     case NumberIsNaNIntrinsic:
@@ -1933,12 +1962,23 @@ void VM::visitAggregateImpl(Visitor& visitor)
     visitor.append(m_emptyPropertyNameEnumerator);
     visitor.append(m_orderedHashTableDeletedValue);
     visitor.append(m_orderedHashTableSentinel);
+    visitor.append(m_sentinelStructure);
+    visitor.append(m_fastArrayValuesSentinel);
+    visitor.append(m_fastArrayKeysSentinel);
+    visitor.append(m_fastArrayEntriesSentinel);
+    visitor.append(m_fastMapKeysSentinel);
+    visitor.append(m_fastMapValuesSentinel);
+    visitor.append(m_fastMapEntriesSentinel);
+    visitor.append(m_fastSetValuesSentinel);
+    visitor.append(m_fastSetEntriesSentinel);
+    visitor.append(m_fastStringValuesSentinel);
     visitor.append(m_cachedSortScratch);
     visitor.append(m_sortScratchSentinel);
     visitor.append(m_fastCanConstructBoundExecutable);
     visitor.append(m_slowCanConstructBoundExecutable);
     visitor.append(lastCachedString);
     visitor.append(heapBigIntConstantOne);
+    visitor.append(heapBigIntConstantZero);
     visitor.append(m_cachedBigIntDivisor);
     visitor.append(m_nextCachedBigIntDivisor);
 

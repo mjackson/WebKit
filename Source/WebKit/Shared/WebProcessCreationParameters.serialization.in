@@ -142,9 +142,11 @@ using WebCore::SystemSettings::State = WebCore::SystemSettingsState;
 
     std::optional<WebKit::WebProcessDataStoreParameters> websiteDataStoreParameters;
 
-    std::optional<WebKit::SandboxExtensionHandle> mobileGestaltExtensionHandle;
+#if (PLATFORM(MAC) || PLATFORM(MACCATALYST)) && !ENABLE(LAUNCHSERVICES_SANDBOX_EXTENSION_BLOCKING)
     std::optional<WebKit::SandboxExtensionHandle> launchServicesExtensionHandle;
-#if (PLATFORM(MAC) || PLATFORM(MACCATALYST)) && HAVE(VIDEO_RESTRICTED_DECODING)
+#endif
+
+#if (PLATFORM(MAC) || PLATFORM(MACCATALYST)) && HAVE(VIDEO_RESTRICTED_DECODING) && !ENABLE(TRUSTD_BLOCKING_IN_WEBCONTENT)
     WebKit::SandboxExtensionHandle trustdExtensionHandle;
 #endif
 #if HAVE(VIDEO_RESTRICTED_DECODING)
@@ -224,6 +226,8 @@ using WebCore::SystemSettings::State = WebCore::SystemSettingsState;
 
     Seconds memoryFootprintPollIntervalForTesting;
     Vector<uint64_t> memoryFootprintNotificationThresholds;
+
+    std::optional<Seconds> overridePersistentNotificationMinimumLifetime;
 
 #if ENABLE(NOTIFY_BLOCKING)
     Vector<std::pair<String, uint64_t>> notifyState;

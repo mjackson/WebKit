@@ -298,9 +298,9 @@ WebProcessPool::WebProcessPool(API::ProcessPoolConfiguration& configuration)
     addMessageReceiver(Messages::IPCTester::messageReceiverName(), m_ipcTester.get());
 #endif
 
+    addSupplement<WebNotificationManagerProxy>();
     // NOTE: These sub-objects must be initialized after m_messageReceiverMap..
     addSupplement<WebGeolocationManagerProxy>();
-    addSupplement<WebNotificationManagerProxy>();
 
     processPools().append(*this);
 
@@ -1017,8 +1017,11 @@ void WebProcessPool::initializeNewWebProcess(WebProcessProxy& process, WebsiteDa
 
 #if ENABLE(NOTIFICATIONS)
     // FIXME: There should be a generic way for supplements to add to the intialization parameters.
-    if (websiteDataStore)
+    if (websiteDataStore) {
+        if (websiteDataStore->configuration().overridePersistentNotificationMinimumLifetimeForTesting())
+            parameters.overridePersistentNotificationMinimumLifetime = Seconds(*websiteDataStore->configuration().overridePersistentNotificationMinimumLifetimeForTesting());
         parameters.notificationPermissions = websiteDataStore->client().notificationPermissions();
+    }
     if (parameters.notificationPermissions.isEmpty())
         parameters.notificationPermissions = protect(supplement<WebNotificationManagerProxy>())->notificationPermissions();
 #endif
@@ -1335,8 +1338,11 @@ Ref<WebPageProxy> WebProcessPool::createWebPage(PageClient& pageClient, Ref<API:
 
     RefPtr relatedPage = pageConfiguration->relatedPage();
     bool siteIsolationEnabled = protect(pageConfiguration->preferences())->siteIsolationEnabled();
-    if (siteIsolationEnabled)
-        protect(pageConfiguration->preferences())->setUseUIProcessForBackForwardItemLoading(true);
+    if (siteIsolationEnabled) {
+        Ref<WebPreferences> preferences = pageConfiguration->preferences();
+        preferences->setUseUIProcessForBackForwardItemLoading(true);
+        preferences->setMultiProcessBackForwardCacheEnabled(true);
+    }
     RefPtr preferredBrowsingContextGroup = pageConfiguration->preferredBrowsingContextGroup();
     RefPtr preferredFrameProcess = preferredBrowsingContextGroup ? preferredBrowsingContextGroup->processForSite(pageConfiguration->openedSite()) : nullptr;
     if (auto& openerInfo = pageConfiguration->openerInfo(); openerInfo && siteIsolationEnabled) {
@@ -2183,7 +2189,7 @@ void WebProcessPool::processForNavigation(WebPageProxy& page, WebFrameProxy& fra
         if (RefPtr frameProcess = browsingContextGroup.processForSite(site))
             process = &frameProcess->process();
         if (process && process->websiteDataStore() == dataStore.ptr() && process->websiteDataStore() == &page.websiteDataStore() && !process->isInProcessCache() && process->lockdownMode() == lockdownMode && enhancedSecurityStatesAreConsistent(process->enhancedSecurity(), enhancedSecurity)) {
-            protect(dataStore->networkProcess())->addAllowedFirstPartyForCookies(*process, mainFrameSite.domain(), LoadedWebArchive::No, [completionHandler = WTF::move(completionHandler), process] () mutable {
+            protect(dataStore->networkProcess())->addAllowedFirstPartyForCookies(*process, mainFrameSite.domain(), LoadedWebArchive::No, [completionHandler = WTF::move(completionHandler), process, preventProcessShutdownScope = process->shutdownPreventingScope()] () mutable {
                 completionHandler(process.releaseNonNull(), nullptr, "Found process for the same site"_s);
             });
             return;

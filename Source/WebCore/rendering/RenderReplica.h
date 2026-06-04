@@ -49,8 +49,8 @@ public:
 
 private:
     bool canHaveChildren() const override { return false; }
-    void computePreferredLogicalWidths() override;
-    void computeIntrinsicLogicalWidths(LayoutUnit&, LayoutUnit&) const override { ASSERT_NOT_REACHED(); }
+    void computeIntrinsicLogicalWidthContributions() override;
+    std::pair<LayoutUnit, LayoutUnit> computeIntrinsicLogicalWidths() const override { ASSERT_NOT_REACHED(); return { }; }
 };
 
 } // namespace WebCore

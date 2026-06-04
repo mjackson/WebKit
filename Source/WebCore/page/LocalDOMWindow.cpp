@@ -1001,6 +1001,15 @@ void LocalDOMWindow::processPostMessage(JSC::JSGlobalObject& lexicalGlobalObject
         auto& vm = globalObject->vm();
         auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
+        if (userGestureToForward && userGestureToForward->hasExpired(UserGestureToken::maximumIntervalForUserGestureForwarding))
+            userGestureToForward = nullptr;
+
+        if (userGestureToForward && userGestureToForward->hasExpired(UserGestureToken::maximumIntervalForUserGestureForwarding))
+            userGestureToForward = nullptr;
+
+        if (userGestureToForward && userGestureToForward->hasExpired(UserGestureToken::maximumIntervalForUserGestureForwarding))
+            userGestureToForward = nullptr;
+
         UserGestureIndicator userGestureIndicator(userGestureToForward);
         InspectorInstrumentation::willDispatchPostMessage(frame, postMessageIdentifier);
 
@@ -2013,6 +2022,13 @@ bool LocalDOMWindow::crossOriginIsolated() const
     return document && document->crossOriginIsolated();
 }
 
+// https://html.spec.whatwg.org/multipage/origin.html#dom-originagentcluster
+bool LocalDOMWindow::originAgentCluster() const
+{
+    auto* document = this->document();
+    return document && document->originAgentCluster();
+}
+
 static void didAddStorageEventListener(LocalDOMWindow& window)
 {
     // Creating these WebCore::Storage objects informs the system that we'd like to receive
@@ -2703,7 +2719,14 @@ void LocalDOMWindow::markEndOfProcessingForEventTiming(PerformanceEventTimingCan
     // Maps to "Finalize event timing" in the spec.
     auto processingEnd = performance().nowInReducedResolutionSeconds();
     entry.processingEnd = processingEnd;
-    entry.target = event.target();
+    // Per the Event Timing spec, the target must be retargeted to the document scope.
+    // Without this, when no event listeners are registered for a given event type,
+    // the event target may be an un-retargeted node inside a user-agent shadow tree
+    // (e.g., an internal node of <input>), leaking shadow DOM internals.
+    if (RefPtr targetNode = dynamicDowncast<Node>(event.target()))
+        entry.target = targetNode->document().retargetToScope(*targetNode).get();
+    else
+        entry.target = event.target();
 
     switch (type) {
     case EventType::pointerdown: {

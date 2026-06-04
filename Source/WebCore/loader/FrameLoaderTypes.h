@@ -89,6 +89,9 @@ enum class WillInternallyHandleFailure : bool { No, Yes };
 
 enum class ShouldContinuePolicyCheck : bool { No, Yes };
 
+enum class ShouldRestoreFromBackForwardCache : uint8_t { Yes, No, Unspecified };
+enum class RestoredFromBackForwardCache : bool { No, Yes };
+
 enum class NewFrameOpenerPolicy : uint8_t {
     Suppress,
     Allow

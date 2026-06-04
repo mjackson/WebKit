@@ -757,15 +757,37 @@ void Format::init(const DisplayMtl *display, angle::FormatID intendedFormatId_)
             break;
 
         case angle::FormatID::R8G8B8X8_UNORM:
+            if (display->getFeatures().hasTextureSwizzle.enabled)
+            {
 
-            this->metalFormat    = MTLPixelFormatRGBA8Unorm;
-            this->actualFormatId = angle::FormatID::R8G8B8A8_UNORM;
+                this->metalFormat    = MTLPixelFormatRGBA8Unorm;
+                this->actualFormatId = angle::FormatID::R8G8B8A8_UNORM;
+                this->swizzled       = true;
+                this->swizzle        = {GL_RED, GL_GREEN, GL_BLUE, GL_ONE};
+            }
+            else
+            {
+
+                this->metalFormat    = MTLPixelFormatRGBA8Unorm;
+                this->actualFormatId = angle::FormatID::R8G8B8A8_UNORM;
+            }
             break;
 
         case angle::FormatID::R8G8B8X8_UNORM_SRGB:
+            if (display->getFeatures().hasTextureSwizzle.enabled)
+            {
 
-            this->metalFormat    = MTLPixelFormatRGBA8Unorm_sRGB;
-            this->actualFormatId = angle::FormatID::R8G8B8A8_UNORM_SRGB;
+                this->metalFormat    = MTLPixelFormatRGBA8Unorm_sRGB;
+                this->actualFormatId = angle::FormatID::R8G8B8A8_UNORM_SRGB;
+                this->swizzled       = true;
+                this->swizzle        = {GL_RED, GL_GREEN, GL_BLUE, GL_ONE};
+            }
+            else
+            {
+
+                this->metalFormat    = MTLPixelFormatRGBA8Unorm_sRGB;
+                this->actualFormatId = angle::FormatID::R8G8B8A8_UNORM_SRGB;
+            }
             break;
 
         case angle::FormatID::R8G8B8_SINT:
@@ -5832,6 +5854,15 @@ void FormatTable::initNativeFormatCapsAutogen(const DisplayMtl *display)
 #endif // TARGET_OS_IPHONE && !TARGET_OS_MACCATALYST || mac 11.0+
 
     // clang-format on
+
+#if !(TARGET_OS_OSX || TARGET_OS_MACCATALYST)
+    const bool supportsiOS2 = SupportsAppleGPUFamily(display->getMetalDevice(), 2);
+    const bool supportsiOS4 = SupportsAppleGPUFamily(display->getMetalDevice(), 4);
+    for (auto &entry : mNativePixelFormatCapsTable)
+    {
+        adjustFormatCapsForDevice(entry.first, supportsiOS2, supportsiOS4);
+    }
+#endif
 }
 
 }  // namespace mtl

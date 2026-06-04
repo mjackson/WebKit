@@ -25,6 +25,10 @@
 #include "config.h"
 #include "CSSFontFamilyNameValue.h"
 
+#include "CSSValuePool.h"
+#include "CSSValueTypes+DeprecatedCSSOMValueCreation.h"
+#include <wtf/Hasher.h>
+
 namespace WebCore {
 
 Ref<CSSFontFamilyNameValue> CSSFontFamilyNameValue::create(CSS::FontFamilyName fontFamilyName)
@@ -53,9 +57,15 @@ IterationStatus CSSFontFamilyNameValue::customVisitChildren(const Function<Itera
     return CSS::visitCSSValueChildren(func, m_fontFamilyName);
 }
 
-String CSSFontFamilyNameValue::stringValue() const
+bool CSSFontFamilyNameValue::addDerivedHash(Hasher& hasher) const
 {
-    return m_fontFamilyName.value;
+    add(hasher, m_fontFamilyName);
+    return true;
+}
+
+Ref<DeprecatedCSSOMValue> CSSFontFamilyNameValue::customCreateDeprecatedCSSOMWrapper(CSSStyleDeclaration& owner) const
+{
+    return CSS::createDeprecatedCSSOMValue(CSSValuePool::singleton(), owner, m_fontFamilyName);
 }
 
 } // namespace WebCore

@@ -159,7 +159,6 @@ public:
         Replica,
         ScrollbarPart,
         SearchField,
-        SelectFallbackButton,
         Slider,
         SliderContainer,
         Table,
@@ -478,7 +477,6 @@ public:
     bool isRenderTextControlMultiLine() const { return type() == Type::TextControlMultiLine; }
     bool isRenderTextControlSingleLine() const { return isRenderTextControl() && !isRenderTextControlMultiLine(); }
     bool isRenderSearchField() const { return type() == Type::SearchField; }
-    bool isRenderSelectFallbackButton() const { return type() == Type::SelectFallbackButton; }
     bool isRenderTextControlInnerBlock() const { return type() == Type::TextControlInnerBlock; }
     bool isRenderTextControlInnerContainer() const { return type() == Type::TextControlInnerContainer; }
     bool isRenderVideo() const { return type() == Type::Video; }
@@ -567,6 +565,7 @@ public:
     bool isRenderSVGShape() const { return isRenderSVGModelObject() && m_typeSpecificFlags.svgFlags().contains(SVGModelObjectFlag::IsShape); }
     bool isLegacyRenderSVGShape() const { return isLegacyRenderSVGModelObject() && m_typeSpecificFlags.svgFlags().contains(SVGModelObjectFlag::IsShape); }
     bool isLegacyRenderSVGRect() const { return type() == Type::LegacySVGRect; }
+    bool isRenderSVGRect() const { return type() == Type::SVGRect; }
     bool isRenderSVGText() const { return type() == Type::SVGText; }
     bool isRenderSVGTextPath() const { return type() == Type::SVGTextPath; }
     bool isRenderSVGTSpan() const { return type() == Type::SVGTSpan; }
@@ -597,6 +596,7 @@ public:
     bool isRenderOrLegacyRenderSVGShape() const { return isRenderSVGShape() || isLegacyRenderSVGShape(); }
     bool isRenderOrLegacyRenderSVGPath() const { return isRenderSVGPath() || isLegacyRenderSVGPath(); }
     bool isRenderOrLegacyRenderSVGImage() const { return isRenderSVGImage() || isLegacyRenderSVGImage(); }
+    bool isRenderOrLegacyRenderSVGRect() const { return isRenderSVGRect() || isLegacyRenderSVGRect(); }
     bool isRenderOrLegacyRenderSVGForeignObject() const { return isRenderSVGForeignObject() || isLegacyRenderSVGForeignObject(); }
     bool isRenderOrLegacyRenderSVGModelObject() const { return isRenderSVGModelObject() || isLegacyRenderSVGModelObject(); }
     bool isRenderOrLegacyRenderSVGResourceFilterPrimitive() const { return isRenderSVGResourceFilterPrimitive() || isLegacyRenderSVGResourceFilterPrimitive(); }
@@ -702,7 +702,7 @@ public:
     bool hasVisibleBoxDecorations() const { return boxDecorationState() != BoxDecorationState::None; }
 
     bool needsLayout() const;
-    bool needsPreferredLogicalWidthsUpdate() const { return m_stateBitfields.hasFlag(StateFlag::PreferredLogicalWidthsNeedUpdate); }
+    bool hasInvalidContentLogicalWidths() const { return m_stateBitfields.hasFlag(StateFlag::ContentLogicalWidthsInvalidated); }
 
     bool selfNeedsLayout() const { return m_stateBitfields.hasFlag(StateFlag::NeedsLayout); }
     bool needsOutOfFlowMovementLayout() const { return m_stateBitfields.hasFlag(StateFlag::NeedsOutOfFlowMovementLayout); }
@@ -759,10 +759,10 @@ public:
     inline void setNeedsLayout(MarkingBehavior = MarkingBehavior::MarkContainingBlockChain);
     enum class HadSkippedLayout { No, Yes };
     void clearNeedsLayout(HadSkippedLayout = HadSkippedLayout::No);
-    void setNeedsPreferredWidthsUpdate(MarkingBehavior = MarkingBehavior::MarkContainingBlockChain, const RenderBlock* ancestorUpdateBoundary = nullptr);
-    void clearNeedsPreferredWidthsUpdate() { m_stateBitfields.setFlag(StateFlag::PreferredLogicalWidthsNeedUpdate, { }); }
+    void invalidateContentLogicalWidths(MarkingBehavior = MarkingBehavior::MarkContainingBlockChain, const RenderBlock* ancestorUpdateBoundary = nullptr);
+    void clearContentLogicalWidthsInvalidation() { m_stateBitfields.setFlag(StateFlag::ContentLogicalWidthsInvalidated, { }); }
     
-    inline void setNeedsLayoutAndPreferredWidthsUpdate();
+    inline void setNeedsLayoutAndInvalidateContentLogicalWidths();
 
     void setPositionState(PositionType);
     void clearPositionedState() { m_stateBitfields.clearPositionedState(); }
@@ -1164,7 +1164,7 @@ private:
     void NODELETE setLayerNeedsFullRepaint();
     void NODELETE setLayerNeedsFullRepaintForOutOfFlowMovementLayout();
 
-    void invalidateContainerPreferredLogicalWidths(const RenderBlock* ancestorUpdateBoundary = nullptr);
+    void invalidateContainerContentLogicalWidths(const RenderBlock* ancestorUpdateBoundary = nullptr);
 
     struct SelectionGeometriesInternal {
         Vector<SelectionGeometry> geometries;
@@ -1200,7 +1200,7 @@ private:
         IsExcludedFromNormalLayout                          = 1 << 10,
         Floating                                            = 1 << 11,
         VerticalWritingMode                                 = 1 << 12,
-        PreferredLogicalWidthsNeedUpdate                    = 1 << 13,
+        ContentLogicalWidthsInvalidated                    = 1 << 13,
         HasRareData                                         = 1 << 14,
         HasLayer                                            = 1 << 15,
         HasNonVisibleOverflow                               = 1 << 16,
@@ -1286,7 +1286,7 @@ private:
         bool hasReflection { false };
         bool hasOutlineAutoAncestor { false };
         // Dirty bit was set with MarkingBehavior::MarkOnlyThis
-        bool preferredLogicalWidthsNeedUpdateIsMarkOnlyThis { false };
+        bool contentLogicalWidthsInvalidationIsMarkOnlyThis { false };
         bool isYouTubeReplacement { false };
         EnumSet<Style::MarginTrimSide> trimmedMargins;
 

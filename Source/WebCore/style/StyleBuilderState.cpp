@@ -33,6 +33,7 @@
 
 #include "CSSCalcRandomCachingKey.h"
 #include "CSSCanvasValue.h"
+#include "CSSColorImageValue.h"
 #include "CSSColorValue.h"
 #include "CSSCrossfadeValue.h"
 #include "CSSCursorImageValue.h"
@@ -42,6 +43,7 @@
 #include "CSSGradientValue.h"
 #include "CSSImageSetValue.h"
 #include "CSSImageValue.h"
+#include "CSSLightDarkImageValue.h"
 #include "CSSNamedImageValue.h"
 #include "CSSPaintImageValue.h"
 #include "DocumentInlines.h"
@@ -74,6 +76,7 @@
 #include "StylePaintImage.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
+#include "StyleScope.h"
 
 namespace WebCore {
 namespace Style {
@@ -145,14 +148,18 @@ RefPtr<Image> BuilderState::createStyleImage(const CSSValue& value) const
         return filterImageValue->createStyleImage(*this);
     if (auto* gradientValue = dynamicDowncast<CSSGradientValue>(value))
         return gradientValue->createStyleImage(*this);
+    if (auto* colorImageValue = dynamicDowncast<CSSColorImageValue>(value))
+        return colorImageValue->createStyleImage(*this);
+    if (auto* lightDarkImageValue = dynamicDowncast<CSSLightDarkImageValue>(value))
+        return lightDarkImageValue->createStyleImage(*this);
     if (auto* paintImageValue = dynamicDowncast<CSSPaintImageValue>(value))
         return paintImageValue->createStyleImage(*this);
     return nullptr;
 }
 
-void BuilderState::registerSubstitutionAttribute(const AtomString& attributeLocalName)
+void BuilderState::registerSubstitutionAttribute(const AtomString& attributeLocalName, const Scope* targetScope)
 {
-    m_registeredSubstitutionAttributes.append(attributeLocalName);
+    m_registeredSubstitutionAttributes.append({ attributeLocalName, targetScope });
 }
 
 void BuilderState::adjustStyleForInterCharacterRuby()

@@ -50,6 +50,12 @@ struct FeaturesVk : FeatureSetBase
         &members,
     };
 
+    FeatureInfo forceRenderableFallbackFormat = {
+        "forceRenderableFallbackFormat",
+        FeatureCategory::VulkanWorkarounds,
+        &members,
+    };
+
     FeatureInfo clampPointSize = {
         "clampPointSize",
         FeatureCategory::VulkanWorkarounds,
@@ -1684,6 +1690,12 @@ struct FeaturesVk : FeatureSetBase
 
     FeatureInfo supportsShaderDemoteToHelperInvocation = {
         "supportsShaderDemoteToHelperInvocation",
+        FeatureCategory::VulkanFeatures,
+        &members,
+    };
+
+    FeatureInfo avoidImageGhostOutsideRenderPass = {
+        "avoidImageGhostOutsideRenderPass",
         FeatureCategory::VulkanFeatures,
         &members,
     };

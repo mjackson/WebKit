@@ -1187,7 +1187,7 @@ static InternalFormatInfoMap BuildInternalFormatInfoMap()
     AddDepthStencilFormat(&map, GL_DEPTH_COMPONENT32F,    true, 32, 0,  0, GL_DEPTH_COMPONENT, GL_FLOAT,                          GL_FLOAT,               RequireES<3, 0>,                                                                               RequireESOrExt<3, 0, &Extensions::depthTextureANGLE>,                                    RequireES<3, 0>,                                                                               RequireES<3, 0>,                                                                                             NeverSupported);
     AddDepthStencilFormat(&map, GL_DEPTH_COMPONENT32_OES, true, 32, 0,  0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT,                   GL_UNSIGNED_NORMALIZED, RequireExtOrExt<&Extensions::depthTextureANGLE, &Extensions::depthTextureOES>,                 AlwaysSupported,                                                                         RequireExtOrExt<&Extensions::depthTextureANGLE, &Extensions::depthTextureOES>,                 RequireExtOrExtOrExt<&Extensions::depthTextureANGLE, &Extensions::depthTextureOES, &Extensions::depth32OES>, NeverSupported);
     AddDepthStencilFormat(&map, GL_DEPTH24_STENCIL8,      true, 24, 8,  0, GL_DEPTH_STENCIL,   GL_UNSIGNED_INT_24_8,              GL_UNSIGNED_NORMALIZED, RequireESOrExtOrExt<3, 0, &Extensions::depthTextureANGLE, &Extensions::packedDepthStencilOES>, AlwaysSupported,                                                                         RequireESOrExtOrExt<3, 0, &Extensions::depthTextureANGLE, &Extensions::packedDepthStencilOES>, RequireESOrExtOrExt<3, 0, &Extensions::depthTextureANGLE, &Extensions::packedDepthStencilOES>,               NeverSupported);
-    AddDepthStencilFormat(&map, GL_DEPTH32F_STENCIL8,     true, 32, 8, 24, GL_DEPTH_STENCIL,   GL_FLOAT_32_UNSIGNED_INT_24_8_REV, GL_FLOAT,               RequireESOrExt<3, 0, &Extensions::depthBufferFloat2NV>,                                        AlwaysSupported,                                                                         RequireESOrExt<3, 0, &Extensions::depthBufferFloat2NV>,                                        RequireESOrExt<3, 0, &Extensions::depthBufferFloat2NV>,                                                      NeverSupported);
+    AddDepthStencilFormat(&map, GL_DEPTH32F_STENCIL8,     true, 32, 8, 24, GL_DEPTH_STENCIL,   GL_FLOAT_32_UNSIGNED_INT_24_8_REV, GL_FLOAT,               RequireES<3, 0>,                                                                               AlwaysSupported,                                                                         RequireES<3, 0>,                                                                               RequireES<3, 0>,                                                                                             NeverSupported);
     // STENCIL_INDEX8 is special-cased, see around the bottom of the list.
 
     // Luminance alpha formats
@@ -1833,7 +1833,8 @@ bool InternalFormat::computePalettedImageRowPitch(GLsizei width, GLuint *resultO
 }
 
 bool InternalFormat::computeRowDepthSkipBytes(GLenum formatType,
-                                              const Extents &area,
+                                              GLsizei width,
+                                              GLsizei height,
                                               const gl::PixelStoreStateBase &unpack,
                                               bool is3D,
                                               GLuint *rowPitchOut,
@@ -1841,14 +1842,14 @@ bool InternalFormat::computeRowDepthSkipBytes(GLenum formatType,
                                               GLuint *skipBytesOut) const
 {
     GLuint rowPitch = 0;
-    if (!computeRowPitch(formatType, area.width, unpack.alignment, unpack.rowLength, &rowPitch))
+    if (!computeRowPitch(formatType, width, unpack.alignment, unpack.rowLength, &rowPitch))
     {
         return false;
     }
     // Compute depthPitch for 2D textures too. It is used to size the full texture uploads.
-    GLuint depthPitch = 0;
+    GLuint depthPitch       = 0;
     const GLint imageHeight = is3D ? unpack.imageHeight : 0;
-    if (rowPitch > 0 && !computeDepthPitch(area.height, imageHeight, rowPitch, &depthPitch)) 
+    if (rowPitch > 0 && !computeDepthPitch(height, imageHeight, rowPitch, &depthPitch))
     {
         return false;
     }
@@ -2102,8 +2103,8 @@ bool InternalFormat::computePackUnpackEndByte(GLenum formatType,
     GLuint rowPitch = 0;
     GLuint depthPitch = 0;
     GLuint skipBytes  = 0;
-    if (!computeRowDepthSkipBytes(formatType, size, state, is3D, &rowPitch, &depthPitch,
-                                  &skipBytes))
+    if (!computeRowDepthSkipBytes(formatType, size.width, size.height, state, is3D, &rowPitch,
+                                  &depthPitch, &skipBytes))
     {
         return false;
     }

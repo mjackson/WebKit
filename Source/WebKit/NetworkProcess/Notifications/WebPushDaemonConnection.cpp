@@ -30,6 +30,7 @@
 
 #include "DaemonDecoder.h"
 #include "DaemonEncoder.h"
+#include "Logging.h"
 #include "NetworkSession.h"
 #include <wtf/TZoneMallocInlines.h>
 
@@ -48,6 +49,8 @@ Connection::Connection(CString&& machServiceName, WebPushDaemonConnectionConfigu
 {
     LOG(Push, "Creating WebPushD connection to mach service: %s", this->machServiceName().data());
 }
+
+Connection::~Connection() = default;
 
 } // namespace WebKit::WebPushD
 

@@ -56,7 +56,10 @@
 #include "RenderElementStyleInlines.h"
 #include "RenderGrid.h"
 #include "RenderInline.h"
+#include "RenderSVGModelObject.h"
 #include "RenderStyle+GettersInlines.h"
+#include "SVGElement.h"
+#include "SVGLengthContext.h"
 #include "StyleComputedStyle+InitialInlines.h"
 #include "StyleExtractorState.h"
 #include "StyleInterpolation.h"
@@ -522,24 +525,54 @@ template<CSSPropertyID propertyID> struct PreferredSizeSharedAdaptor {
     template<typename F> decltype(auto) computedValue(ExtractorState& state, const PreferredSize& value, F&& functor) const
     {
         auto sizingBox = [](auto& renderer) -> LayoutRect {
+            if (auto* svgModelObject = dynamicDowncast<RenderSVGModelObject>(renderer))
+                return svgModelObject->borderBoxRectEquivalent();
             auto* box = dynamicDowncast<RenderBox>(renderer);
-            if (!box)
-                return LayoutRect();
-            return box->style().boxSizing() == BoxSizing::BorderBox ? box->borderBoxRect() : box->computedCSSContentBoxRect();
+            if (box)
+                return box->style().boxSizing() == BoxSizing::BorderBox ? box->borderBoxRect() : box->computedCSSContentBoxRect();
+            return LayoutRect();
         };
 
         auto isNonReplacedInline = [](auto& renderer) {
             return renderer.isInline() && !renderer.isBlockLevelReplacedOrAtomicInline();
         };
 
-        if (state.renderer && !state.renderer->isRenderOrLegacyRenderSVGModelObject()) {
-            // According to http://www.w3.org/TR/CSS2/visudet.html#the-height-property,
-            // the "height" property does not apply for non-replaced inline elements.
-            if (!isNonReplacedInline(*state.renderer)) {
-                if constexpr (propertyID == CSSPropertyHeight)
-                    return functor(Length<> { sizingBox(*state.renderer).height() });
-                else if constexpr (propertyID == CSSPropertyWidth)
-                    return functor(Length<> { sizingBox(*state.renderer).width() });
+        // In SVG, width/height are geometry properties that only apply to specific elements
+        // (svg, rect, image, foreignObject, inner svg). For those, the resolved value is the
+        // used value. For other SVG elements (text, g, etc.), the resolved value is the computed value.
+        // SVG shapes and inner svg elements that are not RenderBox subclasses need their CSS
+        // values resolved directly via SVGLengthContext rather than from the bounding box.
+        auto isSVGNonBoxGeometryElement = [](auto& renderer) {
+            return renderer.isRenderOrLegacyRenderSVGImage()
+                || renderer.isRenderOrLegacyRenderSVGRect();
+        };
+
+        if (state.renderer) {
+            if (state.renderer->isSVGRenderer() && isSVGNonBoxGeometryElement(*state.renderer)) {
+                // For SVG geometry elements that are not RenderBox subclasses, resolve the CSS
+                // value directly using SVGLengthContext rather than reading from the bounding box,
+                // because the bounding box may be empty when only one dimension is set. Per the
+                // SVG2 sizing spec, keywords like 'auto' resolve to 0 for these elements; that
+                // happens via SVGLengthContext's non-numeric fallback path. The Length<> wrapper
+                // divides by usedZoom on serialization, so pre-multiply to round-trip the value.
+                if (RefPtr svgElement = dynamicDowncast<SVGElement>(state.element.get())) {
+                    SVGLengthContext lengthContext(svgElement.get());
+                    auto usedZoom = state.style.usedZoom();
+                    if constexpr (propertyID == CSSPropertyWidth)
+                        return functor(Length<> { lengthContext.valueForLength(state.style.width(), Style::ZoomFactor::none(), SVGLengthMode::Width) * usedZoom });
+                    else if constexpr (propertyID == CSSPropertyHeight)
+                        return functor(Length<> { lengthContext.valueForLength(state.style.height(), Style::ZoomFactor::none(), SVGLengthMode::Height) * usedZoom });
+                }
+            } else if (!state.renderer->isSVGRenderer() || state.renderer->isRenderOrLegacyRenderSVGRoot() || state.renderer->isRenderOrLegacyRenderSVGForeignObject()) {
+                // For non-SVG elements (and SVG root / foreignObject which are proper RenderBox
+                // subclasses), use the sizing box. Per CSS2 the "height"/"width" property does
+                // not apply for non-replaced inline elements.
+                if (!isNonReplacedInline(*state.renderer)) {
+                    if constexpr (propertyID == CSSPropertyHeight)
+                        return functor(Length<> { sizingBox(*state.renderer).height() });
+                    else if constexpr (propertyID == CSSPropertyWidth)
+                        return functor(Length<> { sizingBox(*state.renderer).width() });
+                }
             }
         }
         return functor(value);
@@ -1306,7 +1339,6 @@ template<> struct PropertyExtractorAdaptor<CSSPropertyCaretColor> {
     }
 };
 
-
 // MARK: - Adaptor Invokers
 
 template<CSSPropertyID propertyID> Ref<CSSValue> extractCSSValue(ExtractorState& state)
@@ -1331,18 +1363,11 @@ template<CSSPropertyID propertyID, typename List, typename Mapper> Ref<CSSValue>
 
     CSSValueListBuilder resultListBuilder;
 
-    if constexpr (List::value_type::computedValueUsesUsedValues) {
-        for (auto& value : list.usedValues())
+    if (!list.isInitial()) {
+        for (auto& value : list.template computedValuesForProperty<propertyID>())
             resultListBuilder.append(mapper(state, PropertyAccessor { value }.get(), value, list));
-    } else {
-        if (!list.isInitial()) {
-            for (auto& value : list.computedValues()) {
-                if (!PropertyAccessor { value }.isFilled())
-                    resultListBuilder.append(mapper(state, PropertyAccessor { value }.get(), value, list));
-            }
-        } else
-            resultListBuilder.append(mapper(state, PropertyAccessor::initial(), std::nullopt, list));
-    }
+    } else
+        resultListBuilder.append(mapper(state, PropertyAccessor::initial(), std::nullopt, list));
 
     return CSSValueList::createCommaSeparated(WTF::move(resultListBuilder));
 }
@@ -1353,26 +1378,15 @@ template<CSSPropertyID propertyID, typename List, typename Mapper> void extractC
 
     bool includeComma = false;
 
-    if constexpr (List::value_type::computedValueUsesUsedValues) {
-        for (auto& value : list.usedValues()) {
+    if (!list.isInitial()) {
+        for (auto& value : list.template computedValuesForProperty<propertyID>()) {
             if (includeComma)
                 builder.append(", "_s);
             mapper(state, builder, context, PropertyAccessor { value }.get(), value, list);
             includeComma = true;
         }
-    } else {
-        if (!list.isInitial()) {
-            for (auto& value : list.computedValues()) {
-                if (!PropertyAccessor { value }.isFilled()) {
-                    if (includeComma)
-                        builder.append(", "_s);
-                    mapper(state, builder, context, PropertyAccessor { value }.get(), value, list);
-                    includeComma = true;
-                }
-            }
-        } else
-            mapper(state, builder, context, PropertyAccessor::initial(), std::nullopt, list);
-    }
+    } else
+        mapper(state, builder, context, PropertyAccessor::initial(), std::nullopt, list);
 }
 
 template<GridTrackSizingDirection direction> Ref<CSSValue> extractGridTemplateValue(ExtractorState& state)
@@ -1855,7 +1869,7 @@ template<CSSPropertyID property> inline Ref<CSSValue> extractFillLayerPropertySh
             ownedStyle = renderer->animatedStyle();
             if (state.pseudoElementIdentifier) {
                 // FIXME: This cached pseudo style will only exist if the animation has been run at least once.
-                return ownedStyle->getCachedPseudoStyle(*state.pseudoElementIdentifier);
+                return ownedStyle->pseudoElementStyle(*state.pseudoElementIdentifier);
             }
             return ownedStyle.get();
         }
@@ -2839,7 +2853,7 @@ inline RefPtr<CSSValue> ExtractorCustom::extractContainerShorthand(ExtractorStat
         return ExtractorGenerated::extractValue(state, CSSPropertyContainerName).releaseNonNull();
     }();
 
-    if (state.style.containerType() == ContainerType::Normal)
+    if (state.style.containerType().isNormal())
         return CSSValueList::createSlashSeparated(WTF::move(name));
 
     return CSSValueList::createSlashSeparated(
@@ -2855,7 +2869,7 @@ inline void ExtractorCustom::extractContainerShorthandSerialization(ExtractorSta
     else
         ExtractorGenerated::extractValueSerialization(state, builder, context, CSSPropertyContainerName);
 
-    if (state.style.containerType() == ContainerType::Normal)
+    if (state.style.containerType().isNormal())
         return;
 
     builder.append(" / "_s);

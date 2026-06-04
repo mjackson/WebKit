@@ -155,7 +155,7 @@ void RenderMathMLBlock::layoutItems(RelayoutChildren relayoutChildren)
 
     LayoutUnit preferredHorizontalExtent;
     for (auto* child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox()) {
-        LayoutUnit childHorizontalExtent = child->maxPreferredLogicalWidth() - child->horizontalBorderAndPaddingExtent();
+        LayoutUnit childHorizontalExtent = child->maxContentLogicalWidthContribution() - child->horizontalBorderAndPaddingExtent();
         LayoutUnit childHorizontalMarginBoxExtent = child->horizontalBorderAndPaddingExtent() + childHorizontalExtent;
         childHorizontalMarginBoxExtent += child->horizontalMarginExtent();
 
@@ -165,7 +165,7 @@ void RenderMathMLBlock::layoutItems(RelayoutChildren relayoutChildren)
     LayoutUnit currentHorizontalExtent = contentBoxLogicalWidth();
     for (auto* child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox()) {
         auto everHadLayout = child->everHadLayout();
-        LayoutUnit childSize = child->maxPreferredLogicalWidth() - child->horizontalBorderAndPaddingExtent();
+        LayoutUnit childSize = child->maxContentLogicalWidthContribution() - child->horizontalBorderAndPaddingExtent();
 
         if (preferredHorizontalExtent > currentHorizontalExtent)
             childSize = currentHorizontalExtent;
@@ -236,7 +236,7 @@ void RenderMathMLBlock::styleDidChange(Style::Difference diff, const RenderStyle
 
     // MathML displaystyle changes can affect layout.
     if (oldStyle && style().mathStyle() != oldStyle->mathStyle())
-        setNeedsLayoutAndPreferredWidthsUpdate();
+        setNeedsLayoutAndInvalidateContentLogicalWidths();
 }
 
 void RenderMathMLBlock::insertPositionedChildrenIntoContainingBlock()
@@ -268,11 +268,11 @@ void RenderMathMLBlock::shiftInFlowChildren(LayoutUnit left, LayoutUnit top)
         child->setLocation(child->location() + shift);
 }
 
-void RenderMathMLBlock::adjustPreferredLogicalWidthsForBorderAndPadding()
+void RenderMathMLBlock::adjustContentLogicalWidthsForBorderAndPadding()
 {
-    ASSERT(needsPreferredLogicalWidthsUpdate());
-    m_minPreferredLogicalWidth += borderAndPaddingLogicalWidth();
-    m_maxPreferredLogicalWidth += borderAndPaddingLogicalWidth();
+    ASSERT(hasInvalidContentLogicalWidths());
+    m_minContentLogicalWidthContribution += borderAndPaddingLogicalWidth();
+    m_maxContentLogicalWidthContribution += borderAndPaddingLogicalWidth();
 }
 
 void RenderMathMLBlock::adjustLayoutForBorderAndPadding()
@@ -317,10 +317,10 @@ RenderMathMLBlock::SizeAppliedToMathContent RenderMathMLBlock::sizeAppliedToMath
 LayoutUnit RenderMathMLBlock::applySizeToMathContent(LayoutPhase phase, const SizeAppliedToMathContent& sizes)
 {
     if (phase == LayoutPhase::CalculatePreferredLogicalWidth) {
-        ASSERT(needsPreferredLogicalWidthsUpdate());
+        ASSERT(hasInvalidContentLogicalWidths());
         if (sizes.logicalWidth) {
-            m_minPreferredLogicalWidth = *sizes.logicalWidth;
-            m_maxPreferredLogicalWidth = *sizes.logicalWidth;
+            m_minContentLogicalWidthContribution = *sizes.logicalWidth;
+            m_maxContentLogicalWidthContribution = *sizes.logicalWidth;
         }
         return LayoutUnit();
     }

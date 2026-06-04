@@ -323,6 +323,7 @@ set(WebKit_MESSAGES_IN_FILES
     UIProcess/GPU/GPUProcessProxy
 
     UIProcess/Inspector/Agents/ProxyingNetworkAgent
+    UIProcess/Inspector/Agents/ProxyingPageAgent
 
     UIProcess/Inspector/RemoteWebInspectorUIProxy
     UIProcess/Inspector/WebInspectorBackendProxy
@@ -753,6 +754,7 @@ set(WebCore_SERIALIZATION_IN_FILES
     PlatformWheelEvent.serialization.in
     ProtectionSpaceBase.serialization.in
     ScrollTypes.serialization.in
+    SharedTimebase.serialization.in
     WebGPU.serialization.in
 )
 
@@ -830,8 +832,31 @@ endif ()
 
 set(WebKit_GENERATED_SERIALIZERS_SUFFIX cpp)
 
-# Default Swift interop module path; platform files may override this.
+# Default Swift interop module path; matches Xcode's WebKit.xcconfig:
+# SWIFT_INCLUDE_PATHS = $(SRCROOT)/Modules/Internal. Must remain Swift-only —
+# loading WebKit_Internal in a Clang context creates a second parse of the
+# WK*Private headers that conflicts with the WebKit_Private framework module.
 set(WebKit_SWIFT_INTEROP_MODULE_PATH "${WEBKIT_DIR}/Modules/Internal")
+set(WebKit_SWIFT_INTEROP_MODULE_PATH_SWIFT_ONLY TRUE)
+
+# WebCore_Private.modulemap in-tree is a `framework module` that umbrellas the
+# Xcode framework's PrivateHeaders/. CMake stages those headers as a flat
+# directory instead, and umbrellaing it pulls in headers (ANGLEHeaders.h etc.)
+# whose own dependencies aren't on the Swift Clang importer's search path.
+# Expose only what WebBackForwardList.swift names directly; the rest of the
+# WebCore:: types it uses are reachable transitively via WebKit_Internal headers.
+if (ENABLE_BACK_FORWARD_LIST_SWIFT)
+    set(WebCore_Private_SWIFT_MODULEMAP_DIR "${CMAKE_BINARY_DIR}/WebKit/SwiftModules/WebCorePrivate")
+    file(MAKE_DIRECTORY "${WebCore_Private_SWIFT_MODULEMAP_DIR}")
+    file(CONFIGURE OUTPUT "${WebCore_Private_SWIFT_MODULEMAP_DIR}/module.modulemap" CONTENT
+"module WebCore_Private [system] {
+    requires cplusplus
+    header \"${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}/WebCore/DiagnosticLoggingKeys.h\"
+    header \"${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}/WebCore/DiagnosticLoggingClient.h\"
+    export *
+}
+")
+endif ()
 
 WEBKIT_FRAMEWORK_DECLARE(WebKit)
 WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS()
@@ -853,29 +878,16 @@ set(WebKit_SWIFT_CLANG_INCLUDE_DIRS
     ${bmalloc_FRAMEWORK_HEADERS_DIR}
     ${PAL_FRAMEWORK_HEADERS_DIR}
     ${ICU_INCLUDE_DIRS}
-    ${WebKit_CMAKE_MODULEMAP_DIR}
+    ${WebCore_Private_SWIFT_MODULEMAP_DIR}
     ${WebKit_PRIVATE_INCLUDE_DIRECTORIES}
 )
 
 if (NOT APPLE AND SWIFT_REQUIRED)
-    # Export macro stubs – on Linux these expand to __attribute__((visibility))
-    # but per-module PCM compiles don't pull in the config headers that define them.
-    # Define as empty so C++ headers compile cleanly in isolation.
+    # Export-macro stubs, NODELETE=, WK_SUPPORTS_SWIFT_OBJCXX_INTEROP and the
+    # full ENABLE/HAVE/USE config-var set now come from
+    # _WEBKIT_COMPUTE_SWIFT_SHARED_CLANG_FLAGS in WebKitMacros.cmake. Only
+    # Linux-specific importer flags remain here.
     set(WebKit_SWIFT_CLANG_FLAG_PAIRS
-        "-Xcc -DJS_EXPORT_PRIVATE="
-        "-Xcc -DPAL_EXPORT="
-        "-Xcc -DWEBCORE_EXPORT="
-        "-Xcc -DWEBCORE_TESTSUPPORT_EXPORT="
-        "-Xcc -DWK_EXPORT="
-        "-Xcc -DWK_SUPPORTS_SWIFT_OBJCXX_INTEROP=1"
-        "-Xcc -DWTF_EXPORT_PRIVATE="
-
-        # NODELETE expands to [[clang::annotate_type(...)]], a type attribute.
-        # Clang 21 (Swift 6.3 embedded clang) rejects it on function declarations;
-        # nullify it for the Swift module importer since the annotation is only
-        # meaningful to Apple's static analyser.
-        "-Xcc -DNODELETE="
-
         # libstdc++ gates coroutine support in <bits/version.h> behind
         # __glibcxx_want_coroutine.  Swift's Clang 21 compiles <bits/version.h>
         # as a PCM before that flag is set, so __cpp_lib_coroutine stays
@@ -885,28 +897,17 @@ if (NOT APPLE AND SWIFT_REQUIRED)
         "-Xcc -D__glibcxx_want_coroutine=1"
         "-Xcc -fmodule-map-file=${WTF_FRAMEWORK_HEADERS_DIR}/wtf/module.modulemap"
     )
-    # Mirror cmake config variables as -Xcc -D so ENABLE()/HAVE() macros in
-    # C++ headers agree with the regular C++ compilation when the Clang importer
-    # compiles them as part of Swift's C++ interop modules.
-    GET_WEBKIT_CONFIG_VARIABLES(_swift_clang_config_vars)
-    list(REMOVE_DUPLICATES _swift_clang_config_vars)
-    foreach (_var IN LISTS _swift_clang_config_vars)
-        if (${${_var}})
-            list(APPEND WebKit_SWIFT_CLANG_FLAG_PAIRS "-Xcc -D${_var}=1")
-        else ()
-            list(APPEND WebKit_SWIFT_CLANG_FLAG_PAIRS "-Xcc -D${_var}=0")
-        endif ()
-    endforeach ()
-    unset(_swift_clang_config_vars)
     foreach (_dir IN LISTS WebKit_SWIFT_CLANG_INCLUDE_DIRS)
         list(APPEND WebKit_SWIFT_CLANG_FLAG_PAIRS "-Xcc -I${_dir}")
     endforeach ()
     # VFS overlay: inject module.modulemap files for Linux system libraries
     # (glib, libsoup, etc.) that do not ship their own modulemaps.  The overlay
-    # makes them appear inside /usr/include/glib-2.0/ etc. without modifying
-    # the real filesystem.  Both the -typecheck/-emit-clang-header custom command
-    # and the per-file Swift compilation receive the flag via SWIFT_EXTRA_OPTIONS
-    # and target_compile_options respectively.
+    # makes them appear inside the detected ${GLib_INCLUDE_DIR} /
+    # ${Soup3_INCLUDE_DIR} (which may live under /usr or a jhbuild prefix)
+    # without modifying the real filesystem.  Both the
+    # -typecheck/-emit-clang-header custom command and the per-file Swift
+    # compilation receive the flag via SWIFT_EXTRA_OPTIONS and
+    # target_compile_options respectively.
     set(_linux_mm_src "${CMAKE_SOURCE_DIR}/Source/cmake/linux-modulemaps")
     set(_linux_mm_dir "${CMAKE_BINARY_DIR}/linux-modulemaps")
     file(MAKE_DIRECTORY "${_linux_mm_dir}")
@@ -921,8 +922,41 @@ if (NOT APPLE AND SWIFT_REQUIRED)
 
     foreach (_pair IN LISTS WebKit_SWIFT_CLANG_FLAG_PAIRS)
         target_compile_options(WebKit PRIVATE "$<$<COMPILE_LANGUAGE:Swift>:SHELL:${_pair}>")
-        string(REPLACE " " ";" _split "${_pair}")
-        list(APPEND WebKit_SWIFT_EXTRA_OPTIONS ${_split})
+    endforeach ()
+endif ()
+
+if (SWIFT_REQUIRED)
+    set(WebKit_SWIFT_INTEROP_SOURCES
+        UIProcess/ProvisionalPageProxy.cpp
+        UIProcess/RemotePageProxy.cpp
+        UIProcess/ViewGestureController.cpp
+        UIProcess/WebBackForwardList.cpp
+        UIProcess/WebPageProxy.cpp
+        UIProcess/Automation/WebAutomationSession.cpp
+        WebProcess/WebPage/IPCTestingAPI.cpp
+        ${WebKit_DERIVED_SOURCES_DIR}/UIProcess/WebBackForwardListMessageReceiver.cpp
+    )
+    if (APPLE)
+        list(APPEND WebKit_SWIFT_INTEROP_SOURCES
+            UIProcess/API/ios/WKWebViewIOS.mm
+            UIProcess/API/mac/WKWebViewMac.mm
+            UIProcess/ios/ViewGestureControllerIOS.mm
+            UIProcess/mac/ViewGestureControllerMac.mm
+            UIProcess/mac/WebViewImpl.mm
+        )
+    endif ()
+    foreach (_f IN LISTS WebKit_SWIFT_INTEROP_SOURCES)
+        cmake_path(GET _f FILENAME _fn)
+        list(APPEND WebKit_UNIFIED_SOURCE_EXCLUDES "(^|/)${_fn}( |$)")
+    endforeach ()
+
+    # FIXME(rdar://177840132): swiftc -emit-dependencies records imported
+    # clang modulemaps, but sometimes skips individual C++ headers.
+    file(STRINGS "${WebKit_SWIFT_INTEROP_MODULE_PATH}/module.modulemap" _mm_lines REGEX "header \"")
+    foreach (_l IN LISTS _mm_lines)
+        string(REGEX REPLACE ".*header \"(.*)\".*" "\\1" _h "${_l}")
+        cmake_path(ABSOLUTE_PATH _h BASE_DIRECTORY "${WebKit_SWIFT_INTEROP_MODULE_PATH}" NORMALIZE)
+        list(APPEND WebKit_SWIFT_INTEROP_HEADERS "${_h}")
     endforeach ()
 endif ()
 
@@ -956,6 +990,7 @@ macro(GENERATE_MESSAGE_SOURCES _output_source _inputs)
     unset(_outputs)
     foreach (_file IN ITEMS ${_inputs})
         get_filename_component(_name ${_file} NAME_WE)
+        get_filename_component(_dir ${_file} DIRECTORY)
         # Derived .messages.in (LogStream: two-stage gen from LogMessages.in) lives in
         # DerivedSources, not ${WEBKIT_DIR}. The script searches cwd first so finds either;
         # DEPENDS needs the actual path. Check source tree first, then derived.
@@ -968,11 +1003,16 @@ macro(GENERATE_MESSAGE_SOURCES _output_source _inputs)
         else ()
             list(APPEND _input_files ${WebKit_DERIVED_SOURCES_DIR}/${_name}.messages.in)
         endif ()
+        if (_dir)
+            set(_receiver_cpp ${_dir}/${_name}MessageReceiver.cpp)
+        else ()
+            set(_receiver_cpp ${_name}MessageReceiver.cpp)
+        endif ()
         list(APPEND _outputs
-            ${WebKit_DERIVED_SOURCES_DIR}/${_name}MessageReceiver.cpp
+            ${WebKit_DERIVED_SOURCES_DIR}/${_receiver_cpp}
             ${WebKit_DERIVED_SOURCES_DIR}/${_name}Messages.h
         )
-        list(APPEND ${_output_source} ${WebKit_DERIVED_SOURCES_DIR}/${_name}MessageReceiver.cpp)
+        list(APPEND ${_output_source} ${WebKit_DERIVED_SOURCES_DIR}/${_receiver_cpp})
     endforeach ()
 
     list(APPEND ${_output_source}
@@ -993,12 +1033,24 @@ macro(GENERATE_MESSAGE_SOURCES _output_source _inputs)
             ${WEBKIT_DIR}/Scripts/webkit/model.py
             ${WEBKIT_DIR}/Scripts/webkit/parser.py
             ${_input_files}
-        COMMAND ${PYTHON_EXECUTABLE} ${WEBKIT_DIR}/Scripts/generate-message-receiver.py ${WEBKIT_DIR} ${_inputs}
+        COMMAND ${PYTHON_EXECUTABLE} ${WEBKIT_DIR}/Scripts/generate-message-receiver.py --preserve-subdirs ${WEBKIT_DIR} ${_inputs}
         WORKING_DIRECTORY ${WebKit_DERIVED_SOURCES_DIR}
         VERBATIM
     )
+    execute_process(
+        COMMAND ${PYTHON_EXECUTABLE} ${WEBKIT_DIR}/Scripts/generate-message-receiver.py
+            --preserve-subdirs
+            --output-sources ${WebKit_DERIVED_SOURCES_DIR}/SourcesMessageReceivers.txt
+            ${WEBKIT_DIR} ${_inputs}
+        RESULT_VARIABLE _result
+    )
+    if (_result)
+        message(FATAL_ERROR "generate-message-receiver.py --output-sources failed")
+    endif ()
 endmacro()
 GENERATE_MESSAGE_SOURCES(WebKit_DERIVED_SOURCES "${WebKit_MESSAGES_IN_FILES}")
+list(APPEND WebKit_UNIFIED_SOURCE_LIST_FILES SourcesMessageReceivers.txt)
+list(APPEND WebKit_UNIFIED_SOURCE_EXCLUDES "^[A-Za-z0-9_]+MessageReceiver\\.cpp")
 
 # Helper macro which wraps the bindings script
 #   _output_source is a list name which will contain generated sources.(eg. WebKit_SOURCES)
@@ -1259,15 +1311,18 @@ if (ENABLE_BACK_FORWARD_LIST_SWIFT)
     )
 endif ()
 
-list(APPEND WebKit_SOURCES ${WebKit_DERIVED_SOURCES})
-
 if (SWIFT_REQUIRED)
-    # WebKit_SwiftCxxHeader is created by a DEFER CALL, so defer the dep wiring too.
-    add_custom_target(WebKit_DerivedHeadersForSwift DEPENDS ${WebKit_HEADERS} ${WebKit_DERIVED_SOURCES})
-    cmake_language(DEFER CALL add_dependencies WebKit_SwiftCxxHeader WebKit_DerivedHeadersForSwift)
+    list(APPEND WebKit_SOURCES
+        ${WEBKIT_DIR}/Shared/Foundation+Extras.swift
+    )
 endif ()
 
+list(APPEND WebKit_SOURCES ${WebKit_DERIVED_SOURCES})
+
 WEBKIT_COMPUTE_SOURCES(WebKit)
+if (DEFINED WebKit_SWIFT_INTEROP_SOURCES)
+    list(REMOVE_ITEM WebKit_SOURCES ${WebKit_SWIFT_INTEROP_SOURCES})
+endif ()
 
 WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebKit WebKitUIProcess
     PREFIX WebKitUIProcessPrefix.h
@@ -1277,13 +1332,35 @@ WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebKit WebKitWebProcess
     PREFIX WebKitWebProcessPrefix.h
     PREFIX_LANGUAGES CXX OBJCXX
     DIRS WebProcess)
-WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebKit WebKitMessageReceivers
-    PREFIX WebKitMessageReceiversPrefix.h
+WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebKit WebKitGPUProcess
+    PREFIX WebKitGPUProcessPrefix.h
+    PREFIX_LANGUAGES CXX OBJCXX
+    DIRS GPUProcess)
+WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebKit WebKitNetworkProcess
+    PREFIX WebKitNetworkProcessPrefix.h
+    PREFIX_LANGUAGES CXX OBJCXX
+    DIRS NetworkProcess)
+WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebKit WebKitShared
+    PREFIX WebKitSharedPrefix.h
     PREFIX_LANGUAGES CXX OBJCXX
     DIRS DerivedSources)
 
 WEBKIT_FRAMEWORK(WebKit)
 WEBKIT_ADD_PREFIX_HEADER(WebKit WebKitPrefix.h PREFIX_LANGUAGES CXX OBJCXX)
+
+if (DEFINED WebKit_SWIFT_INTEROP_SOURCES)
+    WEBKIT_DEFINE_SUBTARGET(WebKit_SwiftInterop WebKit ${WebKit_SWIFT_INTEROP_SOURCES})
+    WEBKIT_REUSE_PREFIX_HEADER(WebKit_SwiftInterop WebKit WebKitPrefix.h PREFIX_LANGUAGES CXX OBJCXX)
+    target_compile_definitions(WebKit_SwiftInterop PRIVATE WK_COMPILING_SWIFT_INTEROP_SUBTARGET)
+    # Feed objects into the WebKit link via a response file + LINK_DEPENDS so
+    # cmake_object_order_depends_target_WebKit doesn't pick up this sub-target
+    # (and through it, WebKit_SwiftCxxHeader).
+    set(_interop_objs "$<FILTER:$<TARGET_OBJECTS:WebKit_SwiftInterop>,EXCLUDE,\\.(g|p)ch$>")
+    set(_interop_rsp "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/WebKit_SwiftInterop.dir/$<CONFIG>/objects.rsp")
+    file(GENERATE OUTPUT "${_interop_rsp}" CONTENT "$<JOIN:${_interop_objs},\n>")
+    target_link_options(WebKit PRIVATE "@${_interop_rsp}")
+    set_property(TARGET WebKit APPEND PROPERTY LINK_DEPENDS "${_interop_objs};${_interop_rsp}")
+endif ()
 
 if (WebKit_ARC_SOURCES)
     WEBKIT_DEFINE_SUBTARGET(WebKitARC WebKit ${WebKit_ARC_SOURCES})

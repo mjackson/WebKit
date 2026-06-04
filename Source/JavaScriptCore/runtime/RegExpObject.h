@@ -112,6 +112,8 @@ public:
     JSValue matchGlobal(JSGlobalObject*, JSString*);
 
     bool isSymbolMatchFastAndNonObservable();
+    bool isSymbolSearchFastAndNonObservable();
+    bool isSymbolMatchAllFastAndNonObservable();
     bool isSymbolReplaceFastAndNonObservable();
     bool isSymbolSplitFastAndNonObservable();
 

@@ -206,6 +206,16 @@ typedef NSVisualEffectView _WKPlatformVisualEffectView;
 
 - (void)_lastPageLoadNetworkActivityCompletionCodeForTesting:(void(^)(NSNumber * _Nullable completionCode))completionHandler;
 
+#if TARGET_OS_IPHONE
++ (void)_setVisibilityEndowmentForTesting:(BOOL)isVisible;
+#endif
+
+#if defined(ENABLE_HORIZONTAL_BANNER_VIEW_OVERLAYS) && ENABLE_HORIZONTAL_BANNER_VIEW_OVERLAYS
+- (void)_enableColorExtensionBehaviorForHorizontalBannerViewOverlaysForTesting;
+- (void)_disableColorExtensionBehaviorForHorizontalBannerViewOverlaysForTesting;
+- (void)_clearColorExtensionBehaviorOverridesForHorizontalBannerViewOverlaysForTesting;
+#endif
+
 @end
 
 typedef NS_ENUM(NSInteger, _WKMediaSessionReadyState) {

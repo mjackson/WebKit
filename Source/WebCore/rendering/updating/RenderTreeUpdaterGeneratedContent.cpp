@@ -177,8 +177,8 @@ static RenderPtr<RenderObject> createContentRenderer(const Style::Content::Quote
 void RenderTreeUpdater::GeneratedContent::createContentRenderers(RenderTreeBuilder& builder, RenderElement& pseudoRenderer, const RenderStyle& style, PseudoElementType pseudoElementType)
 {
     if (auto* contentData = style.content().tryData()) {
-        auto altText = contentData->altText.value_or(String { nullString() });
-        for (auto& contentItem : contentData->list) {
+        auto altText = contentData->alt.value_or(String { nullString() });
+        for (auto& contentItem : contentData->visible) {
             WTF::switchOn(contentItem,
                 [&](const auto& item) {
                     if (auto child = createContentRenderer(item, altText.value, pseudoRenderer.document(), style); child && pseudoRenderer.isChildAllowed(*child, style))
@@ -228,7 +228,7 @@ void RenderTreeUpdater::GeneratedContent::updateBeforeOrAfterPseudoElement(Eleme
     if (auto* renderer = pseudoElement ? pseudoElement->renderer() : nullptr)
         m_updater.renderTreePosition().invalidateNextSibling(*renderer);
 
-    auto* updateStyle = (elementUpdate.style && elementUpdate.style->hasCachedPseudoStyles()) ? elementUpdate.style->getCachedPseudoStyle({ pseudoElementType }) : nullptr;
+    auto* updateStyle = (elementUpdate.style && elementUpdate.style->hasPseudoElementStyles()) ? elementUpdate.style->pseudoElementStyle({ pseudoElementType }) : nullptr;
 
     // If we end up losing a previous pseudo because the style got removed we need to
     // cancel any animations that were on it so we do not end up thinking we need to keep
@@ -307,7 +307,7 @@ void RenderTreeUpdater::GeneratedContent::updateBackdropRenderer(RenderElement& 
         return;
     }
 
-    auto style = renderer.getCachedPseudoStyle({ PseudoElementType::Backdrop }, &renderer.style());
+    auto style = renderer.style().pseudoElementStyle({ PseudoElementType::Backdrop });
     if (!style || style->display() == Style::DisplayType::None) {
         destroyBackdropIfNeeded();
         return;
@@ -385,7 +385,7 @@ void RenderTreeUpdater::GeneratedContent::updateWritingSuggestionsRenderer(Rende
         return;
     }
 
-    auto style = renderer.getCachedPseudoStyle({ PseudoElementType::InternalWritingSuggestions }, &renderer.style());
+    auto style = renderer.lazyPseudoElementStyle({ PseudoElementType::InternalWritingSuggestions });
     if (!style || style->display() == Style::DisplayType::None) {
         destroyWritingSuggestionsIfNeeded();
         return;

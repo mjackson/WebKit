@@ -34,7 +34,8 @@
 #include "CSSAppleColorFilterValue.h"
 #include "CSSBorderImageSourceValue.h"
 #include "CSSBoxShadowPropertyValue.h"
-#include "CSSCalcValue.h"
+#include "CSSClipValue.h"
+#include "CSSContentValue.h"
 #include "CSSCustomIdentValue.h"
 #include "CSSCustomPropertyValue.h"
 #include "CSSEasingFunctionValue.h"
@@ -47,6 +48,7 @@
 #include "CSSOMKeywordValue.h"
 #include "CSSParser.h"
 #include "CSSPropertyParser.h"
+#include "CSSQuotesValue.h"
 #include "CSSSerializationContext.h"
 #include "CSSShorthandSubstitutionValue.h"
 #include "CSSStyleImageValue.h"
@@ -57,6 +59,7 @@
 #include "CSSTransformListValue.h"
 #include "CSSTransformValue.h"
 #include "CSSURLValue.h"
+#include "CSSUnevaluatedCalc.h"
 #include "CSSUnitValue.h"
 #include "CSSUnparsedValue.h"
 #include "CSSValueList.h"
@@ -220,7 +223,7 @@ static ExceptionOr<Ref<CSSStyleValue>> reifyValue(const T& numeric)
 {
     return WTF::switchOn(numeric,
         [&](const typename T::Calc& calc) -> ExceptionOr<Ref<CSSStyleValue>> {
-            auto result = CSSNumericValue::reifyMathExpression(calc.calcValue().tree());
+            auto result = CSSNumericValue::reifyMathExpression(calc);
             if (result.hasException())
                 return result.releaseException();
             return upcast<CSSStyleValue>(result.releaseReturnValue());
@@ -240,7 +243,7 @@ static ExceptionOr<Ref<CSSStyleValue>> reifyValue(const CSSPrimitiveValue& primi
 {
     return WTF::switchOn(primitiveValue,
         [&](const CSSPrimitiveValue::Calc& calc) -> ExceptionOr<Ref<CSSStyleValue>> {
-            auto result = CSSNumericValue::reifyMathExpression(calc.tree());
+            auto result = CSSNumericValue::reifyMathExpression(calc);
             if (result.hasException())
                 return result.releaseException();
             return upcast<CSSStyleValue>(result.releaseReturnValue());
@@ -311,6 +314,24 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
         if (transformValue.hasException())
             return transformValue.releaseException();
         return Ref<CSSStyleValue> { transformValue.releaseReturnValue() };
+    } else if (RefPtr property = dynamicDowncast<CSSContentValue>(cssValue)) {
+        return WTF::switchOn(property->content(),
+            [&](CSS::SpecificKeyword auto const& keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return WebCore::reifyValue(keyword);
+            },
+            [&](const auto&) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)), WTF::move(associatedProperty));
+            }
+        );
+    } else if (RefPtr property = dynamicDowncast<CSSQuotesValue>(cssValue)) {
+        return WTF::switchOn(property->quotes(),
+            [&](CSS::SpecificKeyword auto const& keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return WebCore::reifyValue(keyword);
+            },
+            [&](const auto&) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)), WTF::move(associatedProperty));
+            }
+        );
     } else if (RefPtr property = dynamicDowncast<CSSFilterValue>(cssValue)) {
         return WTF::switchOn(property->filter(),
             [&](CSS::Keyword::None keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
@@ -431,8 +452,8 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
             [&](CSS::Keyword::None keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
                 return WebCore::reifyValue(keyword);
             },
-            [&](const Ref<CSSValue>& value) -> ExceptionOr<Ref<CSSStyleValue>> {
-                return reifyValue(document, value, WTF::move(associatedProperty));
+            [&](const CSS::ImageWrapper& imageWrapper) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return reifyValue(document, imageWrapper.value, WTF::move(associatedProperty));
             }
         );
     } else if (RefPtr property = dynamicDowncast<CSSMaskBorderSourceValue>(cssValue)) {
@@ -440,8 +461,17 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
             [&](CSS::Keyword::None keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
                 return WebCore::reifyValue(keyword);
             },
-            [&](const Ref<CSSValue>& value) -> ExceptionOr<Ref<CSSStyleValue>> {
-                return reifyValue(document, value, WTF::move(associatedProperty));
+            [&](const CSS::ImageWrapper& imageWrapper) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return reifyValue(document, imageWrapper.value, WTF::move(associatedProperty));
+            }
+        );
+    } else if (RefPtr property = dynamicDowncast<CSSClipValue>(cssValue)) {
+        return WTF::switchOn(property->clip(),
+            [&](CSS::Keyword::Auto keyword) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return WebCore::reifyValue(keyword);
+            },
+            [&](const CSS::ClipRect&) -> ExceptionOr<Ref<CSSStyleValue>> {
+                return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)), WTF::move(associatedProperty));
             }
         );
     } else if (auto* valueList = dynamicDowncast<CSSValueList>(cssValue)) {

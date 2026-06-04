@@ -333,6 +333,7 @@ public:
                     break;
                 case CheckStructure:
                 case StringFromCharCode:
+                case StringFromCodePoint:
                     VALIDATE((node), !!node->child1());
                     break;
                 case PutStructure:
@@ -1018,10 +1019,6 @@ private:
 
                 case InitializeEntrypointArguments:
                     VALIDATE((node), node->entrypointIndex() < m_graph.m_numberOfEntrypoints);
-                    break;
-
-                case GetButterfly:
-                    VALIDATE((node), !node->child1()->isPhantomAllocation());
                     break;
 
                 default:

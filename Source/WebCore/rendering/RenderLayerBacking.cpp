@@ -1341,17 +1341,9 @@ bool RenderLayerBacking::updateConfiguration(const RenderLayer* compositingAnces
     }
 #if ENABLE(MODEL_ELEMENT)
     else if (is<RenderModel>(renderer())) {
-#if ENABLE(GPU_PROCESS_MODEL)
-        auto modelBackgroundColor = rendererBackgroundColor();
-        modelBackgroundColor = modelBackgroundColor.isValid() ? modelBackgroundColor.opaqueColor() : Color::black;
-        m_graphicsLayer->setBackgroundColor(modelBackgroundColor);
-#else
-        auto modelBackgroundColor = rendererBackgroundColor();
-#endif
-
         RefPtr element = downcast<HTMLModelElement>(renderer().element());
 
-        element->configureGraphicsLayer(*m_graphicsLayer, modelBackgroundColor);
+        element->configureGraphicsLayer(*m_graphicsLayer, rendererBackgroundColor());
         element->sizeMayHaveChanged();
 
         layerConfigChanged = true;
@@ -4029,7 +4021,7 @@ void RenderLayerBacking::setContentsNeedDisplay(GraphicsLayer::ShouldClipToLayer
 void RenderLayerBacking::setContentsNeedDisplayInRect(const LayoutRect& r, GraphicsLayer::ShouldClipToLayer shouldClip)
 {
     ASSERT(!paintsIntoCompositedAncestor());
-    
+
     // Use the repaint as a trigger to re-evaluate direct compositing (which is never used on the root layer).
     if (!m_owningLayer.isRenderViewLayer())
         m_owningLayer.setNeedsCompositingConfigurationUpdate();

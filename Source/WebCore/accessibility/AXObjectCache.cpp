@@ -546,6 +546,39 @@ void AXObjectCache::findModalNodes()
     m_modalNodesInitialized = true;
 }
 
+static bool isNodeAccessible(const Node* node)
+{
+    RefPtr element = dynamicDowncast<Element>(node);
+    if (!element)
+        return false;
+
+    CheckedPtr renderer = element->renderer();
+    if (!renderer)
+        return false;
+
+    CheckedRef style = renderer->style();
+    if (style->display() == Style::DisplayType::None)
+        return false;
+
+    if (style->effectiveInert())
+        return false;
+
+    CheckedPtr renderLayer = renderer->enclosingLayer();
+    if (isVisibilityHidden(style) && renderLayer && !renderLayer->hasVisibleContent())
+        return false;
+
+    // Check whether this object or any of its ancestors has opacity 0.
+    // The resulting opacity of a RenderObject is computed as the multiplication
+    // of its opacity times the opacities of its ancestors.
+    for (auto* ancestor = renderer.get(); ancestor; ancestor = ancestor->parent()) {
+        if (ancestor->style().opacity().isTransparent())
+            return false;
+    }
+
+    // We also need to consider aria hidden status.
+    return !equalLettersIgnoringASCIICase(element->attributeWithDefaultARIA(aria_hiddenAttr), "true"_s) || element->focused();
+}
+
 bool AXObjectCache::modalElementHasAccessibleContent(Element& element)
 {
     // Unless you're trying to compute the new modal node, determining whether an element
@@ -572,8 +605,9 @@ bool AXObjectCache::modalElementHasAccessibleContent(Element& element)
 #endif
             }
 
-            // Don't descend into subtrees for non-visible nodes.
-            if (isNodeVisible(node.get()))
+            // Don't descend into subtrees for non-accessible nodes — isNodeAccessible
+            // also skips aria-hidden and inert subtrees, so nothing inside can be accessible content.
+            if (isNodeAccessible(node.get()))
                 nodeStack.append(node->firstChild());
         }
     }
@@ -599,38 +633,36 @@ void AXObjectCache::updateCurrentModalNode()
         }
 
         SetForScope retrievingCurrentModalNode(m_isRetrievingCurrentModalNode, true);
-        // If any of the modal nodes contains the keyboard focus, we want to pick that one.
-        // If multiple contain the keyboard focus, we want the deepest.
-        // If no modal contains focus, we want to pick the last visible dialog in the DOM.
+        // We only ever return a modal that contains the keyboard focus, so
+        // walk up from the focused element to find the deepest focus-containing
+        // modal that's also visible and has accessible content.
         RefPtr<Element> focusedElement = document->focusedElement();
+        if (!focusedElement)
+            return nullptr;
         RefPtr<Element> modalElementToReturn;
-        bool foundModalWithFocusInside = false;
-        for (auto& element : m_modalElements) {
-            // Elements in m_modalElementsSet may have become un-modal since we added them, but not yet removed
-            // as part of the asynchronous m_deferredModalChangedList handling. Skip these.
-            if (!element || !isModalElement(*element))
+        for (RefPtr ancestor = focusedElement; ancestor; ancestor = ancestor->parentOrShadowHostElement()) {
+
+            if (!m_modalElements.containsIf([&ancestor] (auto& modal) {
+                return modal.get() == ancestor.get();
+            }))
                 continue;
 
-            // To avoid trapping users in an empty modal, skip any non-visible element, or any element without accessible content.
-            if (!isNodeVisible(element.get()) || !modalElementHasAccessibleContent(*element))
+            // Elements in m_modalElementsSet may have become un-modal since we added them,
+            // but not yet removed as part of the asynchronous m_deferredModalChangedList
+            // handling. Skip these.
+            if (!isModalElement(*ancestor))
                 continue;
 
-            bool focusIsInsideElement = focusedElement && focusedElement->isInclusiveDescendantOf(*element);
-
-            // If the modal we found previously is a descendant of this one, prefer the descendant and skip this one.
-            if (modalElementToReturn && foundModalWithFocusInside && modalElementToReturn->isDescendantOf(*element))
+            // To avoid trapping users in an empty modal, skip any non-visible
+            // element, or any element without accessible content. Continue
+            // walking the ancestry in case a containing modal is visible and contentful.
+            if (!isNodeAccessible(ancestor.get()) || !modalElementHasAccessibleContent(*ancestor))
                 continue;
-
-            // If we already found a modal that focus is inside, and this one doesn't have focus inside, skip in favor of the one with focus inside.
-            if (modalElementToReturn && foundModalWithFocusInside && !focusIsInsideElement)
-                continue;
-
-            modalElementToReturn = element.get();
-            if (focusIsInsideElement)
-                foundModalWithFocusInside = true;
+            modalElementToReturn = ancestor;
+            break;
         }
 
-        if (!focusedElement || !foundModalWithFocusInside)
+        if (!modalElementToReturn)
             return nullptr;
 
         RefPtr object = getOrCreate(modalElementToReturn.get());
@@ -651,36 +683,6 @@ void AXObjectCache::updateCurrentModalNode()
     }
 }
 
-bool AXObjectCache::isNodeVisible(const Node* node) const
-{
-    RefPtr element = dynamicDowncast<Element>(node);
-    if (!element)
-        return false;
-
-    CheckedPtr renderer = element->renderer();
-    if (!renderer)
-        return false;
-
-    CheckedRef style = renderer->style();
-    if (style->display() == Style::DisplayType::None)
-        return false;
-
-    CheckedPtr renderLayer = renderer->enclosingLayer();
-    if (isVisibilityHidden(style) && renderLayer && !renderLayer->hasVisibleContent())
-        return false;
-
-    // Check whether this object or any of its ancestors has opacity 0.
-    // The resulting opacity of a RenderObject is computed as the multiplication
-    // of its opacity times the opacities of its ancestors.
-    for (auto* ancestor = renderer.get(); ancestor; ancestor = ancestor->parent()) {
-        if (ancestor->style().opacity().isTransparent())
-            return false;
-    }
-
-    // We also need to consider aria hidden status.
-    return !equalLettersIgnoringASCIICase(element->attributeWithDefaultARIA(aria_hiddenAttr), "true"_s) || element->focused();
-}
-
 // This function returns the valid aria modal node.
 Node* AXObjectCache::modalNode()
 {
@@ -692,7 +694,7 @@ Node* AXObjectCache::modalNode()
 
     // Check the cached current valid aria modal node first.
     // Usually when one dialog sets aria-modal=true, that dialog is the one we want.
-    if (isNodeVisible(m_currentModalElement))
+    if (isNodeAccessible(m_currentModalElement))
         return m_currentModalElement;
 
     // Recompute the valid aria modal node when m_currentModalElement is null or hidden.
@@ -946,7 +948,7 @@ Ref<AccessibilityNodeObject> AXObjectCache::createFromNode(Node& node)
     return AccessibilityRenderObject::create(AXID::generate(), node, *this);
 }
 
-void AXObjectCache::cacheAndInitializeWrapper(AccessibilityObject& newObject, DOMObjectVariant domObject)
+void AXObjectCache::cacheAndInitializeWrapper(AccessibilityObject& newObject, DOMObjectVariant domObject, ShouldAttachWrapper shouldAttach)
 {
     AXID axID = newObject.objectID();
 
@@ -970,7 +972,8 @@ void AXObjectCache::cacheAndInitializeWrapper(AccessibilityObject& newObject, DO
 
     m_objects.set(axID, newObject);
     newObject.init();
-    attachWrapper(newObject);
+    if (shouldAttach == ShouldAttachWrapper::Yes)
+        attachWrapper(newObject);
 }
 
 AccessibilityObject* AXObjectCache::exportedGetOrCreate(Node* node)
@@ -1007,19 +1010,16 @@ void AXObjectCache::onLaidOutInlineContent(const RenderBlockFlow& renderBlock)
     setDirtyStitchGroups(renderBlock);
 }
 
-AccessibilityObject* AXObjectCache::getOrCreate(Widget& widget)
+AccessibilityObject* AXObjectCache::getOrCreateSlow(Widget& widget)
 {
-    if (RefPtr object = get(widget))
-        return object.unsafeGet();
+    // `get` for this Widget should've been attempted before calling this method.
+    AX_ASSERT(!get(widget));
 
     RefPtr<AccessibilityObject> newObject;
     if (auto* scrollView = dynamicDowncast<ScrollView>(widget))
         newObject = AccessibilityScrollView::create(AXID::generate(), *scrollView, *this);
     else if (auto* scrollbar = dynamicDowncast<Scrollbar>(widget))
         newObject = AccessibilityScrollbar::create(AXID::generate(), *scrollbar, *this);
-
-    // Will crash later if we have two objects for the same widget.
-    AX_ASSERT(!get(widget));
 
     // Ensure we weren't given an unsupported widget type.
     AX_ASSERT(newObject);
@@ -1319,7 +1319,11 @@ AccessibilityObject* AXObjectCache::create(AccessibilityRole role)
     if (!object)
         return nullptr;
 
-    cacheAndInitializeWrapper(*object);
+    // AccessibilityRole::LocalFrame proxies a child frame's root web area in its parent's
+    // accessibility tree. AccessibilityScrollView::addLocalFrameChild() installs that child
+    // root's wrapper on the AXLocalFrame via setWrapperFrom(); attaching one here would
+    // immediately be discarded.
+    cacheAndInitializeWrapper(*object, /* DOMObjectVariant */ nullptr, role == AccessibilityRole::LocalFrame ? ShouldAttachWrapper::No : ShouldAttachWrapper::Yes);
     return object.unsafeGet();
 }
 
@@ -2479,7 +2483,8 @@ void AXObjectCache::onPostRenderingUpdate()
     // entire subtree of each becomes permanently visible.
     for (RefPtr ancestor = focusTarget.get(); ancestor; ancestor = ancestor->parentElementInComposedTree()) {
         auto tag = ancestor->localName();
-        if (tag == bodyTag || tag == htmlTag)
+        // FIXME: Should these be hasTagName() checks to also enforce the namespace?
+        if (bodyTag->hasLocalName(tag) || htmlTag->hasLocalName(tag))
             break;
 
         if (!equalLettersIgnoringASCIICase(ancestor->attributeWithDefaultARIA(aria_hiddenAttr), "true"_s))

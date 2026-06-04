@@ -569,10 +569,6 @@ static Class s_pdfRepresentationClass;
 static Class s_pdfViewClass;
 #endif
 
-#ifndef NDEBUG
-static const char webViewIsOpen[] = "At least one WebView is still open.";
-#endif
-
 #if PLATFORM(IOS_FAMILY)
 @interface WebView(WebViewPrivate)
 - (void)_preferencesChanged:(WebPreferences *)preferences;
@@ -5025,7 +5021,7 @@ IGNORE_WARNINGS_END
     initialized = YES;
 
     if (WTF::CocoaApplication::shouldOSFaultLogForAppleApplicationUsingWebKit1())
-        RELEASE_LOG_FAULT_WITH_PAYLOAD(Threading, "WebView initialized");
+        RELEASE_LOG_FAULT_WITH_PAYLOAD(View, "WebView initialized");
 
     WebCore::initializeMainThreadIfNeeded();
 

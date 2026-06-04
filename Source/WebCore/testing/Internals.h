@@ -278,6 +278,7 @@ public:
     void setImageAnimationEnabled(bool);
     void resumeImageAnimation(HTMLImageElement&);
     void pauseImageAnimation(HTMLImageElement&);
+    void NODELETE setVideoAutoplayPreviewsEnabled(bool);
     unsigned NODELETE imagePendingDecodePromisesCountForTesting(HTMLImageElement&);
     void setClearDecoderAfterAsyncFrameRequestForTesting(HTMLImageElement&, bool enabled);
     unsigned imageDecodeCount(HTMLImageElement&);
@@ -442,6 +443,8 @@ public:
     ExceptionOr<void> scrollElementToRect(Element&, int x, int y, int w, int h);
 
     ExceptionOr<String> autofillFieldName(Element&);
+
+    void allowAutofillForCurrentWorld(JSC::JSGlobalObject&);
 
     ExceptionOr<void> invalidateControlTints();
 
@@ -1170,6 +1173,8 @@ public:
     void whenServiceWorkerIsTerminated(ServiceWorker&, DOMPromiseDeferred<void>&&);
     NO_RETURN_DUE_TO_CRASH void terminateWebContentProcess();
 
+    void numberOfWebSocketChannelsInNetworkProcess(DOMPromiseDeferred<IDLUnsignedLong>&&);
+
 #if ENABLE(APPLE_PAY)
     ExceptionOr<Ref<MockPaymentCoordinator>> mockPaymentCoordinator(Document&);
 #endif
@@ -1318,6 +1323,7 @@ public:
     size_t mediaElementCount() const;
 
     void setMediaElementVolumeLocked(HTMLMediaElement&, bool);
+    String mediaElementViewportVisibility(HTMLMediaElement&);
 
 #if ENABLE(SPEECH_SYNTHESIS)
     SpeechSynthesisUtterance* NODELETE speechSynthesisUtteranceForCue(const VTTCue&);
@@ -1661,7 +1667,6 @@ public:
     ExceptionOr<void> lowerAllFrameMemoryMonitorLimits();
 
 #if ENABLE(CONTENT_EXTENSIONS)
-    void setResourceMonitorNetworkUsageThreshold(size_t threshold, double randomness = ResourceMonitorChecker::defaultNetworkUsageThresholdRandomness);
     bool NODELETE shouldSkipResourceMonitorThrottling() const;
     void NODELETE setShouldSkipResourceMonitorThrottling(bool);
 #endif

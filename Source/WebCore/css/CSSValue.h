@@ -40,8 +40,6 @@ class CSSStyleDeclaration;
 class CSSToLengthConversionData;
 class CachedResource;
 class DeprecatedCSSOMValue;
-class Quad;
-class Rect;
 
 struct ComputedStyleDependencies;
 
@@ -80,12 +78,15 @@ public:
     bool isBorderImageSourceValue() const { return m_classType == ClassType::BorderImageSource; }
     bool isBorderImageWidthValue() const { return m_classType == ClassType::BorderImageWidth; }
     bool isBoxShadowPropertyValue() const { return m_classType == ClassType::BoxShadowProperty; }
+    bool isColorImageValue() const { return m_classType == ClassType::ColorImage; }
+    bool isLightDarkImageValue() const { return m_classType == ClassType::LightDarkImage; }
     bool isCanvasValue() const { return m_classType == ClassType::Canvas; }
+    bool isClipValue() const { return m_classType == ClassType::Clip; }
     bool isColor() const { return m_classType == ClassType::Color; }
 #if ENABLE(DARK_MODE_CSS)
     bool isColorScheme() const { return m_classType == ClassType::ColorScheme; }
 #endif
-    bool isCounter() const { return m_classType == ClassType::Counter; }
+    bool isContentValue() const { return m_classType == ClassType::Content; }
     bool isCrossfadeValue() const { return m_classType == ClassType::Crossfade; }
     bool isCursorImageValue() const { return m_classType == ClassType::CursorImage; }
     bool isCustomIdentValue() const { return m_classType == ClassType::CustomIdent; }
@@ -128,10 +129,9 @@ public:
     bool isPositionXValue() const { return m_classType == ClassType::PositionX; }
     bool isPositionYValue() const { return m_classType == ClassType::PositionY; }
     bool isPrimitiveValue() const { return m_classType == ClassType::Primitive; }
-    bool isQuad() const { return m_classType == ClassType::Quad; }
+    bool isQuotesValue() const { return m_classType == ClassType::Quotes; }
     bool isRatioValue() const { return m_classType == ClassType::Ratio; }
     bool isRayValue() const { return m_classType == ClassType::Ray; }
-    bool isRect() const { return m_classType == ClassType::Rect; }
     bool isScrollValue() const { return m_classType == ClassType::Scroll; }
     bool isStringValue() const { return m_classType == ClassType::String; }
     bool isTextShadowPropertyValue() const { return m_classType == ClassType::TextShadowProperty; }
@@ -185,11 +185,10 @@ public:
 
     inline const CSSValue& first() const; // CSSValuePair
     inline const CSSValue& second() const; // CSSValuePair
-    inline const Quad& quad() const; // CSSValueQuad
-    inline const Rect& rect() const; // CSSSValueRect
 
     bool customMayDependOnBaseURL() const { return false; }
     IterationStatus customVisitChildren(NOESCAPE const Function<IterationStatus(CSSValue&)>&) const { return IterationStatus::Continue; }
+    Ref<DeprecatedCSSOMValue> customCreateDeprecatedCSSOMWrapper(CSSStyleDeclaration&) const;
 
     static ASCIILiteral separatorCSSText(ValueSeparator);
 
@@ -207,6 +206,8 @@ protected:
         Canvas,
         PaintImage,
         NamedImage,
+        ColorImage,
+        LightDarkImage,
         Crossfade,
         FilterImage,
         Gradient,
@@ -222,11 +223,12 @@ protected:
         BorderImageSource,
         BorderImageWidth,
         BoxShadowProperty,
+        Clip,
         Color,
 #if ENABLE(DARK_MODE_CSS)
         ColorScheme,
 #endif
-        Counter,
+        Content,
         CustomIdent,
         CustomProperty,
         DynamicRangeLimit,
@@ -257,10 +259,9 @@ protected:
         Position,
         PositionX,
         PositionY,
-        Quad,
+        Quotes,
         Ratio,
         Ray,
-        Rect,
         Scroll,
         TextShadowProperty,
         URL,

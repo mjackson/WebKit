@@ -99,33 +99,40 @@ if (SWIFT_REQUIRED AND NOT (PORT STREQUAL GTK OR PORT STREQUAL WPE))
         ${PAL_DIR}/pal/crypto/CryptoKitShim.swift
     )
 
-    # Use -Xcc -I for ALL include paths (like Xcode does). Plain -I triggers
-    # Swift's own module discovery which causes C++ stdlib module conflicts.
-    set(PAL_SWIFT_INCLUDE_DIRECTORIES "")
-
-    set(PAL_SWIFT_EXTRA_OPTIONS
-        "-import-underlying-module"
-        "-strict-memory-safety"
-        "-swift-version" "6"
-        "-Xcc" "-I${PAL_FRAMEWORK_HEADERS_DIR}"
-        "-Xcc" "-I${CMAKE_BINARY_DIR}/WTF/Headers"
-        "-Xcc" "-I${CMAKE_BINARY_DIR}/bmalloc/Headers"
-        "-Xcc" "-I${CMAKE_BINARY_DIR}"
-        "-Xcc" "-I${PAL_DERIVED_SOURCES_DIR}"
-    )
-    # Bundled ICU shadows SDK ICU in explicit module builds on iOS.
-    if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
-        list(APPEND PAL_SWIFT_EXTRA_OPTIONS "-Xcc" "-I${CMAKE_BINARY_DIR}/ICU/Headers")
+    if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        # iOS Swift compiles transitively load UIKit→UIKitCore→WebKit_Private,
+        # whose PCM build needs our project -Xcc flags. Explicit modules let
+        # libSwiftScan pre-build PCMs with the right context.
+        set(PAL_SWIFT_EXPLICIT_MODULE_BUILD TRUE)
     endif ()
+
+    # Create a separate sub-module for Swift interop so the rest of compilation
+    # doesn't have to wait on generating the Swift interop header.
+    set(PAL_SWIFT_INTEROP_SOURCES
+        crypto/CryptoAlgorithmAESGCMCocoa.cpp
+        crypto/CryptoAlgorithmAESKWCocoaBridging.cpp
+        crypto/CryptoAlgorithmEd25519CocoaBridging.cpp
+        crypto/CryptoAlgorithmHKDFCocoaBridging.cpp
+        crypto/CryptoAlgorithmHMACCocoaBridging.cpp
+        crypto/CryptoAlgorithmX25519CocoaBridging.cpp
+        crypto/CryptoEDKeyBridging.cpp
+        crypto/PlatformECKey.cpp
+
+        crypto/commoncrypto/CryptoDigestCommonCrypto.cpp
+    )
+    list(REMOVE_ITEM PAL_SOURCES ${PAL_SWIFT_INTEROP_SOURCES})
+    list(APPEND PAL_INTERFACE_LIBRARIES "$<TARGET_OBJECTS:PAL_SwiftInterop>")
+
+    # FIXME(rdar://177840132): swiftc -emit-dependencies records imported
+    # clang modulemaps, but sometimes skips individual C++ headers.
+    set(PAL_SWIFT_INTEROP_HEADERS ${PAL_PUBLIC_HEADERS})
 
     WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER(PAL pal
         "${PAL_FRAMEWORK_HEADERS_DIR}/pal"
         "PALSwift-Generated.h")
 
-    # Also pass these options to CMake's native Swift compilation (the macro
-    # only adds them to the custom typecheck command). SHELL: keeps multi-token
-    # groups (-swift-version 6, -Xcc -I<path>) together; without it CMake
-    # deduplicates repeated -Xcc tokens, leaving -I paths unguarded.
+    # SHELL: keeps multi-token groups (-swift-version 6, -Xcc -I<path>) together;
+    # without it CMake deduplicates repeated -Xcc tokens, leaving -I paths unguarded.
     # https://bugs.webkit.org/show_bug.cgi?id=312105
     target_compile_options(PAL PRIVATE
         "$<$<COMPILE_LANGUAGE:Swift>:-import-underlying-module>"
@@ -142,6 +149,12 @@ endif ()
 
 WEBKIT_FRAMEWORK(PAL)
 WEBKIT_ADD_PREFIX_HEADER(PAL PALPrefix.h PREFIX_LANGUAGES CXX OBJCXX)
+
+if (DEFINED PAL_SWIFT_INTEROP_SOURCES)
+    WEBKIT_DEFINE_SUBTARGET(PAL_SwiftInterop PAL ${PAL_SWIFT_INTEROP_SOURCES})
+    target_precompile_headers(PAL_SwiftInterop REUSE_FROM PAL)
+    add_dependencies(PAL_SwiftInterop PAL_CopyHeaders)
+endif ()
 
 # Must come after WEBKIT_FRAMEWORK() which adds -warnings-as-errors.
 target_compile_options(PAL PRIVATE "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xfrontend -no-warnings-as-errors>")

@@ -2,7 +2,7 @@
  * Copyright (C) 1999 Lars Knoll (knoll@kde.org)
  * Copyright (C) 2004-2005 Allan Sandfeld Jensen (kde@carewolf.com)
  * Copyright (C) 2006, 2007 Nicholas Shanks (webkit@nickshanks.com)
- * Copyright (C) 2005-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2005-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2007 Alexey Proskuryakov <ap@webkit.org>
  * Copyright (C) 2007, 2008 Eric Seidel <eric@webkit.org>
  * Copyright (C) 2008, 2009 Torch Mobile Inc. All rights reserved. (http://www.torchmobile.com/)
@@ -278,13 +278,11 @@ OptionSet<EventListenerRegionType> Adjuster::computeEventListenerRegionTypes(con
         findListeners(eventNames().pointeroutEvent, EventListenerRegionType::PointerOut, EventListenerRegionType::NonPassivePointerOut);
         findListeners(eventNames().pointeroverEvent, EventListenerRegionType::PointerOver, EventListenerRegionType::NonPassivePointerOver);
         findListeners(eventNames().pointerupEvent, EventListenerRegionType::PointerUp, EventListenerRegionType::NonPassivePointerUp);
-#if ENABLE(TOUCH_EVENTS)
         if (document.quirks().shouldDispatchSimulatedMouseEvents(&eventTarget)) {
             findListeners(eventNames().mousedownEvent, EventListenerRegionType::MouseDown, EventListenerRegionType::NonPassiveMouseDown);
             findListeners(eventNames().mouseupEvent, EventListenerRegionType::MouseUp, EventListenerRegionType::NonPassiveMouseUp);
             findListeners(eventNames().mousemoveEvent, EventListenerRegionType::MouseMove, EventListenerRegionType::NonPassiveMouseMove);
         }
-#endif
 
         findListeners(eventNames().gesturechangeEvent, EventListenerRegionType::GestureChange, EventListenerRegionType::NonPassiveGestureChange);
         findListeners(eventNames().gestureendEvent, EventListenerRegionType::GestureEnd, EventListenerRegionType::NonPassiveGestureEnd);
@@ -441,15 +439,7 @@ void Adjuster::adjust(RenderStyle& style) const
 {
     if (style.display() == DisplayType::Contents)
         adjustDisplayContentsStyle(style);
-
-    if (m_element && (m_element->hasTagName(frameTag) || m_element->hasTagName(framesetTag))) {
-        // Framesets ignore display, position and float properties.
-        style.setPosition(PositionType::Static);
-        style.setDisplayMaintainingOriginalDisplay(DisplayType::BlockFlow);
-        style.setFloating(Float::None);
-    }
-
-    if (style.display() != DisplayType::None && style.display() != DisplayType::Contents) {
+    else if (style.display() != DisplayType::None) {
         if (RefPtr element = m_element) {
             // Tables never support the -webkit-* values for text-align and will reset back to the default.
             if (is<HTMLTableElement>(*element) && (style.textAlign() == TextAlign::WebKitLeft || style.textAlign() == TextAlign::WebKitCenter || style.textAlign() == TextAlign::WebKitRight))
@@ -812,10 +802,16 @@ static bool NODELETE hasEffectiveDisplayNoneForDisplayContents(const Element& el
 {
     using namespace ElementNames;
 
+    // According to the CSS Display spec[1], nested <svg> elements, <g>,
+    // <use>, and <tspan> elements are not rendered and their children are
+    // "hoisted". For other elements display:contents behaves as display:none.
     // https://drafts.csswg.org/css-display-3/#unbox-svg
-    // FIXME: <g>, <use> and <tspan> have special (?) behavior for display:contents in the current draft spec.
-    if (is<SVGElement>(element))
-        return true;
+    if (auto* svgElement = dynamicDowncast<SVGElement>(element)) {
+        bool isOutermostSVG = svgElement->isOutermostSVGSVGElement();
+        if (isOutermostSVG || (!svgElement->hasTagName(SVGNames::svgTag) && !svgElement->hasTagName(SVGNames::tspanTag) && !svgElement->hasTagName(SVGNames::gTag) && !svgElement->hasTagName(SVGNames::useTag)))
+            return true;
+        return false;
+    }
 #if ENABLE(MATHML)
     // Not sure MathML code can handle it.
     if (is<MathMLElement>(element))

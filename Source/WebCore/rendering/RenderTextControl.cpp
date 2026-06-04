@@ -31,6 +31,7 @@
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderElementStyleInlines.h"
 #include "RenderElementInlines.h"
+#include "RenderFlexibleBox.h"
 #include "RenderText.h"
 #include "RenderTextControlSingleLine.h"
 #include "RenderTheme.h"
@@ -131,7 +132,8 @@ RenderBox::LogicalExtentComputedValues RenderTextControl::computeLogicalHeight(L
         
         // FIXME: The logical height of the inner text box should have been added
         // before calling computeLogicalHeight to avoid this hack.
-        cacheIntrinsicContentLogicalHeightForFlexItem(logicalHeight);
+        if (CheckedPtr flexContainer = dynamicDowncast<RenderFlexibleBox>(parent()))
+            flexContainer->setFlexItemContentLogicalHeightIfNeeded(*this, logicalHeight);
         
         logicalHeight += borderAndPaddingLogicalHeight();
     }
@@ -172,29 +174,28 @@ float RenderTextControl::scaleEmToUnits(int x) const
     return roundf(style().fontCascade().size() * x / unitsPerEm);
 }
 
-void RenderTextControl::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
+std::pair<LayoutUnit, LayoutUnit> RenderTextControl::computeIntrinsicLogicalWidths() const
 {
     if (style().fieldSizing() == FieldSizing::Content) {
-        RenderBlockFlow::computeIntrinsicLogicalWidths(minLogicalWidth, maxLogicalWidth);
+        auto [minLogicalWidth, maxLogicalWidth] = RenderBlockFlow::computeIntrinsicLogicalWidths();
         RefPtr placeholder = textFormControlElement().placeholderElement();
         CheckedPtr placeholderBox = placeholder ? placeholder->renderBox() : nullptr;
         if (RefPtr input = placeholderBox ? dynamicDowncast<HTMLInputElement>(textFormControlElement()) : nullptr) {
             auto decoration = LayoutUnit::fromFloatCeil(input->decorationWidth(maxLogicalWidth));
-            minLogicalWidth = std::max(minLogicalWidth, placeholderBox->minPreferredLogicalWidth() + decoration);
-            maxLogicalWidth = std::max(maxLogicalWidth, placeholderBox->maxPreferredLogicalWidth() + decoration);
+            minLogicalWidth = std::max(minLogicalWidth, placeholderBox->minContentLogicalWidthContribution() + decoration);
+            maxLogicalWidth = std::max(maxLogicalWidth, placeholderBox->maxContentLogicalWidthContribution() + decoration);
         }
-        return;
+        return { minLogicalWidth, maxLogicalWidth };
     }
 
     if (shouldApplySizeOrInlineSizeContainment()) {
-        if (auto width = explicitIntrinsicInnerLogicalWidth()) {
-            minLogicalWidth = width.value();
-            maxLogicalWidth = width.value();
-        }
-        return;
+        if (auto width = explicitIntrinsicInnerLogicalWidth())
+            return { width.value(), width.value() };
+        return { };
     }
     // Use average character width. Matches IE.
-    maxLogicalWidth = preferredContentLogicalWidth(const_cast<RenderTextControl*>(this)->getAverageCharWidth());
+    auto minLogicalWidth = LayoutUnit { };
+    auto maxLogicalWidth = preferredContentLogicalWidth(const_cast<RenderTextControl*>(this)->getAverageCharWidth());
     maxLogicalWidth = RenderTheme::singleton().adjustedMaximumLogicalWidthForControl(style(), textFormControlElement(), maxLogicalWidth);
 
     auto& logicalWidth = style().logicalWidth();
@@ -202,28 +203,30 @@ void RenderTextControl::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidt
         minLogicalWidth = std::max(0_lu, Style::evaluate<LayoutUnit>(logicalWidth, 0_lu, style().usedZoomForLength()));
     else if (!logicalWidth.isPercent())
         minLogicalWidth = maxLogicalWidth;
+
+    return { minLogicalWidth, maxLogicalWidth };
 }
 
-void RenderTextControl::computePreferredLogicalWidths()
+void RenderTextControl::computeIntrinsicLogicalWidthContributions()
 {
-    ASSERT(needsPreferredLogicalWidthsUpdate());
+    ASSERT(hasInvalidContentLogicalWidths());
     if (style().fieldSizing() == FieldSizing::Content) {
-        RenderBlockFlow::computePreferredLogicalWidths();
+        RenderBlockFlow::computeIntrinsicLogicalWidthContributions();
         return;
     }
 
-    m_minPreferredLogicalWidth = 0;
-    m_maxPreferredLogicalWidth = 0;
+    m_minContentLogicalWidthContribution = 0_lu;
+    m_maxContentLogicalWidthContribution = 0_lu;
 
     if (auto fixedLogicalWidth = style().logicalWidth().tryFixed(); fixedLogicalWidth && fixedLogicalWidth->isPositiveOrZero()) {
-        m_maxPreferredLogicalWidth = adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalWidth);
-        m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth;
+        m_maxContentLogicalWidthContribution = adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalWidth);
+        m_minContentLogicalWidthContribution = m_maxContentLogicalWidthContribution;
     } else
-        computeIntrinsicLogicalWidths(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
+        std::tie(m_minContentLogicalWidthContribution, m_maxContentLogicalWidthContribution) = computeIntrinsicLogicalWidths();
 
-    constrainPreferredLogicalWidthsByMinMax(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
+    constrainIntrinsicLogicalWidthsByMinMax(m_minContentLogicalWidthContribution, m_maxContentLogicalWidthContribution);
 
-    clearNeedsPreferredWidthsUpdate();
+    clearContentLogicalWidthsInvalidation();
 }
 
 void RenderTextControl::layoutExcludedChildren(RelayoutChildren relayoutChildren)

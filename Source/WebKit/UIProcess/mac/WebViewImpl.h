@@ -36,6 +36,7 @@
 #include "EditorState.h"
 #include "ImageAnalysisUtilities.h"
 #include "PDFPluginIdentifier.h"
+#include "TransientZoomState.h"
 #include "WKLayoutMode.h"
 #include "WebMouseEvent.h"
 #include <WebCore/DOMPasteAccess.h>
@@ -582,8 +583,8 @@ public:
     void shareSheetDidDismiss(WKShareSheet *);
 
 #if ENABLE(WEB_AUTHN)
-    void showDigitalCredentialsPicker(const WebCore::DigitalCredentialsRequestData&, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&, WKWebView*);
-    void dismissDigitalCredentialsPicker(WTF::CompletionHandler<void(bool)>&&, WKWebView*);
+    void showDigitalCredentialsChooser(const WebCore::DigitalCredentialsRequestData&, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&, WKWebView*);
+    void dismissDigitalCredentialsChooser(WTF::CompletionHandler<void(bool)>&&, WKWebView*);
 #endif
 
     _WKRemoteObjectRegistry *remoteObjectRegistry();
@@ -694,6 +695,7 @@ public:
 
     void selectedRangeWithCompletionHandler(void(^)(NSRange));
     void hasMarkedTextWithCompletionHandler(void(^)(BOOL hasMarkedText));
+    void isMarkedTextRequiredForCompositionWithCompletionHandler(void(^)(BOOL isMarkedTextRequiredForComposition));
     void markedRangeWithCompletionHandler(void(^)(NSRange));
     void attributedSubstringForProposedRange(NSRange, void(^)(NSAttributedString *attrString, NSRange actualRange));
     void firstRectForCharacterRange(NSRange, void(^)(NSRect firstRect, NSRange actualRange));
@@ -863,6 +865,13 @@ public:
     void setClientImplicitlyRequestedTopScrollPocket();
 #endif
 
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+    CGFloat webContentDistanceFromLeftEdge() const { return m_webContentDistanceFromLeftEdge; }
+    CGFloat webContentDistanceFromRightEdge() const { return m_webContentDistanceFromRightEdge; }
+    void didUpdateTransientZoomStateForScrollPocket(std::optional<TransientZoomState>);
+    void updateWebContentDistancesFromEdges();
+#endif
+
 #if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     void setBannerView(WKBannerView *);
     WKBannerView *bannerView() const LIFETIME_BOUND { return m_bannerView.get(); }
@@ -905,7 +914,7 @@ private:
     void fulfillDeferredImageAnalysisOverlayViewHierarchyTask();
 #endif
 
-    bool pageIsScrolledToTop() const { return m_lastPageScrollPosition.y() <= 0; }
+    bool pageIsScrolledToTop() const { return m_lastPageScrollOffset.y() <= 0; }
     void pageScrollingHysteresisFired(PAL::HysteresisState);
 
     bool hasContentRelativeChildViews() const;
@@ -1149,7 +1158,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 #endif
 #endif
 
-    WebCore::IntPoint m_lastPageScrollPosition;
+    WebCore::IntPoint m_lastPageScrollOffset;
     bool m_isRegisteredScrollViewSeparatorTrackingAdapter { false };
     NSRect m_lastScrollViewFrame { NSZeroRect };
 
@@ -1190,6 +1199,15 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     RetainPtr<NSScrollPocket> m_topScrollPocket;
     RetainPtr<NSHashTable<NSView *>> m_viewsAboveScrollPocket;
     bool m_clientImplicitlyRequestedTopScrollPocket { false };
+#endif
+
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+    CGFloat m_webContentDistanceFromLeftEdge { 0 };
+    CGFloat m_webContentDistanceFromRightEdge { 0 };
+    CGSize m_lastPageContentsSize { 0, 0 };
+    std::optional<TransientZoomState> m_transientZoomStateForScrollPocket;
+    std::optional<WebCore::IntPoint> m_scrollOffsetBeforeTransientZoom;
+    std::optional<double> m_pageScaleBeforeTransientZoom;
 #endif
 
 #if ENABLE(TOP_BANNER_VIEW_OVERLAYS)

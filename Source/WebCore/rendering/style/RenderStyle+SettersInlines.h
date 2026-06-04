@@ -102,11 +102,6 @@ inline void RenderStyle::setIsLink(bool isLink)
     m_computedStyle.setIsLink(isLink);
 }
 
-inline void RenderStyle::setEmptyState(bool emptyState)
-{
-    m_computedStyle.setEmptyState(emptyState);
-}
-
 inline void RenderStyle::setFirstChildState()
 {
     m_computedStyle.setFirstChildState();
@@ -259,9 +254,9 @@ inline void RenderStyle::setPseudoElementIdentifier(std::optional<Style::PseudoE
     m_computedStyle.setPseudoElementIdentifier(WTF::move(identifier));
 }
 
-inline RenderStyle* RenderStyle::addCachedPseudoStyle(std::unique_ptr<RenderStyle> pseudo)
+inline RenderStyle* RenderStyle::addPseudoElementStyle(std::unique_ptr<RenderStyle> pseudo)
 {
-    return m_computedStyle.addCachedPseudoStyle(WTF::move(pseudo));
+    return m_computedStyle.addPseudoElementStyle(WTF::move(pseudo));
 }
 
 // MARK: - Custom properties
@@ -307,6 +302,11 @@ inline void RenderStyle::setUseSVGZoomRulesForLength(bool value)
 inline bool RenderStyle::setUsedZoom(float zoomLevel)
 {
     return m_computedStyle.setUsedZoom(zoomLevel);
+}
+
+inline void RenderStyle::setDeviceScaleFactor(float deviceScaleFactor)
+{
+    m_computedStyle.setDeviceScaleFactor(deviceScaleFactor);
 }
 
 // MARK: - Aggregates

@@ -62,7 +62,6 @@
 #include "Logging.h"
 #include "MouseEventTypes.h"
 #include "MutationEvent.h"
-#include "NameValidation.h"
 #include "NodeName.h"
 #include "NodeRareDataInlines.h"
 #include "NodeRenderStyle.h"
@@ -818,14 +817,6 @@ const AtomString& Node::prefix() const
     return nullAtom();
 }
 
-ExceptionOr<void> Node::setPrefix(const AtomString&)
-{
-    // The spec says that for nodes other than elements and attributes, prefix is always null.
-    // It does not say what to do when the user tries to set the prefix on another type of
-    // node, however Mozilla throws a NamespaceError exception.
-    return Exception { ExceptionCode::NamespaceError };
-}
-
 const AtomString& Node::localName() const
 {
     return nullAtom();
@@ -1147,27 +1138,6 @@ NodeListsNodeData* Node::nodeLists()
 void Node::clearNodeLists()
 {
     rareData()->clearNodeLists();
-}
-
-ExceptionOr<void> Node::checkSetPrefix(const AtomString& prefix)
-{
-    // Perform error checking as required by spec for setting Node.prefix. Used by
-    // Element::setPrefix() and Attr::setPrefix()
-
-    if (!prefix.isEmpty() && !NameValidation::isValidNamespacePrefix(prefix))
-        return Exception { ExceptionCode::InvalidCharacterError };
-
-    // FIXME: Raise NamespaceError if prefix is malformed per the Namespaces in XML specification.
-
-    auto& namespaceURI = this->namespaceURI();
-    if (namespaceURI.isEmpty() && !prefix.isEmpty())
-        return Exception { ExceptionCode::NamespaceError };
-    if (prefix == xmlAtom() && namespaceURI != XMLNames::xmlNamespaceURI)
-        return Exception { ExceptionCode::NamespaceError };
-
-    // Attribute-specific checks are in Attr::setPrefix().
-
-    return { };
 }
 
 // https://dom.spec.whatwg.org/#concept-tree-descendant
@@ -2116,12 +2086,12 @@ void NodeListsNodeData::invalidateCachesForAttribute(const QualifiedName& attrNa
         collection.value->invalidateCacheForAttribute(attrName);
 }
 
-void Node::getSubresourceURLs(ListHashSet<URL>& urls) const
+void Node::getSubresourceURLs(OrderedHashSet<URL>& urls) const
 {
     addSubresourceAttributeURLs(urls);
 }
 
-void Node::getCandidateSubresourceURLs(ListHashSet<URL>& urls) const
+void Node::getCandidateSubresourceURLs(OrderedHashSet<URL>& urls) const
 {
     addCandidateSubresourceURLs(urls);
 }

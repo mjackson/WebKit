@@ -940,13 +940,12 @@ writeH("OpcodeGenerated") {
     outp.puts "#undef MemoryFence"
 
     outp.puts "namespace WTF {"
-    outp.puts "using namespace JSC::B3::Air;"
-    outp.puts "void printInternal(PrintStream& out, Opcode opcode)"
+    outp.puts "void printInternal(PrintStream& out, JSC::B3::Air::Opcode opcode)"
     outp.puts "{"
     outp.puts "    switch (opcode) {"
     $opcodes.keys.each {
         | opcode |
-        outp.puts "    case Opcode::#{opcode}:"
+        outp.puts "    case JSC::B3::Air::Opcode::#{opcode}:"
         outp.puts "        out.print(\"#{opcode}\");"
         outp.puts "        return;"
     }

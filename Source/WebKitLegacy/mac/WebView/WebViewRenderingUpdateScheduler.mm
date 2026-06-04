@@ -36,6 +36,12 @@
 #import <wtf/RuntimeApplicationChecks.h>
 #endif
 
+#import <wtf/SetForScope.h>
+
+#if PLATFORM(MAC)
+#import <pal/spi/mac/NSWindowSPI.h>
+#endif
+
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebViewRenderingUpdateScheduler);
 
 WebViewRenderingUpdateScheduler::WebViewRenderingUpdateScheduler(WebView* webView)

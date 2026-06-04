@@ -35,6 +35,7 @@
 #import <WebCore/PasteboardCustomData.h>
 #import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
+#import <wtf/FileSystem.h>
 
 #if ENABLE(DRAG_SUPPORT) && PLATFORM(MAC)
 
@@ -60,6 +61,45 @@ TEST(DragAndDropTests, NumberOfValidItemsForDrop)
     EXPECT_TRUE([webView stringByEvaluatingJavaScript:@"observedDragOver"].boolValue);
     EXPECT_TRUE([webView stringByEvaluatingJavaScript:@"observedDrop"].boolValue);
     EXPECT_EQ(1U, numberOfValidItemsForDrop);
+}
+
+TEST(DragAndDropTests, PerformDragWithLegacyFilesAfterWebProcessTermination)
+{
+    // Regression test: dropping files (legacy NSFilenamesPboardType) sends an async
+    // AllowFilesAccessFromWebProcess IPC to the NetworkProcess, and the reply lambda
+    // calls WebPageProxy::createSandboxExtensionsIfNeeded, which dereferences the
+    // legacyMainFrameProcess connection. If the WebProcess is gone by then, this
+    // used to RELEASE_ASSERT in AuxiliaryProcessProxy::connection().
+
+    RetainPtr tempDirectory = FileSystem::createTemporaryDirectory(@"WebKitDragAndDropTest");
+    RetainPtr tempFilePath = [tempDirectory stringByAppendingPathComponent:@"dropped-file.txt"];
+    [@"hello" writeToFile:tempFilePath.get() atomically:YES encoding:NSUTF8StringEncoding error:nil];
+
+    NSPasteboard *pasteboard = [NSPasteboard pasteboardWithUniqueName];
+    [pasteboard declareTypes:@[NSFilenamesPboardType] owner:nil];
+    [pasteboard setPropertyList:@[tempFilePath.get()] forType:NSFilenamesPboardType];
+
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400)]);
+    TestWKWebView *webView = [simulator webView];
+    [simulator setExternalDragPasteboard:pasteboard];
+    [webView synchronouslyLoadTestPageNamed:@"full-page-dropzone"];
+
+    // Tear down the WebProcess connection synchronously right before the drop
+    // is performed. _killWebContentProcessAndResetState routes through
+    // requestTermination -> processDidTerminateOrFailedToLaunch -> shutDownProcess,
+    // which sets m_connection to nullptr immediately.
+    [simulator setWillEndDraggingHandler:[webView] {
+        [webView _killWebContentProcessAndResetState];
+    }];
+
+    [simulator runFrom:NSMakePoint(0, 0) to:NSMakePoint(200, 200)];
+
+    // Pump the runloop long enough for the AllowFilesAccessFromWebProcess reply
+    // to be delivered. Prior to fix, this would RELEASE_ASSERT in
+    // AuxiliaryProcessProxy::connection() inside the reply lambda.
+    TestWebKitAPI::Util::runFor(0.5_s);
+
+    [[NSFileManager defaultManager] removeItemAtPath:tempDirectory.get() error:nil];
 }
 
 TEST(DragAndDropTests, DragEndEventCoordinatesWithNestedIframes)
@@ -167,6 +207,74 @@ TEST(DragAndDropTests, DragEndEventCoordinatesWithNestedIframes)
             EXPECT_TRUE(y >= -105 && y <= -95) << "Expected dragend y coordinate around -100, got " << y;
         }
     }
+}
+
+TEST(DragAndDropTests, DropFileOnSiteIsolatedIframeRegistersBlobURL)
+{
+    static constexpr auto mainframeHTML =
+        "<iframe id='child' width='400' height='400' "
+        "style='position:absolute;top:0;left:0;border:0;' "
+        "src='https://domain2.com/iframe'></iframe>"_s;
+
+    static constexpr auto iframeHTML =
+        "<body style='margin:0;width:100vw;height:100vh;background:lightblue;'"
+        " ondragenter='event.preventDefault();'"
+        " ondragover='event.preventDefault();'"
+        " ondrop=\"event.preventDefault();"
+        "   const f = event.dataTransfer.files[0];"
+        "   if (!f) { window.webkit.messageHandlers.testHandler.postMessage('nofile'); }"
+        "   else {"
+        "     (async () => {"
+        "       try {"
+        "         const url = window.URL.createObjectURL(f);"
+        "         const r = await fetch(url);"
+        "         const b = await r.arrayBuffer();"
+        "         window.webkit.messageHandlers.testHandler.postMessage('ok:bytes=' + b.byteLength);"
+        "       } catch (e) {"
+        "         window.webkit.messageHandlers.testHandler.postMessage('err:' + e.message);"
+        "       }"
+        "     })();"
+        "   }\"></body>"_s;
+
+    TestWebKitAPI::HTTPServer server({
+        { "/mainframe"_s, { mainframeHTML } },
+        { "/iframe"_s, { iframeHTML } }
+    }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
+
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate allowAnyTLSCertificate];
+    RetainPtr configuration = server.httpsProxyConfiguration();
+    [[configuration preferences] _setSiteIsolationEnabled:YES];
+
+    RetainPtr messageHandler = adoptNS([TestMessageHandler new]);
+    __block bool gotMessage = false;
+    __block RetainPtr<NSString> dropResult;
+    [messageHandler setDidReceiveScriptMessage:^(NSString *message) {
+        if (gotMessage)
+            return;
+        dropResult = message;
+        gotMessage = true;
+    }];
+    [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
+
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = [simulator webView];
+    [webView setNavigationDelegate:navigationDelegate];
+
+    RetainPtr fileURL = [NSBundle.test_resourcesBundle URLForResource:@"apple" withExtension:@"gif"];
+    [simulator writePromisedFiles:@[ fileURL ]];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView waitForNextPresentationUpdate];
+
+    [simulator runFrom:NSMakePoint(0, 0) to:NSMakePoint(200, 200)];
+
+    TestWebKitAPI::Util::runFor(&gotMessage, 3_s);
+
+    EXPECT_TRUE([dropResult hasPrefix:@"ok:bytes="])
+        << "Expected the iframe to fetch the blob from URL.createObjectURL successfully. Got: "
+        << (dropResult ? [dropResult UTF8String] : "(no message — iframe process likely killed)");
 }
 
 TEST(DragAndDropTests, DraggableElementWithTinyDragImageDoesNotCrash)

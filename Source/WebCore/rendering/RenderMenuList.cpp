@@ -102,7 +102,7 @@ void RenderMenuList::updateOptionsWidth()
 
     m_optionsWidth = width;
     if (parent())
-        setNeedsLayoutAndPreferredWidthsUpdate();
+        setNeedsLayoutAndInvalidateContentLogicalWidths();
 }
 
 void RenderMenuList::updateFromElement()
@@ -143,13 +143,13 @@ LayoutRect RenderMenuList::controlClipRect(const LayoutPoint& additionalOffset) 
     return clipRect;
 }
 
-void RenderMenuList::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
+std::pair<LayoutUnit, LayoutUnit> RenderMenuList::computeIntrinsicLogicalWidths() const
 {
     if (style().fieldSizing() == FieldSizing::Content)
-        return RenderFlexibleBox::computeIntrinsicLogicalWidths(minLogicalWidth, maxLogicalWidth);
+        return RenderFlexibleBox::computeIntrinsicLogicalWidths();
 
-    LayoutUnit minimumSize = theme().minimumMenuListSize(style());
-    maxLogicalWidth = shouldApplySizeContainment() ? minimumSize : std::max(LayoutUnit(m_optionsWidth), minimumSize);
+    auto minimumSize = LayoutUnit { theme().minimumMenuListSize(style()) };
+    auto maxLogicalWidth = shouldApplySizeContainment() ? minimumSize : std::max(LayoutUnit { m_optionsWidth }, minimumSize);
 
     auto internalPadding = theme().popupInternalPaddingBox(style());
     if (auto start = internalPadding.start(writingMode()).tryFixed())
@@ -161,32 +161,36 @@ void RenderMenuList::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, 
         if (auto logicalWidth = explicitIntrinsicInnerLogicalWidth())
             maxLogicalWidth = logicalWidth.value();
     }
+
     auto& logicalWidth = style().logicalWidth();
+    auto minLogicalWidth = LayoutUnit { };
     if (logicalWidth.isCalculated())
         minLogicalWidth = std::max(0_lu, Style::evaluate<LayoutUnit>(logicalWidth, 0_lu, style().usedZoomForLength()));
     else if (!logicalWidth.isPercent())
         minLogicalWidth = maxLogicalWidth;
+
+    return { minLogicalWidth, maxLogicalWidth };
 }
 
-void RenderMenuList::computePreferredLogicalWidths()
+void RenderMenuList::computeIntrinsicLogicalWidthContributions()
 {
     if (style().fieldSizing() == FieldSizing::Content) {
-        RenderFlexibleBox::computePreferredLogicalWidths();
+        RenderFlexibleBox::computeIntrinsicLogicalWidthContributions();
         return;
     }
 
-    m_minPreferredLogicalWidth = 0;
-    m_maxPreferredLogicalWidth = 0;
+    m_minContentLogicalWidthContribution = 0_lu;
+    m_maxContentLogicalWidthContribution = 0_lu;
     
     if (auto fixedLogicalWidth = style().logicalWidth().tryFixed(); fixedLogicalWidth && fixedLogicalWidth->isPositive()) {
-        m_maxPreferredLogicalWidth = adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalWidth);
-        m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth;
+        m_maxContentLogicalWidthContribution = adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalWidth);
+        m_minContentLogicalWidthContribution = m_maxContentLogicalWidthContribution;
     } else
-        computeIntrinsicLogicalWidths(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
+        std::tie(m_minContentLogicalWidthContribution, m_maxContentLogicalWidthContribution) = computeIntrinsicLogicalWidths();
 
-    constrainPreferredLogicalWidthsByMinMax(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
+    constrainIntrinsicLogicalWidthsByMinMax(m_minContentLogicalWidthContribution, m_maxContentLogicalWidthContribution);
 
-    clearNeedsPreferredWidthsUpdate();
+    clearContentLogicalWidthsInvalidation();
 }
 
 void RenderMenuList::getItemBackgroundColor(unsigned listIndex, Color& itemBackgroundColor, bool& itemHasCustomBackgroundColor) const

@@ -66,9 +66,9 @@ void AutoTableLayout::recalcColumn(unsigned effCol)
     for (auto& child : childrenOfType<RenderObject>(*m_table)) {
         if (CheckedPtr column = dynamicDowncast<RenderTableCol>(child)) {
             // RenderTableCols don't have the concept of preferred logical width, but we need to clear their dirty bits
-            // so that if we call setPreferredWidthsDirty(true) on a col or one of its descendants, we'll mark its
+            // so that if we call setContentWidthsDirty(true) on a col or one of its descendants, we'll mark its
             // ancestors as dirty.
-            column->clearNeedsPreferredLogicalWidthsUpdate();
+            column->clearContentLogicalWidthsInvalidation();
         } else if (CheckedPtr section = dynamicDowncast<RenderTableSection>(child)) {
             unsigned numRows = section->numRows();
             for (unsigned i = 0; i < numRows; ++i) {
@@ -211,9 +211,9 @@ void AutoTableLayout::fullRecalc()
         recalcColumn(i);
 
     for (auto& section : childrenOfType<RenderTableSection>(*m_table)) {
-        section.clearNeedsPreferredWidthsUpdate();
+        section.clearContentLogicalWidthsInvalidation();
         for (auto* row = section.firstRow(); row; row = row->nextRow())
-            row->clearNeedsPreferredWidthsUpdate();
+            row->clearContentLogicalWidthsInvalidation();
     }
 }
 
@@ -238,13 +238,14 @@ static bool shouldScaleColumnsForParent(const RenderTable& table)
     return true;
 }
 
-void AutoTableLayout::computeIntrinsicLogicalWidths(LayoutUnit& minWidth, LayoutUnit& maxWidth, TableIntrinsics intrinsics)
+std::pair<LayoutUnit, LayoutUnit> AutoTableLayout::computeIntrinsicLogicalWidths(TableIntrinsics intrinsics)
 {
     fullRecalc();
 
+    auto minWidth = LayoutUnit { };
+    auto maxWidth = LayoutUnit { };
+
     float spanMaxLogicalWidth = calcEffectiveLogicalWidth();
-    minWidth = 0;
-    maxWidth = 0;
     float maxPercent = 0;
     float maxNonPercent = 0;
     bool scaleColumnsForSelf = intrinsics == TableIntrinsics::ForLayout;
@@ -285,9 +286,10 @@ void AutoTableLayout::computeIntrinsicLogicalWidths(LayoutUnit& minWidth, Layout
     }
 
     maxWidth = std::max(maxWidth, LayoutUnit(spanMaxLogicalWidth));
+    return { minWidth, maxWidth };
 }
 
-void AutoTableLayout::applyPreferredLogicalWidthQuirks(LayoutUnit& minWidth, LayoutUnit& maxWidth) const
+void AutoTableLayout::applyContentLogicalWidthQuirks(LayoutUnit& minWidth, LayoutUnit& maxWidth) const
 {
     if (auto fixedTableLogicalWidth = m_table->style().logicalWidth().tryFixed(); fixedTableLogicalWidth && fixedTableLogicalWidth->isPositive()) {
         LayoutUnit minContentWidth = minWidth;

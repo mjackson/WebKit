@@ -28,7 +28,7 @@
 #include "Node.h"
 #include "StyleChange.h"
 #include <wtf/HashMap.h>
-#include <wtf/ListHashSet.h>
+#include <wtf/OrderedHashSet.h>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
@@ -42,6 +42,11 @@ class SVGElement;
 class Text;
 
 namespace Style {
+
+enum class SVGRendererUpdateType : bool {
+    Default, // Routes through Style::Update -> RenderTreeUpdater::updateSVGRenderer.
+    TransformAttributeOnly // LBSE in-place transform refresh, bypasses Style::Update.
+};
 
 struct ElementUpdate {
     std::unique_ptr<RenderStyle> style;
@@ -63,8 +68,8 @@ public:
     Update(Document&);
     ~Update();
 
-    const ListHashSet<Ref<ContainerNode>>& roots() const LIFETIME_BOUND { return m_roots; }
-    ListHashSet<Ref<Element>> takeRebuildRoots() { return WTF::move(m_rebuildRoots); }
+    const OrderedHashSet<Ref<ContainerNode>>& roots() const LIFETIME_BOUND { return m_roots; }
+    OrderedHashSet<Ref<Element>> takeRebuildRoots() { return WTF::move(m_rebuildRoots); }
 
     const ElementUpdate* NODELETE elementUpdate(const Element&) const;
     ElementUpdate* NODELETE elementUpdate(const Element&);
@@ -92,8 +97,8 @@ private:
     void addPossibleRebuildRoot(Element&, Element* parent);
 
     const Ref<Document> m_document;
-    ListHashSet<Ref<ContainerNode>> m_roots;
-    ListHashSet<Ref<Element>> m_rebuildRoots;
+    OrderedHashSet<Ref<ContainerNode>> m_roots;
+    OrderedHashSet<Ref<Element>> m_rebuildRoots;
     HashMap<Ref<const Element>, ElementUpdate> m_elements;
     HashMap<Ref<const Text>, TextUpdate> m_texts;
     std::unique_ptr<RenderStyle> m_initialContainingBlockUpdate;

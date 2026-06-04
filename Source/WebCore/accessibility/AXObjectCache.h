@@ -381,10 +381,12 @@ public:
 #endif
 private:
     using DOMObjectVariant = Variant<std::nullptr_t, RenderObject*, Node*, Widget*>;
-    void cacheAndInitializeWrapper(AccessibilityObject&, DOMObjectVariant = nullptr);
+    enum class ShouldAttachWrapper : bool { No, Yes };
+    void cacheAndInitializeWrapper(AccessibilityObject&, DOMObjectVariant = nullptr, ShouldAttachWrapper = ShouldAttachWrapper::Yes);
     void attachWrapper(AccessibilityObject&);
 
     AccessibilityObject* getOrCreateSlow(Node&, IsPartOfRelation);
+    AccessibilityObject* getOrCreateSlow(Widget&);
 
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     RefPtr<AccessibilityScrollView> scrollViewForFrame(LocalFrame&);
@@ -932,7 +934,6 @@ private:
     bool isModalElement(Element&) const;
     void findModalNodes();
     void updateCurrentModalNode();
-    bool isNodeVisible(const Node*) const;
     bool modalElementHasAccessibleContent(Element&);
 
     void setDirtyStitchGroups(const RenderBlock&);

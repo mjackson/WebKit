@@ -70,6 +70,7 @@
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/Lock.h>
+#include <wtf/MathExtras.h>
 #include <wtf/PrintStream.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
@@ -656,7 +657,7 @@ JSValue JSInjectedScriptHost::weakSetEntries(JSGlobalObject* globalObject, CallF
 
     MarkedArgumentBuffer buffer;
     auto fetchCount = callFrame->argument(1).toIntegerOrInfinity(globalObject);
-    weakSet->takeSnapshot(buffer, fetchCount >= 0 ? static_cast<unsigned>(fetchCount) : 0);
+    weakSet->takeSnapshot(buffer, clampTo<unsigned>(fetchCount));
     ASSERT(!buffer.hasOverflowed());
 
     JSArray* array = constructEmptyArray(globalObject, nullptr);

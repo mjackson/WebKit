@@ -963,6 +963,7 @@ public:
     void NODELETE convertToRegExpExecNonGlobalOrStickyWithoutChecks(FrozenValue* regExp);
     void NODELETE convertToRegExpMatchFastGlobalWithoutChecks(FrozenValue* regExp);
     void NODELETE convertToRegExpMatchFast(Node* globalObjectNode);
+    void NODELETE convertToRegExpSearch(Node* globalObjectNode);
     void NODELETE convertToRegExpTestInline(FrozenValue* globalObject, FrozenValue* regExp);
 
     enum DescriptorSlot : unsigned {
@@ -1798,7 +1799,13 @@ public:
 
     bool isTuple() const
     {
-        return op() == EnumeratorNextUpdateIndexAndMode;
+        switch (op()) {
+        case EnumeratorNextUpdateIndexAndMode:
+        case StringIteratorNext:
+            return true;
+        default:
+            return false;
+        }
     }
 
     void setTupleOffset(unsigned tupleOffset)
@@ -1835,6 +1842,7 @@ public:
         ASSERT(isTuple());
         switch (op()) {
         case EnumeratorNextUpdateIndexAndMode:
+        case StringIteratorNext:
             return 2;
         default:
             break;
@@ -2330,6 +2338,7 @@ public:
         case EnumeratorNextUpdateIndexAndMode:
         case ArrayIncludes:
         case ArrayIndexOf:
+        case ArrayJoin:
             return true;
         default:
             break;
@@ -2455,6 +2464,8 @@ public:
         case NewRegExpUntyped:
         case NewMap:
         case NewSet:
+        case NewWeakMap:
+        case NewWeakSet:
         case NewArrayWithSizeAndStructure:
         case NewTypedArrayBuffer:
             return true;
@@ -2743,6 +2754,7 @@ public:
         case ArrayUnshift:
         case ArrayIncludes:
         case ArrayIndexOf:
+        case ArrayJoin:
         case HasIndexedProperty:
         case AtomicsAdd:
         case AtomicsAnd:
