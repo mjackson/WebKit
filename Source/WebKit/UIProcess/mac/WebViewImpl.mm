@@ -62,6 +62,7 @@
 #import "TextChecker.h"
 #import "TextCheckerState.h"
 #import "TiledCoreAnimationDrawingAreaProxy.h"
+#import "TransientZoomState.h"
 #import "UIGamepadProvider.h"
 #import "UndoOrRedo.h"
 #import "ViewGestureController.h"
@@ -199,6 +200,10 @@
 #import <pal/cocoa/VisionKitCoreSoftLink.h>
 #import <pal/cocoa/WritingToolsUISoftLink.h>
 #import <pal/mac/DataDetectorsSoftLink.h>
+
+#if ENABLE(WRITING_TOOLS) && USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/WebViewImplWritingToolsAdditions.mm>)
+#import <WebKitAdditions/WebViewImplWritingToolsAdditions.mm>
+#endif
 
 #if HAVE(TOUCH_BAR) && ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)
 SOFT_LINK_FRAMEWORK(AVKit)
@@ -1843,6 +1848,9 @@ void WebViewImpl::setFrameSize(CGSize)
 #if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     updateBannerViewFrame();
 #endif
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+    updateWebContentDistancesFromEdges();
+#endif
 }
 
 void WebViewImpl::disableFrameSizeUpdates()
@@ -2013,6 +2021,10 @@ void WebViewImpl::setObscuredContentInsets(const FloatBoxExtent& insets)
 
 #if ENABLE(TOP_BANNER_VIEW_OVERLAYS)
     updateBannerViewFrame();
+#endif
+
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+    updateWebContentDistancesFromEdges();
 #endif
 }
 
@@ -2494,17 +2506,21 @@ void WebViewImpl::activeSpaceDidChange()
     m_page->activityStateDidChange(WebCore::ActivityState::IsVisible);
 }
 
-void WebViewImpl::pageDidScroll(const IntPoint& scrollPosition)
+void WebViewImpl::pageDidScroll(const IntPoint& scrollOffset)
 {
-    if (scrollPosition == m_lastPageScrollPosition)
+    if (scrollOffset == m_lastPageScrollOffset)
         return;
 
-    bool pageIsScrolledToTopDidChange = (scrollPosition.y() <= 0) != pageIsScrolledToTop();
+    bool pageIsScrolledToTopDidChange = (scrollOffset.y() <= 0) != pageIsScrolledToTop();
     if (pageIsScrolledToTopDidChange)
         [protect(view()) willChangeValueForKey:@"hasScrolledContentsUnderTitlebar"];
 
-    m_lastPageScrollPosition = scrollPosition;
+    m_lastPageScrollOffset = scrollOffset;
     m_pageScrollingHysteresis->impulse();
+
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+    updateWebContentDistancesFromEdges();
+#endif
 
     if (pageIsScrolledToTopDidChange) {
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
@@ -3067,7 +3083,7 @@ void WebViewImpl::shareSheetDidDismiss(WKShareSheet *shareSheet)
 }
 
 #if ENABLE(WEB_AUTHN)
-void WebViewImpl::showDigitalCredentialsPicker(const WebCore::DigitalCredentialsRequestData& requestData, CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler, WKWebView* webView)
+void WebViewImpl::showDigitalCredentialsChooser(const WebCore::DigitalCredentialsRequestData& requestData, CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler, WKWebView* webView)
 {
     if (!_digitalCredentialsPicker)
         _digitalCredentialsPicker = adoptNS([[WKDigitalCredentialsPicker alloc] initWithView:webView page:m_page.ptr()]);
@@ -3075,10 +3091,10 @@ void WebViewImpl::showDigitalCredentialsPicker(const WebCore::DigitalCredentials
     [_digitalCredentialsPicker presentWithRequestData:requestData completionHandler:WTF::move(completionHandler)];
 }
 
-void WebViewImpl::dismissDigitalCredentialsPicker(CompletionHandler<void(bool)>&& completionHandler, WKWebView* webView)
+void WebViewImpl::dismissDigitalCredentialsChooser(CompletionHandler<void(bool)>&& completionHandler, WKWebView* webView)
 {
     if (!_digitalCredentialsPicker) {
-        LOG(DigitalCredentials, "Digital credentials picker is not being presented.");
+        LOG(DigitalCredentials, "Digital credentials chooser is not being presented.");
         completionHandler(false);
         return;
     }
@@ -3899,6 +3915,12 @@ void WebViewImpl::completeImmediateActionAnimation()
 
 void WebViewImpl::didChangeContentSize(CGSize newSize)
 {
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+    if (!CGSizeEqualToSize(m_lastPageContentsSize, newSize)) {
+        m_lastPageContentsSize = newSize;
+        updateWebContentDistancesFromEdges();
+    }
+#endif
     [m_view.get() _web_didChangeContentSize:NSSizeFromCGSize(newSize)];
 }
 
@@ -4486,6 +4508,12 @@ static void performDragWithLegacyFiles(WebPageProxy& page, Box<Vector<String>>&&
     if (!networkProcess)
         return;
     networkProcess->sendWithAsyncReply(Messages::NetworkProcess::AllowFilesAccessFromWebProcess(page.legacyMainFrameProcess().coreProcessIdentifier(), *fileNames), [page = protect(page), fileNames, dragData, pasteboardName]() mutable {
+        if (!page->hasRunningProcess()) {
+            if (RefPtr pageClient = page->pageClient())
+                pageClient->didPerformDragOperation(false);
+            return;
+        }
+
         SandboxExtension::Handle sandboxExtensionHandle;
         Vector<SandboxExtension::Handle> sandboxExtensionForUpload;
 
@@ -5638,11 +5666,27 @@ void WebViewImpl::interpretKeyEvent(NSEvent *event, void(^completionHandler)(BOO
 
         bool hasInsertText = false;
         bool hasOnlyInsertText = !commands.isEmpty();
+        size_t insertTextLengthFromInputMethod = 0;
         for (auto& command : commands) {
-            if (command.commandName == "insertText:"_s)
+            if (command.commandName == "insertText:"_s) {
                 hasInsertText = true;
-            else
+                insertTextLengthFromInputMethod += command.text.length();
+            } else
                 hasOnlyInsertText = false;
+        }
+
+        // The Hindi InScript IM (and other Indic IMs) sometimes commit a marked-text composition
+        // via insertText: with only a prefix of the keystroke's characters and rely on the
+        // keyboard-layout pass to provide the suffix. Concretely, after the virama is marked via
+        // setMarkedText:"्", pressing the next consonant ('/' → "य") fires an IM insertText:"्"
+        // that commits the marked virama, while the NSEvent's characters string is "्य" — the
+        // trailing 'य' must come from collectKeyboardLayoutCommandsForEvent.
+        // -[NSEvent characters] is only valid for key-typed events and raises on FlagsChanged
+        // (e.g. caps lock), so gate on hasInsertText since that's a precondition anyway.
+        bool inputMethodCommittedPartialInsertText = false;
+        if (hasInsertText) {
+            NSUInteger eventCharactersLength = [[capturedEvent characters] length];
+            inputMethodCommittedPartialInsertText = insertTextLengthFromInputMethod < eventCharactersLength;
         }
 
         // If the input method only produced insertText: commands (no setMarkedText:, no other
@@ -5657,6 +5701,15 @@ void WebViewImpl::interpretKeyEvent(NSEvent *event, void(^completionHandler)(BOO
         if (handled && hasOnlyInsertText && !checkedThis->m_page->editorState().hasComposition)
             handled = NO;
 
+        // Hindi InScript suffix case: the IM committed only a prefix of the event's characters
+        // via insertText: (e.g. insertText:"्" for an event whose chars="्य"). We need the
+        // keyboard-layout pass to insert the suffix character ('य'), and that suffix insertText:
+        // must execute during the Char (keypress) phase — otherwise Editor::insertText runs with
+        // underlyingEvent=keydown and trips the assertion in EventHandler::handleTextInputEvent.
+        // Force handled=NO so the suffix flows through the keypress path naturally.
+        if (handled && inputMethodCommittedPartialInsertText)
+            handled = NO;
+
         LOG(TextInput, "... handleEventByInputMethod%s handled", handled ? "" : " not");
         if (handled) {
             capturedBlock(YES, WTF::move(commands));
@@ -5668,7 +5721,10 @@ void WebViewImpl::interpretKeyEvent(NSEvent *event, void(^completionHandler)(BOO
         }
 
         auto additionalCommands = checkedThis->collectKeyboardLayoutCommandsForEvent(capturedEvent);
-        if (!hasInsertText)
+        // Append the layout pass except in the dead-key 'é' dedup case (IM did insertText: that
+        // covers the keystroke). The InScript partial-prefix case also needs the layout's suffix
+        // appended, even though the IM did insertText:.
+        if (!hasInsertText || inputMethodCommittedPartialInsertText)
             commands.appendVector(additionalCommands);
         capturedBlock(NO, commands);
         if ([capturedEvent type] == NSEventTypeKeyDown && !checkedThis->m_interpretKeyEventHoldingTank.isEmpty())
@@ -5787,7 +5843,17 @@ void WebViewImpl::selectedRangeWithCompletionHandler(void(^completionHandlerPtr)
                 onlyInsertText = false;
                 break;
             }
-            total += command.text.length();
+            // A modeless commit like Vietnamese Simple Telex's "vi" arrives as
+            // insertText:"vi" replacementRange:(0,1) — net cursor advance is
+            // text.length() - replacementRange.length, not text.length() alone.
+            // Without this, the second keystroke over-reports the cursor by the
+            // replaced length, the IM caches the inflated position, and the next
+            // keystroke's setMarkedText: addresses past the document end (kicks
+            // the IM out of modeless mode).
+            size_t delta = command.text.length();
+            if (command.replacementRange.location != notFound)
+                delta -= std::min<size_t>(command.replacementRange.length, delta);
+            total += delta;
         }
         if (onlyInsertText)
             stagedInsertLength = total;
@@ -5796,10 +5862,17 @@ void WebViewImpl::selectedRangeWithCompletionHandler(void(^completionHandlerPtr)
     m_page->getSelectedRangeAsync([completionHandler, stagedSelectedRange = m_stagedMarkedRange, stagedInsertLength](const EditingRange& editingRangeResult, const EditingRange& compositionRange) {
         void (^completionHandlerBlock)(NSRange) = (void (^)(NSRange))completionHandler.get();
 
-        if (stagedSelectedRange) {
+        if (stagedSelectedRange && compositionRange.location != notFound) {
             completionHandlerBlock(NSRange { compositionRange.location + stagedSelectedRange->location, stagedSelectedRange->length });
             return;
         }
+
+        // If stagedSelectedRange is set but the web process has no composition yet (compositionRange.location
+        // == notFound), the queued setMarkedText hasn't reached the web process. This can happen when an
+        // external source such as inline predictions fires setMarkedText while a modeless IME's keydown is
+        // in flight (m_collectedKeypressCommands is non-empty). Using compositionRange.location (SIZE_MAX)
+        // as the base would overflow; fall through to the stagedInsertLength path instead so the modeless
+        // Korean/Vietnamese IME gets the correct cursor position and stays in modeless mode.
 
         NSRange result = editingRangeResult;
         if (stagedInsertLength && result.location != NSNotFound) {
@@ -5839,13 +5912,67 @@ void WebViewImpl::hasMarkedTextWithCompletionHandler(void(^completionHandler)(BO
     });
 }
 
-void WebViewImpl::attributedSubstringForProposedRange(NSRange proposedRange, void(^completionHandler)(NSAttributedString *attrString, NSRange actualRange))
+void WebViewImpl::isMarkedTextRequiredForCompositionWithCompletionHandler(void(^completionHandler)(BOOL isMarkedTextRequiredForComposition))
+{
+    LOG(TextInput, "isMarkedTextRequiredForComposition");
+    m_page->isMarkedTextRequiredForComposition([completionHandler = makeBlockPtr(completionHandler)] (bool result) {
+        completionHandler(result);
+        LOG(TextInput, "    -> isMarkedTextRequiredForComposition returned %u", result);
+    });
+}
+
+void WebViewImpl::attributedSubstringForProposedRange(NSRange proposedRange, void(^completionHandlerPtr)(NSAttributedString *attrString, NSRange actualRange))
 {
     LOG(TextInput, "attributedSubstringFromRange:(%zu, %zu)", proposedRange.location, proposedRange.length);
-    m_page->attributedSubstringForCharacterRangeAsync(proposedRange, [completionHandler = makeBlockPtr(completionHandler)](const WebCore::AttributedString& string, const EditingRange& actualRange) {
-        auto attributedString = string.nsAttributedString();
-        LOG(TextInput, "    -> attributedSubstringFromRange returned %@", attributedString.get());
-        completionHandler(attributedString.get(), actualRange);
+
+    // The IME polls attributedSubstring during its handleEventByInputMethod: callback to verify
+    // a just-issued insertText: took effect. The queued command hasn't reached the web process
+    // yet, so we apply it locally to the IPC response. Same gate as selectedRange staging: only
+    // when every queued command is insertText: (modeless commit); if setMarkedText: is in the
+    // mix the IME is composing and the unstaged response is correct.
+    Vector<WebCore::KeypressCommand> queuedInsertions;
+    if (!m_collectedKeypressCommands.isEmpty() && !m_collectedKeypressCommands.first().isEmpty()) {
+        bool onlyInsertText = true;
+        for (auto& command : m_collectedKeypressCommands.first()) {
+            if (command.commandName != "insertText:"_s) {
+                onlyInsertText = false;
+                break;
+            }
+        }
+        if (onlyInsertText)
+            queuedInsertions = m_collectedKeypressCommands.first();
+    }
+
+    m_page->attributedSubstringForCharacterRangeAsync(proposedRange, [completionHandler = makeBlockPtr(completionHandlerPtr), queuedInsertions = WTF::move(queuedInsertions)](const WebCore::AttributedString& string, const EditingRange& actualRange) {
+        RetainPtr attributedString = string.nsAttributedString();
+        if (queuedInsertions.isEmpty()) {
+            LOG(TextInput, "    -> attributedSubstringFromRange returned %@", attributedString.get());
+            completionHandler(attributedString.get(), actualRange);
+            return;
+        }
+
+        NSUInteger origin = actualRange.location == notFound ? 0u : (NSUInteger)actualRange.location;
+        RetainPtr stagedString = adoptNS([attributedString mutableCopy]);
+        if (!stagedString)
+            stagedString = adoptNS([[NSMutableAttributedString alloc] init]);
+        for (auto& command : queuedInsertions) {
+            NSUInteger location, length;
+            if (command.replacementRange.location != notFound) {
+                if (command.replacementRange.location < origin)
+                    continue;
+                location = (NSUInteger)command.replacementRange.location - origin;
+                length = (NSUInteger)command.replacementRange.length;
+            } else {
+                location = [stagedString length];
+                length = 0;
+            }
+            if (location > [stagedString length])
+                continue;
+            length = std::min<NSUInteger>(length, [stagedString length] - location);
+            [stagedString replaceCharactersInRange:NSMakeRange(location, length) withString:command.text.createNSString().get()];
+        }
+        LOG(TextInput, "    -> attributedSubstringFromRange (staged) returned %@", stagedString.get());
+        completionHandler(stagedString.get(), NSMakeRange(origin, [stagedString length]));
     });
 }
 
@@ -7291,7 +7418,15 @@ void WebViewImpl::handleContextMenuTranslation(const WebCore::TranslationContext
 
 bool WebViewImpl::canHandleContextMenuWritingTools() const
 {
-    return PAL::isWritingToolsUIFrameworkAvailable() && [PAL::getWTWritingToolsViewControllerClassSingleton() isAvailable] && m_page->writingToolsBehavior() != WebCore::WritingTools::Behavior::None;
+    if (!PAL::isWritingToolsUIFrameworkAvailable() || ![PAL::getWTWritingToolsViewControllerClassSingleton() isAvailable] || m_page->writingToolsBehavior() == WebCore::WritingTools::Behavior::None)
+        return false;
+
+#if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/WebViewImplWritingToolsAdditions.mm>)
+    if (!shouldShowWritingToolsInContextMenu())
+        return false;
+#endif
+
+    return true;
 }
 
 #endif
@@ -7533,6 +7668,69 @@ void WebViewImpl::fulfillDeferredImageAnalysisOverlayViewHierarchyTask()
 
 #endif // ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
 
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+
+void WebViewImpl::didUpdateTransientZoomStateForScrollPocket(std::optional<TransientZoomState> state)
+{
+    auto wasTransient = m_transientZoomStateForScrollPocket.has_value();
+    auto isTransient = state.has_value();
+
+    if (isTransient && !wasTransient) {
+        m_scrollOffsetBeforeTransientZoom = m_lastPageScrollOffset;
+        m_pageScaleBeforeTransientZoom = m_page->pageScaleFactor();
+    } else if (!isTransient && wasTransient) {
+        m_scrollOffsetBeforeTransientZoom = std::nullopt;
+        m_pageScaleBeforeTransientZoom = std::nullopt;
+    }
+
+    m_transientZoomStateForScrollPocket = state;
+    updateWebContentDistancesFromEdges();
+}
+
+void WebViewImpl::updateWebContentDistancesFromEdges()
+{
+    RetainPtr view = m_view.get();
+    if (!view)
+        return;
+
+    if (![view _shouldAdjustColorExtensionsForHorizontalBannerViewOverlays])
+        return;
+
+    auto leftInset = obscuredContentInsets().left();
+    auto viewWidth = [view bounds].size.width;
+    auto contentsWidth = m_lastPageContentsSize.width;
+    auto effectiveScrollOffsetX = m_scrollOffsetBeforeTransientZoom
+        ? m_scrollOffsetBeforeTransientZoom->x()
+        : m_lastPageScrollOffset.x();
+
+    auto leftDistance = leftInset - effectiveScrollOffsetX;
+    auto rightDistance = viewWidth - leftInset - contentsWidth + effectiveScrollOffsetX;
+
+    if (m_transientZoomStateForScrollPocket && m_pageScaleBeforeTransientZoom) {
+        auto [transientScale, origin] = *m_transientZoomStateForScrollPocket;
+        auto baselineScale = *m_pageScaleBeforeTransientZoom;
+        if (baselineScale > 0) {
+            auto relativeScale = transientScale / baselineScale;
+            auto leftPivot = origin.x() + leftInset;
+            auto rightPivot = viewWidth - leftPivot;
+            leftDistance = leftPivot + (leftDistance - leftPivot) * relativeScale;
+            rightDistance = rightPivot + (rightDistance - rightPivot) * relativeScale;
+        }
+    }
+
+    if (m_webContentDistanceFromLeftEdge == leftDistance && m_webContentDistanceFromRightEdge == rightDistance)
+        return;
+
+    m_webContentDistanceFromLeftEdge = leftDistance;
+    m_webContentDistanceFromRightEdge = rightDistance;
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+    updateScrollPocket();
+    [view _updateFixedColorExtensionViewFrames];
+#endif
+}
+
+#endif
+
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
 
 void WebViewImpl::setClientImplicitlyRequestedTopScrollPocket()
@@ -7619,6 +7817,15 @@ void WebViewImpl::updateScrollPocket()
         bounds = NSUnionRect(bounds, [attachedInspectorView convertRect:[attachedInspectorView bounds] toView:view.get()]);
 
     auto topInsetFrame = NSMakeRect(NSMinX(bounds), NSMinY(bounds) - additionalHeight, NSWidth(bounds), additionalHeight + std::min<CGFloat>(topContentInset, NSHeight(bounds)));
+
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+    if ([view _shouldAdjustColorExtensionsForHorizontalBannerViewOverlays]) {
+        auto distanceFromLeftEdge = std::clamp<CGFloat>(m_webContentDistanceFromLeftEdge, 0, obscuredContentInsets().left());
+        auto distanceFromRightEdge = std::clamp<CGFloat>(m_webContentDistanceFromRightEdge, 0, obscuredContentInsets().right());
+        topInsetFrame.origin.x += distanceFromLeftEdge;
+        topInsetFrame.size.width -= (distanceFromLeftEdge + distanceFromRightEdge);
+    }
+#endif
 
     if ([protect(m_view) _usesAutomaticContentInsetBackgroundFill]) {
         for (NSView *pocketContainer in m_viewsAboveScrollPocket.get())

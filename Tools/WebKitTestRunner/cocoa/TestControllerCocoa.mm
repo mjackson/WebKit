@@ -38,6 +38,7 @@
 #import <Foundation/Foundation.h>
 #import <Network/Network.h>
 #import <Security/SecItem.h>
+#import <WebCore/NotificationData.h>
 #import <WebKit/WKContentRuleListStorePrivate.h>
 #import <WebKit/WKContextConfigurationRef.h>
 #import <WebKit/WKContextPrivate.h>
@@ -46,8 +47,8 @@
 #import <WebKit/WKPreferencesRefPrivate.h>
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKStringCF.h>
+#import <WebKit/WKURLResponseNS.h>
 #import <WebKit/WKUserContentControllerPrivate.h>
-#import <WebKit/WKUserMediaPermissionCheck.h>
 #import <WebKit/WKWebView.h>
 #import <WebKit/WKWebViewConfiguration.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
@@ -243,6 +244,13 @@ void TestController::platformInitializeDataStore(WKPageConfigurationRef, const T
     auto standaloneWebApplicationURL = options.standaloneWebApplicationURL();
     if (useEphemeralSession || standaloneWebApplicationURL.length() || options.enableInAppBrowserPrivacy()) {
         auto websiteDataStoreConfig = useEphemeralSession ? adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]) : adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+
+        // Including any non-trivial value of "persistent notifications have a minimum timeout before being closeable"
+        // is counterproductive for layout tests - especially WPT tests. We cover the behavior in API tests.
+        // So let's just set it to a tiny value for no behavior change in layout tests.
+#if ENABLE(NOTIFICATIONS) && ENABLE(NOTIFICATION_EVENT)
+        websiteDataStoreConfig.get().overridePersistentNotificationMinimumLifetimeForTesting = std::numeric_limits<float>::min();
+#endif
         if (!useEphemeralSession)
             configureWebsiteDataStoreTemporaryDirectories((WKWebsiteDataStoreConfigurationRef)websiteDataStoreConfig.get());
         if (standaloneWebApplicationURL.length())
@@ -864,6 +872,16 @@ void TestController::updatePresentation(CompletionHandler<void(WKTypeRef)>&& com
     [m_mainWebView->platformView() _doAfterNextPresentationUpdate:makeBlockPtr([completionHandler = WTF::move(completionHandler)] mutable {
         completionHandler(nullptr);
     }).get()];
+}
+
+uint64_t TestController::responseHeaderCount(WKURLResponseRef response)
+{
+    RetainPtr nsURLResponse = adoptNS(WKURLResponseCopyNSURLResponse(response));
+    if (![nsURLResponse isKindOfClass:[NSHTTPURLResponse class]])
+        return { };
+
+    NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)nsURLResponse.get();
+    return [[httpResponse allHeaderFields] count];
 }
 
 } // namespace WTR

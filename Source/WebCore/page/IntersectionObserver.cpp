@@ -434,8 +434,7 @@ static std::optional<LayoutRect> computeClippedRectInRootContentsSpace(const Lay
     if (enclosingFrame->isMainFrame())
         return absoluteClippedRect;
 
-    // The computed visible rect is in the coordinate space of the document content box,
-    // and is what's visible in the iframe's content area (aka the iframe document content box)
+    // The computed visible rect is in the coordinate space of enclosingFrame.
     // But only the iframe's viewport is visible, so clip by the iframe's viewport.
 
     // Compute the frame's viewport (this is in the coordinate space of the document content box)
@@ -456,14 +455,22 @@ static std::optional<LayoutRect> computeClippedRectInRootContentsSpace(const Lay
     if (!absoluteClippedRect->edgeInclusiveIntersect(frameRect))
         return std::nullopt;
 
+    // Then convert it to the view coordinate space of enclosingFrame.
+    // This is now the visible portion in enclosingFrame's owner renderer's content box.
     absoluteClippedRect = LayoutRect { enclosingFrameView->contentsToView(*absoluteClippedRect) };
 
     if (RefPtr ownerRenderer = enclosingFrame->ownerRenderer()) {
+        // Adjust for borders and/or padding of the owner renderer box.
         absoluteClippedRect->moveBy(ownerRenderer->contentBoxLocation());
         return computeClippedRectInRootContentsSpace(*absoluteClippedRect, targetSecurityOrigin, ownerRenderer.get(), scrollMargin);
     }
 
-    absoluteClippedRect->moveBy(enclosingFrameView->location());
+    // We already checked above that enclosingFrame is not a main frame,
+    // so it MUST have a parent.
+    RefPtr enclosingFrameParent = enclosingFrame->parent();
+    ASSERT(enclosingFrameParent);
+
+    absoluteClippedRect->moveBy(enclosingFrameParent->virtualView()->childFrameOwnerContentBoxLocation(*enclosingFrame));
     return computeClippedRectInRootContentsSpace(*absoluteClippedRect, targetSecurityOrigin, enclosingFrame.get(), WTF::move(scrollMargin));
 }
 
@@ -472,7 +479,6 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
     bool isFirstObservation = !registration.previousThresholdIndex;
 
     // This is only set for explicit roots.
-    // FIXME: remove one remaining place that needs this to work with implicit root.
     CheckedPtr<RenderBlock> rootRenderer;
 
     CheckedPtr<RenderElement> targetRenderer;
@@ -514,13 +520,6 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
             return;
         }
 
-        // This is needed to get the root's renderer to compute the root bounds.
-        // FIXME: remove this when computing root bounds no longer requires rootRenderer.
-        RefPtr hostLocalFrameView = dynamicDowncast<LocalFrameView>(hostFrameView);
-        if (!hostLocalFrameView)
-            return;
-        rootRenderer = hostLocalFrameView->renderView();
-
         intersectionState.canComputeIntersection = true;
         intersectionState.rootBounds = layoutViewportRectForIntersection();
     };
@@ -535,6 +534,8 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
         auto rootUsedZoom = [&] () -> float {
             if (rootRenderer)
                 return rootRenderer->style().usedZoom();
+
+            ASSERT(!root());
 
             // If applyRootMargin is Yes, the root and target frames are same-origin.
             // Therefore the root frame should be in the same process as the target frame
@@ -612,8 +613,29 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
     if (isFirstObservation || intersectionState.isIntersecting)
         intersectionState.absoluteTargetRect = targetRenderer->localToAbsoluteQuad(FloatRect(localTargetBounds)).boundingBox();
 
+    auto rootLocalToAbsoluteRect = [&] (FloatRect rect) {
+        if (rootRenderer)
+            return rootRenderer->localToAbsoluteQuad(rect).boundingBox();
+
+        // The below codepath is specific to implicit root, where the root is the main frame.
+        ASSERT(!root());
+
+        // When page scale is > 1 (e.g by pinch-to-zoom), a scale transform is applied on the
+        // main frame's RenderView in Style::resolveForDocument(). Therefore we have to apply
+        // this transform to the local coordinate to turn it into absolute.
+        // This is identical to calling localToAbsoluteQuad() on the main frame's RenderView,
+        // as it'll apply the same transform.
+        // This is not applicable on iOS, as it applies the page scale differently.
+#if !PLATFORM(IOS)
+        if (RefPtr hostPage = hostFrameView.frame().page())
+            rect.scale(hostPage->pageScaleFactor());
+#endif
+
+        return rect;
+    };
+
     if (intersectionState.isIntersecting) {
-        auto rootAbsoluteIntersectionRect = rootRenderer->localToAbsoluteQuad(rootLocalIntersectionRect).boundingBox();
+        auto rootAbsoluteIntersectionRect = rootLocalToAbsoluteRect(rootLocalIntersectionRect);
 
         if (root() && &targetRenderer->frame() == &rootRenderer->frame())
             intersectionState.absoluteIntersectionRect = rootAbsoluteIntersectionRect;
@@ -644,7 +666,7 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
 
     intersectionState.observationChanged = isFirstObservation || intersectionState.thresholdIndex != registration.previousThresholdIndex;
     if (intersectionState.observationChanged) {
-        intersectionState.absoluteRootBounds = rootRenderer->localToAbsoluteQuad(intersectionState.rootBounds).boundingBox();
+        intersectionState.absoluteRootBounds = rootLocalToAbsoluteRect(intersectionState.rootBounds);
 
         if (!intersectionState.absoluteTargetRect)
             intersectionState.absoluteTargetRect = targetRenderer->localToAbsoluteQuad(FloatRect(localTargetBounds)).boundingBox();
@@ -665,8 +687,16 @@ auto IntersectionObserver::updateObservations(const Frame& hostFrame) -> NeedNot
 
     auto needNotify = NeedNotify::No;
 
-    for (auto& target : observationTargets()) {
-        auto& targetRegistrations = target.intersectionObserverDataIfExists()->registrations;
+    // Iterate on a copy of m_observationTargets, in case something in the loop mutates it.
+    auto observationTargets = m_observationTargets;
+    for (Ref target : observationTargets) {
+        // Per HTML spec, "update the rendering" step (which includes "run the update intersection
+        // observations") should only occur for fully active documents. Hence skip updating the
+        // target if its document is not fully active.
+        if (!root() && !target->document().isFullyActive())
+            continue;
+
+        auto& targetRegistrations = target->intersectionObserverDataIfExists()->registrations;
         auto index = targetRegistrations.findIf([&](auto& registration) {
             return registration.observer.get() == this;
         });
@@ -675,7 +705,7 @@ auto IntersectionObserver::updateObservations(const Frame& hostFrame) -> NeedNot
 
         bool isSameOriginObservation = [&] () {
             if (RefPtr hostFrameSecurityOrigin = hostFrame.frameDocumentSecurityOrigin())
-                return protect(target.document().securityOrigin())->isSameOriginDomain(*hostFrameSecurityOrigin);
+                return protect(target->document().securityOrigin())->isSameOriginDomain(*hostFrameSecurityOrigin);
 
             return false;
         }();
@@ -700,8 +730,8 @@ auto IntersectionObserver::updateObservations(const Frame& hostFrame) -> NeedNot
                 ASSERT(intersectionState.absoluteTargetRect);
                 ASSERT(intersectionState.absoluteRootBounds);
 
-                RefPtr targetFrameView = target.document().view();
-                auto targetZoomForClient = target.document().zoomForClient(target.renderer()->style());
+                RefPtr targetFrameView = target->document().view();
+                auto targetZoomForClient = target->document().zoomForClient(target->renderer()->style());
                 targetBoundingClientRect = targetFrameView->absoluteToClientRect(*intersectionState.absoluteTargetRect, targetZoomForClient);
                 clientRootBounds = hostFrameView->absoluteToLayoutViewportRect(*intersectionState.absoluteRootBounds);
 
@@ -808,11 +838,18 @@ bool IntersectionObserver::isReachableFromOpaqueRoots(JSC::AbstractSlotVisitor& 
         if (containsWebCoreOpaqueRoot(visitor, target))
             return true;
     }
+
     for (auto& target : m_pendingTargets) {
         if (containsWebCoreOpaqueRoot(visitor, target.get()))
             return true;
     }
-    return !m_targetsWaitingForFirstObservation.isEmpty();
+
+    for (auto& target : m_targetsWaitingForFirstObservation) {
+        if (containsWebCoreOpaqueRoot(visitor, target.get()))
+            return true;
+    }
+
+    return false;
 }
 
 } // namespace WebCore

@@ -375,7 +375,8 @@ private:
             break;
         }
 
-        case StringMatch: {
+        case StringMatch:
+        case StringSearch: {
             node->child1()->mergeFlags(NodeBytecodeUsesAsValue);
             node->child2()->mergeFlags(NodeBytecodeUsesAsValue);
             break;
@@ -411,6 +412,12 @@ private:
         case ArrayConcatAppendOne: {
             node->child1()->mergeFlags(NodeBytecodeUsesAsValue);
             node->child2()->mergeFlags(NodeBytecodeUsesAsValue);
+            break;
+        }
+
+        case ArrayJoin: {
+            m_graph.varArgChild(node, 0)->mergeFlags(NodeBytecodeUsesAsValue);
+            m_graph.varArgChild(node, 1)->mergeFlags(NodeBytecodeUsesAsValue);
             break;
         }
 

@@ -356,6 +356,9 @@ void DeriveRenderingInfo(Renderer *renderer,
 
     infoOut->renderingInfo.viewMask =
         desc.viewCount() > 0 ? angle::BitMask<uint32_t>(desc.viewCount()) : 0;
+#if defined(ANGLE_PLATFORM_ANDROID)
+    infoOut->externalFormat = {VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID, nullptr, 0};
+#endif
 
     // Pack color attachments
     vk::PackedAttachmentIndex attachmentCount(0);
@@ -386,16 +389,17 @@ void DeriveRenderingInfo(Renderer *renderer,
         // pass objects).
         if (isYUVExternalFormat)
         {
-            infoOut->externalFormat = {VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID, nullptr, 0};
-
             const vk::ExternalYuvFormatInfo &externalFormatInfo =
                 renderer->getExternalFormatTable()->getExternalFormatInfo(attachmentFormatID);
             infoOut->externalFormat.externalFormat = externalFormatInfo.externalFormat;
-            attachmentFormat                       = externalFormatInfo.colorAttachmentFormat;
+            attachmentFormat = renderer->nullColorAttachmentWithExternalFormatResolve()
+                                   ? VK_FORMAT_UNDEFINED
+                                   : externalFormatInfo.colorAttachmentFormat;
         }
 #endif
 
-        ASSERT(attachmentFormat != VK_FORMAT_UNDEFINED);
+        ASSERT((isYUVExternalFormat && renderer->nullColorAttachmentWithExternalFormatResolve()) ||
+               attachmentFormat != VK_FORMAT_UNDEFINED);
         infoOut->colorAttachmentFormats[attachmentCount.get()] = attachmentFormat;
 
         if (subset == DynamicRenderingInfoSubset::Full)
@@ -583,7 +587,7 @@ enum class ShadersStateSource
 
 void AttachPipelineRenderingInfo(ErrorContext *context,
                                  const RenderPassDesc &desc,
-                                 const DynamicRenderingInfo &renderingInfo,
+                                 DynamicRenderingInfo &renderingInfo,
                                  GraphicsPipelineSubset subset,
                                  ShadersStateSource shadersSource,
                                  VkPipelineRenderingCreateInfoKHR *pipelineRenderingInfoOut,
@@ -656,6 +660,13 @@ void AttachPipelineRenderingInfo(ErrorContext *context,
 
         AddToPNextChain(createInfoOut, createFlags2);
     }
+
+#if defined(ANGLE_PLATFORM_ANDROID)
+    if (renderingInfo.externalFormat.externalFormat != 0)
+    {
+        AddToPNextChain(createInfoOut, &renderingInfo.externalFormat);
+    }
+#endif
 }
 
 void UnpackAttachmentDesc(Renderer *renderer,
@@ -6825,15 +6836,20 @@ angle::Result DescriptorSetDescBuilder::updateInputAttachments(
 
             if (newMask[depthStencilIndex])
             {
-                writeDescriptorDescs[binding].descriptorCount = 1;
-
                 if ((imageAspects & aspect) != 0)
                 {
+                    writeDescriptorDescs[binding].descriptorCount = 1;
+
                     const vk::ImageView *imageView = nullptr;
                     ANGLE_TRY(
                         renderTargetVk->getDepthOrStencilImageView(contextVk, aspect, &imageView));
                     updateInputAttachment(contextVk, binding, inputAttachmentLayout, imageView,
                                           serial, writeDescriptorDescs);
+                }
+                else
+                {
+                    writeDescriptorDescs[binding].descriptorCount = 0;
+                    resetDescriptor(writeDescriptorDescs[binding].descriptorInfoIndex);
                 }
             }
             else if (prevMask[depthStencilIndex])

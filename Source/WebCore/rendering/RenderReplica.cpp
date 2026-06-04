@@ -60,11 +60,11 @@ void RenderReplica::layout()
     clearNeedsLayout();
 }
 
-void RenderReplica::computePreferredLogicalWidths()
+void RenderReplica::computeIntrinsicLogicalWidthContributions()
 {
-    m_minPreferredLogicalWidth = parentBox()->width();
-    m_maxPreferredLogicalWidth = m_minPreferredLogicalWidth;
-    clearNeedsPreferredWidthsUpdate();
+    m_minContentLogicalWidthContribution = parentBox()->width();
+    m_maxContentLogicalWidthContribution = m_minContentLogicalWidthContribution;
+    clearContentLogicalWidthsInvalidation();
 }
 
 void RenderReplica::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)

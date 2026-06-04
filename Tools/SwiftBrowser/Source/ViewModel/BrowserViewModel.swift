@@ -49,9 +49,25 @@ struct OpenRequest: Equatable {
 final class BrowserViewModel {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: String(describing: BrowserViewModel.self))
 
-    private static func decideSensorAuthorization(permission: WebPage.DeviceSensorAuthorization.Permission, frame: WebPage.FrameInfo, origin: WKSecurityOrigin) async -> WKPermissionDecision {
-        let mediaCaptureAuthorization = WKPermissionDecision(rawValue: UserDefaults.standard.integer(forKey: AppStorageKeys.mediaCaptureAuthorization))!
-        let orientationAndMotionAuthorization = WKPermissionDecision(rawValue: UserDefaults.standard.integer(forKey: AppStorageKeys.orientationAndMotionAuthorization))!
+    private static func decideSensorAuthorization(
+        permission: WebPage.DeviceSensorAuthorization.Permission,
+        frame: WebPage.FrameInfo,
+        origin: WKSecurityOrigin
+    ) async -> WKPermissionDecision {
+        guard
+            let mediaCaptureAuthorization = WKPermissionDecision(
+                rawValue: UserDefaults.standard.integer(forKey: AppStorageKeys.mediaCaptureAuthorization)
+            )
+        else {
+            preconditionFailure()
+        }
+        guard
+            let orientationAndMotionAuthorization = WKPermissionDecision(
+                rawValue: UserDefaults.standard.integer(forKey: AppStorageKeys.orientationAndMotionAuthorization)
+            )
+        else {
+            preconditionFailure()
+        }
 
         return switch permission {
         case .deviceOrientationAndMotion: orientationAndMotionAuthorization
@@ -63,9 +79,12 @@ final class BrowserViewModel {
 
     init() {
         var configuration = WebPage.Configuration()
-        configuration.deviceSensorAuthorization = WebPage.DeviceSensorAuthorization(decisionHandler: Self.decideSensorAuthorization(permission:frame:origin:))
+        configuration.deviceSensorAuthorization = WebPage.DeviceSensorAuthorization(
+            decisionHandler: Self.decideSensorAuthorization(permission:frame:origin:)
+        )
 
         self.page = WebPage(configuration: configuration, navigationDecider: self.navigationDecider, dialogPresenter: self.dialogPresenter)
+        self.page.isInspectable = true
 
         self.navigationDecider.owner = self
         self.dialogPresenter.owner = self
@@ -154,33 +173,37 @@ final class BrowserViewModel {
 
     func exportAsPDF() {
         Task {
-            let data = try await page.exported(as: .pdf)
+            guard let data = try? await page.exported(as: .pdf) else {
+                return
+            }
             exportedPDF = PDF(data: data, title: !page.title.isEmpty ? page.title : nil)
         }
     }
 
     func didExportPDF(result: Result<URL, any Error>) {
         switch result {
-        case let .success(url):
+        case .success(let url):
             Self.logger.info("Exported PDF to \(url)")
 
-        case let .failure(error):
+        case .failure(let error):
             Self.logger.error("Failed to export PDF: \(error)")
         }
     }
 
     func didImportFiles(result: Result<[URL], any Error>) {
-        precondition(currentFilePicker != nil)
-
-        switch result {
-        case let .success(urls):
-            currentFilePicker!.completion(.selected(urls))
-
-        case .failure:
-            currentFilePicker!.completion(.cancel)
+        guard let currentFilePicker else {
+            preconditionFailure()
         }
 
-        currentFilePicker = nil
+        switch result {
+        case .success(let urls):
+            currentFilePicker.completion(.selected(urls))
+
+        case .failure:
+            currentFilePicker.completion(.cancel)
+        }
+
+        self.currentFilePicker = nil
     }
 
     func setCameraCaptureState(_ state: WKMediaCaptureState) {

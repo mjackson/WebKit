@@ -70,6 +70,7 @@ struct QuirksData {
         HasBrokenEncryptedMediaAPISupportQuirk,
         ImplicitMuteWhenVolumeSetToZero,
         InputMethodUsesCorrectKeyEventOrder,
+        InputMethodMustUseCompositionEvents,
 #if PLATFORM(MAC)
         IsNeverRichlyEditableForTouchBarQuirk,
         IsTouchBarUpdateSuppressedForHiddenContentEditableQuirk,
@@ -84,6 +85,7 @@ struct QuirksData {
         NeedsLogoutCookieCleanupQuirk,
 #if PLATFORM(IOS_FAMILY)
         NeedsClaudeSidebarViewportUnitQuirk,
+        NeedsHideSelectionDuringOverflowScrollQuirk,
 #endif
         NeedsCustomUserAgentData,
 #if PLATFORM(IOS_FAMILY)
@@ -126,6 +128,9 @@ struct QuirksData {
         NeedsWebKitMediaTextTrackDisplayQuirk,
 #if PLATFORM(COCOA)
         NeedsYouTubeCaptionQuirk,
+#endif
+#if PLATFORM(IOS_FAMILY)
+        NeedsYouTubeEmbedAutoplayQuirk,
 #endif
 #if ENABLE(TWO_PHASE_CLICKS)
         NeedsYouTubeMouseOutQuirk,
@@ -225,7 +230,7 @@ struct QuirksData {
 #if PLATFORM(IOS_FAMILY)
         ShouldNavigatorPluginsBeEmpty,
 #endif
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(TOUCH_EVENTS) || ENABLE(TOUCH_EVENT_REGIONS)
         ShouldPreventDispatchOfTouchEventQuirk,
 #endif
         ShouldPreventOrientationMediaQueryFromEvaluatingToLandscapeQuirk,
@@ -303,88 +308,7 @@ struct QuirksData {
     std::optional<bool> needsDisableDOMPasteAccessQuirk;
     std::optional<bool> shouldDisableElementFullscreen;
 
-    std::optional<bool> needsReuseLiveRangeForSelectionUpdateQuirk;
-
-#if PLATFORM(IOS_FAMILY)
-    bool mayNeedToIgnoreContentObservation : 1 { false };
-    bool needsDeferKeyDownAndKeyPressTimersUntilNextEditingCommandQuirk : 1 { false };
-    bool needsFullscreenDisplayNoneQuirk : 1 { false };
-    bool needsFullscreenObjectFitQuirk : 1 { false };
-    bool needsGMailOverflowScrollQuirk : 1 { false };
-    bool needsGoogleMapsScrollingQuirk : 1 { false };
-    bool needsGoogleTranslateScrollingQuirk : 1 { false };
-    bool needsPreloadAutoQuirk : 1 { false };
-    bool needsScriptToEvaluateBeforeRunningScriptFromURLQuirk : 1 { false };
-    bool needsYouTubeMouseOutQuirk : 1 { false };
-    bool needsYouTubeOverflowScrollQuirk : 1 { false };
-    bool shouldAvoidPastingImagesAsWebContent : 1 { false };
-    bool shouldDisablePointerEventsQuirk : 1 { false };
-    bool shouldIgnoreAriaForFastPathContentObservationCheckQuirk : 1 { false };
-    bool shouldNavigatorPluginsBeEmpty : 1 { false };
-    bool shouldSilenceWindowResizeEventsDuringApplicationSnapshotting : 1 { false };
-    bool shouldSuppressAutocorrectionAndAutocapitalizationInHiddenEditableAreasQuirk : 1 { false };
-    bool shouldSynthesizeTouchEventsAfterNonSyntheticClickQuirk : 1 { false };
-    bool shouldTreatAddingMouseOutEventListenerAsContentChange : 1 { false };
-    bool requirePageVisibilityToPlayAudioQuirk : 1 { false };
-#endif // PLATFORM(IOS_FAMILY)
-
-#if PLATFORM(IOS) || PLATFORM(VISION)
-    bool allowLayeredFullscreenVideos : 1 { false };
-    bool shouldSilenceMediaQueryListChangeEvents : 1 { false };
-    bool shouldSilenceResizeObservers : 1 { false };
-#endif
-
-#if PLATFORM(VISION)
-    bool shouldDisableFullscreenVideoAspectRatioAdaptiveSizingQuirk : 1 { false };
-#endif
-
-#if PLATFORM(MAC)
-    bool isNeverRichlyEditableForTouchBarQuirk : 1 { false };
-    bool isTouchBarUpdateSuppressedForHiddenContentEditableQuirk : 1 { false };
-    bool needsFormControlToBeMouseFocusableQuirk : 1 { false };
-    bool needsPrimeVideoUserSelectNoneQuirk : 1 { false };
-    bool needsZomatoEmailLoginLabelQuirk : 1 { false };
-#endif
-
-#if ENABLE(DESKTOP_CONTENT_MODE_QUIRKS)
-    bool needsZeroMaxTouchPointsQuirk : 1 { false };
-    bool shouldSupportHoverMediaQueriesQuirk : 1 { false };
-#endif
-
-#if PLATFORM(IOS_FAMILY)
-    bool shouldHideCoarsePointerCharacteristicsQuirk : 1 { false };
-    bool shouldHideSoftTopScrollEdgeEffectDuringFocusQuirk : 1 { false };
-#endif
-
-#if ENABLE(FLIP_SCREEN_DIMENSIONS_QUIRKS)
-    bool shouldFlipScreenDimensionsQuirk : 1 { false };
-#endif
-
-#if ENABLE(MEDIA_STREAM)
-    bool shouldEnableFacebookFlagQuirk : 1 { false };
-    bool shouldDisableImageCaptureQuirk : 1 { false };
-    bool shouldEnableLegacyGetUserMediaQuirk : 1 { false };
-    bool shouldEnableSpeakerSelectionPermissionsPolicyQuirk : 1 { false };
-    bool shouldEnableEnumerateDeviceQuirk : 1 { false };
-    bool shouldEnableCameraAndMicrophonePermissionStateQuirk : 1 { false };
-#endif
-#if ENABLE(WEB_RTC)
-    bool shouldEnableRTCEncodedStreamsQuirk : 1 { false };
-#endif
-#if ENABLE(WEB_RTC)
-    bool shouldEnableRTCEncodedStreamsQuirk : 1 { false };
-#endif
-
-#if ENABLE(META_VIEWPORT)
-    bool shouldIgnoreViewportArgumentsToAvoidExcessiveZoomQuirk : 1 { false };
-    bool shouldIgnoreViewportArgumentsToAvoidEnlargedViewQuirk : 1 { false };
-#endif
-
-#if ENABLE(TEXT_AUTOSIZING)
-    bool shouldIgnoreTextAutoSizingQuirk : 1 { false };
-#endif
-
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(TOUCH_EVENTS) || ENABLE(TOUCH_EVENT_REGIONS)
     enum class ShouldDispatchSimulatedMouseEvents : uint8_t {
         Unknown,
         No,

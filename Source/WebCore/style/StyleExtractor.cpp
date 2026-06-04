@@ -32,6 +32,7 @@
 #include "CSSValuePool.h"
 #include "ComposedTreeAncestorIterator.h"
 #include "ContainerNodeInlines.h"
+#include "DeprecatedCSSOMValue.h"
 #include "FontCascade.h"
 #include "HTMLFrameOwnerElement.h"
 #include "KeyframeEffectStack.h"
@@ -157,7 +158,7 @@ static inline bool hasValidStyleForProperty(Element& element, CSSPropertyID prop
 
     auto isQueryContainer = [&](Element& element) {
         auto* style = element.renderStyle();
-        return style && style->containerType() != ContainerType::Normal;
+        return style && !style->containerType().isNormal();
     };
 
     if (isQueryContainer(element))
@@ -256,6 +257,20 @@ RefPtr<CSSValue> Extractor::customPropertyValue(const AtomString& propertyName) 
     return value->propertyValue(CSSValuePool::singleton(), *style);
 }
 
+RefPtr<DeprecatedCSSOMValue> Extractor::customPropertyValueDeprecatedCSSOMValue(const AtomString& propertyName, CSSStyleDeclaration& owner) const
+{
+    std::unique_ptr<RenderStyle> ownedStyle;
+    auto* style = computeStyleForCustomProperty(ownedStyle);
+    if (!style)
+        return nullptr;
+
+    RefPtr value = style->customPropertyValue(propertyName);
+    if (!value)
+        return nullptr;
+
+    return value->propertyValueDeprecatedCSSOMWrapper(CSSValuePool::singleton(), owner, *style);
+}
+
 WTF::String Extractor::customPropertyValueSerialization(const AtomString& propertyName, const CSS::SerializationContext& serializationContext) const
 {
     std::unique_ptr<RenderStyle> ownedStyle;
@@ -318,7 +333,16 @@ static bool isLayoutDependent(CSSPropertyID propertyID, const RenderStyle* style
     case CSSPropertyHeight:
     case CSSPropertyInlineSize:
     case CSSPropertyBlockSize:
-        return renderer && !renderer->isRenderOrLegacyRenderSVGModelObject() && !isNonReplacedInline(*renderer);
+        if (!renderer)
+            return false;
+        if (renderer->isSVGRenderer()) {
+            // In SVG, width/height are geometry properties that only apply to specific elements.
+            return renderer->isRenderOrLegacyRenderSVGRoot()
+                || renderer->isRenderOrLegacyRenderSVGImage()
+                || renderer->isRenderOrLegacyRenderSVGForeignObject()
+                || renderer->isRenderOrLegacyRenderSVGRect();
+        }
+        return !isNonReplacedInline(*renderer);
     case CSSPropertyMargin:
     case CSSPropertyMarginBlock:
     case CSSPropertyMarginBlockStart:
@@ -454,6 +478,14 @@ RefPtr<CSSValue> Extractor::propertyValue(CSSPropertyID propertyID, UpdateLayout
         valueType == ExtractorState::PropertyValueType::Resolved ? computeRenderer() : nullptr,
         valueType
     );
+}
+
+RefPtr<DeprecatedCSSOMValue> Extractor::propertyValueDeprecatedCSSOMValue(CSSPropertyID propertyID, CSSStyleDeclaration& owner, UpdateLayout updateLayout, ExtractorState::PropertyValueType valueType) const
+{
+    auto value = propertyValue(propertyID, updateLayout, valueType);
+    if (!value)
+        return nullptr;
+    return value->createDeprecatedCSSOMWrapper(owner);
 }
 
 WTF::String Extractor::propertyValueSerialization(CSSPropertyID propertyID, const CSS::SerializationContext& serializationContext, UpdateLayout updateLayout, ExtractorState::PropertyValueType valueType) const

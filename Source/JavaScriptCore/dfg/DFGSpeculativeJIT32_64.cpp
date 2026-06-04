@@ -2606,8 +2606,9 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
-    case StringFromCharCode: {
-        compileFromCharCode(node);
+    case StringFromCharCode:
+    case StringFromCodePoint: {
+        compileStringFromCharCodeOrCodePoint(node);
         break;
     }
 
@@ -2972,6 +2973,11 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
+    case ArrayJoin: {
+        compileArrayJoin(node);
+        break;
+    }
+
     case DFG::Jump: {
         jump(node->targetBlock());
         noResult(node);
@@ -3028,10 +3034,11 @@ void SpeculativeJIT::compile(Node* node)
 
     case BooleanToNumber: {
         switch (node->child1().useKind()) {
-        case BooleanUse: {
+        case BooleanUse:
+        case KnownBooleanUse: {
             SpeculateBooleanOperand value(this, node->child1());
             GPRTemporary result(this); // FIXME: We could reuse, but on speculation fail would need recovery to restore tag (akin to add).
-            
+
             move(value.gpr(), result.gpr());
 
             strictInt32Result(result.gpr(), node);
@@ -3182,6 +3189,11 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
+    case StringSearch: {
+        compileStringSearch(node);
+        break;
+    }
+
     case StringLastIndexOf: {
         compileStringLastIndexOf(node);
         break;
@@ -3286,6 +3298,16 @@ void SpeculativeJIT::compile(Node* node)
 
     case NewSet: {
         compileNewSet(node);
+        break;
+    }
+
+    case NewWeakMap: {
+        compileNewWeakMap(node);
+        break;
+    }
+
+    case NewWeakSet: {
+        compileNewWeakSet(node);
         break;
     }
 
@@ -4284,6 +4306,11 @@ void SpeculativeJIT::compile(Node* node)
 
     case EnumeratorNextUpdateIndexAndMode: {
         compileEnumeratorNextUpdateIndexAndMode(node);
+        break;
+    }
+
+    case StringIteratorNext: {
+        compileStringIteratorNext(node);
         break;
     }
 

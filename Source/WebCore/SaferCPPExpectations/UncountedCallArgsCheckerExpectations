@@ -164,8 +164,6 @@ css/CSSStyleRule.cpp
 css/CSSStyleSheet.cpp
 css/CSSStyleSheetObservableArray.cpp
 css/CSSValueList.cpp
-css/DeprecatedCSSOMPrimitiveValue.h
-css/DeprecatedCSSOMRGBColor.h
 css/FontFace.cpp
 css/FontFaceSet.cpp
 css/MediaQueryList.cpp
@@ -687,7 +685,6 @@ svg/SVGFEComponentTransferElement.cpp
 svg/SVGFEConvolveMatrixElement.cpp
 svg/SVGFEImageElement.cpp
 svg/SVGFontFaceElement.cpp
-svg/SVGFontFaceUriElement.cpp
 svg/SVGGlyphRefElement.cpp
 svg/SVGGradientElement.cpp
 svg/SVGGraphicsElement.cpp

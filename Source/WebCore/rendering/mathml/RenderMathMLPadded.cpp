@@ -88,23 +88,23 @@ LayoutUnit RenderMathMLPadded::mpaddedDepth(LayoutUnit contentDepth) const
     return std::max(0_lu, toUserUnits(depthAttr, style(), 0));
 }
 
-void RenderMathMLPadded::computePreferredLogicalWidths()
+void RenderMathMLPadded::computeIntrinsicLogicalWidthContributions()
 {
-    ASSERT(needsPreferredLogicalWidthsUpdate());
+    ASSERT(hasInvalidContentLogicalWidths());
 
     // Only the width attribute should modify the width.
     // We parse it using the preferred width of the content as its default value.
     LayoutUnit preferredWidth = preferredLogicalWidthOfRowItems();
     preferredWidth = mpaddedWidth(preferredWidth);
-    m_minPreferredLogicalWidth = preferredWidth;
-    m_maxPreferredLogicalWidth = preferredWidth;
+    m_minContentLogicalWidthContribution = preferredWidth;
+    m_maxContentLogicalWidthContribution = preferredWidth;
 
     auto sizes = sizeAppliedToMathContent(LayoutPhase::CalculatePreferredLogicalWidth);
     applySizeToMathContent(LayoutPhase::CalculatePreferredLogicalWidth, sizes);
 
-    adjustPreferredLogicalWidthsForBorderAndPadding();
+    adjustContentLogicalWidthsForBorderAndPadding();
 
-    clearNeedsPreferredWidthsUpdate();
+    clearContentLogicalWidthsInvalidation();
 }
 
 void RenderMathMLPadded::layoutBlock(RelayoutChildren relayoutChildren, LayoutUnit)

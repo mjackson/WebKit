@@ -26,7 +26,10 @@
 
 #include <wtf/Platform.h>
 
+#if PLATFORM(COCOA)
+
 #ifdef __cplusplus
+#include <WebCore/SharedMemory.h>
 #include <WebCore/WebGPUPrimitiveTopology.h>
 #include <WebCore/WebGPUTextureFormat.h>
 #include <WebCore/WebGPUTextureUsage.h>
@@ -137,9 +140,10 @@ typedef NS_ENUM(uint8_t, WKBridgeVertexSemantic) {
 @property (nonatomic, readonly, nullable) NSData *influenceJointIndicesData; // [UInt32]
 @property (nonatomic, readonly, nullable) NSData *influenceWeightsData; // [Float]
 @property (nonatomic, readonly) simd_float4x4 geometryBindTransform;
+@property (nonatomic, readonly, nullable) NSData *rootJointIndicesData; // [UInt32] indices of joints with no parent in the skeleton
 
 - (instancetype)init NS_UNAVAILABLE;
-- (instancetype)initWithInfluencePerVertexCount:(uint8_t)influencePerVertexCount jointTransforms:(nullable NSData *)jointTransforms inverseBindPoses:(nullable NSData *)inverseBindPoses influenceJointIndices:(nullable NSData *)influenceJointIndices influenceWeights:(nullable NSData *)influenceWeights geometryBindTransform:(simd_float4x4)geometryBindTransform NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithInfluencePerVertexCount:(uint8_t)influencePerVertexCount jointTransforms:(nullable NSData *)jointTransforms inverseBindPoses:(nullable NSData *)inverseBindPoses influenceJointIndices:(nullable NSData *)influenceJointIndices influenceWeights:(nullable NSData *)influenceWeights geometryBindTransform:(simd_float4x4)geometryBindTransform rootJointIndices:(nullable NSData *)rootJointIndices NS_DESIGNATED_INITIALIZER;
 
 @end
 
@@ -320,9 +324,10 @@ typedef NS_ENUM(NSInteger, WKBridgeNodeType) {
 @property (nonatomic, readonly) WKBridgeConstant constant;
 @property (nonatomic, readonly, strong) NSArray<WKBridgeValueString *> *constantValues;
 @property (nonatomic, readonly) NSString *name;
+@property (nonatomic, readonly, nullable) NSString *colorSpaceName;
 
 - (instancetype)init NS_UNAVAILABLE;
-- (instancetype)initWithConstant:(WKBridgeConstant)constant constantValues:(NSArray<WKBridgeValueString *> *)constantValues name:(NSString *)name NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithConstant:(WKBridgeConstant)constant constantValues:(NSArray<WKBridgeValueString *> *)constantValues name:(NSString *)name colorSpaceName:(nullable NSString *)colorSpaceName NS_DESIGNATED_INITIALIZER;
 
 @end
 
@@ -477,7 +482,10 @@ NS_SWIFT_SENDABLE
 - (instancetype)init NS_UNAVAILABLE;
 - (instancetype)initWithDevice:(id<MTLDevice>)device memoryOwner:(task_id_token_t)memoryOwner NS_DESIGNATED_INITIALIZER;
 
-- (void)createMaterialCompiler:(void (^)(void))completionHandler;
+- (void)makeStandaloneResourcesWithCompletionHandler:(void (^)(void))completionHandler;
+- (void)createMaterialCompiler;
+- (void)makeRendererResourcesWithCompletionHandler:(void (^)(void))completionHandler;
+- (void)createRenderer;
 
 @end
 
@@ -485,9 +493,9 @@ NS_SWIFT_SENDABLE
 
 - (nullable id<MTLCommandBuffer>)commandBuffer;
 - (void)renderWithTexture:(id<MTLTexture>)texture commandBuffer:(id<MTLCommandBuffer>)commandBuffer;
-- (void)updateMesh:(NSArray<WKBridgeUpdateMesh *> *)descriptor completionHandler:(void (^)(void))completionHandler;
+- (void)updateMesh:(NSArray<WKBridgeUpdateMesh *> *)descriptor;
 - (void)updateTexture:(NSArray<WKBridgeUpdateTexture *> *)descriptor;
-- (void)updateMaterial:(NSArray<WKBridgeUpdateMaterial *> *)descriptor completionHandler:(void (^)(void))completionHandler;
+- (void)updateMaterial:(NSArray<WKBridgeUpdateMaterial *> *)descriptor;
 - (BOOL)processRemovals:(NSArray<WKBridgeTypedResourceId *> *)meshRemovals materialRemovals:(NSArray<WKBridgeTypedResourceId *> *)materialRemovals  textureRemovals:(NSArray<WKBridgeTypedResourceId *> *)textureRemovals;
 - (void)setTransform:(simd_float4x4)transform;
 - (void)setFOV:(float)fovY;
@@ -541,7 +549,7 @@ struct ImageAssetSwizzle {
 };
 
 struct ImageAsset {
-    Vector<uint8_t> data;
+    std::optional<WebCore::SharedMemory::Handle> dataHandle;
     long width { 0 };
     long height { 0 };
     long depth { 0 };
@@ -706,6 +714,7 @@ struct ConstantContainer {
     Constant constant;
     Vector<Variant<String, double>> constantValues;
     String name;
+    std::optional<String> colorSpaceName;
 };
 
 struct InputOutput {
@@ -770,6 +779,10 @@ struct SkinningData {
     Vector<uint32_t> influenceJointIndices;
     Vector<float> influenceWeights;
     Float4x4 geometryBindTransform;
+    // Indices into jointTransforms/inverseBindPoses for joints with no parent in the
+    // skeleton hierarchy. Computed from the USD joint token paths at load time.
+    // Empty means the caller should fall back to index 0 (single-root assumption).
+    Vector<uint32_t> rootJointIndices;
 };
 
 struct BlendShapeData {
@@ -815,9 +828,11 @@ typedef struct WebModelCreateMeshDescriptor {
     unsigned width;
     unsigned height;
     Vector<RetainPtr<IOSurfaceRef>> ioSurfaces;
-    const WebModel::ImageAsset& diffuseTexture;
-    const WebModel::ImageAsset& specularTexture;
+    WebModel::ImageAsset&& diffuseTexture;
+    WebModel::ImageAsset&& specularTexture;
     const WebCore::ProcessIdentity* processIdentity;
 } WebModelCreateMeshDescriptor;
+
+#endif
 
 #endif

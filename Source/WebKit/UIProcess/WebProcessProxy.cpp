@@ -51,6 +51,7 @@
 #include "RemotePageProxy.h"
 #include "RemoteWorkerType.h"
 #include "ServiceWorkerNotificationHandler.h"
+#include "SessionState.h"
 #include "SpeechRecognitionPermissionRequest.h"
 #include "SpeechRecognitionRemoteRealtimeMediaSourceManager.h"
 #include "SpeechRecognitionRemoteRealtimeMediaSourceManagerMessages.h"
@@ -360,6 +361,11 @@ WebProcessProxy::~WebProcessProxy()
     ASSERT(m_pageURLRetainCountMap.isEmpty());
     WEBPROCESSPROXY_RELEASE_LOG(Process, "destructor:");
 
+    // ~AuxiliaryProcessProxy() replies to pending messages after our members are gone; a reply
+    // handler that upgrades its still-live WeakPtr<WebProcessProxy> would then touch freed members
+    // (e.g. m_pagesPendingClose). Cancel them now, while our state is intact.
+    replyToPendingMessages();
+
     liveProcessesLRU().remove(*this);
 
     for (auto identifier : m_speechRecognitionServerMap.keys())
@@ -615,10 +621,10 @@ void WebProcessProxy::platformGetLaunchOptions(ProcessLauncher::LaunchOptions& l
 }
 #endif
 
-bool WebProcessProxy::shouldSendPendingMessage(const PendingMessage& message)
+bool WebProcessProxy::shouldSendPendingMessage(const IPC::Encoder& encoder)
 {
-    if (message.encoder->messageName() == IPC::MessageName::WebPage_LoadRequestWaitingForProcessLaunch) {
-        auto decoder = IPC::Decoder::create(message.encoder->span(), { });
+    if (encoder.messageName() == IPC::MessageName::WebPage_LoadRequestWaitingForProcessLaunch) {
+        auto decoder = IPC::Decoder::create(encoder.span(), { });
         ASSERT(decoder);
         if (!decoder)
             return false;
@@ -642,8 +648,9 @@ bool WebProcessProxy::shouldSendPendingMessage(const PendingMessage& message)
         } else
             ASSERT_NOT_REACHED();
         return false;
-    } else if (message.encoder->messageName() == IPC::MessageName::WebPage_GoToBackForwardItemWaitingForProcessLaunch) {
-        auto decoder = IPC::Decoder::create(message.encoder->span(), { });
+    }
+    if (encoder.messageName() == IPC::MessageName::WebPage_GoToBackForwardItemWaitingForProcessLaunch) {
+        auto decoder = IPC::Decoder::create(encoder.span(), { });
         ASSERT(decoder);
         if (!decoder)
             return false;
@@ -734,6 +741,8 @@ void WebProcessProxy::shutDown()
 {
     RELEASE_ASSERT(isMainThreadOrCheckDisabled());
     WEBPROCESSPROXY_RELEASE_LOG(Process, "shutDown:");
+
+    m_isShuttingDown = true;
 
     if (m_isInProcessCache) {
         processPool().webProcessCache().removeProcess(*this, WebProcessCache::ShouldShutDownProcess::No);
@@ -950,6 +959,20 @@ void WebProcessProxy::removeWebPage(WebPageProxy& webPage, EndsUsingDataStore en
 #endif
 
     maybeShutDown();
+}
+
+void WebProcessProxy::sendPageCloseMessage(std::optional<WebPageProxyIdentifier> pageProxyID, WebCore::PageIdentifier pageID, CompletionHandler<void()>&& completionHandler)
+{
+    if (pageProxyID)
+        m_pagesPendingClose.add(*pageProxyID);
+    sendWithAsyncReply(Messages::WebPage::Close(), [weakThis = WeakPtr { *this }, pageProxyID, completionHandler = WTF::move(completionHandler)]() mutable {
+        if (RefPtr protectedThis = weakThis; protectedThis && pageProxyID) {
+            protectedThis->m_pagesPendingClose.remove(*pageProxyID);
+            protectedThis->reportProcessDisassociatedWithPageIfNecessary(*pageProxyID);
+        }
+        if (completionHandler)
+            completionHandler();
+    }, pageID);
 }
 
 void WebProcessProxy::addVisitedLinkStoreUser(VisitedLinkStore& visitedLinkStore, WebPageProxyIdentifier pageID)
@@ -1536,6 +1559,18 @@ void WebProcessProxy::addPreviouslyApprovedFileURL(const URL& url)
         m_previouslyApprovedFilePaths.add(fileSystemPath);
 }
 
+void WebProcessProxy::addPreviouslyApprovedFileURLsFromFrameStateTree(const FrameState& frameState)
+{
+    URL url { frameState.urlString };
+    if (url.protocolIsFile())
+        addPreviouslyApprovedFileURL(url);
+    URL originalURL { frameState.originalURLString };
+    if (originalURL.protocolIsFile())
+        addPreviouslyApprovedFileURL(originalURL);
+    for (auto& child : frameState.children)
+        addPreviouslyApprovedFileURLsFromFrameStateTree(child.get());
+}
+
 bool WebProcessProxy::wasPreviouslyApprovedFileURL(const URL& url) const
 {
     ASSERT(url.protocolIsFile());
@@ -1651,7 +1686,9 @@ void WebProcessProxy::maybeShutDown()
         return;
     }
 
-    if (state() == State::Terminated || !canTerminateAuxiliaryProcess())
+    // shutDownProcess() can re-entrantly trigger maybeShutDown() when
+    // cancelAsyncReplyHandlers() releases shutdown-preventing scope tokens.
+    if (state() == State::Terminated || m_isShuttingDown || !canTerminateAuxiliaryProcess())
         return;
 
     if (canBeAddedToWebProcessCache() && protect(processPool().webProcessCache())->addProcessIfPossible(*this))
@@ -1784,7 +1821,7 @@ void WebProcessProxy::requestTermination(ProcessTerminationReason reason)
         return;
 
     Ref protectedThis { *this };
-    WEBPROCESSPROXY_RELEASE_LOG_ERROR(Process, "requestTermination: reason=%d", static_cast<int>(reason));
+    WEBPROCESSPROXY_RELEASE_LOG_ERROR(Process, "requestTermination: reason=%" PUBLIC_LOG_STRING, processTerminationReasonToString(reason).characters());
 
     AuxiliaryProcessProxy::terminate();
 
@@ -2354,14 +2391,21 @@ bool WebProcessProxy::isAssociatedWithPage(WebPageProxyIdentifier pageID) const
 {
     if (m_pageMap.contains(pageID))
         return true;
-    for (auto& provisionalPage : m_provisionalPages) {
-        if (provisionalPage.page() && provisionalPage.page()->identifier() == pageID)
+
+    for (Ref remotePage : m_remotePages) {
+        if (remotePage->page() && remotePage->page()->identifier() == pageID)
+            return true;
+    }
+    for (Ref provisionalPage : m_provisionalPages) {
+        if (provisionalPage->page() && provisionalPage->page()->identifier() == pageID)
             return true;
     }
     for (auto& suspendedPage : m_suspendedPages) {
         if (suspendedPage.page() && suspendedPage.page()->identifier() == pageID)
             return true;
     }
+    if (m_pagesPendingClose.contains(pageID))
+        return true;
     return false;
 }
 
@@ -2906,9 +2950,31 @@ void WebProcessProxy::unwrapCryptoKey(WrappedCryptoKey&& wrappedKey, CompletionH
 
 }
 
+WebProcessProxy::FirstPartyAccessResult WebProcessProxy::allowsFirstPartyAccess(const WebCore::RegistrableDomain& domain) const
+{
+    if (m_site)
+        return domain == m_site->domain() ? FirstPartyAccessResult::Pass : FirstPartyAccessResult::HardFailure;
+
+    switch (m_site.error()) {
+    case SiteState::NotYetSpecified:
+        return FirstPartyAccessResult::Pass;
+    case SiteState::MultipleSites:
+        // A web process under the MultipleSites categorization should not be doing things like
+        // sending badge updates.
+        // This is expected sometimes, like right as a new load is starting, so we can silently ignore.
+        return FirstPartyAccessResult::SilentFailure;
+    case SiteState::SharedProcess:
+        return sharedProcessDomains().contains(domain) ? FirstPartyAccessResult::Pass : FirstPartyAccessResult::HardFailure;
+    }
+
+    RELEASE_ASSERT_NOT_REACHED();
+}
+
 void WebProcessProxy::setAppBadgeFromWorker(const SecurityOriginData& origin, std::optional<uint64_t> badge)
 {
-    protect(websiteDataStore())->workerUpdatedAppBadge(origin, badge);
+    MESSAGE_CHECK(allowsFirstPartyAccess(WebCore::RegistrableDomain { origin }) == FirstPartyAccessResult::Pass);
+    if (RefPtr dataStore = websiteDataStore())
+        dataStore->workerUpdatedAppBadge(origin, badge);
 }
 
 const WeakHashSet<WebProcessProxy>* WebProcessProxy::serviceWorkerClientProcesses() const
@@ -3183,6 +3249,7 @@ void WebProcessProxy::didPostMessage(WebPageProxyIdentifier pageID, UserContentC
     RefPtr page = WebPageProxy::fromIdentifier(pageID);
     if (!page)
         return completionHandler(makeUnexpected(String()));
+    MESSAGE_CHECK_COMPLETION(isAssociatedWithPage(pageID), completionHandler(makeUnexpected(String())));
     RefPtr controller = WebUserContentControllerProxy::get(identifier);
     if (!controller)
         return completionHandler(makeUnexpected(String()));

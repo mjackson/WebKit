@@ -41,6 +41,7 @@
 #include "RenderObjectInlines.h"
 #include "RenderSVGShape.h"
 #include "RenderStyle+GettersInlines.h"
+#include "SVGTransformComputation.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -189,10 +190,14 @@ GraphicsContext* RenderLayerFilters::beginFilterEffect(RenderElement& renderer, 
         return existingGeometry.referenceBox != newGeometry.referenceBox || existingGeometry.scale != newGeometry.scale;
     };
 
+    auto filterScale = m_filterScale;
+    if (renderer.isSVGLayerAwareRenderer())
+        filterScale = m_filterScale * SVGTransformComputation(downcast<RenderLayerModelObject>(renderer)).calculateAccumulatedSVGAncestorTransformScale();
+
     auto geometry = FilterGeometry {
         .referenceBox = filterBoxRect,
         .filterRegion = filterRegion,
-        .scale = m_filterScale,
+        .scale = filterScale,
     };
 
     bool hasUpdatedBackingStore = false;
@@ -235,7 +240,16 @@ GraphicsContext* RenderLayerFilters::beginFilterEffect(RenderElement& renderer, 
             sourceImageRect = renderer.objectBoundingBox();
         else
             sourceImageRect = dirtyFilterRegion;
-        m_targetSwitcher = GraphicsContextSwitcher::create(context, sourceImageRect, DestinationColorSpace::SRGB(), { WTF::move(filter) });
+
+        // SVG spec: color-interpolation-filters defaults to linearRGB, so SVG filter
+        // operations should happen in linear color space. Match legacy SVG filter behavior.
+        auto colorSpace = DestinationColorSpace::SRGB();
+#if !USE(CAIRO)
+        if (renderer.isSVGLayerAwareRenderer())
+            colorSpace = DestinationColorSpace::LinearSRGB();
+#endif
+
+        m_targetSwitcher = GraphicsContextSwitcher::create(context, sourceImageRect, colorSpace, { WTF::move(filter) });
     }
 
     if (!m_targetSwitcher)
@@ -251,7 +265,16 @@ void RenderLayerFilters::applyFilterEffect(GraphicsContext& destinationContext)
     LOG_WITH_STREAM(Filters, stream << "\nRenderLayerFilters " << this << " applyFilterEffect");
 
     ASSERT(m_targetSwitcher);
-    m_targetSwitcher->endClipAndDrawSourceImage(destinationContext, DestinationColorSpace::SRGB());
+
+    auto colorSpace = DestinationColorSpace::SRGB();
+#if !USE(CAIRO)
+    if (CheckedPtr layer = m_layer.get()) {
+        if (layer->renderer().isSVGLayerAwareRenderer())
+            colorSpace = DestinationColorSpace::LinearSRGB();
+    }
+#endif
+
+    m_targetSwitcher->endClipAndDrawSourceImage(destinationContext, colorSpace);
 
     LOG_WITH_STREAM(Filters, stream << "RenderLayerFilters " << this << " applyFilterEffect done\n");
 }

@@ -622,7 +622,7 @@ static WKBridgeSkinningData *convert(const std::optional<SkinningData>& data)
     if (!data)
         return nil;
 
-    return [WebKit::allocWKBridgeSkinningDataInstance() initWithInfluencePerVertexCount:data->influencePerVertexCount jointTransforms:convert(data->jointTransforms) inverseBindPoses:convert(data->inverseBindPoses) influenceJointIndices:convert(data->influenceJointIndices) influenceWeights:convert(data->influenceWeights) geometryBindTransform:data->geometryBindTransform];
+    return [WebKit::allocWKBridgeSkinningDataInstance() initWithInfluencePerVertexCount:data->influencePerVertexCount jointTransforms:convert(data->jointTransforms) inverseBindPoses:convert(data->inverseBindPoses) influenceJointIndices:convert(data->influenceJointIndices) influenceWeights:convert(data->influenceWeights) geometryBindTransform:data->geometryBindTransform rootJointIndices:convert(data->rootJointIndices)];
 }
 
 static WKBridgeBlendShapeData *convert(const std::optional<BlendShapeData>& data)
@@ -662,7 +662,19 @@ static MTLTextureSwizzleChannels convert(ImageAssetSwizzle swizzle)
 static WKBridgeImageAsset* convert(const ImageAsset& imageAsset)
 {
     auto mtlPixelFormat = WebModel::toMetal(imageAsset.pixelFormat);
-    return [WebKit::allocWKBridgeImageAssetInstance() initWithData:convert(imageAsset.data) width:imageAsset.width height:imageAsset.height depth:imageAsset.depth textureType:toMetal(imageAsset.textureType) pixelFormat:mtlPixelFormat mipmapLevelCount:imageAsset.mipmapLevelCount arrayLength:imageAsset.arrayLength textureUsage:toMetal(imageAsset.textureUsage) swizzle:convert(imageAsset.swizzle)];
+
+    NSData *data = nil;
+    if (imageAsset.dataHandle) {
+        if (RefPtr sharedMemory = WebCore::SharedMemory::map(WebCore::SharedMemoryHandle(*imageAsset.dataHandle), WebCore::SharedMemoryProtection::ReadOnly)) {
+            auto span = sharedMemory->span();
+            data = [[NSData alloc] initWithBytesNoCopy:const_cast<uint8_t *>(span.data()) length:span.size() deallocator:^(void *, NSUInteger) {
+                // Capturing the RefPtr keeps the mapping alive for the lifetime of this NSData.
+                UNUSED_PARAM(sharedMemory);
+            }];
+        }
+    }
+
+    return [WebKit::allocWKBridgeImageAssetInstance() initWithData:data width:imageAsset.width height:imageAsset.height depth:imageAsset.depth textureType:toMetal(imageAsset.textureType) pixelFormat:mtlPixelFormat mipmapLevelCount:imageAsset.mipmapLevelCount arrayLength:imageAsset.arrayLength textureUsage:toMetal(imageAsset.textureUsage) swizzle:convert(imageAsset.swizzle)];
 }
 
 static WKBridgeTextureLevelInfo* convert(const TextureLevelInfo& textureLevelInfo)
@@ -758,7 +770,8 @@ static NSArray<WKBridgeValueString *> *convert(const Vector<Variant<String, doub
 
 static WKBridgeConstantContainer *convert(const ConstantContainer& constant)
 {
-    return [WebKit::allocWKBridgeConstantContainerInstance() initWithConstant:convert(constant.constant) constantValues:convert(constant.constantValues) name:constant.name.createNSString().get()];
+    NSString *colorSpaceName = constant.colorSpaceName ? constant.colorSpaceName->createNSString().get() : nil;
+    return [WebKit::allocWKBridgeConstantContainerInstance() initWithConstant:convert(constant.constant) constantValues:convert(constant.constantValues) name:constant.name.createNSString().get() colorSpaceName:colorSpaceName];
 }
 
 static NSArray<WKBridgeInputOutput *> *convert(const Vector<InputOutput>& inputOutputs)
@@ -875,11 +888,18 @@ WebMesh::WebMesh(const WebModelCreateMeshDescriptor& descriptor)
     WKBridgeImageAsset *diffuseAsset = WebModel::convert(descriptor.diffuseTexture);
     WKBridgeImageAsset *specularAsset = WebModel::convert(descriptor.specularTexture);
     if (configuration) {
-        BinarySemaphore completion;
-        [configuration createMaterialCompiler:[&completion] mutable {
-            completion.signal();
+        BinarySemaphore standaloneResourcesCompletion;
+        [configuration makeStandaloneResourcesWithCompletionHandler:[&standaloneResourcesCompletion] mutable {
+            standaloneResourcesCompletion.signal();
         }];
-        completion.wait();
+        standaloneResourcesCompletion.wait();
+        [configuration createMaterialCompiler];
+        BinarySemaphore rendererResourcesCompletion;
+        [configuration makeRendererResourcesWithCompletionHandler:[&rendererResourcesCompletion] mutable {
+            rendererResourcesCompletion.signal();
+        }];
+        rendererResourcesCompletion.wait();
+        [configuration createRenderer];
     }
 
     NSError *error;
@@ -944,13 +964,9 @@ void WebMesh::update(Vector<WebModel::UpdateMeshDescriptor>&& inputArray)
         return;
 
     RELEASE_ASSERT(m_receiver);
-    BinarySemaphore completion;
     [m_receiver updateMesh:createNSArray(inputArray, [](const WebModel::UpdateMeshDescriptor& desc) {
         return convert(desc);
-    }) completionHandler:[&] mutable {
-        completion.signal();
-    }];
-    completion.wait();
+    })];
     m_meshDataExists = true;
 #else
     UNUSED_PARAM(inputArray);
@@ -989,13 +1005,9 @@ void WebMesh::updateMaterial(Vector<WebModel::UpdateMaterialDescriptor>&& inputA
 {
 #if ENABLE(GPU_PROCESS_MODEL)
     RELEASE_ASSERT(m_receiver);
-    BinarySemaphore completion;
     [m_receiver updateMaterial:createNSArray(inputArray, [](const WebModel::UpdateMaterialDescriptor& desc) {
         return convert(desc);
-    }) completionHandler:[&] mutable {
-        completion.signal();
-    }];
-    completion.wait();
+    })];
 #else
     UNUSED_PARAM(inputArray);
 #endif
@@ -1029,7 +1041,7 @@ void WebMesh::setBackgroundColor(const simd_float3& color)
 #endif
 }
 
-void WebMesh::setEnvironmentMap(const WebModel::UpdateTextureDescriptor& imageAsset)
+void WebMesh::setEnvironmentMap(WebModel::UpdateTextureDescriptor&& imageAsset)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
     [m_receiver setEnvironmentMap:convert(imageAsset)];

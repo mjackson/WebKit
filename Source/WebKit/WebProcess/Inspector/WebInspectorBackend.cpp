@@ -27,6 +27,7 @@
 #include "WebInspectorBackend.h"
 
 #include "FrameNetworkAgentProxy.h"
+#include "PageAgentProxy.h"
 #include "WebFrame.h"
 #include "WebInspectorBackendMessages.h"
 #include "WebInspectorBackendProxyMessages.h"
@@ -67,6 +68,7 @@ Ref<WebInspectorBackend> WebInspectorBackend::create(WebPage& page)
 
 WebInspectorBackend::WebInspectorBackend(WebPage& page)
     : m_page(page)
+    , m_resourceDataStore(makeUniqueRef<BackendResourceDataStore>(BackendResourceDataStore::Settings { }))
 {
 }
 
@@ -340,7 +342,8 @@ void WebInspectorBackend::ensureInstrumentationForFrame(LocalFrame& frame)
         instrumentingAgents.get()
     };
 
-    auto proxy = makeUnique<FrameNetworkAgentProxy>(webContext, *page);
+    CheckedRef resourceDataStore = m_resourceDataStore.get();
+    auto proxy = makeUnique<FrameNetworkAgentProxy>(webContext, *page, resourceDataStore.get());
     proxy->enable();
     m_frameNetworkAgentProxies.add(frameID, WTF::move(proxy));
 }
@@ -383,6 +386,58 @@ void WebInspectorBackend::disableNetworkInstrumentation()
 void WebInspectorBackend::removeInstrumentationForFrame(FrameIdentifier frameID)
 {
     m_frameNetworkAgentProxies.remove(frameID);
+}
+
+void WebInspectorBackend::getResponseBody(ResourceLoaderIdentifier resourceID, CompletionHandler<void(String content, bool base64Encoded, String errorString)>&& completionHandler)
+{
+    CheckedRef resourceDataStore = m_resourceDataStore.get();
+    auto result = resourceDataStore->getResponseBody(resourceID);
+    if (result.has_value()) {
+        auto& [content, base64Encoded] = result.value();
+        completionHandler(content, base64Encoded, String());
+    } else
+        completionHandler(String(), false, result.error());
+}
+
+void WebInspectorBackend::enablePageInstrumentation()
+{
+    if (!m_page || !m_page->corePage())
+        return;
+
+    if (m_pageInstrumentationEnabled)
+        return;
+
+    m_pageInstrumentationEnabled = true;
+
+    RefPtr page = m_page.get();
+    RefPtr corePage = page->corePage();
+    corePage->settings().setDeveloperExtrasEnabled(true);
+
+    auto& pageInspectorController = corePage->inspectorController();
+    Inspector::AgentContext baseContext = {
+        pageInspectorController,
+        pageInspectorController.injectedScriptManager(),
+        pageInspectorController.frontendRouter(),
+        pageInspectorController.backendDispatcher()
+    };
+    Ref instrumentingAgents = pageInspectorController.instrumentingAgents();
+    WebAgentContext webContext = {
+        baseContext,
+        instrumentingAgents.get()
+    };
+
+    m_pageAgentProxy = makeUnique<PageAgentProxy>(webContext, *page);
+    CheckedRef pageAgentProxy { *m_pageAgentProxy };
+    pageAgentProxy->enable();
+}
+
+void WebInspectorBackend::disablePageInstrumentation()
+{
+    if (!m_pageInstrumentationEnabled)
+        return;
+
+    m_pageAgentProxy = nullptr;
+    m_pageInstrumentationEnabled = false;
 }
 
 } // namespace WebKit

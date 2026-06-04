@@ -59,6 +59,7 @@
 #include <pal/SessionID.h>
 #include <wtf/Expected.h>
 #include <wtf/Forward.h>
+#include <wtf/HashCountedSet.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/Logger.h>
@@ -275,6 +276,8 @@ public:
     enum class EndsUsingDataStore : bool { No, Yes };
     void removeWebPage(WebPageProxy&, EndsUsingDataStore);
 
+    void sendPageCloseMessage(std::optional<WebPageProxyIdentifier>, WebCore::PageIdentifier, CompletionHandler<void()>&& = [] { });
+
     void addProvisionalPageProxy(ProvisionalPageProxy&);
     void removeProvisionalPageProxy(ProvisionalPageProxy&);
     void addRemotePageProxy(RemotePageProxy&);
@@ -318,6 +321,7 @@ public:
     VisibleWebPageToken visiblePageToken() const;
 
     void addPreviouslyApprovedFileURL(const URL&);
+    void addPreviouslyApprovedFileURLsFromFrameStateTree(const FrameState&);
     bool wasPreviouslyApprovedFileURL(const URL&) const;
 
     void updateTextCheckerState();
@@ -623,6 +627,13 @@ public:
     void decrementFrameProcessCount() { --m_frameProcessCount; }
     uint64_t frameProcessCount() const { return m_frameProcessCount; }
 
+    enum class FirstPartyAccessResult {
+        Pass,
+        SilentFailure,
+        HardFailure,
+    };
+    FirstPartyAccessResult allowsFirstPartyAccess(const WebCore::RegistrableDomain&) const;
+
 private:
     Type type() const final { return Type::WebContent; }
 
@@ -635,7 +646,7 @@ private:
     void platformGetLaunchOptions(ProcessLauncher::LaunchOptions&) override;
     void connectionWillOpen(IPC::Connection&) override;
     void processWillShutDown(IPC::Connection&) override;
-    bool shouldSendPendingMessage(const PendingMessage&) final;
+    bool shouldSendPendingMessage(const IPC::Encoder&) final;
     
 #if PLATFORM(COCOA)
     void cacheMediaMIMETypesInternal(const Vector<String>&);
@@ -667,7 +678,7 @@ private:
     void initializePreferencesForGPUAndNetworkProcesses(const WebPageProxy&);
 
     void reportProcessDisassociatedWithPageIfNecessary(WebPageProxyIdentifier);
-    bool NODELETE isAssociatedWithPage(WebPageProxyIdentifier) const;
+    bool isAssociatedWithPage(WebPageProxyIdentifier) const;
 
     void platformInitialize();
     void platformDestroy();
@@ -809,6 +820,7 @@ private:
     WeakHashSet<RemotePageProxy> m_remotePages;
     WeakHashSet<ProvisionalPageProxy> m_provisionalPages;
     WeakHashSet<SuspendedPageProxy> m_suspendedPages;
+    HashCountedSet<WebPageProxyIdentifier> m_pagesPendingClose;
     UserInitiatedActionMap m_userInitiatedActionMap;
     HashMap<WebCore::PageIdentifier, UserInitiatedActionByAuthorizationTokenMap> m_userInitiatedActionByAuthorizationTokenMap;
     uint64_t m_frameProcessCount { 0 };
@@ -835,6 +847,7 @@ private:
     HashSet<WebCore::RegistrableDomain> m_sharedProcessDomains;
     std::pair<LoadedWebArchive, HashSet<WebCore::RegistrableDomain>> m_allowedFirstPartiesForCookies { LoadedWebArchive::No, { } };
     bool m_isInProcessCache { false };
+    bool m_isShuttingDown { false };
 
     IsolatedProcessType m_isolatedProcessType { IsolatedProcessType::Unspecified };
     std::optional<WebCore::Site> m_mainFrameSite;

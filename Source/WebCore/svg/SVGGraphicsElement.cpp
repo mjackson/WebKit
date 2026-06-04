@@ -40,7 +40,6 @@
 #include "RenderSVGResourcePattern.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGImageElement.h"
-#include "SVGLayerTransformComputation.h"
 #include "SVGMatrix.h"
 #include "SVGNames.h"
 #include "SVGPathData.h"
@@ -48,8 +47,10 @@
 #include "SVGRenderSupport.h"
 #include "SVGSVGElement.h"
 #include "SVGStringList.h"
+#include "SVGTransformComputation.h"
 #include "Settings.h"
 #include "StyleTransformResolver.h"
+#include "StyleUpdate.h"
 #include "TransformOperationData.h"
 #include "TransformState.h"
 #include <wtf/NeverDestroyed.h>
@@ -114,7 +115,7 @@ AffineTransform SVGGraphicsElement::computeCTM(SVGElement* element, CTMScope mod
 
         auto trackingMode { mode == CTMScope::ScreenScope ? TransformState::TrackSVGScreenCTMMatrix : TransformState::TrackSVGCTMMatrix };
         CheckedPtr stopAtRenderer = dynamicDowncast<RenderLayerModelObject>(stopAtElement ? stopAtElement->renderer() : nullptr);
-        return SVGLayerTransformComputation(*renderer).computeAccumulatedTransform(stopAtRenderer.get(), trackingMode);
+        return SVGTransformComputation(*renderer).computeAccumulatedTransform(stopAtRenderer.get(), trackingMode);
     }
 
     AffineTransform ctm;
@@ -231,8 +232,7 @@ void SVGGraphicsElement::svgAttributeChanged(const QualifiedName& attrName)
         InstanceInvalidationGuard guard(*this);
 
         if (document().settings().layerBasedSVGEngineEnabled()) {
-            if (CheckedPtr layerRenderer = dynamicDowncast<RenderLayerModelObject>(renderer()))
-                layerRenderer->repaintOrRelayoutAfterSVGTransformChange();
+            updateSVGRendererForElementChange(Style::SVGRendererUpdateType::TransformAttributeOnly);
             return;
         }
 

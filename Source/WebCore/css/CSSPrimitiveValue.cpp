@@ -31,16 +31,17 @@
 #include "CSSPrimitiveNumericTypes+Serialization.h"
 #include "CSSSerializationContext.h"
 #include "CSSToLengthConversionData.h"
+#include "CSSUnevaluatedCalc.h"
 #include "CSSValueKeywords.h"
 #include "CSSValuePool.h"
 #include "ComputedStyleDependencies.h"
 #include "ContainerQueryEvaluator.h"
+#include "DeprecatedCSSOMPrimitiveValue.h"
 #include "FontCascade.h"
 #include "NodeRenderStyle.h"
 #include "RenderBoxInlines.h"
 #include "RenderStyle.h"
 #include "RenderView.h"
-#include "StyleCalculationValue.h"
 #include "StyleLengthResolution.h"
 #include "StylePrimitiveNumericTypes+Rounding.h"
 #include <wtf/Hasher.h>
@@ -77,7 +78,7 @@ CSSPrimitiveValue::CSSPrimitiveValue(StaticCSSValueTag, double number, CSSUnitTy
     makeStatic();
 }
 
-CSSPrimitiveValue::CSSPrimitiveValue(Ref<CSSCalc::Value> value)
+CSSPrimitiveValue::CSSPrimitiveValue(CSS::UnevaluatedCalcBase&& value)
     : CSSValue(ClassType::Primitive)
 {
     setPrimitiveUnitType(CSSUnitType::CSS_CALC);
@@ -170,16 +171,6 @@ CSSPrimitiveValue::~CSSPrimitiveValue()
     }
 }
 
-Ref<const CSSCalc::Value> CLANG_POINTER_CONVERSION CSSCalc::protect(const CSSCalc::Value& value)
-{
-    return value;
-}
-
-RefPtr<const CSSCalc::Value> CLANG_POINTER_CONVERSION CSSCalc::protect(const CSSCalc::Value* value)
-{
-    return value;
-}
-
 static CSSPrimitiveValue* valueFromPool(std::span<AlignedStorage<CSSPrimitiveValue>> pool, double value)
 {
     // Casting to a signed integer first since casting a negative floating point value to an unsigned
@@ -219,7 +210,7 @@ Ref<CSSPrimitiveValue> CSSPrimitiveValue::create(double value, CSSUnitType type)
     return adoptRef(*new CSSPrimitiveValue(value, type));
 }
 
-Ref<CSSPrimitiveValue> CSSPrimitiveValue::create(Ref<CSSCalc::Value> value)
+Ref<CSSPrimitiveValue> CSSPrimitiveValue::create(CSS::UnevaluatedCalcBase value)
 {
     return adoptRef(*new CSSPrimitiveValue(WTF::move(value)));
 }
@@ -228,8 +219,6 @@ Ref<CSSPrimitiveValue> CSSPrimitiveValue::createInteger(double value)
 {
     return adoptRef(*new CSSPrimitiveValue(value, CSSUnitType::CSS_INTEGER));
 }
-
-// MARK: Non-converting
 
 std::optional<bool> CSSPrimitiveValue::isZero() const
 {
@@ -554,6 +543,11 @@ void CSSPrimitiveValue::collectComputedStyleDependencies(ComputedStyleDependenci
 
     if (auto lengthUnit = CSS::toLengthUnit(primitiveUnitType()))
         CSS::collectComputedStyleDependencies(dependencies, *lengthUnit);
+}
+
+Ref<DeprecatedCSSOMValue> CSSPrimitiveValue::customCreateDeprecatedCSSOMWrapper(CSSStyleDeclaration& owner) const
+{
+    return switchOn([&](const auto& value) { return DeprecatedCSSOMPrimitiveValue::create(value, owner); });
 }
 
 } // namespace WebCore

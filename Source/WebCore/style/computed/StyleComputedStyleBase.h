@@ -94,7 +94,6 @@ enum class ColumnFill : bool;
 enum class ColumnProgression : bool;
 enum class ColumnSpan : bool;
 enum class CompositeOperator : uint8_t;
-enum class ContainerType : uint8_t;
 enum class ContentDistribution : uint8_t;
 enum class ContentPosition : uint8_t;
 enum class ContentVisibility : uint8_t;
@@ -342,6 +341,7 @@ struct ScrollMarginEdge;
 struct ScrollPaddingEdge;
 struct ScrollSnapAlign;
 struct ScrollSnapType;
+struct ContainerType;
 struct ScrollTimeline;
 struct ScrollbarColor;
 struct ScrollbarGutter;
@@ -396,7 +396,6 @@ enum class GridTrackSizingDirection : bool;
 enum class ImageOrientation : bool;
 enum class PositionTryOrder : uint8_t;
 enum class Resize : uint8_t;
-enum class SVGGlyphOrientationHorizontal : uint8_t;
 enum class SVGGlyphOrientationVertical : uint8_t;
 enum class ScrollBehavior : bool;
 enum class ScrollbarWidth : uint8_t;
@@ -446,7 +445,7 @@ constexpr auto TextDecorationLineBits = 5;
 constexpr auto TextTransformBits = 6;
 constexpr auto PseudoElementTypeBits = 5;
 
-using PseudoStyleCache = HashMap<PseudoElementIdentifier, std::unique_ptr<RenderStyle>>;
+using PseudoElementStyles = HashMap<PseudoElementIdentifier, std::unique_ptr<RenderStyle>>;
 
 DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(ComputedStyleBase);
 class ComputedStyleBase : public CanMakeCheckedPtr<ComputedStyleBase, WTF::DefaultedOperatorEqual::No, WTF::CheckedPtrDeleteCheckException::Yes> {
@@ -476,9 +475,6 @@ public:
 
     inline bool isLink() const;
     inline void setIsLink(bool);
-
-    inline bool emptyState() const;
-    inline void setEmptyState(bool);
 
     inline bool firstChildState() const;
     inline void setFirstChildState();
@@ -587,11 +583,11 @@ public:
     inline bool hasPseudoStyle(PseudoElementType) const;
     inline void setHasPseudoStyles(EnumSet<PseudoElementType>);
 
-    RenderStyle* NODELETE getCachedPseudoStyle(const PseudoElementIdentifier&) const;
-    RenderStyle* addCachedPseudoStyle(std::unique_ptr<RenderStyle>);
+    RenderStyle* NODELETE pseudoElementStyle(const PseudoElementIdentifier&) const;
+    RenderStyle* addPseudoElementStyle(std::unique_ptr<RenderStyle>);
 
-    bool hasCachedPseudoStyles() const { return !m_cachedPseudoStyles.isEmpty(); }
-    const PseudoStyleCache& cachedPseudoStyles() const LIFETIME_BOUND { return m_cachedPseudoStyles; }
+    bool hasPseudoElementStyles() const { return !m_pseudoElementStyles.isEmpty(); }
+    const PseudoElementStyles& pseudoElementStyles() const LIFETIME_BOUND { return m_pseudoElementStyles; }
 
     // MARK: - Custom properties
 
@@ -617,6 +613,11 @@ public:
 
     inline float usedZoom() const;
     inline bool setUsedZoom(float);
+
+    inline float deviceScaleFactor() const;
+    inline void setDeviceScaleFactor(float);
+
+    void setZoomFromAnimation(Zoom);
 
     inline ZoomFactor usedZoomForLength() const;
 
@@ -753,7 +754,6 @@ public:
         PREFERRED_TYPE(bool) unsigned disallowsFastPathInheritance : 1;
 
         // Non-property related state bits.
-        PREFERRED_TYPE(bool) unsigned emptyState : 1;
         PREFERRED_TYPE(bool) unsigned firstChildState : 1;
         PREFERRED_TYPE(bool) unsigned lastChildState : 1;
         PREFERRED_TYPE(bool) unsigned isLink : 1;
@@ -853,7 +853,7 @@ protected:
     DataRef<SVGData> m_svgData;
 
     // Associated pseudo styles
-    PseudoStyleCache m_cachedPseudoStyles;
+    PseudoElementStyles m_pseudoElementStyles;
 
 #if ASSERT_ENABLED || ENABLE(SECURITY_ASSERTIONS)
     bool m_deletionHasBegun { false };

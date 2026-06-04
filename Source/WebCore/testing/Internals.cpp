@@ -68,6 +68,7 @@
 #include "DOMRectList.h"
 #include "DOMStringList.h"
 #include "DOMURL.h"
+#include "DOMWrapperWorld.h"
 #include "DeprecatedGlobalSettings.h"
 #include "DiagnosticLoggingClient.h"
 #include "DisabledAdaptations.h"
@@ -237,6 +238,7 @@
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "ShouldPartitionCookie.h"
+#include "SocketProvider.h"
 #include "SourceBuffer.h"
 #include "SpeechSynthesisUtterance.h"
 #include "SpellChecker.h"
@@ -1250,6 +1252,14 @@ void Internals::pauseImageAnimation(HTMLImageElement& element)
     element.setAllowsAnimation(false);
 }
 #endif // ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
+
+#if ENABLE(ACCESSIBILITY_VIDEO_AUTOPLAY_CONTROL)
+void Internals::setVideoAutoplayPreviewsEnabled(bool enabled)
+{
+    if (auto* page = contextDocument() ? contextDocument()->page() : nullptr)
+        page->setVideoAutoplayPreviewsEnabled(enabled);
+}
+#endif
 
 #if ENABLE(ACCESSIBILITY_NON_BLINKING_CURSOR)
 void Internals::setPrefersNonBlinkingCursor(bool enabled)
@@ -2695,7 +2705,11 @@ ExceptionOr<String> Internals::autofillFieldName(Element& element)
         return String { formControl->autofillData().fieldName };
 
     return Exception { ExceptionCode::InvalidNodeTypeError };
+}
 
+void Internals::allowAutofillForCurrentWorld(JSC::JSGlobalObject& globalObject)
+{
+    currentWorld(globalObject).setAllowAutofill();
 }
 
 ExceptionOr<void> Internals::invalidateControlTints()
@@ -4276,7 +4290,7 @@ void Internals::setScreenContentsFormatsForTesting(const Vector<Internals::Conte
     }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-    WebCore::setScreenContentsFormatsForTesting(contentsFormats);
+    PlatformScreen::singleton()->updateSingletonContentsFormatsForTesting(contentsFormats);
 #else
     UNUSED_PARAM(contentsFormats);
 #endif
@@ -5797,6 +5811,11 @@ void Internals::setMediaElementVolumeLocked(HTMLMediaElement& element, bool volu
     element.setVolumeLocked(volumeLocked);
 }
 
+String Internals::mediaElementViewportVisibility(HTMLMediaElement& element)
+{
+    return convertEnumerationToString(element.viewportVisibility());
+}
+
 #if ENABLE(SPEECH_SYNTHESIS)
 SpeechSynthesisUtterance* Internals::speechSynthesisUtteranceForCue(const VTTCue& cue)
 {
@@ -7128,6 +7147,23 @@ void Internals::whenServiceWorkerIsTerminated(ServiceWorker& worker, DOMPromiseD
     });
 }
 
+void Internals::numberOfWebSocketChannelsInNetworkProcess(DOMPromiseDeferred<IDLUnsignedLong>&& promise)
+{
+    RefPtr document = contextDocument();
+    if (!document) {
+        promise.reject(ExceptionCode::InvalidStateError);
+        return;
+    }
+    RefPtr page = document->page();
+    if (!page) {
+        promise.reject(ExceptionCode::InvalidStateError);
+        return;
+    }
+    page->socketProvider().countWebSocketChannelsForTesting([promise = WTF::move(promise)](unsigned count) mutable {
+        promise.resolve(count);
+    });
+}
+
 void Internals::terminateWebContentProcess()
 {
     exit(0);
@@ -7359,7 +7395,7 @@ void Internals::notifyResourceLoadObserver()
 unsigned Internals::primaryScreenDisplayID()
 {
 #if PLATFORM(COCOA)
-    return WebCore::primaryScreenDisplayID();
+    return PlatformScreen::singleton()->primaryScreenDisplayID();
 #else
     return 0;
 #endif
@@ -8490,11 +8526,6 @@ void Internals::setTopDocumentURLForQuirks(const String& urlString)
 }
 
 #if ENABLE(CONTENT_EXTENSIONS)
-void Internals::setResourceMonitorNetworkUsageThreshold(size_t threshold, double randomness)
-{
-    ResourceMonitorChecker::singleton().setNetworkUsageThreshold(threshold, randomness);
-}
-
 bool Internals::shouldSkipResourceMonitorThrottling() const
 {
     if (auto* document = contextDocument())

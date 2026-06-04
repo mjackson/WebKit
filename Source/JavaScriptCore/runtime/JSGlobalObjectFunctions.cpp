@@ -804,7 +804,7 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncImportModule, (JSGlobalObject* globalObject, 
 
     auto rejectWithCaughtException = [&]() -> EncodedJSValue {
         auto* promise = JSPromise::create(vm, globalObject->promiseStructure());
-        return JSValue::encode(promise->rejectWithCaughtException(globalObject, scope));
+        return JSValue::encode(promise->rejectWithCaughtException(vm, scope));
     };
 
     auto sourceOrigin = callFrame->callerSourceOrigin(vm);
@@ -828,7 +828,7 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncImportModule, (JSGlobalObject* globalObject, 
 
     if (importPromise->status() == JSPromise::Status::Fulfilled) {
         auto result = importPromise->result();
-        promise->fulfill(vm, globalObject, result);
+        promise->fulfill(vm, result);
     } else {
         promise->resolve(globalObject, vm, importPromise);
     }

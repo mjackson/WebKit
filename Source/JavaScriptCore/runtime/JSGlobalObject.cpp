@@ -269,7 +269,6 @@
 #include "SymbolPrototypeInlines.h"
 #include "SyntheticModuleRecord.h"
 #include "TemporalCalendar.h"
-#include "TemporalCalendarPrototype.h"
 #include "TemporalDuration.h"
 #include "TemporalDurationPrototype.h"
 #include "TemporalInstant.h"
@@ -780,7 +779,7 @@ JSC_DEFINE_HOST_FUNCTION(rejectPromise, (JSGlobalObject* globalObject, CallFrame
 {
     auto* promise = uncheckedDowncast<JSPromise>(callFrame->uncheckedArgument(0));
     JSValue argument = callFrame->uncheckedArgument(1);
-    promise->rejectPromise(globalObject->vm(), globalObject, argument);
+    promise->rejectPromise(globalObject->vm(), argument);
     return encodedJSUndefined();
 }
 
@@ -788,7 +787,7 @@ JSC_DEFINE_HOST_FUNCTION(fulfillPromise, (JSGlobalObject* globalObject, CallFram
 {
     auto* promise = uncheckedDowncast<JSPromise>(callFrame->uncheckedArgument(0));
     JSValue argument = callFrame->uncheckedArgument(1);
-    promise->fulfillPromise(globalObject->vm(), globalObject, argument);
+    promise->fulfillPromise(globalObject->vm(), argument);
     return encodedJSUndefined();
 }
 
@@ -817,7 +816,7 @@ JSC_DEFINE_HOST_FUNCTION(rejectPromiseWithFirstResolvingFunctionCallCheck, (JSGl
 {
     auto* promise = uncheckedDowncast<JSPromise>(callFrame->uncheckedArgument(0));
     JSValue argument = callFrame->uncheckedArgument(1);
-    promise->reject(globalObject->vm(), globalObject, argument);
+    promise->reject(globalObject->vm(), argument);
     return encodedJSUndefined();
 }
 
@@ -825,7 +824,7 @@ JSC_DEFINE_HOST_FUNCTION(fulfillPromiseWithFirstResolvingFunctionCallCheck, (JSG
 {
     auto* promise = uncheckedDowncast<JSPromise>(callFrame->uncheckedArgument(0));
     JSValue argument = callFrame->uncheckedArgument(1);
-    promise->fulfill(globalObject->vm(), globalObject, argument);
+    promise->fulfill(globalObject->vm(), argument);
     return encodedJSUndefined();
 }
 
@@ -943,7 +942,7 @@ JSC_DEFINE_HOST_FUNCTION(asyncGeneratorQueueEnqueue, (JSGlobalObject* globalObje
     JSPromise* promise = uncheckedDowncast<JSPromise>(callFrame->uncheckedArgument(3));
 
     if (!generator) [[unlikely]] {
-        promise->reject(vm, globalObject, createTypeError(globalObject, "|this| should be an async generator"_s));
+        promise->reject(vm, createTypeError(globalObject, "|this| should be an async generator"_s));
         return JSValue::encode(jsNumber(static_cast<int32_t>(JSAsyncGenerator::AsyncGeneratorResumeMode::Empty)));
     }
 
@@ -977,7 +976,7 @@ JSC_DEFINE_HOST_FUNCTION(asyncGeneratorQueueDequeueReject, (JSGlobalObject* glob
 
     auto [value, resumeMode, promise] = generator->dequeue(vm);
 
-    promise->reject(vm, globalObject, error);
+    promise->reject(vm, error);
 
     return JSValue::encode(jsNumber(generator->resumeMode()));
 }
@@ -1128,6 +1127,7 @@ void JSGlobalObject::init(VM& vm)
     convertToDictionary(vm);
 
     m_debugger = nullptr;
+    updateCanFastQueueMicrotask();
 
 #if ENABLE(REMOTE_INSPECTOR)
     m_inspectorController = makeUnique<Inspector::JSGlobalObjectInspectorController>(*this);
@@ -1202,6 +1202,15 @@ void JSGlobalObject::init(VM& vm)
     m_setProtoValuesFunction.initLater(
         [] (const Initializer<JSFunction>& init) {
             init.set(JSFunction::create(init.vm, init.owner, 0, init.vm.propertyNames->builtinNames().valuesPublicName().string(), setProtoFuncValues, ImplementationVisibility::Public, JSSetValuesIntrinsic));
+        });
+    m_stringProtoSymbolIteratorFunction.initLater(
+        [] (const Initializer<JSFunction>& init) {
+            init.set(JSFunction::create(init.vm, init.owner, 0, "[Symbol.iterator]"_s, stringProtoFuncIterator, ImplementationVisibility::Public, JSStringIteratorIntrinsic));
+        });
+
+    m_iteratorProtoSymbolIteratorFunction.initLater(
+        [] (const Initializer<JSFunction>& init) {
+            init.set(JSFunction::create(init.vm, init.owner, 0, "[Symbol.iterator]"_s, iteratorProtoFuncIterator, ImplementationVisibility::Public, IteratorIntrinsic));
         });
 
     m_numberProtoToStringFunction.initLater(
@@ -1812,13 +1821,6 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     putDirectWithoutTransition(vm, vm.propertyNames->Intl, intl, static_cast<unsigned>(PropertyAttribute::DontEnum));
 
     if (Options::useTemporal()) {
-        m_calendarStructure.initLater(
-            [] (const Initializer<Structure>& init) {
-                JSGlobalObject* globalObject = init.owner;
-                TemporalCalendarPrototype* calendarPrototype = TemporalCalendarPrototype::create(init.vm, globalObject, TemporalCalendarPrototype::createStructure(init.vm, globalObject, globalObject->objectPrototype()));
-                init.set(TemporalCalendar::createStructure(init.vm, globalObject, calendarPrototype));
-            });
-
         m_durationStructure.initLater(
             [] (const Initializer<Structure>& init) {
                 JSGlobalObject* globalObject = init.owner;
@@ -1924,6 +1926,7 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     m_regExpProtoSymbolReplace.set(vm, this, regExpSymbolReplace);
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::regExpBuiltinExec)].set(vm, this, uncheckedDowncast<JSFunction>(m_regExpPrototype->getDirect(vm, vm.propertyNames->exec)));
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::regExpPrototypeSymbolMatch)].set(vm, this, m_regExpPrototype->getDirect(vm, vm.propertyNames->matchSymbol).asCell());
+    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::regExpPrototypeSymbolMatchAll)].set(vm, this, m_regExpPrototype->getDirect(vm, vm.propertyNames->matchAllSymbol).asCell());
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::regExpPrototypeSymbolReplace)].set(vm, this, m_regExpPrototype->getDirect(vm, vm.propertyNames->replaceSymbol).asCell());
 
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::isArray)].initLater([] (const Initializer<JSCell>& init) {
@@ -1988,8 +1991,8 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
             init.set(JSFunction::create(init.vm, init.owner, 0, "mapStorage"_s, mapPrivateFuncMapStorage, ImplementationVisibility::Private, JSMapStorageIntrinsic));
         });
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::mapIteratorNext)].initLater([](const Initializer<JSCell>& init) {
-        init.set(JSFunction::create(init.vm, init.owner, 0, "mapIteratorNext"_s, mapIteratorPrivateFuncMapIteratorNext, ImplementationVisibility::Private, JSMapIteratorNextIntrinsic));
-    });
+            init.set(JSFunction::create(init.vm, init.owner, 0, "mapIteratorNext"_s, mapIteratorPrivateFuncMapIteratorNext, ImplementationVisibility::Private, JSMapIteratorNextIntrinsic));
+        });
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::mapIteratorKey)].initLater([](const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, init.owner, 0, "mapIteratorKey"_s, mapIteratorPrivateFuncMapIteratorKey, ImplementationVisibility::Private, JSMapIteratorKeyIntrinsic));
         });
@@ -2348,6 +2351,7 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_stringPrototype.get(), vm.propertyNames->toString), m_stringToStringWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_stringPrototype.get(), vm.propertyNames->valueOf), m_stringValueOfWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_objectPrototype.get(), vm.propertyNames->valueOf), m_objectPrototypeValueOfWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_arrayPrototype.get(), vm.propertyNames->valueOf, objectPrototype()), m_arrayPrototypeValueOfWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->exec), m_regExpPrimordialPropertiesWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->flags), m_regExpPrimordialPropertiesWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->dotAll), m_regExpPrimordialPropertiesWatchpointSet);
@@ -2360,6 +2364,8 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->unicodeSets), m_regExpPrimordialPropertiesWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->replaceSymbol), m_regExpPrimordialPropertiesWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->matchSymbol), m_regExpPrimordialPropertiesWatchpointSet);
+    installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->searchSymbol), m_regExpPrimordialPropertiesWatchpointSet);
+    installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->matchAllSymbol), m_regExpPrimordialPropertiesWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->splitSymbol), m_regExpPrimordialPropertiesWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, jsSetPrototype(), vm.propertyNames->has), m_setPrimordialPropertiesWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, jsSetPrototype(), vm.propertyNames->keys), m_setPrimordialPropertiesWatchpointSet);
@@ -2371,6 +2377,10 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     // Detect property absence.
     installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_stringPrototype.get(), vm.propertyNames->matchSymbol, objectPrototype()), m_stringSymbolMatchWatchpointSet);
     installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_objectPrototype.get(), vm.propertyNames->matchSymbol, nullptr), m_stringSymbolMatchWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_stringPrototype.get(), vm.propertyNames->searchSymbol, objectPrototype()), m_stringSymbolSearchWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_objectPrototype.get(), vm.propertyNames->searchSymbol, nullptr), m_stringSymbolSearchWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_stringPrototype.get(), vm.propertyNames->matchAllSymbol, objectPrototype()), m_stringSymbolMatchAllWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_objectPrototype.get(), vm.propertyNames->matchAllSymbol, nullptr), m_stringSymbolMatchAllWatchpointSet);
     installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_stringPrototype.get(), vm.propertyNames->replaceSymbol, objectPrototype()), m_stringSymbolReplaceWatchpointSet);
     installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_objectPrototype.get(), vm.propertyNames->replaceSymbol, nullptr), m_stringSymbolReplaceWatchpointSet);
     installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_stringPrototype.get(), vm.propertyNames->splitSymbol, objectPrototype()), m_stringSymbolSplitWatchpointSet);
@@ -2383,6 +2393,21 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_objectPrototype.get(), vm.propertyNames->negativeOneIdentifier, nullptr), m_arrayNegativeOneWatchpointSet);
     installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_arrayPrototype.get(), vm.propertyNames->isConcatSpreadableSymbol, objectPrototype()), m_arrayIsConcatSpreadableWatchpointSet);
     installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_objectPrototype.get(), vm.propertyNames->isConcatSpreadableSymbol, nullptr), m_arrayIsConcatSpreadableWatchpointSet);
+
+    // The iterator protocol fast paths assume that IteratorClose is unobservable, so they must be
+    // invalidated when a "return" property appears anywhere on the iterator's prototype chain.
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, arrayIteratorPrototype, vm.propertyNames->returnKeyword, m_iteratorPrototype.get()), m_arrayIteratorProtocolWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, mapIteratorPrototype, vm.propertyNames->returnKeyword, m_iteratorPrototype.get()), m_mapIteratorProtocolWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, setIteratorPrototype, vm.propertyNames->returnKeyword, m_iteratorPrototype.get()), m_setIteratorProtocolWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_stringIteratorPrototype.get(), vm.propertyNames->returnKeyword, m_iteratorPrototype.get()), m_stringIteratorProtocolWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_iteratorPrototype.get(), vm.propertyNames->returnKeyword, objectPrototype()), m_arrayIteratorProtocolWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_iteratorPrototype.get(), vm.propertyNames->returnKeyword, objectPrototype()), m_mapIteratorProtocolWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_iteratorPrototype.get(), vm.propertyNames->returnKeyword, objectPrototype()), m_setIteratorProtocolWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_iteratorPrototype.get(), vm.propertyNames->returnKeyword, objectPrototype()), m_stringIteratorProtocolWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_objectPrototype.get(), vm.propertyNames->returnKeyword, nullptr), m_arrayIteratorProtocolWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_objectPrototype.get(), vm.propertyNames->returnKeyword, nullptr), m_mapIteratorProtocolWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_objectPrototype.get(), vm.propertyNames->returnKeyword, nullptr), m_setIteratorProtocolWatchpointSet);
+    installObjectAdaptiveStructureWatchpoint(setupAbsenceAdaptiveWatchpoint(this, m_objectPrototype.get(), vm.propertyNames->returnKeyword, nullptr), m_stringIteratorProtocolWatchpointSet);
 
     // Array Species watchpoint.
     {
@@ -3060,7 +3085,6 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     thisObject->m_dateTimeFormatStructure.visit(visitor);
     thisObject->m_numberFormatStructure.visit(visitor);
 
-    thisObject->m_calendarStructure.visit(visitor);
     thisObject->m_durationStructure.visit(visitor);
     thisObject->m_instantStructure.visit(visitor);
     thisObject->m_plainDateStructure.visit(visitor);
@@ -3081,7 +3105,9 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     thisObject->m_arrayProtoValuesFunction.visit(visitor);
     thisObject->m_mapProtoEntriesFunction.visit(visitor);
     thisObject->m_setProtoValuesFunction.visit(visitor);
+    thisObject->m_stringProtoSymbolIteratorFunction.visit(visitor);
     visitor.append(thisObject->m_objectProtoValueOfFunction);
+    thisObject->m_iteratorProtoSymbolIteratorFunction.visit(visitor);
     thisObject->m_numberProtoToStringFunction.visit(visitor);
     visitor.append(thisObject->m_functionProtoHasInstanceSymbolFunction);
     visitor.append(thisObject->m_performProxyObjectHasFunction);
@@ -3788,6 +3814,20 @@ static bool incumbentRealmIs(VM& vm, JSGlobalObject* target)
 
 void JSGlobalObject::queueMicrotask(VM& vm, QueuedTask&& task)
 {
+    if (!m_canFastQueueMicrotask || vm.crossTaskToken()) [[unlikely]] {
+        queueMicrotaskSlow(vm, WTF::move(task));
+        return;
+    }
+    microtaskQueue().enqueue(WTF::move(task));
+}
+
+void JSGlobalObject::queueMicrotask(VM& vm, InternalMicrotask job, uint8_t payload, JSValue argument0, JSValue argument1, JSValue argument2)
+{
+    queueMicrotask(vm, QueuedTask { nullptr, job, payload, this, argument0, argument1, argument2 });
+}
+
+void JSGlobalObject::queueMicrotaskSlow(VM& vm, QueuedTask&& task)
+{
     ([&] ALWAYS_INLINE_LAMBDA {
         if (auto* crossTaskToken = vm.crossTaskToken(); crossTaskToken && crossTaskToken->shouldPropagateToMicroTask()) [[unlikely]] {
             if (auto dispatcher = crossTaskToken->createMicrotaskDispatcher(vm, this)) {
@@ -3808,17 +3848,13 @@ void JSGlobalObject::queueMicrotask(VM& vm, QueuedTask&& task)
     microtaskQueue().enqueue(WTF::move(task));
 }
 
-void JSGlobalObject::queueMicrotask(VM& vm, InternalMicrotask job, uint8_t payload, JSValue argument0, JSValue argument1, JSValue argument2)
-{
-    queueMicrotask(vm, QueuedTask { nullptr, job, payload, this, argument0, argument1, argument2 });
-}
-
 #if USE(BUN_JSC_ADDITIONS)
 void JSGlobalObject::queueMicrotask(VM& vm, InternalMicrotask job, uint8_t payload, JSValue argument0, JSValue argument1, JSValue argument2, JSValue argument3)
 {
     queueMicrotask(vm, QueuedTask { nullptr, job, payload, this, argument0, argument1, argument2, argument3 });
 }
 #endif
+
 
 void JSGlobalObject::setMicrotaskQueue(Ref<MicrotaskQueue>&& queue)
 {
@@ -3855,6 +3891,7 @@ CheckedPtr<ConsoleClient> JSGlobalObject::consoleClient() const
 void JSGlobalObject::setDebugger(Debugger* debugger)
 {
     m_debugger = debugger;
+    updateCanFastQueueMicrotask();
     if (debugger)
         vm().ensureShadowChicken();
 }

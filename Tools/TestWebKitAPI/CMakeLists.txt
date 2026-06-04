@@ -222,6 +222,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/GridPosition.cpp
         Tests/WebCore/HTMLParserIdioms.cpp
         Tests/WebCore/HTTPParsers.cpp
+        Tests/WebCore/IDBKeyData.cpp
         Tests/WebCore/IDBSerializationTest.cpp
         Tests/WebCore/ImageBufferTests.cpp
         Tests/WebCore/IntPointTests.cpp
@@ -252,6 +253,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/TransformationMatrix.cpp
         Tests/WebCore/URLParserTextEncoding.cpp
         Tests/WebCore/WritingModeTests.cpp
+        Tests/WebCore/XRCompositionLayer.cpp
     )
 
     if (USE_SKIA)

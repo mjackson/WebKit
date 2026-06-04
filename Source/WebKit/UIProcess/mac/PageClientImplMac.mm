@@ -42,6 +42,7 @@
 #import "RemoteLayerTreeCommitBundle.h"
 #import "RemoteLayerTreeNode.h"
 #import "TextExtractionFilter.h"
+#import "TransientZoomState.h"
 #import "UndoOrRedo.h"
 #import "ViewGestureController.h"
 #import "ViewSnapshotStore.h"
@@ -369,6 +370,15 @@ void PageClientImpl::setCursor(const WebCore::Cursor& cursor)
 
     auto mouseLocationInScreen = NSEvent.mouseLocation;
     if (window.get().windowNumber != [NSWindow windowNumberAtPoint:mouseLocationInScreen belowWindowWithWindowNumber:0])
+        return;
+
+    // The web process may have decided this cursor before the mouse moved off the web view onto
+    // a sibling view in the same window. Without this guard, the late-arriving IPC would
+    // override the sibling's cursor.
+    auto mouseLocationInWindow = [window convertPointFromScreen:mouseLocationInScreen];
+    RetainPtr contentView = [window contentView];
+    RetainPtr hitView = [contentView hitTest:[[contentView superview] convertPoint:mouseLocationInWindow fromView:nil]];
+    if (![hitView isDescendantOf:view])
         return;
 
     RetainPtr platformCursor = cursor.platformCursor();
@@ -703,14 +713,14 @@ bool PageClientImpl::showShareSheet(ShareDataWithParsedURL&& shareData, WTF::Com
 }
 
 #if ENABLE(WEB_AUTHN)
-void PageClientImpl::showDigitalCredentialsPicker(const WebCore::DigitalCredentialsRequestData& requestData, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
+void PageClientImpl::showDigitalCredentialsChooser(const WebCore::DigitalCredentialsRequestData& requestData, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
 {
-    protect(m_impl)->showDigitalCredentialsPicker(requestData, WTF::move(completionHandler), webView().get());
+    protect(m_impl)->showDigitalCredentialsChooser(requestData, WTF::move(completionHandler), webView().get());
 }
 
-void PageClientImpl::dismissDigitalCredentialsPicker(WTF::CompletionHandler<void(bool)>&& completionHandler)
+void PageClientImpl::dismissDigitalCredentialsChooser(WTF::CompletionHandler<void(bool)>&& completionHandler)
 {
-    protect(m_impl)->dismissDigitalCredentialsPicker(WTF::move(completionHandler), webView().get());
+    protect(m_impl)->dismissDigitalCredentialsChooser(WTF::move(completionHandler), webView().get());
 }
 #endif
 
@@ -1064,10 +1074,17 @@ _WKRemoteObjectRegistry *PageClientImpl::remoteObjectRegistry()
     return protect(m_impl)->remoteObjectRegistry();
 }
 
-void PageClientImpl::pageDidScroll(const WebCore::IntPoint& scrollPosition)
+void PageClientImpl::pageDidScroll(const WebCore::IntPoint& scrollOffset)
 {
-    protect(m_impl)->pageDidScroll(scrollPosition);
+    protect(m_impl)->pageDidScroll(scrollOffset);
 }
+
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS)
+void PageClientImpl::didUpdateTransientZoomStateForScrollPocket(std::optional<TransientZoomState> state)
+{
+    protect(m_impl)->didUpdateTransientZoomStateForScrollPocket(state);
+}
+#endif
 
 void PageClientImpl::didRestoreScrollPosition()
 {

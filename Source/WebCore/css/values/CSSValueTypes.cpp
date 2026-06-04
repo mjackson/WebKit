@@ -27,13 +27,14 @@
 
 #include "CSSFunctionValue.h"
 #include "CSSPrimitiveValue.h"
-#include "CSSQuadValue.h"
 #include "CSSValueList.h"
 #include "CSSValuePair.h"
 #include "CSSValuePool.h"
 
 namespace WebCore {
 namespace CSS {
+
+// MARK: - CSSValue Creation
 
 Ref<CSSValue> makePrimitiveCSSValue(CSSValueID value)
 {
@@ -48,11 +49,6 @@ Ref<CSSValue> makeFunctionCSSValue(CSSValueID name, Ref<CSSValue>&& value)
 template<> Ref<CSSValue> makeCoalescingPairCSSValue<SerializationSeparatorType::Space>(Ref<CSSValue>&& first, Ref<CSSValue>&& second)
 {
     return CSSValuePair::create(WTF::move(first), WTF::move(second));
-}
-
-template<> Ref<CSSValue> makeCoalescingQuadCSSValue<SerializationSeparatorType::Space>(Ref<CSSValue>&& first, Ref<CSSValue>&& second, Ref<CSSValue>&& third, Ref<CSSValue>&& fourth)
-{
-    return CSSQuadValue::create(WTF::move(first), WTF::move(second), WTF::move(third), WTF::move(fourth));
 }
 
 template<> Ref<CSSValue> makeListCSSValue<SerializationSeparatorType::Space>(CSSValueListBuilder&& builder)

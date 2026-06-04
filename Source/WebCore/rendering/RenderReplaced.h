@@ -44,7 +44,7 @@ public:
     LayoutSize intrinsicSize() const final;
 
     bool isContentLikelyVisibleInViewport();
-    bool shouldInvalidatePreferredWidths() const override;
+    bool shouldInvalidateContentWidths() const override;
 
     virtual bool paintsContent() const { return true; }
 
@@ -70,8 +70,8 @@ protected:
 
     void layout() override;
 
-    void computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const final;
-    void computeIntrinsicKeywordLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const final;
+    std::pair<LayoutUnit, LayoutUnit> computeIntrinsicLogicalWidths() const final;
+    std::pair<LayoutUnit, LayoutUnit> computeIntrinsicKeywordLogicalWidths() const final;
 
     virtual LayoutUnit minimumReplacedHeight() const { return 0_lu; }
 
@@ -94,13 +94,14 @@ protected:
     LayoutUnit computeReplacedLogicalWidthRespectingMinMaxWidth(LayoutUnit logicalWidth, ShouldComputePreferred = ShouldComputePreferred::ComputeActual) const;
     template<typename T> LayoutUnit computeReplacedLogicalWidthRespectingMinMaxWidth(T logicalWidth, ShouldComputePreferred shouldComputePreferred = ShouldComputePreferred::ComputeActual) const { return computeReplacedLogicalWidthRespectingMinMaxWidth(LayoutUnit(logicalWidth), shouldComputePreferred); }
 
+    LayoutUnit computeReplacedLogicalHeightRespectingMinMaxHeight(LayoutUnit logicalHeight) const;
+    template<typename T> LayoutUnit computeReplacedLogicalHeightRespectingMinMaxHeight(T logicalHeight) const { return computeReplacedLogicalHeightRespectingMinMaxHeight(LayoutUnit(logicalHeight)); }
+
 private:
     LayoutUnit computeConstrainedLogicalWidth() const;
 
     template<typename SizeType> LayoutUnit computeReplacedLogicalWidthUsing(const SizeType& logicalWidth) const;
     template<typename SizeType> LayoutUnit computeReplacedLogicalHeightUsingGeneric(const SizeType& logicalHeight) const;
-    LayoutUnit computeReplacedLogicalHeightRespectingMinMaxHeight(LayoutUnit logicalHeight) const;
-    template<typename T> LayoutUnit computeReplacedLogicalHeightRespectingMinMaxHeight(T logicalHeight) const { return computeReplacedLogicalHeightRespectingMinMaxHeight(LayoutUnit(logicalHeight)); }
     bool replacedMinMaxLogicalHeightComputesAsNone(const auto& logicalHeight, const auto& initialLogicalHeight) const;
 
 
@@ -108,7 +109,7 @@ private:
 
     bool canHaveChildren() const override { return false; }
 
-    void computePreferredLogicalWidths() final;
+    void computeIntrinsicLogicalWidthContributions() final;
     virtual void paintReplaced(PaintInfo&, const LayoutPoint&) { }
 
     RepaintRects localRectsForRepaint(RepaintOutlineBounds) const override;

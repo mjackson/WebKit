@@ -1228,6 +1228,11 @@ private:
             break;
         }
 
+        case StringSearch: {
+            setPrediction(SpecInt32Only);
+            break;
+        }
+
         case StringLocaleCompare: {
             setPrediction(SpecInt32Only);
             break;
@@ -1239,6 +1244,7 @@ private:
         case StringSubstr:
         case ToUpperCase:
         case ToLowerCase:
+        case ArrayJoin:
             setPrediction(SpecString);
             break;
 
@@ -1459,13 +1465,24 @@ private:
             break;
         }
 
+        case NewWeakMap: {
+            setPrediction(SpecWeakMapObject);
+            break;
+        }
+
+        case NewWeakSet: {
+            setPrediction(SpecWeakSetObject);
+            break;
+        }
+
         case PushWithScope:
         case CreateActivation: {
             setPrediction(SpecObjectOther);
             break;
         }
         
-        case StringFromCharCode: {
+        case StringFromCharCode:
+        case StringFromCodePoint: {
             setPrediction(SpecString);
             m_currentNode->child1()->mergeFlags(NodeBytecodeUsesAsNumber | NodeBytecodeUsesAsInt);
             break;
@@ -1556,6 +1573,11 @@ private:
 
         case EnumeratorNextUpdateIndexAndMode: {
             setTuplePredictions(SpecInt32Only, SpecInt32Only);
+            break;
+        }
+
+        case StringIteratorNext: {
+            setTuplePredictions(SpecString, SpecInt32Only);
             break;
         }
 

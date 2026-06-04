@@ -66,6 +66,7 @@
 #include "TransformState.h"
 #include "ViewTransitionTypeSet.h"
 #include "WebAnimation.h"
+#include <wtf/OrderedHashSet.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/text/TextStream.h>
@@ -394,7 +395,7 @@ static AtomString effectiveViewTransitionName(RenderLayerModelObject& renderer, 
     );
 }
 
-static ExceptionOr<void> checkDuplicateViewTransitionName(const AtomString& name, ListHashSet<AtomString>& usedTransitionNames)
+static ExceptionOr<void> checkDuplicateViewTransitionName(const AtomString& name, OrderedHashSet<AtomString>& usedTransitionNames)
 {
     if (usedTransitionNames.contains(name))
         return Exception { ExceptionCode::InvalidStateError, makeString("Multiple elements found with view-transition-name: "_s, name) };
@@ -543,7 +544,7 @@ ExceptionOr<void> ViewTransition::captureOldState()
 {
     if (!document())
         return { };
-    ListHashSet<AtomString> usedTransitionNames;
+    OrderedHashSet<AtomString> usedTransitionNames;
     Vector<CheckedRef<RenderLayerModelObject>> captureRenderers;
 
     // Ensure style & layout are up-to-date.
@@ -627,7 +628,7 @@ ExceptionOr<void> ViewTransition::captureNewState()
 {
     if (!document())
         return { };
-    ListHashSet<AtomString> usedTransitionNames;
+    OrderedHashSet<AtomString> usedTransitionNames;
     if (CheckedPtr view = document()->renderView()) {
         auto result = forEachRendererInPaintOrder([&](RenderLayerModelObject& renderer) -> ExceptionOr<void> {
             auto styleable = Styleable::fromRenderer(renderer);
@@ -784,7 +785,7 @@ void ViewTransition::activateViewTransition()
     }
 
     if (RefPtr documentElement = document()->documentElement())
-        documentElement->invalidateStyleInternal();
+        documentElement->invalidateStyle();
 
     m_phase = ViewTransitionPhase::Animating;
 
@@ -874,7 +875,7 @@ void ViewTransition::clearViewTransition()
     document->setActiveViewTransition(nullptr);
 
     if (RefPtr documentElement = document->documentElement())
-        documentElement->invalidateStyleInternal();
+        documentElement->invalidateStyle();
 }
 
 // https://drafts.csswg.org/css-view-transitions-1/#snapshot-containing-block
@@ -1014,7 +1015,7 @@ void ViewTransition::updatePseudoElementStylesWrite()
 
     if (changed) {
         if (RefPtr documentElement = document->documentElement())
-            documentElement->invalidateStyleInternal();
+            documentElement->invalidateStyle();
     }
 }
 

@@ -355,6 +355,9 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
     auto& postLayoutData = *result.postLayoutData;
     auto& visualData = *result.visualData;
 
+    if (RefPtr document = frame.document())
+        visualData.needsHideSelectionDuringOverflowScrollQuirk = document->quirks().needsHideSelectionDuringOverflowScrollQuirk();
+
     Ref view = *frame.view();
 
     if (frame.editor().hasComposition()) {
@@ -5081,12 +5084,12 @@ void WebPage::removePDFPageNumberIndicator(PDFPluginBase& plugin)
 
 #if ENABLE(UNIFIED_PDF)
 
-void WebPage::setPDFDisplayMode(PDFDisplayMode mode)
+void WebPage::setPDFDisplayMode(PDFPluginDisplayMode mode)
 {
     send(Messages::WebPageProxy::SetPDFDisplayMode(mode));
 }
 
-void WebPage::requestPDFDisplayMode(PDFDisplayMode mode)
+void WebPage::requestPDFDisplayMode(PDFPluginDisplayMode mode)
 {
     if (RefPtr pluginView = mainFramePlugIn())
         return pluginView->setPDFDisplayMode(mode);

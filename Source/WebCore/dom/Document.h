@@ -42,6 +42,7 @@
 #include <WebCore/FrameIdentifier.h>
 #include <WebCore/HitTestSource.h>
 #include <WebCore/MutationObserverOptions.h>
+#include <WebCore/OriginKeyed.h>
 #include <WebCore/PageIdentifier.h>
 #include <WebCore/PlaybackTargetClientContextIdentifier.h>
 #include <WebCore/PseudoElementIdentifier.h>
@@ -64,6 +65,7 @@
 #include <wtf/HashSet.h>
 #include <wtf/Logger.h>
 #include <wtf/Observer.h>
+#include <wtf/OrderedHashSet.h>
 #include <wtf/RobinHoodHashMap.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/UniqueRef.h>
@@ -381,6 +383,7 @@ class CustomPropertyRegistry;
 class Resolver;
 class Scope;
 class Update;
+enum class SVGRendererUpdateType : bool;
 }
 
 enum class PageshowEventPersistence : bool { NotPersisted, Persisted };
@@ -608,7 +611,7 @@ public:
 
     WEBCORE_EXPORT void setCharset(const String&); // Used by ObjC / GOBject bindings only.
 
-    String suggestedMIMEType() const;
+    WEBCORE_EXPORT String suggestedMIMEType() const;
 
     void overrideMIMEType(const String&);
     WEBCORE_EXPORT String contentType() const;
@@ -755,6 +758,7 @@ public:
     WEBCORE_EXPORT bool NODELETE useElevatedUserInterfaceLevel() const;
     WEBCORE_EXPORT bool useDarkAppearance(const RenderStyle*) const;
     WEBCORE_EXPORT bool useDarkAppearance(const Style::ComputedStyle*) const;
+    void appearanceDidChange();
 #if ENABLE(DARK_MODE_CSS)
     OptionSet<ColorScheme> resolvedColorScheme(const Style::ComputedStyle*) const;
 #endif
@@ -830,6 +834,9 @@ public:
 
     RenderView* renderView() const { return m_renderView.get(); }
     const RenderStyle* initialContainingBlockStyle() const LIFETIME_BOUND { return m_initialContainingBlockStyle.get(); } // This may end up differing from renderView()->style() due to adjustments.
+
+    const RenderStyle& initialStyle() const LIFETIME_BOUND;
+    void invalidateCachedInitialStyle();
 
     bool renderTreeBeingDestroyed() const { return m_renderTreeBeingDestroyed; }
     bool hasLivingRenderTree() const { return renderView() && !renderTreeBeingDestroyed(); }
@@ -1062,6 +1069,7 @@ public:
     void nodeChildrenWillBeRemoved(ContainerNode&);
     // nodeWillBeRemoved is only safe when removing one node at a time.
     void nodeWillBeRemoved(Node&);
+    void nodeWillBeMoved(Node&);
     void parentlessNodeMovedToNewDocument(Node&);
 
     enum class AcceptChildOperation : bool { Replace, InsertOrAdd };
@@ -1433,6 +1441,7 @@ public:
     bool isContextThread() const final;
     bool isSecureContext() const final;
     bool NODELETE crossOriginIsolated() const final;
+    bool NODELETE originAgentCluster() const;
     String agentClusterID() const final;
     bool isJSExecutionForbidden() const final { return false; }
 
@@ -1456,7 +1465,7 @@ public:
     void addDisplayChangedObserver(const DisplayChangedObserver&);
 
     using ScreenPropertiesChangedObserver = WTF::Observer<void(PlatformDisplayID)>;
-    void addScreenPropertiesChangedObserver(const ScreenPropertiesChangedObserver&);
+    WEBCORE_EXPORT void addScreenPropertiesChangedObserver(const ScreenPropertiesChangedObserver&);
 
 #if HAVE(SPATIAL_TRACKING_LABEL)
     String defaultSpatialTrackingLabel() const;
@@ -1620,7 +1629,7 @@ public:
     void NODELETE setIsResolvingTreeStyle(bool);
 
     void updateTextRenderer(Text&, unsigned offsetOfReplacedText, unsigned lengthOfReplacedText);
-    void updateSVGRenderer(SVGElement&);
+    void updateSVGRenderer(SVGElement&, Style::SVGRendererUpdateType = Style::SVGRendererUpdateType { });
 
     // Return a Locale for the default locale if the argument is null or empty.
     Locale& getCachedLocale(const AtomString& locale = nullAtom());
@@ -1663,6 +1672,10 @@ public:
     bool shouldForceNoOpenerBasedOnCOOP() const;
 
     WEBCORE_EXPORT CrossOriginOpenerPolicy crossOriginOpenerPolicy() const final;
+
+    // https://html.spec.whatwg.org/multipage/origin.html#origin-keyed-agent-clusters
+    OriginKeyed isOriginKeyed() const { return m_isOriginKeyed; }
+    void setIsOriginKeyed(OriginKeyed value) { m_isOriginKeyed = value; }
 
     void willLoadScriptElement(const URL&);
     void willLoadFrameElement(const URL&);
@@ -1871,12 +1884,12 @@ public:
 
     void addTopLayerElement(Element&);
     void removeTopLayerElement(Element&);
-    const ListHashSet<Ref<Element>>& topLayerElements() const LIFETIME_BOUND { return m_topLayerElements; }
+    const OrderedHashSet<Ref<Element>>& topLayerElements() const LIFETIME_BOUND { return m_topLayerElements; }
     bool hasTopLayerElement() const { return !m_topLayerElements.isEmpty(); }
 
-    const ListHashSet<Ref<HTMLElement>>& autoPopoverList() const LIFETIME_BOUND { return m_autoPopoverList; }
+    const OrderedHashSet<Ref<HTMLElement>>& autoPopoverList() const LIFETIME_BOUND { return m_autoPopoverList; }
 
-    ListHashSet<Ref<HTMLDialogElement>>& openDialogsList() { return m_openDialogsList; }
+    OrderedHashSet<Ref<HTMLDialogElement>>& openDialogsList() { return m_openDialogsList; }
 
     HTMLDialogElement* activeModalDialog() const;
     HTMLDialogElement* activeCloseableDialog() const;
@@ -2334,6 +2347,7 @@ private:
     std::optional<Vector<WeakPtr<HTMLMetaElement, WeakPtrImplWithEventTargetData>>> m_metaThemeColorElements;
     WeakPtr<HTMLMetaElement, WeakPtrImplWithEventTargetData> m_activeThemeColorMetaElement;
     Color m_applicationManifestThemeColor;
+    Color m_applicationManifestThemeColorDark;
 
 #if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
     std::optional<SpatialBackdropSource> m_cachedSpatialBackdropSource;
@@ -2431,6 +2445,10 @@ private:
 
     RenderPtr<RenderView> m_renderView;
     std::unique_ptr<RenderStyle> m_initialContainingBlockStyle;
+
+    // The `initial style` is used to resolve CSS values used outside of element contexts
+    // such as in media queries.
+    mutable std::unique_ptr<RenderStyle> m_cachedInitialStyle;
 
     WeakHashSet<MediaCanStartListener> m_mediaCanStartListeners;
     WeakHashSet<DisplayChangedObserver> m_displayChangedObservers;
@@ -2608,9 +2626,9 @@ private:
 
     const Ref<FragmentDirective> m_fragmentDirectiveForBindings;
 
-    ListHashSet<Ref<Element>> m_topLayerElements;
-    ListHashSet<Ref<HTMLElement>> m_autoPopoverList;
-    ListHashSet<Ref<HTMLDialogElement>> m_openDialogsList;
+    OrderedHashSet<Ref<Element>> m_topLayerElements;
+    OrderedHashSet<Ref<HTMLElement>> m_autoPopoverList;
+    OrderedHashSet<Ref<HTMLDialogElement>> m_openDialogsList;
 
     WeakPtr<HTMLElement, WeakPtrImplWithEventTargetData> m_popoverPointerDownTarget;
     WeakPtr<HTMLDialogElement, WeakPtrImplWithEventTargetData> m_dialogPointerDownTarget;
@@ -2766,6 +2784,8 @@ private:
     bool m_areDeviceMotionAndOrientationUpdatesSuspended { false };
 
     bool m_didEnqueueFirstContentfulPaint { false };
+
+    OriginKeyed m_isOriginKeyed { OriginKeyed::No };
 
     bool m_mayHaveRenderedSVGForeignObjects { false };
     bool m_mayHaveRenderedSVGRootElements { false };

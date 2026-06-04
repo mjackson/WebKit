@@ -88,6 +88,9 @@ WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_OFFSCREEN_CANVAS PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_OFFSCREEN_CANVAS_IN_WORKERS PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WK_WEB_EXTENSIONS PRIVATE ON)
 
+# PlatformEnableCocoa.h-derived: gates "display-p3"/"display-p3-linear" in IDL enums (PredefinedColorSpace, WebGL).
+WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_PREDEFINED_COLOR_SPACE_DISPLAY_P3 PRIVATE ON)
+
 # PlatformEnableCocoa.h-derived: HAVE(PASSKIT_AUTOMATIC_RELOAD_SUMMARY_ITEM)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_APPLE_PAY_AUTOMATIC_RELOAD_LINE_ITEM PRIVATE ON)
 # PlatformEnableCocoa.h-derived: HAVE(PASSKIT_AUTOMATIC_RELOAD_PAYMENTS)
@@ -150,15 +153,6 @@ if (EXISTS "${_clang}")
     set(CMAKE_OBJCXX_COMPILER "${_clang}++")
 endif ()
 
-# Resolve the real swiftc alongside clang so both are pinned to the same SDK.
-WEBKIT_XCRUN(_swiftc --find swiftc)
-if (_swiftc)
-    set(ORIGINAL_Swift_COMPILER "${_swiftc}" CACHE FILEPATH "Original Swift compiler" FORCE)
-else ()
-    message(FATAL_ERROR "xcrun --sdk ${WEBKIT_SDK} --find swiftc failed")
-endif ()
-unset(_swiftc)
-
 # Deployment target must match SDK version -- PlatformHave.h SPI guards depend on
 # __MAC_OS_X_VERSION_MIN_REQUIRED. Auto-bump if the preset floor is below the SDK.
 string(REGEX MATCH "^[0-9]+\\.[0-9]+" _sdk_major_minor "${_sdk_version}")
@@ -174,7 +168,7 @@ include(OptionsCocoa)
 
 # Swiftc falls back to its built-in deployment target while clang honors
 # CMAKE_OSX_DEPLOYMENT_TARGET; the mismatch produces an ld warning per object.
-if (CMAKE_OSX_DEPLOYMENT_TARGET AND NOT CMAKE_Swift_COMPILER_TARGET)
+if (CMAKE_OSX_DEPLOYMENT_TARGET)
     list(LENGTH CMAKE_OSX_ARCHITECTURES _arch_count)
     if (_arch_count EQUAL 1)
         set(_swift_arch "${CMAKE_OSX_ARCHITECTURES}")
@@ -208,6 +202,8 @@ set(WTF_LIBRARY_TYPE OBJECT)
 set(JavaScriptCore_LIBRARY_TYPE SHARED)
 set(WebCore_LIBRARY_TYPE SHARED)
 set(WebKit_LIBRARY_TYPE SHARED)
+
+set(WEBKIT_MAX_BUNDLE_SIZE 128)
 
 # Add PrivateFrameworks to framework search path (mirrors Base.xcconfig).
 if (CMAKE_OSX_SYSROOT)

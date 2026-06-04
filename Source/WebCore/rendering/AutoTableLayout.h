@@ -35,9 +35,9 @@ public:
     explicit AutoTableLayout(RenderTable*);
     virtual ~AutoTableLayout();
 
-    void computeIntrinsicLogicalWidths(LayoutUnit& minWidth, LayoutUnit& maxWidth, TableIntrinsics) override;
+    std::pair<LayoutUnit, LayoutUnit> computeIntrinsicLogicalWidths(TableIntrinsics) override;
     LayoutUnit scaledWidthFromPercentColumns() const override { return m_scaledWidthFromPercentColumns; }
-    void applyPreferredLogicalWidthQuirks(LayoutUnit& minWidth, LayoutUnit& maxWidth) const override;
+    void applyContentLogicalWidthQuirks(LayoutUnit& minWidth, LayoutUnit& maxWidth) const override;
     void layout() override;
 
 private:

@@ -43,6 +43,7 @@ template<> struct Serialize<String> { void operator()(StringBuilder&, const Seri
 template<> struct ComputedStyleDependenciesCollector<String> { constexpr void operator()(ComputedStyleDependencies&, const String&) { } };
 template<> struct CSSValueChildrenVisitor<String> { constexpr IterationStatus operator()(NOESCAPE const Function<IterationStatus(CSSValue&)>&, const String&) { return IterationStatus::Continue; } };
 template<> struct CSSValueCreation<String> { Ref<CSSValue> operator()(CSSValuePool&, const String&); };
+template<> struct DeprecatedCSSOMValueCreation<String> { Ref<DeprecatedCSSOMValue> operator()(CSSValuePool&, CSSStyleDeclaration&, const String&); };
 
 // MARK: - Logging
 
@@ -54,3 +55,25 @@ void NODELETE add(Hasher&, const String&);
 
 } // namespace CSS
 } // namespace WebCore
+
+namespace WTF {
+
+template<>
+struct MarkableTraits<WebCore::CSS::String> {
+    static bool isEmptyValue(const WebCore::CSS::String& value) { return value.value.isNull(); }
+    static WebCore::CSS::String emptyValue() { return WebCore::CSS::String { nullString() }; }
+};
+
+template<>
+struct HashTraits<WebCore::CSS::String> : GenericHashTraits<WebCore::CSS::String> {
+    using EmptyValueType = WebCore::CSS::String;
+    static constexpr bool emptyValueIsZero = true;
+    static constexpr bool hasIsEmptyValueFunction = true;
+    static bool isEmptyValue(const WebCore::CSS::String& value) { return value.value.isNull(); }
+    static EmptyValueType emptyValue() { return WebCore::CSS::String { nullString() }; }
+
+    static void constructDeletedValue(WebCore::CSS::String& value) { new (NotNull, std::addressof(value.value)) String { HashTableDeletedValue }; }
+    static bool isDeletedValue(const WebCore::CSS::String& value) { return value.value.isHashTableDeletedValue(); }
+};
+
+} // namespace WTF

@@ -161,7 +161,9 @@ void BitmapTexture::createTexture()
 void BitmapTexture::allocateTexture()
 {
     createTexture();
-    glTexImage2D(m_renderTarget, 0, GL_RGBA, m_size.width(), m_size.height(), 0, textureFormat(), s_pixelDataType, nullptr);
+    // EXT_texture_format_BGRA8888 mandates internalFormat == format.
+    // https://registry.khronos.org/OpenGL/extensions/EXT/EXT_texture_format_BGRA8888.txt
+    glTexImage2D(m_renderTarget, 0, textureFormat(), m_size.width(), m_size.height(), 0, textureFormat(), s_pixelDataType, nullptr);
 }
 
 size_t BitmapTexture::sizeInBytes() const
@@ -297,7 +299,7 @@ void BitmapTexture::reset(const IntSize& size, OptionSet<Flags> flags)
 #endif
 
     glBindTexture(m_renderTarget, m_id);
-    glTexImage2D(m_renderTarget, 0, GL_RGBA, m_size.width(), m_size.height(), 0, textureFormat(), s_pixelDataType, nullptr);
+    glTexImage2D(m_renderTarget, 0, textureFormat(), m_size.width(), m_size.height(), 0, textureFormat(), s_pixelDataType, nullptr);
     glBindTexture(m_renderTarget, boundTexture);
 }
 
@@ -354,6 +356,9 @@ void BitmapTexture::updateContents(const void* srcData, const IntRect& targetRec
         adjustedSourceOffset = IntPoint(0, 0);
     }
 
+    GLint boundTexture = 0;
+    glGetIntegerv(m_binding, &boundTexture);
+
     glBindTexture(m_renderTarget, m_id);
 
     if (supportsUnpackSubimage) {
@@ -370,6 +375,8 @@ void BitmapTexture::updateContents(const void* srcData, const IntRect& targetRec
         glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
         glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
     }
+
+    glBindTexture(m_renderTarget, boundTexture);
 }
 
 void BitmapTexture::updateContents(NativeImage* frameImage, const IntRect& targetRect, const IntPoint& offset)

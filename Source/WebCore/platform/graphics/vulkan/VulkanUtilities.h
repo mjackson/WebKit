@@ -27,7 +27,6 @@
 
 #if USE(VULKAN)
 #include "VulkanTypes.h"
-#include <wtf/Forward.h>
 
 namespace WebCore {
 namespace Vulkan {

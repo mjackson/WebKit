@@ -178,7 +178,6 @@ list(APPEND webrtc_SOURCES
     Source/webrtc/api/audio/audio_processing_statistics.cc
     Source/webrtc/api/audio/builtin_audio_processing_builder.cc
     Source/webrtc/api/audio/channel_layout.cc
-    Source/webrtc/api/audio/create_audio_device_module.cc
     Source/webrtc/api/audio/echo_canceller3_config.cc
     Source/webrtc/api/audio/echo_canceller3_factory.cc
     Source/webrtc/api/audio/echo_detector_creator.cc
@@ -609,7 +608,6 @@ list(APPEND webrtc_SOURCES
     Source/webrtc/modules/audio_device/audio_device_buffer.cc
     Source/webrtc/modules/audio_device/audio_device_data_observer.cc
     Source/webrtc/modules/audio_device/audio_device_generic.cc
-    Source/webrtc/modules/audio_device/audio_device_impl.cc
     Source/webrtc/modules/audio_device/audio_device_name.cc
     Source/webrtc/modules/audio_device/dummy/audio_device_dummy.cc
     Source/webrtc/modules/audio_device/dummy/file_audio_device.cc
@@ -2079,9 +2077,16 @@ if (APPLE)
         Source/webrtc/webkit_sdk/objc/components/video_codec/RTCVideoEncoderH264.mm
         Source/webrtc/modules/video_coding/codecs/vp9/vp9.cc
         Source/webrtc/common_video/h265/h265_common.cc
-        Source/webrtc/modules/audio_device/mac/audio_device_mac.cc
-        Source/webrtc/modules/audio_device/mac/audio_mixer_manager_mac.cc
-
+    )
+    if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        list(APPEND webrtc_SOURCES
+            Source/webrtc/api/audio/create_audio_device_module.cc
+            Source/webrtc/modules/audio_device/audio_device_impl.cc
+            Source/webrtc/modules/audio_device/mac/audio_device_mac.cc
+            Source/webrtc/modules/audio_device/mac/audio_mixer_manager_mac.cc
+        )
+    endif ()
+    list(APPEND webrtc_SOURCES
         Source/webrtc/modules/third_party/portaudio/pa_ringbuffer.c
 
         Source/webrtc/rtc_base/system/gcd_helpers.m
@@ -2298,6 +2303,15 @@ target_compile_options(webrtc PRIVATE
     "-UHAVE_CONFIG_H"
 )
 
+# The Swift-enabled clang shipped in the wkdev-sdk picks up libstdc++'s
+# std::bind_front, whose result is not convertible to
+# std::function<void(std::vector<std::unique_ptr<T>>)> and breaks call.cc et al.
+# Pre-define __cpp_lib_bind_front=0 so libstdc++ never advertises the feature
+# and Abseil falls back to its in-tree absl::bind_front. Must be a -D rather
+# than a force-included #undef: libstdc++'s feature-test header is
+# re-includable and would re-define the macro before Abseil reaches it.
+target_compile_definitions(webrtc PRIVATE __cpp_lib_bind_front=0)
+
 set_target_properties(webrtc PROPERTIES CXX_VISIBILITY_PRESET hidden)
 set_target_properties(webrtc PROPERTIES C_VISIBILITY_PRESET hidden)
 
@@ -2331,7 +2345,6 @@ target_compile_definitions(webrtc PRIVATE
   WEBRTC_CODEC_RED
   WEBRTC_HAVE_DCSCTP
   WEBRTC_HAVE_SCTP
-  WEBRTC_INCLUDE_INTERNAL_AUDIO_DEVICE
   WEBRTC_INTELLIGIBILITY_ENHANCER=0
   WEBRTC_NS_FLOAT
   WEBRTC_OPUS_SUPPORT_120MS_PTIME=0
@@ -2374,6 +2387,11 @@ if (APPLE)
         WEBRTC_ARCH_LITTLE_ENDIAN
         WEBRTC_MAC
     )
+    if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        target_compile_definitions(webrtc PRIVATE WEBRTC_INCLUDE_INTERNAL_AUDIO_DEVICE)
+    else ()
+        target_compile_definitions(webrtc PRIVATE WEBRTC_IOS)
+    endif ()
 else ()
     target_compile_definitions(webrtc PRIVATE
         SCTP_PROCESS_LEVEL_LOCKS

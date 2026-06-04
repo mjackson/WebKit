@@ -186,7 +186,7 @@ private:
 //
 // The order may be significant for nodes with side-effects (property accesses, value conversions).
 // Nodes that are 'dead' remain in the vector with refCount 0.
-class Graph final : public virtual Scannable {
+class Graph final : public Scannable {
 public:
     Graph(VM&, Plan&);
     ~Graph() final;
@@ -1004,6 +1004,13 @@ public:
         JSGlobalObject* globalObject = globalObjectFor(semanticOrigin);
         InlineWatchpointSet& set = globalObject->stringSymbolMatchWatchpointSet();
         return isWatchingGlobalObjectWatchpoint(globalObject, set, LinkerIR::Type::StringSymbolMatchWatchpointSet);
+    }
+
+    bool isWatchingStringSymbolSearchWatchpoint(const CodeOrigin& semanticOrigin)
+    {
+        JSGlobalObject* globalObject = globalObjectFor(semanticOrigin);
+        InlineWatchpointSet& set = globalObject->stringSymbolSearchWatchpointSet();
+        return isWatchingGlobalObjectWatchpoint(globalObject, set, LinkerIR::Type::StringSymbolSearchWatchpointSet);
     }
 
     bool isWatchingStringSymbolReplaceWatchpoint(const CodeOrigin& semanticOrigin)

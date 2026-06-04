@@ -135,12 +135,12 @@ RenderStyle RenderStyle::replace(RenderStyle&& newStyle)
 
 void RenderStyle::copyPseudoElementsFrom(const RenderStyle& other)
 {
-    for (auto& [key, pseudoElementStyle] : other.m_computedStyle.cachedPseudoStyles()) {
+    for (auto& [key, pseudoElementStyle] : other.m_computedStyle.pseudoElementStyles()) {
         if (!pseudoElementStyle) {
             ASSERT_NOT_REACHED();
             continue;
         }
-        addCachedPseudoStyle(makeUnique<RenderStyle>(cloneIncludingPseudoElements(*pseudoElementStyle)));
+        addPseudoElementStyle(makeUnique<RenderStyle>(cloneIncludingPseudoElements(*pseudoElementStyle)));
     }
 }
 
@@ -273,16 +273,10 @@ Style::Contain RenderStyle::usedContain() const
 {
     auto result = contain();
 
-    switch (containerType()) {
-    case ContainerType::Normal:
-        break;
-    case ContainerType::Size:
+    if (containerType().hasSize())
         result.add({ Style::ContainValue::Style, Style::ContainValue::Size });
-        break;
-    case ContainerType::InlineSize:
+    else if (containerType().hasInlineSize())
         result.add({ Style::ContainValue::Style, Style::ContainValue::InlineSize });
-        break;
-    };
 
     return result;
 }

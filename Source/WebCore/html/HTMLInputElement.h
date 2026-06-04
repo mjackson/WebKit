@@ -150,7 +150,7 @@ public:
     bool NODELETE isCheckbox() const;
     bool NODELETE isSwitch() const;
     bool NODELETE isCheckable() const;
-    bool NODELETE isRangeControl() const;
+    WEBCORE_EXPORT bool NODELETE isRangeControl() const;
     WEBCORE_EXPORT bool NODELETE isColorControl() const;
     // FIXME: It's highly likely that any call site calling this function should instead
     // be using a different one. Many input elements behave like text fields, and in addition
@@ -424,7 +424,7 @@ private:
     void resumeFromDocumentSuspension() final;
     void prepareForDocumentSuspension() final;
 
-    void addSubresourceAttributeURLs(ListHashSet<URL>&) const final;
+    void addSubresourceAttributeURLs(OrderedHashSet<URL>&) const final;
 
     bool NODELETE needsSuspensionCallback();
     void registerForSuspensionCallbackIfNeeded();

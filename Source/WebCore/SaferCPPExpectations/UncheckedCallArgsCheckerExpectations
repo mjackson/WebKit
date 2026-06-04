@@ -164,7 +164,6 @@ html/HTMLFormElement.cpp
 html/HTMLInputElement.cpp
 html/HTMLLinkElement.cpp
 [ iOS ] html/HTMLMediaElement.cpp
-html/HTMLMetaElement.cpp
 html/HTMLOptionsCollection.cpp
 html/HTMLPlugInElement.cpp
 html/HTMLTextFormControlElement.cpp
@@ -340,7 +339,6 @@ platform/Widget.cpp
 platform/cocoa/LowPowerModeNotifier.mm
 platform/cocoa/VideoPresentationModelVideoElement.mm
 platform/cocoa/WebAVPlayerLayer.mm
-platform/graphics/ComplexTextController.cpp
 platform/graphics/ca/GraphicsLayerCA.cpp
 platform/graphics/ca/PlatformCALayer.mm
 platform/graphics/ca/TileController.cpp
@@ -504,7 +502,6 @@ rendering/svg/RenderSVGViewportContainer.cpp
 rendering/svg/SVGBoundingBoxComputation.cpp
 rendering/svg/SVGContainerLayout.cpp
 rendering/svg/SVGInlineTextBox.cpp
-rendering/svg/SVGLayerTransformComputation.h
 rendering/svg/SVGLayerTransformUpdater.h
 rendering/svg/SVGRenderSupport.cpp
 rendering/svg/SVGRenderTreeAsText.cpp
@@ -515,6 +512,7 @@ rendering/svg/SVGTextLayoutEngineBaseline.cpp
 rendering/svg/SVGTextMetrics.cpp
 rendering/svg/SVGTextMetricsBuilder.cpp
 rendering/svg/SVGTextQuery.cpp
+rendering/svg/SVGTransformComputation.h
 rendering/svg/SVGVisitedRendererTracking.h
 rendering/svg/legacy/LegacyRenderSVGContainer.cpp
 rendering/svg/legacy/LegacyRenderSVGForeignObject.cpp
@@ -591,8 +589,6 @@ svg/SVGClipPathElement.cpp
 svg/SVGElement.cpp
 svg/SVGElement.h
 svg/SVGFEImageElement.cpp
-svg/SVGFontFaceElement.cpp
-svg/SVGFontFaceUriElement.cpp
 svg/SVGImageElement.cpp
 svg/SVGLengthContext.cpp
 svg/SVGMaskElement.cpp

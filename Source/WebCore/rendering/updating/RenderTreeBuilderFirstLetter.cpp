@@ -38,6 +38,7 @@
 #include "RenderView.h"
 #include "StyleChange.h"
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/text/CharacterProperties.h>
 #include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
@@ -47,7 +48,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderTreeBuilder::FirstLetter);
 static std::optional<RenderStyle> styleForFirstLetter(const RenderElement& firstLetterContainer)
 {
     auto& styleContainer = firstLetterContainer.isAnonymous() ? *firstLetterContainer.firstNonAnonymousAncestor() : firstLetterContainer;
-    auto style = styleContainer.style().getCachedPseudoStyle({ PseudoElementType::FirstLetter });
+    auto style = styleContainer.style().pseudoElementStyle({ PseudoElementType::FirstLetter });
     if (!style)
         return { };
 
@@ -97,26 +98,101 @@ static std::optional<RenderStyle> styleForFirstLetter(const RenderElement& first
     return firstLetterStyle;
 }
 
-// CSS 2.1 http://www.w3.org/TR/CSS21/selector.html#first-letter
-// "Punctuation (i.e, characters defined in Unicode [UNICODE] in the "open" (Ps), "close" (Pe),
-// "initial" (Pi). "final" (Pf) and "other" (Po) punctuation classes), that precedes or follows the first letter should be included"
-static inline bool isPunctuationForFirstLetter(char32_t c)
+// https://drafts.csswg.org/css-pseudo/#first-letter-pattern
+static inline bool isPrecedingPunctuationForFirstLetter(char32_t c)
 {
-    return U_GET_GC_MASK(c) & (U_GC_PS_MASK | U_GC_PE_MASK | U_GC_PI_MASK | U_GC_PF_MASK | U_GC_PO_MASK);
+    return isPunctuation(c);
 }
 
-static inline bool shouldSkipForFirstLetter(char32_t c)
+static inline bool isFollowingPunctuationForFirstLetter(char32_t c)
 {
-    return deprecatedIsSpaceOrNewline(c) || c == noBreakSpace || isPunctuationForFirstLetter(c);
+    auto mask = U_GET_GC_MASK(c);
+    return (mask & U_GC_P_MASK) && !(mask & (U_GC_PS_MASK | U_GC_PD_MASK));
 }
 
-static bool isDutchIJDigraph(const String& text, unsigned offset)
+static inline bool isPrecedingTypographicSpaceForFirstLetter(char32_t c)
+{
+    if (c == ideographicSpace)
+        return false;
+    return U_GET_GC_MASK(c) & U_GC_ZS_MASK;
+}
+
+// https://drafts.csswg.org/css-text/#word-separator
+static inline bool isWordSeparator(char32_t c)
+{
+    switch (c) {
+    case ' ':
+    case noBreakSpace:
+    case ethiopicWordspace:
+    case aegeanWordSeparatorLine:
+    case aegeanWordSeparatorDot:
+    case ugariticWordDivider:
+    case phoenicianWordSeparator:
+        return true;
+    }
+    return false;
+}
+
+static inline bool isFollowingTypographicSpaceForFirstLetter(char32_t c)
+{
+    if (isWordSeparator(c))
+        return false;
+    return isPrecedingTypographicSpaceForFirstLetter(c);
+}
+
+static inline bool shouldSkipBeforeFirstLetter(char32_t c)
+{
+    // isASCIIWhitespace covers HTML source whitespace that may still be present
+    // in originalText() before whitespace collapsing.
+    return isASCIIWhitespace(c)
+        || isPrecedingPunctuationForFirstLetter(c)
+        || isPrecedingTypographicSpaceForFirstLetter(c);
+}
+
+static bool isDutchIJDigraph(StringView text, unsigned offset)
 {
     if (offset + 1 >= text.length())
         return false;
     auto first = text[offset];
     auto second = text[offset + 1];
     return (first == 'i' && second == 'j') || (first == 'I' && second == 'J');
+}
+
+static unsigned firstLetterLength(StringView text, const AtomString& specifiedLocale)
+{
+    if (text.isEmpty())
+        return 0;
+
+    unsigned length = 0;
+
+    // Account for leading spaces and punctuation.
+    while (length < text.length() && shouldSkipBeforeFirstLetter(text.codePointAt(length)))
+        length += numCodeUnitsInGraphemeClusters(text.substring(length), 1);
+
+    // Account for first grapheme cluster.
+    length += numCodeUnitsInGraphemeClusters(text.substring(length), 1);
+
+    // In Dutch, "ij" is a digraph treated as a single letter for ::first-letter.
+    if (length < text.length() && isDutchLocale(specifiedLocale) && isDutchIJDigraph(text, length - 1))
+        length += numCodeUnitsInGraphemeClusters(text.substring(length), 1);
+
+    // Keep looking for following punctuation and intervening typographic space,
+    // but avoid accumulating just whitespace into the :first-letter.
+    unsigned numCodeUnits = 0;
+    for (unsigned scanLength = length; scanLength < text.length(); scanLength += numCodeUnits) {
+        char32_t c = text.codePointAt(scanLength);
+
+        bool isFollowingPunctuation = isFollowingPunctuationForFirstLetter(c);
+        if (!isFollowingPunctuation && !isFollowingTypographicSpaceForFirstLetter(c))
+            break;
+
+        numCodeUnits = numCodeUnitsInGraphemeClusters(text.substring(scanLength), 1);
+
+        if (isFollowingPunctuation)
+            length = scanLength + numCodeUnits;
+    }
+
+    return length;
 }
 
 static bool supportsFirstLetter(RenderBlock& block)
@@ -172,7 +248,10 @@ void RenderTreeBuilder::FirstLetter::updateAfterDescendants(RenderBlock& block)
                 return false;
             // If a new text node was inserted before the first-letter's text node,
             // the first letter of the block has changed and the split must be rebuilt.
-            return is<Text>(textNode->previousSibling());
+            if (is<Text>(textNode->previousSibling()))
+                return true;
+            // Length can change due to a locale change.
+            return firstLetterLength(textNode->data(), remainingText->style().fontDescription().specifiedLocale()) != remainingText->start();
         };
         if (isFirstLetterStale()) {
             ASSERT(remainingText.get());
@@ -283,33 +362,7 @@ void RenderTreeBuilder::FirstLetter::createRenderers(RenderText& currentTextChil
     ASSERT(!oldText.isNull());
 
     if (!oldText.isEmpty()) {
-        unsigned length = 0;
-
-        // Account for leading spaces and punctuation.
-        while (length < oldText.length() && shouldSkipForFirstLetter(oldText.codePointAt(length)))
-            length += numCodeUnitsInGraphemeClusters(StringView(oldText).substring(length), 1);
-
-        // Account for first grapheme cluster.
-        length += numCodeUnitsInGraphemeClusters(StringView(oldText).substring(length), 1);
-
-        // In Dutch, "ij" is a digraph treated as a single letter for ::first-letter.
-        if (length < oldText.length() && isDutchLocale(currentTextChild.style().fontDescription().specifiedLocale()) && isDutchIJDigraph(oldText, length - 1))
-            length += numCodeUnitsInGraphemeClusters(StringView(oldText).substring(length), 1);
-
-        // Keep looking for whitespace and allowed punctuation, but avoid
-        // accumulating just whitespace into the :first-letter.
-        unsigned numCodeUnits = 0;
-        for (unsigned scanLength = length; scanLength < oldText.length(); scanLength += numCodeUnits) {
-            char32_t c = oldText.codePointAt(scanLength);
-
-            if (!shouldSkipForFirstLetter(c))
-                break;
-
-            numCodeUnits = numCodeUnitsInGraphemeClusters(StringView(oldText).substring(scanLength), 1);
-
-            if (isPunctuationForFirstLetter(c))
-                length = scanLength + numCodeUnits;
-        }
+        unsigned length = firstLetterLength(oldText, currentTextChild.style().fontDescription().specifiedLocale());
 
         RefPtr textNode = currentTextChild.textNode();
         WeakPtr beforeChild = currentTextChild.nextSibling();

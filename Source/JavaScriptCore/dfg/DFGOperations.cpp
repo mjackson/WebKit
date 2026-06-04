@@ -72,11 +72,12 @@
 #include "JSPromise.h"
 #include "JSPromiseConstructor.h"
 #include "JSPromiseReaction.h"
-#include "JSPropertyNameEnumerator.h"
+#include "JSPropertyNameEnumeratorInlines.h"
 #include "JSRegExpStringIterator.h"
 #include "JSSet.h"
 #include "JSSetIterator.h"
 #include "JSStringIterator.h"
+#include "JSStringIteratorInlines.h"
 #include "JSWeakMapInlines.h"
 #include "JSWeakSet.h"
 #include "JSWrapForValidIterator.h"
@@ -1564,6 +1565,54 @@ JSC_DEFINE_JIT_OPERATION(operationArrayConcatAppendOne, JSArray*, (JSGlobalObjec
     OPERATION_RETURN(scope, tryConcatOneArgFast(globalObject, vm, firstArray, JSValue::decode(encodedSecond)));
 }
 
+static ALWAYS_INLINE JSString* arrayJoinWithStringSeparator(JSGlobalObject* globalObject, JSArray* array, JSString* separator, ThrowScope& scope)
+{
+    unsigned length = array->length();
+    if (!separator->length() && (array->indexingType() == ArrayWithContiguous || array->indexingType() == ArrayWithInt32)) {
+        auto* butterfly = array->butterfly();
+        JSOnlyStringsAndInt32sJoiner joiner(StringView { });
+        auto* joined = joiner.tryJoin(globalObject, butterfly->contiguous().data(), length);
+        RETURN_IF_EXCEPTION(scope, { });
+        if (joined)
+            return joined;
+    }
+
+    auto view = separator->view(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    bool sawHoles = false;
+    bool genericCase = false;
+    return fastArrayJoin(globalObject, array, view, length, sawHoles, genericCase);
+}
+
+JSC_DEFINE_JIT_OPERATION(operationArrayJoin, JSString*, (JSGlobalObject* globalObject, JSArray* array, JSString* separator))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    OPERATION_RETURN(scope, arrayJoinWithStringSeparator(globalObject, array, separator, scope));
+}
+
+JSC_DEFINE_JIT_OPERATION(operationArrayJoinGeneric, JSString*, (JSGlobalObject* globalObject, JSArray* array, EncodedJSValue encodedSeparator))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    JSValue separatorValue = JSValue::decode(encodedSeparator);
+    JSString* separator;
+    if (separatorValue.isUndefined())
+        separator = vm.smallStrings.singleCharacterString(',');
+    else if (!separatorValue.isObject()) {
+        separator = separatorValue.toString(globalObject);
+        OPERATION_RETURN_IF_EXCEPTION(scope, nullptr);
+    } else
+        OPERATION_RETURN(scope, nullptr);
+    OPERATION_RETURN(scope, arrayJoinWithStringSeparator(globalObject, array, separator, scope));
+}
+
 JSC_DEFINE_JIT_OPERATION(operationRegExpExecString, EncodedJSValue, (JSGlobalObject* globalObject, RegExpObject* regExpObject, JSString* argument))
 {
     SuperSamplerScope superSamplerScope(false);
@@ -1818,7 +1867,7 @@ JSC_DEFINE_JIT_OPERATION(operationRejectPromiseFirstResolving, void, (JSGlobalOb
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSValue argument = JSValue::decode(encodedArgument);
-    promise->reject(vm, globalObject, argument);
+    promise->reject(vm, argument);
     OPERATION_RETURN(scope);
 }
 
@@ -1829,7 +1878,7 @@ JSC_DEFINE_JIT_OPERATION(operationFulfillPromiseFirstResolving, void, (JSGlobalO
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSValue argument = JSValue::decode(encodedArgument);
-    promise->fulfill(vm, globalObject, argument);
+    promise->fulfill(vm, argument);
     OPERATION_RETURN(scope);
 }
 
@@ -4103,6 +4152,44 @@ JSC_DEFINE_JIT_OPERATION(operationStringMatchRegExp, EncodedJSValue, (JSGlobalOb
     OPERATION_RETURN(scope, JSValue::encode(stringMatchSlow(globalObject, thisString, regexp)));
 }
 
+JSC_DEFINE_JIT_OPERATION(operationStringSearch, EncodedJSValue, (JSGlobalObject* globalObject, JSString* thisString, JSString* regexpString))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    OPERATION_RETURN(scope, JSValue::encode(stringSearchSlow(globalObject, thisString, regexpString)));
+}
+
+JSC_DEFINE_JIT_OPERATION(operationStringSearchRegExp, EncodedJSValue, (JSGlobalObject* globalObject, JSString* thisString, RegExpObject* regexp))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    if (regexp->isSymbolSearchFastAndNonObservable()) [[likely]]
+        OPERATION_RETURN(scope, JSValue::encode(regExpSearchFast(globalObject, regexp, thisString)));
+
+    JSValue searcher = regexp->get(globalObject, vm.propertyNames->searchSymbol);
+    OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    if (!searcher.isUndefinedOrNull()) {
+        auto callData = JSC::getCallData(searcher);
+        if (callData.type == CallData::Type::None) [[unlikely]] {
+            throwTypeError(globalObject, scope, "@@search method is not callable"_s);
+            OPERATION_RETURN(scope, encodedJSValue());
+        }
+        std::array<EncodedJSValue, 1> args { {
+            JSValue::encode(thisString),
+        } };
+        JSValue result = call(globalObject, searcher, callData, regexp, ArgList { args.data(), args.size() });
+        OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+        OPERATION_RETURN(scope, JSValue::encode(result));
+    }
+    OPERATION_RETURN(scope, JSValue::encode(stringSearchSlow(globalObject, thisString, regexp)));
+}
+
 JSC_DEFINE_JIT_OPERATION(operationStringProtoFuncReplaceGeneric, JSCell*, (JSGlobalObject* globalObject, EncodedJSValue thisValue, EncodedJSValue searchValue, EncodedJSValue replaceValue))
 {
     VM& vm = globalObject->vm();
@@ -5246,6 +5333,38 @@ JSC_DEFINE_JIT_OPERATION(operationStringFromCharCodeUntyped, EncodedJSValue, (JS
     OPERATION_RETURN(scope, JSValue::encode(JSC::stringFromCharCode(globalObject, chInt)));
 }
 
+JSC_DEFINE_JIT_OPERATION(operationStringFromCodePoint, JSCell*, (JSGlobalObject* globalObject, int32_t op1))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    OPERATION_RETURN(scope, JSC::stringFromCodePoint(globalObject, op1));
+}
+
+JSC_DEFINE_JIT_OPERATION(operationStringFromCodePointUntyped, EncodedJSValue, (JSGlobalObject* globalObject, EncodedJSValue encodedValue))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    JSValue value = JSValue::decode(encodedValue);
+    double codePointAsDouble = value.toNumber(globalObject);
+    OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+
+    uint32_t codePoint = static_cast<uint32_t>(codePointAsDouble);
+    if (codePoint != codePointAsDouble || codePoint > UCHAR_MAX_VALUE) [[unlikely]] {
+        throwRangeError(globalObject, scope, "Arguments contain a value that is out of range of code points"_s);
+        OPERATION_RETURN(scope, encodedJSValue());
+    }
+
+    if (U_IS_BMP(codePoint))
+        OPERATION_RETURN(scope, JSValue::encode(jsSingleCharacterString(vm, static_cast<char16_t>(codePoint))));
+
+    char16_t buffer[2] = { U16_LEAD(codePoint), U16_TRAIL(codePoint) };
+    OPERATION_RETURN(scope, JSValue::encode(jsNontrivialString(vm, String({ buffer, 2 }))));
+}
+
 JSC_DEFINE_JIT_OPERATION(operationNewRawObject, char*, (VM* vmPointer, Structure* structure, int32_t length, Butterfly* butterfly))
 {
     VM& vm = *vmPointer;
@@ -5758,6 +5877,23 @@ JSC_DEFINE_JIT_OPERATION(operationSetIterationEntryKey, EncodedJSValue, (JSGloba
     OPERATION_RETURN(scope, JSValue::encode(JSSet::Helper::getIterationEntryKey(storage)));
 }
 
+JSC_DEFINE_JIT_OPERATION(operationStringIteratorNext, UGPRPair, (JSGlobalObject* globalObject, JSString* string, int32_t position))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    auto [value, nextPosition] = JSStringIterator::advance(globalObject, vm, string, position);
+    OPERATION_RETURN_IF_EXCEPTION(scope, UGPRPair { });
+
+    // The tuple's first element is typed SpecString, so represent "done" with the empty string
+    // rather than a null cell. It is never observed (consumers check done first).
+    if (!value)
+        value = vm.smallStrings.emptyString();
+    OPERATION_RETURN(scope, makeUGPRPair(std::bit_cast<UCPURegister>(value), static_cast<uint32_t>(nextPosition)));
+}
+
 JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationMapIteratorNext, EncodedJSValue, (VM* vmPointer, JSCell* cell))
 {
     VM& vm = *vmPointer;
@@ -5827,6 +5963,22 @@ JSC_DEFINE_JIT_OPERATION(operationNewSet, JSSet*, (VM* vmPointer, Structure* str
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
     OPERATION_RETURN(scope, JSSet::create(vm, structure));
+}
+
+JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationNewWeakMap, JSWeakMap*, (VM* vmPointer, Structure* structure))
+{
+    VM& vm = *vmPointer;
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    return JSWeakMap::create(vm, structure);
+}
+
+JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationNewWeakSet, JSWeakSet*, (VM* vmPointer, Structure* structure))
+{
+    VM& vm = *vmPointer;
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    return JSWeakSet::create(vm, structure);
 }
 
 JSC_DEFINE_JIT_OPERATION(operationWeakSetAdd, void, (JSGlobalObject* globalObject, JSCell* set, JSCell* key, int32_t hash))

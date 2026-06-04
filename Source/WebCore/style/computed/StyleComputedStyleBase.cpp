@@ -38,6 +38,7 @@
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StyleTextDecorationLine.h"
 #include "StyleTextTransform.h"
+#include "StyleZoom.h"
 #include <algorithm>
 #include <wtf/MathExtras.h>
 #include <wtf/StdLibExtras.h>
@@ -97,12 +98,12 @@ std::optional<PseudoElementIdentifier> ComputedStyleBase::pseudoElementIdentifie
     return PseudoElementIdentifier { *pseudoElementType(), pseudoElementNameArgument() };
 }
 
-RenderStyle* ComputedStyleBase::getCachedPseudoStyle(const PseudoElementIdentifier& pseudoElementIdentifier) const
+RenderStyle* ComputedStyleBase::pseudoElementStyle(const PseudoElementIdentifier& pseudoElementIdentifier) const
 {
-    return m_cachedPseudoStyles.get(pseudoElementIdentifier);
+    return m_pseudoElementStyles.get(pseudoElementIdentifier);
 }
 
-RenderStyle* ComputedStyleBase::addCachedPseudoStyle(std::unique_ptr<RenderStyle> pseudo)
+RenderStyle* ComputedStyleBase::addPseudoElementStyle(std::unique_ptr<RenderStyle> pseudo)
 {
     if (!pseudo)
         return nullptr;
@@ -110,7 +111,7 @@ RenderStyle* ComputedStyleBase::addCachedPseudoStyle(std::unique_ptr<RenderStyle
     ASSERT(pseudo->pseudoElementType());
 
     auto* result = pseudo.get();
-    m_cachedPseudoStyles.add(*result->pseudoElementIdentifier(), WTF::move(pseudo));
+    m_pseudoElementStyles.add(*result->pseudoElementIdentifier(), WTF::move(pseudo));
     return result;
 }
 
@@ -294,6 +295,21 @@ void ComputedStyleBase::setWordSpacingFromAnimation(WordSpacing&& value)
     }
 }
 
+void ComputedStyleBase::setZoomFromAnimation(Zoom value)
+{
+    // Match StyleBuilderCustom::applyValueZoom: treat zoom: 0 as 1.
+    if (evaluate<float>(value) < Zoom::minEffective)
+        value = Zoom { 1.0f };
+
+    // Replay StyleBuilderCustom::resetUsedZoom: recover parent.usedZoom from (zoom, usedZoom) so setUsedZoom below ends at parent.usedZoom * specifiedZoom.
+    auto currentSpecified = evaluate<float>(m_nonInheritedData->rareData->zoom);
+    auto parentUsedZoom = currentSpecified < Zoom::minEffective ? 1.0f : usedZoom() / currentSpecified;
+    setUsedZoom(clampTo<float>(parentUsedZoom * evaluate<float>(value), Zoom::minEffective, Zoom::maxEffective));
+
+    if (value != m_nonInheritedData->rareData->zoom)
+        m_nonInheritedData.access().rareData.access().zoom = value;
+}
+
 void ComputedStyleBase::synchronizeLetterSpacingWithFontCascade()
 {
     auto& fontCascade = mutableFontCascadeWithoutUpdate();
@@ -430,7 +446,6 @@ void ComputedStyleBase::NonInheritedFlags::dumpDifferences(TextStream& ts, const
     LOG_IF_DIFFERENT(hasExplicitlyInheritedProperties);
     LOG_IF_DIFFERENT(disallowsFastPathInheritance);
 
-    LOG_IF_DIFFERENT(emptyState);
     LOG_IF_DIFFERENT(firstChildState);
     LOG_IF_DIFFERENT(lastChildState);
     LOG_IF_DIFFERENT(isLink);

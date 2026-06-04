@@ -304,9 +304,9 @@ JSC_DEFINE_HOST_FUNCTION(promiseProtoFuncFinally, (JSGlobalObject* globalObject,
                     contextValue = tuple;
                 }
             }
-            promise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::PromiseFinallyReactionJob, resultPromise, contextValue);
+            promise->performPromiseThenWithInternalMicrotask(vm, InternalMicrotask::PromiseFinallyReactionJob, resultPromise, contextValue);
 #else
-            promise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::PromiseFinallyReactionJob, resultPromise, context);
+            promise->performPromiseThenWithInternalMicrotask(vm, InternalMicrotask::PromiseFinallyReactionJob, resultPromise, context);
 #endif
             return JSValue::encode(resultPromise);
         }

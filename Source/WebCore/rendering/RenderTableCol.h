@@ -41,7 +41,7 @@ public:
     RenderTableCol(Document&, RenderStyle&&);
     virtual ~RenderTableCol();
 
-    void clearNeedsPreferredLogicalWidthsUpdate();
+    void clearContentLogicalWidthsInvalidation();
 
     unsigned span() const { return m_span; }
     void setSpan(unsigned span) { m_span = span; }
@@ -70,8 +70,8 @@ public:
 
 private:
     ASCIILiteral renderName() const override { return "RenderTableCol"_s; }
-    void computePreferredLogicalWidths() override { ASSERT_NOT_REACHED(); }
-    void computeIntrinsicLogicalWidths(LayoutUnit&, LayoutUnit&) const override { ASSERT_NOT_REACHED(); }
+    void computeIntrinsicLogicalWidthContributions() override { ASSERT_NOT_REACHED(); }
+    std::pair<LayoutUnit, LayoutUnit> computeIntrinsicLogicalWidths() const override { ASSERT_NOT_REACHED(); return { }; }
 
     void insertedIntoTree() override;
     void willBeRemovedFromTree() override;

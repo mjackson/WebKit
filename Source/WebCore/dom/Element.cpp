@@ -2664,7 +2664,7 @@ void Element::partAttributeChanged(const AtomString& newValue)
     }
 
     if (needsStyleInvalidation() && isInShadowTree())
-        invalidateStyleInternal();
+        invalidateStyle();
 }
 
 URL Element::absoluteLinkURL() const
@@ -2721,47 +2721,19 @@ Style::UnadjustedStyle Element::resolveStyle(const Style::ResolutionContext& res
     return styleResolver().unadjustedStyleForElement(*this, resolutionContext);
 }
 
-void invalidateForSiblingCombinators(Element* sibling)
-{
-    for (RefPtr element = sibling; element; element = element->nextElementSibling()) {
-        if (element->styleIsAffectedByPreviousSibling())
-            element->invalidateStyleInternal();
-        if (element->descendantsAffectedByPreviousSibling()) {
-            for (RefPtr siblingChild = element->firstElementChild(); siblingChild; siblingChild = siblingChild->nextElementSibling())
-                siblingChild->invalidateStyleForSubtreeInternal();
-        }
-        if (!element->affectsNextSiblingElementStyle())
-            return;
-    }
-}
-
-static void invalidateSiblingsIfNeeded(Element& element)
-{
-    if (!element.affectsNextSiblingElementStyle())
-        return;
-    CheckedPtr parent = element.parentElement();
-    if (parent && parent->styleValidity() >= Style::Validity::SubtreeInvalid)
-        return;
-
-    invalidateForSiblingCombinators(element.nextElementSibling());
-}
-
 void Element::invalidateStyle()
 {
     Node::invalidateStyle(Style::Validity::ElementInvalid);
-    invalidateSiblingsIfNeeded(*this);
 }
 
 void Element::invalidateStyleAndLayerComposition()
 {
     Node::invalidateStyle(Style::Validity::ElementInvalid, Style::InvalidationMode::RecompositeLayer);
-    invalidateSiblingsIfNeeded(*this);
 }
 
 void Element::invalidateStyleForSubtree()
 {
     Node::invalidateStyle(Style::Validity::SubtreeInvalid);
-    invalidateSiblingsIfNeeded(*this);
 }
 
 void Element::invalidateStyleAndRenderersForSubtree()
@@ -2774,20 +2746,10 @@ void Element::invalidateRenderer()
     Node::invalidateStyle(Style::Validity::Valid, Style::InvalidationMode::RebuildRenderer);
 }
 
-void Element::invalidateStyleInternal()
-{
-    Node::invalidateStyle(Style::Validity::ElementInvalid);
-}
-
 void Element::invalidateStyleForAnimation()
 {
     ASSERT(!document().inStyleRecalc());
     Node::invalidateStyle(Style::Validity::AnimationInvalid);
-}
-
-void Element::invalidateStyleForSubtreeInternal()
-{
-    Node::invalidateStyle(Style::Validity::SubtreeInvalid);
 }
 
 void Element::invalidateForQueryContainerSizeChange()
@@ -2810,7 +2772,7 @@ void Element::invalidateForResumingQueryContainerResolution()
 
 void Element::invalidateForResumingAnchorPositionedElementResolution()
 {
-    invalidateStyleInternal();
+    invalidateStyle();
     markAncestorsForInvalidatedStyle();
 }
 
@@ -2827,7 +2789,7 @@ void Element::clearNeedsUpdateQueryContainerDependentStyle()
 void Element::invalidateEventListenerRegions()
 {
     // Event listener region is updated via style update.
-    invalidateStyleInternal();
+    invalidateStyle();
 }
 
 bool Element::hasDisplayContents() const
@@ -3068,14 +3030,11 @@ String Element::nodeName() const
     return m_tagName.toString();
 }
 
-ExceptionOr<void> Element::setPrefix(const AtomString& prefix)
+void Element::setPrefixForCustomElementUpgrade(const AtomString& prefix)
 {
-    auto result = checkSetPrefix(prefix);
-    if (result.hasException())
-        return result.releaseException();
-
-    m_tagName.setPrefix(prefix.isEmpty() ? nullAtom() : prefix);
-    return { };
+    ASSERT(!prefix.isEmpty());
+    ASSERT(m_tagName.prefix().isNull());
+    m_tagName.setPrefix(prefix);
 }
 
 String Element::imageSourceURL() const
@@ -3365,7 +3324,7 @@ void Element::setInvokedPopover(RefPtr<Element>&& element)
     data.setInvokedPopover(WTF::move(element));
 
     // Invalidate so isPopoverInvoker style bit gets updated.
-    invalidateStyleInternal();
+    invalidateStyle();
 }
 
 void Element::addShadowRoot(Ref<ShadowRoot>&& newShadowRoot)
@@ -4075,7 +4034,8 @@ bool Element::removeAttribute(const AtomString& qualifiedName)
     AtomString caseAdjustedQualifiedName = shouldIgnoreAttributeCase(*this) ? qualifiedName.convertToASCIILowercase() : qualifiedName;
     unsigned index = elementData()->findAttributeIndexByName(caseAdjustedQualifiedName, false);
     if (index == ElementData::attributeNotFound) {
-        if (caseAdjustedQualifiedName == styleAttr) [[unlikely]] {
+        // FIXME: Should this be a hasTagName(styleAttr) check to also enforce the namespace?
+        if (styleAttr->hasLocalName(caseAdjustedQualifiedName)) [[unlikely]] {
             if (elementData()->styleAttributeIsDirty()) {
                 if (auto* styledElement = dynamicDowncast<StyledElement>(*this))
                     styledElement->removeAllInlineStyleProperties();
@@ -4527,19 +4487,21 @@ ExceptionOr<void> Element::setOuterHTML(Variant<Ref<TrustedHTML>, String>&& html
     if (stringValueHolder.hasException())
         return stringValueHolder.releaseException();
 
-    // The specification allows setting outerHTML on an Element whose parent is a DocumentFragment and Gecko supports this.
-    // https://w3c.github.io/DOM-Parsing/#dom-element-outerhtml
-    RefPtr parent = parentElement();
-    if (!parent) [[unlikely]] {
-        if (!parentNode())
-            return { };
-        return Exception { ExceptionCode::NoModificationAllowedError, "Cannot set outerHTML on element because its parent is not an Element"_s };
-    }
+    // https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-element-outerhtml
+    RefPtr parent = parentNode();
+    if (!parent)
+        return { };
+    if (is<Document>(*parent))
+        return Exception { ExceptionCode::NoModificationAllowedError, "Cannot set outerHTML on element because its parent is a Document"_s };
+
+    RefPtr contextElement = dynamicDowncast<Element>(parent);
+    if (!contextElement)
+        contextElement = HTMLBodyElement::create(document());
 
     RefPtr previous = previousSibling();
     RefPtr next = nextSibling();
 
-    auto fragment = createFragmentForInnerOuterHTML(*parent, stringValueHolder.releaseReturnValue(), { ParserContentPolicy::AllowScriptingContent }, CustomElementRegistry::registryForElement(*parent));
+    auto fragment = createFragmentForInnerOuterHTML(*contextElement, stringValueHolder.releaseReturnValue(), { ParserContentPolicy::AllowScriptingContent }, CustomElementRegistry::registryForElement(*contextElement));
     if (fragment.hasException())
         return fragment.releaseException();
 
@@ -4668,9 +4630,9 @@ void Element::addToTopLayer()
     document->scheduleContentRelevancyUpdate(ContentRelevancy::IsInTopLayer);
 
     // Invalidate inert state
-    invalidateStyleInternal();
+    invalidateStyle();
     if (RefPtr documentElement = document->documentElement())
-        documentElement->invalidateStyleInternal();
+        documentElement->invalidateStyle();
 
     if (CheckedPtr renderer = this->renderer())
         renderer->establishesTopLayerDidChange();
@@ -4709,11 +4671,11 @@ void Element::removeFromTopLayer()
     document().scheduleContentRelevancyUpdate(ContentRelevancy::IsInTopLayer);
 
     // Invalidate inert state
-    invalidateStyleInternal();
+    invalidateStyle();
     if (RefPtr documentElement = document().documentElement())
-        documentElement->invalidateStyleInternal();
+        documentElement->invalidateStyle();
     if (RefPtr modalElement = document().activeModalDialog())
-        modalElement->invalidateStyleInternal();
+        modalElement->invalidateStyle();
 
     if (CheckedPtr renderer = this->renderer())
         renderer->establishesTopLayerDidChange();
@@ -4753,7 +4715,7 @@ const RenderStyle* Element::renderOrDisplayContentsStyle(const std::optional<Sty
 {
     if (pseudoElementIdentifier) {
         if (CheckedPtr style = renderOrDisplayContentsStyle()) {
-            if (auto* cachedPseudoStyle = style->getCachedPseudoStyle(*pseudoElementIdentifier))
+            if (auto* cachedPseudoStyle = style->pseudoElementStyle(*pseudoElementIdentifier))
                 return cachedPseudoStyle;
         }
 
@@ -4830,7 +4792,7 @@ const RenderStyle* Element::resolveComputedStyle(ResolveComputedStyleMode mode)
     // FIXME: This is not as efficient as it could be. For example if an ancestor has a non-inherited style change but
     // the styles are otherwise clean we would not need to re-resolve descendants.
     for (auto& element : elementsRequiringComputedStyle | std::views::reverse) {
-        if (computedStyle && computedStyle->containerType() != ContainerType::Normal && mode != ResolveComputedStyleMode::Editability) {
+        if (computedStyle && !computedStyle->containerType().isNormal() && mode != ResolveComputedStyleMode::Editability) {
             // If we find a query container we need to bail out and do full style update to resolve it.
             if (document->updateStyleIfNeeded())
                 return this->computedStyle();
@@ -4863,7 +4825,7 @@ const RenderStyle& Element::resolvePseudoElementStyle(const Style::PseudoElement
 
     CheckedPtr parentStyle = existingComputedStyle();
     ASSERT(parentStyle);
-    ASSERT(!parentStyle->getCachedPseudoStyle(pseudoElementIdentifier));
+    ASSERT(!parentStyle->pseudoElementStyle(pseudoElementIdentifier));
 
     Ref document = this->document();
     Style::PostResolutionCallbackDisabler disabler(document, Style::PostResolutionCallbackDisabler::DrainCallbacks::No);
@@ -4876,8 +4838,8 @@ const RenderStyle& Element::resolvePseudoElementStyle(const Style::PseudoElement
     }
 
     CheckedPtr computedStyle = style.get();
-    const_cast<RenderStyle*>(parentStyle.get())->addCachedPseudoStyle(WTF::move(style));
-    ASSERT(parentStyle->getCachedPseudoStyle(pseudoElementIdentifier));
+    const_cast<RenderStyle*>(parentStyle.get())->addPseudoElementStyle(WTF::move(style));
+    ASSERT(parentStyle->pseudoElementStyle(pseudoElementIdentifier));
     return *computedStyle.unsafeGet();
 }
 
@@ -4897,7 +4859,7 @@ const RenderStyle* Element::computedStyle(const std::optional<Style::PseudoEleme
         style = resolveComputedStyle();
 
     if (pseudoElementIdentifier) {
-        if (auto* cachedPseudoStyle = style->getCachedPseudoStyle(*pseudoElementIdentifier))
+        if (auto* cachedPseudoStyle = style->pseudoElementStyle(*pseudoElementIdentifier))
             return cachedPseudoStyle;
         return &resolvePseudoElementStyle(*pseudoElementIdentifier);
     }
@@ -5891,7 +5853,6 @@ void Element::resetComputedStyle()
 
 void Element::resetStyleRelations()
 {
-    clearStyleFlags(NodeStyleFlag::StyleAffectedByEmpty);
     if (!hasRareData())
         return;
     elementRareData()->setChildIndex(0);

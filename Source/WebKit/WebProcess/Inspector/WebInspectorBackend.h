@@ -25,10 +25,12 @@
 
 #pragma once
 
+#include "BackendResourceDataStore.h"
 #include "Connection.h"
 #include "MessageReceiver.h"
 #include <WebCore/FrameIdentifier.h>
 #include <WebCore/InspectorBackendClient.h>
+#include <WebCore/ResourceLoaderIdentifier.h>
 #include <wtf/HashMap.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/ThreadSafeRefCounted.h>
@@ -37,6 +39,7 @@
 namespace WebKit {
 
 class FrameNetworkAgentProxy;
+class PageAgentProxy;
 class WebPage;
 
 class WebInspectorBackend : public ThreadSafeRefCounted<WebInspectorBackend>, private IPC::Connection::Client {
@@ -89,8 +92,12 @@ public:
 
     void enableNetworkInstrumentation();
     void disableNetworkInstrumentation();
+    void getResponseBody(WebCore::ResourceLoaderIdentifier, CompletionHandler<void(String content, bool base64Encoded, String errorString)>&&);
     void ensureInstrumentationForFrame(WebCore::LocalFrame&);
     void removeInstrumentationForFrame(WebCore::FrameIdentifier);
+
+    void enablePageInstrumentation();
+    void disablePageInstrumentation();
 
     void setFrontendConnection(IPC::Connection::Handle&&);
 
@@ -120,7 +127,11 @@ private:
     bool m_previousCanAttach { false };
 
     HashMap<WebCore::FrameIdentifier, std::unique_ptr<FrameNetworkAgentProxy>> m_frameNetworkAgentProxies;
+    UniqueRef<BackendResourceDataStore> m_resourceDataStore;
     bool m_networkInstrumentationEnabled { false };
+
+    std::unique_ptr<PageAgentProxy> m_pageAgentProxy;
+    bool m_pageInstrumentationEnabled { false };
 };
 
 } // namespace WebKit

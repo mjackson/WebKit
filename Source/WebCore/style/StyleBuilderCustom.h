@@ -30,7 +30,6 @@
 #include "AnchorPositionEvaluator.h"
 #include "CSSCounterStyleRegistry.h"
 #include "CSSCounterStyleRule.h"
-#include "CSSCounterValue.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "CSSRegisteredCustomProperty.h"
 #include "CSSStringValue.h"
@@ -166,6 +165,7 @@ inline ScrollSnapAlign forwardInheritedValue(const ScrollSnapAlign& value) { aut
 inline ScrollSnapType forwardInheritedValue(const ScrollSnapType& value) { auto copy = value; return copy; }
 inline ScrollbarColor forwardInheritedValue(const ScrollbarColor& value) { auto copy = value; return copy; }
 inline ScrollbarGutter forwardInheritedValue(const ScrollbarGutter& value) { auto copy = value; return copy; }
+inline ContainerType forwardInheritedValue(const ContainerType& value) { auto copy = value; return copy; }
 inline ShapeMargin forwardInheritedValue(const ShapeMargin& value) { auto copy = value; return copy; }
 inline ShapeOutside forwardInheritedValue(const ShapeOutside& value) { auto copy = value; return copy; }
 inline SingleAnimationName forwardInheritedValue(const SingleAnimationName& value) { auto copy = value; return copy; }
@@ -786,7 +786,7 @@ inline void BuilderCustom::applyValueFontSize(BuilderState& builderState, CSSVal
             [&](const CSSPrimitiveValue::Calc& calc) -> float {
                 using CSSRaw = typename StyleType::CSS::Raw;
 
-                auto resolved = toStyle(CSS::UnevaluatedCalc<CSSRaw>(const_cast<CSSPrimitiveValue::Calc&>(calc)), conversionData);
+                auto resolved = toStyle(CSS::UnevaluatedCalc<CSSRaw> { calc }, conversionData);
                 return WTF::switchOn(resolved,
                     [&](const typename StyleType::Dimension& length) {
                         return handleLength(length);

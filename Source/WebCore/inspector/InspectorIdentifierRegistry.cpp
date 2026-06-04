@@ -29,7 +29,7 @@
 #include "Document.h"
 #include "DocumentLoader.h"
 #include "FrameDestructionObserverInlines.h"
-#include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include <JavaScriptCore/IdentifiersFactory.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -141,9 +141,7 @@ Protocol::Network::FrameId BackendIdentifierRegistry::takeFrame(const WebCore::F
 
 Protocol::Network::LoaderId BackendIdentifierRegistry::takeLoader(WebCore::DocumentLoader& loader)
 {
-    auto identifier = loaderId(&loader);
-    m_loaderToIdentifier.remove(&loader);
-    return identifier;
+    return m_loaderToIdentifier.take(&loader);
 }
 
 } // namespace Inspector

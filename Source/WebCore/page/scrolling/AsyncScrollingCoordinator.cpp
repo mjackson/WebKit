@@ -454,6 +454,7 @@ bool AsyncScrollingCoordinator::requestScrollToPosition(ScrollableArea& scrollab
 
     willSendScrollPositionRequest(*scrollingNodeID, requestedScrollData);
     stateNode->setRequestedScrollData(WTF::move(requestedScrollData));
+    stateNode->setScrollPosition(scrollableArea.scrollPosition()); // applyScrollUpdate() above may have modified the scroll position after the call to setScrollingNodeScrollableAreaGeometry().
 
     LOG_WITH_STREAM(Scrolling, stream << "AsyncScrollingCoordinator::requestScrollToPosition " << scrollPosition << " for nodeID " << scrollingNodeID << " requestedScrollData " << stateNode->requestedScrollData());
 
@@ -909,7 +910,7 @@ void AsyncScrollingCoordinator::reconcileScrollingState(LocalFrameView& frameVie
 
     FloatRect insetClipLayerRect;
     if (insetClipLayer) {
-        insetClipLayerRect = LocalFrameView::insetClipLayerRect(scrollPosition, obscuredContentInsets, frameView.sizeForVisibleContent());
+        insetClipLayerRect = LocalFrameView::insetClipLayerRect(scrollPosition, frameView.totalContentsSize(), obscuredContentInsets, frameView.sizeForVisibleContent());
         insetClipLayerRect.move(frameView.insetForLeftScrollbarSpace(), 0);
         insetClipLayer->setSize(insetClipLayerRect.size());
     }

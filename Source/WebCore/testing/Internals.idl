@@ -673,6 +673,8 @@ enum ContentsFormat {
     DOMString autofillFieldName(Element formControlElement);
     boolean isSpellcheckDisabledExceptTextReplacement(HTMLInputElement inputElement);
 
+    [CallWith=CurrentGlobalObject] undefined allowAutofillForCurrentWorld();
+
     undefined invalidateControlTints();
 
     undefined scrollElementToRect(Element element, long x, long y, long w, long h);
@@ -766,6 +768,7 @@ enum ContentsFormat {
     [Conditional=ACCESSIBILITY_ANIMATION_CONTROL] undefined setImageAnimationEnabled(boolean enabled);
     [Conditional=ACCESSIBILITY_ANIMATION_CONTROL] undefined resumeImageAnimation(HTMLImageElement element);
     [Conditional=ACCESSIBILITY_ANIMATION_CONTROL] undefined pauseImageAnimation(HTMLImageElement element);
+    [Conditional=ACCESSIBILITY_VIDEO_AUTOPLAY_CONTROL] undefined setVideoAutoplayPreviewsEnabled(boolean enabled);
     unsigned long imagePendingDecodePromisesCountForTesting(HTMLImageElement element);
     undefined setClearDecoderAfterAsyncFrameRequestForTesting(HTMLImageElement element, boolean enabled);
     unsigned long imageDecodeCount(HTMLImageElement element);
@@ -1315,6 +1318,8 @@ enum ContentsFormat {
     Promise<undefined> whenServiceWorkerIsTerminated(ServiceWorker worker);
     undefined terminateWebContentProcess();
 
+    Promise<unsigned long> numberOfWebSocketChannelsInNetworkProcess();
+
 #if defined(ENABLE_APPLE_PAY) && ENABLE_APPLE_PAY
     [CallWith=CurrentDocument, Conditional=APPLE_PAY] readonly attribute MockPaymentCoordinator mockPaymentCoordinator;
 #endif
@@ -1355,6 +1360,7 @@ enum ContentsFormat {
     [Conditional=VIDEO] boolean elementShouldDisplayPosterImage(HTMLVideoElement element);
     [Conditional=VIDEO] readonly attribute unsigned long mediaElementCount;
     [Conditional=VIDEO] undefined setMediaElementVolumeLocked(HTMLMediaElement element, boolean volumeLocked);
+    [Conditional=VIDEO] DOMString mediaElementViewportVisibility(HTMLMediaElement element);
 
     [Conditional=SPEECH_SYNTHESIS] SpeechSynthesisUtterance? speechSynthesisUtteranceForCue(VTTCue cue);
     [Conditional=SPEECH_SYNTHESIS] VTTCue? mediaElementCurrentlySpokenCue(HTMLMediaElement media);
@@ -1528,7 +1534,6 @@ enum ContentsFormat {
     undefined setTopDocumentURLForQuirks(DOMString urlString);
 
 #if defined(ENABLE_CONTENT_EXTENSIONS) && ENABLE_CONTENT_EXTENSIONS
-    undefined setResourceMonitorNetworkUsageThreshold(unsigned long threshold, double randomness);
     attribute boolean shouldSkipResourceMonitorThrottling;
 #endif
 

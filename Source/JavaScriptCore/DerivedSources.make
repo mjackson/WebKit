@@ -132,7 +132,6 @@ JavaScriptCore_BUILTINS_SOURCES = \
     $(JavaScriptCore)/builtins/ShadowRealmPrototype.js \
     $(JavaScriptCore)/builtins/StringConstructor.js \
     $(JavaScriptCore)/builtins/StringIteratorPrototype.js \
-    $(JavaScriptCore)/builtins/StringPrototype.js \
     $(JavaScriptCore)/builtins/TypedArrayConstructor.js \
     $(JavaScriptCore)/builtins/TypedArrayPrototype.js \
     $(JavaScriptCore)/builtins/WrapForValidIteratorPrototype.js \
@@ -203,8 +202,6 @@ OBJECT_LUT_HEADERS = \
     StringPrototype.lut.h \
     SymbolConstructor.lut.h \
     SymbolPrototype.lut.h \
-    TemporalCalendarConstructor.lut.h \
-    TemporalCalendarPrototype.lut.h \
     TemporalDurationConstructor.lut.h \
     TemporalDurationPrototype.lut.h \
     TemporalInstantConstructor.lut.h \

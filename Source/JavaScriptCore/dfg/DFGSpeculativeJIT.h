@@ -956,6 +956,19 @@ public:
         }
     }
 
+    void cellTupleResultWithoutUsingChildren(GPRReg reg, Node* node, unsigned index)
+    {
+        ASSERT(index < node->tupleSize());
+        unsigned refCount = m_graph.m_tupleData.at(node->tupleOffset() + index).refCount;
+        if (!refCount)
+            return;
+        ASSERT(refCount == 1);
+        VirtualRegister virtualRegister = m_graph.m_tupleData.at(node->tupleOffset() + index).virtualRegister;
+        GenerationInfo& info = generationInfoFromVirtualRegister(virtualRegister);
+        m_gprs.retain(reg, virtualRegister, SpillOrderCell);
+        info.initCell(node, refCount, reg);
+    }
+
     template<typename OperationType>
     void operationExceptionCheck()
     {
@@ -1389,7 +1402,8 @@ public:
         Node*, GPRReg leftGPR, GPRReg rightGPR, GPRReg lengthGPR,
         GPRReg leftTempGPR, GPRReg rightTempGPR, GPRReg leftTemp2GPR,
         GPRReg rightTemp2GPR, const JITCompiler::JumpList& fastTrue,
-        const JITCompiler::JumpList& fastSlow);
+        const JITCompiler::JumpList& fastFalse,
+        Edge leftEdge, Edge rightEdge);
     void compileStringEquality(Node*);
     void compileStringIdentEquality(Node*);
     void compileStringToUntypedEquality(Node*, Edge stringEdge, Edge untypedEdge);
@@ -1455,6 +1469,8 @@ public:
     void compileNewSymbol(Node*);
     void compileNewMap(Node*);
     void compileNewSet(Node*);
+    void compileNewWeakMap(Node*);
+    void compileNewWeakSet(Node*);
     void compileNewRegExpUntyped(Node*);
 
     void emitNewTypedArrayWithSizeInRegister(Node*, TypedArrayType, RegisteredStructure, GPRReg sizeGPR);
@@ -1534,7 +1550,7 @@ public:
 
     void compileGetCharCodeAt(Node*);
     void compileGetByValOnString(Node*, const ScopedLambda<std::tuple<JSValueRegs, DataFormat>(DataFormat preferredFormat, bool needsFlush)>& prefix);
-    void compileFromCharCode(Node*); 
+    void compileStringFromCharCodeOrCodePoint(Node*);
     void compileGetByValMegamorphic(Node*);
 
     void compileGetByValOnDirectArguments(Node*, const ScopedLambda<std::tuple<JSValueRegs, DataFormat>(DataFormat preferredFormat, bool needsFlush)>& prefix);
@@ -1687,6 +1703,7 @@ public:
     void compileArrayConcatAppendOne(Node*);
     void compileArraySplice(Node*);
     void compileArrayIndexOfOrArrayIncludes(Node*);
+    void compileArrayJoin(Node*);
     void compileArrayPush(Node*);
     void compileArrayUnshift(Node*);
     void compileNotifyWrite(Node*);
@@ -1742,6 +1759,7 @@ public:
     void compileThrowStaticError(Node*);
 
     void NODELETE compileExtractFromTuple(Node*);
+    void compileStringIteratorNext(Node*);
     void compileEnumeratorNextUpdateIndexAndMode(Node*);
     void compileEnumeratorNextUpdatePropertyName(Node*);
     void compileEnumeratorGetByVal(Node*);
@@ -1810,6 +1828,7 @@ public:
 #endif
     void compileStringSplit(Node*);
     void compileStringMatch(Node*);
+    void compileStringSearch(Node*);
     void compileDateNow(Node*);
     void compileDateGet(Node*);
     void compileDateSet(Node*);

@@ -839,6 +839,41 @@ TEST_P(DrawBaseVertexBaseInstanceTest, CanCompile)
     setupProgram(p3, false, true);
 }
 
+// Tests that negative baseVertex works properly.
+TEST_P(DrawBaseVertexBaseInstanceTest, NegativeBaseVertex)
+{
+    ANGLE_SKIP_TEST_IF(!requestExtensions());
+
+    GLProgram program;
+    setupProgram(program, false, false);
+
+    GLBuffer vertexBuffer;
+    GLBuffer indexBuffer;
+    setupIndexedBuffers(vertexBuffer, indexBuffer);
+    setupPositionVertexAttribPointer();
+
+    // Create a new index buffer with shifted indices: {4, 5, 6, 4, 6, 7}
+    // These indices point to the second quad (vertices 4, 5, 6, 7).
+    std::vector<GLushort> shiftedIndices = {4, 5, 6, 4, 6, 7};
+    GLBuffer shiftedIndexBuffer;
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, shiftedIndexBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort) * shiftedIndices.size(),
+                 shiftedIndices.data(), GL_STATIC_DRAW);
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Draw using baseVertex = -4.
+    // This should shift the indices back to {0, 1, 2, 0, 2, 3}, drawing the first quad!
+    glDrawElementsInstancedBaseVertexBaseInstanceANGLE(
+        GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, reinterpret_cast<GLvoid *>(static_cast<uintptr_t>(0)),
+        1, -4, 0);
+
+    ASSERT_GL_NO_ERROR();
+
+    // Check that the first quad was drawn as white.
+    EXPECT_PIXEL_NEAR(16, 16, 255, 255, 255, 255, 3);
+}
+
 // Tests if baseInstance works properly with instanced array with non-zero divisor
 TEST_P(DrawBaseVertexBaseInstanceTest, BaseInstanceDivisor)
 {
@@ -1225,12 +1260,117 @@ class DrawBaseVertexBaseInstanceTest_ES3 : public ANGLETest<>
   public:
     DrawBaseVertexBaseInstanceTest_ES3()
     {
-        setWindowWidth(16);
-        setWindowHeight(16);
+        setWindowWidth(128);
+        setWindowHeight(128);
         setConfigRedBits(8);
         setConfigGreenBits(8);
         setConfigBlueBits(8);
         setConfigAlphaBits(8);
+    }
+
+    void runTestNonZeroDivisor(std::function<void(void)> definePositionBuffer,
+                               std::function<void(void)> defineColorBuffer,
+                               std::function<void(void)> draw)
+    {
+        constexpr char kVS[] = R"(#version 300 es
+precision mediump float;
+in vec2 position;
+in vec2 colorIn;
+out vec2 color;
+void main()
+{
+    gl_Position = vec4(position, 0, 1);
+    if ((gl_InstanceID / 2) % 2 == 1)
+    {
+        gl_Position.y += 1.0;
+    }
+    if (gl_InstanceID % 2 == 1)
+    {
+        gl_Position.x += 1.0;
+    }
+    color = colorIn;
+})";
+
+        constexpr char kFS[] = R"(#version 300 es
+precision mediump float;
+in vec2 color;
+out vec4 colorOut;
+void main()
+{
+    colorOut = vec4(color, 0, 1);
+})";
+
+        ANGLE_GL_PROGRAM(program, kVS, kFS);
+        glUseProgram(program);
+
+        const GLint posLoc = glGetAttribLocation(program, "position");
+        const GLint colLoc = glGetAttribLocation(program, "colorIn");
+
+        // Draw 4 squares.  With a divisor of 2 on color, 2 of them will be one color, two the
+        // other.
+        GLBuffer position;
+        glBindBuffer(GL_ARRAY_BUFFER, position);
+        definePositionBuffer();
+        glEnableVertexAttribArray(posLoc);
+        glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+        GLBuffer color;
+        glBindBuffer(GL_ARRAY_BUFFER, color);
+        defineColorBuffer();
+        glEnableVertexAttribArray(colLoc);
+        glVertexAttribPointer(colLoc, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+        glVertexAttribDivisor(colLoc, 2);
+
+        glClearColor(0, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+        draw();
+
+        // Verify pixels.  The result looks like the following:
+        //
+        //      +-----------------------+
+        //      |                       |
+        //      |   +----+     +----+   |
+        //      |   |    |     |    |   |  <-- two red squares
+        //      |   |    |     |    |   |
+        //      |   +----+     +----+   |
+        //      |                       |
+        //      |                       |
+        //      |   +----+     +----+   |
+        //      |   |    |     |    |   |  <-- two green squares
+        //      |   |    |     |    |   |
+        //      |   +----+     +----+   |
+        //      |                       |
+        //      +-----------------------+
+        //            |
+        //            V
+        //  Black inside and outside the squares
+        //
+        const int w = getWindowWidth();
+        const int h = getWindowHeight();
+        // Don't check too close to the edges to account for precision issues.  This is the margin
+        // from the edge.
+        const int m = 2;
+        const GLColor green(51, 153, 0, 255);
+
+        // Left of squares
+        EXPECT_PIXEL_RECT_EQ(0, 0, w / 8 - m, h, GLColor::black);
+        // Between squares
+        EXPECT_PIXEL_RECT_EQ(w / 2 - w / 8 + m, 0, w / 4 - m * 2, h, GLColor::black);
+        // Right of squares
+        EXPECT_PIXEL_RECT_EQ(w - w / 8 + m, 0, w / 8 - m, h, GLColor::black);
+
+        // Above squares
+        EXPECT_PIXEL_RECT_EQ(0, 0, w, h / 8 - m, GLColor::black);
+        // Between squares
+        EXPECT_PIXEL_RECT_EQ(0, h / 2 - h / 8 + m, w, h / 4 - m * 2, GLColor::black);
+        // Below squares
+        EXPECT_PIXEL_RECT_EQ(0, h - h / 8 + m, w, h / 8 - m, GLColor::black);
+
+        // Squares
+        EXPECT_PIXEL_RECT_EQ(w / 8 + m, h / 8 + m, w / 4 - 4, h / 4 - 4, GLColor::red);
+        EXPECT_PIXEL_RECT_EQ(w / 2 + w / 8 + m, h / 8 + m, w / 4 - 4, h / 4 - 4, GLColor::red);
+        EXPECT_PIXEL_RECT_EQ(w / 8 + m, h / 2 + h / 8 + m, w / 4 - 4, h / 4 - 4, green);
+        EXPECT_PIXEL_RECT_EQ(w / 2 + w / 8 + m, h / 2 + h / 8 + m, w / 4 - 4, h / 4 - 4, green);
     }
 };
 
@@ -1312,9 +1452,240 @@ void main()
     ASSERT_GL_NO_ERROR();
 }
 
+// Test glDrawArraysInstancedBaseInstance with a non-zero divisor.
+TEST_P(DrawBaseVertexBaseInstanceTest_ES3, NonZeroDivisorBaseInstance)
+{
+    const bool hasEXT   = IsGLExtensionEnabled("GL_EXT_base_instance");
+    const bool hasANGLE = IsGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance");
+    ANGLE_SKIP_TEST_IF(!hasEXT && !hasANGLE);
+
+    const int w        = getWindowWidth();
+    const int h        = getWindowHeight();
+    const float left   = static_cast<float>(w / 8) / (w - 1) * 2.0 - 1.0;
+    const float right  = static_cast<float>(w / 2 - w / 8) / (w - 1) * 2.0 - 1.0;
+    const float top    = static_cast<float>(h / 8) / (h - 1) * 2.0 - 1.0;
+    const float bottom = static_cast<float>(h / 2 - h / 8) / (h - 1) * 2.0 - 1.0;
+
+    const GLfloat kPositions[] = {
+        // Top left.  Instances 1 and 3 shift this square to the right.  Instances 2 and 3 shift it
+        // down.
+        left, top, left, bottom, right, top, right, bottom,
+    };
+    constexpr GLfloat kColors[] = {
+        // 11 unused attributes, skipped by base instance
+        // clang-format off
+        0.1f, 0.2f,
+        0.3f, 0.4f,
+        0.5f, 0.6f,
+        0.7f, 0.8f,
+        0.9f, 0.95f,
+        0.85f, 0.75f,
+        0.65f, 0.55f,
+        0.45f, 0.35f,
+        0.25f, 0.15f,
+        0.05f, 0.15f,
+        0.25f, 0.35f,
+        // Top
+        1.0f, 0.0f,
+        // Bottom
+        0.2f, 0.6f,
+        // clang-format on
+    };
+    runTestNonZeroDivisor(
+        [&kPositions]() {
+            glBufferData(GL_ARRAY_BUFFER, sizeof(kPositions), kPositions, GL_STATIC_DRAW);
+        },
+        [&kColors]() { glBufferData(GL_ARRAY_BUFFER, sizeof(kColors), kColors, GL_STATIC_DRAW); },
+        [hasEXT]() {
+            if (hasEXT)
+            {
+                glDrawArraysInstancedBaseInstanceEXT(GL_TRIANGLE_STRIP, 0, 4, 4, 11);
+            }
+            else
+            {
+                glDrawArraysInstancedBaseInstanceANGLE(GL_TRIANGLE_STRIP, 0, 4, 4, 11);
+            }
+        });
+}
+
+// Test glDrawElementsInstancedBaseVertexBaseInstance with a non-zero divisor.
+TEST_P(DrawBaseVertexBaseInstanceTest_ES3, NonZeroDivisorBaseVertexBaseInstance)
+{
+    const bool hasEXT   = IsGLExtensionEnabled("GL_EXT_base_instance");
+    const bool hasANGLE = IsGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance");
+    ANGLE_SKIP_TEST_IF(!hasEXT && !hasANGLE);
+
+    const int w        = getWindowWidth();
+    const int h        = getWindowHeight();
+    const float left   = static_cast<float>(w / 8) / (w - 1) * 2.0 - 1.0;
+    const float right  = static_cast<float>(w / 2 - w / 8) / (w - 1) * 2.0 - 1.0;
+    const float top    = static_cast<float>(h / 8) / (h - 1) * 2.0 - 1.0;
+    const float bottom = static_cast<float>(h / 2 - h / 8) / (h - 1) * 2.0 - 1.0;
+
+    const GLfloat kPositions[] = {
+        // 5 unused vertices, skipped by base vertex
+        // clang-format off
+        0.1f, 0.4f,
+        0.3f, 0.6f,
+        0.5f, 0.8f,
+        0.7f, 0.6f,
+        0.9f, 0.4f,
+        // Top left.  Instances 1 and 3 shift this square to the right.  Instances 2 and 3 shift it
+        // down.  The vertices are out of order, but are reordered by the index buffer.
+        right, bottom, left, bottom, left, top, right, top,
+        // clang-format on
+    };
+    constexpr GLfloat kColors[] = {
+        // 7 unused attributes, skipped by base instance.
+        // clang-format off
+        0.1f, 0.2f,
+        0.3f, 0.4f,
+        0.5f, 0.6f,
+        0.7f, 0.8f,
+        0.9f, 0.95f,
+        0.85f, 0.75f,
+        0.65f, 0.55f,
+        // Top
+        1.0f, 0.0f,
+        // Bottom
+        0.2f, 0.6f,
+        // clang-format on
+    };
+    constexpr GLint kIndices[] = {
+        // The square
+        2,
+        1,
+        3,
+        0,
+    };
+
+    GLBuffer index;
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(kIndices), kIndices, GL_STATIC_DRAW);
+
+    runTestNonZeroDivisor(
+        [&kPositions]() {
+            glBufferData(GL_ARRAY_BUFFER, sizeof(kPositions), kPositions, GL_STATIC_DRAW);
+        },
+        [&kColors]() { glBufferData(GL_ARRAY_BUFFER, sizeof(kColors), kColors, GL_STATIC_DRAW); },
+        [hasEXT]() {
+            if (hasEXT)
+            {
+                glDrawElementsInstancedBaseVertexBaseInstanceEXT(GL_TRIANGLE_STRIP, 4,
+                                                                 GL_UNSIGNED_INT, nullptr, 4, 5, 7);
+            }
+            else
+            {
+                glDrawElementsInstancedBaseVertexBaseInstanceANGLE(
+                    GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_INT, nullptr, 4, 5, 7);
+            }
+        });
+}
+
+// Test that gl_InstanceID does not include base instance.
+TEST_P(DrawBaseVertexBaseInstanceTest_ES3, InstanceIDDoesNotIncludeBaseInstance)
+{
+    const bool hasEXT   = IsGLExtensionEnabled("GL_EXT_base_instance");
+    const bool hasANGLE = IsGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance");
+    ANGLE_SKIP_TEST_IF(!hasEXT && !hasANGLE);
+
+    // Draw 4 triangles to cover the left half of the screen, each triangle is the result of a
+    // different instance ID.  If instance ID is larger than expected (because it includes base
+    // instance), draw red to the right half of the screen.
+    constexpr char kVS[] = R"(#version 300 es
+precision mediump float;
+out vec2 color;
+void main()
+{
+    // Take the following points:
+    //
+    //    P0     P1
+    //     +------+------+
+    //     |    _-|      |
+    //     |  _-  |      |
+    //     |_-    |      |
+    //  P2 +------+ P3   |
+    //     |    _-|      |
+    //     |  _-  |      |
+    //     |_-    |      |
+    //     +------+------+
+    //    P4     P5
+    //
+    // Instances generate:
+    //
+    // * Instance 0: P0, P1, P2
+    // * Instance 1: P1, P2, P3
+    // * Instance 2: P2, P3, P4
+    // * Instance 3: P3, P4, P5
+    //
+    // So effectively the output position is P[gl_VertexID + gl_InstanceID].
+    //
+    // To make sure there are no seams, the first vertex is always offset by -(0, epsilon) and the
+    // third vertex is offset by (0, epsilon).
+    vec2 P[6] = vec2[6](
+        vec2(-1.0, -1.0),
+        vec2( 0.0, -1.0),
+        vec2(-1.0,  0.0),
+        vec2( 0.0,  0.0),
+        vec2(-1.0,  1.0),
+        vec2( 0.0,  1.0)
+    );
+
+    if (gl_InstanceID < 4)
+    {
+        gl_Position = vec4(P[gl_VertexID + gl_InstanceID], 0, 1);
+        if (gl_VertexID == 0)
+            gl_Position.y -= 0.01;
+        else if (gl_VertexID == 2)
+            gl_Position.y += 0.01;
+        color = vec2(0, 1);
+    }
+    else
+    {
+        switch (gl_VertexID) {
+            case 0: gl_Position = vec4(0, -2, 0, 1); break;
+            case 1: gl_Position = vec4(2, 0, 0, 1); break;
+            case 2: gl_Position = vec4(0, 2, 0, 1); break;
+        };
+        color = vec2(1, 0);
+    }
+})";
+
+    constexpr char kFS[] = R"(#version 300 es
+precision mediump float;
+in vec2 color;
+out vec4 colorOut;
+void main()
+{
+    colorOut = vec4(color, 0, 1);
+})";
+
+    ANGLE_GL_PROGRAM(program, kVS, kFS);
+    glUseProgram(program);
+
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    if (hasEXT)
+    {
+        glDrawArraysInstancedBaseInstanceEXT(GL_TRIANGLE_STRIP, 0, 3, 4, 15);
+    }
+    else
+    {
+        glDrawArraysInstancedBaseInstanceANGLE(GL_TRIANGLE_STRIP, 0, 3, 4, 15);
+    }
+
+    // Left half should be all green, right half should be all black.
+    const int w = getWindowWidth();
+    const int h = getWindowHeight();
+    EXPECT_PIXEL_RECT_EQ(0, 0, w / 2 - 1, h, GLColor::green);
+    EXPECT_PIXEL_RECT_EQ(w / 2 + 1, 0, w - (w / 2 + 1), h, GLColor::black);
+}
+
+// Test base instance in combination with divisor
 TEST_P(DrawBaseVertexBaseInstanceTest_ES3, BaseInstanceDivisorIndexing)
 {
-    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance"));
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_base_instance") ||
+                       !EnsureGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance"));
 
     // Vertex shader: pass per-instance integer value through a flat varying.
     constexpr char kVS[] = R"(#version 300 es
@@ -1347,6 +1718,8 @@ void main()
     ANGLE_GL_PROGRAM(program, kVS, kFS);
     glUseProgram(program);
 
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
     GLint posLoc  = glGetAttribLocation(program, "a_position");
     GLint instLoc = glGetAttribLocation(program, "a_instValue");
     ASSERT_NE(-1, posLoc);
@@ -1408,13 +1781,269 @@ void main()
                                                subcase.baseInstance);
         ASSERT_GL_NO_ERROR();
         GLint lastInstanceAttrIndex = subcase.baseInstance + (subcase.instanceCount - 1) / 3;
-        GLint lastInstValue         = instValues[lastInstanceAttrIndex];
-        GLint lastInstanceID        = subcase.instanceCount - 1;
+        // SAFETY: Values chosen in the test cases, max value within 0..7.
+        GLint lastInstValue  = ANGLE_UNSAFE_BUFFERS(instValues[lastInstanceAttrIndex]);
+        GLint lastInstanceID = subcase.instanceCount - 1;
         // R == instValue (per-instance attribute), G == gl_InstanceID, B == gl_BaseInstance.
         GLColor32I expected(lastInstValue, lastInstanceID, static_cast<GLint>(subcase.baseInstance),
                             1);
         EXPECT_PIXEL_32I_COLOR(0, 0, expected);
     }
+}
+
+// Test base instance with divisor >= 256
+TEST_P(DrawBaseVertexBaseInstanceTest_ES3, BaseInstanceLargeDivisor)
+{
+    const bool hasEXT   = IsGLExtensionEnabled("GL_EXT_base_instance");
+    const bool hasANGLE = IsGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance");
+    ANGLE_SKIP_TEST_IF(!hasEXT && !hasANGLE);
+
+    constexpr uint32_t kBaseInstance = 3;
+    constexpr uint32_t kRegionCount  = 4;
+    constexpr uint32_t kDivisor      = 256;
+
+    // Create an attribute that will be instanced.
+    const std::array<GLColor, kBaseInstance + kRegionCount> kData = {
+        GLColor(10, 20, 30, 40), GLColor(11, 21, 31, 41), GLColor(12, 22, 32, 42), GLColor::red,
+        GLColor::green,          GLColor::blue,           GLColor::yellow,
+    };
+
+    GLBuffer instancedData;
+    glBindBuffer(GL_ARRAY_BUFFER, instancedData);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(kData), kData.data(), GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_UNSIGNED_BYTE, true, 4, nullptr);
+    glVertexAttribDivisor(0, kDivisor);
+
+    // The divisor of the data should be high (256) to trigger a specific path in the Vulkan
+    // backend.  The test renders 256*4 instances with a base instance of 3.  To simplify
+    // validation, the output is divided into four corners, where every 256 instances overdraw the
+    // same corner.
+    //
+    //                      P0
+    //                      +
+    //                    / | \
+    //                  /   |   \
+    //                /     |     \
+    //              /       |       \
+    //             +--------+--------+
+    //           / |        |        | \
+    //         /   |        |        |   \
+    //       /     |        | O      |     \
+    //   P1 +------+--------+--------+------+ P3
+    //       \     |        |        |     /
+    //         \   |        |        |   /
+    //           \ |        |        | /
+    //             +--------+--------+
+    //              \       |       /
+    //                \     |     /
+    //                  \   |   /
+    //                    \ | /
+    //                      +
+    //                     P2
+    //
+    // Instances generate:
+    //
+    // * Instances [0 * divisor, 1 * divisor): O, P0, P1
+    // * Instances [1 * divisor, 2 * divisor): O, P1, P2
+    // * Instances [2 * divisor, 3 * divisor): O, P2, P3
+    // * Instances [3 * divisor, 4 * divisor): O, P3, P0
+    //
+    // So the vertices are always as follows, given i = gl_InstanceID / divisor:
+    //
+    // * gl_VertexID 0: P[0]
+    // * gl_VertexID 1: P[i]
+    // * gl_VertexID 2: P[(i + 1) % 4]
+    //
+    constexpr char kVS[] = R"(#version 300 es
+precision mediump float;
+in vec4 instanceData;
+out vec4 color;
+void main()
+{
+    vec2 P[4] = vec2[4](
+        vec2( 0.0, -2.0),
+        vec2(-2.0,  0.0),
+        vec2( 0.0,  2.0),
+        vec2( 2.0,  0.0)
+    );
+
+    int index = gl_InstanceID / 256;
+    switch (gl_VertexID % 3)
+    {
+    case 0:
+        gl_Position = vec4(0, 0, 0, 1);
+        break;
+    case 1:
+        gl_Position = vec4(P[index], 0, 1);
+        break;
+    default:
+        gl_Position = vec4(P[(index + 1) % 4], 0, 1);
+        break;
+    }
+
+    color = instanceData;
+})";
+
+    constexpr char kFS[] = R"(#version 300 es
+precision mediump float;
+in vec4 color;
+out vec4 colorOut;
+void main()
+{
+    colorOut = color;
+})";
+
+    ANGLE_GL_PROGRAM(program, kVS, kFS);
+    glUseProgram(program);
+
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    if (hasEXT)
+    {
+        glDrawArraysInstancedBaseInstanceEXT(GL_TRIANGLE_STRIP, 0, 3, kDivisor * kRegionCount,
+                                             kBaseInstance);
+    }
+    else
+    {
+        glDrawArraysInstancedBaseInstanceANGLE(GL_TRIANGLE_STRIP, 0, 3, kDivisor * kRegionCount,
+                                               kBaseInstance);
+    }
+
+    const int w = getWindowWidth();
+    const int h = getWindowHeight();
+    EXPECT_PIXEL_RECT_EQ(0, 0, w / 2 - 1, h / 2 - 1, kData[kBaseInstance]);
+    EXPECT_PIXEL_RECT_EQ(0, h / 2 + 1, w / 2 - 1, h - (h / 2 + 1), kData[kBaseInstance + 1]);
+    EXPECT_PIXEL_RECT_EQ(w / 2 + 1, h / 2 + 1, w - (w / 2 + 1), h - (h / 2 + 1),
+                         kData[kBaseInstance + 2]);
+    EXPECT_PIXEL_RECT_EQ(w / 2 + 1, 0, w - (w / 2 + 1), h / 2, kData[kBaseInstance + 3]);
+}
+
+// Test base instance with divisor < 256 where vertex attribute data is sourced from client memory.
+TEST_P(DrawBaseVertexBaseInstanceTest_ES3, BaseInstanceSmallDivisorClientMemory)
+{
+    const bool hasEXT   = IsGLExtensionEnabled("GL_EXT_base_instance");
+    const bool hasANGLE = IsGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance");
+    ANGLE_SKIP_TEST_IF(!hasEXT && !hasANGLE);
+
+    constexpr uint32_t kBaseInstance = 3;
+    constexpr uint32_t kRegionCount  = 4;
+    constexpr uint32_t kDivisor      = 11;
+
+    // Create an attribute that will be instanced.
+    const std::array<GLColor, kBaseInstance + kRegionCount> kData = {
+        GLColor(10, 20, 30, 40), GLColor(11, 21, 31, 41), GLColor(12, 22, 32, 42), GLColor::red,
+        GLColor::green,          GLColor::blue,           GLColor::yellow,
+    };
+
+    // Data needs to be sourced from a client buffer to trigger a specific path in the Vulkan
+    // backend.
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_UNSIGNED_BYTE, true, 4, kData.data());
+    glVertexAttribDivisor(0, kDivisor);
+
+    // The divisor of the data should be low (<256) to trigger a specific path in the Vulkan
+    // backend.  The test renders 11*4 instances with a base instance of 3.  To simplify
+    // validation, the output is divided as such:
+    //
+    //                      P0
+    //                      +
+    //                    / | \
+    //                  /   |   \
+    //                /     |     \
+    //              /       |       \
+    //             +--------+--------+
+    //           / |        |        | \
+    //         /   |        |        |   \
+    //       /     |        | O      |     \
+    //   P1 +------+--------+--------+------+ P3
+    //       \     |        |        |     /
+    //         \   |        |        |   /
+    //           \ |        |        | /
+    //             +--------+--------+
+    //              \       |       /
+    //                \     |     /
+    //                  \   |   /
+    //                    \ | /
+    //                      +
+    //                     P2
+    //
+    // Instances generate:
+    //
+    // * Instances [0 * divisor, 1 * divisor): O, P0, P1
+    // * Instances [1 * divisor, 2 * divisor): O, P1, P2
+    // * Instances [2 * divisor, 3 * divisor): O, P2, P3
+    // * Instances [3 * divisor, 4 * divisor): O, P3, P0
+    //
+    // So the vertices are always as follows, given i = gl_InstanceID / divisor:
+    //
+    // * gl_VertexID 0: P[0]
+    // * gl_VertexID 1: P[i]
+    // * gl_VertexID 2: P[(i + 1) % 4]
+    //
+    constexpr char kVS[] = R"(#version 300 es
+precision mediump float;
+in vec4 instanceData;
+out vec4 color;
+void main()
+{
+    vec2 P[4] = vec2[4](
+        vec2( 0.0, -2.0),
+        vec2(-2.0,  0.0),
+        vec2( 0.0,  2.0),
+        vec2( 2.0,  0.0)
+    );
+
+    int index = gl_InstanceID / 11;
+    switch (gl_VertexID % 3)
+    {
+    case 0:
+        gl_Position = vec4(0, 0, 0, 1);
+        break;
+    case 1:
+        gl_Position = vec4(P[index], 0, 1);
+        break;
+    default:
+        gl_Position = vec4(P[(index + 1) % 4], 0, 1);
+        break;
+    }
+
+    color = instanceData;
+})";
+
+    constexpr char kFS[] = R"(#version 300 es
+precision mediump float;
+in vec4 color;
+out vec4 colorOut;
+void main()
+{
+    colorOut = color;
+})";
+
+    ANGLE_GL_PROGRAM(program, kVS, kFS);
+    glUseProgram(program);
+
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    if (hasEXT)
+    {
+        glDrawArraysInstancedBaseInstanceEXT(GL_TRIANGLE_STRIP, 0, 3, kDivisor * kRegionCount,
+                                             kBaseInstance);
+    }
+    else
+    {
+        glDrawArraysInstancedBaseInstanceANGLE(GL_TRIANGLE_STRIP, 0, 3, kDivisor * kRegionCount,
+                                               kBaseInstance);
+    }
+
+    const int w = getWindowWidth();
+    const int h = getWindowHeight();
+    EXPECT_PIXEL_RECT_EQ(0, 0, w / 2 - 1, h / 2 - 1, kData[kBaseInstance]);
+    EXPECT_PIXEL_RECT_EQ(0, h / 2 + 1, w / 2 - 1, h - (h / 2 + 1), kData[kBaseInstance + 1]);
+    EXPECT_PIXEL_RECT_EQ(w / 2 + 1, h / 2 + 1, w - (w / 2 + 1), h - (h / 2 + 1),
+                         kData[kBaseInstance + 2]);
+    EXPECT_PIXEL_RECT_EQ(w / 2 + 1, 0, w - (w / 2 + 1), h / 2, kData[kBaseInstance + 3]);
 }
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(DrawBaseVertexBaseInstanceTest);

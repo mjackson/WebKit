@@ -577,7 +577,7 @@ static std::optional<LayoutUnit> baselineForBox(const RenderBox& renderBox)
         }
 
         if (auto* inlineLayout = blockFlow->inlineLayout())
-            return inlineLayout->lastLineBaseline().value_or(0_lu);
+            return inlineLayout->lastLineBaseline();
 
         if (blockFlow->svgTextLayout()) {
             auto& style = blockFlow->firstLineStyle();
@@ -681,7 +681,7 @@ void BoxGeometryUpdater::updateLayoutBoxDimensions(const RenderBox& renderBox, s
     if (intrinsicWidthMode) {
         boxGeometry.setHorizontalSpaceForScrollbar(scrollbarSize.width());
         auto contentBoxLogicalWidth = [&] {
-            auto preferredWidth = *intrinsicWidthMode == Layout::IntrinsicWidthMode::Minimum ? renderBox.minPreferredLogicalWidth() : renderBox.maxPreferredLogicalWidth();
+            auto preferredWidth = *intrinsicWidthMode == Layout::IntrinsicWidthMode::Minimum ? renderBox.minContentLogicalWidthContribution() : renderBox.maxContentLogicalWidthContribution();
             return preferredWidth - (border.horizontal.start + border.horizontal.end + padding.horizontal.start + padding.horizontal.end);
         };
         boxGeometry.setContentBoxWidth(contentBoxLogicalWidth());

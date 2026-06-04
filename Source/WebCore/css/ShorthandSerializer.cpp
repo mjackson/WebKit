@@ -27,7 +27,6 @@
 #include "ShorthandSerializer.h"
 
 #include "CSSBorderImageWidthValue.h"
-#include "CSSCalcValue.h"
 #include "CSSCustomIdentValue.h"
 #include "CSSGridAutoFlowValue.h"
 #include "CSSGridLineValue.h"
@@ -46,11 +45,11 @@
 #include "CSSSerializationContext.h"
 #include "CSSShorthandSubstitutionValue.h"
 #include "CSSSubstitutionValue.h"
+#include "CSSUnevaluatedCalc.h"
 #include "CSSValueKeywords.h"
 #include "CSSValueList.h"
 #include "CSSValuePair.h"
 #include "FontSelectionValueInlines.h"
-#include "Quad.h"
 #include "StyleExtractor.h"
 #include "StylePropertiesInlines.h"
 #include "StylePropertyShorthand.h"
@@ -524,7 +523,17 @@ String ShorthandSerializer::serializePair() const
 String ShorthandSerializer::serializeQuad() const
 {
     ASSERT(length() == 4);
-    return Quad::serialize(serializeLonghandValue(0), serializeLonghandValue(1), serializeLonghandValue(2), serializeLonghandValue(3));
+    auto top = serializeLonghandValue(0);
+    auto right = serializeLonghandValue(1);
+    auto bottom = serializeLonghandValue(2);
+    auto left = serializeLonghandValue(3);
+    if (left != right)
+        return makeString(top, ' ', right, ' ', bottom, ' ', left);
+    if (bottom != top)
+        return makeString(top, ' ', right, ' ', bottom);
+    if (right != top)
+        return makeString(top, ' ', right);
+    return top;
 }
 
 class LayerValues {
@@ -1106,18 +1115,35 @@ String ShorthandSerializer::serializeFontSynthesis() const
 
 String ShorthandSerializer::serializeFontVariant() const
 {
-    for (auto& value : longhandValues()) {
-        if (CSSPropertyParserHelpers::isSystemFontShorthand(valueID(&value)))
-            return String();
-    }
+    auto wasSetBySystemFontShorthand = [&](const Longhand& longhand) {
+        return CSSPropertyParserHelpers::isSystemFontShorthand(valueID(longhand.value));
+    };
+
+    // font-variant cannot represent "font-variant-ligatures: none" alongside any other non-normal longhand.
     if (isLonghandValueNone(longhandIndex(0, CSSPropertyFontVariantLigatures))) {
         for (auto longhand : longhands()) {
-            // font-variant cannot represent "font-variant-ligatures: none" along with any other non-normal longhands.
-            if (longhand.property != CSSPropertyFontVariantLigatures && !isInitialValue(longhand))
+            if (longhand.property != CSSPropertyFontVariantLigatures && !isInitialValue(longhand) && !wasSetBySystemFontShorthand(longhand))
                 return String();
         }
     }
-    return serializeLonghandsOmittingInitialValues();
+
+    // Per CSSOM §6.7.2, a shorthand serializes its longhand declarations. Longhands implicitly set
+    // by a system font shorthand (e.g. `font: menu`) are not font-variant declarations, so skip their
+    // sentinel values so explicitly-set ones surface
+    // (e.g. `font: menu; font-variant-numeric: tabular-nums` serializes as `tabular-nums`).
+    StringBuilder result;
+    auto prefix = ""_s;
+    bool allSystemFont = true;
+    for (auto longhand : longhands()) {
+        if (wasSetBySystemFontShorthand(longhand))
+            continue;
+        allSystemFont = false;
+        if (!isInitialValue(longhand))
+            result.append(std::exchange(prefix, " "_s), serializeValue(longhand));
+    }
+    if (allSystemFont)
+        return String();
+    return result.isEmpty() ? nameString(CSSValueNormal) : result.toString();
 }
 
 static bool NODELETE gridTemplateListIsNone(const CSSValue& value)

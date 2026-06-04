@@ -141,7 +141,6 @@ public:
 
         // All text related properties influence layout.
         if (a.inheritedFlags.textAnchor != b.inheritedFlags.textAnchor
-            || a.inheritedFlags.glyphOrientationHorizontal != b.inheritedFlags.glyphOrientationHorizontal
             || a.inheritedFlags.glyphOrientationVertical != b.inheritedFlags.glyphOrientationVertical
             || a.nonInheritedFlags.alignmentBaseline != b.nonInheritedFlags.alignmentBaseline
             || a.nonInheritedFlags.dominantBaseline != b.nonInheritedFlags.dominantBaseline)
@@ -344,6 +343,7 @@ public:
             || a.lineFitEdge != b.lineFitEdge
             || a.usedZoom != b.usedZoom
             || a.textZoom != b.textZoom
+            || a.deviceScaleFactor != b.deviceScaleFactor
     #if ENABLE(TEXT_AUTOSIZING)
             || a.textSizeAdjust != b.textSizeAdjust
     #endif
@@ -538,10 +538,10 @@ public:
             return true;
 
         if (aHasFirstLineStyle) {
-            auto* aFirstLineStyle = a.getCachedPseudoStyle({ PseudoElementType::FirstLine });
+            auto* aFirstLineStyle = a.pseudoElementStyle({ PseudoElementType::FirstLine });
             if (!aFirstLineStyle)
                 return true;
-            auto* bFirstLineStyle = b.getCachedPseudoStyle({ PseudoElementType::FirstLine });
+            auto* bFirstLineStyle = b.pseudoElementStyle({ PseudoElementType::FirstLine });
             if (!bFirstLineStyle)
                 return true;
             // FIXME: Not all first line style changes actually need layout.

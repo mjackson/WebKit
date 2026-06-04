@@ -531,7 +531,7 @@ void NetworkConnectionToWebProcess::didClose(IPC::Connection& connection)
 
 void NetworkConnectionToWebProcess::didReceiveInvalidMessage(IPC::Connection&, IPC::MessageName messageName, const Vector<uint32_t>&)
 {
-    RELEASE_LOG_FAULT_WITH_PAYLOAD(IPC, makeString("Received an invalid message '"_s, description(messageName), "' from WebContent process "_s, m_webProcessIdentifier.toUInt64(), ", requesting for it to be terminated."_s).utf8().data());
+    RELEASE_LOG_FAULT_WITH_PAYLOAD(IPC, "Received an invalid message %s from WebContent process %" PRIu64 ", requesting for it to be terminated.", description(messageName), m_webProcessIdentifier.toUInt64());
     protect(m_networkProcess->parentProcessConnection())->send(Messages::NetworkProcessProxy::TerminateWebProcess(m_webProcessIdentifier), 0);
 }
 
@@ -549,6 +549,11 @@ void NetworkConnectionToWebProcess::removeSocketChannel(WebSocketIdentifier iden
 {
     ASSERT(m_networkSocketChannels.contains(identifier));
     m_networkSocketChannels.remove(identifier);
+}
+
+void NetworkConnectionToWebProcess::countWebSocketChannelsForTesting(CompletionHandler<void(uint32_t)>&& completionHandler)
+{
+    completionHandler(static_cast<uint32_t>(m_networkSocketChannels.size()));
 }
 
 NetworkSession* NetworkConnectionToWebProcess::networkSession()
@@ -610,7 +615,7 @@ void NetworkConnectionToWebProcess::scheduleResourceLoad(NetworkResourceLoadPara
     }
 
     auto identifier = loadParameters.identifier;
-    RELEASE_ASSERT(identifier);
+    MESSAGE_CHECK(identifier);
     RELEASE_ASSERT(RunLoop::isMain());
     ASSERT(!m_networkResourceLoaders.contains(*identifier));
 
@@ -943,6 +948,8 @@ void NetworkConnectionToWebProcess::setRawCookie(const URL& firstParty, const UR
 {
     auto allowCookieAccess = m_networkProcess->allowsFirstPartyForCookies(m_webProcessIdentifier, firstParty);
     MESSAGE_CHECK(allowCookieAccess != NetworkProcess::AllowCookieAccess::Terminate);
+    MESSAGE_CHECK(RegistrableDomain::uncheckedCreateFromHost(cookie.domain).matches(firstParty));
+    MESSAGE_CHECK(RegistrableDomain(url).matches(firstParty));
     if (allowCookieAccess != NetworkProcess::AllowCookieAccess::Allow)
         return;
 
@@ -1726,6 +1733,9 @@ MessageBatchIdentifier NetworkConnectionToWebProcess::nextMessageBatchIdentifier
 
 void NetworkConnectionToWebProcess::takeAllMessagesForPort(const MessagePortIdentifier& port, CompletionHandler<void(Vector<MessageWithMessagePorts>&&, std::optional<MessageBatchIdentifier>)>&& callback)
 {
+    // A WebContent process may only receive messages for ports entangled to it.
+    MESSAGE_CHECK_COMPLETION(m_processEntangledPorts.contains(port), callback({ }, std::nullopt));
+
     protect(m_networkProcess->messagePortChannelRegistry())->takeAllMessagesForPort(port, [this, protectedThis = Ref { *this }, callback = WTF::move(callback)](Vector<MessageWithMessagePorts>&& messages, CompletionHandler<void()>&& deliveryCallback) mutable {
         callback(WTF::move(messages), nextMessageBatchIdentifier(WTF::move(deliveryCallback)));
     });
@@ -1958,6 +1968,7 @@ void NetworkConnectionToWebProcess::takeInvalidMessageStringForTesting(Completio
 } // namespace WebKit
 
 #undef CONNECTION_RELEASE_LOG
+#undef CONNECTION_RELEASE_LOG_ERROR
 #undef MESSAGE_CHECK_COMPLETION
 #undef MESSAGE_CHECK
 #undef MESSAGE_CHECK_WITH_RETURN_VALUE

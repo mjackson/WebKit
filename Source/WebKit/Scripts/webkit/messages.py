@@ -192,6 +192,9 @@ def types_that_must_be_moved():
         'WebKit::UpdateInfo',
         'WebKit::WebProcessCreationParameters',
         'WebKit::RemoteLayerBackingStoreProperties',
+        'WebModel::ImageAsset',
+        'WebModel::UpdateTextureDescriptor',
+        'Vector<WebModel::UpdateTextureDescriptor>',
         'Win32Handle',
         'std::optional<MachSendRight>',
         'std::optional<WebCore::ShareableBitmapHandle>',
@@ -638,6 +641,7 @@ def types_that_cannot_be_forward_declared():
         'WebCore::PathClosedArc',
         'WebCore::PathDataBezierCurve',
         'WebCore::PathDataLine',
+        'WebCore::PathDataLineColorThickness',
         'WebCore::PathDataQuadCurve',
         'WebCore::PatternParameters',
         'WebCore::PlatformLayerIdentifier',
@@ -1350,6 +1354,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::PathClosedArc': ['<WebCore/PathSegmentData.h>'],
         'WebCore::PathDataBezierCurve': ['<WebCore/PathSegmentData.h>'],
         'WebCore::PathDataLine': ['<WebCore/PathSegmentData.h>'],
+        'WebCore::PathDataLineColorThickness': ['<WebCore/PathSegmentData.h>'],
         'WebCore::PathDataQuadCurve': ['<WebCore/PathSegmentData.h>'],
         'WebCore::PatternParameters': ['<WebCore/Pattern.h>'],
         'WebCore::PixelFormat': ['<WebCore/ImageBufferBackend.h>'],
@@ -1371,6 +1376,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::RecentSearch': ['<WebCore/SearchPopupMenu.h>'],
         'WebCore::RedEyeReduction': ['<WebCore/RedEyeReduction.h>'],
         'WebCore::ResourceResponseSource': ['<WebCore/ResourceResponseBase.h>'],
+        'WebCore::RestoredFromBackForwardCache': ['<WebCore/FrameLoaderTypes.h>'],
         'WebCore::ReloadOption': ['<WebCore/FrameLoaderTypes.h>'],
         'WebCore::RenderAsTextFlag': ['<WebCore/RenderTreeAsText.h>'],
         'WebCore::RenderingPurpose': ['<WebCore/RenderingMode.h>'],
@@ -1559,6 +1565,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebKit::MessageBatchIdentifier': ['"NetworkConnectionToWebProcess.h"'],
         'WebKit::NetworkActivityTracker::CompletionCode': ['"NetworkActivityTracker.h"'],
         'WebKit::PageGroupIdentifier': ['"IdentifierTypes.h"'],
+        'WebKit::PDFPluginDisplayMode': ['"PDFDisplayMode.h"'],
         'WebKit::RealmIdentifier': ['"IdentifierTypes.h"'],
         'WebKit::PaymentSetupConfiguration': ['"PaymentSetupConfigurationWebKit.h"'],
         'WebKit::PaymentSetupFeatures': ['"ApplePayPaymentSetupFeaturesWebKit.h"'],
@@ -2429,23 +2436,4 @@ def generate_message_argument_description_implementation(receivers, receiver_hea
     result.append('')
     result.append('#endif // ENABLE(IPC_TESTING_API) || !LOG_DISABLED')
     result.append('')
-    return '\n'.join(result)
-
-
-def generate_modulemap(receiver_headers: list[str]) -> str:
-    result = []
-
-    result.append('module WebKit_DerivedSources_IPC {')
-
-    all_headers = receiver_headers + ['MessageNames.h', 'GeneratedSerializers.h', 'GeneratedWebKitSecureCoding.h']
-    for header in all_headers:
-        module_name = header[:-2] if header.endswith('.h') else header
-        result.append('  explicit module %s {' % module_name)
-        result.append('    header "%s"' % header)
-        result.append('    export *')
-        result.append('  }')
-
-    result.append('}')
-    result.append('')
-
     return '\n'.join(result)

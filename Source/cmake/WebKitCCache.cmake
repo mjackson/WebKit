@@ -21,6 +21,7 @@ if (NOT "$ENV{WK_USE_CCACHE}" STREQUAL "NO" AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
 "#!/bin/sh
 export CCACHE_BASEDIR='${CMAKE_SOURCE_DIR}'
 export CCACHE_NOHASHDIR=true
+export CCACHE_PCH_EXTSUM=true
 export CCACHE_SLOPPINESS='pch_defines,time_macros,include_file_mtime,include_file_ctime'
 exec '${CCACHE_FOUND}' \"$@\"
 ")
@@ -53,4 +54,10 @@ if (("$ENV{WEBKIT_USE_SCCACHE}" STREQUAL "1") OR DEFINED ENV{SCCACHE_REDIS} OR D
         set(CMAKE_C_COMPILER_LAUNCHER ${SCCACHE_FOUND})
         set(CMAKE_CXX_COMPILER_LAUNCHER ${SCCACHE_FOUND})
     endif ()
+endif ()
+
+if (APPLE AND CMAKE_GENERATOR STREQUAL "Ninja")
+    set(_clang_wrapper "${CMAKE_SOURCE_DIR}/Source/cmake/clang-wrapper")
+    list(INSERT CMAKE_CXX_COMPILER_LAUNCHER 0 "${_clang_wrapper}")
+    list(INSERT CMAKE_OBJCXX_COMPILER_LAUNCHER 0 "${_clang_wrapper}")
 endif ()

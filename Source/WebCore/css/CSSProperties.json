@@ -187,8 +187,7 @@
         "",
         "* accepts-quirky-angle:",
         "Indicates the property requires support for unitless angles. Only used for",
-        "two properties, glyph-orientation-horizontal and glyph-orientation-vertical,",
-        "though nothing in any standard requires this.",
+        "glyph-orientation-vertical, though nothing in any standard requires this.",
         "",
         "2. Lesser known capabilities of this file format",
         "",
@@ -1667,7 +1666,7 @@
             }
         },
         "zoom": {
-            "animation-type": "not animatable",
+            "animation-type": "by computed value",
             "initial": "1",
             "values": [
                 {
@@ -1676,6 +1675,7 @@
                 }
             ],
             "codegen-properties": {
+                "animation-wrapper-requires-setter": "setZoomFromAnimation",
                 "style-builder-custom": "All",
                 "high-priority": true,
                 "computed-style-initial-constexpr": true,
@@ -4144,7 +4144,9 @@
                 "computed-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "computed-style-storage-kind": "reference",
                 "computed-style-type": "Style::Clip",
-                "parser-grammar": "<rect()> | auto"
+                "parser-function": "consumeClip",
+                "parser-grammar-unused": "<rect()> | auto",
+                "parser-grammar-unused-reason": "Needs support for the strong value representation."
             },
             "specification": {
                 "category": "css-masking",
@@ -4852,24 +4854,6 @@
                 "url": "https://www.w3.org/TR/filter-effects/#FloodOpacityProperty"
             }
         },
-        "glyph-orientation-horizontal": {
-            "animation-type": "not animatable",
-            "inherited": true,
-            "initial": "0deg",
-            "codegen-properties": {
-                "accepts-quirky-angle": true,
-                "computed-style-initial-custom": true,
-                "computed-style-storage-path": ["m_svgData", "inheritedFlags"],
-                "computed-style-storage-container": "struct",
-                "computed-style-storage-kind": "enum",
-                "computed-style-type": "Style::SVGGlyphOrientationHorizontal",
-                "parser-grammar": "<angle unitless-zero=allowed>"
-            },
-            "specification": {
-                "category": "svg",
-                "url": "https://www.w3.org/TR/SVG11/text.html#GlyphOrientationHorizontalProperty"
-            }
-        },
         "glyph-orientation-vertical": {
             "animation-type": "not animatable",
             "inherited": true,
@@ -5223,7 +5207,7 @@
                 "computed-style-storage-path": ["m_nonInheritedData", "rareData", "grid"],
                 "computed-style-storage-kind": "reference",
                 "computed-style-type": "Style::FlowTolerance",
-                "parser-grammar": "normal | <length-percentage> | infinite"
+                "parser-grammar": "normal | <length-percentage [0,inf]> | infinite"
             },
             "specification": {
                 "category": "css-grid",
@@ -9357,13 +9341,14 @@
             "values": [
                 "normal",
                 "size",
-                "inline-size"
+                "inline-size",
+                "scroll-state"
             ],
             "codegen-properties": {
                 "computed-style-storage-path": ["m_nonInheritedData", "rareData"],
-                "computed-style-storage-kind": "enum",
-                "computed-style-type": "ContainerType",
-                "parser-grammar": "<<values>>"
+                "computed-style-storage-kind": "reference",
+                "computed-style-type": "Style::ContainerType",
+                "parser-grammar": "normal | [ [ size | inline-size ] || scroll-state@(settings-flag=cssScrollStateContainerQueriesEnabled) ]@(type=CSSValuePair)"
             },
             "specification": {
                 "category": "css-contain",
@@ -13615,7 +13600,7 @@
                     {
                         "enable-if": "ENABLE_VARIATION_FONTS",
                         "aliases": ["font-stretch"],
-                        "parser-grammar": "<font-width-absolute> | <percentage [0,inf]>{1,2}",
+                        "parser-grammar": "<font-width-absolute> | <percentage [0,inf]>{1,2}@(type=CSSValuePair default=previous)",
                         "parser-grammar-comment": "Current spec grammar is 'auto | <'font-width'>{1,2}'",
                         "parser-exported": true
                     },
@@ -13672,7 +13657,7 @@
                 "codegen-properties": [
                     {
                         "enable-if": "ENABLE_VARIATION_FONTS",
-                        "parser-grammar": "normal | bold | <number [1,1000]>{1,2}",
+                        "parser-grammar": "normal | bold | <number [1,1000]>{1,2}@(type=CSSValuePair default=previous)",
                         "parser-grammar-comment": "Current spec grammar is 'auto | <font-weight-absolute>{1,2}'",
                         "parser-exported": true
                     },
@@ -14407,9 +14392,7 @@
             }
         },
         "<rect()>": {
-            "grammar-unused": "rect( [ <length> | auto ]#{4} | [ <length> | auto ]{4} )",
-            "grammar-unused-reason": "Needs support for custom types for functional notation.",
-            "grammar-function": "consumeClipRectFunction",
+            "grammar": "rect( [ <length> | auto ]#{4} | [ <length> | auto ]{4} )",
             "specification": {
                 "category": "css-masking",
                 "url": "https://drafts.fxtf.org/css-masking-1/#funcdef-clip-rect"

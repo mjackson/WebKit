@@ -2711,11 +2711,27 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
 
     case StringMatch:
+    case StringSearch:
         clobberWorld();
         makeHeapTopForNode(node);
         break;
 
     case StringFromCharCode: {
+        if (node->child1().useKind() == Int32Use || node->child1().useKind() == KnownInt32Use) {
+            if (node->child1()->isInt32Constant() && node->child1()->asUInt32() <= maxSingleCharacterString) {
+                JSString* string = m_vm.smallStrings.singleCharacterString(static_cast<unsigned char>(node->child1()->asUInt32()));
+                setConstant(node, *m_graph.freeze(string));
+                break;
+            }
+        } else if (node->child1().useKind() == UntypedUse)
+            clobberWorld();
+        else
+            DFG_CRASH(m_graph, node, "Bad use kind");
+        setTypeForNode(node, SpecStringResolved);
+        break;
+    }
+
+    case StringFromCodePoint: {
         if (node->child1().useKind() == Int32Use || node->child1().useKind() == KnownInt32Use) {
             if (node->child1()->isInt32Constant() && node->child1()->asUInt32() <= maxSingleCharacterString) {
                 JSString* string = m_vm.smallStrings.singleCharacterString(static_cast<unsigned char>(node->child1()->asUInt32()));
@@ -3345,6 +3361,11 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         setNonCellTypeForNode(node, SpecInt32Only);
         break;
     }
+
+    case ArrayJoin:
+        clobberWorld();
+        setTypeForNode(node, SpecString);
+        break;
             
     case ArrayPop:
         clobberWorld();
@@ -3961,6 +3982,14 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
 
     case NewSet:
+        setForNode(node, node->structure());
+        break;
+
+    case NewWeakMap:
+        setForNode(node, node->structure());
+        break;
+
+    case NewWeakSet:
         setForNode(node, node->structure());
         break;
 
@@ -5514,6 +5543,13 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             }
         }
         m_state.setNonCellTypeForTupleNode(node, 0, SpecInt32Only);
+        clearForNode(node);
+        break;
+    }
+
+    case StringIteratorNext: {
+        m_state.setTypeForTupleNode(node, 0, SpecString);
+        m_state.setNonCellTypeForTupleNode(node, 1, SpecInt32Only);
         clearForNode(node);
         break;
     }

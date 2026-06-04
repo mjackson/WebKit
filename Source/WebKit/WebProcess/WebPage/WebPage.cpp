@@ -247,6 +247,8 @@
 #include <WebCore/HTMLAttachmentElement.h>
 #include <WebCore/HTMLBodyElement.h>
 #include <WebCore/HTMLFormElement.h>
+#include <WebCore/HTMLFrameOwnerElement.h>
+#include <WebCore/HTMLIFrameElement.h>
 #include <WebCore/HTMLImageElement.h>
 #include <WebCore/HTMLInputElement.h>
 #include <WebCore/HTMLModelElement.h>
@@ -316,6 +318,7 @@
 #include <WebCore/Report.h>
 #include <WebCore/ReportingScope.h>
 #include <WebCore/ResourceLoadStatistics.h>
+#include <WebCore/ResourceMonitorChecker.h>
 #include <WebCore/ResourceRequest.h>
 #include <WebCore/ResourceResponse.h>
 #include <WebCore/ResourceTiming.h>
@@ -513,7 +516,6 @@
 #endif
 
 namespace WebKit {
-using namespace JSC;
 using namespace WebCore;
 
 static const Seconds pageScrollHysteresisDuration { 300_ms };
@@ -1263,6 +1265,9 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
     updateThrottleState();
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
     updateImageAnimationEnabled();
+#endif
+#if ENABLE(ACCESSIBILITY_VIDEO_AUTOPLAY_CONTROL)
+    updateVideoAutoplayPreviewsEnabled();
 #endif
 #if ENABLE(ACCESSIBILITY_NON_BLINKING_CURSOR)
     updatePrefersNonBlinkingCursor();
@@ -2097,10 +2102,12 @@ void WebPage::exitAcceleratedCompositingMode(WebCore::Frame& frame)
     protect(drawingArea())->setRootCompositingLayer(frame, nullptr);
 }
 
-void WebPage::close()
+void WebPage::close(CompletionHandler<void()>&& completionHandler)
 {
-    if (m_isClosed)
+    if (m_isClosed) {
+        completionHandler();
         return;
+    }
 
     flushDeferredDidReceiveMouseEvent();
 
@@ -2214,6 +2221,8 @@ void WebPage::close()
 
     if (isRunningModal)
         RunLoop::mainSingleton().stop();
+
+    completionHandler();
 }
 
 void WebPage::tryClose(CompletionHandler<void(bool)>&& completionHandler)
@@ -2299,6 +2308,30 @@ void WebPage::loadDataInFrame(std::span<const uint8_t> data, String&& type, Stri
     SubstituteData substituteData(WTF::move(sharedBuffer), URL { baseURL }, WTF::move(response), SubstituteData::SessionHistoryVisibility::Hidden);
     frame->coreLocalFrame()->loader().load(FrameLoadRequest(*frame->coreLocalFrame(), ResourceRequest(WTF::move(baseURL)), WTF::move(substituteData)));
 }
+
+#if ENABLE(CONTENT_EXTENSIONS)
+void WebPage::applyResourceMonitorUnloadToIFrameElement(FrameIdentifier frameID)
+{
+    RefPtr frame = WebProcess::singleton().webFrame(frameID);
+    if (!frame)
+        return;
+
+    RefPtr<HTMLFrameOwnerElement> ownerElement;
+    // The child frame is remote here because its content runs in another process.
+    // WebPageProxy routed this message to this process because it hosts the parent
+    // frame, so the <iframe> ownerElement lives in our parent document and is non-null.
+    if (RefPtr remoteFrame = frame->coreRemoteFrame())
+        ownerElement = remoteFrame->ownerElement();
+    else if (RefPtr localFrame = frame->coreLocalFrame())
+        ownerElement = localFrame->ownerElement();
+
+    RefPtr iframeElement = dynamicDowncast<HTMLIFrameElement>(ownerElement.get());
+    if (!iframeElement)
+        return;
+
+    LocalFrame::applyResourceMonitorErrorToIFrameElement(*iframeElement);
+}
+#endif
 
 #if !PLATFORM(COCOA)
 void WebPage::platformDidReceiveLoadParameters(const LoadParameters& loadParameters)
@@ -2610,7 +2643,7 @@ void WebPage::goToBackForwardItem(GoToBackForwardItemParameters&& parameters)
             WEBPAGE_RELEASE_LOG(Loading, "goToBackForwardItem: Skipping because pending async back/forward traversal was cancelled");
             return;
         }
-        protect(corePage())->goToItem(*targetLocalFrame, *item, parameters.backForwardType, parameters.shouldTreatAsContinuingLoad);
+        protect(corePage())->goToItem(*targetLocalFrame, *item, parameters.backForwardType, parameters.shouldTreatAsContinuingLoad, parameters.shouldRestoreFromBackForwardCache);
     } else
         WEBPAGE_RELEASE_LOG_ERROR(ProcessSwapping, "goToBackForwardItem: No target local frame found for navigationID=%" PRIu64 ", backForwardItemID=%s — navigation silently dropped", parameters.navigationID.toUInt64(), parameters.frameState->itemID->toString().utf8().data());
 }
@@ -3609,7 +3642,7 @@ void WebPage::pageDidScroll()
     m_pageScrolledHysteresis.impulse();
 
     if (RefPtr view = protect(protect(corePage())->mainFrame())->virtualView())
-        send(Messages::WebPageProxy::PageDidScroll(view->scrollPosition()));
+        send(Messages::WebPageProxy::PageDidScroll(view->scrollOffset()));
 }
 
 void WebPage::pageStoppedScrolling()
@@ -4172,25 +4205,7 @@ static Expected<bool, WebCore::RemoteFrameGeometryTransformer> handleTouchEvent(
     if (!localFrame || !localFrame->view())
         return false;
 
-    WeakPtr weakPage = page;
-    if (weakPage)
-        weakPage->pointerCaptureController().resetPointerDownDefaultPrevention();
-
-    auto result = localFrame->eventHandler().handleTouchEvent(platform(touchEvent));
-
-#if ENABLE(IOS_TOUCH_EVENTS)
-    bool canPreventNativeGestures = touchEvent.canPreventNativeGestures();
-#else
-    bool canPreventNativeGestures = false;
-#endif
-
-    // If a page has active (non-passive) touch listeners and calls pointerdown.preventDefault()
-    // but not touchstart.preventDefault(), scrolling will no longer be suppressed on the
-    // preventable path.
-    if (!canPreventNativeGestures && weakPage && !result.value_or(false) && weakPage->pointerCaptureController().wasPointerDownDefaultPrevented())
-        return true;
-
-    return result;
+    return localFrame->eventHandler().handleTouchEvent(platform(touchEvent));
 }
 #endif
 
@@ -4838,7 +4853,7 @@ void WebPage::runJavaScript(WebFrame* frame, RunJavaScriptParameters&& parameter
         parameters.removeTransientActivation
     };
 
-    JSLockHolder lock(commonVM());
+    JSC::JSLockHolder lock(commonVM());
     protect(protect(frame->coreLocalFrame())->script())->executeAsynchronousUserAgentScriptInWorld(protect(world->coreWorld()), WTF::move(coreParameters), WTF::move(resolveFunction));
 }
 
@@ -5125,7 +5140,7 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
     settings.setRequiresUserGestureForAudioPlayback(requiresUserGestureForMedia || store.getBoolValueForKey(WebPreferencesKey::requiresUserGestureForAudioPlaybackKey()));
     settings.setUserInterfaceDirectionPolicy(static_cast<WebCore::UserInterfaceDirectionPolicy>(store.getUInt32ValueForKey(WebPreferencesKey::userInterfaceDirectionPolicyKey())));
     settings.setSystemLayoutDirection(static_cast<TextDirection>(store.getUInt32ValueForKey(WebPreferencesKey::systemLayoutDirectionKey())));
-    settings.setJavaScriptRuntimeFlags(static_cast<RuntimeFlags>(store.getUInt32ValueForKey(WebPreferencesKey::javaScriptRuntimeFlagsKey())));
+    settings.setJavaScriptRuntimeFlags(static_cast<JSC::RuntimeFlags>(store.getUInt32ValueForKey(WebPreferencesKey::javaScriptRuntimeFlagsKey())));
     settings.setStorageBlockingPolicy(static_cast<StorageBlockingPolicy>(store.getUInt32ValueForKey(WebPreferencesKey::storageBlockingPolicyKey())));
     settings.setEditableLinkBehavior(static_cast<WebCore::EditableLinkBehavior>(store.getUInt32ValueForKey(WebPreferencesKey::editableLinkBehaviorKey())));
 #if ENABLE(DATA_DETECTION)
@@ -5180,6 +5195,11 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
         drawingArea->updatePreferences(store);
 
     WebProcess::singleton().setChildProcessDebuggabilityEnabled(store.getBoolValueForKey(WebPreferencesKey::childProcessDebuggabilityEnabledKey()));
+
+#if ENABLE(CONTENT_EXTENSIONS)
+    if (auto threshold = store.getUInt32ValueForKey(WebPreferencesKey::iFrameResourceMonitorNetworkUsageThresholdForTestingKey()))
+        WebCore::ResourceMonitorChecker::singleton().setNetworkUsageThreshold(threshold, store.getDoubleValueForKey(WebPreferencesKey::iFrameResourceMonitorNetworkUsageThresholdRandomnessForTestingKey()));
+#endif
 
 #if ENABLE(GPU_PROCESS)
     downcast<WebMediaStrategy>(platformStrategies()->mediaStrategy()).setUseGPUProcess(m_shouldPlayMediaInGPUProcess);
@@ -8746,7 +8766,7 @@ void WebPage::suspendWithFrameItem(BackForwardFrameItemIdentifier identifier, Co
     completionHandler(true);
 }
 
-void WebPage::restoreWithFrameItem(BackForwardFrameItemIdentifier identifier, CompletionHandler<void(bool)>&& completionHandler)
+void WebPage::restoreWithFrameItem(BackForwardFrameItemIdentifier identifier, std::optional<std::pair<URL, SecurityOriginData>>&& mainFrameURLAndOrigin, CompletionHandler<void(bool)>&& completionHandler)
 {
     if (!m_isSuspended)
         return completionHandler(true);
@@ -8762,6 +8782,12 @@ void WebPage::restoreWithFrameItem(BackForwardFrameItemIdentifier identifier, Co
         WEBPAGE_RELEASE_LOG_ERROR(ProcessSwapping, "restoreWithFrameItem: take failed, cache entry missing or expired");
         return completionHandler(false);
     }
+
+    // Re-establish the authoritative main-frame URL/origin before restoring. It must come from the
+    // UIProcess, not a local read here: the cross-site top-document broadcast races ahead of this
+    // restore, so this process's top URL is still the stale cross-site value.
+    if (mainFrameURLAndOrigin)
+        page->setMainFrameURLAndOrigin(mainFrameURLAndOrigin->first, mainFrameURLAndOrigin->second.securityOrigin());
 
     m_isSuspended = false;
     unfreezeLayerTree(LayerTreeFreezeReason::PageSuspended);
@@ -8901,14 +8927,14 @@ void WebPage::showContactPicker(WebCore::ContactsRequestData&& requestData, Comp
 }
 
 #if ENABLE(WEB_AUTHN)
-void WebPage::showDigitalCredentialsPicker(const WebCore::DigitalCredentialsRequestData& requestData, CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
+void WebPage::showDigitalCredentialsChooser(const WebCore::DigitalCredentialsRequestData& requestData, CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
 {
-    sendWithAsyncReply(Messages::WebPageProxy::ShowDigitalCredentialsPicker(requestData), WTF::move(completionHandler));
+    sendWithAsyncReply(Messages::WebPageProxy::ShowDigitalCredentialsChooser(requestData), WTF::move(completionHandler));
 }
 
-void WebPage::dismissDigitalCredentialsPicker(CompletionHandler<void(bool)>&& completionHandler)
+void WebPage::dismissDigitalCredentialsChooser(CompletionHandler<void(bool)>&& completionHandler)
 {
-    sendWithAsyncReply(Messages::WebPageProxy::DismissDigitalCredentialsPicker(), WTF::move(completionHandler));
+    sendWithAsyncReply(Messages::WebPageProxy::DismissDigitalCredentialsChooser(), WTF::move(completionHandler));
 }
 #endif
 
@@ -9937,6 +9963,13 @@ void WebPage::playAllAnimations(CompletionHandler<void()>&& completionHandler)
     completionHandler();
 }
 #endif // ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
+
+#if ENABLE(ACCESSIBILITY_VIDEO_AUTOPLAY_CONTROL)
+void WebPage::updateVideoAutoplayPreviewsEnabled()
+{
+    protect(corePage())->setVideoAutoplayPreviewsEnabled(WebProcess::singleton().videoAutoplayPreviewsEnabled());
+}
+#endif // ENABLE(ACCESSIBILITY_VIDEO_AUTOPLAY_CONTROL)
 
 #if ENABLE(ACCESSIBILITY_NON_BLINKING_CURSOR)
 void WebPage::updatePrefersNonBlinkingCursor()

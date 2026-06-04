@@ -2875,7 +2875,7 @@ FloatRect RenderLayerCompositor::insetClipLayerRect() const
 {
     Ref frameView = m_renderView.frameView();
 
-    auto insetClipLayerRect = LocalFrameView::insetClipLayerRect(frameView->scrollPosition(), frameView->obscuredContentInsets(), frameView->sizeForVisibleContent());
+    auto insetClipLayerRect = LocalFrameView::insetClipLayerRect(frameView->scrollPosition(), frameView->totalContentsSize(), frameView->obscuredContentInsets(), frameView->sizeForVisibleContent());
     insetClipLayerRect.move(frameView->insetForLeftScrollbarSpace(), 0);
     return insetClipLayerRect;
 }
@@ -3817,8 +3817,7 @@ bool RenderLayerCompositor::requiresCompositingForAnimation(RenderLayerModelObje
         if (styleable->hasRunningAcceleratedAnimations())
             return true;
         if (auto* effectsStack = styleable->keyframeEffectStack()) {
-            return (effectsStack->isCurrentlyAffectingProperty(CSSPropertyOpacity)
-                && (usesCompositing() || (m_compositingTriggers & ChromeClient::AnimatedOpacityTrigger)))
+            return (effectsStack->isCurrentlyAffectingProperty(CSSPropertyOpacity) && (usesCompositing() || (m_compositingTriggers & ChromeClient::AnimatedOpacityTrigger)))
                 || effectsStack->isCurrentlyAffectingProperty(CSSPropertyFilter)
                 || effectsStack->isCurrentlyAffectingProperty(CSSPropertyBackdropFilter)
                 || effectsStack->isCurrentlyAffectingProperty(CSSPropertyWebkitBackdropFilter)

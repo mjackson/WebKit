@@ -1042,16 +1042,8 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
                 return true;
             break;
         }
-        case CSSSelector::PseudoClass::Heading: {
-            CheckedPtr headingElement = dynamicDowncast<HTMLHeadingElement>(element.get());
-            if (!headingElement)
-                return false;
-
-            if (auto* integerList = selector.integerList())
-                return integerList->contains(static_cast<int>(headingElement->level()));
-
-            return true;
-        }
+        case CSSSelector::PseudoClass::Heading:
+            return matchesHeadingPseudoClass(element, selector.integerList());
         case CSSSelector::PseudoClass::NthOfType: {
             if (CheckedPtr parentElement = dynamicDowncast<Element>(element->parentNode())) {
                 auto relation = context.isSubjectOrAdjacentElement ? Style::Relation::ChildrenAffectedByForwardPositionalRules : Style::Relation::DescendantsAffectedByForwardPositionalRules;
@@ -1514,12 +1506,17 @@ bool SelectorChecker::matchHasPseudoClass(CheckingContext& checkingContext, cons
         auto& map = compiledHasArgumentSelectorsMap();
         if (map.size() >= maximumCompiledHasArgumentSelectorsSize)
             map.remove(map.random());
-        auto& compiledSelectors = map.ensure(selectorList, [&] {
+        auto result = map.ensure(selectorList, [&] {
             return FixedVector<CompiledSelector>(selectorList.size());
-        }).iterator->value;
+        });
+
+        auto& [hashKey, compiledSelectors] = *result.iterator;
+        // Iterate the cached copy: the JIT bakes pointers to selector data into compiled
+        // code, and the cache outlives the originating CSSSelectorList.
+        auto& cachedSelectorList = hashKey.key();
 
         unsigned argIndex = 0;
-        for (auto& hasSelector : selectorList) {
+        for (auto& hasSelector : cachedSelectorList) {
             if (matchHasArgumentSelector(checkingContext, element, hasSelector, &compiledSelectors[argIndex++], matchingHost))
                 return true;
         }
@@ -1772,6 +1769,7 @@ bool SelectorChecker::matchHasArgumentSelector(CheckingContext& checkingContext,
             checkingContext.styleRelations.append(relation);
             return;
         case Style::Relation::AffectedByEmpty:
+            checkingContext.styleRelations.append(relation);
             return;
         case Style::Relation::AffectedByPreviousSibling:
         case Style::Relation::AffectsNextSibling:

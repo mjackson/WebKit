@@ -113,6 +113,9 @@ list(APPEND TestWebKit_PRIVATE_INCLUDE_DIRECTORIES
     ${TOOLS_DIR}/TestRunnerShared/cocoa
     ${TOOLS_DIR}/TestRunnerShared/spi
     ${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}/WebCoreTestSupport
+    ${TESTWEBKITAPI_DIR}/Helpers
+    ${TESTWEBKITAPI_DIR}/Helpers/cocoa
+    ${TESTWEBKITAPI_DIR}/Helpers/mac
     ${TESTWEBKITAPI_DIR}/Tests/WebCore
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/cocoa
     ${TESTWEBKITAPI_DIR}/Tests/WebKit/WKWebView
@@ -416,6 +419,13 @@ function(_testwebkitapi_stage_resources source_root skip_pattern)
         endif ()
         set(_src "${source_root}/${_rel}")
         set(_dst "${_resources_bundle_dir}/${_rel}")
+        set(_walk "${_dst}")
+        while (NOT _walk STREQUAL "${_resources_bundle_dir}" AND NOT _walk STREQUAL "/")
+            get_filename_component(_walk "${_walk}" DIRECTORY)
+            if (IS_SYMLINK "${_walk}")
+                file(REMOVE "${_walk}")
+            endif ()
+        endwhile ()
         get_filename_component(_dst_dir "${_dst}" DIRECTORY)
         file(MAKE_DIRECTORY "${_dst_dir}")
         add_custom_command(OUTPUT "${_dst}"

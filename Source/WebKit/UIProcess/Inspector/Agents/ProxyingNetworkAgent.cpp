@@ -157,7 +157,29 @@ ProxyingNetworkAgent::ProxyingNetworkAgent(WebKit::WebPageAgentContext& context)
 {
 }
 
-ProxyingNetworkAgent::~ProxyingNetworkAgent() = default;
+ProxyingNetworkAgent::~ProxyingNetworkAgent()
+{
+    // Backstop in case Inspector teardown bypasses willDestroyFrontendAndBackend().
+    removeAllRegisteredReceivers();
+}
+
+void ProxyingNetworkAgent::removeAllRegisteredReceivers()
+{
+    // Use the pinned WebProcessProxy refs rather than WebProcessProxy::processForIdentifier(),
+    // which can return null when the process has been destructed but its receiver map entry
+    // has not yet been torn down. The pin guarantees the process (and its receiver map) is
+    // still alive here so removeMessageReceiver() can decrement m_messageReceiverMapCount.
+    for (auto& [key, _] : std::exchange(m_instrumentedProcessPageCounts, { })) {
+        auto [processID, pageID] = key;
+        auto it = m_pinnedInstrumentedProcesses.find(processID);
+        ASSERT(it != m_pinnedInstrumentedProcesses.end());
+        if (it == m_pinnedInstrumentedProcesses.end())
+            continue;
+        Ref webProcess = it->value;
+        webProcess->removeMessageReceiver(Messages::ProxyingNetworkAgent::messageReceiverName(), pageID);
+    }
+    m_pinnedInstrumentedProcesses.clear();
+}
 
 void ProxyingNetworkAgent::didCreateFrontendAndBackend()
 {
@@ -176,13 +198,17 @@ void ProxyingNetworkAgent::enableInstrumentationForProcess(WebKit::WebProcessPro
     if (++result.iterator->value > 1)
         return;
 
+    m_pinnedInstrumentedProcesses.ensure(webProcess.coreProcessIdentifier(), [&] {
+        return Ref { webProcess };
+    });
     webProcess.addMessageReceiver(Messages::ProxyingNetworkAgent::messageReceiverName(), pageID, *this);
     webProcess.send(Messages::WebInspectorBackend::EnableNetworkInstrumentation { }, pageID);
 }
 
 void ProxyingNetworkAgent::disableInstrumentationForProcess(WebKit::WebProcessProxy& webProcess, WebCore::PageIdentifier pageID)
 {
-    auto key = std::make_pair(webProcess.coreProcessIdentifier(), pageID);
+    auto processID = webProcess.coreProcessIdentifier();
+    auto key = std::make_pair(processID, pageID);
     auto it = m_instrumentedProcessPageCounts.find(key);
     if (it == m_instrumentedProcessPageCounts.end())
         return;
@@ -193,6 +219,17 @@ void ProxyingNetworkAgent::disableInstrumentationForProcess(WebKit::WebProcessPr
     m_instrumentedProcessPageCounts.remove(it);
     webProcess.send(Messages::WebInspectorBackend::DisableNetworkInstrumentation { }, pageID);
     webProcess.removeMessageReceiver(Messages::ProxyingNetworkAgent::messageReceiverName(), pageID);
+
+    // Drop the pin once this process has no remaining page registrations.
+    bool processStillHasRegistrations = false;
+    for (auto& entry : m_instrumentedProcessPageCounts) {
+        if (entry.key.first == processID) {
+            processStillHasRegistrations = true;
+            break;
+        }
+    }
+    if (!processStillHasRegistrations)
+        m_pinnedInstrumentedProcesses.remove(processID);
 }
 
 CommandResult<void> ProxyingNetworkAgent::enable()
@@ -221,21 +258,26 @@ CommandResult<void> ProxyingNetworkAgent::disable()
 
     m_enabled = false;
 
-    // Force-teardown: disable all processes unconditionally, bypassing refcount
-    // discipline in disableInstrumentationForProcess(). This is correct because
-    // disable() is called when the Network domain is torn down entirely --
-    // no per-frame refcount preservation is needed.
-    Ref inspectedPage = m_inspectedPage.get();
-    inspectedPage->forEachWebContentProcess([&](auto& webProcess, auto pageID) {
-        auto key = std::make_pair(webProcess.coreProcessIdentifier(), pageID);
-        if (!m_instrumentedProcessPageCounts.contains(key))
-            return;
-        Ref protectedWebProcess { webProcess };
-        protectedWebProcess->send(Messages::WebInspectorBackend::DisableNetworkInstrumentation { }, pageID);
-        protectedWebProcess->removeMessageReceiver(Messages::ProxyingNetworkAgent::messageReceiverName(), pageID);
-    });
-
-    m_instrumentedProcessPageCounts.clear();
+    // Force-teardown: disable all processes unconditionally, bypassing the
+    // refcount discipline in disableInstrumentationForProcess(). This is
+    // correct because disable() is called when the Network domain is torn
+    // down entirely -- no per-frame refcount preservation is needed.
+    //
+    // Iterate the registration map, not forEachWebContentProcess(): under
+    // Site Isolation a process may have swapped out while still holding our
+    // message receiver, in which case forEachWebContentProcess() would no
+    // longer enumerate it. The pinned process refs (see m_pinnedInstrumentedProcesses)
+    // keep the WebProcessProxy alive long enough for the send + remove below.
+    for (auto& [key, _] : m_instrumentedProcessPageCounts) {
+        auto [processID, pageID] = key;
+        auto it = m_pinnedInstrumentedProcesses.find(processID);
+        ASSERT(it != m_pinnedInstrumentedProcesses.end());
+        if (it == m_pinnedInstrumentedProcesses.end())
+            continue;
+        Ref webProcess = it->value;
+        webProcess->send(Messages::WebInspectorBackend::DisableNetworkInstrumentation { }, pageID);
+    }
+    removeAllRegisteredReceivers();
 
     return { };
 }
@@ -246,10 +288,46 @@ CommandResult<void> ProxyingNetworkAgent::setExtraHTTPHeaders(Ref<JSON::Object>&
     return { };
 }
 
-CommandResult<std::tuple<String, bool>> ProxyingNetworkAgent::getResponseBody(const Protocol::Network::RequestId&)
+void ProxyingNetworkAgent::getResponseBody(const Protocol::Network::RequestId& requestId, Ref<GetResponseBodyCallback>&& callback)
 {
-    // FIXME: Implement response body retrieval (P2 -- BackendResourceDataStore).
-    return makeUnexpected("Not yet implemented"_s);
+    auto parsed = IdentifierRegistry::parseProtocolRequestId(requestId);
+    if (!parsed) {
+        callback->sendFailure("Invalid requestId format"_s);
+        return;
+    }
+
+    auto [processIdentifier, resourceID] = *parsed;
+
+    RefPtr inspectedPage = m_inspectedPage.get();
+    if (!inspectedPage) {
+        callback->sendFailure("Inspected page is gone"_s);
+        return;
+    }
+
+    RefPtr<WebKit::WebProcessProxy> targetProcess;
+    std::optional<PageIdentifier> targetPageID;
+
+    inspectedPage->forEachWebContentProcess([&](auto& webProcess, auto pageID) {
+        if (webProcess.coreProcessIdentifier() == processIdentifier) {
+            targetProcess = &webProcess;
+            targetPageID = pageID;
+        }
+    });
+
+    if (!targetProcess || !targetPageID) {
+        callback->sendFailure("WebProcess not found for requestId"_s);
+        return;
+    }
+
+    targetProcess->sendWithAsyncReply(
+        Messages::WebInspectorBackend::GetResponseBody { resourceID },
+        [callback = WTF::move(callback)](String content, bool base64Encoded, String errorString) mutable {
+            if (!errorString.isEmpty())
+                callback->sendFailure(errorString);
+            else
+                callback->sendSuccess(content, base64Encoded);
+        },
+        *targetPageID);
 }
 
 CommandResult<void> ProxyingNetworkAgent::setResourceCachingDisabled(bool)

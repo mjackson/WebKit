@@ -43,6 +43,7 @@ WK_HAS_VALID_OBJCXX_MODULE = YES;
 WK_HAS_VALID_OBJCXX_MODULE[sdk=*26.2*] = ;
 WK_HAS_VALID_OBJCXX_MODULE[sdk=*26.3*] = ;
 WK_HAS_VALID_OBJCXX_MODULE[sdk=*26.4*] = ;
+WK_HAS_VALID_OBJCXX_MODULE[sdk=*26.5*] = ;
 
 MODULE_VERIFIER_SUPPORTED_LANGUAGES = $(MODULE_VERIFIER_SUPPORTED_LANGUAGES_$(WK_HAS_VALID_OBJCXX_MODULE));
 MODULE_VERIFIER_SUPPORTED_LANGUAGES_ = objective-c;
@@ -84,11 +85,8 @@ SWIFT_INSTALL_OBJC_HEADER = NO;
 SWIFT_LIBRARY_LEVEL = api;
 
 // Use handwritten SPI modules on public SDKs.
-SWIFT_INCLUDE_PATHS = $(SRCROOT)/Modules/Internal $(SWIFT_INCLUDE_PATHS_USE_INTERNAL_SDK_$(USE_INTERNAL_SDK)) $(SWIFT_INCLUDE_PATHS_HAS_WTF_SWIFT) $(inherited);
-SWIFT_INCLUDE_PATHS_USE_INTERNAL_SDK_ = $(SRCROOT)/Platform/spi/visionos $(SRCROOT)/Platform/spi/ios $(SRCROOT)/Platform/spi/Cocoa $(SRCROOT)/Platform/spi/Cocoa/Modules;
-SWIFT_INCLUDE_PATHS_HAS_WTF_SWIFT = $(BUILT_PRODUCTS_DIR)/usr/local/lib/swift $(WK_PRIVATE_SDK_DIR)$(WK_ALTERNATE_WEBKIT_SDK_PATH)$(WK_LIBRARY_INSTALL_PATH)/swift $(DSTROOT)$(SYSTEM_PREFIX)/usr/local/lib/swift;
-SWIFT_INCLUDE_PATHS_HAS_WTF_SWIFT[sdk=*26.2*] = ;
-SWIFT_INCLUDE_PATHS_HAS_WTF_SWIFT[sdk=*26.3*] = ;
+SWIFT_INCLUDE_PATHS = $(SRCROOT)/Modules/Internal $(SWIFT_INCLUDE_PATHS_$(USE_INTERNAL_SDK));
+SWIFT_INCLUDE_PATHS_ = $(SRCROOT)/Platform/spi/visionos $(SRCROOT)/Platform/spi/ios $(SRCROOT)/Platform/spi/Cocoa $(SRCROOT)/Platform/spi/Cocoa/Modules $(inherited);
 
 OTHER_CPLUSPLUSFLAGS = $(inherited) -fmodules -fno-cxx-modules;
 
@@ -390,6 +388,7 @@ OTHER_SWIFT_FLAGS_MIN_ACCESS = -Xfrontend -emit-clang-header-min-access -Xfronte
 OTHER_SWIFT_FLAGS_MIN_ACCESS[sdk=*26.2*] = ;
 OTHER_SWIFT_FLAGS_MIN_ACCESS[sdk=*26.3*] = ;
 OTHER_SWIFT_FLAGS_MIN_ACCESS[sdk=*26.4*] = ;
+OTHER_SWIFT_FLAGS_MIN_ACCESS[sdk=*26.5*] = ;
 
 // WebKit's clang module does not build in public SDK builds of these
 // platforms, preventing any Swift compilation. (https://bugs.webkit.org/show_bug.cgi?id=280912)

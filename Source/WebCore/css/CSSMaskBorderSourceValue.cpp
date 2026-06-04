@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,9 +27,8 @@
 #include "config.h"
 #include "CSSMaskBorderSourceValue.h"
 
-#include "CSSPrimitiveNumericTypes+Serialization.h"
 #include "CSSValuePool.h"
-#include "DeprecatedCSSOMPrimitiveValue.h"
+#include "CSSValueTypes+DeprecatedCSSOMValueCreation.h"
 
 namespace WebCore {
 
@@ -61,8 +61,8 @@ bool CSSMaskBorderSourceValue::customTraverseSubresources(NOESCAPE const Functio
         [&](CSS::Keyword::None) {
             return false;
         },
-        [&](const Ref<CSSValue>& cssImageValue) {
-            return protect(cssImageValue)->traverseSubresources(handler);
+        [&](const CSS::ImageWrapper& imageWrapper) {
+            return protect(imageWrapper.value)->traverseSubresources(handler);
         }
     );
 }
@@ -72,16 +72,9 @@ IterationStatus CSSMaskBorderSourceValue::customVisitChildren(NOESCAPE const Fun
     return CSS::visitCSSValueChildren(function, m_source);
 }
 
-Ref<DeprecatedCSSOMValue> CSSMaskBorderSourceValue::createDeprecatedCSSOMWrapper(CSSStyleDeclaration& owner) const
+Ref<DeprecatedCSSOMValue> CSSMaskBorderSourceValue::customCreateDeprecatedCSSOMWrapper(CSSStyleDeclaration& owner) const
 {
-    return WTF::switchOn(m_source,
-        [&](CSS::Keyword::None) -> Ref<DeprecatedCSSOMValue> {
-            return DeprecatedCSSOMPrimitiveValue::create(CSSKeywordValue::create(CSSValueNone), owner);
-        },
-        [&](const Ref<CSSValue>& cssImageValue) -> Ref<DeprecatedCSSOMValue> {
-            return protect(cssImageValue)->createDeprecatedCSSOMWrapper(owner);
-        }
-    );
+    return CSS::createDeprecatedCSSOMValue(CSSValuePool::singleton(), owner, m_source);
 }
 
 } // namespace WebCore

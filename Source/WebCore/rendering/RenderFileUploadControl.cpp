@@ -270,15 +270,16 @@ void RenderFileUploadControl::paintControl(PaintInfo& paintInfo, const LayoutPoi
     }
 }
 
-void RenderFileUploadControl::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
+std::pair<LayoutUnit, LayoutUnit> RenderFileUploadControl::computeIntrinsicLogicalWidths() const
 {
     if (shouldApplySizeOrInlineSizeContainment()) {
-        if (auto logicalWidth = explicitIntrinsicInnerLogicalWidth()) {
-            minLogicalWidth = logicalWidth.value();
-            maxLogicalWidth = logicalWidth.value();
-        }
-        return;
+        if (auto logicalWidth = explicitIntrinsicInnerLogicalWidth())
+            return { logicalWidth.value(), logicalWidth.value() };
+        return { };
     }
+
+    auto minLogicalWidth = LayoutUnit { };
+    auto maxLogicalWidth = LayoutUnit { };
     // Figure out how big the filename space needs to be for a given number of characters
     // (using "0" as the nominal character).
     const char16_t character = '0';
@@ -291,7 +292,7 @@ void RenderFileUploadControl::computeIntrinsicLogicalWidths(LayoutUnit& minLogic
     float defaultLabelWidth = font.width(constructTextRun(label, style(), ExpansionBehavior::allowRightOnly()));
     if (RefPtr button = uploadButton()) {
         if (CheckedPtr buttonRenderer = dynamicDowncast<RenderBox>(button->renderer()))
-            defaultLabelWidth += buttonRenderer->maxPreferredLogicalWidth() + afterButtonSpacing;
+            defaultLabelWidth += buttonRenderer->maxContentLogicalWidthContribution() + afterButtonSpacing;
     }
     maxLogicalWidth = static_cast<int>(ceilf(std::max(minDefaultLabelWidth, defaultLabelWidth)));
 
@@ -300,24 +301,26 @@ void RenderFileUploadControl::computeIntrinsicLogicalWidths(LayoutUnit& minLogic
         minLogicalWidth = std::max(0_lu, Style::evaluate<LayoutUnit>(logicalWidth, 0_lu, style().usedZoomForLength()));
     else if (!logicalWidth.isPercent())
         minLogicalWidth = maxLogicalWidth;
+
+    return { minLogicalWidth, maxLogicalWidth };
 }
 
-void RenderFileUploadControl::computePreferredLogicalWidths()
+void RenderFileUploadControl::computeIntrinsicLogicalWidthContributions()
 {
-    ASSERT(needsPreferredLogicalWidthsUpdate());
+    ASSERT(hasInvalidContentLogicalWidths());
 
-    m_minPreferredLogicalWidth = 0;
-    m_maxPreferredLogicalWidth = 0;
+    m_minContentLogicalWidthContribution = 0_lu;
+    m_maxContentLogicalWidthContribution = 0_lu;
 
     if (auto fixedLogicalWidth = style().logicalWidth().tryFixed(); fixedLogicalWidth && fixedLogicalWidth->isPositive()) {
-        m_maxPreferredLogicalWidth = adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalWidth);
-        m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth;
+        m_maxContentLogicalWidthContribution = adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalWidth);
+        m_minContentLogicalWidthContribution = m_maxContentLogicalWidthContribution;
     } else
-        computeIntrinsicLogicalWidths(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
+        std::tie(m_minContentLogicalWidthContribution, m_maxContentLogicalWidthContribution) = computeIntrinsicLogicalWidths();
 
-    constrainPreferredLogicalWidthsByMinMax(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
+    constrainIntrinsicLogicalWidthsByMinMax(m_minContentLogicalWidthContribution, m_maxContentLogicalWidthContribution);
 
-    clearNeedsPreferredWidthsUpdate();
+    clearContentLogicalWidthsInvalidation();
 }
 
 PositionWithAffinity RenderFileUploadControl::positionForPoint(const LayoutPoint&, HitTestSource, const RenderFragmentContainer*)

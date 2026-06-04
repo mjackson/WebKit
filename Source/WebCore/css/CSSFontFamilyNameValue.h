@@ -38,8 +38,9 @@ public:
     String customCSSText(const CSS::SerializationContext&) const;
     bool equals(const CSSFontFamilyNameValue&) const;
     IterationStatus customVisitChildren(const Function<IterationStatus(CSSValue&)>&) const;
+    bool NODELETE addDerivedHash(Hasher&) const;
 
-    String stringValue() const;
+    Ref<DeprecatedCSSOMValue> customCreateDeprecatedCSSOMWrapper(CSSStyleDeclaration&) const;
 
 private:
     CSSFontFamilyNameValue(CSS::FontFamilyName&&);

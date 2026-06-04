@@ -450,8 +450,8 @@ angle::Result TextureGL::setSubImageRowByRowWorkaround(const gl::Context *contex
     bool useTexImage3D = nativegl::UseTexImage3D(getType());
 
     ANGLE_CHECK_GL_MATH(contextGL, glFormat.computeRowDepthSkipBytes(
-                                       type, gl::Extents{area.width, area.height, area.depth},
-                                       unpack, useTexImage3D, &rowBytes, &imageBytes, &skipBytes));
+                                       type, area.width, area.height, unpack, useTexImage3D,
+                                       &rowBytes, &imageBytes, &skipBytes));
 
     GLint rowsPerChunk =
         std::min(std::max(static_cast<GLint>(maxBytesUploadedPerChunk / rowBytes), 1), area.height);
@@ -521,8 +521,8 @@ angle::Result TextureGL::setSubImagePaddingWorkaround(const gl::Context *context
     GLuint skipBytes   = 0;
 
     ANGLE_CHECK_GL_MATH(contextGL, glFormat.computeRowDepthSkipBytes(
-                                       type, gl::Extents{area.width, area.height, area.depth},
-                                       unpack, useTexImage3D, &rowBytes, &imageBytes, &skipBytes));
+                                       type, area.width, area.height, unpack, useTexImage3D,
+                                       &rowBytes, &imageBytes, &skipBytes));
 
     ANGLE_TRY(stateManager->setPixelUnpackState(context, unpack));
     ANGLE_TRY(stateManager->setPixelUnpackBuffer(context, unpackBuffer));
@@ -1507,6 +1507,8 @@ angle::Result TextureGL::generateMipmap(const gl::Context *context)
     StateManagerGL *stateManager      = GetStateManagerGL(context);
     const angle::FeaturesGL &features = GetFeaturesGL(context);
 
+    stateManager->bindTexture(getType(), mTextureID);
+
     bool recreateMipmapLevelsBeforeGenerate =
         features.recreateMipmapLevelsBeforeGenerate.enabled && !mState.getImmutableFormat();
     if (recreateMipmapLevelsBeforeGenerate)
@@ -1522,7 +1524,6 @@ angle::Result TextureGL::generateMipmap(const gl::Context *context)
 
     const LevelInfoGL &baseLevelInfo = getBaseLevelInfo();
 
-    stateManager->bindTexture(getType(), mTextureID);
     if (getType() == gl::TextureType::_2D &&
         ((baseLevelInternalFormat.colorEncoding == GL_SRGB &&
           features.decodeEncodeSRGBForGenerateMipmap.enabled) ||

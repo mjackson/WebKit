@@ -1914,7 +1914,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         }
     }
 
-    LOG_WITH_STREAM(UIHitTesting, stream << "hit-testing WKContentView subviews " << [[self recursiveDescription] UTF8String]);
+    LOG_WITH_STREAM(UIHitTesting, stream << "hit-testing at " << point << " subviews of WKContentView\n" << [[self recursiveDescription] UTF8String]);
     UIView* hitView = [super hitTest:point withEvent:event];
     LOG_WITH_STREAM(UIHitTesting, stream << " found view " << [hitView class] << " " << (void*)hitView);
     return hitView;
@@ -2471,17 +2471,7 @@ static WebCore::FloatQuad inflateQuad(const WebCore::FloatQuad& quad, float infl
 #if ENABLE(TOUCH_EVENTS)
 - (void)_touchEvent:(const WebKit::WebTouchEvent&)touchEvent preventsNativeGestures:(BOOL)preventsNativeGesture
 {
-    if (!preventsNativeGesture)
-        return;
-
-    if (touchEvent.allTouchPointsAreReleased())
-        [self _resetPanningPreventionFlags];
-    else {
-        _preventsPanningInXAxis = YES;
-        _preventsPanningInYAxis = YES;
-    }
-
-    if (![_touchEventGestureRecognizer isDispatchingTouchEvents])
+    if (!preventsNativeGesture || ![_touchEventGestureRecognizer isDispatchingTouchEvents])
         return;
 
     _longPressCanClick = NO;
@@ -8456,19 +8446,24 @@ static RetainPtr<NSObject <WKFormPeripheral>> createInputPeripheralWithView(WebK
 
 - (void)_elementDidFocus:(const WebKit::FocusedElementInformation&)information userIsInteracting:(BOOL)userIsInteracting blurPreviousNode:(BOOL)blurPreviousNode activityStateChanges:(OptionSet<WebCore::ActivityState>)activityStateChanges userObject:(NSObject <NSSecureCoding> *)userObject
 {
+    unsigned myGeneration = ++_focusGeneration;
+
+    _isChangingFocus = self._hasFocusedElement;
+    _isFocusingElementWithKeyboard = [self _shouldShowKeyboardForElement:information];
+
     CompletionHandlerCallingScope restoreValues([
         weakSelf = WeakObjCPtr { self },
-        changingFocusValueToRestore = _isChangingFocus,
-        focusingElementWithKeyboardValueToRestore = _isFocusingElementWithKeyboard
+        myGeneration
     ] {
         RetainPtr strongSelf = weakSelf.get();
         if (!strongSelf)
             return;
-        strongSelf->_isChangingFocus = changingFocusValueToRestore;
-        strongSelf->_isFocusingElementWithKeyboard = focusingElementWithKeyboardValueToRestore;
-
-        if (auto callback = std::exchange(strongSelf->_pendingRunModalJavaScriptDialogCallback, { }))
-            callback();
+        if (myGeneration == strongSelf->_focusGeneration) {
+            strongSelf->_isChangingFocus = NO;
+            strongSelf->_isFocusingElementWithKeyboard = NO;
+            if (auto callback = std::exchange(strongSelf->_pendingRunModalJavaScriptDialogCallback, { }))
+                callback();
+        }
 
         constexpr OptionSet sourcesToStopDeferring {
             WebKit::InputViewUpdateDeferralSource::ChangingFocusedElement,
@@ -8476,9 +8471,6 @@ static RetainPtr<NSObject <WKFormPeripheral>> createInputPeripheralWithView(WebK
         };
         [strongSelf stopDeferringInputViewUpdates:sourcesToStopDeferring];
     });
-
-    _isChangingFocus = self._hasFocusedElement;
-    _isFocusingElementWithKeyboard = [self _shouldShowKeyboardForElement:information];
 
     _autocorrectionContextNeedsUpdate = YES;
     _didAccessoryTabInitiateFocus = _isChangingFocusUsingAccessoryTab;
@@ -8744,7 +8736,7 @@ static RetainPtr<NSObject <WKFormPeripheral>> createInputPeripheralWithView(WebK
 
     if (delegateImplementsDidStartInputSession)
         [inputDelegate _webView:self.webView didStartInputSession:_formInputSession.get()];
-    
+
     [_webView.get() didStartFormControlInteraction];
 }
 
@@ -9908,16 +9900,16 @@ static bool canUseQuickboardControllerFor(UITextContentType type)
 #endif // HAVE(SHARE_SHEET_UI)
 
 #if ENABLE(WEB_AUTHN)
-- (void)_showDigitalCredentialsPicker:(const WebCore::DigitalCredentialsRequestData&)requestData completionHandler:(WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&)completionHandler
+- (void)_showDigitalCredentialsChooser:(const WebCore::DigitalCredentialsRequestData&)requestData completionHandler:(WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&)completionHandler
 {
     _digitalCredentialsPicker = adoptNS([[WKDigitalCredentialsPicker alloc] initWithView:self.webView page:_page.get()]);
     [_digitalCredentialsPicker presentWithRequestData:requestData completionHandler:WTF::move(completionHandler)];
 }
 
-- (void)_dismissDigitalCredentialsPicker:(WTF::CompletionHandler<void(bool)>&&)completionHandler
+- (void)_dismissDigitalCredentialsChooser:(WTF::CompletionHandler<void(bool)>&&)completionHandler
 {
     if (!_digitalCredentialsPicker) {
-        LOG(DigitalCredentials, "Digital credentials picker is not presented.");
+        LOG(DigitalCredentials, "Digital credentials chooser is not presented.");
         completionHandler(false);
         return;
     }
@@ -11616,6 +11608,12 @@ static Vector<WebCore::IntSize> sizesOfPlaceholderElementsToInsertWhenDroppingIt
         capturedDragData.setFileNames(filenames);
 
         Ref page = *retainedSelf->_page;
+        if (!page->hasRunningProcess()) {
+            if (RefPtr pageClient = page->pageClient())
+                pageClient->didPerformDragOperation(false);
+            return;
+        }
+
         WebKit::SandboxExtensionHandle sandboxExtensionHandle;
         Vector<WebKit::SandboxExtensionHandle> sandboxExtensionForUpload;
         auto dragPasteboardName = WebCore::Pasteboard::nameOfDragPasteboard();
@@ -14528,6 +14526,9 @@ static inline WKTextAnimationType toWKTextAnimationType(WebCore::TextAnimationTy
     if (!state.hasVisualData())
         return NO;
 
+    if (state.visualData->needsHideSelectionDuringOverflowScrollQuirk)
+        return YES;
+
     auto enclosingScrollingNodeID = state.visualData->enclosingScrollingNodeID;
     RetainPtr enclosingScroller = [self _scrollViewForScrollingNodeID:enclosingScrollingNodeID] ?: self._scroller;
     if (!enclosingScroller || ![enclosingScroller _wk_isAncestorOf:scrollView])
@@ -15544,7 +15545,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
             if (isSinglePage == isSinglePageAction)
                 return;
 
-            page->requestPDFDisplayMode(isSinglePageAction ? WebKit::PDFDisplayMode::SinglePageContinuous : WebKit::PDFDisplayMode::TwoUpContinuous);
+            page->requestPDFDisplayMode(isSinglePageAction ? WebKit::PDFPluginDisplayMode::SinglePageContinuous : WebKit::PDFPluginDisplayMode::TwoUpContinuous);
         };
 
         RetainPtr singlePageAction = [UIAction actionWithTitle:WebCore::contextMenuItemPDFSinglePage().createNSString().get() image:nil identifier:WKPDFActionSinglePageIdentifier handler:actionHandler];

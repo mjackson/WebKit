@@ -376,40 +376,37 @@ void RenderFragmentContainer::willBeRemovedFromTree()
     detachFragment();
 }
 
-void RenderFragmentContainer::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
+std::pair<LayoutUnit, LayoutUnit> RenderFragmentContainer::computeIntrinsicLogicalWidths() const
 {
-    if (!isValid()) {
-        RenderBlockFlow::computeIntrinsicLogicalWidths(minLogicalWidth, maxLogicalWidth);
-        return;
-    }
-    maxLogicalWidth = { };
-    minLogicalWidth = { };
+    if (isValid())
+        return { };
+    return RenderBlockFlow::computeIntrinsicLogicalWidths();
 }
 
-void RenderFragmentContainer::computePreferredLogicalWidths()
+void RenderFragmentContainer::computeIntrinsicLogicalWidthContributions()
 {
-    ASSERT(needsPreferredLogicalWidthsUpdate());
+    ASSERT(hasInvalidContentLogicalWidths());
 
     if (!isValid()) {
-        RenderBlockFlow::computePreferredLogicalWidths();
+        RenderBlockFlow::computeIntrinsicLogicalWidthContributions();
         return;
     }
 
     // FIXME: Currently, the code handles only the <length> case for min-width/max-width.
     // It should also support other values, like percentage, calc or viewport relative.
-    m_minPreferredLogicalWidth = 0;
-    m_maxPreferredLogicalWidth = 0;
+    m_minContentLogicalWidthContribution = 0_lu;
+    m_maxContentLogicalWidthContribution = 0_lu;
 
     CheckedRef styleToUse = style();
     if (auto fixedLogicalWidth = styleToUse->logicalWidth().tryFixed(); fixedLogicalWidth && fixedLogicalWidth->isPositive()) {
-        m_maxPreferredLogicalWidth = adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalWidth);
-        m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth;
+        m_maxContentLogicalWidthContribution = adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalWidth);
+        m_minContentLogicalWidthContribution = m_maxContentLogicalWidthContribution;
     } else
-        computeIntrinsicLogicalWidths(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
+        std::tie(m_minContentLogicalWidthContribution, m_maxContentLogicalWidthContribution) = computeIntrinsicLogicalWidths();
 
-    constrainPreferredLogicalWidthsByMinMax(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
+    constrainIntrinsicLogicalWidthsByMinMax(m_minContentLogicalWidthContribution, m_maxContentLogicalWidthContribution);
 
-    clearNeedsPreferredWidthsUpdate();
+    clearContentLogicalWidthsInvalidation();
 }
 
 LayoutRect RenderFragmentContainer::computedVisualOverflowRectForBox(const RenderBox& box) const

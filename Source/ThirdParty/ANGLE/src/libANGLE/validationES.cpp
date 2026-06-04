@@ -177,14 +177,6 @@ bool ValidReadPixelsUnsignedNormalizedDepthType(const Context *context,
     }
 }
 
-bool ValidReadPixelsFloatDepthType(const Context *context,
-                                   const gl::InternalFormat *info,
-                                   GLenum type)
-{
-    return context->getExtensions().readDepthNV && (type == GL_FLOAT) &&
-           context->getExtensions().depthBufferFloat2NV;
-}
-
 bool ValidReadPixelsFormatType(const Context *context,
                                const gl::InternalFormat *info,
                                GLenum format,
@@ -235,7 +227,7 @@ bool ValidReadPixelsFormatType(const Context *context,
                 case GL_RGBA:
                     return (type == GL_FLOAT);
                 case GL_DEPTH_COMPONENT:
-                    return ValidReadPixelsFloatDepthType(context, info, type);
+                    return context->getExtensions().readDepthNV && (type == GL_FLOAT);
                 case GL_DEPTH_STENCIL_OES:
                     return context->getExtensions().readDepthStencilNV &&
                            type == GL_FLOAT_32_UNSIGNED_INT_24_8_REV && info->stencilBits > 0;
@@ -716,7 +708,7 @@ ANGLE_INLINE const char *ValidateProgramDrawStates(const Context *context,
                 return gl::err::kUniformBufferTooSmall;
             }
 
-            if (uniformBuffer->hasWebGLXFBBindingConflict(context->isWebGL()))
+            if (uniformBuffer->hasTFBBindingConflict())
             {
                 return gl::err::kUniformBufferBoundForTransformFeedback;
             }
@@ -1197,26 +1189,29 @@ bool ValidImageSizeParameters(const Context *context,
                               GLsizei depth,
                               bool isSubImage)
 {
-    if (width < 0 || height < 0 || depth < 0)
+    if (ANGLE_UNLIKELY(!ValidMipLevel(context, target, level)))
+    {
+        ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kInvalidMipLevel);
+        return false;
+    }
+
+    if (ANGLE_UNLIKELY(width < 0 || height < 0 || depth < 0))
     {
         ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kNegativeSize);
         return false;
     }
-    // TexSubImage parameters can be NPOT without textureNPOT extension,
-    // as long as the destination texture is POT.
-    bool hasNPOTSupport =
-        context->getExtensions().textureNpotOES || context->getClientVersion() >= Version(3, 0);
-    if (!isSubImage && !hasNPOTSupport &&
-        (level != 0 && (!isPow2(width) || !isPow2(height) || !isPow2(depth))))
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kTextureNotPow2);
-        return false;
-    }
 
-    if (!ValidMipLevel(context, target, level))
+    // NPOT validation applies only when redefining a non-zero level.
+    if (!isSubImage && level != 0)
     {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kInvalidMipLevel);
-        return false;
+        const bool hasNPOTDimensions = (!isPow2(width) || !isPow2(height) || !isPow2(depth));
+        const bool hasNPOTSupport =
+            context->getClientVersion() >= ES_3_0 || context->getExtensions().textureNpotOES;
+        if (ANGLE_UNLIKELY(hasNPOTDimensions && !hasNPOTSupport))
+        {
+            ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kTextureNotPow2);
+            return false;
+        }
     }
 
     return true;
@@ -3775,6 +3770,12 @@ bool ValidateCopyTexImageParametersBase(const Context *context,
                                         GLint border,
                                         Format *textureFormatOut)
 {
+    if (!isSubImage && IsAngleInternalFormat(internalformat))
+    {
+        ANGLE_VALIDATION_ERRORF(GL_INVALID_ENUM, kInvalidInternalFormat, internalformat);
+        return false;
+    }
+
     TextureType texType = TextureTargetToType(target);
 
     if (xoffset < 0 || yoffset < 0 || zoffset < 0)
@@ -3965,10 +3966,16 @@ bool ValidateCopyTexImageParametersBase(const Context *context,
         *textureFormatOut = texture->getFormat(target, level);
     }
 
-    // Detect texture copying feedback loops for WebGL.
-    if (context->isWebGL())
+    // Detect texture copying feedback loops for WebGL or hardedend contexts.
+    if (context->isWebGL() || context->isHardenedContext())
     {
-        if (readFramebuffer->formsCopyingFeedbackLoopWith(texture->id(), level, zoffset))
+        // zoffset cannot be non-zero for a cube map destination
+        ASSERT(!(texType == TextureType::CubeMap && zoffset != 0));
+
+        ImageIndex destImageIndex = texType == TextureType::CubeMap
+                                        ? ImageIndex::MakeFromTarget(target, level)
+                                        : ImageIndex::MakeFromType(texType, level, zoffset);
+        if (readFramebuffer->formsCopyingFeedbackLoopWith(texture->id(), destImageIndex))
         {
             ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kFeedbackLoop);
             return false;
@@ -4066,7 +4073,7 @@ const char *ValidateDrawStates(const Context *context, GLenum *outErrorCode)
     ASSERT(framebuffer);
 
     if (ANGLE_UNLIKELY(context->getLimitations().noSeparateStencilRefsAndMasks ||
-                       extensions.webglCompatibilityANGLE))
+                       context->isWebGL()))
     {
         ASSERT(framebuffer);
         const FramebufferAttachment *dsAttachment =
@@ -4089,7 +4096,7 @@ const char *ValidateDrawStates(const Context *context, GLenum *outErrorCode)
 
             if (differentRefs || differentWritemasks || differentMasks)
             {
-                if (!extensions.webglCompatibilityANGLE)
+                if (!context->isWebGL())
                 {
                     WARN() << "This ANGLE implementation does not support separate front/back "
                               "stencil writemasks, reference values, or stencil mask values.";
@@ -4119,11 +4126,11 @@ const char *ValidateDrawStates(const Context *context, GLenum *outErrorCode)
     }
 
     if (ANGLE_UNLIKELY(context->getLimitations().noSimultaneousConstantColorAndAlphaBlendFunc ||
-                       extensions.webglCompatibilityANGLE))
+                       context->isWebGL()))
     {
         if (state.hasSimultaneousConstantColorAndAlphaBlendFunc())
         {
-            if (extensions.webglCompatibilityANGLE)
+            if (context->isWebGL())
             {
                 return kInvalidConstantColor;
             }
@@ -4144,16 +4151,15 @@ const char *ValidateDrawStates(const Context *context, GLenum *outErrorCode)
     bool framebufferIsYUV = framebuffer->hasYUVAttachment();
     if (ANGLE_UNLIKELY(framebufferIsYUV))
     {
-        const BlendState &blendState = state.getBlendState();
-        if (!blendState.colorMaskRed || !blendState.colorMaskGreen || !blendState.colorMaskBlue ||
-            !blendState.colorMaskAlpha)
+        const BlendStateExt &blendStateExt = state.getBlendStateExt();
+        if (blendStateExt.getColorMaskIndexed(0) != BlendStateExt::kColorMaskRGBA)
         {
             // When rendering into a YUV framebuffer, the color mask must have r g b and alpha set
             // to true.
             return kInvalidColorMaskForYUV;
         }
 
-        if (blendState.blend)
+        if (blendStateExt.getEnabledMask().test(0))
         {
             // When rendering into a YUV framebuffer, blending must be disabled.
             return kInvalidBlendStateForYUV;
@@ -4211,7 +4217,7 @@ const char *ValidateDrawStates(const Context *context, GLenum *outErrorCode)
 
     if (ANGLE_UNLIKELY(context->hasAnyEnabledClientAttrib()))
     {
-        if (extensions.webglCompatibilityANGLE || !state.areClientArraysEnabled())
+        if (context->isWebGL() || !state.areClientArraysEnabled())
         {
             // [WebGL 1.0] Section 6.5 Enabled Vertex Attributes and Range Checking
             // If a vertex attribute is enabled as an array via enableVertexAttribArray but no
@@ -4311,19 +4317,13 @@ const char *ValidateDrawStates(const Context *context, GLenum *outErrorCode)
         }
 
         // Do some additional WebGL-specific validation
-        if (ANGLE_UNLIKELY(extensions.webglCompatibilityANGLE))
+        if (ANGLE_UNLIKELY(context->isWebGL()))
         {
             const TransformFeedback *transformFeedbackObject = state.getCurrentTransformFeedback();
             if (state.isTransformFeedbackActive() &&
                 transformFeedbackObject->buffersBoundForOtherUseInWebGL())
             {
                 return kTransformFeedbackBufferDoubleBound;
-            }
-
-            // Detect rendering feedback loops for WebGL.
-            if (framebuffer->formsRenderingFeedbackLoopWith(context))
-            {
-                return kFeedbackLoop;
             }
 
             // Detect that the vertex shader input types match the attribute types
@@ -4358,6 +4358,15 @@ const char *ValidateDrawStates(const Context *context, GLenum *outErrorCode)
             if (program != nullptr && !program->isLinked())
             {
                 return kProgramNotLinked;
+            }
+        }
+
+        if (ANGLE_UNLIKELY(context->isWebGL() || context->isHardenedContext()))
+        {
+            // UB: Detect rendering feedback loops for WebGL or hardened context.
+            if (framebuffer->formsRenderingFeedbackLoopWith(context))
+            {
+                return kFeedbackLoop;
             }
         }
 
@@ -4558,8 +4567,8 @@ const char *ValidateDrawElementsStates(const Context *context)
 
     if (elementArrayBuffer)
     {
-        if (ANGLE_UNLIKELY(context->isWebGL()) &&
-            elementArrayBuffer->hasWebGLXFBBindingConflict(context->isWebGL()))
+        if (ANGLE_UNLIKELY(context->isWebGL() || context->isHardenedContext()) &&
+            elementArrayBuffer->hasTFBBindingConflict())
         {
             return kElementArrayBufferBoundForTransformFeedback;
         }
@@ -7003,8 +7012,8 @@ bool ValidatePixelPack(const Context *context,
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kBufferMapped);
         return false;
     }
-    if (pixelPackBuffer != nullptr &&
-        pixelPackBuffer->hasWebGLXFBBindingConflict(context->isWebGL()))
+    if (pixelPackBuffer != nullptr && (context->isWebGL() || context->isHardenedContext()) &&
+        pixelPackBuffer->hasTFBBindingConflict())
     {
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kPixelPackBufferBoundForTransformFeedback);
         return false;

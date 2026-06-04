@@ -48,6 +48,7 @@
 #include "RenderDescendantIterator.h"
 #include "RenderElementInlines.h"
 #include "RenderElementStyleInlines.h"
+#include "RenderFlexibleBox.h"
 #include "RenderIterator.h"
 #include "RenderLayer.h"
 #include "RenderLayoutState.h"
@@ -169,18 +170,18 @@ void RenderTable::styleDidChange(Style::Difference diff, const RenderStyle* oldS
         if (style().isFixedTableLayout())
             m_tableLayout = makeUnique<FixedTableLayout>(this);
         else {
-            auto resetTableCellPreferredLogicalWidths = [&] {
+            auto invalidateAllTableCellsContentLogicalWidths = [&] {
                 if (!m_tableLayout)
                     return;
                 // Fixed table layout sets min/max preferred widths to clean without actually computing them (see FixedTableLayout::calcWidthArray).
                 for (auto& section : childrenOfType<RenderTableSection>(*this)) {
                     for (CheckedPtr row = section.firstRow(); row; row = row->nextRow()) {
                         for (CheckedPtr cell = row->firstCell(); cell; cell = cell->nextCell())
-                            cell->setNeedsPreferredWidthsUpdate();
+                            cell->invalidateContentLogicalWidths();
                     }
                 }
             };
-            resetTableCellPreferredLogicalWidths();
+            invalidateAllTableCellsContentLogicalWidths();
             m_tableLayout = makeUnique<AutoTableLayout>(this);
         }
     }
@@ -321,10 +322,10 @@ void RenderTable::updateLogicalWidth()
         }
 
         // Ensure we aren't bigger than our available width.
-        LayoutUnit maxWidth = maxPreferredLogicalWidth();
+        LayoutUnit maxWidth = maxContentLogicalWidthContribution();
         // scaledWidthFromPercentColumns depends on m_layoutStruct in TableLayoutAlgorithmAuto, which
-        // maxPreferredLogicalWidth fills in. So scaledWidthFromPercentColumns has to be called after
-        // maxPreferredLogicalWidth.
+        // maxContentLogicalWidth fills in. So scaledWidthFromPercentColumns has to be called after
+        // maxContentLogicalWidth.
         LayoutUnit scaledWidth = m_tableLayout->scaledWidthFromPercentColumns() + bordersPaddingAndSpacingInRowDirection();
         maxWidth = std::max(scaledWidth, maxWidth);
         setLogicalWidth(std::min(availableContentLogicalWidth, maxWidth));
@@ -338,7 +339,7 @@ void RenderTable::updateLogicalWidth()
     }
 
     // Ensure we aren't smaller than our min preferred width.
-    setLogicalWidth(std::max(logicalWidth(), minPreferredLogicalWidth()));    
+    setLogicalWidth(std::max(logicalWidth(), minContentLogicalWidthContribution()));
 
     // Ensure we aren't smaller than our min-width style.
     auto& styleMinLogicalWidth = style().logicalMinWidth();
@@ -550,7 +551,7 @@ void RenderTable::layout()
     bool sectionMoved = false;
     LayoutUnit movedSectionLogicalTop;
     unsigned sectionCount = 0;
-    bool shouldCacheIntrinsicContentLogicalHeightForFlexItem = true;
+    bool shouldCacheContentLogicalHeightForFlexItem = true;
 
     LayoutRepainter repainter(*this);
     {
@@ -651,7 +652,7 @@ void RenderTable::layout()
         if (!topSection() && computedLogicalHeight > totalSectionLogicalHeight && !document().inQuirksMode()) {
             // Completely empty tables (with no sections or anything) should at least honor their
             // overriding or specified height in strict mode, but this value will not be cached.
-            shouldCacheIntrinsicContentLogicalHeightForFlexItem = false;
+            shouldCacheContentLogicalHeightForFlexItem = false;
             auto tableLogicalHeight = [&] {
                 if (auto overridingLogicalHeight = this->overridingBorderBoxLogicalHeight())
                     return *overridingLogicalHeight - borderAndPaddingAfter;
@@ -729,8 +730,10 @@ void RenderTable::layout()
     
     // FIXME: This value isn't the intrinsic content logical height, but we need
     // to update the value as its used by flexbox layout. crbug.com/367324
-    if (shouldCacheIntrinsicContentLogicalHeightForFlexItem)
-        cacheIntrinsicContentLogicalHeightForFlexItem(contentBoxLogicalHeight());
+    if (shouldCacheContentLogicalHeightForFlexItem) {
+        if (CheckedPtr flexContainer = dynamicDowncast<RenderFlexibleBox>(parent()))
+            flexContainer->setFlexItemContentLogicalHeightIfNeeded(*this, contentBoxLogicalHeight());
+    }
 
     m_columnLogicalWidthChanged = false;
     clearNeedsLayout();
@@ -1005,74 +1008,73 @@ void RenderTable::paintMask(PaintInfo& paintInfo, const LayoutPoint& paintOffset
     paintMaskImages(paintInfo, rect);
 }
 
-void RenderTable::computeIntrinsicLogicalWidths(LayoutUnit& minWidth, LayoutUnit& maxWidth, TableIntrinsics intrinsics) const
+std::pair<LayoutUnit, LayoutUnit> RenderTable::computeIntrinsicLogicalWidths(TableIntrinsics intrinsics) const
 {
     recalcSectionsIfNeeded();
     // FIXME: Do the recalc in borderStart/borderEnd and make those const_cast this call.
     // Then m_borderStart/m_borderEnd will be transparent a cache and it removes the possibility
     // of reading out stale values.
-    const_cast<RenderTable*>(this)->recalcBordersInRowDirection();
     // FIXME: Restructure the table layout code so that we can make this method const.
-    const_cast<RenderTable*>(this)->m_tableLayout->computeIntrinsicLogicalWidths(minWidth, maxWidth, intrinsics);
-
-    // FIXME: We should include captions widths here like we do in computePreferredLogicalWidths.
+    // FIXME: We should include captions widths here like we do in computeIntrinsicLogicalWidthContributions.
+    const_cast<RenderTable*>(this)->recalcBordersInRowDirection();
+    return const_cast<RenderTable*>(this)->m_tableLayout->computeIntrinsicLogicalWidths(intrinsics);
 }
 
-void RenderTable::computeIntrinsicLogicalWidths(LayoutUnit& minWidth, LayoutUnit& maxWidth) const
+std::pair<LayoutUnit, LayoutUnit> RenderTable::computeIntrinsicLogicalWidths() const
 {
-    computeIntrinsicLogicalWidths(minWidth, maxWidth, TableIntrinsics::ForLayout);
+    return computeIntrinsicLogicalWidths(TableIntrinsics::ForLayout);
 }
 
-void RenderTable::computeIntrinsicKeywordLogicalWidths(LayoutUnit& minWidth, LayoutUnit& maxWidth) const
+std::pair<LayoutUnit, LayoutUnit> RenderTable::computeIntrinsicKeywordLogicalWidths() const
 {
-    computeIntrinsicLogicalWidths(minWidth, maxWidth, TableIntrinsics::ForKeyword);
+    return computeIntrinsicLogicalWidths(TableIntrinsics::ForKeyword);
 }
 
-void RenderTable::computePreferredLogicalWidths()
+void RenderTable::computeIntrinsicLogicalWidthContributions()
 {
-    ASSERT(needsPreferredLogicalWidthsUpdate());
+    ASSERT(hasInvalidContentLogicalWidths());
 
-    computeIntrinsicLogicalWidths(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
+    std::tie(m_minContentLogicalWidthContribution, m_maxContentLogicalWidthContribution) = computeIntrinsicLogicalWidths();
 
     LayoutUnit bordersPaddingAndSpacing = bordersPaddingAndSpacingInRowDirection();
-    m_minPreferredLogicalWidth += bordersPaddingAndSpacing;
-    m_maxPreferredLogicalWidth += bordersPaddingAndSpacing;
+    m_minContentLogicalWidthContribution += bordersPaddingAndSpacing;
+    m_maxContentLogicalWidthContribution += bordersPaddingAndSpacing;
 
-    m_tableLayout->applyPreferredLogicalWidthQuirks(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
+    m_tableLayout->applyContentLogicalWidthQuirks(m_minContentLogicalWidthContribution, m_maxContentLogicalWidthContribution);
 
     for (unsigned i = 0; i < m_captions.size(); i++) {
-        LayoutUnit captionMinWidth = m_captions[i]->minPreferredLogicalWidth();
+        LayoutUnit captionMinWidth = m_captions[i]->minContentLogicalWidthContribution();
         captionMinWidth += marginIntrinsicLogicalWidthForChild(*m_captions[i]);
 
-        m_minPreferredLogicalWidth = std::max(m_minPreferredLogicalWidth, captionMinWidth);
+        m_minContentLogicalWidthContribution = std::max(m_minContentLogicalWidthContribution, captionMinWidth);
     }
-    m_maxPreferredLogicalWidth = std::max(m_maxPreferredLogicalWidth, m_minPreferredLogicalWidth);
+    m_maxContentLogicalWidthContribution = std::max(m_maxContentLogicalWidthContribution, m_minContentLogicalWidthContribution);
 
     auto& styleToUse = style();
     // FIXME: This should probably be checking for isSpecified since you should be able to use percentage or calc values for min-width.
     if (auto fixedLogicalMinWidth = styleToUse.logicalMinWidth().tryFixed(); fixedLogicalMinWidth && fixedLogicalMinWidth->isPositive()) {
-        m_maxPreferredLogicalWidth = std::max(m_maxPreferredLogicalWidth, adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalMinWidth));
-        m_minPreferredLogicalWidth = std::max(m_minPreferredLogicalWidth, adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalMinWidth));
+        m_maxContentLogicalWidthContribution = std::max(m_maxContentLogicalWidthContribution, adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalMinWidth));
+        m_minContentLogicalWidthContribution = std::max(m_minContentLogicalWidthContribution, adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalMinWidth));
     }
 
     // FIXME: This should probably be checking for isSpecified since you should be able to use percentage or calc values for maxWidth.
     if (auto fixedLogicalMaxWidth = styleToUse.logicalMaxWidth().tryFixed()) {
-        m_maxPreferredLogicalWidth = std::min(m_maxPreferredLogicalWidth, adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalMaxWidth));
-        m_maxPreferredLogicalWidth = std::max(m_maxPreferredLogicalWidth, m_minPreferredLogicalWidth);
+        m_maxContentLogicalWidthContribution = std::min(m_maxContentLogicalWidthContribution, adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalMaxWidth));
+        m_maxContentLogicalWidthContribution = std::max(m_maxContentLogicalWidthContribution, m_minContentLogicalWidthContribution);
     }
 
-    // FIXME: We should be adding borderAndPaddingLogicalWidth here, but m_tableLayout->computePreferredLogicalWidths already does,
+    // FIXME: We should be adding borderAndPaddingLogicalWidth here, but m_tableLayout->computeIntrinsicLogicalWidthContributions already does,
     // so a bunch of tests break doing this naively.
-    clearNeedsPreferredWidthsUpdate();
+    clearContentLogicalWidthsInvalidation();
 
     // Row widths are set by the section, not computed from preferred widths,
     // so their dirty bit is never cleared by the normal preferred width
     // computation. Clear it here so it doesn't block subsequent invalidation
     // from propagating through the row to the table.
     for (CheckedPtr section = topSection(); section; section = sectionBelow(section)) {
-        section->clearNeedsPreferredWidthsUpdate();
+        section->clearContentLogicalWidthsInvalidation();
         for (CheckedPtr row = section->firstRow(); row; row = row->nextRow())
-            row->clearNeedsPreferredWidthsUpdate();
+            row->clearContentLogicalWidthsInvalidation();
     }
 }
 

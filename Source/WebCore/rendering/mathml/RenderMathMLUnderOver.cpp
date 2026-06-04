@@ -185,37 +185,37 @@ RenderBox& RenderMathMLUnderOver::over() const
 }
 
 
-void RenderMathMLUnderOver::computePreferredLogicalWidths()
+void RenderMathMLUnderOver::computeIntrinsicLogicalWidthContributions()
 {
-    ASSERT(needsPreferredLogicalWidthsUpdate());
+    ASSERT(hasInvalidContentLogicalWidths());
 
     if (!isValid()) {
-        RenderMathMLRow::computePreferredLogicalWidths();
+        RenderMathMLRow::computeIntrinsicLogicalWidthContributions();
         return;
     }
 
     if (shouldMoveLimits()) {
-        RenderMathMLScripts::computePreferredLogicalWidths();
+        RenderMathMLScripts::computeIntrinsicLogicalWidthContributions();
         return;
     }
 
-    LayoutUnit preferredWidth = base().maxPreferredLogicalWidth() + marginIntrinsicLogicalWidthForChild(base());
+    LayoutUnit preferredWidth = base().maxContentLogicalWidthContribution() + marginIntrinsicLogicalWidthForChild(base());
 
     if (scriptType() == MathMLScriptsElement::ScriptType::Under || scriptType() == MathMLScriptsElement::ScriptType::UnderOver)
-        preferredWidth = std::max(preferredWidth, under().maxPreferredLogicalWidth() + marginIntrinsicLogicalWidthForChild(under()));
+        preferredWidth = std::max(preferredWidth, under().maxContentLogicalWidthContribution() + marginIntrinsicLogicalWidthForChild(under()));
 
     if (scriptType() == MathMLScriptsElement::ScriptType::Over || scriptType() == MathMLScriptsElement::ScriptType::UnderOver)
-        preferredWidth = std::max(preferredWidth, over().maxPreferredLogicalWidth() + marginIntrinsicLogicalWidthForChild(over()));
+        preferredWidth = std::max(preferredWidth, over().maxContentLogicalWidthContribution() + marginIntrinsicLogicalWidthForChild(over()));
 
-    m_maxPreferredLogicalWidth = preferredWidth;
-    m_minPreferredLogicalWidth = preferredWidth;
+    m_maxContentLogicalWidthContribution = preferredWidth;
+    m_minContentLogicalWidthContribution = preferredWidth;
 
     auto sizes = sizeAppliedToMathContent(LayoutPhase::CalculatePreferredLogicalWidth);
     applySizeToMathContent(LayoutPhase::CalculatePreferredLogicalWidth, sizes);
 
-    adjustPreferredLogicalWidthsForBorderAndPadding();
+    adjustContentLogicalWidthsForBorderAndPadding();
 
-    clearNeedsPreferredWidthsUpdate();
+    clearContentLogicalWidthsInvalidation();
 }
 
 LayoutUnit RenderMathMLUnderOver::horizontalOffset(const RenderBox& child) const

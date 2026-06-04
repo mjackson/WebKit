@@ -89,6 +89,7 @@ webxr [ Pass ]
 http/tests/iframe-monitor [ Pass ]
 
 media/modern-media-controls/visionos-inline-media-controls [ Pass ]
+media/modern-media-controls/icon-service/icon-service-bundle-load.html [ Pass ]
 
 http/tests/pdf [ Pass ]
 pdf [ Pass ]
@@ -185,8 +186,6 @@ platform/visionos/transforms/separated-video.html [ Failure ]
 overlay-region/full-page-scrolling.html [ Failure ]
 overlay-region/overlay-element.html [ Failure ]
 overlay-region/sticky.html [ Failure ]
-
-webkit.org/b/313782 interaction-region/paused-video-regions.html [ Failure ]
 
 ### END OF Triaged failures
 ###################################################################################################

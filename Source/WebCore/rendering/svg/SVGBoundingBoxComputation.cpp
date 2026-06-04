@@ -38,13 +38,25 @@
 #include "RenderSVGShape.h"
 #include "RenderSVGText.h"
 #include "SVGClipPathElement.h"
-#include "SVGLayerTransformComputation.h"
+#include "SVGTransformComputation.h"
 
 namespace WebCore {
 
 SVGBoundingBoxComputation::SVGBoundingBoxComputation(const RenderLayerModelObject& renderer)
     : m_renderer(renderer)
 {
+}
+
+void SVGBoundingBoxComputation::recomputeTransformDependentBoundingBoxes(const RenderLayerModelObject& renderer, bool& dirty, FloatRect& objectBoundingBox, Markable<FloatRect>& strokeBoundingBox, bool* objectBoundingBoxValid)
+{
+    if (!dirty)
+        return;
+    // Clear before recomputing so any re-entrant read sees a consistent state.
+    dirty = false;
+
+    SVGBoundingBoxComputation boundingBoxComputation(renderer);
+    objectBoundingBox = boundingBoxComputation.computeDecoratedBoundingBox(objectBoundingBoxDecoration, objectBoundingBoxValid);
+    strokeBoundingBox = std::nullopt;
 }
 
 FloatRect SVGBoundingBoxComputation::computeDecoratedBoundingBox(const SVGBoundingBoxComputation::DecorationOptions& options, bool* boundingBoxValid) const
@@ -141,7 +153,7 @@ FloatRect SVGBoundingBoxComputation::handleRootOrContainer(const SVGBoundingBoxC
         ASSERT(child.isSVGLayerAwareRenderer());
         ASSERT(!child.isRenderSVGRoot());
 
-        auto transform = SVGLayerTransformComputation(child).computeAccumulatedTransform(m_renderer.ptr(), TransformState::TrackSVGCTMMatrix);
+        auto transform = SVGTransformComputation(child).computeAccumulatedTransform(m_renderer.ptr(), TransformState::TrackSVGCTMMatrix);
         return transform.isIdentity() ? std::nullopt : std::make_optional(WTF::move(transform));
     };
 

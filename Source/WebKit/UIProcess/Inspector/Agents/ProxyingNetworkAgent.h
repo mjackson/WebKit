@@ -78,7 +78,7 @@ public:
     CommandResult<void> enable() final;
     CommandResult<void> disable() final;
     CommandResult<void> setExtraHTTPHeaders(Ref<JSON::Object>&&) final;
-    CommandResultOf<String, bool> getResponseBody(const Protocol::Network::RequestId&) final;
+    void getResponseBody(const Protocol::Network::RequestId&, Ref<GetResponseBodyCallback>&&) final;
     CommandResult<void> setResourceCachingDisabled(bool) final;
     CommandResult<void> setClearResourceDataOnNavigate(bool) final;
     void loadResource(const Protocol::Network::FrameId&, const String& url, Ref<LoadResourceCallback>&&) final;
@@ -108,12 +108,21 @@ private:
     void loadingFailed(ResourceID, double timestamp, const String& errorText, bool canceled);
     void requestServedFromMemoryCache(ResourceID, FrameID, ContextID, const String& documentURL, const WebCore::ResourceRequest&, const WebCore::ResourceResponse&, ResourceType, double timestamp);
 
+    void removeAllRegisteredReceivers();
+
     const UniqueRef<NetworkFrontendDispatcher> m_frontendDispatcher;
     const Ref<NetworkBackendDispatcher> m_backendDispatcher;
     WeakRef<WebKit::WebPageProxy> m_inspectedPage;
 
     bool m_enabled { false };
     HashMap<std::pair<WebCore::ProcessIdentifier, WebCore::PageIdentifier>, unsigned> m_instrumentedProcessPageCounts;
+
+    // Pin each instrumented WebProcessProxy alive while we hold an IPC message
+    // receiver registration on it. Without this, the process can be destructed
+    // before ~ProxyingNetworkAgent runs, leaving the receiver registered against
+    // a map that has already gone away. The receiver's m_messageReceiverMapCount
+    // then stays nonzero and ~MessageReceiver fires its debug ASSERT.
+    HashMap<WebCore::ProcessIdentifier, Ref<WebKit::WebProcessProxy>> m_pinnedInstrumentedProcesses;
 };
 
 } // namespace Inspector

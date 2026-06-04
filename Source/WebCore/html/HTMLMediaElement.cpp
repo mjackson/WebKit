@@ -126,6 +126,7 @@
 #include "RenderVideo.h"
 #include "RenderView.h"
 #include "ResourceLoadInfo.h"
+#include "PlatformScreen.h"
 #include "ScreenProperties.h"
 #include "ScriptController.h"
 #include "ScriptDisallowedScope.h"
@@ -675,10 +676,16 @@ HTMLMediaElement::HTMLMediaElement(const QualifiedName& tagName, Document& docum
 {
     RefPtr page = document.page();
     m_shouldAudioPlaybackRequireUserGesture = page && page->requiresUserGestureForAudioPlayback() && !processingUserGestureForMedia();
-    m_shouldVideoPlaybackRequireUserGesture = page && page->requiresUserGestureForVideoPlayback() && !processingUserGestureForMedia();
+    bool videoNeedsUserGesturePerPage = page && page->requiresUserGestureForVideoPlayback();
+#if ENABLE(ACCESSIBILITY_VIDEO_AUTOPLAY_CONTROL)
+    if (page && !page->videoAutoplayPreviewsEnabled())
+        videoNeedsUserGesturePerPage = true;
+#endif
+    m_shouldVideoPlaybackRequireUserGesture = videoNeedsUserGesturePerPage && !processingUserGestureForMedia();
 
 #if PLATFORM(MAC)
-    if (auto data = screenData(primaryScreenDisplayID()))
+    auto platformScreen = PlatformScreen::singleton();
+    if (auto data = platformScreen->screenData(platformScreen->primaryScreenDisplayID()))
         m_screenReserved = data->reserved;
 #endif
 
@@ -5744,9 +5751,8 @@ URL HTMLMediaElement::selectNextSourceChild(ContentType* contentType, InvalidURL
         if (auto mediaQueryList = source->parsedMediaAttribute(protect(document())); !mediaQueryList.isEmpty()) {
             if (shouldLog)
                 INFO_LOG(LOGIDENTIFIER, "'media' is ", source->attributeWithoutSynchronization(mediaAttr));
-            CheckedPtr renderer = this->renderer();
             LOG(MediaQueries, "HTMLMediaElement %p selectNextSourceChild evaluating media queries", this);
-            if (!MQ::MediaQueryEvaluator { screenAtom(), protect(document()), renderer ? &renderer->style() : nullptr }.evaluate(mediaQueryList))
+            if (!MQ::MediaQueryEvaluator { screenAtom(), protect(document()) }.evaluate(mediaQueryList))
                 goto CheckAgain;
         }
 
@@ -8843,7 +8849,12 @@ void HTMLMediaElement::updateRateChangeRestrictions()
         return;
 
     Ref mediaSession = this->mediaSession();
-    if (page->requiresUserGestureForVideoPlayback())
+    bool videoNeedsUserGesturePerPage = page->requiresUserGestureForVideoPlayback();
+#if ENABLE(ACCESSIBILITY_VIDEO_AUTOPLAY_CONTROL)
+    if (!page->videoAutoplayPreviewsEnabled())
+        videoNeedsUserGesturePerPage = true;
+#endif
+    if (videoNeedsUserGesturePerPage)
         mediaSession->addBehaviorRestriction(MediaElementSession::RequireUserGestureForVideoRateChange);
     else
         mediaSession->removeBehaviorRestriction(MediaElementSession::RequireUserGestureForVideoRateChange);
@@ -9758,6 +9769,10 @@ bool HTMLMediaElement::isVisibleInViewport() const
 
 WEBCORE_EXPORT auto HTMLMediaElement::viewportVisibility() const -> ViewportVisibility
 {
+    if (fullscreenMode() & VideoFullscreenModePictureInPicture)
+        return ViewportVisibility::VisibleInPictureInPicture;
+    if (fullscreenMode() & VideoFullscreenModeStandard)
+        return ViewportVisibility::VisibleInFullscreen;
     if (isVisibleInViewport())
         return ViewportVisibility::VisibleInViewport;
     if (isIntersectingViewport())
@@ -10464,7 +10479,8 @@ void HTMLMediaElement::screenPropertiesChanged(PlatformDisplayID displayID)
 {
     setPreferredDynamicRangeMode(preferredDynamicRangeMode(protect(document().view()).get()));
 #if PLATFORM(MAC)
-    if (auto data = screenData(displayID))
+    auto platformScreen = PlatformScreen::singleton();
+    if (auto data = platformScreen->screenData(displayID))
         setScreenReserved(data->reserved);
 #else
     UNUSED_PARAM(displayID);

@@ -90,7 +90,7 @@ public:
 private:
     void willBeDestroyed() final;
     ASCIILiteral renderName() const final { return "RenderListMarker"_s; }
-    void computePreferredLogicalWidths() final;
+    void computeIntrinsicLogicalWidthContributions() final;
     bool canHaveChildren() const final { return false; }
     void paint(PaintInfo&, const LayoutPoint&) final;
     void layout() final;
@@ -100,7 +100,7 @@ private:
     void styleWillChange(Style::Difference, const RenderStyle& newStyle) final;
     void styleDidChange(Style::Difference, const RenderStyle* oldStyle) final;
     Node* nodeForHitTest() const final;
-    void computeIntrinsicLogicalWidths(LayoutUnit&, LayoutUnit&) const override { ASSERT_NOT_REACHED(); }
+    std::pair<LayoutUnit, LayoutUnit> computeIntrinsicLogicalWidths() const override { ASSERT_NOT_REACHED(); return { }; }
     std::pair<float, float> layoutBoundForTextContent(String) const;
 
     void element() const = delete;

@@ -599,6 +599,12 @@ void LocalFrameView::adjustViewSize()
     setContentsSize(size);
 }
 
+void LocalFrameView::scrollOriginDidChange()
+{
+    if (RefPtr page = m_frame->page())
+        page->chrome().scrollOriginDidChange(m_frame.get());
+}
+
 void LocalFrameView::applyOverflowToViewport(const RenderElement& renderer, ScrollbarMode& hMode, ScrollbarMode& vMode)
 {
     // Handle the overflow:hidden/scroll case for the body/html elements.  WinIE treats
@@ -1230,7 +1236,7 @@ void LocalFrameView::forceLayoutParentViewIfNeeded()
     // correct size, which LegacyRenderSVGRoot::computeReplacedLogicalWidth/Height rely on, when laying
     // out for the first time, or when the LegacyRenderSVGRoot size has changed dynamically (eg. via <script>).
 
-    ownerRenderer->setNeedsLayoutAndPreferredWidthsUpdate();
+    ownerRenderer->setNeedsLayoutAndInvalidateContentLogicalWidths();
     ownerRenderer->view().frameView().layoutContext().scheduleLayout();
 }
 
@@ -1681,7 +1687,7 @@ bool LocalFrameView::styleHidesScrollbarWithOrientation(ScrollbarOrientation ori
     StyleScrollbarState scrollbarState;
     scrollbarState.scrollbarPart = ScrollbarBGPart;
     scrollbarState.orientation = orientation;
-    auto scrollbarStyle = renderer->getUncachedPseudoStyle({ PseudoElementType::WebKitScrollbar, scrollbarState }, &renderer->style());
+    auto scrollbarStyle = renderer->resolvePseudoElementStyle({ PseudoElementType::WebKitScrollbar, scrollbarState }, &renderer->style());
     return scrollbarStyle && scrollbarStyle->display() == Style::DisplayType::None;
 }
 
@@ -2160,6 +2166,19 @@ OptionSet<FrameOwnerElementAppearance> LocalFrameView::appearanceOfOwnerElementO
 #endif
 
     return result;
+}
+
+LayoutPoint LocalFrameView::childFrameOwnerContentBoxLocation(const Frame& child) const
+{
+    CheckedPtr childOwnerRenderer = child.ownerRenderer();
+    if (!childOwnerRenderer)
+        return { };
+
+    // Ensure |child| is a child of this frame.
+    ASSERT(child.tree().parent()->frameID() == m_frame->frameID());
+    ASSERT(childOwnerRenderer->frame().frameID() == m_frame->frameID());
+
+    return childOwnerRenderer->contentBoxLocation();
 }
 
 LayoutRect LocalFrameView::rectForFixedPositionLayout() const
@@ -2651,7 +2670,7 @@ std::pair<FixedContainerEdges, WeakElementEdges> LocalFrameView::fixedContainerE
     return { WTF::move(edges), WTF::move(containers) };
 }
 
-FloatRect LocalFrameView::insetClipLayerRect(const FloatPoint& scrollPosition, const FloatBoxExtent& obscuredContentInset, const FloatSize& sizeForVisibleContent)
+FloatRect LocalFrameView::insetClipLayerRect(const FloatPoint& scrollPosition, const FloatSize& totalContentsSize, const FloatBoxExtent& obscuredContentInset, const FloatSize& sizeForVisibleContent)
 {
     auto computeOffset = [](float scrollAmount, float insetAmount) {
         if (!insetAmount)
@@ -2671,14 +2690,26 @@ FloatRect LocalFrameView::insetClipLayerRect(const FloatPoint& scrollPosition, c
     if (obscuredContentInset.top())
         adjustedSize.setHeight(std::max(0.f, adjustedSize.height() - position.y()));
 
-    if (obscuredContentInset.bottom())
-        adjustedSize.setHeight(std::max(0.f, adjustedSize.height() - obscuredContentInset.bottom()));
+    if (obscuredContentInset.bottom()) {
+        float visibleContentTop = std::max(0.f, scrollPosition.y());
+        float visibleContentBottom = visibleContentTop + sizeForVisibleContent.height();
+        // How much of the visible content rect eats into the bottom obscured content inset area.
+        float obscuredInsetOverlap = std::max(0.f, visibleContentBottom - (obscuredContentInset.top() + totalContentsSize.height()));
+
+        adjustedSize.setHeight(std::max(0.f, adjustedSize.height() - obscuredInsetOverlap));
+    }
 
     if (obscuredContentInset.left())
         adjustedSize.setWidth(std::max(0.f, adjustedSize.width() - position.x()));
 
-    if (obscuredContentInset.right())
-        adjustedSize.setWidth(std::max(0.f, adjustedSize.width() - obscuredContentInset.right()));
+    if (obscuredContentInset.right()) {
+        float visibleContentLeft = std::max(0.f, scrollPosition.x());
+        float visibleContentRight = visibleContentLeft + sizeForVisibleContent.width();
+        // How much of the visible content rect eats into the right obscured content inset area.
+        float obscureInsetOverlap = std::max(0.f, visibleContentRight - (obscuredContentInset.left() + totalContentsSize.width()));
+
+        adjustedSize.setWidth(std::max(0.f, adjustedSize.width() - obscureInsetOverlap));
+    }
 
     return { position, adjustedSize };
 }
@@ -5057,7 +5088,7 @@ void LocalFrameView::performSizeToContentAutoSize()
     for (int i = 0; i < 2; i++) {
         layoutWithAdjustedStyleIfNeeded();
         // Update various sizes including contentsSize, scrollHeight, etc.
-        auto newSize = IntSize { documentRenderer->minPreferredLogicalWidth(), renderView->documentRect().height() };
+        auto newSize = IntSize { documentRenderer->minContentLogicalWidthContribution(), renderView->documentRect().height() };
 
         // Check to see if a scrollbar is needed for a given dimension and
         // if so, increase the other dimension to account for the scrollbar.
@@ -5424,7 +5455,7 @@ void LocalFrameView::updateScrollCorner()
         RefPtr body = doc ? doc->bodyOrFrameset() : nullptr;
         if (body && body->renderer()) {
             renderer = body->renderer();
-            cornerStyle = renderer->getUncachedPseudoStyle({ PseudoElementType::WebKitScrollbarCorner }, &renderer->style());
+            cornerStyle = renderer->resolvePseudoElementStyle({ PseudoElementType::WebKitScrollbarCorner }, &renderer->style());
         }
         
         if (!cornerStyle) {
@@ -5432,7 +5463,7 @@ void LocalFrameView::updateScrollCorner()
             RefPtr docElement = doc ? doc->documentElement() : nullptr;
             if (docElement && docElement->renderer()) {
                 renderer = docElement->renderer();
-                cornerStyle = renderer->getUncachedPseudoStyle({ PseudoElementType::WebKitScrollbarCorner }, &renderer->style());
+                cornerStyle = renderer->resolvePseudoElementStyle({ PseudoElementType::WebKitScrollbarCorner }, &renderer->style());
             }
         }
         
@@ -5440,7 +5471,7 @@ void LocalFrameView::updateScrollCorner()
             // If we have an owning iframe/frame element, then it can set the custom scrollbar also.
             // FIXME: Seems wrong to do this for cross-origin frames.
             if (RefPtr renderer = m_frame->ownerRenderer())
-                cornerStyle = renderer->getUncachedPseudoStyle({ PseudoElementType::WebKitScrollbarCorner }, &renderer->style());
+                cornerStyle = renderer->resolvePseudoElementStyle({ PseudoElementType::WebKitScrollbarCorner }, &renderer->style());
         }
     }
 
@@ -6173,7 +6204,7 @@ void LocalFrameView::forceLayoutForPagination(const FloatSize& pageSize, const F
     float pageLogicalHeight = isHorizontalWritingMode ? pageSize.height() : pageSize.width();
 
     renderView->setPageLogicalSize({ floor(pageLogicalWidth), floor(pageLogicalHeight) });
-    renderView->setNeedsLayoutAndPreferredWidthsUpdate();
+    renderView->setNeedsLayoutAndInvalidateContentLogicalWidths();
     forceLayout();
     if (hasOneRef())
         return;
@@ -6192,7 +6223,7 @@ void LocalFrameView::forceLayoutForPagination(const FloatSize& pageSize, const F
         pageLogicalHeight = isHorizontalWritingMode ? maxPageSize.height() : maxPageSize.width();
 
         renderView->setPageLogicalSize({ floor(pageLogicalWidth), floor(pageLogicalHeight) });
-        renderView->setNeedsLayoutAndPreferredWidthsUpdate();
+        renderView->setNeedsLayoutAndInvalidateContentLogicalWidths();
         forceLayout();
         if (hasOneRef())
             return;

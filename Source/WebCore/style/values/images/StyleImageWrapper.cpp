@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,10 +28,14 @@
 #include "StyleImageWrapper.h"
 
 #include "AnimationUtilities.h"
+#include "CSSImageWrapper.h"
 #include "CSSValue.h"
+#include "DeprecatedCSSOMValue.h"
+#include "StyleBuilderState.h"
 #include "StyleCachedImage.h"
 #include "StyleCrossfadeImage.h"
 #include "StyleFilterImage.h"
+#include "StyleInvalidImage.h"
 #include <wtf/text/TextStream.h>
 
 namespace WebCore {
@@ -39,18 +43,33 @@ namespace Style {
 
 // MARK: - Conversion
 
+auto ToCSS<ImageWrapper>::operator()(const ImageWrapper& value, const RenderStyle& style) -> CSS::ImageWrapper
+{
+    return { protect(value.value)->computedStyleValue(style) };
+}
+
+auto ToStyle<CSS::ImageWrapper>::operator()(const CSS::ImageWrapper& value, const BuilderState& state) -> ImageWrapper
+{
+    if (RefPtr styleImage = state.createStyleImage(value.value))
+        return ImageWrapper { styleImage.releaseNonNull() };
+    return ImageWrapper { InvalidImage::create() };
+}
+
 Ref<CSSValue> CSSValueCreation<ImageWrapper>::operator()(CSSValuePool&, const RenderStyle& style, const ImageWrapper& value)
 {
-    Ref image = value.value;
-    return image->computedStyleValue(style);
+    return protect(value.value)->computedStyleValue(style);
+}
+
+Ref<DeprecatedCSSOMValue> DeprecatedCSSOMValueCreation<ImageWrapper>::operator()(CSSValuePool& pool, const RenderStyle& style, CSSStyleDeclaration& owner, const ImageWrapper& value)
+{
+    return protect(value.value)->computedStyleDeprecatedCSSOMValue(pool, style, owner);
 }
 
 // MARK: - Serialization
 
 void Serialize<ImageWrapper>::operator()(StringBuilder& builder, const CSS::SerializationContext& context, const RenderStyle& style, const ImageWrapper& value)
 {
-    Ref image = value.value;
-    builder.append(image->computedStyleValue(style)->cssText(context));
+    builder.append(protect(value.value)->computedStyleValue(style)->cssText(context));
 }
 
 // MARK: - Blending

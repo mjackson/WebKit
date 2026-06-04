@@ -176,7 +176,7 @@ static constexpr char16_t NODELETE convertNoBreakSpaceToSpace(char16_t character
     return character == noBreakSpace ? ' ' : character;
 }
 
-static inline size_t capitalizeCharacter(String textContent, unsigned startCharacterOffset, StringBuilder& output)
+static inline size_t capitalizeCharacter(StringView textContent, unsigned startCharacterOffset, StringBuilder& output)
 {
     if (startCharacterOffset >= textContent.length()) {
         ASSERT_NOT_REACHED();
@@ -234,7 +234,7 @@ static inline size_t capitalizeCharacter(String textContent, unsigned startChara
 // Titlecase the first letter of a word using ICU's locale-aware u_strToTitle.
 // CSS capitalize only uppercases the first letter; u_strToTitle also lowercases
 // the rest. We determine the titlecased prefix and return only that.
-static size_t capitalizeWordWithLocale(const String& textContent, unsigned startOffset, unsigned endOffset, const AtomString& locale, StringBuilder& output)
+static size_t capitalizeWordWithLocale(StringView textContent, unsigned startOffset, unsigned endOffset, const AtomString& locale, StringBuilder& output)
 {
     auto localeUTF8 = locale.string().utf8();
     unsigned wordLength = std::min(endOffset, textContent.length()) - startOffset;
@@ -527,7 +527,7 @@ void RenderText::styleDidChange(Style::Difference diff, const RenderStyle* oldSt
     // We do have to schedule layouts, though, since a style change can force us to
     // need to relayout.
     if (diff == Style::DifferenceResult::Layout) {
-        setNeedsLayoutAndPreferredWidthsUpdate();
+        setNeedsLayoutAndInvalidateContentLogicalWidths();
         m_knownToHaveNoOverflowAndNoFallbackFonts = false;
     }
 
@@ -548,7 +548,9 @@ void RenderText::styleDidChange(Style::Difference diff, const RenderStyle* oldSt
             return true;
         if (oldStyle->textTransform() != newStyle.textTransform())
             return true;
-        return oldStyle->textSecurity() != newStyle.textSecurity();
+        if (oldStyle->textSecurity() != newStyle.textSecurity())
+            return true;
+        return !newStyle.textTransform().isNone() && oldStyle->computedLocale() != newStyle.computedLocale();
     };
     if (needsRenderedTextUpdateOnly())
         updateRenderedText();
@@ -1118,7 +1120,7 @@ unsigned RenderText::lastCharacterIndexStrippingSpaces() const
     return 0;
 }
 
-RenderText::Widths RenderText::trimmedPreferredWidths(float leadWidth, bool& stripFrontSpaces)
+RenderText::Widths RenderText::trimmedIntrinsicLogicalWidths(float leadingWidth, bool& stripFrontSpaces)
 {
     auto& style = this->style();
     bool collapseWhiteSpace = style.collapseWhiteSpace();
@@ -1126,8 +1128,8 @@ RenderText::Widths RenderText::trimmedPreferredWidths(float leadWidth, bool& str
     if (!collapseWhiteSpace)
         stripFrontSpaces = false;
 
-    if (m_hasTab || needsPreferredLogicalWidthsUpdate() || !m_minWidth || !m_maxWidth)
-        computePreferredLogicalWidths(leadWidth, !m_minWidth || !m_maxWidth);
+    if (m_hasTab || hasInvalidContentLogicalWidths() || !m_minWidth || !m_maxWidth)
+        computeMinMaxIntrinsicLogicalWidths(leadingWidth, !m_minWidth || !m_maxWidth);
 
     Widths widths;
 
@@ -1176,17 +1178,17 @@ RenderText::Widths RenderText::trimmedPreferredWidths(float leadWidth, bool& str
                 lineLength++;
 
             if (lineLength) {
-                widths.endMax = widthFromCache(font, i, lineLength, leadWidth + widths.endMax, 0, 0, style);
+                widths.endMax = widthFromCache(font, i, lineLength, leadingWidth + widths.endMax, 0, 0, style);
                 if (firstLine) {
                     firstLine = false;
-                    leadWidth = 0;
+                    leadingWidth = 0;
                     widths.beginMax = widths.endMax;
                 }
                 i += lineLength;
             } else if (firstLine) {
                 widths.beginMax = 0;
                 firstLine = false;
-                leadWidth = 0;
+                leadingWidth = 0;
             }
 
             if (i == length - 1) {
@@ -1207,16 +1209,16 @@ static inline bool NODELETE isSpaceAccordingToStyle(char16_t c, const RenderStyl
 
 float RenderText::minLogicalWidth() const
 {
-    if (needsPreferredLogicalWidthsUpdate() || !m_minWidth)
-        const_cast<RenderText*>(this)->computePreferredLogicalWidths(0, !needsPreferredLogicalWidthsUpdate());
+    if (hasInvalidContentLogicalWidths() || !m_minWidth)
+        const_cast<RenderText*>(this)->computeMinMaxIntrinsicLogicalWidths(0, !hasInvalidContentLogicalWidths());
 
     return *m_minWidth;
 }
 
 float RenderText::maxLogicalWidth() const
 {
-    if (needsPreferredLogicalWidthsUpdate() || !m_maxWidth)
-        const_cast<RenderText*>(this)->computePreferredLogicalWidths(0, !needsPreferredLogicalWidthsUpdate());
+    if (hasInvalidContentLogicalWidths() || !m_maxWidth)
+        const_cast<RenderText*>(this)->computeMinMaxIntrinsicLogicalWidths(0, !hasInvalidContentLogicalWidths());
 
     return *m_maxWidth;
 }
@@ -1253,11 +1255,11 @@ TextBreakIterator::ContentAnalysis mapWordBreakToContentAnalysis(WordBreak wordB
     return TextBreakIterator::ContentAnalysis::Mechanical;
 }
 
-void RenderText::computePreferredLogicalWidths(float leadWidth, bool forcedMinMaxWidthComputation)
+void RenderText::computeMinMaxIntrinsicLogicalWidths(float leadingWidth, bool forcedMinMaxWidthComputation)
 {
     SingleThreadWeakHashSet<const Font> fallbackFonts;
     GlyphOverflow glyphOverflow;
-    computePreferredLogicalWidths(leadWidth, fallbackFonts, glyphOverflow, forcedMinMaxWidthComputation);
+    computeMinMaxIntrinsicLogicalWidths(leadingWidth, fallbackFonts, glyphOverflow, forcedMinMaxWidthComputation);
     if (fallbackFonts.isEmptyIgnoringNullReferences() && !glyphOverflow.left && !glyphOverflow.right && !glyphOverflow.top && !glyphOverflow.bottom)
         m_knownToHaveNoOverflowAndNoFallbackFonts = true;
 }
@@ -1322,9 +1324,9 @@ float RenderText::maxWordFragmentWidth(const RenderStyle& style, const FontCasca
     return std::max(maxFragmentWidth, suffixWidth);
 }
 
-void RenderText::computePreferredLogicalWidths(float leadWidth, SingleThreadWeakHashSet<const Font>& fallbackFonts, GlyphOverflow& glyphOverflow, bool forcedMinMaxWidthComputation)
+void RenderText::computeMinMaxIntrinsicLogicalWidths(float leadingWidth, SingleThreadWeakHashSet<const Font>& fallbackFonts, GlyphOverflow& glyphOverflow, bool forcedMinMaxWidthComputation)
 {
-    ASSERT_UNUSED(forcedMinMaxWidthComputation, m_hasTab || needsPreferredLogicalWidthsUpdate() || forcedMinMaxWidthComputation || !m_knownToHaveNoOverflowAndNoFallbackFonts);
+    ASSERT_UNUSED(forcedMinMaxWidthComputation, m_hasTab || hasInvalidContentLogicalWidths() || forcedMinMaxWidthComputation || !m_knownToHaveNoOverflowAndNoFallbackFonts);
 
     m_minWidth = 0;
     m_beginMinWidth = 0;
@@ -1418,7 +1420,7 @@ void RenderText::computePreferredLogicalWidths(float leadWidth, SingleThreadWeak
             continue;
         } else if (c == softHyphen && style.hyphens() != Hyphens::None) {
             ASSERT(i >= lastWordBoundary);
-            currMaxWidth += widthFromCache(font, lastWordBoundary, i - lastWordBoundary, leadWidth + currMaxWidth, &fallbackFonts, &glyphOverflow, style);
+            currMaxWidth += widthFromCache(font, lastWordBoundary, i - lastWordBoundary, leadingWidth + currMaxWidth, &fallbackFonts, &glyphOverflow, style);
             if (!firstGlyphLeftOverflow)
                 firstGlyphLeftOverflow = glyphOverflow.left;
             lastWordBoundary = i + 1;
@@ -1451,12 +1453,12 @@ void RenderText::computePreferredLogicalWidths(float leadWidth, SingleThreadWeak
         if (wordLen) {
             float currMinWidth = 0;
             bool isSpace = (j < length) && isSpaceAccordingToStyle(c, style);
-            float w = widthFromCacheConsideringPossibleTrailingSpace(style, font, i, wordLen, leadWidth + currMaxWidth, isSpace, wordTrailingSpace, fallbackFonts, glyphOverflow);
+            float w = widthFromCacheConsideringPossibleTrailingSpace(style, font, i, wordLen, leadingWidth + currMaxWidth, isSpace, wordTrailingSpace, fallbackFonts, glyphOverflow);
             if (c == softHyphen && style.hyphens() != Hyphens::None)
                 currMinWidth = hyphenWidth(*this, font);
 
             if (w > maxWordWidth) {
-                auto maxFragmentWidth = maxWordFragmentWidth(style, font, StringView(string).substring(i, wordLen), minimumPrefixLength, minimumSuffixLength, isSpace, i, leadWidth + currMaxWidth, w, wordTrailingSpace, fallbackFonts, glyphOverflow);
+                auto maxFragmentWidth = maxWordFragmentWidth(style, font, StringView(string).substring(i, wordLen), minimumPrefixLength, minimumSuffixLength, isSpace, i, leadingWidth + currMaxWidth, w, wordTrailingSpace, fallbackFonts, glyphOverflow);
                 currMinWidth += maxFragmentWidth - w; // This, when combined with "currMinWidth += w" below, has the effect of executing "currMinWidth += maxFragmentWidth" instead.
                 maxWordWidth = std::max(maxWordWidth, maxFragmentWidth);
             }
@@ -1469,7 +1471,7 @@ void RenderText::computePreferredLogicalWidths(float leadWidth, SingleThreadWeak
                     currMaxWidth += w;
                 else {
                     ASSERT(j >= lastWordBoundary);
-                    currMaxWidth += widthFromCache(font, lastWordBoundary, j - lastWordBoundary, leadWidth + currMaxWidth, &fallbackFonts, &glyphOverflow, style);
+                    currMaxWidth += widthFromCache(font, lastWordBoundary, j - lastWordBoundary, leadingWidth + currMaxWidth, &fallbackFonts, &glyphOverflow, style);
                 }
                 lastWordBoundary = j;
             }
@@ -1506,7 +1508,7 @@ void RenderText::computePreferredLogicalWidths(float leadWidth, SingleThreadWeak
             if (isNewline) { // Only set if preserveNewline was true and we saw a newline.
                 if (firstLine) {
                     firstLine = false;
-                    leadWidth = 0;
+                    leadingWidth = 0;
                     if (style.textWrapMode() == TextWrapMode::NoWrap)
                         m_beginMinWidth = currMaxWidth;
                 }
@@ -1517,7 +1519,7 @@ void RenderText::computePreferredLogicalWidths(float leadWidth, SingleThreadWeak
             } else {
                 TextRun run = RenderBlock::constructTextRun(*this, i, 1, style);
                 run.setTabSize(!style.collapseWhiteSpace(), Style::toPlatform(style.tabSize()));
-                run.setXPos(leadWidth + currMaxWidth);
+                run.setXPos(leadingWidth + currMaxWidth);
 
                 currMaxWidth += font.width(run, &fallbackFonts);
                 glyphOverflow.right = 0;
@@ -1544,7 +1546,7 @@ void RenderText::computePreferredLogicalWidths(float leadWidth, SingleThreadWeak
         m_endMinWidth = currMaxWidth;
     }
 
-    clearNeedsPreferredWidthsUpdate();
+    clearContentLogicalWidthsInvalidation();
 }
 
 template<typename CharacterType> static inline bool containsOnlyCollapsibleWhitespace(std::span<const CharacterType> characters, const RenderStyle& style)
@@ -1917,7 +1919,7 @@ void RenderText::setTextInternal(const String& text, bool force)
 void RenderText::updateRenderedText(const String& text)
 {
     setRenderedText(text);
-    setNeedsLayoutAndPreferredWidthsUpdate();
+    setNeedsLayoutAndInvalidateContentLogicalWidths();
     m_knownToHaveNoOverflowAndNoFallbackFonts = false;
 }
 
@@ -1992,8 +1994,8 @@ float RenderText::width(unsigned from, unsigned length, const FontCascade& fontC
         if (!style.preserveNewline() && !from && length == text().length() && (!glyphOverflow || !glyphOverflow->computeBounds)) {
             if (fallbackFonts) {
                 ASSERT(glyphOverflow);
-                if (needsPreferredLogicalWidthsUpdate() || !m_knownToHaveNoOverflowAndNoFallbackFonts) {
-                    const_cast<RenderText*>(this)->computePreferredLogicalWidths(0, *fallbackFonts, *glyphOverflow);
+                if (hasInvalidContentLogicalWidths() || !m_knownToHaveNoOverflowAndNoFallbackFonts) {
+                    const_cast<RenderText*>(this)->computeMinMaxIntrinsicLogicalWidths(0, *fallbackFonts, *glyphOverflow);
                     if (fallbackFonts->isEmptyIgnoringNullReferences() && !glyphOverflow->left && !glyphOverflow->right && !glyphOverflow->top && !glyphOverflow->bottom)
                         m_knownToHaveNoOverflowAndNoFallbackFonts = true;
                 }

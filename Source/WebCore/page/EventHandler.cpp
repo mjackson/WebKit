@@ -3165,19 +3165,6 @@ void EventHandler::clearElementUnderMouse()
     imageOverlayController->elementUnderMouseDidChange(protect(m_frame), nullptr);
 }
 
-void EventHandler::dispatchMouseBoundaryEventsAfterFullscreenChange()
-{
-    if (!m_elementUnderMouse || !m_lastKnownMousePosition)
-        return;
-
-    auto modifiers = PlatformKeyboardEvent::currentStateOfModifierKeys();
-    PlatformMouseEvent syntheticEvent(valueOrDefault(m_lastKnownMousePosition), m_lastKnownMouseGlobalPosition,
-        MouseButton::None, PlatformEvent::Type::NoType, 0, modifiers,
-        MonotonicTime::now(), 0, SyntheticClickType::NoTap, MouseEventInputSource::UserDriven);
-    updateMouseEventTargetNode(eventNames().mouseoutEvent, nullptr, syntheticEvent, FireMouseOverOut::Yes);
-    m_lastKnownMousePosition = std::nullopt;
-}
-
 bool EventHandler::isElementAnAncestorOfLastElementUnderMouse(Element* element) const
 {
     if (!element)
@@ -3649,16 +3636,16 @@ HandleUserInputEventResult EventHandler::handleWheelEventInternal(const Platform
         allowScrolling = m_frame->page()->scrollLatchingController().latchingAllowsScrollingInFrame(m_frame.get(), scrollableArea);
 #endif
     auto adjustedWheelEvent = event;
-    auto filteredDelta = adjustedWheelEvent.delta();
-    filteredDelta = view->deltaForPropagation(filteredDelta);
-    if (view->shouldBlockScrollPropagation(filteredDelta))
-        return true;
-
     if (allowScrolling) {
         // FIXME: processWheelEventForScrolling() is only called for FrameView scrolling, not overflow scrolling, which is confusing.
-        adjustedWheelEvent = adjustedWheelEvent.copyWithDeltaAndVelocity(filteredDelta, adjustedWheelEvent.scrollingVelocity());
         handledEvent = processWheelEventForScrolling(adjustedWheelEvent, scrollableArea, handling);
         processWheelEventForScrollSnap(adjustedWheelEvent, scrollableArea);
+    }
+
+    if (!handledEvent) {
+        auto filteredDelta = view->deltaForPropagation(adjustedWheelEvent.delta());
+        if (view->shouldBlockScrollPropagation(filteredDelta))
+            return true;
     }
 
     return handledEvent;
@@ -4307,7 +4294,14 @@ bool EventHandler::internalKeyEvent(const PlatformKeyboardEvent& initialKeyEvent
         // Just typing a modifier key is not considered user interaction with the page, but Shift + a (or Caps Lock + a) is considered an interaction.
         bool userHasInteractedViaKeyword = keydown->modifierKeys().isEmpty() || ((keydown->shiftKey() || keydown->capsLockKey()) && !initialKeyEvent.text().isEmpty());
 
-        if (element.focused() && userHasInteractedViaKeyword) {
+        if (!userHasInteractedViaKeyword)
+            return;
+
+        // Once a keyboard interaction has occurred, a subsequent programmatic focus move should match :focus-visible
+        // even if the previous focus was triggered by a click.
+        element.document().setLatestFocusTrigger(FocusTrigger::Other);
+
+        if (element.focused()) {
             Style::PseudoClassChangeInvalidation focusVisibleStyleInvalidation(element, CSSSelector::PseudoClass::FocusVisible, true);
             element.setHasFocusVisible(true);
         }
@@ -4394,7 +4388,7 @@ bool EventHandler::internalKeyEvent(const PlatformKeyboardEvent& initialKeyEvent
     keypress->setTarget(element.copyRef());
     if (keypress->isComposing() || shouldAvoidDispatchingKeyPressEvent()) {
         frame->editor().handleKeyboardEvent(keypress);
-        return keydownResult;
+        return keydownResult || keypress->defaultPrevented() || keypress->defaultHandled();
     }
     if (keydownResult)
         keypress->preventDefault();
@@ -4549,15 +4543,18 @@ void EventHandler::defaultKeyboardEventHandler(KeyboardEvent& event)
             return;
 
         if (event.key() == "Escape"_s) {
-            if (frame->settings().closeWatcherEnabled())
-                frame->document()->window()->closeWatcherManager().escapeKeyHandler(event);
-            if (frame->settings().closedbyAttributeEnabled()) {
-                if (RefPtr activeCloseableDialog = frame->document()->activeCloseableDialog())
-                    activeCloseableDialog->requestClose(nullString(), nullptr);
-            } else if (RefPtr activeModalDialog = frame->document()->activeModalDialog())
-                activeModalDialog->queueCancelTask();
-            if (RefPtr topmostAutoPopover = frame->document()->topmostAutoPopover())
-                topmostAutoPopover->hidePopover();
+            if (frame->settings().closeWatcherEnabled()) {
+                if (event.isTrusted())
+                    frame->document()->window()->closeWatcherManager().processCloseWatchers();
+            } else {
+                if (frame->settings().closedbyAttributeEnabled()) {
+                    if (RefPtr activeCloseableDialog = frame->document()->activeCloseableDialog())
+                        activeCloseableDialog->requestClose(nullString(), nullptr);
+                } else if (RefPtr activeModalDialog = frame->document()->activeModalDialog())
+                    activeModalDialog->queueCancelTask();
+                if (RefPtr topmostAutoPopover = frame->document()->topmostAutoPopover())
+                    topmostAutoPopover->hidePopover();
+            }
         } else if (event.keyIdentifier() == "U+0009"_s)
             defaultTabEventHandler(event);
         else if (event.keyIdentifier() == "U+0008"_s)

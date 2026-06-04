@@ -31,6 +31,7 @@
 #include "DocumentEditingContext.h"
 #include "FrameInfoData.h"
 #include "Logging.h"
+#include "MessageSenderInlines.h"
 #include "PDFPlugin.h"
 #include "UnifiedPDFPlugin.h"
 #include "WebFrame.h"
@@ -89,7 +90,6 @@
 #include <wtf/text/StringBuilder.h>
 
 namespace WebKit {
-using namespace JSC;
 using namespace WebCore;
 
 class PluginView::Stream : public RefCounted<PluginView::Stream>, NetscapePlugInStreamLoaderClient {
@@ -1157,7 +1157,7 @@ PDFPluginIdentifier PluginView::pdfPluginIdentifier() const
     return m_plugin->identifier();
 }
 
-void PluginView::setPDFDisplayMode(PDFDisplayMode mode)
+void PluginView::setPDFDisplayMode(PDFPluginDisplayMode mode)
 {
     m_plugin->setDisplayModeAndUpdateLayout(mode);
 }

@@ -61,6 +61,7 @@ namespace JSC {
     macro(ArraySpliceIntrinsic) \
     macro(ArrayIncludesIntrinsic) \
     macro(ArrayIndexOfIntrinsic) \
+    macro(ArrayJoinIntrinsic) \
     macro(ArraySortIntrinsic) \
     macro(ArrayValuesIntrinsic) \
     macro(ArrayKeysIntrinsic) \
@@ -94,6 +95,7 @@ namespace JSC {
     macro(DatePrototypeSetTimeIntrinsic) \
     macro(ErrorIsErrorIntrinsic) \
     macro(FromCharCodeIntrinsic) \
+    macro(FromCodePointIntrinsic) \
     macro(GlobalIsFiniteIntrinsic) \
     macro(GlobalIsNaNIntrinsic) \
     macro(PowIntrinsic) \
@@ -134,6 +136,7 @@ namespace JSC {
     macro(StringPrototypeLocaleCompareIntrinsic) \
     macro(StringPrototypeValueOfIntrinsic) \
     macro(StringPrototypeMatchIntrinsic) \
+    macro(StringPrototypeSearchIntrinsic) \
     macro(StringPrototypeReplaceIntrinsic) \
     macro(StringPrototypeReplaceAllIntrinsic) \
     macro(StringPrototypeSplitIntrinsic) \

@@ -39,6 +39,7 @@
 #include "CSSKeywordColor.h"
 #include "CSSValuePool.h"
 #include "ColorBlending.h"
+#include "DeprecatedCSSOMValue.h"
 #include "Document.h"
 #include "RenderStyle.h"
 #include "RenderTheme.h"
@@ -50,6 +51,7 @@
 #include "StyleHexColor.h"
 #include "StyleKeywordColor.h"
 #include "StyleLightDarkColor.h"
+#include "StyleRelativeAlphaColor.h"
 #include "StyleRelativeColor.h"
 #include <wtf/text/TextStream.h>
 
@@ -123,6 +125,11 @@ Color::Color(ColorMix&& colorMix)
 
 Color::Color(ContrastColor&& contrastColor)
     : value { makeIndirectColor(WTF::move(contrastColor)) }
+{
+}
+
+Color::Color(RelativeAlphaColor&& relativeAlphaColor)
+    : value { makeIndirectColor(WTF::move(relativeAlphaColor)) }
 {
 }
 
@@ -274,6 +281,11 @@ bool Color::isContrastColor() const
     return std::holds_alternative<UniqueRef<ContrastColor>>(value);
 }
 
+bool Color::isRelativeAlphaColor() const
+{
+    return std::holds_alternative<UniqueRef<RelativeAlphaColor>>(value);
+}
+
 bool Color::isRelativeColor() const
 {
     return std::holds_alternative<UniqueRef<RelativeColor<RGBFunctionModernRelative>>>(value)
@@ -420,6 +432,11 @@ Ref<CSSValue> CSSValueCreation<Color>::operator()(CSSValuePool& pool, const Rend
 {
     ColorResolver colorResolver { style };
     return pool.createColorValue(colorResolver.colorResolvingCurrentColor(value));
+}
+
+Ref<DeprecatedCSSOMValue> DeprecatedCSSOMValueCreation<Color>::operator()(CSSValuePool& pool, const RenderStyle& style, CSSStyleDeclaration& owner, const Color& value)
+{
+    return CSS::createDeprecatedCSSOMValue(pool, owner, toCSS(value, style));
 }
 
 // MARK: - Blending

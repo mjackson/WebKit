@@ -68,6 +68,7 @@
 #include "StyleExtractor.h"
 #include "StyleKeyword+Mappings.h"
 #include "StyleResolver.h"
+#include "StyleUpdate.h"
 #include "XMLNames.h"
 #include <wtf/HashMap.h>
 #include <wtf/NeverDestroyed.h>
@@ -923,8 +924,6 @@ CSSPropertyID SVGElement::cssPropertyIdForSVGAttributeName(const QualifiedName& 
         return CSSPropertyFontVariant;
     case AttributeNames::font_weightAttr:
         return CSSPropertyFontWeight;
-    case AttributeNames::glyph_orientation_horizontalAttr:
-        return CSSPropertyGlyphOrientationHorizontal;
     case AttributeNames::glyph_orientation_verticalAttr:
         return CSSPropertyGlyphOrientationVertical;
     case AttributeNames::image_renderingAttr:
@@ -1030,10 +1029,10 @@ void SVGElement::collectPresentationalHintsForAttribute(const QualifiedName& nam
         mapLanguageAttributeToLocale(value, style);
 }
 
-void SVGElement::updateSVGRendererForElementChange()
+void SVGElement::updateSVGRendererForElementChange(Style::SVGRendererUpdateType kind)
 {
     Ref<Document> document = this->document();
-    document->updateSVGRenderer(*this);
+    document->updateSVGRenderer(*this, kind);
 }
 
 void SVGElement::svgAttributeChanged(const QualifiedName& attrName)

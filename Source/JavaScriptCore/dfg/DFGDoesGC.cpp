@@ -436,6 +436,8 @@ bool doesGC(Graph& graph, Node* node)
     case NewStringObject:
     case NewMap:
     case NewSet:
+    case NewWeakMap:
+    case NewWeakSet:
     case NewSymbol:
     case MakeRope:
     case MakeAtomString:
@@ -465,6 +467,7 @@ bool doesGC(Graph& graph, Node* node)
     case StringSlice:
     case StringSubstring:
     case StringSubstr:
+    case StringIteratorNext:
     case StringValueOf:
     case CreateRest:
     case ToUpperCase:
@@ -476,6 +479,7 @@ bool doesGC(Graph& graph, Node* node)
     case ArrayConcatAppendOne:
     case ArrayIncludes:
     case ArrayIndexOf:
+    case ArrayJoin:
     case ParseInt: // We might resolve a rope even though we don't clobber anything.
     case SetAdd:
     case MapSet:
@@ -502,6 +506,7 @@ bool doesGC(Graph& graph, Node* node)
     case StringEndsWith:
     case StringSplit:
     case StringMatch:
+    case StringSearch:
     case ResolvePromiseFirstResolving:
     case RejectPromiseFirstResolving:
     case FulfillPromiseFirstResolving:
@@ -669,6 +674,7 @@ bool doesGC(Graph& graph, Node* node)
         return true;
 
     case StringFromCharCode:
+    case StringFromCodePoint:
         if (node->child1()->isInt32Constant() && (node->child1()->asUInt32() <= maxSingleCharacterString))
             return false;
         return true;

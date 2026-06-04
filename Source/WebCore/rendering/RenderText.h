@@ -65,7 +65,7 @@ public:
     const RenderStyle& style() const LIFETIME_BOUND;
 
     const RenderStyle& firstLineStyle() const LIFETIME_BOUND;
-    const RenderStyle* getCachedPseudoStyle(const Style::PseudoElementIdentifier&, const RenderStyle* parentStyle = nullptr) const LIFETIME_BOUND;
+    const RenderStyle* lazyPseudoElementStyle(const Style::PseudoElementIdentifier&, const RenderStyle* parentStyle = nullptr) const LIFETIME_BOUND;
 
     Color selectionBackgroundColor() const;
     Color selectionForegroundColor() const;
@@ -119,7 +119,7 @@ public:
         bool hasBreak { false };
         bool endsWithBreak { false };
     };
-    Widths trimmedPreferredWidths(float leadWidth, bool& stripFrontSpaces);
+    Widths trimmedIntrinsicLogicalWidths(float leadingWidth, bool& stripFrontSpaces);
 
     float hangablePunctuationStartWidth(unsigned index) const;
     float hangablePunctuationEndWidth(unsigned index) const;
@@ -192,7 +192,7 @@ public:
     std::optional<bool> hasStrongDirectionalityContent() const { return m_hasStrongDirectionalityContent; }
 
 protected:
-    virtual void computePreferredLogicalWidths(float leadWidth, bool forcedMinMaxWidthComputation = false);
+    virtual void computeMinMaxIntrinsicLogicalWidths(float leadingWidth, bool forcedMinMaxWidthComputation = false);
     void willBeDestroyed() override;
 
     virtual void setRenderedText(const String&);
@@ -216,7 +216,7 @@ private:
     LayoutRect selectionRectForRepaint(const RenderLayerModelObject* repaintContainer, bool clipToVisibleContent = true) final;
     RepaintRects localRectsForRepaint(RepaintOutlineBounds) const final;
 
-    void computePreferredLogicalWidths(float leadWidth, SingleThreadWeakHashSet<const Font>& fallbackFonts, GlyphOverflow&, bool forcedMinMaxWidthComputation = false);
+    void computeMinMaxIntrinsicLogicalWidths(float leadingWidth, SingleThreadWeakHashSet<const Font>& fallbackFonts, GlyphOverflow&, bool forcedMinMaxWidthComputation = false);
 
     bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const HitTestLocation&, const LayoutPoint&, HitTestAction) final { ASSERT_NOT_REACHED(); return false; }
 
@@ -289,11 +289,11 @@ inline const RenderStyle& RenderText::firstLineStyle() const
     return parent()->firstLineStyle();
 }
 
-inline const RenderStyle* RenderText::getCachedPseudoStyle(const Style::PseudoElementIdentifier& pseudoElementIdentifier, const RenderStyle* parentStyle) const
+inline const RenderStyle* RenderText::lazyPseudoElementStyle(const Style::PseudoElementIdentifier& pseudoElementIdentifier, const RenderStyle* parentStyle) const
 {
     // Pseudostyle is associated with an element, so ascend the tree until we find a non-anonymous ancestor.
     if (auto* ancestor = firstNonAnonymousAncestor())
-        return ancestor->getCachedPseudoStyle(pseudoElementIdentifier, parentStyle);
+        return ancestor->lazyPseudoElementStyle(pseudoElementIdentifier, parentStyle);
     return nullptr;
 }
 
