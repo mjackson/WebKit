@@ -155,8 +155,23 @@ public:
     IndexingType indexingTypeAndMisc() const { return m_indexingTypeAndMisc; }
     IndexingType indexingMode() const { return indexingTypeAndMisc() & AllArrayTypes; }
     IndexingType indexingType() const { return indexingTypeAndMisc() & AllWritableArrayTypes; }
+    // SPEC-objectmodel M5: structureID() returns the RAW bits, NEVER nuke-masked —
+    // GC visitation (visitButterflyImpl) and every isNuked()/didRace test depend
+    // on observing the nuke bit (history §16.2).
     StructureID structureID() const { return m_structureID; }
-    Structure* structure() const { return m_structureID.decode(); }
+    // SPEC-objectmodel M5: with shared-memory threads (Options::useJSThreads())
+    // foreign readers can observe a transiently nuked StructureID mid-transition.
+    // structure() — and ONLY structure() — clears the nuke bit before decoding;
+    // the resulting pre-transition structure's offsets are always satisfied by
+    // the not-yet-replaced or superset storage, because live storage never
+    // shrinks (deletes quarantine slots — I18/I30; flat->segmented re-pairs old
+    // offsets via the TAG dispatch, not the structure; history §15.4). The
+    // decontaminate() is unconditional: flag-off no nuked ID is ever decoded
+    // through structure() (the nuking thread is the only observer and does not
+    // call it inside the window), so clearing an always-clear bit is
+    // behavior-identical (I22). Exact-decode paths (transition protocols, GC)
+    // use structureID() raw + StructureID::tryDecode/didRace instead.
+    Structure* structure() const { return m_structureID.decontaminate().decode(); }
     void setStructure(VM&, Structure*);
     void setStructureIDDirectly(StructureID id) { m_structureID = id; }
     void clearStructure() { m_structureID = StructureID(); }

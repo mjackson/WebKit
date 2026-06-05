@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // copyOnWrite arrays shared across threads. Array literals of constants start
 // with CoW butterflies that may be shared between arrays from the same
 // allocation site; a write from any thread must convert only the written

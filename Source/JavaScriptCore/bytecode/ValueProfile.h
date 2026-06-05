@@ -33,6 +33,7 @@
 #include "Structure.h"
 #include "VirtualRegister.h"
 #include <span>
+#include <wtf/Atomics.h>
 #include <wtf/PrintStream.h>
 #include <wtf/StringPrintStream.h>
 
@@ -61,15 +62,50 @@ struct ValueProfileBase {
         return m_buckets + numberOfBuckets + i;
     }
 
+    // THREADS §5.7.4 (SPEC-jit Task 12): profile buckets are racily written by JIT'd/LLInt
+    // fast paths (plain aligned 64-bit stores, allowed to stay plain) on any of N mutators,
+    // racily written by C++ slow paths, and racily read by compiler threads (G8: not
+    // lock-guarded on 64-bit, NoLockingNecessaryTag). Tolerance contract (I12): every
+    // access is one aligned 64-bit load/store — word-atomic, never torn — and profiles
+    // only ever SELECT speculation; emitted guards validate. C++ accesses go through these
+    // relaxed-atomic helpers so the race is explicit and TSAN-clean. On 32-bit the
+    // JSCJSValue.h tag/payload protocol is kept.
+#if USE(JSVALUE64)
+    EncodedJSValue loadBucketConcurrently(unsigned i) const
+    {
+        ASSERT(i < totalNumberOfBuckets);
+        return WTF::atomicLoad(const_cast<EncodedJSValue*>(&m_buckets[i]), std::memory_order_relaxed);
+    }
+
+    void storeBucketConcurrently(unsigned i, EncodedJSValue value)
+    {
+        ASSERT(i < totalNumberOfBuckets);
+        WTF::atomicStore(&m_buckets[i], value, std::memory_order_relaxed);
+    }
+#else
+    // 32-bit: keep JSCJSValue.h's tag/payload protocol (plain when !ENABLE(CONCURRENT_JS)).
+    EncodedJSValue loadBucketConcurrently(unsigned i) const
+    {
+        ASSERT(i < totalNumberOfBuckets);
+        return JSValue::encode(JSValue::decodeConcurrent(&m_buckets[i]));
+    }
+
+    void storeBucketConcurrently(unsigned i, EncodedJSValue value)
+    {
+        ASSERT(i < totalNumberOfBuckets);
+        updateEncodedJSValueConcurrent(m_buckets[i], value);
+    }
+#endif
+
     void clearBuckets()
     {
         for (unsigned i = 0; i < totalNumberOfBuckets; ++i)
-            clearEncodedJSValueConcurrent(m_buckets[i]);
+            storeBucketConcurrently(i, JSValue::encode(JSValue()));
     }
-    
+
     const ClassInfo* classInfo(unsigned bucket) const
     {
-        JSValue value = JSValue::decodeConcurrent(&m_buckets[bucket]);
+        JSValue value = JSValue::decode(loadBucketConcurrently(bucket));
         if (!!value) {
             if (!value.isCell())
                 return nullptr;
@@ -77,12 +113,12 @@ struct ValueProfileBase {
         }
         return nullptr;
     }
-    
+
     unsigned numberOfSamples() const
     {
         unsigned result = 0;
         for (unsigned i = 0; i < totalNumberOfBuckets; ++i) {
-            if (!!JSValue::decodeConcurrent(&m_buckets[i]))
+            if (!!JSValue::decode(loadBucketConcurrently(i)))
                 result++;
         }
         return result;
@@ -104,12 +140,12 @@ struct ValueProfileBase {
         return out.toCString();
     }
     
-    void dump(PrintStream& out)
+    SUPPRESS_TSAN void dump(PrintStream& out)
     {
         out.print("sampled before = ", isSampledBefore(), " live samples = ", numberOfSamples(), " prediction = ", SpeculationDump(m_prediction));
         bool first = true;
         for (unsigned i = 0; i < totalNumberOfBuckets; ++i) {
-            JSValue value = JSValue::decode(m_buckets[i]);
+            JSValue value = JSValue::decode(loadBucketConcurrently(i));
             if (!!value) {
                 if (first) {
                     out.printf(": ");
@@ -125,17 +161,17 @@ struct ValueProfileBase {
     {
         SpeculatedType merged = SpecNone;
         for (unsigned i = 0; i < totalNumberOfBuckets; ++i) {
-            JSValue value = JSValue::decodeConcurrent(&m_buckets[i]);
+            JSValue value = JSValue::decode(loadBucketConcurrently(i));
             if (!value)
                 continue;
-            
+
             mergeSpeculation(merged, speculationFromValue(value));
 
-            updateEncodedJSValueConcurrent(m_buckets[i], JSValue::encode(JSValue()));
+            storeBucketConcurrently(i, JSValue::encode(JSValue()));
         }
 
         mergeSpeculation(m_prediction, merged);
-        
+
         return m_prediction;
     }
 
@@ -150,6 +186,13 @@ struct ValueProfileBase {
 
     SpeculatedType m_prediction { SpecNone };
 };
+
+#if USE(JSVALUE64)
+// THREADS §5.7.4: word-atomicity of bucket accesses relies on naturally aligned 8-byte words.
+static_assert(sizeof(EncodedJSValue) == 8);
+static_assert(alignof(ValueProfileBase<1, 0>) >= alignof(EncodedJSValue));
+static_assert(alignof(ValueProfileBase<0, 1>) >= alignof(EncodedJSValue));
+#endif
 
 struct MinimalValueProfile : public ValueProfileBase<0, 1> {
     MinimalValueProfile(): ValueProfileBase<0, 1>() { }

@@ -32,6 +32,7 @@
 #include "JSPromise.h"
 #include "ObjectConstructor.h"
 #include "ThreadObject.h"
+#include <wtf/ParkingLot.h>
 
 namespace JSC {
 
@@ -92,6 +93,12 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncWait, (JSGlobalObject* globalObject, 
         return throwVMTypeError(globalObject, scope, "Condition.prototype.wait requires a Lock argument"_s);
 
     NativeLockState& lock = lockObject->lockState();
+    // Frozen 4.3: sync cond.wait requires a 5.3 SYNC hold (m_holder). Inside
+    // an asyncHold(fn) delivered fn the lock is async-held (4.3(b)
+    // territory): sync wait correctly throws here — use cond.asyncWait,
+    // whose (b) arm consumes the live grant. (The companion sync-in-async
+    // hazard, lock.hold inside that fn, throws "Lock is not recursive" via
+    // the D10 m_asyncGrantRunner guard in LockObject.cpp.)
     if (!lock.heldByCurrentThread())
         return throwVMTypeError(globalObject, scope, "Condition.prototype.wait requires the lock to be held by the caller"_s);
     if (!jsThreadsCanBlockOnCurrentThread(vm))
@@ -100,36 +107,98 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncWait, (JSGlobalObject* globalObject, 
     NativeConditionState& condition = conditionObject->conditionState();
     Ref<CondWaiter> waiter = CondWaiter::create(CondWaiter::Kind::Sync);
 
-    // Enqueue before releasing the JS lock: no lost wakeups (SPEC-api F3).
+    // Step 1 (SPEC-api 5.4): enqueue Waiting, under queueLock, while the JS
+    // Lock's m_lock is still held (5.9(f) against-rank exemption). Together
+    // with step 2 this is the lost-wakeup closure (F3, I9): any notify that
+    // can observe the state this waiter is waiting on can only run after the
+    // JS Lock is released, by which point the waiter is already enqueued.
     {
         Locker queueLocker { condition.queueLock };
         condition.waiters.append(waiter.copyRef());
     }
 
-    // Release the JS lock, then the GIL; park.
+    // Step 2: release the JS Lock (clear m_holder, unlock, pump 5.5a R).
     lock.releaseSyncHold();
     lock.releasePump(vm);
+
+    bool terminated = false;
     {
-        // Depth-free GIL drop (see GILDroppedSection in LockObject.h):
-        // waiters park and wake in arbitrary order, which DropAllLocks'
-        // strict-LIFO unwind protocol cannot tolerate. Do NOT reacquire
-        // lock.m_lock inside this scope either: holding it across the GIL
-        // reacquire would deadlock against the other waiters of the same
-        // Lock woken by one notifyAll.
+        // Step 3: drop the GIL. Depth-free GIL drop (see GILDroppedSection
+        // in LockObject.h): waiters park and wake in arbitrary order, which
+        // DropAllLocks' strict-LIFO unwind protocol cannot tolerate.
         GILDroppedSection droppedSection(vm);
-        Locker queueLocker { condition.queueLock };
-        while (!waiter->state.load(std::memory_order_acquire))
-            waiter->condition.wait(condition.queueLock);
+
+        // Step 4: park on &waiter->state, in 10ms quanta that poll
+        // vm.hasTerminationRequest() between parks (landed deviation D9,
+        // docs/threads/INTEGRATE-api.md): VMTraps cannot wake a
+        // ParkingLot-parked condition waiter, so an infinite park is
+        // unkillable under the watchdog when the would-be notifier was
+        // itself terminated and unwound without notifying — the exact
+        // failure mode the mandatory 5.6-4 property-wait poll closes. The
+        // park-side validation runs under the ParkingLot internal queue
+        // lock (5.9(a1)): a notify that flipped state before we park makes
+        // validation fail, so we never sleep through it; a notify that
+        // flips after we are enqueued unparks us. A quantum timeout simply
+        // re-loops (never surfaces as a spurious return), so quantum
+        // wakeups are invisible to JS.
+        while (waiter->state.load(std::memory_order_acquire) == CondWaiter::waiting
+            && !vm.hasTerminationRequest()) {
+            ParkingLot::parkConditionally(
+                &waiter->state,
+                [&] { return waiter->state.load(std::memory_order_acquire) == CondWaiter::waiting; },
+                [] { },
+                MonotonicTime::now() + Seconds::fromMilliseconds(10));
+        }
+
+        // Step 5: decide under queueLock. Notified => notify already
+        // dequeued us. Still Waiting => only termination exits the loop
+        // that way: remove ourselves (we must still be present, since only
+        // notify dequeues and it flips state before doing so — the
+        // dequeued <=> flipped invariant), exactly like the spurious-wakeup
+        // arm this used to be. (If the termination request vanished, the
+        // removal simply surfaces as a legal spurious wakeup, I9.)
+        {
+            Locker queueLocker { condition.queueLock };
+            if (waiter->state.load(std::memory_order_acquire) == CondWaiter::waiting) {
+                bool removed = condition.waiters.removeFirstMatching([&](auto& entry) {
+                    return entry.ptr() == waiter.ptr();
+                });
+                RELEASE_ASSERT(removed);
+                terminated = vm.hasTerminationRequest();
+            }
+        }
+
+        // Still inside step 3's GIL-dropped scope: reacquire the JS Lock,
+        // blocking WITHOUT the GIL (no recursion/G11 check here, 5.4-5: the
+        // holder needs the GIL to run JS and release, so we must never block
+        // on m_lock while holding it). The GILDroppedSection destructor then
+        // reacquires the GIL WITH m_lock held — the one permitted
+        // rank-4-leaf shape of 5.9(e), same as the contended hold() path.
+        // Deadlock-free: every contender blocks on m_lock only after fully
+        // releasing the GIL, and the holder releases m_lock under the GIL in
+        // its hold epilogue (or pump/release path), so our GIL reacquisition
+        // never waits on a thread that needs m_lock. D9 again: the
+        // reacquisition is bounded by the same 10ms termination-poll quanta
+        // (the current holder may never release if it was terminated); on
+        // termination we leave WITHOUT the lock — the enclosing hold()'s
+        // epilogue guard (heldByCurrentThread) then skips its release, the
+        // same consumed-hold shape as 4.3(a).
+        if (!terminated) {
+            while (!lock.m_lock.tryLockWithTimeout(Seconds::fromMilliseconds(10))) {
+                if (vm.hasTerminationRequest()) {
+                    terminated = true;
+                    break;
+                }
+            }
+            if (!terminated)
+                lock.m_holder.store(&Thread::currentSingleton(), std::memory_order_relaxed);
+        }
     }
-    // GIL held again. Reacquire the Lock without ever blocking on m_lock
-    // while holding the GIL (the holder needs the GIL to run JS and
-    // release): tryLock, and on failure hand the GIL off around a yield so
-    // the holder can finish (depth-free; see jsThreadGILHandoffYield).
-    // Spin-with-yield is acceptable for the phase-1 GIL stub; the real
-    // implementation replaces this with a parking acquire.
-    while (!lock.m_lock.tryLock())
-        jsThreadGILHandoffYield(vm);
-    lock.m_holder.store(&Thread::currentSingleton(), std::memory_order_relaxed);
+    if (terminated) {
+        // Same surfacing as the 5.6-7 property-wait path; back under the GIL.
+        vm.throwTerminationException();
+        return { };
+    }
     return JSValue::encode(jsUndefined());
 }
 
@@ -147,25 +216,57 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncAsyncWait, (JSGlobalObject* globalObj
 
     NativeLockState& lock = lockObject->lockState();
 
-    // (a) sync-held by the caller, or (b) async-held; both consume the hold.
-    if (lock.heldByCurrentThread()) {
-        lock.releaseSyncHold();
-        lock.releasePump(vm);
-    } else {
-        RefPtr<AsyncTicket> holder;
-        {
-            Locker queueLocker { lock.m_queueLock };
-            holder = lock.m_asyncHolder;
-        }
-        if (!holder)
-            return throwVMTypeError(globalObject, scope, "Condition.prototype.asyncWait requires the lock to be held"_s);
-        holder->tryConsume(); // (b) is unvalidated; an outstanding release fn then throws
-        lock.asyncReleaseInternal(*holder, vm);
+    // SPEC-api 4.3: the lock must be (a) sync-held by the caller (5.3
+    // m_holder) or (b) async-held (live m_asyncHolder ticket); else
+    // TypeError. Validate before mutating anything.
+    bool syncHeld = lock.heldByCurrentThread();
+    RefPtr<AsyncTicket> asyncHolder;
+    if (!syncHeld) {
+        Locker queueLocker { lock.m_queueLock };
+        asyncHolder = lock.m_asyncHolder;
+        // (b) tightening (recorded as D6 in docs/threads/INTEGRATE-api.md):
+        // "live m_asyncHolder ticket" means a DELIVERED grant. The pump /
+        // immediate-grant path installs m_asyncHolder before the grant's
+        // settle task runs; consuming such a granted-but-unsettled hold here
+        // (reachable synchronously: lock.asyncHold(fn); cond.asyncWait(lock)
+        // in one turn) would unlock m_lock while the with-fn settle task
+        // later runs fn WITHOUT the lock (mutual-exclusion hole, I6) — and,
+        // no-fn, would resolve the promise with a release fn that always
+        // throws the 4.2 Error for a release the user never performed. An
+        // undelivered grant is not observable by JS, so it is "not held"
+        // for 4.3 purposes: fall through to the TypeError.
+        if (asyncHolder && !asyncHolder->grantDelivered())
+            asyncHolder = nullptr;
+        // (b) tightening, round 4 (recorded as D12 in
+        // docs/threads/INTEGRATE-api.md): a DELIVERED with-fn grant is "held"
+        // only FOR THE THREAD CURRENTLY RUNNING fn. While fn is live, the
+        // lock's mutual exclusion is embodied by the D10 runner identity
+        // (NativeLockState::m_asyncGrantRunner); if fn parks at any
+        // GIL-dropping site (property Atomics.wait, join, a contended hold on
+        // another lock, the D2 notify yield), a FOREIGN thread reaching here
+        // must not consume the grant — asyncReleaseInternal below would
+        // unlock m_lock while fn's remaining body runs believing it still
+        // holds the lock, and a third thread's lock.hold would then succeed
+        // mid-critical-section (I6, the cross-thread variant of the D6
+        // hole). Same-thread consumption from inside fn (I23) still passes:
+        // the runner IS the current thread. The NO-FN grant's release fn is
+        // a transferable capability per the frozen 4.3(b) "unvalidated
+        // consumption" text, so cross-thread consumption stays legal for
+        // that arm (escalated to the spec owner in the D12 entry).
+        if (asyncHolder && asyncHolder->grantWithFunction && !lock.asyncGrantRunByCurrentThread())
+            asyncHolder = nullptr;
     }
+    if (!syncHeld && !asyncHolder)
+        return throwVMTypeError(globalObject, scope, "Condition.prototype.asyncWait requires the lock to be held"_s);
 
+    // Build the waiter and enqueue it on the condition BEFORE releasing the
+    // lock, mirroring the sync wait() steps 1-2 ordering (F3): once the lock
+    // is released, a notify is already able to find this waiter. The ticket's
+    // dependency vector roots the lock cell for the promise's lifetime (5.5);
+    // the registration's addPendingWork is what keeps the shell alive (I20).
     JSPromise* promise = JSPromise::create(vm, globalObject->promiseStructure());
     Ref<AsyncTicket> ticket = AsyncTicket::create(globalObject, promise, { lockObject });
-    ticket->grantWithFunction = false; // resolves with a fresh release fn on re-grant
+    ticket->grantWithFunction = false; // resolves with a fresh release fn on re-grant (no-fn contract, 4.3)
 
     Ref<CondWaiter> waiter = CondWaiter::create(CondWaiter::Kind::Async);
     waiter->ticket = ticket.ptr();
@@ -174,6 +275,20 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncAsyncWait, (JSGlobalObject* globalObj
         NativeConditionState& condition = conditionObject->conditionState();
         Locker queueLocker { condition.queueLock };
         condition.waiters.append(WTF::move(waiter));
+    }
+
+    // BOTH arms consume the hold (4.3), then release now and pump R (5.5a).
+    if (syncHeld) {
+        // (a): clear m_holder + unlock; the enclosing hold()'s epilogue
+        // guard then skips its release (5.3).
+        lock.releaseSyncHold();
+        lock.releasePump(vm);
+    } else {
+        // (b) is unvalidated consumption: CAS the holder ticket's consumed
+        // flag; an outstanding release fn called later loses the CAS and
+        // throws the 4.2 Error. Then run the 5.5a async-release sequence.
+        asyncHolder->tryConsume();
+        lock.asyncReleaseInternal(*asyncHolder, vm);
     }
     return JSValue::encode(promise);
 }
@@ -193,10 +308,17 @@ static EncodedJSValue notifyImpl(JSGlobalObject* globalObject, CallFrame* callFr
     {
         Locker queueLocker { condition.queueLock };
         while (woken < maxCount && !condition.waiters.isEmpty()) {
+            // SPEC-api 5.4 notify: dequeue FIFO (sync + async uniformly,
+            // 4.3); flip state Waiting -> Notified (release) STILL under
+            // queueLock — dequeued <=> flipped, atomic against the
+            // wait()-side step-5 re-check — then unpark. unparkOne only
+            // takes the ParkingLot internal lock (rank-4 leaf), legal under
+            // a rank-3 lock (5.9); it wakes the parked waiter, or defeats
+            // its park-side validation if it has not parked yet (F3).
             Ref<CondWaiter> waiter = condition.waiters.takeFirst();
-            waiter->state.store(1, std::memory_order_release);
+            waiter->state.store(CondWaiter::notified, std::memory_order_release);
             if (waiter->kind == CondWaiter::Kind::Sync)
-                waiter->condition.notifyOne();
+                ParkingLot::unparkOne(&waiter->state);
             else
                 asyncWoken.append(WTF::move(waiter));
             woken++;
@@ -214,6 +336,20 @@ static EncodedJSValue notifyImpl(JSGlobalObject* globalObject, CallFrame* callFr
     // the GIL forever and those waiters can never run. Unconditional and
     // depth-free on purpose: see jsThreadGILHandoffYield (LockObject.h) for
     // why a DropAllLocks-based handoff livelocks against parked waiters.
+    //
+    // LANDED DEVIATION from frozen SPEC-api 5.2 (recorded in
+    // docs/threads/INTEGRATE-api.md "Landed deviations", queued for the
+    // post-GIL re-freeze): this makes notify()/notifyAll() a yield point in
+    // addition to 5.2's blocking-park list. 5.2 as written is unimplementable
+    // for cond.notify under a cooperative GIL — a JS-looping notifier would
+    // starve its own waiters forever (cond.wait can only finish by
+    // reacquiring the GIL). Foreign JS can therefore run inside a notify()
+    // call, including while the caller still holds the JS Lock's rank-4
+    // m_lock (notify-under-hold); that is the same shape as the 5.4 wait-side
+    // reacquisition (GIL acquired with m_lock held, 5.9(e) leaf rule), so no
+    // new lock-order edge is introduced. Race tests that rendezvous through
+    // notify loops (condition-notify-all*, wait-notify-storm) depend on this
+    // yield; the GIL-phase semantic oracle includes it deliberately.
     jsThreadGILHandoffYield(vm);
 
     return JSValue::encode(jsNumber(woken));

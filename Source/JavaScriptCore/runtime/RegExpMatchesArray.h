@@ -79,6 +79,10 @@ ALWAYS_INLINE JSArray* createRegExpMatchesArrayForPlainRegExp(VM& vm, JSGlobalOb
     array->putDirectOffset(vm, RegExpMatchesArrayInputPropertyOffset, input);
     array->putDirectOffset(vm, RegExpMatchesArrayGroupsPropertyOffset, jsUndefined());
 
+    // THREADS-INTEGRATE(objectmodel) §10.7 [assert-only]: fresh thread-private
+    // array — flat by construction (the §9.6 stress hook exempts
+    // uninitialized-restricted windows).
+    ASSERT(!array->mayBeSegmentedButterfly());
     ASSERT(!array->butterfly()->indexingHeader()->preCapacity(matchStructure));
     auto capacity = matchStructure->outOfLineCapacity();
     auto size = matchStructure->outOfLineSize();

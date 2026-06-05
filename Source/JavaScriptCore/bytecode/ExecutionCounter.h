@@ -26,6 +26,7 @@
 #pragma once
 
 #include "Options.h"
+#include <wtf/Atomics.h>
 #include <wtf/Nonmovable.h>
 #include <wtf/PrintStream.h>
 #include <wtf/TZoneMalloc.h>
@@ -63,8 +64,26 @@ public:
     bool checkIfThresholdCrossedAndSet(CodeBlock*);
     void setNewThreshold(int32_t threshold, CodeBlock* = nullptr);
     void NODELETE deferIndefinitely();
-    double count() const { return static_cast<double>(m_totalCount) + m_counter; }
+    double count() const { return static_cast<double>(m_totalCount) + counterValueConcurrently(); }
     void dump(PrintStream&) const;
+
+    // THREADS §5.7.1 (SPEC-jit Task 12): m_counter is racily incremented by JIT'd/LLInt
+    // fast paths (plain adds, allowed to stay plain) on every mutator thread, and is
+    // read/reset by C++ threshold slow paths that may now run on any of N mutators.
+    // All C++ accesses go through these relaxed-atomic helpers so the race is explicit
+    // (word-atomic, never torn; lost increments are benign — profiling is advisory, I12).
+    // The remaining fields (m_totalCount, m_activeThreshold) stay plain per §5.7.7:
+    // <= 8B, word-aligned, advisory to every consumer; concurrent threshold slow paths
+    // racing on them at worst skew the next threshold, never break soundness.
+    int32_t counterValueConcurrently() const
+    {
+        return WTF::atomicLoad(const_cast<int32_t*>(&m_counter), std::memory_order_relaxed);
+    }
+
+    void storeCounterValueConcurrently(int32_t value)
+    {
+        WTF::atomicStore(&m_counter, value, std::memory_order_relaxed);
+    }
 
     template<typename T>
     static T clippedThreshold(CodeBlock* codeBlock, T threshold)

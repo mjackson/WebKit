@@ -433,7 +433,13 @@ bool JSGenericTypedArrayView<Adaptor>::setFromArrayLike(JSGlobalObject* globalOb
 
     if constexpr (TypedArrayStorageType != TypeBigInt64 && TypedArrayStorageType != TypeBigUint64) {
         if (JSArray* array = dynamicDowncast<JSArray>(object); array && isJSArray(array)) [[likely]] {
-            if (safeLength == length && (safeLength + objectOffset) <= array->length() && array->isIteratorProtocolFastAndNonObservable()) {
+            // THREADS-INTEGRATE(objectmodel) §10.7 (entry 7, site 12): a
+            // tagged/segmented word must not be dereferenced as a flat
+            // butterfly by copyFromInt32ShapeArray/copyFromDoubleShapeArray
+            // (spine-as-flat deref = OOB; typedArray.set(sharedArray) is the
+            // canonical attack). Bail to the generic per-element loop below,
+            // which lands in §9.5-dispatched accessors.
+            if (!array->mayBeSegmentedButterfly() && safeLength == length && (safeLength + objectOffset) <= array->length() && array->isIteratorProtocolFastAndNonObservable()) {
                 IndexingType indexingType = array->indexingType() & IndexingShapeMask;
                 if (indexingType == Int32Shape) {
                     copyFromInt32ShapeArray(offset, array, objectOffset, safeLength);

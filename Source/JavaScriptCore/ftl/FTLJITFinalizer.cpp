@@ -32,6 +32,7 @@
 #include "DFGPlan.h"
 #include "FTLState.h"
 #include "ProfilerDatabase.h"
+#include "PropertyInlineCache.h"
 #include "ThunkGenerators.h"
 #include <wtf/TZoneMallocInlines.h>
 
@@ -61,6 +62,24 @@ bool JITFinalizer::finalize()
     CodeBlock* codeBlock = m_plan.codeBlock();
     m_jitCode->setSize(m_codeSize);
     codeBlock->setJITCode(*m_jitCode);
+
+    if (Options::useHandlerICInFTL()) {
+        // Handler-IC sites baked a pointer to this JITCode's JITData into the
+        // generated code; fill it in now that the codeBlock knows its FTL frame
+        // shape. Note: codeBlock->stackPointerOffset() is only correct after
+        // setJITCode() above (it consults the installed jitType/jitCode).
+        m_jitCode->initializeHandlerICJITData(codeBlock->globalObject(), codeBlock->stackPointerOffset() * sizeof(Register));
+
+        // Each handler IC dispatches through its m_handler chain on the very
+        // first execution, so install the shared slow-path handler as the
+        // initial (terminal) node. This must run on the main thread (it touches
+        // VM::m_sharedJITStubs) and before the code is installed/executable —
+        // both hold here: plan finalization is a main-thread operation and
+        // installCode() runs after finalize() returns.
+        for (auto* propertyCache : m_jitCode->common.m_handlerPropertyInlineCaches)
+            propertyCache->initializeHandlerForOptimizingJIT(codeBlock);
+        RELEASE_ASSERT(m_jitCode->common.m_repatchingPropertyInlineCaches.isEmpty());
+    }
 
     if (Options::dumpFTLCodeSize()) [[unlikely]] {
         auto* baselineCodeBlock = codeBlock->baselineAlternative();

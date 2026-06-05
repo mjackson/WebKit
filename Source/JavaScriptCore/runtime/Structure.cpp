@@ -33,10 +33,13 @@
 #include "JSCInlines.h"
 #include "PropertyNameArray.h"
 #include "PropertyTable.h"
+#include "VMLiteShared.h"
 #include "WebAssemblyGCStructure.h"
 #include <wtf/CommaPrinter.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RefPtr.h>
+#include <wtf/ScopedLambda.h>
+#include <wtf/Vector.h>
 
 #define DUMP_STRUCTURE_ID_STATISTICS 0
 
@@ -100,6 +103,21 @@ bool StructureTransitionTable::contains(PointerKey rep, unsigned attributes, Tra
 
 void StructureTransitionTable::add(VM& vm, JSCell* owner, Structure* structure)
 {
+    // SPEC-objectmodel Task 3b (SPEC-vmstate §5.3): allocating transition-table
+    // insertions (single-slot -> TransitionMap inflation, map node allocation)
+    // run under the process-global structure-allocation lock. Every caller in
+    // this file acquires it OUTSIDE the owning Structure's m_lock (§6 lock
+    // order: SAL rank 7a < JSCellLock 10a < Structure::m_lock 10b); the lock
+    // is non-recursive, so it must NOT be re-acquired here (vmstate §5.2).
+    ASSERT(!Options::useStructureAllocationLock() || SharedVMState::singleton().structureAllocationRegionDepth() == 1);
+
+    // SPEC-objectmodel L6/I37 (Task 3c): flag-on, inserts run under the owning
+    // Structure's m_lock and every insert site dual-checks getMatching() under
+    // that lock first (adopting a racing winner instead of inserting), so a
+    // duplicate-keyed insert here would silently clobber a published
+    // transition — a logic error.
+    ASSERT(!Options::useJSThreads() || !getMatching(structure));
+
     if (isUsingSingleSlot()) {
         Structure* existingTransition = trySingleTransition();
 
@@ -242,7 +260,16 @@ Structure::Structure(VM& vm, JSGlobalObject* globalObject, JSValue prototype, co
     , m_prototype(prototype, WriteBarrierEarlyInit)
     , m_classInfo(classInfo)
     , m_transitionWatchpointSet(IsWatched)
+    // SPEC-objectmodel §5: both TTL sets start IsWatched for new structures
+    // flag-on; flag-off they are inert (I22).
+    , m_transitionThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
+    , m_writeThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
 {
+    // N1: fresh structure - the creating thread is the sole lock-free
+    // butterfly-less transitioner while the TTL sets are valid (0 flag-off and
+    // on the main thread; never notTTLTID).
+    m_transitionThreadLocalTID = currentButterflyTID();
+
     bool hasStaticNonEnumerableProperty = m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::DontEnum));
     bool hasStaticNonConfigurableProperty = m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::DontDelete));
 
@@ -289,7 +316,12 @@ Structure::Structure(VM& vm, CreatingEarlyCellTag)
     , m_prototype(jsNull(), WriteBarrierEarlyInit)
     , m_classInfo(info())
     , m_transitionWatchpointSet(IsWatched)
+    , m_transitionThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
+    , m_writeThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
 {
+    // N1 (early cell: VM startup runs on the creating thread; 0 on main).
+    m_transitionThreadLocalTID = currentButterflyTID();
+
     TypeInfo typeInfo { StructureType, StructureFlags };
     bool hasStaticNonEnumerableProperty = m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::DontEnum));
     bool hasStaticNonConfigurableProperty = m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::DontDelete));
@@ -336,7 +368,17 @@ Structure::Structure(VM& vm, StructureVariant variant, Structure* previous)
     , m_prototype(previous->m_prototype.get(), WriteBarrierEarlyInit)
     , m_classInfo(previous->m_classInfo)
     , m_transitionWatchpointSet(IsWatched)
+    // SPEC-objectmodel §5: transition targets also start IsWatched flag-on; a
+    // shared instance transitioning INTO this structure fires the target's sets
+    // per-event (F2/§4.2-0) before publishing, so fresh-valid is sound.
+    , m_transitionThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
+    , m_writeThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
 {
+    // N1: the structure transition TID is the CREATOR's TID, copied to targets
+    // (§2.1) - the shape's butterfly-less transition ownership follows the
+    // shape's creator, not whichever thread happens to reuse the shape.
+    m_transitionThreadLocalTID = previous->m_transitionThreadLocalTID;
+
     setDictionaryKind(previous->dictionaryKind());
     setIsPinnedPropertyTable(false);
     setHasBeenFlattenedBefore(previous->hasBeenFlattenedBefore());
@@ -407,6 +449,9 @@ void Structure::destroy(JSCell* cell)
 
 Structure* Structure::create(PolyProtoTag, VM& vm, JSGlobalObject* globalObject, JSObject* prototype, const TypeInfo& typeInfo, const ClassInfo* classInfo, IndexingType indexingType, unsigned inlineCapacity)
 {
+    // Task 3b: deliberately NO StructureAllocationLocker here — the delegated
+    // Structure::create below takes it internally (StructureCreateInlines.h)
+    // and the SAL is non-recursive (nesting self-deadlocks; vmstate §5.2/§5.3).
     Structure* result = Structure::create(vm, globalObject, prototype, typeInfo, classInfo, indexingType, inlineCapacity);
 
     unsigned oldOutOfLineCapacity = result->outOfLineCapacity();
@@ -453,14 +498,26 @@ bool Structure::findStructuresAndMapForMaterialization(Vector<Structure*, 8>& st
     return false;
 }
 
+// SPEC-objectmodel L6(ii) (Task 3c): materialize is already L6-conformant and
+// needs no flag gate —
+// - the chain walk (findStructuresAndMapForMaterialization) inspects each
+//   structure's table slot under THAT structure's m_lock, one at a time;
+// - the SOURCE-table copy below runs while the found structure's m_lock is
+//   still held (findStructures... returns with it locked), so it cannot race
+//   a locked mutation of that published table;
+// - the rebuilt table is PRIVATE until the GCSafe-locked setPropertyTable
+//   publication below (mutated lock-free before that, per L6);
+// - O1: the function-scope DeferGC below is the sanctioned pre-lock deferral
+//   for every allocation made under m_lock here (copy, create, table->add).
+// Callers must NOT hold this structure's m_lock.
 PropertyTable* Structure::materializePropertyTable(VM& vm, bool setPropertyTable)
 {
     ASSERT(!isCompilationThread());
     ASSERT(structure()->classInfoForCells() == info());
     ASSERT(!protectPropertyTableWhileTransitioning());
-    
+
     DeferGC deferGC(vm);
-    
+
     Vector<Structure*, 8> structures;
     Structure* structure;
     PropertyTable* table;
@@ -581,10 +638,39 @@ Structure* Structure::addNewPropertyTransition(VM& vm, Structure* structure, Pro
         return transition;
     }
     
-    Structure* transition = Structure::create(vm, structure, deferred);
+    // SPEC-objectmodel Task 3b (SPEC-vmstate §5.3): the transition Structure's
+    // cell allocation and the allocating transition-table insertion below run
+    // under the structure-allocation lock (SAL, rank 7a), acquired OUTSIDE
+    // Structure::m_lock per the §6 lock order (SAL < JSCellLock < m_lock).
+    // Flag-on only:
+    // - salDeferGC keeps GC triggers out of the SAL regions (heap L5 / S1:
+    //   never collect or park for STW holding the SAL; O1's sanctioned
+    //   pre-lock DeferGC). Structure::create(vm, previous, deferred) cannot
+    //   thread the locker's GCDeferralContext into its allocateCell (its body
+    //   lives in StructureInlines.h, not a [SAL] emission file) — recorded in
+    //   INTEGRATE-objectmodel.md for the vmstate M7 audit.
+    // - salDeferredFire guarantees the previous structure's transition
+    //   watchpoints never fire inline inside Structure::create while the SAL
+    //   is held: watchpoint firing may take rank-6b CodeBlock/jit locks,
+    //   which are OUTER to ours and must never be acquired holding the SAL.
+    std::optional<DeferGC> salDeferGC;
+    std::optional<DeferredStructureTransitionWatchpointFire> salDeferredFire;
+    if (Options::useStructureAllocationLock()) [[unlikely]] {
+        salDeferGC.emplace(vm);
+        if (!deferred) {
+            salDeferredFire.emplace(vm, structure);
+            deferred = &*salDeferredFire;
+        }
+    }
+
+    Structure* transition;
+    {
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        transition = Structure::create(vm, structure, deferred);
+    }
 
     transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->m_cachedPrototypeChain.get());
-    
+
     // While we are adding the property, rematerializing the property table is super weird: we already
     // have a m_transitionPropertyName and transitionPropertyAttributes but the m_transitionOffset is still wrong. If the
     // materialization algorithm runs, it'll build a property table that already has the property but
@@ -616,7 +702,26 @@ Structure* Structure::addNewPropertyTransition(VM& vm, Structure* structure, Pro
 
     checkOffset(transition->transitionOffset(), transition->inlineCapacity());
     if (!structure->hasBeenDictionary()) {
+        // Task 3b: SAL outside m_lock (§6 order); salDeferGC above keeps the
+        // GCSafe locker's deferred collection from starting under the SAL.
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
         GCSafeConcurrentJSLocker locker(structure->m_lock, vm);
+        // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock — a
+        // racing thread may have published an identical transition between
+        // our locked lookup miss and this insert. Adopt the winner: blindly
+        // add()ing would clobber a Structure other instances already use
+        // (lost transition). Our candidate is discarded unreferenced; if it
+        // stole the source's table, the source simply rematerializes from its
+        // transition chain on demand. The winner's offset is authoritative
+        // (deleted-offset reuse can make the racers' offsets diverge).
+        if (Options::useJSThreads()) [[unlikely]] {
+            if (Structure* existing = structure->m_transitionTable.getMatching(transition)) {
+                validateOffset(existing->transitionOffset(), existing->inlineCapacity());
+                offset = existing->transitionOffset();
+                existing->checkOffsetConsistency();
+                return existing;
+            }
+        }
         structure->m_transitionTable.add(vm, structure, transition);
     }
     transition->checkOffsetConsistency();
@@ -656,6 +761,11 @@ Structure* Structure::removePropertyTransitionFromExistingStructureImpl(Structur
 Structure* Structure::removePropertyTransitionFromExistingStructure(Structure* structure, PropertyName propertyName, PropertyOffset& offset)
 {
     ASSERT(!isCompilationThread());
+    // SPEC-objectmodel L6(i)/I37 (Task 3c): flag-on, mutator transition-table
+    // lookups hold the source's m_lock — route to the Concurrently variant.
+    // Flag-off: today's lock-free lookup (I22).
+    if (Options::useJSThreads()) [[unlikely]]
+        return removePropertyTransitionFromExistingStructureConcurrently(structure, propertyName, offset);
     unsigned attributes = 0;
     if (structure->getConcurrently(propertyName.uid(), attributes) == invalidOffset)
         return nullptr;
@@ -687,7 +797,24 @@ Structure* Structure::removeNewPropertyTransition(VM& vm, Structure* structure, 
         return transition;
     }
 
-    Structure* transition = Structure::create(vm, structure, deferred);
+    // Task 3b: SAL emission — see addNewPropertyTransition for the rationale
+    // (pre-lock DeferGC per O1/heap L5; deferred watchpoint fire keeps
+    // rank-6b locks out of the SAL region).
+    std::optional<DeferGC> salDeferGC;
+    std::optional<DeferredStructureTransitionWatchpointFire> salDeferredFire;
+    if (Options::useStructureAllocationLock()) [[unlikely]] {
+        salDeferGC.emplace(vm);
+        if (!deferred) {
+            salDeferredFire.emplace(vm, structure);
+            deferred = &*salDeferredFire;
+        }
+    }
+
+    Structure* transition;
+    {
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        transition = Structure::create(vm, structure, deferred);
+    }
     transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->m_cachedPrototypeChain.get());
 
     // While we are deleting the property, we need to make sure the table is not cleared.
@@ -713,7 +840,20 @@ Structure* Structure::removeNewPropertyTransition(VM& vm, Structure* structure, 
 
     checkOffset(transition->transitionOffset(), transition->inlineCapacity());
     if (!structure->hasBeenDictionary()) {
+        // Task 3b: SAL outside m_lock (§6 order); salDeferGC above keeps the
+        // GCSafe locker's deferred collection from starting under the SAL.
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
         GCSafeConcurrentJSLocker locker(structure->m_lock, vm);
+        // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
+        // addNewPropertyTransition. The winner's offset is authoritative.
+        if (Options::useJSThreads()) [[unlikely]] {
+            if (Structure* existing = structure->m_transitionTable.getMatching(transition)) {
+                validateOffset(existing->transitionOffset(), existing->inlineCapacity());
+                offset = existing->transitionOffset();
+                existing->checkOffsetConsistency();
+                return existing;
+            }
+        }
         structure->m_transitionTable.add(vm, structure, transition);
     }
     transition->checkOffsetConsistency();
@@ -731,6 +871,10 @@ Structure* Structure::changePrototypeTransition(VM& vm, Structure* structure, JS
     bool shouldChain = !structure->hasPolyProto() && structure->typeInfo().type() != GlobalObjectType && !structure->hasBeenDictionary();
     if (shouldChain) {
         ASSERT(structure->isObject());
+        // SPEC-objectmodel L6(i)/I37 (Task 3c): flag-on, this mutator
+        // transition-table lookup holds the source's m_lock (released at the
+        // end of this block, before any allocation). Flag-off: no lock (I22).
+        ConcurrentJSLocker locker(Options::useJSThreads() ? &structure->m_lock : nullptr);
         if (Structure* existingTransition = structure->m_transitionTable.get(key, 0, TransitionKind::ChangePrototype)) {
             ASSERT(!existingTransition->hasPolyProto());
             existingTransition->checkOffsetConsistency();
@@ -741,15 +885,37 @@ Structure* Structure::changePrototypeTransition(VM& vm, Structure* structure, JS
     // Changing [[Prototype]] means that we refresh this object completely.
     // This is very likely that this object will behaves differently from the previous one.
     // Let's pin the table and break the edge to the previous Structure.
-    Structure* transition = Structure::create(vm, structure, &deferred);
+    // Task 3b: SAL emission. The function-scope DeferGC above discharges
+    // O1/heap L5 (no collection under the SAL), and `deferred` is always
+    // non-null here, so no watchpoint fires inline within the SAL region.
+    Structure* transition;
+    {
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        transition = Structure::create(vm, structure, &deferred);
+    }
     PropertyTable* table = structure->copyPropertyTableForPinning(vm);
     transition->pin(Locker { transition->m_lock }, vm, table);
+    transition->fireTTLWatchpointSetsAfterPinning(vm, structure); // SPEC-objectmodel F3
     transition->m_prototype.set(vm, transition, prototype);
     transition->setTransitionKind(TransitionKind::ChangePrototype);
     transition->setMaxOffset(vm, structure->maxOffset());
     checkOffset(transition->transitionOffset(), transition->inlineCapacity());
     if (shouldChain) {
+        // Task 3b: SAL outside m_lock (§6 order); the function-scope DeferGC
+        // keeps the GCSafe locker's deferred collection out of the SAL region.
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
         GCSafeConcurrentJSLocker locker(structure->m_lock, vm);
+        // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
+        // addNewPropertyTransition. (Key: prototype object + ChangePrototype —
+        // transition->storedPrototype() was set above, so getMatching mirrors
+        // the lookup at the top of this function.)
+        if (Options::useJSThreads()) [[unlikely]] {
+            if (Structure* existing = structure->m_transitionTable.getMatching(transition)) {
+                ASSERT(!existing->hasPolyProto());
+                existing->checkOffsetConsistency();
+                return existing;
+            }
+        }
         structure->m_transitionTable.add(vm, structure, transition);
     }
 
@@ -761,12 +927,19 @@ Structure* Structure::changePrototypeTransition(VM& vm, Structure* structure, JS
 Structure* Structure::changeGlobalProxyTargetTransition(VM& vm, Structure* structure, JSGlobalObject* globalObject, DeferredStructureTransitionWatchpointFire& deferred)
 {
     DeferGC deferGC(vm);
-    Structure* transition = Structure::create(vm, structure, &deferred);
+    // Task 3b: SAL emission; DeferGC above discharges O1/heap L5 and
+    // `deferred` is always non-null (no inline watchpoint fire under SAL).
+    Structure* transition;
+    {
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        transition = Structure::create(vm, structure, &deferred);
+    }
 
     transition->setRealm(vm, globalObject);
 
     PropertyTable* table = structure->copyPropertyTableForPinning(vm);
     transition->pin(Locker { transition->m_lock }, vm, table);
+    transition->fireTTLWatchpointSetsAfterPinning(vm, structure); // SPEC-objectmodel F3
     transition->setMaxOffset(vm, structure->maxOffset());
 
     transition->checkOffsetConsistency();
@@ -794,6 +967,10 @@ Structure* Structure::attributeChangeTransitionToExistingStructureImpl(Structure
 Structure* Structure::attributeChangeTransitionToExistingStructure(Structure* structure, PropertyName propertyName, unsigned attributes, PropertyOffset& offset)
 {
     ASSERT(!isCompilationThread());
+    // SPEC-objectmodel L6(i)/I37 (Task 3c): flag-on, mutator transition-table
+    // lookups hold the source's m_lock — route to the Concurrently variant.
+    if (Options::useJSThreads()) [[unlikely]]
+        return attributeChangeTransitionToExistingStructureConcurrently(structure, propertyName, attributes, offset);
     return attributeChangeTransitionToExistingStructureImpl(structure, propertyName, attributes, offset);
 }
 
@@ -829,7 +1006,22 @@ Structure* Structure::attributeChangeTransition(VM& vm, Structure* structure, Pr
 
     // Even if the current structure is dictionary, we should perform transition since this changes attributes of existing properties to keep
     // structure still cacheable.
-    Structure* transition = Structure::create(vm, structure, deferred);
+    // Task 3b: SAL emission — see addNewPropertyTransition for the rationale.
+    std::optional<DeferGC> salDeferGC;
+    std::optional<DeferredStructureTransitionWatchpointFire> salDeferredFire;
+    if (Options::useStructureAllocationLock()) [[unlikely]] {
+        salDeferGC.emplace(vm);
+        if (!deferred) {
+            salDeferredFire.emplace(vm, structure);
+            deferred = &*salDeferredFire;
+        }
+    }
+
+    Structure* transition;
+    {
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        transition = Structure::create(vm, structure, deferred);
+    }
     transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->m_cachedPrototypeChain.get());
 
     {
@@ -854,7 +1046,19 @@ Structure* Structure::attributeChangeTransition(VM& vm, Structure* structure, Pr
 
     checkOffset(transition->transitionOffset(), transition->inlineCapacity());
     if (!structure->hasBeenDictionary()) {
+        // Task 3b: SAL outside m_lock (§6 order); salDeferGC above keeps the
+        // GCSafe locker's deferred collection from starting under the SAL.
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
         GCSafeConcurrentJSLocker locker(structure->m_lock, vm);
+        // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
+        // addNewPropertyTransition.
+        if (Options::useJSThreads()) [[unlikely]] {
+            if (Structure* existing = structure->m_transitionTable.getMatching(transition)) {
+                validateOffset(existing->transitionOffset(), existing->inlineCapacity());
+                existing->checkOffsetConsistency();
+                return existing;
+            }
+        }
         structure->m_transitionTable.add(vm, structure, transition);
     }
     transition->checkOffsetConsistency();
@@ -866,11 +1070,25 @@ Structure* Structure::toDictionaryTransition(VM& vm, Structure* structure, Dicti
 {
     ASSERT(!structure->isUncacheableDictionary());
     DeferGC deferGC(vm);
-    
-    Structure* transition = Structure::create(vm, structure, deferred);
+
+    // Task 3b: SAL emission. The DeferGC above discharges O1/heap L5; the
+    // flag-gated deferred fire keeps rank-6b watchpoint firing out of the
+    // SAL region (see addNewPropertyTransition).
+    std::optional<DeferredStructureTransitionWatchpointFire> salDeferredFire;
+    if (Options::useStructureAllocationLock() && !deferred) [[unlikely]] {
+        salDeferredFire.emplace(vm, structure);
+        deferred = &*salDeferredFire;
+    }
+
+    Structure* transition;
+    {
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        transition = Structure::create(vm, structure, deferred);
+    }
 
     PropertyTable* table = structure->copyPropertyTableForPinning(vm);
     transition->pin(Locker { transition->m_lock }, vm, table);
+    transition->fireTTLWatchpointSetsAfterPinning(vm, structure); // SPEC-objectmodel F3
     transition->setMaxOffset(vm, structure->maxOffset());
     transition->setDictionaryKind(kind);
     transition->setHasBeenDictionary(true);
@@ -912,6 +1130,33 @@ Structure* Structure::becomePrototypeTransition(VM& vm, Structure* structure, De
 PropertyTable* Structure::takePropertyTableOrCloneIfPinned(VM& vm)
 {
     // This must always return a property table. It can't return null.
+
+    // SPEC-objectmodel L6(ii)/I37 (Task 3c): flag-on, the STEAL and the
+    // pinned-table CLONE of this PUBLISHED table both run under the SOURCE's
+    // m_lock, so they cannot interleave with a locked walk or mutation of the
+    // table (a lock-free copy() races a concurrent locked add/rehash and
+    // tears). GCSafe locker = m_lock + DeferGC: copy() allocates a
+    // PropertyTable cell under the lock — O1's sanctioned DeferGC form. The
+    // stolen/cloned/materialized result is PRIVATE to the not-yet-published
+    // transition; the caller may mutate it lock-free until its new Structure
+    // publishes (L6). Flag-off: today's code — clone without the lock (I22).
+    if (Options::useJSThreads()) [[unlikely]] {
+        {
+            GCSafeConcurrentJSLocker locker(m_lock, vm);
+            if (PropertyTable* result = propertyTableOrNull()) {
+                if (isPinnedPropertyTable())
+                    return result->copy(vm, result->size() + 1);
+                setPropertyTable(vm, nullptr);
+                return result;
+            }
+        }
+        // Nothing to steal: rebuild from the transition chain. O1 on
+        // materialize: it opens with a function-scope DeferGC and takes each
+        // chain structure's m_lock itself — never call it holding m_lock.
+        bool setPropertyTable = false;
+        return materializePropertyTable(vm, setPropertyTable);
+    }
+
     PropertyTable* result = propertyTableOrNull();
     if (result) {
         if (isPinnedPropertyTable())
@@ -929,6 +1174,10 @@ Structure* Structure::nonPropertyTransitionSlow(VM& vm, Structure* structure, Tr
     IndexingType indexingModeIncludingHistory = newIndexingType(structure->indexingModeIncludingHistory(), transitionKind);
     
     if (!structure->isDictionary()) {
+        // SPEC-objectmodel L6(i)/I37 (Task 3c): flag-on, this mutator
+        // transition-table lookup holds the source's m_lock. Flag-off: no
+        // lock (I22).
+        ConcurrentJSLocker locker(Options::useJSThreads() ? &structure->m_lock : nullptr);
         if (Structure* existingTransition = structure->m_transitionTable.get(nullptr, 0, transitionKind)) {
             ASSERT(existingTransition->transitionKind() == transitionKind);
             ASSERT(existingTransition->indexingModeIncludingHistory() == indexingModeIncludingHistory);
@@ -937,8 +1186,21 @@ Structure* Structure::nonPropertyTransitionSlow(VM& vm, Structure* structure, Tr
     }
     
     DeferGC deferGC(vm);
-    
-    Structure* transition = Structure::create(vm, structure, deferred);
+
+    // Task 3b: SAL emission. The DeferGC above discharges O1/heap L5; the
+    // flag-gated deferred fire keeps rank-6b watchpoint firing out of the
+    // SAL region (see addNewPropertyTransition).
+    std::optional<DeferredStructureTransitionWatchpointFire> salDeferredFire;
+    if (Options::useStructureAllocationLock() && !deferred) [[unlikely]] {
+        salDeferredFire.emplace(vm, structure);
+        deferred = &*salDeferredFire;
+    }
+
+    Structure* transition;
+    {
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        transition = Structure::create(vm, structure, deferred);
+    }
     transition->setTransitionKind(transitionKind);
     transition->m_blob.setIndexingModeIncludingHistory(indexingModeIncludingHistory);
 
@@ -963,8 +1225,9 @@ Structure* Structure::nonPropertyTransitionSlow(VM& vm, Structure* structure, Tr
 
         PropertyTable* table = structure->copyPropertyTableForPinning(vm);
         transition->pinForCaching(Locker { transition->m_lock }, vm, table);
+        transition->fireTTLWatchpointSetsAfterPinning(vm, structure); // SPEC-objectmodel F3
         transition->setMaxOffset(vm, structure->maxOffset());
-        
+
         table = transition->propertyTableOrNull();
         RELEASE_ASSERT(table);
         if (transitionKind == TransitionKind::Seal)
@@ -988,8 +1251,22 @@ Structure* Structure::nonPropertyTransitionSlow(VM& vm, Structure* structure, Tr
     if (structure->isDictionary()) {
         PropertyTable* table = transition->ensurePropertyTable(vm);
         transition->pin(Locker { transition->m_lock }, vm, table);
+        transition->fireTTLWatchpointSetsAfterPinning(vm, structure); // SPEC-objectmodel F3
     } else {
+        // Task 3b: SAL outside m_lock (§6 order); the function-scope GC
+        // deferral above keeps any GC trigger out of the SAL region.
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
         Locker locker { structure->m_lock };
+        // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
+        // addNewPropertyTransition. (Key: null pointer + transitionKind.)
+        if (Options::useJSThreads()) [[unlikely]] {
+            if (Structure* existing = structure->m_transitionTable.getMatching(transition)) {
+                ASSERT(existing->transitionKind() == transitionKind);
+                ASSERT(existing->indexingModeIncludingHistory() == indexingModeIncludingHistory);
+                existing->checkOffsetConsistency();
+                return existing;
+            }
+        }
         structure->m_transitionTable.add(vm, structure, transition);
     }
 
@@ -1003,6 +1280,21 @@ bool Structure::isSealed(VM& vm)
     if (isStructureExtensible())
         return false;
 
+    // SPEC-objectmodel L6(iii) (Task 3c): flag-on, this uncached table WALK
+    // (isSealed iterates every entry's attributes) holds m_lock; the loop
+    // retries if a racing transition stole the table between materialization
+    // and lock acquisition. Flag-off: today's lock-free walk (I22).
+    if (Options::useJSThreads()) [[unlikely]] {
+        while (true) {
+            PropertyTable* table = ensurePropertyTableIfNotEmpty(vm);
+            if (!table)
+                return true;
+            GCSafeConcurrentJSLocker locker(m_lock, vm);
+            if (propertyTableOrNull() == table)
+                return table->isSealed();
+        }
+    }
+
     PropertyTable* table = ensurePropertyTableIfNotEmpty(vm);
     if (!table)
         return true;
@@ -1014,6 +1306,18 @@ bool Structure::isFrozen(VM& vm)
 {
     if (isStructureExtensible())
         return false;
+
+    // SPEC-objectmodel L6(iii) (Task 3c): see isSealed above.
+    if (Options::useJSThreads()) [[unlikely]] {
+        while (true) {
+            PropertyTable* table = ensurePropertyTableIfNotEmpty(vm);
+            if (!table)
+                return true;
+            GCSafeConcurrentJSLocker locker(m_lock, vm);
+            if (propertyTableOrNull() == table)
+                return table->isFrozen();
+        }
+    }
 
     PropertyTable* table = ensurePropertyTableIfNotEmpty(vm);
     if (!table)
@@ -1027,6 +1331,127 @@ Structure* Structure::flattenDictionaryStructure(VM& vm, JSObject* object)
     checkOffsetConsistency();
     ASSERT(isDictionary());
     ASSERT(object->structure() == this);
+
+    // SPEC-objectmodel F3 flatten-under-stop (Task 3; review round 2): flatten
+    // rearranges out-of-line storage in place (renumbered offsets, zeroed
+    // tails, possibly setButterfly(nullptr)/memmove), which is unsound against
+    // racing accessors. Flag-on it ALWAYS runs per-event under the §10.6
+    // veneer. The previous "unshared" fast path (both TTL sets valid, word
+    // not SW/segmented) was unsound: foreign READS fire no watchpoint and
+    // never flip SW, so an object other threads only READ always classified
+    // unshared - yet the flag-on dictionary read path is lock-free
+    // (getDirectConcurrent / locationForOutOfLineOffsetConcurrent take no
+    // cell lock for non-AS shapes), so a foreign reader holding a
+    // just-resolved offset could read a zeroed/moved slot, or chase a
+    // nulled-out butterfly and crash on a pure read race. Read-only foreign
+    // sharing is UNDETECTABLE, so the only sound flag-on choice is the stop;
+    // flatten is rare and already expensive, and genuinely owner-local
+    // objects keep their TTL sets (the firing below stays conditional).
+    if (Options::useJSThreads()) [[unlikely]]
+        return flattenDictionaryStructureUnderStop(vm, object);
+
+    // Holds our values compacted by insertion order. Pre-sized here so the impl
+    // never allocates it under the stop closure on the shared path (O4); on
+    // this unshared path the placement is just shared code.
+    Vector<JSValue> values;
+    if (isUncacheableDictionary()) {
+        PropertyTable* table = propertyTableOrNull();
+        ASSERT(table);
+        values.grow(table->size());
+    }
+    Structure* result = flattenDictionaryStructureImpl(vm, object, values);
+    // Flag-off the impl never bails (its revalidation is flag-on gated), and
+    // flag-on this point is unreachable (routed above).
+    RELEASE_ASSERT(result);
+    return result;
+}
+
+bool Structure::flattenTriggerIsShared(JSObject* object) const
+{
+    ASSERT(Options::useJSThreads());
+    // Shared <=> either TTL set has fired (some instance went notTTLTID or
+    // SW=1 - I11/I12), or this object's own butterfly word is shared-written or
+    // segmented. The word checks are belt-and-braces: F1/F2 fire the sets
+    // before any SW/segmented publication (I10b), so invalid sets subsume them.
+    //
+    // Review round 2: this predicate is NO LONGER a stop-elision gate (it
+    // cannot see read-only foreign sharing, which fires nothing - see
+    // flattenDictionaryStructure). It only decides whether F3 must FIRE the
+    // TTL sets inside the (now unconditional) flatten stop.
+    if (!transitionThreadLocalIsStillValid() || !writeThreadLocalIsStillValid())
+        return true;
+    uint64_t word = object->taggedButterflyWord();
+    return butterflySharedWrite(word) || isSegmentedButterfly(word);
+}
+
+Structure* Structure::flattenDictionaryStructureUnderStop(VM& vm, JSObject* object)
+{
+    ASSERT(Options::useJSThreads());
+
+    // O4: stop-window closures never allocate - the scratch buffer is
+    // pre-allocated out here and re-validated inside; a refit (racing
+    // cell-locked dictionary edit between pre-allocation and stop entry, L3/L4)
+    // RESTARTs the whole operation.
+    while (true) {
+        Vector<JSValue> values;
+        if (isUncacheableDictionary()) {
+            PropertyTable* table = propertyTableOrNull();
+            ASSERT(table);
+            values.grow(table->size());
+        }
+
+        Structure* result = nullptr;
+        bool needsRefit = false;
+        // GT11 caller contract honored: we hold no §6-ranked lock and no cell
+        // lock here; the impl acquires JSCellLock then m_lock INSIDE the stop
+        // (lock spans are bounded and never held across a safepoint - O2 - so
+        // no stopped mutator can be parked while holding them).
+        jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+            if (isUncacheableDictionary()) {
+                PropertyTable* table = propertyTableOrNull();
+                ASSERT(table);
+                if (table->size() != values.size()) {
+                    needsRefit = true;
+                    return;
+                }
+            }
+            // Evaluate the trigger's sharedness BEFORE the impl runs (the impl
+            // may null out the butterfly word; the TTL-set clauses are
+            // monotone either way).
+            bool triggerIsShared = flattenTriggerIsShared(object);
+            result = flattenDictionaryStructureImpl(vm, object, values);
+
+            // F3: fire both sets on the result (== this for flatten), in the
+            // SAME stop, when the TRIGGER is shared. Review round 2: ALL
+            // flag-on flattens now come through this stop, so reaching here
+            // no longer implies sharedness - genuinely owner-local objects
+            // (sets valid, word unshared) keep their sets; firing for them
+            // would needlessly push whole shape families off the flat fast
+            // paths. The STOP itself - not the firing - is what protects the
+            // in-place compaction against lock-free readers (read-only
+            // foreign sharing is undetectable, so the stop is unconditional).
+            if (triggerIsShared
+                && (m_transitionThreadLocalWatchpointSet.isStillValid() || m_writeThreadLocalWatchpointSet.isStillValid()))
+                fireTransitionThreadLocal(vm, "F3: flattenDictionaryStructure on a shared structure/object");
+        }));
+        if (!needsRefit) {
+            // The impl's under-lock revalidation bails (nullptr) only when it
+            // runs OUTSIDE a stop; inside this stop butterflyWorldIsStopped()
+            // holds, so it must have completed.
+            RELEASE_ASSERT(result);
+            return result;
+        }
+    }
+}
+
+Structure* Structure::flattenDictionaryStructureImpl(VM& vm, JSObject* object, Vector<JSValue>& values)
+{
+    checkOffsetConsistency();
+    ASSERT(isDictionary());
+
+    // Loaded once: flag-on the word cannot change underneath us (unshared
+    // thread-local object on the fast path; world stopped on the shared path).
+    const bool objectIsSegmented = Options::useJSThreads() && isSegmentedButterfly(object->taggedButterflyWord());
 
     Locker<JSCellLock> cellLocker(NoLockingNecessary);
 
@@ -1043,10 +1468,22 @@ Structure* Structure::flattenDictionaryStructure(VM& vm, JSObject* object)
     }
 
     // This is the only case we shrink butterfly in this function. We should take a cell lock to protect against concurrent access to the butterfly.
-    if (beforeOutOfLineCapacity != afterOutOfLineCapacity)
+    // SPEC-objectmodel L3/L4 (§6): flag-on, ALL dictionary-mode storage access
+    // is serialized by the cell lock, so take it unconditionally there.
+    if (beforeOutOfLineCapacity != afterOutOfLineCapacity || Options::useJSThreads())
         cellLocker = Locker { object->cellLock() };
 
     GCSafeConcurrentJSLocker locker(m_lock, vm);
+
+    // Review round 2: flag-on, this impl may run ONLY under the §10.6 stop -
+    // its in-place compaction (renumbered offsets, zeroed tails, possible
+    // setButterfly(nullptr)/memmove) is unsound against the lock-free
+    // dictionary READ path, and read-only foreign sharing fires no signal a
+    // revalidation could observe (see flattenDictionaryStructure). Bail out
+    // (nullptr) BEFORE any mutation if a caller ever reaches here unstopped;
+    // locks are released by the destructors.
+    if (Options::useJSThreads() && !butterflyWorldIsStopped(vm)) [[unlikely]]
+        return nullptr;
 
     object->setStructureIDDirectly(id().nuke());
     WTF::storeStoreFence();
@@ -1054,14 +1491,15 @@ Structure* Structure::flattenDictionaryStructure(VM& vm, JSObject* object)
     if (isUncacheableDictionary()) {
         size_t propertyCount = table->size();
 
-        // Holds our values compacted by insertion order. This is OK since GC is deferred.
-        Vector<JSValue> values(propertyCount);
+        // Holds our values compacted by insertion order, pre-allocated by our
+        // callers (O4 on the under-stop path). This is OK since GC is deferred.
+        ASSERT(values.size() == propertyCount);
 
         // Copies out our values from their hashed locations, compacting property table offsets as we go.
         PropertyOffset offset = table->renumberPropertyOffsets(object, m_inlineCapacity, values);
         setMaxOffset(vm, offset);
         ASSERT(transitionOffset() == invalidOffset);
-        
+
         // Copies in our values to their compacted locations.
         for (unsigned i = 0; i < propertyCount; i++)
             object->putDirectOffset(vm, offsetForPropertyNumber(i, m_inlineCapacity), values[i]);
@@ -1072,7 +1510,18 @@ Structure* Structure::flattenDictionaryStructure(VM& vm, JSObject* object)
             object->inlineStorageUnsafe() + inlineSize(),
             (inlineCapacity() - inlineSize()) * sizeof(EncodedJSValue));
 
-        if (Butterfly* butterfly = object->butterfly()) {
+        if (objectIsSegmented) {
+            // Segmented leg (only reachable flag-on, under the stop): clear the
+            // now-unused out-of-line fragment slots. Spines are immutable and
+            // fragments never move (I6), so this is plain slot clearing; the GC
+            // value-visits only slots < outOfLineSize (§4.5 step 4), and no
+            // reader can hold a stale offset across the stop (I34/M7).
+            // THREADS-INTEGRATE(objectmodel): segmentedOutOfLineSlot is defined
+            // by Tasks 4/5 (Butterfly.h/ConcurrentButterfly.cpp).
+            ButterflySpine* spine = butterflySpine(object->taggedButterflyWord());
+            for (size_t i = outOfLineSize(); i < beforeOutOfLineCapacity; ++i)
+                segmentedOutOfLineSlot(spine, static_cast<PropertyOffset>(firstOutOfLineOffset + i))->clear();
+        } else if (Butterfly* butterfly = object->butterfly()) {
             size_t preCapacity = butterfly->indexingHeader()->preCapacity(this);
             void* base = butterfly->base(preCapacity, beforeOutOfLineCapacity);
             void* startOfPropertyStorageSlots = reinterpret_cast<EncodedJSValue*>(base) + preCapacity;
@@ -1086,19 +1535,24 @@ Structure* Structure::flattenDictionaryStructure(VM& vm, JSObject* object)
 
     ASSERT(this->outOfLineCapacity() == afterOutOfLineCapacity);
 
-    if (object->butterfly() && beforeOutOfLineCapacity != afterOutOfLineCapacity) {
+    if (objectIsSegmented) {
+        // Segmented objects never shrink or shift their storage: the spine is
+        // immutable (I6), the aliased flat allocation (if any) stays recorded on
+        // the spine (I7), and the unused slots were cleared above. The slightly
+        // larger retained capacity is an accepted cost of the segmented regime.
+    } else if (object->butterfly() && beforeOutOfLineCapacity != afterOutOfLineCapacity) {
         ASSERT(beforeOutOfLineCapacity > afterOutOfLineCapacity);
         // If the object had a Butterfly but after flattening/compacting we no longer have need of it,
         // we need to zero it out because the collector depends on the Structure to know the size for copying.
         if (!afterOutOfLineCapacity && !this->hasIndexingHeader(object))
             object->setButterfly(vm, nullptr);
-        // If the object was down-sized to the point where the base of the Butterfly is no longer within the 
-        // first CopiedBlock::blockSize bytes, we'll get the wrong answer if we try to mask the base back to 
+        // If the object was down-sized to the point where the base of the Butterfly is no longer within the
+        // first CopiedBlock::blockSize bytes, we'll get the wrong answer if we try to mask the base back to
         // the CopiedBlock header. To prevent this case we need to memmove the Butterfly down.
         else
             object->shiftButterflyAfterFlattening(locker, vm, this, afterOutOfLineCapacity);
     }
-    
+
     WTF::storeStoreFence();
     object->setStructureIDDirectly(id());
 
@@ -1114,6 +1568,100 @@ void Structure::pinForCaching(const AbstractLocker&, VM& vm, PropertyTable* tabl
     setIsPinnedPropertyTable(true);
     setPropertyTable(vm, table);
     m_transitionPropertyName = nullptr;
+}
+
+// ===== SPEC-objectmodel §9.4 fire functions + F3/F4 wiring (Task 3) =====
+
+void Structure::fireThreadLocalSetsWithChainUnderStop(VM& vm, const char* reason, bool alsoFireTransitionThreadLocal)
+{
+    ASSERT(butterflyWorldIsStopped(vm));
+
+    auto fireOne = [&](Structure* structure) {
+        if (alsoFireTransitionThreadLocal && structure->m_transitionThreadLocalWatchpointSet.isStillValid())
+            structure->m_transitionThreadLocalWatchpointSet.fireAll(vm, reason);
+        if (structure->m_writeThreadLocalWatchpointSet.isStillValid())
+            structure->m_writeThreadLocalWatchpointSet.fireAll(vm, reason);
+    };
+
+    fireOne(this);
+
+    // F4 chain-fire (r13): also fire the still-valid sets along this
+    // structure's previousID chain and transition-table successor subtree, in
+    // the SAME stop. Monotone => sound; bounds N-thread warmup stop counts.
+    // Interpretation note (recorded in INTEGRATE-objectmodel.md): the chain
+    // propagates the same set kind(s) that fired - fireWriteThreadLocal (F1)
+    // chains only writeThreadLocal so foreign WRITES do not destroy E1/E4
+    // transition elision for the whole shape family; fireTransitionThreadLocal
+    // (F2/F3) chains both (it implies writeThreadLocal, §5).
+    //
+    // The walk allocates only malloc memory (worklist) - never GC heap (O1/O4;
+    // heap §10A exemption covers metadata writes inside stop windows). DeferGC
+    // satisfies WeakGCMap::forEach's isDeferred() contract during the
+    // transition-table iteration.
+    DeferGC deferGC(vm);
+
+    for (Structure* ancestor = previousID(); ancestor; ancestor = ancestor->previousID())
+        fireOne(ancestor);
+
+    Vector<Structure*, 16> worklist;
+    worklist.append(this);
+    while (!worklist.isEmpty()) {
+        Structure* current = worklist.takeLast();
+        if (current != this)
+            fireOne(current); // Fired with NO lock held: fires may take rank-6b CodeBlock locks, which are OUTER to m_lock (I20).
+        // Collect successors under m_lock (L6: mutator transition-table walks
+        // hold m_lock; mutators are stopped, but compiler threads still run
+        // Concurrently readers).
+        ConcurrentJSLocker locker(current->m_lock);
+        current->m_transitionTable.forEachTransition([&](Structure* successor) {
+            if ((alsoFireTransitionThreadLocal && successor->m_transitionThreadLocalWatchpointSet.isStillValid())
+                || successor->m_writeThreadLocalWatchpointSet.isStillValid())
+                worklist.append(successor);
+        });
+    }
+}
+
+void Structure::fireTransitionThreadLocal(VM& vm, const char* reason)
+{
+    // §9.4: TTL sets fire only inside a stop-the-world window (I13); callers
+    // (F1-F3 sites) reach this through the §10.6 veneer.
+    RELEASE_ASSERT(butterflyWorldIsStopped(vm));
+    // transitionThreadLocal fire implies writeThreadLocal (§5).
+    fireThreadLocalSetsWithChainUnderStop(vm, reason, true);
+}
+
+void Structure::fireWriteThreadLocal(VM& vm, const char* reason)
+{
+    RELEASE_ASSERT(butterflyWorldIsStopped(vm));
+    fireThreadLocalSetsWithChainUnderStop(vm, reason, false);
+}
+
+void Structure::fireTTLWatchpointSetsAfterPinning(VM& vm, const Structure* source)
+{
+    if (!Options::useJSThreads()) [[likely]]
+        return;
+
+    // F3: pin()/pinForCaching() during a transition rearrange/pin the property
+    // table of the RESULT structure; if any input set is invalid (the source's
+    // sets - instances of the old shape that will adopt the result may already
+    // be shared - or, defensively, the result's own), fire BOTH sets on the
+    // result so its instances never run elided fast paths. (GT#8 non-sites -
+    // the poly-proto create/materialize/removeTransition helpers at
+    // Structure.cpp:415-480/:598-670 - are intentionally NOT wired.)
+    bool anyInputInvalid = !transitionThreadLocalIsStillValid() || !writeThreadLocalIsStillValid();
+    if (source)
+        anyInputInvalid |= !source->transitionThreadLocalIsStillValid() || !source->writeThreadLocalIsStillValid();
+    if (!anyInputInvalid)
+        return;
+    if (!transitionThreadLocalIsStillValid() && !writeThreadLocalIsStillValid())
+        return; // Both already invalid; nothing to fire.
+
+    // Called with NO §6-ranked lock held (the pin call sites' Locker temporaries
+    // have been destroyed) - GT11 caller contract for the veneer. Pre-M4 the
+    // stub runs the closure inline under the GIL.
+    jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+        fireTransitionThreadLocal(vm, "F3: pinned-table transition from a structure with fired thread-locality sets");
+    }));
 }
 
 void Structure::allocateRareData(VM& vm)
@@ -1147,14 +1695,17 @@ WatchpointSet* Structure::ensurePropertyReplacementWatchpointSet(VM& vm, Propert
     return result.iterator->value.get();
 }
 
-WatchpointSet* Structure::firePropertyReplacementWatchpointSet(VM& vm, PropertyOffset offset, const char* reason)
+WatchpointSet* Structure::firePropertyReplacementWatchpointSet(VM& vm, PropertyOffset offset, const char* reason, DeferredWatchpointFire* deferred)
 {
     ASSERT(!isCompilationThread());
     auto* structure = this;
     auto* watchpointSet = structure->ensurePropertyReplacementWatchpointSet(vm, offset);
     if (watchpointSet && watchpointSet->state() == IsWatched) {
         StructureRareData* rareData = structure->rareData();
-        watchpointSet->fireAll(vm, reason);
+        if (deferred)
+            watchpointSet->fireAllSlow(vm, deferred); // Invalidates now; fires at scope exit (SPEC-jit §5.6 deferral).
+        else
+            watchpointSet->fireAll(vm, reason);
         if (!rareData->decrementActiveReplacementWatchpointSet())
             structure->setIsWatchingReplacement(false);
     }
@@ -1217,6 +1768,23 @@ PropertyTableStatisticsExitLogger::~PropertyTableStatisticsExitLogger()
 
 PropertyTable* Structure::copyPropertyTableForPinning(VM& vm)
 {
+    // SPEC-objectmodel L6(ii)/I37 (Task 3c): flag-on, the CLONE of this
+    // PUBLISHED table runs under the SOURCE's m_lock (a lock-free clone races
+    // a concurrent locked add/rehash and tears). GCSafe locker = m_lock +
+    // DeferGC: clone() allocates under the lock — O1's sanctioned DeferGC
+    // form. The clone is private to the caller until publication. O1 on the
+    // materialize fallback: it opens with DeferGC and locks per-structure
+    // itself — never call it holding m_lock. Flag-off: today's code (I22).
+    if (Options::useJSThreads()) [[unlikely]] {
+        {
+            GCSafeConcurrentJSLocker locker(m_lock, vm);
+            if (PropertyTable* table = propertyTableOrNull())
+                return PropertyTable::clone(vm, *table);
+        }
+        bool setPropertyTable = false;
+        return materializePropertyTable(vm, setPropertyTable);
+    }
+
     if (PropertyTable* table = propertyTableOrNull())
         return PropertyTable::clone(vm, *table);
     bool setPropertyTable = false;
@@ -1328,7 +1896,26 @@ void Structure::getPropertyNamesFromStructure(VM& vm, PropertyNameArrayBuilder& 
     PropertyTable* table = ensurePropertyTableIfNotEmpty(vm);
     if (!table)
         return;
-    
+
+    // SPEC-objectmodel L6(iii) (Task 3c): flag-on, hold m_lock across BOTH
+    // forEachProperty walks below (one critical section keeps the
+    // strings-then-symbols passes mutually consistent). GCSafe locker = m_lock
+    // + DeferGC: propertyNames.add may allocate under the lock — O1's
+    // sanctioned DeferGC form. Retry if a racing transition stole the table
+    // between materialization and lock acquisition. Flag-off: no lock (I22).
+    std::optional<GCSafeConcurrentJSLocker> l6Locker;
+    if (Options::useJSThreads()) [[unlikely]] {
+        while (true) {
+            l6Locker.emplace(m_lock, vm);
+            if (propertyTableOrNull() == table)
+                break;
+            l6Locker.reset();
+            table = ensurePropertyTableIfNotEmpty(vm);
+            if (!table)
+                return;
+        }
+    }
+
     bool knownUnique = propertyNames.canAddKnownUniqueForStructure();
     bool foundSymbol = false;
 
@@ -1708,11 +2295,36 @@ Structure* Structure::setBrandTransitionFromExistingStructureConcurrently(Struct
 
 Structure* Structure::setBrandTransition(VM& vm, Structure* structure, Symbol* brand, DeferredStructureTransitionWatchpointFire* deferred)
 {
-    Structure* existingTransition = setBrandTransitionFromExistingStructureImpl(structure, &brand->uid());
-    if (existingTransition) 
+    // SPEC-objectmodel L6(i)/I37 (Task 3c): flag-on, mutator transition-table
+    // lookups hold the source's m_lock — route to the Concurrently variant.
+    Structure* existingTransition;
+    if (Options::useJSThreads()) [[unlikely]]
+        existingTransition = setBrandTransitionFromExistingStructureConcurrently(structure, &brand->uid());
+    else
+        existingTransition = setBrandTransitionFromExistingStructureImpl(structure, &brand->uid());
+    if (existingTransition)
         return existingTransition;
 
-    Structure* transition = BrandedStructure::create(vm, structure, &brand->uid(), deferred);
+    // Task 3b: SAL emission — see addNewPropertyTransition for the rationale
+    // (pre-lock DeferGC per O1/heap L5; deferred watchpoint fire keeps
+    // rank-6b locks out of the SAL region). BrandedStructure::create also
+    // allocates its Structure cell without the locker's GCDeferralContext
+    // (unowned file) — covered by salDeferGC; recorded for the M7 audit.
+    std::optional<DeferGC> salDeferGC;
+    std::optional<DeferredStructureTransitionWatchpointFire> salDeferredFire;
+    if (Options::useStructureAllocationLock()) [[unlikely]] {
+        salDeferGC.emplace(vm);
+        if (!deferred) {
+            salDeferredFire.emplace(vm, structure);
+            deferred = &*salDeferredFire;
+        }
+    }
+
+    Structure* transition;
+    {
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        transition = BrandedStructure::create(vm, structure, &brand->uid(), deferred);
+    }
     transition->setTransitionKind(TransitionKind::SetBrand);
 
     transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->m_cachedPrototypeChain.get());
@@ -1726,8 +2338,20 @@ Structure* Structure::setBrandTransition(VM& vm, Structure* structure, Symbol* b
     if (structure->isDictionary()) {
         PropertyTable* table = transition->ensurePropertyTable(vm);
         transition->pin(Locker { transition->m_lock }, vm, table);
+        transition->fireTTLWatchpointSetsAfterPinning(vm, structure); // SPEC-objectmodel F3
     } else {
+        // Task 3b: SAL outside m_lock (§6 order); the function-scope GC
+        // deferral above keeps any GC trigger out of the SAL region.
+        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
         Locker locker { structure->m_lock };
+        // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
+        // addNewPropertyTransition. (Key: brand uid + SetBrand.)
+        if (Options::useJSThreads()) [[unlikely]] {
+            if (Structure* existing = structure->m_transitionTable.getMatching(transition)) {
+                existing->checkOffsetConsistency();
+                return existing;
+            }
+        }
         structure->m_transitionTable.add(vm, structure, transition);
     }
 

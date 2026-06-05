@@ -48,6 +48,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "StringReplaceCache.h"
 #include "StringSplitCache.h"
 #include "StrongForward.h"
+#include "VMLite.h"
 #include "VMThreadContext.h"
 #include "VMTraps.h"
 #include "WeakGCMap.h"
@@ -392,18 +393,45 @@ public:
     // Keep super frequently accessed fields top in VM.
     unsigned disallowVMEntryCount { 0 };
 private:
-    Exception* m_exception { nullptr };
+    // SPEC-vmstate §6.3 relocated member: cross-thread by design, deliberately
+    // NOT in VMLitePrimitives. Kept just outside the block; name/type/sites
+    // unchanged.
     Exception* m_terminationException { nullptr };
-    Exception* m_lastException { nullptr };
 public:
-    // NOTE: When throwing an exception while rolling back the call frame, this may be equal to
-    // topEntryFrame.
-    // FIXME: This should be a void*, because it might not point to a CallFrame.
-    // https://bugs.webkit.org/show_bug.cgi?id=160441
-    // The following two fields are sometimes treated as a pair in assembly code, making usages of the second one implicit.
-    // To find them, look for loadpairq/storepairq of "VM::topCallFrame" in *.asm files.
-    CallFrame* topCallFrame { nullptr };
-    EntryFrame* topEntryFrame { nullptr };
+    // NOTE: When throwing an exception while rolling back the call frame,
+    // callFrameForCatch may be equal to topEntryFrame.
+    // FIXME: callFrameForCatch should be a void*, because it might not point
+    // to a CallFrame. https://bugs.webkit.org/show_bug.cgi?id=160441
+    // topCallFrame/topEntryFrame are sometimes treated as a pair in assembly
+    // code, making usages of the second one implicit. To find them, look for
+    // loadpairq/storepairq of "VM::topCallFrame" in *.asm files.
+    //
+    // SPEC-vmstate §6.4(1) (M6): VM's Group 1-3 members are declared by
+    // expanding the SAME X-macro as VMLitePrimitives (VMLite.h), under this
+    // ONE public: label (frozen). Names are unchanged, so every existing
+    // spelling (C++, offset fns, asserts, .asm) compiles unchanged; the
+    // per-field equivalence asserts below the class pin the two layouts
+    // together. Freeze rules L1-L5 (§6.3) apply: do NOT add, remove, or
+    // reorder fields here — change FOR_EACH_VMLITE_PRIMITIVE_FIELD (spec
+    // revision) or declare new members outside this block.
+#define VM_DECLARE_VMLITE_PRIMITIVE_FIELD(type, name) type name { };
+    FOR_EACH_VMLITE_PRIMITIVE_FIELD(VM_DECLARE_VMLITE_PRIMITIVE_FIELD)
+#undef VM_DECLARE_VMLITE_PRIMITIVE_FIELD
+
+    // SPEC-vmstate §6.4(3): VM doubles as the main thread's physical
+    // VMLitePrimitives. Guarded by the equivalence asserts below the class.
+    // Phase A: consumed by tests only.
+    ALWAYS_INLINE VMLitePrimitives& mainVMLitePrimitives()
+    {
+        return *std::bit_cast<VMLitePrimitives*>(std::bit_cast<uint8_t*>(this) + OBJECT_OFFSETOF(VM, topCallFrame));
+    }
+
+    // SPEC-vmstate §6.4.4: the main thread's carrier (tid 0); non-null exactly
+    // when the VM was constructed with useVMLite on. Consumed by JSLock (M4)
+    // and ~VM.
+    ALWAYS_INLINE VMLite* mainVMLite() { return m_mainVMLite.get(); }
+
+    // SPEC-vmstate §6.3 relocated members (names/types/sites unchanged):
     void* maybeReturnPC { nullptr };
     JSPIContext* topJSPIContext { nullptr };
 private:
@@ -876,18 +904,10 @@ public:
     ALWAYS_INLINE void* currentCLoopStackPointer() const { return traps().currentCLoopStackPointer(); }
 #endif
 
-    EncodedJSValue encodedHostCallReturnValue { };
-    CallFrame* newCallFrameReturnValue;
-    CallFrame* callFrameForCatch { nullptr };
-    void* targetMachinePCForThrow;
-    void* targetMachinePCAfterCatch;
-    JSOrWasmInstruction targetInterpreterPCForThrow;
-    uintptr_t targetInterpreterMetadataPCForThrow;
-    uint32_t targetTryDepthForThrow;
-
-    unsigned varargsLength;
-    uint32_t osrExitIndex;
-    void* osrExitJumpDestination;
+    // SPEC-vmstate §6.4(1)/M6: the Group-2 exception/unwind members formerly
+    // declared here (encodedHostCallReturnValue ... osrExitJumpDestination)
+    // moved up into the VMLitePrimitives X-macro block near the top of VM.
+    // §6.3 relocated member (kept here; deliberately NOT in VMLitePrimitives):
     RegExp* m_executingRegExp { nullptr };
 
     // The threading protocol here is as follows:
@@ -1204,6 +1224,12 @@ private:
 
     void clearException()
     {
+#if ASSERT_ENABLED
+        // SPEC-vmstate I15: m_exception/m_lastException are written only by
+        // the JSLock holder.
+        if (Options::useVMLite())
+            ASSERT(currentThreadIsHoldingAPILock());
+#endif
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
         m_needExceptionCheck = false;
         clearNativeStackTraceOfLastThrow();
@@ -1234,10 +1260,11 @@ private:
     const ClassInfo* m_initializingObjectClass { nullptr };
 #endif
 
-    void* m_stackPointerAtVMEntry { nullptr };
+    // SPEC-vmstate §6.4(1)/M6: m_stackPointerAtVMEntry / m_stackLimit /
+    // m_lastStackTop moved up into the VMLitePrimitives X-macro block. §6.3
+    // relocated member (interleaved in the old Group-3 range; the §6.4(2)
+    // span assert forces it out of the block; name/type/sites unchanged):
     size_t m_currentSoftReservedZoneSize;
-    void* m_stackLimit { nullptr };
-    void* m_lastStackTop { nullptr };
 
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
     ExceptionScope* m_topExceptionScope { nullptr };
@@ -1252,6 +1279,12 @@ private:
 public:
     SentinelLinkedList<MicrotaskQueue, BasicRawSentinelNode<MicrotaskQueue>> m_microtaskQueues;
 private:
+    // SPEC-vmstate §6.4.4: main thread's VMLite carrier (tid 0). Created at
+    // the END of the VM ctor when useVMLite; registered there via
+    // VMLiteRegistry::registerLite (sole writer of VMLite::vm); the ctor
+    // NEVER calls VMLite::setCurrent — JSLock::didAcquireLock installs it
+    // (M4). Uninstalled+unregistered+destroyed at the TOP of ~VM (I20).
+    std::unique_ptr<VMLite> m_mainVMLite;
     bool m_failNextNewCodeBlock { false };
     bool m_globalConstRedeclarationShouldThrow { true };
     bool m_shouldBuildPCToCodeOriginMapping { false };
@@ -1364,6 +1397,21 @@ private:
 };
 
 static_assert(OBJECT_OFFSETOF(VM, topEntryFrame) == OBJECT_OFFSETOF(VM, topCallFrame) + sizeof(void*), "We load/store these using a pair instruction");
+
+// SPEC-vmstate §6.4(2) (M6): per-field layout equivalence — VM's X-macro block
+// is layout-identical to VMLitePrimitives, so VM can serve as the main
+// thread's physical VMLitePrimitives (mainVMLitePrimitives()) and Phase B can
+// retarget VM::field accesses VMLitePrimitives-relative without ABI drift.
+#define VM_ASSERT_VMLITE_PRIMITIVE_FIELD_OFFSET(type, name) \
+    static_assert(OBJECT_OFFSETOF(VM, name) - OBJECT_OFFSETOF(VM, topCallFrame) \
+        == OBJECT_OFFSETOF(VMLitePrimitives, name), \
+        "VM Group 1-3 member " #name " must not drift from VMLitePrimitives");
+FOR_EACH_VMLITE_PRIMITIVE_FIELD(VM_ASSERT_VMLITE_PRIMITIVE_FIELD_OFFSET)
+#undef VM_ASSERT_VMLITE_PRIMITIVE_FIELD_OFFSET
+// Span assert: the block is exactly one VMLitePrimitives — nothing interleaves
+// (this is what forces m_currentSoftReservedZoneSize out, §6.3).
+static_assert(OBJECT_OFFSETOF(VM, m_lastStackTop) - OBJECT_OFFSETOF(VM, topCallFrame) + sizeof(void*)
+    == sizeof(VMLitePrimitives), "VM Group 1-3 block must span exactly sizeof(VMLitePrimitives)");
 
 #if ENABLE(GC_VALIDATION)
 inline const ClassInfo* VM::initializingObjectClass() const

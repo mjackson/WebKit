@@ -6421,6 +6421,18 @@ static void triggerFTLReplacementCompile(VM& vm, CodeBlock* codeBlock, JITCode* 
         return;
     }
 
+    // THREADS §5.7.2 (SPEC-jit Task 12): serialize the DFG->FTL replacement trigger; only
+    // the winner of the 0->1 CAS runs newReplacement()+compile(). Losers defer and stay in
+    // DFG. Duplicates racing through the latch-free window are cancelled by
+    // JITWorklist::enqueue's dedup backstop (§5.7.3).
+    CodeBlock::TierUpEdgeLocker tierUpLocker(codeBlock, CodeBlock::TierUpEdge::DFGToFTL);
+    if (!tierUpLocker.won()) [[unlikely]] {
+        CODEBLOCK_LOG_EVENT(codeBlock, "delayFTLCompile", ("tier-up already in flight"));
+        jitCode->setOptimizationThresholdBasedOnCompilationResult(
+            codeBlock, CompilationResult::CompilationDeferred);
+        return;
+    }
+
     CODEBLOCK_LOG_EVENT(codeBlock, "triggerFTLReplacement", ());
     // We need to compile the code.
     compile(
@@ -6662,6 +6674,17 @@ static char* tierUpCommon(VM& vm, CallFrame* callFrame, BytecodeIndex originByte
     }
 
     JITCode::TriggerReason* triggerAddress = &(triggerIterator->value);
+
+    // THREADS §5.7.2 (SPEC-jit Task 12): serialize the DFG->FTLForOSREntry trigger; only
+    // the winner of the 0->1 CAS runs reconstruct()+newReplacement()+compile(). Losers
+    // defer and stay in DFG; the JITWorklist dedup backstop (§5.7.3) covers the
+    // latch-free window.
+    CodeBlock::TierUpEdgeLocker tierUpLocker(codeBlock, CodeBlock::TierUpEdge::DFGToFTLForOSREntry);
+    if (!tierUpLocker.won()) [[unlikely]] {
+        CODEBLOCK_LOG_EVENT(codeBlock, "delayFTLCompile", ("OSR-entry tier-up already in flight"));
+        jitCode->setOptimizationThresholdBasedOnCompilationResult(codeBlock, CompilationResult::CompilationDeferred);
+        return nullptr;
+    }
 
     Operands<std::optional<JSValue>> mustHandleValues;
     unsigned streamIndex = jitCode->bytecodeIndexToStreamIndex.get(originBytecodeIndex);

@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // Build a working mutex out of Atomics.compareExchange / wait / notify on a
 // plain object property (the strawman's stated goal for the extended
 // Atomics API; `wake` from the 2017 post is spelled `notify` today).

@@ -32,6 +32,7 @@
 #include <wtf/Bag.h>
 #include <wtf/FixedVector.h>
 #include <wtf/Hasher.h>
+#include <wtf/Lock.h>
 #include <wtf/Vector.h>
 
 namespace JSC {
@@ -73,6 +74,12 @@ public:
     void makeGCAware(VM&);
 
     JSCell* owner() const { return m_owner; }
+
+    // True once makeGCAware() ran: deletion of the machine code is deferred
+    // until the GC proves the routine off-stack. RetiredJITArtifacts::
+    // retireHandlerChain RELEASE_ASSERTs this for every routine on a retired
+    // chain (SPEC-jit section 4.4).
+    bool isGCAware() const { return m_isGCAware; }
 
     bool removeDeadOwners(VM&);
     
@@ -136,16 +143,30 @@ public:
         return m_ownerIsDead;
     }
 
+    // Review round 2 (R2-2): m_owners mutation takes the routine's own lock,
+    // NOT any CodeBlock's m_lock. Shared handler thunks/stubs
+    // (m_isInSharedJITStubSet) are by design reachable from many CodeBlocks;
+    // under useJSThreads two mutators missing in ICs of DIFFERENT CodeBlocks
+    // can resolve to the SAME shared routine concurrently (each holding only
+    // its own CodeBlock's m_lock), and an unsynchronized HashCountedSet
+    // add/remove race is a rehash heap-corruption class. The lock is taken
+    // unconditionally (uncontended WTF::Lock is one CAS, and add/removeOwner
+    // only run on IC-miss/reset slow paths). removeDeadOwners (GC End, world
+    // stopped) takes it too, for a single consistent discipline.
     void addOwner(CodeBlock* codeBlock)
     {
-        if (m_isInSharedJITStubSet)
+        if (m_isInSharedJITStubSet) {
+            Locker locker { m_ownersLock };
             m_owners.add(codeBlock);
+        }
     }
 
     void removeOwner(CodeBlock* codeBlock)
     {
-        if (m_isInSharedJITStubSet)
+        if (m_isInSharedJITStubSet) {
+            Locker locker { m_ownersLock };
             m_owners.remove(codeBlock);
+        }
     }
 
     bool visitWeakImpl(VM&);
@@ -155,10 +176,13 @@ protected:
     VM& vm() { return m_vm; }
 
 private:
+    // Note: GCAwareJITStubRoutine is already a friend (removeDeadOwners
+    // mutates m_owners under m_ownersLock).
     VM& m_vm;
     FixedVector<Ref<AccessCase>> m_cases;
     FixedVector<StructureID> m_weakStructures;
     RefPtr<WatchpointSet> m_watchpointSet;
+    Lock m_ownersLock; // R2-2: guards m_owners across CodeBlocks (see addOwner).
     HashCountedSet<CodeBlock*> m_owners;
     Watchpoints m_watchpoints;
 };

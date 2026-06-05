@@ -291,6 +291,11 @@ list(APPEND JavaScriptCore_HEADERS
 
 if (WTF_CPU_X86_64)
     set(OFFLINE_ASM_BACKEND "X86_64")
+    # THREADS-INTEGRATE(objectmodel) manifest entry 3b: the 16-byte
+    # __sync_bool_compare_and_swap in JSC::dcasHeaderAndButterfly must inline
+    # to lock cmpxchg16b (I32); a libatomic lock-based fallback is forbidden
+    # (do NOT "fix" a __sync_bool_compare_and_swap_16 link error with -latomic).
+    add_compile_options(-mcx16)
 elseif (WTF_CPU_ARM64)
     if (CMAKE_OSX_ARCHITECTURES STREQUAL "arm64e")
         set(OFFLINE_ASM_BACKEND "ARM64E")
@@ -1205,6 +1210,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/ConcatKeyAtomStringCache.h
     runtime/ConcatKeyAtomStringCacheInlines.h
     runtime/Concurrency.h
+    runtime/ConcurrentButterfly.h
     runtime/ConcurrentJSLock.h
     runtime/ConditionObject.h
     runtime/ConfigFile.h
@@ -1805,6 +1811,9 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/VMEntryScope.h
     runtime/VMEntryScopeInlines.h
     runtime/VMInlines.h
+    runtime/VMLite.h
+    runtime/VMLiteInlines.h
+    runtime/VMLiteShared.h
     runtime/VMManager.h
     runtime/VMThreadContext.h
     runtime/VMTraps.h

@@ -152,7 +152,7 @@ namespace JSC {
     PROFILE_VALUE_IN(value__, m_valueProfile)
 
 #define PROFILE_VALUE_IN(value, profileName) do { \
-        codeBlock->valueProfileForOffset(bytecode.profileName).m_buckets[0] = JSValue::encode(value); \
+        codeBlock->valueProfileForOffset(bytecode.profileName).storeBucketConcurrently(0, JSValue::encode(value)); /* THREADS §5.7.4 */ \
     } while (false)
 
 JSC_DEFINE_COMMON_SLOW_PATH(slow_path_create_this)

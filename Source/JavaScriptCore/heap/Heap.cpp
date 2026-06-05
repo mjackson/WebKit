@@ -80,6 +80,7 @@
 #include "NumberObject.h"
 #include "PinballCompletion.h"
 #include "PreventCollectionScope.h"
+#include "RaceAmplifier.h"
 #include "ProgramExecutable.h"
 #include "ProxyObject.h"
 #include "SamplingProfiler.h"
@@ -96,7 +97,10 @@
 #include "TypeProfiler.h"
 #include "TypeProfilerLog.h"
 #include "UnlinkedEvalCodeBlock.h"
+#include "StopTheWorldCallback.h" // THREADS T5: StopTheWorldEvent for the §10.2 follower park.
 #include "VM.h"
+#include "VMManager.h" // THREADS T5 (§10.3/§10.9 + manifest items 4-5): requestStopAll/requestResumeAll(StopReason::GC), setGCParkCallbacks.
+#include "VMTraps.h" // THREADS T5 (§10.2): election followers poll the stop-the-world trap bit.
 #include "VerifierSlotVisitorInlines.h"
 #include "WasmCallee.h"
 #include "WeakMapImplInlines.h"
@@ -451,6 +455,10 @@ Heap::Heap(VM& vm, HeapType heapType)
 
     m_worldState.store(0);
 
+    // §11 (T7): the epoch is a by-value member; wire its server back-pointer
+    // here so bumpAndReclaim() can assert I11 and walk the client registry.
+    m_safepointEpoch.setServer(*this);
+
     for (unsigned i = 0, numberOfParallelThreads = heapHelperPool().numberOfThreads(); i < numberOfParallelThreads; ++i) {
         std::unique_ptr<SlotVisitor> visitor = makeUnique<SlotVisitor>(*this, toCString("P", i + 1));
         if (Options::optimizeParallelSlotVisitorsForStoppedMutator())
@@ -510,6 +518,10 @@ bool Heap::isPagedOut()
 void Heap::dumpHeapStatisticsAtVMDestruction()
 {
     unsigned counter = 0;
+    // SharedGC (T8): VM-destruction context — no other client thread can be
+    // running JS against this server; MSPL covers the I5b bit reads of the
+    // iteration (MarkedSpace::stopAllocating's teardown carve-out).
+    MutatorSlowPathLocker mutatorSlowPathLocker(*this);
     HeapIterationScope iterationScope(*this);
     m_objectSpace.forEachBlock([&] (MarkedBlock::Handle* block) {
         unsigned live = 0;
@@ -542,7 +554,10 @@ void Heap::lastChanceToFinalize()
     }
     
     m_isShuttingDown = true;
-    
+
+    // SharedGC (T9): main-VM-only — server shutdown runs on the main VM's
+    // destruction path (secondary clients must already have detached/removed;
+    // HeapClientSet teardown ordering, I13).
     RELEASE_ASSERT(!vm().entryScope);
     RELEASE_ASSERT(m_mutatorState == MutatorState::Running);
     
@@ -608,13 +623,24 @@ void Heap::lastChanceToFinalize()
         dumpHeapStatisticsAtVMDestruction();
     
     m_arrayBuffers.lastChanceToFinalize();
-    m_objectSpace.stopAllocatingForGood();
-    m_objectSpace.lastChanceToFinalize();
+    {
+        // SharedGC (T8/§5.3 teardown): a stale sticky-ISS flag can outlive
+        // the last secondary client until the §10D revert poll, so server
+        // teardown's directory-bit flips and final sweeps run under MSPL
+        // (no-op when !isSharedServer(), I10). Dropped around
+        // releaseDelayedReleasedObjects(), which may re-enter JS.
+        MutatorSlowPathLocker mutatorSlowPathLocker(*this);
+        m_objectSpace.stopAllocatingForGood();
+        m_objectSpace.lastChanceToFinalize();
+    }
     releaseDelayedReleasedObjects();
 
-    sweepAllLogicallyEmptyWeakBlocks();
-    
-    m_objectSpace.freeMemory();
+    sweepAllLogicallyEmptyWeakBlocks(); // Takes MSPL itself when shared (T8).
+
+    {
+        MutatorSlowPathLocker mutatorSlowPathLocker(*this);
+        m_objectSpace.freeMemory();
+    }
     
     dataLogIf(Options::logGC(), (MonotonicTime::now() - before).milliseconds(), "ms]\n");
 }
@@ -631,6 +657,9 @@ void Heap::releaseDelayedReleasedObjects()
     // and use a temp Vector for the actual releasing.
     if (!m_delayedReleaseRecursionCount++) {
         while (!m_delayedReleaseObjects.isEmpty()) {
+            // SharedGC (T9): main-VM-only — Foundation/GLib delayed releases
+            // are API-lock-coupled (DropAllLocks below targets the main VM's
+            // JSLock); GIL-phase sound via JSLock migration (I2).
             ASSERT(vm().currentThreadIsHoldingAPILock());
 
             auto objectsToRelease = WTF::move(m_delayedReleaseObjects);
@@ -737,16 +766,23 @@ void Heap::reportAbandonedObjectGraph()
     // been abandoned, the next collection has the potential to 
     // be more profitable. Since allocation is the trigger for collection, 
     // we hasten the next collection by pretending that we've allocated more memory. 
-    if (m_fullActivityCallback) {
+    // SharedGC (§5.4): activity callbacks never fire collections when shared
+    // — triggering is mutator-driven (CIND/CSAC; I15).
+    if (m_fullActivityCallback && !isSharedServer()) {
         m_fullActivityCallback->didAllocate(*this,
-            m_sizeAfterLastCollect - m_sizeAfterLastFullCollect + totalBytesAllocatedThisCycle() + m_bytesAbandonedSinceLastFullCollect);
+            m_sizeAfterLastCollect - m_sizeAfterLastFullCollect + totalBytesAllocatedThisCycle() + m_bytesAbandonedSinceLastFullCollect.load(std::memory_order_relaxed));
     }
-    m_bytesAbandonedSinceLastFullCollect += abandonedBytes;
+    m_bytesAbandonedSinceLastFullCollect.fetch_add(abandonedBytes, std::memory_order_relaxed); // F3.
 }
 
 void Heap::protect(JSValue k)
 {
     ASSERT(k);
+    // SharedGC (T9): main-VM-only assert (protect/unprotect below) — the
+    // protect set is server state but the API-lock predicate names the main
+    // VM; GIL-phase sound (JSLock migration). Post-GIL this becomes an
+    // access-held predicate (currentThreadClient()), not per-client
+    // iteration — the set itself stays one-per-server.
     ASSERT(vm().currentThreadIsHoldingAPILock());
 
     if (!k.isCell())
@@ -758,6 +794,7 @@ void Heap::protect(JSValue k)
 bool Heap::unprotect(JSValue k)
 {
     ASSERT(k);
+    // SharedGC (T9): main-VM-only assert — see protect().
     ASSERT(vm().currentThreadIsHoldingAPILock());
 
     if (!k.isCell())
@@ -777,6 +814,11 @@ void Heap::addReference(JSCell* cell, ArrayBuffer* buffer)
 template<typename CellType, typename CellSet>
 void Heap::finalizeMarkedUnconditionalFinalizers(CellSet& cellSet, CollectionScope collectionScope)
 {
+    // SharedGC (T9): conductor-context OK — end-phase work, world stopped
+    // (worldIsStopped() / WSAC once shared); vm() is the main mutator VM
+    // (deviation 3), the only VM whose cells live in this server phase 1.
+    // No JS runs in unconditional finalizers (§10B.5: no JS finalizers in
+    // the stop window).
     cellSet.forEachMarkedCell(
         [&] (HeapCell* cell, HeapCell::Kind) {
             static_cast<CellType*>(cell)->finalizeUnconditionally(vm(), collectionScope);
@@ -849,6 +891,10 @@ void Heap::completeAllJITPlans()
     if (!Options::useJIT())
         return;
 #if ENABLE(JIT)
+    // SharedGC (T9): conductor-context OK — vm() is a worklist KEY (plans are
+    // tagged by the one main VM phase 1), not a calling-thread assumption.
+    // Post-GIL (deviation 8) clients are per-thread within the SAME VM, so
+    // the key stays singular; no clientSet() iteration needed.
     JITWorklist::ensureGlobalWorklist().completeAllPlansForVM(vm());
 #endif // ENABLE(JIT)
 }
@@ -858,6 +904,8 @@ void Heap::iterateExecutingAndCompilingCodeBlocks(Visitor& visitor, NOESCAPE con
 {
     m_codeBlocks->iterateCurrentlyExecuting(func);
 #if ENABLE(JIT)
+    // SharedGC (T9): conductor-context OK — vm() = worklist key (see
+    // completeAllJITPlans()); runs while marking with the world stopped.
     if (Options::useJIT())
         JITWorklist::ensureGlobalWorklist().iterateCodeBlocksForGC(visitor, vm(), func);
 #else
@@ -905,14 +953,49 @@ void Heap::assertMarkStacksEmpty()
 
 void Heap::gatherStackRoots(ConservativeRoots& roots)
 {
+    // SharedGC §10.6 (T6): one MachineThreads scan covers all N mutators.
+    // Every thread that ever acquired heap access on any client of this
+    // server is I4(b)-registered (enforced in GCClient::Heap::
+    // acquireHeapAccess and in attachCurrentThread), so the suspend-and-copy
+    // pass inside gatherConservativeRoots scans every registered thread
+    // other than the conductor; the conductor's own stack and registers flow
+    // through m_currentThreadState/m_currentThread (set by runCurrentPhase —
+    // in shared mode the conductor runs as GCConductor::Mutator, §10B.2).
+    ASSERT(worldIsStopped());
+    // I5: in shared mode the scan runs only on the conductor (or its
+    // parallel helpers) while the world is stopped for all clients; the
+    // §10.4 access barrier completed, so no client thread can be mutating
+    // the heap while we suspend it.
+    ASSERT(!isSharedServer() || worldIsStoppedForAllClients());
+#if ASSERT_ENABLED
+    if (isSharedServer()) {
+        clientSet().forEach([](GCClient::Heap& client) {
+            ASSERT(!client.hasHeapAccess());
+        });
+    }
+#endif
     m_machineThreads->gatherConservativeRoots(roots, *m_jitStubRoutines, *m_codeBlocks, m_currentThreadState, m_currentThread);
 #if ENABLE(C_LOOP)
+    // SharedGC (I12, T6): the CLoop stack is per-VM, not per-thread. Phase 1
+    // the shared server is the main VM's heap (deviation 3) and JS execution
+    // migrates over that one VM under the JSLock (deviation 8, GIL phase),
+    // so the main VM's CLoopStack is the only one; vm() here is the server's
+    // back-pointer and is valid even when the conductor is a VM-less
+    // standalone client (§12.1 — conductor-context OK, T9). Standalone
+    // clients never run JS and have no CLoop stack to scan.
+    // THREADS-INTEGRATE(heap): post-GIL, if Thread() ever gets per-thread
+    // CLoopStacks (one VM, N stacks), iterate them here per I12.
     vm().cloopStack().gatherConservativeRoots(roots, *m_jitStubRoutines, *m_codeBlocks);
 #endif
 }
 
 void Heap::gatherVMRoots(ConservativeRoots& roots)
 {
+    // SharedGC (T9): conductor-context OK — root gathering, world stopped
+    // (WSAC once shared, I5); scratch buffers / side state are VM-global
+    // state of the one main VM. Post-GIL per-THREAD scratch state moves to
+    // VMLite (vmstate spec); if that lands as per-client state this becomes
+    // a clientSet().forEach() site.
     VM& vm = this->vm();
 #if ENABLE(DFG_JIT)
     if (Options::useJIT()) {
@@ -931,6 +1014,8 @@ void Heap::beginMarking()
     TimingScope timingScope(*this, "Heap::beginMarking"_s);
     m_jitStubRoutines->clearMarks();
     m_objectSpace.beginMarking();
+    // SharedGC (T9): conductor-context OK — world stopped (I5); VM-global
+    // mark bookkeeping of the one main VM.
     vm().beginMarking();
     setMutatorShouldBeFenced(true);
 }
@@ -940,6 +1025,8 @@ void Heap::removeDeadCompilerWorklistEntries()
     if (!Options::useJIT())
         return;
 #if ENABLE(JIT)
+    // SharedGC (T9): conductor-context OK — vm() = worklist key (see
+    // completeAllJITPlans()); end-phase, world stopped.
     JITWorklist::ensureGlobalWorklist().removeDeadPlans(vm());
 #endif // ENABLE(JIT)
 }
@@ -1127,6 +1214,11 @@ void Heap::deleteAllCodeBlocks(DeleteAllCodeEffort effort)
     if (m_collectionScope && effort == DeleteAllCodeIfNotCollecting)
         return;
 
+    // SharedGC (T9): main-VM-only — embedder API on the main VM's mutator
+    // (!vm.entryScope asserted below names the one main VM); not run by the
+    // conductor. Post-GIL it must also exclude OTHER threads being entered —
+    // that exclusion is the JSThreadsStopScope / deviation-8 charter (jit
+    // R1), not clientSet() iteration.
     VM& vm = this->vm();
     PreventCollectionScope preventCollectionScope(*this);
     
@@ -1172,6 +1264,7 @@ void Heap::deleteAllUnlinkedCodeBlocks(DeleteAllCodeEffort effort)
     if (m_collectionScope && effort == DeleteAllCodeIfNotCollecting)
         return;
 
+    // SharedGC (T9): main-VM-only — see deleteAllCodeBlocks().
     VM& vm = this->vm();
     PreventCollectionScope preventCollectionScope(*this);
 
@@ -1187,6 +1280,11 @@ void Heap::deleteAllUnlinkedCodeBlocks(DeleteAllCodeEffort effort)
 
 void Heap::deleteUnmarkedCompiledCode()
 {
+    // SharedGC (T9): conductor-context OK — end-phase, world stopped; vm()
+    // is VM-global stub-routine bookkeeping of the one main VM. CodeBlock
+    // RECLAMATION (freeing jettisoned code) additionally goes through the
+    // §11 epoch (GCSafepointEpoch), which is per-CLIENT — that is the
+    // per-client-iteration half, handled in runSafepointHooksAndReclaim().
     m_jitStubRoutines->deleteUnmarkedJettisonedStubRoutines(vm());
 }
 
@@ -1250,6 +1348,19 @@ void Heap::sweepSynchronously()
     if (!Options::useGC()) [[unlikely]]
         return;
 
+    // SharedGC (T8/I5b): callers are either the conductor (finalize()'s
+    // shouldSweepSynchronously() path, inside the stop window) or an
+    // access-holding requester (collectNow(Sync)'s tail) racing other
+    // clients' allocation slow paths. Hold MSPL across the whole sweep +
+    // shrink: serializes the lock-free directory-bit reads in
+    // MarkedBlock::Handle::sweep against addBlock's m_bits resize, and the
+    // block frees against the block registry/weak-set lists. No-op when
+    // !isSharedServer() (I10). MSPL holders never hold it across a collection
+    // request (L2) — sweeping requests none. Taking MSPL while the world is
+    // stopped is safe: MSPL sections always run with heap access held, so no
+    // parked mutator can own it.
+    MutatorSlowPathLocker mutatorSlowPathLocker(*this);
+
     MonotonicTime before { };
     if (Options::logGC()) [[unlikely]] {
         dataLog("Full sweep: ", capacity() / 1024, "kb ");
@@ -1285,6 +1396,10 @@ void Heap::collectNow(Synchronousness synchronousness, GCRequest request)
     if (!Options::useGC()) [[unlikely]]
         return;
 
+    // SharedGC (T9): conductor-context OK — verifyCanGC()/DeferGCForAWhile
+    // below read main-VM/server state that is valid from any access-holding
+    // requester (deviation 3: vm() is plain arithmetic to the main VM);
+    // DeferGC depth itself routes per-client once ISS (§5.4/I17, T3).
     if constexpr (validateDFGDoesGC)
         vm().verifyCanGC();
 
@@ -1321,6 +1436,7 @@ void Heap::collectAsync(GCRequest request)
     if (!Options::useGC()) [[unlikely]]
         return;
 
+    // SharedGC (T9): conductor-context OK — see collectNow().
     if constexpr (validateDFGDoesGC)
         vm().verifyCanGC();
 
@@ -1340,6 +1456,15 @@ void Heap::collectAsync(GCRequest request)
     if (alreadyRequested)
         return;
 
+    // SharedGC (I15, T5): once shared, every async trigger re-routes to the
+    // §10B.1 ticketing — no fire-and-forget collections (§10.1). The ticket
+    // is served by the next conductor: a sync requester's §10.2 election or
+    // a mutator's stopIfNecessaryForAllClients() poll.
+    if (isSharedServer()) [[unlikely]] {
+        requestCollectionShared(request);
+        return;
+    }
+
     requestCollection(request);
 }
 
@@ -1348,11 +1473,21 @@ void Heap::collectSync(GCRequest request)
     if (!Options::useGC()) [[unlikely]]
         return;
 
+    // SharedGC (T9): conductor-context OK — see collectNow().
     if constexpr (validateDFGDoesGC)
         vm().verifyCanGC();
 
     if (!m_isSafeToCollect)
         return;
+
+    // SharedGC (I15, T5): once shared, sync triggers run the §10.2 election —
+    // ticket, then conduct (or follow) until the ticket is served. Sync
+    // callers never wait on a ticket while holding access without
+    // electioneering, and never need notifyVMStop (§10.2).
+    if (isSharedServer()) [[unlikely]] {
+        runSharedGCElection(requestCollectionShared(request));
+        return;
+    }
 
     waitForCollection(requestCollection(request));
 }
@@ -1361,6 +1496,16 @@ bool Heap::shouldCollectInCollectorThread(const AbstractLocker&)
 {
     RELEASE_ASSERT(m_requests.isEmpty() == (m_lastServedTicket == m_lastGrantedTicket));
     RELEASE_ASSERT(m_lastServedTicket <= m_lastGrantedTicket);
+
+    // SharedGC (§10B.3/I15, T5b): the collector thread is quiesced once
+    // shared — every shared ticket is granted with the conn bit set
+    // (requestCollectionShared), so the check below stays false; make the
+    // quiescence explicit so a spurious wakeup can never start a legacy
+    // collector-side collection mid-shared-mode.
+    if (isSharedServer()) [[unlikely]] {
+        ASSERT(m_requests.isEmpty() || (m_worldState.load() & mutatorHasConnBit));
+        return false;
+    }
     dataLogLnIf(HeapInternal::verbose, "Mutator has the conn = ", !!(m_worldState.load() & mutatorHasConnBit));
     
     return !m_requests.isEmpty() && !(m_worldState.load() & mutatorHasConnBit);
@@ -1392,9 +1537,17 @@ void Heap::checkConn(GCConductor conn)
     unsigned worldState = m_worldState.load();
     switch (conn) {
     case GCConductor::Mutator:
-        RELEASE_ASSERT(worldState & mutatorHasConnBit, worldState, asInt(m_lastPhase), asInt(m_currentPhase), asInt(m_nextPhase), vm().identifier().toUInt64(), vm().isEntered());
+        // SharedGC (§10B.2/§10B.5, T5b): once shared, the conn is always
+        // Mutator (the §10.2 election winner conducts as the mutator, while
+        // the world is stopped for all clients); the legacy world-state bits
+        // are main-client-only and superseded by WSAC.
+        // SharedGC (T9): the vm() uses in both asserts are diagnostic-only
+        // crash-payload arguments (main VM identifier) — conductor-context
+        // OK, no calling-thread assumption.
+        RELEASE_ASSERT((worldState & mutatorHasConnBit) || worldIsStoppedForAllClients(), worldState, asInt(m_lastPhase), asInt(m_currentPhase), asInt(m_nextPhase), vm().identifier().toUInt64(), vm().isEntered());
         return;
     case GCConductor::Collector:
+        RELEASE_ASSERT(!isSharedServer()); // SharedGC (§10B.3, T5b): collector thread quiesced once shared (I15).
         RELEASE_ASSERT(!(worldState & mutatorHasConnBit), worldState, asInt(m_lastPhase), asInt(m_currentPhase), asInt(m_nextPhase), vm().identifier().toUInt64(), vm().isEntered());
         return;
     }
@@ -1406,7 +1559,11 @@ auto Heap::runCurrentPhase(GCConductor conn, CurrentThreadState* currentThreadSt
     checkConn(conn);
     m_currentThreadState = currentThreadState;
     m_currentThread = &Thread::currentSingleton();
-    
+
+    // SharedGC (T9): conductor-context OK (incl. VM-less) —
+    // sanitizeStackForVM() self-guards: it returns immediately unless the
+    // CALLING thread holds the main VM's API lock, so a §10.2 conductor that
+    // is not the main VM's mutator (or is standalone) makes this a no-op.
     if (conn == GCConductor::Mutator)
         sanitizeStackForVM(vm());
     
@@ -1477,6 +1634,9 @@ NEVER_INLINE bool Heap::runBeginPhase(GCConductor conn)
 
     m_beforeGC = MonotonicTime::now();
 
+    // SharedGC (T9): conductor-context OK — per-collection reseed of the one
+    // main VM's RNG; runs at collection begin with the request lock dropped,
+    // mutators stopped (WSAC) once shared.
     if (!Options::seedOfVMRandomForFuzzer())
         vm().random().setSeed(cryptographicallyRandomNumber<uint32_t>());
 
@@ -1654,6 +1814,13 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     if (!m_scheduler->shouldResume())
         return true;
 
+    // SharedGC (deviation 4, T5): no concurrent-marking window once shared —
+    // the conducted collection is fully synchronous, so never resume the
+    // world into CollectorPhase::Concurrent; keep draining at the fixpoint
+    // until termination (the world stays suspended Begin..End).
+    if (isSharedServer()) [[unlikely]]
+        return true;
+
     m_scheduler->willResume();
         
     if (Options::logGC()) [[unlikely]] {
@@ -1670,6 +1837,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 NEVER_INLINE bool Heap::runConcurrentPhase(GCConductor conn)
 {
+    // SharedGC (deviation 4, T5): unreachable once shared — runFixpointPhase
+    // never schedules the Concurrent phase when isSharedServer(), and the ISS
+    // flip only happens at collection quiescence (§10B.4/§10D).
+    ASSERT(!isSharedServer());
+
     SlotVisitor& visitor = *m_collectorSlotVisitor;
 
     switch (conn) {
@@ -1751,6 +1923,10 @@ NEVER_INLINE bool Heap::runEndPhase(GCConductor conn)
             Thread::currentSingleton().setCurrentAtomStringTable(previous);
         });
 
+        // SharedGC (T9): conductor-context OK — end phase, mutators
+        // suspended (worldIsStopped() legacy / WSAC shared); all vm() uses
+        // in this block (type profiler, deferred work, array buffers,
+        // compiler worklists) touch VM-global state of the one main VM.
         if (vm().typeProfiler())
             vm().typeProfiler()->invalidateTypeSetCache(vm());
 
@@ -1774,6 +1950,8 @@ NEVER_INLINE bool Heap::runEndPhase(GCConductor conn)
         [&] (CodeBlock* codeBlock) {
             writeBarrier(codeBlock);
         });
+    // SharedGC (T9): conductor-context OK — end phase, world stopped; vm()
+    // = worklist key (see completeAllJITPlans()).
     m_codeBlocks->clearCurrentlyExecutingAndRemoveDeadCodeBlocks(vm());
 
     m_objectSpace.prepareForAllocation();
@@ -1785,6 +1963,19 @@ NEVER_INLINE bool Heap::runEndPhase(GCConductor conn)
     }
 
     auto endingCollectionScope = *m_collectionScope;
+
+    // SharedGC (§9 contract notes, T5): runStopTheWorldSafepointHooks() fires
+    // once per collection in BOTH protocols. Legacy (!isSharedServer(),
+    // including option-off — the sole option-off behavior delta, I10
+    // exemption): fire the hooks + the §11 legacy epoch-reclamation sequence
+    // HERE, just before didFinishCollection(), with the mutator suspended.
+    // Shared mode runs the equivalent at §10 step 7
+    // (conductSharedCollection), after the conducted cycle completes — never
+    // here (the conductor may drain several tickets per stop).
+    if (!isSharedServer()) {
+        ASSERT(worldIsStopped());
+        runSafepointHooksAndReclaim();
+    }
 
     didFinishCollection();
     
@@ -1806,6 +1997,10 @@ NEVER_INLINE bool Heap::runEndPhase(GCConductor conn)
         m_requests.removeFirst();
         m_lastServedTicket++;
         clearMutatorWaiting();
+        // SharedGC (§10.2 normative, T5): the serve path also notifies the
+        // GC election condition — shared-mode followers wait on it (never on
+        // m_threadCondition) and must observe each served ticket.
+        m_gcElectionCondition.notifyAll();
     }
     ParkingLot::unparkAll(&m_worldState);
 
@@ -1869,6 +2064,9 @@ NEVER_INLINE bool Heap::finishChangingPhase(GCConductor conn)
                     return false;
                 }
             } else {
+                // SharedGC (T9): conductor-context OK — self-guarded no-op
+                // unless the caller is the main VM's API-lock holder (see
+                // runCurrentPhase()).
                 sanitizeStackForVM(vm());
                 handleNeedFinalize();
             }
@@ -1882,6 +2080,16 @@ NEVER_INLINE bool Heap::finishChangingPhase(GCConductor conn)
 
 void Heap::stopThePeriphery(GCConductor conn)
 {
+    // SharedGC (§10.5/§10B.5, T5b): once shared this runs only on the §10.2
+    // conductor while the world is stopped for all clients. The
+    // m_objectSpace.stopAllocating() below iterates the shared
+    // BlockDirectories' m_localAllocators lists, which contain EVERY client's
+    // LocalAllocators (TLC slots + registered GCClient::IsoSubspace
+    // allocators) — this is the §10 step-5 flush (I2 exception). The fence
+    // bookkeeping here and in resumeThePeriphery() is conductor-private;
+    // mutators are barred by the §10.4 barrier (always-fenced once shared,
+    // see setMutatorShouldBeFenced()).
+    ASSERT(!isSharedServer() || worldIsStoppedForAllClients()); // I5 (T8).
     if (m_worldIsStopped) {
         dataLog("FATAL: world already stopped.\n");
         RELEASE_ASSERT_NOT_REACHED();
@@ -1902,6 +2110,10 @@ void Heap::stopThePeriphery(GCConductor conn)
 
     UNUSED_PARAM(conn);
     
+    // SharedGC (T9): conductor-context OK — runs world-stopped; the shadow
+    // chicken log and topCallFrame are state of the one main VM, quiescent
+    // while its mutator is parked (§10.4 barrier). Post-GIL topCallFrame
+    // moves to VMLite (per-thread); revisit with the deviation-8 charter.
     if (auto* shadowChicken = vm().shadowChicken())
         shadowChicken->update(vm(), vm().topCallFrame);
     
@@ -1912,6 +2124,11 @@ void Heap::stopThePeriphery(GCConductor conn)
 
 NEVER_INLINE void Heap::resumeThePeriphery()
 {
+    // SharedGC (I5, T8): in shared mode this is conductor-only and runs while
+    // the world is STILL stopped for all clients — §10 step 8 (the WSAC clear
+    // + VMM resume) strictly follows the conducted cycle, so resuming the
+    // directory-linked allocators here cannot race any mutator.
+    ASSERT(!isSharedServer() || worldIsStoppedForAllClients());
     // Calling resumeAllocating does the Right Thing depending on whether this is the end of a
     // collection cycle or this is just a concurrent phase within a collection cycle:
     // - At end of collection cycle: it's a no-op because prepareForAllocation already cleared the
@@ -1968,6 +2185,9 @@ NEVER_INLINE void Heap::resumeThePeriphery()
 
 bool Heap::stopTheMutator()
 {
+    // SharedGC (§10B.3, T5b): unreachable once shared — only the collector
+    // thread's conn path reaches here, and that thread is quiesced (I15).
+    RELEASE_ASSERT(!isSharedServer());
     for (;;) {
         unsigned oldState = m_worldState.load();
         if (oldState & stoppedBit) {
@@ -2007,6 +2227,8 @@ bool Heap::stopTheMutator()
 
 NEVER_INLINE void Heap::resumeTheMutator()
 {
+    // SharedGC (§10B.3, T5b): unreachable once shared (see stopTheMutator()).
+    RELEASE_ASSERT(!isSharedServer());
     dataLogLnIf(HeapInternal::verbose, "Resuming the mutator.");
     for (;;) {
         unsigned oldState = m_worldState.load();
@@ -2034,6 +2256,9 @@ NEVER_INLINE void Heap::resumeTheMutator()
 
 void Heap::stopIfNecessarySlow()
 {
+    // SharedGC (T9): main-VM-only — legacy m_worldState stop path; once ISS,
+    // stopIfNecessary() re-routes to stopIfNecessaryForAllClients() before
+    // reaching here (I15), so the caller is the main VM's mutator.
     if constexpr (validateDFGDoesGC)
         vm().verifyCanGC();
 
@@ -2048,6 +2273,7 @@ void Heap::stopIfNecessarySlow()
 
 bool Heap::stopIfNecessarySlow(unsigned oldState)
 {
+    // SharedGC (T9): main-VM-only — see stopIfNecessarySlow() above.
     if constexpr (validateDFGDoesGC)
         vm().verifyCanGC();
 
@@ -2081,6 +2307,9 @@ NEVER_INLINE void Heap::collectInMutatorThread()
         case RunCurrentPhaseResult::Continue:
             break;
         case RunCurrentPhaseResult::NeedCurrentThreadState:
+            // SharedGC (T9): conductor-context OK — self-guarded (see
+            // runCurrentPhase()); the §10.2 conductor reaches here through
+            // conductSharedCollection()'s phase loop.
             sanitizeStackForVM(vm());
             auto lambda = [&] (CurrentThreadState& state) {
                 for (;;) {
@@ -2143,9 +2372,49 @@ void Heap::waitForCollector(const Func& func)
 void Heap::acquireAccessSlow()
 {
     for (;;) {
+        // SharedGC (§10B.4 flip handshake; review rounds 1+3): the ISS check
+        // lives INSIDE the retry loop. A legacy acquirer lands here for two
+        // distinct reasons: (1) its inline CAS (which expects exactly 0)
+        // read the §10B.4 poison — then this check forwards; or (2) its
+        // inline CAS read some PRE-flip non-zero state (e.g. needFinalizeBit
+        // is legitimately set with no access holder after a collector-thread
+        // cycle) — then it carries NO synchronizes-with edge to a concurrent
+        // flip, this read may be stale-false, and a poison observed on a
+        // LATER iteration must re-resolve ISS via the hasAccessBit branch
+        // below instead of tripping the legacy double-acquire crash (review
+        // round 3; the previous shape checked ISS once before the loop and
+        // RELEASE_ASSERTed unconditionally on hasAccessBit).
+        if (isSharedServer()) [[unlikely]] {
+            acquireAccessForwardedToMainClient();
+            return;
+        }
+
         unsigned oldState = m_worldState.load();
-        RELEASE_ASSERT(!(oldState & hasAccessBit));
-        
+        if (oldState & hasAccessBit) [[unlikely]] {
+            // Either the §10B.4 poison, or a genuine double-acquire. The
+            // flip installs the poison and stores ISS inside ONE
+            // *m_threadLock critical section with no waits in between
+            // (noteSharedServerSticky), so locking it and re-reading ISS
+            // decides: if a flip published this bit, its critical section
+            // completes before we get the lock (ISS true -> loop back to
+            // the leading check, which is now coherence-bound true on this
+            // thread, and forward); if ISS is still false under the lock,
+            // the bit belongs to a real legacy access holder and this is
+            // the same double-acquire bug the legacy protocol has always
+            // crashed on (also the post-§10D-reversion behavior: the
+            // reversion-era pinned bit denotes the main mutator's real
+            // access, and a second acquirer is just as much a bug).
+            bool sharedNow;
+            {
+                Locker locker { *m_threadLock };
+                sharedNow = m_isSharedServer.load(std::memory_order_seq_cst);
+            }
+            if (sharedNow)
+                continue;
+            dataLog("FATAL: Attempting to acquire access but another thread holds it (no ISS flip in flight).\n");
+            RELEASE_ASSERT_NOT_REACHED();
+        }
+
         if (oldState & stoppedBit) {
             if (HeapInternal::verboseStop) {
                 dataLogLn("Stopping in acquireAccess!");
@@ -2170,6 +2439,20 @@ void Heap::acquireAccessSlow()
 void Heap::releaseAccessSlow()
 {
     for (;;) {
+        // SharedGC (§10B.4 flip handshake; review rounds 1+3): mirror of
+        // acquireAccessSlow()'s IN-LOOP re-check, as a backstop. Pre-flip
+        // access holders are API-lock-ordered after the flip (quiescence
+        // clause (a)) and post-flip acquirers were forwarded (their inline
+        // ISS check is coherent-true, so they never reach this slow path) —
+        // but if a release does land here once shared, or a flip completes
+        // between iterations of this loop, forward it rather than letting
+        // the CAS below clear the superseded legacy bits (which would strip
+        // the permanent §10B.4 poison and reopen the stale-acquirer funnel).
+        if (isSharedServer()) [[unlikely]] {
+            releaseAccessForwardedToMainClient();
+            return;
+        }
+
         unsigned oldState = m_worldState.load();
         if (!(oldState & hasAccessBit)) {
             dataLog("FATAL: Attempting to release access but the mutator does not have access.\n");
@@ -2223,7 +2506,10 @@ bool Heap::relinquishConn(unsigned oldState)
 void Heap::finishRelinquishingConn()
 {
     dataLogLnIf(HeapInternal::verbose, "Relinquished the conn.");
-    
+
+    // SharedGC (T9): main-VM-only — conn relinquishing belongs to the legacy
+    // collector-thread protocol, unreachable once ISS (collector thread
+    // quiesced, §10B.3/I15); sanitizeStackForVM self-guards regardless.
     sanitizeStackForVM(vm());
     
     Locker locker { *m_threadLock };
@@ -2241,7 +2527,13 @@ NEVER_INLINE bool Heap::handleNeedFinalize(unsigned oldState)
 {
     // RELEASE_ASSERT(oldState & hasAccessBit);
     // RELEASE_ASSERT(!(oldState & stoppedBit));
-    
+    // SharedGC (§10B.5, T5b): the commented preconditions above would gain
+    // "|| worldIsStoppedForAllClients()" — once shared, the legacy
+    // hasAccessBit/stoppedBit are main-client-only and the §10.2 conductor
+    // finalizes here (End -> NotRunning, conn == Mutator) while the world is
+    // stopped for all clients. needFinalizeBit semantics are unchanged in
+    // both protocols; no JS finalizers run inside the stop window (§10B.5).
+
     if (!(oldState & needFinalizeBit))
         return false;
     if (m_worldState.compareExchangeWeak(oldState, oldState & ~needFinalizeBit)) {
@@ -2310,6 +2602,12 @@ void Heap::finalize()
         sweepInFinalize();
     }
     
+    // SharedGC (T9): conductor-context OK — finalize() runs with the world
+    // stopped (shared: §10 step 7 region; legacy: mutator suspended). All
+    // vm() uses below clear VM-global caches of the one main VM. Post-GIL
+    // (deviation 8) clients are threads of the SAME VM, so these stay
+    // singular — NOT clientSet() iteration sites; per-THREAD caches (if any
+    // move to VMLite) become the vmstate workstream's responsibility.
     if (HasOwnPropertyCache* cache = vm().hasOwnPropertyCache())
         cache->clear();
     if (auto* cache = vm().megamorphicCache())
@@ -2328,6 +2626,9 @@ void Heap::finalize()
 
     immutableButterflyToStringCache.clear();
     
+    // SharedGC (T9): conductor-context OK — embedder finalizer callbacks
+    // receive the main VM (the only VM on this server, deviation 3); they
+    // run world-stopped and must not allocate or re-enter JS.
     for (const HeapFinalizerCallback& callback : m_heapFinalizerCallbacks)
         callback.run(vm());
     
@@ -2342,10 +2643,15 @@ void Heap::finalize()
 
 Heap::Ticket Heap::requestCollection(GCRequest request)
 {
+    // SharedGC (§10B.1, T5b): unreachable once shared — every trigger
+    // re-routes at collectAsync()/collectSync() to requestCollectionShared(),
+    // whose precondition is access-holder-or-conductor (§10A) instead of the
+    // legacy API-lock/atom-table asserts below.
+    ASSERT(!isSharedServer());
     stopIfNecessary();
-    
-    ASSERT(vm().currentThreadIsHoldingAPILock());
-    RELEASE_ASSERT(vm().atomStringTable() == Thread::currentSingleton().atomStringTable());
+
+    ASSERT(vm().currentThreadIsHoldingAPILock() || worldIsStoppedForAllClients()); // SharedGC (T5b): tolerate a late ISS flip mid-call.
+    RELEASE_ASSERT(vm().atomStringTable() == Thread::currentSingleton().atomStringTable() || worldIsStoppedForAllClients());
     
     Locker locker { *m_threadLock };
     // We may be able to steal the conn. That only works if the collector is definitely not running
@@ -2390,6 +2696,9 @@ bool Heap::suspendCompilerThreads()
     // the worklists use AutomaticThreads anyway.
     if (!Options::useJIT())
         return false;
+    // SharedGC (T9): conductor-context OK — VM-global active-plan count of
+    // the one main VM (worklist key; see completeAllJITPlans()). Also taken
+    // by the §11 reclaimer's own suspend/resume pair (I11).
     if (!vm().numberOfActiveJITPlans())
         return false;
     JITWorklist::ensureGlobalWorklist().suspendAllThreads();
@@ -2446,6 +2755,8 @@ void Heap::prepareForMarking()
 
 void Heap::cancelDeferredWorkIfNeeded()
 {
+    // SharedGC (T9): conductor-context OK — end phase, world stopped;
+    // deferredWorkTimer is VM-global state of the one main VM.
     vm().deferredWorkTimer->cancelPendingWork(vm());
 }
 
@@ -2464,6 +2775,9 @@ void Heap::pruneStaleEntriesFromWeakGCHashTables()
 
 void Heap::sweepArrayBuffers()
 {
+    // SharedGC (T9): conductor-context OK — end phase, world stopped; the
+    // array-buffer registry is server state, vm() is passed through for
+    // accounting against the one main VM.
     m_arrayBuffers.sweep(vm(), collectionScope().value_or(CollectionScope::Eden));
 }
 
@@ -2475,6 +2789,8 @@ void Heap::snapshotUnswept()
 
 void Heap::deleteSourceProviderCaches()
 {
+    // SharedGC (T9): conductor-context OK — finalize-time, world stopped;
+    // VM-global caches of the one main VM (see finalize()).
     if (m_lastCollectionScope && m_lastCollectionScope.value() == CollectionScope::Full)
         vm().clearSourceProviderCaches();
 }
@@ -2486,6 +2802,17 @@ void Heap::notifyIncrementalSweeper()
             m_indexOfNextLogicallyEmptyWeakBlockToSweep = 0;
     }
 
+    // SharedGC (T8/I5b, deviation 4): mutator-concurrent sweeping is disabled
+    // once the server is shared — don't arm the sweeper timer. Unswept blocks
+    // are swept in-lock by allocation slow paths (§5.2 MSPL carve-out,
+    // §3.7), by shouldSweepSynchronously() paths on the conductor, or
+    // re-snapshotted by the next conducted cycle. Logically-empty weak blocks
+    // drain via WeakSet::sweep and sweepAllLogicallyEmptyWeakBlocks.
+    // doWork/doWorkUntil are also gated, so a pre-sticky armed timer stands
+    // down on its next fire. Option off / pre-sticky: today's behavior (I10).
+    if (isSharedServer()) [[unlikely]]
+        return;
+
     m_sweeper->startSweeping(*this);
 }
 
@@ -2493,7 +2820,7 @@ void Heap::updateAllocationLimits()
 {
     constexpr bool verbose = false;
     
-    dataLogLnIf(verbose, "\nnonOversizedBytesAllocatedThisCycle = ", m_nonOversizedBytesAllocatedThisCycle, ", oversizedBytesAllocatedThisCycle", m_oversizedBytesAllocatedThisCycle);
+    dataLogLnIf(verbose, "\nnonOversizedBytesAllocatedThisCycle = ", m_nonOversizedBytesAllocatedThisCycle.load(std::memory_order_relaxed), ", oversizedBytesAllocatedThisCycle", m_oversizedBytesAllocatedThisCycle.load(std::memory_order_relaxed));
     
     // Calculate our current heap size threshold for the purpose of figuring out when we should
     // run another collection. This isn't the same as either size() or capacity(), though it should
@@ -2543,7 +2870,7 @@ void Heap::updateAllocationLimits()
         dataLogLnIf(verbose, "Full: maxEdenSize = ", m_maxEdenSize);
         m_sizeAfterLastFullCollect = currentHeapSize;
         dataLogLnIf(verbose, "Full: sizeAfterLastFullCollect = ", currentHeapSize);
-        m_bytesAbandonedSinceLastFullCollect = 0;
+        m_bytesAbandonedSinceLastFullCollect.store(0, std::memory_order_relaxed);
         dataLogLnIf(verbose, "Full: bytesAbandonedSinceLastFullCollect = ", 0);
     } else {
         ASSERT(currentHeapSize >= m_sizeAfterLastCollect);
@@ -2560,7 +2887,8 @@ void Heap::updateAllocationLimits()
         m_maxHeapSize = std::max(m_maxHeapSize, currentHeapSize + m_maxEdenSize);
         dataLogLnIf(verbose, "Eden: maxHeapSize = ", m_maxHeapSize);
         dataLogLnIf(verbose, "Eden: maxEdenSize = ", m_maxEdenSize);
-        if (m_fullActivityCallback) {
+        // SharedGC (§5.4): no activity-callback-driven collections when shared (I15).
+        if (m_fullActivityCallback && !isSharedServer()) {
             ASSERT(currentHeapSize >= m_sizeAfterLastFullCollect);
             m_fullActivityCallback->didAllocate(*this, currentHeapSize - m_sizeAfterLastFullCollect);
         }
@@ -2568,9 +2896,11 @@ void Heap::updateAllocationLimits()
 
     m_sizeAfterLastCollect = currentHeapSize;
     dataLogLnIf(verbose, "sizeAfterLastCollect = ", m_sizeAfterLastCollect);
-    m_nonOversizedBytesAllocatedThisCycle = 0;
-    m_oversizedBytesAllocatedThisCycle = 0;
-    m_lastOversidedAllocationThisCycle = 0;
+    // I7: we are at a safepoint (world stopped); the relaxed counters are
+    // exact here.
+    m_nonOversizedBytesAllocatedThisCycle.store(0, std::memory_order_relaxed);
+    m_oversizedBytesAllocatedThisCycle.store(0, std::memory_order_relaxed);
+    m_lastOversidedAllocationThisCycle.store(0, std::memory_order_relaxed);
 
     dataLogIf(Options::logGC(), "=> ", currentHeapSize / 1024, "kb, ");
 }
@@ -2588,6 +2918,8 @@ void Heap::didFinishCollection()
     ASSERT(externalMemorySize() <= extraMemorySize());
 #endif
 
+    // SharedGC (T9): conductor-context OK — end-of-collection bookkeeping,
+    // world stopped; the heap profiler is owned by the one main VM.
     if (HeapProfiler* heapProfiler = vm().heapProfiler()) {
         gatherExtraHeapData(*heapProfiler);
         removeDeadHeapSnapshotNodes(*heapProfiler);
@@ -2632,13 +2964,17 @@ void Heap::setGarbageCollectionTimerEnabled(bool enable)
 constexpr size_t oversizedAllocationThreshold = 64 * KB;
 void Heap::didAllocate(size_t bytes)
 {
-    if (m_edenActivityCallback)
-        m_edenActivityCallback->didAllocate(*this, totalBytesAllocatedThisCycle() + m_bytesAbandonedSinceLastFullCollect);
+    // SharedGC (§5.4): eden-activity dispatch is skipped when shared —
+    // activity callbacks never fire collections; collection triggering is
+    // mutator-driven via collectIfNecessaryOrDefer/collectSyncAllClients
+    // (I15, T5). Counters are relaxed atomics (F3); exact at safepoints (I7).
+    if (m_edenActivityCallback && !isSharedServer())
+        m_edenActivityCallback->didAllocate(*this, totalBytesAllocatedThisCycle() + m_bytesAbandonedSinceLastFullCollect.load(std::memory_order_relaxed));
     if (bytes >= oversizedAllocationThreshold) {
-        m_oversizedBytesAllocatedThisCycle += bytes;
-        m_lastOversidedAllocationThisCycle = bytes;
+        m_oversizedBytesAllocatedThisCycle.fetch_add(bytes, std::memory_order_relaxed);
+        m_lastOversidedAllocationThisCycle.store(bytes, std::memory_order_relaxed);
     } else
-        m_nonOversizedBytesAllocatedThisCycle += bytes;
+        m_nonOversizedBytesAllocatedThisCycle.fetch_add(bytes, std::memory_order_relaxed);
     performIncrement(bytes);
 }
 
@@ -2723,12 +3059,20 @@ bool Heap::shouldDoFullCollection()
 
 void Heap::addLogicallyEmptyWeakBlock(WeakBlock* block)
 {
+    // SharedGC (T8 audit): reached only from WeakSet::sweep, which runs under
+    // MSPL (in-lock block sweeps, §5.2) or on the conductor while stopped.
+    ASSERT(!isSharedServer() || worldIsStoppedForAllClients() || mutatorSlowPathLock().isHeld());
     RELEASE_ASSERT(!block->next() && !block->prev());
     m_logicallyEmptyWeakBlocks.append(block);
 }
 
 void Heap::sweepAllLogicallyEmptyWeakBlocks()
 {
+    // SharedGC (T8): collectNow(Sync)'s tail and server teardown call this on
+    // an access-holding thread; serialize against WeakSet::sweep's
+    // m_logicallyEmptyWeakBlocks mutations (no-op when !isSharedServer()).
+    MutatorSlowPathLocker mutatorSlowPathLocker(*this);
+
     if (m_logicallyEmptyWeakBlocks.isEmpty())
         return;
 
@@ -2738,6 +3082,10 @@ void Heap::sweepAllLogicallyEmptyWeakBlocks()
 
 bool Heap::sweepNextLogicallyEmptyWeakBlock()
 {
+    // SharedGC (T8 audit): callers — WeakSet::sweep (MSPL or conductor),
+    // IncrementalSweeper (gated off once shared), and
+    // sweepAllLogicallyEmptyWeakBlocks (takes MSPL).
+    ASSERT(!isSharedServer() || worldIsStoppedForAllClients() || mutatorSlowPathLock().isHeld());
     if (m_indexOfNextLogicallyEmptyWeakBlockToSweep == WTF::notFound)
         return false;
 
@@ -2845,6 +3193,10 @@ void Heap::reportExternalMemoryVisited(size_t size)
 void Heap::collectIfNecessaryOrDefer(GCDeferralContext* deferralContext)
 {
     ASSERT(deferralContext || isDeferred() || !AssertNoGC::isInEffectOnCurrentThread());
+    // SharedGC (T9): conductor-context OK — CIND is called by EVERY client
+    // (incl. standalone, via the §12.1 allocateForClient seam); vm() is plain
+    // arithmetic to the main VM (deviation 3) and verifyCanGC reads only
+    // compile-state validation flags. Deferral itself is per-client (I17).
     if constexpr (validateDFGDoesGC)
         vm().verifyCanGC();
 
@@ -2866,7 +3218,7 @@ void Heap::collectIfNecessaryOrDefer(GCDeferralContext* deferralContext)
         if (deferralContext)
             deferralContext->m_shouldGC = true;
         else if (isDeferred())
-            m_didDeferGCWork = true;
+            didDeferGCWorkSlot() = true; // Review round 4: per-client hint once ISS (pairs with the per-client depth isDeferred() just consulted).
         else
             stopIfNecessary();
     }
@@ -2912,11 +3264,11 @@ void Heap::collectIfNecessaryOrDefer(GCDeferralContext* deferralContext)
         // if the system is cricital or we have a small heap we want to be very agressive about reclaiming memory to reduce overall
         // pressure on the system.
         if (!isCritical && m_heapType == HeapType::Large) {
-            if (static_cast<double>(m_lastOversidedAllocationThisCycle) / bytesAllocatedThisCycle > 1.0 / 3.0)
+            if (static_cast<double>(m_lastOversidedAllocationThisCycle.load(std::memory_order_relaxed)) / bytesAllocatedThisCycle > 1.0 / 3.0)
                 return false;
         }
 
-        dataLogLnIf(logRequestGC, "Requesting GC because bytes allocated this cycle: ", bytesAllocatedThisCycle, " exceed bytes allowed: ", bytesAllowedThisCycle, ConditionalDump(isCritical, " (critical)"), " normal bytes: ", m_nonOversizedBytesAllocatedThisCycle, " oversized bytes: ", m_oversizedBytesAllocatedThisCycle, " last oversized: ", m_lastOversidedAllocationThisCycle);
+        dataLogLnIf(logRequestGC, "Requesting GC because bytes allocated this cycle: ", bytesAllocatedThisCycle, " exceed bytes allowed: ", bytesAllowedThisCycle, ConditionalDump(isCritical, " (critical)"), " normal bytes: ", m_nonOversizedBytesAllocatedThisCycle.load(std::memory_order_relaxed), " oversized bytes: ", m_oversizedBytesAllocatedThisCycle.load(std::memory_order_relaxed), " last oversized: ", m_lastOversidedAllocationThisCycle.load(std::memory_order_relaxed));
         return true;
     };
     if (!shouldRequestGC())
@@ -2925,7 +3277,7 @@ void Heap::collectIfNecessaryOrDefer(GCDeferralContext* deferralContext)
     if (deferralContext)
         deferralContext->m_shouldGC = true;
     else if (isDeferred())
-        m_didDeferGCWork = true;
+        didDeferGCWorkSlot() = true; // Review round 4: per-client hint once ISS.
     else {
         collectAsync();
         stopIfNecessary(); // This will immediately start the collection if we have the conn.
@@ -2934,13 +3286,17 @@ void Heap::collectIfNecessaryOrDefer(GCDeferralContext* deferralContext)
 
 void Heap::decrementDeferralDepthAndGCIfNeededSlow()
 {
-    // Can't do anything if we're still deferred.
-    if (m_deferralDepth)
+    // Can't do anything if we're still deferred. SharedGC (§5.4/I17): this
+    // consults the CALLING client's depth once ISS.
+    if (currentDeferralDepth())
         return;
-    
+
     ASSERT(!isDeferred());
-    
-    m_didDeferGCWork = false;
+
+    // Review round 4: clears only the CALLING thread's slot once ISS — a
+    // concurrent set by another client lands in that client's own flag, so
+    // this clear cannot lose it.
+    didDeferGCWorkSlot() = false;
     // FIXME: Bring back something like the DeferGCProbability mode.
     // https://bugs.webkit.org/show_bug.cgi?id=166627
     collectIfNecessaryOrDefer();
@@ -2959,7 +3315,7 @@ void Heap::unregisterWeakGCHashTable(WeakGCHashTable* weakGCHashTable)
 void Heap::didAllocateBlock(size_t capacity)
 {
 #if ENABLE(RESOURCE_USAGE)
-    m_blockBytesAllocated += capacity;
+    m_blockBytesAllocated.fetch_add(capacity, std::memory_order_relaxed); // F3.
 #else
     UNUSED_PARAM(capacity);
 #endif
@@ -2968,7 +3324,7 @@ void Heap::didAllocateBlock(size_t capacity)
 void Heap::didFreeBlock(size_t capacity)
 {
 #if ENABLE(RESOURCE_USAGE)
-    m_blockBytesAllocated -= capacity;
+    m_blockBytesAllocated.fetch_sub(capacity, std::memory_order_relaxed); // F3.
 #else
     UNUSED_PARAM(capacity);
 #endif
@@ -3049,6 +3405,14 @@ void Heap::addCoreConstraints()
     m_constraintSet->add(
         "Msr", "Misc Small Roots",
         MAKE_MARKING_CONSTRAINT_EXECUTOR_PAIR(([this] (auto& visitor) {
+            // SharedGC (T9): conductor-context OK — marking constraints run
+            // on the conductor/parallel markers inside the stop window (I5);
+            // vm() here (and in the Sh/D/Jw constraints below) names the one
+            // main VM's global roots (smallStrings, exceptions, aggregates,
+            // profilers, worklist key). Post-GIL per-THREAD roots (exception
+            // state, top call frame) move to VMLite; if they become
+            // per-client they must be added as clientSet().forEach() visits
+            // here (deviation-8 charter) — phase 1 there are none.
             VM& vm = this->vm();
 #if JSC_OBJC_API_ENABLED
             {
@@ -3093,6 +3457,7 @@ void Heap::addCoreConstraints()
         MAKE_MARKING_CONSTRAINT_EXECUTOR_PAIR(([this] (auto& visitor) {
             SetRootMarkReasonScope rootScope(visitor, RootMarkReason::StrongHandles);
             m_handleSet.visitStrongHandles(visitor);
+            // SharedGC (T9): conductor-context OK — see the Msr constraint.
             vm().visitAggregate(visitor);
         })),
         ConstraintVolatility::GreyedByExecution);
@@ -3102,6 +3467,7 @@ void Heap::addCoreConstraints()
         MAKE_MARKING_CONSTRAINT_EXECUTOR_PAIR(([this] (auto& visitor) {
             SetRootMarkReasonScope rootScope(visitor, RootMarkReason::Debugger);
 
+            // SharedGC (T9): conductor-context OK — see the Msr constraint.
             VM& vm = this->vm();
             if constexpr (samplingProfilerSupported)
                 visitSamplingProfiler(vm, visitor);
@@ -3199,6 +3565,8 @@ void Heap::addCoreConstraints()
                 
                 // FIXME: This is almost certainly unnecessary.
                 // https://bugs.webkit.org/show_bug.cgi?id=166829
+                // SharedGC (T9): conductor-context OK — see the Msr
+                // constraint; vm() = worklist key.
                 JITWorklist::ensureGlobalWorklist().iterateCodeBlocksForGC(visitor,
                     vm(),
                     [&] (CodeBlock* codeBlock) {
@@ -3317,12 +3685,29 @@ void Heap::allowCollection() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 
 void Heap::setMutatorShouldBeFenced(bool value)
 {
+    // SharedGC (§10B.5, T5b): always-fenced once shared. beginMarking() sets
+    // the fence and endMarking() would normally drop it back to
+    // Options::forceFencedBarrier(); with N mutators the store-ordering the
+    // fence provides must hold at all times, so the drop is suppressed.
+    // noteSharedServerSticky() raises the fence at the ISS flip; after a §10D
+    // reversion the next legacy cycle's endMarking() restores today's value.
+    if (isSharedServer()) [[unlikely]]
+        value = true;
     m_mutatorShouldBeFenced = value;
     m_barrierThreshold = value ? tautologicalThreshold : blackThreshold;
 }
 
 void Heap::performIncrement(size_t bytes)
 {
+    // SharedGC (§5.4/deviation 4): the incremental-marking mutator assist is
+    // disabled in shared mode — marking only happens inside the conducted
+    // stop (I5), so there is never an active marking phase to assist here and
+    // m_incrementBalance stays a plain double. The mutator SlotVisitor is
+    // used only while the world is stopped for all clients once shared
+    // (T8 audits assert this).
+    if (isSharedServer()) [[unlikely]]
+        return;
+
     if (!m_objectSpace.isMarking())
         return;
 
@@ -3564,6 +3949,912 @@ void Heap::finalizeWasmCalleeCleanup()
 
 #endif
 
+// --- Shared heap server (SPEC-heap.md; THREADS T1 scaffolding) ---
+
+// I13: at most one sticky-shared server per process (phase 1: the main VM's heap).
+static Atomic<Heap*> s_stickySharedServer;
+
+#if ASSERT_ENABLED
+// I14: per-thread depth of STW-forbidden scopes (e.g. vmstate's
+// StructureAllocationLocker). Debug-only; release builds compile the
+// increment/decrement to no-ops.
+static thread_local unsigned t_stwForbiddenScopeDepth { 0 };
+#endif
+
+void Heap::noteSharedServerSticky() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+{
+    // Sticky ISS (§5.1): option && clientSet().size() EVER > 1; set under
+    // legacy-GC quiescence (§10B.4); cleared only via §10D reversion.
+    // Called by HeapClientSet::add BEFORE inserting the client that makes
+    // size() > 1, with no lock held (rank 5 is taken here, outer to HCS's
+    // rank 6).
+    // THREADS-INTEGRATE(heap): Options::useSharedGCHeap() is added by
+    // INTEGRATE-heap.md manifest item 2 (runtime/OptionsList.h).
+    if (!Options::useSharedGCHeap())
+        return;
+    if (m_isSharedServer.load(std::memory_order_relaxed))
+        return;
+
+    // I13: only one sticky-shared server may ever exist in this process.
+    // After a §10D reversion the same server may go shared again
+    // (s_stickySharedServer still points at it), but a different server may not.
+    Heap* previous = s_stickySharedServer.compareExchangeStrong(nullptr, this);
+    RELEASE_ASSERT(!previous || previous == this);
+
+    // §5.5 never-populate audit (T4), RELEASE_ASSERTed at second-client
+    // attach: with the option on, allocatorForSlow never materializes
+    // server-side non-iso Allocators, so the JS-tier inline-allocation
+    // emitters can only ever have baked/loaded null (slow path => the
+    // caller's TLC).
+    verifyServerNonIsoAllocatorsNeverMaterialized();
+
+    // T5 (manifest items 4-5): install the heap-owned GC park hooks before
+    // any conducted stop can occur. Inert until a GC stop is requested
+    // (callbacks no-op unless ISS && GSP). Idempotent.
+    // THREADS-INTEGRATE(heap): VMManager::setGCParkCallbacks is added by
+    // INTEGRATE-heap.md manifest item 4 (runtime/VMManager.h); it stores
+    // into file-local Atomic statics in runtime/VMManager.cpp (item 5d,
+    // review round 4) — NOT g_jscConfig slots: JSC::Config lives in the
+    // WTF::Config region that Config::finalize() (run from every VM
+    // constructor) mprotects read-only, and this installer necessarily runs
+    // at SECOND-client attach, after that freeze — a config store here would
+    // SIGSEGV. The notifyVMStop call sites and the StopReason::GC
+    // keep-parked/latch-exclusion/resume-notify behavior are item 5
+    // (SPEC-heap-annex.md §A5; the manifest's round-4 hunks are the source
+    // of truth).
+    VMManager::setGCParkCallbacks(&Heap::gcWillParkInStopTheWorld, &Heap::gcDidResumeFromStopTheWorld);
+
+    // §10B.4 attach quiescence (I13/I15): under *m_threadLock, timed re-check
+    // loop (<= 1ms waits on the GC election condition — never on
+    // m_threadCondition, which the mutator must not wait on) until the legacy
+    // protocol is fully quiescent; then, in the same critical section, set
+    // sticky ISS so new triggers re-route (I15).
+    //
+    // Mutator-exclusion clause (review round 1): collector-protocol
+    // quiescence alone is NOT enough — a legacy mutator on another thread
+    // could be mid-allocateSlowCase (entered with isSharedServer() == false,
+    // so its MutatorSlowPathLocker is a no-op) at the flip, and would then
+    // race the second client's MSPL-licensed slow path on the shared
+    // BlockDirectories (I1/I8/I5b). The loop therefore additionally requires
+    // one of:
+    //  (a) this thread holds the main VM's API lock — legacy heap mutation
+    //      requires that lock (currentThreadIsAllocatorOwner's !ISS
+    //      predicate, and the GIL serializes all JS on it), so no other
+    //      thread can be mid-slow-path; every later legacy entrant orders
+    //      after the flip through the JSLock mutex release/acquire pair, so
+    //      even its relaxed isSharedServer() reads observe ISS; or
+    //  (b) no thread holds legacy heap access (hasAccessBit clear) — nobody
+    //      is inside the heap at all. Review round 3: this observation and
+    //      the §10B.4 poison are ONE atomic CAS inside the loop (no TOCTOU
+    //      window in which a stale acquirer could slip in); post-flip
+    //      entrants are funneled by the pinned bit into acquireAccessSlow's
+    //      ISS resolution. A foreign access holder is simply waited out:
+    //      callers that keep access across blocking sections must release it
+    //      (ReleaseHeapAccessScope; the SharedHeapTestHarness contract does
+    //      exactly this) before clients can attach on other threads.
+    // NORMATIVE cross-part contract (review round 2; recorded in
+    // INTEGRATE-heap.md "Cross-part contract: ISS-flip liveness"): clause (b)
+    // below waits out a foreign legacy access holder — unboundedly. The
+    // api/runtime workstream's Thread() spawn path MUST guarantee the main
+    // mutator reaches an access-release point (JS poll points release across
+    // blocking sections; embedders that acquireAccess() at instantiation and
+    // then block — e.g. join() without a ReleaseHeapAccessScope — would
+    // deadlock the attach). The diagnostic below makes a violation
+    // release-visible instead of a silent hang.
+    {
+        Locker locker { *m_threadLock };
+
+        // Concurrent-flip re-entrancy (review round 3): two clients attaching
+        // back-to-back can BOTH pass the relaxed entry check above (taken
+        // with no lock held) and reach here. The loser must NOT run the
+        // quiescence loop: the winner's flip pins hasAccessBit permanently
+        // (the §10B.4 poison), so the loop's no-access clause would never
+        // again be satisfiable on a thread that does not hold the main VM's
+        // API lock — a permanent attach hang. The winner completed the
+        // ENTIRE flip (hook install, migration, poison, fence) before
+        // storing ISS, so returning here is complete; HeapClientSet::add()
+        // then re-checks isSharedServer() and takes the already-shared
+        // insert path. Re-checked both here and inside the wait loop (the
+        // timed waits release *m_threadLock, so a concurrent winner can
+        // finish while we wait).
+        if (m_isSharedServer.load(std::memory_order_seq_cst))
+            return;
+
+        MonotonicTime quiescenceWaitStart = MonotonicTime::now();
+        bool loggedQuiescenceStall = false;
+        // True => quiescence clause (a): the main mutator holds legacy heap
+        // access and this thread holds the main VM's API lock. Decides the
+        // migration branch below — m_worldState must NOT be re-sampled for
+        // that decision once the clause-(b) gate has installed the poison
+        // (the re-sample would read the poison and take the wrong branch).
+        bool apiLockedAccessHolder = false;
+        for (;;) {
+            if (m_isSharedServer.load(std::memory_order_seq_cst))
+                return; // A concurrent flipper won while we waited (see above).
+            if (m_lastServedTicket == m_lastGrantedTicket
+                && !m_collectorThreadIsRunning
+                && m_currentPhase == CollectorPhase::NotRunning) {
+                unsigned state = m_worldState.load();
+                if (state & hasAccessBit) {
+                    if (vm().currentThreadIsHoldingAPILock()) {
+                        // Clause (a): the access holder is the main mutator,
+                        // and legacy heap mutation requires the API lock we
+                        // hold, so it is not mid-operation; every later
+                        // legacy entrant orders after the flip through the
+                        // JSLock mutex release/acquire pair, so even its
+                        // relaxed isSharedServer() reads observe ISS.
+                        apiLockedAccessHolder = true;
+                        break;
+                    }
+                    // A foreign legacy access holder: wait it out (NORMATIVE
+                    // ISS-flip liveness contract, INTEGRATE-heap.md — callers
+                    // that keep access across blocking sections must release
+                    // it via ReleaseHeapAccessScope before clients can attach
+                    // on other threads). Fall through to the timed wait.
+                } else {
+                    // Clause (b): gate + poison in ONE atomic step (review
+                    // round 3). The previous shape sampled "no access holder"
+                    // here but installed the poison only AFTER the migration
+                    // code below — a TOCTOU window in which a stale legacy
+                    // inline acquireAccess() CAS (0 -> hasAccessBit) could
+                    // still succeed and enter the heap un-forwarded (no
+                    // per-client access state, no MSPL — the I1/I8 hazard).
+                    // The CAS below closes it: it succeeds only against the
+                    // very no-access state it verifies, and once it succeeds
+                    // the legacy inline acquire CAS (which expects exactly 0)
+                    // can never succeed again. The poison precedes the ISS
+                    // store; acquireAccessSlow() resolves that sub-window by
+                    // locking *m_threadLock — which we hold continuously
+                    // from this CAS through the ISS store — and re-reading
+                    // ISS (see its hasAccessBit branch).
+                    if (m_worldState.compareExchangeStrong(state, state | hasAccessBit) == state)
+                        break;
+                    continue; // m_worldState changed under us; re-evaluate.
+                }
+            }
+            m_gcElectionCondition.waitFor(*m_threadLock, 1_ms);
+            if (!loggedQuiescenceStall && MonotonicTime::now() - quiescenceWaitStart > Seconds(5)) [[unlikely]] {
+                loggedQuiescenceStall = true;
+                dataLogLn("JSC SharedGC: second-client attach (ISS flip) has waited >5s for legacy heap-access quiescence. "
+                    "Another thread holds the main VM's heap access and is not releasing it; spawn/join paths must release "
+                    "heap access across blocking sections (ReleaseHeapAccessScope) or this attach cannot complete "
+                    "(INTEGRATE-heap.md: cross-part contract, ISS-flip liveness).");
+            }
+        }
+
+        // Migrate the legacy access state to the per-client protocol (§10A):
+        // under clause (a) the main mutator holds legacy heap access and this
+        // thread is — or, by the I2 JSLock hand-off rule, just became — the
+        // access owner: stamp it and the §10A.1 TLS slot. The branch keys on
+        // apiLockedAccessHolder, NOT on a fresh m_worldState sample: under
+        // clause (b) the gate above already pinned hasAccessBit while no
+        // mutator holds access (§10B.5 — T5b audits the residual readers),
+        // so a re-sample here would misclassify the poison as a holder.
+        GCClient::Heap* mainClient = m_mainClient;
+        RELEASE_ASSERT(mainClient);
+        if (apiLockedAccessHolder) {
+            mainClient->m_accessState.store(GCClient::Heap::hasAccessState, std::memory_order_seq_cst);
+            mainClient->m_accessOwner.store(&Thread::currentSingleton(), std::memory_order_relaxed);
+            GCClient::Heap::setCurrentThreadClient(mainClient);
+        } else if (mainClient->m_accessState.load(std::memory_order_seq_cst) == GCClient::Heap::hasAccessState) {
+            // SharedGC (§10D re-flip; T10, found by issRevertChurn): after a
+            // §10D reversion the legacy protocol owns access tracking again,
+            // so the main mutator's releases go through the legacy
+            // hasAccessBit and the per-client state goes STALE at HasAccess.
+            // A later re-flip with the legacy bit CLEAR must clear that stale
+            // per-client state too — otherwise the very first §10.4 barrier
+            // waits forever on a client whose "access" no thread holds. Safe
+            // here: the legacy protocol is quiescent (loop above) and the bit
+            // says no mutator holds access.
+            mainClient->m_accessState.store(GCClient::Heap::noAccessState, std::memory_order_seq_cst);
+            mainClient->m_accessOwner.store(nullptr, std::memory_order_relaxed);
+        }
+
+        // §5.4/I17 (T3): migrate any open DeferGC depth to the main client.
+        // Pre-ISS, all depth belongs to the legacy single mutator (= the main
+        // client); post-ISS, deferralDepthSlot() routes that thread's
+        // decrements to the main client's counter, so the pairing stays
+        // balanced across the flip.
+        if (m_deferralDepth) {
+            mainClient->m_deferralDepth += m_deferralDepth;
+            m_deferralDepth = 0;
+        }
+        // Review round 4: the deferred-GC hint migrates with the depth it
+        // annotates (didDeferGCWorkSlot() routes to the main client after the
+        // flip, so a server-set hint would otherwise be orphaned).
+        if (m_didDeferGCWork) {
+            mainClient->m_didDeferGCWork = true;
+            m_didDeferGCWork = false;
+        }
+
+        m_isSharedServer.store(true, std::memory_order_seq_cst);
+
+        // §10B.4 flip handshake / poison (review rounds 1+3): hasAccessBit
+        // is pinned in m_worldState, permanently. Once ISS the legacy access
+        // bits are superseded (§10B.5), but a thread whose relaxed
+        // isSharedServer() read is still stale could otherwise win the
+        // legacy inline acquireAccess() CAS (0 -> hasAccessBit) and enter
+        // the heap un-forwarded — no per-client access state, no MSPL. With
+        // the bit pinned that CAS can never succeed: the stale acquirer
+        // falls into acquireAccessSlow(), whose hasAccessBit branch locks
+        // *m_threadLock (ordering it after this critical section) and
+        // re-reads ISS — true — then forwards (releaseAccessSlow()'s
+        // in-loop re-check is the release-side backstop). Under clause (b)
+        // the gate-CAS in the loop above ALREADY installed the pin,
+        // atomically with the no-access observation, so no legacy acquirer
+        // can have slipped in between sample and pin (review round 3).
+        // Under clause (a) we install it here: while the bit is set no NEW
+        // legacy acquirer can succeed (the inline CAS expects exactly 0, and
+        // a concurrent acquire while another thread holds access is the
+        // double-acquire bug the legacy protocol always crashed on), and the
+        // existing holder is API-lock-ordered after the flip, so its later
+        // releaseAccess() observes ISS and forwards — it can never clear the
+        // pin. The exchangeOr is idempotent under clause (b). The pin
+        // survives until a §10D reversion era: after a reversion the main
+        // mutator's per-client access and the pinned bit denote the SAME
+        // holder, so a legacy releaseAccess() CAS (hasAccessBit -> 0) by
+        // that holder is then a correct release, not a lost poison.
+        m_worldState.exchangeOr(hasAccessBit);
+
+        // §10B.5 (T5b): always-fenced once shared — raise the fence at the
+        // flip so the very first multi-mutator window is fenced even before
+        // the first conducted cycle's beginMarking().
+        setMutatorShouldBeFenced(true);
+    }
+}
+
+void Heap::collectSyncAllClients(CollectionScope scope)
+{
+    ASSERT(!currentThreadHasSTWForbiddenScope()); // I14/L5.
+    // §10.1 CSAC: ticket + §10.2 election once shared; legacy collectSync
+    // otherwise. collectSync() itself performs the ISS re-route (I15), so
+    // both protocols funnel through one entry.
+    collectSync(GCRequest(scope));
+}
+
+void Heap::requestCollectionAllClients(GCRequest request)
+{
+    ASSERT(!currentThreadHasSTWForbiddenScope()); // I14/L5.
+    // §10.1 RCAC: ticketing only — no fire-and-forget collections when
+    // shared; the ticket is served by the next conductor (a sync requester's
+    // election or a stopIfNecessaryForAllClients() poll). collectAsync()
+    // performs the ISS re-route (I15) and the subsumption check.
+    collectAsync(request);
+}
+
+Heap::Ticket Heap::requestCollectionShared(GCRequest request)
+{
+    // §10B.1 ticketing: like requestCollection() minus the legacy
+    // stopIfNecessary() prelude. Precondition (SharedGC, T5b — the shared
+    // replacement for requestCollection()'s API-lock/atom-table asserts):
+    // the requester holds its client's heap access, or is the conductor
+    // while the world is stopped for all clients.
+    ASSERT(isSharedServer());
+#if ASSERT_ENABLED
+    GCClient::Heap* requester = GCClient::Heap::currentThreadClient();
+    ASSERT((requester && &requester->server() == this && requester->hasHeapAccess())
+        || worldIsStoppedForAllClients());
+#endif
+
+    Locker locker { *m_threadLock };
+    ASSERT(m_lastServedTicket <= m_lastGrantedTicket);
+    // §10B.2/§10B.3: the conductor always runs as the mutator and the
+    // collector thread is quiesced once shared (I15) — set the conn bit
+    // idempotently via exchangeOr; never assert served == granted mid-drain.
+    ASSERT(!m_collectorThreadIsRunning);
+    m_worldState.exchangeOr(mutatorHasConnBit);
+    m_requests.append(request);
+    m_lastGrantedTicket++;
+    // No m_threadCondition notify: the collector thread never serves shared
+    // tickets (§10B.3); followers wait on m_gcElectionCondition (§10.2).
+    return m_lastGrantedTicket;
+}
+
+void Heap::runSharedGCElection(Ticket ticket) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+{
+    // §10.2 election. Preconditions: caller holds its client's heap access;
+    // no rank >= 4 lock, no SAL (L2/I14); not inside a stop window.
+    ASSERT(!currentThreadHasSTWForbiddenScope()); // I14/L5.
+    GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+    RELEASE_ASSERT(client && &client->server() == this);
+    RELEASE_ASSERT(client->hasHeapAccess());
+
+    for (;;) { // while (T not served)
+        {
+            Locker locker { *m_threadLock };
+            if (m_lastServedTicket >= ticket)
+                return;
+        }
+
+        if (m_gcConductorLock.tryLock()) { // GCL, rank 2; tryLock — no 5 -> 2 inversion.
+            {
+                Locker locker { *m_threadLock };
+                if (m_lastServedTicket >= ticket) {
+                    m_gcConductorLock.unlock();
+                    return;
+                }
+                m_gcConductorActive = true; // GCA.
+            }
+            conductSharedCollection(*client); // §10 steps 3-9.
+            m_gcConductorLock.unlock();
+            {
+                Locker locker { *m_threadLock };
+                m_gcConductorActive = false;
+                m_gcElectionCondition.notifyAll();
+            }
+            continue; // Re-check our ticket (late-granted tickets re-loop and win tryLock).
+        }
+
+        // Follower (a conductor is active), or GCL-busy (a JSThreadsStopScope
+        // holds GCL, §10C(e)). Either way: release access — REQUIRED for the
+        // §10.4 barrier — and wait on the election condition; never on
+        // m_threadCondition, never spinning, and in the GCL-busy case never
+        // untimed (§10.2 GCL-busy rule).
+        client->releaseHeapAccess();
+        {
+            Locker locker { *m_threadLock };
+            if (m_gcConductorActive) {
+                while (m_lastServedTicket < ticket && m_gcConductorActive)
+                    m_gcElectionCondition.wait(*m_threadLock);
+            } else
+                m_gcElectionCondition.waitFor(*m_threadLock, 1_ms); // GCL-busy: timed (<= 1ms).
+        }
+        // §10.2: VM-backed requesters poll VMTraps each iteration and park in
+        // notifyVMStop if a VMM stop pends (a JSThreads/debugger conductor
+        // needs us parked, not merely access-released). We hold no lock and
+        // no access here (I6). Standalone (§12.1) clients have no VM/traps.
+        // THREADS-INTEGRATE(heap): the trap bit is set for entered VMs by the
+        // manifest-5g(ii) hunk and by the requester's requestStopAll.
+        if (!client->m_isStandalone) [[likely]] {
+            VM& vm = client->vm();
+            if (vm.traps().needHandling(VMTraps::NeedStopTheWorld)) [[unlikely]]
+                VMManager::singleton().notifyVMStop(vm, StopTheWorldEvent::VMStopped);
+        }
+        client->acquireHeapAccess(); // F8: blocks while a stop is pending.
+    }
+}
+
+bool Heap::tryConductSharedCollectionForPoll(GCClient::Heap& client) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+{
+    // Non-blocking election attempt: serves granted-unserved tickets from a
+    // mutator poll (mutator-driven triggering, §5.4/I15 — RCAC/CIND tickets
+    // have no waiting requester). Returns true if it conducted.
+    ASSERT(isSharedServer());
+    ASSERT(client.hasHeapAccess());
+    if (!m_gcConductorLock.tryLock())
+        return false; // Conductor active or JSThreadsStopScope held (§10C(e)); retry next poll.
+    bool shouldConduct = false;
+    {
+        Locker locker { *m_threadLock };
+        if (m_lastServedTicket < m_lastGrantedTicket) {
+            m_gcConductorActive = true;
+            shouldConduct = true;
+        }
+    }
+    if (!shouldConduct) {
+        m_gcConductorLock.unlock();
+        return false;
+    }
+    conductSharedCollection(client);
+    m_gcConductorLock.unlock();
+    {
+        Locker locker { *m_threadLock };
+        m_gcConductorActive = false;
+        m_gcElectionCondition.notifyAll();
+    }
+    return true;
+}
+
+void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+{
+    // §10 steps 3-9. Pre: GCL held (rank 2), GCA set; the conductor runs as
+    // the mutator (GCConductor::Mutator, §10B.2) and may be VM-less.
+    RELEASE_ASSERT(isSharedServer());
+    RELEASE_ASSERT(!m_worldIsStoppedForAllClients.load(std::memory_order_acquire));
+    RELEASE_ASSERT(!m_gcStopPending.load(std::memory_order_seq_cst));
+
+    // Step 3 — stop request: seq_cst GSP = true (F8 Dekker store), release
+    // our own access, then the async VMM stop. Our own trap bit is harmless
+    // (we do not run JS until resume).
+    m_gcStopPending.store(true, std::memory_order_seq_cst);
+    if (conductorClient.hasHeapAccess())
+        conductorClient.releaseHeapAccess();
+    // THREADS-INTEGRATE(heap): StopReason::GC never enters VMM's
+    // latch/dispatch; the keep-parked bit, park hooks, resume notify and
+    // re-latch behavior are INTEGRATE-heap.md manifest item 5 (annex §A5).
+    VMManager::requestStopAll(VMManager::StopReason::GC);
+
+    // Step 4 — access barrier: under GBL, wait until every client is
+    // NoAccess (F8: seq_cst samples). Entered mutators park via traps ->
+    // notifyVMStop -> manifest-5a willPark; others release at their next
+    // RHA/SINFAC poll; acquirers revert-and-block (F8 step 3).
+    {
+        Locker locker { m_gcBarrierLock }; // GBL, rank 4.
+        for (;;) {
+            bool anyAccess = false;
+            clientSet().forEach([&](GCClient::Heap& client) { // Rank 6 inside rank 4 (§6).
+                if (client.m_accessState.load(std::memory_order_seq_cst) == GCClient::Heap::hasAccessState)
+                    anyAccess = true;
+            });
+            if (!anyAccess)
+                break;
+            m_gcBarrierCondition.wait(m_gcBarrierLock);
+        }
+        m_worldIsStoppedForAllClients.store(true, std::memory_order_seq_cst); // WSAC set under GBL (F7).
+    }
+
+    // Step 5 — flush: every client's LocalAllocators (TLC non-iso slots and
+    // the registered GCClient::IsoSubspace allocators) are linked into the
+    // shared BlockDirectories' m_localAllocators lists, so the conducted
+    // cycle's first stopThePeriphery() -> m_objectSpace.stopAllocating()
+    // flushes every client's caches (I2 exception: conductor while WSAC).
+    // LocalAllocator::stopAllocating() is not idempotent (it asserts
+    // !m_lastActiveBlock), so the flush happens exactly once — inside the
+    // cycle, not eagerly here. T8 audit of the N-client stop/resume/sweeper
+    // interplay: stop/prepare/resume directory iterations assert
+    // WSAC v MSPL v !ISS (MarkedSpace/LocalAllocator); BlockDirectory::
+    // stopAllocating()'s inUse-empty check verifies every client's handles
+    // were returned (no thread can park inside an MSPL section — MSPL holders
+    // always hold access, so the §10.4 barrier excludes them; this includes
+    // the teardown path: GCClient::Heap::~Heap acquires access BEFORE
+    // lastChanceToFinalize()'s MSPL section, review round 1); the
+    // IncrementalSweeper is fully disabled once shared (deviation 4), leaving
+    // in-lock allocation-path sweeps and conductor-side synchronous sweeps as
+    // the only sweepers.
+
+    // Step 6 — stacks (T6): gatherStackRoots()'s MachineThreads scan
+    // suspends-and-copies every I4(b)-registered thread; the conductor's own
+    // state flows through m_currentThreadState. Registration is enforced in
+    // GCClient::Heap::acquireHeapAccess (and the forwarding transfer branch),
+    // so by the time the §10.4 barrier completed, every thread that ever
+    // held access is scannable; the CLoop stack case is handled inside
+    // gatherStackRoots (per-VM, main VM only in phase 1).
+
+    // Step 7 — collection: full synchronous collection per §10B, conductor
+    // as the mutator; drains ALL granted tickets (§10B.1). Deviation 4 keeps
+    // the world suspended for the entire cycle (no Concurrent phase; see
+    // runFixpointPhase). Parallel marking inside the stop stays (I5 helpers).
+    for (;;) {
+        {
+            Locker locker { *m_threadLock };
+            if (m_requests.isEmpty()) {
+                ASSERT(m_lastServedTicket == m_lastGrantedTicket);
+                break;
+            }
+        }
+        collectInMutatorThread();
+    }
+
+    // Step 7 tail — still stopped: shared mode fires the safepoint hooks
+    // HERE (§9 contract notes; = OM §6's quarantine bar — the legacy
+    // runEndPhase site is skipped when isSharedServer()), followed by the
+    // §11 reclaim sequence (I11) under the reclaimer's own compiler-thread
+    // suspension.
+    runSafepointHooksAndReclaim();
+
+    // Step 8 — resume (heap), strictly before the VMM resume (normative).
+    // resumeAllocating() on all client caches: idempotent — the cycle's
+    // final resumeThePeriphery() already resumed every directory-linked
+    // allocator; this pass re-checks each client cache slot while still
+    // owning the stop (I2 exception).
+    clientSet().forEach([&](GCClient::Heap& client) {
+        client.threadLocalCache().resumeAllocating();
+    });
+    {
+        Locker locker { m_gcBarrierLock };
+        m_worldIsStoppedForAllClients.store(false, std::memory_order_seq_cst); // Clear WSAC pre-resume (F7).
+        m_gcStopPending.store(false, std::memory_order_seq_cst); // GSP = false (F8).
+        m_gcBarrierCondition.notifyAll(); // Broadcast GBC: revert-blocked acquirers retry.
+    }
+
+    // Step 9 — resume (VMM): wakes manifest-5b-parked mutators (5e notify);
+    // GC is never latched (5c), so they exit or re-latch another reason (5f);
+    // didResume hooks re-acquire access (5a).
+    VMManager::requestResumeAll(VMManager::StopReason::GC);
+
+    // Re-acquire our own access; the §10.2 loop then re-checks the ticket.
+    conductorClient.acquireHeapAccess();
+}
+
+void Heap::runSafepointHooksAndReclaim()
+{
+    // §9 contract notes + §11 reclaim sequence. Sole call sites (I11): §10
+    // step 7 (shared, conductSharedCollection) and the legacy runEndPhase
+    // site (!isSharedServer(), including option-off — the I10 exemption).
+    // Never from a JSThreads stop (jit R4/CS4 refused; such stops enqueue a
+    // GC request instead, §13.10a).
+    ASSERT(worldIsStopped() || worldIsStoppedForAllClients());
+
+    runStopTheWorldSafepointHooks();
+
+    // I11: compiler threads must be suspended across the bump by the
+    // reclaimer's OWN suspend/resume pair — a conducted cycle's periphery
+    // suspension does not by itself license a bump (bumpAndReclaim
+    // release-asserts the bracket below, T7). JITWorklist's suspension lock
+    // is not recursive, so when this thread already holds the cycle's
+    // suspension (stopThePeriphery set m_isCompilerThreadsSuspended; it is
+    // released only in resumeThePeriphery, after this call site in both
+    // protocols), the reclaimer's bracket explicitly ADOPTS that suspension —
+    // this thread holds it across the whole bracket — instead of re-entering
+    // suspendAllThreads(); otherwise it takes a fresh pair.
+    // suspendCompilerThreads() returning false with no prior suspension means
+    // there are no compiler threads to suspend (JIT off / no active plans):
+    // I11(c) is vacuous.
+    bool reclaimerSuspended = false;
+    if (!m_isCompilerThreadsSuspended)
+        reclaimerSuspended = suspendCompilerThreads();
+
+    // The bracket is the I11(c) license: it opens only here, only with the
+    // suspension (fresh, adopted, or vacuous) established, and closes before
+    // that suspension can be released.
+    m_safepointEpoch.beginReclaimerBracket();
+
+    // §11: publish each registered client's local epoch exactly — the world
+    // is stopped (legacy mutator suspended, or stopped for all clients), so
+    // no client is between heap operations.
+    uint64_t epoch = m_safepointEpoch.current();
+    clientSet().forEach([&](GCClient::Heap& client) {
+        client.m_localEpoch.store(epoch, std::memory_order_seq_cst);
+    });
+
+    m_safepointEpoch.bumpAndReclaim();
+
+    m_safepointEpoch.endReclaimerBracket();
+
+    if (reclaimerSuspended)
+        resumeCompilerThreads();
+}
+
+void Heap::pollIssRevertIfNeeded() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+{
+    // §10D ISS reversion: performed by the MAIN client's thread at a
+    // CIND/SINFAC poll — never inside HeapClientSet::remove() or a stop
+    // window. One bounded attempt per poll: if the server is not yet
+    // ticket-quiescent the caller's own poll will service the tickets first
+    // and we retry at a later poll (this also keeps §10B.4's liveness rule —
+    // never block indefinitely while granted-unserved tickets exist).
+    ASSERT(isSharedServer());
+    GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+    if (!client || client != m_mainClient)
+        return;
+    ASSERT(client->hasHeapAccess());
+
+    // (1) GCL tryLock must succeed (no conductor, no JSThreadsStopScope).
+    if (!m_gcConductorLock.tryLock())
+        return;
+    {
+        Locker locker { *m_threadLock };
+        // While a conductor is winding down, GCA may still be set: wait
+        // briefly (§10B.4-style timed waits), then re-check once.
+        while (m_gcConductorActive)
+            m_gcElectionCondition.waitFor(*m_threadLock, 1_ms);
+        bool quiescent = m_issRevertPending.load(std::memory_order_relaxed)
+            && m_lastServedTicket == m_lastGrantedTicket
+            && !m_collectorThreadIsRunning
+            && m_currentPhase == CollectorPhase::NotRunning
+            // Review round 2: SINFAC runs this poll BEFORE its isDeferred()
+            // gate, so we can legally arrive here inside an open DeferGC
+            // scope (m_deferralDepth > 0; stopIfNecessary() has many runtime
+            // call sites under deferral). That defers the REVERT — not a
+            // protocol violation: clearing ISS now would re-route the open
+            // scope's pending decrements to the server counter (I17
+            // imbalance), so we leave the hint armed and retry at a later
+            // poll. This condition is what licenses the RELEASE_ASSERT
+            // below. Safe to read here: m_deferralDepth is touched only by
+            // this client's access-holding thread, which is us (asserted at
+            // entry).
+            && !client->m_deferralDepth;
+        if (quiescent) {
+            // (2) The size() == 1 re-check and the ISS clear are ONE atomic
+            // step under the registry lock (rank 6 inside ranks 2/5, §6;
+            // review round 1): HeapClientSet::add()'s already-shared insert
+            // re-checks isSharedServer() under this same lock, so a
+            // concurrent add() can never interleave between the size sample
+            // and the clear — the TOCTOU that would otherwise yield two
+            // registered clients with isSharedServer() == false.
+            m_clientSet.withSizeUnderRegistryLock([&](unsigned size) {
+                if (size != 1) {
+                    // A new client raced in: stay shared. Disarm the hint —
+                    // we hold *m_threadLock (the flag's writer lock), so this
+                    // cannot lose a concurrent remove()'s re-arm: a remove()
+                    // that takes the survivor back down to 1 arms the flag
+                    // under this same lock, after us.
+                    m_issRevertPending.store(false, std::memory_order_relaxed);
+                    return;
+                }
+                // Clear ISS + the flag. Deviation-4 features and the server
+                // deferral counter re-enable; the survivor's per-client depth
+                // MUST be 0 (I17) — its open scopes would otherwise decrement
+                // the wrong counter after the flip. Guaranteed by the
+                // quiescent condition above (review round 2: a deferred
+                // caller retries at a later poll instead of asserting), and
+                // the depth cannot have grown since: only this thread
+                // increments it.
+                RELEASE_ASSERT(!client->m_deferralDepth);
+                // Review round 4: migrate any pending per-client deferred-GC
+                // hint back to the server flag — didDeferGCWorkSlot() routes
+                // to the server again once ISS clears, so a hint left on the
+                // client would be orphaned. Only this thread touches either
+                // slot here (we are the main client's access-holding thread).
+                if (client->m_didDeferGCWork) {
+                    m_didDeferGCWork = true;
+                    client->m_didDeferGCWork = false;
+                }
+                m_issRevertPending.store(false, std::memory_order_relaxed);
+                m_isSharedServer.store(false, std::memory_order_seq_cst);
+                // Residual m_retired items drain via §11's legacy runEndPhase
+                // site; the §10A.1 TLS slot stays stamped; a later add()
+                // re-runs §10B.4 (the I13 assert keys on current ISS).
+            });
+        }
+    }
+    m_gcConductorLock.unlock();
+}
+
+void Heap::stopIfNecessaryForAllClients()
+{
+    ASSERT(!currentThreadHasSTWForbiddenScope()); // I14/L5.
+
+    if (!isSharedServer()) {
+        // Legacy single-client protocol (I10/I15). Call the slow path
+        // directly: the inline Heap::stopIfNecessary() re-dispatches here
+        // when ISS, so going through it again would recurse on an ISS flip.
+        if (mayNeedToStop())
+            stopIfNecessarySlow();
+        return;
+    }
+
+    GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+    ASSERT(!client || &client->server() == this);
+    if (!client || &client->server() != this)
+        return;
+
+    // §10A SINFAC: release -> wait -> re-acquire when shared and a stop is
+    // pending. Precondition (I6): the caller holds no rank >= 4 lock and no
+    // SAL — it may block here for the whole stop window.
+    if (m_gcStopPending.load(std::memory_order_seq_cst)) [[unlikely]] { // GSP, F8 — the hot poll.
+        if (client->hasHeapAccess()) {
+            ASSERT(client->m_accessOwner.load(std::memory_order_relaxed) == &Thread::currentSingleton()
+                || !client->m_accessOwner.load(std::memory_order_relaxed)); // Null tolerated defensively (the §10B.4 migration always stamps the owner since review round 1).
+            client->releaseHeapAccess(); // Signals the §10.4 barrier (GSP is set).
+            client->acquireHeapAccess(); // F8: blocks until the conductor clears GSP.
+        }
+        // No access (e.g. the conductor's own polls mid-stop): nothing to do.
+    }
+
+    if (!client->hasHeapAccess())
+        return;
+
+    // §10D revert poll (main client only; relaxed read is a hint, re-checked
+    // under *m_threadLock inside).
+    if (m_issRevertPending.load(std::memory_order_relaxed)) [[unlikely]]
+        pollIssRevertIfNeeded();
+    if (!isSharedServer()) [[unlikely]]
+        return; // Reverted just now: back to the legacy protocol (I15).
+
+    // Serve granted-unserved tickets (mutator-driven triggering, §5.4/I15):
+    // RCAC/CIND enqueue tickets with no waiting requester; this poll is what
+    // conducts them. Mirrors the legacy "stopIfNecessary() will immediately
+    // start the collection if we have the conn" behavior. Skip when this
+    // client is deferred (I17) or when re-entered from GC/sweep internals.
+    if (isDeferred())
+        return;
+    switch (mutatorState()) {
+    case MutatorState::Running:
+    case MutatorState::Allocating:
+        break;
+    case MutatorState::Sweeping:
+    case MutatorState::Collecting:
+        return;
+    }
+    bool ticketsPending = false;
+    if (m_threadLock->tryLock()) { // Opportunistic: never contend on the hot poll.
+        ticketsPending = m_lastServedTicket < m_lastGrantedTicket && !m_gcConductorActive;
+        m_threadLock->unlock();
+    }
+    if (ticketsPending) [[unlikely]]
+        tryConductSharedCollectionForPoll(*client);
+}
+
+void Heap::addStopTheWorldSafepointHook(void (*hook)(JSC::Heap&))
+{
+    RELEASE_ASSERT(hook);
+    Locker locker { m_stopTheWorldSafepointHookLock };
+    m_stopTheWorldSafepointHooks.append(hook);
+}
+
+void Heap::runStopTheWorldSafepointHooks()
+{
+    // §9 contract notes: fires once per collection in BOTH protocols. Call
+    // sites (T5, via runSafepointHooksAndReclaim): legacy runEndPhase just
+    // before didFinishCollection() (worldIsStopped() asserted) and
+    // shared-mode §10 step 7 (conductSharedCollection).
+    Vector<void (*)(JSC::Heap&)> hooks;
+    {
+        Locker locker { m_stopTheWorldSafepointHookLock };
+        hooks = m_stopTheWorldSafepointHooks;
+    }
+    for (auto hook : hooks)
+        hook(*this);
+}
+
+void Heap::incrementSTWForbiddenScope()
+{
+#if ASSERT_ENABLED
+    ++t_stwForbiddenScopeDepth;
+#endif
+}
+
+void Heap::decrementSTWForbiddenScope()
+{
+#if ASSERT_ENABLED
+    ASSERT(t_stwForbiddenScopeDepth);
+    --t_stwForbiddenScopeDepth;
+#endif
+}
+
+bool Heap::currentThreadHasSTWForbiddenScope()
+{
+#if ASSERT_ENABLED
+    return !!t_stwForbiddenScopeDepth;
+#else
+    return false;
+#endif
+}
+
+void Heap::verifyServerNonIsoAllocatorsNeverMaterialized()
+{
+    // §5.5 (T4): called from noteSharedServerSticky() at the second-client
+    // attach, before sticky ISS is set.
+    ASSERT(Options::useSharedGCHeap());
+    objectSpace().forEachSubspace([&](Subspace& subspace) -> IterationStatus {
+        if (subspace.kind() == SubspaceKind::CompleteSubspace)
+            static_cast<CompleteSubspace&>(subspace).verifyNoAllocatorsMaterialized();
+        return IterationStatus::Continue;
+    });
+}
+
+bool Heap::currentThreadIsAllocatorOwner(const LocalAllocator* allocator) const
+{
+    if (isSharedServer()) {
+        // §10A.1: the current thread owns `allocator` iff its TLS-stamped
+        // client (a) belongs to this server and (b) has the allocator in its
+        // TLC's per-directory map (T4: covers TLC-materialized non-iso
+        // allocators and the registered GCClient::IsoSubspace allocators).
+        GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+        if (!client || &client->server() != this)
+            return false;
+        bool owns = client->threadLocalCache().ownsLocalAllocator(allocator);
+        // Debug cross-check (I2): an owning thread must hold its client's
+        // heap access.
+        ASSERT(!owns || client->m_accessOwner.load(std::memory_order_relaxed) == &Thread::currentSingleton());
+        return owns;
+    }
+    // !ISS (option off, or on pre-sticky): today's predicate (I10; the
+    // §10A.1 TLS slot may be unset here).
+    return vm().currentThreadIsHoldingAPILock();
+}
+
+// --- §10A access forwarding (T2) ---
+
+NEVER_INLINE void Heap::acquireAccessForwardedToMainClient()
+{
+    GCClient::Heap* mainClient = m_mainClient;
+    RELEASE_ASSERT(mainClient);
+    // §10A.1: re-stamp the TLS slot before AHA — JSLock migration moves the
+    // main VM between threads, and the slot is keyed per-thread.
+    GCClient::Heap::setCurrentThreadClient(mainClient);
+    // I2 (access-based, not thread-pinned): if the main client already holds
+    // access — either this thread re-entering (JSLock recursion) or a JSLock
+    // hand-off from a thread that kept access across the unlock (the
+    // "permanent access" pattern) — transfer/confirm ownership. The caller
+    // holds the main VM's API lock, so the previous owner cannot be running
+    // inside the VM.
+    if (mainClient->m_accessState.load(std::memory_order_seq_cst) == GCClient::Heap::hasAccessState) {
+        // I4(b) (T6): the ownership-transfer branch bypasses AHA, but the
+        // incoming thread becomes a heap-accessing mutator right here — its
+        // stack must be in the §10.6 scan's root set before it touches the
+        // heap (JSLock::didAcquireLock's own addCurrentThread() runs later).
+        mainClient->ensureCurrentThreadIsRegisteredForConservativeScan(Thread::currentSingleton());
+        mainClient->m_accessOwner.store(&Thread::currentSingleton(), std::memory_order_relaxed);
+        return;
+    }
+    mainClient->acquireHeapAccess();
+}
+
+NEVER_INLINE void Heap::releaseAccessForwardedToMainClient()
+{
+    GCClient::Heap* mainClient = m_mainClient;
+    RELEASE_ASSERT(mainClient);
+    mainClient->releaseHeapAccess();
+}
+
+bool Heap::mainClientHasHeapAccess() const
+{
+    GCClient::Heap* mainClient = m_mainClient;
+    if (!mainClient || !mainClient->hasHeapAccess())
+        return false;
+    // Owner-sensitive on purpose: after a JSLock migration the new thread
+    // must see "no access" so JSLock::didAcquireLock re-enters
+    // acquireAccess(), which transfers ownership and re-stamps the §10A.1
+    // TLS slot (migration-safe re-stamping).
+    return mainClient->m_accessOwner.load(std::memory_order_relaxed) == &Thread::currentSingleton();
+}
+
+// --- End §10A access forwarding ---
+
+// --- Manifest 5a GC park hooks (T5; SPEC-heap-annex.md §A5(a)) ---
+
+void Heap::gcWillParkInStopTheWorld(VM& vm)
+{
+    // Heap-owned impl; idempotent; called from VMManager::notifyVMStop with
+    // no VMM lock held (L6) — once after the park counter-increment, and
+    // again before each wait while the GC bit pends (annex 5g(i)).
+    // Rule: iff ISS && GSP && this VM's client holds access -> RHA + set
+    // m_releasedByGCPark; else no-op.
+    GCClient::Heap& client = vm.clientHeap;
+    JSC::Heap& server = client.server();
+    if (!server.isSharedServer())
+        return;
+    if (!server.m_gcStopPending.load(std::memory_order_seq_cst)) // GSP, F8.
+        return;
+    if (client.m_releasedByGCPark) // Idempotent: 5g(i) re-fires.
+        return;
+    if (!client.hasHeapAccess())
+        return;
+    // The hook runs on the parking VM's own thread, which is the access
+    // owner (null tolerated defensively; the §10B.4 migration always stamps
+    // the owner since review round 1).
+    ASSERT(client.m_accessOwner.load(std::memory_order_relaxed) == &Thread::currentSingleton()
+        || !client.m_accessOwner.load(std::memory_order_relaxed));
+    client.releaseHeapAccess(); // Signals the §10.4 barrier (GSP is set).
+    client.m_releasedByGCPark = true; // Written only inside notifyVMStop (§10A).
+}
+
+void Heap::gcDidResumeFromStopTheWorld(VM& vm)
+{
+    // Heap-owned impl; idempotent; called after notifyVMStop's final
+    // decrement block. Rule: iff m_releasedByGCPark -> AHA (F8-blocking if a
+    // NEW stop pends), then clear; else no-op (F8 step 0 backstops).
+    GCClient::Heap& client = vm.clientHeap;
+    if (!client.m_releasedByGCPark)
+        return;
+    client.acquireHeapAccess(); // F8: blocks while a (new) stop is pending.
+    client.m_releasedByGCPark = false;
+}
+
+// --- End manifest 5a GC park hooks ---
+
+Heap::JSThreadsStopScope::JSThreadsStopScope(JSC::Heap& heap) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+    : m_heap(heap)
+{
+    // §10C/CS2: the GCL (rank 2) bracket for a JSThreads/debugger stop.
+    // Pre: caller released heap access (I6); no bumpAndReclaim() inside the
+    // scope (jit R4/CS4 refused — JSThreads stops enqueue a GC request).
+    // !isSharedServer() => no-op.
+    if (!m_heap.isSharedServer())
+        return;
+    ASSERT(!currentThreadHasSTWForbiddenScope()); // I14/L5.
+#if ASSERT_ENABLED
+    // Pre (§9/I6): the caller's client released heap access before
+    // bracketing — a JSThreads conductor must never stop the world while
+    // still counted as a heap-accessing mutator (a concurrent GC requester
+    // parked under the GCL-busy rule waits for OUR access state too).
+    if (GCClient::Heap* client = GCClient::Heap::currentThreadClient())
+        ASSERT(!client->hasHeapAccess());
+#endif
+    m_heap.m_gcConductorLock.lock();
+    m_didLock = true;
+}
+
+Heap::JSThreadsStopScope::~JSThreadsStopScope() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+{
+    if (m_didLock)
+        m_heap.m_gcConductorLock.unlock();
+}
+
+// --- End shared heap server ---
+
 namespace GCClient {
 
 #define INIT_CLIENT_ISO_SUBSPACE_FROM_SPACE_AND_SET(subspace) subspace(heap.subspace##AndSet.space)
@@ -3578,10 +4869,249 @@ Heap::Heap(JSC::Heap& heap)
     , INIT_CLIENT_ISO_SUBSPACE_FROM_SPACE_AND_SET(functionExecutableSpace)
     , INIT_CLIENT_ISO_SUBSPACE_FROM_SPACE_AND_SET(programExecutableSpace)
     , INIT_CLIENT_ISO_SUBSPACE_FROM_SPACE_AND_SET(unlinkedFunctionExecutableSpace)
+    , m_threadLocalCache(heap)
 {
+    // §5.3 (T4): the GCClient::IsoSubspace LocalAllocators enter the TLC's
+    // per-directory map (lookup-only) so the §10A.1 ownership predicate and
+    // §5.3 teardown cover iso. Before clientSet().add() — the TLC map itself
+    // is owner-thread-private until the client is published. NOTE (review
+    // round 2): the LocalAllocators constructed by this ctor's member-init
+    // list are NOT private — each LocalAllocator ctor links into its shared
+    // server BlockDirectory's m_localAllocators under m_localAllocatorsLock,
+    // globally visible immediately. The GC-side traversals therefore hold
+    // that lock too (BlockDirectory::stopAllocating et al.), which is what
+    // makes pre-publication construction safe against a concurrent legacy
+    // collection or conducted stop. Option off: skipped (I10; server
+    // teardown handles iso exactly as today).
+    if (Options::useSharedGCHeap()) [[unlikely]]
+        registerIsoSubspaceLocalAllocators();
+    // SPEC-heap.md §5.1 (T2): every client registers with its server's
+    // HeapClientSet. An add() that makes size() > 1 with the option on runs
+    // the §10B.4 sticky switch first (see HeapClientSet::add).
+    m_server.clientSet().add(*this);
 }
 
-Heap::~Heap() = default;
+void Heap::registerIsoSubspaceLocalAllocators()
+{
+    ASSERT(Options::useSharedGCHeap());
+#define THREADS_REGISTER_CLIENT_ISO_LA(name, heapCellType, type) \
+    m_threadLocalCache.registerExternalAllocator(&name.localAllocator());
+    FOR_EACH_JSC_ISO_SUBSPACE(THREADS_REGISTER_CLIENT_ISO_LA)
+#undef THREADS_REGISTER_CLIENT_ISO_LA
+    m_threadLocalCache.registerExternalAllocator(&codeBlockSpace.localAllocator());
+    m_threadLocalCache.registerExternalAllocator(&functionExecutableSpace.localAllocator());
+    m_threadLocalCache.registerExternalAllocator(&programExecutableSpace.localAllocator());
+    m_threadLocalCache.registerExternalAllocator(&unlinkedFunctionExecutableSpace.localAllocator());
+}
+
+Heap::~Heap()
+{
+    // Teardown order (I2/I9/I13; review round 1): allocator relinquishment
+    // MUST run while this client still holds heap access and is still
+    // registered. lastChanceToFinalize() mutates shared directories under
+    // MSPL, but MSPL by itself does not exclude a conducted stop — the
+    // conductor's flush/sweep is licensed by WSAC, not MSPL, so the two
+    // disjunctive licenses (assertSharedAllocatorMutationIsSafe) only
+    // exclude each other through the access protocol: while we hold access,
+    // the §10.4 barrier cannot complete, so no stop window can open around
+    // our MSPL section; and acquireHeapAccess() (F8) parks us across any
+    // stop already pending. This is what makes "MSPL holders always hold
+    // access" (the step-5 note in conductSharedCollection and the
+    // sweepSynchronously contract) true on the teardown path too. Option
+    // off: the TLC is empty, lastChanceToFinalize() is a no-op, and the
+    // access bracket is skipped (I10).
+    bool sharedTeardown = Options::useSharedGCHeap();
+    if (sharedTeardown && !hasHeapAccess())
+        acquireHeapAccess(); // F8: blocks while a stop is pending; threads other than the attached one re-assert I2 via the step-0/owner checks.
+    lastChanceToFinalize();
+    // Now drop access: detach if this thread is still attached (also parks
+    // the epoch at MAX and clears the §10A.1 TLS slot; threads other than
+    // the current one must have detached already, §9 lifecycle), else
+    // release the bracket access directly.
+    if (currentThreadClient() == this)
+        detachCurrentThread();
+    else if (sharedTeardown && hasHeapAccess())
+        releaseHeapAccess();
+    // Unregister last: a stop that begins the moment remove() unblocks can
+    // no longer touch our state — every allocator of ours is stopped and
+    // unlinked from the shared directories, and we hold no access (remove()
+    // asserts that; it also defers across an in-flight stop window, I13).
+    m_server.clientSet().remove(*this);
+}
+
+void Heap::lastChanceToFinalize()
+{
+    // Implements the GlobalGC FIXME (Heap.h): relinquish memory from this
+    // client's allocators back to the server (§5.3/I9). The TLC owns every
+    // per-client non-iso LocalAllocator, and (option on) holds the
+    // GCClient::IsoSubspace LocalAllocators as lookup-only entries (T4), so
+    // one teardown pass — per-slot stopAllocatingForGood() under MSPL, then
+    // unlink — covers both. Option off: the TLC holds nothing and this is a
+    // no-op; server teardown via BlockDirectory::stopAllocatingForGood()
+    // proceeds exactly as today (I10).
+    m_threadLocalCache.stopAllocatingForGood();
+}
+
+void Heap::attachCurrentThread()
+{
+    // I4(a): the ctor registered us with the server's client set.
+    ASSERT(isOnList());
+    // §10A.1: stamp the current-client TLS slot.
+    setCurrentThreadClient(this);
+    // I4(b): this thread's stack must be visible to conservative scanning
+    // (§10.6/I12) before any allocation. Stamps the uid cache so the
+    // acquireHeapAccess() enforcement below short-circuits.
+    ensureCurrentThreadIsRegisteredForConservativeScan(Thread::currentSingleton());
+    // §11 (review round 2): deliberately NO m_localEpoch store here. The
+    // ctor / a prior detach parked it at MAX, which is safe until the next
+    // stop window: the sole consumer is bumpAndReclaim()'s min scan, and the
+    // reclaim sequence's stamping loop (runSafepointHooksAndReclaim)
+    // overwrites EVERY registered client's value inside the same stop window
+    // just before that scan, so the pre-stop value is never load-bearing —
+    // and MAX can only make the min scan MORE conservative, never lower. A
+    // store of current() here, taken before access is held, could be delayed
+    // (this thread preempted between the current() read and the store)
+    // across two complete stop windows and then land its stale value between
+    // a later stop's stamping loop and min scan, tripping
+    // RELEASE_ASSERT(minLocalEpoch >= oldEpoch) (GCSafepointEpoch.cpp).
+    // Resulting invariant: m_localEpoch is written ONLY by the conductor's
+    // stamping loop (world stopped) and by detachCurrentThread (MAX). While
+    // this client holds access (acquired below), no stop window — hence no
+    // stamping or min scan — can run at all, so post-attach heap use is
+    // covered without an attach-side stamp.
+    // I4(c): acquire access (F8: blocks while a shared-mode stop is pending).
+    acquireHeapAccess();
+}
+
+void Heap::detachCurrentThread()
+{
+    RELEASE_ASSERT(currentThreadClient() == this);
+    if (hasHeapAccess())
+        releaseHeapAccess();
+    // T10 amplifier hook (AMPLIFIER.md): widen the detach window — access is
+    // released but the local epoch is not yet parked at MAX; a reclaimer
+    // computing min(localEpoch) right now must still count us (we are still
+    // registered) and must not free items we could have been touching.
+    RaceAmplifier::perturb();
+    // §11: a detached client never holds up reclamation.
+    m_localEpoch.store(std::numeric_limits<uint64_t>::max(), std::memory_order_seq_cst);
+    setCurrentThreadClient(nullptr);
+}
+
+void Heap::markStandalone()
+{
+    // §12.1: this client is not embedded in a VM (SharedHeapTestHarness).
+    // Arms the RELEASE_ASSERT in vm() (HeapInlines.h; T9).
+    m_isStandalone = true;
+}
+
+void Heap::ensureCurrentThreadIsRegisteredForConservativeScan(WTF::Thread& currentThread)
+{
+    // I4(b) (§10.6/I12, T6). MachineThreads::addCurrentThread() is idempotent
+    // but takes the thread-group WordLock; cache the last registered uid so
+    // the hot JSLock hand-back path skips it. The cache is per-client and a
+    // client's access is held by one thread at a time (I2) — hand-offs
+    // synchronize through the JSLock — but the load/store are relaxed
+    // atomics anyway: a stale read merely re-runs the idempotent
+    // registration. uid 0 is never a valid Thread uid (main thread is 1,
+    // others increment from there), so the zero-initialized cache always
+    // misses first time. Registration is permanent for the thread's lifetime
+    // (ThreadGroup drops a thread only when it dies), so a cache hit implies
+    // the thread is still scannable.
+    uint32_t uid = currentThread.uid();
+    if (m_lastConservativeScanRegisteredUid.load(std::memory_order_relaxed) == uid)
+        return;
+    m_server.machineThreads().addCurrentThread();
+    m_lastConservativeScanRegisteredUid.store(uid, std::memory_order_relaxed);
+}
+
+void Heap::acquireHeapAccess()
+{
+    auto& currentThread = Thread::currentSingleton();
+
+    // F8 step 0: already HasAccess on this thread => return. Idempotent, no
+    // CAS-spin: JSLock recursion, attachCurrentThread(), and the manifest-5a
+    // didResume hook may re-enter.
+    if (m_accessState.load(std::memory_order_seq_cst) == hasAccessState) {
+        RELEASE_ASSERT(m_accessOwner.load(std::memory_order_relaxed) == &currentThread);
+        return;
+    }
+
+    // I4(b) enforcement (§10A/§10.6, T6): "AHA = F8 + re-stamp m_accessOwner
+    // + ensure addCurrentThread()". A thread may not enter the heap unless
+    // its stack and registers are visible to the conductor's conservative
+    // scan (I12). Ensure — not assert — because JSLock migration can route a
+    // brand-new thread here through the server-side forwarding before
+    // JSLock::didAcquireLock reaches its own addCurrentThread() call.
+    // Placed before the CAS loop (and after the step-0 early return, whose
+    // owner already registered when it first acquired): once the CAS below
+    // succeeds this thread is a heap-accessing mutator and must already be
+    // scannable.
+    ensureCurrentThreadIsRegisteredForConservativeScan(currentThread);
+    ASSERT(m_server.machineThreads().includesCurrentThread());
+
+    for (;;) {
+        // F8 step 1: seq_cst CAS NoAccess -> HasAccess. Only this client's
+        // owning thread may attempt the transition (I2), so failure is a
+        // protocol violation, not contention.
+        uint8_t previous = m_accessState.compareExchangeStrong(noAccessState, hasAccessState, std::memory_order_seq_cst);
+        RELEASE_ASSERT(previous == noAccessState);
+
+        // T10 amplifier hook (AMPLIFIER.md): widen the F8 Dekker window —
+        // we are HasAccess but have not yet sampled GSP; a conductor
+        // publishing GSP right now must observe our state and we must revert.
+        RaceAmplifier::perturb();
+
+        // F8 step 2: seq_cst load of GSP. The seq_cst CAS/load pair is the
+        // client half of the Dekker pair with the conductor's seq_cst
+        // GSP-store / access-state sample (acq/rel is insufficient; see
+        // SPEC-heap.md §7 F8).
+        if (m_server.m_gcStopPending.load(std::memory_order_seq_cst)) [[unlikely]] {
+            // F8 step 3: mandatory revert — never enter the heap while a
+            // stop is pending.
+            uint8_t reverted = m_accessState.exchange(noAccessState, std::memory_order_seq_cst);
+            ASSERT_UNUSED(reverted, reverted == hasAccessState);
+            {
+                Locker locker { m_server.m_gcBarrierLock }; // GBL, rank 4; released while waiting (I6).
+                m_server.m_gcBarrierCondition.notifyAll(); // Wake the conductor's §10.4 barrier.
+                while (m_server.m_gcStopPending.load(std::memory_order_seq_cst))
+                    m_server.m_gcBarrierCondition.wait(m_server.m_gcBarrierLock);
+            }
+            continue; // Retry from step 1.
+        }
+
+        // Re-stamp the owner (§10A; I2: JSLock migration transfers via the
+        // server-side forwarding, which re-stamps before/instead of AHA).
+        m_accessOwner.store(&currentThread, std::memory_order_relaxed);
+        return;
+    }
+}
+
+void Heap::releaseHeapAccess()
+{
+    // Tolerate a null owner defensively (historically the §10B.4 migration
+    // could leave the owner unstamped; since review round 1 it always stamps
+    // — the flip thread holds the API lock whenever the legacy bit is set).
+    ASSERT(m_accessOwner.load(std::memory_order_relaxed) == &Thread::currentSingleton()
+        || !m_accessOwner.load(std::memory_order_relaxed));
+    m_accessOwner.store(nullptr, std::memory_order_relaxed);
+
+    // §10A RHA: seq_cst exchange -> NoAccess publishes all prior heap writes
+    // to the conductor (F6).
+    uint8_t previous = m_accessState.exchange(noAccessState, std::memory_order_seq_cst);
+    RELEASE_ASSERT(previous == hasAccessState);
+
+    // T10 amplifier hook (AMPLIFIER.md): widen the RHA window between the
+    // access publication and the barrier signal — a conductor entering its
+    // §10.4 wait right here must not miss the wakeup.
+    RaceAmplifier::perturb();
+
+    // Signal the §10.4 barrier only if a stop is pending (F8).
+    if (m_server.m_gcStopPending.load(std::memory_order_seq_cst)) [[unlikely]] {
+        Locker locker { m_server.m_gcBarrierLock };
+        m_server.m_gcBarrierCondition.notifyAll();
+    }
+}
 
 #undef INIT_CLIENT_ISO_SUBSPACE
 #undef CLIENT_ISO_SUBSPACE_INIT_FROM_SPACE_AND_SET
@@ -3594,6 +5124,8 @@ Heap::~Heap() = default;
         Locker locker { server().m_lock }; \
         JSC::IsoSubspace& serverSpace = *server().name<SubspaceAccess::OnMainThread>(); \
         auto space = makeUnique<IsoSubspace>(serverSpace); \
+        if (Options::useSharedGCHeap()) [[unlikely]] \
+            m_threadLocalCache.registerExternalAllocator(&space->localAllocator()); \
         WTF::storeStoreFence(); \
         m_##name = WTF::move(space); \
         return m_##name.get(); \

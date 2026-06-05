@@ -1625,7 +1625,7 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     if (Options::useSharedArrayBuffer())
         putDirectWithoutTransition(vm, vm.propertyNames->SharedArrayBuffer, m_sharedArrayBufferStructure.constructor(this), static_cast<unsigned>(PropertyAttribute::DontEnum));
 
-    if (useJSThreadsEnabled()) {
+    if (Options::useJSThreads()) {
         // Shared-memory Thread API (docs/threads/SPEC-api.md 9.2-2).
         putDirectWithoutTransition(vm, Identifier::fromString(vm, "Thread"_s), createThreadProperty(vm, this), static_cast<unsigned>(PropertyAttribute::DontEnum));
         putDirectWithoutTransition(vm, Identifier::fromString(vm, "Lock"_s), createLockProperty(vm, this), static_cast<unsigned>(PropertyAttribute::DontEnum));

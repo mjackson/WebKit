@@ -103,6 +103,12 @@ struct Config {
 
     OptionsStorage options;
 
+    // SPEC-jit M4a (Option 1 — the §5.4 LLInt gate byte is satisfied by the
+    // Options::useJSThreads() backing byte already inside `options` above;
+    // only the Darwin TLS-key slot is added):
+    uint32_t butterflyTIDTagTLSKey; // Darwin only: pthread key for g_jscButterflyTIDTag (SPEC-jit App. R5)
+#define JSC_CONFIG_HAS_BUTTERFLY_TID_TAG_TLS_KEY 1 // consumed by jit/ConcurrentButterflyOperations.cpp (Task 1b)
+
     using ShellTimeoutCheckCallback = void (*)(VM&);
     ShellTimeoutCheckCallback JSC_CONFIG_METHOD(shellTimeoutCheckCallback);
 

@@ -30,7 +30,10 @@
 #include "CacheableIdentifierInlines.h"
 #include "DFGJITCode.h"
 #include "InlineCacheCompiler.h"
+#include "JSThreadsSafepoint.h"
 #include "Repatch.h"
+#include "RetiredJITArtifacts.h"
+#include <wtf/Atomics.h>
 
 namespace JSC {
 
@@ -42,13 +45,53 @@ static constexpr bool verbose = false;
 
 PropertyInlineCache::~PropertyInlineCache() = default;
 
+void PropertyInlineCache::setInlineAccessSelfState(VM& vm, CodeBlock* codeBlock, Structure* structure, PropertyOffset offset)
+{
+    if (Options::useJSThreads()) [[unlikely]] {
+        // Review round 1: a packed self word keyed on a DICTIONARY structure
+        // is unsound (same structureID across butterfly growth; see the
+        // dictionary gate in addAccessCase). All flag-on feeders are
+        // addAccessCase-admitted handlers, so this cannot fire; keep it as a
+        // tripwire for any future direct caller.
+        RELEASE_ASSERT(!structure->isDictionary());
+        // SPEC-jit section 4.2 (Task 4)/F3: publish the {offset, structureID}
+        // pair as ONE aligned 64-bit store. A JIT'd reader on another thread
+        // does one relaxed 64-bit load of the same word (compare id half, use
+        // offset half), so it sees either the old pair or the new pair, never
+        // a valid id with a mismatched offset (I6). Writers are serialized by
+        // CodeBlock::m_lock / pre-publication initialization (section 5.7
+        // rule 6), so no CAS is needed. The GC write barrier that
+        // WriteBarrierStructureID::set() used to provide is preserved by
+        // barriering the owning CodeBlock after the store (section 4.2).
+        m_packedSelfWord.store(packedInlineAccessSelfWord(structure->id(), offset), std::memory_order_relaxed);
+        vm.writeBarrier(codeBlock);
+        return;
+    }
+    m_inlineAccessBaseStructureID.set(vm, codeBlock, structure);
+    byIdSelfOffset = offset;
+}
+
+void PropertyInlineCache::clearInlineAccessSelfState()
+{
+    if (Options::useJSThreads()) [[unlikely]] {
+        // Section 4.2: invalidation = one 64-bit store {0, StructureID()}.
+        // Structure id 0 never matches a live cell, so this is barrier-free
+        // and ABA-safe; a racing reader either matched the old pair (and uses
+        // its coherent offset) or misses and takes the handler chain.
+        m_packedSelfWord.store(0, std::memory_order_relaxed);
+        return;
+    }
+    // Flag-off: exactly today's invalidation - clear the id half only;
+    // byIdSelfOffset is unreachable once the structure id is zero.
+    m_inlineAccessBaseStructureID.clear();
+}
+
 void PropertyInlineCache::initGetByIdSelf(const ConcurrentJSLockerBase& locker, CodeBlock* codeBlock, Structure* inlineAccessBaseStructure, PropertyOffset offset)
 {
     ASSERT(m_cacheType == CacheType::Unset);
     ASSERT(hasConstantIdentifier(accessType));
     setCacheType(locker, CacheType::GetByIdSelf);
-    m_inlineAccessBaseStructureID.set(codeBlock->vm(), codeBlock, inlineAccessBaseStructure);
-    byIdSelfOffset = offset;
+    setInlineAccessSelfState(codeBlock->vm(), codeBlock, inlineAccessBaseStructure, offset);
 }
 
 void PropertyInlineCache::initArrayLength(const ConcurrentJSLockerBase& locker)
@@ -68,8 +111,7 @@ void PropertyInlineCache::initPutByIdReplace(const ConcurrentJSLockerBase& locke
     ASSERT(m_cacheType == CacheType::Unset);
     ASSERT(hasConstantIdentifier(accessType));
     setCacheType(locker, CacheType::PutByIdReplace);
-    m_inlineAccessBaseStructureID.set(codeBlock->vm(), codeBlock, inlineAccessBaseStructure);
-    byIdSelfOffset = offset;
+    setInlineAccessSelfState(codeBlock->vm(), codeBlock, inlineAccessBaseStructure, offset);
 }
 
 void PropertyInlineCache::initInByIdSelf(const ConcurrentJSLockerBase& locker, CodeBlock* codeBlock, Structure* inlineAccessBaseStructure, PropertyOffset offset)
@@ -77,14 +119,47 @@ void PropertyInlineCache::initInByIdSelf(const ConcurrentJSLockerBase& locker, C
     ASSERT(m_cacheType == CacheType::Unset);
     ASSERT(hasConstantIdentifier(accessType));
     setCacheType(locker, CacheType::InByIdSelf);
-    m_inlineAccessBaseStructureID.set(codeBlock->vm(), codeBlock, inlineAccessBaseStructure);
-    byIdSelfOffset = offset;
+    setInlineAccessSelfState(codeBlock->vm(), codeBlock, inlineAccessBaseStructure, offset);
 }
 
-void PropertyInlineCache::deref()
+namespace {
+
+// Epoch-deferred destruction of a RepatchingPropertyInlineCache's
+// PolymorphicAccess (SPEC-jit section 4.4): pure data (a list of
+// Ref<AccessCase>); any executable memory reachable through it is owned by
+// GC-aware stub routines whose deletion rides the jettisoned-stub-routine
+// machinery (R2/I7), never epoch expiry.
+class RetiredPolymorphicAccess final : public RetiredCallback {
+public:
+    explicit RetiredPolymorphicAccess(std::unique_ptr<PolymorphicAccess>&& stub)
+        : m_stub(WTF::move(stub))
+    {
+    }
+
+private:
+    std::unique_ptr<PolymorphicAccess> m_stub;
+};
+
+} // anonymous namespace
+
+void PropertyInlineCache::deref(VM& vm)
 {
-    if (auto* repatchingIC = dynamicDowncast<RepatchingPropertyInlineCache>(*this))
+    if (auto* repatchingIC = dynamicDowncast<RepatchingPropertyInlineCache>(*this)) {
+        if (Options::useJSThreads()) [[unlikely]] {
+            // SPEC-jit section 5.1 ("Jettison-time IC deref() same")/I9: never
+            // free JIT-reachable IC dispatch state inline; a resumed mutator
+            // can still be executing this (jettisoned) code until its next
+            // invalidation point (I21), so the data must survive until every
+            // mutator has crossed a safepoint. Flag-on this branch should be
+            // unreachable anyway (I3: no RepatchingPropertyInlineCache is ever
+            // constructed), but stay safe rather than assume.
+            if (repatchingIC->m_stub)
+                RetiredJITArtifacts::retire(vm, std::unique_ptr<RetiredCallback>(new RetiredPolymorphicAccess(std::exchange(repatchingIC->m_stub, nullptr))));
+            return;
+        }
         repatchingIC->m_stub.reset();
+    }
+    UNUSED_PARAM(vm);
 }
 
 void PropertyInlineCache::aboutToDie()
@@ -152,6 +227,22 @@ AccessGenerationResult PropertyInlineCache::addAccessCase(const GCSafeConcurrent
     ASSERT(vm.heap.isDeferred());
 
     if (!accessCase)
+        return AccessGenerationResult::GaveUp;
+
+    // SPEC-jit §5.5 / THREAD.md dictionary rule (review round 1): never install
+    // an AccessCase keyed on a DICTIONARY base structure flag-on. A dictionary
+    // keeps the same structureID while its owner adds properties (butterfly
+    // realloc + larger offsets), so the structureID-check + R7 dependency
+    // soundness argument for handler self/replace fast paths proves nothing:
+    // a racing reader could pair a matching structureID with a stale, smaller
+    // butterfly => OOB read (Load) or OOB WRITE (Replace). THREAD.md requires
+    // dictionary reads/writes to take the structure lock - i.e. the generic
+    // C++ path, never a generated fast path. This is the single funnel for
+    // every repatch-driven IC (Get/Put/In/Delete/...), and it also covers the
+    // inlined packed self word (setInlinedHandler), which is only fed from
+    // handlers admitted here. The mirroring LLInt rule lives in
+    // LLIntSlowPaths.cpp (threaded publish gates).
+    if (Options::useJSThreads() && accessCase->structure() && accessCase->structure()->isDictionary()) [[unlikely]]
         return AccessGenerationResult::GaveUp;
 
     AccessGenerationResult result = ([&](Ref<AccessCase>&& accessCase) -> AccessGenerationResult {
@@ -254,7 +345,7 @@ AccessGenerationResult PropertyInlineCache::addAccessCase(const GCSafeConcurrent
         // m_inlineAccessBaseStructureID. The reason we don't clear m_inlineAccessBaseStructureID while
         // we're buffered is because we rely on it to reset during GC if m_inlineAccessBaseStructureID
         // is collected.
-        m_inlineAccessBaseStructureID.clear();
+        clearInlineAccessSelfState();
 
         // If we generated some code then we don't want to attempt to repatch in the future until we
         // gather enough cases.
@@ -275,10 +366,31 @@ AccessGenerationResult PropertyInlineCache::addAccessCase(const GCSafeConcurrent
 void PropertyInlineCache::reset(const ConcurrentJSLockerBase& locker, CodeBlock* codeBlock)
 {
     clearBufferedStructures();
-    m_inlineAccessBaseStructureID.clear();
+    clearInlineAccessSelfState();
     if (auto* handlerIC = dynamicDowncast<HandlerPropertyInlineCache>(*this)) {
-        if (handlerIC->m_inlinedHandler)
+        if (handlerIC->m_inlinedHandler) {
+            // Review round 3 (R3-2): same I9 discipline as
+            // initializeWithUnitHandler / resetStubAsJumpInAccess — under
+            // useJSThreads a JIT'd reader on another thread may be inside its
+            // safepoint-free window (G2) holding pointers into the displaced
+            // inlined unit handler, so it must never be dropped inline. This
+            // matters even though some reset() callers run world-stopped:
+            // reset() is also reachable flag-on OUTSIDE any stop
+            // (fireWatchpointsAndClearStubIfNeeded in Repatch.cpp on the
+            // addAccessCase ResetStubAndFireWatchpoints path, and
+            // PropertyInlineCacheClearingWatchpoint). Note this also means
+            // the displacedInlinedHandler retire arm in
+            // resetStubAsJumpInAccess never sees a handler when reached via
+            // reset() — m_inlinedHandler is already null and retired HERE by
+            // the time the per-accessType reset functions run; that arm
+            // remains live for its other callers.
+            RefPtr<InlineCacheHandler> displacedInlinedHandler;
+            if (Options::useJSThreads()) [[unlikely]]
+                displacedInlinedHandler = handlerIC->m_inlinedHandler;
             handlerIC->clearInlinedHandler(codeBlock);
+            if (displacedInlinedHandler) [[unlikely]]
+                RetiredJITArtifacts::retireHandlerChain(codeBlock->vm(), WTF::move(displacedInlinedHandler));
+        }
     }
 
     if (m_cacheType == CacheType::Unset)
@@ -384,7 +496,7 @@ void PropertyInlineCache::reset(const ConcurrentJSLockerBase& locker, CodeBlock*
         break;
     }
 
-    deref();
+    deref(codeBlock->vm());
     setCacheType(locker, CacheType::Unset);
 }
 
@@ -883,32 +995,61 @@ void HandlerPropertyInlineCache::initializeFromDFGUnlinkedPropertyInlineCache(Co
 }
 #endif
 
+void HandlerPropertyInlineCache::initializeHandlerForOptimizingJIT(CodeBlock* codeBlock)
+{
+    ASSERT(!isCompilationThread());
+    ASSERT(JSC::JITCode::isOptimizingJIT(codeBlock->jitType()));
+    // The FTL lowering / JITInlineCacheGenerator already populated accessType,
+    // identifier, codeOrigin, callSiteIndex, registers (the Baseline data-IC
+    // conventions), doneLocation and slowPathStartLocation; m_slowOperation was
+    // assigned when the site's slow path was emitted. All that is left is the
+    // initial handler: the shared slow-path handler, which calls m_slowOperation
+    // with the Baseline data-IC argument registers.
+    ASSERT(!!m_slowOperation);
+    initializeWithUnitHandler(codeBlock, InlineCacheCompiler::generateSlowPathHandler(codeBlock->vm(), accessType));
+}
+
 void HandlerPropertyInlineCache::setInlinedHandler(CodeBlock* codeBlock, Ref<InlineCacheHandler>&& handler)
 {
     ASSERT(!m_inlinedHandler);
     VM& vm = codeBlock->vm();
     m_inlinedHandler = WTF::move(handler);
     m_inlinedHandler->addOwner(codeBlock);
+    // F1 (SPEC-jit section 5.1): the handler payload (and its stub code) is
+    // fully initialized before the inlined fast-path fields below make it
+    // observable to JIT'd code. Single-word atomicity of the
+    // {byIdSelfOffset, m_inlineAccessBaseStructureID} pair is section 4.2
+    // (Task 4); this fence only orders payload init before field publish.
+    WTF::storeStoreFence();
     switch (m_inlinedHandler->cacheType()) {
     case CacheType::GetByIdSelf: {
-        m_inlineAccessBaseStructureID.set(vm, codeBlock, m_inlinedHandler->structureID().decode());
-        byIdSelfOffset = m_inlinedHandler->offset();
+        // SPEC-jit section 4.2: holder-free self-access only; the inlined
+        // fast-path state must be exactly the packable {offset, structureID}
+        // pair under useJSThreads.
+        ASSERT(!Options::useJSThreads() || !m_inlinedHandler->holder());
+        setInlineAccessSelfState(vm, codeBlock, m_inlinedHandler->structureID().decode(), m_inlinedHandler->offset());
         break;
     }
     case CacheType::GetByIdPrototype: {
+        // SPEC-jit section 4.2: holder-bearing inlined forms are disabled
+        // flag-on (m_inlineHolder cannot pack into the 64-bit unit; a reader
+        // could pair a fresh {offset, structureID} word with a stale holder).
+        // prependHandler never routes them here under useJSThreads; such
+        // accesses dispatch through the handler chain instead (F2).
+        RELEASE_ASSERT(!Options::useJSThreads());
         m_inlineAccessBaseStructureID.set(vm, codeBlock, m_inlinedHandler->structureID().decode());
         byIdSelfOffset = m_inlinedHandler->offset();
         m_inlineHolder = m_inlinedHandler->holder();
         break;
     }
     case CacheType::PutByIdReplace: {
-        m_inlineAccessBaseStructureID.set(vm, codeBlock, m_inlinedHandler->structureID().decode());
-        byIdSelfOffset = m_inlinedHandler->offset();
+        ASSERT(!Options::useJSThreads() || !m_inlinedHandler->holder());
+        setInlineAccessSelfState(vm, codeBlock, m_inlinedHandler->structureID().decode(), m_inlinedHandler->offset());
         break;
     }
     case CacheType::InByIdSelf: {
-        m_inlineAccessBaseStructureID.set(vm, codeBlock, m_inlinedHandler->structureID().decode());
-        byIdSelfOffset = m_inlinedHandler->offset();
+        ASSERT(!Options::useJSThreads() || !m_inlinedHandler->holder());
+        setInlineAccessSelfState(vm, codeBlock, m_inlinedHandler->structureID().decode(), m_inlinedHandler->offset());
         break;
     }
     case CacheType::ArrayLength:
@@ -924,20 +1065,84 @@ void HandlerPropertyInlineCache::clearInlinedHandler(CodeBlock* codeBlock)
 {
     m_inlinedHandler->removeOwner(codeBlock);
     m_inlinedHandler = nullptr;
-    m_inlineAccessBaseStructureID.clear();
+    clearInlineAccessSelfState();
+}
+
+// Review round 2 (R2-1): replace the published chain head with ONE raw
+// pointer store and no null window. The flag-on dispatch fast path emitted
+// for every Baseline/DFG/FTL handler IC is
+//   loadPtr [propertyCache + offsetOfHandler] -> handlerGPR
+//   call    [handlerGPR + offsetOfCallTarget]
+// with NO null check (JITInlineCacheGenerator.cpp; the invariant is that a
+// slow-path handler is always installed) — and WTF::RefPtr move
+// construction/assignment nulls the SOURCE slot (RefPtr.h: m_ptr(o.leakRef())),
+// so any `WTF::move(m_handler)` before the publishing store opens a window in
+// which a racing JIT'd reader calls through address null. This is the same
+// no-null-window idiom as CallLinkInfo::setStub. Contract: the caller must
+// already hold (a copy of) any displaced reference it wants to keep alive
+// (e.g. for RetiredJITArtifacts); we deref the slot's own old reference only
+// AFTER the new head is published, so a chain kept alive through the new
+// node's m_next (prependHandler) or a displacedHead copy survives.
+static void publishHandlerChainHead(RefPtr<InlineCacheHandler>& headSlot, Ref<InlineCacheHandler>&& newHead)
+{
+    InlineCacheHandler** rawSlot = std::bit_cast<InlineCacheHandler**>(&headSlot);
+    InlineCacheHandler* oldHead = *rawSlot;
+    InlineCacheHandler* incoming = &newHead.leakRef();
+    // F1/I5: every store initializing the new head (m_next included) must be
+    // visible before the publishing store makes the node reachable from JIT'd
+    // code. Readers order their loads with an address dependency through the
+    // head pointer (F2).
+    WTF::storeStoreFence();
+    *rawSlot = incoming;
+    if (oldHead)
+        oldHead->deref();
 }
 
 void PropertyInlineCache::initializeWithUnitHandler(CodeBlock* codeBlock, Ref<InlineCacheHandler>&& handler)
 {
     if (auto* handlerIC = dynamicDowncast<HandlerPropertyInlineCache>(*this)) {
-        if (handlerIC->m_inlinedHandler)
+        // SPEC-jit section 5.1/section 4.4: under useJSThreads a JIT'd reader on
+        // another thread can be inside its safepoint-free handler window (G2)
+        // holding pointers into the displaced state, so nothing displaced here
+        // may be freed inline; keep a Ref across the swap and route it through
+        // the heap's safepoint epoch afterwards.
+        RefPtr<InlineCacheHandler> displacedInlinedHandler;
+        if (handlerIC->m_inlinedHandler) {
+            if (Options::useJSThreads()) [[unlikely]]
+                displacedInlinedHandler = handlerIC->m_inlinedHandler;
             handlerIC->clearInlinedHandler(codeBlock);
+        }
         ASSERT(!handlerIC->m_inlinedHandler);
         if (m_handler)
             m_handler->removeOwner(codeBlock);
-        m_handler = WTF::move(handler);
-        m_handler->addOwner(codeBlock);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // R2-1: COPY (never move out of) m_handler. `WTF::move(m_handler)`
+            // would null the published slot before the publishing store, and
+            // racing JIT'd readers call through it with no null check; see
+            // publishHandlerChainHead above. The copy keeps the displaced
+            // chain alive across the publish; it is then routed through the
+            // safepoint epoch (section 4.4), never freed inline.
+            RefPtr<InlineCacheHandler> displacedHead = m_handler;
+            publishHandlerChainHead(m_handler, WTF::move(handler));
+            m_handler->addOwner(codeBlock);
+            // R4-2: pass the VM; RetiredJITArtifacts resolves the epoch heap
+            // (the client's SERVER under useSharedGCHeap) internally.
+            VM& vm = codeBlock->vm();
+            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedHead));
+            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedInlinedHandler));
+        } else {
+            // F1/I5: the new handler's payload (and anything reachable through
+            // it) must be visible before the publishing store makes it
+            // JIT-reachable. (Flag-off there is exactly one mutator, so the
+            // transient null in RefPtr move-assignment is unobservable.)
+            WTF::storeStoreFence();
+            m_handler = WTF::move(handler);
+            m_handler->addOwner(codeBlock);
+        }
     } else {
+        // Repatching IC (FTL, flag-off only; I3). Fence anyway per F1: the
+        // handler becomes reachable from patched code.
+        WTF::storeStoreFence();
         m_handler = WTF::move(handler);
     }
 }
@@ -952,19 +1157,47 @@ void PropertyInlineCache::prependHandler(CodeBlock* codeBlock, Ref<InlineCacheHa
 
     if (!handlerIC.m_inlinedHandler) {
         if (preconfiguredCacheType != CacheType::Unset && preconfiguredCacheType == handler->cacheType()) {
-            handlerIC.setInlinedHandler(codeBlock, WTF::move(handler));
-            return;
+            // SPEC-jit section 4.2 (Task 4): holder-bearing inlined forms are
+            // disabled under useJSThreads - GetByIdPrototype needs
+            // m_inlineHolder, which cannot pack into the single-load
+            // {offset, structureID} unit. Fall through to the chain prepend
+            // below; the handler still dispatches correctly via the chain (F2),
+            // we only lose the call-site inlined fast path for this shape.
+            bool holderBearing = handler->cacheType() == CacheType::GetByIdPrototype;
+            if (!Options::useJSThreads() || !holderBearing) [[likely]] {
+                handlerIC.setInlinedHandler(codeBlock, WTF::move(handler));
+                return;
+            }
         }
     }
 
-    handler->setNext(WTF::move(m_handler));
-    m_handler = WTF::move(handler);
+    // R2-1: COPY the current head into the new node's m_next (set exactly once
+    // here and immutable until reset, section 4.1). `setNext(WTF::move(m_handler))`
+    // would null the published m_handler slot until the publish below — and
+    // this path runs under CodeBlock::m_lock from operation*Optimize slow
+    // paths while other mutators execute the same shared code lock-free, so a
+    // racing reader in that window would call through a null handler. The
+    // copy keeps the old head alive; publishHandlerChainHead (which carries
+    // the F1/I5 fence) drops the slot's own reference only after the new head
+    // is visible, so readers observe either the old head or the new head,
+    // both fully initialized.
+    handler->setNext(RefPtr<InlineCacheHandler> { m_handler });
+    publishHandlerChainHead(m_handler, WTF::move(handler));
     m_handler->addOwner(codeBlock);
 }
 
 void PropertyInlineCache::rewireStubAsJumpInAccess(CodeBlock* codeBlock, Ref<InlineCacheHandler>&& handler)
 {
     ASSERT(!isHandlerIC());
+    // Repatching ICs exist only in the FTL, and with useHandlerICInFTL the FTL
+    // allocates handler ICs exclusively (FTL::State::addPropertyInlineCache), so
+    // this in-place code rewrite is unreachable (SPEC-jit §5.2: FTL's
+    // rewireStubAsJumpInAccess is dropped when handler ICs are complete).
+    RELEASE_ASSERT(!Options::useHandlerICInFTL());
+    // SPEC-jit I2: replaceWithJump patches reachable code; with useJSThreads on
+    // this site is unreachable anyway (I3 forbids RepatchingPropertyInlineCache),
+    // but the world-stopped discipline is asserted at the patching site itself.
+    JSThreadsSafepoint::assertPatchingIsSafe(codeBlock->vm());
     CodeLocationLabel label { handler->callTarget() };
     initializeWithUnitHandler(codeBlock, WTF::move(handler));
     CCallHelpers::replaceWithJump(downcast<RepatchingPropertyInlineCache>(*this).startLocation.retagged<JSInternalPtrTag>(), label);
@@ -973,14 +1206,45 @@ void PropertyInlineCache::rewireStubAsJumpInAccess(CodeBlock* codeBlock, Ref<Inl
 void PropertyInlineCache::resetStubAsJumpInAccess(CodeBlock* codeBlock)
 {
     if (auto* handlerIC = dynamicDowncast<HandlerPropertyInlineCache>(*this)) {
-        if (handlerIC->m_inlinedHandler)
+        // SPEC-jit section 4.1/section 5.1/I9: install a fresh slow-path-only
+        // head; the old chain is never freed inline. Under useJSThreads a
+        // JIT'd reader on another thread may be dispatching through the old
+        // nodes inside its safepoint-free window (G2/I16), so the displaced
+        // chain (and any displaced inlined unit handler) is handed to
+        // RetiredJITArtifacts: node data is freed only after every mutator
+        // crosses a safepoint (section 4.4); the machine code held via each
+        // node's Ref<GCAwareJITStubRoutine> drops into the jettison machinery
+        // and waits for R2's conservative scan (I7).
+        RefPtr<InlineCacheHandler> displacedInlinedHandler;
+        if (handlerIC->m_inlinedHandler) {
+            if (Options::useJSThreads()) [[unlikely]]
+                displacedInlinedHandler = handlerIC->m_inlinedHandler;
             handlerIC->clearInlinedHandler(codeBlock);
+        }
         auto* cursor = m_handler.get();
         while (cursor) {
             cursor->removeOwner(codeBlock);
             cursor = cursor->next();
         }
-        m_handler = InlineCacheCompiler::generateSlowPathHandler(codeBlock->vm(), accessType);
+        // removeOwner() stays (section 4.1): ownership bookkeeping is dropped
+        // now; only the *memory* outlives the reset, via the epoch.
+        Ref<InlineCacheHandler> slowPathHandler = InlineCacheCompiler::generateSlowPathHandler(codeBlock->vm(), accessType);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // R2-1: COPY, never move out of, m_handler (no null window for
+            // racing JIT'd readers; see publishHandlerChainHead). The callers
+            // of this reset run world-stopped today (watchpoint fires / GC
+            // resets), so this site was latent, but it must not share the
+            // broken move-from-member idiom.
+            RefPtr<InlineCacheHandler> displacedHead = m_handler;
+            publishHandlerChainHead(m_handler, WTF::move(slowPathHandler));
+            // R4-2: pass the VM; RetiredJITArtifacts resolves the epoch heap.
+            VM& vm = codeBlock->vm();
+            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedHead));
+            RetiredJITArtifacts::retireHandlerChain(vm, WTF::move(displacedInlinedHandler));
+            return;
+        }
+        WTF::storeStoreFence(); // F1/I5
+        m_handler = WTF::move(slowPathHandler);
         return;
     }
 

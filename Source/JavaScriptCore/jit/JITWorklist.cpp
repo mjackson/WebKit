@@ -184,7 +184,19 @@ CompilationResult JITWorklist::enqueue(Ref<JITPlan> plan)
 
     auto tier = static_cast<unsigned>(plan->tier());
 
-    ASSERT(m_plans.find(plan->key()) == m_plans.end());
+    // THREADS §5.7.3 (SPEC-jit Task 12): dedup backstop, replacing the old
+    // ASSERT(m_plans.find(plan->key()) == m_plans.end()). Under N mutators two threads
+    // can race through a tier-up trigger's latch-free window (CodeBlock::TierUpEdge,
+    // §5.7.2) with plans for the same key; admitting both would corrupt m_totalLoad and
+    // the queues, and double-finalize the compilation. The duplicate is cancelled here
+    // under *m_lock and reported as CompilationDeferred. NOT flag-gated: with a single
+    // mutator this path is unreachable (the old assert's invariant holds), so flag-off
+    // behavior is unchanged.
+    if (m_plans.contains(plan->key())) [[unlikely]] {
+        dataLogLnIf(Options::verboseCompilationQueue(), *this, ": Cancelling duplicate plan for ", plan->key());
+        plan->cancel(); // cancel() also ends the signpost (SignpostDetail::Canceled).
+        return CompilationResult::CompilationDeferred;
+    }
     m_plans.add(plan->key(), plan.copyRef());
     m_totalLoad += planLoad(plan);
     m_queues[tier].append(WTF::move(plan));

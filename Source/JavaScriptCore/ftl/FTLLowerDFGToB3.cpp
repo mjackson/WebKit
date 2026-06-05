@@ -42,6 +42,9 @@
 #include "CPUInlines.h"
 #include "CallFrameShuffler.h"
 #include "ClonedArguments.h"
+#if __has_include("ConcurrentButterfly.h")
+#include "ConcurrentButterfly.h" // SPEC-jit section 5.5 / Task 10 (R3, adopted by name)
+#endif
 #include "DFGAbstractInterpreterInlines.h"
 #include "DFGCFAPhase.h"
 #include "DFGCapabilities.h"
@@ -132,6 +135,30 @@ namespace JSC { namespace FTL {
 
 using namespace B3;
 using namespace DFG;
+
+// ===========================================================================
+// SPEC-jit section 5.5 / Task 10: TID/SW butterfly predicates + TTL elision
+// (E1/E2/E3, D9-corrected) for the FTL tier (mirrors Task 9's DFG twins in
+// DFGSpeculativeJIT.cpp and the Task-8 CCallHelpers choke points).
+//
+// Frozen tag encoding (SPEC-objectmodel section 2, runtime/ConcurrentButterfly.h):
+// bit 63 = SW, bits 62..48 = TID, low 48 = payload; top16 == 0xffff <=>
+// segmented (unsigned-compare trick: tagged >= 0xffff << 48).
+// ===========================================================================
+namespace FTLConcurrentButterflyInternal {
+#if __has_include("ConcurrentButterfly.h")
+static constexpr uint64_t pointerMask = JSC::butterflyPointerMask;
+static constexpr uint64_t segmentedFloor = JSC::butterflyTagMask; // == 0xffff << 48
+#else
+// THREADS-INTEGRATE(jit): frozen fallback while the object-model header lands
+// concurrently (mirrors jit/CCallHelpers.cpp + dfg/DFGSpeculativeJIT.cpp).
+static constexpr uint64_t pointerMask = 0x0000ffffffffffffULL;
+static constexpr uint64_t segmentedFloor = 0xffff000000000000ULL;
+#endif
+static constexpr uint64_t tidTagSpan = 1ULL << 48; // (tagged ^ tidTag) < 2^48 <=> tag bits match
+static_assert(pointerMask == 0x0000ffffffffffffULL);
+static_assert(segmentedFloor == 0xffff000000000000ULL);
+} // namespace FTLConcurrentButterflyInternal
 
 namespace {
 
@@ -4747,7 +4774,7 @@ private:
         patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
         patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
-        patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 1 : 0;
+        configurePatchpointForHandlerIC(patchpoint, /* hasResult */ true);
 
         RefPtr<PatchpointExceptionHandle> exceptionHandle = preparePatchpointForExceptions(patchpoint);
 
@@ -4771,12 +4798,24 @@ private:
             GPRReg baseGPR = params[1].gpr();
             GPRReg thisValueGPR = params[2].gpr();
             GPRReg propertyGPR = params[3].gpr();
-            GPRReg propertyCacheGPR = Options::useHandlerICInFTL() ? params.gpScratch(0) : InvalidGPRReg;
+            GPRReg propertyCacheGPR = InvalidGPRReg;
+            if (Options::useHandlerICInFTL()) {
+                // Handler-IC protocol: operands, cache pointer and result live in
+                // the Baseline data-IC registers (see configurePatchpointForHandlerIC).
+                ASSERT(resultGPR == BaselineJITRegisters::GetByValWithThis::resultJSR.payloadGPR());
+                jit.shuffleRegisters<GPRReg, 3>(
+                    { baseGPR, propertyGPR, thisValueGPR },
+                    { BaselineJITRegisters::GetByValWithThis::baseJSR.payloadGPR(), BaselineJITRegisters::GetByValWithThis::propertyJSR.payloadGPR(), BaselineJITRegisters::GetByValWithThis::thisJSR.payloadGPR() });
+                baseGPR = BaselineJITRegisters::GetByValWithThis::baseJSR.payloadGPR();
+                propertyGPR = BaselineJITRegisters::GetByValWithThis::propertyJSR.payloadGPR();
+                thisValueGPR = BaselineJITRegisters::GetByValWithThis::thisJSR.payloadGPR();
+                propertyCacheGPR = BaselineJITRegisters::GetByValWithThis::propertyCacheGPR;
+            }
 
             auto* propertyCache = state->addPropertyInlineCache();
             auto generator = Box<JITGetByValWithThisGenerator>::create(
                 jit.codeBlock(), propertyCache, JITType::FTLJIT, nodeSemanticOrigin, callSiteIndex, AccessType::GetByValWithThis,
-                params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(thisValueGPR), JSValueRegs(resultGPR), InvalidGPRReg, propertyCacheGPR);
+                Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(thisValueGPR), JSValueRegs(resultGPR), InvalidGPRReg, propertyCacheGPR);
 
             generator->propertyCache()->propertyIsString = propertyIsString;
             generator->propertyCache()->propertyIsInt32 = propertyIsInt32;
@@ -4786,7 +4825,11 @@ private:
             if (!baseIsCell)
                 notCell = jit.branchIfNotCell(baseGPR);
 
-            generator->generateFastPath(jit);
+            if (Options::useHandlerICInFTL()) {
+                emitHandlerICPreparation(state, jit, propertyCache, propertyCacheGPR, BaselineJITRegisters::GetByValWithThis::profileGPR);
+                generator->generateDataICFastPath(jit);
+            } else
+                generator->generateFastPath(jit);
             CCallHelpers::Label done = jit.label();
 
             params.addLatePath([=] (CCallHelpers& jit) {
@@ -4903,7 +4946,7 @@ private:
         patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
         patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
-        patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 1 : 0;
+        configurePatchpointForHandlerIC(patchpoint, /* hasResult */ true);
 
         RefPtr<PatchpointExceptionHandle> exceptionHandle = preparePatchpointForExceptions(patchpoint);
 
@@ -4927,18 +4970,31 @@ private:
                 GPRReg resultGPR = params[0].gpr();
                 GPRReg baseGPR = params[1].gpr();
                 GPRReg propertyGPR = params[2].gpr();
-                GPRReg propertyCacheGPR = Options::useHandlerICInFTL() ? params.gpScratch(0) : InvalidGPRReg;
+                GPRReg propertyCacheGPR = InvalidGPRReg;
+                if (Options::useHandlerICInFTL()) {
+                    ASSERT(resultGPR == BaselineJITRegisters::GetByVal::resultJSR.payloadGPR());
+                    jit.shuffleRegisters<GPRReg, 2>(
+                        { baseGPR, propertyGPR },
+                        { BaselineJITRegisters::GetByVal::baseJSR.payloadGPR(), BaselineJITRegisters::GetByVal::propertyJSR.payloadGPR() });
+                    baseGPR = BaselineJITRegisters::GetByVal::baseJSR.payloadGPR();
+                    propertyGPR = BaselineJITRegisters::GetByVal::propertyJSR.payloadGPR();
+                    propertyCacheGPR = BaselineJITRegisters::GetByVal::propertyCacheGPR;
+                }
 
                 auto* propertyCache = state->addPropertyInlineCache();
                 auto generator = Box<JITGetByValGenerator>::create(
                     jit.codeBlock(), propertyCache, JITType::FTLJIT, nodeSemanticOrigin, callSiteIndex, AccessType::GetPrivateName,
-                    params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(resultGPR), InvalidGPRReg, propertyCacheGPR);
+                    Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(resultGPR), InvalidGPRReg, propertyCacheGPR);
 
                 CCallHelpers::Jump notCell;
                 if (!baseIsCell)
                     notCell = jit.branchIfNotCell(baseGPR);
 
-                generator->generateFastPath(jit);
+                if (Options::useHandlerICInFTL()) {
+                    emitHandlerICPreparation(state, jit, propertyCache, propertyCacheGPR, BaselineJITRegisters::GetByVal::profileGPR);
+                    generator->generateDataICFastPath(jit);
+                } else
+                    generator->generateFastPath(jit);
                 CCallHelpers::Label done = jit.label();
 
                 params.addLatePath([=] (CCallHelpers& jit) {
@@ -5047,7 +5103,7 @@ private:
         patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
         patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
-        patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 1 : 0;
+        configurePatchpointForHandlerIC(patchpoint, /* hasResult */ false);
 
         RefPtr<PatchpointExceptionHandle> exceptionHandle = preparePatchpointForExceptions(patchpoint);
 
@@ -5070,18 +5126,30 @@ private:
 
             GPRReg baseGPR = params[0].gpr();
             GPRReg brandGPR = params[1].gpr();
-            GPRReg propertyCacheGPR = Options::useHandlerICInFTL() ? params.gpScratch(0) : InvalidGPRReg;
+            GPRReg propertyCacheGPR = InvalidGPRReg;
+            if (Options::useHandlerICInFTL()) {
+                jit.shuffleRegisters<GPRReg, 2>(
+                    { baseGPR, brandGPR },
+                    { BaselineJITRegisters::PrivateBrand::baseJSR.payloadGPR(), BaselineJITRegisters::PrivateBrand::propertyJSR.payloadGPR() });
+                baseGPR = BaselineJITRegisters::PrivateBrand::baseJSR.payloadGPR();
+                brandGPR = BaselineJITRegisters::PrivateBrand::propertyJSR.payloadGPR();
+                propertyCacheGPR = BaselineJITRegisters::PrivateBrand::propertyCacheGPR;
+            }
 
             auto* propertyCache = state->addPropertyInlineCache();
             auto generator = Box<JITPrivateBrandAccessGenerator>::create(
                 jit.codeBlock(), propertyCache, JITType::FTLJIT, nodeSemanticOrigin, callSiteIndex, accessType,
-                params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(brandGPR), propertyCacheGPR);
+                Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(brandGPR), propertyCacheGPR);
 
             CCallHelpers::Jump notCell;
             if (!baseIsCell)
                 notCell = jit.branchIfNotCell(baseGPR);
 
-            generator->generateFastPath(jit);
+            if (Options::useHandlerICInFTL()) {
+                emitHandlerICPreparation(state, jit, propertyCache, propertyCacheGPR);
+                generator->generateDataICFastPath(jit);
+            } else
+                generator->generateFastPath(jit);
             CCallHelpers::Label done = jit.label();
 
             params.addLatePath([=] (CCallHelpers& jit) {
@@ -5292,7 +5360,7 @@ private:
         patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
         patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
-        patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 1 : 0;
+        configurePatchpointForHandlerIC(patchpoint, /* hasResult */ false);
 
         RefPtr<PatchpointExceptionHandle> exceptionHandle = preparePatchpointForExceptions(patchpoint);
 
@@ -5317,16 +5385,29 @@ private:
             GPRReg baseGPR = params[0].gpr();
             GPRReg propertyGPR = params[1].gpr();
             GPRReg valueGPR = params[2].gpr();
-            GPRReg propertyCacheGPR = Options::useHandlerICInFTL() ? params.gpScratch(0) : InvalidGPRReg;
+            GPRReg propertyCacheGPR = InvalidGPRReg;
+            if (Options::useHandlerICInFTL()) {
+                jit.shuffleRegisters<GPRReg, 3>(
+                    { baseGPR, propertyGPR, valueGPR },
+                    { BaselineJITRegisters::PutByVal::baseJSR.payloadGPR(), BaselineJITRegisters::PutByVal::propertyJSR.payloadGPR(), BaselineJITRegisters::PutByVal::valueJSR.payloadGPR() });
+                baseGPR = BaselineJITRegisters::PutByVal::baseJSR.payloadGPR();
+                propertyGPR = BaselineJITRegisters::PutByVal::propertyJSR.payloadGPR();
+                valueGPR = BaselineJITRegisters::PutByVal::valueJSR.payloadGPR();
+                propertyCacheGPR = BaselineJITRegisters::PutByVal::propertyCacheGPR;
+            }
 
             auto* propertyCache = state->addPropertyInlineCache();
             auto generator = Box<JITPutByValGenerator>::create(
                 jit.codeBlock(), propertyCache, JITType::FTLJIT, nodeSemanticOrigin, callSiteIndex, privateFieldPutKind.isDefine() ? AccessType::DefinePrivateNameByVal : AccessType::SetPrivateNameByVal,
-                params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(valueGPR), InvalidGPRReg, propertyCacheGPR);
+                Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(valueGPR), InvalidGPRReg, propertyCacheGPR);
 
             generator->propertyCache()->propertyIsSymbol = true;
 
-            generator->generateFastPath(jit);
+            if (Options::useHandlerICInFTL()) {
+                emitHandlerICPreparation(state, jit, propertyCache, propertyCacheGPR, BaselineJITRegisters::PutByVal::profileGPR);
+                generator->generateDataICFastPath(jit);
+            } else
+                generator->generateFastPath(jit);
             CCallHelpers::Label done = jit.label();
 
             params.addLatePath([=] (CCallHelpers& jit) {
@@ -5665,7 +5746,7 @@ private:
         patchpoint->append(m_notCellMask, ValueRep::reg(GPRInfo::notCellMaskRegister));
         patchpoint->append(m_numberTag, ValueRep::reg(GPRInfo::numberTagRegister));
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
-        patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 3 : 0;
+        configurePatchpointForHandlerIC(patchpoint, /* hasResult */ false);
 
         // FIXME: If this is a PutByIdFlush, we might want to late-clobber volatile registers.
         // https://bugs.webkit.org/show_bug.cgi?id=152848
@@ -5689,26 +5770,32 @@ private:
                 // JS setter call ICs generated by the PutById IC will need this.
                 exceptionHandle->scheduleExitCreationForUnwind(params, callSiteIndex);
 
+                GPRReg baseGPR = params[0].gpr();
+                GPRReg valueGPR = params[1].gpr();
                 GPRReg propertyCacheGPR = InvalidGPRReg;
-                GPRReg scratchGPR = InvalidGPRReg;
-                GPRReg scratch2GPR = InvalidGPRReg;
+                GPRReg scratchGPR = GPRInfo::patchpointScratchRegister;
                 if (Options::useHandlerICInFTL()) {
-                    propertyCacheGPR = params.gpScratch(0);
-                    scratchGPR = params.gpScratch(1);
-                    scratch2GPR = params.gpScratch(2);
+                    jit.shuffleRegisters<GPRReg, 2>(
+                        { baseGPR, valueGPR },
+                        { BaselineJITRegisters::PutById::baseJSR.payloadGPR(), BaselineJITRegisters::PutById::valueJSR.payloadGPR() });
+                    baseGPR = BaselineJITRegisters::PutById::baseJSR.payloadGPR();
+                    valueGPR = BaselineJITRegisters::PutById::valueJSR.payloadGPR();
+                    propertyCacheGPR = BaselineJITRegisters::PutById::propertyCacheGPR;
+                    scratchGPR = BaselineJITRegisters::PutById::scratch1GPR;
                 }
-                UNUSED_PARAM(propertyCacheGPR);
-                UNUSED_PARAM(scratchGPR);
-                UNUSED_PARAM(scratch2GPR);
 
                 auto* propertyCache = state->addPropertyInlineCache();
                 auto generator = Box<JITPutByIdGenerator>::create(
                     jit.codeBlock(), propertyCache, JITType::FTLJIT, nodeSemanticOrigin, callSiteIndex,
-                    params.unavailableRegisters(), identifier, JSValueRegs(params[0].gpr()),
-                    JSValueRegs(params[1].gpr()), propertyCacheGPR, GPRInfo::patchpointScratchRegister,
+                    Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), identifier, JSValueRegs(baseGPR),
+                    JSValueRegs(valueGPR), propertyCacheGPR, scratchGPR,
                     accessType);
 
-                generator->generateFastPath(jit);
+                if (Options::useHandlerICInFTL()) {
+                    emitHandlerICPreparation(state, jit, propertyCache, propertyCacheGPR);
+                    generator->generateDataICFastPath(jit);
+                } else
+                    generator->generateFastPath(jit);
                 CCallHelpers::Label done = jit.label();
 
                 params.addLatePath(
@@ -5726,12 +5813,12 @@ private:
                             slowPathCall = callOperation(
                                 *state, params.unavailableRegisters(), jit, nodeSemanticOrigin,
                                 exceptions.get(), CCallHelpers::Address(propertyCacheGPR, HandlerPropertyInlineCache::offsetOfSlowOperation()), InvalidGPRReg,
-                                params[1].gpr(), params[0].gpr(), propertyCacheGPR).call();
+                                valueGPR, baseGPR, propertyCacheGPR).call();
                         } else {
                             slowPathCall = callOperation(
                                 *state, params.unavailableRegisters(), jit, nodeSemanticOrigin,
                                 exceptions.get(), operation, InvalidGPRReg,
-                                params[1].gpr(), params[0].gpr(), CCallHelpers::TrustedImmPtr(generator->propertyCache())).call();
+                                valueGPR, baseGPR, CCallHelpers::TrustedImmPtr(generator->propertyCache())).call();
                         }
                         jit.jump().linkTo(done, &jit);
 
@@ -5820,9 +5907,336 @@ private:
         });
     }
 
+    // =======================================================================
+    // SPEC-jit section 5.5 / Task 10: threaded-butterfly plan + emission
+    // helpers. These are the FTL twins of SpeculativeJIT::
+    // planThreadedButterflyAccess / emitThreadedButterflyLoadForRead/ForWrite
+    // (Task 9) and of the Task-8 CCallHelpers::loadButterflyForRead/ForWrite
+    // choke points: same frozen predicates, same elision rules. Per the
+    // choke-point rule (I14), flag-on every butterfly access this file lowers
+    // goes through threadedButterflyLoadForRead/ForWrite (or is a
+    // FRESH-ALLOCATION / cell-internal carve-out recorded in
+    // docs/threads/INTEGRATE-jit.md).
+    // =======================================================================
+
+    struct ThreadedButterflyPlan {
+        CCallHelpers::ConcurrentButterflyShape shape { CCallHelpers::ConcurrentButterflyShape::MaybeArrayStorage };
+        bool elideSegmentedCheck { false }; // E1
+        bool elideSharedWriteCheck { false }; // E2
+    };
+
+    struct ThreadedButterflyAccess {
+        LValue storage; // tag-masked (E3/I14(a)), ready for dependent use
+        LValue slowCondition; // Int32 boolean; nullptr if every check was elided
+    };
+
+    ThreadedButterflyPlan planThreadedButterflyAccessForStructures(const Vector<Structure*, 8>& structures)
+    {
+        ASSERT(Options::useJSThreads());
+        ThreadedButterflyPlan plan;
+        if (structures.isEmpty())
+            return plan; // MaybeArrayStorage, no elision.
+
+        bool allNonArrayStorage = true;
+        bool allArrayStorage = true;
+        bool allTransitionThreadLocal = true;
+        bool allWriteThreadLocal = true;
+        for (Structure* structure : structures) {
+            bool isArrayStorage = hasAnyArrayStorage(structure->indexingMode());
+            allNonArrayStorage &= !isArrayStorage;
+            allArrayStorage &= isArrayStorage;
+            allTransitionThreadLocal &= structure->transitionThreadLocalIsValidAndWatched();
+            allWriteThreadLocal &= structure->writeThreadLocalIsValidAndWatched();
+        }
+
+        // AS-rule clause (c): the shape is known statically iff every
+        // speculated structure agrees.
+        if (allNonArrayStorage)
+            plan.shape = CCallHelpers::ConcurrentButterflyShape::KnownNonArrayStorage;
+        else if (allArrayStorage)
+            plan.shape = CCallHelpers::ConcurrentButterflyShape::KnownArrayStorage;
+
+        // E1/E2: register every structure's set with DesiredWatchpoints (Task
+        // 9 helpers; fire => jettison, section 5.3); any registration failure
+        // (set fired since the racy read above) voids the elision.
+        if (allTransitionThreadLocal) {
+            bool registered = true;
+            for (Structure* structure : structures)
+                registered &= m_graph.watchpoints().considerButterflyTransitionThreadLocal(structure);
+            plan.elideSegmentedCheck = registered;
+        }
+        if (allWriteThreadLocal) {
+            bool registered = true;
+            for (Structure* structure : structures)
+                registered &= m_graph.watchpoints().considerButterflyWriteThreadLocal(structure);
+            plan.elideSharedWriteCheck = registered;
+        }
+        return plan;
+    }
+
+    ThreadedButterflyPlan planThreadedButterflyAccess(Edge base)
+    {
+        ASSERT(Options::useJSThreads());
+        const StructureAbstractValue& structures = m_interpreter.forNode(base).m_structure;
+        if (!structures.isFinite() || !structures.size())
+            return { }; // MaybeArrayStorage, no elision.
+        Vector<Structure*, 8> list;
+        for (unsigned i = 0; i < structures.size(); ++i)
+            list.append(structures[i].get());
+        return planThreadedButterflyAccessForStructures(list);
+    }
+
+    ThreadedButterflyPlan planThreadedButterflyAccessForStructureSet(const RegisteredStructureSet& set)
+    {
+        Vector<Structure*, 8> list;
+        for (unsigned i = 0; i < set.size(); ++i)
+            list.append(set[i].get());
+        return planThreadedButterflyAccessForStructures(list);
+    }
+
+    ThreadedButterflyPlan planThreadedButterflyAccessForStructureSet(const StructureSet& set)
+    {
+        Vector<Structure*, 8> list;
+        for (unsigned i = 0; i < set.size(); ++i)
+            list.append(set[i]);
+        return planThreadedButterflyAccessForStructures(list);
+    }
+
+    // R5: per-thread tag constant (uint64_t(currentButterflyTID()) << 48,
+    // SW=0), one TLS load. Emitted as a pure patchpoint over the Task-8
+    // CCallHelpers::loadButterflyTIDTag emitter (ELF IE-TLS / Darwin TSD
+    // offset baked at emission, annex App. R5); Effects::none() keeps it
+    // loop-invariant/hoistable as R5 requires.
+    LValue loadButterflyTIDTag()
+    {
+        PatchpointValue* patchpoint = m_out.patchpoint(Int64);
+        patchpoint->setGenerator(
+            [](CCallHelpers& jit, const StackmapGenerationParams& params) {
+                jit.loadButterflyTIDTag(params[0].gpr());
+            });
+        patchpoint->effects = Effects::none();
+        return patchpoint;
+    }
+
+    // R7/F7: order the structure-check load -> butterfly load with an address
+    // dependency (B3::Depend), ARM64 only; x86-64 is TSO (no-op): plain load.
+    // The structureID re-load is sound by structure/butterfly coherence (same
+    // argument as the Task-8/9 emitters).
+    LValue loadTaggedButterflyWithStructureDependency(LValue base)
+    {
+#if CPU(ARM64)
+        LValue structureID = m_out.load32(base, m_heaps.JSCell_structureID);
+        LValue dependency = m_out.m_block->appendNew<B3::Value>(m_out.m_proc, B3::Depend, m_out.origin(), structureID); // 0, data-dependent on the structureID
+        LValue dependentBase = m_out.add(base, m_out.zeroExt(dependency, Int64));
+        return m_out.loadPtr(dependentBase, m_heaps.JSObject_butterfly);
+#else
+        return m_out.loadPtr(base, m_heaps.JSObject_butterfly);
+#endif
+    }
+
+    // AS-rule generic-path test: indexing byte is ArrayStorage/SlowPut-shaped.
+    LValue isArrayStorageShapedFromByte(LValue indexingTypeAndMisc)
+    {
+        LValue shape = m_out.bitAnd(indexingTypeAndMisc, m_out.constInt32(IndexingShapeMask));
+        return m_out.belowOrEqual(
+            m_out.sub(shape, m_out.constInt32(ArrayStorageShape)),
+            m_out.constInt32(SlowPutArrayStorageShape - ArrayStorageShape));
+    }
+
+    LValue isArrayStorageShaped(LValue base)
+    {
+        return isArrayStorageShapedFromByte(m_out.load8ZeroExt32(base, m_heaps.JSCell_indexingTypeAndMisc));
+    }
+
+    // I16 enforcement (review round 1): the WRITE-predicate inputs must come
+    // from the same poll-free window as the store. A plain B3 load of
+    // JSObject_butterfly here could legally be CSE'd by B3 with an earlier
+    // (e.g. LICM-hoisted GetButterfly) load ACROSS a poll: InvalidationPoint
+    // lowers to writes = HeapRange() + exitsSideways and CheckTraps' fast path
+    // is a plain load+branch — neither clobbers the butterfly heap range, so
+    // B3 load-CSE across them is legal, and the DFGClobberize read() additions
+    // constrain only DFG-level motion. That would resurrect exactly the
+    // stale-word hazard the re-load exists to exclude (OM §4.6's per-event-STW
+    // argument needs predicate + store on one word loaded after the last
+    // poll). Emitting the load inside an effectful PatchpointValue (reads top,
+    // control-dependent) pins it: B3 never CSEs, hoists, or sinks patchpoints.
+    // ARM64 additionally emits the R7/F7 structureID address dependency inside
+    // the patchpoint. READ predicates deliberately keep plain (CSE-able)
+    // loads: a stale read word is snapshot-sound (fragment aliasing / AS-COPY,
+    // THREAD.md), it is only WRITE routing decisions that need freshness.
+    LValue loadTaggedButterflyPinnedForWrite(LValue base)
+    {
+        PatchpointValue* patchpoint = m_out.patchpoint(Int64);
+        patchpoint->appendSomeRegister(base);
+#if CPU(ARM64)
+        patchpoint->numGPScratchRegisters = 1;
+#endif
+        patchpoint->effects = Effects::none();
+        patchpoint->effects.reads = HeapRange::top();
+        patchpoint->effects.controlDependent = true;
+        patchpoint->setGenerator(
+            [](CCallHelpers& jit, const StackmapGenerationParams& params) {
+                GPRReg destGPR = params[0].gpr();
+                GPRReg baseGPR = params[1].gpr();
+#if CPU(ARM64)
+                GPRReg scratchGPR = params.gpScratch(0);
+                jit.load32(CCallHelpers::Address(baseGPR, JSCell::structureIDOffset()), scratchGPR);
+                jit.xor64(scratchGPR, scratchGPR, scratchGPR); // 0, data-dependent on the structureID load (R7/F7)
+                jit.addPtr(baseGPR, scratchGPR);
+                jit.loadPtr(CCallHelpers::Address(scratchGPR, JSObject::butterflyOffset()), destGPR);
+#else
+                jit.loadPtr(CCallHelpers::Address(baseGPR, JSObject::butterflyOffset()), destGPR);
+#endif
+            });
+        return patchpoint;
+    }
+
+    // Pinned twin of the indexing-byte load, for the WRITE predicate's AS arm
+    // (same I16 rationale: a stale "not ArrayStorage" byte paired with a fresh
+    // SW=1 word would route an AS store down the unlocked fast path, I20).
+    LValue loadIndexingBytePinnedForWrite(LValue base)
+    {
+        PatchpointValue* patchpoint = m_out.patchpoint(Int32);
+        patchpoint->appendSomeRegister(base);
+        patchpoint->effects = Effects::none();
+        patchpoint->effects.reads = HeapRange::top();
+        patchpoint->effects.controlDependent = true;
+        patchpoint->setGenerator(
+            [](CCallHelpers& jit, const StackmapGenerationParams& params) {
+                jit.load8(CCallHelpers::Address(params[1].gpr(), JSCell::indexingTypeAndMiscOffset()), params[0].gpr());
+            });
+        return patchpoint;
+    }
+
+    LValue maskedButterfly(LValue taggedButterfly)
+    {
+        using namespace FTLConcurrentButterflyInternal;
+        return m_out.bitAnd(taggedButterfly, m_out.constInt64(static_cast<int64_t>(pointerMask)));
+    }
+
+    // Frozen READ predicate (section 5.5): segmented => slow; SW=1 AND AS =>
+    // slow (absent under AS-rule (a)=E2 / (c)=static exclusion); mask
+    // ALWAYS (E3/D6/I14(a)); no TID check on reads. Conditions are computed
+    // branchlessly and OR-folded into one slowCondition; the caller
+    // dispatches it (OSR exit or branch to an existing slow block).
+    ThreadedButterflyAccess threadedButterflyLoadForRead(LValue base, const ThreadedButterflyPlan& plan)
+    {
+        using namespace FTLConcurrentButterflyInternal;
+        ASSERT(Options::useJSThreads());
+
+        LValue tagged = loadTaggedButterflyWithStructureDependency(base);
+        LValue slowCondition = nullptr;
+        auto fold = [&](LValue condition) {
+            slowCondition = slowCondition ? m_out.bitOr(slowCondition, condition) : condition;
+        };
+
+        if (!plan.elideSegmentedCheck) // E1
+            fold(m_out.aboveOrEqual(tagged, m_out.constInt64(static_cast<int64_t>(segmentedFloor))));
+
+        if (!plan.elideSharedWriteCheck) { // E2 elides the AS SW test
+            switch (plan.shape) {
+            case CCallHelpers::ConcurrentButterflyShape::KnownNonArrayStorage:
+                // AS-rule clause (c): AS statically excluded; SW irrelevant for reads.
+                break;
+            case CCallHelpers::ConcurrentButterflyShape::KnownArrayStorage:
+                fold(m_out.lessThan(tagged, m_out.constInt64(0))); // SW = bit 63
+                break;
+            case CCallHelpers::ConcurrentButterflyShape::MaybeArrayStorage:
+                fold(m_out.bitAnd(m_out.lessThan(tagged, m_out.constInt64(0)), isArrayStorageShaped(base)));
+                break;
+            }
+        }
+
+        return { maskedButterfly(tagged), slowCondition };
+    }
+
+    // Frozen WRITE predicate (section 5.5): (1) segmented => slow (E1-elidable
+    // only); (2) owner ((tagged ^ tidTag) < 2^48) => mask + store - the fused
+    // TID compare is NEVER elided (D9), it is the sole F1/shared-write
+    // detection point even under E1+E2; (3) foreign + SW=1, not AS => mask +
+    // store; (4) everything else => slow. Mask ALWAYS (I14(a)).
+    // Note on (1)/E1: a segmented tagged word can never equal the per-thread
+    // tag (its TID field is the notTTLTID sentinel), so under E1 the
+    // never-elided owner compare still routes segmented words slow.
+    ThreadedButterflyAccess threadedButterflyLoadForWrite(LValue base, const ThreadedButterflyPlan& plan)
+    {
+        using namespace FTLConcurrentButterflyInternal;
+        ASSERT(Options::useJSThreads());
+
+        // I16 (review round 1): every WRITE predicate evaluates a PINNED
+        // tagged word (and, in the AS arm, a PINNED indexing byte) that B3
+        // cannot CSE with pre-poll loads; see loadTaggedButterflyPinnedForWrite.
+        LValue tagged = loadTaggedButterflyPinnedForWrite(base);
+        LValue slowCondition = nullptr;
+        auto fold = [&](LValue condition) {
+            slowCondition = slowCondition ? m_out.bitOr(slowCondition, condition) : condition;
+        };
+
+        if (!plan.elideSegmentedCheck) // (1)
+            fold(m_out.aboveOrEqual(tagged, m_out.constInt64(static_cast<int64_t>(segmentedFloor))));
+
+        // (2): never elided (D9).
+        LValue notOwner = m_out.aboveOrEqual(
+            m_out.bitXor(tagged, loadButterflyTIDTag()),
+            m_out.constInt64(static_cast<int64_t>(tidTagSpan)));
+
+        if (plan.elideSharedWriteCheck) {
+            // E2: SW branch (3) + AS SW test omitted; the case-(4) fallback is
+            // ALWAYS emitted: every non-owner write goes slow (the first
+            // foreign write fires F1 via the generic path / writeThreadLocal
+            // fire => this code is jettisoned).
+            fold(notOwner);
+        } else {
+            LValue notSharedWritten = m_out.greaterThanOrEqual(tagged, m_out.constInt64(0)); // SW=0
+            switch (plan.shape) {
+            case CCallHelpers::ConcurrentButterflyShape::KnownNonArrayStorage:
+                // (3) foreign + SW=1, not AS => mask + store; (4) foreign + SW=0 => slow.
+                fold(m_out.bitAnd(notOwner, notSharedWritten));
+                break;
+            case CCallHelpers::ConcurrentButterflyShape::KnownArrayStorage:
+                // Any non-owner AS write => locked slow path (I20); owner
+                // SW=0 AS stores are the sound residual (AS-COPY, history
+                // section 17).
+                fold(notOwner);
+                break;
+            case CCallHelpers::ConcurrentButterflyShape::MaybeArrayStorage:
+                // (4) foreign SW=0 => slow; (3) AS arm: foreign SW=1 AS => slow.
+                // Pinned byte: I16 (see loadIndexingBytePinnedForWrite).
+                fold(m_out.bitAnd(notOwner, m_out.bitOr(notSharedWritten, isArrayStorageShapedFromByte(loadIndexingBytePinnedForWrite(base)))));
+                break;
+            }
+        }
+
+        return { maskedButterfly(tagged), slowCondition };
+    }
+
     void compileGetButterfly()
     {
-        LValue butterfly = m_out.loadPtr(lowCell(m_node->child1()), m_heaps.JSObject_butterfly);
+        LValue base = lowCell(m_node->child1());
+
+        if (Options::useJSThreads()) [[unlikely]] {
+            // SPEC-jit section 5.5 / Task 10. THREADS-INTEGRATE(jit): AND with
+            // Options::useThreadedFTL() once the M1 kill switch lands
+            // (INTEGRATE-jit.md).
+            ThreadedButterflyPlan plan = planThreadedButterflyAccess(m_node->child1());
+            ThreadedButterflyAccess access = threadedButterflyLoadForRead(base, plan);
+
+            // "OSR-exit on segmented dispatch where profitable else slow
+            // path" (Task 9 rationale holds verbatim): at GetButterfly OSR
+            // exit is the only sound dispatch - there is no storage pointer a
+            // slow-path call could materialize that downstream direct loads
+            // could legally use (a segmented spine requires a dependent
+            // fragment load per access, an SW=1 ArrayStorage access requires
+            // the cell lock). BadIndexingType reprofiles the consumers toward
+            // generic/R3 paths on recompilation.
+            if (access.slowCondition)
+                speculate(BadIndexingType, noValue(), nullptr, access.slowCondition);
+
+            setStorage(access.storage);
+            return;
+        }
+
+        LValue butterfly = m_out.loadPtr(base, m_heaps.JSObject_butterfly);
         setStorage(butterfly);
     }
 
@@ -6629,7 +7043,7 @@ IGNORE_CLANG_WARNINGS_END
             patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
             patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
             patchpoint->clobber(RegisterSet::macroClobberedGPRs());
-            patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 1 : 0;
+            configurePatchpointForHandlerIC(patchpoint, /* hasResult */ true);
 
             RefPtr<PatchpointExceptionHandle> exceptionHandle = preparePatchpointForExceptions(patchpoint);
 
@@ -6652,12 +7066,21 @@ IGNORE_CLANG_WARNINGS_END
                 GPRReg resultGPR = params[0].gpr();
                 GPRReg baseGPR = params[1].gpr();
                 GPRReg propertyGPR = params[2].gpr();
-                GPRReg propertyCacheGPR = Options::useHandlerICInFTL() ? params.gpScratch(0) : InvalidGPRReg;
+                GPRReg propertyCacheGPR = InvalidGPRReg;
+                if (Options::useHandlerICInFTL()) {
+                    ASSERT(resultGPR == BaselineJITRegisters::GetByVal::resultJSR.payloadGPR());
+                    jit.shuffleRegisters<GPRReg, 2>(
+                        { baseGPR, propertyGPR },
+                        { BaselineJITRegisters::GetByVal::baseJSR.payloadGPR(), BaselineJITRegisters::GetByVal::propertyJSR.payloadGPR() });
+                    baseGPR = BaselineJITRegisters::GetByVal::baseJSR.payloadGPR();
+                    propertyGPR = BaselineJITRegisters::GetByVal::propertyJSR.payloadGPR();
+                    propertyCacheGPR = BaselineJITRegisters::GetByVal::propertyCacheGPR;
+                }
 
                 auto* propertyCache = state->addPropertyInlineCache();
                 auto generator = Box<JITGetByValGenerator>::create(
                     jit.codeBlock(), propertyCache, JITType::FTLJIT, nodeSemanticOrigin, callSiteIndex, AccessType::GetByVal,
-                    params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(resultGPR), InvalidGPRReg, propertyCacheGPR);
+                    Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(resultGPR), InvalidGPRReg, propertyCacheGPR);
 
                 generator->propertyCache()->propertyIsString = propertyIsString;
                 generator->propertyCache()->propertyIsInt32 = propertyIsInt32;
@@ -6667,7 +7090,11 @@ IGNORE_CLANG_WARNINGS_END
                 if (!baseIsCell)
                     notCell = jit.branchIfNotCell(baseGPR);
 
-                generator->generateFastPath(jit);
+                if (Options::useHandlerICInFTL()) {
+                    emitHandlerICPreparation(state, jit, propertyCache, propertyCacheGPR, BaselineJITRegisters::GetByVal::profileGPR);
+                    generator->generateDataICFastPath(jit);
+                } else
+                    generator->generateFastPath(jit);
                 CCallHelpers::Label done = jit.label();
 
                 params.addLatePath([=] (CCallHelpers& jit) {
@@ -6905,7 +7332,22 @@ IGNORE_CLANG_WARNINGS_END
             LValue maskedIndexingType = m_out.bitAnd(indexingMode, m_out.constInt32(IndexingTypeMask));
 
             auto tryLoadJSArray = [&](IndexingType expectedType, LBasicBlock continuation) {
-                LValue butterfly = m_out.loadPtr(base, m_heaps.JSObject_butterfly);
+                LValue butterfly;
+                if (Options::useJSThreads()) [[unlikely]] {
+                    // SPEC-jit section 5.5 / Task 10 (I14 choke). AS-rule
+                    // clause (c): this fast path dispatches on
+                    // Int32/Double/Contiguous shapes only, so AS is statically
+                    // excluded; the read predicate reduces to the segmented
+                    // check + mask. Indexing-shape (not structure) guard => no
+                    // E1/E2 elision.
+                    ThreadedButterflyPlan plan;
+                    plan.shape = CCallHelpers::ConcurrentButterflyShape::KnownNonArrayStorage;
+                    ThreadedButterflyAccess access = threadedButterflyLoadForRead(base, plan);
+                    if (access.slowCondition)
+                        speculate(BadIndexingType, noValue(), nullptr, access.slowCondition);
+                    butterfly = access.storage;
+                } else
+                    butterfly = m_out.loadPtr(base, m_heaps.JSObject_butterfly);
                 LValue length = m_out.load32(butterfly, m_heaps.Butterfly_publicLength);
                 auto& heap = ([&] -> IndexedAbstractHeap& {
                     switch (expectedType) {
@@ -7359,7 +7801,7 @@ IGNORE_CLANG_WARNINGS_END
             patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
             patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
             patchpoint->clobber(RegisterSet::macroClobberedGPRs());
-            patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 1 : 0;
+            configurePatchpointForHandlerIC(patchpoint, /* hasResult */ false);
 
             RefPtr<PatchpointExceptionHandle> exceptionHandle = preparePatchpointForExceptions(patchpoint);
 
@@ -7384,18 +7826,31 @@ IGNORE_CLANG_WARNINGS_END
                 GPRReg baseGPR = params[0].gpr();
                 GPRReg propertyGPR = params[1].gpr();
                 GPRReg valueGPR = params[2].gpr();
-                GPRReg propertyCacheGPR = Options::useHandlerICInFTL() ? params.gpScratch(0) : InvalidGPRReg;
+                GPRReg propertyCacheGPR = InvalidGPRReg;
+                if (Options::useHandlerICInFTL()) {
+                    jit.shuffleRegisters<GPRReg, 3>(
+                        { baseGPR, propertyGPR, valueGPR },
+                        { BaselineJITRegisters::PutByVal::baseJSR.payloadGPR(), BaselineJITRegisters::PutByVal::propertyJSR.payloadGPR(), BaselineJITRegisters::PutByVal::valueJSR.payloadGPR() });
+                    baseGPR = BaselineJITRegisters::PutByVal::baseJSR.payloadGPR();
+                    propertyGPR = BaselineJITRegisters::PutByVal::propertyJSR.payloadGPR();
+                    valueGPR = BaselineJITRegisters::PutByVal::valueJSR.payloadGPR();
+                    propertyCacheGPR = BaselineJITRegisters::PutByVal::propertyCacheGPR;
+                }
 
                 auto* propertyCache = state->addPropertyInlineCache();
                 auto generator = Box<JITPutByValGenerator>::create(
                     jit.codeBlock(), propertyCache, JITType::FTLJIT, nodeSemanticOrigin, callSiteIndex, isDirect ? (ecmaMode.isStrict() ? AccessType::PutByValDirectStrict : AccessType::PutByValDirectSloppy) : (ecmaMode.isStrict() ? AccessType::PutByValStrict : AccessType::PutByValSloppy),
-                    params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(valueGPR), InvalidGPRReg, propertyCacheGPR);
+                    Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(valueGPR), InvalidGPRReg, propertyCacheGPR);
 
                 generator->propertyCache()->propertyIsString = propertyIsString;
                 generator->propertyCache()->propertyIsInt32 = propertyIsInt32;
                 generator->propertyCache()->propertyIsSymbol = propertyIsSymbol;
 
-                generator->generateFastPath(jit);
+                if (Options::useHandlerICInFTL()) {
+                    emitHandlerICPreparation(state, jit, propertyCache, propertyCacheGPR, BaselineJITRegisters::PutByVal::profileGPR);
+                    generator->generateDataICFastPath(jit);
+                } else
+                    generator->generateFastPath(jit);
                 CCallHelpers::Label done = jit.label();
 
                 params.addLatePath([=] (CCallHelpers& jit) {
@@ -7743,7 +8198,22 @@ IGNORE_CLANG_WARNINGS_END
             LValue maskedIndexingMode = m_out.bitAnd(indexingMode, m_out.constInt32(IndexingModeMask));
 
             auto tryStoreJSArray = [&](IndexingType expectedMode, LBasicBlock continuation) {
-                LValue butterfly = m_out.loadPtr(base, m_heaps.JSObject_butterfly);
+                LValue butterfly;
+                if (Options::useJSThreads()) [[unlikely]] {
+                    // SPEC-jit section 5.5 / Task 10 (I14 choke). WRITE
+                    // predicate (fused owner-TID compare NEVER elided, D9);
+                    // AS-rule clause (c): Int32/Double/Contiguous(+CoW)
+                    // shapes only. CoW butterflies carry tag (0,0) until OM
+                    // allocation tagging lands (INTEGRATE-jit.md gap note):
+                    // non-main-thread owners exit here and reroute generic.
+                    ThreadedButterflyPlan plan;
+                    plan.shape = CCallHelpers::ConcurrentButterflyShape::KnownNonArrayStorage;
+                    ThreadedButterflyAccess access = threadedButterflyLoadForWrite(base, plan);
+                    if (access.slowCondition)
+                        speculate(BadIndexingType, noValue(), nullptr, access.slowCondition);
+                    butterfly = access.storage;
+                } else
+                    butterfly = m_out.loadPtr(base, m_heaps.JSObject_butterfly);
                 LValue length = m_out.load32(butterfly, m_heaps.Butterfly_publicLength);
                 auto& heap = ([&] -> IndexedAbstractHeap& {
                     switch (expectedMode) {
@@ -7983,7 +8453,7 @@ IGNORE_CLANG_WARNINGS_END
         patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
         patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
-        patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 1 : 0;
+        configurePatchpointForHandlerIC(patchpoint, /* hasResult */ true);
 
         RefPtr<PatchpointExceptionHandle> exceptionHandle =
             preparePatchpointForExceptions(patchpoint);
@@ -8016,7 +8486,24 @@ IGNORE_CLANG_WARNINGS_END
 
                 auto base = JSValueRegs(params[1].gpr());
                 auto returnGPR = params[0].gpr();
-                GPRReg propertyCacheGPR = Options::useHandlerICInFTL() ? params.gpScratch(0) : InvalidGPRReg;
+                GPRReg propertyCacheGPR = InvalidGPRReg;
+                if (Options::useHandlerICInFTL()) {
+                    if constexpr (kind == DelByKind::ByIdStrict || kind == DelByKind::ByIdSloppy) {
+                        ASSERT(returnGPR == BaselineJITRegisters::DelById::resultJSR.payloadGPR());
+                        jit.shuffleRegisters<GPRReg, 1>(
+                            { base.payloadGPR() },
+                            { BaselineJITRegisters::DelById::baseJSR.payloadGPR() });
+                        base = BaselineJITRegisters::DelById::baseJSR;
+                        propertyCacheGPR = BaselineJITRegisters::DelById::propertyCacheGPR;
+                    } else {
+                        ASSERT(returnGPR == BaselineJITRegisters::DelByVal::resultJSR.payloadGPR());
+                        jit.shuffleRegisters<GPRReg, 2>(
+                            { base.payloadGPR(), params[2].gpr() },
+                            { BaselineJITRegisters::DelByVal::baseJSR.payloadGPR(), BaselineJITRegisters::DelByVal::propertyJSR.payloadGPR() });
+                        base = BaselineJITRegisters::DelByVal::baseJSR;
+                        propertyCacheGPR = BaselineJITRegisters::DelByVal::propertyCacheGPR;
+                    }
+                }
                 ASSERT(base.gpr() != returnGPR);
 
                 if (child1UseKind)
@@ -8037,9 +8524,10 @@ IGNORE_CLANG_WARNINGS_END
                     if constexpr (kind == DelByKind::ByIdStrict || kind == DelByKind::ByIdSloppy)
                         return CCallHelpers::TrustedImmPtr(subscriptValue.rawBits());
                     else {
+                        JSValueRegs subscriptRegs = Options::useHandlerICInFTL() ? BaselineJITRegisters::DelByVal::propertyJSR : JSValueRegs(params[2].gpr());
                         if (child2UseKind == UntypedUse)
-                            slowCases.append(jit.branchIfNotCell(JSValueRegs(params[2].gpr())));
-                        return JSValueRegs(params[2].gpr());
+                            slowCases.append(jit.branchIfNotCell(subscriptRegs));
+                        return subscriptRegs;
                     }
                 }();
 
@@ -8049,19 +8537,23 @@ IGNORE_CLANG_WARNINGS_END
                         return Box<JITDelByIdGenerator>::create(
                             jit.codeBlock(), propertyCache, JITType::FTLJIT, nodeSemanticOrigin, callSiteIndex,
                             kind == DelByKind::ByIdSloppy ? AccessType::DeleteByIdSloppy : AccessType::DeleteByIdStrict,
-                            params.unavailableRegisters(), subscriptValue, base,
+                            Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), subscriptValue, base,
                             JSValueRegs(returnGPR), propertyCacheGPR);
                     } else {
                         auto* propertyCache = state->addPropertyInlineCache();
                         return Box<JITDelByValGenerator>::create(
                             jit.codeBlock(), propertyCache, JITType::FTLJIT, nodeSemanticOrigin, callSiteIndex,
                             kind == DelByKind::ByValSloppy ? AccessType::DeleteByValSloppy : AccessType::DeleteByValStrict,
-                            params.unavailableRegisters(), base,
+                            Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), base,
                             subscript, JSValueRegs(returnGPR), propertyCacheGPR);
                     }
                 }();
 
-                generator->generateFastPath(jit);
+                if (Options::useHandlerICInFTL()) {
+                    emitHandlerICPreparation(state, jit, generator->propertyCache(), propertyCacheGPR);
+                    generator->generateDataICFastPath(jit);
+                } else
+                    generator->generateFastPath(jit);
                 if (!Options::useHandlerICInFTL())
                     slowCases.append(generator->slowPathJump());
                 CCallHelpers::Label done = jit.label();
@@ -10666,7 +11158,24 @@ IGNORE_CLANG_WARNINGS_END
 
             m_out.branch(isOKIndexingType, unsure(copyOnWriteContiguousCheck), unsure(slowPath));
             LBasicBlock lastNext = m_out.appendTo(copyOnWriteContiguousCheck, copyOnWritePropagation);
-            LValue butterfly = m_out.loadPtr(argument, m_heaps.JSObject_butterfly);
+            LValue butterfly;
+            if (Options::useJSThreads()) [[unlikely]] {
+                // SPEC-jit section 5.5 / Task 10 (I14 choke): read predicate;
+                // Int32..Contiguous shapes checked above => AS excluded
+                // (AS-rule (c)). Slow dispatch = the function's existing
+                // operationSpread slow path (mirrors the DFG compileSpread
+                // conversion, Task 9).
+                ThreadedButterflyPlan plan;
+                plan.shape = CCallHelpers::ConcurrentButterflyShape::KnownNonArrayStorage;
+                ThreadedButterflyAccess access = threadedButterflyLoadForRead(argument, plan);
+                if (access.slowCondition) {
+                    LBasicBlock butterflyOK = m_out.newBlock();
+                    m_out.branch(access.slowCondition, rarely(slowPath), usually(butterflyOK));
+                    m_out.appendTo(butterflyOK, copyOnWritePropagation);
+                }
+                butterfly = access.storage;
+            } else
+                butterfly = m_out.loadPtr(argument, m_heaps.JSObject_butterfly);
             m_out.branch(m_out.equal(m_out.bitAnd(indexingMode, m_out.constInt32(IndexingModeMask)), m_out.constInt32(CopyOnWriteArrayWithContiguous)), unsure(copyOnWritePropagation), unsure(preLoop));
 
             m_out.appendTo(copyOnWritePropagation, preLoop);
@@ -10946,7 +11455,20 @@ IGNORE_CLANG_WARNINGS_END
 
         m_out.appendTo(acquired, loopHeader);
         LValue scratch = m_out.phi(pointerType(), fastResult, slowResult);
-        LValue butterfly = m_out.loadPtr(array, m_heaps.JSObject_butterfly);
+        LValue butterfly;
+        if (Options::useJSThreads()) [[unlikely]] {
+            // SPEC-jit section 5.5 / Task 10 (I14 choke): read predicate;
+            // sort fast path is Int32/Contiguous(/Double)-shaped => AS
+            // excluded (AS-rule (c)); slow => OSR exit (mirrors the DFG
+            // compileArraySortCompact conversion, Task 9).
+            ThreadedButterflyPlan plan;
+            plan.shape = CCallHelpers::ConcurrentButterflyShape::KnownNonArrayStorage;
+            ThreadedButterflyAccess access = threadedButterflyLoadForRead(array, plan);
+            if (access.slowCondition)
+                speculate(BadIndexingType, noValue(), nullptr, access.slowCondition);
+            butterfly = access.storage;
+        } else
+            butterfly = m_out.loadPtr(array, m_heaps.JSObject_butterfly);
         ValueFromBlock startIndex = m_out.anchor(m_out.intPtrZero);
         m_out.jump(loopHeader);
 
@@ -10985,7 +11507,20 @@ IGNORE_CLANG_WARNINGS_END
         LBasicBlock commitBody = m_out.newBlock();
         LBasicBlock continuation = m_out.newBlock();
 
-        LValue butterfly = m_out.loadPtr(array, m_heaps.JSObject_butterfly);
+        LValue butterfly;
+        if (Options::useJSThreads()) [[unlikely]] {
+            // SPEC-jit section 5.5 / Task 10 (I14 choke): WRITE predicate
+            // (the commit loop stores into the butterfly; owner-TID compare
+            // never elided, D9), emitted BEFORE any store; slow => OSR exit
+            // (mirrors the DFG compileArraySortCommit conversion, Task 9).
+            ThreadedButterflyPlan plan;
+            plan.shape = CCallHelpers::ConcurrentButterflyShape::KnownNonArrayStorage;
+            ThreadedButterflyAccess access = threadedButterflyLoadForWrite(array, plan);
+            if (access.slowCondition)
+                speculate(BadIndexingType, noValue(), nullptr, access.slowCondition);
+            butterfly = access.storage;
+        } else
+            butterfly = m_out.loadPtr(array, m_heaps.JSObject_butterfly);
         LValue currentLength = m_out.zeroExt(m_out.load32NonNegative(butterfly, m_heaps.Butterfly_publicLength), pointerType());
         speculate(BadIndexingType, noValue(), nullptr, m_out.notEqual(currentLength, length));
 
@@ -11200,12 +11735,21 @@ IGNORE_CLANG_WARNINGS_END
 
     void compileAllocatePropertyStorage()
     {
+        // SPEC-jit section 5.5 / Task 10 (mirrors Task 9's DFG fail-fast):
+        // the FTL never implements transition semantics flag-on (E4 is not
+        // emitted by this tier). All creation sites (ByteCodeParser
+        // handlePutById + handlePutPrivateName, ConstantFoldingPhase
+        // emitPutByOffset) are gated under Options::useJSThreads(), so
+        // emission here is a logic error: the raw butterfly install below
+        // would claim tag (0,0) and bypass the OM's transition protocol.
+        RELEASE_ASSERT(!Options::useJSThreads());
         LValue object = lowCell(m_node->child1());
         setStorage(allocatePropertyStorage(object, m_node->transition()->previous.get()));
     }
 
     void compileReallocatePropertyStorage()
     {
+        RELEASE_ASSERT(!Options::useJSThreads()); // SPEC-jit section 5.5 / Task 10 (see compileAllocatePropertyStorage)
         Transition* transition = m_node->transition();
         LValue object = lowCell(m_node->child1());
         LValue oldStorage = lowStorage(m_node->child2());
@@ -11217,6 +11761,7 @@ IGNORE_CLANG_WARNINGS_END
 
     void compileNukeStructureAndSetButterfly()
     {
+        RELEASE_ASSERT(!Options::useJSThreads()); // SPEC-jit section 5.5 / Task 10 (see compileAllocatePropertyStorage)
         nukeStructureAndSetButterfly(lowStorage(m_node->child2()), lowCell(m_node->child1()));
     }
 
@@ -12655,8 +13200,25 @@ IGNORE_CLANG_WARNINGS_END
                     propertyBase = base;
                 else
                     propertyBase = weakPointer(method.prototype()->value().asCell());
-                if (!isInlineOffset(method.offset()))
-                    propertyBase = m_out.loadPtr(propertyBase, m_heaps.JSObject_butterfly);
+                if (!isInlineOffset(method.offset())) {
+                    if (Options::useJSThreads()) [[unlikely]] {
+                        // SPEC-jit section 5.5 / Task 10 (I14 choke): read
+                        // predicate per case. Self loads plan against the
+                        // case's structure set (E1/E2-eligible);
+                        // prototype-base loads (constant cell, structure not
+                        // speculated here) use the conservative
+                        // MaybeArrayStorage plan. Slow => OSR exit (BadCache,
+                        // this node's existing exit style).
+                        ThreadedButterflyPlan plan;
+                        if (method.kind() == GetByOffsetMethod::Load)
+                            plan = planThreadedButterflyAccessForStructureSet(getCase.set());
+                        ThreadedButterflyAccess access = threadedButterflyLoadForRead(propertyBase, plan);
+                        if (access.slowCondition)
+                            speculate(BadCache, noValue(), nullptr, access.slowCondition);
+                        propertyBase = access.storage;
+                    } else
+                        propertyBase = m_out.loadPtr(propertyBase, m_heaps.JSObject_butterfly);
+                }
 
                 if (m_node->hasDoubleResult())
                     result = loadDoubleProperty(propertyBase, data.identifierNumber, method.offset());
@@ -12687,6 +13249,56 @@ IGNORE_CLANG_WARNINGS_END
     void compilePutByOffset()
     {
         StorageAccessData& data = m_node->storageAccessData();
+
+        if (Options::useJSThreads() && isOutOfLineOffset(data.offset)) [[unlikely]] {
+            // SPEC-jit section 5.5 / Task 10 (mirrors the DFG
+            // compilePutByOffset conversion, Task 9): out-of-line stores
+            // re-load the TAGGED butterfly from the base (child2) and run the
+            // frozen WRITE predicate in the same poll-free window as the
+            // store. I16 is ENFORCED, not assumed (review round 1): the
+            // re-load is emitted as a pinned, effectful patchpoint
+            // (loadTaggedButterflyPinnedForWrite inside
+            // threadedButterflyLoadForWrite), because a plain B3 load could
+            // be CSE'd with an earlier (LICM-hoisted) GetButterfly load
+            // across a poll — InvalidationPoint/CheckTraps clobber nothing
+            // B3-visible. No poll exists between the patchpoint, the
+            // predicate Check, and the store emitted below, so the word is
+            // post-last-poll fresh as OM section 4.6 requires. The storage
+            // child (GetButterfly's masked result) is deliberately NOT the
+            // store target: polls may sit between a (possibly LICM-hoisted)
+            // GetButterfly and this node, and OM section 4.6's per-event STW
+            // argument needs predicate + store on one freshly loaded word. Slow cases = OSR
+            // exit (BadCache): the store has not happened, baseline
+            // re-executes the put through the OM's regime-aware C++ access
+            // (R3); the case-(4) first-foreign-write exit is one-time (the
+            // generic path sets SW, F1). Inline offsets keep today's path
+            // (cell-internal: never checked/masked).
+            // THREADS-INTEGRATE(jit): AND with Options::useThreadedFTL() once
+            // the M1 kill switch lands.
+            LValue base = lowCell(m_node->child2());
+            ThreadedButterflyPlan plan = planThreadedButterflyAccess(m_node->child2());
+
+            LValue value = nullptr;
+            bool isDouble = m_node->child3().useKind() == DoubleRepUse;
+            if (isDouble) {
+                value = lowDouble(m_node->child3());
+                if (abstractValue(m_node->child3()).couldBeType(SpecDoubleImpureNaN))
+                    value = m_out.purifyNaN(value);
+                value = boxDoubleAsDouble(value);
+            } else
+                value = lowJSValue(m_node->child3());
+
+            ThreadedButterflyAccess access = threadedButterflyLoadForWrite(base, plan);
+            if (access.slowCondition)
+                speculate(BadCache, noValue(), nullptr, access.slowCondition);
+
+            if (isDouble)
+                storeDoubleProperty(value, access.storage, data.identifierNumber, data.offset);
+            else
+                storeProperty(value, access.storage, data.identifierNumber, data.offset);
+            return;
+        }
+
         LValue storage = lowStorage(m_node->child1());
         if (m_node->child3().useKind() == DoubleRepUse) {
             LValue value = lowDouble(m_node->child3());
@@ -12743,11 +13355,31 @@ IGNORE_CLANG_WARNINGS_END
             LValue storage;
             if (variant.kind() == PutByVariant::Replace) {
                 if (isInlineOffset(variant.offset()))
-                    storage = base;
-                else
+                    storage = base; // cell-internal: never checked/masked
+                else if (Options::useJSThreads()) [[unlikely]] {
+                    // SPEC-jit section 5.5 / Task 10 (I14 choke): WRITE
+                    // predicate per variant, planned against the variant's
+                    // old-structure set (E1/E2-eligible; structures were
+                    // registered above). Slow => OSR exit (BadCache): the
+                    // store has not happened; the generic path performs it
+                    // through the OM's regime-aware C++ access (R3) and sets
+                    // SW on the first foreign write (F1).
+                    ThreadedButterflyPlan plan = planThreadedButterflyAccessForStructureSet(variant.oldStructure());
+                    ThreadedButterflyAccess access = threadedButterflyLoadForWrite(base, plan);
+                    if (access.slowCondition)
+                        speculate(BadCache, noValue(), nullptr, access.slowCondition);
+                    storage = access.storage;
+                } else
                     storage = m_out.loadPtr(base, m_heaps.JSObject_butterfly);
             } else {
                 DFG_ASSERT(m_graph, m_node, variant.kind() == PutByVariant::Transition, variant.kind());
+                // SPEC-jit section 5.5 / Task 10: Transition variants are
+                // filtered out flag-on at graph construction (Task 9's
+                // ByteCodeParser handlePutById/handlePutPrivateName and
+                // ConstantFoldingPhase gates, "also protects FTL/Task 10");
+                // reaching here would inline transition semantics, which
+                // section 5.5 forbids for this tier.
+                RELEASE_ASSERT(!Options::useJSThreads());
                 m_graph.m_plan.transitions().addLazily(
                     m_origin.semantic.codeOriginOwner(),
                     variant.oldStructureForTransition(), variant.newStructure());
@@ -12841,8 +13473,22 @@ IGNORE_CLANG_WARNINGS_END
             LValue storage;
 
             if (isInlineOffset(variant.offset()))
-                storage = base;
-            else
+                storage = base; // cell-internal: never checked/masked
+            else if (Options::useJSThreads()) [[unlikely]] {
+                // SPEC-jit section 5.5 / Task 10 (I14 choke): WRITE predicate
+                // for the slot-clearing store, planned against the variant's
+                // old structure. NOTE (recorded in INTEGRATE-jit.md known
+                // gaps): the inline delete fast path (slot zero + structureID
+                // store below) does not implement the OM's locked
+                // delete/quarantine protocol; flag-on it is GIL-SOUND ONLY
+                // and must be routed generic (or E4-equivalent gated) before
+                // GIL removal.
+                ThreadedButterflyPlan plan = planThreadedButterflyAccessForStructureSet(StructureSet(variant.oldStructure()));
+                ThreadedButterflyAccess access = threadedButterflyLoadForWrite(base, plan);
+                if (access.slowCondition)
+                    speculate(BadCache, noValue(), nullptr, access.slowCondition);
+                storage = access.storage;
+            } else
                 storage = m_out.loadPtr(base, m_heaps.JSObject_butterfly);
 
             storeProperty(m_out.int64Zero, storage, data.identifierNumber, variant.offset());
@@ -13977,7 +14623,12 @@ IGNORE_CLANG_WARNINGS_END
                         return;
                     }
 
-                    auto* callLinkInfo = state->jitCode->common.m_directCallLinkInfos.add(semanticNodeOrigin, CallLinkInfo::UseDataIC::No, state->graph.m_codeBlock, executable);
+                    // SPEC-jit section 5.8 (Task 7): flag-on, direct calls are
+                    // data ICs (code-patching fast paths violate I2/I3); the
+                    // data-IC fast path's slow cases are linked to the slow
+                    // path below. THREADS-INTEGRATE(jit)
+                    auto directCallUseDataIC = Options::useJSThreads() ? CallLinkInfo::UseDataIC::Yes : CallLinkInfo::UseDataIC::No;
+                    auto* callLinkInfo = state->jitCode->common.m_directCallLinkInfos.add(semanticNodeOrigin, directCallUseDataIC, state->graph.m_codeBlock, executable);
                     callLinkInfo->setCallType(CallLinkInfo::DirectTailCall);
                     if (numAllocatedArgs > numPassedArgs)
                         callLinkInfo->setMaxArgumentCountIncludingThis(numAllocatedArgs);
@@ -13986,13 +14637,17 @@ IGNORE_CLANG_WARNINGS_END
                     jit.store32(
                         CCallHelpers::TrustedImm32(callSiteIndex.bits()),
                         CCallHelpers::tagFor(CallFrameSlot::argumentCountIncludingThis));
-                    callLinkInfo->emitDirectTailCallFastPath(jit, scopedLambda<void()>([&]{
+                    auto slowCases = callLinkInfo->emitDirectTailCallFastPath(jit, scopedLambda<void()>([&]{
                         CallFrameShuffler(jit, shuffleData).prepareForTailCall();
                     }));
 
                     jit.abortWithReason(JITDidReturnFromTailCall);
 
                     CCallHelpers::Label slowPath = jit.label();
+                    // Data-IC slow cases branch here before the tail-call
+                    // shuffle, matching the non-data slow path entry
+                    // convention; empty when !isDataIC().
+                    slowCases.link(&jit);
                     callOperation(
                         *state, toSave, jit,
                         semanticNodeOrigin, exceptions.get(), operationLinkDirectCall,
@@ -14022,7 +14677,12 @@ IGNORE_CLANG_WARNINGS_END
                     return;
                 }
 
-                auto* callLinkInfo = state->jitCode->common.m_directCallLinkInfos.add(semanticNodeOrigin, CallLinkInfo::UseDataIC::No, state->graph.m_codeBlock, executable);
+                // SPEC-jit section 5.8 (Task 7): flag-on, direct calls are
+                // data ICs (code-patching fast paths violate I2/I3); the
+                // data-IC fast path's slow cases are linked into the late
+                // path below. THREADS-INTEGRATE(jit)
+                auto directCallUseDataIC = Options::useJSThreads() ? CallLinkInfo::UseDataIC::Yes : CallLinkInfo::UseDataIC::No;
+                auto* callLinkInfo = state->jitCode->common.m_directCallLinkInfos.add(semanticNodeOrigin, directCallUseDataIC, state->graph.m_codeBlock, executable);
                 callLinkInfo->setCallType(isConstruct ? CallLinkInfo::DirectConstruct : CallLinkInfo::DirectCall);
 
                 if (numAllocatedArgs > numPassedArgs)
@@ -14032,7 +14692,7 @@ IGNORE_CLANG_WARNINGS_END
                 jit.store32(
                     CCallHelpers::TrustedImm32(callSiteIndex.bits()),
                     CCallHelpers::tagFor(CallFrameSlot::argumentCountIncludingThis));
-                callLinkInfo->emitDirectFastPath(jit);
+                auto slowCases = callLinkInfo->emitDirectFastPath(jit);
                 jit.addPtr(
                     CCallHelpers::TrustedImm32(-params.proc().frameSize()),
                     GPRInfo::callFrameRegister, CCallHelpers::stackPointerRegister);
@@ -14042,7 +14702,16 @@ IGNORE_CLANG_WARNINGS_END
                         AllowMacroScratchRegisterUsage allowScratch(jit);
 
                         CCallHelpers::Label slowPath = jit.label();
-                        if (isX86())
+                        // Data-IC slow cases (record null) branch here; they
+                        // arrive via a branch, not the patched near call, so
+                        // there is no return address to pop - the x86 pop
+                        // below only services the !isDataIC() entry, which
+                        // cannot coexist with data-IC slow cases (a
+                        // DirectCallLinkInfo is one or the other).
+                        CCallHelpers::JumpList dataICSlowCases = slowCases;
+                        bool hasDataICSlowCases = !dataICSlowCases.empty();
+                        dataICSlowCases.link(&jit);
+                        if (isX86() && !hasDataICSlowCases)
                             jit.pop(CCallHelpers::selectScratchGPR(calleeGPR));
 
                         callOperation(
@@ -17133,10 +17802,7 @@ IGNORE_CLANG_WARNINGS_END
         patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
         patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
-        if constexpr (type == AccessType::InById)
-            patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 2 : 0;
-        else
-            patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 1 : 0;
+        configurePatchpointForHandlerIC(patchpoint, /* hasResult */ true);
 
         RefPtr<PatchpointExceptionHandle> exceptionHandle = preparePatchpointForExceptions(patchpoint);
 
@@ -17156,16 +17822,25 @@ IGNORE_CLANG_WARNINGS_END
                 exceptionHandle->scheduleExitCreationForUnwind(params, callSiteIndex);
 
                 GPRReg propertyCacheGPR = InvalidGPRReg;
-                GPRReg scratchGPR = InvalidGPRReg;
-                if (Options::useHandlerICInFTL()) {
-                    propertyCacheGPR = params.gpScratch(0);
-                    if constexpr (type == AccessType::InById)
-                        scratchGPR = params.gpScratch(1);
-                }
-                UNUSED_PARAM(propertyCacheGPR);
-                UNUSED_PARAM(scratchGPR);
                 auto returnGPR = params[0].gpr();
                 auto base = JSValueRegs(params[1].gpr());
+                if (Options::useHandlerICInFTL()) {
+                    if constexpr (type == AccessType::InById) {
+                        ASSERT(returnGPR == BaselineJITRegisters::InById::resultJSR.payloadGPR());
+                        jit.shuffleRegisters<GPRReg, 1>(
+                            { base.payloadGPR() },
+                            { BaselineJITRegisters::InById::baseJSR.payloadGPR() });
+                        base = BaselineJITRegisters::InById::baseJSR;
+                        propertyCacheGPR = BaselineJITRegisters::InById::propertyCacheGPR;
+                    } else {
+                        ASSERT(returnGPR == BaselineJITRegisters::InByVal::resultJSR.payloadGPR());
+                        jit.shuffleRegisters<GPRReg, 2>(
+                            { base.payloadGPR(), params[2].gpr() },
+                            { BaselineJITRegisters::InByVal::baseJSR.payloadGPR(), BaselineJITRegisters::InByVal::propertyJSR.payloadGPR() });
+                        base = BaselineJITRegisters::InByVal::baseJSR;
+                        propertyCacheGPR = BaselineJITRegisters::InByVal::propertyCacheGPR;
+                    }
+                }
 
                 constexpr auto optimizationFunction = [&] () {
                     if constexpr (type == AccessType::InById)
@@ -17183,8 +17858,11 @@ IGNORE_CLANG_WARNINGS_END
                 const auto subscript = [&] {
                     if constexpr (type == AccessType::InById)
                         return CCallHelpers::TrustedImmPtr(subscriptValue.rawBits());
-                    else
+                    else {
+                        if (Options::useHandlerICInFTL())
+                            return BaselineJITRegisters::InByVal::propertyJSR;
                         return JSValueRegs(params[2].gpr());
+                    }
                 }();
 
                 const auto generator = [&] {
@@ -17192,19 +17870,26 @@ IGNORE_CLANG_WARNINGS_END
                         auto* propertyCache = state->addPropertyInlineCache();
                         return Box<JITInByIdGenerator>::create(
                             jit.codeBlock(), propertyCache, JITType::FTLJIT, semanticNodeOrigin, callSiteIndex,
-                            params.unavailableRegisters(), subscriptValue, base,
+                            Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), subscriptValue, base,
                             JSValueRegs(returnGPR), propertyCacheGPR);
                     } else {
                         auto* propertyCache = state->addPropertyInlineCache();
                         return Box<JITInByValGenerator>::create(
                             jit.codeBlock(), propertyCache, JITType::FTLJIT, semanticNodeOrigin, callSiteIndex,
-                            type, params.unavailableRegisters(), base, subscript,
+                            type, Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), base, subscript,
                             JSValueRegs(returnGPR), InvalidGPRReg, propertyCacheGPR);
                     }
                 }();
 
                 CCallHelpers::JumpList slowCases;
-                generator->generateFastPath(jit);
+                if (Options::useHandlerICInFTL()) {
+                    GPRReg profileGPR = InvalidGPRReg;
+                    if constexpr (type != AccessType::InById)
+                        profileGPR = BaselineJITRegisters::InByVal::profileGPR;
+                    emitHandlerICPreparation(state, jit, generator->propertyCache(), propertyCacheGPR, profileGPR);
+                    generator->generateDataICFastPath(jit);
+                } else
+                    generator->generateFastPath(jit);
                 if (!Options::useHandlerICInFTL())
                     slowCases.append(generator->slowPathJump());
                 CCallHelpers::Label done = jit.label();
@@ -17729,9 +18414,9 @@ IGNORE_CLANG_WARNINGS_END
         patchpoint->appendSomeRegister(prototype);
         patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
         patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
-        patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 1 : 0;
         patchpoint->resultConstraints = { ValueRep::SomeEarlyRegister };
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
+        configurePatchpointForHandlerIC(patchpoint, /* hasResult */ true);
 
         RefPtr<PatchpointExceptionHandle> exceptionHandle =
             preparePatchpointForExceptions(patchpoint);
@@ -17745,7 +18430,16 @@ IGNORE_CLANG_WARNINGS_END
                 GPRReg resultGPR = params[0].gpr();
                 GPRReg valueGPR = params[1].gpr();
                 GPRReg prototypeGPR = params[2].gpr();
-                GPRReg propertyCacheGPR = Options::useHandlerICInFTL() ? params.gpScratch(0) : InvalidGPRReg;
+                GPRReg propertyCacheGPR = InvalidGPRReg;
+                if (Options::useHandlerICInFTL()) {
+                    ASSERT(resultGPR == BaselineJITRegisters::Instanceof::resultJSR.payloadGPR());
+                    jit.shuffleRegisters<GPRReg, 2>(
+                        { valueGPR, prototypeGPR },
+                        { BaselineJITRegisters::Instanceof::valueJSR.payloadGPR(), BaselineJITRegisters::Instanceof::protoJSR.payloadGPR() });
+                    valueGPR = BaselineJITRegisters::Instanceof::valueJSR.payloadGPR();
+                    prototypeGPR = BaselineJITRegisters::Instanceof::protoJSR.payloadGPR();
+                    propertyCacheGPR = BaselineJITRegisters::Instanceof::propertyCacheGPR;
+                }
 
                 CCallHelpers::Jump doneJump;
                 if (!valueIsCell) {
@@ -17769,8 +18463,12 @@ IGNORE_CLANG_WARNINGS_END
                 auto* propertyCache = state->addPropertyInlineCache();
                 auto generator = Box<JITInstanceOfGenerator>::create(
                     jit.codeBlock(), propertyCache, JITType::FTLJIT, semanticNodeOrigin, callSiteIndex,
-                    params.unavailableRegisters(), resultGPR, valueGPR, prototypeGPR, propertyCacheGPR, prototypeIsObject);
-                generator->generateFastPath(jit);
+                    Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), resultGPR, valueGPR, prototypeGPR, propertyCacheGPR, prototypeIsObject);
+                if (Options::useHandlerICInFTL()) {
+                    emitHandlerICPreparation(state, jit, propertyCache, propertyCacheGPR);
+                    generator->generateDataICFastPath(jit);
+                } else
+                    generator->generateFastPath(jit);
                 if (!Options::useHandlerICInFTL())
                     slowCases.append(generator->slowPathJump());
                 CCallHelpers::Label done = jit.label();
@@ -18464,8 +19162,26 @@ IGNORE_CLANG_WARNINGS_END
         m_out.jump(continuation);
 
         m_out.appendTo(outOfLineLoadBlock);
-        if (!storage)
-            storage = m_out.loadPtr(base, m_heaps.JSObject_butterfly);
+        if (!storage) {
+            if (Options::useJSThreads()) [[unlikely]] {
+                // SPEC-jit section 5.5 / Task 10 (I14 choke): conservative
+                // MaybeArrayStorage read predicate (no structure speculation
+                // here; the enumerator guard is a structureID compare against
+                // the enumerator's cache, not a registered structure set).
+                // Slow => the existing generic/recover route (mirrors the DFG
+                // compileEnumeratorGetByVal conversion, Task 9). When the
+                // storage edge exists it is a GetButterfly result, already
+                // predicated + masked at its definition.
+                ThreadedButterflyAccess access = threadedButterflyLoadForRead(base, ThreadedButterflyPlan { });
+                if (access.slowCondition) {
+                    LBasicBlock butterflyOK = m_out.newBlock();
+                    m_out.branch(access.slowCondition, rarely(genericOrRecover), usually(butterflyOK));
+                    m_out.appendTo(butterflyOK);
+                }
+                storage = access.storage;
+            } else
+                storage = m_out.loadPtr(base, m_heaps.JSObject_butterfly);
+        }
 
         LValue realIndex = m_out.signExt32To64(
             m_out.neg(m_out.sub(index, inlineCapacity)));
@@ -18626,7 +19342,23 @@ IGNORE_CLANG_WARNINGS_END
         m_out.jump(continuation);
 
         m_out.appendTo(outOfLineLoadBlock);
-        LValue storage = m_out.loadPtr(base, m_heaps.JSObject_butterfly);
+        LValue storage;
+        if (Options::useJSThreads()) [[unlikely]] {
+            // SPEC-jit section 5.5 / Task 10 (I14 choke): conservative
+            // MaybeArrayStorage WRITE predicate (owner-TID compare never
+            // elided, D9), emitted in the same poll-free window as the store
+            // below (I16). Slow => the existing generic/recover route, which
+            // performs the put through the OM's regime-aware C++ access (R3)
+            // and sets SW on the first foreign write (F1).
+            ThreadedButterflyAccess access = threadedButterflyLoadForWrite(base, ThreadedButterflyPlan { });
+            if (access.slowCondition) {
+                LBasicBlock butterflyOK = m_out.newBlock();
+                m_out.branch(access.slowCondition, rarely(genericOrRecover), usually(butterflyOK));
+                m_out.appendTo(butterflyOK);
+            }
+            storage = access.storage;
+        } else
+            storage = m_out.loadPtr(base, m_heaps.JSObject_butterfly);
 
         LValue realIndex = m_out.signExt32To64(
             m_out.neg(m_out.sub(index, inlineCapacity)));
@@ -18643,7 +19375,7 @@ IGNORE_CLANG_WARNINGS_END
         patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
         patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
-        patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 1 : 0;
+        configurePatchpointForHandlerIC(patchpoint, /* hasResult */ false);
 
         RefPtr<PatchpointExceptionHandle> exceptionHandle = preparePatchpointForExceptions(patchpoint);
 
@@ -18667,14 +19399,27 @@ IGNORE_CLANG_WARNINGS_END
             GPRReg baseGPR = params[0].gpr();
             GPRReg propertyGPR = params[1].gpr();
             GPRReg valueGPR = params[2].gpr();
-            GPRReg propertyCacheGPR = Options::useHandlerICInFTL() ? params.gpScratch(0) : InvalidGPRReg;
+            GPRReg propertyCacheGPR = InvalidGPRReg;
+            if (Options::useHandlerICInFTL()) {
+                jit.shuffleRegisters<GPRReg, 3>(
+                    { baseGPR, propertyGPR, valueGPR },
+                    { BaselineJITRegisters::PutByVal::baseJSR.payloadGPR(), BaselineJITRegisters::PutByVal::propertyJSR.payloadGPR(), BaselineJITRegisters::PutByVal::valueJSR.payloadGPR() });
+                baseGPR = BaselineJITRegisters::PutByVal::baseJSR.payloadGPR();
+                propertyGPR = BaselineJITRegisters::PutByVal::propertyJSR.payloadGPR();
+                valueGPR = BaselineJITRegisters::PutByVal::valueJSR.payloadGPR();
+                propertyCacheGPR = BaselineJITRegisters::PutByVal::propertyCacheGPR;
+            }
 
             auto* propertyCache = state->addPropertyInlineCache();
             auto generator = Box<JITPutByValGenerator>::create(
                 jit.codeBlock(), propertyCache, JITType::FTLJIT, nodeSemanticOrigin, callSiteIndex, ecmaMode.isStrict() ? AccessType::PutByValStrict : AccessType::PutByValSloppy,
-                params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(valueGPR), InvalidGPRReg, propertyCacheGPR);
+                Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), JSValueRegs(baseGPR), JSValueRegs(propertyGPR), JSValueRegs(valueGPR), InvalidGPRReg, propertyCacheGPR);
 
-            generator->generateFastPath(jit);
+            if (Options::useHandlerICInFTL()) {
+                emitHandlerICPreparation(state, jit, propertyCache, propertyCacheGPR, BaselineJITRegisters::PutByVal::profileGPR);
+                generator->generateDataICFastPath(jit);
+            } else
+                generator->generateFastPath(jit);
             CCallHelpers::Label done = jit.label();
 
             params.addLatePath([=] (CCallHelpers& jit) {
@@ -18932,8 +19677,16 @@ IGNORE_CLANG_WARNINGS_END
                         m_vmValue, butterflyValue);
                 }
                 ValueFromBlock slowObject = m_out.anchor(slowObjectValue);
-                ValueFromBlock slowButterfly = m_out.anchor(
-                    m_out.loadPtr(slowObjectValue, m_heaps.JSObject_butterfly));
+                // SPEC-jit section 5.5 / Task 10: FRESH-FROM-OPERATION load -
+                // the object was just allocated by the operation on this
+                // thread (current-thread owner, SW=0, never segmented), so no
+                // predicate is needed; the mask is still ALWAYS emitted
+                // flag-on (E3/D6/I14(a); a no-op while the install is raw,
+                // correct once OM allocation tagging lands).
+                LValue slowButterflyValue = m_out.loadPtr(slowObjectValue, m_heaps.JSObject_butterfly);
+                if (Options::useJSThreads()) [[unlikely]]
+                    slowButterflyValue = maskedButterfly(slowButterflyValue);
+                ValueFromBlock slowButterfly = m_out.anchor(slowButterflyValue);
 
                 m_out.jump(continuation);
 
@@ -20017,6 +20770,10 @@ IGNORE_CLANG_WARNINGS_END
         LValue object, PropertyOffset offset,
         Structure* previousStructure, Structure* nextStructure)
     {
+        // SPEC-jit section 5.5 / Task 10: transition sequences are
+        // unreachable flag-on (sole caller is MultiPutByOffset's Transition
+        // arm, filtered at graph construction; see compileMultiPutByOffset).
+        RELEASE_ASSERT(!Options::useJSThreads());
         if (isInlineOffset(offset))
             return object;
 
@@ -20211,14 +20968,13 @@ IGNORE_CLANG_WARNINGS_END
         patchpoint->appendSomeRegister(base);
         patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
         patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
-        patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 2 : 0;
-
         // FIXME: If this is a GetByIdFlush/GetByIdDirectFlush, we might get some performance boost if we claim that it
         // clobbers volatile registers late. It's not necessary for correctness, though, since the
         // IC code is super smart about saving registers.
         // https://bugs.webkit.org/show_bug.cgi?id=152848
 
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
+        configurePatchpointForHandlerIC(patchpoint, /* hasResult */ true);
 
         RefPtr<PatchpointExceptionHandle> exceptionHandle =
             preparePatchpointForExceptions(patchpoint);
@@ -20242,22 +20998,29 @@ IGNORE_CLANG_WARNINGS_END
                 // the callsite index.
                 exceptionHandle->scheduleExitCreationForUnwind(params, callSiteIndex);
 
+                GPRReg resultGPR = params[0].gpr();
+                GPRReg baseGPR = params[1].gpr();
                 GPRReg propertyCacheGPR = InvalidGPRReg;
-                GPRReg scratchGPR = InvalidGPRReg;
                 if (Options::useHandlerICInFTL()) {
-                    propertyCacheGPR = params.gpScratch(0);
-                    scratchGPR = params.gpScratch(1);
+                    ASSERT(resultGPR == BaselineJITRegisters::GetById::resultJSR.payloadGPR());
+                    jit.shuffleRegisters<GPRReg, 1>(
+                        { baseGPR },
+                        { BaselineJITRegisters::GetById::baseJSR.payloadGPR() });
+                    baseGPR = BaselineJITRegisters::GetById::baseJSR.payloadGPR();
+                    propertyCacheGPR = BaselineJITRegisters::GetById::propertyCacheGPR;
                 }
-                UNUSED_PARAM(propertyCacheGPR);
-                UNUSED_PARAM(scratchGPR);
 
                 auto* propertyCache = state->addPropertyInlineCache();
                 auto generator = Box<JITGetByIdGenerator>::create(
                     jit.codeBlock(), propertyCache, JITType::FTLJIT, semanticNodeOrigin, callSiteIndex,
-                    params.unavailableRegisters(), identifier, JSValueRegs(params[1].gpr()),
-                    JSValueRegs(params[0].gpr()), propertyCacheGPR, type, CacheType::GetByIdSelf);
+                    Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), identifier, JSValueRegs(baseGPR),
+                    JSValueRegs(resultGPR), propertyCacheGPR, type, CacheType::GetByIdSelf);
 
-                generator->generateFastPath(jit);
+                if (Options::useHandlerICInFTL()) {
+                    emitHandlerICPreparation(state, jit, propertyCache, propertyCacheGPR);
+                    generator->generateDataICFastPath(jit);
+                } else
+                    generator->generateFastPath(jit);
                 CCallHelpers::Label done = jit.label();
 
                 params.addLatePath(
@@ -20275,13 +21038,13 @@ IGNORE_CLANG_WARNINGS_END
                             downcast<HandlerPropertyInlineCache>(*generator->propertyCache()).m_slowOperation = optimizationFunction;
                             slowPathCall = callOperation(
                                 *state, params.unavailableRegisters(), jit, semanticNodeOrigin,
-                                exceptions.get(), CCallHelpers::Address(propertyCacheGPR, HandlerPropertyInlineCache::offsetOfSlowOperation()), params[0].gpr(),
-                                params[1].gpr(), propertyCacheGPR).call();
+                                exceptions.get(), CCallHelpers::Address(propertyCacheGPR, HandlerPropertyInlineCache::offsetOfSlowOperation()), resultGPR,
+                                baseGPR, propertyCacheGPR).call();
                         } else {
                             slowPathCall = callOperation(
                                 *state, params.unavailableRegisters(), jit, semanticNodeOrigin,
-                                exceptions.get(), optimizationFunction, params[0].gpr(),
-                                params[1].gpr(), CCallHelpers::TrustedImmPtr(generator->propertyCache())).call();
+                                exceptions.get(), optimizationFunction, resultGPR,
+                                baseGPR, CCallHelpers::TrustedImmPtr(generator->propertyCache())).call();
                         }
                         jit.jump().linkTo(done, &jit);
 
@@ -20308,7 +21071,7 @@ IGNORE_CLANG_WARNINGS_END
         patchpoint->append(m_notCellMask, ValueRep::lateReg(GPRInfo::notCellMaskRegister));
         patchpoint->append(m_numberTag, ValueRep::lateReg(GPRInfo::numberTagRegister));
         patchpoint->clobber(RegisterSet::macroClobberedGPRs());
-        patchpoint->numGPScratchRegisters = Options::useHandlerICInFTL() ? 2 : 0;
+        configurePatchpointForHandlerIC(patchpoint, /* hasResult */ true);
 
         RefPtr<PatchpointExceptionHandle> exceptionHandle =
             preparePatchpointForExceptions(patchpoint);
@@ -20332,22 +21095,31 @@ IGNORE_CLANG_WARNINGS_END
                 // the callsite index.
                 exceptionHandle->scheduleExitCreationForUnwind(params, callSiteIndex);
 
+                GPRReg resultGPR = params[0].gpr();
+                GPRReg baseGPR = params[1].gpr();
+                GPRReg thisGPR = params[2].gpr();
                 GPRReg propertyCacheGPR = InvalidGPRReg;
-                GPRReg scratchGPR = InvalidGPRReg;
                 if (Options::useHandlerICInFTL()) {
-                    propertyCacheGPR = params.gpScratch(0);
-                    scratchGPR = params.gpScratch(1);
+                    ASSERT(resultGPR == BaselineJITRegisters::GetByIdWithThis::resultJSR.payloadGPR());
+                    jit.shuffleRegisters<GPRReg, 2>(
+                        { baseGPR, thisGPR },
+                        { BaselineJITRegisters::GetByIdWithThis::baseJSR.payloadGPR(), BaselineJITRegisters::GetByIdWithThis::thisJSR.payloadGPR() });
+                    baseGPR = BaselineJITRegisters::GetByIdWithThis::baseJSR.payloadGPR();
+                    thisGPR = BaselineJITRegisters::GetByIdWithThis::thisJSR.payloadGPR();
+                    propertyCacheGPR = BaselineJITRegisters::GetByIdWithThis::propertyCacheGPR;
                 }
-                UNUSED_PARAM(propertyCacheGPR);
-                UNUSED_PARAM(scratchGPR);
 
                 auto* propertyCache = state->addPropertyInlineCache();
                 auto generator = Box<JITGetByIdWithThisGenerator>::create(
                     jit.codeBlock(), propertyCache, JITType::FTLJIT, semanticNodeOrigin, callSiteIndex,
-                    params.unavailableRegisters(), identifier, JSValueRegs(params[0].gpr()),
-                    JSValueRegs(params[1].gpr()), JSValueRegs(params[2].gpr()), propertyCacheGPR);
+                    Options::useHandlerICInFTL() ? RegisterSet::stubUnavailableRegisters() : params.unavailableRegisters(), identifier, JSValueRegs(resultGPR),
+                    JSValueRegs(baseGPR), JSValueRegs(thisGPR), propertyCacheGPR);
 
-                generator->generateFastPath(jit);
+                if (Options::useHandlerICInFTL()) {
+                    emitHandlerICPreparation(state, jit, propertyCache, propertyCacheGPR);
+                    generator->generateDataICFastPath(jit);
+                } else
+                    generator->generateFastPath(jit);
                 CCallHelpers::Label done = jit.label();
 
                 params.addLatePath(
@@ -20365,13 +21137,13 @@ IGNORE_CLANG_WARNINGS_END
                             downcast<HandlerPropertyInlineCache>(*generator->propertyCache()).m_slowOperation = optimizationFunction;
                             slowPathCall = callOperation(
                                 *state, params.unavailableRegisters(), jit, semanticNodeOrigin,
-                                exceptions.get(), CCallHelpers::Address(propertyCacheGPR, HandlerPropertyInlineCache::offsetOfSlowOperation()), params[0].gpr(),
-                                params[1].gpr(), params[2].gpr(), propertyCacheGPR).call();
+                                exceptions.get(), CCallHelpers::Address(propertyCacheGPR, HandlerPropertyInlineCache::offsetOfSlowOperation()), resultGPR,
+                                baseGPR, thisGPR, propertyCacheGPR).call();
                         } else {
                             slowPathCall = callOperation(
                                 *state, params.unavailableRegisters(), jit, semanticNodeOrigin,
-                                exceptions.get(), optimizationFunction, params[0].gpr(),
-                                params[1].gpr(), params[2].gpr(), CCallHelpers::TrustedImmPtr(generator->propertyCache())).call();
+                                exceptions.get(), optimizationFunction, resultGPR,
+                                baseGPR, thisGPR, CCallHelpers::TrustedImmPtr(generator->propertyCache())).call();
                         }
                         jit.jump().linkTo(done, &jit);
 
@@ -22949,8 +23721,13 @@ IGNORE_CLANG_WARNINGS_END
         }
 
         ValueFromBlock slowResult = m_out.anchor(slowResultValue);
-        ValueFromBlock slowButterfly = m_out.anchor(
-            m_out.loadPtr(slowResultValue, m_heaps.JSObject_butterfly));
+        // SPEC-jit section 5.5 / Task 10: FRESH-FROM-OPERATION load (see
+        // compileMaterializeNewObject's twin) - no predicate; mask ALWAYS
+        // emitted flag-on (E3/D6/I14(a)).
+        LValue slowButterflyValue = m_out.loadPtr(slowResultValue, m_heaps.JSObject_butterfly);
+        if (Options::useJSThreads()) [[unlikely]]
+            slowButterflyValue = maskedButterfly(slowButterflyValue);
+        ValueFromBlock slowButterfly = m_out.anchor(slowButterflyValue);
         m_out.jump(continuation);
 
         m_out.appendTo(continuation, lastNext);
@@ -26481,6 +27258,49 @@ IGNORE_CLANG_WARNINGS_END
             hadException, rarely(m_handleExceptions), usually(continuation));
 
         m_out.appendTo(continuation);
+    }
+
+    // Handler-IC (data-IC) sites, used when useHandlerICInFTL is on. Handler
+    // stubs are shared across tiers and code blocks, are compiled against the
+    // Baseline data-IC register conventions, only preserve the canonical
+    // RegisterSet::stubUnavailableRegisters() set around JS/C++ calls, and read
+    // per-tier data through GPRInfo::jitDataRegister. So an FTL handler-IC site
+    // must (1) late-clobber every volatile register, forcing B3 to spill all
+    // live state across the IC (the analogue of the DFG's flushRegisters() at
+    // its data-IC sites), (2) shuffle its operands into the op's Baseline IC
+    // registers before dispatch, and (3) materialize jitDataRegister (which we
+    // also clobber) with FTL::JITCode::handlerICJITData(). Results arrive in
+    // JSRInfo::returnValueJSR, which is each op's Baseline resultJSR, so
+    // value-producing sites pin their patchpoint result to returnValueGPR.
+    void configurePatchpointForHandlerIC(PatchpointValue* patchpoint, bool hasResult)
+    {
+        if (!Options::useHandlerICInFTL())
+            return;
+        RegisterSet clobber = RegisterSet::registersToSaveForJSCall(RegisterSet::allScalarRegisters());
+        clobber.add(GPRInfo::jitDataRegister, IgnoreVectors);
+        patchpoint->clobberLate(WTF::move(clobber));
+        patchpoint->numGPScratchRegisters = 0;
+        if (hasResult)
+            patchpoint->resultConstraints = { ValueRep::reg(GPRInfo::returnValueGPR) };
+    }
+
+    // Emitted just before a handler-IC dispatch (generateDataICFastPath): load
+    // the FTL surrogate for the per-tier JIT data and the PropertyInlineCache
+    // pointer into the registers the handler protocol expects. jitDataRegister
+    // is callee-save, so it stays valid inside handler stubs across any JS/C++
+    // calls they make. Static because it runs inside patchpoint generators,
+    // which must not capture `this` (LowerDFGToB3 is gone by code generation
+    // time; only State survives).
+    static void emitHandlerICPreparation(State* state, CCallHelpers& jit, PropertyInlineCache* propertyCache, GPRReg propertyCacheGPR, GPRReg profileGPR = InvalidGPRReg)
+    {
+        ASSERT(Options::useHandlerICInFTL());
+        jit.move(CCallHelpers::TrustedImmPtr(state->jitCode->handlerICJITData()), GPRInfo::jitDataRegister);
+        jit.move(CCallHelpers::TrustedImmPtr(propertyCache), propertyCacheGPR);
+        // The shared by-val slow-path handler thunks pass profileGPR to the
+        // optimize operations; point it at the FTL's dummy profile (the DFG
+        // does the same with DFG::JITData::offsetOfDummyArrayProfile()).
+        if (profileGPR != InvalidGPRReg)
+            jit.move(CCallHelpers::TrustedImmPtr(state->jitCode->handlerICDummyArrayProfile()), profileGPR);
     }
 
     RefPtr<PatchpointExceptionHandle> preparePatchpointForExceptions(PatchpointValue* value)

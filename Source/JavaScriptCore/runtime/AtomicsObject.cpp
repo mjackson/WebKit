@@ -29,11 +29,14 @@
 #include "FrameTracers.h"
 #include "JSCInlines.h"
 #include "JSTypedArrays.h"
+#include "LockObject.h" // GILDroppedSection (SPEC-api 5.2; used only under useJSThreadsEnabled())
 #include "ReleaseHeapAccessScope.h"
 #include "ThreadAtomics.h"
 #include "ThreadManager.h"
 #include "TypedArrayController.h"
 #include "WaiterListManager.h"
+#include <wtf/HashSet.h>
+#include <wtf/NeverDestroyed.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
@@ -495,6 +498,18 @@ JSC_DEFINE_HOST_FUNCTION(atomicsFuncSub, (JSGlobalObject* globalObject, CallFram
 }
 
 
+// D8 (docs/threads/INTEGRATE-api.md): per-VM single-flight gate for the
+// GIL-dropped typed-array sync Atomics.wait below — waitSyncImpl uses the one
+// per-VM vm.syncWaiter() node, which must never be enqueued twice
+// concurrently. Process-global (multiple VMs each get their own slot); only
+// touched on the already-slow, flag-gated sync-wait path.
+static Lock syncTAWaitGateLock;
+static UncheckedKeyHashSet<VM*>& vmsWithSyncTAWaitInFlight() WTF_REQUIRES_LOCK(syncTAWaitGateLock)
+{
+    static NeverDestroyed<UncheckedKeyHashSet<VM*>> set;
+    return set;
+}
+
 template<typename ValueType, typename JSArrayType>
 JSValue atomicsWaitImpl(JSGlobalObject* globalObject, JSArrayType* typedArray, uint64_t accessIndex, ValueType expectedValue, JSValue timeoutValue, AtomicsWaitType type)
 {
@@ -517,7 +532,54 @@ JSValue atomicsWaitImpl(JSGlobalObject* globalObject, JSArrayType* typedArray, u
         return { };
     }
 
-    auto result = WaiterListManager::singleton().waitSync(vm, ptr, expectedValue, timeout);
+    WaiterListManager::WaitSyncResult result;
+    if (useJSThreadsEnabled()) [[unlikely]] {
+        // With spawned Threads sharing this VM, parking here while holding
+        // the JSLock (the phase-1 GIL) would starve every Thread for the
+        // duration of the wait — and deadlock outright if the matching
+        // Atomics.notify must come from a spawned Thread (they can never
+        // acquire the GIL while we hold it). Spawned Threads themselves are
+        // gated off this path entirely (4.5 step 1a above); for the
+        // main/embedder thread we park with the GIL dropped, mirroring the
+        // property-path wait (ThreadAtomics.cpp). The waiter's typed array
+        // and SAB stay conservatively rooted: this thread remains registered
+        // with the heap's machine-thread list while parked, exactly as at
+        // the other GILDroppedSection park sites (join, cond.wait,
+        // lock.hold). Flag off, this branch is dead and today's body below
+        // runs textually unchanged (I1).
+        //
+        // D8 single-flight gate (docs/threads/INTEGRATE-api.md "Landed
+        // deviations"): waitSyncImpl parks the ONE per-VM vm.syncWaiter()
+        // intrusive-list node. Stock JSC guarantees at most one thread of a
+        // VM is ever inside a sync wait (it parks holding the API lock);
+        // dropping the GIL here removes that guarantee for NON-spawned
+        // threads — the 4.5-1a gate above excludes only spawned Threads, so
+        // two embedder threads (or main + one embedder thread) sharing this
+        // VM under the GIL could otherwise BOTH reach waitSync and
+        // double-insert the same Waiter node (native heap corruption plus
+        // crossed wakeups). Unreachable in the jsc shell (exactly one
+        // non-spawned thread; $262 agents use separate VMs), but a real trap
+        // for the Bun embedding this fork targets. A second concurrent
+        // non-spawned sync TA wait on the same VM therefore throws, like the
+        // 1a gate. Lifted with D4 at the post-GIL re-freeze (Dev 12), when
+        // per-wait waiter nodes replace vm.syncWaiter().
+        {
+            Locker gateLocker { syncTAWaitGateLock };
+            if (!vmsWithSyncTAWaitInFlight().add(&vm).isNewEntry) {
+                throwTypeError(globalObject, scope, "Atomics.wait is already in progress on another thread sharing this VM"_s);
+                return { };
+            }
+        }
+        {
+            GILDroppedSection droppedSection(vm);
+            result = WaiterListManager::singleton().waitSync(vm, ptr, expectedValue, timeout);
+        }
+        {
+            Locker gateLocker { syncTAWaitGateLock };
+            vmsWithSyncTAWaitInFlight().remove(&vm);
+        }
+    } else
+        result = WaiterListManager::singleton().waitSync(vm, ptr, expectedValue, timeout);
     switch (result) {
     case WaiterListManager::WaitSyncResult::OK:
         return vm.smallStrings.okString();
@@ -540,15 +602,24 @@ JSC_DEFINE_HOST_FUNCTION(atomicsFuncWait, (JSGlobalObject* globalObject, CallFra
 
     if (useJSThreadsEnabled()) [[unlikely]] {
         JSValue base = callFrame->argument(0);
-        if (base.isObject() && !dynamicDowncast<JSArrayBufferView>(base)) {
-            Identifier propertyKey = callFrame->argument(1).toPropertyKey(globalObject);
-            RETURN_IF_EXCEPTION(scope, { });
-            RELEASE_AND_RETURN(scope, JSValue::encode(atomicsWaitOnProperty(globalObject, asObject(base), propertyKey, callFrame->argument(2), callFrame->argument(3))));
+        if (base.isObject()) {
+            if (!dynamicDowncast<JSArrayBufferView>(base)) {
+                // SPEC-api 4.5 step 2: non-view object => property-waiter path;
+                // arg1 via ToPropertyKey.
+                Identifier propertyKey = callFrame->argument(1).toPropertyKey(globalObject);
+                RETURN_IF_EXCEPTION(scope, { });
+                RELEASE_AND_RETURN(scope, JSValue::encode(atomicsWaitOnProperty(globalObject, asObject(base), propertyKey, callFrame->argument(2), callFrame->argument(3))));
+            }
+            // SPEC-api 4.5 step 1a (GIL-phase-only; I21): a cross-Thread sync
+            // typed-array wait parks holding the GIL (G30) and would deadlock
+            // the whole VM, so it is gated off on spawned Threads, before
+            // today's body and with no side effects. Applies ONLY when arg0 is
+            // a view (step 1); non-object arguments fall through to today's
+            // body and its errors unchanged (step 3). Lifted at the post-GIL
+            // re-freeze (Deviation 12).
+            if (ThreadManager::isJSThreadCurrent())
+                return throwVMTypeError(globalObject, scope, "Atomics.wait cannot be called from the current thread."_s);
         }
-        // 4.5-1a (GIL-phase-only): a cross-Thread sync typed-array wait would
-        // deadlock under the GIL; gate it off on spawned Threads.
-        if (ThreadManager::isJSThreadCurrent())
-            return throwVMTypeError(globalObject, scope, "Atomics.wait cannot be called from the current thread."_s);
     }
 
     auto* typedArrayView = validateIntegerTypedArray<TypedArrayOperationMode::Wait>(globalObject, callFrame->argument(0));

@@ -142,6 +142,17 @@ void MachineThreads::tryCopyOtherThreadStack(const ThreadSuspendLocker& locker, 
     *size += stack.second;
 }
 
+bool MachineThreads::includesCurrentThread()
+{
+    auto& currentThread = Thread::currentSingleton();
+    Locker locker { m_threadGroup->getLock() };
+    for (const Ref<Thread>& thread : m_threadGroup->threads(locker)) {
+        if (thread.ptr() == &currentThread)
+            return true;
+    }
+    return false;
+}
+
 bool MachineThreads::tryCopyOtherThreadStacks(const AbstractLocker& locker, void* buffer, size_t capacity, size_t* size, Thread& currentThreadForGC)
 {
     // Prevent two VMs from suspending each other's threads at the same time,
@@ -210,6 +221,21 @@ static void growBuffer(size_t size, void** buffer, size_t* capacity)
     *buffer = fastMalloc(*capacity);
 }
 
+// SharedGC (SPEC-heap.md §10.6, T6): this is the N-mutator stack scan. Every
+// thread that ever acquired heap access on any client is I4(b)-registered in
+// m_threadGroup (GCClient::Heap::acquireHeapAccess enforces this; JSLock and
+// attachCurrentThread register eagerly), so the suspend-and-copy loop below
+// covers the stacks and registers of every mutator other than the conductor —
+// whether it is parked in notifyVMStop, blocked in acquireHeapAccess's F8
+// revert wait, or running access-released native code (conservative scanning
+// a live native stack is a sound superset). The conductor's own stack and
+// registers flow through `currentThreadState` (captured by
+// callWithCurrentThreadState at the bottom of the conducted cycle's phase
+// loop) and `currentThread` (== Heap::m_currentThread, stamped by
+// runCurrentPhase), which is excluded from suspension even when this function
+// runs on a parallel marking helper (the helper itself is excluded via
+// Thread::currentSingleton(); helpers are never registered). This satisfies
+// I12's stack ∪ registers clause for all registered threads.
 void MachineThreads::gatherConservativeRoots(ConservativeRoots& conservativeRoots, JITStubRoutineSet& jitStubRoutines, CodeBlockSet& codeBlocks, CurrentThreadState* currentThreadState, Thread* currentThread)
 {
     if (currentThreadState)

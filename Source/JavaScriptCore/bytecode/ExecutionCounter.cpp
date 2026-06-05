@@ -42,7 +42,9 @@ ExecutionCounter<countingVariant>::ExecutionCounter()
 template<CountingVariant countingVariant>
 void ExecutionCounter<countingVariant>::forceSlowPathConcurrently()
 {
-    m_counter = 0;
+    // THREADS §5.7.1: relaxed store; racing fast-path adds at worst delay the slow path
+    // by one counting period.
+    storeCounterValueConcurrently(0);
 }
 
 template<CountingVariant countingVariant>
@@ -66,11 +68,13 @@ void ExecutionCounter<countingVariant>::setNewThreshold(int32_t threshold, CodeB
 }
 
 template<CountingVariant countingVariant>
-void ExecutionCounter<countingVariant>::deferIndefinitely()
+SUPPRESS_TSAN void ExecutionCounter<countingVariant>::deferIndefinitely()
 {
+    // THREADS §5.7.1/§5.7.7: m_totalCount/m_activeThreshold are plain word-sized advisory
+    // stores (tolerated); m_counter is the JIT-shared word and goes through the relaxed helper.
     m_totalCount = 0;
     m_activeThreshold = std::numeric_limits<int32_t>::max();
-    m_counter = std::numeric_limits<int32_t>::min();
+    storeCounterValueConcurrently(std::numeric_limits<int32_t>::min());
 }
 
 double applyMemoryUsageHeuristics(int32_t value, CodeBlock* codeBlock)
@@ -127,7 +131,7 @@ int32_t maximumExecutionCountsBetweenCheckpoints(CountingVariant countingVariant
 }
 
 template<CountingVariant countingVariant>
-bool ExecutionCounter<countingVariant>::hasCrossedThreshold(CodeBlock* codeBlock) const
+SUPPRESS_TSAN bool ExecutionCounter<countingVariant>::hasCrossedThreshold(CodeBlock* codeBlock) const
 {
     // This checks if the current count rounded up to the threshold we were targeting.
     // For example, if we are using half of available executable memory and have
@@ -149,7 +153,7 @@ bool ExecutionCounter<countingVariant>::hasCrossedThreshold(CodeBlock* codeBlock
     
     double modifiedThreshold = applyMemoryUsageHeuristics(m_activeThreshold, codeBlock);
     
-    double actualCount = static_cast<double>(m_totalCount) + m_counter;
+    double actualCount = static_cast<double>(m_totalCount) + counterValueConcurrently(); // THREADS §5.7.1: relaxed read of the JIT-shared word.
     double desiredCount = modifiedThreshold - static_cast<double>(
         std::min(m_activeThreshold, maximumExecutionCountsBetweenCheckpoints(countingVariant, codeBlock))) / 2;
     
@@ -161,7 +165,7 @@ bool ExecutionCounter<countingVariant>::hasCrossedThreshold(CodeBlock* codeBlock
 }
 
 template<CountingVariant countingVariant>
-bool ExecutionCounter<countingVariant>::setThreshold(CodeBlock* codeBlock)
+SUPPRESS_TSAN bool ExecutionCounter<countingVariant>::setThreshold(CodeBlock* codeBlock)
 {
     if (m_activeThreshold == std::numeric_limits<int32_t>::max()) {
         deferIndefinitely();
@@ -182,32 +186,32 @@ bool ExecutionCounter<countingVariant>::setThreshold(CodeBlock* codeBlock)
     threshold -= trueTotalCount;
         
     if (threshold <= 0) {
-        m_counter = 0;
+        storeCounterValueConcurrently(0); // THREADS §5.7.1.
         m_totalCount = trueTotalCount;
         return true;
     }
 
     threshold = clippedThreshold(codeBlock, threshold);
-    
-    m_counter = static_cast<int32_t>(-threshold);
-        
+
+    storeCounterValueConcurrently(static_cast<int32_t>(-threshold)); // THREADS §5.7.1.
+
     m_totalCount = trueTotalCount + threshold;
         
     return false;
 }
 
 template<CountingVariant countingVariant>
-void ExecutionCounter<countingVariant>::reset()
+SUPPRESS_TSAN void ExecutionCounter<countingVariant>::reset()
 {
-    m_counter = 0;
+    storeCounterValueConcurrently(0); // THREADS §5.7.1.
     m_totalCount = 0;
     m_activeThreshold = 0;
 }
 
 template<CountingVariant countingVariant>
-void ExecutionCounter<countingVariant>::dump(PrintStream& out) const
+SUPPRESS_TSAN void ExecutionCounter<countingVariant>::dump(PrintStream& out) const
 {
-    out.printf("%lf/%lf, %d", count(), static_cast<double>(m_activeThreshold), m_counter);
+    out.printf("%lf/%lf, %d", count(), static_cast<double>(m_activeThreshold), counterValueConcurrently());
 }
 
 template class ExecutionCounter<CountingForBaseline>;

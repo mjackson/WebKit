@@ -29,17 +29,24 @@
 
 namespace JSC {
 
-// One waiter on a JS Condition (SPEC-api 5.4). Sync waiters park on their
-// own WTF::Condition under the queue lock; async waiters carry the ticket to
-// re-enqueue on the lock when notified.
+// One waiter on a JS Condition (SPEC-api 5.4). Sync waiters park via
+// WTF::ParkingLot on &state (the queue lock is never held while sleeping);
+// async waiters carry the ticket to re-enqueue on the lock when notified
+// (5.5a A-failure path).
 class CondWaiter final : public ThreadSafeRefCounted<CondWaiter> {
 public:
     enum class Kind : uint8_t { Sync, Async };
     static Ref<CondWaiter> create(Kind kind) { return adoptRef(*new CondWaiter(kind)); }
 
+    static constexpr uint8_t waiting = 0;
+    static constexpr uint8_t notified = 1;
+
     Kind kind;
-    std::atomic<uint8_t> state { 0 }; // Waiting = 0 -> Notified = 1, flipped exactly once
-    Condition condition; // sync
+    // Waiting -> Notified, flipped exactly once, always under the owning
+    // NativeConditionState's queueLock (dequeued <=> flipped, atomic against
+    // the wait()-side step-5 re-check; SPEC-api 5.4). Sync waiters park on
+    // this address.
+    std::atomic<uint8_t> state { waiting };
     RefPtr<AsyncTicket> ticket; // async
     RefPtr<NativeLockState> lock; // async: the lock to re-acquire on notify
 

@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // Condition.prototype.notifyAll / notify: wake-count semantics that are
 // testable under the phase-1 GIL stub's cooperative scheduler.
 //

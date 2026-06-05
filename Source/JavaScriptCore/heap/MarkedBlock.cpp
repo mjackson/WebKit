@@ -143,6 +143,10 @@ MarkedBlock::Handle* MarkedBlock::tryCreate(JSC::Heap& heap, AlignedMemoryAlloca
     return new Handle(heap, alignedMemoryAllocator, blockSpace);
 }
 
+// SharedGC (T9): any-client OK — blocks are server-owned; heap.vm() stamps
+// the main VM (deviation 3) into the WeakSet/header at construction (see
+// MarkedBlock::vm(), MarkedBlock.h). Construction runs under MSPL once
+// shared (tryAllocateBlock, §5.2(3)); the stamp itself is thread-neutral.
 MarkedBlock::Handle::Handle(JSC::Heap& heap, AlignedMemoryAllocator* alignedMemoryAllocator, void* blockSpace)
     : m_alignedMemoryAllocator(alignedMemoryAllocator)
     , m_weakSet(heap.vm())
@@ -333,6 +337,11 @@ inline void MarkedBlock::setupTestForDumpInfoAndCrash() { }
 
 void MarkedBlock::aboutToMarkSlow(HeapVersion markingVersion, HeapCell* cell)
 {
+    // SharedGC (T8 audit, I5b): marker-helper path. Once shared, marking runs
+    // only inside the stop window (deviation 4; I11 note), and every
+    // directory-bit access below (isAllocated read, setIsMarkingNotEmpty)
+    // holds the bitvector lock — safe against addBlock's m_bits resize even
+    // though helpers don't hold MSPL.
     ASSERT(vm().heap.objectSpace().isMarking());
     setupTestForDumpInfoAndCrash();
 
@@ -417,6 +426,10 @@ void MarkedBlock::resetMarks()
     header().m_markingVersion = MarkedSpace::nullVersion;
 }
 
+// SharedGC (T9): the vm() uses in assertMarksNotStale/areMarksStale/isMarked
+// below are thread-agnostic round-trips to the SERVER's marking version
+// (block -> main VM -> vm.heap == server, deviation 3) — conductor-context
+// OK and reachable from any client/marker thread.
 #if ASSERT_ENABLED
 void MarkedBlock::assertMarksNotStale()
 {
@@ -441,6 +454,12 @@ bool MarkedBlock::isMarked(const void* p)
 
 void MarkedBlock::Handle::didConsumeFreeList()
 {
+    // SharedGC (T8 audit, I5b): called from LocalAllocator::didConsumeFreeList
+    // — including the call at the top of allocateSlowCase BEFORE MSPL is
+    // taken — and from stopAllocating paths. Safe without MSPL: the bit
+    // writes below hold the directory's bitvector lock (addBlock's m_bits
+    // resize also holds it), and m_isFreeListed/handle state are confined to
+    // the handle's owner (I1: this thread holds the block via inUse).
     Locker locker { blockHeader().m_lock };
     if (MarkedBlockInternal::verbose)
         dataLog(RawPointer(this), ": MarkedBlock::Handle::didConsumeFreeList!\n");
@@ -463,6 +482,8 @@ void MarkedBlock::clearHasAnyMarked()
 
 void MarkedBlock::noteMarkedSlow()
 {
+    // SharedGC (T8 audit, I5b): marker-helper path; bit write under the
+    // bitvector lock (see aboutToMarkSlow).
     BlockDirectory* directory = handle().directory();
     Locker locker { directory->bitvectorLock() };
     directory->setIsMarkingRetired(&handle(), true);
@@ -526,6 +547,8 @@ void MarkedBlock::Handle::didRemoveFromDirectory()
 #if ASSERT_ENABLED
 void MarkedBlock::assertValidCell(VM& vm, HeapCell* cell) const
 {
+    // SharedGC (T9): conductor-context OK — identity check against the one
+    // main VM (every block on the shared server stamps the same VM).
     RELEASE_ASSERT(&vm == &this->vm());
     RELEASE_ASSERT(const_cast<MarkedBlock*>(this)->handle().cellAlign(cell) == cell);
 }
@@ -548,6 +571,24 @@ Subspace* MarkedBlock::Handle::subspace() const
 
 void MarkedBlock::Handle::sweep(FreeList* freeList)
 {
+    // SharedGC (T8 audit, I5b): legal shared-mode contexts — allocation slow
+    // paths and synchronous sweeps under MSPL, or the conductor while the
+    // world is stopped for all clients (the IncrementalSweeper is disabled
+    // once shared). The assert below enforces exactly that; the lock-free
+    // isInUse/isDestructible/isEmpty reads in this function and the
+    // specializedSweep bit flips (which take the bitvector lock) are sound in
+    // those contexts.
+    //
+    // Review round 4 — the m_weakSet.sweep() below: when shared, mutator-
+    // concurrent (MSPL-held, world running) callers NEVER reach this with a
+    // weak-bearing block — the weak-bearing carve-out skips such blocks at
+    // all three MSPL sweep sites (LocalAllocator::tryAllocateIn, the steal
+    // path, BlockDirectory::sweep) because MSPL does not exclude the
+    // lock-free WeakSet::deallocate or weak finalizer-vs-owner lifetime
+    // races. Weak-bearing blocks are therefore weak-swept only world-stopped
+    // (conducted cycles) or at teardown (Heap::lastChanceToFinalize: MSPL
+    // held AND no other mutator left). WeakSet::sweep asserts the lock/stop
+    // half of this protocol.
     SweepingScope sweepingScope(*heap());
     m_directory->assertIsMutatorOrMutatorIsStopped();
     ASSERT(m_directory->isInUse(this));

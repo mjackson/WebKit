@@ -36,6 +36,7 @@
 #include "PropertyInlineCacheSummary.h"
 #include "RegisterSet.h"
 #include "Structure.h"
+#include <atomic>
 #include <wtf/Lock.h>
 #include <wtf/TZoneMalloc.h>
 
@@ -145,7 +146,11 @@ public:
 
     void reset(const ConcurrentJSLockerBase&, CodeBlock*);
 
-    void deref();
+    // Drops the IC's generated-dispatch state at jettison/destruction time.
+    // With useJSThreads (SPEC-jit section 5.1/section 4.4, I9) the dropped
+    // artifacts are routed through RetiredJITArtifacts instead of being freed
+    // inline, hence the VM& (for the heap's safepoint epoch).
+    void deref(VM&);
     void aboutToDie();
 
     void NODELETE initializePredefinedRegisters();
@@ -359,6 +364,9 @@ private:
 protected:
     PropertyInlineCache(PropertyInlineCacheType icType, AccessType accessType, CodeOrigin codeOrigin)
         : codeOrigin(codeOrigin)
+        // SPEC-jit section 4.2: zero-initialize the packed unit; all-zero is
+        // the "no inlined fast path" state ({0, StructureID()} never matches).
+        , m_packedSelfWord(0)
         , accessType(accessType)
         , bufferingCountdown(Options::initialRepatchBufferingCountdown())
         , m_icType(icType)
@@ -376,6 +384,32 @@ protected:
 public:
     static constexpr ptrdiff_t offsetOfByIdSelfOffset() { return OBJECT_OFFSETOF(PropertyInlineCache, byIdSelfOffset); }
     static constexpr ptrdiff_t offsetOfInlineAccessBaseStructureID() { return OBJECT_OFFSETOF(PropertyInlineCache, m_inlineAccessBaseStructureID); }
+    static constexpr ptrdiff_t offsetOfPackedInlineAccessSelfWord() { return OBJECT_OFFSETOF(PropertyInlineCache, m_packedSelfWord); }
+
+    // SPEC-jit section 4.2 (Task 4) accessors for the inlined fast-path unit.
+    //
+    // setInlineAccessSelfState: flag-off, exactly today's per-field stores
+    // (WriteBarrierStructureID::set + plain offset store). Flag-on: build the
+    // word -> one relaxed 64-bit store via m_packedSelfWord ->
+    // vm.writeBarrier(codeBlock). Flag-on callers must be serialized as
+    // today's writers are (CodeBlock::m_lock or pre-publication init).
+    //
+    // clearInlineAccessSelfState: flag-off = m_inlineAccessBaseStructureID
+    // .clear() (byIdSelfOffset left stale, as today - it is unreachable once
+    // the id half is zero). Flag-on: one all-zero 64-bit store; barrier-free.
+    void setInlineAccessSelfState(VM&, CodeBlock*, Structure*, PropertyOffset);
+    void clearInlineAccessSelfState();
+
+    // The 64-bit memory image of {byIdSelfOffset = offset,
+    // m_inlineAccessBaseStructureID = structureID} on this target.
+    static uint64_t packedInlineAccessSelfWord(StructureID structureID, PropertyOffset offset)
+    {
+#if CPU(LITTLE_ENDIAN)
+        return (static_cast<uint64_t>(structureID.bits()) << 32) | static_cast<uint32_t>(offset);
+#else
+        return (static_cast<uint64_t>(static_cast<uint32_t>(offset)) << 32) | structureID.bits();
+#endif
+    }
     static constexpr ptrdiff_t offsetOfInlineHolder() { return OBJECT_OFFSETOF(PropertyInlineCache, m_inlineHolder); }
     static constexpr ptrdiff_t offsetOfDoneLocation() { return OBJECT_OFFSETOF(PropertyInlineCache, doneLocation); }
     static constexpr ptrdiff_t offsetOfCountdown() { return OBJECT_OFFSETOF(PropertyInlineCache, countdown); }
@@ -418,8 +452,35 @@ public:
 #endif
 
     CodeOrigin codeOrigin { };
-    PropertyOffset byIdSelfOffset;
-    WriteBarrierStructureID m_inlineAccessBaseStructureID;
+    // SPEC-jit section 4.2 (Task 4): the inlined fast-path pair
+    // {byIdSelfOffset, m_inlineAccessBaseStructureID} forms one 8-byte-aligned
+    // unit. The repack is UNCONDITIONAL (D7): the per-field names keep exactly
+    // their pre-repack offsets (byIdSelfOffset at +0, the structure id at +4),
+    // so flag-off code - C++ and JIT emitters alike - is unchanged modulo
+    // nothing (same offsets, same shapes; I1). With Options::useJSThreads()
+    // the pair is accessed ONLY through m_packedSelfWord:
+    //   - JIT'd readers issue ONE relaxed 64-bit load, compare the id half and
+    //     use the offset half of that same load, so a valid structure id can
+    //     never be observed alongside a mismatched offset (I6); compare-then-
+    //     reload of independent fields is unsound on ARM64 (F2: compare/branch
+    //     does not order subsequent loads).
+    //   - Writers (serialized by CodeBlock::m_lock / IC initialization)
+    //     publish with one 64-bit store and then issue
+    //     vm.writeBarrier(codeBlock), preserving the GC write barrier the
+    //     WriteBarrierStructureID::set() path provided (section 4.2).
+    //   - Invalidation is one all-zero 64-bit store {0, StructureID()};
+    //     structure id 0 never matches, so this is barrier-free and ABA-safe.
+    // GC code (visitWeak/propagateTransitions) keeps reading the id half via
+    // inlineAccessBaseStructureID/inlineAccessBaseStructure() as today.
+    // m_inlineHolder stays outside the unit: holder-bearing inlined forms
+    // cannot pack and are disabled flag-on (section 4.2; setInlinedHandler).
+    union alignas(8) {
+        struct {
+            PropertyOffset byIdSelfOffset;
+            WriteBarrierStructureID m_inlineAccessBaseStructureID;
+        };
+        std::atomic<uint64_t> m_packedSelfWord;
+    };
     JSCell* m_inlineHolder { nullptr };
     CacheableIdentifier m_identifier;
     CodeLocationLabel<JSInternalPtrTag> doneLocation;
@@ -483,6 +544,21 @@ public:
     bool canBeMegamorphic : 1 { false };
     const PropertyInlineCacheType m_icType : 1;
 };
+
+// SPEC-jit section 4.2 layout proof (Task 4): the repacked unit is exactly one
+// aligned 64-bit word and the per-field views sit at their pre-repack offsets
+// (offset half at +0, structure-id half at +4 on little-endian), so flag-off
+// emission and C++ accesses are unchanged (I1) and the flag-on single 64-bit
+// load/store cannot tear the pair (I6/F3).
+static_assert(sizeof(PropertyOffset) == 4);
+static_assert(sizeof(WriteBarrierStructureID) == 4);
+static_assert(sizeof(std::atomic<uint64_t>) == 8);
+static_assert(alignof(std::atomic<uint64_t>) == 8);
+static_assert(std::atomic<uint64_t>::is_always_lock_free);
+static_assert(std::is_trivially_destructible_v<WriteBarrierStructureID>);
+static_assert(PropertyInlineCache::offsetOfByIdSelfOffset() == PropertyInlineCache::offsetOfPackedInlineAccessSelfWord());
+static_assert(PropertyInlineCache::offsetOfInlineAccessBaseStructureID() == PropertyInlineCache::offsetOfPackedInlineAccessSelfWord() + 4);
+static_assert(!(PropertyInlineCache::offsetOfPackedInlineAccessSelfWord() % 8));
 
 // HandlerPropertyInlineCache
 // ==========================
@@ -601,6 +677,12 @@ public:
     void initializeFromUnlinkedPropertyInlineCache(VM&, CodeBlock*, const BaselineUnlinkedPropertyInlineCache&);
     void initializeFromDFGUnlinkedPropertyInlineCache(CodeBlock*, const DFG::UnlinkedPropertyInlineCache&);
 
+    // FTL handler-IC sites (useHandlerICInFTL): the generator recorded
+    // identifier/registers/locations at compile and link time; this installs the
+    // shared slow-path handler as the initial chain head. Main thread only, and
+    // must run before the owning code is installed (FTL::JITFinalizer::finalize).
+    void initializeHandlerForOptimizingJIT(CodeBlock*);
+
     void setInlinedHandler(CodeBlock*, Ref<InlineCacheHandler>&&);
     void clearInlinedHandler(CodeBlock*);
 
@@ -686,11 +768,19 @@ class RepatchingPropertyInlineCache final : public PropertyInlineCache {
 public:
     RepatchingPropertyInlineCache()
         : PropertyInlineCache(PropertyInlineCacheType::Repatching)
-    { }
+    {
+        // SPEC-jit I3: with shared-memory threads enabled, every property IC is
+        // a handler IC (pure data dispatch); repatching ICs would patch machine
+        // code in place under concurrent execution (sections 5.2/5.3).
+        RELEASE_ASSERT(!Options::useJSThreads());
+    }
 
     RepatchingPropertyInlineCache(AccessType accessType, CodeOrigin codeOrigin)
         : PropertyInlineCache(PropertyInlineCacheType::Repatching, accessType, codeOrigin)
-    { }
+    {
+        // SPEC-jit I3: see above.
+        RELEASE_ASSERT(!Options::useJSThreads());
+    }
 
     // This is either the start of the inline IC for *byId caches, or the location of patchable jump for 'instanceof' caches.
     CodeLocationLabel<JITStubRoutinePtrTag> startLocation;

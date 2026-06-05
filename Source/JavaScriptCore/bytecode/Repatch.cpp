@@ -274,7 +274,7 @@ void linkPolymorphicCall(VM& vm, JSCell* owner, CallFrame* callFrame, CallLinkIn
 
     // If there had been a previous stub routine, that one will die as soon as the GC runs and sees
     // that it's no longer on stack.
-    callLinkInfo.setStub(WTF::move(stubRoutine));
+    callLinkInfo.setStub(vm, WTF::move(stubRoutine));
 }
 
 #if ENABLE(JIT)
@@ -1144,6 +1144,15 @@ static InlineCacheAction tryCachePutBy(JSGlobalObject* globalObject, CodeBlock* 
                 ASSERT(!isGlobalProxy);
                 ASSERT(slot.type() == PutPropertySlot::NewProperty);
 
+                // SPEC-jit section 5.5 (Task 8): generated transitions are
+                // illegal under useJSThreads until the structures'
+                // transitionThreadLocal/writeThreadLocal watchpoint sets land
+                // (OM E4: compile-time TTL validity + runtime PA/TID tests).
+                // Until then every transition takes the generic locked OM
+                // path; see docs/threads/INTEGRATE-jit.md, Task 8.
+                if (Options::useJSThreads()) [[unlikely]]
+                    return GiveUpOnCache;
+
                 if (!oldStructure->isObject())
                     return GiveUpOnCache;
 
@@ -1523,6 +1532,12 @@ static InlineCacheAction tryCacheDeleteBy(JSGlobalObject* globalObject, CodeBloc
         if (forceICFailure(globalObject))
             return GiveUpOnCache;
 
+        // SPEC-jit section 5.5 (Task 8): deletes are transitions with slot
+        // clearing; flag-on they require the locked/quarantined OM path, so
+        // delete ICs are never created (generic operation handles them).
+        if (Options::useJSThreads()) [[unlikely]]
+            return GiveUpOnCache;
+
         ASSERT(oldStructure);
         if (!baseValue.isObject() || !oldStructure->propertyAccessesAreCacheable() || oldStructure->isProxy())
             return GiveUpOnCache;
@@ -1876,7 +1891,13 @@ static InlineCacheAction tryCacheSetPrivateBrand(
         GCSafeConcurrentJSLocker locker(codeBlock->m_lock, vm);
         if (forceICFailure(globalObject))
             return GiveUpOnCache;
-        
+
+        // SPEC-jit section 5.5 (Task 8): SetBrand is a structure-only
+        // transition (OM N2); flag-on it requires the locked header-CAS
+        // path, so the IC form is never created.
+        if (Options::useJSThreads()) [[unlikely]]
+            return GiveUpOnCache;
+
         ASSERT(oldStructure);
 
         if (oldStructure->isDictionary())
@@ -1885,7 +1906,7 @@ static InlineCacheAction tryCacheSetPrivateBrand(
         InlineCacheAction action = actionForCell(vm, base);
         if (action != AttemptToCache)
             return action;
-        
+
         Structure* newStructure = Structure::setBrandTransitionFromExistingStructureConcurrently(oldStructure, brandID.uid());
         if (!newStructure)
             return RetryCacheLater;

@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // push/pop/length and butterfly-resizing operations on arrays shared between
 // threads. Under the GIL stub each array operation is atomic, so exact totals
 // are asserted; lock-guarded sections must stay exact in any implementation.

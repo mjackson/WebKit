@@ -506,6 +506,10 @@ inline JSC::Heap* MarkedBlock::Handle::heap() const
     return m_weakSet.heap();
 }
 
+// SharedGC (T9): conductor-context OK — blocks are SERVER-owned; both vm()s
+// below return the main VM captured at block construction (heap.vm(),
+// deviation 3) regardless of which client's LocalAllocator currently holds
+// the block. Thread-agnostic; see the Heap::vm() legend (HeapInlines.h).
 inline VM& MarkedBlock::Handle::vm() const
 {
     return m_weakSet.vm();

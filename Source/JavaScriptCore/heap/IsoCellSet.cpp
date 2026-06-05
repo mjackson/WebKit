@@ -60,6 +60,9 @@ Ref<SharedTask<MarkedBlock::Handle*()>> IsoCellSet::parallelNotEmptyMarkedBlockS
         {
             if (m_done)
                 return nullptr;
+            // SharedGC (T8 audit, I5b): parallel constraint/marking helper —
+            // runs only inside the stop window once shared (deviation 4), so
+            // this lock-free bit scan sees a stable m_bits.
             m_directory.assertIsMutatorOrMutatorIsStopped();
             Locker locker { m_lock };
             auto bits = m_directory.markingNotEmptyBitsView() & m_set.m_blocksWithBits;

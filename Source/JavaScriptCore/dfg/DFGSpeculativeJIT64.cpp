@@ -1063,7 +1063,13 @@ void SpeculativeJIT::emitCall(Node* node)
             return;
         }
 
-        auto* callLinkInfo = jitCode()->common.m_directCallLinkInfos.add(m_currentNode->origin.semantic, DirectCallLinkInfo::UseDataIC::No, m_graph.m_codeBlock, executable);
+        // SPEC-jit section 5.8 (Task 7): with shared-memory threads, direct
+        // calls must be data ICs (UseDataIC::No fast paths patch machine code
+        // in place, forbidden under concurrent execution; I2/I3). The slow
+        // cases the data-IC fast path returns are already handled below.
+        // THREADS-INTEGRATE(jit)
+        auto directCallUseDataIC = Options::useJSThreads() ? DirectCallLinkInfo::UseDataIC::Yes : DirectCallLinkInfo::UseDataIC::No;
+        auto* callLinkInfo = jitCode()->common.m_directCallLinkInfos.add(m_currentNode->origin.semantic, directCallUseDataIC, m_graph.m_codeBlock, executable);
         callLinkInfo->setCallType(callType);
         callLinkInfo->setMaxArgumentCountIncludingThis(numAllocatedArgs);
 
@@ -1098,7 +1104,11 @@ void SpeculativeJIT::emitCall(Node* node)
 
             slowPath = label();
             slowCases.link(this);
-            if (isX86())
+            // Data-IC slow cases arrive via a branch, not the patched near
+            // call, so there is no return address to pop; the pop only
+            // services the !isDataIC() (code-patching) entry. A
+            // DirectCallLinkInfo is one or the other. THREADS-INTEGRATE(jit)
+            if (isX86() && !callLinkInfo->isDataIC())
                 pop(selectScratchGPR(calleeGPR));
 
             callOperation(operationLinkDirectCall, CCallHelpers::TrustedImmPtr(callLinkInfo), calleeGPR);

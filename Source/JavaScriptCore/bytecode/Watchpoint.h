@@ -46,12 +46,21 @@ class VM;
 
 class FireDetail {
     void* operator new(size_t) = delete;
-    
+
 public:
     virtual ~FireDetail() = default;
     // This can't be pure virtual as it breaks our Dumpable concept.
     // FIXME: Make this virtual after we stop suppporting the Montery Clang.
     virtual void dump(PrintStream&) const { }
+
+    // SPEC-jit section 5.6 classification override for rare sites: a fire whose
+    // detail returns true here is treated as Class B (data-only) for THIS fire
+    // even when the set itself is Class A, i.e. it skips the stop-the-world
+    // protocol under Options::useJSThreads(). Only override this when the fire
+    // provably cannot invalidate any installed machine code (no Watchpoint on
+    // the set jettisons/patches/unlinks code, directly or transitively).
+    // Default false: every fire is Class A unless proven otherwise (I10).
+    virtual bool fireIsDataOnly() const { return false; }
 };
 
 class JS_EXPORT_PRIVATE StringFireDetail final : public FireDetail {
@@ -155,6 +164,29 @@ enum WatchpointState : uint8_t {
     IsInvalidated = 2
 };
 
+// SPEC-jit section 5.6 (I10): every watchpoint set is classified at
+// construction.
+//
+// - InvalidatesCode ("Class A", the DEFAULT): firing the set may invalidate
+//   installed machine code (jettison CodeBlocks, reset ICs, unlink calls).
+//   Under Options::useJSThreads(), Class-A fires ALWAYS run with every mutator
+//   stopped: WatchpointSet::fireAllSlow either fires inline when the world is
+//   already stopped, or requests a stop via JSThreadsSafepoint::
+//   stopTheWorldAndRun and fires inside the closure. There is deliberately NO
+//   ">1 mutator" fast gate (G7: VM construction does not synchronize with an
+//   in-flight inline fire). Non-owned/runtime sets get this default without
+//   any call-site edits (P2).
+//
+// - DataOnly ("Class B", explicit opt-in at construction): firing only updates
+//   plain data that no JIT'd code embeds; the fire runs exactly as today, with
+//   no stop. Opt a set into Class B only when every Watchpoint that can ever
+//   be added to it is provably code-invalidation-free. (A per-FIRE override
+//   for rare sites exists on FireDetail::fireIsDataOnly().)
+enum class WatchpointSetClassification : uint8_t {
+    InvalidatesCode, // Class A
+    DataOnly, // Class B
+};
+
 class InlineWatchpointSet;
 class DeferredWatchpointFire;
 class VM;
@@ -170,11 +202,11 @@ public:
     // this might be hard to get right, but still, it might be awesome.
     JS_EXPORT_PRIVATE ~WatchpointSet(); // Note that this will not fire any of the watchpoints; if you need to know when a WatchpointSet dies then you need a separate mechanism for this.
 
-    static Ref<WatchpointSet> create(WatchpointState state)
+    static Ref<WatchpointSet> create(WatchpointState state, WatchpointSetClassification classification = WatchpointSetClassification::InvalidatesCode)
     {
-        return adoptRef(*new WatchpointSet(state));
+        return adoptRef(*new WatchpointSet(state, classification));
     }
-    
+
     // It is always safe to call this from the main thread.
     // It is also safe to call this from another thread. It may return an old
     // state. Generally speaking, a safe pattern to use in a concurrent compiler
@@ -260,23 +292,50 @@ public:
         return m_setIsNotEmpty;
     }
 
+    // SPEC-jit section 5.6 / I10: classification is fixed at construction.
+    WatchpointSetClassification classification() const
+    {
+        return m_invalidatesCode ? WatchpointSetClassification::InvalidatesCode : WatchpointSetClassification::DataOnly;
+    }
+    bool invalidatesCompiledCode() const { return m_invalidatesCode; }
+
     static constexpr ptrdiff_t offsetOfState() { return OBJECT_OFFSETOF(WatchpointSet, m_state); }
 
     JS_EXPORT_PRIVATE void fireAllSlow(VM&, const FireDetail&); // Call only if you've checked isWatched.
     JS_EXPORT_PRIVATE void fireAllSlow(VM&, DeferredWatchpointFire* deferredWatchpoints); // Ditto.
     JS_EXPORT_PRIVATE void fireAllSlow(VM&, const char* reason); // Ditto.
-    
+
 protected:
-    JS_EXPORT_PRIVATE WatchpointSet(WatchpointState);
+    JS_EXPORT_PRIVATE WatchpointSet(WatchpointState, WatchpointSetClassification = WatchpointSetClassification::InvalidatesCode);
 
 private:
     void fireAllWatchpoints(VM&, const FireDetail&);
     void NODELETE take(WatchpointSet* other);
-    
+
+    // Today's fire body (invalidate state + fire every Watchpoint + F4 fence
+    // pair), with no stop-the-world protocol. Flag-off this IS fireAllSlow;
+    // flag-on it runs only world-stopped (Class A) or for Class-B fires.
+    void fireAllNow(VM&, const FireDetail&);
+
+    // SPEC-jit section 5.6 Class-A protocol: (1) world already stopped =>
+    // fire inline; (2) else enqueue on the coalescing queue and request a stop
+    // via JSThreadsSafepoint::stopTheWorldAndRun; (3) the draining closure
+    // re-checks state() == IsWatched (I11); (4) runs the existing fire body;
+    // (5) jettisons triggered by watchpoints run in the SAME closure (they hit
+    // CodeBlock::jettison's R1.h already-stopped path); (6) on return the fire
+    // is COMPLETE (synchronous completion; RELEASE_ASSERTed).
+    void fireAllUnderClassAStop(VM&, const FireDetail&);
+
+    // Coalescing (REQUIRED, section 5.6): drains EVERY queued Class-A fire in
+    // one stop; concurrent losers' stopTheWorldAndRun returns only after their
+    // queued fire ran (either in the winner's stop or their own).
+    static void drainClassAFireQueue();
+
     friend class InlineWatchpointSet;
 
     int8_t m_state;
     int8_t m_setIsNotEmpty;
+    int8_t m_invalidatesCode; // SPEC-jit section 5.6 classification bit; immutable after construction (I10).
 
     SentinelLinkedList<Watchpoint, BasicRawSentinelNode<Watchpoint>> m_set;
 };
@@ -303,11 +362,11 @@ private:
 class InlineWatchpointSet {
     WTF_MAKE_NONCOPYABLE(InlineWatchpointSet);
 public:
-    InlineWatchpointSet(WatchpointState state)
-        : m_data(encodeState(state))
+    InlineWatchpointSet(WatchpointState state, WatchpointSetClassification classification = WatchpointSetClassification::InvalidatesCode)
+        : m_data(encodeState(state) | (classification == WatchpointSetClassification::DataOnly ? ClassBFlag : 0))
     {
     }
-    
+
     ~InlineWatchpointSet()
     {
         if (isThin())
@@ -347,9 +406,18 @@ public:
             return;
         }
         ASSERT(decodeState(m_data) != IsInvalidated);
-        m_data = encodeState(IsWatched);
+        setThinState(IsWatched);
     }
 
+    // SPEC-jit section 5.6 interception note: the fat case delegates to
+    // WatchpointSet::fireAll => fireAllSlow, which carries the Class-A
+    // stop-the-world protocol under Options::useJSThreads(). The thin case
+    // needs no stop: a thin set has NO Watchpoints installed, and installed
+    // machine code can only depend on a set through a Watchpoint (DFG/FTL
+    // DesiredWatchpoints inflate at finalization), so a thin fire cannot
+    // invalidate any code. Compile-time-only consumers use the
+    // isStillValid()/re-check pattern, which the plain invalidating store
+    // (plus fence) already serves, exactly as today.
     template <typename T>
     void fireAll(VM& vm, T fireDetails)
     {
@@ -359,7 +427,7 @@ public:
         }
         if (decodeState(m_data) == ClearWatchpoint)
             return;
-        m_data = encodeState(IsInvalidated);
+        setThinState(IsInvalidated);
         WTF::storeStoreFence();
     }
 
@@ -368,7 +436,17 @@ public:
         if (isFat())
             protect(fat())->invalidate(vm, detail);
         else
-            m_data = encodeState(IsInvalidated);
+            setThinState(IsInvalidated);
+    }
+
+    // SPEC-jit section 5.6 / I10. Thin: the construction-time classification
+    // bit; fat: the inflated set's bit (transferred at inflateSlow).
+    bool invalidatesCompiledCode() const
+    {
+        uintptr_t data = m_data;
+        if (isFat(data))
+            return fat(data)->invalidatesCompiledCode();
+        return !(data & ClassBFlag);
     }
     
     JS_EXPORT_PRIVATE void fireAll(VM&, const char* reason);
@@ -384,9 +462,9 @@ public:
             return;
         WTF::storeStoreFence();
         if (decodeState(data) == ClearWatchpoint)
-            m_data = encodeState(IsWatched);
+            setThinState(IsWatched);
         else
-            m_data = encodeState(IsInvalidated);
+            setThinState(IsInvalidated);
         WTF::storeStoreFence();
     }
     
@@ -449,10 +527,21 @@ private:
     static constexpr uintptr_t IsThinFlag        = 1;
     static constexpr uintptr_t StateMask         = 6;
     static constexpr uintptr_t StateShift        = 1;
-    
+    // SPEC-jit section 5.6 classification bit (thin encoding ONLY: a fat
+    // pointer is >= 8-byte aligned so bits 0-2 are zero, but bit 3 of a real
+    // pointer is arbitrary; never consult ClassBFlag unless isThin()).
+    static constexpr uintptr_t ClassBFlag        = 8;
+
     static bool isThin(uintptr_t data) { return data & IsThinFlag; }
     static bool isFat(uintptr_t data) { return !isThin(data); }
-    
+
+    // Every thin state store preserves the classification bit (I10).
+    void setThinState(WatchpointState state)
+    {
+        ASSERT(isThin());
+        m_data = encodeState(state) | (m_data & ClassBFlag);
+    }
+
     static WatchpointState decodeState(uintptr_t data)
     {
         ASSERT(isThin(data));
@@ -490,6 +579,14 @@ private:
     uintptr_t m_data;
 };
 
+// SPEC-jit section 5.6 deferral: the deferred fireAllSlow overload behaves as
+// today (invalidate the source set immediately, transfer its Watchpoints here;
+// callers may hold locks at that point — that is the reason deferral exists).
+// The actual FIRE happens at the holder's scope exit, after every lock has
+// been dropped, via m_watchpointsToFire.fireAll(...) => fireAllSlow, which is
+// where the Class-A stop-the-world protocol runs (lock-free by construction).
+// take() transfers the source set's classification so a deferred Class-B fire
+// stays Class B.
 class DeferredWatchpointFire {
     WTF_MAKE_NONCOPYABLE(DeferredWatchpointFire);
 public:

@@ -1504,6 +1504,12 @@ void FastStringifier<CharType, bufferMode>::append(JSValue value)
 template<typename CharType, BufferMode bufferMode>
 NEVER_INLINE void FastStringifier<CharType, bufferMode>::appendInt32Array(JSArray& array)
 {
+    // THREADS-INTEGRATE(objectmodel) §10.7: tagged/segmented word — bail via
+    // the existing recordFailure path (general stringifier).
+    if (array.mayBeSegmentedButterfly()) [[unlikely]] {
+        recordFailure("segmented butterfly"_s);
+        return;
+    }
     auto* butterfly = array.butterfly();
     unsigned length = butterfly->publicLength();
     if (length > butterfly->vectorLength()) [[unlikely]] {

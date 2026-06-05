@@ -51,6 +51,22 @@ void WeakSet::lastChanceToFinalize()
 
 void WeakSet::sweep()
 {
+    // SharedGC (review round 4) — the weak-mutation protocol: once the
+    // server is shared, every WeakSet mutation (this sweep, shrink,
+    // resetAllocator, and WeakSet::allocate's freelist/m_blocks writes)
+    // runs under MSPL or while the world is stopped for all clients.
+    // Contexts: conducted-collection sweeps and reap/visit are
+    // world-stopped (deviation 4); mutator-concurrent block sweeps hold
+    // MSPL (LocalAllocator::allocateSlowCase, Heap::sweepSynchronously) —
+    // and additionally SKIP blocks whose WeakSet has any WeakBlocks (the
+    // weak-bearing carve-out at LocalAllocator::tryAllocateIn, the steal
+    // path, and BlockDirectory::sweep), because MSPL alone does not exclude
+    // the lock-free WeakSet::deallocate or the finalizer-vs-Weak-owner
+    // lifetime race; teardown (lastChanceToFinalize) holds MSPL with no
+    // other mutator left. So a mutator-concurrent arrival here only ever
+    // sees an empty m_blocks list.
+    ASSERT(!heap()->isSharedServer() || heap()->worldIsStoppedForAllClients() || heap()->mutatorSlowPathLock().isHeld());
+
     for (WeakBlock* block = m_blocks.head(); block;) {
         heap()->sweepNextLogicallyEmptyWeakBlock();
 
@@ -72,6 +88,9 @@ void WeakSet::sweep()
 
 void WeakSet::shrink()
 {
+    // SharedGC (review round 4): weak-mutation protocol — see sweep().
+    ASSERT(!heap()->isSharedServer() || heap()->worldIsStoppedForAllClients() || heap()->mutatorSlowPathLock().isHeld());
+
     WeakBlock* next;
     for (WeakBlock* block = m_blocks.head(); block; block = next) {
         next = block->next();

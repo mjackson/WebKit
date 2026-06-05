@@ -1455,9 +1455,9 @@ end
 llintOpWithMetadata(op_try_get_by_id, OpTryGetById, macro (size, get, dispatch, metadata, return)
     metadata(t5, t0)
     get(m_base, t0)
-    loadi OpTryGetById::Metadata::m_structureID[t5], t1
+    loadi OpTryGetById::Metadata::m_cache.structureID[t5], t1
     loadConstantOrVariablePayload(size, t0, CellTag, t3, .opTryGetByIdSlow)
-    loadi OpTryGetById::Metadata::m_offset[t5], t2
+    loadi OpTryGetById::Metadata::m_cache.offset[t5], t2
     bineq JSCell::m_structureID[t3], t1, .opTryGetByIdSlow
     loadPropertyAtVariableOffset(t2, t3, t0, t1)
     valueProfile(size, OpTryGetById, m_valueProfile, t0, t1, t5)
@@ -1471,9 +1471,9 @@ end)
 llintOpWithMetadata(op_get_by_id_direct, OpGetByIdDirect, macro (size, get, dispatch, metadata, return)
     metadata(t5, t0)
     get(m_base, t0)
-    loadi OpGetByIdDirect::Metadata::m_structureID[t5], t1
+    loadi OpGetByIdDirect::Metadata::m_cache.structureID[t5], t1
     loadConstantOrVariablePayload(size, t0, CellTag, t3, .opGetByIdDirectSlow)
-    loadi OpGetByIdDirect::Metadata::m_offset[t5], t2
+    loadi OpGetByIdDirect::Metadata::m_cache.offset[t5], t2
     bineq JSCell::m_structureID[t3], t1, .opGetByIdDirectSlow
     loadPropertyAtVariableOffset(t2, t3, t0, t1)
     valueProfile(size, OpGetByIdDirect, m_valueProfile, t0, t1, t5)

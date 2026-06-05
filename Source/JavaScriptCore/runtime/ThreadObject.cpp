@@ -26,12 +26,18 @@
 #include "config.h"
 #include "ThreadObject.h"
 
+#include "ArrayBufferSharingMode.h"
+#include "ConcurrentButterflyOperations.h"
 #include "CustomGetterSetter.h"
 #include "ErrorInstance.h"
 #include "ExceptionHelpers.h"
+#include "ClassInfo.h"
+#include "JSArray.h"
 #include "JSCInlines.h"
 #include "JSGlobalObject.h"
 #include "JSLock.h"
+#include "JSTypedArrayViewConstructor.h"
+#include "JSTypedArrayViewPrototype.h"
 #include "LockObject.h"
 #include "JSGlobalProxy.h"
 #include "JSPromise.h"
@@ -39,6 +45,9 @@
 #include "ProxyObject.h"
 #include "TopExceptionScope.h"
 #include "TypedArrayController.h"
+#include "TypedArrayType.h"
+#include "VMLite.h"
+#include "VMLiteShared.h"
 #include <wtf/StackAllocation.h>
 
 namespace JSC {
@@ -73,17 +82,6 @@ void JSThread::destroy(JSCell* cell)
     static_cast<JSThread*>(cell)->JSThread::~JSThread();
 }
 
-template<typename Visitor>
-void JSThread::visitChildrenImpl(JSCell* cell, Visitor& visitor)
-{
-    JSThread* thisObject = uncheckedDowncast<JSThread>(cell);
-    ASSERT_GC_OBJECT_INHERITS(thisObject, info());
-    Base::visitChildren(thisObject, visitor);
-    visitor.append(thisObject->m_result);
-}
-
-DEFINE_VISIT_CHILDREN(JSThread);
-
 bool jsThreadsCanBlockOnCurrentThread(VM& vm)
 {
     return vm.m_typedArrayController->isAtomicsWaitAllowedOnCurrentThread();
@@ -91,13 +89,61 @@ bool jsThreadsCanBlockOnCurrentThread(VM& vm)
 
 // ---------------- spawn / run / completion ----------------
 
+// SPEC-api 5.10 finalizer hook: registered exactly once per ThreadState, at
+// TS::jsThread creation (spawner under the GIL pre Thread::create, or the
+// first lazy-TS Strong). Uses only the public Heap API (no VM.h/.cpp edit).
+// The lambda holds a Ref<ThreadState> and is the SOLE clearer of TS::result;
+// it also clears any still-set jsThread/threadLocals Strongs (lazy
+// main/embedder TSs have no completion sequence — their Strongs die here, at
+// cell death or VM teardown via lastChanceToFinalize(), with the JSLock
+// held, satisfying the 5.10 rule).
+static void registerThreadStateFinalizer(VM& vm, JSThread* thread, ThreadState& state)
+{
+    vm.heap.addFinalizer(thread, [protectedState = Ref { state }](JSCell*) {
+        protectedState->jsThread.clear();
+        protectedState->threadLocals.clear();
+        protectedState->result.clear();
+        // Drain never-settled asyncJoin tickets. asyncJoin on a thread that
+        // never runs the completion sequence (lazy main/embedder tid-0
+        // ThreadStates; or any receiver at VM teardown) leaves its tickets
+        // in asyncJoiners with no other clearing point: the last TS ref can
+        // then drop at an embedder thread's TLS teardown, OFF the JSLock and
+        // possibly after VM death, destroying still-set Strong<JSPromise>es
+        // (5.10 violation / VM UAF; ~ThreadState now asserts emptiness).
+        // This hook runs with the JSLock held (GC finalization /
+        // lastChanceToFinalize), so clearing the promise Strongs here is the
+        // 5.10-legal point. Tickets drained here were never passed to
+        // settleJoinTicket (the completion sequence and asyncJoin's
+        // settleNow path both operate on tickets already swapped OUT of
+        // asyncJoiners), so no settle task can later read the cleared
+        // Strong; their DWT pending work falls to the VM-shutdown
+        // cancelPendingWork backstop (SPEC-api 5.5).
+        Vector<Ref<AsyncTicket>> abandonedJoiners;
+        {
+            Locker joinLocker { protectedState->joinLock };
+            abandonedJoiners = std::exchange(protectedState->asyncJoiners, { });
+        }
+        for (auto& ticket : abandonedJoiners)
+            ticket->promise().clear();
+    });
+}
+
+// F5 settle path: schedules the ticket's settle task via the 5.5 protocol
+// (DeferredWorkTimer::scheduleWorkSoon), so the promise settles on a run-loop
+// turn, never synchronously inside asyncJoin() or the completion sequence
+// (I12). In the GIL phase the settling thread is whichever one drains the
+// single shared VM queue (5.5 relaxation); the registering thread may already
+// be dead — the ticket outlives it (4.6.2).
 static void settleJoinTicket(AsyncTicket& ticket, JSThread* thread, bool failed)
 {
-    // `thread` is rooted by the ticket's dependency vector.
-    ticket.settle([thread, failed](DeferredWorkTimer::Ticket dwtTicket) {
-        JSPromise* promise = uncheckedDowncast<JSPromise>(dwtTicket->target());
+    // `thread` is rooted by the ticket's dependency vector; the promise by
+    // the ticket's Strong (and the DWT ticket target), both until settle.
+    ticket.settle([protectedTicket = Ref { ticket }, thread, failed](DeferredWorkTimer::Ticket) {
+        JSPromise* promise = protectedTicket->promise().get();
         JSGlobalObject* globalObject = promise->realm();
         VM& vm = globalObject->vm();
+        // The result Strong was written before the Phase release-store (F1);
+        // every settle observes phase != Running, so the read is ordered.
         if (failed)
             promise->reject(vm, thread->result());
         else
@@ -109,6 +155,13 @@ static void threadMain(VM& vm, Ref<ThreadState> state)
 {
     state->nativeThread = &Thread::currentSingleton();
     setCurrentThreadState(state.copyRef());
+    // THREADS-INTEGRATE(api): VMLite + butterfly-TID-tag handshake
+    // (SPEC-api 5.2 / vmstate 6.4.4 / jit P5+CS3), before the JSLockHolder.
+    auto lite = makeUnique<VMLite>();
+    lite->tid = state->tid; // TM is the sole TID allocator; written before setCurrent (vmstate 6.7)
+    VMLiteRegistry::singleton().registerLite(*lite, vm); // sole writer of lite->vm (vmstate 6.5.1)
+    VMLite::setCurrent(lite.get());
+    initializeButterflyTIDTagForCurrentThread(); // jit P5; after setCurrent, before any JS (CS3)
     {
         // The GIL: all JS execution is serialized by the shared VM's JSLock
         // (SPEC-api 5.2). Atom table and stack limits migrate on acquisition.
@@ -147,13 +200,23 @@ static void threadMain(VM& vm, Ref<ThreadState> state)
             phase = ThreadState::Phase::Finished;
         }
 
-        // Drain the shared VM microtask queue once (GIL-phase rule, 4.6.1).
+        // Completion sequence (SPEC-api 4.6.1), still under the JSLock:
+        // drain the shared VM microtask queue once (GIL-phase rule;
+        // post-GIL: own queue until empty).
         vm.drainMicrotasks();
         if (scope.exception()) [[unlikely]]
             scope.clearException();
 
-        thread->setResult(vm, resultValue);
+        // F1: the result Strong is written BEFORE the Phase release-store
+        // below; join() readers load-acquire Phase first (redundant under
+        // the GIL, load-bearing post-GIL). Cleared only by the 5.10
+        // finalizer hook.
+        state->result.set(vm, resultValue ? resultValue : jsUndefined());
 
+        // F5 completion protocol: under joinLock — Phase release-store,
+        // joinCondition.notifyAll(), swap asyncJoiners out; drop joinLock;
+        // settle the moved tickets via the 5.5 schedule. Never waits for
+        // tickets (4.6.1).
         Vector<Ref<AsyncTicket>> joiners;
         {
             Locker joinLocker { state->joinLock };
@@ -166,10 +229,21 @@ static void threadMain(VM& vm, Ref<ThreadState> state)
             settleJoinTicket(ticket, thread, failed);
 
         // Clear owned Strongs (still under the JSLock; SPEC-api 5.10).
+        // TS::result is NOT cleared here — the finalizer hook is its sole
+        // clearer (it must survive for join()/asyncJoin() readers, who keep
+        // the JSThread cell, and hence the hook, alive).
         state->threadLocals.clear();
         state->jsThread.clear();
         ThreadManager::singleton().unregisterThread(state);
+
+        // THREADS-INTEGRATE(api): VMLite teardown (SPEC-api 5.2 / vmstate
+        // N8; registry lock is a 5.9-legal leaf), still under the final
+        // JSLock. The TID is retired forever (Deviation 10).
+        VMLiteRegistry::singleton().unregisterLite(*lite);
+        VMLite::setCurrent(nullptr);
+        clearButterflyTIDTagForCurrentThread();
     }
+    lite = nullptr; // destroy AFTER the JSLock release (SPEC-api 4.6.1); ~VMLite asserts uninstalled+unregistered
     setCurrentThreadState(nullptr);
 }
 
@@ -190,18 +264,27 @@ JSC_DEFINE_HOST_FUNCTION(constructThread, (JSGlobalObject* globalObject, CallFra
     if (callData.type == CallData::Type::None)
         return throwVMTypeError(globalObject, scope, "Thread constructor requires a callable argument"_s);
 
+    // Fetch the prototype BEFORE allocating the ThreadState: this get() can
+    // run JS / throw, and a TS allocated first would leak in
+    // ThreadManager::m_threads as a forever-Running entry (counted against
+    // maxJSThreads, I17). Everything after the allocation is infallible up
+    // to Thread::create.
+    JSValue prototype = callFrame->jsCallee()->get(globalObject, vm.propertyNames->prototype);
+    RETURN_IF_EXCEPTION(scope, { });
+
     RefPtr<ThreadState> state = ThreadManager::singleton().allocateSpawnedThreadState();
     if (!state)
         return throwVMRangeError(globalObject, scope, "too many live Threads (or thread-ID space exhausted)"_s);
 
-    JSValue prototype = callFrame->jsCallee()->get(globalObject, vm.propertyNames->prototype);
-    RETURN_IF_EXCEPTION(scope, { });
     Structure* structure = JSThread::createStructure(vm, globalObject, prototype.isObject() ? prototype : jsNull());
     JSThread* thread = JSThread::create(vm, structure, Ref { *state });
 
     // Root the cell, the function, and the arguments across the spawn
-    // (SPEC-api 5.10); all created while holding the GIL.
+    // (SPEC-api 5.10); all created while holding the GIL, BEFORE
+    // Thread::create (no spawn->run UAF window). The 5.10 finalizer hook is
+    // registered at jsThread creation.
     state->jsThread.set(vm, thread);
+    registerThreadStateFinalizer(vm, thread, *state);
     state->fnSlot.set(vm, functionValue);
     for (size_t i = 1; i < callFrame->argumentCount(); ++i)
         state->argSlots.append(Strong<Unknown>(vm, callFrame->uncheckedArgument(i)));
@@ -243,14 +326,40 @@ JSC_DEFINE_HOST_FUNCTION(threadProtoFuncJoin, (JSGlobalObject* globalObject, Cal
     if (state.phase.load(std::memory_order_acquire) == ThreadState::Phase::Running) {
         if (!jsThreadsCanBlockOnCurrentThread(vm))
             return throwVMTypeError(globalObject, scope, "Thread.prototype.join cannot block the current thread"_s);
-        // Release the GIL while blocked — depth-free (GILDroppedSection,
-        // LockObject.h): concurrent joiners wake in arbitrary order, which
-        // DropAllLocks' strict-LIFO unwind protocol livelocks on (observed
-        // in the join chains of lifecycle/join-semantics.js).
-        GILDroppedSection droppedSection(vm);
-        Locker joinLocker { state.joinLock };
-        while (state.phase.load(std::memory_order_acquire) == ThreadState::Phase::Running)
-            state.joinCondition.wait(state.joinLock);
+        bool terminated = false;
+        {
+            // Release the GIL while blocked — depth-free (GILDroppedSection,
+            // LockObject.h): concurrent joiners wake in arbitrary order,
+            // which DropAllLocks' strict-LIFO unwind protocol livelocks on
+            // (observed in the join chains of lifecycle/join-semantics.js).
+            GILDroppedSection droppedSection(vm);
+            Locker joinLocker { state.joinLock };
+            // F5 wait, in 10ms waitUntil quanta polling
+            // vm.hasTerminationRequest() (landed deviation D9,
+            // docs/threads/INTEGRATE-api.md): VMTraps cannot wake a thread
+            // parked in joinCondition, so an unbounded wait is unkillable
+            // under the watchdog if the joinee never completes (e.g. it is
+            // wedged in native code the termination machinery cannot
+            // reach). Belt-and-braces in practice — every park site the
+            // joinee can occupy now polls termination itself, so the joinee
+            // normally completes (Failed) and wakes us — but the joiner
+            // must not depend on that. The quantum wait holds joinLock only
+            // between sleeps (5.9(a3)); a completion observed under the
+            // lock takes priority over a concurrent termination request.
+            while (state.phase.load(std::memory_order_acquire) == ThreadState::Phase::Running) {
+                if (vm.hasTerminationRequest()) {
+                    terminated = true;
+                    break;
+                }
+                state.joinCondition.waitUntil(state.joinLock, MonotonicTime::now() + Seconds::fromMilliseconds(10));
+            }
+        }
+        if (terminated) {
+            // Back under the GIL (the dropped section ended), no native
+            // lock held. Same surfacing as the 5.6-7 property-wait path.
+            vm.throwTerminationException();
+            return { };
+        }
     }
 
     JSValue result = thread->result();
@@ -271,42 +380,87 @@ JSC_DEFINE_HOST_FUNCTION(threadProtoFuncAsyncJoin, (JSGlobalObject* globalObject
         return throwVMTypeError(globalObject, scope, "Thread.prototype.asyncJoin called on incompatible receiver"_s);
 
     ThreadState& state = thread->threadState();
+    // Repeat calls return distinct promises with the same settlement (4.1):
+    // each call mints a fresh promise + ticket. Ticket creation is the I20
+    // shell-liveness point (addPendingWork at registration, under the JSLock).
+    // The receiver may be a never-completing ThreadState (lazy main/embedder
+    // tid-0 cell from Thread.current): such a promise never settles —
+    // 4.1/4.6.3 permit that (it pins the shell like an un-notified
+    // waitAsync) — and its ticket is drained at teardown by the 5.10
+    // finalizer hook (registerThreadStateFinalizer), never by ~ThreadState.
     JSPromise* promise = JSPromise::create(vm, globalObject->promiseStructure());
     Ref<AsyncTicket> ticket = AsyncTicket::create(globalObject, promise, { thread });
 
+    // F5 asyncJoin: phase check and append both under joinLock — the
+    // completion sequence's Phase store and asyncJoiners swap are likewise
+    // both under joinLock, so a ticket is either appended before the swap
+    // (settled by the completion sequence) or observes phase != Running here
+    // (settled below). No lost wakeup. The phase observed under the lock is
+    // final (Running -> Finished|Failed happens exactly once), so deciding
+    // resolve-vs-reject from it is sound.
     bool settleNow = false;
+    bool failed = false;
     {
         Locker joinLocker { state.joinLock };
-        if (state.phase.load(std::memory_order_acquire) != ThreadState::Phase::Running)
+        auto phase = state.phase.load(std::memory_order_acquire);
+        if (phase != ThreadState::Phase::Running) {
             settleNow = true;
-        else
+            failed = phase == ThreadState::Phase::Failed;
+        } else
             state.asyncJoiners.append(ticket.copyRef());
     }
     if (settleNow)
-        settleJoinTicket(ticket, thread, state.phase.load(std::memory_order_acquire) == ThreadState::Phase::Failed);
+        settleJoinTicket(ticket, thread, failed);
     return JSValue::encode(promise);
 }
 
 // ---------------- Thread.current / id ----------------
 
-static JSThread* jsThreadForState(JSGlobalObject* globalObject, VM& vm, Ref<ThreadState> state, JSValue prototype)
+JSThread* ensureJSThreadForState(JSGlobalObject* globalObject, ThreadState& state)
 {
-    if (!state->jsThread)
-        state->jsThread.set(vm, JSThread::create(vm, JSThread::createStructure(vm, globalObject, prototype.isObject() ? prototype : jsNull()), state.copyRef()));
-    return uncheckedDowncast<JSThread>(state->jsThread.get());
+    if (state.jsThread)
+        return uncheckedDowncast<JSThread>(state.jsThread.get());
+
+    VM& vm = globalObject->vm();
+
+    // Resolve the ordinary prototype without running any JS — this path must
+    // be infallible (the Thread.current getter and the 5.10 first-lazy-Strong
+    // hook both rely on that). The Thread constructor is an own DontEnum data
+    // property of the global object (SPEC-api 9.2-2) and its "prototype" is a
+    // ReadOnly | DontDelete data property, so getDirect is exact; a global
+    // without the constructor installed falls back to a null prototype.
+    JSValue prototype = jsNull();
+    JSValue constructor = globalObject->getDirect(vm, Identifier::fromString(vm, "Thread"_s));
+    if (constructor && constructor.isObject()) {
+        JSValue prototypeValue = asObject(constructor)->getDirect(vm, vm.propertyNames->prototype);
+        if (prototypeValue && prototypeValue.isObject())
+            prototype = prototypeValue;
+    }
+
+    // First Strong for a lazy main/embedder ThreadState (tid 0): register the
+    // 5.10 finalizer hook here. The Strong pins the cell, so for lazy TSs the
+    // hook fires at cell death or VM teardown via lastChanceToFinalize(),
+    // with the JSLock held (5.10 "main/embedder: ~VM" clearing point). An
+    // embedder thread exiting early only drops its TLS RefPtr — the hook
+    // lambda's Ref keeps the ThreadState alive until then.
+    JSThread* thread = JSThread::create(vm, JSThread::createStructure(vm, globalObject, prototype), Ref { state });
+    state.jsThread.set(vm, thread);
+    registerThreadStateFinalizer(vm, thread, state);
+    return thread;
 }
 
-JSC_DEFINE_CUSTOM_GETTER(threadCurrentGetter, (JSGlobalObject* globalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(threadCurrentGetter, (JSGlobalObject* globalObject, EncodedJSValue, PropertyName))
 {
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
+    // Thread.current (SPEC-api 4.1): the caller's JSThread. On a spawned
+    // thread this returns the cell created at spawn — reference-equal to the
+    // parent's `new Thread(...)` result (I5). On the main thread and any
+    // embedder thread, the ThreadState (tid 0) and its JSThread cell are
+    // created lazily on first access and are stable thereafter for that
+    // thread (5.1 currentThreadState). Distinct embedder threads get
+    // distinct ThreadStates (identity = the per-thread TLS slot, never the
+    // tid). Infallible: never observes the receiver, never runs JS.
     Ref<ThreadState> state = ensureCurrentThreadState();
-    JSValue prototype = jsNull();
-    if (JSObject* ctor = dynamicDowncast<JSObject>(JSValue::decode(thisValue))) {
-        prototype = ctor->get(globalObject, vm.propertyNames->prototype);
-        RETURN_IF_EXCEPTION(scope, { });
-    }
-    RELEASE_AND_RETURN(scope, JSValue::encode(jsThreadForState(globalObject, vm, WTF::move(state), prototype)));
+    return JSValue::encode(ensureJSThreadForState(globalObject, state.get()));
 }
 
 JSC_DEFINE_CUSTOM_GETTER(threadIdGetter, (JSGlobalObject* globalObject, EncodedJSValue thisValue, PropertyName))
@@ -321,27 +475,127 @@ JSC_DEFINE_CUSTOM_GETTER(threadIdGetter, (JSGlobalObject* globalObject, EncodedJ
 
 // ---------------- Thread.restrict ----------------
 
-static bool isExcludedRestrictReceiver(JSGlobalObject* globalObject, JSObject* object)
+// Dev 8: species-protected builtin prototype/constructor pairs, ptr-compared
+// against o's OWN global's slots (never the calling realm's): Array, Promise,
+// RegExp, ArrayBuffer + SharedArrayBuffer (both sharing modes), and each
+// %TypedArray% view pair plus the %TypedArray% super pair (G29). Lazy slots
+// are probed via the non-forcing Concurrently accessors first: an
+// unmaterialized slot cannot be `object`, and once a LazyClassStructure is
+// materialized its prototype()/constructor() accessors no longer run the
+// initializer, so nothing here ever forces a lazy slot (G25/G29).
+static bool isSpeciesProtectedBuiltin(JSObject* object)
 {
-    if (object == globalObject)
+    JSGlobalObject* global = object->globalObject();
+    const void* pointer = static_cast<const void*>(object);
+
+    // Eager pairs (plain WriteBarrier slots). void* compares: some of these
+    // return pointers to classes that are only forward-declared here; JSC
+    // cells are single-inheritance so the comparison is exact.
+    if (pointer == static_cast<const void*>(global->arrayPrototype()) || pointer == static_cast<const void*>(global->arrayConstructor()))
         return true;
-    if (object == globalObject->globalThis())
+    if (pointer == static_cast<const void*>(global->promisePrototype()) || pointer == static_cast<const void*>(global->promiseConstructor()))
         return true;
+    if (pointer == static_cast<const void*>(global->regExpPrototype()) || pointer == static_cast<const void*>(global->regExpConstructor()))
+        return true;
+
+    // ArrayBuffer + SharedArrayBuffer (both modes; lazy).
+    for (ArrayBufferSharingMode mode : { ArrayBufferSharingMode::Default, ArrayBufferSharingMode::Shared }) {
+        if (!global->arrayBufferStructureConcurrently(mode))
+            continue; // not materialized => object cannot be it
+        if (object == global->arrayBufferPrototype(mode) || object == global->arrayBufferConstructor(mode))
+            return true;
+    }
+
+    // %TypedArray% super pair: one instance of each dedicated class per
+    // global; ClassInfo identity never forces a lazy slot (there is no
+    // public non-forcing accessor for these two LazyProperty slots).
+    if (object->inherits<JSTypedArrayViewPrototype>() || object->inherits<JSTypedArrayViewConstructor>())
+        return true;
+
+    // Each %TypedArray% view pair (lazy; the resizable/growable-shared
+    // structure variants share the same prototype/constructor pair).
+#define THREADS_CHECK_TYPED_ARRAY_PAIR(name) \
+    if (global->typedArrayStructureConcurrently(Type##name, false)) { \
+        if (object == global->typedArrayPrototype(Type##name) || object == global->typedArrayConstructor(Type##name)) \
+            return true; \
+    }
+    FOR_EACH_TYPED_ARRAY_TYPE_EXCLUDING_DATA_VIEW(THREADS_CHECK_TYPED_ARRAY_PAIR)
+#undef THREADS_CHECK_TYPED_ARRAY_PAIR
+
+    return false;
+}
+
+// Round-4 tightening (recorded as landed deviation D13 in
+// docs/threads/INTEGRATE-api.md): the 5.7.3/9.2-6 enforcement story is sound
+// ONLY for receivers whose every enforced operation lands on the hooked
+// JSObject generic entry points once the object is pinned on an
+// uncacheable-dictionary SlowPut shape. That is false for receivers whose
+// ClassInfo method table overrides the enforced entry points with
+// NON-delegating implementations: a JSGenericTypedArrayView serves indexed
+// reads/writes through TypedArrayType-keyed overrides (and JIT/IC fast paths
+// keyed on the same) that never consult the structure's dictionary-ness or
+// the shadow ArrayStorage 5.7.1(a) installs — a foreign thread could read
+// AND write every element of a "restricted" Float64Array with no
+// ConcurrentAccessError. StringObject indexed chars, DirectArguments/
+// ScopedArguments mapped indices, and every other getOwnPropertySlot(ByIndex)
+// / put(ByIndex) overrider escape the same way. ALLOWLIST, not denylist:
+// - any class whose enforced method-table slots are all still the JSObject
+//   defaults (plain objects, JSFinalObject/JSNonFinalObject shapes — C++
+//   resolves an inherited &Derived::op to &JSObject::op, so the pointer
+//   comparison detects "not overridden" exactly);
+// - JSArray exactly: its overrides (put / getOwnPropertySlot for "length",
+//   defineOwnProperty, deleteProperty, getOwnPropertyNames) delegate to the
+//   hooked generic paths for everything except the "length" metadata slot,
+//   and arrays are part of the I14-covered surface
+//   (JSTests/threads/api/thread-restrict.js indexed cases).
+// Everything else => the 5.7 TypeError at restrict time, so an object that
+// cannot be enforced is never accepted (no silent enforcement hole). This
+// also keeps the 9.2-6 note "do not hook getOwnPropertySlotByIndex" valid:
+// the SlowPut-pin argument it relies on holds precisely for the receivers
+// this allowlist admits.
+static bool restrictReceiverStaysOnHookedPaths(JSObject* object)
+{
+    const ClassInfo* classInfo = object->classInfo();
+    if (classInfo == JSArray::info())
+        return true;
+    const MethodTable& methodTable = classInfo->methodTable;
+    const MethodTable& base = JSObject::info()->methodTable;
+    return methodTable.getOwnPropertySlot == base.getOwnPropertySlot
+        && methodTable.getOwnPropertySlotByIndex == base.getOwnPropertySlotByIndex
+        && methodTable.put == base.put
+        && methodTable.putByIndex == base.putByIndex
+        && methodTable.deleteProperty == base.deleteProperty
+        && methodTable.deletePropertyByIndex == base.deletePropertyByIndex
+        && methodTable.defineOwnProperty == base.defineOwnProperty
+        && methodTable.getOwnPropertyNames == base.getOwnPropertyNames
+        && methodTable.getOwnSpecialPropertyNames == base.getOwnSpecialPropertyNames
+        && methodTable.preventExtensions == base.preventExtensions
+        && methodTable.isExtensible == base.isExtensible
+        && methodTable.setPrototype == base.setPrototype;
+}
+
+// Dev 8/11 excluded receivers (=> TypeError "cannot restrict this object").
+static bool isExcludedRestrictReceiver(JSObject* object)
+{
+    // Global objects (GlobalObjectType is in the environment range),
+    // environment/scope objects.
+    if (object->isEnvironment() || object->isWithScope())
+        return true;
+    // Proxies and global proxies (any realm's).
     if (object->inherits<ProxyObject>() || object->inherits<JSGlobalProxy>())
         return true;
-    if (object->isEnvironment() || object->isGlobalLexicalEnvironment())
-        return true;
-    // Species-protected builtin prototype/constructor pairs (Dev 8). Pointer
-    // comparisons only; never forces lazy slots.
-    if (object == globalObject->arrayPrototype() || object == globalObject->objectPrototype())
-        return true;
-    if (static_cast<const void*>(object) == static_cast<const void*>(globalObject->regExpPrototype()))
-        return true;
-    if (static_cast<const void*>(object) == static_cast<const void*>(globalObject->promisePrototype()))
+    // Species-protected builtin prototype/constructor pairs (Dev 8).
+    if (isSpeciesProtectedBuiltin(object))
         return true;
     // Dev 11: structures that hijack the indexing header cannot take
-    // ArrayStorage.
+    // ArrayStorage (5.7.1(a) requires it; JSObject.cpp ensureArrayStorage
+    // path would return null / misbehave).
     if (object->structure()->hijacksIndexingHeader())
+        return true;
+    // D13 (round 4): receivers whose method table overrides any enforced
+    // entry point would bypass the 9.2-6 hooks (typed-array views,
+    // StringObject, arguments objects, functions' lazy own properties, ...).
+    if (!restrictReceiverStaysOnHookedPaths(object))
         return true;
     return false;
 }
@@ -355,13 +609,16 @@ JSC_DEFINE_HOST_FUNCTION(threadFuncRestrict, (JSGlobalObject* globalObject, Call
     if (!argument.isObject())
         return throwVMTypeError(globalObject, scope, "cannot restrict this object"_s);
     JSObject* object = asObject(argument);
-    if (isExcludedRestrictReceiver(globalObject, object))
+    if (isExcludedRestrictReceiver(object))
         return throwVMTypeError(globalObject, scope, "cannot restrict this object"_s);
 
+    // 5.7.1(0) affinity hit: owner => return o (4.1 idempotency; the 5.7.1
+    // conversions already happened on the first restrict), foreign => CAE
+    // (re-restrict from another thread, 4.1).
     auto& manager = ThreadManager::singleton();
     switch (manager.objectAffinity(object)) {
     case ThreadManager::Affinity::Owner:
-        return JSValue::encode(object); // idempotent from owner
+        return JSValue::encode(object);
     case ThreadManager::Affinity::Foreign: {
         throwConcurrentAccessError(globalObject, scope, "Thread.restrict called from a non-owning thread"_s);
         return { };
@@ -370,14 +627,37 @@ JSC_DEFINE_HOST_FUNCTION(threadFuncRestrict, (JSGlobalObject* globalObject, Call
         break;
     }
 
-    // 5.7.1 conversions: defeat and pin off the cacheable fast paths.
-    object->ensureArrayStorage(vm);
+    // 5.7.1 conversion sequence (side effects are perf-only; defeats + pins
+    // the object off every cacheable fast path so each enforced op lands on
+    // a hooked generic path, 5.7.3 / 9.2-6):
+    //
+    // (a) ensureArrayStorage: legal for blank/non-array shapes, no-op on any
+    //     ArrayStorage; non-null post-Dev-11 (hijacksIndexingHeader receivers
+    //     were excluded above).
+    ArrayStorage* arrayStorage = object->ensureArrayStorage(vm);
+    ASSERT_UNUSED(arrayStorage, arrayStorage);
+    // (b) SlowPut conversion. The guard is mandatory: switchToSlowPutArrayStorage
+    //     CRASH()es on already-SlowPut shapes (its switch has no SlowPut
+    //     case) — reachable here when restricting after a had-a-bad-time
+    //     array, where (a) no-ops on the existing (SlowPut)ArrayStorage.
     if (!hasSlowPutArrayStorage(object->indexingType()))
         object->switchToSlowPutArrayStorage(vm);
+    // (c) Uncacheable dictionary (keeps the indexing mode): the 5.7.3
+    //     choke-point hooks gate on isUncacheableDictionary(), and no IC
+    //     ever caches this shape.
     if (!object->structure()->isUncacheableDictionary())
         object->convertToUncacheableDictionary(vm);
+    // (d) Flatten pin (G25). Mandatory: without it the first cache attempt
+    //     re-flattens the dictionary and the object escapes the hooks; the
+    //     bit is inherited by later transitions. SlowPut is sticky, so all
+    //     later indexed PUTs (including owner-added o[0]) stay on the hooked
+    //     generic paths.
     object->structure()->setHasBeenFlattenedBefore(true);
+    ASSERT(object->structure()->isUncacheableDictionary());
+    ASSERT(hasSlowPutArrayStorage(object->indexingType()));
 
+    // Owner identity = the restricting thread's Ref<ThreadState>, never a
+    // TID (5.7.2).
     manager.restrictObject(object, ensureCurrentThreadState().get());
     return JSValue::encode(object);
 }

@@ -1,5 +1,5 @@
 //@ skip
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // FIXME: a WORKER thread parked in cond.wait, woken by another worker — the
 // canonical producer/consumer mailbox. Deadlocks/starves under the phase-1
 // GIL stub; unskip when the stub gains preemption (fair GIL handoff) or a

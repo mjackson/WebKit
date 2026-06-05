@@ -28,6 +28,7 @@
 #include "ArrayStorageInlines.h"
 #include "Butterfly.h"
 #include "ButterflyInlinesLight.h"
+#include "ConcurrentButterfly.h"
 #include "HeapCellInlines.h"
 #include "JSObject.h"
 #include "Structure.h"
@@ -304,6 +305,112 @@ ALWAYS_INLINE void Butterfly::clearRange(IndexingType indexingType, Butterfly* b
                 butterfly->contiguous().atUnsafe(i).clear();
 #endif
         }
+    }
+}
+
+// ===== SPEC-objectmodel §4.1/§4.2: flat -> segmented aliasing equations =====
+//
+// Flat->segmented conversion (§4.2) is zero-copy: the new spine's fragment
+// pointers are computed from the existing flat butterfly B with the equations
+// below, so every pre-existing slot keeps its flat address (I8). These
+// helpers are consumed by convertToSegmentedButterfly (ConcurrentButterfly.cpp,
+// objectmodel Task 5); the §9.3 exported accessors (segmentedOutOfLineSlot &
+// friends) are one-line wrappers over the ButterflySpine members in
+// Butterfly.h. Nothing here runs with useJSThreads off (I22).
+
+// Out-of-line fragment j covers out-of-line indices 4j..4j+3; its base is
+// B - 40 - 32j (slots ascend in memory, flat out-of-line slots descend).
+ALWAYS_INLINE ButterflyFragment* aliasedOutOfLineFragmentForConversion(Butterfly* flat, unsigned fragmentIndex)
+{
+    return reinterpret_cast<ButterflyFragment*>(flat->pointer() - 40 - butterflyFragmentBytes * static_cast<size_t>(fragmentIndex));
+}
+
+// Indexed fragment f base is B - 8 + 32f; fragment 0 slot 0 aliases the flat
+// IndexingHeader [B - 8, B), frozen (§4.1).
+ALWAYS_INLINE ButterflyFragment* aliasedIndexedFragmentForConversion(Butterfly* flat, unsigned fragmentIndex)
+{
+    return reinterpret_cast<ButterflyFragment*>(flat->pointer() - 8 + butterflyFragmentBytes * static_cast<size_t>(fragmentIndex));
+}
+
+// C1: out-of-line capacity is a multiple of 4 at conversion (GT#4: initial
+// capacity 4, growth x2), so flat out-of-line storage splits into whole
+// 32-byte fragments. RELEASE_ASSERT per spec §4.1.
+ALWAYS_INLINE uint32_t aliasedOutOfLineFragmentCountForConversion(size_t outOfLineCapacity)
+{
+    RELEASE_ASSERT(!(outOfLineCapacity % butterflyFragmentSlots)); // C1
+    return static_cast<uint32_t>(outOfLineCapacity / butterflyFragmentSlots);
+}
+
+// C2: indexed fragments only if the flat butterfly HAS an IndexingHeader
+// (Butterfly::totalSize); header-less => 0, no header fragment. Else
+// (1 + flatVectorLength + 3) / 4 - the +1 is the header slot. The last
+// fragment may cover past B + 8 * vectorLength; it is never dereferenced
+// there (C4 bounds first).
+ALWAYS_INLINE uint32_t aliasedIndexedFragmentCountForConversion(bool hasIndexingHeader, uint32_t flatVectorLength)
+{
+    if (!hasIndexingHeader)
+        return 0;
+    return static_cast<uint32_t>((1 + static_cast<size_t>(flatVectorLength) + (butterflyFragmentSlots - 1)) / butterflyFragmentSlots);
+}
+
+// C3: preCapacity != 0 only for ArrayStorage shapes, which never segment
+// (I31), so conversions always see preCapacity == 0 (RELEASE_ASSERT; a
+// violation is a logic error, §4.2 step 3). The aliased allocation base is
+// B - 8 * (propertyCapacity + 1) in BOTH header cases - for header-less
+// butterflies B points one (unallocated) slot past the allocation's end, so
+// the base equation is unchanged and the size below excludes that slot.
+ALWAYS_INLINE void* aliasedAllocationBaseForConversion(Butterfly* flat, size_t preCapacity, size_t propertyCapacity)
+{
+    RELEASE_ASSERT(!preCapacity); // C3
+    return flat->pointer() - sizeof(EncodedJSValue) * (propertyCapacity + 1);
+}
+
+// The recorded size covers exactly the flat allocation (GC re-marks
+// [base, base + size) every visit - §4.5/I7): header-less it is
+// 8 * propertyCapacity (C3), with a header it additionally covers the header
+// slot and the indexing payload. Butterfly::totalSize computes both cases.
+ALWAYS_INLINE uint64_t aliasedAllocationSizeForConversion(size_t propertyCapacity, bool hasIndexingHeader, size_t indexingPayloadSizeInBytes)
+{
+    ASSERT(!indexingPayloadSizeInBytes || hasIndexingHeader);
+    return Butterfly::totalSize(0, propertyCapacity, hasIndexingHeader, indexingPayloadSizeInBytes);
+}
+
+// I8 debug check: called by §4.2 conversion (under the cell lock, after
+// step-3 re-validation, before step-5 publication) on a freshly built spine
+// whose every fragment aliases `flat`. Verifies slot by slot that the §4.1
+// equations reproduce the flat addresses (out-of-line k at B - 16 - 8k;
+// element i at B + 8i; header at B - 8). C1/C3 are RELEASE_ASSERTed
+// unconditionally; the per-slot sweep runs when asserts are enabled or
+// Options::verifyConcurrentButterfly() is set.
+inline void validateSpineAliasesFlatButterfly(const ButterflySpine* spine, Butterfly* flat, size_t preCapacity, size_t outOfLineCapacity, bool hasIndexingHeader)
+{
+    RELEASE_ASSERT(!(outOfLineCapacity % butterflyFragmentSlots)); // C1
+    RELEASE_ASSERT(!preCapacity); // C3
+    if (!ASSERT_ENABLED && !verifyConcurrentButterflyEnabled())
+        return;
+
+    spine->validateConsistency();
+    RELEASE_ASSERT(spine->outOfLineFragmentCount == aliasedOutOfLineFragmentCountForConversion(outOfLineCapacity));
+    uint32_t flatVectorLength = hasIndexingHeader ? flat->vectorLength() : 0;
+    RELEASE_ASSERT(spine->indexedFragmentCount == aliasedIndexedFragmentCountForConversion(hasIndexingHeader, flatVectorLength));
+    RELEASE_ASSERT(spine->vectorLength == flatVectorLength); // Conversion-time live VL == flat VL (§4.2 step 3 re-reads it under the lock).
+    RELEASE_ASSERT(spine->aliasedAllocationBase == aliasedAllocationBaseForConversion(flat, preCapacity, outOfLineCapacity));
+
+    char* base = flat->pointer();
+
+    // I8: out-of-line index k lives at B - 16 - 8k.
+    for (size_t k = 0; k < outOfLineCapacity; ++k)
+        RELEASE_ASSERT(reinterpret_cast<char*>(spine->outOfLineSlot(static_cast<unsigned>(k))) == base - 16 - sizeof(EncodedJSValue) * k);
+
+    if (hasIndexingHeader) {
+        // I8: the frozen IndexingHeader is indexed fragment 0 slot 0, [B - 8, B).
+        RELEASE_ASSERT(reinterpret_cast<char*>(&spine->indexedFragment(0)->slots[0]) == base - 8);
+        RELEASE_ASSERT(spine->frozenFlatVectorLength() == flatVectorLength); // I9b: high half frozen.
+        RELEASE_ASSERT(spine->publicLength() == flat->publicLength()); // Live publicLength = low half.
+
+        // I8: element i lives at B + 8i.
+        for (uint32_t i = 0; i < flatVectorLength; ++i)
+            RELEASE_ASSERT(reinterpret_cast<char*>(spine->indexedSlot(i)) == base + sizeof(EncodedJSValue) * static_cast<size_t>(i));
     }
 }
 

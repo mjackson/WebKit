@@ -29,6 +29,10 @@
 #include "config.h"
 #include "VM.h"
 
+#include "ConcurrentButterfly.h"
+#include "PropertyTable.h"
+#include "VMLiteShared.h"
+
 #include "AbortReason.h"
 #include "AccessCase.h"
 #include "AggregateError.h"
@@ -560,6 +564,41 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     // WTF::setTimeZoneOverride() only records the timezone id string (cheap) and the
     // ICU calendar/likely-subtags resolution is deferred to first use anyway.
 
+    if (Options::useVMLite()) [[unlikely]] {
+        // SPEC-vmstate §6.4.4: main carrier (tid 0), created at the END of
+        // the ctor. registerLite is the sole writer of VMLite::vm. The ctor
+        // NEVER calls setCurrent — JSLock::didAcquireLock installs the
+        // carrier at the outermost acquisition (M4).
+        m_mainVMLite = makeUnique<VMLite>();
+        VMLiteRegistry::singleton().registerLite(*m_mainVMLite, *this);
+    }
+
+    // SPEC-objectmodel §10 manifest entry 4b / M8 (GT#7): flag-on, the fenced
+    // nuke/publication order must be the ONLY branch and in-place butterfly
+    // reallocs must stay disabled for the HEAP LIFETIME. Heap::endMarking
+    // restores the fence from Options::forceFencedBarrier() (Heap.cpp), so
+    // force the option as well as the live state. THREADS-INTEGRATE(objectmodel)
+    if (Options::useJSThreads()) [[unlikely]] {
+        Options::forceFencedBarrier() = true;
+        heap.setMutatorShouldBeFenced(true);
+    }
+
+    // SPEC-objectmodel §9.2/I32 + Task 1 self-test (manifest entry 4a).
+    if (Options::useJSThreads()) [[unlikely]] {
+        alignas(16) static uint64_t sampleCell[2];
+        RELEASE_ASSERT(concurrentButterflyAtomicsAreLockFree(&sampleCell));
+        concurrentButterflySelfTestIfNeeded(); // runs iff Options::verifyConcurrentButterfly()
+    }
+
+    // SPEC-objectmodel §6 / §10 manifest entry 4c (Task 9): register the
+    // per-server-heap butterfly-quarantine epoch bump. The adapter runs
+    // world-stopped once per collection of THIS server heap (legacy AND
+    // shared protocols, heap CR §13.10d) and bumps ONLY that heap's slot in
+    // the owned ButterflyQuarantineEpochs registry — NEVER a process-global
+    // counter (r13). Idempotent per heap; registration must precede client #2.
+    if (Options::useJSThreads()) [[unlikely]]
+        registerButterflyQuarantineEpochHook(heap);
+
     // We must set this at the end only after the VM is fully initialized.
     WTF::storeStoreFence();
     m_isInService = true;
@@ -590,6 +629,28 @@ void VM::queueMicrotask(QueuedTask&& task)
 
 VM::~VM()
 {
+    // SPEC-vmstate §6.4.4/I20, at the TOP of ~VM: (1) uninstall the main
+    // carrier from this thread's TLS via JSLock — must run while
+    // JSLock::m_vm is still valid, i.e. BEFORE m_apiLock->willDestroyVM(this)
+    // below — then (2) assert no OTHER registered lite still points at this
+    // VM (§6.5.1 lifetime: spawned threads unregistered theirs under their
+    // final JSLock hold, api r11 §4.6.1/5.2), (3) unregister, (4) destroy.
+    // Result: no thread's TLS dangles across lastChanceToFinalize.
+    if (m_mainVMLite) {
+        ASSERT(currentThreadIsHoldingAPILock());
+        m_apiLock->uninstallVMLiteForVMDestruction();
+        ASSERT(VMLite::currentIfExists() != m_mainVMLite.get());
+#if ASSERT_ENABLED
+        {
+            Locker locker { VMLiteRegistry::singleton().lock };
+            for (VMLite* lite : VMLiteRegistry::singleton().lites)
+                ASSERT(lite->vm != this || lite == m_mainVMLite.get());
+        }
+#endif
+        VMLiteRegistry::singleton().unregisterLite(*m_mainVMLite);
+        m_mainVMLite = nullptr;
+    }
+
     // Remove from VMManager before marking as no longer in service or cancelling traps,
     // so requestStopAllInternal() never iterates a VM with m_isShuttingDown set.
     VMManager::singleton().notifyVMDestruction(*this);
@@ -637,8 +698,16 @@ VM::~VM()
     smallStrings.setIsInitialized(false);
     heap.lastChanceToFinalize();
 
-    while (!m_microtaskQueues.isEmpty())
-        m_microtaskQueues.begin()->remove();
+    if (Options::useVMLite()) [[unlikely]] {
+        // SPEC-vmstate §6.5(c): the same leaf lock that guards GC-marker
+        // iteration (M11) and queue ctor/dtor list mutation (M12).
+        Locker locker { VMLiteRegistry::singleton().lock };
+        while (!m_microtaskQueues.isEmpty())
+            m_microtaskQueues.begin()->remove();
+    } else {
+        while (!m_microtaskQueues.isEmpty())
+            m_microtaskQueues.begin()->remove();
+    }
 
     JSRunLoopTimer::Manager::singleton().unregisterVM(*this);
 
@@ -1094,6 +1163,12 @@ void VM::setHasTerminationRequest()
 void VM::setException(Exception* exception)
 {
     ASSERT(!isTerminationException(exception) || hasTerminationRequest());
+#if ASSERT_ENABLED
+    // SPEC-vmstate I15: m_exception/m_lastException are written only by the
+    // JSLock holder.
+    if (Options::useVMLite())
+        ASSERT(currentThreadIsHoldingAPILock());
+#endif
     m_exception = exception;
     m_lastException = exception;
     if (exception)
@@ -1882,6 +1957,16 @@ void VM::removeLoopHintExecutionCounter(const JSInstruction* instruction)
 
 void VM::beginMarking()
 {
+    if (Options::useVMLite()) [[unlikely]] {
+        // SPEC-vmstate §6.5: markers traverse the registration list while
+        // mutators run; markers hold no other lock here, and holders may
+        // acquire NO lock while holding it (leaf, §7).
+        Locker locker { VMLiteRegistry::singleton().lock };
+        m_microtaskQueues.forEach([&](MicrotaskQueue* microtaskQueue) {
+            microtaskQueue->beginMarking();
+        });
+        return;
+    }
     m_microtaskQueues.forEach([&](MicrotaskQueue* microtaskQueue) {
         microtaskQueue->beginMarking();
     });
@@ -1890,9 +1975,20 @@ void VM::beginMarking()
 template<typename Visitor>
 void VM::visitAggregateImpl(Visitor& visitor)
 {
-    m_microtaskQueues.forEach([&](MicrotaskQueue* microtaskQueue) {
-        microtaskQueue->visitAggregate(visitor);
-    });
+    if (Options::useVMLite()) [[unlikely]] {
+        // SPEC-vmstate §6.5 (M11): registry leaf lock around ONLY the
+        // forEach; protects LIST MEMBERSHIP against concurrent queue
+        // ctor/dtor (M12). Queue CONTENTS are visited with all mutators
+        // suspended (see the M11 scope note / cross-WS item 12).
+        Locker locker { VMLiteRegistry::singleton().lock };
+        m_microtaskQueues.forEach([&](MicrotaskQueue* microtaskQueue) {
+            microtaskQueue->visitAggregate(visitor);
+        });
+    } else {
+        m_microtaskQueues.forEach([&](MicrotaskQueue* microtaskQueue) {
+            microtaskQueue->visitAggregate(visitor);
+        });
+    }
 #if USE(BUN_JSC_ADDITIONS)
     // The synchronous-module queue's Vector buffer lives on the heap, so
     // conservative stack scanning does not see the JSValues it holds. Walk the

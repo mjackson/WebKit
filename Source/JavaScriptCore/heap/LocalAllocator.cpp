@@ -30,11 +30,29 @@
 #include "FreeListInlines.h"
 #include "GCDeferralContext.h"
 #include "LocalAllocatorInlines.h"
+#include "MarkedSpaceInlines.h"
 #include "Options.h"
+#include "RaceAmplifier.h"
 #include "ResourceExhaustion.h"
 #include "SuperSampler.h"
 
 namespace JSC {
+
+#if ASSERT_ENABLED
+// SharedGC (§5.2(4)): stop/resume/prepare/teardown may mutate an allocator's
+// FreeList/current block only while the world is stopped for all clients
+// (conductor-side, I2 exception), under MSPL (§5.3 TLC teardown), or when the
+// server isn't shared (today's single-mutator rules; I10).
+static void assertSharedAllocatorMutationIsSafe(BlockDirectory* directory)
+{
+    if (!directory)
+        return;
+    JSC::Heap& heap = directory->markedSpace().heap();
+    if (!heap.isSharedServer())
+        return;
+    ASSERT(heap.worldIsStoppedForAllClients() || heap.mutatorSlowPathLock().isHeld());
+}
+#endif
 
 LocalAllocator::LocalAllocator(BlockDirectory* directory)
     : m_directory(directory)
@@ -77,6 +95,9 @@ LocalAllocator::~LocalAllocator()
 
 void LocalAllocator::stopAllocating()
 {
+#if ASSERT_ENABLED
+    assertSharedAllocatorMutationIsSafe(m_directory); // §5.2(4).
+#endif
     ASSERT(!m_lastActiveBlock);
     if (!m_currentBlock) {
         ASSERT(m_freeList.allocationWillFail());
@@ -91,6 +112,9 @@ void LocalAllocator::stopAllocating()
 
 void LocalAllocator::resumeAllocating()
 {
+#if ASSERT_ENABLED
+    assertSharedAllocatorMutationIsSafe(m_directory); // §5.2(4).
+#endif
     if (!m_lastActiveBlock)
         return;
 
@@ -101,6 +125,9 @@ void LocalAllocator::resumeAllocating()
 
 void LocalAllocator::prepareForAllocation()
 {
+#if ASSERT_ENABLED
+    assertSharedAllocatorMutationIsSafe(m_directory); // §5.2(4).
+#endif
     reset();
 }
 
@@ -113,39 +140,65 @@ void LocalAllocator::stopAllocatingForGood()
 void* LocalAllocator::allocateSlowCase(JSC::Heap& heap, size_t cellSize, GCDeferralContext* deferralContext, AllocationFailureMode failureMode)
 {
     SuperSamplerScope superSamplerScope(false);
-    ASSERT(heap.vm().currentThreadIsHoldingAPILock());
+    // SharedGC (§5.2(1)/I2): access-based ownership, not thread-pinned. !ISS
+    // this is today's API-lock predicate (I10); once shared it checks the
+    // §10A.1 TLS-stamped client's TLC membership.
+    ASSERT(heap.currentThreadIsAllocatorOwner(this));
     doTestCollectionsIfNeeded(heap, deferralContext);
 
     ASSERT(!m_directory->markedSpace().isIterating());
     heap.didAllocate(m_freeList.originalSize());
-    
+
     didConsumeFreeList();
-    
+
     AllocatingScope helpingHeap(heap);
 
     heap.collectIfNecessaryOrDefer(deferralContext);
-    
+
     // Goofy corner case: the GC called a callback and now this directory has a currentBlock. This only
     // happens when running WebKit tests, which inject a callback into the GC's finalization.
+    // (Re-entering allocate() here is lock-free: the MutatorSlowPathLocker
+    // below is intentionally not yet taken, so a recursive slow-path call
+    // cannot self-deadlock on MSPL.)
     if (m_currentBlock) [[unlikely]]
         return allocate(heap, cellSize, deferralContext, failureMode);
-    
+
+    // SharedGC (§5.2): once the server is shared, the entire block-handout
+    // slow path — bitvector cursor searches, empty-block steals (I8),
+    // lower-tier precise allocation (§5.6), tryAllocateBlock and addBlock
+    // (incl. its m_bits resize, I5b) — is serialized by the server's
+    // mutator-slow-path lock (MSPL, rank 7). Resolves the old "FIXME
+    // GlobalGC: Need to synchronize here when allocating from the
+    // BlockDirectory in the server" (https://bugs.webkit.org/show_bug.cgi?id=181635):
+    // one per-server lock over all mutator allocation slow paths, exactly the
+    // protocol the FIXME proposed. Taken only AFTER collectIfNecessaryOrDefer
+    // returns (L2) — never held across a collection request or stop. Option
+    // off / single client: no-op locker, today's code (I10). In-lock block
+    // sweeps are an accepted phase-1 carve-out (§3.7).
+    // T10 amplifier hook (AMPLIFIER.md): widen the block-handout window
+    // between collectIfNecessaryOrDefer returning and the MSPL acquisition —
+    // a stop requested right here must park us via the next AHA/SINFAC poll,
+    // never inside the lock.
+    RaceAmplifier::perturb();
+
+    MutatorSlowPathLocker mutatorSlowPathLocker(heap);
+
     void* result = tryAllocateWithoutCollecting(cellSize);
-    
+
     if (result) [[likely]]
         return result;
 
-    // FIXME GlobalGC: Need to synchronize here to when allocating from the BlockDirectory in the server.
-
     Subspace* subspace = m_directory->m_subspace;
     if (subspace->isIsoSubspace()) {
+        // §5.2: MSPL also serializes tryAllocateLowerTierPrecise (it mutates
+        // the precise registry; §5.6/I16).
         if (void* result = static_cast<IsoSubspace*>(subspace)->tryAllocateLowerTierPrecise(cellSize))
             return result;
     }
 
     ASSERT(!subspace->isPreciseOnly());
     ASSERT_WITH_MESSAGE(cellSize == m_directory->cellSize(), "non-preciseOnly allocations should match allocator's the size class");
-    MarkedBlock::Handle* block = m_directory->tryAllocateBlock(heap);
+    MarkedBlock::Handle* block = m_directory->tryAllocateBlock(mutatorSlowPathLocker, heap);
     if (!block) [[unlikely]] {
         RELEASE_ASSERT_RESOURCE_AVAILABLE(failureMode != AllocationFailureMode::Assert, MemoryExhaustion, "Crash intentionally because memory is exhausted.");
         return nullptr;
@@ -167,26 +220,25 @@ void LocalAllocator::didConsumeFreeList()
 
 void* LocalAllocator::tryAllocateWithoutCollecting(size_t cellSize)
 {
-    // FIXME: GlobalGC
-    // FIXME: If we wanted this to be used for real multi-threaded allocations then we would have to
-    // come up with some concurrency protocol here. That protocol would need to be able to handle:
-    //
-    // - The basic case of multiple LocalAllocators trying to do an allocationCursor search on the
-    //   same bitvector. That probably needs the bitvector lock at least.
-    //
-    // - The harder case of some LocalAllocator triggering a steal from a different BlockDirectory
-    //   via a search in the AlignedMemoryAllocator's list. Who knows what locks that needs.
-    // 
-    // One way to make this work is to have a single per-Heap lock that protects all mutator lock
-    // allocation slow paths. That would probably be scalable enough for years. It would certainly be
-    // for using TLC allocation from JIT threads.
-    // https://bugs.webkit.org/show_bug.cgi?id=181635
-    
+    // SharedGC (§5.2): the concurrency protocol the old FIXME here asked for
+    // (https://bugs.webkit.org/show_bug.cgi?id=181635) is the single
+    // per-server mutator-slow-path lock (MSPL), taken by our sole caller
+    // allocateSlowCase() when the server is shared. It covers both cases the
+    // FIXME enumerated: concurrent allocationCursor searches over one
+    // directory's bitvectors (the per-search BVL below still publishes the
+    // inUse/canAllocate flips, F1/I1), and steals through the subspace /
+    // AlignedMemoryAllocator directory list (sweep + removeFromDirectory +
+    // addBlock as one atomic step, I8).
+
     SuperSamplerScope superSamplerScope(false);
-    
+
     ASSERT(!m_currentBlock);
     ASSERT(m_freeList.allocationWillFail());
-    
+
+#if ASSERT_ENABLED
+    assertSharedAllocatorMutationIsSafe(m_directory); // MSPL held when shared (§5.2).
+#endif
+
     for (;;) {
         MarkedBlock::Handle* block = m_directory->findBlockForAllocation(*this);
         if (!block)
@@ -199,9 +251,32 @@ void* LocalAllocator::tryAllocateWithoutCollecting(size_t cellSize)
     if (Options::stealEmptyBlocksFromOtherAllocators()) {
         if (MarkedBlock::Handle* block = m_directory->m_subspace->findEmptyBlockToSteal()) {
             RELEASE_ASSERT(block->alignedMemoryAllocator() == m_directory->m_subspace->alignedMemoryAllocator());
-            
+
+            // SharedGC (review round 4) — weak-bearing carve-out (rationale
+            // at tryAllocateIn below / WeakSet::sweep): an EMPTY block can
+            // still carry Dead-but-unfinalized WeakImpls; sweeping it here
+            // (MSPL-held, world running) would run their finalizers
+            // concurrently with the owning client's lock-free Weak<>
+            // teardown. Decline the steal (clear inUse on the block's OWN
+            // directory — findEmptyBlockToSteal set it there, which may not
+            // be m_directory) and fall through to fresh-block allocation;
+            // the block is reclaimed by the next world-stopped sweep.
+            {
+                JSC::Heap& heap = m_directory->markedSpace().heap();
+                if (heap.isSharedServer() && !heap.worldIsStoppedForAllClients() && block->weakSet().head()) [[unlikely]] {
+                    block->directory()->didFinishUsingBlock(block);
+                    return nullptr;
+                }
+            }
+
+            // T10 amplifier hook (AMPLIFIER.md): widen the steal window (I8)
+            // — the block is chosen but not yet swept/re-homed. Deliberately
+            // perturbs while MSPL is held (when shared): stressing the
+            // single-lock handout protocol IS the point (AMPLIFIER.md rule 3).
+            RaceAmplifier::perturb();
+
             block->sweep(nullptr);
-            
+
             block->removeFromDirectory();
             m_directory->addBlock(block);
             return allocateIn(block, cellSize);
@@ -224,7 +299,30 @@ void* LocalAllocator::tryAllocateIn(MarkedBlock::Handle* block, size_t cellSize)
     ASSERT(!block->isFreeListed());
     m_directory->assertIsMutatorOrMutatorIsStopped();
     ASSERT(m_directory->isInUse(block));
-    
+
+    // SharedGC (review round 4) — weak-bearing carve-out: a mutator-
+    // concurrent (MSPL-held, world running) sweep must not touch a block
+    // whose WeakSet has any WeakBlocks. The sweep below would re-sweep that
+    // WeakSet (rewriting WeakImpl states/freelists the API-lock-holding
+    // client reads via Weak<>::clear, which is deliberately lock-free) and
+    // run weak FINALIZERS on this thread while the owning client may be
+    // concurrently deallocating the very handle being finalized. Such
+    // blocks stay unswept and park until the next world-stopped sweep
+    // (conducted cycle / teardown); canAllocate was already cleared by
+    // findBlockForAllocation, so the caller's loop moves on — no livelock.
+    // Reading weakSet().head() is stable here: WeakSet::allocate mutates it
+    // only under MSPL, which we hold (weak-mutation protocol,
+    // WeakSet::sweep). Unreachable via allocateIn(): fresh blocks have no
+    // WeakBlocks and the steal path pre-checks the same predicate under the
+    // same MSPL hold.
+    {
+        JSC::Heap& heap = m_directory->markedSpace().heap();
+        if (heap.isSharedServer() && !heap.worldIsStoppedForAllClients() && block->weakSet().head()) [[unlikely]] {
+            m_directory->didFinishUsingBlock(block);
+            return nullptr;
+        }
+    }
+
     block->sweep(&m_freeList);
     
     // It's possible to stumble on a completely full block. Marking tries to retire these, but
@@ -239,15 +337,25 @@ void* LocalAllocator::tryAllocateIn(MarkedBlock::Handle* block, size_t cellSize)
     }
     
     m_currentBlock = block;
-    
+
     void* result = m_freeList.allocateWithCellSize(
         []() -> HeapCell* {
             RELEASE_ASSERT_NOT_REACHED();
             return nullptr;
         }, cellSize);
 
-    // FIXME: We should make this work with thread safety analysis.
-    m_directory->m_bits.setIsEden(m_currentBlock->index(), true);
+    if (m_directory->markedSpace().heap().isSharedServer()) [[unlikely]] {
+        // SharedGC (§5.2(2)/I5b/F1): the eden flip publishes via the
+        // directory's bitvector lock — the sweeper and other clients' cursor
+        // searches read these words concurrently once shared.
+        Locker locker { m_directory->bitvectorLock() };
+        m_directory->setIsEden(m_currentBlock->index(), true);
+    } else {
+        // FIXME: We should make this work with thread safety analysis.
+        m_directory->m_bits.setIsEden(m_currentBlock->index(), true);
+    }
+    // §5.2(2): this call is inside allocateSlowCase's MSPL section when
+    // shared (didAllocateInBlock debug-asserts that).
     m_directory->markedSpace().didAllocateInBlock(m_currentBlock);
     return result;
 }

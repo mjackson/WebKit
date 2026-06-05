@@ -112,6 +112,10 @@ inline JSC::Heap* AbstractSlotVisitor::heap() const
     return &m_heap;
 }
 
+// SharedGC (T9): conductor-context OK — visitors run on the conductor or its
+// parallel marker helpers inside the stop window once shared (I5; marker
+// helpers per §10B(6)/I11); m_heap is the server, so vm() = main VM
+// (deviation 3). Heap-snapshot visitors run under PreventCollectionScope.
 inline VM& AbstractSlotVisitor::vm()
 {
     return m_heap.vm();

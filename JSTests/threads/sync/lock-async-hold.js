@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // Lock.prototype.asyncHold: promise-based acquisition, release functions,
 // FIFO granting, the callback variant, and interaction with sync hold.
 //

@@ -27,6 +27,7 @@
 
 #include "BigIntPrototype.h"
 #include "BrandedStructure.h"
+#include "HeapCellInlines.h"
 #include "JSArrayBufferView.h"
 #include "JSGlobalObject.h"
 #include "JSObjectInlines.h"
@@ -40,6 +41,7 @@
 #include "SymbolPrototype.h"
 #include "WebAssemblyGCStructure.h"
 #include "WriteBarrierInlines.h"
+#include <wtf/IterationStatus.h>
 #include <wtf/Threading.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -125,6 +127,34 @@ void Structure::forEachPropertyConcurrently(const Functor& functor)
 template<typename Functor>
 void Structure::forEachProperty(VM& vm, const Functor& functor)
 {
+    // SPEC-objectmodel L6(iii) (Task 3c): flag-on, this mutator uncached table
+    // WALK holds m_lock across the iteration, so locked mutations/rehashes of
+    // a published table (and steals via takePropertyTableOrCloneIfPinned)
+    // cannot tear it (I37). Table order is preserved (callers, e.g. the JSON
+    // fast stringifier, rely on insertion order — forEachPropertyConcurrently
+    // would not provide it). GCSafe locker = m_lock + DeferGC: the functor may
+    // GC-allocate under the lock, O1's sanctioned pre-lock-DeferGC form. The
+    // retry loop re-materializes if the table was stolen between
+    // materialization and lock acquisition. Flag-off: today's lock-free walk
+    // (I22). Callers must not hold this structure's m_lock.
+    if (Options::useJSThreads()) [[unlikely]] {
+        while (true) {
+            PropertyTable* table = ensurePropertyTableIfNotEmpty(vm);
+            if (!table)
+                return;
+            GCSafeConcurrentJSLocker locker(m_lock, vm);
+            if (propertyTableOrNull() != table)
+                continue; // Stolen by a racing transition: rebuild and retry.
+            table->forEachProperty([&](const auto& entry) {
+                if (!functor(entry))
+                    return IterationStatus::Done;
+                return IterationStatus::Continue;
+            });
+            ensureStillAliveHere(table);
+            return;
+        }
+    }
+
     if (PropertyTable* table = ensurePropertyTableIfNotEmpty(vm)) {
         table->forEachProperty([&](const auto& entry) {
             if (!functor(entry))
@@ -245,8 +275,11 @@ inline PropertyOffset Structure::add(VM& vm, PropertyName propertyName, unsigned
         setPropertyTable(vm, table);
         break;
     }
-    
-    ASSERT(!JSC::isValidOffset(get(vm, propertyName)));
+
+    // SPEC-objectmodel L6 (Task 3c): query the table directly — m_lock is held
+    // here, and flag-on Structure::get() itself acquires m_lock (getConcurrently
+    // routing), so calling it from under the lock would self-deadlock.
+    ASSERT(!JSC::isValidOffset(std::get<0>(table->get(propertyName.uid()))));
 
     checkConsistency();
     if (attributes & PropertyAttribute::DontEnum || propertyName.isSymbol())
@@ -302,7 +335,8 @@ inline PropertyOffset Structure::remove(VM& vm, PropertyName propertyName, const
         break;
     }
 
-    ASSERT(JSC::isValidOffset(get(vm, propertyName)));
+    // SPEC-objectmodel L6 (Task 3c): direct table query; see Structure::add.
+    ASSERT(JSC::isValidOffset(std::get<0>(table->get(propertyName.uid()))));
 
     checkConsistency();
 
@@ -322,7 +356,8 @@ inline PropertyOffset Structure::remove(VM& vm, PropertyName propertyName, const
     func(locker, offset, newMaxOffset);
 
     ASSERT(maxOffset() == newMaxOffset);
-    ASSERT(!JSC::isValidOffset(get(vm, propertyName)));
+    // SPEC-objectmodel L6 (Task 3c): direct table query; see Structure::add.
+    ASSERT(!JSC::isValidOffset(std::get<0>(table->get(propertyName.uid()))));
 
     checkConsistency();
     return offset;
@@ -345,7 +380,8 @@ inline PropertyOffset Structure::attributeChange(VM& vm, PropertyName propertyNa
         break;
     }
 
-    ASSERT(JSC::isValidOffset(get(vm, propertyName)));
+    // SPEC-objectmodel L6 (Task 3c): direct table query; see Structure::add.
+    ASSERT(JSC::isValidOffset(std::get<0>(table->get(propertyName.uid()))));
 
     checkConsistency();
     PropertyOffset offset = table->updateAttributeIfExists(propertyName.uid(), attributes);
@@ -369,7 +405,8 @@ inline PropertyOffset Structure::attributeChange(VM& vm, PropertyName propertyNa
     func(locker, offset, newMaxOffset);
 
     ASSERT(maxOffset() == newMaxOffset);
-    ASSERT(JSC::isValidOffset(get(vm, propertyName)));
+    // SPEC-objectmodel L6 (Task 3c): direct table query; see Structure::add.
+    ASSERT(JSC::isValidOffset(std::get<0>(table->get(propertyName.uid()))));
 
     checkConsistency();
     return offset;
@@ -398,15 +435,39 @@ ALWAYS_INLINE auto Structure::addOrReplacePropertyWithoutTransition(VM& vm, Prop
     PropertyTable* table = ensurePropertyTable(vm);
 
     auto rep = propertyName.uid();
+
+    // SPEC-objectmodel L6(ii)/(iii) (Task 3c): flag-on, the uncached find WALK
+    // and the subsequent mutation of this PUBLISHED table form one m_lock
+    // critical section, so a racing locked add/rehash can neither tear the
+    // walk nor invalidate `findResult` between find() and addAfterFind()
+    // (I37). The loop re-checks under the lock that `table` is still this
+    // structure's published table — a racing transition may have stolen it
+    // via takePropertyTableOrCloneIfPinned (then it is private to the thief
+    // and must not be touched). GCSafe locker = m_lock + DeferGC, O1's
+    // sanctioned form for the allocating addAfterFind below. Flag-off:
+    // today's lock placement, after the find (I22).
+    std::optional<GCSafeConcurrentJSLocker> l6Locker;
+    if (Options::useJSThreads()) [[unlikely]] {
+        while (true) {
+            l6Locker.emplace(m_lock, vm);
+            if (propertyTableOrNull() == table)
+                break;
+            l6Locker.reset();
+            table = ensurePropertyTable(vm);
+        }
+    }
+
     auto findResult = table->find(rep);
     if (findResult.offset != invalidOffset)
         return std::tuple { findResult.offset, findResult.attributes, false };
 
-    GCSafeConcurrentJSLocker locker(m_lock, vm);
+    GCSafeConcurrentJSLocker flagOffLocker(Options::useJSThreads() ? nullptr : &m_lock, vm);
+    const GCSafeConcurrentJSLocker& locker = l6Locker ? *l6Locker : flagOffLocker;
 
     pin(locker, vm, table);
 
-    ASSERT(!JSC::isValidOffset(get(vm, propertyName)));
+    // SPEC-objectmodel L6 (Task 3c): direct table query; see Structure::add.
+    ASSERT(!JSC::isValidOffset(std::get<0>(table->get(propertyName.uid()))));
 
     checkConsistency();
     if (newAttributes & PropertyAttribute::DontEnum || propertyName.isSymbol())
@@ -480,6 +541,66 @@ inline void Structure::pin(const AbstractLocker&, VM& vm, PropertyTable* table)
     setPropertyTable(vm, table);
     clearPreviousID();
     m_transitionPropertyName = nullptr;
+    // SPEC-objectmodel F3: transition-time callers follow this with
+    // fireTTLWatchpointSetsAfterPinning(vm, source) AFTER releasing m_lock
+    // (fires may STW; never stop-the-world while holding a §6-ranked lock - O2).
+}
+
+// SPEC-objectmodel E4 (Task 3). See the declaration in Structure.h for the full
+// contract. The caller passes the freshly loaded 64-bit tagged butterfly word of
+// the instance being transitioned (JSObject::taggedButterflyWord()).
+ALWAYS_INLINE bool Structure::mayTransitionLockFreeFromThisStructure(const JSCell* cell, uint64_t taggedButterflyWord) const
+{
+    if (!Options::useJSThreads()) [[likely]]
+        return true; // E3/I22: flag-off, today's lock-free code is unconditionally correct.
+
+    // I15: both SOURCE sets valid AND watched (I14).
+    if (!transitionThreadLocalIsValidAndWatched() || !writeThreadLocalIsValidAndWatched())
+        return false;
+
+    // I36: PreciseAllocation cells sit at 8-mod-16 addresses - no 16-byte
+    // header+butterfly DCAS pairing exists for them, so every PA transition is
+    // cell-locked; E4 is excluded outright (one bit test of the cell pointer).
+    if (cell->isPreciseAllocation())
+        return false;
+
+    // I31 (review round 3): ArrayStorage-shaped instances are excluded from E4.
+    // Flag-on, EVERY AS access is cell-locked and every AS relayout is the
+    // cell-locked §4.6 AS-COPY; an E4 owner transition's lock-free butterfly
+    // copy (allocateMoreOutOfLineStorage copies the AS payload too) must never
+    // race those. With this exclusion, AS transitions always take the locked
+    // protocols / the §4.6 per-event stops, whose publications preserve the tag
+    // verbatim. (SPEC-jit §5.5 mirrors this predicate: the emitted form must
+    // carry the same AS-shape exclusion - recorded in INTEGRATE-objectmodel.)
+    if (hasAnyArrayStorage(indexingType()))
+        return false;
+
+    if (taggedButterflyWord & butterflyPointerMask) {
+        // Butterfly-bearing: ownership is the INSTANCE tag - exactly
+        // (currentButterflyTID(), SW=0). No structure-TID compare: a thread
+        // transitioning its own instance through a foreign-created shape stays
+        // lock-free (§5 E4/F2, r12 per-object keying).
+        return (taggedButterflyWord & butterflyTagMask) == encodeButterflyTag(currentButterflyTID(), false);
+    }
+
+    ASSERT(!taggedButterflyWord); // §2: payload 0 + nonzero tag is illegal.
+    // Butterfly-less (incl. N2 structure-only transitions): ownership is the
+    // structure's transition TID (N1).
+    return currentButterflyTID() == m_transitionThreadLocalTID;
+}
+
+// SPEC-objectmodel I29 (Task 3): the final re-validation of an E4 lock-free
+// transition. Protocol at every E4 site (all tiers; runtime sites here, JIT
+// emission in SPEC-jit §5.5):
+//   1. allocate everything (new butterfly etc.) FIRST;
+//   2. re-validate with FRESH loads via this helper;
+//   3. with NO poll/allocation/safepoint in between (bracket the window with
+//      AssertNoGC in debug builds), store the value, nuke, store the butterfly
+//      word (currentTID, SW=0), store the new StructureID (today's order, M5);
+//   4. on false: fall back to the §4.3 locked protocol (never spin here).
+ALWAYS_INLINE bool Structure::revalidateLockFreeTransition(const JSCell* cell, uint64_t freshTaggedButterflyWord) const
+{
+    return mayTransitionLockFreeFromThisStructure(cell, freshTaggedButterflyWord);
 }
 
 ALWAYS_INLINE bool Structure::shouldConvertToPolyProto(const Structure* a, const Structure* b)
@@ -568,6 +689,16 @@ ALWAYS_INLINE Structure* Structure::addPropertyTransitionToExistingStructureImpl
 ALWAYS_INLINE Structure* Structure::addPropertyTransitionToExistingStructure(Structure* structure, PropertyName propertyName, unsigned attributes, PropertyOffset& offset)
 {
     ASSERT(!isCompilationThread());
+    // SPEC-objectmodel L6(i)/I37 (Task 3c): flag-on, every MUTATOR
+    // transition-table lookup holds the source's m_lock — route to the
+    // m_lock-holding Concurrently variant (inserts already run under m_lock,
+    // so locked lookups can never observe a half-published single-slot->map
+    // inflation or a map rehash). Routing here (the shared inline body)
+    // covers every mutator caller, including the ones outside Structure.cpp
+    // (JSObject.cpp, JSObjectInlines.h, LiteralParser.cpp). Flag-off: today's
+    // lock-free lookup, bit-identical behavior (I22).
+    if (Options::useJSThreads()) [[unlikely]]
+        return addPropertyTransitionToExistingStructureConcurrently(structure, propertyName.uid(), attributes, offset);
     return addPropertyTransitionToExistingStructureImpl(structure, propertyName.uid(), attributes, offset);
 }
 
@@ -595,6 +726,20 @@ inline Structure* StructureTransitionTable::trySingleTransition() const
     return nullptr;
 }
 
+template<typename Functor>
+void StructureTransitionTable::forEachTransition(const Functor& functor) const
+{
+    if (isUsingSingleSlot()) {
+        if (Structure* transition = trySingleTransition())
+            functor(transition);
+        return;
+    }
+    map()->forEach([&](Structure* transition) {
+        functor(transition);
+        return IterationStatus::Continue;
+    });
+}
+
 inline Structure* StructureTransitionTable::get(PointerKey rep, unsigned attributes, TransitionKind transitionKind) const
 {
     if (isUsingSingleSlot()) {
@@ -606,6 +751,23 @@ inline Structure* StructureTransitionTable::get(PointerKey rep, unsigned attribu
         return transition;
     }
     return map()->get(StructureTransitionTable::Hash::createKey(rep, attributes, transitionKind));
+}
+
+// SPEC-objectmodel L6/I37 (Task 3c): see the declaration. Mirrors add()'s
+// keying exactly (createKeyFromStructure on the candidate), so a hit is
+// precisely the Structure a subsequent add(candidate) would have clobbered.
+// Caller holds the owning Structure's m_lock flag-on.
+inline Structure* StructureTransitionTable::getMatching(Structure* candidate) const
+{
+    if (isUsingSingleSlot()) {
+        auto* transition = trySingleTransition();
+        if (!transition)
+            return nullptr;
+        if (Hash::createKeyFromStructure(transition) != Hash::createKeyFromStructure(candidate))
+            return nullptr;
+        return transition;
+    }
+    return map()->get(Hash::createKeyFromStructure(candidate));
 }
 
 inline void StructureTransitionTable::finalizeUnconditionally(VM& vm, CollectionScope)

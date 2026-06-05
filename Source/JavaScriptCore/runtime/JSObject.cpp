@@ -131,9 +131,31 @@ ALWAYS_INLINE Structure* JSObjectWithButterfly::visitButterflyImpl(Visitor& visi
     auto visitElements = [&] (IndexingType indexingMode) {
         switch (indexingMode) {
         // We don't need to visit the elements for CopyOnWrite butterflies since they we marked the JSCellButterfly acting as our butterfly.
-        case ALL_WRITABLE_CONTIGUOUS_INDEXING_TYPES:
-            visitor.appendValuesHidden(butterfly->contiguous().data(), butterfly->publicLength());
+        case ALL_WRITABLE_CONTIGUOUS_INDEXING_TYPES: {
+            unsigned visitBound = butterfly->publicLength();
+#if USE(JSVALUE64)
+            // SPEC-objectmodel review round 3 (I21/I25 - GC bound vs lock-free
+            // truncation): on a SHARED-WRITTEN flat word (SW=1), a §3 dense
+            // store may legally land in [newLength, vectorLength) while a
+            // truncating plain setPublicLength (pop/setLength/shrink) is
+            // mid-flight; bounding the value visit by publicLength would then
+            // leave that store's cell unmarked FOREVER (the store's barrier
+            // re-greys the object, but the revisit would use the same
+            // too-small bound) - a sweep of a reachable value, resurfacing as
+            // a dangling read once a later grow re-exposes the slot. Visit the
+            // full storage bound instead: flag-on, every published flat
+            // butterfly is hole-initialized through vectorLength (creation
+            // hole-fills, T1/T2/conversion copies clear their slack, and
+            // ObjectInitializationScope windows are thread-private and can
+            // never be SW=1), so the extra slots hold holes or stale-but-valid
+            // JSValues. SW monotonicity makes a re-loaded word's bit safe to
+            // key on (over-visiting is conservative).
+            if (Options::useJSThreads() && butterflySharedWrite(taggedButterflyWord())) [[unlikely]]
+                visitBound = butterfly->vectorLength();
+#endif
+            visitor.appendValuesHidden(butterfly->contiguous().data(), visitBound);
             break;
+        }
         case ALL_ARRAY_STORAGE_INDEXING_TYPES:
             visitor.appendValuesHidden(butterfly->arrayStorage()->m_vector, butterfly->arrayStorage()->vectorLength());
             if (butterfly->arrayStorage()->m_sparseMap)
@@ -145,10 +167,34 @@ ALWAYS_INLINE Structure* JSObjectWithButterfly::visitButterflyImpl(Visitor& visi
     };
 
     if (visitor.mutatorIsStopped()) {
-        butterfly = this->butterfly();
+#if USE(JSVALUE64)
+        // SPEC-objectmodel Task 2 audit: mask the §2 tag off the butterfly word.
+        // Segmented words take the §4.5 visit (Task 6b). With the mutator
+        // stopped nothing can race: the structureID is settled (transitions
+        // are poll-free between nuke and restore, O2), so the visit must
+        // succeed - a nullptr here would be a logic error, not a race.
+        if (Options::useJSThreads()) [[unlikely]] {
+            uint64_t word = taggedButterflyWord();
+            if (isSegmentedButterfly(word)) [[unlikely]] {
+                // Review round 2: pass the settled {id, structure, maxOffset,
+                // indexingMode} snapshot (the visit no longer self-loads it;
+                // see the concurrent call site below). Settled because the
+                // mutator is stopped and transitions are poll-free between
+                // nuke and restore (O2).
+                StructureID settledID = structureID();
+                RELEASE_ASSERT(!settledID.isNuked());
+                Structure* settledStructure = settledID.decode();
+                Structure* result = visitSegmentedButterfly(visitor, this, butterflySpine(word), settledID, settledStructure, settledStructure->maxOffset(), settledStructure->indexingMode());
+                RELEASE_ASSERT(result);
+                return result;
+            }
+            butterfly = untaggedButterfly(word);
+        } else
+#endif
+            butterfly = this->butterfly();
         structure = this->structure();
         maxOffset = structure->maxOffset();
-        
+
         markAuxiliaryAndVisitOutOfLineProperties(visitor, butterfly, structure, maxOffset);
         visitElements(structure->indexingMode());
 
@@ -404,7 +450,29 @@ ALWAYS_INLINE Structure* JSObjectWithButterfly::visitButterflyImpl(Visitor& visi
         return nullptr;
     if (butterflyDependency.consume(structure)->maxOffset() != maxOffset)
         return nullptr;
-    
+#if USE(JSVALUE64)
+    // SPEC-objectmodel Task 2 audit: fencedButterfly loaded the TAGGED word
+    // (§2); mask before dereferencing. The dependency chain is preserved: the
+    // masked pointer is computed from the loaded value (M1). Segmented words ->
+    // the §4.5 visit (Task 6b; review round 2): §4.5 step 2's
+    // Dependency-ordered tagged-word load is the fencedButterfly above. The
+    // visit RECEIVES our bracketed {early structureID, structure, maxOffset,
+    // indexingMode} snapshot - the spine load above is dependency-ordered
+    // after the early structureID load and the late re-checks above already
+    // passed, so the pair is the same ReadStructureEarly/ReadButterfly/
+    // ReadStructureLate bracket the flat path uses. The visit must NOT load
+    // its own fresh structureID: a fresh load could pair a newer structure
+    // (e.g. a §4.7 in-place relabel, which stops mutators but not concurrent
+    // markers) with this older spine and value-visit raw double lanes as
+    // JSValues. nullptr => didRace, surfaced exactly like the flat path.
+    if (Options::useJSThreads()) [[unlikely]] {
+        uint64_t word = std::bit_cast<uint64_t>(butterfly);
+        if (isSegmentedButterfly(word)) [[unlikely]]
+            return visitSegmentedButterfly(visitor, this, butterflySpine(word), structureID, structure, maxOffset, indexingMode); // §4.5; nullptr => didRace.
+        butterfly = untaggedButterfly(word);
+    }
+#endif
+
     markAuxiliaryAndVisitOutOfLineProperties(visitor, butterfly, structure, maxOffset);
     ASSERT(indexingMode == structure->indexingMode());
     visitElements(indexingMode);
@@ -418,6 +486,473 @@ size_t JSObject::estimatedSize(JSCell* cell, VM& vm)
     size_t butterflyOutOfLineSize = thisObject->butterfly() ? thisObject->structure()->outOfLineSize() : 0;
     return Base::estimatedSize(cell, vm) + butterflyOutOfLineSize;
 }
+
+#if USE(JSVALUE64)
+
+// ===== SPEC-objectmodel Task 2: flag-on regime-dispatching slow paths =====
+//
+// These implement the §Q dispatch for locationForOffset and the quickly-family.
+// They are reached only when Options::useJSThreads() is on (I22) and are the
+// E5 rule in action: interpreter/runtime slow paths never rely on elision and
+// always dispatch on the loaded tagged word. The full §2-dispatch *Concurrent
+// accessors of §9.5 (get/putDirectConcurrent, get/putIndexConcurrent — which
+// additionally provide M5 tryDecode nuke tolerance and drive the §4.3/N2
+// transition protocols) land with Task 6.
+
+const WriteBarrierBase<Unknown>* JSObject::locationForOutOfLineOffsetConcurrent(PropertyOffset offset) const
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(isOutOfLineOffset(offset));
+    // M7(d): the caller's structureID load (the offset's provenance) must be
+    // ordered before the tagged-word load, else arm64 load-load reordering can
+    // pair a new structure's offset with a stale, smaller butterfly/spine
+    // (I24). A loadLoadFence is the only conforming option when the structure
+    // load lives in caller code (§Q). x86-64: compiler-only barrier.
+    WTF::loadLoadFence();
+    uint64_t word = taggedButterflyWord();
+    while (true) {
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            ButterflySpine* spine = butterflySpine(word);
+            // I33 out-of-line clause: bound by 4 * spine->outOfLineFragmentCount.
+            // Out-of-range = the loaded spine is stale (superseded by a grown
+            // one) => acquire-re-load the tagged word and re-dispatch.
+            if (const WriteBarrierBase<Unknown>* slot = segmentedOutOfLineSlotIfWithinBounds(spine, offset))
+                return slot;
+            WTF::loadLoadFence();
+            word = taggedButterflyWord();
+            continue;
+        }
+        // Flat (any TID, any SW): mask and index exactly as today. Soundness of
+        // pairing the caller's structure with this possibly newer flat
+        // butterfly: every offset-map-changing transition publishes the
+        // butterfly atomically WITH the structure (locked DCAS, §4.2-5/§4.3-5)
+        // or BEFORE it (E4 nuke order; M5), and live storage never shrinks
+        // (deletes quarantine slots, I18/I30) — so a butterfly loaded after the
+        // structureID always satisfies that structure's storage requirements
+        // (history §15.4).
+        return &untaggedButterfly(word)->propertyStorage()[offsetInOutOfLineStorage(offset)];
+    }
+}
+
+bool JSObject::canGetIndexQuicklyConcurrent(unsigned i) const
+{
+    ASSERT(Options::useJSThreads());
+    // E5 "None first" (review round 4): the word is loaded BEFORE the indexing
+    // byte in program order, and the N3 first indexed-storage install is
+    // lock-free (no stop) - so a stale word==0 can pair with a FRESH indexed
+    // type here. Every flat dense branch below must therefore null-check the
+    // payload of the SAME loaded word and report "not quickly" (callers take
+    // their generic path, which re-dispatches on fresh state). Dereferencing
+    // untaggedButterfly(0) would read around address 0 - a crash from a race.
+    uint64_t word = taggedButterflyWord();
+    switch (indexingType()) {
+    case ALL_BLANK_INDEXING_TYPES:
+        return canGetIndexQuicklyForTypedArray(i);
+    case ALL_UNDECIDED_INDEXING_TYPES:
+        return false;
+    case ALL_INT32_INDEXING_TYPES:
+    case ALL_CONTIGUOUS_INDEXING_TYPES: {
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            const WriteBarrierBase<Unknown>* slot = segmentedIndexedSlotIfReadable(butterflySpine(word), i); // C4
+            return slot && !!slot->get();
+        }
+        const Butterfly* butterfly = untaggedButterfly(word);
+        if (!butterfly) [[unlikely]]
+            return false; // E5 None-first: racing N3 first install (round 4).
+        return i < butterfly->vectorLength() && butterfly->contiguous().at(this, i);
+    }
+    case ALL_DOUBLE_INDEXING_TYPES: {
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            // §4.7: Double fragments hold RAW doubles (shape-keyed interpretation;
+            // aligned 8B slots are tear-free at SAB granularity; holes = PNaN).
+            const WriteBarrierBase<Unknown>* slot = segmentedIndexedSlotIfReadable(butterflySpine(word), i); // C4
+            if (!slot)
+                return false;
+            double value = *std::bit_cast<const double*>(slot);
+            return value == value;
+        }
+        const Butterfly* butterfly = untaggedButterfly(word);
+        if (!butterfly) [[unlikely]]
+            return false; // E5 None-first (round 4).
+        if (i >= butterfly->vectorLength())
+            return false;
+        double value = butterfly->contiguousDouble().at(this, i);
+        return value == value;
+    }
+    case ALL_ARRAY_STORAGE_INDEXING_TYPES:
+        // §Q/I31: flag-on, AS-shape quickly probes answer false so callers fall
+        // to their generic paths (E5 dispatch = §4.6 cell-locked access).
+        return false;
+    default:
+        RELEASE_ASSERT_NOT_REACHED();
+        return false;
+    }
+}
+
+JSValue JSObject::getIndexQuicklyConcurrent(unsigned i) const
+{
+    ASSERT(Options::useJSThreads());
+    uint64_t word = taggedButterflyWord();
+    switch (indexingType()) {
+    case ALL_INT32_INDEXING_TYPES:
+    case ALL_CONTIGUOUS_INDEXING_TYPES: {
+        JSValue value;
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            const WriteBarrierBase<Unknown>* slot = segmentedIndexedSlotIfReadable(butterflySpine(word), i); // C4
+            value = slot ? slot->get() : JSValue();
+        } else {
+            const Butterfly* butterfly = untaggedButterfly(word);
+            // E5 None-first + C4-style bound on the SAME loaded word (round 4):
+            // a stale word (racing N3 install / older flat snapshot than the
+            // caller's bound check) reads as a hole, never a wild deref.
+            if (!butterfly || i >= butterfly->vectorLength()) [[unlikely]]
+                return jsUndefined();
+            value = butterfly->contiguous().at(this, i).get();
+        }
+        // Race tolerance (I21/SAB semantics): a hole surfacing under a racing
+        // shrink/delete reads as undefined rather than an empty JSValue.
+        if (!value) [[unlikely]]
+            return jsUndefined();
+        if (hasInt32(indexingType()))
+            return jsNumber(value.asInt32());
+        return value;
+    }
+    case ALL_DOUBLE_INDEXING_TYPES: {
+        double value;
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            const WriteBarrierBase<Unknown>* slot = segmentedIndexedSlotIfReadable(butterflySpine(word), i); // C4
+            if (!slot) [[unlikely]]
+                return jsUndefined();
+            value = *std::bit_cast<const double*>(slot); // §4.7 raw double
+        } else {
+            const Butterfly* butterfly = untaggedButterfly(word);
+            if (!butterfly || i >= butterfly->vectorLength()) [[unlikely]] // E5 None-first + snapshot bound (round 4)
+                return jsUndefined();
+            value = butterfly->contiguousDouble().at(this, i);
+        }
+        if (value != value) [[unlikely]]
+            return jsUndefined(); // hole (PNaN) surfaced under a race
+        return JSValue(JSValue::EncodeAsDouble, value);
+    }
+    case ALL_ARRAY_STORAGE_INDEXING_TYPES: {
+        // I31: flag-on, EVERY runtime AS access is cell-locked (AS never
+        // segments). Re-load the word under the lock: AS-COPY (§4.6) may have
+        // republished a fresh AS butterfly.
+        Locker locker { cellLock() };
+        const Butterfly* butterfly = untaggedButterfly(taggedButterflyWord());
+        const ArrayStorage* storage = butterfly->arrayStorage();
+        if (i >= storage->vectorLength()) [[unlikely]]
+            return jsUndefined();
+        JSValue value = storage->m_vector[i].get();
+        return value ? value : jsUndefined();
+    }
+    case ALL_BLANK_INDEXING_TYPES:
+        return getIndexQuicklyForTypedArray(i);
+    default:
+        RELEASE_ASSERT_NOT_REACHED();
+        return JSValue();
+    }
+}
+
+JSValue JSObject::tryGetIndexQuicklyConcurrent(unsigned i, ArrayProfile* arrayProfile) const
+{
+    ASSERT(Options::useJSThreads());
+    uint64_t word = taggedButterflyWord();
+    switch (indexingType()) {
+    case ALL_BLANK_INDEXING_TYPES:
+        if (canGetIndexQuicklyForTypedArray(i))
+            return getIndexQuicklyForTypedArray(i, arrayProfile);
+        break;
+    case ALL_UNDECIDED_INDEXING_TYPES:
+        break;
+    case ALL_INT32_INDEXING_TYPES:
+    case ALL_CONTIGUOUS_INDEXING_TYPES: {
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            const WriteBarrierBase<Unknown>* slot = segmentedIndexedSlotIfReadable(butterflySpine(word), i); // C4
+            if (!slot)
+                break;
+            JSValue result = slot->get();
+            ASSERT(!hasInt32(indexingType()) || result.isInt32() || !result);
+            return result; // empty => caller's generic path
+        }
+        const Butterfly* butterfly = untaggedButterfly(word);
+        if (!butterfly) [[unlikely]]
+            break; // E5 None-first: racing N3 first install (round 4) => generic path.
+        // Bound by vectorLength too (round 4): on a flat word that a racing
+        // §4.2 conversion + T2 grow superseded, the aliased publicLength slot
+        // can race past THIS snapshot's storage.
+        if (i < butterfly->publicLength() && i < butterfly->vectorLength()) {
+            JSValue result = butterfly->contiguous().at(this, i).get();
+            ASSERT(!hasInt32(indexingType()) || result.isInt32() || !result);
+            return result;
+        }
+        break;
+    }
+    case ALL_DOUBLE_INDEXING_TYPES: {
+        double result;
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            const WriteBarrierBase<Unknown>* slot = segmentedIndexedSlotIfReadable(butterflySpine(word), i); // C4
+            if (!slot)
+                break;
+            result = *std::bit_cast<const double*>(slot); // §4.7 raw double
+        } else {
+            const Butterfly* butterfly = untaggedButterfly(word);
+            if (!butterfly) [[unlikely]]
+                break; // E5 None-first (round 4).
+            if (i >= butterfly->publicLength() || i >= butterfly->vectorLength()) // round 4: snapshot bound (aliased publicLength can race past it)
+                break;
+            result = butterfly->contiguousDouble().at(this, i);
+        }
+        if (result != result)
+            break;
+        return JSValue(JSValue::EncodeAsDouble, result);
+    }
+    case ALL_ARRAY_STORAGE_INDEXING_TYPES:
+        // §Q/I31: not-quickly; callers fall to the generic (§4.6 locked) path.
+        break;
+    default:
+        RELEASE_ASSERT_NOT_REACHED();
+        break;
+    }
+    return JSValue();
+}
+
+// Review round 2: dense-store publicLength update for FLAT words. On a SHARED
+// word (SW=1) the legacy read-then-plain-store can regress publicLength under
+// racing growers - T1 stores a[8]/len=9, T0 (stale len read) stores a[5]/len=6
+// - hiding T1's element behind the min(publicLength, vectorLength) read bound
+// (I21 "no lost properties"; i03-t5-racing-growers part (a)). Shared words
+// therefore CAS-max; owner-exclusive (t, 0) words keep today's plain store
+// (only the owner can be in a dense grow while SW=0: a foreign grower flips SW
+// first, §3 F1). Segmented words use ButterflySpine::bumpPublicLengthToAtLeast
+// at their own sites.
+static ALWAYS_INLINE void updatePublicLengthAfterDenseStoreConcurrent(uint64_t word, Butterfly* butterfly, unsigned i)
+{
+    if (i < butterfly->publicLength()) [[likely]]
+        return;
+    if (butterflySharedWrite(word))
+        butterfly->bumpPublicLengthToAtLeast(i + 1);
+    else
+        butterfly->setPublicLength(i + 1);
+}
+
+bool JSObject::trySetIndexQuicklyConcurrent(VM& vm, unsigned i, JSValue v, ArrayProfile* arrayProfile)
+{
+    ASSERT(Options::useJSThreads());
+    uint64_t word = taggedButterflyWord();
+    // §3 F1 (review round 1; Task 7's ensureSharedWriteBit is landed): a
+    // foreign write to an SW=0 FLAT word must fire writeThreadLocal and flip
+    // SW BEFORE any plain store lands - otherwise the owner's T1 copying
+    // resize still sees (t,0), its CAS succeeds against a payload that
+    // received our store mid-copy, and the store is silently dropped (I21);
+    // it would also break I12 (writeThreadLocal valid <=> no foreign write
+    // ever), unsounding the watchpoint-elision argument. Scope: exactly the
+    // flat dense-write branches below (Int32/Double/Contiguous, incl. their
+    // publicLength bumps). CoW is excluded (WRITABLE modes never match CoW;
+    // the default leg returns false to the caller's §4.8 path); AS and
+    // Undecided return false below; typed-array (BLANK) stores do not touch
+    // the butterfly. Segmented and SW=1 words need no flip (I3/I4).
+    if ((word & butterflyPointerMask) && !isSegmentedButterfly(word)
+        && !butterflySharedWrite(word) && butterflyWriterIsForeign(word) // incl. §9.6 forceButterflySWBit
+        && !isCopyOnWrite(indexingMode())
+        && (hasInt32(indexingType()) || hasDouble(indexingType()) || hasContiguous(indexingType()))) [[unlikely]] {
+        ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this));
+        word = taggedButterflyWord(); // Re-dispatch on the fresh tag (SW=1 flat or segmented now).
+    }
+    switch (indexingMode()) {
+    case ALL_BLANK_INDEXING_TYPES:
+        return trySetIndexQuicklyForTypedArray(i, v, arrayProfile);
+    case ALL_UNDECIDED_INDEXING_TYPES:
+        return false;
+    case ALL_WRITABLE_INT32_INDEXING_TYPES: {
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            if (!v.isInt32())
+                return false; // shape transition => generic path (§4.3/§4.7, Tasks 6-8)
+            WriteBarrierBase<Unknown>* slot = segmentedIndexedSlotIfWithinVectorLength(butterflySpine(word), i);
+            if (!slot)
+                return false;
+            slot->set(vm, this, v); // §4.5: fragment-slot stores use WriteBarrierBase::set on the owner
+            // Review round 2: segmented words are shared by definition, so the
+            // length bump must be a CAS-max - a plain read-then-store loses
+            // racing growers' elements (I21; i03-t5 part (a)).
+            butterflySpine(word)->bumpPublicLengthToAtLeast(i + 1);
+            return true;
+        }
+        Butterfly* butterfly = untaggedButterfly(word);
+        if (!butterfly) [[unlikely]]
+            return false; // E5 None-first: racing N3 first install (round 4) => generic path.
+        if (i >= butterfly->vectorLength())
+            return false;
+        if (!v.isInt32()) {
+            convertInt32ToDoubleOrContiguousWhilePerformingSetIndex(vm, i, v);
+            return true;
+        }
+        butterfly->contiguous().at(this, i).setWithoutWriteBarrier(v);
+        updatePublicLengthAfterDenseStoreConcurrent(word, butterfly, i);
+        vm.writeBarrier(this, v);
+        return true;
+    }
+    case ALL_WRITABLE_CONTIGUOUS_INDEXING_TYPES: {
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            WriteBarrierBase<Unknown>* slot = segmentedIndexedSlotIfWithinVectorLength(butterflySpine(word), i);
+            if (!slot)
+                return false;
+            slot->set(vm, this, v);
+            butterflySpine(word)->bumpPublicLengthToAtLeast(i + 1); // Review round 2: CAS-max (shared word).
+            return true;
+        }
+        Butterfly* butterfly = untaggedButterfly(word);
+        if (!butterfly) [[unlikely]]
+            return false; // E5 None-first (round 4).
+        if (i >= butterfly->vectorLength())
+            return false;
+        butterfly->contiguous().at(this, i).setWithoutWriteBarrier(v);
+        updatePublicLengthAfterDenseStoreConcurrent(word, butterfly, i);
+        vm.writeBarrier(this, v);
+        return true;
+    }
+    case ALL_WRITABLE_DOUBLE_INDEXING_TYPES: {
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            if (!v.isNumber())
+                return false; // shape transition => generic path (§4.7, Tasks 6-8)
+            double value = v.asNumber();
+            if (value != value)
+                return false;
+            WriteBarrierBase<Unknown>* slot = segmentedIndexedSlotIfWithinVectorLength(butterflySpine(word), i);
+            if (!slot)
+                return false;
+            *std::bit_cast<double*>(slot) = value; // §4.7 raw double; no barrier
+            butterflySpine(word)->bumpPublicLengthToAtLeast(i + 1); // Review round 2: CAS-max (shared word).
+            return true;
+        }
+        Butterfly* butterfly = untaggedButterfly(word);
+        if (!butterfly) [[unlikely]]
+            return false; // E5 None-first (round 4).
+        if (i >= butterfly->vectorLength())
+            return false;
+        if (!v.isNumber()) {
+            convertDoubleToContiguousWhilePerformingSetIndex(vm, i, v);
+            return true;
+        }
+        double value = v.asNumber();
+        if (value != value) {
+            convertDoubleToContiguousWhilePerformingSetIndex(vm, i, v);
+            return true;
+        }
+        butterfly->contiguousDouble().at(this, i) = value;
+        updatePublicLengthAfterDenseStoreConcurrent(word, butterfly, i);
+        return true;
+    }
+    case NonArrayWithArrayStorage:
+    case ArrayWithArrayStorage:
+    case NonArrayWithSlowPutArrayStorage:
+    case ArrayWithSlowPutArrayStorage:
+        // §Q/I31: flag-on, AS writes are not "quickly"; callers fall to the
+        // generic path (§4.6 cell-locked, Task 8).
+        return false;
+    default:
+        RELEASE_ASSERT(isCopyOnWrite(indexingMode()));
+        return false;
+    }
+}
+
+void JSObject::setIndexQuicklyConcurrent(VM& vm, unsigned i, JSValue v)
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(!isCopyOnWrite(indexingMode()));
+    uint64_t word = taggedButterflyWord();
+    // §3 F1 (review round 1): same foreign-first-write rule as
+    // trySetIndexQuicklyConcurrent above, covering BOTH the flat dense-write
+    // branches and the AS branch (§4.6: ensureSharedWriteBit runs the AS
+    // per-event stop and republishes (installerTID, 1) FLAT; it must be called
+    // with no lock held - GT11 - hence before the Locker below).
+    if ((word & butterflyPointerMask) && !isSegmentedButterfly(word)
+        && !butterflySharedWrite(word) && butterflyWriterIsForeign(word) // incl. §9.6 forceButterflySWBit
+        && (hasInt32(indexingType()) || hasDouble(indexingType()) || hasContiguous(indexingType())
+            || hasAnyArrayStorage(indexingType()))) [[unlikely]] {
+        ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this));
+        word = taggedButterflyWord(); // Fresh tag (SW=1 flat or segmented now).
+    }
+    switch (indexingType()) {
+    case ALL_INT32_INDEXING_TYPES:
+    case ALL_CONTIGUOUS_INDEXING_TYPES:
+    case ALL_DOUBLE_INDEXING_TYPES: {
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            // Same-shape in-bounds stores succeed via the trySet path.
+            if (trySetIndexQuicklyConcurrent(vm, i, v, nullptr))
+                return;
+            // Shape transition on a segmented object (review round 1): the
+            // relabel runs as a per-event STW (I28/§4.7 - see
+            // relabelIndexingShapeConcurrent), then the store lands via the
+            // fresh dispatch inside the WhilePerformingSetIndex helper.
+            if (hasInt32(indexingType()) && !v.isInt32()) {
+                convertInt32ToDoubleOrContiguousWhilePerformingSetIndex(vm, i, v);
+                return;
+            }
+            if (hasDouble(indexingType()) && (!v.isNumber() || v.asNumber() != v.asNumber())) {
+                convertDoubleToContiguousWhilePerformingSetIndex(vm, i, v);
+                return;
+            }
+            // In-bounds same-shape stores cannot fail: reaching here means the
+            // caller violated setIndexQuickly's bounds contract on a segmented
+            // word.
+            RELEASE_ASSERT_NOT_REACHED();
+            return;
+        }
+        Butterfly* butterfly = untaggedButterfly(word);
+        // Round 4 note (E5 None-first audit): unlike the can*/try* probes,
+        // this word CANNOT be null - setIndexQuickly's contract requires a
+        // same-thread canSetIndexQuickly that dispatched on a non-null word,
+        // butterfly words never return to null, and same-address loads on one
+        // thread respect coherence order. Asserted, not branched.
+        ASSERT(butterfly);
+        if (hasInt32(indexingType())) {
+            ASSERT(i < butterfly->vectorLength());
+            if (!v.isInt32()) {
+                convertInt32ToDoubleOrContiguousWhilePerformingSetIndex(vm, i, v);
+                return;
+            }
+            butterfly->contiguous().at(this, i).setWithoutWriteBarrier(v);
+            updatePublicLengthAfterDenseStoreConcurrent(word, butterfly, i);
+            vm.writeBarrier(this, v);
+            return;
+        }
+        if (hasDouble(indexingType())) {
+            ASSERT(i < butterfly->vectorLength());
+            if (!v.isNumber()) {
+                convertDoubleToContiguousWhilePerformingSetIndex(vm, i, v);
+                return;
+            }
+            double value = v.asNumber();
+            if (value != value) {
+                convertDoubleToContiguousWhilePerformingSetIndex(vm, i, v);
+                return;
+            }
+            butterfly->contiguousDouble().at(this, i) = value;
+            updatePublicLengthAfterDenseStoreConcurrent(word, butterfly, i);
+            return;
+        }
+        ASSERT(i < butterfly->vectorLength());
+        butterfly->contiguous().at(this, i).setWithoutWriteBarrier(v);
+        updatePublicLengthAfterDenseStoreConcurrent(word, butterfly, i);
+        vm.writeBarrier(this, v);
+        return;
+    }
+    case ALL_ARRAY_STORAGE_INDEXING_TYPES: {
+        // I31: flag-on, every runtime AS access is cell-locked.
+        Locker locker { cellLock() };
+        setIndexQuicklyForArrayStorageIndexingType(vm, i, v);
+        return;
+    }
+    case ALL_BLANK_INDEXING_TYPES:
+        setIndexQuicklyForTypedArray(i, v);
+        return;
+    default:
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+}
+
+#endif // USE(JSVALUE64)
 
 template<typename Visitor>
 void JSObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
@@ -594,12 +1129,66 @@ bool JSObject::getOwnPropertySlotByIndex(JSObject* thisObject, JSGlobalObject* g
     
     if (i > MAX_ARRAY_INDEX)
         return thisObject->methodTable()->getOwnPropertySlot(thisObject, globalObject, Identifier::from(vm, i), slot);
-    
+
+#if USE(JSVALUE64)
+    // Review round 2 (blocker fix): flag-on, this generic fallback is reached
+    // for indices the quickly-family declined (segmented out-of-bounds, AS
+    // shapes, ...). The legacy body below derefs the flat-only butterfly()
+    // accessor - on a segmented word that masks the tag and reads garbage
+    // before/inside the spine (wild reads) - and reads ArrayStorage without
+    // the cell lock (I31/L5). Route through the §9.5 dispatch instead.
+    if (Options::useJSThreads()) [[unlikely]] {
+        switch (thisObject->indexingType()) {
+        case ALL_BLANK_INDEXING_TYPES:
+        case ALL_UNDECIDED_INDEXING_TYPES:
+            return false;
+        case ALL_INT32_INDEXING_TYPES:
+        case ALL_CONTIGUOUS_INDEXING_TYPES:
+        case ALL_DOUBLE_INDEXING_TYPES: {
+            // Bounds by min(publicLength, vectorLength) instead of the legacy
+            // raw vectorLength - identical results for dense shapes (slots at
+            // or past publicLength are always holes).
+            JSValue value = thisObject->tryGetIndexQuicklyConcurrent(i, nullptr);
+            if (value) {
+                slot.setValue(thisObject, static_cast<unsigned>(PropertyAttribute::None), value);
+                return true;
+            }
+            return false;
+        }
+        case ALL_ARRAY_STORAGE_INDEXING_TYPES: {
+            // I31/L5: every runtime AS access is cell-locked; re-load the word
+            // under the lock (AS-COPY may republish). AS never segments (I31).
+            Locker locker { thisObject->cellLock() };
+            ArrayStorage* storage = untaggedButterfly(thisObject->taggedButterflyWord())->arrayStorage();
+            if (i >= storage->length())
+                return false;
+            if (i < storage->vectorLength()) {
+                JSValue value = storage->m_vector[i].get();
+                if (value) {
+                    slot.setValue(thisObject, static_cast<unsigned>(PropertyAttribute::None), value);
+                    return true;
+                }
+            } else if (SparseArrayValueMap* map = storage->m_sparseMap.get()) {
+                SparseArrayValueMap::iterator it = map->find(i);
+                if (it != map->notFound()) {
+                    it->value.get(thisObject, slot); // Fills the slot; runs no JS.
+                    return true;
+                }
+            }
+            return false;
+        }
+        default:
+            RELEASE_ASSERT_NOT_REACHED();
+            return false;
+        }
+    }
+#endif
+
     switch (thisObject->indexingType()) {
     case ALL_BLANK_INDEXING_TYPES:
     case ALL_UNDECIDED_INDEXING_TYPES:
         break;
-        
+
     case ALL_INT32_INDEXING_TYPES:
     case ALL_CONTIGUOUS_INDEXING_TYPES: {
         Butterfly* butterfly = thisObject->butterfly();
@@ -835,6 +1424,9 @@ bool JSObject::putInlineSlow(JSGlobalObject* globalObject, PropertyName property
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    if (Options::useJSThreads() && structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, this)) [[unlikely]]
+        return false;
+
     if (!vm.isSafeToRecurseSoft()) [[unlikely]] {
         throwStackOverflowError(globalObject, scope);
         return false;
@@ -1035,10 +1627,114 @@ bool JSObject::putByIndex(JSCell* cell, JSGlobalObject* globalObject, unsigned p
     VM& vm = globalObject->vm();
     JSObject* thisObject = uncheckedDowncast<JSObject>(cell);
 
+    if (Options::useJSThreads() && thisObject->structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, thisObject)) [[unlikely]]
+        return false;
+
     if (propertyName > MAX_ARRAY_INDEX) {
         PutPropertySlot slot(cell, shouldThrow);
         return thisObject->methodTable()->put(thisObject, globalObject, Identifier::from(vm, propertyName), value, slot);
     }
+
+#if USE(JSVALUE64)
+    // Review round 2 (blocker fix): flag-on, the legacy body below derefs the
+    // flat-only butterfly() accessor (garbage on segmented words: vectorLength
+    // read at spine-4, wild store at spine+8*i) and writes ArrayStorage
+    // without the cell lock (I31/L5). Route through the §9.5 dispatch.
+    if (Options::useJSThreads()) [[unlikely]] {
+        auto* object = static_cast<JSObjectWithButterfly*>(thisObject);
+        bool isArrayStorage = false;
+        while (true) {
+            if (isCopyOnWrite(thisObject->indexingMode())) [[unlikely]] {
+                // §4.8 (I35): the owner materializes via today's
+                // convertFromCopyOnWrite; a FOREIGN writer must go through
+                // ensureSharedWriteBit's materialize-first protocol (the plain
+                // converter would trap its owner-only publication assert).
+                if (!butterflyWriterIsForeign(thisObject->taggedButterflyWord()))
+                    thisObject->ensureWritable(vm);
+                else
+                    ensureSharedWriteBit(vm, object);
+                continue;
+            }
+            IndexingType type = thisObject->indexingType();
+            if (hasAnyArrayStorage(type)) {
+                isArrayStorage = true;
+                break;
+            }
+            if (hasUndecided(type)) {
+                thisObject->convertUndecidedForValue(vm, value); // §4.7 relabel: per-event stop flag-on.
+                continue;
+            }
+            if (hasInt32(type) && !value.isInt32()) {
+                thisObject->convertInt32ForValue(vm, value);
+                continue;
+            }
+            if (hasDouble(type) && (!value.isNumber() || value.asNumber() != value.asNumber())) {
+                thisObject->convertDoubleToContiguous(vm);
+                continue;
+            }
+            if (hasInt32(type) || hasDouble(type) || hasContiguous(type)) {
+                if (object->putIndexConcurrent(vm, propertyName, value))
+                    return true;
+                // Sparse/overlong index, OOM, or the world moved: the generic
+                // beyond-vector path (its flag-on legs are routed below /
+                // through the race-safe converters).
+            }
+            // Blank (typed-array-less) or declined dense store: generic path.
+            return thisObject->putByIndexBeyondVectorLength(globalObject, propertyName, value, shouldThrow);
+        }
+        if (isArrayStorage) {
+            // ArrayStorage (I31/L5): the in-bounds fast path runs under the
+            // cell lock, re-reading the word under it (AS-COPY republishes).
+            // SlowPut interception runs JS and therefore NEVER under the lock.
+            bool needsInterception = false;
+            {
+                Locker locker { thisObject->cellLock() };
+                ArrayStorage* storage = untaggedButterfly(thisObject->taggedButterflyWord())->arrayStorage(); // I31: AS never segments.
+                if (propertyName < storage->vectorLength()) {
+                    WriteBarrier<Unknown>& valueSlot = storage->m_vector[propertyName];
+                    if (!shouldUseSlowPut(thisObject->indexingType())) {
+                        if (propertyName >= storage->length()) {
+                            storage->setLength(propertyName + 1);
+                            ++storage->m_numValuesInVector;
+                        } else if (!valueSlot)
+                            ++storage->m_numValuesInVector;
+                        valueSlot.set(vm, thisObject, value);
+                        return true;
+                    }
+                    if (propertyName < storage->length() && valueSlot) {
+                        valueSlot.set(vm, thisObject, value);
+                        return true;
+                    }
+                    needsInterception = true;
+                }
+            }
+            if (needsInterception) {
+                auto scope = DECLARE_THROW_SCOPE(vm);
+                bool putResult = false;
+                bool result = thisObject->attemptToInterceptPutByIndexOnHole(globalObject, propertyName, value, shouldThrow, putResult);
+                RETURN_IF_EXCEPTION(scope, false);
+                if (result)
+                    return putResult;
+                // Not intercepted: complete the store under the lock (the
+                // legacy tail), tolerating a republication in between.
+                Locker locker { thisObject->cellLock() };
+                ArrayStorage* storage = untaggedButterfly(thisObject->taggedButterflyWord())->arrayStorage();
+                if (propertyName < storage->vectorLength()) {
+                    WriteBarrier<Unknown>& valueSlot = storage->m_vector[propertyName];
+                    if (propertyName >= storage->length()) {
+                        storage->setLength(propertyName + 1);
+                        ++storage->m_numValuesInVector;
+                    } else if (!valueSlot)
+                        ++storage->m_numValuesInVector;
+                    valueSlot.set(vm, thisObject, value);
+                    return true;
+                }
+                // The vector was republished smaller: generic path.
+            }
+            return thisObject->putByIndexBeyondVectorLength(globalObject, propertyName, value, shouldThrow);
+        }
+    }
+#endif
 
     thisObject->ensureWritable(vm);
 
@@ -1259,6 +1955,13 @@ Butterfly* JSObject::createInitialIndexedStorage(VM& vm, unsigned length)
 
 Butterfly* JSObject::createInitialUndecided(VM& vm, unsigned length)
 {
+#if USE(JSVALUE64)
+    // Review round 2: flag-on, first indexed installs publish through the
+    // race-safe concurrent route (N3 loser re-dispatch instead of trapping;
+    // F2 fires for shared triggers). nullptr => caller re-dispatches.
+    if (Options::useJSThreads()) [[unlikely]]
+        return createInitialIndexedStorageConcurrent(vm, TransitionKind::AllocateUndecided, length);
+#endif
     DeferGC deferGC(vm);
     Butterfly* newButterfly = createInitialIndexedStorage(vm, length);
     StructureID oldStructureID = this->structureID();
@@ -1274,6 +1977,15 @@ Butterfly* JSObject::createInitialUndecided(VM& vm, unsigned length)
 
 ContiguousJSValues JSObject::createInitialInt32(VM& vm, unsigned length)
 {
+#if USE(JSVALUE64)
+    // Review round 2: see createInitialUndecided. Empty => caller re-dispatches.
+    if (Options::useJSThreads()) [[unlikely]] {
+        Butterfly* newButterfly = createInitialIndexedStorageConcurrent(vm, TransitionKind::AllocateInt32, length);
+        if (!newButterfly)
+            return ContiguousJSValues();
+        return newButterfly->contiguousInt32();
+    }
+#endif
     DeferGC deferGC(vm);
     Butterfly* newButterfly = createInitialIndexedStorage(vm, length);
     for (unsigned i = newButterfly->vectorLength(); i--;)
@@ -1291,6 +2003,15 @@ ContiguousJSValues JSObject::createInitialInt32(VM& vm, unsigned length)
 
 ContiguousDoubles JSObject::createInitialDouble(VM& vm, unsigned length)
 {
+#if USE(JSVALUE64)
+    // Review round 2: see createInitialUndecided. Empty => caller re-dispatches.
+    if (Options::useJSThreads()) [[unlikely]] {
+        Butterfly* newButterfly = createInitialIndexedStorageConcurrent(vm, TransitionKind::AllocateDouble, length);
+        if (!newButterfly)
+            return ContiguousDoubles();
+        return newButterfly->contiguousDouble();
+    }
+#endif
     DeferGC deferGC(vm);
     Butterfly* newButterfly = createInitialIndexedStorage(vm, length);
     for (unsigned i = newButterfly->vectorLength(); i--;)
@@ -1308,6 +2029,15 @@ ContiguousDoubles JSObject::createInitialDouble(VM& vm, unsigned length)
 
 ContiguousJSValues JSObject::createInitialContiguous(VM& vm, unsigned length)
 {
+#if USE(JSVALUE64)
+    // Review round 2: see createInitialUndecided. Empty => caller re-dispatches.
+    if (Options::useJSThreads()) [[unlikely]] {
+        Butterfly* newButterfly = createInitialIndexedStorageConcurrent(vm, TransitionKind::AllocateContiguous, length);
+        if (!newButterfly)
+            return ContiguousJSValues();
+        return newButterfly->contiguous();
+    }
+#endif
     DeferGC deferGC(vm);
     Butterfly* newButterfly = createInitialIndexedStorage(vm, length);
     for (unsigned i = newButterfly->vectorLength(); i--;)
@@ -1322,6 +2052,301 @@ ContiguousJSValues JSObject::createInitialContiguous(VM& vm, unsigned length)
     }
     return newButterfly->contiguous();
 }
+
+#if USE(JSVALUE64)
+// ===== SPEC-objectmodel review round 2 (blocker fix): createInitial* family =====
+//
+// The legacy createInitialUndecided/Int32/Double/Contiguous publish via plain
+// nukeStructureAndSetButterfly + setStructure. Flag-on that is unsound:
+//   (a) two threads racing the FIRST indexed install on a shared butterfly-less
+//       object both reach the N3 leg, and the loser trips
+//       setButterflyConcurrent's RELEASE_ASSERT(!previous) (or
+//       storeTaggedButterflyWordConcurrent's owner assert) - a release crash on
+//       a legal race; the N3 contract is loser RE-DISPATCH;
+//   (b) the plain structureID nuke races the locked protocols
+//       (trySegmentedTransition's nuke-CAS RELEASE_ASSERTs success) and an
+//       owner E4 transition (torn {structure, butterfly} pair, I21);
+//   (c) a FOREIGN first indexed install is a foreign butterfly transition and
+//       must fire F2 under a §10.6 stop (I10/I10b) - the legacy path never
+//       fires;
+//   (d) `this->butterfly()` in createInitialIndexedStorage is flat-only and
+//       garbage-decodes a segmented word.
+//
+// This routine is the flag-on route for all four. Regime dispatch:
+//   - N3 (word == 0): nuke-CAS the structureID (loser re-dispatches), fenced
+//     casButterfly(0 -> (currentTID, 0)), setStructure.
+//   - E4 owner (flat owner tag, SW=0, BOTH source TTL sets valid, no §9.6
+//     stress): fresh flat allocation; poll-free copy window; nuke-CAS;
+//     casButterfly with the EXACT expected word (T1 shape, I27 - a foreign F1
+//     flip cannot complete in the poll-free window while writeThreadLocal is
+//     valid, since the fire needs a stop and we never poll); setStructure.
+//   - shared (foreign tag, SW=1, segmented word, sets fired, or §9.6 stress):
+//     §10.6 per-event stop - re-verify, fire F2 if either TTL set is still
+//     valid, copy out-of-line properties, publish via the fenced nuke order
+//     (world stopped). A segmented source publishes a REPLACEMENT SPINE
+//     (out-of-line fragments aliased verbatim per I6; fresh hole-filled
+//     header + indexed fragments) and stays in regime 2.
+//
+// Returns nullptr when the caller cannot address the storage flatly: either a
+// racing install/transition won (settled indexing type is no longer blank) or
+// the publication ended segmented. Callers re-dispatch through the concurrent
+// accessors / their generic paths; flag-off paths are untouched (I22).
+Butterfly* JSObject::createInitialIndexedStorageConcurrent(VM& vm, TransitionKind transitionKind, unsigned length)
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(length <= MAX_STORAGE_VECTOR_LENGTH);
+    ASSERT(!needsSlowPutIndexing());
+    ASSERT(!indexingShouldBeSparse());
+    auto* object = static_cast<JSObjectWithButterfly*>(this);
+    DeferGC deferGC(vm);
+
+    auto fillFlatLanes = [&](Butterfly* butterfly, IndexingType targetType, unsigned vectorLength) {
+        // Legacy createInitialUndecided leaves lanes uninitialized; here we
+        // always hole-fill - the storage can become reachable by other threads
+        // the instant it is published.
+        if (hasDouble(targetType)) {
+            for (unsigned i = vectorLength; i--;)
+                butterfly->contiguousDouble().at(this, i) = PNaN;
+        } else {
+            for (unsigned i = vectorLength; i--;)
+                butterfly->contiguous().at(this, i).setWithoutWriteBarrier(JSValue());
+        }
+    };
+
+    while (true) {
+        StructureID oldStructureID = structureID(); // RAW bits (M5).
+        if (oldStructureID.isNuked())
+            continue; // A racing publication is mid-flight; re-plan on the settled state.
+        Structure* oldStructure = oldStructureID.decode();
+        if (hasIndexedProperties(oldStructure->indexingType()))
+            return nullptr; // A racing install won; the caller re-dispatches on the settled state.
+
+        Structure* newStructure;
+        {
+            DeferredStructureTransitionWatchpointFire deferred(vm, oldStructure);
+            newStructure = Structure::nonPropertyTransition(vm, oldStructure, transitionKind, &deferred);
+        }
+        IndexingType targetType = newStructure->indexingType();
+        unsigned propertyCapacity = oldStructure->outOfLineCapacity();
+        unsigned propertySize = oldStructure->outOfLineSize();
+        uint64_t word = object->taggedButterflyWord();
+        auto* idAtomic = std::bit_cast<Atomic<uint32_t>*>(std::bit_cast<char*>(this) + JSCell::structureIDOffset());
+
+        // ---- N3: first install on a butterfly-less object.
+        if (!word) {
+            ASSERT(!propertySize);
+            unsigned vectorLength = Butterfly::optimalContiguousVectorLength(propertyCapacity, length);
+            Butterfly* newButterfly = Butterfly::createUninitialized(vm, this, 0, propertyCapacity, true, sizeof(EncodedJSValue) * vectorLength);
+            newButterfly->setPublicLength(length);
+            newButterfly->setVectorLength(vectorLength);
+            fillFlatLanes(newButterfly, targetType, vectorLength);
+            for (unsigned k = 0; k < propertyCapacity; ++k)
+                (newButterfly->propertyStorage() - (k + 1))->clear(); // outOfLineSize == 0; zero the slack so GC never sees garbage.
+            WTF::storeStoreFence(); // Contents before publication.
+            uint32_t previousBits = idAtomic->compareExchangeStrong(oldStructureID.bits(), oldStructureID.nuke().bits());
+            if (previousBits != oldStructureID.bits())
+                continue; // N3 loser (a racing transition nuked/CASed first): re-plan; the allocation is dropped unreferenced.
+            WTF::storeStoreFence();
+            if (!casButterfly(object, 0, encodeButterfly(newButterfly, currentButterflyTID(), false))) {
+                // Defensive: while we hold the nuked structureID lane no
+                // butterfly publication should land; un-nuke and re-plan.
+                idAtomic->store(oldStructureID.bits(), std::memory_order_seq_cst);
+                continue;
+            }
+            WTF::storeStoreFence();
+            setStructure(vm, newStructure);
+            vm.writeBarrier(this);
+            applyForceSegmentedButterfliesStressIfNeeded(vm, object); // §9.6 N3 coverage.
+            if (isSegmentedButterfly(object->taggedButterflyWord())) [[unlikely]]
+                return nullptr; // Stress converted: not flat-addressable.
+            return newButterfly;
+        }
+
+        bool wordSegmented = isSegmentedButterfly(word);
+
+        // ---- E4 owner fast path: flat owner tag, SW=0, both source TTL sets
+        // valid. While writeThreadLocal is valid no foreign write/transition
+        // exists, and any F1/F2 fire needs a §10.6 stop, which cannot land
+        // inside the poll-free window below.
+        if (!wordSegmented && !butterflySharedWrite(word) && !butterflyWriterIsForeign(word)
+            && oldStructure->transitionThreadLocalIsStillValid() && oldStructure->writeThreadLocalIsStillValid()
+            && !forceSegmentedButterfliesEnabled()) {
+            Butterfly* oldButterfly = untaggedButterfly(word);
+            unsigned vectorLength = Butterfly::optimalContiguousVectorLength(propertyCapacity, length);
+            Butterfly* newButterfly = Butterfly::createUninitialized(vm, this, 0, propertyCapacity, true, sizeof(EncodedJSValue) * vectorLength);
+            newButterfly->setPublicLength(length);
+            newButterfly->setVectorLength(vectorLength);
+            fillFlatLanes(newButterfly, targetType, vectorLength);
+            {
+                AssertNoGC assertNoGC; // Straight-line copy -> publish window (I34-style; no polls).
+                for (unsigned k = 0; k < propertyCapacity; ++k) {
+                    if (k < propertySize)
+                        (newButterfly->propertyStorage() - (k + 1))->setWithoutWriteBarrier((oldButterfly->propertyStorage() - (k + 1))->get());
+                    else
+                        (newButterfly->propertyStorage() - (k + 1))->clear();
+                }
+                WTF::storeStoreFence(); // Contents before publication.
+                uint32_t previousBits = idAtomic->compareExchangeStrong(oldStructureID.bits(), oldStructureID.nuke().bits());
+                if (previousBits != oldStructureID.bits())
+                    continue; // Defensive (single owner): re-plan on the settled state.
+                WTF::storeStoreFence();
+                if (!casButterfly(object, word, encodeButterfly(newButterfly, currentButterflyTID(), false))) {
+                    // The word moved (cannot happen while the sets are valid in
+                    // this poll-free window; defensive): un-nuke, NEVER merge
+                    // the copied payload (I21/I27) - re-plan from scratch.
+                    idAtomic->store(oldStructureID.bits(), std::memory_order_seq_cst);
+                    continue;
+                }
+                WTF::storeStoreFence();
+                setStructure(vm, newStructure);
+            }
+            vm.writeBarrier(this);
+            return newButterfly;
+        }
+
+        // ---- Shared trigger (foreign / SW=1 / segmented / sets fired / §9.6
+        // stress): plan + allocate OUTSIDE the §10.6 stop (O4), publish inside.
+        Butterfly* newButterfly = nullptr;
+        ButterflySpine* newSpine = nullptr;
+        unsigned flatVectorLength = 0;
+        if (!wordSegmented) {
+            flatVectorLength = Butterfly::optimalContiguousVectorLength(propertyCapacity, length);
+            newButterfly = Butterfly::createUninitialized(vm, this, 0, propertyCapacity, true, sizeof(EncodedJSValue) * flatVectorLength);
+            newButterfly->setPublicLength(length);
+            newButterfly->setVectorLength(flatVectorLength);
+            fillFlatLanes(newButterfly, targetType, flatVectorLength);
+            // Out-of-line properties are copied INSIDE the stop (they may be
+            // racing-written until the world stops).
+        } else {
+            // Segmented source: replacement spine. The source must be
+            // header-less (C2: blank indexing type => no indexed fragments).
+            ButterflySpine* oldSpine = butterflySpine(word);
+            RELEASE_ASSERT(!oldSpine->indexedFragmentCount && !oldSpine->vectorLength); // C2
+            uint32_t outOfLineFragments = oldSpine->outOfLineFragmentCount;
+            uint32_t neededIndexedFragments = std::max<uint32_t>(1, static_cast<uint32_t>((static_cast<uint64_t>(length) + 1 + (butterflyFragmentSlots - 1)) / butterflyFragmentSlots));
+            uint32_t coveredVectorLength = neededIndexedFragments * butterflyFragmentSlots - 1;
+            uint32_t publishedVectorLength = std::min<uint32_t>(coveredVectorLength, MAX_STORAGE_VECTOR_LENGTH);
+            ASSERT(publishedVectorLength >= length);
+            newSpine = static_cast<ButterflySpine*>(vm.auxiliarySpace().allocate(
+                vm, ButterflySpine::allocationSize(outOfLineFragments + neededIndexedFragments), nullptr, AllocationFailureMode::Assert));
+            newSpine->outOfLineFragmentCount = outOfLineFragments;
+            newSpine->indexedFragmentCount = neededIndexedFragments;
+            newSpine->vectorLength = publishedVectorLength;
+            newSpine->spineEpoch = oldSpine->spineEpoch + 1;
+            newSpine->aliasedAllocationBase = oldSpine->aliasedAllocationBase; // VERBATIM (I7)
+            newSpine->aliasedAllocationSize = oldSpine->aliasedAllocationSize;
+            for (uint32_t j = 0; j < outOfLineFragments; ++j)
+                newSpine->fragments()[j] = oldSpine->fragments()[j]; // Shared fragments aliased verbatim (I6).
+            bool fillDouble = hasDouble(targetType);
+            for (uint32_t f = 0; f < neededIndexedFragments; ++f) {
+                auto* fragment = static_cast<ButterflyFragment*>(
+                    vm.auxiliarySpace().allocate(vm, sizeof(ButterflyFragment), nullptr, AllocationFailureMode::Assert));
+                for (size_t slotIndex = 0; slotIndex < butterflyFragmentSlots; ++slotIndex) {
+                    if (fillDouble)
+                        *std::bit_cast<double*>(&fragment->slots[slotIndex]) = PNaN; // §4.7 raw hole.
+                    else
+                        fragment->slots[slotIndex].clear();
+                }
+                newSpine->fragments()[outOfLineFragments + f] = fragment;
+            }
+            // Header slot (indexed fragment 0 slot 0): live publicLength in the
+            // low half; the high half (frozen flat-era vectorLength, I9b) is 0 -
+            // this storage never had a flat era.
+            *std::bit_cast<uint64_t*>(&newSpine->indexedFragment(0)->slots[0]) = static_cast<uint64_t>(length);
+            newSpine->validateConsistency();
+        }
+
+        bool published = false;
+        jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+            // ---- Re-verify inside the stop; allocate nothing (O4).
+            if (this->structureID() != oldStructureID)
+                return; // RESTART: a racing transition won before the stop landed.
+            if (object->taggedButterflyWord() != word)
+                return; // RESTART: the word moved (SW flip / replacement spine).
+
+            // ---- F2 (I10/I10b/I13): a shared indexed first install fires BOTH
+            // sets on source and target in this same stop (chain-fired per F4).
+            if (oldStructure->transitionThreadLocalIsStillValid() || oldStructure->writeThreadLocalIsStillValid())
+                oldStructure->fireTransitionThreadLocal(vm, "F2: shared first indexed-storage install (review round 2)");
+            if (newStructure != oldStructure
+                && (newStructure->transitionThreadLocalIsStillValid() || newStructure->writeThreadLocalIsStillValid()))
+                newStructure->fireTransitionThreadLocal(vm, "F2: shared first indexed-storage install (review round 2 target)");
+
+            uint64_t newWord;
+            if (!wordSegmented) {
+                // Copy out-of-line properties now that nothing races.
+                Butterfly* oldButterfly = untaggedButterfly(word);
+                for (unsigned k = 0; k < propertyCapacity; ++k) {
+                    if (k < propertySize)
+                        (newButterfly->propertyStorage() - (k + 1))->setWithoutWriteBarrier((oldButterfly->propertyStorage() - (k + 1))->get());
+                    else
+                        (newButterfly->propertyStorage() - (k + 1))->clear();
+                }
+                // §4.6-style shared materialization: FLAT, tagged
+                // (currentButterflyTID(), SW), SW = shared trigger or the
+                // source's own SW bit.
+                bool sharedWriteBit = butterflySharedWrite(word) || butterflyWriterIsForeign(word);
+                newWord = encodeButterfly(newButterfly, currentButterflyTID(), sharedWriteBit);
+            } else
+                newWord = encodeSegmentedButterfly(newSpine); // (notTTLTID, 1) - I3; out-of-line fragments aliased, nothing to copy.
+
+            // ---- Publish (M8 fenced nuke order; world stopped - legal on PA
+            // cells too, I36).
+            setStructureIDDirectly(oldStructureID.nuke());
+            WTF::storeStoreFence();
+            std::bit_cast<Atomic<uint64_t>*>(object->butterflyAddress())->store(newWord, std::memory_order_seq_cst);
+            WTF::storeStoreFence();
+            setStructure(vm, newStructure);
+            published = true;
+        }));
+
+        if (!published)
+            continue; // RESTART: re-plan from the fresh settled state; the step-1 allocations drop unreferenced.
+
+        vm.writeBarrier(this); // Publication barrier (I25); superseded storage is never written again.
+        if (wordSegmented)
+            return nullptr; // Published, but not flat-addressable.
+        applyForceSegmentedButterfliesStressIfNeeded(vm, object); // §9.6 coverage for the flat publication.
+        if (isSegmentedButterfly(object->taggedButterflyWord())) [[unlikely]]
+            return nullptr;
+        return newButterfly;
+    }
+}
+
+// Review round 2 companion for the two createInitialForValueAndSet call sites
+// (putByIndexBeyondVectorLength / putDirectIndexSlowOrBeyondVectorLength blank
+// legs). Returns false when the value was NOT stored and the caller must
+// re-dispatch its full put path (N3 loser, or a racing shape change beat the
+// post-publication store).
+bool JSObject::tryCreateInitialForValueAndSetConcurrent(VM& vm, unsigned index, JSValue value)
+{
+    ASSERT(Options::useJSThreads());
+    TransitionKind transitionKind;
+    if (value.isInt32())
+        transitionKind = TransitionKind::AllocateInt32;
+    else if (value.isDouble() && Options::allowDoubleShape() && value.asNumber() == value.asNumber())
+        transitionKind = TransitionKind::AllocateDouble;
+    else
+        transitionKind = TransitionKind::AllocateContiguous;
+
+    Butterfly* butterfly = createInitialIndexedStorageConcurrent(vm, transitionKind, index + 1);
+    if (!butterfly) {
+        // Racer won, or our publication is segmented: store through the
+        // concurrent accessor; on failure the caller re-dispatches.
+        return trySetIndexQuicklyConcurrent(vm, index, value, nullptr);
+    }
+    // Flat publication; the lanes were hole-filled and publicLength == index+1.
+    // The store itself may race other threads' stores - plain SAB-granularity
+    // element stores are legal on a published word.
+    if (transitionKind == TransitionKind::AllocateDouble)
+        butterfly->contiguousDouble().at(this, index) = value.asNumber();
+    else {
+        butterfly->contiguous().at(this, index).setWithoutWriteBarrier(value);
+        vm.writeBarrier(this, value);
+    }
+    return true;
+}
+#endif // USE(JSVALUE64)
 
 static Butterfly* createArrayStorageButterflyImpl(VM& vm, JSObject* intendedOwner, Structure* structure, unsigned length, unsigned vectorLength, Butterfly* oldButterfly, AllocationFailureMode mode)
 {
@@ -1358,6 +2383,21 @@ Butterfly* JSObject::tryCreateArrayStorageButterfly(VM& vm, JSObject* intendedOw
 
 ArrayStorage* JSObject::createArrayStorage(VM& vm, unsigned length, unsigned vectorLength)
 {
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §4.6/I31/I10b (review round 3, blocker fix): flag-on,
+    // the first transition INTO ArrayStorage on a blank-indexing object is a
+    // shared-capable transition like the convert*ToArrayStorage family and
+    // must NOT publish via the plain nuke + storeTaggedButterflyWordConcurrent
+    // below: a foreign trigger on a butterfly-bearing object would trip the
+    // owner-tag RELEASE_ASSERT (release crash on a legal racy program), a
+    // butterfly-less shared trigger would publish without the per-event stop
+    // or F2 fire (racing E4 transitions => torn {structure, butterfly} pair,
+    // I21), and the plain nuke store collides with the locked protocols'
+    // nuke-CASes (which RELEASE_ASSERT success). Route through the per-event
+    // stop publication, exactly like convertToArrayStorageConcurrent.
+    if (Options::useJSThreads()) [[unlikely]]
+        return createArrayStorageConcurrent(vm, length, vectorLength);
+#endif
     DeferGC deferGC(vm);
     StructureID oldStructureID = this->structureID();
     Structure* oldStructure = oldStructureID.decode();
@@ -1375,6 +2415,123 @@ ArrayStorage* JSObject::createArrayStorage(VM& vm, unsigned length, unsigned vec
     return result;
 }
 
+#if USE(JSVALUE64)
+// SPEC-objectmodel §4.6/I31 (review round 3): flag-on route for the
+// blank-indexing transition INTO ArrayStorage. Mirrors
+// convertToArrayStorageConcurrent: plan + allocate the fresh flat AS butterfly
+// OUTSIDE a §10.6 per-event stop (O4 - the closure allocates nothing),
+// re-verify + copy out-of-line properties + publish INSIDE it via the M8
+// fenced nuke order (world stopped; PA-legal, I36). Shared triggers (foreign
+// tag, SW=1, segmented word, or a butterfly-less instance whose N1 transition
+// TID is foreign) fire BOTH TTL sets (F2/I10b/I13, chain-fired per F4) and
+// publish FLAT (currentButterflyTID(), 1); owner triggers preserve the SW bit
+// and do not fire (§5 per-object keying). Loser re-dispatch (re-plan), never a
+// plain nuke + store. If a racer installed indexed storage first, defer to
+// ensureArrayStorageSlow on the settled state (indexing types only move
+// toward AS, so the recursion terminates).
+ArrayStorage* JSObject::createArrayStorageConcurrent(VM& vm, unsigned length, unsigned vectorLength)
+{
+    ASSERT(Options::useJSThreads());
+    auto* object = static_cast<JSObjectWithButterfly*>(this);
+    DeferGC deferGC(vm);
+
+    while (true) {
+        StructureID oldStructureID = this->structureID(); // RAW bits (M5).
+        if (oldStructureID.isNuked())
+            continue; // A racing publication is mid-flight; re-plan on the settled state.
+        Structure* oldStructure = oldStructureID.decode();
+        if (hasIndexedProperties(oldStructure->indexingType())) {
+            // A racing install won. AS-flavor racers leave the storage this
+            // function promises; dense racers continue converting via the
+            // generic slow path.
+            return ensureArrayStorageSlow(vm);
+        }
+
+        Structure* newStructure;
+        {
+            DeferredStructureTransitionWatchpointFire deferred(vm, oldStructure);
+            newStructure = Structure::nonPropertyTransition(vm, oldStructure, suggestedArrayStorageTransition(), &deferred);
+        }
+        unsigned propertyCapacity = oldStructure->outOfLineCapacity();
+        unsigned propertySize = oldStructure->outOfLineSize();
+
+        // Fresh flat AS butterfly, fully initialized while private (header,
+        // hole-cleared vector); out-of-line properties are copied INSIDE the
+        // stop (they may be racing-written until the world stops).
+        Butterfly* newButterfly = Butterfly::createUninitialized(vm, this, 0, propertyCapacity, true, ArrayStorage::sizeFor(vectorLength));
+        ArrayStorage* newStorage = newButterfly->arrayStorage();
+        newStorage->setLength(length);
+        newStorage->setVectorLength(vectorLength);
+        newStorage->m_sparseMap.clear();
+        newStorage->m_numValuesInVector = 0;
+        newStorage->m_indexBias = 0;
+        for (size_t i = vectorLength; i--;)
+            newStorage->m_vector[i].setWithoutWriteBarrier(JSValue());
+
+        bool published = false;
+        jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+            // ---- Re-verify inside the stop; allocate nothing (O4).
+            if (this->structureID() != oldStructureID)
+                return; // RESTART: a racing transition won before the stop landed.
+            uint64_t word = object->taggedButterflyWord();
+            bool segmented = isSegmentedButterfly(word);
+            ButterflySpine* spine = segmented ? butterflySpine(word) : nullptr;
+            Butterfly* flat = (!segmented && (word & butterflyPointerMask)) ? untaggedButterfly(word) : nullptr;
+            RELEASE_ASSERT(flat || spine || !propertySize); // Out-of-line properties require storage.
+
+            // Shared-trigger taxonomy (§5 F2 per-object keying): segmented and
+            // SW=1/foreign-tagged words; butterfly-less instances key on the
+            // structure's N1 transition TID.
+            bool shared;
+            if (!(word & butterflyPointerMask))
+                shared = currentButterflyTID() != oldStructure->transitionThreadLocalTID();
+            else
+                shared = segmented || butterflySharedWrite(word) || butterflyTID(word) != currentButterflyTID();
+
+            if (shared) {
+                if (oldStructure->transitionThreadLocalIsStillValid() || oldStructure->writeThreadLocalIsStillValid())
+                    oldStructure->fireTransitionThreadLocal(vm, "F2: shared blank-indexing transition into ArrayStorage (§4.6, review round 3)");
+                if (newStructure != oldStructure
+                    && (newStructure->transitionThreadLocalIsStillValid() || newStructure->writeThreadLocalIsStillValid()))
+                    newStructure->fireTransitionThreadLocal(vm, "F2: shared blank-indexing transition into ArrayStorage (§4.6 target, review round 3)");
+            }
+
+            // ---- Copy out-of-line properties (segmented sources keep them in
+            // fragments; the published AS butterfly is FLAT).
+            for (unsigned k = 0; k < propertySize; ++k) {
+                JSValue v = segmented
+                    ? spine->outOfLineSlot(k)->get()
+                    : flat->propertyStorage()[-static_cast<ptrdiff_t>(k) - 1].get();
+                (newButterfly->propertyStorage() - (k + 1))->setWithoutWriteBarrier(v);
+            }
+            for (unsigned k = propertySize; k < propertyCapacity; ++k)
+                (newButterfly->propertyStorage() - (k + 1))->clear();
+
+            // ---- Publish (M8 fenced nuke order; world stopped - PA-legal,
+            // I36). Shared triggers materialize FLAT (currentButterflyTID(),
+            // 1) per §4.6; owner triggers preserve the source's SW bit.
+            bool sharedWriteBit = shared || ((word & butterflyPointerMask) && butterflySharedWrite(word));
+            setStructureIDDirectly(oldStructureID.nuke());
+            WTF::storeStoreFence();
+            std::bit_cast<Atomic<uint64_t>*>(object->butterflyAddress())->store(
+                encodeButterfly(newButterfly, currentButterflyTID(), sharedWriteBit), std::memory_order_seq_cst);
+            WTF::storeStoreFence();
+            setStructure(vm, newStructure);
+            published = true;
+        }));
+
+        if (published) {
+            // Publication barrier, like setButterfly (I25); superseded storage
+            // (flat butterfly or spine + fragments) is never written again -
+            // stale readers see a frozen snapshot (I7).
+            vm.writeBarrier(this);
+            return newStorage;
+        }
+        // RESTART: the step-1 allocations drop unreferenced; re-plan.
+    }
+}
+#endif // USE(JSVALUE64)
+
 ArrayStorage* JSObject::createInitialArrayStorage(VM& vm)
 {
     return createArrayStorage(
@@ -1385,6 +2542,16 @@ ContiguousJSValues JSObject::convertUndecidedToInt32(VM& vm)
 {
     ASSERT(hasUndecided(indexingType()));
 
+#if USE(JSVALUE64)
+    // §4.7/I28 (review round 1): flag-on, in-place relabels run per-event STW.
+    if (Options::useJSThreads()) [[unlikely]] {
+        relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateInt32);
+        uint64_t word = taggedButterflyWord();
+        if (isSegmentedButterfly(word))
+            return ContiguousJSValues(); // Segmented lanes are reached through the spine (§9.5); flat-only callers bail to generic paths.
+        return untaggedButterfly(word)->contiguousInt32();
+    }
+#endif
     Butterfly* butterfly = this->butterfly();
     for (unsigned i = butterfly->vectorLength(); i--;)
         butterfly->contiguous().at(this, i).setWithoutWriteBarrier(JSValue());
@@ -1402,6 +2569,16 @@ ContiguousDoubles JSObject::convertUndecidedToDouble(VM& vm)
     ASSERT(Options::allowDoubleShape());
     ASSERT(hasUndecided(indexingType()));
 
+#if USE(JSVALUE64)
+    // §4.7/I28 (review round 1): flag-on, in-place relabels run per-event STW.
+    if (Options::useJSThreads()) [[unlikely]] {
+        relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateDouble);
+        uint64_t word = taggedButterflyWord();
+        if (isSegmentedButterfly(word))
+            return ContiguousDoubles(); // See convertUndecidedToInt32.
+        return untaggedButterfly(word)->contiguousDouble();
+    }
+#endif
     auto* butterfly = this->butterfly();
     for (unsigned i = butterfly->vectorLength(); i--;)
         butterfly->contiguousDouble().at(this, i) = PNaN;
@@ -1418,6 +2595,16 @@ ContiguousJSValues JSObject::convertUndecidedToContiguous(VM& vm)
 {
     ASSERT(hasUndecided(indexingType()));
 
+#if USE(JSVALUE64)
+    // §4.7/I28 (review round 1): flag-on, in-place relabels run per-event STW.
+    if (Options::useJSThreads()) [[unlikely]] {
+        relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateContiguous);
+        uint64_t word = taggedButterflyWord();
+        if (isSegmentedButterfly(word))
+            return ContiguousJSValues(); // See convertUndecidedToInt32.
+        return untaggedButterfly(word)->contiguous();
+    }
+#endif
     auto* butterfly = this->butterfly();
     for (unsigned i = butterfly->vectorLength(); i--;)
         butterfly->contiguous().at(this, i).setWithoutWriteBarrier(JSValue());
@@ -1457,6 +2644,12 @@ ArrayStorage* JSObject::constructConvertedArrayStorageWithoutCopyingElements(VM&
 
 ArrayStorage* JSObject::convertUndecidedToArrayStorage(VM& vm, TransitionKind transition)
 {
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §4.6 stops (Task 8, I31/I10): flag-on, transitions INTO
+    // ArrayStorage copy + publish under a per-event §10.6 stop.
+    if (Options::useJSThreads()) [[unlikely]]
+        return convertToArrayStorageConcurrent(vm, transition);
+#endif
     DeferGC deferGC(vm);
     ASSERT(hasUndecided(indexingType()));
 
@@ -1487,6 +2680,16 @@ ContiguousDoubles JSObject::convertInt32ToDouble(VM& vm)
     ASSERT(hasInt32(indexingType()));
     ASSERT(!isCopyOnWrite(indexingMode()));
 
+#if USE(JSVALUE64)
+    // §4.7/I28 (review round 1): flag-on, in-place relabels run per-event STW.
+    if (Options::useJSThreads()) [[unlikely]] {
+        relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateDouble);
+        uint64_t word = taggedButterflyWord();
+        if (isSegmentedButterfly(word))
+            return ContiguousDoubles(); // See convertUndecidedToInt32.
+        return untaggedButterfly(word)->contiguousDouble();
+    }
+#endif
     auto* butterfly = this->butterfly();
     for (unsigned i = butterfly->vectorLength(); i--;) {
         WriteBarrier<Unknown>* current = &butterfly->contiguous().atUnsafe(i);
@@ -1512,7 +2715,19 @@ ContiguousDoubles JSObject::convertInt32ToDouble(VM& vm)
 ContiguousJSValues JSObject::convertInt32ToContiguous(VM& vm)
 {
     ASSERT(hasInt32(indexingType()));
-    
+
+#if USE(JSVALUE64)
+    // §4.7/I28 (review round 1): no lane rewrite (boxed Int32 lanes are valid
+    // Contiguous lanes), but the structure publication on a possibly shared
+    // object still goes through the per-event stop + F2 driver.
+    if (Options::useJSThreads()) [[unlikely]] {
+        relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateContiguous);
+        uint64_t word = taggedButterflyWord();
+        if (isSegmentedButterfly(word))
+            return ContiguousJSValues(); // See convertUndecidedToInt32.
+        return untaggedButterfly(word)->contiguous();
+    }
+#endif
     {
         Structure* oldStructure = structure();
         DeferredStructureTransitionWatchpointFire deferred(vm, oldStructure);
@@ -1523,6 +2738,10 @@ ContiguousJSValues JSObject::convertInt32ToContiguous(VM& vm)
 
 ArrayStorage* JSObject::convertInt32ToArrayStorage(VM& vm, TransitionKind transition)
 {
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] // §4.6 stops (Task 8)
+        return convertToArrayStorageConcurrent(vm, transition);
+#endif
     DeferGC deferGC(vm);
     ASSERT(hasInt32(indexingType()));
 
@@ -1557,6 +2776,16 @@ ContiguousJSValues JSObject::convertDoubleToContiguous(VM& vm)
     ASSERT(hasDouble(indexingType()));
     ASSERT(!isCopyOnWrite(indexingMode()));
 
+#if USE(JSVALUE64)
+    // §4.7/I28 (review round 1): flag-on, in-place relabels run per-event STW.
+    if (Options::useJSThreads()) [[unlikely]] {
+        relabelIndexingShapeConcurrent(vm, TransitionKind::AllocateContiguous);
+        uint64_t word = taggedButterflyWord();
+        if (isSegmentedButterfly(word))
+            return ContiguousJSValues(); // See convertUndecidedToInt32.
+        return untaggedButterfly(word)->contiguous();
+    }
+#endif
     auto* butterfly = this->butterfly();
     for (unsigned i = butterfly->vectorLength(); i--;) {
         double* current = &butterfly->contiguousDouble().atUnsafe(i);
@@ -1581,6 +2810,10 @@ ContiguousJSValues JSObject::convertDoubleToContiguous(VM& vm)
 
 ArrayStorage* JSObject::convertDoubleToArrayStorage(VM& vm, TransitionKind transition)
 {
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] // §4.6 stops (Task 8)
+        return convertToArrayStorageConcurrent(vm, transition);
+#endif
     DeferGC deferGC(vm);
     ASSERT(hasDouble(indexingType()));
 
@@ -1615,6 +2848,10 @@ ArrayStorage* JSObject::convertDoubleToArrayStorage(VM& vm)
 
 ArrayStorage* JSObject::convertContiguousToArrayStorage(VM& vm, TransitionKind transition)
 {
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] // §4.6 stops (Task 8)
+        return convertToArrayStorageConcurrent(vm, transition);
+#endif
     DeferGC deferGC(vm);
     ASSERT(hasContiguous(indexingType()));
 
@@ -1698,6 +2935,250 @@ ArrayStorage* JSObject::convertContiguousToArrayStorage(VM& vm)
 {
     return convertContiguousToArrayStorage(vm, suggestedArrayStorageTransition());
 }
+
+#if USE(JSVALUE64)
+// SPEC-objectmodel §4.6 "stops" (Task 8; I31/I10): flag-on, EVERY transition
+// INTO ArrayStorage plans and allocates OUTSIDE a §10.6 per-event stop (O4:
+// the closure allocates nothing) and copies + publishes INSIDE it. When the
+// trigger is shared (foreign tag, SW=1, or segmented - the §4.6 "shared
+// transitions INTO AS" case) both TTL sets fire in the same stop (F2/I10b/I13)
+// and the publication is a FLAT butterfly tagged (currentButterflyTID(), 1)
+// (AS never segments - I31). Owner non-shared triggers publish (currentTID,
+// SW-preserved) without firing (F2 does not fire for the tag owner).
+//
+// Publication uses the M8 fenced nuke order - nuke, fence, 64-bit butterfly
+// word store, fence, new structure - which is legal on PreciseAllocation
+// cells too (I36) and race-free here because the world is stopped (concurrent
+// markers tolerate it via the standard nuke/didRace protocol, exactly like
+// today's nukeStructureAndSetButterfly).
+ArrayStorage* JSObject::convertToArrayStorageConcurrent(VM& vm, TransitionKind transition)
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(!isCopyOnWrite(indexingMode())); // Callers materialize first (ensureWritable / §4.8).
+    auto* object = static_cast<JSObjectWithButterfly*>(this);
+    DeferGC deferGC(vm);
+
+    while (true) {
+        StructureID oldStructureID = this->structureID(); // RAW bits (M5).
+        if (oldStructureID.isNuked())
+            continue; // A racing publication is mid-flight; re-plan on the settled state.
+        Structure* oldStructure = oldStructureID.decode();
+        IndexingType sourceType = oldStructure->indexingType();
+        ASSERT(hasUndecided(sourceType) || hasInt32(sourceType) || hasDouble(sourceType) || hasContiguous(sourceType));
+
+        // ---- Plan + allocate outside the stop (O4). The vector length is
+        // re-validated inside; growth in between => refit (re-plan).
+        uint64_t planningWord = object->taggedButterflyWord();
+        RELEASE_ASSERT(planningWord & butterflyPointerMask); // Converters' precondition: indexed storage exists.
+        unsigned planningVectorLength = isSegmentedButterfly(planningWord)
+            ? butterflySpine(planningWord)->vectorLength
+            : untaggedButterfly(planningWord)->vectorLength();
+
+        Structure* newStructure;
+        {
+            DeferredStructureTransitionWatchpointFire deferred(vm, oldStructure);
+            newStructure = Structure::nonPropertyTransition(vm, oldStructure, transition, &deferred);
+        }
+        unsigned propertyCapacity = oldStructure->outOfLineCapacity();
+        unsigned propertySize = oldStructure->outOfLineSize();
+        Butterfly* newButterfly = Butterfly::createUninitialized(vm, this, 0, propertyCapacity, true, ArrayStorage::sizeFor(planningVectorLength));
+        ArrayStorage* newStorage = newButterfly->arrayStorage();
+
+        bool published = false;
+        jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+            // ---- Re-verify inside the stop; allocate nothing (O4).
+            if (this->structureID() != oldStructureID)
+                return; // RESTART: a racing transition won before the stop landed.
+            uint64_t word = object->taggedButterflyWord();
+            RELEASE_ASSERT(word & butterflyPointerMask);
+            bool segmented = isSegmentedButterfly(word);
+            ButterflySpine* spine = segmented ? butterflySpine(word) : nullptr;
+            Butterfly* flat = segmented ? nullptr : untaggedButterfly(word);
+            unsigned vectorLength = segmented ? spine->vectorLength : flat->vectorLength();
+            if (vectorLength > planningVectorLength)
+                return; // Refit: the step-1 allocation no longer fits; re-plan outside.
+            unsigned publicLength = segmented ? segmentedPublicLength(spine) : flat->publicLength();
+            bool shared = segmented || butterflySharedWrite(word) || butterflyTID(word) != currentButterflyTID();
+
+            // ---- F2 (I10b/I13): shared triggers fire BOTH sets on source and
+            // target in this same stop (fireTransitionThreadLocal also fires
+            // writeThreadLocal and chain-fires per F4). The tag owner does not
+            // fire (§5 F2 per-object keying).
+            if (shared) {
+                if (oldStructure->transitionThreadLocalIsStillValid() || oldStructure->writeThreadLocalIsStillValid())
+                    oldStructure->fireTransitionThreadLocal(vm, "F2: shared transition into ArrayStorage (§4.6)");
+                if (newStructure != oldStructure
+                    && (newStructure->transitionThreadLocalIsStillValid() || newStructure->writeThreadLocalIsStillValid()))
+                    newStructure->fireTransitionThreadLocal(vm, "F2: shared transition into ArrayStorage (§4.6 target)");
+            }
+
+            // ---- Copy out-of-line properties (segmented sources keep them in
+            // fragments; the published AS butterfly is FLAT, so they move back
+            // into descending flat slots).
+            for (unsigned k = 0; k < propertySize; ++k) {
+                JSValue v = segmented
+                    ? spine->outOfLineSlot(k)->get()
+                    : flat->propertyStorage()[-static_cast<ptrdiff_t>(k) - 1].get();
+                (newButterfly->propertyStorage() - (k + 1))->setWithoutWriteBarrier(v);
+            }
+            for (unsigned k = propertySize; k < propertyCapacity; ++k)
+                (newButterfly->propertyStorage() - (k + 1))->clear();
+
+            // ---- ArrayStorage header + elements (shape-keyed; Double slots
+            // are raw 8B lanes, §4.7 - boxed here exactly like today's
+            // convertDoubleToArrayStorage).
+            newStorage->setVectorLength(vectorLength);
+            newStorage->setLength(publicLength);
+            newStorage->m_sparseMap.clear();
+            newStorage->m_indexBias = 0;
+            unsigned numValues = 0;
+            for (unsigned i = 0; i < vectorLength; ++i) {
+                JSValue v;
+                if (hasUndecided(sourceType))
+                    v = JSValue();
+                else if (hasDouble(sourceType)) {
+                    double d = segmented ? *std::bit_cast<const double*>(spine->indexedSlot(i)) : flat->contiguousDouble().atUnsafe(i);
+                    v = d == d ? JSValue(JSValue::EncodeAsDouble, d) : JSValue();
+                } else
+                    v = segmented ? spine->indexedSlot(i)->get() : flat->contiguous().atUnsafe(i).get();
+                if (v) {
+                    newStorage->m_vector[i].setWithoutWriteBarrier(v);
+                    ++numValues;
+                } else
+                    newStorage->m_vector[i].clear();
+            }
+            newStorage->m_numValuesInVector = numValues;
+
+            // ---- Publish (M8 fenced nuke order; world stopped). Shared
+            // triggers materialize FLAT (currentButterflyTID(), 1) per §4.6;
+            // owner triggers preserve the SW bit.
+            bool sharedWriteBit = shared || butterflySharedWrite(word);
+            setStructureIDDirectly(oldStructureID.nuke());
+            WTF::storeStoreFence();
+            std::bit_cast<Atomic<uint64_t>*>(object->butterflyAddress())->store(
+                encodeButterfly(newButterfly, currentButterflyTID(), sharedWriteBit), std::memory_order_seq_cst);
+            WTF::storeStoreFence();
+            setStructure(vm, newStructure);
+            published = true;
+        }));
+
+        if (published) {
+            // Publication barrier, like setButterfly (I25); the superseded
+            // storage (flat butterfly or spine + fragments) is never written
+            // again - stale readers see a frozen snapshot (I7).
+            vm.writeBarrier(this);
+            return newStorage;
+        }
+        // Refit or RESTART: the step-1 allocations are discarded unreferenced
+        // (GC reclaims them); re-plan from the fresh settled state.
+    }
+}
+
+// SPEC-objectmodel §4.7/I28 (review round 1): flag-on driver for the in-place
+// indexing-shape relabels. The legacy bodies rewrite every element lane of the
+// CURRENT storage in place (boxed JSValue <-> raw double) and then
+// setStructure - a lock-free reader walking the same storage mid-rewrite would
+// reinterpret a half-rewritten lane (type-confused pointer deref). Flag-on the
+// relabel therefore runs as a per-event §10.6 stop, mirroring
+// convertToArrayStorageConcurrent: plan + allocate (the target Structure)
+// OUTSIDE the stop (O4: the closure allocates nothing), re-verify + rewrite +
+// setStructure INSIDE it. Shared triggers (foreign tag, SW=1, segmented - the
+// I28 "Double-touching shape change on a shared object" case) fire BOTH TTL
+// sets (F2/I10b/I13); the tag owner does not fire (§5 per-object keying). The
+// butterfly word is untouched (I16; flat AND segmented words supported - the
+// segmented leg rewrites through the loaded spine's fragment slots), so no
+// nuke is needed; trySegmentedTransition's hasDouble(source)==hasDouble(target)
+// RELEASE_ASSERT relies on exactly this stop existing for segmented relabels.
+void JSObject::relabelIndexingShapeConcurrent(VM& vm, TransitionKind transition)
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(!isCopyOnWrite(indexingMode())); // Callers materialize first (ensureWritable / §4.8).
+    auto* object = static_cast<JSObjectWithButterfly*>(this);
+    DeferGC deferGC(vm);
+
+    while (true) {
+        StructureID oldStructureID = this->structureID(); // RAW bits (M5).
+        if (oldStructureID.isNuked())
+            continue; // A racing publication is mid-flight; re-plan on the settled state.
+        Structure* oldStructure = oldStructureID.decode();
+        IndexingType sourceType = oldStructure->indexingType();
+        ASSERT(hasUndecided(sourceType) || hasInt32(sourceType) || hasDouble(sourceType));
+
+        Structure* newStructure;
+        {
+            DeferredStructureTransitionWatchpointFire deferred(vm, oldStructure);
+            newStructure = Structure::nonPropertyTransition(vm, oldStructure, transition, &deferred);
+        }
+        IndexingType targetType = newStructure->indexingType();
+        ASSERT(hasInt32(targetType) || hasDouble(targetType) || hasContiguous(targetType));
+
+        bool published = false;
+        jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+            // ---- Re-verify inside the stop; allocate nothing (O4).
+            if (this->structureID() != oldStructureID)
+                return; // RESTART: a racing transition won before the stop landed.
+            uint64_t word = object->taggedButterflyWord();
+            RELEASE_ASSERT(word & butterflyPointerMask); // Relabel precondition: indexed storage exists.
+            bool segmented = isSegmentedButterfly(word);
+            ButterflySpine* spine = segmented ? butterflySpine(word) : nullptr;
+            Butterfly* flat = segmented ? nullptr : untaggedButterfly(word);
+            unsigned vectorLength = segmented ? spine->vectorLength : flat->vectorLength();
+            bool shared = segmented || butterflySharedWrite(word) || butterflyTID(word) != currentButterflyTID();
+
+            // ---- F2 (I10b/I13): shared triggers fire BOTH sets on source and
+            // target in this same stop (chain-fired per F4 inside).
+            if (shared) {
+                if (oldStructure->transitionThreadLocalIsStillValid() || oldStructure->writeThreadLocalIsStillValid())
+                    oldStructure->fireTransitionThreadLocal(vm, "F2: shared in-place indexing-shape relabel (§4.7/I28)");
+                if (newStructure != oldStructure
+                    && (newStructure->transitionThreadLocalIsStillValid() || newStructure->writeThreadLocalIsStillValid()))
+                    newStructure->fireTransitionThreadLocal(vm, "F2: shared in-place indexing-shape relabel (§4.7/I28 target)");
+            }
+
+            // ---- Rewrite the lanes, world stopped (raw 64-bit lanes; the
+            // logic matches the legacy bodies bit-for-bit per source/target).
+            auto laneAt = [&](unsigned i) -> uint64_t* {
+                if (segmented)
+                    return std::bit_cast<uint64_t*>(spine->indexedSlot(i));
+                return std::bit_cast<uint64_t*>(flat->indexingPayload<double>() + i);
+            };
+            for (unsigned i = 0; i < vectorLength; ++i) {
+                uint64_t* lane = laneAt(i);
+                if (hasUndecided(sourceType)) {
+                    if (hasDouble(targetType))
+                        *std::bit_cast<double*>(lane) = PNaN;
+                    else
+                        *lane = JSValue::encode(JSValue()); // Hole, as convertUndecidedToInt32/Contiguous.
+                    continue;
+                }
+                if (hasInt32(sourceType)) {
+                    if (hasDouble(targetType)) {
+                        JSValue v = JSValue::decode(*lane);
+                        // NOTE: mid-initialization lanes may be garbage (cf.
+                        // legacy convertInt32ToDouble); overwritten later.
+                        *std::bit_cast<double*>(lane) = v.isInt32() ? v.asInt32() : PNaN;
+                    }
+                    // Int32 -> Contiguous: boxed Int32 lanes are already valid
+                    // Contiguous lanes; nothing to rewrite.
+                    continue;
+                }
+                ASSERT(hasDouble(sourceType) && hasContiguous(targetType));
+                double d = *std::bit_cast<double*>(lane);
+                *lane = d == d ? JSValue::encode(JSValue(JSValue::EncodeAsDouble, d)) : JSValue::encode(JSValue());
+            }
+
+            WTF::storeStoreFence(); // Lanes before the type publish (M2-style).
+            setStructure(vm, newStructure); // Butterfly word untouched (I16); no nuke needed.
+            published = true;
+        }));
+        if (published) {
+            vm.writeBarrier(this); // Cheap conservative re-grey; no cell values were introduced (Int32/Double lanes carry no cells).
+            return;
+        }
+        // RESTART: re-plan from the fresh settled state.
+    }
+}
+#endif // USE(JSVALUE64)
 
 void JSObject::convertToIndexingTypeIfNeeded(VM& vm, IndexingType nextType)
 {
@@ -1810,6 +3291,26 @@ void JSObject::convertFromCopyOnWrite(VM& vm)
 {
     ASSERT(isCopyOnWrite(indexingMode()));
     ASSERT(structure()->indexingMode() == indexingMode());
+
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §4.8/I35 (review round 3): flag-on, the OWNER's
+    // materialization must go through the same cell-locked serialization
+    // point as the foreign §4.8 route. The plain nuke + CAS publication below
+    // races the foreign materializer (ensureSharedWriteBit ->
+    // tryMaterializeCopyOnWriteButterflyForSharedWrite), whose nuke-CAS and
+    // word-stability RELEASE_ASSERTs are sound precisely because NO lock-free
+    // CoW publication exists: owner-vs-foreign races would otherwise crash on
+    // a legal program (their nuke CAS fails) or publish a doubly-nuked
+    // {structure, butterfly} pair. The driver loops the cell-locked
+    // materializer until the object is no longer CoW; the WINNER may be a
+    // foreign thread, so callers must re-dispatch on the fresh tag before
+    // dereferencing flat storage as their own (the §3 probes at every flat
+    // fast path do exactly that).
+    if (Options::useJSThreads()) [[unlikely]] {
+        materializeCopyOnWriteButterflyConcurrent(vm, static_cast<JSObjectWithButterfly*>(this));
+        return;
+    }
+#endif
 
     const bool hasIndexingHeader = true;
     Butterfly* oldButterfly = this->butterfly();
@@ -2141,6 +3642,9 @@ bool JSObject::setPrototypeWithCycleCheck(VM& vm, JSGlobalObject* globalObject, 
 {
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    if (Options::useJSThreads() && structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, this)) [[unlikely]]
+        return false;
+
     if (this->structure()->isImmutablePrototypeExoticObject()) {
         // This implements https://tc39.github.io/ecma262/#sec-set-immutable-prototype.
         if (this->getPrototype(globalObject) == prototype)
@@ -2265,6 +3769,17 @@ void JSObject::putDirectCustomGetterSetterWithoutTransition(VM& vm, PropertyName
     ASSERT(value.isCustomGetterSetter());
     ASSERT(attributes & PropertyAttribute::CustomAccessorOrValue);
 
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] {
+        // Review round 1: cell-locked form, value stored with the table edit (I9/L3).
+        putDirectWithoutTransitionConcurrent(vm, propertyName, value, attributes);
+        Structure* structure = this->structure();
+        if (attributes & PropertyAttribute::ReadOnly)
+            structure->setContainsReadOnlyProperties();
+        structure->setHasAnyKindOfGetterSetterPropertiesWithProtoCheck(propertyName == vm.propertyNames->underscoreProto);
+        return;
+    }
+#endif
     StructureID structureID = this->structureID();
     Structure* structure = structureID.decode();
     PropertyOffset offset = prepareToPutDirectWithoutTransition(vm, propertyName, attributes, structureID, structure);
@@ -2292,6 +3807,17 @@ bool JSObject::putDirectNonIndexAccessor(VM& vm, PropertyName propertyName, Gett
 void JSObject::putDirectNonIndexAccessorWithoutTransition(VM& vm, PropertyName propertyName, GetterSetter* accessor, unsigned attributes)
 {
     ASSERT(attributes & PropertyAttribute::Accessor);
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] {
+        // Review round 1: cell-locked form, value stored with the table edit (I9/L3).
+        putDirectWithoutTransitionConcurrent(vm, propertyName, accessor, attributes);
+        Structure* structure = this->structure();
+        if (attributes & PropertyAttribute::ReadOnly)
+            structure->setContainsReadOnlyProperties();
+        structure->setHasAnyKindOfGetterSetterPropertiesWithProtoCheck(propertyName == vm.propertyNames->underscoreProto);
+        return;
+    }
+#endif
     StructureID structureID = this->structureID();
     Structure* structure = structureID.decode();
     PropertyOffset offset = prepareToPutDirectWithoutTransition(vm, propertyName, attributes, structureID, structure);
@@ -2347,12 +3873,187 @@ bool JSObject::hasEnumerableProperty(JSGlobalObject* globalObject, unsigned prop
     return !(slot.attributes() & PropertyAttribute::DontEnum) || (slot.slotBase() && slot.slotBase()->structure()->typeInfo().getOwnPropertySlotMayBeWrongAboutDontEnum());
 }
 
+#if USE(JSVALUE64)
+// SPEC-objectmodel §6 (Task 9): D1's release-store of jsUndefined() into a
+// doomed slot, BEFORE the table edit / structure publication (I30 - never
+// clear(): a tardy lock-free reader that resolved the offset earlier reads
+// the old value or undefined, never an encoded-0 null-cell deref). The slot
+// stays GC-visited and storage never shrinks while it is quarantined
+// (PropertyTable §6 split; markAuxiliaryAndVisitOutOfLineProperties above
+// visits outOfLineSize, which propertyStorageSize keeps counting).
+// locationForOffset() performs the §Q regime dispatch internally (segmented
+// slots resolve through the loaded spine under the I33 bound).
+static ALWAYS_INLINE void storeUndefinedIntoDoomedSlotConcurrent(JSObject* object, PropertyOffset offset)
+{
+    ASSERT(Options::useJSThreads());
+    WriteBarrierBase<Unknown>* location = object->locationForOffset(offset);
+    reinterpret_cast<Atomic<uint64_t>*>(location)->store(JSValue::encode(jsUndefined()), std::memory_order_release); // M2-style: value ordered before the edit that publishes its death.
+}
+
+// SPEC-objectmodel §6 (Task 9): flag-on named-property deletion - L4 (deletes
+// serialize on the cell lock), L3/I19 (dictionary table edits additionally
+// hold Structure::m_lock inside removePropertyWithoutTransition; lock order
+// JSCellLock < m_lock, I20), D1/I30 (jsUndefined release-store before the
+// edit), F2/I10b (a delete IS a transition: foreign/shared triggers fire both
+// TTL sets under the §10.6 veneer before any lock - after which no E4
+// lock-free transition can race the locked publication, since E4 requires
+// valid+watched source sets), and the §4.2 RESTART discipline.
+//
+// I34 audit (this window): the PropertyOffset is produced by structure->get()
+// (an m_lock-held walk flag-on, L6(iii)); the cell-lock acquisition below may
+// PARK, so the structureID is re-validated under the lock before the offset
+// is trusted - on mismatch the whole operation RESTARTs from a fresh
+// structure. Between that re-validation and the slot store/table edit the
+// path neither polls, nor allocates in the GC heap (O1: PropertyTable
+// rehash/Vector edits are fastMalloc), nor parks.
+static bool deletePropertyNamedConcurrent(VM& vm, JSObject* thisObject, PropertyName propertyName, DeletePropertySlot& slot)
+{
+    ASSERT(Options::useJSThreads());
+    while (true) {
+        Structure* structure = thisObject->structure(); // M5: nuke-masked decode.
+        unsigned attributes = 0;
+        PropertyOffset offset = structure->get(vm, propertyName, attributes);
+        if (!isValidOffset(offset)) {
+            slot.setConfigurableMiss();
+            return true;
+        }
+        if (attributes & PropertyAttribute::DontDelete && vm.deletePropertyMode() != VM::DeletePropertyMode::IgnoreConfigurable) {
+            slot.setNonconfigurable();
+            return false;
+        }
+
+        // ---- F2 step 0 (I10b/I13), §5 trigger taxonomy (per-object keying):
+        // butterfly-bearing instance - foreign tag TID or SW=1 (segmented
+        // always triggers); butterfly-less instance - thread != the
+        // structure's N1 transition TID.
+        {
+            uint64_t word = thisObject->taggedButterflyWord();
+            bool trigger;
+            if (!(word & butterflyPointerMask))
+                trigger = currentButterflyTID() != structure->transitionThreadLocalTID();
+            else if (isSegmentedButterfly(word))
+                trigger = true;
+            else
+                trigger = butterflyTID(word) != currentButterflyTID() || butterflySharedWrite(word);
+            if (trigger && (structure->transitionThreadLocalIsStillValid() || structure->writeThreadLocalIsStillValid())) {
+                jsThreadsStopTheWorldAndRun(vm, scopedLambda<void()>([&] {
+                    // Re-check inside the stop: a racing fire may have won.
+                    if (structure->transitionThreadLocalIsStillValid() || structure->writeThreadLocalIsStillValid())
+                        structure->fireTransitionThreadLocal(vm, "F2: foreign/shared delete (§6 L4)");
+                }));
+                continue; // RESTART after the stop (§4.2 rule).
+            }
+        }
+
+        if (structure->isUncacheableDictionary()) {
+            // §6 L3/L4 + I19: dictionary deletes serialize on the cell lock.
+            Locker cellLocker { thisObject->cellLock() };
+            // I34: the acquisition above may park - re-validate before
+            // trusting anything pre-lock. Dictionary structures are pinned to
+            // the object, but flatten (F3, per-event STW when shared) or a
+            // racing locked transition can have replaced it while we parked.
+            if (thisObject->structureID() != structure->id())
+                continue; // RESTART (Locker unlocks on scope exit).
+            // Review round 4 (blocker fix): dictionary tables are edited IN
+            // PLACE and the structureID does NOT change, so the re-validation
+            // above proves nothing about the PRE-LOCK offset. Across the park
+            // a racing delete may have removed the key (the loser's
+            // removePropertyWithoutTransition would then return a different/
+            // invalid offset - a process abort on a program-level race), and -
+            // worse - a GC safepoint may have promoted the quarantined slot
+            // and a racing dictionary ADD reused it for a brand-new property,
+            // which the stale offset's D1 store would clobber with undefined
+            // (the exact I18 deleted-slot-reuse corruption quarantining
+            // exists to prevent). Resolution: RE-RESOLVE offset + attributes
+            // UNDER the cell lock. Note the pre-lock structure->get() was
+            // never a torn read - flag-on Structure::get routes to
+            // getConcurrently, which reads the table under the structure's
+            // m_lock (L6(iii), §20) - the bug was purely offset STALENESS.
+            // Lock order: JSCellLock (held) < Structure::m_lock (taken inside
+            // get/removePropertyWithoutTransition) - I20; getConcurrently
+            // never allocates, so O1 holds under the cell lock. All dictionary
+            // table mutations are cell-locked flag-on (adds: §56.5; deletes:
+            // here), so the locked lookup is stable through the edit below.
+            unsigned lockedAttributes = 0;
+            PropertyOffset lockedOffset = structure->get(vm, propertyName, lockedAttributes);
+            if (!isValidOffset(lockedOffset)) {
+                // A racing delete won while we parked: this delete is a miss.
+                slot.setConfigurableMiss();
+                return true;
+            }
+            if (lockedAttributes & PropertyAttribute::DontDelete && vm.deletePropertyMode() != VM::DeletePropertyMode::IgnoreConfigurable) {
+                slot.setNonconfigurable();
+                return false;
+            }
+            storeUndefinedIntoDoomedSlotConcurrent(thisObject, lockedOffset); // D1, BEFORE the table edit; offset resolved UNDER the lock.
+            PropertyOffset removedOffset = structure->removePropertyWithoutTransition(vm, propertyName, [](const GCSafeConcurrentJSLocker&, PropertyOffset, PropertyOffset) { });
+            // The key was re-resolved under the cell lock and every dictionary
+            // table mutation holds it, so the entry cannot have moved between
+            // the locked lookup and the locked edit; out-of-line slots taken
+            // here are quarantined by the table edit (addDeletedOffset,
+            // I18/I30).
+            RELEASE_ASSERT(removedOffset == lockedOffset);
+            return true;
+        }
+
+        // ---- Non-dictionary: a delete is a structure-only transition (the
+        // butterfly word is untouched - quarantine keeps maxOffset/storage
+        // size, I18/I30, so no nuke is needed per GT#7). Plan + allocate the
+        // transition target BEFORE locking (O1: removePropertyTransition
+        // allocates in the GC heap).
+        DeferredStructureTransitionWatchpointFire deferredWatchpointFire(vm, structure);
+        PropertyOffset transitionOffset = invalidOffset;
+        Structure* newStructure = Structure::removePropertyTransition(vm, structure, propertyName, transitionOffset, &deferredWatchpointFire);
+        RELEASE_ASSERT(transitionOffset == offset); // Same source table, same key (non-dictionary tables are not edited in place).
+        ASSERT(newStructure->outOfLineCapacity() == structure->outOfLineCapacity());
+        ASSERT(newStructure->typeInfo().type() == structure->typeInfo().type());
+        ASSERT(newStructure->indexingModeIncludingHistory() == structure->indexingModeIncludingHistory());
+        {
+            Locker cellLocker { thisObject->cellLock() };
+            if (thisObject->structureID() != structure->id())
+                continue; // RESTART: a racing transition won while we planned/parked (I34 re-validation).
+            storeUndefinedIntoDoomedSlotConcurrent(thisObject, offset); // D1, BEFORE the publication.
+            // ONE 64-bit header CAS under the §3.0 volatile-byte merge
+            // discipline (mirrors tryStructureOnlyTransition's N2 publication;
+            // 8B-aligned, so legal on PreciseAllocation cells too - I36). Only
+            // the structureID lane changes: remove transitions preserve
+            // type/flags/indexing (asserted above).
+            Atomic<uint64_t>* headerAtomic = reinterpret_cast<Atomic<uint64_t>*>(static_cast<JSCell*>(thisObject));
+            uint64_t expectedHeader = headerAtomic->load(std::memory_order_seq_cst);
+            RELEASE_ASSERT(static_cast<uint32_t>(expectedHeader) == structure->id().bits());
+            uint64_t desiredHeader = (expectedHeader & ~0xffffffffULL) | static_cast<uint64_t>(newStructure->id().bits());
+            while (true) {
+                uint64_t previousHeader = headerAtomic->compareExchangeStrong(expectedHeader, desiredHeader, std::memory_order_seq_cst);
+                if (previousHeader == expectedHeader)
+                    break;
+                // Under the cell lock, with the TTL sets handled by step 0,
+                // only the volatile bytes (GC cellState CAS, lock parked bit -
+                // GT#2) may move; anything else is a logic error (§3.0 step 4).
+                RELEASE_ASSERT(headerDiffersOnlyInVolatileBits(expectedHeader, previousHeader));
+                expectedHeader = mergeVolatileHeaderBits(expectedHeader, previousHeader);
+                desiredHeader = mergeVolatileHeaderBits(desiredHeader, previousHeader);
+            }
+        }
+        vm.writeBarrier(thisObject);
+        vm.writeBarrier(thisObject, newStructure);
+        slot.setHit(offset);
+        ASSERT(newStructure->outOfLineCapacity() || !thisObject->structure()->outOfLineCapacity());
+        if (thisObject->mayBePrototype()) [[unlikely]]
+            vm.invalidateStructureChainIntegrity(VM::StructureChainIntegrityEvent::Remove);
+        return true;
+    }
+}
+#endif // USE(JSVALUE64)
+
 // ECMA 8.6.2.5
 bool JSObject::deleteProperty(JSCell* cell, JSGlobalObject* globalObject, PropertyName propertyName, DeletePropertySlot& slot)
 {
     JSObject* thisObject = uncheckedDowncast<JSObject>(cell);
     VM& vm = globalObject->vm();
     
+    if (Options::useJSThreads() && thisObject->structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, thisObject)) [[unlikely]]
+        return false;
+
     if (std::optional<uint32_t> index = parseIndex(propertyName))
         return thisObject->methodTable()->deletePropertyByIndex(thisObject, globalObject, index.value());
 
@@ -2371,6 +4072,14 @@ bool JSObject::deleteProperty(JSCell* cell, JSGlobalObject* globalObject, Proper
         }
     }
 
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §6 (Task 9): flag-on, named deletes take the L4
+    // cell-locked / D1 / F2 path above. Flag-off below is byte-for-byte
+    // today's code (I22).
+    if (Options::useJSThreads()) [[unlikely]]
+        return deletePropertyNamedConcurrent(vm, thisObject, propertyName, slot);
+#endif
+
     Structure* structure = thisObject->structure();
 
     bool propertyIsPresent = isValidOffset(structure->get(vm, propertyName, attributes));
@@ -2385,7 +4094,7 @@ bool JSObject::deleteProperty(JSCell* cell, JSGlobalObject* globalObject, Proper
             offset = structure->removePropertyWithoutTransition(vm, propertyName, [] (const GCSafeConcurrentJSLocker&, PropertyOffset, PropertyOffset) { });
             ASSERT(!isValidOffset(structure->get(vm, propertyName, attributes)));
             if (offset != invalidOffset)
-                thisObject->locationForOffset(offset)->clear();
+                thisObject->locationForOffset(offset)->clear(); // Flag-off only: flag-on deletes D1-store jsUndefined() instead (I30).
         } else {
             DeferredStructureTransitionWatchpointFire deferredWatchpointFire(vm, structure);
             structure = Structure::removePropertyTransition(vm, structure, propertyName, offset, &deferredWatchpointFire);
@@ -2409,9 +4118,94 @@ bool JSObject::deletePropertyByIndex(JSCell* cell, JSGlobalObject* globalObject,
     VM& vm = globalObject->vm();
     JSObject* thisObject = uncheckedDowncast<JSObject>(cell);
     
+    if (Options::useJSThreads() && thisObject->structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, thisObject)) [[unlikely]]
+        return false;
+
     if (i > MAX_ARRAY_INDEX)
         return JSCell::deleteProperty(thisObject, globalObject, Identifier::from(vm, i));
-    
+
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] {
+        // SPEC-objectmodel §6 L4 (Task 9): indexed deletes.
+        if (hasAnyArrayStorage(thisObject->indexingType())) {
+            // I31/L5: EVERY runtime access to an AS-shape object is
+            // cell-locked (reads included, any SW). Element clears and
+            // m_numValuesInVector are in-place scalar edits, legal in an
+            // installed AS under the lock (AS-COPY never relays out in
+            // place; superseded snapshots are frozen). EMPTY is the
+            // legitimate AS hole marker and AS readers are locked too, so no
+            // D1 jsUndefined analogue is needed here. Sparse-map structural
+            // edits are runtime-only and locked on both sides (§4.6); the
+            // remove below frees only fastMalloc memory (O1).
+            Locker locker { thisObject->cellLock() };
+            ArrayStorage* storage = thisObject->butterfly()->arrayStorage(); // Re-loaded under the lock (AS-COPY republication).
+            if (i < storage->vectorLength()) {
+                WriteBarrier<Unknown>& valueSlot = storage->m_vector[i];
+                if (valueSlot) {
+                    valueSlot.clear();
+                    --storage->m_numValuesInVector;
+                }
+            } else if (SparseArrayValueMap* map = storage->m_sparseMap.get()) {
+                SparseArrayValueMap::iterator it = map->find(i);
+                if (it != map->notFound()) {
+                    if (it->value.attributes() & PropertyAttribute::DontDelete)
+                        return false;
+                    map->remove(it);
+                }
+            }
+            return true;
+        }
+        uint64_t word = thisObject->taggedButterflyWord();
+        if (isSegmentedButterfly(word)) {
+            // Segmented Int32/Contiguous/Double: store the shape's hole
+            // encoding through the LOADED spine under the I33/C4 bound.
+            // Out-of-bounds means a stale spine or beyond storage - reads of
+            // [vectorLength, publicLength) are holes already (C4), so there
+            // is nothing to delete (SAB-granularity staleness). The shape is
+            // stable against the loaded spine: relabels touching Double on
+            // shared objects run under per-event STW (I28/§4.7), which
+            // cannot overlap this running mutator.
+            ButterflySpine* spine = butterflySpine(word);
+            if (WriteBarrierBase<Unknown>* valueSlot = segmentedIndexedSlotIfWithinVectorLength(spine, i)) {
+                if (hasDouble(thisObject->indexingType()))
+                    *std::bit_cast<double*>(valueSlot) = PNaN; // Raw 8B lane (§4.7); PNaN = hole, as today.
+                else
+                    valueSlot->clear(); // EMPTY = hole marker for Int32/Contiguous, as today.
+            }
+            return true;
+        }
+        // §4.8/I35 (review round 1; round 3 NOTE: convertFromCopyOnWrite is
+        // now itself concurrent-correct flag-on - it routes through the
+        // cell-locked materializer - so this early routing is required only
+        // for the F1 semantics of the FOREIGN trigger, not for publication
+        // safety). A FOREIGN indexed delete on a CopyOnWrite word routes
+        // through ensureSharedWriteBit's CoW carve-out
+        // (tryMaterializeCopyOnWriteButterflyForSharedWrite: F2-fire-first +
+        // cell lock + nuke + DCAS), exactly like putIndexConcurrent. After
+        // materialization the switch below re-reads indexingMode() and lands
+        // on the writable branches against the freshly published private
+        // butterfly. Bounds are checked first (CoW words are flat-decodable
+        // by I35) so out-of-range deletes stay allocation-free, as today.
+        if (isCopyOnWrite(thisObject->indexingMode())) {
+            if (i >= untaggedButterfly(word)->vectorLength())
+                return true; // Nothing to delete (matches the CoW legs below).
+            if (butterflyWriterIsForeign(word)) // incl. §9.6 forceButterflySWBit
+                ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(thisObject));
+            // Owner CoW words fall through to today's convertFromCopyOnWrite
+            // legs; materialized words fall through to the writable legs.
+        } else if ((word & butterflyPointerMask) && !butterflySharedWrite(word)
+            && butterflyWriterIsForeign(word)) { // incl. §9.6 forceButterflySWBit
+            // §3 F1 (review round 1): a hole store is a WRITE - the same
+            // foreign-first-write rule as trySetIndexQuicklyConcurrent.
+            ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(thisObject));
+        }
+        // Flat words (any tag) fall through to today's switch: the
+        // contiguous-family branches mask via butterfly() and store the
+        // shape's hole encoding in place - today's race semantics at SAB
+        // granularity (writes only after the SW bit is accounted for, above).
+    }
+#endif
+
     switch (thisObject->indexingMode()) {
     case ALL_BLANK_INDEXING_TYPES:
     case ALL_UNDECIDED_INDEXING_TYPES:
@@ -2734,6 +4528,8 @@ void JSObject::getPropertyNames(JSGlobalObject* globalObject, PropertyNameArrayB
 
 void JSObject::getOwnPropertyNames(JSObject* object, JSGlobalObject* globalObject, PropertyNameArrayBuilder& propertyNames, DontEnumPropertiesMode mode)
 {
+    if (Options::useJSThreads() && object->structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, object)) [[unlikely]]
+        return;
     object->getOwnIndexedPropertyNames(globalObject, propertyNames, mode);
     object->getOwnNonIndexPropertyNames(globalObject, propertyNames, mode);
 }
@@ -2752,6 +4548,81 @@ void JSObject::getOwnIndexedPropertyNames(JSGlobalObject*, PropertyNameArrayBuil
         // FIXME: Filling PropertyNameArray with an identifier for every integer
         // is incredibly inefficient for large arrays. We need a different approach,
         // which almost certainly means a different structure for PropertyNameArray.
+#if USE(JSVALUE64)
+        // SPEC-objectmodel review round 1 (I31/L5 + §10.7): flag-on, this walk
+        // must (a) never deref a segmented word through the flat-only
+        // butterfly() accessor and (b) hold the cell lock across the AS header
+        // walk + sparse-map iteration - a lock on only the writer side of the
+        // §4.6/Task-9 mutation windows protects nothing, and an unlocked map
+        // iteration races a putEntry-driven rehash (use-after-rehash). Indices
+        // are collected under the lock and added after it drops (adds may
+        // allocate; O1 keeps allocation out of the cell-locked window).
+        if (Options::useJSThreads()) [[unlikely]] {
+            switch (object->indexingType()) {
+            case ALL_BLANK_INDEXING_TYPES:
+            case ALL_UNDECIDED_INDEXING_TYPES:
+                break;
+            case ALL_INT32_INDEXING_TYPES:
+            case ALL_CONTIGUOUS_INDEXING_TYPES:
+            case ALL_DOUBLE_INDEXING_TYPES: {
+                bool isDouble = hasDouble(object->indexingType());
+                uint64_t word = object->taggedButterflyWord();
+                if (isSegmentedButterfly(word)) {
+                    ButterflySpine* spine = butterflySpine(word);
+                    uint32_t usedLength = std::min(segmentedPublicLength(spine), segmentedVectorLength(spine)); // C4/I33 bound from the SAME spine.
+                    for (uint32_t i = 0; i < usedLength; ++i) {
+                        const WriteBarrierBase<Unknown>* slot = spine->indexedSlot(i);
+                        if (isDouble) {
+                            double value = *std::bit_cast<const double*>(slot); // Raw 8B lane (§4.7).
+                            if (value != value)
+                                continue;
+                        } else if (!slot->get())
+                            continue;
+                        propertyNames.add(i);
+                    }
+                    break;
+                }
+                Butterfly* butterfly = untaggedButterfly(word);
+                unsigned usedLength = std::min(butterfly->publicLength(), butterfly->vectorLength()); // Bound from the SAME loaded butterfly.
+                for (unsigned i = 0; i < usedLength; ++i) {
+                    if (isDouble) {
+                        double value = butterfly->contiguousDouble().at(object, i);
+                        if (value != value)
+                            continue;
+                    } else if (!butterfly->contiguous().at(object, i))
+                        continue;
+                    propertyNames.add(i);
+                }
+                break;
+            }
+            case ALL_ARRAY_STORAGE_INDEXING_TYPES: {
+                Vector<unsigned, 16> indexes;
+                {
+                    Locker locker { object->cellLock() }; // I31/L5
+                    ArrayStorage* storage = object->butterfly()->arrayStorage(); // Re-loaded under the lock (AS-COPY republication).
+                    unsigned usedVectorLength = std::min(storage->length(), storage->vectorLength());
+                    for (unsigned i = 0; i < usedVectorLength; ++i) {
+                        if (storage->m_vector[i])
+                            indexes.append(i);
+                    }
+                    if (SparseArrayValueMap* map = storage->m_sparseMap.get()) {
+                        for (auto& entry : *map) {
+                            if (mode == DontEnumPropertiesMode::Include || !(entry.value.attributes() & PropertyAttribute::DontEnum))
+                                indexes.append(static_cast<unsigned>(entry.key));
+                        }
+                    }
+                }
+                std::ranges::sort(indexes);
+                for (unsigned index : indexes)
+                    propertyNames.add(index);
+                break;
+            }
+            default:
+                RELEASE_ASSERT_NOT_REACHED();
+            }
+            return;
+        }
+#endif
         switch (object->indexingType()) {
         case ALL_BLANK_INDEXING_TYPES:
         case ALL_UNDECIDED_INDEXING_TYPES:
@@ -2880,6 +4751,8 @@ void JSObject::freeze(VM& vm)
 bool JSObject::preventExtensions(JSObject* object, JSGlobalObject* globalObject)
 {
     VM& vm = globalObject->vm();
+    if (Options::useJSThreads() && object->structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, object)) [[unlikely]]
+        return false;
     if (!object->isStructureExtensible()) {
         // We've already set the internal [[PreventExtensions]] field to false.
         // We don't call the methodTable isExtensible here because it's not defined
@@ -2896,8 +4769,10 @@ bool JSObject::preventExtensions(JSObject* object, JSGlobalObject* globalObject)
     return true;
 }
 
-bool JSObject::isExtensible(JSObject* obj, JSGlobalObject*)
+bool JSObject::isExtensible(JSObject* obj, JSGlobalObject* globalObject)
 {
+    if (Options::useJSThreads() && obj->structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, obj)) [[unlikely]]
+        return false;
     return obj->isStructureExtensible();
 }
 
@@ -3037,11 +4912,31 @@ bool JSObject::defineOwnIndexedProperty(JSGlobalObject* globalObject, unsigned i
     if (descriptor.attributes() & (PropertyAttribute::ReadOnly | PropertyAttribute::Accessor))
         notifyPresenceOfIndexedAccessors(vm);
 
-    SparseArrayValueMap* map = this->butterfly()->arrayStorage()->m_sparseMap.get();
-    RELEASE_ASSERT(map);
-    
     // 1. Let current be the result of calling the [[GetOwnProperty]] internal method of O with property name P.
-    SparseArrayValueMap::AddResult result = map->add(this, index);
+    // SPEC-objectmodel I31/L5 (review round 1): flag-on, the AS header read
+    // and the map STRUCTURAL edit (add => possible rehash) run under the cell
+    // lock so they cannot race the locked readers (deletePropertyByIndex,
+    // getOwnIndexedPropertyNames, Task 8's locked walks). map->add only
+    // fastMallocs (no GC allocation, no JS) so it is wrappable (O1).
+    // Residual: SparseArrayValueMap::putEntry's INTERNAL add at other call
+    // sites still needs the allocate-then-locked-insert split recorded in
+    // INTEGRATE-objectmodel.md (SparseArrayValueMap.* is outside this part's
+    // owned paths).
+    SparseArrayValueMap* map = nullptr;
+    auto addToMap = [&]() -> SparseArrayValueMap::AddResult {
+        map = this->butterfly()->arrayStorage()->m_sparseMap.get(); // (Re-)read under the lock flag-on (AS-COPY republication).
+        RELEASE_ASSERT(map);
+        return map->add(this, index);
+    };
+    SparseArrayValueMap::AddResult result = ([&] {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            Locker locker { cellLock() };
+            return addToMap();
+        }
+#endif
+        return addToMap();
+    })();
     SparseArrayEntry* entryInMap = &result.iterator->value;
 
     // 2. Let extensible be the value of the [[Extensible]] internal property of O.
@@ -3049,6 +4944,12 @@ bool JSObject::defineOwnIndexedProperty(JSGlobalObject* globalObject, unsigned i
     // 4. If current is undefined and extensible is true, then
     if (result.isNewEntry) {
         if (!isStructureExtensible()) {
+#if USE(JSVALUE64)
+            if (Options::useJSThreads()) [[unlikely]] {
+                Locker locker { cellLock() }; // I31/L5: structural edit (possible rehash) under the cell lock.
+                map->remove(result.iterator);
+            } else
+#endif
             map->remove(result.iterator);
             return typeError(globalObject, scope, throwException, NonExtensibleObjectPropertyDefineError);
         }
@@ -3065,6 +4966,17 @@ bool JSObject::defineOwnIndexedProperty(JSGlobalObject* globalObject, unsigned i
 
         PropertyDescriptor defaults(jsUndefined(), PropertyAttribute::DontDelete | PropertyAttribute::DontEnum | PropertyAttribute::ReadOnly);
         putIndexedDescriptor(globalObject, map, entryInMap, descriptor, defaults);
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            // I31/L5: the AS length bump is an in-place header write; take the
+            // cell lock and re-read the storage under it (AS-COPY).
+            Locker locker { cellLock() };
+            ArrayStorage* storage = this->butterfly()->arrayStorage();
+            if (index >= storage->length())
+                storage->setLength(index + 1);
+            return true;
+        }
+#endif
         auto* butterfly = this->butterfly();
         if (index >= butterfly->arrayStorage()->length())
             butterfly->arrayStorage()->setLength(index + 1);
@@ -3223,6 +5135,66 @@ bool JSObject::putByIndexBeyondVectorLengthWithoutAttributes(JSGlobalObject* glo
     ASSERT((indexingType() & IndexingShapeMask) == indexingShape);
     ASSERT(!indexingShouldBeSparse());
 
+#if USE(JSVALUE64)
+    // Review round 2 (blocker fix): flag-on, this path is reached with
+    // segmented words (the quickly-family declines indices outside the loaded
+    // spine), so the flat-only butterfly() deref below is unsound. Dispatch on
+    // the tagged word and store through the §9.5 accessors; growth goes
+    // through the §4.4 drivers (ensureLength flag-on routes to
+    // ensureLengthSlowConcurrent).
+    if (Options::useJSThreads()) [[unlikely]] {
+        auto* object = static_cast<JSObjectWithButterfly*>(this);
+        while (true) {
+            uint64_t word = object->taggedButterflyWord();
+            RELEASE_ASSERT(word & butterflyPointerMask);
+            unsigned vectorLength;
+            unsigned publicLength;
+            if (isSegmentedButterfly(word)) [[unlikely]] {
+                ButterflySpine* spine = butterflySpine(word);
+                vectorLength = spine->vectorLength;
+                publicLength = segmentedPublicLength(spine);
+            } else {
+                Butterfly* flat = untaggedButterfly(word);
+                vectorLength = flat->vectorLength();
+                publicLength = flat->publicLength();
+            }
+            // Density heuristic: min(publicLength, vectorLength) is an upper
+            // bound on the dense element count. The legacy countElements walk
+            // is unsafe on shared/segmented storage, and the count is only a
+            // layout-POLICY input (dense vs ArrayStorage), never a soundness
+            // input - a different estimate changes layout choice only.
+            if (i > MAX_STORAGE_VECTOR_INDEX
+                || (i >= MIN_SPARSE_ARRAY_INDEX && !isDenseEnoughForVector(i, std::min(publicLength, vectorLength)))
+                || indexIsSufficientlyBeyondLengthForSparseMap(i, vectorLength)) {
+                ASSERT(i <= MAX_ARRAY_INDEX);
+                ArrayStorage* storage = ensureArrayStorageSlow(vm); // §4.6 stop-routed flag-on.
+                RELEASE_AND_RETURN(scope, putByIndexBeyondVectorLengthWithArrayStorage(globalObject, i, value, false, storage));
+            }
+            if ((indexingType() & IndexingShapeMask) != indexingShape) {
+                // A racing relabel/conversion changed the shape: re-dispatch
+                // the full put path on the settled state.
+                RELEASE_AND_RETURN(scope, putByIndex(this, globalObject, i, value, false));
+            }
+            if (trySetIndexQuicklyConcurrent(vm, i, value, nullptr))
+                return true;
+            if ((indexingType() & IndexingShapeMask) != indexingShape)
+                continue; // The world moved mid-store: re-classify.
+            if ((hasInt32(indexingType()) && !value.isInt32())
+                || (hasDouble(indexingType()) && (!value.isNumber() || value.asNumber() != value.asNumber()))) {
+                // Defensive loop-breaker: the template contract (value matches
+                // the shape) only ASSERTs; a racing interleaving that restores
+                // a mismatched shape would otherwise spin here. Re-dispatch.
+                RELEASE_AND_RETURN(scope, putByIndex(this, globalObject, i, value, false));
+            }
+            if (!ensureLength(vm, i + 1)) {
+                throwOutOfMemoryError(globalObject, scope);
+                return false;
+            }
+            // Grown (or a racer grew for us): loop and retry the store.
+        }
+    }
+#endif
+
     auto* butterfly = this->butterfly();
 
     // For us to get here, the index is either greater than the public length, or greater than
@@ -3290,20 +5262,54 @@ bool JSObject::putByIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* glob
     
     SparseArrayValueMap* map = storage->m_sparseMap.get();
     
+    // SPEC-objectmodel I31/L5 (Task 9, flag-on): in-place AS mutations below
+    // (setLength, m_vector stores, m_numValuesInVector, the map->vector copy)
+    // take the cell lock around each window, re-reading arrayStorage() under
+    // the lock (AS-COPY may have republished a fresh AS butterfly, §4.6). The
+    // GC-allocating steps (increaseVectorLength - itself internally locked -
+    // allocateSparseIndexMap, map->putEntry, typeError) stay OUTSIDE the lock
+    // (O1). Review round 1: each unlocked putEntry/putDirect is now followed
+    // by a cell-locked map-identity revalidation (a racing map->vector copy
+    // orphaning the map => the whole operation re-runs, closing the I21
+    // lost-add window). putEntry's INTERNAL structural edits still race
+    // cell-locked readers of the SAME map; the allocate-then-locked-insert
+    // split lives in SparseArrayValueMap.{h,cpp} (outside this part's owned
+    // paths) and is recorded as a ready-to-apply shared-file request in
+    // INTEGRATE-objectmodel.md.
     // First, handle cases where we don't currently have a sparse map.
     if (!map) [[likely]] {
         // If the array is not extensible, we should have entered dictionary mode, and created the sparse map.
         ASSERT(isStructureExtensible());
-    
+
         // Update m_length if necessary.
-        if (i >= storage->length())
+        if (i >= storage->length()) {
+#if USE(JSVALUE64)
+            if (Options::useJSThreads()) [[unlikely]] {
+                Locker locker { cellLock() };
+                storage = arrayStorage();
+                if (i >= storage->length())
+                    storage->setLength(i + 1);
+            } else
+#endif
             storage->setLength(i + 1);
+        }
 
         // Check that it is sensible to still be using a vector, and then try to grow the vector.
         if (!indexIsSufficientlyBeyondLengthForSparseMap(i, storage->vectorLength())
             && isDenseEnoughForVector(i, storage->m_numValuesInVector)
             && increaseVectorLength(vm, i + 1)) [[likely]] {
             // success! - reread m_storage since it has likely been reallocated, and store to the vector.
+#if USE(JSVALUE64)
+            if (Options::useJSThreads()) [[unlikely]] {
+                Locker locker { cellLock() };
+                storage = arrayStorage();
+                WriteBarrier<Unknown>& valueSlot = storage->m_vector[i];
+                if (!valueSlot) // A racing locked writer may have filled it.
+                    ++storage->m_numValuesInVector;
+                valueSlot.set(vm, this, value);
+                return true;
+            }
+#endif
             storage = arrayStorage();
             storage->m_vector[i].set(vm, this, value);
             ++storage->m_numValuesInVector;
@@ -3311,6 +5317,26 @@ bool JSObject::putByIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* glob
         }
         // We don't want to, or can't use a vector to hold this property - allocate a sparse map & add the value.
         map = allocateSparseIndexMap(vm);
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            // I21 (review round 1): putEntry runs unlocked (it allocates and
+            // can run JS), so a racing locked map->vector copy can orphan
+            // `map` mid-call and silently drop this add. Re-validate the map's
+            // identity under the cell lock afterwards; on divergence re-run
+            // the whole operation against the fresh state.
+            bool putResult = map->putEntry(globalObject, this, i, value, shouldThrow);
+            RETURN_IF_EXCEPTION(scope, false);
+            bool stillInstalled;
+            {
+                Locker locker { cellLock() };
+                ArrayStorage* freshStorage = arrayStorageOrNull();
+                stillInstalled = freshStorage && freshStorage->m_sparseMap.get() == map;
+            }
+            if (stillInstalled) [[likely]]
+                return putResult;
+            RELEASE_AND_RETURN(scope, putByIndexInline(globalObject, i, value, shouldThrow));
+        }
+#endif
         RELEASE_AND_RETURN(scope, map->putEntry(globalObject, this, i, value, shouldThrow));
     }
 
@@ -3321,14 +5347,59 @@ bool JSObject::putByIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* glob
         if (map->lengthIsReadOnly() || !isStructureExtensible())
             return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError);
         length = i + 1;
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            Locker locker { cellLock() };
+            storage = arrayStorage();
+            if (length > storage->length())
+                storage->setLength(length);
+        } else
+#endif
         storage->setLength(length);
     }
 
     // We are currently using a map - check whether we still want to be doing so.
     // We will continue  to use a sparse map if SparseMode is set, a vector would be too sparse, or if allocation fails.
     unsigned numValuesInArray = storage->m_numValuesInVector + map->size();
-    if (map->sparseMode() || !isDenseEnoughForVector(length, numValuesInArray) || !increaseVectorLength(vm, length))
+    if (map->sparseMode() || !isDenseEnoughForVector(length, numValuesInArray) || !increaseVectorLength(vm, length)) {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            // I21 (review round 1): see the fresh-map putEntry site above.
+            bool putResult = map->putEntry(globalObject, this, i, value, shouldThrow);
+            RETURN_IF_EXCEPTION(scope, false);
+            bool stillInstalled;
+            {
+                Locker locker { cellLock() };
+                ArrayStorage* freshStorage = arrayStorageOrNull();
+                stillInstalled = freshStorage && freshStorage->m_sparseMap.get() == map;
+            }
+            if (stillInstalled) [[likely]]
+                return putResult;
+            RELEASE_AND_RETURN(scope, putByIndexInline(globalObject, i, value, shouldThrow));
+        }
+#endif
         RELEASE_AND_RETURN(scope, map->putEntry(globalObject, this, i, value, shouldThrow));
+    }
+
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] {
+        // Map -> vector copy + final store, in one locked window (I31; no GC
+        // allocation inside: barriered stores + fastMalloc frees only).
+        Locker locker { cellLock() };
+        storage = arrayStorage();
+        storage->m_numValuesInVector = numValuesInArray;
+        WriteBarrier<Unknown>* vector = storage->m_vector;
+        SparseArrayValueMap::const_iterator end = map->end();
+        for (SparseArrayValueMap::const_iterator it = map->begin(); it != end; ++it)
+            vector[it->key].set(vm, this, it->value.getNonSparseMode());
+        deallocateSparseIndexMap();
+        WriteBarrier<Unknown>& valueSlot = vector[i];
+        if (!valueSlot)
+            ++storage->m_numValuesInVector;
+        valueSlot.set(vm, this, value);
+        return true;
+    }
+#endif
 
     // Reread m_storage after increaseVectorLength, update m_numValuesInVector.
     storage = arrayStorage();
@@ -3373,6 +5444,15 @@ bool JSObject::putByIndexBeyondVectorLength(JSGlobalObject* globalObject, unsign
             // Convert the indexing type to the SlowPutArrayStorage and retry.
             createArrayStorage(vm, i + 1, getNewVectorLength(0, 0, 0, i + 1));
         } else {
+#if USE(JSVALUE64)
+            // Review round 2 (N3): flag-on, the first dense install must
+            // re-dispatch - not trap - when it loses the install race.
+            if (Options::useJSThreads()) [[unlikely]] {
+                if (tryCreateInitialForValueAndSetConcurrent(vm, i, value))
+                    return true;
+                RELEASE_AND_RETURN(scope, putByIndex(this, globalObject, i, value, shouldThrow));
+            }
+#endif
             createInitialForValueAndSet(vm, i, value);
             return true;
         }
@@ -3436,14 +5516,25 @@ bool JSObject::putDirectIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* 
 
     SparseArrayValueMap* map = storage->m_sparseMap.get();
 
+    // SPEC-objectmodel I31/L5 (Task 9, flag-on): same locked-window treatment
+    // as putByIndexBeyondVectorLengthWithArrayStorage above.
     // First, handle cases where we don't currently have a sparse map.
     if (!map) [[likely]] {
         // If the array is not extensible, we should have entered dictionary mode, and created the spare map.
         ASSERT(isStructureExtensible());
-    
+
         // Update m_length if necessary.
-        if (i >= storage->length())
+        if (i >= storage->length()) {
+#if USE(JSVALUE64)
+            if (Options::useJSThreads()) [[unlikely]] {
+                Locker locker { cellLock() };
+                storage = arrayStorage();
+                if (i >= storage->length())
+                    storage->setLength(i + 1);
+            } else
+#endif
             storage->setLength(i + 1);
+        }
 
         // Check that it is sensible to still be using a vector, and then try to grow the vector.
         if (!attributes
@@ -3451,6 +5542,17 @@ bool JSObject::putDirectIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* 
             && !indexIsSufficientlyBeyondLengthForSparseMap(i, storage->vectorLength()))  [[likely]] {
             if (increaseVectorLength(vm, i + 1)) {
                 // success! - reread m_storage since it has likely been reallocated, and store to the vector.
+#if USE(JSVALUE64)
+                if (Options::useJSThreads()) [[unlikely]] {
+                    Locker locker { cellLock() };
+                    storage = arrayStorage();
+                    WriteBarrier<Unknown>& valueSlot = storage->m_vector[i];
+                    if (!valueSlot) // A racing locked writer may have filled it.
+                        ++storage->m_numValuesInVector;
+                    valueSlot.set(vm, this, value);
+                    return true;
+                }
+#endif
                 storage = arrayStorage();
                 storage->m_vector[i].set(vm, this, value);
                 ++storage->m_numValuesInVector;
@@ -3459,6 +5561,23 @@ bool JSObject::putDirectIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* 
         }
         // We don't want to, or can't use a vector to hold this property - allocate a sparse map & add the value.
         map = allocateSparseIndexMap(vm);
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            // I21 (review round 1): same map-identity revalidation as
+            // putByIndexBeyondVectorLengthWithArrayStorage's putEntry sites.
+            bool putResult = map->putDirect(globalObject, this, i, value, attributes, mode);
+            RETURN_IF_EXCEPTION(scope, false);
+            bool stillInstalled;
+            {
+                Locker locker { cellLock() };
+                ArrayStorage* freshStorage = arrayStorageOrNull();
+                stillInstalled = freshStorage && freshStorage->m_sparseMap.get() == map;
+            }
+            if (stillInstalled) [[likely]]
+                return putResult;
+            RELEASE_AND_RETURN(scope, putDirectIndex(globalObject, i, value, attributes, mode));
+        }
+#endif
         RELEASE_AND_RETURN(scope, map->putDirect(globalObject, this, i, value, attributes, mode));
     }
 
@@ -3473,14 +5592,58 @@ bool JSObject::putDirectIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject* 
                 return typeError(globalObject, scope, mode == PutDirectIndexShouldThrow, NonExtensibleObjectPropertyDefineError);
         }
         length = i + 1;
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            Locker locker { cellLock() };
+            storage = arrayStorage();
+            if (length > storage->length())
+                storage->setLength(length);
+        } else
+#endif
         storage->setLength(length);
     }
 
     // We are currently using a map - check whether we still want to be doing so.
     // We will continue  to use a sparse map if SparseMode is set, a vector would be too sparse, or if allocation fails.
     unsigned numValuesInArray = storage->m_numValuesInVector + map->size();
-    if (map->sparseMode() || attributes || !isDenseEnoughForVector(length, numValuesInArray) || !increaseVectorLength(vm, length))
+    if (map->sparseMode() || attributes || !isDenseEnoughForVector(length, numValuesInArray) || !increaseVectorLength(vm, length)) {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            // I21 (review round 1): see the fresh-map putDirect site above.
+            bool putResult = map->putDirect(globalObject, this, i, value, attributes, mode);
+            RETURN_IF_EXCEPTION(scope, false);
+            bool stillInstalled;
+            {
+                Locker locker { cellLock() };
+                ArrayStorage* freshStorage = arrayStorageOrNull();
+                stillInstalled = freshStorage && freshStorage->m_sparseMap.get() == map;
+            }
+            if (stillInstalled) [[likely]]
+                return putResult;
+            RELEASE_AND_RETURN(scope, putDirectIndex(globalObject, i, value, attributes, mode));
+        }
+#endif
         RELEASE_AND_RETURN(scope, map->putDirect(globalObject, this, i, value, attributes, mode));
+    }
+
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] {
+        // Map -> vector copy + final store, in one locked window (I31).
+        Locker locker { cellLock() };
+        storage = arrayStorage();
+        storage->m_numValuesInVector = numValuesInArray;
+        WriteBarrier<Unknown>* vector = storage->m_vector;
+        SparseArrayValueMap::const_iterator end = map->end();
+        for (SparseArrayValueMap::const_iterator it = map->begin(); it != end; ++it)
+            vector[it->key].set(vm, this, it->value.getNonSparseMode());
+        deallocateSparseIndexMap();
+        WriteBarrier<Unknown>& valueSlot = vector[i];
+        if (!valueSlot)
+            ++storage->m_numValuesInVector;
+        valueSlot.set(vm, this, value);
+        return true;
+    }
+#endif
 
     // Reread m_storage after increaseVectorLength, update m_numValuesInVector.
     storage = arrayStorage();
@@ -3536,10 +5699,18 @@ bool JSObject::putDirectIndexSlowOrBeyondVectorLength(JSGlobalObject* globalObje
             return true;
         }
         
+#if USE(JSVALUE64)
+        // Review round 2 (N3): loser re-dispatch instead of trapping.
+        if (Options::useJSThreads()) [[unlikely]] {
+            if (tryCreateInitialForValueAndSetConcurrent(vm, i, value))
+                return true;
+            return putDirectIndex(globalObject, i, value, attributes, mode);
+        }
+#endif
         createInitialForValueAndSet(vm, i, value);
         return true;
     }
-        
+
     case ALL_UNDECIDED_INDEXING_TYPES: {
         convertUndecidedForValue(vm, value);
         // Reloop.
@@ -3752,11 +5923,31 @@ unsigned JSObject::countElements()
 
 bool JSObject::increaseVectorLength(VM& vm, unsigned newLength)
 {
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §4.6 (Task 8): flag-on, every ArrayStorage access is
+    // cell-locked (I31/L5) and AS innards are never relaid out in place
+    // (AS-COPY) - the in-place availableVectorLength/setVectorLength branch
+    // below is skipped (vectorLength changes allocate a fresh AS butterfly)
+    // and the grow paths publish through casButterfly (T3/I17). The DeferGC
+    // precedes the lock per O1's sanctioned back-edge (allocation under the
+    // cell lock only under a pre-lock DeferGC/GCDeferralContext).
+    std::optional<DeferGC> threadsDeferGC;
+    std::optional<Locker<JSCellLock>> threadsLocker;
+    if (Options::useJSThreads()) [[unlikely]] {
+        threadsDeferGC.emplace(vm);
+        threadsLocker.emplace(cellLock());
+    }
+#endif
     ArrayStorage* storage = arrayStorage();
-    
+
     unsigned vectorLength = storage->vectorLength();
-    unsigned availableVectorLength = storage->availableVectorLength(structure(), vectorLength); 
-    if (availableVectorLength >= newLength) {
+    unsigned availableVectorLength = storage->availableVectorLength(structure(), vectorLength);
+    bool canGrowInPlace = availableVectorLength >= newLength;
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]]
+        canGrowInPlace = false; // AS-COPY: in-place vectorLength changes forbidden flag-on.
+#endif
+    if (canGrowInPlace) {
         // The cell was already big enough for the desired length!
         for (unsigned i = vectorLength; i < availableVectorLength; ++i)
             storage->m_vector[i].clear();
@@ -3789,10 +5980,15 @@ bool JSObject::increaseVectorLength(VM& vm, unsigned newLength)
         for (unsigned i = vectorLength; i < newVectorLength; ++i)
             newButterfly->arrayStorage()->m_vector[i].clear();
         newButterfly->arrayStorage()->setVectorLength(newVectorLength);
-        setButterfly(vm, newButterfly);
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] // §4.6 AS-COPY publication form (T3/I17), under the cell lock taken above.
+            publishArrayStorageButterflyLocked(vm, static_cast<JSObjectWithButterfly*>(this), newButterfly);
+        else
+#endif
+            setButterfly(vm, newButterfly);
         return true;
     }
-    
+
     // Remove some, but not all of the precapacity. Atomic decay, & capped to not overflow array length.
     DeferGC deferGC(vm);
     unsigned newIndexBias = std::min(indexBias >> 1, MAX_STORAGE_VECTOR_LENGTH - newVectorLength);
@@ -3806,12 +6002,29 @@ bool JSObject::increaseVectorLength(VM& vm, unsigned newLength)
         newButterfly->arrayStorage()->m_vector[i].clear();
     newButterfly->arrayStorage()->setVectorLength(newVectorLength);
     newButterfly->arrayStorage()->m_indexBias = newIndexBias;
-    setButterfly(vm, newButterfly);
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] // §4.6 AS-COPY publication form (T3/I17), under the cell lock taken above.
+        publishArrayStorageButterflyLocked(vm, static_cast<JSObjectWithButterfly*>(this), newButterfly);
+    else
+#endif
+        setButterfly(vm, newButterfly);
     return true;
 }
 
 bool JSObject::ensureLengthSlow(VM& vm, unsigned length)
 {
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §4.4 (Task 8, GT10): flag-on, this resize site runs the
+    // full T1/T2 dispatch - T1 owner-only copying resize published by
+    // casButterfly ((currentTID, 0) expected exactly - an SW flip mid-resize
+    // fails the CAS and re-dispatches to T2, never re-copies, I27/I21), T2
+    // segmented growth for foreign/SW=1/segmented words. The former T5
+    // in-place vectorLength growth was removed (review round 1): flat
+    // vectorLengths are immutable flag-on, so lock-free foreign readers can
+    // never pair a raised bound with pre-initialization slot garbage.
+    if (Options::useJSThreads()) [[unlikely]]
+        return ensureLengthSlowConcurrent(vm, static_cast<JSObjectWithButterfly*>(this), length);
+#endif
     if (isCopyOnWrite(indexingMode())) {
         convertFromCopyOnWrite(vm);
         if (this->butterfly()->vectorLength() >= length)
@@ -3863,8 +6076,14 @@ bool JSObject::ensureLengthSlow(VM& vm, unsigned length)
     if (newButterfly) {
         butterfly->setVectorLength(newVectorLength);
         WTF::storeStoreFence();
+        // SPEC-objectmodel Task 8: flag-on, ensureLengthSlow returns early into
+        // ensureLengthSlowConcurrent above (T1 casButterfly / T2), so this
+        // is the flag-off path only (I22: identical to today).
         butterflyRef().set(vm, this, newButterfly);
     } else {
+        // Flag-on, in-place vectorLength-only growth does not exist (the T5
+        // branch was removed in review round 1); ensureLengthSlowConcurrent
+        // takes the T1 fresh-copy route instead. Flag-off only here.
         WTF::storeStoreFence();
         butterfly->setVectorLength(newVectorLength);
     }
@@ -3874,6 +6093,15 @@ bool JSObject::ensureLengthSlow(VM& vm, unsigned length)
 
 void JSObject::reallocateAndShrinkButterfly(VM& vm, unsigned length)
 {
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §4.4 (Task 8, GT10): flag-on dispatch - owner flat
+    // copy-shrink published by casButterfly (I17/I27), SW=1 flat / segmented
+    // in-place truncation (publicLength only), foreign SW=0 through F1 first.
+    if (Options::useJSThreads()) [[unlikely]] {
+        shrinkButterflyForSetLengthConcurrent(vm, static_cast<JSObjectWithButterfly*>(this), length);
+        return;
+    }
+#endif
     ASSERT(length <= MAX_STORAGE_VECTOR_LENGTH);
     ASSERT(hasContiguous(indexingType()) || hasInt32(indexingType()) || hasDouble(indexingType()) || hasUndecided(indexingType()));
     ASSERT(this->butterfly()->vectorLength() > length);
@@ -3885,8 +6113,9 @@ void JSObject::reallocateAndShrinkButterfly(VM& vm, unsigned length)
     newButterfly->setVectorLength(length);
     newButterfly->setPublicLength(length);
     WTF::storeStoreFence();
+    // Flag-on, this site returned early into shrinkButterflyForSetLengthConcurrent
+    // (Task 8: casButterfly form, I17); this is the flag-off path only (I22).
     butterflyRef().set(vm, this, newButterfly);
-
 }
 
 Butterfly* JSObject::allocateMoreOutOfLineStorage(VM& vm, size_t oldSize, size_t newSize)
@@ -4036,6 +6265,8 @@ bool JSObject::defineOwnNonIndexProperty(JSGlobalObject* globalObject, PropertyN
 
 bool JSObject::defineOwnProperty(JSObject* object, JSGlobalObject* globalObject, PropertyName propertyName, const PropertyDescriptor& descriptor, bool throwException)
 {
+    if (Options::useJSThreads() && object->structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, object)) [[unlikely]]
+        return false;
     // If it's an array index, then use the indexed property storage.
     if (std::optional<uint32_t> index = parseIndex(propertyName)) {
         // c. Let succeeded be the result of calling the default [[DefineOwnProperty]] internal method (8.12.9) on A passing P, Desc, and false as arguments.
@@ -4288,24 +6519,46 @@ void JSObject::putOwnDataPropertyBatching(VM& vm, UniquedStringImpl** properties
 
 ASCIILiteral JSObject::putDirectToDictionaryWithoutExtensibility(VM& vm, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
 {
-    unsigned currentAttributes;
-    Structure* structure = this->structure();
-    PropertyOffset offset = structure->get(vm, propertyName, currentAttributes);
-    if (offset != invalidOffset) {
-        if (currentAttributes & PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessor)
-            return ReadonlyPropertyChangeError;
+    // Flag-off the loop body runs exactly once (nothing RESTARTs - I22).
+    while (true) {
+        unsigned currentAttributes;
+        Structure* structure = this->structure();
+        PropertyOffset offset = structure->get(vm, propertyName, currentAttributes);
+        if (offset != invalidOffset) {
+            if (currentAttributes & PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessor)
+                return ReadonlyPropertyChangeError;
 
-        putDirectOffset(vm, offset, value);
-        structure->didReplaceProperty(offset);
+#if USE(JSVALUE64)
+            if (Options::useJSThreads()) [[unlikely]] {
+                // §6 L3 (review round 1): dictionary-mode value replaces are
+                // cell-locked so they cannot race a flatten's in-place
+                // renumber (which holds the cell lock; an unlocked store
+                // mid-renumber can land in a re-purposed slot). Re-validate
+                // the structure under the lock; on mismatch redo the lookup.
+                bool stored = false;
+                {
+                    Locker locker { cellLock() };
+                    if (this->structure() == structure) {
+                        putDirectOffset(vm, offset, value);
+                        stored = true;
+                    }
+                }
+                if (!stored)
+                    continue; // The offset may have been renumbered; re-derive it.
+            } else
+#endif
+            putDirectOffset(vm, offset, value);
+            structure->didReplaceProperty(offset);
 
-        // FIXME: Check attributes against PropertyAttribute::CustomAccessorOrValue. Changing GetterSetter should work w/o transition.
-        // https://bugs.webkit.org/show_bug.cgi?id=214342
-        ASSERT(!(currentAttributes & PropertyAttribute::AccessorOrCustomAccessorOrValue));
-        slot.setExistingProperty(this, offset);
-        return { };
+            // FIXME: Check attributes against PropertyAttribute::CustomAccessorOrValue. Changing GetterSetter should work w/o transition.
+            // https://bugs.webkit.org/show_bug.cgi?id=214342
+            ASSERT(!(currentAttributes & PropertyAttribute::AccessorOrCustomAccessorOrValue));
+            slot.setExistingProperty(this, offset);
+            return { };
+        }
+
+        return NonExtensibleObjectPropertyDefineError;
     }
-
-    return NonExtensibleObjectPropertyDefineError;
 }
 
 } // namespace JSC

@@ -245,6 +245,9 @@ inline JSArray* allocateNewArrayBuffer(VM& vm, Structure* structure, JSCellButte
         ASSERT(globalObject->isHavingABadTime());
 
         result->switchToSlowPutArrayStorage(vm);
+        // THREADS-INTEGRATE(objectmodel) §10.7 [assert-only]: freshly created
+        // CoW-backed array (JSCellButterfly payload, never segmented — I35).
+        ASSERT(!result->mayBeSegmentedButterfly());
         ASSERT(result->butterfly() != immutableButterfly->toButterfly());
         ASSERT(!result->butterfly()->arrayStorage()->m_sparseMap.get());
         ASSERT(result->structureID() == structure->id());

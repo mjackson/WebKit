@@ -103,6 +103,61 @@ namespace JSC { namespace LLInt {
 static inline JSValue NODELETE getNonConstantOperand(CallFrame* callFrame, VirtualRegister operand) { return callFrame->uncheckedR(operand).jsValue(); }
 static inline JSValue NODELETE getOperand(CallFrame* callFrame, VirtualRegister operand) { return callFrame->r(operand).jsValue(); }
 
+// SPEC-jit §4.3/§5.4 (Task 6): LLInt metadata caches under JS threads.
+//
+// Flag-on (Options::useJSThreads()), a metadata cache survives only if its
+// threaded form is exactly ONE aligned 64-bit word ({StructureID, offset},
+// published with a single relaxed store; readers do a single 64-bit load and
+// compare the id half / use the offset half). Anything wider is disabled
+// wholesale: never published, so the asm fast-path checks can never match and
+// every execution takes the slow path. Per the frozen §4.3 table:
+//   - get_by_id family (incl. get_length/instanceof/iterator_*): only Default
+//     (word 1) and ArrayLength publish; setupGetByIdPrototypeCache() — the sole
+//     ProtoLoad/Unset installer — is disabled wholesale (I18).
+//   - try_get_by_id / get_by_id_direct: survive, repacked as LLIntCachedIdAndOffset.
+//   - put_by_id: transition cache disabled (fields null forever); the replace
+//     cache {m_oldStructureID, m_offset} survives as one u64.
+//   - get_private_name / put_private_name / set_private_brand /
+//     check_private_brand: disabled (a cached cell compare cannot cohere with
+//     the {id, offset} word).
+static ALWAYS_INLINE bool useThreadedLLIntPropertyCaches()
+{
+#if CPU(ADDRESS64) && CPU(LITTLE_ENDIAN)
+    // THREADS-INTEGRATE(jit): SPEC-jit M1's useThreadedLLIntICs kill switch is
+    // not yet in OptionsList.h; once it lands this becomes
+    // `Options::useJSThreads() && Options::useThreadedLLIntICs()` (with the
+    // kill switch off, flag-on, single-word caches are simply never published —
+    // the asm gate is keyed on useJSThreads alone and the threaded readers then
+    // always miss). See docs/threads/INTEGRATE-jit.md (Task 6).
+    return Options::useJSThreads();
+#else
+    // D8: flag-on is unsupported on these platforms; never publish.
+    return false;
+#endif
+}
+
+static ALWAYS_INLINE bool useUnthreadedLLIntPropertyCaches()
+{
+    return !Options::useJSThreads();
+}
+
+#if CPU(ADDRESS64)
+// SPEC-jit §4.3/I13 per-op static_asserts: flag-on survivor caches are single
+// aligned 64-bit words.
+static_assert(sizeof(OpTryGetById::Metadata) == 8);
+static_assert(alignof(OpTryGetById::Metadata) == 8);
+static_assert(OpTryGetById::Metadata::offsetOfCache() == 0);
+static_assert(sizeof(OpGetByIdDirect::Metadata) == 8);
+static_assert(alignof(OpGetByIdDirect::Metadata) == 8);
+static_assert(OpGetByIdDirect::Metadata::offsetOfCache() == 0);
+// put_by_id's surviving replace cache: {m_oldStructureID, m_offset} is word 0
+// of an 8-aligned Metadata (the trailing transition fields are dead flag-on).
+static_assert(OpPutById::Metadata::offsetOfOldStructureID() == 0);
+static_assert(OpPutById::Metadata::offsetOfOffset() == 4);
+static_assert(alignof(OpPutById::Metadata) == 8);
+// get_by_id word-1 asserts live in GetByIdMetadata.h.
+#endif
+
 #define LLINT_RETURN_TWO(first, second) do {       \
         return encodeResult(first, second);        \
     } while (false)
@@ -161,7 +216,7 @@ static inline JSValue NODELETE getOperand(CallFrame* callFrame, VirtualRegister 
     } while (false)
 
 #define LLINT_PROFILE_VALUE(value) do { \
-        codeBlock->valueProfileForOffset(bytecode.m_valueProfile).m_buckets[0] = JSValue::encode(value); \
+        codeBlock->valueProfileForOffset(bytecode.m_valueProfile).storeBucketConcurrently(0, JSValue::encode(value)); /* THREADS §5.7.4 */ \
     } while (false)
 
 #define LLINT_CALL_END_IMPL(callFrame, callTarget, callTargetTag) \
@@ -400,6 +455,18 @@ static inline bool jitCompileAndSetHeuristics(VM& vm, CodeBlock* codeBlock)
     }
 
     if (worklistState == JITWorklist::NotKnown) {
+        // THREADS §5.7.2 (SPEC-jit Task 12): serialize the LLInt->Baseline trigger; only
+        // the winner of the 0->1 CAS enqueues the plan. Losers defer (counter reset so
+        // they re-check soon) and stay in LLInt. Duplicates racing through the latch-free
+        // window are cancelled by JITWorklist::enqueue's dedup backstop (§5.7.3) — for
+        // Baseline the plan key is on the shared UnlinkedCodeBlock, so the backstop also
+        // covers two distinct linked CodeBlocks racing for the same unlinked key.
+        CodeBlock::TierUpEdgeLocker tierUpLocker(codeBlock, CodeBlock::TierUpEdge::LLIntToBaseline);
+        if (!tierUpLocker.won()) [[unlikely]] {
+            CODEBLOCK_LOG_EVENT(codeBlock, "delayJITCompile", ("tier-up already in flight"));
+            codeBlock->jitSoon();
+            return false;
+        }
         Ref<BaselineJITPlan> plan = adoptRef(*new BaselineJITPlan(codeBlock));
         JITWorklist::ensureGlobalWorklist().enqueue(WTF::move(plan));
         return codeBlock->jitType() == JITType::BaselineJIT;
@@ -742,7 +809,7 @@ LLINT_SLOW_PATH_DECL(slow_path_try_get_by_id)
 
         auto& metadata = bytecode.metadata(codeBlock);
         {
-            StructureID oldStructureID = metadata.m_structureID;
+            StructureID oldStructureID = metadata.m_cache.structureID;
             if (oldStructureID) {
                 Structure* a = oldStructureID.decode();
                 Structure* b = baseValue.asCell()->structure();
@@ -757,17 +824,30 @@ LLINT_SLOW_PATH_DECL(slow_path_try_get_by_id)
         JSCell* baseCell = baseValue.asCell();
         Structure* structure = baseCell->structure();
         if (slot.isValue() && slot.slotBase() == baseValue) {
-            // Start out by clearing out the old cache.
-            metadata.m_structureID = StructureID();
-            metadata.m_offset = 0;
+            // Start out by clearing out the old cache (one all-zero word store, SPEC-jit §4.3/F3).
+            metadata.m_cache.clear();
 
             if (structure->propertyAccessesAreCacheable() && !structure->needImpurePropertyWatchpoint()) {
-                {
-                    ConcurrentJSLocker locker(codeBlock->m_lock);
-                    metadata.m_structureID = structure->id();
-                    metadata.m_offset = slot.cachedOffset();
+                if (useUnthreadedLLIntPropertyCaches()) {
+                    {
+                        ConcurrentJSLocker locker(codeBlock->m_lock);
+                        metadata.m_cache.structureID = structure->id();
+                        metadata.m_cache.offset = slot.cachedOffset();
+                    }
+                    vm.writeBarrier(codeBlock);
+                } else if (useThreadedLLIntPropertyCaches() && !structure->isDictionary()) {
+                    // SPEC-jit §4.3: one-word publish, no lock (last-writer-wins).
+                    // Dictionary structures are EXCLUDED (review round 1): a
+                    // dictionary keeps the SAME structureID while the owner
+                    // adds properties (butterfly realloc, larger offsets), so
+                    // the R7 structureID->butterfly dependency chain proves
+                    // nothing and a foreign reader could pair a fresh
+                    // {sid, grownOffset} word with a stale smaller butterfly
+                    // => OOB. THREAD.md: dictionary reads take the structure
+                    // lock; they must never be served by a one-word cache.
+                    metadata.m_cache.setConcurrently(structure->id(), slot.cachedOffset());
+                    vm.writeBarrier(codeBlock);
                 }
-                vm.writeBarrier(codeBlock);
             }
         }
     }
@@ -791,7 +871,7 @@ LLINT_SLOW_PATH_DECL(slow_path_get_by_id_direct)
     if (Options::useLLIntICs() && slot.isCacheable() && !slot.isUnset()) {
         auto& metadata = bytecode.metadata(codeBlock);
         {
-            StructureID oldStructureID = metadata.m_structureID;
+            StructureID oldStructureID = metadata.m_cache.structureID;
             if (oldStructureID) {
                 Structure* a = oldStructureID.decode();
                 Structure* b = baseValue.asCell()->structure();
@@ -806,17 +886,23 @@ LLINT_SLOW_PATH_DECL(slow_path_get_by_id_direct)
         JSCell* baseCell = baseValue.asCell();
         Structure* structure = baseCell->structure();
         if (slot.isValue()) {
-            // Start out by clearing out the old cache.
-            metadata.m_structureID = StructureID();
-            metadata.m_offset = 0;
+            // Start out by clearing out the old cache (one all-zero word store, SPEC-jit §4.3/F3).
+            metadata.m_cache.clear();
 
             if (structure->propertyAccessesAreCacheable() && !structure->needImpurePropertyWatchpoint()) {
-                {
-                    ConcurrentJSLocker locker(codeBlock->m_lock);
-                    metadata.m_structureID = structure->id();
-                    metadata.m_offset = slot.cachedOffset();
+                if (useUnthreadedLLIntPropertyCaches()) {
+                    {
+                        ConcurrentJSLocker locker(codeBlock->m_lock);
+                        metadata.m_cache.structureID = structure->id();
+                        metadata.m_cache.offset = slot.cachedOffset();
+                    }
+                    vm.writeBarrier(codeBlock);
+                } else if (useThreadedLLIntPropertyCaches() && !structure->isDictionary()) {
+                    // SPEC-jit §4.3: one-word publish, no lock (last-writer-wins).
+                    // Dictionary exclusion: see slow_path_get_by_id above.
+                    metadata.m_cache.setConcurrently(structure->id(), slot.cachedOffset());
+                    vm.writeBarrier(codeBlock);
                 }
-                vm.writeBarrier(codeBlock);
             }
         }
     }
@@ -838,6 +924,12 @@ LLINT_SLOW_PATH_DECL(slow_path_get_by_id_with_this)
 
 static void setupGetByIdPrototypeCache(JSGlobalObject* globalObject, VM& vm, CodeBlock* codeBlock, BytecodeIndex bytecodeIndex, GetByIdModeMetadata& metadata, JSCell* baseCell, PropertySlot& slot, const Identifier& ident)
 {
+    // SPEC-jit §4.3 (Task 6): this is the SOLE ProtoLoad/Unset installer; it is
+    // disabled wholesale under JS threads (I18) — those records cannot be
+    // published as one word. Charter: proto caches return as immutable
+    // single-pointer records (§5.8 pattern) if Task 13's budget is missed.
+    RELEASE_ASSERT(!Options::useJSThreads());
+
     Structure* structure = baseCell->structure();
 
     if (structure->typeInfo().prohibitsPropertyCaching())
@@ -935,23 +1027,44 @@ static JSValue performLLIntGetByID(BytecodeIndex bytecodeIndex, CodeBlock* codeB
         JSCell* baseCell = baseValue.asCell();
         Structure* structure = baseCell->structure();
         if (slot.isValue() && slot.slotBase() == baseValue) {
-            ConcurrentJSLocker locker(codeBlock->m_lock);
-            // Start out by clearing out the old cache.
-            metadata.clearToDefaultModeWithoutCache();
+            if (useUnthreadedLLIntPropertyCaches()) {
+                ConcurrentJSLocker locker(codeBlock->m_lock);
+                // Start out by clearing out the old cache.
+                metadata.clearToDefaultModeWithoutCache();
 
-            // Prevent the prototype cache from ever happening.
-            metadata.hitCountForLLIntCaching = 0;
-        
-            if (structure->propertyAccessesAreCacheable() && !structure->needImpurePropertyWatchpoint()) {
-                metadata.defaultMode.structureID = structure->id();
-                metadata.defaultMode.cachedOffset = slot.cachedOffset();
-                vm.writeBarrier(codeBlock);
+                // Prevent the prototype cache from ever happening.
+                metadata.hitCountForLLIntCaching = 0;
+
+                if (structure->propertyAccessesAreCacheable() && !structure->needImpurePropertyWatchpoint()) {
+                    metadata.defaultMode.structureID = structure->id();
+                    metadata.defaultMode.cachedOffset = slot.cachedOffset();
+                    vm.writeBarrier(codeBlock);
+                }
             }
+#if CPU(ADDRESS64) && CPU(LITTLE_ENDIAN)
+            else {
+                // SPEC-jit §4.3 (Task 6), flag-on: Default mode publishes word 1
+                // ({structureID, cachedOffset}) with ONE relaxed 64-bit store, no
+                // lock (last-writer-wins); invalidation is one all-zero store.
+                metadata.clearToDefaultModeWithoutCache();
+                WTF::atomicStore(&metadata.hitCountForLLIntCaching, static_cast<uint8_t>(0), std::memory_order_relaxed);
+
+                // Dictionary exclusion (review round 1): see slow_path_get_by_id.
+                if (useThreadedLLIntPropertyCaches() && structure->propertyAccessesAreCacheable() && !structure->needImpurePropertyWatchpoint() && !structure->isDictionary()) {
+                    metadata.setDefaultModeCacheConcurrently(structure->id(), slot.cachedOffset());
+                    vm.writeBarrier(codeBlock);
+                }
+            }
+#endif
         } else if (metadata.hitCountForLLIntCaching && slot.isValue()) [[unlikely]] {
             ASSERT(slot.slotBase() != baseValue);
 
-            if (!(--metadata.hitCountForLLIntCaching))
-                setupGetByIdPrototypeCache(globalObject, vm, codeBlock, bytecodeIndex, metadata, baseCell, slot, ident);
+            // SPEC-jit §4.3 (Task 6): the prototype cache (ProtoLoad/Unset) is
+            // disabled wholesale under JS threads (I18).
+            if (useUnthreadedLLIntPropertyCaches()) {
+                if (!(--metadata.hitCountForLLIntCaching))
+                    setupGetByIdPrototypeCache(globalObject, vm, codeBlock, bytecodeIndex, metadata, baseCell, slot, ident);
+            }
         }
     } else if (Options::useLLIntICs() && isJSArray(baseValue) && ident == vm.propertyNames->length)
         metadata.setArrayLengthMode();
@@ -1000,7 +1113,7 @@ LLINT_SLOW_PATH_DECL(slow_path_iterator_open_get_next)
     JSValue result = performLLIntGetByID(codeBlock->bytecodeIndex(pc).withCheckpoint(OpIteratorOpen::getNext), codeBlock, globalObject, iterator, vm.propertyNames->next, metadata.m_modeMetadata);
     LLINT_CHECK_EXCEPTION();
     nextRegister = result;
-    codeBlock->valueProfileForOffset(bytecode.m_nextValueProfile).m_buckets[0] = JSValue::encode(result);
+    codeBlock->valueProfileForOffset(bytecode.m_nextValueProfile).storeBucketConcurrently(0, JSValue::encode(result)); // THREADS §5.7.4
     LLINT_END();
 }
 
@@ -1020,7 +1133,7 @@ LLINT_SLOW_PATH_DECL(slow_path_iterator_next_get_done)
     JSValue result = performLLIntGetByID(codeBlock->bytecodeIndex(pc).withCheckpoint(OpIteratorNext::getDone), codeBlock, globalObject, iteratorReturn, vm.propertyNames->done, metadata.m_doneModeMetadata);
     LLINT_CHECK_EXCEPTION();
     doneRegister = result;
-    codeBlock->valueProfileForOffset(bytecode.m_doneValueProfile).m_buckets[0] = JSValue::encode(result);
+    codeBlock->valueProfileForOffset(bytecode.m_doneValueProfile).storeBucketConcurrently(0, JSValue::encode(result)); // THREADS §5.7.4
     LLINT_END();
 }
 
@@ -1040,7 +1153,7 @@ LLINT_SLOW_PATH_DECL(slow_path_iterator_next_get_value)
     JSValue result = performLLIntGetByID(codeBlock->bytecodeIndex(pc).withCheckpoint(OpIteratorNext::getValue), codeBlock, globalObject, iteratorReturn, vm.propertyNames->value, metadata.m_valueModeMetadata);
     LLINT_CHECK_EXCEPTION();
     valueRegister = result;
-    codeBlock->valueProfileForOffset(bytecode.m_valueValueProfile).m_buckets[0] = JSValue::encode(result);
+    codeBlock->valueProfileForOffset(bytecode.m_valueValueProfile).storeBucketConcurrently(0, JSValue::encode(result)); // THREADS §5.7.4
     LLINT_END();
 }
 
@@ -1054,7 +1167,7 @@ LLINT_SLOW_PATH_DECL(slow_path_get_hasInstance_from_instanceof)
     LLINT_CHECK_EXCEPTION();
 
     callFrame->uncheckedR(bytecode.m_hasInstanceOrPrototype) = result;
-    codeBlock->valueProfileForOffset(bytecode.m_hasInstanceValueProfile).m_buckets[0] = JSValue::encode(result);
+    codeBlock->valueProfileForOffset(bytecode.m_hasInstanceValueProfile).storeBucketConcurrently(0, JSValue::encode(result)); // THREADS §5.7.4
     LLINT_END();
 }
 
@@ -1068,7 +1181,7 @@ LLINT_SLOW_PATH_DECL(slow_path_get_prototype_from_instanceof)
     LLINT_CHECK_EXCEPTION();
 
     callFrame->uncheckedR(bytecode.m_hasInstanceOrPrototype) = result;
-    codeBlock->valueProfileForOffset(bytecode.m_prototypeValueProfile).m_buckets[0] = JSValue::encode(result);
+    codeBlock->valueProfileForOffset(bytecode.m_prototypeValueProfile).storeBucketConcurrently(0, JSValue::encode(result)); // THREADS §5.7.4
     LLINT_END();
 }
 
@@ -1148,33 +1261,45 @@ LLINT_SLOW_PATH_DECL(slow_path_put_by_id)
         }
 
         // Start out by clearing out the old cache.
-        metadata.m_oldStructureID = StructureID();
-        metadata.m_offset = 0;
+        if (useUnthreadedLLIntPropertyCaches()) {
+            metadata.m_oldStructureID = StructureID();
+            metadata.m_offset = 0;
+        } else {
+            // SPEC-jit §4.3 (Task 6): flag-on, {m_oldStructureID, m_offset} is the
+            // surviving replace cache, read by the asm as ONE 64-bit word;
+            // invalidate it with one all-zero store (F3).
+            clearLLIntIdAndOffsetPairConcurrently(&metadata.m_oldStructureID);
+        }
         metadata.m_newStructureID = StructureID();
         metadata.m_structureChain.clear();
-        
+
         JSCell* baseCell = baseValue.asCell();
         Structure* newStructure = baseCell->structure();
-        
+
         if (newStructure->propertyAccessesAreCacheable() && baseCell == slot.base()) {
             if (slot.type() == PutPropertySlot::NewProperty) {
-                GCSafeConcurrentJSLocker locker(codeBlock->m_lock, vm);
-                if (!newStructure->isDictionary() && newStructure->previousID()->outOfLineCapacity() == newStructure->outOfLineCapacity() && newStructure->previousID() == oldStructure) {
-                    ASSERT(oldStructure->transitionWatchpointSetHasBeenInvalidated());
+                // SPEC-jit §4.3 (Task 6): the put_by_id TRANSITION cache is
+                // disabled under JS threads (fields null forever; the asm
+                // transition branch is dead flag-on).
+                if (useUnthreadedLLIntPropertyCaches()) {
+                    GCSafeConcurrentJSLocker locker(codeBlock->m_lock, vm);
+                    if (!newStructure->isDictionary() && newStructure->previousID()->outOfLineCapacity() == newStructure->outOfLineCapacity() && newStructure->previousID() == oldStructure) {
+                        ASSERT(oldStructure->transitionWatchpointSetHasBeenInvalidated());
 
-                    bool sawPolyProto = false;
-                    auto result = normalizePrototypeChain(globalObject, baseCell, sawPolyProto);
-                    if (result != InvalidPrototypeChain && !sawPolyProto) {
-                        ASSERT(oldStructure->isObject());
-                        metadata.m_oldStructureID = oldStructure->id();
-                        metadata.m_offset = slot.cachedOffset();
-                        metadata.m_newStructureID = newStructure->id();
-                        if (!(bytecode.m_flags.isDirect())) {
-                            StructureChain* chain = newStructure->prototypeChain(vm, globalObject, asObject(baseCell));
-                            ASSERT(chain);
-                            metadata.m_structureChain.set(vm, codeBlock, chain);
+                        bool sawPolyProto = false;
+                        auto result = normalizePrototypeChain(globalObject, baseCell, sawPolyProto);
+                        if (result != InvalidPrototypeChain && !sawPolyProto) {
+                            ASSERT(oldStructure->isObject());
+                            metadata.m_oldStructureID = oldStructure->id();
+                            metadata.m_offset = slot.cachedOffset();
+                            metadata.m_newStructureID = newStructure->id();
+                            if (!(bytecode.m_flags.isDirect())) {
+                                StructureChain* chain = newStructure->prototypeChain(vm, globalObject, asObject(baseCell));
+                                ASSERT(chain);
+                                metadata.m_structureChain.set(vm, codeBlock, chain);
+                            }
+                            vm.writeBarrier(codeBlock);
                         }
-                        vm.writeBarrier(codeBlock);
                     }
                 }
             } else {
@@ -1185,17 +1310,29 @@ LLINT_SLOW_PATH_DECL(slow_path_put_by_id)
                 // know how to model these types of structure transitions (or any structure
                 // transition for that matter).
                 RELEASE_ASSERT(newStructure == oldStructure);
-                newStructure->didCachePropertyReplacement(vm, slot.cachedOffset());
-                {
-                    ConcurrentJSLocker locker(codeBlock->m_lock);
-                    metadata.m_oldStructureID = newStructure->id();
-                    metadata.m_offset = slot.cachedOffset();
+                if (useUnthreadedLLIntPropertyCaches()) {
+                    newStructure->didCachePropertyReplacement(vm, slot.cachedOffset());
+                    {
+                        ConcurrentJSLocker locker(codeBlock->m_lock);
+                        metadata.m_oldStructureID = newStructure->id();
+                        metadata.m_offset = slot.cachedOffset();
+                    }
+                    vm.writeBarrier(codeBlock);
+                } else if (useThreadedLLIntPropertyCaches() && !newStructure->isDictionary()) {
+                    // SPEC-jit §4.3 (Task 6): replace cache survives flag-on as one
+                    // u64; one-word publish, no lock (last-writer-wins).
+                    // Dictionary exclusion (review round 1): a dictionary keeps its
+                    // structureID across butterfly growth, defeating the R7 chain;
+                    // a foreign SW=1 writer pairing {dictSID, grownOffset} with a
+                    // stale butterfly would be an OOB WRITE. See slow_path_get_by_id.
+                    newStructure->didCachePropertyReplacement(vm, slot.cachedOffset());
+                    publishLLIntIdAndOffsetPairConcurrently(&metadata.m_oldStructureID, newStructure->id(), static_cast<int32_t>(slot.cachedOffset()));
+                    vm.writeBarrier(codeBlock);
                 }
-                vm.writeBarrier(codeBlock);
             }
         }
     }
-    
+
     LLINT_END();
 }
 
@@ -1305,7 +1442,10 @@ LLINT_SLOW_PATH_DECL(slow_path_get_private_name)
     baseObject->getPrivateField(globalObject, property, slot);
     LLINT_CHECK_EXCEPTION();
 
-    if (Options::useLLIntICs() && baseValue.isCell() && slot.isCacheable() && !slot.isUnset()) {
+    // SPEC-jit §4.3 (Task 6): the get_private_name cache is DISABLED under JS
+    // threads — the cached private-symbol cell compare cannot cohere with the
+    // {structureID, offset} word.
+    if (Options::useLLIntICs() && useUnthreadedLLIntPropertyCaches() && baseValue.isCell() && slot.isCacheable() && !slot.isUnset()) {
         auto& metadata = bytecode.metadata(codeBlock);
         {
             StructureID oldStructureID = metadata.m_structureID;
@@ -1435,7 +1575,10 @@ LLINT_SLOW_PATH_DECL(slow_path_put_private_name)
     }
     LLINT_CHECK_EXCEPTION();
 
+    // SPEC-jit §4.3 (Task 6): the put_private_name cache is DISABLED under JS
+    // threads (multi-word record incl. a cell compare; cannot cohere).
     if (Options::useLLIntICs()
+        && useUnthreadedLLIntPropertyCaches()
         && baseValue.isCell()
         && slot.isCacheablePut()
         && subscript.isCell()
@@ -1521,7 +1664,9 @@ LLINT_SLOW_PATH_DECL(slow_path_set_private_brand)
     baseObject->setPrivateBrand(globalObject, brand);
     LLINT_CHECK_EXCEPTION();
 
-    if (Options::useLLIntICs() && !oldStructure->isDictionary()) {
+    // SPEC-jit §4.3 (Task 6): the set_private_brand cache is DISABLED under JS
+    // threads (two structure IDs + a brand cell; cannot cohere as one word).
+    if (Options::useLLIntICs() && useUnthreadedLLIntPropertyCaches() && !oldStructure->isDictionary()) {
         GCSafeConcurrentJSLocker locker(codeBlock->m_lock, vm);
         Structure* newStructure = baseObject->structure();
 
@@ -1564,7 +1709,9 @@ LLINT_SLOW_PATH_DECL(slow_path_check_private_brand)
     // Since a brand can't ever be removed from an object, it's safe to
     // rely on StructureID even if it's an uncacheable dictionary.
     Structure* structure = baseObject->structure();
-    if (Options::useLLIntICs()) {
+    // SPEC-jit §4.3 (Task 6): the check_private_brand cache is DISABLED under JS
+    // threads (structure ID + brand cell pair; cannot cohere as one word).
+    if (Options::useLLIntICs() && useUnthreadedLLIntPropertyCaches()) {
         GCSafeConcurrentJSLocker locker(codeBlock->m_lock, vm);
 
         metadata.m_structureID = structure->id();
@@ -2379,7 +2526,18 @@ LLINT_SLOW_PATH_DECL(slow_path_get_from_scope)
                 return throwException(globalObject, throwScope, createTDZError(globalObject, ident.string()));
         }
 
-        CommonSlowPaths::tryCacheGetFromScopeGlobal(globalObject, codeBlock, vm, bytecode, scope, slot, ident);
+        // SPEC-jit §5.5 (review round 1): flag-on, op_get_from_scope metadata is
+        // FROZEN after CodeBlock linking. tryCacheGetFromScopeGlobal rewrites the
+        // {m_getPutInfo, m_structureID, m_operand} triple as three plain stores
+        // (under codeBlock->m_lock, which the LLInt/Baseline fast paths never
+        // take), so a racing reader could pair a new structureID with a stale
+        // operand (OOB through the masked butterfly) or a stale GlobalProperty
+        // resolveType with an operand that is now a raw pointer. GlobalProperty
+        // accesses whose link-time cache misses simply stay on this slow path.
+        // See docs/threads/INTEGRATE-jit.md (scope-metadata freeze) for the
+        // matching CommonSlowPathsInlines.h defense-in-depth hunk.
+        if (!Options::useJSThreads()) [[likely]]
+            CommonSlowPaths::tryCacheGetFromScopeGlobal(globalObject, codeBlock, vm, bytecode, scope, slot, ident);
 
         if (!result)
             return slot.getValue(globalObject, ident);
@@ -2426,7 +2584,10 @@ LLINT_SLOW_PATH_DECL(slow_path_put_to_scope)
     PutPropertySlot slot(scope, metadata.m_getPutInfo.ecmaMode().isStrict(), PutPropertySlot::UnknownContext, isInitialization(metadata.m_getPutInfo.initializationMode()));
     scope->methodTable()->put(scope, globalObject, ident, value, slot);
     
-    CommonSlowPaths::tryCachePutToScopeGlobal(globalObject, codeBlock, bytecode, scope, slot, ident);
+    // SPEC-jit §5.5 (review round 1): scope metadata is frozen post-link
+    // flag-on; see slow_path_get_from_scope above.
+    if (!Options::useJSThreads()) [[likely]]
+        CommonSlowPaths::tryCachePutToScopeGlobal(globalObject, codeBlock, bytecode, scope, slot, ident);
 
     LLINT_END();
 }
@@ -2486,7 +2647,7 @@ LLINT_SLOW_PATH_DECL(slow_path_profile_catch)
     auto bytecode = pc->as<OpCatch>();
     auto& metadata = bytecode.metadata(codeBlock);
     metadata.m_buffer->forEach([&] (ValueProfileAndVirtualRegister& profile) {
-        profile.m_buckets[0] = JSValue::encode(callFrame->uncheckedR(profile.m_operand).jsValue());
+        profile.storeBucketConcurrently(0, JSValue::encode(callFrame->uncheckedR(profile.m_operand).jsValue())); // THREADS §5.7.4
     });
 
     LLINT_END();

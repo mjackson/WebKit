@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // Typed arrays and SharedArrayBuffer interop with Thread(): SAB memory shared
 // via captured scope, per-thread views, Atomics on SAB elements vs. Atomics on
 // object properties, and plain (non-shared) ArrayBuffer views shared as

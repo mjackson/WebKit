@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // Lock.prototype.hold provides mutual exclusion across threads.
 //
 // Stub-scheduling note (phase-1 GIL): worker threads must be self-sufficient.

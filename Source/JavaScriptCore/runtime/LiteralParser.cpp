@@ -1485,6 +1485,16 @@ JSValue LiteralParser<CharType, reviverMode>::parseRecursively(VM& vm, uint8_t* 
             if (std::holds_alternative<ExistingProperty>(property)) {
                 auto& [newStructure, offset] = std::get<ExistingProperty>(property);
 
+                // THREADS-INTEGRATE(objectmodel) §10.7: parser-created object
+                // is (currentTID,0) flat unless forceSegmentedButterflies —
+                // on a tagged word bail to the regime-aware generic putDirect
+                // (the transition's property name is recoverable from the
+                // cached target structure).
+                if (object->mayBeSegmentedButterfly()) [[unlikely]] {
+                    object->putDirect(vm, Identifier::fromUid(vm, newStructure->transitionPropertyName()), value);
+                    goto literalParserPropertyStored;
+                }
+
                 Butterfly* newButterfly = object->butterfly();
                 if (structure->outOfLineCapacity() != newStructure->outOfLineCapacity()) {
                     ASSERT(newStructure != structure);
@@ -1519,6 +1529,7 @@ JSValue LiteralParser<CharType, reviverMode>::parseRecursively(VM& vm, uint8_t* 
                     object->putDirect(vm, ident, value);
             }
 
+literalParserPropertyStored:
             type = m_lexer.currentToken()->type;
             if (type == TokComma) {
                 type = m_lexer.next();

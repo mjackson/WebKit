@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // The canonical Condition usage: N waiters share ONE Lock and a single
 // notifyAll releases them all.
 //

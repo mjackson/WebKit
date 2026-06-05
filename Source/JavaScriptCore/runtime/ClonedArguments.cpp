@@ -320,7 +320,9 @@ void ClonedArguments::copyToArguments(JSGlobalObject* globalObject, JSValue* fir
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    switch (this->indexingType()) {
+    // THREADS-INTEGRATE(objectmodel) §10.7: tagged/segmented word — fall to
+    // the generic per-index copy loop (default case).
+    switch (this->mayBeSegmentedButterfly() ? NonArray : this->indexingType()) {
     case ALL_CONTIGUOUS_INDEXING_TYPES: {
         auto& butterfly = *this->butterfly();
         auto data = butterfly.contiguous().data();

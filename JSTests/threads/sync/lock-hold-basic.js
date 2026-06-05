@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // Lock.prototype.hold: single-threaded API surface and invariants.
 load("../resources/assert.js", "caller relative");
 

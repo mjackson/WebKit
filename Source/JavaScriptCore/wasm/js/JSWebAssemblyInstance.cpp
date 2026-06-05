@@ -136,6 +136,10 @@ JSWebAssemblyInstance::JSWebAssemblyInstance(VM& vm, Structure* structure, JSWeb
         CompleteSubspace* subspace = JSWebAssemblyArray::subspaceFor<JSWebAssemblyArray, SubspaceAccess::OnMainThread>(vm);
         CompleteSubspace* structSubspace = JSWebAssemblyStruct::subspaceFor<JSWebAssemblyStruct, SubspaceAccess::OnMainThread>(vm);
         RELEASE_ASSERT(subspace == structSubspace);
+        // THREADS-INTEGRATE(heap) manifest 11: wasm-GC + shared heap is
+        // unsupported in phase 1 (§5.5 never-populate rule —
+        // prepareAllAllocators would materialize server LocalAllocators).
+        RELEASE_ASSERT(!Options::useSharedGCHeap());
         subspace->prepareAllAllocators();
         memcpySpan(allocators(), subspace->allocatorsForSizeSteps());
     }

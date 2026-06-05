@@ -49,7 +49,34 @@ public:
     Deque<Ref<AsyncTicket>> m_asyncWaiters WTF_GUARDED_BY_LOCK(m_queueLock);
     bool m_pumpPending WTF_GUARDED_BY_LOCK(m_queueLock) { false };
 
+    // Identity of the thread currently running an asyncHold(fn) delivered
+    // function for the LIVE async grant (landed deviation D10,
+    // docs/threads/INTEGRATE-api.md). Async holds are invisible to m_holder;
+    // without this, a sync lock.hold(g) on the same lock from inside the
+    // delivered fn passes the heldByCurrentThread() recursion check, fails
+    // tryLock (m_lock is held by the grant), and parks in m_lock — whose
+    // only release point is this very fn's post-fn epilogue (E):
+    // a guaranteed self-deadlock from straightforward user code. Set by
+    // settleLockGrant's with-fn settle task around JSC::call(fn); cleared by
+    // asyncReleaseInternal (covers E and cond.asyncWait's 4.3(b)
+    // consumption, after which the lock is genuinely free and a sync hold
+    // from the rest of fn is again legal). Compared, never dereferenced.
+    std::atomic<WTF::Thread*> m_asyncGrantRunner { nullptr };
+
     bool heldByCurrentThread() const { return m_holder.load(std::memory_order_relaxed) == &Thread::currentSingleton(); }
+
+    // True iff the calling thread is inside an asyncHold(fn) delivered fn
+    // whose grant is still live (see m_asyncGrantRunner). lock.hold treats
+    // this as "held by current thread" and throws the 4.2 "Lock is not
+    // recursive" Error. lockProtoFuncAsyncHold deliberately does NOT use
+    // this: per the frozen 4.2 text, async-held is not recursive for
+    // asyncHold — callers queue, and the post-fn implicit release (E) lets
+    // the queued ticket settle later, so no deadlock arises there.
+    bool asyncGrantRunByCurrentThread() const
+    {
+        return m_asyncGrantRunner.load(std::memory_order_relaxed) == &Thread::currentSingleton()
+            && m_asyncHeld.load(std::memory_order_acquire);
+    }
 
     // Release the sync hold the current thread owns (no pump).
     void releaseSyncHold()
@@ -68,8 +95,11 @@ public:
     // thread). Caller must have consumed the ticket already.
     void asyncReleaseInternal(AsyncTicket&, VM&);
 
-    // P: run-loop pump task (SPEC-api 5.5a).
-    void pump(VM&);
+    // P: run-loop pump task (SPEC-api 5.5a). GIL-INDEPENDENT: clears
+    // pump-pending FIRST (under m_queueLock), then tryLocks; on failure does
+    // nothing (the holder's release runs R with pump-pending false and
+    // reschedules).
+    void pump();
 
 private:
     NativeLockState() = default;
@@ -119,10 +149,13 @@ void settleLockGrant(NativeLockState&, AsyncTicket&);
 // the drop depth is ABOVE the depths recorded by already-parked waiters, so
 // those waiters can never finish unwinding: livelock, observed live in
 // JSTests/threads/sync/condition-notify-all-shared-lock.js. This helper
-// bypasses the depth bookkeeping (legal here: the release/reacquire pair is
-// fully contained in one host-function frame, so per-thread LIFO is trivially
-// preserved) while mirroring grabAllLocks' stack-pointer restoration so
-// conservative scan still covers the original VM entry frames.
+// bypasses the depth bookkeeping (legal for LIFO purposes: the
+// release/reacquire pair is fully contained in one host-function frame, so
+// per-thread LIFO is trivially preserved) while mirroring grabAllLocks'
+// stack-pointer restoration so conservative scan still covers the original
+// VM entry frames. NOTE: routes through GILDroppedSection, so it currently
+// shares its D11 microtask-drain-at-unlock deviation — see constraint (3)
+// on the GILDroppedSection comment below; fixed by the same 9.2-9 hunk.
 void jsThreadGILHandoffYield(VM&);
 
 // Saves vm.topCallFrame/vm.topEntryFrame at construction and restores them at
@@ -172,6 +205,32 @@ private:
 // the stack-entry bookkeeping (stackPointerAtVMEntry, lastStackTop,
 // topCallFrame, topEntryFrame) is saved in locals and restored exactly as
 // grabAllLocks would.
+//
+// LANDED DEVIATION from frozen SPEC-api 5.2/5.3/5.4/F4/F5, which name
+// JSLock::DropAllLocks (DAL) as the park-site GIL-release mechanism
+// (recorded in docs/threads/INTEGRATE-api.md "Landed deviations"; escalated
+// there for a rev-15 amendment naming this class normatively). Three
+// constraints follow until that amendment lands:
+// (1) The saved/restored state set above is a parallel implementation of
+//     JSLock::willReleaseLock/grabAllLocks invariants and MUST be kept in
+//     sync with them by hand (the vmstate workstream also touches that
+//     surface, SPEC-vmstate §0).
+// (2) Interaction with genuine DropAllLocks users on the same JSLock:
+//     threads parked here hold no m_lockDropDepth slot, so they are
+//     invisible to DAL's depth bookkeeping. That is SOUND for grabAllLocks
+//     (the JSLock is simply free or held; depth ordering only constrains
+//     DAL droppers among themselves), but phase 1 assumes the embedder does
+//     not interleave DropAllLocks on the shared VM's JSLock while spawned
+//     Threads are live — the jsc shell does not, and Bun must not until the
+//     rev-15 analysis covers it.
+// (3) FIXED by JSLock::unlockAllForThreadParking (the applied INTEGRATE-api.md
+//     9.2-9 hunk): the constructor releases the lock through that member,
+//     which bumps and restores m_lockDropDepth while m_lock is still held —
+//     willReleaseLock()'s VM::drainMicrotasks() is suppressed (no user JS
+//     runs inside the parking host call; D11 closed), every other
+//     willReleaseLock side effect matches dropAllLocks(), and the transient
+//     depth never escapes into the DAL protocol, so the livelock fix is
+//     preserved. Regression test: JSTests/threads/api/park-no-microtask-drain.js.
 class GILDroppedSection {
     WTF_MAKE_NONCOPYABLE(GILDroppedSection);
 public:

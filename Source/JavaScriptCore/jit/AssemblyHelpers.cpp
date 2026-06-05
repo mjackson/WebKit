@@ -54,6 +54,50 @@ namespace JSC {
 
 namespace AssemblyHelpersInternal {
 constexpr bool dumpVerbose = false;
+
+// SPEC-jit section 5.5 (Task 8): frozen butterfly-tag encoding
+// (SPEC-objectmodel section 2). Mirrored locally to keep this file
+// independent of the object-model workstream's header; the values are FROZEN.
+[[maybe_unused]] constexpr uint64_t butterflyTagPointerMask = 0x0000ffffffffffffULL;
+[[maybe_unused]] constexpr uint64_t butterflyTagFloor = 1ULL << 48; // any word >= this carries tag bits
+
+// Flag-on guard for the LEGACY (no slow-path list) property accessors: these
+// remain reachable only from emissions whose butterflies are provably
+// tag-free (gated transition/delete/megamorphic forms - see the Task 8 site
+// inventory in docs/threads/INTEGRATE-jit.md) and from DFG/FTL emitters that
+// Tasks 9/10 convert. A tagged or segmented word traps here instead of being
+// misread as a pointer (I14 enforcement-by-construction; flag-off this emits
+// nothing). Flag-on callers with a slow path must use
+// CCallHelpers::loadProperty/storeProperty(..., slowCases) or the
+// loadButterflyForRead/ForWrite choke points.
+static void emitLegacyButterflyTagTrap(AssemblyHelpers& jit, GPRReg butterflyGPR)
+{
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] {
+        auto untagged = jit.branch64(AssemblyHelpers::Below, butterflyGPR, AssemblyHelpers::TrustedImm64(static_cast<int64_t>(butterflyTagFloor)));
+        jit.breakpoint();
+        untagged.link(&jit);
+    }
+#else
+    UNUSED_PARAM(jit);
+    UNUSED_PARAM(butterflyGPR);
+#endif
+}
+
+// Typed-array wasteful-mode butterflies are never segmented and never carry
+// the SW regime (their butterfly only routes to the ArrayBuffer); flag-on the
+// tag must still be masked before dereference (I14(a)).
+static void emitTypedArrayButterflyTagMask(AssemblyHelpers& jit, GPRReg butterflyGPR)
+{
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]]
+        jit.and64(AssemblyHelpers::TrustedImm64(static_cast<int64_t>(butterflyTagPointerMask)), butterflyGPR);
+#else
+    UNUSED_PARAM(jit);
+    UNUSED_PARAM(butterflyGPR);
+#endif
+}
+
 }
 
 AssemblyHelpers::Jump AssemblyHelpers::branchIfFastTypedArray(GPRReg baseGPR)
@@ -445,6 +489,7 @@ void AssemblyHelpers::loadProperty(GPRReg object, GPRReg offset, JSValueRegs res
     Jump isInline = branch32(LessThan, offset, TrustedImm32(firstOutOfLineOffset));
 
     loadPtr(Address(object, JSObject::butterflyOffset()), result.payloadGPR());
+    AssemblyHelpersInternal::emitLegacyButterflyTagTrap(*this, result.payloadGPR()); // SPEC-jit section 5.5 Task 8
     neg32(offset);
     signExtend32ToPtr(offset, offset);
     Jump ready = jump();
@@ -472,6 +517,7 @@ void AssemblyHelpers::storeProperty(JSValueRegs value, GPRReg object, GPRReg off
     Jump isInline = branch32(LessThan, offset, TrustedImm32(firstOutOfLineOffset));
 
     loadPtr(Address(object, JSObject::butterflyOffset()), scratch);
+    AssemblyHelpersInternal::emitLegacyButterflyTagTrap(*this, scratch); // SPEC-jit section 5.5 Task 8
     neg32(offset);
     signExtend32ToPtr(offset, offset);
     Jump ready = jump();
@@ -491,6 +537,17 @@ void AssemblyHelpers::storeProperty(JSValueRegs value, GPRReg object, GPRReg off
 #if USE(JSVALUE64)
 AssemblyHelpers::JumpList AssemblyHelpers::loadMegamorphicProperty(VM& vm, GPRReg baseGPR, GPRReg uidGPR, UniquedStringImpl* uid, GPRReg resultGPR, GPRReg scratch1GPR, GPRReg scratch2GPR, GPRReg scratch3GPR)
 {
+    if (Options::useJSThreads()) [[unlikely]] {
+        // SPEC-jit section 5.5 (Task 8): the megamorphic fast path reads the
+        // VM-global MegamorphicCache without synchronization and dereferences
+        // the butterfly without the TID/SW predicate; flag-on every
+        // megamorphic access defers to the generic operation (Task 8
+        // inventory; revisit with vmstate's shared-cache story).
+        JumpList slowCases;
+        slowCases.append(jump());
+        return slowCases;
+    }
+
     // uidGPR can be InvalidGPRReg if uid is non-nullptr.
 
     if (!uid)
@@ -586,6 +643,13 @@ AssemblyHelpers::JumpList AssemblyHelpers::loadMegamorphicProperty(VM& vm, GPRRe
 
 std::tuple<AssemblyHelpers::JumpList, AssemblyHelpers::JumpList> AssemblyHelpers::storeMegamorphicProperty(VM& vm, GPRReg baseGPR, GPRReg uidGPR, UniquedStringImpl* uid, GPRReg valueGPR, GPRReg scratch1GPR, GPRReg scratch2GPR, GPRReg scratch3GPR)
 {
+    if (Options::useJSThreads()) [[unlikely]] {
+        // SPEC-jit section 5.5 (Task 8): see loadMegamorphicProperty above.
+        JumpList slowCases;
+        slowCases.append(jump());
+        return { WTF::move(slowCases), JumpList() };
+    }
+
     // uidGPR can be InvalidGPRReg if uid is non-nullptr.
 
     if (!uid)
@@ -1900,6 +1964,7 @@ AssemblyHelpers::JumpList AssemblyHelpers::branchIfResizableOrGrowableSharedType
     //     ResizableNonSharedAutoLengthWastefulTypedArray
 
     loadPtr(Address(baseGPR, JSObject::butterflyOffset()), scratch2GPR);
+    AssemblyHelpersInternal::emitTypedArrayButterflyTagMask(*this, scratch2GPR); // SPEC-jit section 5.5 Task 8 (I14(a))
     loadPtr(Address(scratch2GPR, Butterfly::offsetOfArrayBuffer()), scratch2GPR);
 
     auto isGrowableShared = branchTest32(NonZero, scratchGPR, TrustedImm32(isGrowableSharedMode));
@@ -1974,6 +2039,7 @@ std::tuple<AssemblyHelpers::Jump, AssemblyHelpers::JumpList> AssemblyHelpers::lo
         loadPtr(Address(baseGPR, JSDataView::offsetOfBuffer()), scratch2GPR);
     else {
         loadPtr(Address(baseGPR, JSObject::butterflyOffset()), scratch2GPR);
+        AssemblyHelpersInternal::emitTypedArrayButterflyTagMask(*this, scratch2GPR); // SPEC-jit section 5.5 Task 8 (I14(a))
         loadPtr(Address(scratch2GPR, Butterfly::offsetOfArrayBuffer()), scratch2GPR);
     }
 

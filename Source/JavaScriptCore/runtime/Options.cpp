@@ -26,6 +26,7 @@
 #include "config.h"
 #include "Options.h"
 
+#include "ConcurrentButterflyOperations.h"
 #include "CPU.h"
 #include "JITOperationValidation.h"
 #include "LLIntCommon.h"
@@ -763,6 +764,16 @@ void Options::notifyOptionsChanged()
 {
     AllowUnfinalizedAccessScope scope;
 
+    // SPEC-vmstate §3 R2 (M_opts2): useJSThreads=1 MUST imply all three
+    // vmstate flags. (The prep-stub `useThreads` alias was removed by
+    // INTEGRATE-api 9.2-1, so its normalization line is dropped per
+    // INTEGRATE-vmstate cross-WS item 14.)
+    if (Options::useJSThreads()) {
+        Options::useSharedAtomStringTable() = true;
+        Options::useVMLite() = true;
+        Options::useStructureAllocationLock() = true;
+    }
+
     unsigned thresholdForGlobalLexicalBindingEpoch = Options::thresholdForGlobalLexicalBindingEpoch();
     if (thresholdForGlobalLexicalBindingEpoch == 0 || thresholdForGlobalLexicalBindingEpoch == 1)
         Options::thresholdForGlobalLexicalBindingEpoch() = UINT_MAX;
@@ -811,7 +822,38 @@ void Options::notifyOptionsChanged()
     Options::useRandomizingExecutableIslandAllocation() = false;
 #endif
 
-    Options::useHandlerICInFTL() = false; // Currently, it is not completed. Disable forcefully.
+    if (!Options::useJSThreadsUnlockHandlerICInFTL())
+        Options::useHandlerICInFTL() = false; // Currently, it is not completed. Disable forcefully.
+
+    // SPEC-jit M2b.
+    if (Options::useJSThreads()) {
+        Options::useHandlerICInFTL() = true;   // §5.2/D1: FTL must not patch property-IC code in place.
+        Options::usePollingTraps() = true;     // I21: cooperative polls only; async breakpoint patching = I2 violation.
+        Options::useConcurrentJIT() = true;    // Task 12: sync-compile bypasses the JITWorklist dedup backstop (§5.7.3).
+
+        // D8 / Task-8 item 6: flag-on requires 64-bit pointers and a JIT-visible TLS
+        // mechanism for the R5 tag (ELF initial-exec TLS on Linux x86-64/arm64, or
+        // Darwin FAST_TLS via the M4a key slot).
+#if !CPU(ADDRESS64) || !(OS(LINUX) && (CPU(X86_64) || CPU(ARM64))) && !(OS(DARWIN) && ENABLE(FAST_TLS_JIT))
+        { dataLogLn("useJSThreads is unsupported on this platform (SPEC-jit D8)"); CRASH(); }
+#endif
+        // Task-8 item 5: the JSValue gigacage does not exist in this tree
+        // (Gigacage::Kind has only Primitive), so the cage-vs-tag-mask concern
+        // is vacuously satisfied; no assert is emitted here on purpose.
+
+        // SPEC-jit P5/App. R5 (M2c): the main thread must run butterfly-TID-tag
+        // init before any flag-on JIT leg emits loadButterflyTIDTag (both
+        // per-platform offset/key queries RELEASE_ASSERT prior init), and
+        // before Config::finalize on Darwin (the pthread key is mirrored into
+        // g_jscConfig). Idempotent; main-thread tag is 0. Spawned threads run
+        // the same call on their spawn path (INTEGRATE-api 9.2-8).
+        JSC::initializeButterflyTIDTagForCurrentThread();
+    }
+    // Spec'd invariant check (defense against a later pass re-disabling it):
+    if (Options::useJSThreads() && !Options::useHandlerICInFTL()) {
+        dataLogLn("FATAL: useJSThreads requires useHandlerICInFTL (SPEC-jit M2b).");
+        CRASH();
+    }
     Options::forceUnlinkedDFG() = false; // Currently, IC is rapidly changing. We disable this until we get the final form of Data IC.
 
     if (!Options::allowDoubleShape())

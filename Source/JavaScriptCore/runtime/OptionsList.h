@@ -427,6 +427,8 @@ bool hasCapacityToUseLargeGigacage();
     v(GCLogLevel, logGC, GCLogging::None, Normal, "debugging option to log GC activity (0 = None, 1 = Basic, 2 = Verbose)"_s) \
     v(Bool, useGC, true, Normal, nullptr) \
     v(Bool, useGlobalGC, false, Normal, nullptr) \
+    v(Bool, useSharedGCHeap, false, Normal, "Multiple GCClient::Heaps (threads) share one server JSC::Heap"_s) \
+    v(Bool, verboseSharedGCHeap, false, Normal, nullptr) \
     v(Bool, gcAtEnd, false, Normal, "If true, the jsc CLI will do a GC before exiting"_s) \
     v(Bool, forceGCSlowPaths, false, Normal, "If true, we will force all JIT fast allocations down their slow paths."_s) \
     v(Bool, forceDidDeferGCWork, false, Normal, "If true, we will force all DeferGC destructions to perform a GC."_s) \
@@ -679,11 +681,22 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useJSONSourceTextAccess, true, Normal, "Expose JSON source text access feature."_s) \
     v(Bool, useJSPI, true, Normal, "Enable the implementation of JavaScript Promise Integration."_s) \
     v(Bool, useJSThreads, false, Normal, "enable shared-memory Thread/Lock/Condition/ThreadLocal API"_s) \
+    v(Bool, useThreadedLLIntICs, true, Normal, "kill switch: threaded LLInt metadata caches under useJSThreads"_s) \
+    v(Bool, useThreadedBaselineICs, true, Normal, "kill switch: threaded Baseline/stub ICs under useJSThreads"_s) \
+    v(Bool, useThreadedDFG, true, Normal, "kill switch: threaded DFG support under useJSThreads"_s) \
+    v(Bool, useThreadedFTL, true, Normal, "kill switch: threaded FTL support under useJSThreads"_s) \
+    v(Bool, validateButterflyTagDiscipline, false, Normal, "validate that every generated butterfly access masks or proves the tag (SPEC-jit I14)"_s) \
+    v(Bool, useJSThreadsUnlockHandlerICInFTL, false, Normal, "unlock the FTL handler-IC force-disable for bring-up (SPEC-jit M2a)"_s) \
+    v(Bool, forceSegmentedButterflies, false, Normal, "stress: every butterfly allocation/transition publishes a segmented butterfly (SPEC-objectmodel §9.6)"_s) \
+    v(Bool, forceButterflySWBit, false, Normal, "stress: treat every butterfly write as a foreign shared write (SW DCAS + writeThreadLocal fire; SPEC-objectmodel §9.6)"_s) \
+    v(Bool, verifyConcurrentButterfly, false, Normal, "debug-assert every concurrent-butterfly tag decode (I2/I3), the butterfly() flatness contract, and run the ConcurrentButterfly self-tests"_s) \
     v(Unsigned, maxJSThreads, 32766, Normal, nullptr) \
     v(Unsigned, jsThreadGILTimeSliceMs, 0, Normal, "reserved, inert in phase 1 (SPEC-api Deviation 9)"_s) \
     v(Unsigned, jsThreadStackSizeKB, 0, Normal, nullptr) \
-    v(Bool, useThreads, false, Normal, "alias for useJSThreads"_s) \
     v(Bool, useThreadGIL, true, Normal, "serialize all JS Thread execution under a global lock (always on in phase 1; reserved)"_s) \
+    v(Bool, useSharedAtomStringTable, false, Normal, "process-global shared atom string table"_s) \
+    v(Bool, useVMLite, false, Normal, "per-thread VMLite carriers (Phase A: inert)"_s) \
+    v(Bool, useStructureAllocationLock, false, Normal, "serialize Structure cell allocation + ID-creating transitions"_s) \
     v(Bool, useMoreCurrencyDisplayChoices, false, Normal, "Enable more currencyDisplay choices for Intl.NumberFormat"_s) \
     v(Bool, usePromiseIsPromise, false, Normal, nullptr) \
     v(Bool, useSharedArrayBuffer, false, Normal, nullptr) \

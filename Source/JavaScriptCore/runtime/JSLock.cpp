@@ -24,7 +24,9 @@
 #include "HeapInlines.h"
 #include "JSGlobalObject.h"
 #include "MachineStackMarker.h"
+#include "Options.h"
 #include "SamplingProfiler.h"
+#include "VMLite.h"
 #include "VMTrapsInlines.h"
 #include <wtf/StackPointer.h>
 #include <wtf/Threading.h>
@@ -123,6 +125,34 @@ void JSLock::didAcquireLock()
     ASSERT(!m_entryAtomStringTable);
     m_entryAtomStringTable = thread.setCurrentAtomStringTable(m_vm->atomStringTable());
     ASSERT(m_entryAtomStringTable);
+
+    if (Options::useVMLite()) [[unlikely]] {
+        // §6.4.4: install the main carrier iff this thread has no lite or a
+        // foreign one (covers main thread, embedder threads, multi-VM per
+        // thread). A spawned thread (api §5.2) registered + setCurrent its
+        // own lite BEFORE its first JSLockHolder, so cur->vm == m_vm there
+        // and nothing is installed (m_didInstallVMLite stays false).
+        //
+        // SOUNDNESS INVARIANT (Phase A, normative): sharing the main carrier
+        // (tid 0) across whichever thread holds the API lock — including
+        // embedder threads and threads entering a foreign VM — is sound ONLY
+        // because the API lock is mutually exclusive among this VM's mutators
+        // (phase-1 GIL). Butterfly TID tags written under tid 0 persist in
+        // object headers after the lock is released; if two threads could
+        // mutate concurrently while both believing they are TID-0 owners,
+        // they would race unlocked flat-butterfly transitions
+        // (SPEC-objectmodel §2/§3 assumes TIDs identify a unique live
+        // thread). The RELEASE_ASSERT fail-stops any GIL-off configuration
+        // that still reaches this install path; before GIL-off, M4 must be
+        // replaced per cross-WS item 13 (per-thread carriers, unique TIDs
+        // from ThreadManager, never two threads installed with the same tid).
+        VMLite* cur = VMLite::currentIfExists();
+        if ((!cur || cur->vm != m_vm) && m_vm->mainVMLite()) {
+            RELEASE_ASSERT(!Options::useJSThreads() || Options::useThreadGIL());
+            m_entryVMLite = VMLite::setCurrent(m_vm->mainVMLite());
+            m_didInstallVMLite = true;
+        }
+    }
 
     m_vm->setLastStackTop(thread);
 
@@ -323,10 +353,58 @@ void JSLock::willReleaseLock()
         }
     }
 
+    if (m_didInstallVMLite) {
+        // §6.4.4: restore ONLY IF the installed main carrier is still
+        // current — a lite swapped in after our install (e.g. DropAllLocks
+        // hand-off to a spawned thread that reacquired with its own lite) is
+        // NEVER clobbered; always clear both members. m_vm can only be null
+        // here if willDestroyVM already ran, and ~VM calls
+        // uninstallVMLiteForVMDestruction() first, which clears the flag —
+        // the m_vm guard is belt-and-suspenders.
+        if (m_vm && VMLite::currentIfExists() == m_vm->mainVMLite())
+            VMLite::setCurrent(m_entryVMLite);
+        m_entryVMLite = nullptr;
+        m_didInstallVMLite = false;
+    }
+
     if (m_entryAtomStringTable) {
         Thread::currentSingleton().setCurrentAtomStringTable(m_entryAtomStringTable);
         m_entryAtomStringTable = nullptr;
     }
+}
+
+void JSLock::uninstallVMLiteForVMDestruction()
+{
+    // SPEC-vmstate §6.4.4/I20. Caller: TOP of ~VM (M6), API lock held
+    // (~VM asserts), m_vm still valid (runs BEFORE
+    // m_apiLock->willDestroyVM(this) nulls it).
+    if (!m_didInstallVMLite)
+        return;
+    if (VMLite::currentIfExists() == m_vm->mainVMLite())
+        VMLite::setCurrent(m_entryVMLite);
+    m_entryVMLite = nullptr;
+    m_didInstallVMLite = false;
+}
+
+unsigned JSLock::unlockAllForThreadParking()
+{
+    RELEASE_ASSERT(currentThreadIsHoldingLock());
+    unsigned droppedLockCount = static_cast<unsigned>(m_lockCount);
+    // Suppress willReleaseLock()'s drainMicrotasks() (guarded on
+    // !m_lockDropDepth): a park site must not run user JS mid-host-call.
+    // Every other willReleaseLock side effect (atom-table restore,
+    // releaseDelayedReleasedObjects, stackPointerAtVMEntry clear,
+    // conditional clearLastException, heap-access release) runs exactly as
+    // it does for dropAllLocks(). Bump and restore both happen while m_lock
+    // is still held, so no other thread can observe the transient depth and
+    // the DropAllLocks LIFO protocol is unaffected.
+    ++m_lockDropDepth;
+    willReleaseLock();
+    --m_lockDropDepth;
+    m_lockCount = 0;
+    m_hasOwnerThread.store(false, std::memory_order_release);
+    m_lock.unlock();
+    return droppedLockCount;
 }
 
 void JSLock::lock(JSGlobalObject* globalObject)

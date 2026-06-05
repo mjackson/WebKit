@@ -99,6 +99,11 @@ inline HandleSet* HandleSet::heapFor(HandleSlot handle)
     return HandleNode::toHandleNode(handle)->handleSet();
 }
 
+// SharedGC (T9): main-VM-only — the server's HandleSet is constructed with
+// the main VM; Strong<> users (Strong.h/StrongInlines.h) pass it to
+// JSLockHolder/set(), i.e. the main VM's API lock. GIL-phase sound (JSLock
+// migration, I2); post-GIL Strong creation from secondary threads still goes
+// through that one JSLock (deviation 8: one VM per thread group).
 inline VM& HandleSet::vm()
 {
     return m_vm;

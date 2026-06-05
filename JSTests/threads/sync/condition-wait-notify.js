@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // Condition.prototype.wait/notify/notifyAll: blocking handshakes where the
 // MAIN thread is the waiter.
 //

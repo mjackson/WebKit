@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // Holey (sparse) arrays shared across threads: reading holes, creating holes
 // with delete, filling holes, and prototype fallthrough through holes.
 load("../resources/assert.js", "caller relative");

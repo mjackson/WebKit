@@ -52,6 +52,8 @@ inline bool MarkedBlock::hasAnyNewlyAllocated()
     return !isNewlyAllocatedStale();
 }
 
+// SharedGC (T9): conductor-context OK — round-trip via the main VM back to
+// the server heap (see MarkedBlock::vm(), MarkedBlock.h); thread-agnostic.
 inline JSC::Heap* MarkedBlock::heap() const
 {
     return &vm().heap;
@@ -95,6 +97,9 @@ inline bool MarkedBlock::marksConveyLivenessDuringMarking(HeapVersion myMarkingV
 
 inline bool MarkedBlock::Handle::isAllocated()
 {
+    // SharedGC (T8 audit, I5b): lock-free directory-bit read — the assert
+    // restricts shared-mode callers to WSAC v MSPL (see
+    // BlockDirectory::assertIsMutatorOrMutatorIsStopped).
     m_directory->assertIsMutatorOrMutatorIsStopped();
     return m_directory->isAllocated(this);
 }
@@ -172,6 +177,11 @@ void MarkedBlock::Handle::specializedSweep(FreeList* freeList, MarkedBlock::Hand
     char* payloadBegin = std::bit_cast<char*>(block.atoms() + m_startAtom);
     RELEASE_ASSERT(static_cast<size_t>(payloadEnd - payloadBegin) <= payloadSize, payloadBegin, payloadEnd, &block, cellSize, m_startAtom);
 
+    // SharedGC (T9): conductor-context OK / any-sweeper OK — vm is the main
+    // VM (server-owned block); heapRandom() is read-only here and destroyFunc
+    // takes the VM as the conventional destroy argument (cell destructors are
+    // VM-global, not calling-thread-coupled). Sweep contexts are serialized
+    // per I5b/I8 (MSPL in-lock sweeps, conductor, or suspended sweeper).
     VM& vm = this->vm();
     bool isMarking = space()->isMarking();
     uint64_t secret = vm.heapRandom().getUint64();
@@ -185,6 +195,9 @@ void MarkedBlock::Handle::specializedSweep(FreeList* freeList, MarkedBlock::Hand
     };
 
     auto setBits = [&] (bool isEmpty) ALWAYS_INLINE_LAMBDA {
+        // SharedGC (T8 audit, I5b): bit flips under the bitvector lock —
+        // safe against addBlock's m_bits resize regardless of whether this
+        // sweep runs under MSPL (mutator slow path) or on the conductor.
         Locker locker { m_directory->bitvectorLock() };
         bool wasUnswept = m_directory->isUnswept(this);
         m_directory->setIsUnswept(this, false);

@@ -33,11 +33,15 @@
 #include "DFGAdaptiveStructureWatchpoint.h"
 #include "FunctionRareData.h"
 #include "HeapInlines.h"
+#include "JSThreadsSafepoint.h"
 #include "LLIntPrototypeLoadAdaptiveStructureWatchpoint.h"
 #include "ObjectAdaptiveStructureWatchpoint.h"
 #include "PropertyInlineCacheClearingWatchpoint.h"
 #include "StructureRareDataInlines.h"
 #include "VM.h"
+#include <atomic>
+#include <wtf/Lock.h>
+#include <wtf/Locker.h>
 
 namespace JSC {
 
@@ -95,9 +99,10 @@ void Watchpoint::fire(VM& vm, const FireDetail& detail)
     });
 }
 
-WatchpointSet::WatchpointSet(WatchpointState state)
+WatchpointSet::WatchpointSet(WatchpointState state, WatchpointSetClassification classification)
     : m_state(state)
     , m_setIsNotEmpty(false)
+    , m_invalidatesCode(classification == WatchpointSetClassification::InvalidatesCode)
 {
 }
 
@@ -126,18 +131,186 @@ void WatchpointSet::add(Watchpoint* watchpoint)
     m_state = IsWatched;
 }
 
-void WatchpointSet::fireAllSlow(VM& vm, const FireDetail& detail)
+// ===== SPEC-jit section 5.6: central Class-A fire protocol =====
+//
+// Fire sites span ~20 files including non-owned runtime/** (G6), so the
+// interception lives HERE, inside the slow paths every fire funnels through;
+// no call-site edits are needed (P2). Direct callers of fireAll/fireAllSlow
+// are REQUIRED to be lock-free w.r.t. every SPEC-jit section-7 lock and every
+// cell lock (audit table: docs/threads/INTEGRATE-jit.md, Task 11; lock-holding
+// sites => manifest M6). An escaped lock-holding caller deadlocks the stop and
+// is named by the JSThreadsSafepoint watchdog (annex App. 5.6(d)).
+//
+// Coalescing (REQUIRED): concurrent Class-A fires enqueue stack-allocated
+// records on an intrusive queue; whichever requester's stop runs first drains
+// the WHOLE queue in that one stop. A loser parked inside stopTheWorldAndRun
+// (R1.g) finds its record already serviced when its own closure runs (the
+// drain re-checks state() == IsWatched per entry, I11, so an already-fired set
+// is a no-op). Either way, when fireAllSlow returns the fire is COMPLETE
+// (synchronous completion is load-bearing; RELEASE_ASSERTed below).
+//
+// Queue discipline: records are enqueued BEFORE requesting the stop and the
+// drain closure allocates nothing (intrusive stack nodes), keeping the STWR
+// closure allocation-free (OM O4). The queue lock is an owned leaf taken only
+// around pointer swaps, never across a fire.
+
+namespace {
+
+struct PendingClassAFire {
+    WatchpointSet* set;
+    const FireDetail* detail; // Caller-owned; the caller blocks in stopTheWorldAndRun until serviced, keeping it alive.
+    VM* vm;
+    PendingClassAFire* next { nullptr };
+    std::atomic<bool> serviced { false };
+};
+
+} // anonymous namespace
+
+static Lock s_classAFireQueueLock;
+static PendingClassAFire* s_classAFireQueueHead WTF_GUARDED_BY_LOCK(s_classAFireQueueLock) { nullptr };
+
+void WatchpointSet::drainClassAFireQueue()
+{
+    // Runs world-stopped, inside a stopTheWorldAndRun closure.
+    PendingClassAFire* head;
+    {
+        Locker locker { s_classAFireQueueLock };
+        head = s_classAFireQueueHead;
+        s_classAFireQueueHead = nullptr;
+    }
+    while (head) {
+        PendingClassAFire* entry = head;
+        head = entry->next; // Read next BEFORE publishing serviced: the owning (parked) requester's stack frame dies once it resumes.
+        // Step (3): re-check after the stop (I11) — a fire coalesced earlier in
+        // this drain (or a previous winner's drain) may already have
+        // invalidated this set; fires are idempotent.
+        if (entry->set->state() == IsWatched) {
+            // Step (4): the existing fire body, world stopped. Step (5):
+            // jettisons performed by the fired Watchpoints (e.g.
+            // CodeBlockJettisoningWatchpoint -> CodeBlock::jettison) run in
+            // this SAME closure via jettison's R1.h already-stopped path.
+            // Nested Class-A fires reached from a fireInternal take branch (1)
+            // below and run inline. Fired with the ENQUEUER's VM: entries from
+            // different mutators carry their own VM (DeferGCForAWhile etc. are
+            // per-VM; deferral-depth bumps are heap-metadata writes, legal
+            // without heap access, heap section 10A).
+            entry->set->fireAllNow(*entry->vm, *entry->detail);
+        }
+        entry->serviced.store(true, std::memory_order_release);
+        // entry may now dangle (loser's stack) once the world resumes; do not touch it again.
+    }
+}
+
+void WatchpointSet::fireAllUnderClassAStop(VM& vm, const FireDetail& detail)
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(invalidatesCompiledCode());
+
+    // Step (1): a fire reached with the world already stopped (a GC's stopped
+    // window, an outer stopTheWorldAndRun closure, or the pre-M4 stub witness)
+    // runs inline without re-requesting (R1.h). This is also the branch every
+    // legacy-GC finalizeUnconditionally/visitWeak fire and every TTL set fire
+    // takes (SPEC-jit section 5.6; Structure::fireThreadLocalSetsWithChainUnderStop
+    // asserts butterflyWorldIsStopped before calling fireAll).
+    if (JSThreadsSafepoint::worldIsStopped(vm)) {
+        // Review round 3 (R3-1): this inline fire may be reached on PER-HEAP
+        // already-stopped evidence (legacy per-VM GC stop) that the VM-less
+        // worldIsStopped() consumers cannot see. The witness scope (a) runs
+        // the R2-4 entered-VMs tripwire when no process-global witness holds
+        // — so a fire reached from VM A's legacy GC stop while VM B's mutator
+        // runs (flag-on + Workers, pre-M4) crashes here instead of patching
+        // under a live foreign mutator — and (b) raises the process-global
+        // stub witness across the whole fire, so the VM-less patching asserts
+        // (DFG::CommonData::invalidateLinkedCode, DFG::JumpReplacement::fire)
+        // see the stop window even when no jettison (with its own R1.h scope)
+        // is reached. Nests freely under an outer scope/stop.
+        JSThreadsSafepoint::AlreadyStoppedWorldWitnessScope witnessScope(vm);
+        if (state() == IsWatched) // I11.
+            fireAllNow(vm, detail);
+        return;
+    }
+
+    // Step (2): request the stop (lock-free callers only; see the audit note
+    // above). Enqueue first so a concurrent winner can coalesce this fire.
+    PendingClassAFire pending { this, &detail, &vm };
+    {
+        Locker locker { s_classAFireQueueLock };
+        pending.next = s_classAFireQueueHead;
+        s_classAFireQueueHead = &pending;
+    }
+
+    {
+        // Watchdog context (annex App. 5.6(d)): if the stop never reaches
+        // Mode::Stopped (an escaped lock-holding direct caller wedged a
+        // mutator), the M4 wait loop crashes naming this set.
+        JSThreadsSafepoint::ClassAStopWatchdogContext watchdogContext(this, "WatchpointSet Class-A fire");
+        JSThreadsSafepoint::stopTheWorldAndRun(vm, scopedLambda<void()>([] {
+            drainClassAFireQueue();
+        }));
+    }
+
+    // Step (6): synchronous completion — by the time ANY requester's
+    // stopTheWorldAndRun returns, its queued fire has run (winner's drain or
+    // our own; a loser parks for the winner's whole stop, R1.g).
+    RELEASE_ASSERT(pending.serviced.load(std::memory_order_acquire));
+    RELEASE_ASSERT(hasBeenInvalidated());
+}
+
+void WatchpointSet::fireAllNow(VM& vm, const FireDetail& detail)
 {
     ASSERT(state() == IsWatched);
-    
+
     WTF::storeStoreFence();
     m_state = IsInvalidated; // Do this first. Needed for adaptive watchpoints.
     fireAllWatchpoints(vm, detail);
-    WTF::storeStoreFence();
+    WTF::storeStoreFence(); // F4: this fence pair stays; Class-A fires additionally ride the stop entry/exit barrier.
+}
+
+void WatchpointSet::fireAllSlow(VM& vm, const FireDetail& detail)
+{
+    ASSERT(state() == IsWatched);
+
+    // SPEC-jit section 5.6: flag on, Class-A fires ALWAYS run world-stopped —
+    // deliberately no ">1 mutator" gate (G7/I10: VM construction does not
+    // synchronize with an in-flight inline fire). Class-B sets and data-only
+    // FireDetails (rare-site override) fire exactly as today.
+    if (Options::useJSThreads() && m_invalidatesCode && !detail.fireIsDataOnly()) [[unlikely]] {
+        fireAllUnderClassAStop(vm, detail);
+        return;
+    }
+
+    fireAllNow(vm, detail);
 }
 
 void WatchpointSet::fireAllSlow(VM&, DeferredWatchpointFire* deferredWatchpoints)
 {
+    // Deferral transfer: as today (SPEC-jit section 5.6 / annex App. 5.6(a)).
+    // Callers MAY hold locks here — that is the point of deferring. Only the
+    // state flip and list transfer happen now; the code-invalidating FIRE runs
+    // at the holder's scope exit (lock-free by construction) through
+    // m_watchpointsToFire.fireAll => fireAllSlow above, where the Class-A stop
+    // protocol applies. Cross-thread mutation of m_set here is serialized by
+    // the same owner-side locks that serialize the watched state itself
+    // (e.g. Structure transitions); pre-M4 the GIL stub guarantees a single
+    // mutator.
+    //
+    // ORDERING CAVEAT (review round 1; GIL-removal precondition, recorded in
+    // docs/threads/INTEGRATE-jit.md): a deferring caller COMPLETES its watched-
+    // fact mutation (e.g. publishes a new structureID into objects) BEFORE the
+    // scope-exit fire stops the world. Under N mutators, any optimized code in
+    // ANOTHER mutator that elided a check based on this set executes against
+    // the already-false fact until the stop lands — THREAD.md forbids exactly
+    // that ("it will not actually perform the write until that optimized code
+    // reaches a safepoint and gets invalidated"). This deferral form is
+    // therefore sound only when (a) a single mutator runs (phase-1 GIL — the
+    // case today), (b) the world is already stopped around the whole
+    // mutation+fire (the OM's TTL-set pattern:
+    // Structure::fireThreadLocalSetsWithChainUnderStop publishes INSIDE the
+    // stop), or (c) the specific watched fact is re-checked dynamically by all
+    // compiled consumers. Before GIL removal, every deferred Class-A site must
+    // be classified (a)/(b)/(c) in the Task-11 audit's "fact published before
+    // fire?" column or restructured onto the TTL-set pattern; see
+    // JSThreadsSafepoint::gilRemovalPreconditionsMet().
     ASSERT(state() == IsWatched);
 
     WTF::storeStoreFence();
@@ -193,6 +366,7 @@ void WatchpointSet::take(WatchpointSet* other)
     m_set.takeFrom(other->m_set);
     m_setIsNotEmpty = other->m_setIsNotEmpty;
     m_state = other->m_state;
+    m_invalidatesCode = other->m_invalidatesCode; // SPEC-jit section 5.6: a deferred fire keeps the source set's classification.
     other->m_setIsNotEmpty = false;
 }
 
@@ -210,7 +384,9 @@ WatchpointSet* InlineWatchpointSet::inflateSlow()
 {
     ASSERT(isThin());
     ASSERT(!isCompilationThread());
-    WatchpointSet* fat = &WatchpointSet::create(decodeState(m_data)).leakRef();
+    // Transfer the construction-time classification to the fat set (I10).
+    WatchpointSetClassification classification = (m_data & ClassBFlag) ? WatchpointSetClassification::DataOnly : WatchpointSetClassification::InvalidatesCode;
+    WatchpointSet* fat = &WatchpointSet::create(decodeState(m_data), classification).leakRef();
     WTF::storeStoreFence();
     m_data = std::bit_cast<uintptr_t>(fat);
     return fat;

@@ -7106,7 +7106,20 @@ void ByteCodeParser::handlePutById(
                 }
             }
         }
-        
+
+        if (Options::useJSThreads()) [[unlikely]] {
+            // THREADS-INTEGRATE(jit) SPEC-jit section 5.5 / Tasks 9/10: no
+            // inlined transition sequences flag-on (see the Transition case
+            // below); MultiPutByOffset transition variants would lower to the
+            // same machinery in the FTL.
+            for (unsigned variantIndex = putByStatus.numVariants(); variantIndex--;) {
+                if (putByStatus[variantIndex].kind() == PutByVariant::Transition) {
+                    emitPutById(base, identifier, value, putByStatus, isDirect, ecmaMode);
+                    return;
+                }
+            }
+        }
+
         if (m_graph.compilation()) [[unlikely]]
             m_graph.compilation()->noticeInlinedPutById();
 
@@ -7140,6 +7153,19 @@ void ByteCodeParser::handlePutById(
     }
     
     case PutByVariant::Transition: {
+        if (Options::useJSThreads()) [[unlikely]] {
+            // THREADS-INTEGRATE(jit) SPEC-jit section 5.5 / Task 9: the inlined
+            // transition sequence (AllocatePropertyStorage / PutByOffset /
+            // NukeStructureAndSetButterfly / PutStructure) implements transition
+            // semantics in JIT'd code, which section 5.5 forbids until the E4
+            // transition predicate (TTL sets valid+watched + PA bit test +
+            // owner-tag compare) is emitted around it. Route through the
+            // generic PutById IC: the OM's C++ paths perform the transition
+            // under its regime rules (R3 slow-path rule).
+            emitPutById(base, identifier, value, putByStatus, isDirect, ecmaMode);
+            return;
+        }
+
         addToGraph(FilterPutByStatus, OpInfo(m_graph.m_plan.recordedStatuses().addPutByStatus(currentCodeOrigin(), putByStatus)), base);
 
         addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(variant.oldStructure())), unwrapped);
@@ -7282,7 +7308,18 @@ void ByteCodeParser::handlePutPrivateNameById(
             addToGraph(PutPrivateNameById, OpInfo(identifier), OpInfo(privateFieldPutKind), base, value);
             return;
         }
-        
+
+        if (Options::useJSThreads()) [[unlikely]] {
+            // THREADS-INTEGRATE(jit) SPEC-jit section 5.5 / Tasks 9/10: no
+            // inlined transition sequences flag-on (see below).
+            for (unsigned variantIndex = putByStatus.numVariants(); variantIndex--;) {
+                if (putByStatus[variantIndex].kind() == PutByVariant::Transition) {
+                    addToGraph(PutPrivateNameById, OpInfo(identifier), OpInfo(privateFieldPutKind), base, value);
+                    return;
+                }
+            }
+        }
+
         if (m_graph.compilation()) [[unlikely]]
             m_graph.compilation()->noticeInlinedPutById();
     
@@ -7318,8 +7355,16 @@ void ByteCodeParser::handlePutPrivateNameById(
     
     case PutByVariant::Transition: {
         ASSERT(privateFieldPutKind.isDefine());
+        if (Options::useJSThreads()) [[unlikely]] {
+            // THREADS-INTEGRATE(jit) SPEC-jit section 5.5 / Task 9: no inlined
+            // transition sequence flag-on (see handlePutById's Transition
+            // case); the generic op performs the transition via the OM's C++
+            // paths (R3).
+            addToGraph(PutPrivateNameById, OpInfo(identifier), OpInfo(privateFieldPutKind), base, value);
+            return;
+        }
         addToGraph(FilterPutByStatus, OpInfo(m_graph.m_plan.recordedStatuses().addPutByStatus(currentCodeOrigin(), putByStatus)), base);
-    
+
         addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(variant.oldStructure())), base);
         if (!check(variant.conditionSet())) {
             addToGraph(PutPrivateNameById, OpInfo(identifier), OpInfo(privateFieldPutKind), base, value);

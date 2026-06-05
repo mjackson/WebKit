@@ -124,6 +124,7 @@ public:
 
         auto* heap = HandleSet::heapFor(slot());
         if (shouldStrongDestructorGrabLock == ShouldStrongDestructorGrabLock::Yes) {
+            // SharedGC (T9): main-VM-only — see HandleSet::vm() (HandleSet.h).
             JSLockHolder holder(heap->vm());
             heap->deallocate(slot());
             setSlot(nullptr);

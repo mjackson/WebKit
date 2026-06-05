@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // Shared array element reads and writes across threads, covering the major
 // indexing types (int32, double, contiguous, and mixed) without resizing.
 load("../resources/assert.js", "caller relative");

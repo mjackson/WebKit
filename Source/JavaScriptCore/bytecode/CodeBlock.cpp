@@ -66,6 +66,7 @@
 #include "JSSet.h"
 #include "JSString.h"
 #include "JSTemplateObjectDescriptor.h"
+#include "JSThreadsSafepoint.h"
 #include "LLIntData.h"
 #include "LLIntEntrypoint.h"
 #include "LLIntExceptions.h"
@@ -615,8 +616,20 @@ bool CodeBlock::finishCreation(VM& vm, ScriptExecutable* ownerExecutable, Unlink
                 metadata.m_getPutInfo = GetPutInfo(bytecode.m_getPutInfo.resolveMode(), ClosureVar, bytecode.m_getPutInfo.initializationMode(), bytecode.m_getPutInfo.ecmaMode());
             if (op.type == GlobalVar || op.type == GlobalVarWithVarInjectionChecks || op.type == GlobalLexicalVar || op.type == GlobalLexicalVarWithVarInjectionChecks)
                 metadata.m_watchpointSet = op.watchpointSet;
-            else if (op.structure)
-                metadata.m_structureID.set(vm, this, op.structure);
+            else if (op.structure) {
+                // SPEC-jit §5.5 (review round 1): flag-on, the GlobalProperty
+                // structure cache is never armed (m_structureID stays null, so
+                // loadScopeWithStructureCheck always misses and the access
+                // stays on the C++ slow path). Two reasons: (1) the global
+                // object's structure is routinely a cacheable DICTIONARY,
+                // whose accesses must take the structure lock (THREAD.md);
+                // (2) runtime re-caching is disabled flag-on (metadata frozen
+                // post-link; see LLIntSlowPaths/JITOperations), and arming
+                // only the link-time snapshot is not worth carrying the
+                // dictionary/R7 audit burden. Conservative: sound, slower.
+                if (!Options::useJSThreads()) [[likely]]
+                    metadata.m_structureID.set(vm, this, op.structure);
+            }
             metadata.m_operand = op.operand;
             break;
         }
@@ -654,8 +667,12 @@ bool CodeBlock::finishCreation(VM& vm, ScriptExecutable* ownerExecutable, Unlink
             else if (op.type == ClosureVar || op.type == ClosureVarWithVarInjectionChecks) {
                 if (op.watchpointSet)
                     op.watchpointSet->invalidate(vm, PutToScopeFireDetail(this, ident));
-            } else if (op.structure)
-                metadata.m_structureID.set(vm, this, op.structure);
+            } else if (op.structure) {
+                // SPEC-jit §5.5 (review round 1): GlobalProperty cache never
+                // armed flag-on; see op_get_from_scope above.
+                if (!Options::useJSThreads()) [[likely]]
+                    metadata.m_structureID.set(vm, this, op.structure);
+            }
             metadata.m_operand = op.operand;
             break;
         }
@@ -960,7 +977,7 @@ CodeBlock::~CodeBlock()
     }
     forEachPropertyInlineCache([&](PropertyInlineCache& propertyCache) {
         propertyCache.aboutToDie();
-        propertyCache.deref();
+        propertyCache.deref(vm);
         return IterationStatus::Continue;
     });
     if (JSC::JITCode::isOptimizingJIT(jitType())) {
@@ -1535,21 +1552,23 @@ void CodeBlock::finalizeLLIntInlineCaches()
         });
 
         m_metadata->forEach<OpTryGetById>([&] (auto& metadata) {
-            StructureID oldStructureID = metadata.m_structureID;
+            StructureID oldStructureID = metadata.m_cache.structureID;
             if (!oldStructureID || vm.heap.isMarked(oldStructureID.decode()))
                 return;
             dataLogLnIf(Options::verboseOSR(), "Clearing try_get_by_id LLInt property access.");
-            metadata.m_structureID = StructureID();
-            metadata.m_offset = 0;
+            // SPEC-jit §4.3 (Task 6): the cache pair is invalidated with one
+            // all-zero 64-bit store (F3); flag-off this is equivalent to the
+            // old two-field clear.
+            metadata.m_cache.clear();
         });
 
         m_metadata->forEach<OpGetByIdDirect>([&] (auto& metadata) {
-            StructureID oldStructureID = metadata.m_structureID;
+            StructureID oldStructureID = metadata.m_cache.structureID;
             if (!oldStructureID || vm.heap.isMarked(oldStructureID.decode()))
                 return;
             dataLogLnIf(Options::verboseOSR(), "Clearing get_by_id_direct LLInt property access.");
-            metadata.m_structureID = StructureID();
-            metadata.m_offset = 0;
+            // SPEC-jit §4.3 (Task 6): one all-zero 64-bit store (F3).
+            metadata.m_cache.clear();
         });
 
         m_metadata->forEach<OpGetPrivateName>([&] (auto& metadata) {
@@ -1574,8 +1593,15 @@ void CodeBlock::finalizeLLIntInlineCaches()
                 && (!chain || vm.heap.isMarked(chain)))
                 return;
             dataLogLnIf(Options::verboseOSR(), "Clearing LLInt put transition.");
-            metadata.m_oldStructureID = StructureID();
-            metadata.m_offset = 0;
+            if (Options::useJSThreads()) [[unlikely]] {
+                // SPEC-jit §4.3 (Task 6): flag-on, {m_oldStructureID, m_offset} is
+                // the surviving replace cache, read by the LLInt as ONE 64-bit
+                // word; invalidate it with one all-zero store (F3).
+                clearLLIntIdAndOffsetPairConcurrently(&metadata.m_oldStructureID);
+            } else {
+                metadata.m_oldStructureID = StructureID();
+                metadata.m_offset = 0;
+            }
             metadata.m_newStructureID = StructureID();
             metadata.m_structureChain.clear();
         });
@@ -1802,6 +1828,12 @@ void CodeBlock::finalizeUnconditionally(VM& vm, CollectionScope)
 
         if (auto* jitData = dfgJITData())
             jitData->finalizeUnconditionally();
+#if ENABLE(FTL_JIT)
+        // FTL handler-IC sites (useHandlerICInFTL) share a dummy ArrayProfile
+        // hanging off the FTL JITCode; clear it like the DFG's.
+        if (jitType() == JITType::FTLJIT)
+            m_jitCode->ftl()->finalizeHandlerICDataUnconditionally();
+#endif
     }
 #endif // ENABLE(DFG_JIT)
 
@@ -2300,6 +2332,27 @@ void CodeBlock::jettison(Profiler::JettisonReason reason, ReoptimizationMode mod
 
     VM& vm = *m_vm;
 
+    // SPEC-jit section 5.3 (Task 5): with shared-memory threads enabled,
+    // jettison runs only (a) on the JSThreads conductor inside a
+    // JSThreadsSafepoint::stopTheWorldAndRun closure, or (b) during GC with the
+    // world stopped. This function is the single choke point: rather than
+    // asserting at every trigger, we become the conductor HERE, so every
+    // jettison source — reoptimization (triggerReoptimizationNow/OSR exit),
+    // watchpoint fires (until Task 11 centralizes Class-A fires, whose
+    // section 5.6 step-5 jettisons then nest via R1.h), VM traps, and the
+    // debugger — gets stop-the-world semantics for free. The closure captures
+    // by reference and allocates nothing in the JS heap (R1.i closure rule /
+    // OM O4); stopTheWorldAndRun supplies the R1.i GC-serialization bracket
+    // and the F5 instruction-stream barrier on resume. A caller that is
+    // already world-stopped (GC-driven weak-reference jettisons from the
+    // end-phase finalizers, nested fires) runs inline without re-requesting
+    // (R1.h). Sole exception (I8): the old-age sweep, which only retires cold
+    // code the GC already proved unreachable and never invalidates
+    // still-reachable optimized code, runs un-stopped exactly as today.
+    auto doJettison = [&] {
+
+    RELEASE_ASSERT(!Options::useJSThreads() || reason == Profiler::JettisonDueToOldAge || JSThreadsSafepoint::worldIsStopped(vm));
+
     m_isJettisoned = true;
 
 #if ENABLE(DFG_JIT)
@@ -2319,9 +2372,32 @@ void CodeBlock::jettison(Profiler::JettisonReason reason, ReoptimizationMode mod
 
 #if ENABLE(JIT)
     {
+        // SPEC-jit section 5.1/I9: jettison-time IC deref() routes any dropped
+        // dispatch state through RetiredJITArtifacts when useJSThreads is on
+        // (mutators resumed after this stop keep executing this code - and may
+        // dispatch through its ICs - until their next invalidation point, I21),
+        // and never frees it inline. Handler chains are deliberately left
+        // installed here; they die with the CodeBlock after R2's conservative
+        // scan proves no mutator stack references them.
+        //
+        // M4 LOCK-ACQUISITION CAVEAT (review round 3, R3-5): this m_lock
+        // acquisition runs INSIDE the stop-the-world closure. Under the pre-M4
+        // stub (single mutator) it trivially succeeds; under M4's real parking
+        // it deadlocks the conductor — silently, AFTER the stop watchdog's
+        // window (the watchdog only guards reaching Mode::Stopped) — if a
+        // REMOTE mutator parked while holding this same CodeBlock's m_lock.
+        // The caller contract ("requester holds no section-7 lock") does not
+        // cover locks the CLOSURE acquires that a to-be-parked mutator may
+        // hold. Chosen rule (recorded in the manifest's M4 reminders): flag-on,
+        // ConcurrentJSLock critical sections must be PARK-FREE — M4's park
+        // hook must RELEASE_ASSERT that the parking thread holds no
+        // ConcurrentJSLock (GCSafeConcurrentJSLocker regions like addAccessCase
+        // tolerate GC stops today, so this is a NEW flag-on obligation that
+        // must be enforced, not assumed). The earlier claim that this closure
+        // shape "carries over verbatim" to M4 is amended accordingly.
         ConcurrentJSLocker locker(m_lock);
         forEachPropertyInlineCache([&](PropertyInlineCache& propertyCache) {
-            propertyCache.deref();
+            propertyCache.deref(vm);
             return IterationStatus::Continue;
         });
     }
@@ -2432,6 +2508,19 @@ void CodeBlock::jettison(Profiler::JettisonReason reason, ReoptimizationMode mod
     // Regardless of whether it is used or replaced or upgraded already or not, since this is already jettisoned,
     // there is no reason to keep it linked. Unlink incoming calls.
     unlinkOrUpgradeIncomingCalls(vm, nullptr);
+
+    }; // doJettison
+
+    if (Options::useJSThreads() && reason != Profiler::JettisonDueToOldAge) [[unlikely]] {
+        // SPEC-jit section 5.3/I8: run the whole jettison world-stopped. If the
+        // world is already stopped (GC window, outer fire closure), this runs
+        // inline (R1.h); otherwise we conduct a stop. Code-deletion still waits
+        // on R2's conservative scan: ExecutableMemoryHandles are released only
+        // by the GC sweep, never here.
+        JSThreadsSafepoint::stopTheWorldAndRun(vm, scopedLambda<void()>(doJettison));
+        return;
+    }
+    doJettison();
 }
 
 JSGlobalObject* CodeBlock::globalObjectFor(CodeOrigin codeOrigin)

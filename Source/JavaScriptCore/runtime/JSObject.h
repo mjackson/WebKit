@@ -29,6 +29,7 @@
 #include "CagedBarrierPtr.h"
 #include "CallFrame.h"
 #include "ClassInfo.h"
+#include "ConcurrentButterfly.h"
 #include "CustomGetterSetter.h"
 #include "DOMAttributeGetterSetter.h"
 #include "DeletePropertySlot.h"
@@ -54,6 +55,13 @@ class Signature;
 }
 
 inline JSCell* getJSFunction(JSValue); // Defined in JSObjectInlines.h
+
+// SPEC-api 5.7/9.2-6 Thread.restrict choke point (defined in
+// runtime/ThreadManager.cpp; duplicate of the runtime/ThreadManager.h
+// declaration so generic-path headers need not include it). Returns true if
+// the access is allowed; otherwise throws ConcurrentAccessError and returns
+// false. Callers gate on isUncacheableDictionary() first (5.7.3).
+JS_EXPORT_PRIVATE bool threadRestrictCheck(JSGlobalObject*, JSObject*);
 
 class ArrayProfile;
 class Exception;
@@ -195,6 +203,25 @@ public:
     {
         if (!hasIndexedProperties(indexingType()))
             return 0;
+#if USE(JSVALUE64)
+        // SPEC-objectmodel §Q length() dispatch (JSArray::length() routes here):
+        // Segmented -> segmentedPublicLength(spine); else one masked load.
+        // AS staleness is legal under AS-COPY (§4.6). E5 "None first" (review
+        // round 4): the indexed-type check above and this word load are two
+        // unfenced loads - the N3 first install is lock-free, so a stale
+        // word==0 can pair with a fresh indexed type (arm64 load-load
+        // reordering can even satisfy the word load first). Dispatch on the
+        // word: None reads as length 0 (the pre-install truth), never a
+        // null-8 deref.
+        if (Options::useJSThreads()) [[unlikely]] {
+            uint64_t word = taggedButterflyWord();
+            if (isSegmentedButterfly(word)) [[unlikely]]
+                return segmentedPublicLength(butterflySpine(word));
+            if (!(word & butterflyPointerMask)) [[unlikely]]
+                return 0;
+            return untaggedButterfly(word)->publicLength();
+        }
+#endif
         return butterfly()->publicLength();
     }
 
@@ -202,6 +229,19 @@ public:
     {
         if (!hasIndexedProperties(indexingType()))
             return 0;
+#if USE(JSVALUE64)
+        // SPEC-objectmodel C4: the loaded spine's vectorLength is authoritative.
+        // E5 "None first" (round 4): see getArrayLength above - a racing N3
+        // first install can pair word==0 with a fresh indexed type.
+        if (Options::useJSThreads()) [[unlikely]] {
+            uint64_t word = taggedButterflyWord();
+            if (isSegmentedButterfly(word)) [[unlikely]]
+                return segmentedVectorLength(butterflySpine(word));
+            if (!(word & butterflyPointerMask)) [[unlikely]]
+                return 0;
+            return untaggedButterfly(word)->vectorLength();
+        }
+#endif
         return butterfly()->vectorLength();
     }
     
@@ -257,6 +297,25 @@ public:
             case ALL_WRITABLE_DOUBLE_INDEXING_TYPES:
             case ALL_WRITABLE_CONTIGUOUS_INDEXING_TYPES:
             case ALL_ARRAY_STORAGE_INDEXING_TYPES:
+#if USE(JSVALUE64)
+                // SPEC-objectmodel §10.7/§Q (review round 1): flag-on, this
+                // bound read needs the regime dispatch - butterfly() is the
+                // FLAT-only accessor, so a segmented word would read the
+                // spine as an IndexingHeader (type-confused bound). Segmented
+                // and AS words report "not quickly": the slow path
+                // (putDirectIndexSlowOrBeyondVectorLength) runs the routed /
+                // I31-locked generic logic, and the segmented setIndexQuickly
+                // shape-conversion hazard never arises from here. Flat words
+                // read the bound from the SAME loaded word.
+                if (Options::useJSThreads()) [[unlikely]] {
+                    uint64_t word = taggedButterflyWord();
+                    if (isSegmentedButterfly(word) || hasAnyArrayStorage(indexingType()))
+                        return false;
+                    if (!(word & butterflyPointerMask)) [[unlikely]]
+                        return false; // E5 None-first (round 4): racing N3 first install => slow path.
+                    return propertyName < untaggedButterfly(word)->vectorLength();
+                }
+#endif
                 return propertyName < butterfly()->vectorLength();
             default:
                 if (isCopyOnWrite(indexingMode()))
@@ -301,8 +360,19 @@ public:
     bool canGetIndexQuicklyForTypedArray(unsigned) const;
     JSValue getIndexQuicklyForTypedArray(unsigned, ArrayProfile* = nullptr) const;
     
+    // SPEC-objectmodel §Q (history §15.6): the quickly-family calls butterfly()
+    // inside this owned header and is invisible to the §10.7 guard grep, so the
+    // regime dispatch is INTERNAL and flag-on only: Segmented -> bounds-checked
+    // fragment slots (C4/I33); ArrayStorage shape -> can*Quickly report false so
+    // callers fall to their generic paths (E5 dispatch = §4.6 cell lock); Flat ->
+    // mask + today's code, with the vectorLength bound read from the SAME loaded
+    // butterfly. Flag-off => identity (I22).
     bool canGetIndexQuickly(unsigned i) const
     {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]]
+            return canGetIndexQuicklyConcurrent(i);
+#endif
         const Butterfly* butterfly = this->butterfly();
         switch (indexingType()) {
         case ALL_BLANK_INDEXING_TYPES:
@@ -338,6 +408,10 @@ public:
         
     JSValue getIndexQuickly(unsigned i) const
     {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]]
+            return getIndexQuicklyConcurrent(i);
+#endif
         const Butterfly* butterfly = this->butterfly();
         switch (indexingType()) {
         case ALL_INT32_INDEXING_TYPES:
@@ -359,6 +433,10 @@ public:
     // Uses the (optional) array profile to set the m_mayBeLargeTypedArray bit when relevant
     JSValue tryGetIndexQuickly(unsigned i, ArrayProfile* arrayProfile = nullptr) const
     {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]]
+            return tryGetIndexQuicklyConcurrent(i, arrayProfile);
+#endif
         const Butterfly* butterfly = this->butterfly();
         switch (indexingType()) {
         case ALL_BLANK_INDEXING_TYPES:
@@ -430,6 +508,10 @@ public:
     bool trySetIndexQuicklyForTypedArray(unsigned, JSValue, ArrayProfile*);
     bool trySetIndexQuickly(VM& vm, unsigned i, JSValue v, ArrayProfile* arrayProfile = nullptr)
     {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]]
+            return trySetIndexQuicklyConcurrent(vm, i, v, arrayProfile);
+#endif
         Butterfly* butterfly = this->butterfly();
         switch (indexingMode()) {
         case ALL_BLANK_INDEXING_TYPES:
@@ -491,6 +573,12 @@ public:
 
     void setIndexQuickly(VM& vm, unsigned i, JSValue v)
     {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            setIndexQuicklyConcurrent(vm, i, v);
+            return;
+        }
+#endif
         Butterfly* butterfly = this->butterfly();
         ASSERT(!isCopyOnWrite(indexingMode()));
         switch (indexingType()) {
@@ -701,19 +789,82 @@ public:
         // Access m_butterfly field of JSObjectWithButterfly regardless of whether this object is a derived class of JSObjectWithButterfly.
         // This is safe as atom of GC heap allocation is 16 bytes, thus the butterfly field, offset from 8 byte, is always accessible.
         // We intentionally load it regardless to make this function branchless. This is critical to keep this fast while we have butterfly-less objects.
+#if USE(JSVALUE64)
+        // SPEC-objectmodel §9.5: with Options::useJSThreads() the butterfly word
+        // carries the §2 tag (bit 63 = SW, bits 62..48 = installing thread's TID)
+        // in its high 16 bits; butterfly() masks the tag off on load. CONTRACT —
+        // callers must have established flatness via one of: flag off | a
+        // dominating §2/§3/E5 regime dispatch | the class never segments
+        // (ArrayStorage I31, CopyOnWrite I35) | a §10.7 mayBeSegmentedButterfly()
+        // guard. Segmented words (TID == notTTLTID, payload = ButterflySpine*)
+        // must never be dereferenced through this accessor.
+        if (Options::useJSThreads()) [[unlikely]] {
+            uint64_t word = taggedButterflyWord();
+            ASSERT(!isSegmentedButterfly(word));
+            if (verifyConcurrentButterflyEnabled()) [[unlikely]]
+                RELEASE_ASSERT(!isSegmentedButterfly(word));
+            return untaggedButterfly(word);
+        }
+#endif
         auto* b = *std::bit_cast<Butterfly**>(std::bit_cast<char*>(this) + butterflyOffset());
         if (type() == WebAssemblyGCObjectType) [[unlikely]]
             b = nullptr;
         return b;
     }
 
+    // SPEC-objectmodel §9.5 word-level accessors. Flag-off every flat tag is
+    // all-zero (I22), so taggedButterflyWord() == the raw pointer bits.
+    ALWAYS_INLINE uint64_t taggedButterflyWord() const // raw 64-bit load, never masked
+    {
+#if USE(JSVALUE64)
+        uint64_t word = *std::bit_cast<const uint64_t*>(std::bit_cast<const char*>(this) + butterflyOffset());
+        if (type() == WebAssemblyGCObjectType) [[unlikely]]
+            word = 0;
+        return word;
+#else
+        return static_cast<uint64_t>(std::bit_cast<uintptr_t>(const_cast<JSObject*>(this)->butterfly()));
+#endif
+    }
+
+    ButterflyRegime butterflyRegime() const { return butterflyRegimeForWord(taggedButterflyWord()); }
+
+    ALWAYS_INLINE bool mayBeSegmentedButterfly() const // one load + compare; constant false flag-off (I22)
+    {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]]
+            return isSegmentedButterfly(taggedButterflyWord());
+#endif
+        return false;
+    }
+
+    ALWAYS_INLINE bool isSharedArrayStorage() const // SW=1 && AS shape; §4.6 dispatch keys on shape ANY SW
+    {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]]
+            return butterflySharedWrite(taggedButterflyWord()) && hasAnyArrayStorage(indexingType());
+#endif
+        return false;
+    }
+
+    // SPEC-objectmodel §Q: outOfLineStorage() is FLAT-ONLY (butterfly() contract);
+    // regime-safe out-of-line access goes through locationForOffset().
     ConstPropertyStorage outOfLineStorage() const { return butterfly()->propertyStorage(); }
     PropertyStorage outOfLineStorage() { return butterfly()->propertyStorage(); }
 
+    // SPEC-objectmodel §Q: flag-on, out-of-line offsets dispatch on the butterfly
+    // regime (M7(d) loadLoadFence + I33 bound, in locationForOutOfLineOffsetConcurrent),
+    // which makes the whole getDirect/getDirectOffset/putDirectOffset/
+    // putDirectWithoutBarrier family regime-safe and I24-conforming for ALL
+    // callers, with no per-call-site guards. Flag-off the branch is dead (I22).
+    // Inline offsets never touch the butterfly and are atomic for free.
     ALWAYS_INLINE const WriteBarrierBase<Unknown>* locationForOffset(PropertyOffset offset) const
     {
         if (isInlineOffset(offset))
             return &inlineStorage()[offsetInInlineStorage(offset)];
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]]
+            return locationForOutOfLineOffsetConcurrent(offset);
+#endif
         return &outOfLineStorage()[offsetInOutOfLineStorage(offset)];
     }
 
@@ -721,6 +872,10 @@ public:
     {
         if (isInlineOffset(offset))
             return &inlineStorage()[offsetInInlineStorage(offset)];
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]]
+            return const_cast<WriteBarrierBase<Unknown>*>(locationForOutOfLineOffsetConcurrent(offset));
+#endif
         return &outOfLineStorage()[offsetInOutOfLineStorage(offset)];
     }
 
@@ -994,10 +1149,26 @@ protected:
     size_t butterflyTotalSize();
     size_t butterflyPreCapacity();
 
+    // Flag-on (useJSThreads), createInitialUndecided may return nullptr and
+    // createInitialInt32/Double/Contiguous may return EMPTY storage: either a
+    // racing first install won (N3 loser - the caller must re-dispatch on the
+    // settled state) or the publication ended SEGMENTED (not flat-addressable).
+    // Flag-off behavior is unchanged (never null/empty). See
+    // createInitialIndexedStorageConcurrent (review round 2).
     Butterfly* createInitialUndecided(VM&, unsigned length);
     ContiguousJSValues createInitialInt32(VM&, unsigned length);
     ContiguousDoubles createInitialDouble(VM&, unsigned length);
     ContiguousJSValues createInitialContiguous(VM&, unsigned length);
+#if USE(JSVALUE64)
+    // SPEC-objectmodel review round 2 (N3/I10/I21): race-safe publication for
+    // the createInitial* family. Returns the published FLAT butterfly, or
+    // nullptr when the storage is not flat-addressable (racing winner, or a
+    // segmented publication). Never traps on a legal race.
+    Butterfly* createInitialIndexedStorageConcurrent(VM&, TransitionKind, unsigned length);
+    // Returns false when the caller must re-dispatch its full put path (the
+    // value may not have been stored).
+    bool tryCreateInitialForValueAndSetConcurrent(VM&, unsigned index, JSValue);
+#endif
 
     void convertUndecidedForValue(VM&, JSValue);
     void createInitialForValueAndSet(VM&, unsigned index, JSValue);
@@ -1049,21 +1220,9 @@ protected:
     bool attemptToInterceptPutByIndexOnHole(JSGlobalObject*, unsigned index, JSValue, bool shouldThrow, bool& putResult);
         
     // Call this if you want setIndexQuickly to succeed and you're sure that
-    // the array is contiguous.
-    [[nodiscard]] bool ensureLength(VM& vm, unsigned length)
-    {
-        RELEASE_ASSERT(length <= MAX_STORAGE_VECTOR_LENGTH);
-        ASSERT(hasContiguous(indexingType()) || hasInt32(indexingType()) || hasDouble(indexingType()) || hasUndecided(indexingType()));
-
-        if (butterfly()->vectorLength() < length || isCopyOnWrite(indexingMode())) {
-            if (!ensureLengthSlow(vm, length))
-                return false;
-        }
-
-        if (butterfly()->publicLength() < length)
-            butterfly()->setPublicLength(length);
-        return true;
-    }
+    // the array is contiguous. Defined below JSObjectWithButterfly (the
+    // flag-on F1 leg casts to it, which needs the complete type).
+    [[nodiscard]] inline bool ensureLength(VM&, unsigned length);
         
     // Call this if you want to shrink the butterfly backing store, and you're
     // sure that the array is contiguous.
@@ -1114,13 +1273,126 @@ private:
     JS_EXPORT_PRIVATE void convertDoubleToContiguousWhilePerformingSetIndex(VM&, unsigned index, JSValue);
         
     bool ensureLengthSlow(VM&, unsigned length);
-        
+
+#if USE(JSVALUE64)
+    // SPEC-objectmodel Task 2 regime-dispatching slow paths (flag-on only;
+    // defined in JSObject.cpp). These implement the §Q dispatch for the
+    // quickly-family and locationForOffset; the full §2-dispatch *Concurrent
+    // accessors of §9.5 (getDirectConcurrent & friends) land with Task 6.
+    JS_EXPORT_PRIVATE const WriteBarrierBase<Unknown>* locationForOutOfLineOffsetConcurrent(PropertyOffset) const;
+    JS_EXPORT_PRIVATE bool canGetIndexQuicklyConcurrent(unsigned) const;
+    JS_EXPORT_PRIVATE JSValue getIndexQuicklyConcurrent(unsigned) const;
+    JS_EXPORT_PRIVATE JSValue tryGetIndexQuicklyConcurrent(unsigned, ArrayProfile*) const;
+    JS_EXPORT_PRIVATE bool trySetIndexQuicklyConcurrent(VM&, unsigned, JSValue, ArrayProfile*);
+    JS_EXPORT_PRIVATE void setIndexQuicklyConcurrent(VM&, unsigned, JSValue);
+
+    // Flag-on butterfly installs/replacements: stamp the installing thread's
+    // TID (§2.1 N3); defined in JSObjectInlines.h.
+    inline void setButterflyConcurrent(VM&, Butterfly*);
+    inline void storeTaggedButterflyWordConcurrent(VM&, Butterfly*);
+    inline void nukeStructureAndSetButterflyConcurrent(VM&, StructureID, Butterfly*);
+#endif
+
     ContiguousJSValues tryMakeWritableInt32Slow(VM&);
     ContiguousDoubles tryMakeWritableDoubleSlow(VM&);
     ContiguousJSValues tryMakeWritableContiguousSlow(VM&);
     JS_EXPORT_PRIVATE ArrayStorage* ensureArrayStorageSlow(VM&);
 
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §4.6 "stops" (Task 8, I31/I10): flag-on, every
+    // transition INTO ArrayStorage (convert*ToArrayStorage) plans + allocates
+    // outside a §10.6 per-event stop (O4) and copies + publishes INSIDE it -
+    // firing both TTL sets (F2) when the trigger is shared (foreign tag,
+    // SW=1, or segmented) and publishing a FLAT butterfly tagged
+    // (currentButterflyTID(), 1) for shared triggers (AS never segments).
+    // Defined in JSObject.cpp.
+    ArrayStorage* convertToArrayStorageConcurrent(VM&, TransitionKind);
+
+    // SPEC-objectmodel §4.7/I28 (review round 1): flag-on, the in-place
+    // indexing-shape RELABELS (convertUndecidedTo*, convertInt32ToDouble,
+    // convertInt32ToContiguous, convertDoubleToContiguous) rewrite element
+    // lanes of the CURRENT storage between boxed-JSValue and raw-double
+    // interpretations, so they run as per-event §10.6 stops (firing F2 for
+    // shared triggers) instead of racing lock-free readers. Works on flat AND
+    // segmented words (the butterfly word itself is untouched - I16).
+    // Defined in JSObject.cpp.
+    void relabelIndexingShapeConcurrent(VM&, TransitionKind);
+
+    // SPEC-objectmodel §4.6/I31 (review round 3): flag-on route for the
+    // blank-indexing transition INTO ArrayStorage (createArrayStorage). Plans +
+    // allocates outside a §10.6 per-event stop (O4), re-verifies + copies
+    // out-of-line properties (flat OR segmented source) + publishes FLAT
+    // (currentButterflyTID(), shared ? 1 : 0) inside it, firing both TTL sets
+    // (F2) for shared triggers. Loser re-dispatch, never a plain nuke+store.
+    // Defined in JSObject.cpp.
+    ArrayStorage* createArrayStorageConcurrent(VM&, unsigned length, unsigned vectorLength);
+#endif
+
     PropertyOffset prepareToPutDirectWithoutTransition(VM&, PropertyName, unsigned attributes, StructureID, Structure*);
+
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §6 L3/L4 (review round 1): flag-on form of the
+    // "without transition" add (pinned-table / dictionary-style: structure and
+    // object mutate in tandem). Serialized against deletes/flatten/other adds
+    // by the cell lock, with the VALUE stored inside the same critical
+    // section as the table edit (no holes - I9; dictionary readers are
+    // cell-locked, L3). Returns the offset. Defined in JSObjectInlines.h.
+    inline PropertyOffset putDirectWithoutTransitionConcurrent(VM&, PropertyName, JSValue, unsigned attributes);
+
+    // SPEC-objectmodel E4/I29 + §4.3/N2 (review round 1): flag-on publication
+    // of a named-property transition from putDirectInternal. E4-eligible
+    // (owner instance, SW=0, both source TTL sets valid+watched, not PA):
+    // today's lock-free sequence with the I29 allocate->revalidate->poll-free
+    // publication discipline (value stored BEFORE the new StructureID - no
+    // holes, I9). Otherwise: the locked protocols (trySegmentedTransition for
+    // out-of-line offsets, tryStructureOnlyTransition for inline/butterfly-
+    // untouched ones). Returns false = RESTART: the caller re-enters its
+    // WHOLE operation from a fresh structureID/tag (§2 dispatch). Defined in
+    // JSObjectInlines.h.
+    inline bool tryPutDirectTransitionConcurrent(VM&, Structure* expectedSource, StructureID sourceID, Structure* newStructure, PropertyOffset, JSValue);
+
+    // SPEC-objectmodel §6 (review round 3): regime guard for the cell-locked
+    // dictionary / without-transition adds. The under-lock classification
+    // decides whether the locked add (and in particular its out-of-line
+    // capacity GROWTH, which copies the flat payload) is sound for the loaded
+    // word, or whether the caller must release the cell lock, run the returned
+    // slow action, and RESTART its §2 loop:
+    //   - FireSharedWriteBit: foreign writer on an SW=0 word - F1/flip first
+    //     (I12; also covers the §4.6 AS per-event stop and §4.8 CoW via
+    //     ensureSharedWriteBit's carve-outs).
+    //   - ConvertToSegmented: flat word that may need growth but is SW=1 or
+    //     has a fired writeThreadLocal set - a lock-free F1 flip could land
+    //     between the copy and the publication (§4.3(b2)/I21/I27), so the
+    //     object goes segmented first; segmented growth appends fragments
+    //     without relocating shared storage.
+    //   - GrowSegmentedOutOfLine: segmented word whose out-of-line fragment
+    //     coverage cannot absorb a fresh offset - pre-grow via a replacement
+    //     spine (coverage is monotone, so it stays sufficient).
+    //   - MaterializeCopyOnWrite: §4.8 materialize-first.
+    // Proceed (true) is returned only for regimes whose growth leg is sound
+    // under the cell lock: None (with the caller's ID-lane pre-nuke),
+    // owner-(t,0) flat with writeThreadLocal still valid, AS (every access and
+    // transition cell-locked - I31 + the E4 AS exclusion), segmented with
+    // sufficient coverage, and non-growing SW=1 stores. Defined in
+    // JSObjectInlines.h.
+    enum class ConcurrentLockedAddSlowAction : uint8_t {
+        None,
+        FireSharedWriteBit,
+        ConvertToSegmented,
+        GrowSegmentedOutOfLine,
+        MaterializeCopyOnWrite,
+    };
+    inline bool classifyConcurrentLockedAdd(Structure*, ConcurrentLockedAddSlowAction&);
+    inline void performConcurrentLockedAddSlowAction(VM&, ConcurrentLockedAddSlowAction);
+
+    // The regime-dispatched growth leg the two §6 cell-locked add lambdas
+    // share (review round 3): segmented => maxOffset bump only (coverage
+    // pre-grown), AS shared/foreign => tag-preserving AS-COPY publication,
+    // None / owner-safe flat => today's nuke-bracketed copy. Sound ONLY after
+    // classifyConcurrentLockedAdd returned Proceed under the same cell lock.
+    // Defined in JSObjectInlines.h.
+    inline void growOutOfLineStorageForConcurrentLockedAdd(VM&, StructureID, Structure*, PropertyOffset newMaxOffset, unsigned oldOutOfLineCapacity, unsigned newOutOfLineCapacity);
+#endif
 };
 
 // JSObjectWithButterfly is a JSObject that has out-of-line property storage (butterfly).
@@ -1138,15 +1410,63 @@ public:
 
     DECLARE_EXPORT_INFO;
 
-    const Butterfly* butterfly() const LIFETIME_BOUND { return m_butterfly.get(); }
-    Butterfly* butterfly() LIFETIME_BOUND { return m_butterfly.get(); }
+    // SPEC-objectmodel §9.5: same mask-on-load + flatness CONTRACT as
+    // JSObject::butterfly() (see comment there). Flag-off, identity (I22).
+    const Butterfly* butterfly() const LIFETIME_BOUND { return const_cast<JSObjectWithButterfly*>(this)->butterfly(); }
+    Butterfly* butterfly() LIFETIME_BOUND
+    {
+#if USE(JSVALUE64)
+        if (Options::useJSThreads()) [[unlikely]] {
+            uint64_t word = taggedButterflyWord();
+            ASSERT(!isSegmentedButterfly(word));
+            if (verifyConcurrentButterflyEnabled()) [[unlikely]]
+                RELEASE_ASSERT(!isSegmentedButterfly(word));
+            return untaggedButterfly(word);
+        }
+#endif
+        return m_butterfly.get();
+    }
+
+    ALWAYS_INLINE uint64_t taggedButterflyWord() const // raw 64-bit load, never masked (§9.5)
+    {
+#if USE(JSVALUE64)
+        return *std::bit_cast<const uint64_t*>(&m_butterfly);
+#else
+        return static_cast<uint64_t>(std::bit_cast<uintptr_t>(m_butterfly.get()));
+#endif
+    }
+
+    // NOTE (SPEC-objectmodel Task 2 audit): flag-on the loaded pointer is the
+    // TAGGED word; callers (visitButterflyImpl) must mask it with
+    // untaggedButterfly()/check isSegmentedButterfly() before dereferencing.
     Dependency fencedButterfly(Butterfly*& butterfly)
     {
         return Dependency::loadAndFence(static_cast<Butterfly**>(butterflyAddress()), butterfly);
     }
 
-    ConstPropertyStorage outOfLineStorage() const { return m_butterfly->propertyStorage(); }
-    PropertyStorage outOfLineStorage() { return m_butterfly->propertyStorage(); }
+    // Flat-only, like JSObject::outOfLineStorage() (§Q); routed through the
+    // masking butterfly() accessor rather than raw m_butterfly.
+    ConstPropertyStorage outOfLineStorage() const { return butterfly()->propertyStorage(); }
+    PropertyStorage outOfLineStorage() { return butterfly()->propertyStorage(); }
+
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §9.5 (Task 6; defined in ConcurrentButterfly.cpp):
+    // full-§2-dispatch interpreter/runtime slow paths for existing direct
+    // slots. M7-conforming (the (d) loadLoadFence orders the caller's
+    // structureID/offset provenance before the tagged-word load - I24), M5
+    // nuke-tolerant (they never decode a possibly nuked StructureID - dispatch
+    // keys on the tagged word + indexing byte), poll-free between slot
+    // resolution and access (I34), and AS-shape accesses cell-locked (I31).
+    JS_EXPORT_PRIVATE JSValue getDirectConcurrent(PropertyOffset) const;
+    JS_EXPORT_PRIVATE void putDirectConcurrent(VM&, PropertyOffset, JSValue);
+    // §9.5 indexed forms (Task 8, §4.4/§4.6; defined in ConcurrentButterfly.cpp):
+    // full §2 dispatch; AS accesses cell-locked (I31/L5); foreign first writes
+    // through ensureSharedWriteBit (F1); in-shape dense growth through the
+    // §4.4 resize drivers. Empty/false => caller's generic path (sparse maps,
+    // shape transitions, length semantics).
+    JS_EXPORT_PRIVATE JSValue getIndexConcurrent(unsigned) const;
+    JS_EXPORT_PRIVATE bool putIndexConcurrent(VM&, unsigned, JSValue);
+#endif
 
     void* butterflyAddress()
     {
@@ -1163,6 +1483,13 @@ protected:
         : JSObject(vm, structure)
         , m_butterfly(butterfly, WriteBarrierEarlyInit)
     {
+#if USE(JSVALUE64)
+        // SPEC-objectmodel §2.1/Task 2: stamp the allocating thread's TID at
+        // first install. Pre-escape (object not yet visible to other threads),
+        // so a plain store is the sanctioned E4-eligible install form (N3).
+        if (Options::useJSThreads() && butterfly) [[unlikely]]
+            m_butterfly.setWithoutBarrier(std::bit_cast<Butterfly*>(encodeButterfly(butterfly, currentButterflyTID(), false)));
+#endif
     }
 
     JSObjectWithButterfly(CreatingWellDefinedBuiltinCellTag, StructureID structureID, int32_t blob)
@@ -1181,6 +1508,75 @@ private:
 constexpr size_t JSObject::offsetOfInlineStorage()
 {
     return sizeof(JSObjectWithButterfly);
+}
+
+// Defined here (not in-class) because the flag-on F1 leg casts `this` to
+// JSObjectWithButterfly, which must be complete.
+ALWAYS_INLINE bool JSObject::ensureLength(VM& vm, unsigned length)
+{
+    RELEASE_ASSERT(length <= MAX_STORAGE_VECTOR_LENGTH);
+    ASSERT(hasContiguous(indexingType()) || hasInt32(indexingType()) || hasDouble(indexingType()) || hasUndecided(indexingType()));
+
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §4.4 (Task 8): flag-on, dispatch on the tagged word
+    // (§2) - segmented words use the loaded spine's vectorLength (C4) and
+    // the SHARED publicLength slot; growth (incl. a mid-call T2
+    // conversion) goes through ensureLengthSlow's concurrent driver.
+    if (Options::useJSThreads()) [[unlikely]] {
+        uint64_t word = taggedButterflyWord();
+        bool needsSlow = isCopyOnWrite(indexingMode());
+        if (isSegmentedButterfly(word))
+            needsSlow |= segmentedVectorLength(butterflySpine(word)) < length;
+        else
+            needsSlow |= untaggedButterfly(word)->vectorLength() < length;
+        if (needsSlow) {
+            if (!ensureLengthSlow(vm, length))
+                return false;
+            word = taggedButterflyWord(); // The slow path may have republished (T1/T2/§4.8).
+        }
+        // §3 F1 (review round 1): the publicLength bump below is a WRITE into
+        // the IndexingHeader of the butterfly. A foreign plain store on an
+        // SW=0 flat word would land while writeThreadLocal is still valid
+        // (I12) and could be silently dropped by an owner T1 copying resize
+        // whose (t,0) CAS still succeeds - so fire F1/flip SW first, then
+        // re-load. (Segmented words are SW=1 by I3; the bump there targets
+        // the SHARED fragment-0 slot. After ensureLengthSlow the word may
+        // already be SW=1/segmented/owner-materialized.)
+        if ((word & butterflyPointerMask) && !isSegmentedButterfly(word)
+            && !butterflySharedWrite(word) && butterflyWriterIsForeign(word)) { // incl. §9.6 forceButterflySWBit
+            ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this));
+            word = taggedButterflyWord();
+        }
+        // Review round 3 (I21; the i03-t5 racing-growers scenario): on SHARED
+        // words the bump must be the monotone CAS-max - a read-then-plain-store
+        // by a loser could REGRESS a racing grower's bump and hide its element
+        // behind the min(publicLength, vectorLength) read bound. Segmented
+        // words are shared by definition (notTTLTID); flat SW=1 words race
+        // other §3 writers. Only the owner-exclusive (currentTID, 0) flat word
+        // keeps the plain store (SW=0 => no foreign write has ever landed on
+        // this instance, I12).
+        if (isSegmentedButterfly(word)) {
+            ButterflySpine* spine = butterflySpine(word);
+            spine->bumpPublicLengthToAtLeast(length);
+        } else {
+            Butterfly* flatButterfly = untaggedButterfly(word);
+            if (butterflySharedWrite(word))
+                flatButterfly->bumpPublicLengthToAtLeast(length);
+            else if (flatButterfly->publicLength() < length)
+                flatButterfly->setPublicLength(length);
+        }
+        return true;
+    }
+#endif
+
+    if (butterfly()->vectorLength() < length || isCopyOnWrite(indexingMode())) {
+        if (!ensureLengthSlow(vm, length))
+            return false;
+    }
+
+    if (butterfly()->publicLength() < length)
+        butterfly()->setPublicLength(length);
+    return true;
 }
 
 // JSNonFinalObject is a type of JSObject that has some internal storage,
@@ -1460,6 +1856,8 @@ ALWAYS_INLINE bool JSObject::getOwnPropertySlotImpl(JSObject* object, JSGlobalOb
 {
     VM& vm = getVM(globalObject);
     Structure* structure = object->structure();
+    if (Options::useJSThreads() && structure->isUncacheableDictionary() && !slot.isVMInquiry() && !threadRestrictCheck(globalObject, object)) [[unlikely]]
+        return false;
     if (object->getOwnNonIndexPropertySlot(vm, structure, propertyName, slot))
         return true;
     if (std::optional<uint32_t> index = parseIndex(propertyName))
@@ -1501,6 +1899,8 @@ ALWAYS_INLINE bool JSObject::getPropertySlot(JSGlobalObject* globalObject, Prope
                 CRASH_WITH_INFO(object->type(), object->structureID().bits());
         }
 #endif
+        if (Options::useJSThreads() && structure->isUncacheableDictionary() && !slot.isVMInquiry() && !threadRestrictCheck(globalObject, object)) [[unlikely]]
+            return false;
         if (object->getOwnNonIndexPropertySlot(vm, structure, propertyName, slot))
             return true;
         // FIXME: This doesn't look like it's following the specification:

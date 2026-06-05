@@ -33,6 +33,7 @@
 #include "CodeLocation.h"
 #include "CodeOrigin.h"
 #include "CodeSpecializationKind.h"
+#include "Options.h"
 #include "PolymorphicCallStubRoutine.h"
 #include "WriteBarrier.h"
 #include <wtf/ScopedLambda.h>
@@ -55,6 +56,57 @@ struct UnlinkedCallLinkInfo;
 struct BaselineUnlinkedCallLinkInfo;
 
 using CompileTimeCallLinkInfo = Variant<OptimizingCallLinkInfo*, BaselineUnlinkedCallLinkInfo*, DFG::UnlinkedCallLinkInfo*>;
+
+// SPEC-jit section 5.8 (Task 7): the single published call-link record.
+//
+// Guard/payload word-pair protocols are unsound under N mutators (a racing
+// reader can pair a new guard with an old target), so with shared-memory
+// threads enabled (Options::useJSThreads()) every JIT'd call fast path flows
+// through ONE published pointer to an immutable record:
+//
+//   load r = m_record; if (!r) use the empty record (default call);
+//   load c = r->comparand;
+//   if (c == calleeGPR || (c & polymorphicCalleeMask)) {
+//       store r->codeBlockToTransfer -> callee frame;
+//       load t = r->target ONCE; call t;
+//   } else use the empty record (default call);
+//
+// c == callee cell => monomorphic; c with bit 0 set (polymorphicCalleeMask)
+// => always-call (virtual/polymorphic-stub dispatch, today's bit-test, G10);
+// direct calls skip the comparand check entirely. All reads go THROUGH r so
+// ARM64 readers are ordered by the address dependency (F2); a stale read
+// observes a complete OLD record, which is benign.
+//
+// Records are immutable after publish (F6: fully initialize, then
+// WTF::storeStoreFence(), then a single m_record pointer store), heap-allocated
+// at link time, and freed only via RetiredJITArtifacts (SPEC-jit section 4.4)
+// once every mutator has crossed a safepoint, except when the owning
+// CallLinkInfo itself is destroyed (its code is already unreachable by then).
+//
+// GC: comparand is a RAW word - never dereferenced, never visited, no
+// WriteBarrier. The legacy mirror fields (m_callee/m_codeBlock/
+// m_monomorphicCallDestination; Direct: m_target/m_codeBlock) remain the sole
+// GC roots/weak references and stay in sync with the record under the existing
+// locks; visitWeak/unlinkOrUpgrade read the mirrors as today and additionally
+// null or republish m_record on clear/relink.
+struct CallLinkRecord {
+    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(CallLinkRecord);
+
+    uintptr_t comparand { 0 }; // Callee cell, or sentinel: bit 0 (CallLinkInfo::polymorphicCalleeMask) = always-call.
+    CodePtr<JSEntryPtrTag> target { }; // Entrypoint (monomorphic/virtual/stub/direct).
+    CodeBlock* codeBlockToTransfer { nullptr }; // Stored to the callee frame by the fast path.
+
+    static constexpr ptrdiff_t offsetOfComparand() { return OBJECT_OFFSETOF(CallLinkRecord, comparand); }
+    static constexpr ptrdiff_t offsetOfTarget() { return OBJECT_OFFSETOF(CallLinkRecord, target); }
+    static constexpr ptrdiff_t offsetOfCodeBlockToTransfer() { return OBJECT_OFFSETOF(CallLinkRecord, codeBlockToTransfer); }
+};
+
+#if CPU(ADDRESS64)
+static_assert(CallLinkRecord::offsetOfComparand() == 0);
+static_assert(CallLinkRecord::offsetOfTarget() == 8);
+static_assert(CallLinkRecord::offsetOfCodeBlockToTransfer() == 16);
+static_assert(sizeof(CallLinkRecord) == 24);
+#endif
 
 class CallLinkInfo : public CallLinkInfoBase {
 public:
@@ -149,7 +201,7 @@ public:
     void setExecutableDuringCompilation(ExecutableBase*);
     ExecutableBase* executable();
     
-    void setStub(Ref<PolymorphicCallStubRoutine>&&);
+    void setStub(VM&, Ref<PolymorphicCallStubRoutine>&&);
     void clearStub();
 
     void setVirtualCall(VM&);
@@ -158,6 +210,12 @@ public:
 
     PolymorphicCallStubRoutine* stub() const
     {
+        // SPEC-jit section 5.8 (Task 7): flag-on, a non-Polymorphic
+        // CallLinkInfo may still retain a displaced routine in m_stub purely
+        // to keep the pointer published for racing JIT'd thunk readers (see
+        // clearStub()); logically there is no stub then.
+        if (Options::useJSThreads() && mode() != Mode::Polymorphic) [[unlikely]]
+            return nullptr;
         return m_stub.get();
     }
 
@@ -252,6 +310,11 @@ public:
         return OBJECT_OFFSETOF(CallLinkInfo, m_stub);
     }
 
+    static constexpr ptrdiff_t offsetOfRecord()
+    {
+        return OBJECT_OFFSETOF(CallLinkInfo, m_record);
+    }
+
     uint32_t slowPathCount()
     {
         return m_slowPathCount;
@@ -298,6 +361,15 @@ protected:
 
     void reset(VM&);
 
+    // SPEC-jit section 5.8 writers (F6): every transition (first link,
+    // monomorphic upgrade, setVirtualCall/setStub) publishes a NEW immutable
+    // record - init record -> storeStoreFence -> single m_record store - and
+    // retires the replaced one via RetiredJITArtifacts (section 4.4). Unlink is
+    // a single nullptr store (monotone; legal from a running slow path or
+    // under STW). No-ops flag-off (I1: no records exist flag-off).
+    void publishRecord(VM&, uintptr_t comparand, CodePtr<JSEntryPtrTag> target, CodeBlock* codeBlockToTransfer);
+    void clearRecord(VM&);
+
     bool m_hasSeenShouldRepatch : 1 { false };
     bool m_hasSeenClosure : 1 { false };
     bool m_clearedByGC : 1 { false };
@@ -315,6 +387,13 @@ protected:
     RefPtr<PolymorphicCallStubRoutine> m_stub;
     JSCell* m_owner { nullptr };
     CodeOrigin m_codeOrigin { };
+    // SPEC-jit section 5.8 frozen placement: appended as the LAST member of the
+    // CallLinkInfo data (one shared offset for the data-IC fast path emitted by
+    // emitFastPathImpl, serving both DataOnlyCallLinkInfo - LLInt/Baseline
+    // bytecode metadata, +8B per call op, unconditional per D7 - and
+    // OptimizingCallLinkInfo). Null = unlinked. Flag-off this stays null
+    // forever and no emitted sequence reads it (I1).
+    CallLinkRecord* m_record { nullptr };
 };
 
 class DataOnlyCallLinkInfo final : public CallLinkInfo {
@@ -349,12 +428,25 @@ public:
         , m_codeOrigin(codeOrigin)
         , m_owner(owner)
         , m_executable(executable)
-    { }
+    {
+        // SPEC-jit I3/section 5.8: with shared-memory threads enabled, direct
+        // calls must use data ICs - UseDataIC::No fast paths patch machine code
+        // in place (repatchNearCall/replaceWithJump), which is forbidden under
+        // concurrent execution (I2).
+        RELEASE_ASSERT(!Options::useJSThreads() || useDataIC == UseDataIC::Yes);
+    }
 
     ~DirectCallLinkInfo()
     {
         m_target = { };
         m_codeBlock = nullptr;
+        // SPEC-jit section 5.8: a DirectCallLinkInfo is destroyed only once its
+        // owning code is unreachable (post-R2 conservative scan / CodeBlock
+        // sweep), so no JIT'd frame can still hold the record pointer (I16);
+        // inline delete is sound here, unlike replacement/unlink which must go
+        // through RetiredJITArtifacts.
+        delete m_record;
+        m_record = nullptr;
     }
 
     void setCallType(CallType callType)
@@ -390,6 +482,7 @@ public:
 
     static constexpr ptrdiff_t offsetOfTarget() { return OBJECT_OFFSETOF(DirectCallLinkInfo, m_target); };
     static constexpr ptrdiff_t offsetOfCodeBlock() { return OBJECT_OFFSETOF(DirectCallLinkInfo, m_codeBlock); };
+    static constexpr ptrdiff_t offsetOfRecord() { return OBJECT_OFFSETOF(DirectCallLinkInfo, m_record); };
 
     JSCell* owner() const { return m_owner; }
 
@@ -417,6 +510,14 @@ private:
     void initialize();
     void repatchSpeculatively();
 
+    // SPEC-jit section 5.8 (direct calls are data-IC-only flag-on, I3): record
+    // publish/unlink mirroring CallLinkInfo::publishRecord/clearRecord. Direct
+    // records carry no comparand (the fast path skips the comparand check).
+    // No-ops flag-off.
+    void publishRecord(CodePtr<JSEntryPtrTag> target, CodeBlock* codeBlockToTransfer);
+    void clearRecord();
+    void retireRecord(CallLinkRecord*);
+
     CodeBlock* NODELETE retrieveCodeBlock(FunctionExecutable*);
     CodePtr<JSEntryPtrTag> retrieveCodePtr(const ConcurrentJSLocker&, CodeBlock*);
 
@@ -432,6 +533,9 @@ private:
     CodeLocationNearCall<JSInternalPtrTag> m_callLocation NO_UNIQUE_ADDRESS;
     JSCell* m_owner;
     ExecutableBase* m_executable { nullptr }; // This is weakly held. DFG / FTL CommonData already ensures this.
+    // SPEC-jit section 5.8 frozen placement: LAST member. Null = unlinked;
+    // flag-off this stays null forever (I1).
+    CallLinkRecord* m_record { nullptr };
 };
 
 class OptimizingCallLinkInfo final : public CallLinkInfo {

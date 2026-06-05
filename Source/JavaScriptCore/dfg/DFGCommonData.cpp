@@ -33,6 +33,7 @@
 #include "DFGPlan.h"
 #include "InlineCallFrame.h"
 #include "JSCJSValueInlines.h"
+#include "JSThreadsSafepoint.h"
 #include "TrackedReferences.h"
 #include <wtf/Lock.h>
 #include <wtf/NeverDestroyed.h>
@@ -73,6 +74,12 @@ bool CommonData::invalidateLinkedCode()
         m_hasVMTrapsBreakpointsInstalled = false;
     }
 
+    // SPEC-jit I2/section 5.3: with shared-memory threads enabled, linked code
+    // is invalidated only inside a stop-the-world window (JSThreadsSafepoint
+    // closure or GC stop) - never while another mutator may be executing it.
+    if (!m_jumpReplacements.isEmpty())
+        JSThreadsSafepoint::assertPatchingIsSafe();
+
     for (unsigned i = m_jumpReplacements.size(); i--;)
         m_jumpReplacements[i].fire();
 
@@ -94,6 +101,14 @@ CommonData::~CommonData()
 
 void CommonData::installVMTrapBreakpoints(CodeBlock* owner)
 {
+    // SPEC-jit I2 / M2b (review round 4, R4-3): runs on the VMTraps
+    // signal-sender thread and asynchronously patches reachable invalidation
+    // points (JumpReplacement::installVMTrapBreakpoint) — forbidden by I2
+    // while any other mutator may execute the code. M2b's deferred hunk forces
+    // usePollingTraps under useJSThreads (async breakpoint patching = I2
+    // violation); until it is applied, fail fast here. Listed in the Task-11
+    // audit / M2b notes in docs/threads/INTEGRATE-jit.md.
+    RELEASE_ASSERT(!Options::useJSThreads() || Options::usePollingTraps());
     ASSERT(!m_isUnlinked);
     Locker locker { pcCodeBlockMapLock };
     if (!m_isStillValid || m_hasVMTrapsBreakpointsInstalled)

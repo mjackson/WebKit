@@ -164,3 +164,13 @@
 #else
 #define OFFLINE_ASM_HAVE_FAST_TLS 0
 #endif
+
+// SPEC-jit App. R5 (Task 8): ELF initial-exec TLS relocations for the
+// per-thread butterfly TID tag (g_jscButterflyTIDTag) are emitted only on
+// Linux; elsewhere (Darwin until the M4a JSCConfig key slot lands, Windows,
+// C_LOOP) the LLInt threaded WRITE fast paths fall back to the slow path.
+#if OS(LINUX)
+#define OFFLINE_ASM_LINUX 1
+#else
+#define OFFLINE_ASM_LINUX 0
+#endif

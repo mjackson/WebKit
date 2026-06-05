@@ -123,8 +123,11 @@ void dumpArrayModes(PrintStream& out, ArrayModes arrayModes)
         out.print(comma, "BigUint64ArrayMode"_s);
 }
 
-void ArrayProfile::computeUpdatedPrediction(CodeBlock* codeBlock)
+SUPPRESS_TSAN void ArrayProfile::computeUpdatedPrediction(CodeBlock* codeBlock)
 {
+    // THREADS §5.7.5/§5.7.7 (SPEC-jit Task 12): the structure-ID words are plain,
+    // word-atomic and advisory; a racing std::exchange can at worst re-merge or drop one
+    // observation, which is benign (I12).
     if (auto structureID = std::exchange(m_lastSeenStructureID, StructureID()))
         computeUpdatedPrediction(codeBlock, structureID.decode());
     if (auto structureID = std::exchange(m_speculationFailureStructureID, StructureID()))
@@ -133,24 +136,30 @@ void ArrayProfile::computeUpdatedPrediction(CodeBlock* codeBlock)
 
 void ArrayProfile::computeUpdatedPrediction(CodeBlock* codeBlock, Structure* lastSeenStructure)
 {
-    m_observedArrayModes |= arrayModesFromStructure(lastSeenStructure);
+    // THREADS §5.7.5: relaxed atomic ORs for all merges; the first-run-pruning overwrite
+    // is a word-atomic last-writer-wins store (heuristic only; a racing OR that loses a
+    // bit, or a stale pruned value, never breaks soundness — profiles select, guards
+    // validate, I12).
+    WTF::atomicExchangeOr(&m_observedArrayModes, arrayModesFromStructure(lastSeenStructure), std::memory_order_relaxed);
 
-    if (!m_arrayProfileFlags.contains(ArrayProfileFlag::DidPerformFirstRunPruning) && hasTwoOrMoreBitsSet(m_observedArrayModes)) {
-        m_observedArrayModes = arrayModesFromStructure(lastSeenStructure);
-        m_arrayProfileFlags.add(ArrayProfileFlag::DidPerformFirstRunPruning);
+    auto flagsSnapshot = OptionSet<ArrayProfileFlag>::fromRaw(WTF::atomicLoad(reinterpret_cast<uint32_t*>(&m_arrayProfileFlags), std::memory_order_relaxed));
+    if (!flagsSnapshot.contains(ArrayProfileFlag::DidPerformFirstRunPruning)
+        && hasTwoOrMoreBitsSet(WTF::atomicLoad(&m_observedArrayModes, std::memory_order_relaxed))) {
+        WTF::atomicStore(&m_observedArrayModes, arrayModesFromStructure(lastSeenStructure), std::memory_order_relaxed);
+        addArrayProfileFlagsConcurrently(ArrayProfileFlag::DidPerformFirstRunPruning);
     }
 
     if (lastSeenStructure->typeInfo().interceptsGetOwnPropertySlotByIndexEvenWhenLengthIsNotZero())
-        m_arrayProfileFlags.add(ArrayProfileFlag::MayInterceptIndexedAccesses);
+        addArrayProfileFlagsConcurrently(ArrayProfileFlag::MayInterceptIndexedAccesses);
 
     JSGlobalObject* globalObject = codeBlock->globalObject();
     bool isResizableOrGrowableShared = false;
     if (!globalObject->isOriginalArrayStructure(lastSeenStructure) && !globalObject->isOriginalTypedArrayStructure(lastSeenStructure, isResizableOrGrowableShared))
-        m_arrayProfileFlags.add(ArrayProfileFlag::UsesNonOriginalArrayStructures);
+        addArrayProfileFlagsConcurrently(ArrayProfileFlag::UsesNonOriginalArrayStructures);
 
     if (isTypedArrayTypeIncludingDataView(lastSeenStructure->typeInfo().type())) {
         if (isResizableOrGrowableSharedTypedArrayIncludingDataView(lastSeenStructure->classInfoForCells()))
-            m_arrayProfileFlags.add(ArrayProfileFlag::MayBeResizableOrGrowableSharedTypedArray);
+            addArrayProfileFlagsConcurrently(ArrayProfileFlag::MayBeResizableOrGrowableSharedTypedArray);
     }
 }
 
@@ -177,7 +186,7 @@ CString ArrayProfile::briefDescription(CodeBlock* codeBlock)
     return briefDescriptionWithoutUpdating();
 }
 
-CString ArrayProfile::briefDescriptionWithoutUpdating()
+SUPPRESS_TSAN CString ArrayProfile::briefDescriptionWithoutUpdating()
 {
     StringPrintStream out;
     CommaPrinter comma;

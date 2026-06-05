@@ -27,6 +27,7 @@
 
 #include "ClassInfo.h"
 #include "Concurrency.h"
+#include "ConcurrentButterfly.h"
 #include "ConcurrentJSLock.h"
 #include "IndexingType.h"
 #include "JSCJSValue.h"
@@ -222,8 +223,17 @@ public:
     using SeenProperties = TinyBloomFilter<CompactPtr<UniquedStringImpl>::StorageType>;
 
     enum PolyProtoTag { PolyProto };
-    inline static Structure* create(VM&, JSGlobalObject*, JSValue prototype, const TypeInfo&, const ClassInfo*, IndexingType = NonArray, unsigned inlineCapacity = 0); // Defined in StructureInlines.h
-    static Structure* create(PolyProtoTag, VM&, JSGlobalObject*, JSObject* prototype, const TypeInfo&, const ClassInfo*, IndexingType = NonArray, unsigned inlineCapacity = 0);
+    // SPEC-objectmodel Task 3b (SPEC-vmstate §5.3/N5): ID-creating Structure
+    // cell allocations are serialized by the process-global
+    // SharedVMState::StructureAllocationLocker (SAL, heap rank 7a; no-op
+    // unless Options::useStructureAllocationLock()). The 7-argument create
+    // and createStructure take it INTERNALLY (StructureCreateInlines.h),
+    // threading the locker's GCDeferralContext into allocateCell; the
+    // previous-structure create below is bracketed by its callers in
+    // Structure.cpp. The lock is non-recursive: never call these while
+    // already holding the SAL.
+    inline static Structure* create(VM&, JSGlobalObject*, JSValue prototype, const TypeInfo&, const ClassInfo*, IndexingType = NonArray, unsigned inlineCapacity = 0); // Defined in StructureCreateInlines.h; takes the SAL internally.
+    static Structure* create(PolyProtoTag, VM&, JSGlobalObject*, JSObject* prototype, const TypeInfo&, const ClassInfo*, IndexingType = NonArray, unsigned inlineCapacity = 0); // Delegates; SAL taken by the delegate.
 
     ~Structure();
     
@@ -298,6 +308,29 @@ public:
 
     Structure* trySingleTransition() { return m_transitionTable.trySingleTransition(); }
 
+    // SPEC-objectmodel L6/I37 (Task 3c) — shared-Structure table protocol,
+    // flag-on (Options::useJSThreads()):
+    // (i) MUTATOR transition-table LOOKUPS hold the source's m_lock: the
+    //     plain *ToExistingStructure entry points below route to their
+    //     m_lock-holding *Concurrently variants, and the direct
+    //     m_transitionTable.get sites in Structure.cpp take m_lock in place.
+    //     Inserts already run under m_lock; every insert site additionally
+    //     dual-checks StructureTransitionTable::getMatching under that lock
+    //     and adopts a racing winner (no lost/duplicated transitions).
+    // (ii) PropertyTable steal/clone/materialize
+    //     (takePropertyTableOrCloneIfPinned, copyPropertyTableForPinning,
+    //     materializePropertyTable) read published tables only under the
+    //     SOURCE's m_lock; a stolen/fresh table is private (mutate lock-free)
+    //     until its new Structure publishes; every table mutation of a
+    //     PUBLISHED Structure (add/remove/attributeChange families) holds ITS
+    //     m_lock — as today. O1: allocation under m_lock only under a
+    //     pre-lock DeferGC (GCSafeConcurrentJSLocker or explicit DeferGC).
+    // (iii) MUTATOR uncached table WALKS (Structure::get in
+    //     StructureInlinesLight.h, forEachProperty, isSealed/isFrozen,
+    //     getPropertyNamesFromStructure, addOrReplacePropertyWithoutTransition's
+    //     find) hold m_lock across the walk.
+    // Flag-off, all paths are today's code, bit-identical (I22).
+    // Compiler-thread Concurrently readers are unchanged.
     JS_EXPORT_PRIVATE static Structure* addPropertyTransition(VM&, Structure*, PropertyName, unsigned attributes, PropertyOffset&);
     JS_EXPORT_PRIVATE static Structure* addNewPropertyTransition(VM&, Structure*, PropertyName, unsigned attributes, PropertyOffset&, PutPropertySlot::Context = PutPropertySlot::UnknownContext, DeferredStructureTransitionWatchpointFire* = nullptr);
     static Structure* addPropertyTransitionToExistingStructureConcurrently(Structure*, UniquedStringImpl* uid, unsigned attributes, PropertyOffset&);
@@ -596,6 +629,10 @@ public:
         return typeInfo().masqueradesAsUndefined() && realm() == lexicalGlobalObject;
     }
 
+    // SPEC-objectmodel L6(iii) (Task 3c): flag-on these route to
+    // getConcurrently (m_lock-holding chain walk) — do NOT call them while
+    // holding this structure's m_lock (under-lock code queries the
+    // PropertyTable directly instead). Flag-off: today's lock-free walk.
     PropertyOffset get(VM&, PropertyName);
     PropertyOffset get(VM&, PropertyName, unsigned& attributes);
 
@@ -752,8 +789,18 @@ public:
         return OBJECT_OFFSETOF(Structure, m_seenProperties) + SeenProperties::offsetOfBits();
     }
 
-    static Structure* createStructure(VM&);
-        
+    // SPEC-jit §5.5: the emitted butterfly-less (N1/N2) transition predicate
+    // compares the R5 thread tag against `Structure::m_transitionThreadLocalTID
+    // << 48` when not specialized on a concrete Structure, so JIT-emitted code
+    // needs the field's byte offset (16-bit load). Recorded for the jit
+    // workstream in INTEGRATE-objectmodel.md.
+    static constexpr ptrdiff_t transitionThreadLocalTIDOffset()
+    {
+        return OBJECT_OFFSETOF(Structure, m_transitionThreadLocalTID);
+    }
+
+    static Structure* createStructure(VM&); // Defined in StructureCreateInlines.h; takes the SAL internally (Task 3b).
+
     bool transitionWatchpointSetHasBeenInvalidated() const
     {
         return m_transitionWatchpointSet.hasBeenInvalidated();
@@ -808,7 +855,66 @@ public:
     {
         return m_transitionWatchpointSet;
     }
-    
+
+    // ===== SPEC-objectmodel §9.4 / §5 - TTL watchpoint sets, N1 transition TID,
+    // E1-E4 elision predicates, I29 re-validation (frozen interface; Task 3) =====
+    //
+    // Semantics (§5, monotone, fired only inside a stop-the-world window - I13):
+    //   - transitionThreadLocal: valid <=> no instance of this structure ever
+    //     carried butterfly TID == notTTLTID (I11).
+    //   - writeThreadLocal: valid <=> no instance ever had the SW bit set (I12).
+    // Both start IsWatched for new structures flag-on; flag-off they are inert
+    // (ClearWatchpoint, never consulted, never fired - I22).
+
+    InlineWatchpointSet& transitionThreadLocalWatchpointSet() const { return m_transitionThreadLocalWatchpointSet; }
+    InlineWatchpointSet& writeThreadLocalWatchpointSet() const { return m_writeThreadLocalWatchpointSet; }
+
+    bool transitionThreadLocalIsStillValid() const { return m_transitionThreadLocalWatchpointSet.isStillValid(); }
+    bool writeThreadLocalIsStillValid() const { return m_writeThreadLocalWatchpointSet.isStillValid(); }
+
+    // §2.1 N1: the sole lock-free BUTTERFLY-LESS transitioner of this shape
+    // while the TTL sets are valid (creator's TID; copied to transition
+    // targets). Butterfly-BEARING ownership is keyed on the instance's tag
+    // (E4); this TID plays no part there.
+    ButterflyTID transitionThreadLocalTID() const { return m_transitionThreadLocalTID; }
+
+    // E1 (I14): fast paths may omit the TID != notTTLTID check iff this is true
+    // and a watchpoint is installed on the set. M6: JIT-side state reads need no
+    // fences - the sets change state only inside a stop.
+    bool transitionThreadLocalIsValidAndWatched() const { return m_transitionThreadLocalWatchpointSet.state() == IsWatched; }
+    // E2 (I14): write fast paths may omit the SW branch iff this is true and a
+    // watchpoint is installed; writes always keep the fused TID compare (jit D9/CS5).
+    bool writeThreadLocalIsValidAndWatched() const { return m_writeThreadLocalWatchpointSet.state() == IsWatched; }
+
+    // E4 (r12, per-object keying) - may an owner transition from this structure
+    // run today's lock-free code (no cell lock, no (D)CAS, today's nuke order)?
+    // True iff BOTH source sets are valid+watched AND !isPreciseAllocation(cell)
+    // (I36) AND: butterfly-bearing => tag == (currentButterflyTID(), SW=0)
+    // (instance ownership; NO structure-TID compare - foreign-thread shape reuse
+    // stays lock-free); butterfly-less (incl. N2) => currentButterflyTID() ==
+    // transitionThreadLocalTID() (N1). Returns true flag-off (E3/I22: today's
+    // code IS the lock-free path). Sound only with I29 (see below).
+    // Defined in StructureInlines.h.
+    bool mayTransitionLockFreeFromThisStructure(const JSCell*, uint64_t taggedButterflyWord) const;
+
+    // I29 helper: E4 sites (all tiers) must allocate BEFORE final validation and
+    // must not poll / allocate / cross a safepoint between the validation and
+    // the StructureID store. Call this with FRESH re-reads immediately before
+    // the nuke/StructureID store; false => ownership or elision was lost in the
+    // window (or an allocation intervened) and the caller must fall back to the
+    // §4.3 locked protocol. Pair with AssertNoGC across the
+    // validation->StructureID-store window in debug builds.
+    bool revalidateLockFreeTransition(const JSCell*, uint64_t freshTaggedButterflyWord) const;
+
+    // §9.4 fire functions (F1-F3 triggers). RELEASE_ASSERT(butterflyWorldIsStopped(vm))
+    // - they may only run inside a §10.6 stop-the-world window (I13). Bodies call
+    // fireAll on the InlineWatchpointSets (jit §5.6 intercepts do the
+    // invalidation/jettison/epoch/ISB work). fireTransitionThreadLocal also fires
+    // writeThreadLocal (§5). Both apply the F4 chain-fire (previousID chain +
+    // transition-table successors, same stop; monotone => sound).
+    JS_EXPORT_PRIVATE void fireTransitionThreadLocal(VM&, const char* reason);
+    JS_EXPORT_PRIVATE void fireWriteThreadLocal(VM&, const char* reason);
+
     WatchpointSet* ensurePropertyReplacementWatchpointSet(VM&, PropertyOffset);
     void startWatchingPropertyForReplacements(VM& vm, PropertyOffset offset)
     {
@@ -816,7 +922,11 @@ public:
     }
     void startWatchingPropertyForReplacements(VM&, PropertyName);
     WatchpointSet* propertyReplacementWatchpointSet(PropertyOffset);
-    WatchpointSet* firePropertyReplacementWatchpointSet(VM&, PropertyOffset, const char* reason);
+    // SPEC-jit §5.6 / M6.1: when `deferred` is non-null the set is invalidated
+    // immediately but its watchpoints FIRE at the deferred holder's scope exit
+    // (lock-free), where the Class-A stop protocol runs. Pass a deferred fire
+    // from any caller that may hold CodeBlock::m_lock or a cell lock.
+    WatchpointSet* firePropertyReplacementWatchpointSet(VM&, PropertyOffset, const char* reason, DeferredWatchpointFire* deferred = nullptr);
 
     void didReplaceProperty(PropertyOffset offset)
     {
@@ -958,6 +1068,16 @@ private:
     JS_EXPORT_PRIVATE Structure(VM&, JSGlobalObject*, JSValue prototype, const TypeInfo&, const ClassInfo*, IndexingType, unsigned inlineCapacity);
     Structure(VM&, CreatingEarlyCellTag);
 
+    // SPEC-objectmodel Task 3b: callers (the transition factories in
+    // Structure.cpp, plus BrandedStructure::create's caller) hold the
+    // SharedVMState::StructureAllocationLocker ACROSS this call — it does
+    // not take the SAL itself (its body, in StructureInlines.h, cannot
+    // thread the locker's GCDeferralContext; callers pre-arm a flag-gated
+    // DeferGC instead, per §6 O1 / SPEC-heap L5). With the SAL active,
+    // `deferred` must be non-null so finishCreation never fires the previous
+    // structure's transition watchpoints inline under the lock (watchpoint
+    // firing may take rank-6b CodeBlock/jit locks, which are OUTER to the
+    // SAL and must never be acquired while holding it).
     static Structure* create(VM&, Structure*, DeferredStructureTransitionWatchpointFire*);
 
     static Structure* addPropertyTransitionToExistingStructureImpl(Structure*, UniquedStringImpl* uid, unsigned attributes, PropertyOffset&);
@@ -1042,7 +1162,34 @@ private:
     // Keep them inlined function since they are used in the critical path of Dictionary JSObject modification.
     void pin(const AbstractLocker&, VM&, PropertyTable*);
     void pinForCaching(const AbstractLocker&, VM&, PropertyTable*);
-    
+
+    // SPEC-objectmodel F3 (Task 3): called on the RESULT structure right after a
+    // pin()/pinForCaching() during a transition, with the transition's SOURCE,
+    // OUTSIDE any §6-ranked lock. If any input TTL set (source's or result's) is
+    // invalid, fires both of the result's sets under a §10.6 stop. No-op
+    // flag-off. (GT#8: the poly-proto create/materialize/removeTransition
+    // helpers at Structure.cpp:415-480 and :598-670 are NOT F3 sites and stay
+    // unwired.)
+    void fireTTLWatchpointSetsAfterPinning(VM&, const Structure* source);
+
+    // SPEC-objectmodel F3 "flatten-under-stop" (Task 3; review round 2):
+    // flag-on, flattenDictionaryStructure rearranges out-of-line storage in
+    // place, so it ALWAYS runs per-event under the §10.6 veneer (read-only
+    // foreign sharing is undetectable - foreign reads fire no watchpoint and
+    // never flip SW - so no "unshared" fast path is sound), with its scratch
+    // storage pre-allocated outside the stop (O4; refit => RESTART loop).
+    // flattenTriggerIsShared decides only whether F3 FIRES the TTL sets
+    // inside that stop (owner-local objects keep their sets).
+    bool flattenTriggerIsShared(JSObject*) const;
+    Structure* flattenDictionaryStructureUnderStop(VM&, JSObject*);
+    // Returns nullptr (flag-on, outside a §10.6 stop only; defensive - all
+    // flag-on callers route through flattenDictionaryStructureUnderStop);
+    // nothing is mutated in that case.
+    Structure* flattenDictionaryStructureImpl(VM&, JSObject*, Vector<JSValue>& preallocatedValues);
+
+    // F4 chain-fire body shared by the §9.4 fire functions; runs world-stopped.
+    void fireThreadLocalSetsWithChainUnderStop(VM&, const char* reason, bool alsoFireTransitionThreadLocal);
+
     static bool isRareData(JSCell* cell)
     {
         return cell && cell->type() != StructureType;
@@ -1084,6 +1231,11 @@ private:
     uint16_t m_transitionOffset;
     uint16_t m_maxOffset;
 
+    // SPEC-objectmodel §5/§2.1 N1: creator's ButterflyTID, copied to transition
+    // targets; keys lock-free butterfly-less transitions while the TTL sets are
+    // valid. Sits in what was padding between m_maxOffset and m_propertyHash.
+    uint16_t m_transitionThreadLocalTID { 0 };
+
     uint32_t m_propertyHash;
     SeenProperties m_seenProperties;
 
@@ -1105,6 +1257,13 @@ private:
     WriteBarrier<PropertyTable> m_propertyTableUnsafe;
 
     mutable InlineWatchpointSet m_transitionWatchpointSet;
+
+    // SPEC-objectmodel §5 (frozen member set, Structure.h:1107 anchor): the two
+    // TTL watchpoint sets. IsWatched at construction flag-on; ClearWatchpoint
+    // (inert) flag-off. Fired only world-stopped (I13), via the §9.4 fire
+    // functions above.
+    mutable InlineWatchpointSet m_transitionThreadLocalWatchpointSet;
+    mutable InlineWatchpointSet m_writeThreadLocalWatchpointSet;
 
     static_assert(firstOutOfLineOffset < 256);
 

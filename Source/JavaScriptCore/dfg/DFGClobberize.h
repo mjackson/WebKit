@@ -1593,6 +1593,13 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         
     case GetButterfly:
         read(JSObject_butterfly);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // SPEC-jit section 5.5 / Task 9: flag-on, GetButterfly emits the
+            // read predicate (structureID for the ARM64 R7/F7 dependency,
+            // indexing byte for the AS-rule SW test).
+            read(JSCell_structureID);
+            read(JSCell_indexingType);
+        }
         def(HeapLocation(ButterflyLoc, JSObject_butterfly, node->child1()), LazyNode(node));
         return;
 
@@ -1788,6 +1795,12 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case MultiGetByOffset: {
         read(JSCell_structureID);
         read(JSObject_butterfly);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // SPEC-jit section 5.5 / Task 10: flag-on, the FTL lowering emits
+            // the read predicate (indexing byte for the conservative AS-rule
+            // SW test on prototype-base / MaybeArrayStorage cases).
+            read(JSCell_indexingType);
+        }
         AbstractHeap heap(NamedProperties, node->multiGetByOffsetData().identifierNumber);
         read(heap);
         auto location = node->hasDoubleResult() ? NamedPropertyDoubleLoc : NamedPropertyLoc;
@@ -1801,6 +1814,11 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case MultiPutByOffset: {
         read(JSCell_structureID);
         read(JSObject_butterfly);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // SPEC-jit section 5.5 / Task 10: flag-on write predicate
+            // (indexing byte for the AS-rule arm on MaybeArrayStorage plans).
+            read(JSCell_indexingType);
+        }
         AbstractHeap heap(NamedProperties, node->multiPutByOffsetData().identifierNumber);
         write(heap);
         if (node->multiPutByOffsetData().writesStructures())
@@ -1818,6 +1836,11 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case MultiDeleteByOffset: {
         read(JSCell_structureID);
         read(JSObject_butterfly);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // SPEC-jit section 5.5 / Task 10: flag-on write predicate
+            // (indexing byte for the AS-rule arm on MaybeArrayStorage plans).
+            read(JSCell_indexingType);
+        }
         AbstractHeap heap(NamedProperties, node->multiDeleteByOffsetData().identifierNumber);
         write(heap);
         if (node->multiDeleteByOffsetData().writesStructures()) {
@@ -1833,6 +1856,16 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         unsigned identifierNumber = node->storageAccessData().identifierNumber;
         AbstractHeap heap(NamedProperties, identifierNumber);
         write(heap);
+        if (Options::useJSThreads()) [[unlikely]] {
+            // SPEC-jit section 5.5 / Task 9: flag-on, out-of-line PutByOffset
+            // re-loads the tagged butterfly from the base object (plus the
+            // structureID for the ARM64 R7/F7 dependency and possibly the
+            // indexing byte for the AS-rule test) and runs the frozen write
+            // predicate in the same poll-free window as the store.
+            read(JSObject_butterfly);
+            read(JSCell_structureID);
+            read(JSCell_indexingType);
+        }
         auto location = node->child3().useKind() == DoubleRepUse ? NamedPropertyDoubleLoc : NamedPropertyLoc;
         if (graph.m_planStage >= PlanStage::LICMAndLater)
             def(HeapLocation(location, heap, node->child2(), &node->storageAccessData()), LazyNode(node->child3().node()));
@@ -2052,6 +2085,8 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
             return;
         }
         read(JSObject_butterfly);
+        if (Options::useJSThreads()) [[unlikely]]
+            read(JSCell_structureID); // SPEC-jit section 5.5 / Task 10 (ARM64 R7/F7 dependency)
         read(Butterfly_publicLength);
         read(sourceHeap);
         read(HeapObjectCount);
@@ -2074,6 +2109,8 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
             return;
         }
         read(JSObject_butterfly);
+        if (Options::useJSThreads()) [[unlikely]]
+            read(JSCell_structureID); // SPEC-jit section 5.5 / Task 10 (ARM64 R7/F7 dependency)
         read(Butterfly_publicLength);
         read(IndexedContiguousProperties);
         write(IndexedContiguousProperties);

@@ -39,6 +39,8 @@
 #include "Printer.h"
 #include "ScriptExecutable.h"
 #include "UnlinkedCodeBlock.h"
+#include <atomic>
+#include <wtf/Atomics.h>
 
 #if ENABLE(DFG_JIT)
 #include "DFGCodeOriginPool.h"
@@ -726,11 +728,72 @@ public:
     void forceOptimizationSlowPathConcurrently();
 
     void setOptimizationThresholdBasedOnCompilationResult(CompilationResult);
-    
+
+    // THREADS §5.7.2 (SPEC-jit Task 12): tier-up trigger serialization. Under N mutators
+    // (Options::useJSThreads()) several threads can hit the same threshold slow path
+    // (operationOptimize, the LLInt tier-up slow paths, and the owned DFG->FTL triggers
+    // in dfg/DFGOperations.cpp) at the same time. Each tier-up edge carries a one-byte
+    // in-flight latch: a slow path may create/enqueue a replacement only after winning a
+    // 0->1 CAS; losers defer and stay in their tier. The latch is cleared when the
+    // winning slow path's enqueue attempt completes (success or failure); duplicate
+    // plans that slip through the latch-free window afterwards are cancelled by the
+    // JITWorklist dedup backstop (§5.7.3). Unconditional: with a single mutator the CAS
+    // always wins, so flag-off behavior is unchanged (I1 concerns emitted code only).
+    enum class TierUpEdge : uint8_t {
+        LLIntToBaseline = 0,
+        BaselineToDFG = 1,
+        DFGToFTL = 2,
+        DFGToFTLForOSREntry = 3,
+    };
+    static constexpr unsigned numberOfTierUpEdges = 4;
+
+    bool tryBeginTierUp(TierUpEdge edge)
+    {
+        uint8_t expected = 0;
+        return m_tierUpInFlight[static_cast<unsigned>(edge)].compare_exchange_strong(expected, 1, std::memory_order_acq_rel, std::memory_order_relaxed);
+    }
+
+    void endTierUp(TierUpEdge edge)
+    {
+        ASSERT(m_tierUpInFlight[static_cast<unsigned>(edge)].load(std::memory_order_relaxed) == 1);
+        m_tierUpInFlight[static_cast<unsigned>(edge)].store(0, std::memory_order_release);
+    }
+
+    // RAII over the latch; won() == false means another mutator owns this edge right now,
+    // so the caller must defer (stay in tier) and return.
+    class TierUpEdgeLocker {
+    public:
+        TierUpEdgeLocker(CodeBlock* codeBlock, TierUpEdge edge)
+            : m_codeBlock(codeBlock)
+            , m_edge(edge)
+            , m_won(codeBlock->tryBeginTierUp(edge))
+        {
+        }
+
+        TierUpEdgeLocker(const TierUpEdgeLocker&) = delete;
+        TierUpEdgeLocker& operator=(const TierUpEdgeLocker&) = delete;
+
+        ~TierUpEdgeLocker()
+        {
+            if (m_won)
+                m_codeBlock->endTierUp(m_edge);
+        }
+
+        bool won() const { return m_won; }
+
+    private:
+        CodeBlock* const m_codeBlock;
+        const TierUpEdge m_edge;
+        const bool m_won;
+    };
+
     BytecodeIndex NODELETE bytecodeIndexForExit(BytecodeIndex) const;
     uint32_t osrExitCounter() const { return m_osrExitCounter; }
 
-    void countOSRExit() { m_osrExitCounter++; }
+    // THREADS §5.7.1 (SPEC-jit Task 12): exit counters are racily bumped from OSR-exit
+    // C++ paths on any of N mutators (JIT'd bumps via offsetOfOSRExitCounter stay plain
+    // adds, allowed); relaxed atomic add from C++, lost counts benign (I12).
+    void countOSRExit() { WTF::atomicExchangeAdd(&m_osrExitCounter, static_cast<uint32_t>(1), std::memory_order_relaxed); }
 
     static constexpr ptrdiff_t offsetOfOSRExitCounter() { return OBJECT_OFFSETOF(CodeBlock, m_osrExitCounter); }
 
@@ -983,6 +1046,13 @@ private:
     unsigned m_bytecodeCost { 0 };
     VirtualRegister m_scopeRegister;
     mutable CodeBlockHash m_hash;
+#if ENABLE(JIT)
+    // THREADS §5.7.2 (SPEC-jit Task 12): one in-flight byte per tier-up edge (see
+    // TierUpEdge above). Zero-initialized; only ever 0 or 1; touched solely by the
+    // threshold slow paths. Placed in the 32-bit field cluster to pack into existing
+    // padding (sizeof(CodeBlock) <= 224 assert below).
+    std::atomic<uint8_t> m_tierUpInFlight[numberOfTierUpEdges] { };
+#endif
 
     WriteBarrier<UnlinkedCodeBlock> m_unlinkedCode;
     WriteBarrier<ScriptExecutable> m_ownerExecutable;

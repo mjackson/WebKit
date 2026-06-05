@@ -31,6 +31,7 @@
 #include <JavaScriptCore/JSExportMacros.h>
 #include <JavaScriptCore/LocalAllocator.h>
 #include <JavaScriptCore/MarkedBlock.h>
+#include <limits>
 #include <wtf/DataLog.h>
 #include <wtf/DebugHeap.h>
 #include <wtf/Lock.h>
@@ -58,7 +59,7 @@ class BlockDirectory {
     friend class LLIntOffsetsExtractor;
 
 public:
-    BlockDirectory(size_t cellSize);
+    BlockDirectory(Heap&, size_t cellSize);
     ~BlockDirectory();
     void NODELETE setSubspace(Subspace*);
     void lastChanceToFinalize();
@@ -154,7 +155,29 @@ public:
 
     Subspace* subspace() const { return m_subspace; }
     MarkedSpace& NODELETE markedSpace() const;
-    
+
+    Heap& heap() const { return m_heap; }
+
+    // SharedGC (SPEC-heap.md §5.3; THREADS T4): slot index of this directory
+    // in every client's GCThreadLocalCache flat table — the owning
+    // CompleteSubspace's tlcIndexBase() plus the canonical size-class index.
+    // invalidTlcIndex for iso directories (those are lookup-only via the
+    // TLC's per-directory map). Assigned once, under
+    // MarkedSpace::m_directoryLock, at directory creation.
+    static constexpr unsigned invalidTlcIndex = std::numeric_limits<unsigned>::max();
+    unsigned tlcIndex() const { return m_tlcIndex; }
+    void setTlcIndex(unsigned index)
+    {
+        ASSERT(m_tlcIndex == invalidTlcIndex);
+        ASSERT(index != invalidTlcIndex);
+        m_tlcIndex = index;
+    }
+
+    // SharedGC (§5.3 teardown/I9; THREADS T4): unlink one client's
+    // LocalAllocator under m_localAllocatorsLock (rank 8); the caller holds
+    // MSPL (rank 7) when the server is shared. No-op if already unlinked.
+    void detachLocalAllocator(LocalAllocator&);
+
     void dump(PrintStream&) const;
     void dumpBits(PrintStream& = WTF::dataFile()) WTF_REQUIRES_SHARED_LOCK(m_bitvectorLock);
 
@@ -165,8 +188,12 @@ private:
     friend class MarkedBlock;
     
     MarkedBlock::Handle* findBlockForAllocation(LocalAllocator&);
-    
-    MarkedBlock::Handle* tryAllocateBlock(Heap&);
+
+    // SharedGC (§5.2(3)): the AbstractLocker& is the caller's
+    // MutatorSlowPathLocker token — when the heap is a shared server, the
+    // server's MSPL must be held across tryAllocateBlock/addBlock
+    // (debug-asserted inside; a no-op locker is fine when !isSharedServer()).
+    MarkedBlock::Handle* tryAllocateBlock(const AbstractLocker& mutatorSlowPathLocker, Heap&);
     
     Vector<MarkedBlock::Handle*> m_blocks;
     Vector<unsigned> m_freeBlockIndices;
@@ -178,8 +205,11 @@ private:
     Lock m_localAllocatorsLock;
     CellAttributes m_attributes;
 
+    Heap& m_heap; // SharedGC (T4): available from construction (before setSubspace()).
+
     unsigned m_cellSize;
-    
+    unsigned m_tlcIndex { invalidTlcIndex }; // SharedGC (§5.3): see tlcIndex().
+
     // After you do something to a block based on one of these cursors, you clear the bit in the
     // corresponding bitvector and leave the cursor where it was. We can use unsigned instead of size_t since
     // this number is bound by capacity of Vector m_blocks, which must be within unsigned.

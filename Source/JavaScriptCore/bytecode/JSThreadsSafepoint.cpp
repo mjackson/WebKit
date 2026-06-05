@@ -1,0 +1,396 @@
+/*
+ * Copyright (C) 2026 Apple Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY APPLE INC. ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE INC. OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#include "config.h"
+#include "JSThreadsSafepoint.h"
+
+#include "Heap.h"
+#include "HeapInlines.h"
+#include "VM.h"
+#include "VMManager.h"
+#include <atomic>
+#include <optional>
+#include <wtf/Atomics.h>
+#include <wtf/DataLog.h>
+#include <wtf/IterationStatus.h>
+#include <wtf/Seconds.h>
+
+// Pre-M4 stub witness of the object-model workstream (SPEC-objectmodel manifest
+// entry 6 / SPEC-jit section 5.6 disjunct 4, CS6). The witness global
+// g_jsThreadsStubWorldStopped is owned by runtime/ConcurrentButterfly.cpp; we
+// read it only when that workstream has landed AND its header advertises the
+// witness. Deleted at M4 integration (the disjunct goes away entirely).
+// THREADS-INTEGRATE(jit): if ConcurrentButterfly.h declares the witness without
+// defining JSC_OM_PROVIDES_JSTHREADS_STUB_WITNESS, the integrator either adds
+// that define next to the declaration or (preferred, CS6) has the OM veneer
+// delegate to stopTheWorldAndRun below, which makes this disjunct redundant
+// (our own depth counter then covers OM stop windows too).
+#if __has_include("ConcurrentButterfly.h")
+#include "ConcurrentButterfly.h"
+#endif
+
+#if __has_include("HeapClientSet.h")
+// Heap workstream landed (SPEC-heap manifest): Heap::worldIsStoppedForAllClients()
+// is available (SPEC-heap F7). THREADS-INTEGRATE(jit)
+#define JSC_JIT_HAS_SHARED_HEAP_SERVER 1
+#endif
+
+namespace JSC {
+namespace JSThreadsSafepoint {
+
+#if defined(JSC_HEAP_HAS_STW_FORBIDDEN_SCOPE)
+// R4-1 (review round 4): heap-access release for the R1.i bracket, scoped to
+// the CALLING VM's GCClient::Heap — not Heap::releaseAccess() on the server.
+// Per heap §10A, once a server is ISS heap access is tracked per client, and
+// the server-level releaseAccess() forwards to the MAIN client, which is the
+// wrong client whenever the stop requester is a non-main client of a shared
+// server. GCClient::Heap::{release,acquire}HeapAccess always act on the
+// requester's own client (and coincide with the forwarded path when the
+// requester IS the main client). Destruction re-acquires access, blocking if
+// a shared-mode GC stop is pending (heap F8) — the spec's resume order.
+class ClientHeapAccessReleaseScope {
+    WTF_MAKE_NONCOPYABLE(ClientHeapAccessReleaseScope);
+public:
+    explicit ClientHeapAccessReleaseScope(GCClient::Heap& client)
+        : m_client(client)
+    {
+        m_client.releaseHeapAccess();
+    }
+
+    ~ClientHeapAccessReleaseScope()
+    {
+        m_client.acquireHeapAccess();
+    }
+
+private:
+    GCClient::Heap& m_client;
+};
+#endif // defined(JSC_HEAP_HAS_STW_FORBIDDEN_SCOPE)
+
+// Raised while a stub stopTheWorldAndRun closure runs on this process. A plain
+// global (not thread-local) is correct for the interim stub: the phase-1 GIL
+// guarantees at most one entered mutator, which the RELEASE_ASSERT below
+// enforces. Atomic only so concurrent compiler/GC threads reading
+// worldIsStopped() are race-free.
+static std::atomic<unsigned> s_stubWorldStoppedDepth { 0 };
+
+// Review rounds 2 and 3 (R2-4, revised by R3-11): raising the PROCESS-GLOBAL
+// stub witness on the strength of already-stopped evidence is only sound if
+// that evidence in fact covers every mutator in the process. Two of the
+// worldIsStopped(vm) disjuncts are per-heap:
+//   - vm.heap.worldIsStopped(): the legacy GC stop of THIS VM only. Sound to
+//     globalize only under the phase-1 single-entered-VM premise; otherwise
+//     (flag-on + Workers, pre-M4) another thread's VM-less
+//     assertPatchingIsSafe() would pass spuriously and Class-A fires would run
+//     inline while a foreign mutator executes.
+//   - the shared-server all-clients stop (worldIsStoppedForAllClients()): a
+//     GENUINE stop of every mutator of that server (heap F7) — its entered-
+//     but-parked client VMs are legitimate and MUST NOT trip the count
+//     (R3-11: pre-R3 this path RELEASE_ASSERTed on a perfectly legal
+//     GC-end-finalizer jettison in the {useJSThreads=1, useSharedGCHeap=1,
+//     N clients} config). Only an entered VM OUTSIDE the stopped server's
+//     client set breaks the premise.
+// So: count entered VMs, excluding clients of a shared server that is
+// currently stopped for all clients. Without such a stop, the caller itself
+// may be the one entered VM (<= 1); with one, every OTHER heap's entered VM
+// is genuinely concurrent (== 0 allowed besides none — the caller's VM is a
+// client of the stopped server and is excluded).
+//
+// R3-4 caveat: this count is SAMPLED (check-then-act) — a thread can enter
+// another VM right after it. It is a tripwire for misconfiguration, not the
+// soundness mechanism; the structural enforcement point is VM entry (manifest
+// M7's VMEntryScope entered-VM counter, which crashes the second ENTERING
+// thread deterministically). See the matching note in JSThreadsSafepoint.h.
+static void assertAlreadyStoppedEvidenceCoversEveryMutator(VM& vm)
+{
+#if defined(JSC_JIT_HAS_SHARED_HEAP_SERVER)
+    JSC::Heap* stoppedServer = nullptr;
+    {
+        JSC::Heap& server = vm.clientHeap.server();
+        if (server.isSharedServer() && server.worldIsStoppedForAllClients())
+            stoppedServer = &server;
+    }
+#else
+    UNUSED_PARAM(vm);
+    constexpr void* stoppedServer = nullptr;
+#endif
+    unsigned enteredVMsNotCoveredByStop = 0;
+    VMManager::forEachVM([&](VM& candidate) {
+        if (!candidate.isEntered())
+            return IterationStatus::Continue;
+#if defined(JSC_JIT_HAS_SHARED_HEAP_SERVER)
+        if (stoppedServer && &candidate.clientHeap.server() == stoppedServer)
+            return IterationStatus::Continue; // Parked client of the stopped shared server (R3-11).
+#endif
+        ++enteredVMsNotCoveredByStop;
+        return IterationStatus::Continue;
+    });
+    // With a stopped shared server covering the caller's clients, ANY other
+    // entered VM is genuinely concurrent (count must be 0); otherwise the one
+    // allowed entered VM is the caller itself.
+    RELEASE_ASSERT(enteredVMsNotCoveredByStop <= (stoppedServer ? 0u : 1u));
+}
+
+AlreadyStoppedWorldWitnessScope::AlreadyStoppedWorldWitnessScope(VM& vm)
+{
+    ASSERT(worldIsStopped(vm));
+    // Scope of the tripwire: only when NO process-global witness holds — under
+    // a genuine all-VM stop (VMManager::Mode::Stopped, e.g. the wasm debugger,
+    // or an outer stopTheWorldAndRun closure / witness scope whose own entry
+    // already passed this check) multiple entered-but-parked VMs are
+    // legitimate and the global witness is already truthfully process-wide.
+    // VMManager::forEachVM needs no API lock, matching the R1.h no-API-lock
+    // contract.
+    if (!worldIsStopped())
+        assertAlreadyStoppedEvidenceCoversEveryMutator(vm);
+    s_stubWorldStoppedDepth.fetch_add(1, std::memory_order_relaxed);
+}
+
+AlreadyStoppedWorldWitnessScope::~AlreadyStoppedWorldWitnessScope()
+{
+    // F5 (stub form): the patcher's own instruction-stream barrier after any
+    // cross-modifying code write inside the scope. The data-side flush is
+    // performed by the patching primitives themselves; under M4 the
+    // resume-path NVS-exit hook (R1.d) issues the per-mutator ISB for
+    // JSThreads AND GC stops. // THREADS-INTEGRATE(jit)
+    WTF::crossModifyingCodeFence();
+    s_stubWorldStoppedDepth.fetch_sub(1, std::memory_order_relaxed);
+}
+
+void stopTheWorldAndRun(VM& vm, const ScopedLambda<void()>& work)
+{
+    // R1.h FIRST (load-bearing for SPEC-jit section 5.3, Task 5): a caller that
+    // is ALREADY world-stopped — a jettison reached from a GC's stopped window
+    // (legacy per-VM stop or shared-server stop), from inside an outer
+    // stopTheWorldAndRun closure (e.g. a Class-A watchpoint fire's section 5.6
+    // step 5 jettisons), or from the object-model stub's witness window — runs
+    // `work` inline without re-requesting a stop. We still bump the depth
+    // counter around it so the VM-less worldIsStopped() witness (consumed by
+    // the VM-less patching asserts in DFG::CommonData::invalidateLinkedCode and
+    // DFG::JumpReplacement::fire) holds across the closure even when the
+    // "already stopped" evidence is per-heap state those asserts cannot see.
+    // No API-lock or GIL assertion here: e.g. GC-end finalizers jettisoning
+    // dead-weak-reference code run with the collector's stop as their safety
+    // argument, not the caller contract of the requesting path below.
+    if (worldIsStopped(vm)) {
+        // Review rounds 2/3 (R2-4, R3-1, R3-11): the entered-VM tripwire, the
+        // shared-server scoping, and the witness raise/lower + F5 barrier all
+        // live in AlreadyStoppedWorldWitnessScope (shared with
+        // WatchpointSet::fireAllUnderClassAStop branch (1), which fires inline
+        // on the same kind of evidence). See the scope's comments above.
+        AlreadyStoppedWorldWitnessScope witnessScope(vm);
+        work();
+        return;
+    }
+
+    // INTERIM STUB until integration manifest M4 (SPEC-jit R1, Task 1).
+    // Real sequence (R1.a-i), restored at integration:
+    //   1. release this VM's heap access;
+    //   2. Heap::JSThreadsStopScope over the GC conductor lock (CS2; no-op for
+    //      a non-shared heap);
+    //   3. VMManager::requestStopAllWithConductor(StopReason::JSThreads, &vm)
+    //      and park in notifyVMStop; arbitration releases exactly this
+    //      requester as conductor (R1.c);
+    //   4. run `work` on this stack, world stopped;
+    //   5. resume; every mutator leaving notifyVMStop executes an ISB (F5);
+    //   6. drop the stop scope, re-acquire heap access.
+    // Of these, steps 1-2 and 6 (the R1.i GC-serialization bracket) are live
+    // below for shared-server heaps; only the actual stop/resume (steps 3 and
+    // 5) and the requester-vs-requester park-aware mutex (R1.g) remain stubbed.
+    // // THREADS-INTEGRATE(jit)
+
+    // Caller must be an entered mutator (R1 contract).
+    RELEASE_ASSERT(vm.currentThreadIsHoldingAPILock());
+
+    // Phase-1 GIL: no second VM may be concurrently entered. This is the load-
+    // bearing soundness argument for running `work` inline: with at most one
+    // entered mutator, "the world" is exactly the calling thread. (We count
+    // entered VMs directly; VMManager::info().numberOfActiveVMs is only
+    // meaningful while a stop is in progress.)
+    //
+    // R3-4 (review round 3): this count is a SAMPLED tripwire (check-then-act)
+    // — VM entry does not consult this stub, so a thread could enter another
+    // VM after the count and before `work` completes. The STRUCTURAL
+    // enforcement point pre-M4 is VM entry itself: manifest M7
+    // (docs/threads/INTEGRATE-jit.md) adds a process-global entered-VM counter
+    // to VMEntryScope that RELEASE_ASSERTs sole-entry under useJSThreads, so a
+    // second concurrent entry crashes deterministically on the ENTERING thread
+    // regardless of interleaving. Until M7 is applied, flag-on with more than
+    // one concurrently-enterable VM is an unsupported configuration; this
+    // sampled count merely catches it with high probability. Deleted at M4
+    // (real parking makes entry during a stop park instead of crash).
+    unsigned enteredVMs = 0;
+    VMManager::forEachVM([&](VM& candidate) {
+        if (candidate.isEntered())
+            ++enteredVMs;
+        return IterationStatus::Continue;
+    });
+    RELEASE_ASSERT(enteredVMs <= 1);
+
+#if defined(JSC_HEAP_HAS_STW_FORBIDDEN_SCOPE)
+    // R1.i (SPEC-jit section 5.3 / CS2, RESOLVED-AS-PROVIDED by heap manifest
+    // 10b): bracket the ENTIRE stopped window for a shared-server heap —
+    // release this VM's heap access FIRST (JSThreadsStopScope's precondition:
+    // a conductor must never stop the world while still counted as a
+    // heap-accessing mutator), then hold the rank-2 GC conductor lock across
+    // `work` so no shared-mode GC can start or be mid-cycle while we patch
+    // code. Destruction order is the spec's resume order: drop the stop scope
+    // (unlock GCL), then re-acquire heap access. `work` runs without heap
+    // access; it must not allocate in the JS heap (OM O4) — heap-metadata
+    // WRITES without access are explicitly allowed (heap section 10A
+    // exemption). NEVER calls bumpAndReclaim (G13/CS4): JSThreads stops
+    // enqueue a GC request instead; reclamation rides the GC.
+    // Non-shared heap: no-op per R1.i — today's jettisons already run with
+    // heap access held, and the legacy concurrent collector tolerates that
+    // exactly as it does in tip-of-tree.
+    //
+    // R4-1 (review round 4): the bracket is keyed on, and the stop scope taken
+    // against, the SERVER heap this VM's client attaches to — NOT the VM's own
+    // `heap` member. Under useSharedGCHeap a CLIENT VM's vm.heap is not the
+    // shared server (m_isSharedServer is set on the server Heap only; see the
+    // R3-11 notes at worldIsStopped(VM&) below and at
+    // assertAlreadyStoppedEvidenceCoversEveryMutator above). Keying on vm.heap
+    // silently skipped the whole bracket for every client of a shared server:
+    // a reoptimization jettison or Class-A fire requested from such a client
+    // would patch code with no GC conductor lock held while a shared-mode GC
+    // could start or be mid-cycle on the server (the exact CS2 race). For the
+    // 1:1 case server() == vm.heap, so behavior there is unchanged.
+    // Heap-access release is client-scoped (see ClientHeapAccessReleaseScope
+    // above). Note Heap::JSThreadsStopScope self-gates on !isSharedServer()
+    // internally, so passing the resolved server is safe in every config.
+    //
+    // Gate interplay (recorded in docs/threads/INTEGRATE-jit.md, R4-1):
+    // JSC_HEAP_HAS_STW_FORBIDDEN_SCOPE (defined by Heap.h itself) and
+    // JSC_JIT_HAS_SHARED_HEAP_SERVER (defined at the top of this file iff
+    // HeapClientSet.h is present) are independent #ifdefs. If the former held
+    // without the latter, the fallback below keys on vm.heap — sound, because
+    // without the heap workstream's client-set machinery no foreign-client
+    // shared server can exist, so vm.heap is the only candidate server.
+#if defined(JSC_JIT_HAS_SHARED_HEAP_SERVER)
+    JSC::Heap& server = vm.clientHeap.server();
+#else
+    JSC::Heap& server = vm.heap;
+#endif
+    // Declaration order is load-bearing: destruction runs stop scope first
+    // (unlock GCL), then re-acquires heap access — the spec's resume order.
+    std::optional<ClientHeapAccessReleaseScope> releaseHeapAccess;
+    std::optional<JSC::Heap::JSThreadsStopScope> jsThreadsStopScope;
+    if (server.isSharedServer()) [[unlikely]] {
+        releaseHeapAccess.emplace(vm.clientHeap);
+        jsThreadsStopScope.emplace(server);
+    }
+#endif
+
+    s_stubWorldStoppedDepth.fetch_add(1, std::memory_order_relaxed);
+    work();
+    // F5 (stub form): patcher-side instruction-stream barrier before any
+    // possibility of this (sole) mutator re-entering JIT'd code. Under M4 this
+    // is subsumed by the per-mutator ISB in the NVS resume tail (R1.d; M4's
+    // fence first, then the heap's gcDidResumeFromStopTheWorld hook, manifest
+    // 5a). // THREADS-INTEGRATE(jit)
+    WTF::crossModifyingCodeFence();
+    s_stubWorldStoppedDepth.fetch_sub(1, std::memory_order_relaxed);
+}
+
+bool worldIsStopped()
+{
+    if (s_stubWorldStoppedDepth.load(std::memory_order_relaxed))
+        return true;
+
+#if defined(JSC_OM_PROVIDES_JSTHREADS_STUB_WITNESS)
+    // SPEC-jit section 5.6 disjunct 4 (pre-M4 only; deleted at M4, CS6).
+    if (g_jsThreadsStubWorldStopped)
+        return true;
+#endif
+
+    return VMManager::info().worldMode == VMManager::Mode::Stopped;
+}
+
+// ===== SPEC-jit section 5.6 stop watchdog (annex App. 5.6(d)) =====
+
+// Generous: covers slow CI/ASAN/valgrind-grade parking latencies; an escaped
+// lock-holding fire site wedges forever, so any finite bound catches it.
+static constexpr Seconds stopTheWorldWatchdogTimeout { 30 };
+
+// Thread-local so a wedged requester names the set IT is firing (concurrent
+// requesters cannot misattribute). Plain (non-atomic) is correct: written and
+// read only by the owning thread.
+static thread_local const void* t_pendingClassAStopContext { nullptr };
+static thread_local const char* t_pendingClassAStopContextDescription { nullptr };
+
+ClassAStopWatchdogContext::ClassAStopWatchdogContext(const void* context, const char* description)
+    : m_previousContext(t_pendingClassAStopContext)
+    , m_previousDescription(t_pendingClassAStopContextDescription)
+{
+    t_pendingClassAStopContext = context;
+    t_pendingClassAStopContextDescription = description;
+}
+
+ClassAStopWatchdogContext::~ClassAStopWatchdogContext()
+{
+    t_pendingClassAStopContext = m_previousContext;
+    t_pendingClassAStopContextDescription = m_previousDescription;
+}
+
+void watchdogAssertStopProgress(MonotonicTime requestStart)
+{
+    if (MonotonicTime::now() - requestStart < stopTheWorldWatchdogTimeout) [[likely]]
+        return;
+
+    const void* context = t_pendingClassAStopContext;
+    const char* description = t_pendingClassAStopContextDescription;
+    dataLogLn("JSThreads stop-the-world failed to reach a stopped world within ",
+        stopTheWorldWatchdogTimeout.seconds(), "s. Pending Class-A fire context: ",
+        RawPointer(context), " (", description ? description : "<no Class-A fire pending on this thread>",
+        "). Likely an escaped lock-holding direct fireAll caller (SPEC-jit annex App. 5.6(c) bucket iii; see the Task-11 audit table in docs/threads/INTEGRATE-jit.md / manifest M6).");
+    RELEASE_ASSERT_NOT_REACHED();
+}
+
+bool worldIsStopped(VM& vm)
+{
+    // SPEC-jit section 5.6 disjuncts.
+    if (worldIsStopped())
+        return true;
+
+    // Legacy per-VM GC stop: true from when the mutator is stopped through the
+    // End phase, which covers finalizeUnconditionally/visitWeak-driven fires.
+    if (vm.heap.worldIsStopped())
+        return true;
+
+#if defined(JSC_JIT_HAS_SHARED_HEAP_SERVER)
+    // Shared-server GC stop (SPEC-heap section 9). Consult the SERVER this
+    // VM's client heap is attached to, not the VM's own (possibly idle) Heap
+    // member: under useSharedGCHeap a client VM's vm.heap is not the shared
+    // server (R3-11). For the 1:1 non-shared case server() == vm.heap.
+    // THREADS-INTEGRATE(jit)
+    if (vm.clientHeap.server().worldIsStoppedForAllClients())
+        return true;
+#endif
+
+    return false;
+}
+
+} // namespace JSThreadsSafepoint
+} // namespace JSC

@@ -50,24 +50,23 @@ public:
     }
 
     DECLARE_EXPORT_INFO;
-    DECLARE_VISIT_CHILDREN;
 
     ThreadState& threadState() { return m_state.get(); }
+
+    // The completed thread's result (SPEC-api F1): lives in
+    // ThreadState::result (a Strong, so no write barrier / visitChildren is
+    // needed here), written in the completion sequence before the Phase
+    // release-store. Callers must observe phase != Running first.
     JSValue result() const
     {
-        JSValue value = m_result.get();
+        JSValue value = m_state->result.get();
         return value ? value : jsUndefined();
-    }
-    void setResult(VM& vm, JSValue value)
-    {
-        m_result.set(vm, this, value ? value : jsUndefined());
     }
 
 private:
     JSThread(VM&, Structure*, Ref<ThreadState>&&);
 
     Ref<ThreadState> m_state;
-    WriteBarrier<Unknown> m_result;
 };
 
 // The five global properties installed by JSGlobalObject::init() under
@@ -81,6 +80,16 @@ JS_EXPORT_PRIVATE JSValue createConcurrentAccessErrorProperty(VM&, JSObject* glo
 // Throws a ConcurrentAccessError instance (Error subclass, name
 // "ConcurrentAccessError").
 JS_EXPORT_PRIVATE Exception* throwConcurrentAccessError(JSGlobalObject*, ThrowScope&, ASCIILiteral message);
+
+// SPEC-api 5.1/5.10 (Task 3): returns the JSThread cell for `state`, creating
+// it — and registering the ThreadState finalizer hook — on first use. For
+// spawned threads the cell already exists (set at spawn, I5), so this is a
+// plain load. For lazy main/embedder ThreadStates (tid 0) this is the
+// "first lazy-TS Strong" creation point: it MUST be called before creating
+// any other Strong in a ThreadState whose jsThread is not yet set (e.g. the
+// ThreadLocal value setter, SPEC-api 5.8/5.10). Infallible: never runs JS
+// (prototype resolved via getDirect only). Caller must hold the JSLock.
+JS_EXPORT_PRIVATE JSThread* ensureJSThreadForState(JSGlobalObject*, ThreadState&);
 
 // G11: may the current thread block (join / contended hold / cond.wait /
 // property Atomics.wait)?

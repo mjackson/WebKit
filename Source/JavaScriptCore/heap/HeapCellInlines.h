@@ -59,6 +59,11 @@ ALWAYS_INLINE JSC::Heap* HeapCell::heap() const
     return &vm().heap;
 }
 
+// SharedGC (T9): conductor-context OK — both branches resolve to the SERVER
+// heap's main VM (deviation 3): blocks and precise allocations belong to the
+// shared server, never to a client, so cell->vm()/cell->heap() are
+// thread-agnostic round-trips (cell -> server -> main VM). What callers do
+// with the VM is classified per the Heap::vm() legend (HeapInlines.h).
 ALWAYS_INLINE VM& HeapCell::vm() const
 {
     if (isPreciseAllocation())

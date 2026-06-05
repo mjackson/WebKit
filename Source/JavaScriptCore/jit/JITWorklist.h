@@ -53,6 +53,9 @@ public:
     static JITWorklist& ensureGlobalWorklist();
     static JITWorklist* NODELETE existingGlobalWorklistOrNull();
 
+    // THREADS §5.7.3 (SPEC-jit Task 12): enqueueing a plan whose key is already present
+    // cancels the new plan under *m_lock and returns CompilationDeferred (dedup backstop
+    // for racy tier-up triggers; not flag-gated).
     CompilationResult enqueue(Ref<JITPlan>);
     size_t queueLength() const;
 

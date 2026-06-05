@@ -36,8 +36,10 @@
 #include "JSObject.h"
 #include "MicrotaskCallInlines.h"
 #include "MicrotaskQueueInlines.h"
+#include "Options.h"
 #include "ScriptProfilingScope.h"
 #include "SlotVisitorInlines.h"
+#include "VMLiteShared.h"
 #include <wtf/TZoneMallocInlines.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -103,6 +105,18 @@ bool DebuggableMicrotaskDispatcher::isRunnable() const
 
 MicrotaskQueue::MicrotaskQueue(VM& vm)
 {
+    // SPEC-vmstate §6.5(a): list mutation under the registry leaf lock so a
+    // spawned thread's lazy queue creation (VMLite::ensureDefaultMicrotaskQueue)
+    // cannot corrupt LIST MEMBERSHIP against GC-marker iteration (M11). The
+    // lock covers membership only; queue CONTENTS visiting is safe because
+    // deque contents are GC-read only with all mutators suspended (see the
+    // M11 scope note and cross-WS item 12 in INTEGRATE-vmstate.md). Gated:
+    // flag-off stays lock-free (R3).
+    if (Options::useVMLite()) [[unlikely]] {
+        Locker locker { VMLiteRegistry::singleton().lock };
+        vm.m_microtaskQueues.append(this);
+        return;
+    }
     vm.m_microtaskQueues.append(this);
 }
 
@@ -113,6 +127,15 @@ Ref<MicrotaskQueue> MicrotaskQueue::create(VM& vm)
 
 MicrotaskQueue::~MicrotaskQueue()
 {
+    // SPEC-vmstate §6.5(b). The isOnList() check must be under the same lock
+    // as the removal: ~VM's force-removal (M11) can race a dying queue's
+    // dtor on another thread post-GIL.
+    if (Options::useVMLite()) [[unlikely]] {
+        Locker locker { VMLiteRegistry::singleton().lock };
+        if (isOnList())
+            remove();
+        return;
+    }
     if (isOnList())
         remove();
 }

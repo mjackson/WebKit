@@ -82,7 +82,14 @@ JSC_DEFINE_CUSTOM_GETTER(threadLocalValueGetter, (JSGlobalObject* globalObject, 
     JSThreadLocalObject* threadLocal = dynamicDowncast<JSThreadLocalObject>(JSValue::decode(thisValue));
     if (!threadLocal)
         return throwVMTypeError(globalObject, scope, "ThreadLocal.prototype.value called on incompatible receiver"_s);
-    Ref<ThreadState> state = ensureCurrentThreadState();
+    // SPEC-api 5.8: get touches only the current ThreadState's map,
+    // lock-free. A thread with no ThreadState yet cannot have run the setter
+    // (the setter goes through ensureCurrentThreadState()), so its slot is
+    // the initial undefined (I13) — don't allocate/install a lazy TS just to
+    // discover that.
+    ThreadState* state = currentThreadStateIfExists();
+    if (!state)
+        return JSValue::encode(jsUndefined());
     auto it = state->threadLocals.find(threadLocal->key());
     if (it == state->threadLocals.end())
         return JSValue::encode(jsUndefined());
@@ -100,6 +107,19 @@ JSC_DEFINE_CUSTOM_SETTER(threadLocalValueSetter, (JSGlobalObject* globalObject, 
         return false;
     }
     Ref<ThreadState> state = ensureCurrentThreadState();
+    // SPEC-api 5.10: the ThreadState finalizer hook must be registered before
+    // the FIRST Strong is created in a lazy main/embedder ThreadState ("first
+    // lazy-TS Strong" row) — otherwise nothing ever clears threadLocals for a
+    // thread that never touches Thread.current, and ~ThreadState's
+    // RELEASE_ASSERTs fire at TLS teardown / the Strongs outlive the VM.
+    // No-op on spawned threads (jsThread is set at spawn).
+    ensureJSThreadForState(globalObject, state.get());
+    // SPEC-api 5.8/5.10: the Strong is created here, under the JSLock (we are
+    // executing JS), in the owner thread's own map only. HashMap::set
+    // destroys any previously stored Strong — that is the normative
+    // "overwrite" clear point (also under the JSLock). Any JS value is
+    // storable, including undefined: an explicit undefined store keeps its
+    // slot (indistinguishable from the initial state through this accessor).
     state->threadLocals.set(threadLocal->key(), Strong<Unknown>(vm, JSValue::decode(encodedValue)));
     return true;
 }

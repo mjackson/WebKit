@@ -90,7 +90,12 @@ bool GCAwareJITStubRoutine::removeDeadOwners(VM& vm)
 
 #if ENABLE(JIT)
     if (m_isInSharedJITStubSet) {
-        auto& owners = static_cast<PolymorphicAccessJITStubRoutine*>(this)->m_owners;
+        auto* routine = static_cast<PolymorphicAccessJITStubRoutine*>(this);
+        // R2-2: same lock as addOwner/removeOwner. This path runs at GC End
+        // (world stopped), so the lock is uncontended; taken anyway so every
+        // m_owners mutation is under one discipline.
+        Locker locker { routine->m_ownersLock };
+        auto& owners = routine->m_owners;
         owners.removeAllIf([&](auto pair) {
             return !vm.heap.isMarked(pair.key);
         });

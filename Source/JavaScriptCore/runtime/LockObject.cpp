@@ -105,10 +105,9 @@ GILDroppedSection::GILDroppedSection(VM& vm)
 {
     JSLock& apiLock = vm.apiLock();
     ASSERT(apiLock.currentThreadIsHoldingLock());
-    while (apiLock.currentThreadIsHoldingLock()) {
-        apiLock.unlock();
-        m_lockCount++;
-    }
+    // 9.2-9: depth-suppressed release — no microtask drain at park sites
+    // (the D11 fix); see JSLock::unlockAllForThreadParking.
+    m_lockCount = apiLock.unlockAllForThreadParking();
 }
 
 GILDroppedSection::~GILDroppedSection()
@@ -135,13 +134,34 @@ void jsThreadGILHandoffYield(VM& vm)
 
 // ---------------- NativeLockState pump machinery (SPEC-api 5.5a) ----------------
 
-void NativeLockState::schedPumpLocked(VM& vm)
+void NativeLockState::schedPumpLocked(VM& fallbackVM)
 {
     if (m_pumpPending)
         return;
     m_pumpPending = true;
-    vm.runLoop().dispatch([state = Ref { *this }, &vm] {
-        state->pump(vm);
+    // SPEC-api 5.5a schedPump: dispatch P on the HEAD ticket's vm.runLoop()
+    // (G28), at most one pump per lock (m_pumpPending). In phase 1 there is
+    // a single shared VM so this equals the caller's VM; the head-ticket
+    // routing is what survives GIL removal (the pump must run on the run
+    // loop able to grant the head acquirer). Both callers (R, A-failure)
+    // only schedule with m_asyncWaiters non-empty.
+    ASSERT(!m_asyncWaiters.isEmpty());
+    VM& dispatchVM = m_asyncWaiters.isEmpty() ? fallbackVM : m_asyncWaiters.first()->vm();
+    // Capture Ref<VM>, mirroring the D5 waitAsync-timer fix
+    // (docs/threads/INTEGRATE-api.md "Landed deviations"): WTF::RunLoop is
+    // independently ref-counted and outlives the VM, so this task can
+    // otherwise run after embedder VM teardown — pump() -> settleLockGrant
+    // -> AsyncTicket::settle() dereferences the ticket's VM
+    // (deferredWorkTimer->scheduleWorkSoon). The Ref also forestalls DWT
+    // shutdown cancellation racing settle()'s isCancelled() check:
+    // cancelPendingWork(VM&) only runs during VM teardown (GC End phase /
+    // ~VM), which cannot begin while this task pins the VM; and even a
+    // ticket cancelled by other means is tolerated downstream
+    // (DeferredWorkTimer::doWork drops cancelled tickets' tasks,
+    // DeferredWorkTimer.cpp:121-124, destroying the wrapper — and its
+    // promise Strong — under the JSLock).
+    dispatchVM.runLoop().dispatch([state = Ref { *this }, protectedVM = Ref { dispatchVM }] {
+        state->pump();
     });
 }
 
@@ -166,16 +186,21 @@ void NativeLockState::asyncReleaseInternal(AsyncTicket& ticket, VM& vm)
         ASSERT_UNUSED(ticket, m_asyncHolder == &ticket);
         m_asyncHolder = nullptr;
         m_asyncHeld.store(false, std::memory_order_release);
+        // The grant is no longer live: a sync hold from the delivered fn's
+        // remaining body is legal again (D10; see LockObject.h). Harmless
+        // when the runner was never set (no-fn arm, release from another
+        // thread).
+        m_asyncGrantRunner.store(nullptr, std::memory_order_relaxed);
     }
     m_lock.unlock();
     releasePump(vm);
 }
 
-void NativeLockState::pump(VM& vm)
+void NativeLockState::pump()
 {
     {
         Locker queueLocker { m_queueLock };
-        m_pumpPending = false; // clear-before-tryLock is normative
+        m_pumpPending = false; // clear-before-tryLock is normative (5.5a P)
     }
     if (!m_lock.tryLock())
         return; // holder's release will re-run R with pump-pending false
@@ -205,6 +230,20 @@ void settleLockGrant(NativeLockState& state, AsyncTicket& ticket)
             JSPromise* promise = uncheckedDowncast<JSPromise>(dwtTicket->target());
             JSGlobalObject* globalObject = promise->realm();
             VM& vm = globalObject->vm();
+            // Delivery point: from here on the hold is observable by JS, so
+            // cond.asyncWait's (b) arm may consume it (the delivered gate in
+            // conditionProtoFuncAsyncWait guarantees the ticket could NOT
+            // have been consumed before this line — fn therefore always
+            // starts with the lock genuinely held; E's consumed-CAS failure
+            // below can only mean fn itself gave the hold away, I23).
+            ticket->markGrantDelivered();
+            // D10 (LockObject.h m_asyncGrantRunner): while fn runs, a sync
+            // hold on this lock from this thread must throw "Lock is not
+            // recursive" instead of self-deadlocking in m_lock. Cleared by
+            // asyncReleaseInternal — via E below, or earlier via
+            // cond.asyncWait's 4.3(b) consumption inside fn (after which the
+            // lock is free and a sync hold is legal again).
+            state->m_asyncGrantRunner.store(&Thread::currentSingleton(), std::memory_order_relaxed);
             auto callData = JSC::getCallData(function);
             MarkedArgumentBuffer args;
             NakedPtr<Exception> exception;
@@ -223,6 +262,10 @@ void settleLockGrant(NativeLockState& state, AsyncTicket& ticket)
         JSPromise* promise = uncheckedDowncast<JSPromise>(dwtTicket->target());
         JSGlobalObject* globalObject = promise->realm();
         VM& vm = globalObject->vm();
+        // Delivery point (see the with-fn arm): the resolved release fn is
+        // minted against an unconsumed ticket, so its first call never
+        // throws the 4.2 "called more than once" Error spuriously.
+        ticket->markGrantDelivered();
         JSNativeStdFunction* releaseFunction = JSNativeStdFunction::create(vm, globalObject, 0, "release"_s, [state, ticket](JSGlobalObject* lexicalGlobalObject, CallFrame*) -> EncodedJSValue {
             VM& innerVM = lexicalGlobalObject->vm();
             auto scope = DECLARE_THROW_SCOPE(innerVM);
@@ -268,19 +311,52 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
         return throwVMTypeError(globalObject, scope, "Lock.prototype.hold requires a callable argument"_s);
 
     NativeLockState& state = lockObject->lockState();
-    if (state.heldByCurrentThread())
+    // Recursion guard: a sync hold (m_holder) OR a live asyncHold(fn) grant
+    // being delivered on this very thread (m_asyncGrantRunner, D10 — the
+    // sync-in-async self-deadlock; see LockObject.h) both mean "held by the
+    // current thread" for 4.2 purposes.
+    if (state.heldByCurrentThread() || state.asyncGrantRunByCurrentThread())
         return throwVMError(globalObject, scope, createError(globalObject, "Lock is not recursive"_s));
 
     if (!state.m_lock.tryLock()) {
         if (!jsThreadsCanBlockOnCurrentThread(vm))
             return throwVMTypeError(globalObject, scope, "Lock.prototype.hold cannot block the current thread"_s);
-        // Never hold m_lock across JSLock::grabAllLocks' LIFO unwind spin,
-        // and never block on m_lock while holding the GIL (the holder needs
-        // the GIL to run JS and release). Same reacquisition shape as
-        // conditionProtoFuncWait; see the deadlock note there and the
-        // depth-free-handoff rationale on jsThreadGILHandoffYield.
-        while (!state.m_lock.tryLock())
-            jsThreadGILHandoffYield(vm);
+        // SPEC-api 5.3: contended path. Drop the GIL (depth-free; see
+        // GILDroppedSection — never block on m_lock while holding the GIL:
+        // the holder needs the GIL to run fn and release), then park in
+        // m_lock. The GILDroppedSection destructor reacquires the GIL WITH
+        // m_lock held — the one permitted rank-4-leaf shape of 5.9(e).
+        // Deadlock-free: every contender blocks on m_lock only after fully
+        // releasing the GIL, and the holder releases m_lock under the GIL
+        // in its hold epilogue (or pump/release path), so the woken
+        // acquirer's GIL reacquisition never waits on a thread that needs
+        // m_lock. (Unlike DropAllLocks, GILDroppedSection has no
+        // strict-LIFO unwind, so carrying m_lock across the reacquire is
+        // safe; see the rationale in LockObject.h.)
+        //
+        // D9 (docs/threads/INTEGRATE-api.md "Landed deviations"): park in
+        // 10ms tryLockWithTimeout quanta, polling vm.hasTerminationRequest()
+        // between quanta — VMTraps cannot wake a thread blocked in
+        // WTF::Lock::lock(), so an unbounded park here is unkillable under
+        // the watchdog when the holder can never release (e.g. an
+        // asyncHold grant whose release fn is never delivered, or a holder
+        // that was itself terminated). Mirrors the mandatory 5.6-4
+        // property-wait termination poll.
+        bool acquired = false;
+        {
+            GILDroppedSection droppedSection(vm);
+            while (!(acquired = state.m_lock.tryLockWithTimeout(Seconds::fromMilliseconds(10)))) {
+                if (vm.hasTerminationRequest())
+                    break;
+            }
+        }
+        if (!acquired) {
+            // Termination observed while parked: GIL is reacquired (the
+            // dropped section ended), m_lock is NOT held. Same surfacing as
+            // the 5.6-7 property-wait path.
+            vm.throwTerminationException();
+            return { };
+        }
     }
     state.m_holder.store(&Thread::currentSingleton(), std::memory_order_relaxed);
 
@@ -319,6 +395,11 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncAsyncHold, (JSGlobalObject* globalObject, 
     }
 
     NativeLockState& state = lockObject->lockState();
+    // Sync-hold check only, deliberately NOT asyncGrantRunByCurrentThread()
+    // (D10): per the frozen 4.2 text "async-held is NOT recur (callers
+    // queue)" — an asyncHold from inside a delivered fn queues a ticket
+    // that the post-fn implicit release (E) lets the pump grant later; no
+    // deadlock, so no Error.
     if (state.heldByCurrentThread())
         return throwVMError(globalObject, scope, createError(globalObject, "Lock is not recursive"_s));
 

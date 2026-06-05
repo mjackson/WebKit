@@ -109,6 +109,11 @@ void SlotVisitor::didStartMarking()
         }
     }
 
+    // SharedGC (T9): conductor-context OK — all vm() uses in this file
+    // (heapProfiler here, Integrity::auditCell, assertValidCell) run in
+    // marker context (conductor or its parallel helpers, world stopped once
+    // shared); see the tag at AbstractSlotVisitor::vm()
+    // (AbstractSlotVisitorInlines.h).
     if (HeapProfiler* heapProfiler = vm().heapProfiler())
         m_heapAnalyzer = heapProfiler->activeHeapAnalyzer();
 

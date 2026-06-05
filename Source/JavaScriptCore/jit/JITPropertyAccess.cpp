@@ -1291,7 +1291,8 @@ void JIT::emit_op_get_from_scope(const JSInstruction* currentInstruction)
             emitGetVirtualRegisterPayload(scope, scopeGPR);
             addSlowCase(branch32(NotEqual, Address(scopeGPR, JSCell::structureIDOffset()), scratch1GPR));
             loadPtr(operandAddress, scratch1GPR);
-            loadPtr(Address(scopeGPR, JSObject::butterflyOffset()), scopeGPR);
+            // SPEC-jit section 5.5 (Task 8): READ choke point (conservative form).
+            addSlowCase(loadButterflyForRead(scopeGPR, scopeGPR, ConcurrentButterflyShape::MaybeArrayStorage));
             negPtr(scratch1GPR);
             loadValue(BaseIndex(scopeGPR, scratch1GPR, TimesEight, (firstOutOfLineOffset - 2) * sizeof(EncodedJSValue)), returnValueJSR);
             break;
@@ -1438,7 +1439,8 @@ MacroAssemblerCodeRef<JITThunkPtrTag> JIT::generateOpGetFromScopeThunk(VM& vm)
                 isOutOfLine.link(&jit);
             }
 
-            jit.loadPtr(Address(scopeGPR, JSObject::butterflyOffset()), scopeGPR);
+            // SPEC-jit section 5.5 (Task 8): READ choke point (conservative form).
+            slowCase.append(jit.loadButterflyForRead(scopeGPR, scopeGPR, CCallHelpers::ConcurrentButterflyShape::MaybeArrayStorage));
             jit.negPtr(scratch1GPR);
             jit.loadValue(BaseIndex(scopeGPR, scratch1GPR, TimesEight, (firstOutOfLineOffset - 2) * sizeof(EncodedJSValue)), returnValueJSR);
             break;
@@ -1610,7 +1612,9 @@ void JIT::emit_op_put_to_scope(const JSInstruction* currentInstruction)
                 return branchPtr(Equal, scopeGPR, scratch1GPR2);
             }));
 
-            loadPtr(Address(scopeGPR, JSObject::butterflyOffset()), scratch1GPR2);
+            // SPEC-jit section 5.5 (Task 8): WRITE choke point (scratch1GPR1
+            // is the TID-tag scratch here, reloaded with the operand after).
+            addSlowCase(loadButterflyForWrite(scopeGPR, scratch1GPR2, scratch1GPR1, ConcurrentButterflyShape::MaybeArrayStorage));
             loadPtr(operandAddress, scratch1GPR1);
             negPtr(scratch1GPR1);
             storeValue(valueJSR, BaseIndex(scratch1GPR2, scratch1GPR1, TimesEight, (firstOutOfLineOffset - 2) * sizeof(EncodedJSValue)));
@@ -2086,12 +2090,16 @@ void JIT::emit_op_enumerator_get_by_val(const JSInstruction* currentInstruction)
     sub32(Address(scratch1GPR, JSPropertyNameEnumerator::cachedInlineCapacityOffset()), scratch2GPR);
     neg32(scratch2GPR);
     signExtend32ToPtr(scratch2GPR, scratch2GPR);
-    loadPtr(Address(baseGPR, JSObject::butterflyOffset()), scratch1GPR);
+    // SPEC-jit section 5.5 (Task 8): READ choke point; predicate failures
+    // take the structure-mismatch route into the generic get_by_val IC.
+    JumpList threadedButterflySlowCases;
+    threadedButterflySlowCases.append(loadButterflyForRead(baseGPR, scratch1GPR, ConcurrentButterflyShape::MaybeArrayStorage));
     constexpr intptr_t offsetOfFirstProperty = offsetInButterfly(firstOutOfLineOffset) * static_cast<intptr_t>(sizeof(EncodedJSValue));
     load64(BaseIndex(scratch1GPR, scratch2GPR, TimesEight, offsetOfFirstProperty), resultGPR);
     doneCases.append(jump());
 
     structureMismatch.link(this);
+    threadedButterflySlowCases.link(this);
     store8ToMetadata(TrustedImm32(JSPropertyNameEnumerator::HasSeenOwnStructureModeStructureMismatch), bytecode, OpEnumeratorGetByVal::Metadata::offsetOfEnumeratorMetadata());
 
     isNotOwnStructureMode.link(this);
@@ -2180,13 +2188,22 @@ void JIT::emit_op_enumerator_put_by_val(const JSInstruction* currentInstruction)
 
     // Otherwise it's out of line
     outOfLineAccess.link(this);
-    sub32(Address(scratch1GPR, JSPropertyNameEnumerator::cachedInlineCapacityOffset()), scratch2GPR);
-    neg32(scratch2GPR);
-    signExtend32ToPtr(scratch2GPR, scratch2GPR);
-    constexpr intptr_t offsetOfFirstProperty = offsetInButterfly(firstOutOfLineOffset) * static_cast<intptr_t>(sizeof(EncodedJSValue));
-    loadPtr(Address(baseGPR, JSObject::butterflyOffset()), scratch1GPR);
-    store64(valueGPR, BaseIndex(scratch1GPR, scratch2GPR, TimesEight, offsetOfFirstProperty));
-    doneCases.append(jump());
+    if (Options::useJSThreads()) [[unlikely]] {
+        // SPEC-jit section 5.5 (Task 8): the out-of-line store needs the
+        // WRITE choke point, but every spare GPR here must survive onto the
+        // generic put_by_val IC path; route out-of-line own-structure puts
+        // through the mismatch/generic route instead (the IC carries the
+        // predicate). Inline stores above are cell-internal and stay fast.
+        structureMismatch.append(jump());
+    } else {
+        sub32(Address(scratch1GPR, JSPropertyNameEnumerator::cachedInlineCapacityOffset()), scratch2GPR);
+        neg32(scratch2GPR);
+        signExtend32ToPtr(scratch2GPR, scratch2GPR);
+        constexpr intptr_t offsetOfFirstProperty = offsetInButterfly(firstOutOfLineOffset) * static_cast<intptr_t>(sizeof(EncodedJSValue));
+        loadPtr(Address(baseGPR, JSObject::butterflyOffset()), scratch1GPR);
+        store64(valueGPR, BaseIndex(scratch1GPR, scratch2GPR, TimesEight, offsetOfFirstProperty));
+        doneCases.append(jump());
+    }
 
     structureMismatch.link(this);
     store8ToMetadata(TrustedImm32(JSPropertyNameEnumerator::HasSeenOwnStructureModeStructureMismatch), bytecode, OpEnumeratorPutByVal::Metadata::offsetOfEnumeratorMetadata());

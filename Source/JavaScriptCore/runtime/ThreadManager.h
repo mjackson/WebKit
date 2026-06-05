@@ -28,40 +28,81 @@
 #include "DeferredWorkTimer.h"
 #include "Options.h"
 #include "Strong.h"
+#include "Weak.h"
 #include <wtf/Condition.h>
 #include <wtf/Deque.h>
+#include <wtf/FastMalloc.h>
 #include <wtf/HashMap.h>
 #include <wtf/Lock.h>
+#include <wtf/StdLibExtras.h>
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/Threading.h>
 #include <wtf/Vector.h>
 
 namespace JSC {
 
+class JSCell;
 class JSGlobalObject;
 class JSObject;
 class JSPromise;
 class VM;
 
 // Master gate for the phase-1 GIL'd shared-memory Thread API
-// (docs/threads/SPEC-api.md). --useThreads is accepted as an alias for
-// --useJSThreads. The GIL is the shared VM's JSLock; --useThreadGIL is
-// reserved and inert in phase 1 (the GIL is always on).
+// (docs/threads/SPEC-api.md). The GIL is the shared VM's JSLock and is
+// always on in phase 1.
+//
+// SPEC-api 9.2-1 paired edit (a), landed: this gate reads ONLY the canonical
+// Options::useJSThreads(), the same predicate every other workstream
+// (objectmodel JSObject.h hooks, jit TID-tag paths, vmstate flag
+// implications and its planned GIL-off backstop assert) gates on. The
+// prep-stub --useThreads alias must NOT be honored here: it would let a
+// --useThreads=1 run spawn real OS threads into the shared heap with all
+// flag-gated concurrent-mode machinery (keyed on useJSThreads) switched
+// off. The alias OptionsList.h entry itself is now a dead option with zero
+// code consumers; its one-line deletion is the only remaining 9.2-1 INT
+// action (OptionsList.h is a shared hot file, not api-editable).
 ALWAYS_INLINE bool useJSThreadsEnabled()
 {
-    return Options::useJSThreads() || Options::useThreads();
+    return Options::useJSThreads();
 }
+
+class ThreadState;
 
 // One async ticket type backing asyncJoin / asyncHold / asyncWait /
 // property Atomics.waitAsync (SPEC-api 5.5). Wraps a DeferredWorkTimer
 // ticket whose target is the promise; the ticket's pending-work
-// registration keeps the shell alive until the promise settles.
+// registration — performed at creation, under the JSLock — is what keeps
+// the shell alive until the promise settles (I20/4.6.3), NOT settle time.
 class AsyncTicket final : public ThreadSafeRefCounted<AsyncTicket> {
 public:
-    // Must be called while holding the shared VM's JSLock.
+    // Must be called while holding the shared VM's JSLock. Captures the
+    // calling thread's ThreadState as the registrant.
     JS_EXPORT_PRIVATE static Ref<AsyncTicket> create(JSGlobalObject*, JSPromise*, Vector<JSCell*>&& dependencies = { });
+    JS_EXPORT_PRIVATE ~AsyncTicket();
 
     VM& vm() { return m_vm; }
+
+    // The registering thread's ThreadState (SPEC-api 5.5 / 4.6.2). Tickets
+    // are process-owned and outlive their registering thread: this Ref keeps
+    // the registrant ThreadState alive past its completion sequence, so a
+    // finished thread's pending continuation (e.g. its own asyncHold) still
+    // settles (I20). In the GIL phase the settling thread is whichever one
+    // drains the single shared VM queue (I12 relaxation); post-GIL this is
+    // the routing key for the per-ThreadState ticket inbox (5.5).
+    ThreadState& registrant() const { return m_registrant.get(); }
+
+    // The promise this ticket settles (SPEC-api 5.5 / 5.10): the Strong is
+    // created at registration (host call, under the JSLock) and cleared by
+    // the settle task (which runs under the JSLock); a never-settled
+    // ticket's pending work is cancelled at DWT VM shutdown (5.5), and its
+    // Strong dies with the ticket. Read it only from a settle task or while
+    // holding the JSLock.
+    Strong<JSPromise>& promise() { return m_promise; }
+
+    // True once DWT VM-shutdown cancelPendingWork ran for the underlying
+    // ticket (settle() is then a no-op). Timer tasks check this to bail out
+    // before touching VM state after shutdown.
+    bool isCancelled() const { return m_ticket->isCancelled(); }
 
     // For lock-release / asyncWait consumption arbitration (SPEC-api 5.5a).
     bool tryConsume()
@@ -70,9 +111,26 @@ public:
         return m_consumed.compare_exchange_strong(expected, true);
     }
 
-    // Schedules a settle task on the VM's run loop. Thread-safe; only the
+    // Lock-grant delivery gate (SPEC-api 4.3(b), tightened — see the
+    // "Landed deviations" D6 entry in docs/threads/INTEGRATE-api.md).
+    // NativeLockState installs m_asyncHolder (pump / immediate-grant path)
+    // BEFORE the grant's settle task runs; until that task delivers the
+    // grant to user code (runs the held fn, or resolves the promise with a
+    // release fn), the hold is not observable by JS and MUST NOT be
+    // consumable by cond.asyncWait's (b) arm — consuming it would unlock
+    // m_lock while the with-fn settle task later runs fn believing it holds
+    // the lock (mutual-exclusion hole, I6). markGrantDelivered() is called
+    // by settleLockGrant's settle tasks (under the JSLock); readers
+    // (cond.asyncWait, also under the JSLock in phase 1) load-acquire.
+    void markGrantDelivered() { m_grantDelivered.store(true, std::memory_order_release); }
+    bool grantDelivered() const { return m_grantDelivered.load(std::memory_order_acquire); }
+
+    // Schedules a settle task on the VM's run loop via
+    // DeferredWorkTimer::scheduleWorkSoon (SPEC-api 5.5): never settles
+    // synchronously inside the registering call (I12). Thread-safe; only the
     // first call has any effect. The task runs holding the JSLock with the
-    // promise as the ticket target.
+    // promise as the ticket target; after it returns, the ticket's promise
+    // Strong is cleared (5.10).
     JS_EXPORT_PRIVATE void settle(DeferredWorkTimer::Task&&);
 
     // asyncHold with-fn arity support: the function cell, rooted by the
@@ -83,13 +141,16 @@ public:
     std::atomic<uint8_t> state { 0 }; // Waiting = 0, Notified = 1, TimedOut = 2.
 
 private:
-    AsyncTicket(VM&, Ref<DeferredWorkTimer::TicketData>&&, JSObject* extraDependency);
+    AsyncTicket(VM&, Ref<DeferredWorkTimer::TicketData>&&, Ref<ThreadState>&& registrant, JSObject* extraDependency);
 
     VM& m_vm;
     Ref<DeferredWorkTimer::TicketData> m_ticket;
+    Ref<ThreadState> m_registrant;
+    Strong<JSPromise> m_promise;
     JSObject* m_extraDependency { nullptr };
     std::atomic<bool> m_settled { false };
     std::atomic<bool> m_consumed { false };
+    std::atomic<bool> m_grantDelivered { false };
 };
 
 // Native state of one JS thread (SPEC-api 5.1). Main/embedder threads get a
@@ -103,6 +164,28 @@ public:
         return adoptRef(*new ThreadState(tid, isSpawned));
     }
 
+    ~ThreadState()
+    {
+        // SPEC-api 5.10: every Strong must have been cleared (under the
+        // JSLock) before the last reference drops.
+        RELEASE_ASSERT(!result);
+        RELEASE_ASSERT(!fnSlot);
+        RELEASE_ASSERT(argSlots.isEmpty());
+        RELEASE_ASSERT(threadLocals.isEmpty());
+        RELEASE_ASSERT(!jsThread);
+        // asyncJoiners must have been drained too: by the completion
+        // sequence (spawned threads) or by the 5.10 finalizer hook
+        // (never-completing lazy/embedder ThreadStates, VM teardown) —
+        // otherwise this destructor, which can run off the JSLock (TLS slot
+        // teardown of an exiting embedder thread, possibly after VM death),
+        // would drop the last refs to unsettled AsyncTickets whose
+        // Strong<JSPromise> is still set (5.10 violation / VM UAF).
+        {
+            Locker joinLocker { joinLock };
+            RELEASE_ASSERT(asyncJoiners.isEmpty());
+        }
+    }
+
     uint16_t tid { 0 };
     bool isSpawned { false };
 
@@ -110,6 +193,13 @@ public:
     RefPtr<WTF::Thread> nativeThread;
 
     std::atomic<Phase> phase { Phase::Running };
+
+    // The thread's result (fn's return value, or the thrown exception value
+    // when phase == Failed). F1: written under the JSLock in the completion
+    // sequence, release-fenced by the subsequent Phase store; read under the
+    // JSLock by join() and the asyncJoin settle tasks. Cleared ONLY by the
+    // 5.10 finalizer hook registered at TS::jsThread creation.
+    Strong<Unknown> result;
 
     Lock joinLock;
     Condition joinCondition;
@@ -127,12 +217,40 @@ public:
     Strong<Unknown> fnSlot;
     Vector<Strong<Unknown>> argSlots;
 
+    // Post-GIL async-ticket inbox (SPEC-api 5.1/5.5). Phase 1: inert — the
+    // GIL relaxation (I12) settles tickets on whichever thread drains the
+    // single shared VM queue, so nothing reads or writes these yet.
+    Lock inboxLock; // rank 3
+    Vector<Ref<AsyncTicket>> inbox WTF_GUARDED_BY_LOCK(inboxLock);
+    bool inboxOpen WTF_GUARDED_BY_LOCK(inboxLock) { false };
+
 private:
     ThreadState(uint16_t tid, bool isSpawned)
         : tid(tid)
         , isSpawned(isSpawned)
     {
     }
+};
+
+// One Thread.restrict affinity-table entry (SPEC-api 5.7.2). The owner is the
+// restricting thread's Ref<ThreadState> (NEVER its TID: lazy main/embedder
+// ThreadStates all share tid 0); ownership checks compare
+// owner->nativeThread.get() against &WTF::Thread::currentSingleton(). The
+// per-insert Weak<JSObject> carries a WeakHandleOwner finalizer that prunes
+// this entry (and decrements the restricted-object count) when the restricted
+// cell dies, so the table never roots restricted objects and never grows
+// unboundedly.
+struct ThreadAffinityEntry {
+    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(ThreadAffinityEntry);
+
+    ThreadAffinityEntry(Ref<ThreadState>&& owner, Weak<JSObject>&& weak)
+        : owner(WTF::move(owner))
+        , weak(WTF::move(weak))
+    {
+    }
+
+    Ref<ThreadState> owner;
+    Weak<JSObject> weak;
 };
 
 class ThreadManager final {
@@ -158,11 +276,23 @@ public:
     enum class Affinity : uint8_t { None, Owner, Foreign };
     Affinity objectAffinity(JSObject*);
     void restrictObject(JSObject*, ThreadState& owner);
+    // Mandatory 5.7.2 fast path: one relaxed load, zero => no restricted
+    // objects anywhere => no lock, no table probe.
     bool anyRestrictedObjects() const { return m_restrictedCount.load(std::memory_order_relaxed); }
     RefPtr<ThreadState> restrictionOwner(JSObject*);
+    // Called by the per-insert Weak finalizer (5.7.2) when a restricted cell
+    // dies; removes the entry and decrements the restricted-object count.
+    // expectedEntry is the finalizing Weak's context (the ThreadAffinityEntry
+    // it was created for): the entry is removed only if it is still THAT
+    // entry, so a finalizer that runs late — after the dead cell's address
+    // was recycled and the new object at that address was itself restricted
+    // (which replaces the table entry) — cannot evict the new object's
+    // restriction (deleted-slot-reuse hazard, cf. THREAD.md regime 3).
+    void pruneRestrictedObject(JSCell*, void* expectedEntry);
 
-    template<typename Functor>
-    void forEachThreadState(const Functor& functor)
+    // Frozen signature (SPEC-api 7); diag/future N-mutator. NOT a GC root
+    // source.
+    void forEachThreadState(const Invocable<void(ThreadState&)> auto& functor)
     {
         Locker locker { m_lock };
         for (auto& entry : m_threads)
@@ -180,8 +310,8 @@ private:
 
     std::atomic<uint64_t> m_nextThreadLocalKey { 0 };
 
-    Lock m_affinityLock; // rank 2
-    UncheckedKeyHashMap<JSCell*, Ref<ThreadState>> m_affinityTable WTF_GUARDED_BY_LOCK(m_affinityLock);
+    Lock m_affinityLock; // rank 2 (never held together with the PWT lock, 5.9)
+    UncheckedKeyHashMap<JSCell*, std::unique_ptr<ThreadAffinityEntry>> m_affinityTable WTF_GUARDED_BY_LOCK(m_affinityLock);
     std::atomic<size_t> m_restrictedCount { 0 };
 };
 

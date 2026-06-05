@@ -277,6 +277,13 @@ inline const MethodTable* JSCell::methodTable() const
     return &structure->classInfoForCells()->methodTable;
 }
 
+// SPEC-objectmodel Task 2 audit note (M5/M7): JSCell::structure() masks the
+// StructureID nuke bit before decoding (see JSCell.h — StructureID::decode()
+// decontaminates, and the contract is now explicit there), while structureID()
+// stays RAW for GC didRace/isNuked tests. Offset-bearing reads like
+// fastGetOwnProperty below are M7/I24-conforming because the out-of-line leg of
+// JSObject::locationForOffset() performs the §Q dispatch internally
+// (M7(d) loadLoadFence + I33 bound) when Options::useJSThreads() is on.
 ALWAYS_INLINE JSValue JSCell::fastGetOwnProperty(VM& vm, Structure& structure, PropertyName name)
 {
     ASSERT(canUseFastGetOwnProperty(structure));
@@ -347,6 +354,30 @@ inline void JSCell::setPerCellBit(bool value)
 {
     if (value == perCellBit())
         return;
+
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §3.0 (review round 4): flag-on, m_flags' per-cell-bit
+    // lane is one of the header's VOLATILE lanes (cellHeaderVolatileMask,
+    // ConcurrentButterfly.h) - it can be mutated with no cell lock while a
+    // transition's header CAS/DCAS is in flight, and a plain |=/&= RMW here
+    // could both (a) write back a stale flags byte that undoes a concurrent
+    // publication's mergeInlineTypeFlags store, and (b) lose this flip to a
+    // racing header CAS. Byte-sized CAS closes both directions: the transition
+    // side CAS-merges this lane from the freshest read (taxonomy (a)), and our
+    // CAS retries across any concurrent flags-byte movement. Flag-off the
+    // plain RMW below is byte-identical to today (I22).
+    if (Options::useJSThreads()) [[unlikely]] {
+        auto* flagsByte = std::bit_cast<Atomic<TypeInfo::InlineTypeFlags>*>(&m_flags);
+        while (true) {
+            TypeInfo::InlineTypeFlags oldFlags = flagsByte->load(std::memory_order_relaxed);
+            TypeInfo::InlineTypeFlags newFlags = value
+                ? static_cast<TypeInfo::InlineTypeFlags>(oldFlags | TypeInfoPerCellBit)
+                : static_cast<TypeInfo::InlineTypeFlags>(oldFlags & ~TypeInfoPerCellBit);
+            if (oldFlags == newFlags || flagsByte->compareExchangeWeak(oldFlags, newFlags, std::memory_order_seq_cst))
+                return;
+        }
+    }
+#endif
 
     if (value)
         m_flags |= static_cast<TypeInfo::InlineTypeFlags>(TypeInfoPerCellBit);

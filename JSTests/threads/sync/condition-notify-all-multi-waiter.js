@@ -1,5 +1,5 @@
 //@ skip
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // FIXME: N waiters parked on one Condition (each with its OWN Lock, to
 // sidestep the shared-lock m_lock scramble described in
 // condition-notify-all-shared-lock.js), released by a coordinator thread.

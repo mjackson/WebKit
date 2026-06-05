@@ -52,6 +52,7 @@ namespace JSC {
 
 class CallFrame;
 class VM;
+class VMLite;
 class JSGlobalObject;
 class JSLock;
 
@@ -107,6 +108,24 @@ public:
 
     void NODELETE willDestroyVM(VM*);
 
+    // SPEC-vmstate §6.4.4: called at the TOP of ~VM (M6), while this thread
+    // still holds the API lock and before lastChanceToFinalize, so no
+    // thread's TLS dangles across teardown (I20). If this hold installed the
+    // main carrier, restore the entry value and clear the bookkeeping.
+    void uninstallVMLiteForVMDestruction();
+
+    // Shared-memory Thread API (docs/threads/SPEC-api.md 5.2 /
+    // INTEGRATE-api.md 9.2-9): fully releases the lock for a thread that is
+    // about to PARK, without running willReleaseLock()'s microtask drain
+    // (which would execute user JS inside the parking host call). The
+    // m_lockDropDepth bump is bumped AND restored while m_lock is still
+    // held, so it never escapes into the DropAllLocks strict-LIFO unwind
+    // protocol — N threads can park and wake in any order (the
+    // GILDroppedSection livelock fix is preserved). Returns the number of
+    // lock counts released; the caller reacquires with that many lock()
+    // calls. Sole caller: GILDroppedSection (runtime/LockObject.cpp).
+    JS_EXPORT_PRIVATE unsigned unlockAllForThreadParking();
+
     class DropAllLocks {
         WTF_MAKE_NONCOPYABLE(DropAllLocks);
     public:
@@ -160,6 +179,8 @@ private:
     uint32_t m_lastOwnerThread { 0 };
     VM* m_vm;
     AtomStringTable* m_entryAtomStringTable; 
+    VMLite* m_entryVMLite { nullptr };
+    bool m_didInstallVMLite { false };
 };
 
 } // namespace

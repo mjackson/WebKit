@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // ThreadLocal: per-thread storage slots. The ThreadLocal object itself is
 // shared; .value reads and writes are isolated per thread.
 load("../resources/assert.js", "caller relative");

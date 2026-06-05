@@ -1605,15 +1605,189 @@ macro storePropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value
 end
 
 
+# SPEC-jit sec.5.4 (Task 6): runtime gate for the threaded LLInt metadata-cache
+# fast paths under Options::useJSThreads(). ONE _g_config byte load + branch,
+# emitted ONCE per affected fast path; flag-off cost = one not-taken branch.
+# The byte is Options::useJSThreads()'s storage inside the frozen JSC::Config
+# (same load shape as loadBoolJSCOption). When SPEC-jit M4a's dedicated
+# JSC::Config::useJSThreads gate byte lands, only the field expression below
+# changes (see docs/threads/INTEGRATE-jit.md, Task 6).
+macro ifJSThreadsBranch(scratch, label)
+    leap _g_config, scratch
+    bbneq JSCConfigOffset + JSC::Config::options + OptionsStorage::useJSThreads[scratch], 0, label
+end
+
+# ===========================================================================
+# SPEC-jit sec.5.5 (Task 8): TID/SW butterfly choke points for the LLInt.
+#
+# Frozen tag encoding (SPEC-objectmodel sec.2 via SPEC-jit R3): the butterfly
+# word's bit 63 = shared-write (SW) bit, bits 62..48 = installing thread's
+# ButterflyTID, low 48 bits = payload; top16 == 0xffff <=> segmented spine.
+#
+# Choke-point rule (I14): flag-on, these macros are the ONLY
+# JSObjectWithButterfly::m_butterfly dereference points reachable in
+# llint/*.asm; the raw loadPropertyAtVariableOffset /
+# storePropertyAtVariableOffset / loadCagedJSValue uses below them are
+# flag-off-only (each gated by ifJSThreadsBranch). Grep lint + the full site
+# inventory: docs/threads/INTEGRATE-jit.md, Task 8.
+#
+# Slow-label routing: every predicate failure falls back to the op's existing
+# C++ slow path, whose generic object access goes through the object-model's
+# regime-aware paths (segmented dependent loads, ensureSharedWriteBit, locked
+# ArrayStorage ops) - the LLInt instantiation of the R3 slow-path rule.
+# ===========================================================================
+
+# R5 (App. R5): load the current thread's pre-shifted TID tag
+# (g_jscButterflyTIDTag = uint64_t(tid) << 48) into t4 via link-time
+# INITIAL-EXEC TLS relocations (@GOTTPOFF on x86-64, :gottprel: on arm64): the
+# GOT slot holds the thread-invariant tp-relative offset, costing one extra
+# load vs local-exec but staying linkable in -fPIC shared-object JSC builds.
+# R4-5 (review round 4): the previous @TPOFF / :tprel_hi12:/:tprel_lo12_nc:
+# forms were LOCAL-EXEC relocations (R_X86_64_TPOFF32 / R_AARCH64_TLSLE_*),
+# which the linker REJECTS when building libJavaScriptCore.so -- they only
+# linked in ENABLE_STATIC_JSC builds, contradicting the initial-exec contract
+# in jit/ConcurrentButterflyOperations.h (tls_model("initial-exec") on the
+# declaration is exactly what keeps the IE GOT entry valid here). ARM64 uses
+# x16 as scratch -- offlineasm's own transient temp (arm64.rb
+# ARM64_EXTRA_GPRS); nothing is live in it between pseudo-instructions.
+# ELF/Linux only: on Darwin the M4a JSCConfig key slot for the register-form
+# tls_loadp has not landed, and Windows/C_LOOP have no JIT-visible TLS
+# mechanism (D8) - those configurations jump to the slow path instead (reads
+# are unaffected; only write/transition fast paths need the tag). t4 is
+# clobbered.
+macro loadButterflyTIDTagToT4(slowLabel)
+    if LINUX and X86_64
+        emit "movq g_jscButterflyTIDTag@GOTTPOFF(%rip), %r8"  # t4 == r8: tp-relative offset from the GOT (IE)
+        emit "movq %fs:(%r8), %r8"                            # tag = *(tp + offset)
+    elsif LINUX and (ARM64 or ARM64E)
+        emit "adrp x16, :gottprel:g_jscButterflyTIDTag"
+        emit "ldr x16, [x16, #:gottprel_lo12:g_jscButterflyTIDTag]"  # IE: tp-relative offset from the GOT
+        emit "mrs x4, tpidr_el0"                              # t4 == x4
+        emit "ldr x4, [x4, x16]"                              # tag = *(tp + offset)
+    else
+        jmp slowLabel
+    end
+end
+
+# R7/F7 (ARM64 only): make the subsequent butterfly load address-dependent on
+# the just-compared structureID (zero computed from it, folded into the base),
+# so structure-check -> butterfly-load cannot be reordered by the memory
+# system. No-op on x86-64 (TSO). Clobbers scratch only.
+macro butterflyLoadDependsOnStructureID(structureID, object, scratch)
+    if ARM64 or ARM64E
+        move structureID, scratch
+        xorq structureID, scratch    # 0, data-dependent on structureID
+        addp scratch, object
+    end
+end
+
+# READ predicate (sec.5.5, frozen): tagged = butterfly word (already loaded);
+# object still holds the cell. segmented => slow; SW=1 AND AS/SlowPutAS shape
+# => locked slow path (I20; the SW branch loads the indexing byte, per the
+# generic-path rule); else mask (ALWAYS kept, D6/I14(a)). No TID check on
+# reads. Clobbers scratch; on the fall-through path tagged holds the masked
+# (raw) butterfly pointer.
+macro threadedButterflyReadPredicate(object, tagged, scratch, slowLabel)
+    move tagged, scratch
+    urshiftq 48, scratch
+    bieq scratch, 0xffff, slowLabel       # segmented (regime 2)
+    btiz scratch, 0x8000, .mask           # SW=0: snapshot-sound for any reader
+    loadb JSCell::m_indexingTypeAndMisc[object], scratch
+    andi IndexingShapeMask, scratch
+    subi ArrayStorageShape, scratch
+    bia scratch, SlowPutArrayStorageShape - ArrayStorageShape, .mask
+    jmp slowLabel                         # SW=1 AND ArrayStorage => locked path
+.mask:
+    move 0x0000ffffffffffff, scratch
+    andq scratch, tagged
+end
+
+# WRITE predicate (sec.5.5, frozen; requires the pre-shifted TID tag in t4 -
+# loadButterflyTIDTagToT4 first): (1) segmented => slow; (2) tag bits ==
+# per-thread tag => owner (fused compare, NEVER elided, D9); (3) SW=1 AND not
+# AS => proceed; (4) else => slow (the generic op fires F1 / takes the cell
+# lock itself - never ensure-SW-then-store inline for AS, I20). Clobbers
+# scratch; on the fall-through path tagged holds the masked butterfly pointer.
+macro threadedButterflyWritePredicate(object, tagged, scratch, slowLabel)
+    move tagged, scratch
+    urshiftq 48, scratch
+    bieq scratch, 0xffff, slowLabel       # (1) segmented
+    move tagged, scratch
+    xorq t4, scratch
+    urshiftq 48, scratch
+    btiz scratch, .mask                   # (2) owner: tag bits match (incl. SW=0)
+    btiz scratch, 0x8000, slowLabel       # (4) foreign write, SW=0 => F1/slow
+    loadb JSCell::m_indexingTypeAndMisc[object], scratch
+    andi IndexingShapeMask, scratch
+    subi ArrayStorageShape, scratch
+    bia scratch, SlowPutArrayStorageShape - ArrayStorageShape, .mask  # (3) not AS
+    jmp slowLabel                         # SW=1 AND ArrayStorage => locked path
+.mask:
+    move 0x0000ffffffffffff, scratch
+    andq scratch, tagged
+end
+
+# Threaded counterpart of loadPropertyAtVariableOffset: the out-of-line branch
+# goes through the READ choke point. value is used as the tagged-word
+# temporary before the final load, so value/object/offset/scratch must be
+# pairwise distinct.
+macro loadPropertyAtVariableOffsetThreaded(propertyOffsetAsInt, objectAndStorage, value, scratch, slowLabel)
+    bilt propertyOffsetAsInt, firstOutOfLineOffset, .isInline
+    loadp JSObjectWithButterfly::m_butterfly[objectAndStorage], value
+    threadedButterflyReadPredicate(objectAndStorage, value, scratch, slowLabel)
+    move value, objectAndStorage
+    negi propertyOffsetAsInt
+    sxi2q propertyOffsetAsInt, propertyOffsetAsInt
+    jmp .ready
+.isInline:
+    addp sizeof JSObjectWithButterfly - (firstOutOfLineOffset - 2) * 8, objectAndStorage
+.ready:
+    loadq (firstOutOfLineOffset - 2) * 8[objectAndStorage, propertyOffsetAsInt, 8], value
+end
+
+# Threaded counterpart of storePropertyAtVariableOffset: the out-of-line
+# branch goes through the WRITE choke point. Clobbers t4 (TID tag) and
+# tagged/scratch; offset/object/value/tagged/scratch must be pairwise
+# distinct and none may be t4.
+macro storePropertyAtVariableOffsetThreaded(propertyOffsetAsInt, objectAndStorage, value, tagged, scratch, slowLabel)
+    bilt propertyOffsetAsInt, firstOutOfLineOffset, .isInline
+    loadp JSObjectWithButterfly::m_butterfly[objectAndStorage], tagged
+    loadButterflyTIDTagToT4(slowLabel)
+    threadedButterflyWritePredicate(objectAndStorage, tagged, scratch, slowLabel)
+    move tagged, objectAndStorage
+    negi propertyOffsetAsInt
+    sxi2q propertyOffsetAsInt, propertyOffsetAsInt
+    jmp .ready
+.isInline:
+    addp sizeof JSObjectWithButterfly - (firstOutOfLineOffset - 2) * 8, objectAndStorage
+.ready:
+    storeq value, (firstOutOfLineOffset - 2) * 8[objectAndStorage, propertyOffsetAsInt, 8]
+end
+
 llintOpWithMetadata(op_try_get_by_id, OpTryGetById, macro (size, get, dispatch, metadata, return)
     metadata(t2, t0)
     get(m_base, t0)
     loadConstantOrVariableCell(size, t0, t3, .opTryGetByIdSlow)
     loadi JSCell::m_structureID[t3], t1
-    loadi OpTryGetById::Metadata::m_structureID[t2], t0
+    ifJSThreadsBranch(t0, .opTryGetByIdThreaded)
+    loadi OpTryGetById::Metadata::m_cache.structureID[t2], t0
     bineq t0, t1, .opTryGetByIdSlow
-    loadi OpTryGetById::Metadata::m_offset[t2], t1
+    loadi OpTryGetById::Metadata::m_cache.offset[t2], t1
     loadPropertyAtVariableOffset(t1, t3, t0)
+    valueProfile(size, OpTryGetById, m_valueProfile, t0, t2)
+    return(t0)
+
+.opTryGetByIdThreaded:
+    # SPEC-jit sec.4.3: ONE 64-bit load of the {structureID, offset} word; compare
+    # the id half (32-bit compare), use the offset half. Stale words fail the
+    # id compare; an all-zero (invalidated) word never matches.
+    loadq OpTryGetById::Metadata::m_cache[t2], t0
+    bineq t0, t1, .opTryGetByIdSlow
+    butterflyLoadDependsOnStructureID(t1, t3, t5) # R7/F7 (Task 8)
+    rshiftq 32, t0
+    move t0, t1
+    # SPEC-jit sec.5.5 (Task 8): READ choke point on the out-of-line branch.
+    loadPropertyAtVariableOffsetThreaded(t1, t3, t0, t5, .opTryGetByIdSlow)
     valueProfile(size, OpTryGetById, m_valueProfile, t0, t2)
     return(t0)
 
@@ -1627,10 +1801,23 @@ llintOpWithMetadata(op_get_by_id_direct, OpGetByIdDirect, macro (size, get, disp
     get(m_base, t0)
     loadConstantOrVariableCell(size, t0, t3, .opGetByIdDirectSlow)
     loadi JSCell::m_structureID[t3], t1
-    loadi OpGetByIdDirect::Metadata::m_structureID[t2], t0
+    ifJSThreadsBranch(t0, .opGetByIdDirectThreaded)
+    loadi OpGetByIdDirect::Metadata::m_cache.structureID[t2], t0
     bineq t0, t1, .opGetByIdDirectSlow
-    loadi OpGetByIdDirect::Metadata::m_offset[t2], t1
+    loadi OpGetByIdDirect::Metadata::m_cache.offset[t2], t1
     loadPropertyAtVariableOffset(t1, t3, t0)
+    valueProfile(size, OpGetByIdDirect, m_valueProfile, t0, t2)
+    return(t0)
+
+.opGetByIdDirectThreaded:
+    # SPEC-jit sec.4.3: single-load reader (see op_try_get_by_id above).
+    loadq OpGetByIdDirect::Metadata::m_cache[t2], t0
+    bineq t0, t1, .opGetByIdDirectSlow
+    butterflyLoadDependsOnStructureID(t1, t3, t5) # R7/F7 (Task 8)
+    rshiftq 32, t0
+    move t0, t1
+    # SPEC-jit sec.5.5 (Task 8): READ choke point on the out-of-line branch.
+    loadPropertyAtVariableOffsetThreaded(t1, t3, t0, t5, .opGetByIdDirectSlow)
     valueProfile(size, OpGetByIdDirect, m_valueProfile, t0, t2)
     return(t0)
 
@@ -1647,6 +1834,8 @@ end)
 # The base object is expected in t3
 # metadata needs to be loaded in t2
 macro performGetByIDHelper(opcodeStruct, modeMetadataName, valueProfileName, slowLabel, size, return)
+    # SPEC-jit sec.5.4 (Task 6): one gate branch per fast path; threaded readers below.
+    ifJSThreadsBranch(t1, .opGetByIdThreaded)
     loadb %opcodeStruct%::Metadata::%modeMetadataName%.mode[t2], t1
 
 .opGetByIdDefault:
@@ -1688,6 +1877,41 @@ macro performGetByIDHelper(opcodeStruct, modeMetadataName, valueProfileName, slo
     bineq t0, t1, slowLabel
     valueProfile(size, opcodeStruct, valueProfileName, ValueUndefined, t2)
     return(ValueUndefined)
+
+.opGetByIdThreaded:
+    # SPEC-jit sec.4.3 (Task 6): under useJSThreads the only observable modes are
+    # Default and ArrayLength (I18; ProtoLoad/Unset are never installed).
+    # Default reads word 1 ({structureID, cachedOffset}) with ONE 64-bit load:
+    # compare the id half, use the offset half. Stale/invalidated (all-zero)
+    # words fail the compare. Task 8: both blocks route their butterfly
+    # dereference through the sec.5.5 READ choke point.
+    loadb %opcodeStruct%::Metadata::%modeMetadataName%.mode[t2], t1
+    bbeq t1, constexpr GetByIdMode::ArrayLength, .opGetByIdThreadedArrayLength
+    loadi JSCell::m_structureID[t3], t1
+    loadq %opcodeStruct%::Metadata::%modeMetadataName%.defaultMode.structureID[t2], t0
+    bineq t0, t1, slowLabel
+    butterflyLoadDependsOnStructureID(t1, t3, t5) # R7/F7 (Task 8)
+    rshiftq 32, t0
+    move t0, t1
+    loadPropertyAtVariableOffsetThreaded(t1, t3, t0, t5, slowLabel)
+    valueProfile(size, opcodeStruct, valueProfileName, t0, t2)
+    return(t0)
+
+.opGetByIdThreadedArrayLength:
+    # SPEC-jit sec.5.5 (Task 8): array-length read with the full READ predicate
+    # (ArrayLength is reachable for ArrayStorage arrays, so the SW=1 AND AS
+    # case must take the locked slow path). No structure check here; the
+    # indexing-byte guard self-validates (sec.4.3).
+    loadb JSCell::m_indexingTypeAndMisc[t3], t0
+    btiz t0, IsArray, slowLabel
+    btiz t0, IndexingShapeMask, slowLabel
+    loadp JSObjectWithButterfly::m_butterfly[t3], t0
+    threadedButterflyReadPredicate(t3, t0, t1, slowLabel)
+    loadi -sizeof IndexingHeader + IndexingHeader::u.lengths.publicLength[t0], t0
+    bilt t0, 0, slowLabel
+    orq numberTag, t0
+    valueProfile(size, opcodeStruct, valueProfileName, t0, t2)
+    return(t0)
 
 end
 
@@ -1754,6 +1978,7 @@ llintOpWithMetadata(op_put_by_id, OpPutById, macro (size, get, dispatch, metadat
     get(m_base, t3)
     loadConstantOrVariableCell(size, t3, t0, .opPutByIdSlow)
     metadata(t5, t2)
+    ifJSThreadsBranch(t2, .opPutByIdThreaded)
     loadi OpPutById::Metadata::m_oldStructureID[t5], t2
     bineq t2, JSCell::m_structureID[t0], .opPutByIdSlow
 
@@ -1812,6 +2037,35 @@ llintOpWithMetadata(op_put_by_id, OpPutById, macro (size, get, dispatch, metadat
     writeBarrierOnOperands(size, get, m_base, m_value)
     dispatch()
 
+.opPutByIdThreaded:
+    # SPEC-jit sec.4.3 (Task 6): flag-on, the transition cache is disabled (its
+    # fields are null forever; the flag-off transition branch is dead), and the
+    # surviving replace cache {m_oldStructureID, m_offset} is read with ONE
+    # 64-bit load: compare the id half, use the offset half. Task 8: the
+    # out-of-line store goes through the sec.5.5 WRITE choke point (owner /
+    # SW-non-AS fast, everything else to the slow path).
+    # R7/F7 (review round 1): the cell's structureID must be loaded into a
+    # REGISTER and that register must be the dependency source. Folding the
+    # cell load into the compare (bineq t1, JSCell::m_structureID[t0]) and
+    # passing t1 (= the METADATA cache word, published with a relaxed store)
+    # to butterflyLoadDependsOnStructureID orders the butterfly load only
+    # after the metadata load, NOT after the cell structureID load - on ARM64
+    # a control dependency from the compare does not order load->load, so a
+    # foreign SW=1 writer could pair a fresh {sid,offset} word with a STALE
+    # butterfly => OOB write. Mirror op_try_get_by_id/op_get_by_id_direct:
+    # cell sid in a register, compare 32-bit halves, dependency from the cell
+    # sid register.
+    loadq OpPutById::Metadata::m_oldStructureID[t5], t1
+    loadi JSCell::m_structureID[t0], t2
+    bineq t1, t2, .opPutByIdSlow
+    butterflyLoadDependsOnStructureID(t2, t0, t3) # R7/F7 (Task 8); t2 = cell sid
+    rshiftq 32, t1
+    get(m_value, t3)
+    loadConstantOrVariable(size, t3, t2)
+    storePropertyAtVariableOffsetThreaded(t1, t0, t2, t3, t5, .opPutByIdSlow)
+    writeBarrierOnOperands(size, get, m_base, m_value)
+    dispatch()
+
 .opPutByIdSlow:
     callSlowPath(_llint_slow_path_put_by_id)
     dispatch()
@@ -1862,7 +2116,11 @@ llintOpWithMetadata(op_get_by_val, OpGetByVal, macro (size, get, dispatch, metad
     # This sign-extension makes the bounds-checking in getByValTypedArray work even on 4GB TypedArray.
     sxi2q t1, t1
 
+    # SPEC-jit sec.5.4/sec.5.5 (Task 8): one gate branch; the threaded block applies
+    # the READ choke point and rejoins below.
+    ifJSThreadsBranch(t3, .opGetByValThreaded)
     loadCagedJSValue(JSObjectWithButterfly::m_butterfly[t0], t3, numberTag)
+.opGetByValContinue:
     move TagNumber, numberTag
 
     andi IndexingShapeMask, t2
@@ -1901,6 +2159,29 @@ llintOpWithMetadata(op_get_by_val, OpGetByVal, macro (size, get, dispatch, metad
 
 .opGetByValNotIndexedStorage:
     getByValTypedArray(t0, t1, finishIntGetByVal, finishDoubleGetByVal, setLargeTypedArray, .opGetByValSlow)
+
+.opGetByValThreaded:
+    # SPEC-jit sec.5.5 (Task 8): READ choke point. The shared shape dispatch
+    # after the rejoin point is sound for everything the predicate lets
+    # through (SW=1 AS goes to the locked slow path; SW=0 AS reads are
+    # AS-COPY snapshots). No caging: the JSValue Gigacage path is not used in
+    # threaded builds (INTEGRATE-jit.md Task 8).
+    # Review round 1 -- Int32/Double/Contiguous soundness premise (VERIFIED
+    # in-tree, OM sec.4.7/I28): flag-on, EVERY indexing-shape conversion that
+    # touches Double (or rewrites lanes) on a reachable object runs under a
+    # per-event stop-the-world (JSObject::relabelIndexingShapeConcurrent;
+    # convert*ToArrayStorage routes via convertToArrayStorageConcurrent's sec.4.6
+    # stop) -- there is NO in-place reboxing outside a stop. The {shape byte
+    # (loaded above), butterfly word, lane load} sequence in this op contains
+    # no safepoint poll, so a stop can never split it: the pair is always
+    # mutually consistent even though it is read non-atomically. This premise
+    # is FROZEN in docs/threads/INTEGRATE-jit.md (shape-dispatch rejoin rule);
+    # if OM ever relaxes sec.4.7/I28, every shape-dispatch rejoin (here,
+    # put_by_val, Baseline/DFG/FTL array paths) must re-validate the shape
+    # from data derived after the butterfly load instead.
+    loadp JSObjectWithButterfly::m_butterfly[t0], t3
+    threadedButterflyReadPredicate(t0, t3, t7, .opGetByValSlow)
+    jmp .opGetByValContinue
 
 .opGetByValSlow:
     callSlowPath(_llint_slow_path_get_by_val)
@@ -2049,7 +2330,11 @@ macro putByValOp(opcodeName, opcodeStruct, osrExitPoint)
         get(m_property, t0)
         loadConstantOrVariableInt32(size, t0, t3, .opPutByValSlow)
         sxi2q t3, t3
+        # SPEC-jit sec.5.4/sec.5.5 (Task 8): one gate branch; the threaded block
+        # applies the WRITE choke point and rejoins below.
+        ifJSThreadsBranch(t0, .opPutByValThreaded)
         loadCagedJSValue(JSObjectWithButterfly::m_butterfly[t1], t0, numberTag)
+    .opPutByValContinue:
         move TagNumber, numberTag
         btinz t2, CopyOnWrite, .opPutByValSlow
         andi IndexingShapeMask, t2
@@ -2108,6 +2393,19 @@ macro putByValOp(opcodeName, opcodeStruct, osrExitPoint)
         addi 1, t3, t1
         storei t1, -sizeof IndexingHeader + IndexingHeader::u.lengths.publicLength[t0]
         jmp .opPutByValArrayStorageStoreResult
+
+    .opPutByValThreaded:
+        # SPEC-jit sec.5.5 (Task 8): WRITE choke point (owner / SW-non-AS fast;
+        # segmented, foreign-SW=0 (F1), and shared-AS cases go to the slow
+        # path, which performs the locked/regime-aware store in C++). The
+        # shared shape dispatch after the rejoin point is then sound: only
+        # owner-SW=0 or shared-non-AS butterflies reach it. t4 = TID tag.
+        # Shape-byte/butterfly pairing relies on the OM sec.4.7/I28 STW-relabel
+        # premise -- see the .opGetByValThreaded comment above (review round 1).
+        loadp JSObjectWithButterfly::m_butterfly[t1], t0
+        loadButterflyTIDTagToT4(.opPutByValSlow)
+        threadedButterflyWritePredicate(t1, t0, t7, .opPutByValSlow)
+        jmp .opPutByValContinue
 
     .opPutByValOutOfBounds:
         loadi %opcodeStruct%::Metadata::m_arrayProfile.m_arrayProfileFlags[t5], t2
@@ -2908,8 +3206,26 @@ llintOpWithMetadata(op_get_from_scope, OpGetFromScope, macro (size, get, dispatc
     metadata(t5, t0)
 
     macro getProperty()
+        # SPEC-jit sec.5.4/sec.5.5 (Task 8): gate + READ choke point (the scope here
+        # is the global object; its butterfly is shared-writable flag-on). On
+        # entry t1 still holds the structureID just compared by
+        # loadScopeWithStructureCheck (R7/F7 dependency source).
+        # Review round 1: flag-on, the {m_getPutInfo, m_structureID, m_operand}
+        # triple is FROZEN post-link AND m_structureID is never armed for
+        # GlobalProperty (CodeBlock.cpp link gate; tryCache* re-caching gated in
+        # LLIntSlowPaths.cpp/JITOperations.cpp). So no torn resolveType/sid/
+        # operand pairing is observable, and this threaded block is in practice
+        # unreachable (the structure check above never passes) - kept as
+        # defense in depth for any future re-arming.
+        ifJSThreadsBranch(t2, .getPropertyThreaded)
         loadp OpGetFromScope::Metadata::m_operand[t5], t1
         loadPropertyAtVariableOffset(t1, t0, t2)
+        valueProfile(size, OpGetFromScope, m_valueProfile, t2, t5)
+        return(t2)
+    .getPropertyThreaded:
+        butterflyLoadDependsOnStructureID(t1, t0, t2) # R7/F7 (Task 8)
+        loadp OpGetFromScope::Metadata::m_operand[t5], t1
+        loadPropertyAtVariableOffsetThreaded(t1, t0, t2, t3, .gDynamic)
         valueProfile(size, OpGetFromScope, m_valueProfile, t2, t5)
         return(t2)
     end
@@ -2985,10 +3301,26 @@ end)
 
 llintOpWithMetadata(op_put_to_scope, OpPutToScope, macro (size, get, dispatch, metadata, return)
     macro putProperty()
+        # SPEC-jit sec.5.4/sec.5.5 (Task 8): gate + WRITE choke point (global-object
+        # butterfly; foreign/shared cases take the generic locked path). On
+        # entry t1 still holds the structureID just compared by
+        # loadScopeWithStructureCheck (R7/F7 dependency source).
+        # Review round 1: scope metadata is frozen post-link flag-on and the
+        # GlobalProperty structure cache is never armed; see getProperty() in
+        # op_get_from_scope above. Kept as defense in depth.
+        ifJSThreadsBranch(t3, .putPropertyThreaded)
         get(m_value, t1)
         loadConstantOrVariable(size, t1, t2)
         loadp OpPutToScope::Metadata::m_operand[t5], t1
         storePropertyAtVariableOffset(t1, t0, t2)
+        jmp .putPropertyDone
+    .putPropertyThreaded:
+        butterflyLoadDependsOnStructureID(t1, t0, t2) # R7/F7 (Task 8)
+        get(m_value, t1)
+        loadConstantOrVariable(size, t1, t2)
+        loadp OpPutToScope::Metadata::m_operand[t5], t1
+        storePropertyAtVariableOffsetThreaded(t1, t0, t2, t3, t7, .pDynamic)
+    .putPropertyDone:
     end
 
     macro putGlobalVariable()
@@ -3506,7 +3838,16 @@ llintOpWithMetadata(op_enumerator_get_by_val, OpEnumeratorGetByVal, macro (size,
 
     loadVariable(get, m_enumerator, t1)
     loadi JSPropertyNameEnumerator::m_cachedStructureID[t1], t2
-    bineq t2, JSCell::m_structureID[t0], .getSlowPath
+    # R7/F7 (review round 3, R3-7): load the cell's structureID into a REGISTER
+    # (t3) and compare register-register, so the threaded out-of-line path
+    # below can make the butterfly load address-dependent on the cell's
+    # structureID LOAD. The old memory-operand form
+    # (bineq t2, JSCell::m_structureID[t0]) leaves no register holding the
+    # cell's structureID -- and a control dependency from the compare does not
+    # order load->load on ARM64 -- the same bug class as the R1-1 op_put_by_id
+    # fix. t3 must stay live until .outOfLineThreaded.
+    loadi JSCell::m_structureID[t0], t3
+    bineq t2, t3, .getSlowPath
 
     loadVariable(get, m_index, t2)
     loadi JSPropertyNameEnumerator::m_cachedInlineCapacity[t1], t1
@@ -3517,7 +3858,12 @@ llintOpWithMetadata(op_enumerator_get_by_val, OpEnumeratorGetByVal, macro (size,
     jmp .done
 
 .outOfLine:
+    # SPEC-jit sec.5.4/sec.5.5 (Task 8): gate + READ choke point on the threaded
+    # branch; flag-off keeps today's raw load. (Scratch is t7, not t3: t3
+    # carries the cell structureID into the threaded block, R3-7.)
+    ifJSThreadsBranch(t7, .outOfLineThreaded)
     loadp JSObjectWithButterfly::m_butterfly[t0], t0
+.outOfLineContinue:
     subi t1, t2
     negi t2
     sxi2q t2, t2
@@ -3526,6 +3872,19 @@ llintOpWithMetadata(op_enumerator_get_by_val, OpEnumeratorGetByVal, macro (size,
 .done:
     valueProfile(size, OpEnumeratorGetByVal, m_valueProfile, t2, t5)
     return(t2)
+
+.outOfLineThreaded:
+    # R3-7: this access is STRUCTURE-bounded (the index is validated against
+    # the enumerator's cached structure), not butterfly-self-bounded, so the
+    # butterfly load must be ordered after the cell structureID load that
+    # passed the compare above -- otherwise a stale (pre-transition, smaller)
+    # flat butterfly can be paired with a structure that promises more
+    # out-of-line slots => OOB read (ARM64).
+    butterflyLoadDependsOnStructureID(t3, t0, t7) # R7/F7; t3 = cell sid
+    loadp JSObjectWithButterfly::m_butterfly[t0], t3
+    threadedButterflyReadPredicate(t0, t3, t7, .getSlowPath)
+    move t3, t0
+    jmp .outOfLineContinue
 
 .getSlowPath:
     callSlowPath(_slow_path_enumerator_get_by_val)
@@ -3554,7 +3913,16 @@ llintOpWithMetadata(op_enumerator_put_by_val, OpEnumeratorPutByVal, macro (size,
 
     loadVariable(get, m_enumerator, t1)
     loadi JSPropertyNameEnumerator::m_cachedStructureID[t1], t2
-    bineq t2, JSCell::m_structureID[t0], .putSlowPath
+    # R7/F7 (review round 3, R3-7): cell structureID into a REGISTER (t6) so
+    # the threaded out-of-line path can hang the butterfly load's address
+    # dependency off the cell's structureID LOAD (same rationale as the
+    # op_enumerator_get_by_val comment above and the R1-1 op_put_by_id fix;
+    # the old memory-operand compare provided only a control dependency,
+    # which does not order load->load on ARM64). t6 must stay live until
+    # .outOfLineThreaded (nothing below clobbers it: t2 becomes the structure
+    # then the index, t3 the scratch then the value, t1 the inline capacity).
+    loadi JSCell::m_structureID[t0], t6
+    bineq t2, t6, .putSlowPath
 
     structureIDToStructureWithScratch(t2, t3)
     btinz Structure::m_bitField[t2], ((constexpr Structure::s_hasReadOnlyOrGetterSetterPropertiesExcludingProtoBits) | (constexpr Structure::s_isWatchingReplacementBits)), .putSlowPath
@@ -3570,8 +3938,12 @@ llintOpWithMetadata(op_enumerator_put_by_val, OpEnumeratorPutByVal, macro (size,
     jmp .done
 
 .outOfLine:
+    # SPEC-jit sec.5.4/sec.5.5 (Task 8): gate + WRITE choke point on the threaded
+    # branch; flag-off keeps today's raw load.
     subi t1, t2
+    ifJSThreadsBranch(t1, .outOfLineThreaded)
     loadp JSObjectWithButterfly::m_butterfly[t0], t1
+.outOfLineContinue:
     negi t2
     sxi2q t2, t2
     storeq t3, constexpr ((offsetInButterfly(firstOutOfLineOffset)) * sizeof(EncodedJSValue))[t1, t2, 8]
@@ -3579,6 +3951,19 @@ llintOpWithMetadata(op_enumerator_put_by_val, OpEnumeratorPutByVal, macro (size,
 .done:
     writeBarrierOnCellAndValueWithReload(t0, t3, macro() end)
     dispatch()
+
+.outOfLineThreaded:
+    # R3-7: STRUCTURE-bounded write -- the out-of-line index is validated
+    # against the enumerator's cached structure, so the butterfly load must be
+    # ordered after the cell structureID load (t6) that passed the compare
+    # above; a stale flat butterfly paired with a fresher structure is an OOB
+    # WRITE on ARM64. (The write predicate's TID/SW checks do not catch this:
+    # the stale butterfly carries the owner tag.)
+    butterflyLoadDependsOnStructureID(t6, t0, t7) # R7/F7; t6 = cell sid
+    loadp JSObjectWithButterfly::m_butterfly[t0], t1
+    loadButterflyTIDTagToT4(.putSlowPath)
+    threadedButterflyWritePredicate(t0, t1, t7, .putSlowPath)
+    jmp .outOfLineContinue
 
 .putSlowPath:
     callSlowPath(_slow_path_enumerator_put_by_val)

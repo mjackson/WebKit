@@ -106,6 +106,33 @@ bool SparseArrayValueMap::putEntry(JSGlobalObject* globalObject, JSObject* array
         return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError);
     }
     
+    if (Options::useJSThreads()) [[unlikely]] {
+        // objectmodel round 4 (§61): `entry` dangles if a racing add()
+        // rehashes m_map after add()'s internal lock released. Re-find under
+        // the map's cell lock; do the plain-data store under it (no JS, no GC
+        // allocation); extract the GetterSetter under it and call the setter
+        // OUTSIDE it (it runs JS).
+        JSValue getterSetter;
+        {
+            Locker locker { cellLock() };
+            auto it = m_map.find(i);
+            if (it == m_map.end())
+                return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError); // racing remove
+            SparseArrayEntry& lockedEntry = it->value;
+            if (!(lockedEntry.attributes() & PropertyAttribute::Accessor)) {
+                if (lockedEntry.attributes() & PropertyAttribute::ReadOnly)
+                    return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError);
+                // Plain-data store under the lock (no JS, no GC allocation);
+                // forceSet with the unchanged attribute word is the
+                // access-control-clean spelling of Base::set (the §61 note's
+                // sanctioned alternative — WriteBarrier's set is a private base).
+                lockedEntry.forceSet(vm, this, value, lockedEntry.attributes());
+                return true;
+            }
+            getterSetter = lockedEntry.get();
+        }
+        RELEASE_AND_RETURN(scope, uncheckedDowncast<GetterSetter>(getterSetter)->callSetter(globalObject, array, value, shouldThrow));
+    }
     RELEASE_AND_RETURN(scope, entry.put(globalObject, array, this, value, shouldThrow));
 }
 
@@ -128,6 +155,17 @@ bool SparseArrayValueMap::putDirect(JSGlobalObject* globalObject, JSObject* arra
         return typeError(globalObject, scope, shouldThrow, NonExtensibleObjectPropertyDefineError);
     }
 
+    if (Options::useJSThreads()) [[unlikely]] {
+        Locker locker { cellLock() }; // objectmodel round 4 (§61): re-find; `entry` may dangle (racing rehash).
+        auto it = m_map.find(i);
+        if (it == m_map.end())
+            return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError); // racing remove
+        SparseArrayEntry& lockedEntry = it->value;
+        if (lockedEntry.attributes() & PropertyAttribute::ReadOnly)
+            return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError);
+        lockedEntry.forceSet(vm, this, value, attributes); // no JS, no GC allocation - lockable
+        return true;
+    }
     if (entry.attributes() & PropertyAttribute::ReadOnly)
         return typeError(globalObject, scope, shouldThrow, ReadonlyPropertyWriteError);
 

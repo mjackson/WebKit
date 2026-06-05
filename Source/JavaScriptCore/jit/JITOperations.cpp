@@ -3180,6 +3180,18 @@ JSC_DEFINE_JIT_OPERATION(operationOptimize, UGPRPair, (VM* vmPointer, uint32_t b
             OPERATION_RETURN(scope, encodeResult(nullptr, nullptr));
         }
 
+        // THREADS §5.7.2 (SPEC-jit Task 12): serialize the Baseline->DFG trigger. Only the
+        // winner of the 0->1 CAS may run newReplacement()+DFG::compile(); losers defer and
+        // stay in Baseline. Duplicate enqueues racing through the latch-free window are
+        // cancelled by JITWorklist::enqueue's dedup backstop (§5.7.3).
+        CodeBlock::TierUpEdgeLocker tierUpLocker(codeBlock, CodeBlock::TierUpEdge::BaselineToDFG);
+        if (!tierUpLocker.won()) [[unlikely]] {
+            CODEBLOCK_LOG_EVENT(codeBlock, "delayOptimizeToDFG", ("tier-up already in flight"));
+            dataLogLnIf(Options::verboseOSR(), "Choosing not to optimize ", *codeBlock, " yet, because another thread's tier-up is in flight.");
+            codeBlock->setOptimizationThresholdBasedOnCompilationResult(CompilationResult::CompilationDeferred);
+            OPERATION_RETURN(scope, encodeResult(nullptr, nullptr));
+        }
+
         dataLogLnIf(Options::verboseOSR(), "Triggering optimized compilation of ", *codeBlock, " quickDFGTierUpState=", codeBlock->unlinkedCodeBlock()->quickDFGTierUp(), " counter=", codeBlock->baselineExecuteCounter(), ", optimizationDelayCounter=", codeBlock->optimizationDelayCounter(), " bytecodeCost=", codeBlock->bytecodeCost(), " codeType=", codeBlock->codeType());
 
         unsigned numVarsWithValues = 0;
@@ -3285,7 +3297,7 @@ JSC_DEFINE_JIT_OPERATION(operationTryOSREnterAtCatchAndValueProfile, UGPRPair, (
     auto bytecode = codeBlock->instructions().at(bytecodeIndex)->as<OpCatch>();
     auto& metadata = bytecode.metadata(codeBlock);
     metadata.m_buffer->forEach([&] (ValueProfileAndVirtualRegister& profile) {
-        profile.m_buckets[0] = JSValue::encode(callFrame->uncheckedR(profile.m_operand).jsValue());
+        profile.storeBucketConcurrently(0, JSValue::encode(callFrame->uncheckedR(profile.m_operand).jsValue())); // THREADS §5.7.4
     });
 
     OPERATION_RETURN(scope, encodeResult(nullptr, nullptr));
@@ -4733,7 +4745,13 @@ JSC_DEFINE_JIT_OPERATION(operationGetFromScope, EncodedJSValue, (JSGlobalObject*
             }
         }
 
-        CommonSlowPaths::tryCacheGetFromScopeGlobal(globalObject, codeBlock, vm, bytecode, environment, slot, ident);
+        // SPEC-jit §5.5 (review round 1): flag-on, scope metadata is FROZEN
+        // after CodeBlock linking - the {m_getPutInfo, m_structureID,
+        // m_operand} triple is rewritten by tryCache* as three plain stores
+        // that the LLInt/Baseline fast paths read unsynchronized. See
+        // llint/LLIntSlowPaths.cpp slow_path_get_from_scope.
+        if (!Options::useJSThreads()) [[likely]]
+            CommonSlowPaths::tryCacheGetFromScopeGlobal(globalObject, codeBlock, vm, bytecode, environment, slot, ident);
 
         if (!result)
             return slot.getValue(globalObject, ident);
@@ -4792,7 +4810,10 @@ JSC_DEFINE_JIT_OPERATION(operationPutToScope, void, (JSGlobalObject* globalObjec
     
     OPERATION_RETURN_IF_EXCEPTION(scope);
 
-    CommonSlowPaths::tryCachePutToScopeGlobal(globalObject, codeBlock, bytecode, jsScope, slot, ident);
+    // SPEC-jit §5.5 (review round 1): scope metadata frozen post-link flag-on;
+    // see operationGetFromScope above.
+    if (!Options::useJSThreads()) [[likely]]
+        CommonSlowPaths::tryCachePutToScopeGlobal(globalObject, codeBlock, bytecode, jsScope, slot, ident);
     OPERATION_RETURN(scope);
 }
 
@@ -4841,6 +4862,15 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationReallocateButterflyAndTransition, voi
     VM& vm = *vmPointer;
     CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+
+    // SPEC-jit I15/section 4.4(b): this native slow path holds a handler-
+    // allocation pointer across a possible safepoint (the butterfly
+    // reallocation below can GC/park). Take a Ref BEFORE any safepoint so a
+    // concurrent IC reset retiring this node (section 5.1) cannot lead to an
+    // epoch-expiry free while we are parked. The payload is frozen at publish
+    // (I4) and the refcount is thread-safe (section 4.5), so this is sound
+    // from any mutator.
+    Ref<const InlineCacheHandler> protectedHandler { *handler };
 
     size_t newSize = handler->newSize() / sizeof(JSValue);
     size_t oldSize = handler->oldSize() / sizeof(JSValue);

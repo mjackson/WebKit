@@ -223,6 +223,7 @@ JSArray* DirectArguments::fastSlice(JSGlobalObject* globalObject, DirectArgument
     if (!resultArray) [[unlikely]]
         return nullptr;
 
+    ASSERT(!resultArray->mayBeSegmentedButterfly()); // THREADS-INTEGRATE(objectmodel) §10.7 [assert-only]: fresh private array
     auto& resultButterfly = *resultArray->butterfly();
     gcSafeMemcpy(resultButterfly.contiguous().data(), arguments->storage() + startIndex, sizeof(JSValue) * static_cast<uint32_t>(count));
 

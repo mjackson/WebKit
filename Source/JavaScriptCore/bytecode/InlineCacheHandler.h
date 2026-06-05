@@ -32,6 +32,7 @@
 #include "JITStubRoutine.h"
 #include "PropertyInlineCacheClearingWatchpoint.h"
 #include <wtf/RefCounted.h>
+#include <wtf/ThreadSafeRefCounted.h>
 
 namespace JSC {
 
@@ -52,7 +53,12 @@ enum class CacheType : int8_t {
     StringLength,
 };
 
-class InlineCacheHandler : public RefCounted<InlineCacheHandler> {
+// SPEC-jit section 4.5: refcount is UNCONDITIONALLY thread-safe (not flag-
+// gated; pure C++ state, I1 unaffected). Cross-thread mutation happens when
+// (a) a native slow path Ref-protects a handler across a safepoint (I15) on
+// any mutator, and (b) a retired chain's final deref runs at epoch expiry on
+// the GC conductor (section 4.4). Covers InlineCacheHandlerWithJSCall too.
+class InlineCacheHandler : public ThreadSafeRefCounted<InlineCacheHandler> {
     WTF_MAKE_NONCOPYABLE(InlineCacheHandler);
     WTF_MAKE_TZONE_ALLOCATED(InlineCacheHandler);
     friend class InlineCacheCompiler;

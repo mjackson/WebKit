@@ -1497,6 +1497,34 @@ public:
     void compileReallocatePropertyStorage(Node*);
     void compileNukeStructureAndSetButterfly(Node*);
     void compileGetButterfly(Node*);
+#if USE(JSVALUE64)
+    // SPEC-jit section 5.5 / Task 9: threaded (Options::useJSThreads())
+    // butterfly access emission for the DFG tier. The plan captures the
+    // TTL-elision decisions (E1/E2, registered through
+    // DesiredWatchpoints::considerButterfly*ThreadLocal; fire => jettison) and
+    // the AS-rule shape classification derived from the abstract
+    // interpreter's structure set for the base edge.
+    struct ThreadedButterflyPlan {
+        bool elideSegmentedCheck { false }; // E1: every speculated structure's transitionThreadLocal set valid+watched+registered
+        bool elideSharedWriteCheck { false }; // E2: ditto writeThreadLocal (writes: SW branch + AS SW test omitted; TID compare NEVER, D9)
+        CCallHelpers::ConcurrentButterflyShape shape { CCallHelpers::ConcurrentButterflyShape::MaybeArrayStorage };
+    };
+    ThreadedButterflyPlan planThreadedButterflyAccess(Edge base);
+    // R7/F7 ordering: ARM64 re-loads the structureID and makes the butterfly
+    // load address-dependent on it (no-op x86-64); scratch clobbered.
+    void emitButterflyLoadWithStructureDependency(GPRReg baseGPR, GPRReg destGPR, GPRReg scratchGPR);
+    // Frozen section 5.5 predicates, elision-aware. Both load the tagged
+    // butterfly of baseGPR into destGPR (ARM64: address-dependent on a
+    // re-loaded structureID, R7/F7), append every predicate failure to the
+    // returned JumpList, and ALWAYS mask the tag (E3/D6/I14(a)).
+    // Read: no TID check; scratchGPR is required (F7 + MaybeArrayStorage
+    // indexing-byte test); dest/scratch/base pairwise distinct.
+    // Write: fused owner-TID compare always emitted (D9); tidScratchGPR
+    // required; indexingScratchGPR may be InvalidGPRReg (conservative:
+    // every non-owner write goes slow).
+    JITCompiler::JumpList emitThreadedButterflyLoadForRead(GPRReg baseGPR, GPRReg destGPR, GPRReg scratchGPR, const ThreadedButterflyPlan&);
+    JITCompiler::JumpList emitThreadedButterflyLoadForWrite(GPRReg baseGPR, GPRReg destGPR, GPRReg tidScratchGPR, GPRReg indexingScratchGPR, const ThreadedButterflyPlan&);
+#endif
     void compileCallDOMGetter(Node*);
     void compileCallDOM(Node*);
     void compileCheckJSCast(Node*);

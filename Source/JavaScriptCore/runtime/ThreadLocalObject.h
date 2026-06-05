@@ -30,6 +30,22 @@
 
 namespace JSC {
 
+// new ThreadLocal() (SPEC-api 4.4/5.8): a per-thread value slot. The cell
+// carries a process-unique, monotonically allocated uint64_t key (issued by
+// ThreadManager); the storage lives in the *current* ThreadState's
+// HashMap<uint64_t, Strong<Unknown>> threadLocals, accessed only via
+// currentThreadState — so reads/writes are lock-free and inherently
+// owner-thread-only, and writes are invisible cross-thread (I13). The value
+// reads as undefined on every thread until that thread's own first write.
+//
+// Lifetime (SPEC-api 5.8/5.10, documented leak — I13): a stored value is
+// rooted by its owning ThreadState until it is overwritten or the thread
+// exits (spawned threads clear threadLocals in the completion sequence; lazy
+// main/embedder ThreadStates clear them via the 5.10 finalizer hook at VM
+// teardown). When a ThreadLocal cell dies, its slots in OTHER live threads'
+// maps are NOT eagerly swept: they leak until those threads exit. This is
+// accepted and documented, not an invariant violation. Keys are never
+// reused, so a leaked slot can never alias a later-created ThreadLocal.
 class JSThreadLocalObject final : public JSDestructibleObject {
 public:
     using Base = JSDestructibleObject;
@@ -51,12 +67,15 @@ public:
 
     DECLARE_EXPORT_INFO;
 
+    // Process-unique monotonic key into ThreadState::threadLocals
+    // (SPEC-api 5.8). Allocated by ThreadManager at construction; never
+    // reused, even after this cell dies (see class comment).
     uint64_t key() const { return m_key; }
 
 private:
     JSThreadLocalObject(VM&, Structure*);
 
-    uint64_t m_key; // process-unique monotonic key (SPEC-api 5.8)
+    uint64_t m_key;
 };
 
 } // namespace JSC

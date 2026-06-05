@@ -32,6 +32,7 @@
 #include "VMEntryScopeInlines.h"
 #include "VMThreadContext.h"
 #include "WasmDebugServerUtilities.h"
+#include <wtf/Locker.h>
 #include <wtf/RunLoop.h>
 
 namespace JSC {
@@ -159,6 +160,26 @@ void VMManager::setMemoryDebuggerCallback(StopTheWorldCallback callback)
     g_jscConfig.memoryDebuggerStopTheWorld = callback;
 }
 
+// THREADS-INTEGRATE(heap) manifest 5d (review round 4): file-local
+// Atomic statics, deliberately NOT g_jscConfig slots — JSC::Config lives
+// in the WTF::Config page that Config::finalize() (run from every VM
+// constructor) mprotects read-only, and the sole installer
+// (Heap::noteSharedServerSticky, second-client attach) always runs
+// post-freeze; a config store would SIGSEGV at the ISS flip. seq_cst
+// Atomic: the install happens-before the ISS flip publishes on the
+// installing thread, and the hooks are inert (no-op unless ISS && GSP),
+// so a load racing the install correctly no-ops.
+static Atomic<void (*)(VM&)> s_gcWillParkInStopTheWorld { nullptr };
+static Atomic<void (*)(VM&)> s_gcDidResumeFromStopTheWorld { nullptr };
+
+void VMManager::setGCParkCallbacks(void (*willPark)(VM&), void (*didResume)(VM&))
+{
+    // Heap-owned hooks (JSC::Heap::gcWillParkInStopTheWorld /
+    // gcDidResumeFromStopTheWorld); may be null (inert).
+    s_gcWillParkInStopTheWorld.store(willPark);
+    s_gcDidResumeFromStopTheWorld.store(didResume);
+}
+
 #if USE(BUN_JSC_ADDITIONS)
 void VMManager::setJSDebuggerCallback(StopTheWorldCallback callback)
 {
@@ -229,8 +250,27 @@ CONCURRENT_SAFE void VMManager::requestStopAllInternal(StopReason reason)
     m_pendingStopRequestBits.exchangeOr(requestBits);
     {
         Locker lock { m_worldLock };
-        if (m_worldMode >= Mode::Stopping)
+        if (m_worldMode >= Mode::Stopping) {
+            // THREADS-INTEGRATE(heap) manifest 5g(ii): a GC stop
+            // requested while another stop is already in progress must
+            // still (1) trap entered VMs — a RunOne targetVM keeps
+            // executing through an in-progress debugger stop and would
+            // otherwise never reach a poll — and (2) wake parked VMs so
+            // their wait loops observe the new GC bit and run the 5g(i)
+            // park hook (release heap access). Without this, a GC
+            // requested during a non-GC stop hangs the §10.4 barrier.
+            if (reason == StopReason::GC) [[unlikely]] {
+                iterateVMs(scopedLambda<IteratorCallback>([&] (VM& vm) {
+                    if (vm.isEntered()) {
+                        vm.requestStop();
+                        WTF::storeLoadFence();
+                    }
+                    return IterationStatus::Continue;
+                }));
+                m_worldConditionVariable.notifyAll();
+            }
             return;
+        }
 
         if (m_worldMode == Mode::RunAll) {
             // RunOne mode allows execution of 1 VM without resumeTheWorld(). We did not clear
@@ -309,6 +349,25 @@ CONCURRENT_SAFE void VMManager::requestResumeAllInternal(StopReason reason)
     // From the VMManager's perspective, it is the type of stop request.
     auto requestBits = static_cast<StopRequestBits>(reason);
     m_pendingStopRequestBits.exchangeAnd(~requestBits);
+
+    // THREADS-INTEGRATE(heap) manifest 5e: VMs parked by the GC
+    // keep-parked rule (5b) wait on m_worldConditionVariable with no
+    // latched m_currentStopReason and (with no other stop in progress) no
+    // targetVM — NOTHING else will ever wake them once the GC bit
+    // clears. So for reason == GC, ALWAYS notifyAll under m_worldLock:
+    // even if other stop bits remain pending (woken VMs re-evaluate
+    // shouldStop() and re-park for the remaining reasons), and even if
+    // resumeTheWorld() early-returns (RunOne mode, or already RunAll).
+    // Getting this wrong (e.g. notifying only when the GC bit was the
+    // last pending bit) is a silent shared-mode resume deadlock.
+    if (reason == StopReason::GC) {
+        Locker lock { m_worldLock };
+        if (!hasPendingStopRequests())
+            resumeTheWorld();
+        m_worldConditionVariable.notifyAll();
+        return;
+    }
+
     if (hasPendingStopRequests())
         return; // There are still pending stop requests. Nothing more to do.
 
@@ -370,6 +429,12 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
 #endif
     }
 
+    // THREADS-INTEGRATE(heap) manifest 5a: GC park hook (entry side). Called
+    // with NO m_worldLock held (the hook takes heap locks; L6). Heap-owned,
+    // idempotent: no-op unless ISS && GSP && this VM's client holds access.
+    if (auto willParkHook = s_gcWillParkInStopTheWorld.load()) [[unlikely]]
+        willParkHook(vm);
+
     // Due to races, we may end up calling notifyVMStop() even when there is no stop to be serviced.
     // It should always be safe to call notifyVMStop() as many times as we like. The only cost is
     // is performance.
@@ -390,6 +455,11 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
 
             auto fetchTopPriorityStopReason = [&] {
                 auto pendingRequests = m_pendingStopRequestBits.loadRelaxed();
+                // THREADS-INTEGRATE(heap) manifest 5c: the GC bit is never
+                // latched/serviced by notifyVMStop — it only keeps VMs
+                // parked (5b). The conductor resumes them via
+                // requestResumeAll(GC) (5e).
+                pendingRequests &= ~static_cast<StopRequestBits>(StopReason::GC);
                 for (unsigned i = 0; i < NumberOfStopReasons; ++i) {
                     auto requestToCheck = static_cast<StopRequestBits>(1 << i);
                     if (pendingRequests & requestToCheck)
@@ -398,19 +468,13 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
                 return StopReason::None;
             };
 
-            // Fetch the top priority stop request and finish servicing it before entertaining
-            // another one. This reduces complexity as servicing a different stop request while
-            // one is in still being processed may result in unexpected state change that the
-            // the current stop request handler is unprepared to handle.
-            if (m_currentStopReason == StopReason::None) {
-                m_currentStopReason = fetchTopPriorityStopReason();
-                // We cannot break out early here even if m_currentStopReason is None. That's
-                // because we may be in RunOne mode, and the current thread may not be the
-                // targetVM thead. So, we must flow thru to the target VM check and wait loop
-                // below.
-            }
-
             auto shouldStop = [&] WTF_REQUIRES_LOCK(m_worldLock) {
+                // THREADS-INTEGRATE(heap) manifest 5b: a pending GC stop
+                // keeps every VM parked until requestResumeAll(GC) — the GC
+                // bit is never latched into m_currentStopReason (5c).
+                if (m_pendingStopRequestBits.loadRelaxed() & static_cast<StopRequestBits>(StopReason::GC))
+                    return true;
+
                 // 1. If the targetVM is already selected, and we're not the targetVM, then stop.
                 //    We need to check this first because in RunOne mode, even if there is no more
                 //    STW request to service, any VM that is not the targetVM still needs to stop.
@@ -429,8 +493,80 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
                 return m_numberOfStoppedVMs != m_numberOfActiveVMs;
             };
 
-            while (shouldStop())
+            // Fetch the top priority stop request and finish servicing it
+            // before entertaining another one. THREADS-INTEGRATE(heap)
+            // manifest 5f: the fetch precedes the FIRST shouldStop() AND
+            // re-runs after every wake — a stop request that arrives while
+            // we are parked must be latched by SOME stopped VM or no one
+            // services it.
+            bool calledGCParkHook = false;
+            bool ranGCResumeHook = false;
+            for (;;) {
+                if (m_currentStopReason == StopReason::None)
+                    m_currentStopReason = fetchTopPriorityStopReason();
+                if (!shouldStop()) {
+                    // THREADS-INTEGRATE(heap) manifest 5g(iii) (review round
+                    // 3): if a GC park hook released this VM's heap access —
+                    // EITHER the entry-side 5a insertion-A call (GC bit
+                    // already pending when we parked) OR the mid-park 5g(i)
+                    // call below — re-acquire it BEFORE leaving the wait
+                    // loop. The dispatch below may run a non-GC STW callback
+                    // (wasmDebuggerOnStop / memoryDebuggerStopTheWorld —
+                    // stop reasons that never take the heap's GCL
+                    // JSThreadsStopScope bracket) which reads, or even
+                    // allocates from, the heap; with access still released a
+                    // shared-mode conductor's §10.4 barrier would treat this
+                    // VM as not-accessing and collect/sweep under the
+                    // callback's feet (and any allocation would violate I2).
+                    // The hook is idempotent via m_releasedByGCPark (a no-op
+                    // when nothing was released, so gating on ranGCResumeHook
+                    // rather than calledGCParkHook is safe AND necessary —
+                    // the entry-side release never sets calledGCParkHook) and
+                    // F8-blocks if a NEW GC stop pends; calledGCParkHook is
+                    // reset and we re-evaluate (continue) so a GC bit that
+                    // arrived during the re-acquire re-runs 5g(i) instead of
+                    // leaving the new conductor's barrier waiting on us.
+                    auto didResumeHook = s_gcDidResumeFromStopTheWorld.load();
+                    if (!ranGCResumeHook && didResumeHook) [[unlikely]] {
+                        ranGCResumeHook = true;
+                        calledGCParkHook = false;
+                        {
+                            DropLockForScope dropper(lock);
+                            didResumeHook(vm);
+                        }
+                        continue;
+                    }
+                    break;
+                }
+                // THREADS-INTEGRATE(heap) manifest 5g(i): a VM that parked
+                // BEFORE the GC stop was requested (e.g. for a debugger
+                // stop) still holds heap access, and its entry-side 5a hook
+                // ran when no GC bit existed — it must release access NOW or
+                // the conductor's §10.4 barrier never completes
+                // (§10C(a)/(c)/(d)). The hook must run without m_worldLock
+                // (it takes heap locks); after re-taking the lock we
+                // re-evaluate (continue) rather than wait, because the 5e
+                // resume-notify may have fired while the lock was dropped.
+                // calledGCParkHook bounds this to one call per GC stop (the
+                // hook is idempotent — m_releasedByGCPark — so a re-fire
+                // would be harmless but would busy-spin the loop); 5g(iii)
+                // resets it after the matching re-acquire so a LATER GC bit
+                // in the same notifyVMStop invocation re-runs this block,
+                // and this block resets ranGCResumeHook so the matching
+                // 5g(iii) re-acquire runs again at the next loop exit.
+                bool gcBitPending = m_pendingStopRequestBits.loadRelaxed() & static_cast<StopRequestBits>(StopReason::GC);
+                auto willParkHook = s_gcWillParkInStopTheWorld.load();
+                if (gcBitPending && !calledGCParkHook && willParkHook) [[unlikely]] {
+                    calledGCParkHook = true;
+                    ranGCResumeHook = false;
+                    {
+                        DropLockForScope dropper(lock);
+                        willParkHook(vm);
+                    }
+                    continue;
+                }
                 m_worldConditionVariable.wait(m_worldLock);
+            }
 
             // We can only get here under one the following possible circumstance:
             // 1. No targetVM thread was specified (therefore, any thread may service this stop)
@@ -523,6 +659,12 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
         }
 #endif
     }
+
+    // THREADS-INTEGRATE(heap) manifest 5a: GC park hook (resume side). NO
+    // m_worldLock held. Heap-owned, idempotent: iff m_releasedByGCPark ->
+    // re-acquire heap access (F8-blocking if a NEW stop pends), then clear.
+    if (auto didResumeHook = s_gcDidResumeFromStopTheWorld.load()) [[unlikely]]
+        didResumeHook(vm);
 
     // Call post-resume callback once when last VM exits and all VMs are running.
     if (!numberOfStoppedVMs && m_needsWasmDebuggerOnResume.exchange(false))

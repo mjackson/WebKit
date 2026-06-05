@@ -538,7 +538,9 @@ void VMInspector::dumpCellMemoryToStream(JSCell* cell, PrintStream& out)
     }
 
     unsigned slotIndex = 1;
-    if (cell->isObject()) {
+    // THREADS-INTEGRATE(objectmodel) §10.7: never deref a possibly-segmented
+    // word as a flat butterfly in this diagnostic walk.
+    if (cell->isObject() && !static_cast<JSObject*>(const_cast<JSCell*>(cell))->mayBeSegmentedButterfly()) {
         JSObject* obj = static_cast<JSObject*>(const_cast<JSCell*>(cell));
         Butterfly* butterfly = obj->butterfly();
         size_t butterflySize = obj->butterflyTotalSize();

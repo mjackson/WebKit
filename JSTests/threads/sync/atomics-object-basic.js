@@ -1,4 +1,4 @@
-//@ requireOptions("--useThreads=true")
+//@ requireOptions("--useJSThreads=1")
 // Atomics extended to ordinary object properties: load/store/RMW/
 // compareExchange semantics, sameValueZero matching, error surface, and the
 // unchanged typed-array path. Single-threaded except for one shared-counter
