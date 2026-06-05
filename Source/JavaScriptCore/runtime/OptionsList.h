@@ -496,6 +496,9 @@ bool hasCapacityToUseLargeGigacage();
     \
     v(Unsigned, seedOfVMRandomForFuzzer, 0, Normal, "0 means not fuzzing this; use a cryptographically random seed"_s) \
     v(Bool, useRandomizingFuzzerAgent, false, Normal, nullptr) \
+    v(Unsigned, randomYieldPeriod, 0, Normal, "If non-zero, the RaceAmplifier injects a randomized sched_yield/short sleep on average once every this many visits per thread to instrumented slow-path sites. 0 disables (default; zero cost when off)."_s) \
+    v(Unsigned, randomYieldSeed, 0, Normal, "Seed for the RaceAmplifier's per-thread PRNGs. 0 (default) picks a cryptographically random seed and dataLogs it so the run can be replayed with --randomYieldSeed=<seed>."_s) \
+    v(Unsigned, randomYieldMaxMicroseconds, 100, Normal, "Upper bound, in microseconds, for the short sleeps the RaceAmplifier injects (about 1 in 4 perturbations sleep; the rest sched_yield)."_s) \
     v(Unsigned, seedOfRandomizingFuzzerAgent, 1, Normal, nullptr) \
     v(Bool, dumpFuzzerAgentPredictions, false, Normal, nullptr) \
     v(Bool, useDoublePredictionFuzzerAgent, false, Normal, nullptr) \
@@ -675,6 +678,12 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useIteratorJoin, false, Normal, "Expose the Iterator.prototype.join method."_s) \
     v(Bool, useJSONSourceTextAccess, true, Normal, "Expose JSON source text access feature."_s) \
     v(Bool, useJSPI, true, Normal, "Enable the implementation of JavaScript Promise Integration."_s) \
+    v(Bool, useJSThreads, false, Normal, "enable shared-memory Thread/Lock/Condition/ThreadLocal API"_s) \
+    v(Unsigned, maxJSThreads, 32766, Normal, nullptr) \
+    v(Unsigned, jsThreadGILTimeSliceMs, 0, Normal, "reserved, inert in phase 1 (SPEC-api Deviation 9)"_s) \
+    v(Unsigned, jsThreadStackSizeKB, 0, Normal, nullptr) \
+    v(Bool, useThreads, false, Normal, "alias for useJSThreads"_s) \
+    v(Bool, useThreadGIL, true, Normal, "serialize all JS Thread execution under a global lock (always on in phase 1; reserved)"_s) \
     v(Bool, useMoreCurrencyDisplayChoices, false, Normal, "Enable more currencyDisplay choices for Intl.NumberFormat"_s) \
     v(Bool, usePromiseIsPromise, false, Normal, nullptr) \
     v(Bool, useSharedArrayBuffer, false, Normal, nullptr) \

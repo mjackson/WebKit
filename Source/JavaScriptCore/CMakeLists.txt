@@ -1206,6 +1206,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/ConcatKeyAtomStringCacheInlines.h
     runtime/Concurrency.h
     runtime/ConcurrentJSLock.h
+    runtime/ConditionObject.h
     runtime/ConfigFile.h
     runtime/ConsoleClient.h
     runtime/ConsoleObject.h
@@ -1557,6 +1558,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/LazyPropertyInlines.h
     runtime/LeafExecutable.h
     runtime/LiteralParser.h
+    runtime/LockObject.h
     runtime/Lookup.h
     runtime/MachineContext.h
     runtime/MapConstructor.h
@@ -1643,6 +1645,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/PutDirectIndexMode.h
     runtime/PutPropertySlot.h
     runtime/RandomizingFuzzerAgent.h
+    runtime/RaceAmplifier.h
     runtime/ReflectObject.h
     runtime/ReflectObjectInlines.h
     runtime/RegExp.h
@@ -1773,6 +1776,10 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/TemporalTimeZoneConstructor.h
     runtime/TemporalTimeZonePrototype.h
     runtime/TestRunnerUtils.h
+    runtime/ThreadAtomics.h
+    runtime/ThreadLocalObject.h
+    runtime/ThreadManager.h
+    runtime/ThreadObject.h
     runtime/ThrowScope.h
     runtime/ToNativeFromValue.h
     runtime/TypeError.h

@@ -1360,6 +1360,7 @@ private:
     friend class LLIntOffsetsExtractor;
     friend class SuspendExceptionScope;
     friend class VMTraps;
+    friend class GILParkSavedExecutionState; // Phase-1 JS-threads GIL stub: swaps per-thread execution state across parks (LockObject.h).
 };
 
 static_assert(OBJECT_OFFSETOF(VM, topEntryFrame) == OBJECT_OFFSETOF(VM, topCallFrame) + sizeof(void*), "We load/store these using a pair instruction");

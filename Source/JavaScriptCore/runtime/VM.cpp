@@ -110,6 +110,7 @@
 #include "PredictionFileCreatingFuzzerAgent.h"
 #include "ProfilerDatabase.h"
 #include "ProgramCodeBlockInlines.h"
+#include "RaceAmplifier.h"
 #include "ProgramExecutableInlines.h"
 #include "PropertyInlineCache.h"
 #include "PropertyTableInlines.h"
@@ -280,6 +281,10 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
 {
     if (vmCreationShouldCrash || g_jscConfig.vmCreationDisallowed) [[unlikely]]
         CRASH_WITH_EXTRA_SECURITY_IMPLICATION_AND_INFO(VMCreationDisallowed, "VM creation disallowed"_s, 0x4242424220202020, 0xbadbeef0badbeef, 0x1234123412341234, 0x1337133713371337);
+
+    // Arm the race amplifier (no-op unless --randomYieldPeriod is set).
+    // Idempotent across VM constructions; see runtime/RaceAmplifier.h.
+    RaceAmplifier::initialize();
 
     // Set up lazy initializers.
     {
@@ -545,11 +550,15 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     Config::finalize();
 
-    if (!isInMiniMode()) {
-        initializeAvailableTimeZones();
-        if (heapType == HeapType::Large)
-            dateCache.timeZoneDisplayName(/* isDST */ false);
-    }
+    // Intentionally do NOT eagerly resolve the host timezone / IANA timezone data
+    // here. ucal_open() + the IANA timezone enumeration + ICU likely-subtags load
+    // is one of the single largest contributors to interpreter startup CPU, and a
+    // large fraction of short-lived processes never touch Date/Intl/toLocaleString.
+    // DateCache::timeZoneCache() (via timeZoneCacheSlow()) and intlAvailableTimeZones()
+    // are both guarded by their own one-time initialization, so the work is performed
+    // lazily on first use instead. process.env.TZ is still honored eagerly because
+    // WTF::setTimeZoneOverride() only records the timezone id string (cheap) and the
+    // ICU calendar/likely-subtags resolution is deferred to first use anyway.
 
     // We must set this at the end only after the VM is fully initialized.
     WTF::storeStoreFence();

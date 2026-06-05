@@ -114,6 +114,23 @@ racy by design, since it survives refactors and is visible in review.
 - No JIT means JIT-only race classes (IC publication, code patching,
   CodeBlock reclamation) are out of scope here; those are covered by the
   race amplifier runs on normal builds (`docs/threads/` specs).
+- **Shared CLoopStack vs. parked threads (phase-1 GIL stub):** the CLoop
+  keeps interpreter frames on the VM's single `CLoopStack`, shared by every
+  JS thread under the GIL. A thread that parks (join, cond.wait,
+  Atomics.wait, blocked lock.hold) leaves its CLoop frames in that shared
+  stack; if another thread then runs and its interpreter SP walks below the
+  parked thread's frames, they get clobbered, and the parked thread crashes
+  on resume (observed: intermittent SEGV in `CLoop::execute` reloading
+  `Callee[cfr]` after a host call returns — `smoke.js`,
+  `condition-wait-notify.js`, roughly 1-in-3 under TSAN timing). These are
+  NOT data races (no TSAN race report fires); they are the shared
+  interpreter stack, which is CLoop-only — JIT/LLInt-asm builds use the
+  per-thread native stack, and the whole corpus is stable there (see the
+  Verify phase's debug-build stress runs). Goes away when the VM-lite
+  workstream gives each thread its own CLoop stack. Until then treat
+  multi-thread corpus runs under this build as best-effort: a clean run is
+  meaningful for race detection; an intermittent `CLoop::execute` SEGV with
+  this signature is this limitation, not a finding.
 - TSAN and ASAN cannot be combined in one build; the existing
   `ENABLE_SANITIZERS=address` debug default in `build.ts` is replaced, not
   augmented, by this configuration.

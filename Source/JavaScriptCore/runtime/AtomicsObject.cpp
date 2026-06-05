@@ -30,6 +30,8 @@
 #include "JSCInlines.h"
 #include "JSTypedArrays.h"
 #include "ReleaseHeapAccessScope.h"
+#include "ThreadAtomics.h"
+#include "ThreadManager.h"
 #include "TypedArrayController.h"
 #include "WaiterListManager.h"
 
@@ -98,6 +100,30 @@ void AtomicsObject::finishCreation(VM& vm, JSGlobalObject* globalObject)
 }
 
 namespace {
+
+// Property-path dispatch tags for the shared-memory Thread API
+// (SPEC-api 4.5): each RMW functor identifies which (object, propertyName)
+// operation it corresponds to, so the shared helpers below can route
+// non-typed-array objects to runtime/ThreadAtomics.cpp.
+enum class PropertyAtomicsKind : uint8_t { Add, Sub, And, Or, Xor, Exchange, CompareExchange, Load };
+
+constexpr AtomicsRMWOp toAtomicsRMWOp(PropertyAtomicsKind kind)
+{
+    switch (kind) {
+    case PropertyAtomicsKind::Add:
+        return AtomicsRMWOp::Add;
+    case PropertyAtomicsKind::Sub:
+        return AtomicsRMWOp::Sub;
+    case PropertyAtomicsKind::And:
+        return AtomicsRMWOp::And;
+    case PropertyAtomicsKind::Or:
+        return AtomicsRMWOp::Or;
+    case PropertyAtomicsKind::Xor:
+        return AtomicsRMWOp::Xor;
+    default:
+        return AtomicsRMWOp::Exchange;
+    }
+}
 
 template<typename Adaptor, typename Func>
 EncodedJSValue atomicReadModifyWriteCase(JSGlobalObject* globalObject, VM& vm, const JSValue* args, JSArrayBufferView* typedArrayView, uint64_t accessIndex, const Func& func)
@@ -183,6 +209,20 @@ EncodedJSValue atomicReadModifyWrite(JSGlobalObject* globalObject, VM& vm, const
 {
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    // SPEC-api 4.5 steps 1-2: with --useJSThreads, non-view objects route to
+    // the property-atomics path; typed-array views keep today's path.
+    if (useJSThreadsEnabled() && args[0].isObject() && !dynamicDowncast<JSArrayBufferView>(args[0])) [[unlikely]] {
+        JSObject* object = asObject(args[0]);
+        Identifier propertyKey = args[1].toPropertyKey(globalObject);
+        RETURN_IF_EXCEPTION(scope, { });
+        if constexpr (Func::propertyKind == PropertyAtomicsKind::Load)
+            RELEASE_AND_RETURN(scope, JSValue::encode(atomicsLoadOnProperty(globalObject, object, propertyKey)));
+        else if constexpr (Func::propertyKind == PropertyAtomicsKind::CompareExchange)
+            RELEASE_AND_RETURN(scope, JSValue::encode(atomicsCompareExchangeOnProperty(globalObject, object, propertyKey, args[2], args[3])));
+        else
+            RELEASE_AND_RETURN(scope, JSValue::encode(atomicsRMWOnProperty(globalObject, object, propertyKey, toAtomicsRMWOp(Func::propertyKind), args[2])));
+    }
+
     JSArrayBufferView* typedArrayView = validateIntegerTypedArray<TypedArrayOperationMode::ReadWrite>(globalObject, args[0]);
     RETURN_IF_EXCEPTION(scope, { });
 
@@ -224,6 +264,7 @@ EncodedJSValue atomicReadModifyWrite(JSGlobalObject* globalObject, CallFrame* ca
 
 struct AddFunc {
     static constexpr unsigned numExtraArgs = 1;
+    static constexpr PropertyAtomicsKind propertyKind = PropertyAtomicsKind::Add;
     
     template<typename T>
     T NODELETE operator()(T* ptr, const T* args) const
@@ -234,6 +275,7 @@ struct AddFunc {
 
 struct AndFunc {
     static constexpr unsigned numExtraArgs = 1;
+    static constexpr PropertyAtomicsKind propertyKind = PropertyAtomicsKind::And;
     
     template<typename T>
     T NODELETE operator()(T* ptr, const T* args) const
@@ -244,6 +286,7 @@ struct AndFunc {
 
 struct CompareExchangeFunc {
     static constexpr unsigned numExtraArgs = 2;
+    static constexpr PropertyAtomicsKind propertyKind = PropertyAtomicsKind::CompareExchange;
     
     template<typename T>
     T NODELETE operator()(T* ptr, const T* args) const
@@ -256,6 +299,7 @@ struct CompareExchangeFunc {
 
 struct ExchangeFunc {
     static constexpr unsigned numExtraArgs = 1;
+    static constexpr PropertyAtomicsKind propertyKind = PropertyAtomicsKind::Exchange;
     
     template<typename T>
     T NODELETE operator()(T* ptr, const T* args) const
@@ -266,6 +310,7 @@ struct ExchangeFunc {
 
 struct LoadFunc {
     static constexpr unsigned numExtraArgs = 0;
+    static constexpr PropertyAtomicsKind propertyKind = PropertyAtomicsKind::Load;
     
     template<typename T>
     T operator()(T* ptr, const T*) const
@@ -276,6 +321,7 @@ struct LoadFunc {
 
 struct OrFunc {
     static constexpr unsigned numExtraArgs = 1;
+    static constexpr PropertyAtomicsKind propertyKind = PropertyAtomicsKind::Or;
     
     template<typename T>
     T NODELETE operator()(T* ptr, const T* args) const
@@ -286,6 +332,7 @@ struct OrFunc {
 
 struct SubFunc {
     static constexpr unsigned numExtraArgs = 1;
+    static constexpr PropertyAtomicsKind propertyKind = PropertyAtomicsKind::Sub;
     
     template<typename T>
     T NODELETE operator()(T* ptr, const T* args) const
@@ -296,6 +343,7 @@ struct SubFunc {
 
 struct XorFunc {
     static constexpr unsigned numExtraArgs = 1;
+    static constexpr PropertyAtomicsKind propertyKind = PropertyAtomicsKind::Xor;
     
     template<typename T>
     T NODELETE operator()(T* ptr, const T* args) const
@@ -360,6 +408,14 @@ EncodedJSValue atomicStore(JSGlobalObject* globalObject, VM& vm, JSValue base, J
     // https://tc39.es/ecma262/#sec-atomics.store
 
     auto scope = DECLARE_THROW_SCOPE(vm);
+
+    // SPEC-api 4.5 steps 1-2: property-atomics path for non-view objects.
+    if (useJSThreadsEnabled() && base.isObject() && !dynamicDowncast<JSArrayBufferView>(base)) [[unlikely]] {
+        JSObject* object = asObject(base);
+        Identifier propertyKey = index.toPropertyKey(globalObject);
+        RETURN_IF_EXCEPTION(scope, { });
+        RELEASE_AND_RETURN(scope, JSValue::encode(atomicsStoreOnProperty(globalObject, object, propertyKey, operand)));
+    }
 
     JSArrayBufferView* typedArrayView = validateIntegerTypedArray<TypedArrayOperationMode::ReadWrite>(globalObject, base);
     RETURN_IF_EXCEPTION(scope, { });
@@ -482,6 +538,19 @@ JSC_DEFINE_HOST_FUNCTION(atomicsFuncWait, (JSGlobalObject* globalObject, CallFra
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    if (useJSThreadsEnabled()) [[unlikely]] {
+        JSValue base = callFrame->argument(0);
+        if (base.isObject() && !dynamicDowncast<JSArrayBufferView>(base)) {
+            Identifier propertyKey = callFrame->argument(1).toPropertyKey(globalObject);
+            RETURN_IF_EXCEPTION(scope, { });
+            RELEASE_AND_RETURN(scope, JSValue::encode(atomicsWaitOnProperty(globalObject, asObject(base), propertyKey, callFrame->argument(2), callFrame->argument(3))));
+        }
+        // 4.5-1a (GIL-phase-only): a cross-Thread sync typed-array wait would
+        // deadlock under the GIL; gate it off on spawned Threads.
+        if (ThreadManager::isJSThreadCurrent())
+            return throwVMTypeError(globalObject, scope, "Atomics.wait cannot be called from the current thread."_s);
+    }
+
     auto* typedArrayView = validateIntegerTypedArray<TypedArrayOperationMode::Wait>(globalObject, callFrame->argument(0));
     RETURN_IF_EXCEPTION(scope, { });
 
@@ -513,6 +582,15 @@ JSC_DEFINE_HOST_FUNCTION(atomicsFuncWaitAsync, (JSGlobalObject* globalObject, Ca
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
+
+    if (useJSThreadsEnabled()) [[unlikely]] {
+        JSValue base = callFrame->argument(0);
+        if (base.isObject() && !dynamicDowncast<JSArrayBufferView>(base)) {
+            Identifier propertyKey = callFrame->argument(1).toPropertyKey(globalObject);
+            RETURN_IF_EXCEPTION(scope, { });
+            RELEASE_AND_RETURN(scope, JSValue::encode(atomicsWaitAsyncOnProperty(globalObject, asObject(base), propertyKey, callFrame->argument(2), callFrame->argument(3))));
+        }
+    }
 
     auto* typedArrayView = validateIntegerTypedArray<TypedArrayOperationMode::Wait>(globalObject, callFrame->argument(0));
     RETURN_IF_EXCEPTION(scope, { });
@@ -595,6 +673,15 @@ JSC_DEFINE_HOST_FUNCTION(atomicsFuncNotify, (JSGlobalObject* globalObject, CallF
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
+
+    if (useJSThreadsEnabled()) [[unlikely]] {
+        JSValue base = callFrame->argument(0);
+        if (base.isObject() && !dynamicDowncast<JSArrayBufferView>(base)) {
+            Identifier propertyKey = callFrame->argument(1).toPropertyKey(globalObject);
+            RETURN_IF_EXCEPTION(scope, { });
+            RELEASE_AND_RETURN(scope, JSValue::encode(atomicsNotifyOnProperty(globalObject, asObject(base), propertyKey, callFrame->argument(2))));
+        }
+    }
 
     auto* typedArrayView = validateIntegerTypedArray<TypedArrayOperationMode::Wait>(globalObject, callFrame->argument(0));
     RETURN_IF_EXCEPTION(scope, { });

@@ -817,9 +817,9 @@ set(WTF_PRIVATE_INCLUDE_DIRECTORIES
 
 set(WTF_LIBRARIES
     ${CMAKE_DL_LIBS}
-    ICU::data
     ICU::i18n
     ICU::uc
+    ICU::data
 )
 
 set(WTF_FRAMEWORKS bmalloc)

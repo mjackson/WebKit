@@ -1,0 +1,35 @@
+# ThreadSanitizer suppressions for the JSC TSAN no-JIT build (tsan.sh).
+#
+# Pass at runtime via:
+#   TSAN_OPTIONS="suppressions=$PWD/Tools/tsan/suppressions.txt" WebKitBuild/TSan/bin/jsc ...
+#
+# RULES — read before adding anything:
+#   1. Only KNOWN-BENIGN, PRE-EXISTING races may be suppressed here, i.e.
+#      races that exist in the upstream/serial JSC tree independent of the
+#      shared-memory Thread work (e.g. intentionally racy profiling
+#      counters that concurrent compiler threads already read).
+#   2. Every entry MUST carry a one-line justification comment directly
+#      above it explaining why the race is benign and where it predates
+#      the threads work (file:line or upstream reference).
+#   3. NEVER suppress a race in code touched by the threads workstreams
+#      (object model, heap handout, atom table, watchpoints, VM-lite).
+#      Those are bugs; fix them instead.
+#   4. Prefer the narrowest matcher available: `race:Function` over
+#      `race:file.cpp` over `race:module`. No blanket suppressions.
+#
+# Syntax reference:
+#   race:FunctionNameSubstring
+#   race:path/substring.cpp
+#   deadlock:FunctionNameSubstring
+#
+# STATUS (Verify phase): intentionally still empty. TSAN runs of
+# hello-world and the single-layer corpus files (lock-hold-mutual-exclusion,
+# property-read-write, atomics-object-basic, condition-wait-notify) under
+# WebKitBuild/TSan/bin/jsc reported ZERO data races, so there is nothing to
+# suppress. The only TSAN noise ever seen was:
+#   - "thread leak" on every Thread() spawn -- fixed in source
+#     (constructThread now detaches the native handle, ThreadObject.cpp),
+#     not suppressed;
+#   - an intermittent SEGV in CLoop::execute -- the shared-CLoopStack
+#     limitation of the phase-1 GIL stub (documented in
+#     docs/threads/TSAN.md "Known limitations"), not a data race.

@@ -34,6 +34,7 @@
 
 #include "AggregateError.h"
 #include "SuppressedError.h"
+#include "ThreadObject.h"
 #include "InternalFieldTuple.h"
 #include "AggregateErrorConstructorInlines.h"
 #include "SuppressedErrorConstructorInlines.h"
@@ -1623,6 +1624,15 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
 
     if (Options::useSharedArrayBuffer())
         putDirectWithoutTransition(vm, vm.propertyNames->SharedArrayBuffer, m_sharedArrayBufferStructure.constructor(this), static_cast<unsigned>(PropertyAttribute::DontEnum));
+
+    if (useJSThreadsEnabled()) {
+        // Shared-memory Thread API (docs/threads/SPEC-api.md 9.2-2).
+        putDirectWithoutTransition(vm, Identifier::fromString(vm, "Thread"_s), createThreadProperty(vm, this), static_cast<unsigned>(PropertyAttribute::DontEnum));
+        putDirectWithoutTransition(vm, Identifier::fromString(vm, "Lock"_s), createLockProperty(vm, this), static_cast<unsigned>(PropertyAttribute::DontEnum));
+        putDirectWithoutTransition(vm, Identifier::fromString(vm, "Condition"_s), createConditionProperty(vm, this), static_cast<unsigned>(PropertyAttribute::DontEnum));
+        putDirectWithoutTransition(vm, Identifier::fromString(vm, "ThreadLocal"_s), createThreadLocalProperty(vm, this), static_cast<unsigned>(PropertyAttribute::DontEnum));
+        putDirectWithoutTransition(vm, Identifier::fromString(vm, "ConcurrentAccessError"_s), createConcurrentAccessErrorProperty(vm, this), static_cast<unsigned>(PropertyAttribute::DontEnum));
+    }
 
     if (Options::useExplicitResourceManagement()) {
         putDirectWithoutTransition(vm, vm.propertyNames->SuppressedError, m_suppressedErrorStructure.constructor(this), static_cast<unsigned>(PropertyAttribute::DontEnum));
