@@ -1259,11 +1259,14 @@ private:
     mutable InlineWatchpointSet m_transitionWatchpointSet;
 
     // SPEC-objectmodel §5 (frozen member set, Structure.h:1107 anchor): the two
-    // TTL watchpoint sets. IsWatched at construction flag-on; ClearWatchpoint
-    // (inert) flag-off. Fired only world-stopped (I13), via the §9.4 fire
-    // functions above.
-    mutable InlineWatchpointSet m_transitionThreadLocalWatchpointSet;
-    mutable InlineWatchpointSet m_writeThreadLocalWatchpointSet;
+    // TTL watchpoint sets. NSDMI ClearWatchpoint (inert, I22) so the flag-off
+    // constructors pay only a constant store; flag-on each constructor's single
+    // Options::useJSThreads() block startWatching()es them, which for a thin
+    // ClearWatchpoint set yields the identical IsWatched encoding as
+    // constructing with IsWatched. Fired only world-stopped (I13), via the
+    // §9.4 fire functions above.
+    mutable InlineWatchpointSet m_transitionThreadLocalWatchpointSet { ClearWatchpoint };
+    mutable InlineWatchpointSet m_writeThreadLocalWatchpointSet { ClearWatchpoint };
 
     static_assert(firstOutOfLineOffset < 256);
 

@@ -1855,6 +1855,24 @@ bool JSObject::putByIndex(JSCell* cell, JSGlobalObject* globalObject, unsigned p
 
 ArrayStorage* JSObject::enterDictionaryIndexingModeWhenArrayStorageAlreadyExists(VM& vm, ArrayStorage* storage)
 {
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §4.6/I31 (Task 8): flag-on, every ArrayStorage access
+    // and relayout is cell-locked, and the butterfly republication below must
+    // preserve the installer's tag verbatim (AS-COPY, T3/I17) - the word may
+    // legitimately be foreign-tagged or SW=1 here (e.g. a foreign
+    // defineOwnIndexedProperty entering dictionary indexing mode), which the
+    // owner-only setButterfly/storeTaggedButterflyWordConcurrent path rejects.
+    // The DeferGC precedes the lock per O1's sanctioned back-edge (the
+    // sparse-map and resizeArray allocations run under the lock), mirroring
+    // increaseVectorLength.
+    std::optional<DeferGC> threadsDeferGC;
+    std::optional<Locker<JSCellLock>> threadsLocker;
+    if (Options::useJSThreads()) [[unlikely]] {
+        threadsDeferGC.emplace(vm);
+        threadsLocker.emplace(cellLock());
+        storage = arrayStorage(); // Re-read under the lock: a racing AS-COPY may have republished the butterfly.
+    }
+#endif
     SparseArrayValueMap* map = storage->m_sparseMap.get();
 
     if (!map)
@@ -1880,8 +1898,13 @@ ArrayStorage* JSObject::enterDictionaryIndexingModeWhenArrayStorageAlreadyExists
     newButterfly->arrayStorage()->m_indexBias = 0;
     newButterfly->arrayStorage()->setVectorLength(0);
     newButterfly->arrayStorage()->m_sparseMap.set(vm, this, map);
-    setButterfly(vm, newButterfly);
-    
+#if USE(JSVALUE64)
+    if (Options::useJSThreads()) [[unlikely]] // §4.6 AS-COPY publication form (T3/I17), under the cell lock taken above.
+        publishArrayStorageButterflyLocked(vm, static_cast<JSObjectWithButterfly*>(this), newButterfly);
+    else
+#endif
+        setButterfly(vm, newButterfly);
+
     return newButterfly->arrayStorage();
 }
 
@@ -6454,6 +6477,41 @@ void JSObject::putOwnDataPropertyBatching(VM& vm, UniquedStringImpl** properties
 {
     unsigned i = 0;
     Structure* structure = this->structure();
+#if USE(JSVALUE64)
+    // SPEC-objectmodel §9.5/§6 hardening: the batched fast path below walks
+    // the transition chain and republishes storage with the legacy
+    // unconditional sequence (raw flat-only butterfly() deref +
+    // allocateMoreOutOfLineStorage + nukeStructureAndSetButterfly +
+    // setStructure), with no §2 regime dispatch and no E4 gate. Its entry
+    // points (Object.assign / copyDataProperties / object clone fast paths)
+    // can run against an object another thread has promoted to the segmented
+    // regime, where the flat-only butterfly() CONTRACT assertion trips (and a
+    // release build would deref a ButterflySpine as a flat Butterfly).
+    // Flag-on, take the routed per-property path: putOwnDataProperty funnels
+    // into putDirectInternal's §6 cell-locked / E4-gated add protocols.
+    // Flag-off this branch is dead (I22).
+    //
+    // FIXME(threads): this routing closes a latent batched-add hole but is
+    // NOT the fix for the i03-i37-same-shape-add-storm assertion
+    // (fix-butterfly-regime-assert): that abort is reported in
+    // JSObjectWithButterfly::butterfly() (JSObject.h, derived-typed
+    // receiver), which this function cannot bind, and the test never reaches
+    // these batching entry points. Re-triage IDENTIFIED the caller: the
+    // op_spread slow path reaches JSCellButterfly::createFromArray
+    // (runtime/JSCellButterfly.h), whose Contiguous/Int32/Double fast loops
+    // deref array->butterfly() with no mayBeSegmentedButterfly() guard
+    // (guard idiom as in ArrayPrototype.cpp's spread fast path); a
+    // same-class flat-only deref also exists in dfg/DFGOperations.cpp's
+    // pop-recover path. Both files are outside this item's file scope, so
+    // the guard must land there after re-scope.
+    if (Options::useJSThreads()) [[unlikely]] {
+        for (; i < size; ++i) {
+            PutPropertySlot putPropertySlot(this, true);
+            putOwnDataProperty(vm, properties[i], JSValue::decode(values[i]), putPropertySlot);
+        }
+        return;
+    }
+#endif
     if (!(structure->isDictionary() || (structure->transitionCountEstimate() + size) > Structure::s_maxTransitionLength || !structure->canPerformFastPropertyEnumerationCommon())) {
         Vector<PropertyOffset, 16> offsets(size, [&](size_t index) -> std::optional<PropertyOffset> {
             PropertyName propertyName(properties[index]);

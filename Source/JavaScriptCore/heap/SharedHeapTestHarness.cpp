@@ -34,18 +34,32 @@
 #include "HeapClientSet.h"
 #include "HeapInlines.h"
 #include "LocalAllocatorInlines.h"
+#include "MachineStackMarker.h"
+#include "MarkedBlockInlines.h"
 #include "MarkedSpace.h"
 #include "Options.h"
 #include "ReleaseHeapAccessScope.h"
 #include <algorithm>
 #include <atomic>
+#include <wtf/HashSet.h>
+#include <wtf/Lock.h>
+#include <wtf/NeverDestroyed.h>
 #include <iterator>
+#include <new>
 #include <wtf/DataLog.h>
 #include <wtf/Seconds.h>
 #include <wtf/Threading.h>
 #include <wtf/Vector.h>
 
 namespace JSC {
+
+// FIXME(fix-shared-heap-ring-liveness-5): TEMPORARY round-5 diagnostic seam,
+// defined in Heap.cpp next to sharedGCStackRootSnapshot() (deliberately no
+// header change — strip both sides together). Heap::gatherStackRoots calls
+// it at the end of every shared-mode gather with the gather's full
+// conservative root set, world stopped for all clients. Atomic because the
+// gather can run on a parallel marker helper created before the store.
+extern std::atomic<void (*)(Heap&, HeapCell**, size_t)> g_sharedGCConservativeRootAuditHook;
 
 namespace {
 
@@ -105,12 +119,49 @@ bool verifyCell(const void* cell, size_t size, uint64_t pattern)
 // I4(b)-registered thread, I12) keeps every retained cell alive across
 // conducted collections. Never heap-allocate this (a Vector's backing store
 // is malloc memory and would NOT be scanned).
+struct ScratchRing;
+
+// FIXME(fix-shared-heap-corruption): TEMPORARY round-3 diagnostic — strip
+// before declaring the gates green. Registry of every live stack ring.
+// Mutators only append/remove under the lock at ring construction/
+// destruction (never while parked), so the world-stopped hook below cannot
+// deadlock against a stopped holder; ring CONTENTS are only mutated by the
+// owning thread while it holds its client's heap access, so reading them
+// world-stopped is race-free.
+static Lock s_ringRegistryLock;
+static Vector<ScratchRing*>& ringRegistry() WTF_REQUIRES_LOCK(s_ringRegistryLock)
+{
+    static NeverDestroyed<Vector<ScratchRing*>> registry;
+    return registry.get();
+}
+
 struct ScratchRing {
     static constexpr unsigned capacity = 32;
     void* cells[capacity] = {};
     size_t sizes[capacity] = {};
     uint64_t patterns[capacity] = {};
     unsigned cursor { 0 };
+
+    // FIXME(fix-shared-heap-ring-liveness-5): TEMPORARY round-5 diagnostic —
+    // the owning thread, captured for the gather-time audit (see
+    // auditRingsAgainstGatheredRoots). The ring is stack-resident in the
+    // owner's frame, so the owner strictly outlives the ring and a raw
+    // pointer is safe; written once at construction, read only while the
+    // world is stopped for all clients.
+    Thread* owner { nullptr };
+
+    ScratchRing()
+    {
+        owner = &Thread::currentSingleton();
+        Locker locker { s_ringRegistryLock };
+        ringRegistry().append(this);
+    }
+
+    ~ScratchRing()
+    {
+        Locker locker { s_ringRegistryLock };
+        ringRegistry().removeFirst(this);
+    }
 
     // Verify-then-replace one slot; RELEASE_ASSERTs pattern integrity (I1).
     void step(void* newCell, size_t newSize, uint64_t newPattern)
@@ -137,6 +188,53 @@ struct ScratchRing {
             cells[i] = nullptr;
     }
 };
+
+// FIXME(fix-shared-heap-ring-liveness-6): ASAN's use-after-return mode
+// (default-on in Linux clang ASAN builds; only the Cocoa port passes
+// -fsanitize-address-use-after-return=never, see OptionsCocoa.cmake)
+// relocates ordinary locals of instrumented frames into a heap-backed "fake
+// stack" frame that lies OUTSIDE Thread::stack() bounds, so the §10.6
+// suspend-and-copy conservative scan never reads it. A plain
+// `ScratchRing ring` is therefore NOT stack-resident under ASAN — exactly
+// the round-5 audit verdict (owner registered in MachineThreads,
+// ringWithinOwnerStackBounds = false on every flagged cell): the scan never
+// had a chance, the cells end the conducted cycle with stale marks AND stale
+// newlyAllocated bits, and the round-3 safepoint hook traps. Only a
+// VARIABLE-size (dynamic) alloca is never relocated to the fake stack —
+// round 6 showed empirically that a constant-size __builtin_alloca is NOT
+// enough (see FIXME(fix-shared-heap-ring-liveness-8) below) — so
+// placement-constructing the ring in dynamically sized __builtin_alloca
+// storage guarantees real-stack residency in every build mode — keeping the
+// corpus an honest exercise of the I12 STACK clause (no
+// synthetic root source is added; the §10.6 scan itself must produce the
+// cells). NOTE: never expand DECLARE_STACK_SCRATCH_RING inside a loop body —
+// alloca storage is only reclaimed on function return.
+#if ASAN_ENABLED && defined(__GNUC__)
+struct ScratchRingDestroyer {
+    ScratchRing* ring;
+    ~ScratchRingDestroyer() { ring->~ScratchRing(); }
+};
+// FIXME(fix-shared-heap-ring-liveness-8): the round-6 alloca arm passed a
+// COMPILE-TIME-CONSTANT size, and clang lowers a constant-size
+// __builtin_alloca as a STATIC alloca (static because every DECLARE site is
+// its scope's first declaration, placing the alloca in the entry block; a
+// future mid-function expansion would invalidate this analysis) — which
+// ASAN's use-after-return mode relocates onto the heap-backed fake stack
+// exactly like an ordinary local (the round-6 verdict:
+// ringWithinOwnerStackBounds stayed false). Only VARIABLE-SIZE allocas are
+// lowered as true dynamic allocas, which ASAN instruments in place
+// (__asan_alloca_poison) but never relocates, so the ring storage stays
+// inside Thread::stack() bounds in every ASAN mode. The volatile read makes
+// the size opaque to constant folding at any optimization level. The §10.6
+// suspend-and-copy scan reads the region via SUPPRESS_ASAN copyMemory, so
+// the surrounding alloca redzone poison is harmless.
+#define DECLARE_STACK_SCRATCH_RING(name) \
+    volatile size_t name##AllocaSize = sizeof(ScratchRing); \
+    ScratchRing& name = *new (__builtin_alloca(name##AllocaSize)) ScratchRing; \
+    ScratchRingDestroyer name##Destroyer { &name }
+#else
+#define DECLARE_STACK_SCRATCH_RING(name) ScratchRing name
+#endif
 
 void* allocateScratch(JSC::Heap& server, GCClient::Heap& client, size_t size)
 {
@@ -188,6 +286,195 @@ struct PhaseBarrier {
     }
 };
 
+// FIXME(fix-shared-heap-corruption): TEMPORARY round-3 diagnostic — strip
+// before declaring the gates green. Runs inside
+// Heap::runSafepointHooksAndReclaim() (world stopped, after the conducted
+// drain's last endMarking, before any post-resume sweep can act on the
+// cycle's liveness bits). Round-2's endMarking probe only checks cells that
+// WERE gathered as conservative roots; this hook checks every cell every
+// live harness ring ACTUALLY holds. A trap here with round-2 silent in the
+// same run proves the §10.6 suspend-and-copy scan never produced the cell
+// (stack-coverage miss — MachineThreads layer); silence here plus a later
+// harness pattern assert proves a marked/newlyAllocated cell was
+// subsequently handed out or freed (sweep/steal layer). Caveat (review): a
+// trap with round-2 silent can also mean a cell wrongly freed by a sweep in
+// an EARLIER stop — disambiguate via the logged marksStale/
+// newlyAllocatedStale bits and the ASAN report, not the trap site alone.
+static void verifyRingLivenessHook(JSC::Heap& heap)
+{
+    if (!heap.isSharedServer())
+        return;
+    HeapVersion markingVersion = heap.objectSpace().markingVersion();
+    Locker locker { s_ringRegistryLock };
+    for (ScratchRing* ring : ringRegistry()) {
+        for (unsigned i = 0; i < ScratchRing::capacity; ++i) {
+            void* pointer = ring->cells[i];
+            if (!pointer)
+                continue;
+            auto* cell = static_cast<HeapCell*>(pointer);
+            if (cell->isPreciseAllocation()) {
+                if (!cell->preciseAllocation().isLive()) [[unlikely]] {
+                    dataLogLn(
+                        "SharedHeapTestHarness diagnostic (fix-shared-heap-corruption): ring-held precise cell ",
+                        RawPointer(cell), " has no liveness at the stop-the-world safepoint.");
+                    RELEASE_ASSERT_NOT_REACHED();
+                }
+                continue;
+            }
+            MarkedBlock& block = cell->markedBlock();
+            bool marked = !block.areMarksStale(markingVersion) && block.isMarkedRaw(cell);
+            bool newlyAllocated = !block.isNewlyAllocatedStale() && block.isNewlyAllocated(cell);
+            if (!marked && !newlyAllocated) [[unlikely]] {
+                dataLogLn(
+                    "SharedHeapTestHarness diagnostic (fix-shared-heap-corruption): ring-held cell ",
+                    RawPointer(cell), " in block ", RawPointer(&block),
+                    " of directory ", RawPointer(block.handle().directory()),
+                    " (cellSize = ", block.handle().directory()->cellSize(),
+                    ") has no version-current liveness bit at the stop-the-world safepoint (marksStale = ",
+                    block.areMarksStale(markingVersion),
+                    ", newlyAllocatedStale = ", block.isNewlyAllocatedStale(), ")");
+                RELEASE_ASSERT_NOT_REACHED();
+            }
+        }
+    }
+}
+
+// FIXME(fix-shared-heap-ring-liveness-5): TEMPORARY round-5 diagnostic —
+// strip before declaring the gates green. Review round 5 REJECTED landing an
+// I12 m_currentBlock root walk before the producer-side question is
+// answered: the round-3 trap (marksStale && newlyAllocatedStale) proves a
+// ring-held, stack-resident cell ended a conducted cycle with no
+// version-current liveness bit, but cannot say WHY the §10.6 suspend-and-
+// copy scan never produced the pointer. ScratchRing::cells[] lives in an
+// I4(b)-registered thread's frame, so a sound producer must yield every
+// non-null ring cell as a conservative root each gather (the conservative
+// filter accepts them: the step-5 flush stamps version-current newlyAllocated
+// bits before gather, and MarkedBlock::Handle::isLive checks those first).
+// This audit runs at the END of every shared-mode gatherStackRoots (world
+// stopped for all clients, conductor context — ring contents and the
+// registry are race-free to read, same argument as verifyRingLivenessHook)
+// and, for each ring cell ABSENT from the just-gathered root set, logs the
+// three discriminating facts the reviewers asked for:
+//   (a) filter side — does the TinyBloomFilter rule the cell's block out, and
+//       is the block even in the MarkedBlockSet? (true + missing-from-set =
+//       block-publication race; ruled out + in-set = bloom false negative,
+//       which must never happen — bloom filters have no false negatives —
+//       so that combination indicts an unsynchronized filter read.)
+//   (b) scan side — is the owning thread currently registered in
+//       MachineThreads, and do WTF's stack bounds for it contain the ring?
+//       (no/no = the §10.6 scan never had a chance: I4(b) registration or
+//       suspend-and-copy coverage miss — the MachineThreads-layer verdict.)
+//   (c) victim side — the cell's isLive()/mark/newlyAllocated bits at gather
+//       time. (dead already = an EARLIER stop's sweep is the killer; alive
+//       but missing = THIS gather's production failed.)
+// It deliberately only LOGS — the gathered root set is not modified, no
+// liveness is synthesized, so nothing is masked: the round-3 hook still owns
+// the trap and one verify run yields trap + provenance together. Only after
+// the producer-side verdict is in should the I12 m_currentBlock clause be
+// implemented (and then with a retained cross-check that ring cells are ALSO
+// produced by the §10.6 scan, so the corpus keeps exercising the I12 STACK
+// clause instead of being satisfied by a redundant root source).
+constexpr unsigned maxAuditLogLines = 32;
+
+static void auditRingsAgainstGatheredRoots(JSC::Heap& heap, HeapCell** rootsBegin, size_t rootCount)
+{
+    if (!heap.isSharedServer())
+        return;
+
+    UncheckedKeyHashSet<void*> gathered;
+    for (size_t i = 0; i < rootCount; ++i)
+        gathered.add(rootsBegin[i]);
+
+    HeapVersion markingVersion = heap.objectSpace().markingVersion();
+    unsigned missing = 0;
+    unsigned logged = 0;
+
+    Locker locker { s_ringRegistryLock };
+    for (ScratchRing* ring : ringRegistry()) {
+        // (b) scan side, computed once per ring (the whole cells[] array
+        // shares one owner and one frame).
+        bool ownerRegistered = false;
+        {
+            MachineThreads& machineThreads = heap.machineThreads();
+            Locker machineLocker { machineThreads.getLock() };
+            for (auto& thread : machineThreads.threads(machineLocker)) {
+                if (thread.ptr() == ring->owner) {
+                    ownerRegistered = true;
+                    break;
+                }
+            }
+        }
+        bool ringWithinOwnerStack = ring->owner && ring->owner->stack().contains(ring);
+
+        for (unsigned i = 0; i < ScratchRing::capacity; ++i) {
+            void* pointer = ring->cells[i];
+            if (!pointer || gathered.contains(pointer))
+                continue;
+            ++missing;
+            if (logged >= maxAuditLogLines)
+                continue;
+            ++logged;
+            auto* cell = static_cast<HeapCell*>(pointer);
+            if (cell->isPreciseAllocation()) {
+                dataLogLn(
+                    "SharedHeapTestHarness audit (fix-shared-heap-ring-liveness-5): ring-held PRECISE cell ",
+                    RawPointer(cell), " absent from gathered conservative roots (isLive = ",
+                    cell->preciseAllocation().isLive(),
+                    ", ownerThread = ", RawPointer(ring->owner),
+                    ", ownerRegisteredInMachineThreads = ", ownerRegistered,
+                    ", ringWithinOwnerStackBounds = ", ringWithinOwnerStack, ")");
+                continue;
+            }
+            MarkedBlock& block = cell->markedBlock();
+            // (a) filter side.
+            bool bloomRulesOut = heap.objectSpace().blocks().filter().ruleOut(reinterpret_cast<uintptr_t>(&block));
+            bool inBlockSet = heap.objectSpace().blocks().set().contains(&block);
+            // (c) victim side.
+            bool live = block.handle().isLive(cell);
+            dataLogLn(
+                "SharedHeapTestHarness audit (fix-shared-heap-ring-liveness-5): ring-held cell ",
+                RawPointer(cell), " absent from gathered conservative roots: block ", RawPointer(&block),
+                " of directory ", RawPointer(block.handle().directory()),
+                " (cellSize = ", block.handle().directory()->cellSize(),
+                "), bloomFilterRulesOut = ", bloomRulesOut,
+                ", inMarkedBlockSet = ", inBlockSet,
+                ", isLive = ", live,
+                ", marksStale = ", block.areMarksStale(markingVersion),
+                ", isMarked = ", !block.areMarksStale(markingVersion) && block.isMarkedRaw(cell),
+                ", newlyAllocatedStale = ", block.isNewlyAllocatedStale(),
+                ", isNewlyAllocated = ", !block.isNewlyAllocatedStale() && block.isNewlyAllocated(cell),
+                ", ownerThread = ", RawPointer(ring->owner),
+                ", ownerRegisteredInMachineThreads = ", ownerRegistered,
+                ", ringWithinOwnerStackBounds = ", ringWithinOwnerStack);
+        }
+    }
+    if (missing) {
+        dataLogLn(
+            "SharedHeapTestHarness audit (fix-shared-heap-ring-liveness-5): ", missing,
+            " ring cell(s) absent from this gather's conservative root set (", logged,
+            " logged, cap ", maxAuditLogLines, "; gathered root count = ", rootCount, ").");
+    }
+}
+
+// FIXME(fix-shared-heap-corruption): TEMPORARY round-3 diagnostic — the hook
+// registry has no removal API and does NOT dedupe (same pattern as the
+// epochReclaim hook), so install once per process via this single shared
+// flag, referenced from every scenario entry path.
+static std::atomic<bool> s_ringHookInstalled { false };
+
+void installRingLivenessHookOnce(JSC::Heap& server)
+{
+    bool expected = false;
+    if (s_ringHookInstalled.compare_exchange_strong(expected, true)) {
+        // FIXME(fix-shared-heap-ring-liveness-5): TEMPORARY round-5 audit —
+        // producer-side provenance for the round-3 trap. Release store: the
+        // reader can be a parallel marker helper created before this store
+        // (see the seam's comment in Heap.cpp).
+        g_sharedGCConservativeRootAuditHook.store(auditRingsAgainstGatheredRoots, std::memory_order_release);
+        server.addStopTheWorldSafepointHook(&verifyRingLivenessHook);
+    }
+}
+
 // Spawns `threadCount` raw WTF::Threads, each with a stack-local standalone
 // GCClient::Heap over `server` (markStandalone() + attachCurrentThread()),
 // runs `body(client, threadIndex)`, detaches, and joins all. The caller must
@@ -196,6 +483,9 @@ struct PhaseBarrier {
 template<typename Body>
 void runStandaloneClientThreads(JSC::Heap& server, unsigned threadCount, const Body& body)
 {
+    // FIXME(fix-shared-heap-corruption): TEMPORARY round-3 diagnostic.
+    installRingLivenessHookOnce(server);
+
     Vector<Ref<Thread>> threads;
     threads.reserveInitialCapacity(threadCount);
     for (unsigned threadIndex = 0; threadIndex < threadCount; ++threadIndex) {
@@ -335,7 +625,7 @@ bool SharedHeapTestHarness::runAllocationStormScenario(JSC::Heap& server, unsign
 
     ReleaseHeapAccessScope releaseScope(server); // Caller parks in join below.
     runStandaloneClientThreads(server, threadCount, [&](GCClient::Heap& client, unsigned threadIndex) {
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         for (unsigned i = 0; i < perThread; ++i) {
             size_t size = smallSizes[(threadIndex + i) % smallSizeCount];
             uint64_t pattern = mixPattern(threadIndex, i);
@@ -368,7 +658,7 @@ bool SharedHeapTestHarness::runPreciseAllocationStormScenario(JSC::Heap& server,
 
     ReleaseHeapAccessScope releaseScope(server);
     runStandaloneClientThreads(server, threadCount, [&](GCClient::Heap& client, unsigned threadIndex) {
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         for (unsigned i = 0; i < perThread; ++i) {
             size_t size = preciseSizes[(threadIndex + i) % preciseSizeCount];
             uint64_t pattern = mixPattern(threadIndex, i ^ 0xBEEF);
@@ -406,7 +696,7 @@ bool SharedHeapTestHarness::runStealRaceScenario(JSC::Heap& server, unsigned thr
     ReleaseHeapAccessScope releaseScope(server);
     PhaseBarrier barrier;
     runStandaloneClientThreads(server, threadCount, [&](GCClient::Heap& client, unsigned threadIndex) {
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         for (unsigned round = 0; round < rounds; ++round) {
             size_t size = (round & 1) ? 512 : 32;
             // Dense burst, mostly unretained (the ring keeps only the last
@@ -438,6 +728,12 @@ bool SharedHeapTestHarness::runClientChurnVsGCScenario(JSC::Heap& server, unsign
     // and pounds collections (also pinning size() >= 2 so ISS stays up for
     // the whole storm); the rest construct/attach/detach/destroy whole
     // clients in a loop.
+    // FIXME(fix-shared-heap-corruption): TEMPORARY round-3 diagnostic — see
+    // verifyRingLivenessHook(); heap-client-churn.js runs this scenario first,
+    // before any runStandaloneClientThreads call, so install here too (the
+    // shared flag makes this idempotent).
+    installRingLivenessHookOnce(server);
+
     threadCount = clampThreads(threadCount);
     unsigned gcIterations = std::min(std::max(iterations, 1u), 64u);
     unsigned churnIterations = std::min(std::max(iterations, 1u), 256u);
@@ -448,7 +744,7 @@ bool SharedHeapTestHarness::runClientChurnVsGCScenario(JSC::Heap& server, unsign
         GCClient::Heap client(server);
         client.markStandalone();
         client.attachCurrentThread();
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         for (unsigned i = 0; i < gcIterations; ++i) {
             allocateBurst(server, client, ring, 0, i, 64, smallSizes, smallSizeCount);
             server.collectSyncAllClients((i % 4) ? CollectionScope::Eden : CollectionScope::Full);
@@ -458,13 +754,17 @@ bool SharedHeapTestHarness::runClientChurnVsGCScenario(JSC::Heap& server, unsign
     }));
     for (unsigned threadIndex = 1; threadIndex < threadCount; ++threadIndex) {
         threads.append(Thread::create("JSC SharedHeapTest"_s, [&server, threadIndex, churnIterations] {
+            // Hoisted out of the loop (alloca storage lives until the lambda
+            // returns); cleared per iteration to preserve the fresh-ring-per-
+            // client shape.
+            DECLARE_STACK_SCRATCH_RING(ring);
             for (unsigned i = 0; i < churnIterations; ++i) {
                 GCClient::Heap client(server); // add() vs stop windows (I13).
                 client.markStandalone();
                 client.attachCurrentThread();
-                ScratchRing ring;
                 allocateBurst(server, client, ring, threadIndex, i, 32, smallSizes, smallSizeCount);
                 ring.verifyAll();
+                ring.clear();
                 client.detachCurrentThread();
             } // dtor: remove() of a (possibly stopped) client defers to resume (I13).
         }));
@@ -489,7 +789,7 @@ bool SharedHeapTestHarness::runStructureLockVsSTWScenario(JSC::Heap& server, uns
     runStandaloneClientThreads(server, threadCount, [&](GCClient::Heap& client, unsigned threadIndex) {
         if (!threadIndex) {
             unsigned gcs = std::min(perThread, 32u);
-            ScratchRing ring;
+            DECLARE_STACK_SCRATCH_RING(ring);
             for (unsigned i = 0; i < gcs; ++i) {
                 allocateBurst(server, client, ring, threadIndex, i, 64, smallSizes, smallSizeCount);
                 server.collectSyncAllClients((i % 4) ? CollectionScope::Eden : CollectionScope::Full);
@@ -497,7 +797,7 @@ bool SharedHeapTestHarness::runStructureLockVsSTWScenario(JSC::Heap& server, uns
             }
             return;
         }
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         for (unsigned i = 0; i < perThread; ++i) {
             server.incrementSTWForbiddenScope(); // I14 (debug-only counter).
             server.incrementDeferralDepth(); // L5: allocations inside the scope defer GC (I17 slot).
@@ -523,7 +823,7 @@ bool SharedHeapTestHarness::runBlockedInNativeVsGCScenario(JSC::Heap& server, un
 
     ReleaseHeapAccessScope releaseScope(server);
     runStandaloneClientThreads(server, threadCount, [&](GCClient::Heap& client, unsigned threadIndex) {
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         if (!threadIndex) {
             unsigned gcs = std::min(perThread, 48u);
             for (unsigned i = 0; i < gcs; ++i) {
@@ -558,7 +858,7 @@ bool SharedHeapTestHarness::runSyncRequesterStormScenario(JSC::Heap& server, uns
 
     ReleaseHeapAccessScope releaseScope(server);
     runStandaloneClientThreads(server, threadCount, [&](GCClient::Heap& client, unsigned threadIndex) {
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         for (unsigned i = 0; i < perThread; ++i) {
             allocateBurst(server, client, ring, threadIndex, i, 32, smallSizes, smallSizeCount);
             server.collectSyncAllClients((i % 3) ? CollectionScope::Eden : CollectionScope::Full);
@@ -579,7 +879,7 @@ bool SharedHeapTestHarness::runNoEnteredVMsGCScenario(JSC::Heap& server, unsigne
 
     ReleaseHeapAccessScope releaseScope(server);
     runStandaloneClientThreads(server, threadCount, [&](GCClient::Heap& client, unsigned threadIndex) {
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         for (unsigned i = 0; i < gcs; ++i) {
             allocateBurst(server, client, ring, threadIndex, i, 128, smallSizes, smallSizeCount);
             if (!threadIndex)
@@ -637,7 +937,7 @@ bool SharedHeapTestHarness::runAttachWithPendingTicketScenario(JSC::Heap& server
         client.markStandalone();
         client.attachCurrentThread();
         attached.store(true);
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         for (unsigned i = 0; i < rounds; ++i) {
             // Shared RCAC ticket with no waiting requester...
             server.requestCollectionAllClients(GCRequest(CollectionScope::Eden));
@@ -660,7 +960,7 @@ bool SharedHeapTestHarness::runAttachWithPendingTicketScenario(JSC::Heap& server
     // granted-unserved. Our access is still released (scope above), so its
     // conductions complete.
     runStandaloneClientThreads(server, threadCount - 1, [&](GCClient::Heap& client, unsigned threadIndex) {
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         for (unsigned i = 0; i < rounds; ++i) {
             server.requestCollectionAllClients(GCRequest(CollectionScope::Eden));
             allocateBurst(server, client, ring, threadIndex + 2, i, 64, smallSizes, smallSizeCount);
@@ -686,7 +986,7 @@ bool SharedHeapTestHarness::runDeferralVsAllocationStormScenario(JSC::Heap& serv
 
     ReleaseHeapAccessScope releaseScope(server);
     runStandaloneClientThreads(server, threadCount, [&](GCClient::Heap& client, unsigned threadIndex) {
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         if (!threadIndex) {
             unsigned gcs = std::min(perThread, 48u);
             for (unsigned i = 0; i < gcs; ++i) {
@@ -723,7 +1023,7 @@ bool SharedHeapTestHarness::runDebuggerStopDuringSharedGCScenario(JSC::Heap& ser
 
     ReleaseHeapAccessScope releaseScope(server);
     runStandaloneClientThreads(server, threadCount, [&](GCClient::Heap& client, unsigned threadIndex) {
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         if (!threadIndex) {
             for (unsigned i = 0; i < rounds; ++i) {
                 allocateBurst(server, client, ring, threadIndex, i, 32, smallSizes, smallSizeCount);
@@ -765,7 +1065,7 @@ bool SharedHeapTestHarness::runGCDuringDebuggerParkScenario(JSC::Heap& server, u
 
     ReleaseHeapAccessScope releaseScope(server);
     runStandaloneClientThreads(server, threadCount, [&](GCClient::Heap& client, unsigned threadIndex) {
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         if (!threadIndex) {
             for (unsigned i = 0; i < rounds; ++i) {
                 client.releaseHeapAccess();
@@ -799,7 +1099,7 @@ bool SharedHeapTestHarness::runJSThreadsStopVsGCRequesterScenario(JSC::Heap& ser
 
     ReleaseHeapAccessScope releaseScope(server);
     runStandaloneClientThreads(server, threadCount, [&](GCClient::Heap& client, unsigned threadIndex) {
-        ScratchRing ring;
+        DECLARE_STACK_SCRATCH_RING(ring);
         if (!threadIndex) {
             for (unsigned i = 0; i < rounds * 2; ++i) {
                 client.releaseHeapAccess();
@@ -863,7 +1163,7 @@ bool SharedHeapTestHarness::runIssRevertChurnScenario(JSC::Heap& server, unsigne
                 server.safepointEpoch().retire(&s_issRevertItemsDestroyed, [](void* pointer) {
                     static_cast<std::atomic<unsigned>*>(pointer)->fetch_add(1, std::memory_order_relaxed);
                 });
-                ScratchRing ring;
+                DECLARE_STACK_SCRATCH_RING(ring);
                 allocateBurst(server, client, ring, 1, round, 256, smallSizes, smallSizeCount);
                 ring.verifyAll();
                 client.detachCurrentThread();
@@ -923,6 +1223,12 @@ bool SharedHeapTestHarness::run(JSC::Heap& server, const String& scenarioName, u
         if (scenarioName == scenario.name) {
             if (!requireSharedHeapOption(scenario.name.characters()))
                 return false;
+            // FIXME(fix-shared-heap-corruption): TEMPORARY round-3 diagnostic
+            // — install before dispatch so scenarios that spawn threads
+            // without runStandaloneClientThreads (clientChurnVsGC,
+            // issRevertChurn, attachWithPendingTicket's attacher) are covered
+            // even when they run first in a corpus file.
+            installRingLivenessHookOnce(server);
             return scenario.function(server, threadCount, iterations);
         }
     }

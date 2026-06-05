@@ -35,12 +35,23 @@ shouldBe(new Thread(() => -0).join(), -0); // shouldBe distinguishes -0
     shouldBe(new Thread(() => big).join(), big);
 }
 
-// fn runs with this === undefined and receives the spawn arguments.
+// fn is called with this-argument undefined (SPEC-api 4.1
+// "this===undefined"): a strict fn observes undefined; a sloppy fn boxes
+// it to globalThis per ordinary [[Call]] semantics, which the engine must
+// not override.
 shouldBe(new Thread(function (a, b) {
+    "use strict";
     if (this !== undefined)
         throw new Error("thread fn must run with this === undefined");
     return a + b;
 }, 40, 2).join(), 42);
+
+// Sloppy-mode companion: ordinary [[Call]] boxing means a non-strict thread
+// fn observes this === globalThis (its own thread's global). Pins the
+// OrdinaryCallBindThis semantics the strict assertion above relies on.
+shouldBe(new Thread(function () {
+    return this === globalThis;
+}).join(), true);
 
 // Argument identity is preserved too (5.10 argSlots root, no copy).
 {

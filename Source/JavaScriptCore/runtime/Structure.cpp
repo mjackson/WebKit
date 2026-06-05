@@ -260,15 +260,20 @@ Structure::Structure(VM& vm, JSGlobalObject* globalObject, JSValue prototype, co
     , m_prototype(prototype, WriteBarrierEarlyInit)
     , m_classInfo(classInfo)
     , m_transitionWatchpointSet(IsWatched)
-    // SPEC-objectmodel §5: both TTL sets start IsWatched for new structures
-    // flag-on; flag-off they are inert (I22).
-    , m_transitionThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
-    , m_writeThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
 {
+    // SPEC-objectmodel §5: both TTL sets start IsWatched for new structures
+    // flag-on; flag-off they keep their inert NSDMI ClearWatchpoint (I22) and
+    // this single predicted-not-taken check is the only flag cost.
     // N1: fresh structure - the creating thread is the sole lock-free
     // butterfly-less transitioner while the TTL sets are valid (0 flag-off and
-    // on the main thread; never notTTLTID).
-    m_transitionThreadLocalTID = currentButterflyTID();
+    // on the main thread; never notTTLTID). Flag-off the field keeps its NSDMI
+    // value 0 and is never consulted (I22/E3), so skip the out-of-line
+    // currentButterflyTID() call (cross-DSO + TLS read) entirely.
+    if (Options::useJSThreads()) [[unlikely]] {
+        m_transitionThreadLocalWatchpointSet.startWatching();
+        m_writeThreadLocalWatchpointSet.startWatching();
+        m_transitionThreadLocalTID = currentButterflyTID();
+    }
 
     bool hasStaticNonEnumerableProperty = m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::DontEnum));
     bool hasStaticNonConfigurableProperty = m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::DontDelete));
@@ -316,11 +321,15 @@ Structure::Structure(VM& vm, CreatingEarlyCellTag)
     , m_prototype(jsNull(), WriteBarrierEarlyInit)
     , m_classInfo(info())
     , m_transitionWatchpointSet(IsWatched)
-    , m_transitionThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
-    , m_writeThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
 {
     // N1 (early cell: VM startup runs on the creating thread; 0 on main).
-    m_transitionThreadLocalTID = currentButterflyTID();
+    // Flag-off: keep the NSDMI 0 (TID and both TTL sets, I22), skip the
+    // out-of-line TLS read. Flag-on: start watching both TTL sets (§5).
+    if (Options::useJSThreads()) [[unlikely]] {
+        m_transitionThreadLocalWatchpointSet.startWatching();
+        m_writeThreadLocalWatchpointSet.startWatching();
+        m_transitionThreadLocalTID = currentButterflyTID();
+    }
 
     TypeInfo typeInfo { StructureType, StructureFlags };
     bool hasStaticNonEnumerableProperty = m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::DontEnum));
@@ -368,15 +377,20 @@ Structure::Structure(VM& vm, StructureVariant variant, Structure* previous)
     , m_prototype(previous->m_prototype.get(), WriteBarrierEarlyInit)
     , m_classInfo(previous->m_classInfo)
     , m_transitionWatchpointSet(IsWatched)
+{
     // SPEC-objectmodel §5: transition targets also start IsWatched flag-on; a
     // shared instance transitioning INTO this structure fires the target's sets
     // per-event (F2/§4.2-0) before publishing, so fresh-valid is sound.
-    , m_transitionThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
-    , m_writeThreadLocalWatchpointSet(Options::useJSThreads() ? IsWatched : ClearWatchpoint)
-{
+    // Flag-off both sets keep their inert NSDMI ClearWatchpoint (I22).
+    if (Options::useJSThreads()) [[unlikely]] {
+        m_transitionThreadLocalWatchpointSet.startWatching();
+        m_writeThreadLocalWatchpointSet.startWatching();
+    }
     // N1: the structure transition TID is the CREATOR's TID, copied to targets
     // (§2.1) - the shape's butterfly-less transition ownership follows the
     // shape's creator, not whichever thread happens to reuse the shape.
+    // (Unconditional: flag-off previous' TID is always 0, so this is the same
+    // 0 the NSDMI already wrote - a single 16-bit copy, no Options load.)
     m_transitionThreadLocalTID = previous->m_transitionThreadLocalTID;
 
     setDictionaryKind(previous->dictionaryKind());

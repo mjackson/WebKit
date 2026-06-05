@@ -1,3 +1,4 @@
+//@ skip (bench-only: needs reportBench from ../bench/harness.js; driven by jit/bench-gates.sh, not the corpus runner)
 // construction-shared-constructor.js — SPEC-jit Task 13: shared-constructor
 // construction microbench vs the GIL stub (RECORDED; feeds the OM 8h Task-14
 // promotion decision — relative per-op cost of E4 transitions vs the

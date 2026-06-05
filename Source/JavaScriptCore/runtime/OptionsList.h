@@ -687,8 +687,8 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useThreadedFTL, true, Normal, "kill switch: threaded FTL support under useJSThreads"_s) \
     v(Bool, validateButterflyTagDiscipline, false, Normal, "validate that every generated butterfly access masks or proves the tag (SPEC-jit I14)"_s) \
     v(Bool, useJSThreadsUnlockHandlerICInFTL, false, Normal, "unlock the FTL handler-IC force-disable for bring-up (SPEC-jit M2a)"_s) \
-    v(Bool, forceSegmentedButterflies, false, Normal, "stress: every butterfly allocation/transition publishes a segmented butterfly (SPEC-objectmodel §9.6)"_s) \
-    v(Bool, forceButterflySWBit, false, Normal, "stress: treat every butterfly write as a foreign shared write (SW DCAS + writeThreadLocal fire; SPEC-objectmodel §9.6)"_s) \
+    v(Bool, forceSegmentedButterflies, false, Normal, "stress: every butterfly allocation/transition publishes a segmented butterfly (SPEC-objectmodel sec 9.6)"_s) \
+    v(Bool, forceButterflySWBit, false, Normal, "stress: treat every butterfly write as a foreign shared write (SW DCAS + writeThreadLocal fire; SPEC-objectmodel sec 9.6)"_s) \
     v(Bool, verifyConcurrentButterfly, false, Normal, "debug-assert every concurrent-butterfly tag decode (I2/I3), the butterfly() flatness contract, and run the ConcurrentButterfly self-tests"_s) \
     v(Unsigned, maxJSThreads, 32766, Normal, nullptr) \
     v(Unsigned, jsThreadGILTimeSliceMs, 0, Normal, "reserved, inert in phase 1 (SPEC-api Deviation 9)"_s) \

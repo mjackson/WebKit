@@ -369,7 +369,12 @@ ALWAYS_INLINE bool concurrentButterflyAtomicsAreLockFree(void* sampleCell)
 {
 #if JSC_CONCURRENT_BUTTERFLY_HAS_HARDWARE_DCAS
 #if COMPILER(CLANG)
-    return __atomic_is_lock_free(16, sampleCell) && __atomic_is_lock_free(8, sampleCell) && __atomic_is_lock_free(1, sampleCell);
+    // __atomic_is_lock_free(16, runtimePtr) is a libatomic libcall that
+    // reports 16-byte objects as NOT lock-free at runtime even with -mcx16
+    // (libatomic ABI quirk), so query the compile-time form with a null
+    // pointer (assumes natural max alignment; callers pass alignas(16) cells).
+    UNUSED_PARAM(sampleCell);
+    return __atomic_always_lock_free(16, nullptr) && __atomic_always_lock_free(8, nullptr) && __atomic_always_lock_free(1, nullptr);
 #else
     // GCC: __atomic_is_lock_free(16, ...) is a libatomic libcall, and libatomic
     // must not be linked (I32). The __sync builtin used by

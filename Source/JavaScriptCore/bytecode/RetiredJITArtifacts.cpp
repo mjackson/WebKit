@@ -29,6 +29,7 @@
 #include "GCAwareJITStubRoutine.h"
 #include "Heap.h"
 #include "InlineCacheHandler.h"
+#include "JITCode.h"
 #include "Options.h"
 #include "VM.h"
 
@@ -70,6 +71,32 @@ namespace JSC {
 #endif
 }
 
+// Epoch-granularity guard (fix for spawned-thread UAF in unmapped JIT memory,
+// JSTests/threads/jit/{tid-tag-3-threads,int-gate-stop-budget,
+// spawned-thread-butterfly-stress}.js): the heap epoch facility
+// (heap/GCSafepointEpoch.h) tracks safepoint crossings at GCClient::Heap
+// granularity — ONE client per VM. Under the phase-1 GIL stub every
+// Thread()-spawned JS thread runs in the SAME VM, i.e. the same single
+// client, and the reclaim sequence (Heap::runSafepointHooksAndReclaim)
+// unconditionally stamps that one client at every collection. A sibling
+// thread parked with the GIL dropped (join / cond.wait / Atomics.wait /
+// lock.hold — all mid-operation park sites) therefore never holds an epoch
+// back: two collections can complete while it is parked, expiring artifacts
+// (call-link records, handler-chain nodes, and the stub-routine refs they
+// drop into jettison) that the parked thread's resumed LLInt/IC dispatch
+// state still reaches — a stale entrypoint into reclaimed JIT memory.
+// "Every registered MUTATOR THREAD crossed the epoch" is the §4.4 soundness
+// requirement; the landed facility can only prove "every registered CLIENT
+// was stamped". Until per-thread epoch publication lands in the heap
+// workstream (clients stamped only when each spawned thread has passed a
+// safepoint), flag-on retirement must keep the chartered
+// leak-until-integration behavior (sound: never frees). Flag-off there are
+// no callers, so nothing is lost by gating. THREADS-INTEGRATE(jit)
+[[maybe_unused]] static bool epochCoversEveryJSThread(VM&)
+{
+    return !Options::useJSThreads();
+}
+
 #if ENABLE(JIT)
 
 #if defined(JSC_JIT_HAS_GC_SAFEPOINT_EPOCH)
@@ -103,21 +130,73 @@ void RetiredJITArtifacts::retireHandlerChain(VM& vm, RefPtr<InlineCacheHandler>&
     // SPEC-jit section 4.4 hard rule: only GC-aware stub routines may ride a
     // retired chain; their executable memory is freed by the jettison + R2
     // scan path, never by epoch expiry.
+    //
+    // Pre-compiled unit handlers (createPreCompiledICJITStubRoutine: data-only
+    // handlers whose machine code is a shared immutable CTI thunk owned by the
+    // VM, e.g. GetByIdLoadOwnPropertyHandler) are created WITHOUT makeGCAware()
+    // as a flag-off optimization, and a chain displaced by megamorphic
+    // promotion (initializeWithUnitHandler) or reset can legally carry them.
+    // Promote them lazily here: makeGCAware() registers the routine with the
+    // heap's JITStubRoutineSet (immutable-code list, JITStubRoutineSet.cpp),
+    // so the epoch-expiry deref jettisons it into the GC machinery instead of
+    // running the non-GC-aware inline `delete this` - preserving the hard
+    // rule's actual guarantee that nothing reachable from JIT'd dispatch is
+    // freed by epoch expiry alone. JITStubRoutineSet::add RELEASE_ASSERTs
+    // !isCompilationThread(), which matches this facility's mutator-side call
+    // sites (IC slow paths, world-stopped resets, jettison).
+    //
+    // FIXME(THREADS-INTEGRATE(jit)): (a) post-GIL, two mutators retiring
+    // chains that share one stateless precompiled stub can race the
+    // !isGCAware()/makeGCAware() pair and double-append to JITStubRoutineSet;
+    // the durable fix is makeGCAware at creation in
+    // createPreCompiledICJITStubRoutine. (b) makeGCAware registers with
+    // vm.heap, not epochHeapFor(vm); revisit which heap's JITStubRoutineSet
+    // shared-server clients register with when useSharedGCHeap lands.
     for (auto* cursor = head.get(); cursor; cursor = cursor->next()) {
-        if (auto* routine = cursor->stubRoutine())
+        if (auto* routine = cursor->stubRoutine()) {
+            if (!routine->isGCAware()) [[unlikely]]
+                routine->makeGCAware(vm);
             RELEASE_ASSERT(routine->isGCAware());
+        }
     }
 
 #if defined(JSC_JIT_HAS_GC_SAFEPOINT_EPOCH)
-    epochHeapFor(vm).safepointEpoch().retire(std::unique_ptr<RetiredCallback>(new RetiredHandlerChain(WTF::move(head))));
-#else
+    if (epochCoversEveryJSThread(vm)) {
+        epochHeapFor(vm).safepointEpoch().retire(std::unique_ptr<RetiredCallback>(new RetiredHandlerChain(WTF::move(head))));
+        return;
+    }
+#endif
     // Leak-until-integration stub (N6): never free inline - a JIT'd reader on
     // another thread (post-GIL) could still hold a node pointer inside its
     // safepoint-free window. Pre-integration the GIL makes the leak the only
-    // cost. THREADS-INTEGRATE(jit)
+    // cost. Also taken flag-on while the epoch facility's per-client
+    // granularity cannot prove every spawned JS thread crossed the epoch
+    // (see epochCoversEveryJSThread). THREADS-INTEGRATE(jit)
     UNUSED_PARAM(vm);
     (void)head.leakRef();
-#endif
+}
+
+void RetiredJITArtifacts::retireOptimizedJITCode(VM& vm, RefPtr<JITCode>&& jitCode)
+{
+    UNUSED_PARAM(vm);
+    if (!jitCode)
+        return;
+
+    if (!Options::useJSThreads()) [[likely]] {
+        // Today's behavior: dropping the (typically last) ref releases the
+        // ExecutableMemoryHandle inline during the sweep.
+        jitCode = nullptr;
+        return;
+    }
+
+    // Leak-until-integration (see the header comment): flag-on, the sweep
+    // cannot prove that a parked sibling thread's stack and call-link/IC
+    // records do not reach this machine code (R2's N-stack conservative scan
+    // is a heap-workstream deliverable), and the epoch facility must never
+    // free machine code (I7 hard rule). Leaking keeps every published
+    // entrypoint, section-5.8 record, and CallLinkInfo address-valid, which
+    // is sound. THREADS-INTEGRATE(jit)
+    (void)jitCode.leakRef();
 }
 
 #endif // ENABLE(JIT)
@@ -128,12 +207,16 @@ void RetiredJITArtifacts::retire(VM& vm, std::unique_ptr<RetiredCallback>&& call
         return;
 
 #if defined(JSC_JIT_HAS_GC_SAFEPOINT_EPOCH)
-    epochHeapFor(vm).safepointEpoch().retire(WTF::move(callback));
-#else
-    // Leak-until-integration stub (N6). THREADS-INTEGRATE(jit)
+    if (epochCoversEveryJSThread(vm)) {
+        epochHeapFor(vm).safepointEpoch().retire(WTF::move(callback));
+        return;
+    }
+#endif
+    // Leak-until-integration stub (N6): also taken flag-on while the epoch
+    // facility's per-client granularity cannot prove every spawned JS thread
+    // crossed the epoch (see epochCoversEveryJSThread). THREADS-INTEGRATE(jit)
     UNUSED_PARAM(vm);
     (void)callback.release();
-#endif
 }
 
 } // namespace JSC

@@ -307,6 +307,16 @@ options_supported() { # $1 = space-joined args ("" => trivially supported)
     [[ "$verdict" == "yes" ]]
 }
 
+# Per-test timeout: threaded tests hang by failure mode (lost wakeup, GIL
+# hand-off livelock, deadlocked safepoint), so an unbounded run blocks the
+# whole harness. timeout(1) kills the process group; a timeout is a FAIL.
+# Override with THREADS_TEST_TIMEOUT_SECS (0 disables).
+TEST_TIMEOUT_SECS="${THREADS_TEST_TIMEOUT_SECS:-120}"
+TIMEOUT_WRAP=()
+if [[ "$TEST_TIMEOUT_SECS" != "0" ]] && command -v timeout >/dev/null 2>&1; then
+    TIMEOUT_WRAP=(timeout -k 10 "$TEST_TIMEOUT_SECS")
+fi
+
 run_one() { # file, args...
     local file="$1"; shift
     if [[ "$AMPLIFY" -eq 1 && -x "$AMPLIFY_SH" ]]; then
@@ -323,7 +333,12 @@ run_one() { # file, args...
         echo "run-tests: warning: $AMPLIFY_SH not found/executable; running plain" >&2
         WARNED_NO_AMPLIFY=1
     fi
-    "$JSC" "$@" "$file" >"$TMP_OUT" 2>&1
+    ${TIMEOUT_WRAP[@]+"${TIMEOUT_WRAP[@]}"} "$JSC" "$@" "$file" >"$TMP_OUT" 2>&1
+    local status=$?
+    if [[ ${#TIMEOUT_WRAP[@]} -gt 0 && ( $status -eq 124 || $status -eq 137 ) ]]; then
+        echo "run-tests: TIMEOUT after ${TEST_TIMEOUT_SECS}s (hang): $file" >>"$TMP_OUT"
+    fi
+    return $status
 }
 
 for file in "${FILES[@]}"; do

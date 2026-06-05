@@ -569,7 +569,7 @@ JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, Pr
         GILDroppedSection droppedSection(vm);
         Locker listLocker { list->listLock };
         while (waiter->state.load(std::memory_order_acquire) == PropertyWaiter::Waiting
-            && !vm.hasTerminationRequest()
+            && !jsThreadParkTerminationRequested(vm)
             && MonotonicTime::now() < deadline) {
             MonotonicTime quantum = MonotonicTime::now() + Seconds::fromMilliseconds(10);
             waiter->condition.waitUntil(list->listLock, std::min(deadline, quantum).approximate<WallTime>());
@@ -581,7 +581,7 @@ JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, Pr
                 return entry.ptr() == waiter.ptr();
             });
             ASSERT_UNUSED(removed, removed);
-            finalState = vm.hasTerminationRequest() ? PropertyWaiter::Terminated : PropertyWaiter::TimedOut;
+            finalState = jsThreadParkTerminationRequested(vm) ? PropertyWaiter::Terminated : PropertyWaiter::TimedOut;
             waiter->state.store(finalState, std::memory_order_release);
         }
         listNowEmpty = list->waiters.isEmpty();
@@ -596,6 +596,10 @@ JSValue atomicsWaitOnProperty(JSGlobalObject* globalObject, JSObject* object, Pr
     case PropertyWaiter::TimedOut:
         return vm.smallStrings.timedOutString();
     case PropertyWaiter::Terminated:
+        // Request-then-throw: throwTerminationException ASSERTs the request
+        // flag, which a parked thread never had set — only trap BITS were
+        // raised while we slept (same shape as LockObject/ConditionObject).
+        vm.setHasTerminationRequest();
         vm.throwTerminationException();
         return { };
     default:

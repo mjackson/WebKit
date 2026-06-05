@@ -34,6 +34,7 @@
 #include "JSPromise.h"
 #include "ObjectConstructor.h"
 #include "ThreadObject.h"
+#include <wtf/MonotonicTime.h>
 #include <wtf/RunLoop.h>
 
 namespace JSC {
@@ -130,6 +131,62 @@ void jsThreadGILHandoffYield(VM& vm)
         return;
     GILDroppedSection droppedSection(vm);
     Thread::yield();
+}
+
+// See the declaration comment (LockObject.h). Every increment is paired
+// with exactly one decrement on the parker's resume path (all exits of the
+// park scopes, including termination), so the counter cannot leak or
+// underflow.
+static std::atomic<unsigned> s_pendingParkResumptions { 0 };
+
+void jsThreadNoteParkResumptionPending()
+{
+    s_pendingParkResumptions.fetch_add(1, std::memory_order_relaxed);
+}
+
+void jsThreadNoteParkResumptionDone()
+{
+    s_pendingParkResumptions.fetch_sub(1, std::memory_order_relaxed);
+}
+
+void jsThreadYieldForPendingParkResumptions(VM& vm)
+{
+    // Bounded, monotonic-progress wait: parkers normally resume within a
+    // few milliseconds (1ms tryLock quanta + a GIL handoff), so the
+    // deadline is pure slack against scheduler stalls. It must NOT be
+    // unbounded: a parker can be pinned behind a holder that itself waits
+    // on THIS thread's completion (e.g. join under hold), and waiting for
+    // it here would deadlock — on deadline expiry we fall back to the
+    // pre-existing drain-while-parked timing instead of hanging. Only a
+    // DECREASE of the pending count is progress and resets the deadline:
+    // the counter is process-global, so an increase (or mere churn) can
+    // come from unrelated park traffic and must not extend the wait —
+    // otherwise storm workloads (continuous contended-hold/notify churn)
+    // could defer this thread's completion sequence unboundedly.
+    static constexpr Seconds maxStall = Seconds::fromMilliseconds(500);
+    unsigned lastPending = s_pendingParkResumptions.load(std::memory_order_acquire);
+    MonotonicTime deadline = MonotonicTime::now() + maxStall;
+    while (lastPending) {
+        if (jsThreadParkTerminationRequested(vm))
+            return;
+        if (MonotonicTime::now() > deadline)
+            return;
+        jsThreadGILHandoffYield(vm);
+        unsigned pending = s_pendingParkResumptions.load(std::memory_order_acquire);
+        if (pending < lastPending)
+            deadline = MonotonicTime::now() + maxStall;
+        lastPending = pending;
+    }
+}
+
+bool jsThreadParkTerminationRequested(VM& vm)
+{
+    // See the declaration comment (LockObject.h): hasTerminationRequest()
+    // is only ever set by trap handling on an executing mutator, so a park
+    // must read the trap bits themselves.
+    if (vm.hasTerminationRequest())
+        return true;
+    return vm.traps().needHandling(VMTraps::NeedTermination | VMTraps::NeedWatchdogCheck);
 }
 
 // ---------------- NativeLockState pump machinery (SPEC-api 5.5a) ----------------
@@ -335,25 +392,49 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncHold, (JSGlobalObject* globalObject, CallF
         // safe; see the rationale in LockObject.h.)
         //
         // D9 (docs/threads/INTEGRATE-api.md "Landed deviations"): park in
-        // 10ms tryLockWithTimeout quanta, polling vm.hasTerminationRequest()
-        // between quanta — VMTraps cannot wake a thread blocked in
-        // WTF::Lock::lock(), so an unbounded park here is unkillable under
-        // the watchdog when the holder can never release (e.g. an
-        // asyncHold grant whose release fn is never delivered, or a holder
-        // that was itself terminated). Mirrors the mandatory 5.6-4
-        // property-wait termination poll.
+        // bounded tryLock + sleep quanta, polling
+        // jsThreadParkTerminationRequested() between quanta — VMTraps cannot
+        // wake a thread blocked in WTF::Lock::lock(), so an unbounded park
+        // here is unkillable under the watchdog when the holder can never
+        // release (e.g. an asyncHold grant whose release fn is never
+        // delivered, or a holder that was itself terminated). Mirrors the
+        // mandatory 5.6-4 property-wait termination poll.
         bool acquired = false;
+        // Open this parker's park->resumed window (see
+        // jsThreadNoteParkResumptionPending, LockObject.h): a completing
+        // thread must not run its 4.6.1 microtask drain between the
+        // holder's release and this parker's resume
+        // (park-no-microtask-drain.js, contended-hold block).
+        jsThreadNoteParkResumptionPending();
         {
             GILDroppedSection droppedSection(vm);
-            while (!(acquired = state.m_lock.tryLockWithTimeout(Seconds::fromMilliseconds(10)))) {
-                if (vm.hasTerminationRequest())
+            // NOT WTF::Lock::tryLockWithTimeout: that helper is a
+            // signal-handler-safe PROBE (for MachineStackMarker) — it sleeps
+            // in whole-second quanta and returns isHeld(), i.e. "held by
+            // ANYONE", not "acquired by me". Under contention it returns
+            // true while another holder (e.g. an undelivered asyncHold
+            // grant) still owns m_lock, so this hold would steal the lock
+            // and its epilogue would unlock a lock it never acquired — the
+            // WTF::Lock double-release abort ("Invalid value for lock: 0")
+            // and every corruption downstream of two believed holders. Park
+            // in honest tryLock + bounded-sleep quanta instead.
+            while (!(acquired = state.m_lock.tryLock())) {
+                if (jsThreadParkTerminationRequested(vm))
                     break;
+                WTF::sleep(Seconds::fromMilliseconds(1));
             }
         }
+        // Back under the GIL: close the window on every exit (acquired or
+        // terminated) — the pairing invariant keeps the global count exact.
+        jsThreadNoteParkResumptionDone();
         if (!acquired) {
             // Termination observed while parked: GIL is reacquired (the
             // dropped section ended), m_lock is NOT held. Same surfacing as
-            // the 5.6-7 property-wait path.
+            // the 5.6-7 property-wait path, in the handleTraps shape
+            // (request-then-throw: throwTerminationException ASSERTs the
+            // request flag, which a parked thread never had set — only trap
+            // BITS were raised while we slept).
+            vm.setHasTerminationRequest();
             vm.throwTerminationException();
             return { };
         }
@@ -411,15 +492,34 @@ JSC_DEFINE_HOST_FUNCTION(lockProtoFuncAsyncHold, (JSGlobalObject* globalObject, 
     Ref<AsyncTicket> ticket = AsyncTicket::create(globalObject, promise, WTF::move(dependencies));
     ticket->grantWithFunction = hasFunction;
 
-    // A: try to acquire immediately; otherwise queue FIFO.
-    if (state.m_lock.tryLock()) {
-        {
-            Locker queueLocker { state.m_queueLock };
+    // A: try to acquire immediately; otherwise queue FIFO. The immediate
+    // grant is only legal when no async acquirer is already queued:
+    // m_asyncWaiters can be non-empty while m_lock is transiently free (a
+    // release already ran R, but the scheduled pump only runs on a run-loop
+    // turn), and a tryLock here would barge an UNDELIVERED grant ahead of
+    // the FIFO head (violating the 4.2 FIFO contract — async tickets are
+    // FIFO; only SYNC holds may barge, api/lock-async-hold.js test 5; the
+    // forcing case is api/condition-async-wait.js's final block). Worse,
+    // that undelivered grant pins m_lock for the rest of the synchronous
+    // turn, so a thread parked in a contended sync hold can only be freed
+    // by run-loop turns the main thread may never reach — the
+    // api/condition-async-wait.js sync+async rendezvous deadlock.
+    // Emptiness check and tryLock are done under m_queueLock so no acquirer
+    // can be enqueued in between (taking rank-4 m_lock under rank-3
+    // m_queueLock follows rank order, 5.9; tryLock never blocks, so the
+    // pump's m_lock-then-queueLock shape cannot deadlock against this).
+    bool acquiredImmediately = false;
+    {
+        Locker queueLocker { state.m_queueLock };
+        if (state.m_asyncWaiters.isEmpty() && state.m_lock.tryLock()) {
             state.m_asyncHeld.store(true, std::memory_order_release);
             state.m_asyncHolder = ticket.ptr();
+            acquiredImmediately = true;
         }
+    }
+    if (acquiredImmediately)
         settleLockGrant(state, ticket);
-    } else
+    else
         state.enqueueAsyncAcquirer(ticket.copyRef(), vm);
 
     return JSValue::encode(promise);

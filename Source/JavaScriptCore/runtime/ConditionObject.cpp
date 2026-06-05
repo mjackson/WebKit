@@ -129,8 +129,8 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncWait, (JSGlobalObject* globalObject, 
         GILDroppedSection droppedSection(vm);
 
         // Step 4: park on &waiter->state, in 10ms quanta that poll
-        // vm.hasTerminationRequest() between parks (landed deviation D9,
-        // docs/threads/INTEGRATE-api.md): VMTraps cannot wake a
+        // jsThreadParkTerminationRequested() between parks (landed deviation
+        // D9, docs/threads/INTEGRATE-api.md): VMTraps cannot wake a
         // ParkingLot-parked condition waiter, so an infinite park is
         // unkillable under the watchdog when the would-be notifier was
         // itself terminated and unwound without notifying — the exact
@@ -142,7 +142,7 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncWait, (JSGlobalObject* globalObject, 
         // re-loops (never surfaces as a spurious return), so quantum
         // wakeups are invisible to JS.
         while (waiter->state.load(std::memory_order_acquire) == CondWaiter::waiting
-            && !vm.hasTerminationRequest()) {
+            && !jsThreadParkTerminationRequested(vm)) {
             ParkingLot::parkConditionally(
                 &waiter->state,
                 [&] { return waiter->state.load(std::memory_order_acquire) == CondWaiter::waiting; },
@@ -164,7 +164,7 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncWait, (JSGlobalObject* globalObject, 
                     return entry.ptr() == waiter.ptr();
                 });
                 RELEASE_ASSERT(removed);
-                terminated = vm.hasTerminationRequest();
+                terminated = jsThreadParkTerminationRequested(vm);
             }
         }
 
@@ -178,24 +178,43 @@ JSC_DEFINE_HOST_FUNCTION(conditionProtoFuncWait, (JSGlobalObject* globalObject, 
         // releasing the GIL, and the holder releases m_lock under the GIL in
         // its hold epilogue (or pump/release path), so our GIL reacquisition
         // never waits on a thread that needs m_lock. D9 again: the
-        // reacquisition is bounded by the same 10ms termination-poll quanta
+        // reacquisition is bounded by the same termination-poll quanta
         // (the current holder may never release if it was terminated); on
         // termination we leave WITHOUT the lock — the enclosing hold()'s
         // epilogue guard (heldByCurrentThread) then skips its release, the
         // same consumed-hold shape as 4.3(a).
         if (!terminated) {
-            while (!lock.m_lock.tryLockWithTimeout(Seconds::fromMilliseconds(10))) {
-                if (vm.hasTerminationRequest()) {
+            // tryLock + bounded sleep, NOT WTF::Lock::tryLockWithTimeout —
+            // see the contended-hold loop in LockObject.cpp: that helper
+            // returns isHeld() ("held by anyone", a signal-safe probe), so
+            // a contended reacquire would report success while the notifier
+            // still holds m_lock. This waiter would then set m_holder and
+            // "release" a lock it never owned (the sync-hold-steal /
+            // double-unlock corruption seen in condition-async-wait.js).
+            while (!lock.m_lock.tryLock()) {
+                if (jsThreadParkTerminationRequested(vm)) {
                     terminated = true;
                     break;
                 }
+                WTF::sleep(Seconds::fromMilliseconds(1));
             }
             if (!terminated)
                 lock.m_holder.store(&Thread::currentSingleton(), std::memory_order_relaxed);
         }
     }
+    // Back under the GIL: close the notified->resumed window notifyImpl
+    // opened for us. state == notified is exactly "the notifier incremented
+    // for this waiter" — a terminated exit that was never notified removed
+    // itself from the queue in step 5 under queueLock (dequeued <=> flipped:
+    // it can no longer be flipped) and was never counted, so it must not
+    // decrement.
+    if (waiter->state.load(std::memory_order_acquire) == CondWaiter::notified)
+        jsThreadNoteParkResumptionDone();
     if (terminated) {
-        // Same surfacing as the 5.6-7 property-wait path; back under the GIL.
+        // Same surfacing as the 5.6-7 property-wait path; back under the
+        // GIL, in the handleTraps shape (request-then-throw — see the
+        // contended-hold epilogue in LockObject.cpp).
+        vm.setHasTerminationRequest();
         vm.throwTerminationException();
         return { };
     }
@@ -316,11 +335,20 @@ static EncodedJSValue notifyImpl(JSGlobalObject* globalObject, CallFrame* callFr
             // a rank-3 lock (5.9); it wakes the parked waiter, or defeats
             // its park-side validation if it has not parked yet (F3).
             Ref<CondWaiter> waiter = condition.waiters.takeFirst();
-            waiter->state.store(CondWaiter::notified, std::memory_order_release);
-            if (waiter->kind == CondWaiter::Kind::Sync)
+            if (waiter->kind == CondWaiter::Kind::Sync) {
+                // Open the waiter's notified->resumed window BEFORE the flip
+                // (jsThreadNoteParkResumptionPending, LockObject.h): the
+                // waiter may wake and close it the instant the store lands,
+                // so increment-after-flip could underflow. This is what
+                // orders a notifier's 4.6.1 completion drain after the woken
+                // waiter's cond.wait return (park-no-microtask-drain.js).
+                jsThreadNoteParkResumptionPending();
+                waiter->state.store(CondWaiter::notified, std::memory_order_release);
                 ParkingLot::unparkOne(&waiter->state);
-            else
+            } else {
+                waiter->state.store(CondWaiter::notified, std::memory_order_release);
                 asyncWoken.append(WTF::move(waiter));
+            }
             woken++;
         }
     }

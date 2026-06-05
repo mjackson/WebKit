@@ -34,6 +34,7 @@ namespace JSC {
 
 class Heap;
 class InlineCacheHandler;
+class JITCode;
 class VM;
 
 // RetiredJITArtifacts (SPEC-jit section 4.4, P1): stateless adapter routing
@@ -64,7 +65,10 @@ class VM;
 // executable memory itself is released only on the GC sweep after the
 // conservative scan of all mutator stacks (R2, I7).
 //
-// Callable from any thread. May be called while holding a cell/Structure
+// Callable from any mutator thread; not from compilation threads when a
+// retired chain carries a not-yet-GC-aware routine, since lazy promotion in
+// retireHandlerChain goes through JITStubRoutineSet::add, which RELEASE_ASSERTs
+// !isCompilationThread(). May be called while holding a cell/Structure
 // 2-bit lock (lock-order rank 10); MUST NOT be called from heap-internal
 // contexts of heap ranks 7-9 (SPEC-heap section 13.10f). Not async-signal-safe.
 class RetiredCallback {
@@ -81,11 +85,34 @@ public:
 class RetiredJITArtifacts {
 public:
     // Retire a (detached) handler-IC chain head. Every node's stub routine
-    // must be GC-aware (RELEASE_ASSERTed): the node data is freed at epoch
-    // expiry, but the machine code rides the jettisoned-stub-routine path and
-    // waits for R2's conservative scan (I7).
+    // must be GC-aware by the time the chain is parked (RELEASE_ASSERTed);
+    // non-GC-aware pre-compiled unit handlers (data-only handlers over shared
+    // immutable thunk code, createPreCompiledICJITStubRoutine) are promoted
+    // via makeGCAware() on entry. Node data is freed at epoch expiry, but the
+    // machine code rides the jettisoned-stub-routine path and waits for R2's
+    // conservative scan (I7).
 #if ENABLE(JIT)
     static void retireHandlerChain(VM&, RefPtr<InlineCacheHandler>&& head);
+
+    // Retire a dying optimized (DFG/FTL) CodeBlock's JITCode (called from
+    // ~CodeBlock during the GC sweep). Flag-off this just drops the ref
+    // inline - exactly today's behavior. Flag-on it NEVER frees: per the hard
+    // rule above and I7, machine code may be released only after R2's
+    // conservative scan of ALL mutator stacks proves it unreachable, and that
+    // scan does not exist yet under the phase-1 GIL stub - the sweep cannot
+    // see a sibling spawned thread parked with the GIL dropped, whose
+    // call-link/IC dispatch state still targets this code's entrypoints
+    // (observed as llint_op_call jumping into unmapped memory on resume,
+    // JSTests/threads/jit/tid-tag-3-threads.js et al.). Until the heap
+    // workstream's N-stack scan lands, the JITCode (and the CommonData /
+    // CallLinkInfos it owns) is leaked - the same chartered
+    // leak-until-integration behavior as the epoch paths. Note the leak also
+    // keeps the CommonData's CallLinkInfos alive, so a dead caller's nodes
+    // stay (validly) on other CodeBlocks' m_incomingCalls lists - their
+    // ~CallLinkInfo never runs; record for R2 integration. Deliberately NOT
+    // routed through the epoch facility even once it is live: epoch expiry
+    // must never free machine code (I7). THREADS-INTEGRATE(jit)
+    static void retireOptimizedJITCode(VM&, RefPtr<JITCode>&&);
 #endif
 
     // Retire an arbitrary non-executable artifact: the callback is destroyed

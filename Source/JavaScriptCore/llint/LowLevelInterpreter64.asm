@@ -1638,7 +1638,7 @@ end
 # ===========================================================================
 
 # R5 (App. R5): load the current thread's pre-shifted TID tag
-# (g_jscButterflyTIDTag = uint64_t(tid) << 48) into t4 via link-time
+# (g_jscButterflyTIDTag = uint64_t(tid) << 48) into t6 via link-time
 # INITIAL-EXEC TLS relocations (@GOTTPOFF on x86-64, :gottprel: on arm64): the
 # GOT slot holds the thread-invariant tp-relative offset, costing one extra
 # load vs local-exec but staying linkable in -fPIC shared-object JSC builds.
@@ -1653,17 +1653,20 @@ end
 # ELF/Linux only: on Darwin the M4a JSCConfig key slot for the register-form
 # tls_loadp has not landed, and Windows/C_LOOP have no JIT-visible TLS
 # mechanism (D8) - those configurations jump to the slow path instead (reads
-# are unaffected; only write/transition fast paths need the tag). t4 is
-# clobbered.
-macro loadButterflyTIDTagToT4(slowLabel)
+# are unaffected; only write/transition fast paths need the tag). t6 is
+# clobbered. The tag MUST NOT live in t4: t4 is the LLInt PC register on all
+# JSVALUE64 platforms (LowLevelInterpreter.asm `const PC = t4`), so using it
+# here corrupts the bytecode PC for every subsequent slow-path call. t6
+# (rdi / x6) is dead at all four call sites below.
+macro loadButterflyTIDTagToT6(slowLabel)
     if LINUX and X86_64
-        emit "movq g_jscButterflyTIDTag@GOTTPOFF(%rip), %r8"  # t4 == r8: tp-relative offset from the GOT (IE)
-        emit "movq %fs:(%r8), %r8"                            # tag = *(tp + offset)
+        emit "movq g_jscButterflyTIDTag@GOTTPOFF(%rip), %rdi"  # t6 == rdi: tp-relative offset from the GOT (IE)
+        emit "movq %fs:(%rdi), %rdi"                           # tag = *(tp + offset)
     elsif LINUX and (ARM64 or ARM64E)
         emit "adrp x16, :gottprel:g_jscButterflyTIDTag"
         emit "ldr x16, [x16, #:gottprel_lo12:g_jscButterflyTIDTag]"  # IE: tp-relative offset from the GOT
-        emit "mrs x4, tpidr_el0"                              # t4 == x4
-        emit "ldr x4, [x4, x16]"                              # tag = *(tp + offset)
+        emit "mrs x6, tpidr_el0"                              # t6 == x6
+        emit "ldr x6, [x6, x16]"                              # tag = *(tp + offset)
     else
         jmp slowLabel
     end
@@ -1702,8 +1705,8 @@ macro threadedButterflyReadPredicate(object, tagged, scratch, slowLabel)
     andq scratch, tagged
 end
 
-# WRITE predicate (sec.5.5, frozen; requires the pre-shifted TID tag in t4 -
-# loadButterflyTIDTagToT4 first): (1) segmented => slow; (2) tag bits ==
+# WRITE predicate (sec.5.5, frozen; requires the pre-shifted TID tag in t6 -
+# loadButterflyTIDTagToT6 first): (1) segmented => slow; (2) tag bits ==
 # per-thread tag => owner (fused compare, NEVER elided, D9); (3) SW=1 AND not
 # AS => proceed; (4) else => slow (the generic op fires F1 / takes the cell
 # lock itself - never ensure-SW-then-store inline for AS, I20). Clobbers
@@ -1713,7 +1716,7 @@ macro threadedButterflyWritePredicate(object, tagged, scratch, slowLabel)
     urshiftq 48, scratch
     bieq scratch, 0xffff, slowLabel       # (1) segmented
     move tagged, scratch
-    xorq t4, scratch
+    xorq t6, scratch
     urshiftq 48, scratch
     btiz scratch, .mask                   # (2) owner: tag bits match (incl. SW=0)
     btiz scratch, 0x8000, slowLabel       # (4) foreign write, SW=0 => F1/slow
@@ -1746,13 +1749,13 @@ macro loadPropertyAtVariableOffsetThreaded(propertyOffsetAsInt, objectAndStorage
 end
 
 # Threaded counterpart of storePropertyAtVariableOffset: the out-of-line
-# branch goes through the WRITE choke point. Clobbers t4 (TID tag) and
+# branch goes through the WRITE choke point. Clobbers t6 (TID tag) and
 # tagged/scratch; offset/object/value/tagged/scratch must be pairwise
-# distinct and none may be t4.
+# distinct and none may be t6 (TID tag) or t4 (PC).
 macro storePropertyAtVariableOffsetThreaded(propertyOffsetAsInt, objectAndStorage, value, tagged, scratch, slowLabel)
     bilt propertyOffsetAsInt, firstOutOfLineOffset, .isInline
     loadp JSObjectWithButterfly::m_butterfly[objectAndStorage], tagged
-    loadButterflyTIDTagToT4(slowLabel)
+    loadButterflyTIDTagToT6(slowLabel)
     threadedButterflyWritePredicate(objectAndStorage, tagged, scratch, slowLabel)
     move tagged, objectAndStorage
     negi propertyOffsetAsInt
@@ -2399,11 +2402,11 @@ macro putByValOp(opcodeName, opcodeStruct, osrExitPoint)
         # segmented, foreign-SW=0 (F1), and shared-AS cases go to the slow
         # path, which performs the locked/regime-aware store in C++). The
         # shared shape dispatch after the rejoin point is then sound: only
-        # owner-SW=0 or shared-non-AS butterflies reach it. t4 = TID tag.
+        # owner-SW=0 or shared-non-AS butterflies reach it. t6 = TID tag.
         # Shape-byte/butterfly pairing relies on the OM sec.4.7/I28 STW-relabel
         # premise -- see the .opGetByValThreaded comment above (review round 1).
         loadp JSObjectWithButterfly::m_butterfly[t1], t0
-        loadButterflyTIDTagToT4(.opPutByValSlow)
+        loadButterflyTIDTagToT6(.opPutByValSlow)
         threadedButterflyWritePredicate(t1, t0, t7, .opPutByValSlow)
         jmp .opPutByValContinue
 
@@ -3921,6 +3924,10 @@ llintOpWithMetadata(op_enumerator_put_by_val, OpEnumeratorPutByVal, macro (size,
     # which does not order load->load on ARM64). t6 must stay live until
     # .outOfLineThreaded (nothing below clobbers it: t2 becomes the structure
     # then the index, t3 the scratch then the value, t1 the inline capacity).
+    # t6 is consumed by butterflyLoadDependsOnStructureID at the top of
+    # .outOfLineThreaded and is then clobbered by loadButterflyTIDTagToT6 --
+    # the tag load must never be hoisted above the structureID dependency
+    # fold.
     loadi JSCell::m_structureID[t0], t6
     bineq t2, t6, .putSlowPath
 
@@ -3961,7 +3968,7 @@ llintOpWithMetadata(op_enumerator_put_by_val, OpEnumeratorPutByVal, macro (size,
     # the stale butterfly carries the owner tag.)
     butterflyLoadDependsOnStructureID(t6, t0, t7) # R7/F7; t6 = cell sid
     loadp JSObjectWithButterfly::m_butterfly[t0], t1
-    loadButterflyTIDTagToT4(.putSlowPath)
+    loadButterflyTIDTagToT6(.putSlowPath)
     threadedButterflyWritePredicate(t0, t1, t7, .putSlowPath)
     jmp .outOfLineContinue
 

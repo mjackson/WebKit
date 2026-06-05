@@ -169,7 +169,11 @@ JSValue WaiterListManager::waitAsyncImpl(JSGlobalObject* globalObject, VM& vm, V
             list->addLast(listLocker, waiter);
 
             if (timeout != Seconds::infinity()) {
-                Ref<RunLoop::DispatchTimer> timer = RunLoop::currentSingleton().dispatchAfter(timeout, [this, ptr, waiter = waiter.copyRef()]() mutable {
+                // Arm the timeout on the VM's run loop, never the calling thread's
+                // (SPEC-api 5.6, G28/G26): a spawned JS thread's RunLoop is not pumped
+                // and dies with the thread, so a timer armed there would never fire.
+                // The VM's run loop is the one DeferredWorkTimer::runRunLoop pumps.
+                Ref<RunLoop::DispatchTimer> timer = vm.runLoop().dispatchAfter(timeout, [this, ptr, waiter = waiter.copyRef()]() mutable {
                     timeoutAsyncWaiter(ptr, WTF::move(waiter));
                 });
                 waiter->setTimer(listLocker, WTF::move(timer));

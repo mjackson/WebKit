@@ -80,6 +80,7 @@
 #include "ArrayConventions.h"
 #include "ArrayStorage.h"
 #include "ButterflyInlines.h"
+#include "GCDeferralContextInlines.h"
 #include "JSCInlines.h"
 #include "JSThreadsSafepoint.h"
 #include "PropertyTable.h"

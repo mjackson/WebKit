@@ -79,6 +79,7 @@
 #include "ProgramCodeBlock.h"
 #include "PropertyInlineCache.h"
 #include "ReduceWhitespace.h"
+#include "RetiredJITArtifacts.h"
 #include "SlotVisitorInlines.h"
 #include "SourceProvider.h"
 #include "StackVisitor.h"
@@ -984,7 +985,25 @@ CodeBlock::~CodeBlock()
 #if ENABLE(DFG_JIT)
         if (auto* jitData = dfgJITData()) {
             m_jitData = nullptr;
-            delete jitData;
+            // SPEC-jit section 5.3 / I7: flag-on, leak alongside m_jitCode
+            // (retired at the end of this destructor) - the leaked optimized
+            // machine code can still be entered by a parked sibling thread
+            // and may reach this JITData. THREADS-INTEGRATE(jit)
+            //
+            if (!Options::useJSThreads()) [[likely]]
+                delete jitData;
+            else {
+                // Disarm the privately-owned jettisoning watchpoints before
+                // leaking the shell: leaked-but-armed watchpoints keep
+                // m_owner pointing at this now-destructed CodeBlock cell,
+                // and a post-death fire trips fireInternal's
+                // ASSERT(!m_owner->wasDestructed()) on Debug or can jettison
+                // an unrelated live CodeBlock occupying the reused MarkedBlock
+                // slot on Release. Destroying them here is exactly as safe as
+                // the flag-off `delete jitData` above, which destroys the
+                // same watchpoints at the same point in the destructor.
+                jitData->clearWatchpoints();
+            }
         }
 #endif
     } else {
@@ -1043,6 +1062,21 @@ CodeBlock::~CodeBlock()
         }
         cc.set(CrashChecker::Destructed, 0xdd);
     }
+
+#if ENABLE(DFG_JIT)
+    // SPEC-jit section 5.3 / I7: flag-on, this CodeBlock's optimized machine
+    // code must not be freed by this sweep. Jettison defers code deletion to
+    // "the GC sweep after R2's conservative scan", but under the phase-1 GIL
+    // stub that scan covers only the GIL-holding thread: a sibling spawned
+    // thread parked with the GIL dropped can still resume into this code
+    // through a call-link/IC entrypoint (ASAN SEGV with pc in an unmapped
+    // module from llint_op_call, JSTests/threads/jit/tid-tag-3-threads.js
+    // et al.). Route the release through RetiredJITArtifacts, which leaks it
+    // until the heap workstream's N-stack scan lands. Flag-off this is the
+    // same inline ref drop as today. THREADS-INTEGRATE(jit)
+    if (Options::useJSThreads() && m_jitCode && JSC::JITCode::isOptimizingJIT(m_jitCode->jitType())) [[unlikely]]
+        RetiredJITArtifacts::retireOptimizedJITCode(vm, WTF::move(m_jitCode));
+#endif
 }
 
 bool CodeBlock::isConstantOwnedByUnlinkedCodeBlock(VirtualRegister reg) const

@@ -16,7 +16,12 @@ shouldThrow(TypeError, () => Thread.restrict(123n));
 // Excluded receivers are rejected with TypeError.
 shouldThrow(TypeError, () => Thread.restrict(globalThis));
 shouldThrow(TypeError, () => Thread.restrict(Array.prototype));
-shouldThrow(TypeError, () => Thread.restrict(Object.prototype));
+// NOTE: Object.prototype is deliberately NOT here — the Object pair is not
+// in Dev 8's frozen species-protected list and ObjectPrototype has no
+// enforced method-table overrides, so restricting it is legal
+// (catastrophic-but-perf-only per 5.7.1; recorded round-3 delta, reaffirmed
+// under D13, docs/threads/INTEGRATE-api.md). We do not actually restrict
+// it: that would poison every later test in this VM.
 shouldThrow(TypeError, () => Thread.restrict(RegExp.prototype));
 shouldThrow(TypeError, () => Thread.restrict(Promise.prototype));
 shouldThrow(TypeError, () => Thread.restrict(new Proxy({}, {})));

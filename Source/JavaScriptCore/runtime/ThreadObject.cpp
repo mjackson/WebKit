@@ -30,9 +30,11 @@
 #include "ConcurrentButterflyOperations.h"
 #include "CustomGetterSetter.h"
 #include "ErrorInstance.h"
+#include "ErrorInstanceInlines.h"
 #include "ExceptionHelpers.h"
 #include "ClassInfo.h"
 #include "JSArray.h"
+#include "JSArrayBufferView.h"
 #include "JSCInlines.h"
 #include "JSGlobalObject.h"
 #include "JSLock.h"
@@ -200,6 +202,21 @@ static void threadMain(VM& vm, Ref<ThreadState> state)
             phase = ThreadState::Phase::Finished;
         }
 
+        // 5.2 yield-point ordering for the completion drain below: let
+        // parked-but-releasable waiters resume first. Without this, this
+        // thread goes from its hold() epilogue (m_lock release) straight to
+        // the 4.6.1 drain while the waiter it just notified/unblocked is
+        // still inside its blocking host call, and the drain runs inside
+        // that waiter's park — the D11 violation
+        // park-no-microtask-drain.js asserts against. Bounded by the
+        // progress-reset deadline in jsThreadYieldForPendingParkResumptions
+        // (LockObject.cpp), so a join-under-hold cycle can only delay,
+        // never deadlock, completion. NOTE: this wait-before-drain is a
+        // GIL-stub deviation from the frozen SPEC-api 4.6.1 ordering of the
+        // same kind as the recorded D2 notify-yield deviation (the spec's
+        // "never waits" applies to tickets; this waits only on park
+        // resumptions, bounded).
+        jsThreadYieldForPendingParkResumptions(vm);
         // Completion sequence (SPEC-api 4.6.1), still under the JSLock:
         // drain the shared VM microtask queue once (GIL-phase rule;
         // post-GIL: own queue until empty).
@@ -335,7 +352,7 @@ JSC_DEFINE_HOST_FUNCTION(threadProtoFuncJoin, (JSGlobalObject* globalObject, Cal
             GILDroppedSection droppedSection(vm);
             Locker joinLocker { state.joinLock };
             // F5 wait, in 10ms waitUntil quanta polling
-            // vm.hasTerminationRequest() (landed deviation D9,
+            // jsThreadParkTerminationRequested() (landed deviation D9,
             // docs/threads/INTEGRATE-api.md): VMTraps cannot wake a thread
             // parked in joinCondition, so an unbounded wait is unkillable
             // under the watchdog if the joinee never completes (e.g. it is
@@ -347,7 +364,7 @@ JSC_DEFINE_HOST_FUNCTION(threadProtoFuncJoin, (JSGlobalObject* globalObject, Cal
             // between sleeps (5.9(a3)); a completion observed under the
             // lock takes priority over a concurrent termination request.
             while (state.phase.load(std::memory_order_acquire) == ThreadState::Phase::Running) {
-                if (vm.hasTerminationRequest()) {
+                if (jsThreadParkTerminationRequested(vm)) {
                     terminated = true;
                     break;
                 }
@@ -356,7 +373,12 @@ JSC_DEFINE_HOST_FUNCTION(threadProtoFuncJoin, (JSGlobalObject* globalObject, Cal
         }
         if (terminated) {
             // Back under the GIL (the dropped section ended), no native
-            // lock held. Same surfacing as the 5.6-7 property-wait path.
+            // lock held. Same surfacing as the 5.6-7 property-wait path,
+            // in the handleTraps shape (request-then-throw:
+            // throwTerminationException ASSERTs the request flag, which a
+            // parked thread never had set — only trap BITS were raised
+            // while we slept).
+            vm.setHasTerminationRequest();
             vm.throwTerminationException();
             return { };
         }
@@ -544,10 +566,20 @@ static bool isSpeciesProtectedBuiltin(JSObject* object)
 //   resolves an inherited &Derived::op to &JSObject::op, so the pointer
 //   comparison detects "not overridden" exactly);
 // - JSArray exactly: its overrides (put / getOwnPropertySlot for "length",
-//   defineOwnProperty, deleteProperty, getOwnPropertyNames) delegate to the
-//   hooked generic paths for everything except the "length" metadata slot,
-//   and arrays are part of the I14-covered surface
+//   deleteProperty, getOwnPropertyNames) delegate to the hooked generic
+//   paths for everything except the "length" metadata slot, and arrays are
+//   part of the I14-covered surface
 //   (JSTests/threads/api/thread-restrict.js indexed cases).
+//   Note (closes the D13 audit gap): JSArray::defineOwnProperty does not
+//   delegate to the hooked JSObject::defineOwnProperty entry point — its
+//   indexed branch routes to JSObject::defineOwnIndexedProperty and its
+//   non-index branch calls defineOwnNonIndexProperty directly — so it
+//   carries its own threadRestrictCheck gate at the top (JSArray.cpp, same
+//   idiom as the JSObject::defineOwnProperty hook), keeping frozen I14
+//   (SPEC-api.md: indexed set/delete/define on array =>
+//   ConcurrentAccessError) enforced. Do NOT drop JSArray from this
+//   allowlist (would break the I14-required restrict acceptance of arrays)
+//   and do NOT weaken the test.
 // Everything else => the 5.7 TypeError at restrict time, so an object that
 // cannot be enforced is never accepted (no silent enforcement hole). This
 // also keeps the 9.2-6 note "do not hook getOwnPropertySlotByIndex" valid:
@@ -596,6 +628,16 @@ static bool isExcludedRestrictReceiver(JSObject* object)
     // entry point would bypass the 9.2-6 hooks (typed-array views,
     // StringObject, arguments objects, functions' lazy own properties, ...).
     if (!restrictReceiverStaysOnHookedPaths(object))
+        return true;
+    // DataView (and any other ArrayBufferView the allowlist would admit):
+    // its enforced method-table slots are all JSObject defaults and
+    // TypeDataView does not hijack the indexing header (isTypedView() is
+    // false for it), so neither check above fires — yet its backing
+    // ArrayBuffer stays reachable from any thread via the
+    // DataView.prototype get*/set* methods, which the 9.2-6 hooks never
+    // see. Same D13 rationale, different escape path => restrict-time
+    // TypeError (I14 overrider-instance block lists DataView explicitly).
+    if (object->inherits<JSArrayBufferView>())
         return true;
     return false;
 }

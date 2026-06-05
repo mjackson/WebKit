@@ -1,16 +1,16 @@
 //@ requireOptions("--useJSThreads=1")
 // 5.2 yield-point contract: pending microtasks must NOT run inside a blocking
 // host call. Every park site releases the GIL via GILDroppedSection
-// (LockObject.h), whose plain JSLock unlock currently falls into
-// JSLock::willReleaseLock()'s VM::drainMicrotasks() (the drain is guarded on
-// m_lockDropDepth, which GILDroppedSection does not bump) — landed deviation
-// D11, docs/threads/INTEGRATE-api.md.
+// (LockObject.h), which since the 9.2-9 JSLock hunk
+// (JSLock::unlockAllForThreadParking + the GILDroppedSection splice) bypasses
+// JSLock::willReleaseLock()'s VM::drainMicrotasks() — landed deviation D11,
+// docs/threads/INTEGRATE-api.md. The shouldBeFalse assertions below verify
+// that no GILDroppedSection release drains the shared VM queue.
 //
-// SKIPPED until the 9.2-9 JSLock hunk (JSLock::unlockAllForThreadParking +
-// the GILDroppedSection splice) is INTEGRATOR-applied; the integrator deletes
-// this `//@ skip` line together with that hunk. Under the current tree the
-// shouldBeFalse assertions below fail by design (the queued reactions run at
-// the park site).
+// Note the SANCTIONED exception (SPEC-api 4.6.1 step 1 / 4.6-4 "who drains"):
+// a joinee's completion sequence drains the single shared VM queue once,
+// under the GIL, before the joiner's join() can observe completion. The join
+// block below is written around that — see its comment.
 //
 // Conventions (annex T2): self-checking, failure = throw; every spawned
 // thread is joined; blocking ops bounded.
@@ -18,16 +18,23 @@ load("../harness.js", "caller relative");
 
 asyncTestStart(1);
 
-// ---- join: a reaction queued before the park must not run inside it ----
+// ---- join: a reaction queued before the park must not run inside the
+// joiner's GIL-dropped park itself. Caveat (SPEC-api 4.6.1 / 4.6-4 "who
+// drains"): the joinee's completion sequence is a SANCTIONED GIL-phase
+// drain point of the single shared VM queue and always runs before join()
+// can return, so the reaction legitimately HAS run by then — sample `ran`
+// from inside the joinee, before its completion drain, instead of after
+// join(). The sample also covers the joinee's own sleepMs park (D11: no
+// drain at any GILDroppedSection release).
 {
     let ran = false;
     const t = new Thread(() => {
         sleepMs(50); // ensure the joiner genuinely parks
-        return 42;
+        return ran; // sampled before the joinee's 4.6.1 completion drain
     });
     Promise.resolve().then(() => { ran = true; });
-    shouldBe(t.join(), 42);
-    shouldBeFalse(ran, "microtask must not run inside join's GIL-dropped park");
+    shouldBeFalse(t.join(), "microtask must not run inside join's GIL-dropped park");
+    shouldBeTrue(ran, "the joinee's 4.6.1 completion drain runs the queued reaction");
 }
 
 // ---- cond.wait ----

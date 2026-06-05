@@ -1017,9 +1017,33 @@ public:
     // contiguous, array storage).
     ContiguousJSValues tryMakeWritableInt32(VM& vm)
     {
-        if (hasInt32(indexingType()) && !isCopyOnWrite(indexingMode())) [[likely]]
+        if (hasInt32(indexingType()) && !isCopyOnWrite(indexingMode())) [[likely]] {
+#if USE(JSVALUE64)
+            // SPEC-objectmodel §Q/§9.5: owned butterfly() caller — dispatch
+            // INTERNALLY flag-on, like the sibling families above
+            // (getArrayLength/getVectorLength/canSetIndexQuicklyForPutDirect).
+            // Segmented => empty sentinel, matching the slow forms (see
+            // convertUndecidedToInt32); callers fall to their generic paths.
+            // E5 "None first" (round 4): a racing N3 first install can pair
+            // word==0 with a fresh indexed type — None must also return the
+            // empty sentinel here, NOT fall to tryMakeWritableInt32Slow,
+            // whose switch CRASH()es on ALL_INT32_INDEXING_TYPES.
+            // Flat => mask + today's code. Flag-off bit-identical (I22).
+            // FIXME(threads): this closes a flat-only-reader conformance hole
+            // but is NOT the fix for the i03-i37 abort in
+            // JSObjectWithButterfly::butterfly(); that caller needs re-triage
+            // outside JSObject.h/Structure.*/ConcurrentButterfly.*.
+            if (Options::useJSThreads()) [[unlikely]] {
+                uint64_t word = taggedButterflyWord();
+                if (isSegmentedButterfly(word)) [[unlikely]]
+                    return ContiguousJSValues();
+                if (!(word & butterflyPointerMask)) [[unlikely]]
+                    return ContiguousJSValues();
+                return untaggedButterfly(word)->contiguousInt32();
+            }
+#endif
             return butterfly()->contiguousInt32();
-
+        }
         return tryMakeWritableInt32Slow(vm);
     }
         
@@ -1029,9 +1053,20 @@ public:
     // or array storage).
     ContiguousDoubles tryMakeWritableDouble(VM& vm)
     {
-        if (hasDouble(indexingType()) && !isCopyOnWrite(indexingMode())) [[likely]]
+        if (hasDouble(indexingType()) && !isCopyOnWrite(indexingMode())) [[likely]] {
+#if USE(JSVALUE64)
+            // SPEC-objectmodel §Q/§9.5 + E5 "None first": see tryMakeWritableInt32.
+            if (Options::useJSThreads()) [[unlikely]] {
+                uint64_t word = taggedButterflyWord();
+                if (isSegmentedButterfly(word)) [[unlikely]]
+                    return ContiguousDoubles();
+                if (!(word & butterflyPointerMask)) [[unlikely]]
+                    return ContiguousDoubles();
+                return untaggedButterfly(word)->contiguousDouble();
+            }
+#endif
             return butterfly()->contiguousDouble();
-
+        }
         return tryMakeWritableDoubleSlow(vm);
     }
         
@@ -1039,9 +1074,20 @@ public:
     // indexing should be sparse or because we're having a bad time.
     ContiguousJSValues tryMakeWritableContiguous(VM& vm)
     {
-        if (hasContiguous(indexingType()) && !isCopyOnWrite(indexingMode())) [[likely]]
+        if (hasContiguous(indexingType()) && !isCopyOnWrite(indexingMode())) [[likely]] {
+#if USE(JSVALUE64)
+            // SPEC-objectmodel §Q/§9.5 + E5 "None first": see tryMakeWritableInt32.
+            if (Options::useJSThreads()) [[unlikely]] {
+                uint64_t word = taggedButterflyWord();
+                if (isSegmentedButterfly(word)) [[unlikely]]
+                    return ContiguousJSValues();
+                if (!(word & butterflyPointerMask)) [[unlikely]]
+                    return ContiguousJSValues();
+                return untaggedButterfly(word)->contiguous();
+            }
+#endif
             return butterfly()->contiguous();
-
+        }
         return tryMakeWritableContiguousSlow(vm);
     }
 
@@ -1732,7 +1778,16 @@ inline bool JSObject::isWithScope() const
 inline void JSObject::setStructure(VM& vm, Structure* structure)
 {
     ASSERT(structure);
-    ASSERT(!butterfly() == !(structure->outOfLineCapacity() || structure->hasIndexingHeader(this)));
+    // SPEC-objectmodel §9.5: butterfly() is flat-only, but setStructure is
+    // legitimately reached with a segmented or foreign-tagged word (e.g. the
+    // §4.7/I28 STW relabel closure in relabelIndexingShapeConcurrent, or the
+    // dictionary attribute-change legs of putDirectInternal). The assert only
+    // needs storage PRESENCE, so test the raw tagged word's payload instead of
+    // dereferencing through the flat-only accessor - a segmented spine payload
+    // counts as "has storage", which is exactly what shape consistency wants.
+    // Deliberately does NOT verify flatness: segmented words are legal here
+    // (I16/I28), so do not "restore" a butterfly() call.
+    ASSERT(!(taggedButterflyWord() & butterflyPointerMask) == !(structure->outOfLineCapacity() || structure->hasIndexingHeader(this)));
     JSCell::setStructure(vm, structure);
 }
 

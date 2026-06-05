@@ -141,6 +141,21 @@ private:
 // ConditionObject.cpp for asyncWait re-acquisition.
 void settleLockGrant(NativeLockState&, AsyncTicket&);
 
+// D9 park-poll predicate, shared by every GIL-dropped park site. A parked
+// thread can never observe vm.hasTerminationRequest() alone: that flag is
+// only set by VMTraps::handleTraps(), which runs on a mutator EXECUTING JS
+// under the GIL — watchdog firing (NeedWatchdogCheck), VM::notifyNeedTermination,
+// and the shell's SIGTERM path only set trap BITS. Polling the flag at a
+// park site therefore never observes a termination raised while everyone is
+// parked (the watchdog-hang / SIGTERM-immune failure mode). Poll the trap
+// bits directly. NeedWatchdogCheck is deliberately treated as terminal at a
+// park: Watchdog::shouldTerminate()'s CPU-deadline deferral is meaningless
+// for a parked thread (it burns ~no CPU, so deferral == unkillable park),
+// the wall timer only fires at/after the deadline, and shouldTerminate()
+// itself asserts the API lock so it cannot be consulted from a dropped
+// section. Recorded as a D9 amendment in docs/threads/INTEGRATE-api.md.
+JS_EXPORT_PRIVATE bool jsThreadParkTerminationRequested(VM&);
+
 // Phase-1 GIL stub fairness primitive: release the GIL, yield, and
 // reacquire it, WITHOUT JSLock::DropAllLocks. DropAllLocks participates in
 // JSLock's strict-LIFO m_lockDropDepth protocol (JSLock::grabAllLocks spins
@@ -157,6 +172,26 @@ void settleLockGrant(NativeLockState&, AsyncTicket&);
 // shares its D11 microtask-drain-at-unlock deviation — see constraint (3)
 // on the GILDroppedSection comment below; fixed by the same 9.2-9 hunk.
 void jsThreadGILHandoffYield(VM&);
+
+// Phase-1 completion-ordering primitives (the 5.2 yield-point contract vs
+// the SPEC-api 4.6.1 completion drain; regression test
+// JSTests/threads/api/park-no-microtask-drain.js): a process-global count of
+// threads inside a "park -> resumed" window of the GIL stub's
+// lock-reacquisition parks — contended sync lock.hold parkers (counted from
+// park entry) and sync cond.wait waiters (counted from the notify()-side
+// Notified flip, which is what makes the window visible BEFORE the notifier
+// can reach its completion sequence). A completing thread must not run its
+// 4.6.1 shared-queue microtask drain while such a window is open: the woken
+// parker would observe the drain inside its blocking host call, the exact
+// D11 violation the test asserts against. The completion sequence calls
+// jsThreadYieldForPendingParkResumptions, which yields the GIL until the
+// count drains to zero — bounded by a progress-reset deadline (see the
+// definition) so a parker pinned behind an unrelated long-lived holder can
+// only delay, never deadlock, completion. Process-global is correct for
+// phase 1: a single shared VM (5.2).
+void jsThreadNoteParkResumptionPending();
+void jsThreadNoteParkResumptionDone();
+void jsThreadYieldForPendingParkResumptions(VM&);
 
 // Saves vm.topCallFrame/vm.topEntryFrame at construction and restores them at
 // destruction. Required around every place a JS thread parks with the GIL

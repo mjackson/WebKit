@@ -182,7 +182,11 @@ if (typeof SharedArrayBuffer === "function") {
     shouldThrow(RangeError, () => Atomics.store(i32, 100, 0), oobMessage);
     shouldThrow(RangeError, () => Atomics.add(i32, 4, 1), oobMessage);
     shouldThrow(RangeError, () => Atomics.load(i32, -1));
-    shouldThrow(RangeError, () => Atomics.load(i32, 1.5));
+    // ToIndex truncates fractional indices (ES ValidateAtomicAccess): 1.5 -> 1,
+    // no throw. Verify it really lands on index 1, today's path both runs.
+    shouldBe(Atomics.store(i32, 1.5, 7), 7);
+    shouldBe(i32[1], 7);
+    shouldBe(Atomics.load(i32, 1.5), 7);
 }
 
 // ---- Detached buffers keep today's behavior (guarded: shell helper) ----

@@ -214,6 +214,16 @@ public:
         m_dummyArrayProfile.clear();
     }
 
+    // Destroys (and thereby disarms) the privately-owned jettisoning
+    // watchpoints. Mirrors DFGCommonData::clearWatchpoints(). Used when the
+    // owning CodeBlock leaks this JITData under useJSThreads (SPEC-jit 5.3 /
+    // I7): the leaked shell must not keep armed watchpoints whose m_owner
+    // points at a destructed CodeBlock cell.
+    void clearWatchpoints()
+    {
+        m_watchpoints = FixedVector<CodeBlockJettisoningWatchpoint>();
+    }
+
 private:
 
     bool tryInitialize(VM&, CodeBlock*, const JITCode&);

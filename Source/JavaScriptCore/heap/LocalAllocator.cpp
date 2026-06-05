@@ -324,7 +324,7 @@ void* LocalAllocator::tryAllocateIn(MarkedBlock::Handle* block, size_t cellSize)
     }
 
     block->sweep(&m_freeList);
-    
+
     // It's possible to stumble on a completely full block. Marking tries to retire these, but
     // that algorithm is racy and may forget to do it sometimes.
     if (m_freeList.allocationWillFail()) {

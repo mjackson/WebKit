@@ -107,6 +107,7 @@
 #include "WeakSetInlines.h"
 #include <algorithm>
 #include <wtf/AvailableMemory.h>
+#include <atomic>
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/ListDump.h>
 #include <wtf/MemoryFootprint.h>
@@ -951,6 +952,53 @@ void Heap::assertMarkStacksEmpty()
     RELEASE_ASSERT(ok);
 }
 
+// FIXME(fix-shared-heap-corruption): TEMPORARY diagnostic instrumentation —
+// strip before declaring the gates green (the snapshot copy below must not
+// be in place when the >1% bench gate is measured). Round 1 refuted both
+// original hypotheses: the registered-thread count matched the client count
+// (no I4(b) registration shortfall), and neither LocalAllocator freelist
+// probe ever fired (no sweep handed out a version-current marked or
+// newlyAllocated cell). The surviving mechanism is under-MARKING: a
+// conservatively-reachable cell the conducted cycle's marking never visited
+// ends the cycle with no version-current liveness bit, so a later sweep
+// frees it "legitimately" — invisible to the round-1 probes by construction.
+// This snapshot records the §10.6 conservative stack roots at gather time;
+// Heap::endMarking() re-checks that every snapshot cell carries a
+// version-current liveness bit before m_objectSpace.endMarking() retires the
+// newlyAllocated version — trapping at the guilty CYCLE on a mark failure,
+// while a sweep/steal failure stays silent here and still trips the harness
+// pattern asserts later, splitting the two hypotheses in one verify run.
+// Conductor-private: written and read only while the world is stopped for
+// all clients (I5), so an unsynchronized file-static is safe.
+static Vector<HeapCell*>& sharedGCStackRootSnapshot()
+{
+    static Vector<HeapCell*>* snapshot = new Vector<HeapCell*>;
+    return *snapshot;
+}
+
+// FIXME(fix-shared-heap-ring-liveness-5): TEMPORARY diagnostic seam — strip
+// together with the rest of the fix-shared-heap-corruption instrumentation
+// before declaring the gates green. SharedHeapTestHarness.cpp installs an
+// audit function here (extern declaration on its side; deliberately no
+// header change so the seam stays diagnostic-only and invisible to the rest
+// of the tree). Review round 5 rejected landing an I12 m_currentBlock root
+// walk before the PRODUCER-side question is answered: the round-3 safepoint
+// hook proves WHICH ring cell lost liveness but not WHY the §10.6
+// suspend-and-copy scan never produced it. This seam hands the audit every
+// shared-mode gather's full conservative root set so it can discriminate,
+// per missing ring cell, between (a) a TinyBloomFilter / MarkedBlockSet
+// publication miss (filter side), (b) a MachineThreads stack-coverage miss
+// (scan side — owning thread unregistered or bad stack bounds), and (c) a
+// cell already killed by an EARLIER stop's sweep. The audit only LOGS; the
+// gathered root set is never modified, so no invariant is masked and the
+// round-3 trap still fires in the same run, now with provenance above it.
+// Threading: written once by the harness at scenario entry; read by whichever
+// thread executes the conservative-scan constraint of a shared conduction —
+// which can be a parallel marker helper created at VM startup, BEFORE the
+// store, so this must be an atomic (release/acquire), not a plain pointer
+// published by Thread::create alone (TSAN gate).
+std::atomic<void (*)(Heap&, HeapCell**, size_t)> g_sharedGCConservativeRootAuditHook { nullptr };
+
 void Heap::gatherStackRoots(ConservativeRoots& roots)
 {
     // SharedGC §10.6 (T6): one MachineThreads scan covers all N mutators.
@@ -987,6 +1035,29 @@ void Heap::gatherStackRoots(ConservativeRoots& roots)
     // CLoopStacks (one VM, N stacks), iterate them here per I12.
     vm().cloopStack().gatherConservativeRoots(roots, *m_jitStubRoutines, *m_codeBlocks);
 #endif
+
+    // FIXME(fix-shared-heap-corruption): TEMPORARY diagnostic — see
+    // sharedGCStackRootSnapshot() above; checked in Heap::endMarking(). If
+    // this constraint executes more than once per cycle, the LAST gather
+    // wins, which is sound: mutators stay parked for the whole conducted
+    // cycle (deviation 4), so only the conductor's own roots can differ
+    // between gathers, and each gather's roots are appended to the visitor
+    // (and thereby marked) after the snapshot is taken.
+    if (isSharedServer()) [[unlikely]] {
+        auto& snapshot = sharedGCStackRootSnapshot();
+        snapshot.shrink(0);
+        for (size_t i = 0; i < roots.size(); ++i)
+            snapshot.append(roots.roots()[i]);
+
+        // FIXME(fix-shared-heap-ring-liveness-5): TEMPORARY diagnostic — see
+        // g_sharedGCConservativeRootAuditHook above. If this constraint
+        // executes more than once per cycle, an audit line from a non-final
+        // gather can be benign noise (a later gather may still produce the
+        // cell); correlate using the LAST gather's lines immediately
+        // preceding a round-3 trap in the same run.
+        if (auto* audit = g_sharedGCConservativeRootAuditHook.load(std::memory_order_acquire)) [[unlikely]]
+            audit(*this, roots.roots(), roots.size());
+    }
 }
 
 void Heap::gatherVMRoots(ConservativeRoots& roots)
@@ -1106,7 +1177,52 @@ void Heap::endMarking()
     assertMarkStacksEmpty();
 
     RELEASE_ASSERT(m_raceMarkStack->isEmpty());
-    
+
+    // FIXME(fix-shared-heap-corruption): TEMPORARY diagnostic instrumentation
+    // — strip before declaring the gates green (the snapshot walk must not be
+    // in place when the >1% bench gate is measured). See the rationale at
+    // sharedGCStackRootSnapshot(). Invariant checked: marking is complete and
+    // every conservative stack root was appended to the visitor, which either
+    // set its mark bit (testAndSetMarked, adopting the block's version) or
+    // skipped it because it is version-current newlyAllocated — so each
+    // snapshot cell must now carry one of the two version-current liveness
+    // bits (run BEFORE m_objectSpace.endMarking() retires the newlyAllocated
+    // version). A trap here = the conducted cycle's marking lost a
+    // conservatively-reachable cell (mark failure, with the guilty
+    // block/directory in hand); silence here + a later harness pattern assert
+    // = the corruption happens in the sweep/steal handout instead.
+    if (isSharedServer()) [[unlikely]] {
+        auto& snapshot = sharedGCStackRootSnapshot();
+        for (HeapCell* cell : snapshot) {
+            if (cell->isPreciseAllocation()) {
+                if (!cell->preciseAllocation().isLive()) [[unlikely]] {
+                    dataLogLn(
+                        "SharedGC diagnostic (fix-shared-heap-corruption): conservative stack root ",
+                        RawPointer(cell), " (precise allocation) is neither marked nor newlyAllocated at end of marking (scope = ",
+                        *m_collectionScope, ")");
+                    RELEASE_ASSERT_NOT_REACHED();
+                }
+                continue;
+            }
+            MarkedBlock& block = cell->markedBlock();
+            bool marked = !block.areMarksStale(m_objectSpace.markingVersion()) && block.isMarkedRaw(cell);
+            bool newlyAllocated = !block.isNewlyAllocatedStale() && block.isNewlyAllocated(cell);
+            if (!marked && !newlyAllocated) [[unlikely]] {
+                dataLogLn(
+                    "SharedGC diagnostic (fix-shared-heap-corruption): conservative stack root ",
+                    RawPointer(cell), " in block ", RawPointer(&block),
+                    " of directory ", RawPointer(block.handle().directory()),
+                    " (cellSize = ", block.handle().directory()->cellSize(),
+                    ") has no version-current liveness bit at end of marking (scope = ",
+                    *m_collectionScope,
+                    ", marksStale = ", block.areMarksStale(m_objectSpace.markingVersion()),
+                    ", newlyAllocatedStale = ", block.isNewlyAllocatedStale(), ")");
+                RELEASE_ASSERT_NOT_REACHED();
+            }
+        }
+        snapshot.shrink(0);
+    }
+
     m_objectSpace.endMarking();
     setMutatorShouldBeFenced(Options::forceFencedBarrier());
 }
@@ -2118,7 +2234,33 @@ void Heap::stopThePeriphery(GCConductor conn)
         shadowChicken->update(vm(), vm().topCallFrame);
     
     m_objectSpace.stopAllocating();
-    
+
+    // FIXME(fix-shared-heap-corruption): TEMPORARY diagnostic instrumentation
+    // — strip before declaring the gates green (an O(blocks) walk per stop;
+    // must not be in place when the >1% bench gate is measured). §10 step-5
+    // invariant, directly checkable: the stopAllocating() above must flush
+    // EVERY client's LocalAllocators via the shared directories'
+    // m_localAllocators lists. An allocator that is somehow not on its
+    // directory's list (or a stop/resume imbalance) leaves its current block
+    // FREELISTED through marking — and a freelisted block's
+    // handed-out-but-unrecorded cells have no version-current liveness bits,
+    // which is exactly the under-marking shape the round-1 probes could not
+    // see. After a complete flush no block in the space may be freelisted
+    // (stopAllocating() converts each in-use block to the stopped state).
+    if (isSharedServer()) [[unlikely]] {
+        m_objectSpace.forEachBlock(
+            [&] (MarkedBlock::Handle* block) {
+                if (block->isFreeListed()) [[unlikely]] {
+                    dataLogLn(
+                        "SharedGC diagnostic (fix-shared-heap-corruption): block ",
+                        RawPointer(block), " of directory ", RawPointer(block->directory()),
+                        " (cellSize = ", block->directory()->cellSize(),
+                        ") is still freelisted after the step-5 stopAllocating() flush.");
+                    RELEASE_ASSERT_NOT_REACHED();
+                }
+            });
+    }
+
     m_stopTime = MonotonicTime::now();
 }
 
@@ -4383,6 +4525,28 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
         m_worldIsStoppedForAllClients.store(true, std::memory_order_seq_cst); // WSAC set under GBL (F7).
     }
 
+    // The conducted cycle below (step 7: runEndPhase, finalize(),
+    // conductor-side synchronous sweeps, §11 destroy thunks) runs on THIS
+    // thread but tears down state of the one main VM (deviation 3):
+    // finalize() clears vm().keyAtomStringCache / jsonAtomStringCache /
+    // stringSplitCache, and deleteUnmarkedCompiledCode() derefs Identifiers —
+    // any of which can take an AtomStringImpl's refcount to zero. A dying
+    // atom is removed from the CURRENT THREAD's AtomStringTable
+    // (AtomStringImpl::remove), so a conductor that is not the main VM's
+    // entered thread would target its own per-thread table and trip the
+    // cross-thread removal RELEASE_ASSERT ("string table of an other
+    // thread"). Install the main VM's table for the stopped region: every
+    // mutator is parked behind the §10.4 barrier, so this cannot race the
+    // owner — the same license as runEndPhase's "main thread is suspended"
+    // note (and the worldIsStoppedForAllClients() tolerance on the
+    // requestCollection atom-table assert). No-op when the conductor is the
+    // main VM's entered thread (JSLock already installed this table).
+    // Restored by the scope-exit at function return (see the step-8 note).
+    auto* previousAtomStringTable = Thread::currentSingleton().setCurrentAtomStringTable(vm().atomStringTable());
+    auto atomStringTableScopeExit = makeScopeExit([&] {
+        Thread::currentSingleton().setCurrentAtomStringTable(previousAtomStringTable);
+    });
+
     // Step 5 — flush: every client's LocalAllocators (TLC non-iso slots and
     // the registered GCClient::IsoSubspace allocators) are linked into the
     // shared BlockDirectories' m_localAllocators lists, so the conducted
@@ -4431,6 +4595,13 @@ void Heap::conductSharedCollection(GCClient::Heap& conductorClient) WTF_IGNORES_
     // §11 reclaim sequence (I11) under the reclaimer's own compiler-thread
     // suspension.
     runSafepointHooksAndReclaim();
+
+    // End of the conductor's main-VM teardown work. The conductor's own
+    // AtomStringTable is restored by atomStringTableScopeExit at function
+    // return — i.e. after the step-8/9 resumes below. That ordering is
+    // acceptable because nothing past this point touches atoms: steps 8-9
+    // only flip allocator/barrier/VMM state, and acquireHeapAccess does not
+    // create or destroy strings.
 
     // Step 8 — resume (heap), strictly before the VMM resume (normative).
     // resumeAllocating() on all client caches: idempotent — the cycle's

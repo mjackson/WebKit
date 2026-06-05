@@ -1,3 +1,4 @@
+//@ skip (bench-only: needs reportBench from ../bench/harness.js; driven by jit/bench-gates.sh, not the corpus runner)
 // fires-per-sec.js — SPEC-jit Task 13: Class-A watchpoint fire throughput,
 // RECORDED (never gated). Run via the bench harness:
 //   jsc [--useJSThreads=0|1] --useDollarVM=1 ../bench/harness.js fires-per-sec.js

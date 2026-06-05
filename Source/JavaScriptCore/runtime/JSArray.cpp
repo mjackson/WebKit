@@ -240,6 +240,8 @@ void JSArray::setLengthWritable(JSGlobalObject* globalObject, bool writable)
 // https://tc39.es/ecma262/#sec-array-exotic-objects-defineownproperty-p-desc
 bool JSArray::defineOwnProperty(JSObject* object, JSGlobalObject* globalObject, PropertyName propertyName, const PropertyDescriptor& descriptor, bool throwException)
 {
+    if (Options::useJSThreads() && object->structure()->isUncacheableDictionary() && !threadRestrictCheck(globalObject, object)) [[unlikely]]
+        return false;
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 

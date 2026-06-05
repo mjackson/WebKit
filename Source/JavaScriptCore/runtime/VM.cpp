@@ -552,6 +552,18 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         jitSizeStatistics = makeUnique<JITSizeStatistics>();
 #endif
 
+    // SPEC-objectmodel §10 manifest entry 4b / M8 (GT#7): flag-on, the fenced
+    // nuke/publication order must be the ONLY branch (see the flag-on block
+    // below). The Options write must happen BEFORE Config::finalize()
+    // write-protects the options storage. Skip the store when the option is
+    // already set: Config::finalize() freezes the options page once per
+    // process, so a second VM constructed afterwards must not write to it
+    // (even a same-value store to a read-only page faults). The first flag-on
+    // VM forces the option before the freeze, so later VMs always observe
+    // true here and skip. THREADS-INTEGRATE(objectmodel)
+    if (Options::useJSThreads() && !Options::forceFencedBarrier()) [[unlikely]]
+        Options::forceFencedBarrier() = true;
+
     Config::finalize();
 
     // Intentionally do NOT eagerly resolve the host timezone / IANA timezone data
@@ -573,15 +585,12 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         VMLiteRegistry::singleton().registerLite(*m_mainVMLite, *this);
     }
 
-    // SPEC-objectmodel §10 manifest entry 4b / M8 (GT#7): flag-on, the fenced
-    // nuke/publication order must be the ONLY branch and in-place butterfly
+    // SPEC-objectmodel §10 manifest entry 4b / M8 (GT#7): in-place butterfly
     // reallocs must stay disabled for the HEAP LIFETIME. Heap::endMarking
-    // restores the fence from Options::forceFencedBarrier() (Heap.cpp), so
-    // force the option as well as the live state. THREADS-INTEGRATE(objectmodel)
-    if (Options::useJSThreads()) [[unlikely]] {
-        Options::forceFencedBarrier() = true;
+    // restores the fence from Options::forceFencedBarrier() (Heap.cpp), which
+    // was forced above, before Config::finalize(). THREADS-INTEGRATE(objectmodel)
+    if (Options::useJSThreads()) [[unlikely]]
         heap.setMutatorShouldBeFenced(true);
-    }
 
     // SPEC-objectmodel §9.2/I32 + Task 1 self-test (manifest entry 4a).
     if (Options::useJSThreads()) [[unlikely]] {
