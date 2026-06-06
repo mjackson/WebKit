@@ -1121,6 +1121,7 @@ void JSLock::lock(intptr_t lockCount) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
     }
 
     m_ownerThread = &Thread::currentSingleton();
+    m_ownerThreadPtr.store(m_ownerThread.get(), std::memory_order_relaxed);
     m_hasOwnerThread.store(true, std::memory_order_release);
     ASSERT(!m_lockCount);
     m_lockCount = lockCount;
@@ -1375,7 +1376,7 @@ NO_RETURN_DUE_TO_CRASH NEVER_INLINE void JSLock::dumpInfoAndCrashForLockNotOwned
     register uintptr_t lockWord0 __asm__("x25") = thisAsIntPtr[0];
     updateDumpState(0x4444, lockWord0, dumpState, dumpState);
 
-    register void* ownerThread __asm__("x24") = m_ownerThread.get();
+    register void* ownerThread __asm__("x24") = m_ownerThreadPtr.load(std::memory_order_relaxed);
     updateDumpState(0x5555, ownerThread, dumpState, dumpState);
 
     register uintptr_t lockWord2 __asm__("x23") = thisAsIntPtr[2];

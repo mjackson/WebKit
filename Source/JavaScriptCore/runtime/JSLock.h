@@ -94,7 +94,7 @@ public:
     std::optional<RefPtr<Thread>> ownerThread() const
     {
         if (m_hasOwnerThread.load(std::memory_order_acquire))
-            return m_ownerThread;
+            return RefPtr<Thread> { m_ownerThreadPtr.load(std::memory_order_relaxed) };
         return std::nullopt;
     }
 
@@ -105,10 +105,12 @@ public:
     {
         if (!m_hasOwnerThread.load(std::memory_order_acquire))
             return std::nullopt;
-        return m_ownerThread->uid();
+        if (Thread* thread = m_ownerThreadPtr.load(std::memory_order_relaxed))
+            return thread->uid();
+        return std::nullopt;
     }
 
-    bool currentThreadIsHoldingLock() { return m_hasOwnerThread.load(std::memory_order_acquire) && m_ownerThread.get() == &Thread::currentSingleton(); }
+    bool currentThreadIsHoldingLock() { return m_hasOwnerThread.load(std::memory_order_acquire) && m_ownerThreadPtr.load(std::memory_order_relaxed) == &Thread::currentSingleton(); }
 
     void NODELETE willDestroyVM(VM*);
 
@@ -177,7 +179,18 @@ private:
     // See https://bugs.webkit.org/show_bug.cgi?id=169042#c6
     std::atomic<bool> m_hasOwnerThread { false };
     bool m_shouldReleaseHeapAccess;
+    // m_ownerThread is the ref-holder only: it is written exclusively by the
+    // thread that just acquired m_lock (depth-0 in JSLock::lock) and is never
+    // read across threads. All cross-thread identity reads go through
+    // m_ownerThreadPtr, an atomic mirror of the pointer word, because
+    // contending threads in lock() call currentThreadIsHoldingLock() while a
+    // new owner is storing the RefPtr (TSAN data race on the plain pointer
+    // word under GILDroppedSection re-lock churn). The mirror is stored
+    // before the m_hasOwnerThread release-store, so any acquire-load of the
+    // flag that observes true also observes the matching owner pointer;
+    // relaxed loads of the mirror are therefore sufficient.
     RefPtr<Thread> m_ownerThread;
+    std::atomic<Thread*> m_ownerThreadPtr { nullptr };
     intptr_t m_lockCount;
     unsigned m_lockDropDepth;
     uint32_t m_lastOwnerThread { 0 };

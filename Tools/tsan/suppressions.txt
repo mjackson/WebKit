@@ -22,14 +22,44 @@
 #   race:path/substring.cpp
 #   deadlock:FunctionNameSubstring
 #
-# STATUS (Verify phase): intentionally still empty. TSAN runs of
-# hello-world and the single-layer corpus files (lock-hold-mutual-exclusion,
-# property-read-write, atomics-object-basic, condition-wait-notify) under
-# WebKitBuild/TSan/bin/jsc reported ZERO data races, so there is nothing to
-# suppress. The only TSAN noise ever seen was:
+# STATUS: contains only the three pre-existing upstream parallel-GC entries
+# at the bottom of this file (adjudicated under rule 1; see each entry's
+# justification). Historical note (Verify phase): the file started empty —
+# TSAN runs of hello-world and the single-layer corpus files
+# (lock-hold-mutual-exclusion, property-read-write, atomics-object-basic,
+# condition-wait-notify) under WebKitBuild/TSan/bin/jsc reported ZERO data
+# races. The only other TSAN noise ever seen was:
 #   - "thread leak" on every Thread() spawn -- fixed in source
 #     (constructThread now detaches the native handle, ThreadObject.cpp),
 #     not suppressed;
 #   - an intermittent SEGV in CLoop::execute -- the shared-CLoopStack
 #     limitation of the phase-1 GIL stub (documented in
 #     docs/threads/TSAN.md "Known limitations"), not a data race.
+
+# Pre-existing upstream parallel/concurrent marking races, surfaced once
+# GC-heavy corpus tests (heap-bench-allocation.js, heap-option-off.js) run
+# parallel marking helpers under the TSAN no-JIT build. heap-option-off.js
+# reproduces with the shared-heap option OFF, i.e. pure upstream behavior.
+# The threads work made comment-only changes at these sites; none of them is
+# threads-workstream code (object model, heap handout, atom table,
+# watchpoints, VM-lite).
+
+# Benign: upstream publishes header().m_markingVersion after an explicit
+# WTF::storeStoreFence() (Source/JavaScriptCore/heap/MarkedBlock.cpp:394-395);
+# other markers read the version racily by design (MarkedBlock::areMarksStale).
+race:JSC::MarkedBlock::aboutToMarkSlow
+
+# Benign: upstream's deliberately lock-free MarkStackArray::size() heuristic
+# reads ("Avoid locking..." / "be conservative",
+# Source/JavaScriptCore/heap/SlotVisitor.cpp:437-444) race with
+# GCSegmentedArray<T>::postIncTop (heap/GCSegmentedArrayInlines.h:142) from
+# MarkStackArray::donateSomeCellsTo; the actual donation runs under
+# m_heap.m_markingMutex. Covers both stacks of the size-vs-postIncTop report.
+race:JSC::SlotVisitor::donateKnownParallel
+
+# Benign: ParallelHelperClient::claimTask increments m_numActive under the
+# pool lock (Source/WTF/wtf/ParallelHelperPool.cpp:104) while runTask's
+# RELEASE_ASSERT(m_numActive) (:110) reads it unlocked; the asserting helper
+# itself incremented the counter under the lock, so nonzero is guaranteed.
+# Upstream WTF code untouched by the threads work.
+race:WTF::ParallelHelperClient::claimTask
