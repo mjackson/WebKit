@@ -9414,10 +9414,14 @@ void SpeculativeJIT::compileCreateRest(Node* node)
         GPRReg butterflyGPR = butterfly.gpr();
 
         emitGetArgumentStart(node->origin.semantic, argumentsStartGPR);
-        // I14 (Task 9): fresh allocation - the butterfly was installed RAW
-        // (tag (0,0)) by this very code path, so the raw load is consistent.
-        // Revisit with OM allocation tagging (INTEGRATE-jit.md, Task-8 item).
+        // I14 (Task 9): the fast path of compileAllocateNewArrayWithSize
+        // installs the butterfly RAW, but its slow path
+        // (operationNewArrayWithSize) installs it TID-TAGGED flag-on
+        // (JSObject::setButterflyConcurrent), so the reload must be masked.
+        // Same-thread allocation: mask only, no ordering needed.
         loadPtr(Address(arrayResultGPR, JSObject::butterflyOffset()), butterflyGPR);
+        if (Options::useJSThreads()) [[unlikely]]
+            maskButterflyTag(butterflyGPR);
 
         // The allocation slow path above could have clobbered our arrayLengthGPR temporary.
         if (staticRestLength)
@@ -9898,9 +9902,12 @@ void SpeculativeJIT::compileNewArrayWithSpread(Node* node)
         GPRReg storageGPR = storage.gpr();
 
         move(TrustedImm32(0), indexGPR);
-        // I14 (Task 9): fresh allocation; raw install + raw load are
-        // consistent (see compileCreateRest note).
+        // I14 (Task 9): the allocation slow path (operationNewArrayWithSize)
+        // installs the butterfly TID-TAGGED flag-on, so the reload must be
+        // masked (see compileCreateRest note).
         loadPtr(Address(resultGPR, JSObject::butterflyOffset()), storageGPR);
+        if (Options::useJSThreads()) [[unlikely]]
+            maskButterflyTag(storageGPR);
 
         for (unsigned i = 0; i < node->numChildren(); ++i) {
             Edge use = m_graph.varArgChild(node, i);
@@ -10154,9 +10161,12 @@ void SpeculativeJIT::compileArraySlice(Node* node)
     GPRTemporary temp2(this);
     GPRReg resultButterfly = temp2.gpr();
 
-    // I14 (Task 9): fresh allocation; raw install + raw load are consistent
+    // I14 (Task 9): the allocation slow path (operationNewArrayWithSize)
+    // installs the butterfly TID-TAGGED flag-on, so the reload must be masked
     // (see compileCreateRest note).
     loadPtr(Address(resultGPR, JSObject::butterflyOffset()), resultButterfly);
+    if (Options::useJSThreads()) [[unlikely]]
+        maskButterflyTag(resultButterfly);
     zeroExtend32ToWord(tempGPR, tempGPR);
     zeroExtend32ToWord(loadIndex, loadIndex);
     auto done = branchPtr(AboveOrEqual, loadIndex, tempGPR);

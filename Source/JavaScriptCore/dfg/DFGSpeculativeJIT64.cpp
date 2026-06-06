@@ -8504,6 +8504,13 @@ void SpeculativeJIT::compileEnumeratorPutByVal(Node* node)
             neg32(scratchGPR);
             signExtend32ToPtr(scratchGPR, scratchGPR);
             loadPtr(Address(baseRegs.payloadGPR(), JSObject::butterflyOffset()), storageGPR);
+            // I14: flag-on the butterfly word is TID-tagged; mask before the
+            // out-of-line property store. FIXME: mask-only is sound while the
+            // GIL serializes mutators; the frozen WRITE predicate for this
+            // site (owner-TID compare, never elided per D9) is deferred to
+            // the choke-routing pass (INTEGRATE-jit.md).
+            if (Options::useJSThreads()) [[unlikely]]
+                maskButterflyTag(storageGPR);
             constexpr intptr_t offsetOfFirstProperty = offsetInButterfly(firstOutOfLineOffset) * static_cast<intptr_t>(sizeof(EncodedJSValue));
             storeValue(valueRegs, BaseIndex(storageGPR, scratchGPR, TimesEight, offsetOfFirstProperty));
             doneCases.append(jump());
