@@ -1254,6 +1254,13 @@ public:
     MicrotaskQueue& defaultMicrotaskQueue();
 
     DrainMicrotaskDelayScope drainMicrotaskDelayScope() { return DrainMicrotaskDelayScope { *this }; }
+    // UNGIL review fix (GIL-removal round 5): the per-lite depth-0 release
+    // drains (JSLock.cpp -> VMLite::drainDefaultMicrotaskQueue) must honor
+    // the embedder's DrainMicrotaskDelayScope exactly like VM::drainMicrotasks
+    // does, so the count gains a cross-thread reader. Relaxed load matches
+    // the field's own comment: a spawned/carrier drain that observes a live
+    // scope defers; the scope-closing thread re-drains.
+    bool microtaskDrainIsDelayed() const { return !!m_drainMicrotaskDelayScopeCount.load(std::memory_order_relaxed); }
     JS_EXPORT_PRIVATE void drainMicrotasks();
 #if USE(BUN_JSC_ADDITIONS)
     void drainMicrotasksForGlobalObject(JSGlobalObject* globalObject);

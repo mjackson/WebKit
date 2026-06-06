@@ -520,6 +520,23 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
        The updateStackLimits walk is RETAINED as an earlier (advisory)
        trip point only. Both asserts are deleted together by the §A.2.2
        reroute.*
+       *ORDERING DEPENDENCY (GIL-removal round 5, BLOCKER-grade if
+       violated): the setUpSlow tripwire's deletion trigger (§A.2.2
+       soft-stack-limit reroute) and the VMTraps.cpp TERM1.2 interim's
+       retirement trigger (§A.2.1 per-lite trap words) are DIFFERENT
+       chartered changes, and the TERM1.2 "last observer" clear is only
+       sound while the tripwire blocks a second concurrent entry: the
+       entered-predicate is a live per-lite VMEntryScope record while the
+       delivery obligation is TOKEN-scoped, so a token-holding sibling
+       between entry scopes (fn-return teardown -> completion drain,
+       between drainMicrotasks iterations) would re-enter with the shared
+       NeedTermination bit already cleared — a silently LOST termination.
+       Now enforced MECHANICALLY in code, not by comment: the setUpSlow
+       walk is keyed on BOTH legs (`perLiteSoftStackLimitRerouteLanded`
+       constant flipped by the §A.2.2 change, OR `perThreadTrapsIfExists
+       (lite) == &vm.traps()` — the §A.2.1 alias probe), so lifting AB-17
+       before §A.2.1 lands leaves the refusal in force instead of going
+       live silently.*
      - **AB-18 (review round 3; was recorded ONLY in the
        WaiterListManager.cpp banner and missing from this list): SD6
        second half — the D8 single-flight gate deletion in
@@ -655,6 +672,49 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
        allocation validation paths (trivial boots pass post-AB-21);
        release builds do not assert but inherit the open I5b question for
        N>1. Fail-stop, not silent.
+     - **AB-25 (GIL-removal round 5): gilOff cross-thread mutation of the
+       unlocked VM default microtask queue.** MicrotaskQueue/
+       MarkedMicrotaskDeque is a plain unlocked Deque, and under the AB-23
+       re-key the VM default queue is OWNED (enqueued/drained/cleared) by
+       the MAIN thread's carrier. Two gilOff paths could still touch it
+       from arbitrary threads: (1) VM::drainMicrotasksForGlobalObject's
+       unconditional `m_defaultMicrotaskQueue->clearForGlobalObject()`
+       arm, and (2) VM::queueMicrotask's no-lite/foreign-VM-lite enqueue
+       fallthrough (the AB-23 "no-lite-window enqueues" residual) — both
+       unsynchronized Deque mutations racing the main carrier's
+       performMicrotaskCheckpoint, corruption-grade. INTERIM FAIL-STOP
+       LANDED (round 5): both gilOff arms now
+       `RELEASE_ASSERT(WTF::isMainThread())` before touching the default
+       queue (the main carrier IS the main thread's — ownerHasNoTlsDtor,
+       A36 r32), so the racy shape aborts loudly instead of corrupting.
+       Unreachable today (AB-11/AB-12 block spawns; AB-17 blocks second
+       entry) — same status as the other AB rows. RETIRED by the per-owner
+       service-request word already chartered for AB-20's sibling clears
+       and AB-23's missing-drainer residual: ONE mechanism (cross-thread
+       "clear for global G" + handoff enqueue, serviced at the owner's
+       next drain) discharges AB-20, the AB-23 residual, and this row.
+       Flag-off/GIL-on: branches not taken, byte-identical.
+     - **AB-26 (GIL-removal round 5; was recorded ONLY in the
+       ArrayBuffer.cpp banners — the same omission class round 3 corrected
+       for AB-18/AB-19): annex N6 arm 4 wasm-grow stop conduction.** A
+       relocating MemoryMode::BoundsChecking Wasm::Memory grow REPLACES
+       the base word; N6 requires the relocation to run under a heap §10
+       stop with the old mapping quarantined to the NEXT stop. Only the
+       QUARANTINE half is landed (ArrayBuffer.cpp
+       refreshAfterWasmMemoryGrow + quarantineStaleWasmMappingGILOff: the
+       torn pair {pre-grow length, pre-grow base} never dereferences an
+       unmapped base). The STOP CONDUCTION half — which alone excludes the
+       complementary torn pair {post-grow length, PRE-grow base}, an
+       out-of-mapping dereference (MEMORY-SAFETY grade) — belongs to
+       Wasm::Memory::grow's BoundsChecking arm and is NOT YET ESTABLISHED
+       ("OPEN DEPENDENCY, blocks U-T13 sign-off" in the .cpp banner).
+       LAUNCH BLOCKER for the full-trio configuration: reachable at
+       activation even with the SD7 spawned-wasm-execution refusal
+       (AB-15), because spawned-thread JS TypedArray READERS of a wasm
+       Memory's buffer race a carrier-side grow — AB-15 covers execution,
+       not reads. Owner: U-T13 / wasm workstream; surface:
+       Wasm::Memory::grow (BoundsChecking arm) + the
+       refreshAfterWasmMemoryGrow publication.
      **CLOSE RULING (re-stated against the complete list):** the default
      flip is safe-by-construction ONLY because the U0 validation now
      REFUSES the gilOff shape outright unless the explicit development
@@ -663,12 +723,26 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
      two flags, since M_opts2 auto-forces the other two — produced a live
      gilOff process against AB-1's silent LLInt split-brain with NO
      in-code fail-stop). Build/Verify MUST treat AB-1, AB-8, AB-10..AB-13,
-     AB-15..AB-20 (AB-21 closed at round 4), AB-24, and the OPEN residuals
-     of AB-22/AB-23 as LAUNCH BLOCKERS for running the full-trio
-     configuration, and the U0 refusal clause (Options.cpp) is only
-     deleted when this list is discharged and the §B verification ladder
-     (U19 oracle, TSAN, amplifier battery, golden disasm, B.5 bench) has
-     actually run.
+     AB-15..AB-20 (AB-21 closed at round 4), AB-24, AB-25, AB-26, and the
+     OPEN residuals of AB-22/AB-23 as LAUNCH BLOCKERS for running the
+     full-trio configuration, and the U0 refusal clause (Options.cpp) is
+     only deleted when this list is discharged and the §B verification
+     ladder (U19 oracle, TSAN, amplifier battery, golden disasm, B.5
+     bench) has actually run.
+     **§B LADDER ENTRY CRITERIA (GIL-removal round 5, explicit):** AB-13
+     (GILDroppedSection spawned-arm split — every spawned park aborts at
+     JSLock::unlockAllForThreadParking until it lands), AB-16 (RegExp.h
+     ovector reroute — every gilOff global match aborts), and AB-17 (the
+     setUpSlow second-entry refusal, now also alias-keyed per the row
+     above) are ENTRY CRITERIA for the FIRST verification-ladder rung
+     that claims parallel JS execution. Because those three fail-stops
+     mean any "gate-green" result obtained on THIS tree can only have
+     exercised serialized or single-entered shapes, NO ladder rung, tier
+     sign-off, or coverage claim may cite gilOff runs from this tree as
+     parallel-mutator coverage, and useThreadGILOffUnsafe stays treated
+     as non-functional for coverage purposes. A smoke arm that needs two
+     threads in JS requires landing the §A.2.2 per-lite reroute (and per
+     the AB-17 coupling, §A.2.1) first — never relaxing the asserts.
      **MILESTONE GATE STATUS (review round 3, explicit):** the GIL-removal
      milestone deliverable — N mutators actually executing JS in parallel
      in one VM — is **NOT MET** by this tree. With AB-11/AB-12 open, every
@@ -812,6 +886,54 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
     row for VM::m_onEachMicrotaskTick ("INLINE on the draining thread,
     spawned drains included"). Flag-off unreachable, unchanged.
 
+  **GIL-removal review round 5 (adversarial findings adjudicated):**
+  - R5-1 (TERM1.2 last-observer clear vs AB-17 deletion trigger not
+    coupled; MAJOR, CONFIRMED as an ordering hazard) — fixed
+    mechanically: the VMEntryScope::setUpSlow AB-17 walk is now keyed on
+    BOTH the §A.2.2 constant AND the §A.2.1 `perThreadTrapsIfExists`
+    alias probe (see the AB-17 row's ORDERING DEPENDENCY note); the
+    VMTraps.cpp take-rule comment cross-references it.
+  - R5-2 (gilOff cross-thread mutation of the unlocked VM default
+    microtask queue via drainMicrotasksForGlobalObject's default-queue
+    arm and queueMicrotask's no-lite fallthrough; MAJOR, CONFIRMED,
+    previously UNLISTED) — interim `RELEASE_ASSERT(WTF::isMainThread())`
+    fail-stops landed on both gilOff arms; recorded as AB-25.
+  - R5-3 (annex N6 arm 4 wasm-grow stop conduction recorded only in the
+    ArrayBuffer.cpp banners; MAJOR, CONFIRMED — the AB-18/AB-19 omission
+    class) — recorded as AB-26, LAUNCH BLOCKER, owner U-T13/wasm.
+  - R5-4 (SPEC-ungil §H deviation: file-static s_symbolRegistryLock
+    instead of the spec'd per-registry `Lock m_lock`, taken
+    unconditionally flag-off; MAJOR, CONFIRMED as a LEDGER/PROCESS gap,
+    code shape RETAINED) — the deviation is now supersession-ledger row
+    10 below. The code is deliberately NOT moved to a member lock in this
+    round: the file-static's outliving-the-registry property is what
+    makes the destructor-walk-vs-straggling-`remove()` ordering use a
+    lock that is never destroyed (SymbolRegistry.cpp lifecycle
+    paragraph); a member `m_lock` destroyed right after the destructor
+    body re-opens a destroyed-lock window for a straggler that loaded its
+    back-pointer pre-clear. The flag-off Symbol.for / registered-symbol
+    ~StringImpl (sweep-path) lock cost joins the §B.5 flag-off bench
+    adjudication list ALONGSIDE the R4-8 aggregate (it escaped the U-T14
+    close item 3 re-audit because a WTF lock is neither a gilOff-keyed
+    branch nor JSC codegen).
+  - R5-5 (per-lite depth-0 release drains bypass DrainMicrotaskDelayScope
+    and run-vs-clear executionForbidden semantics; MAJOR, CONFIRMED) —
+    fixed in VMLite::drainDefaultMicrotaskQueue itself (covers both
+    JSLock call sites: the spawned token unlock and the carrier
+    willReleaseLock arm): defer when VM::microtaskDrainIsDelayed() (new
+    relaxed cross-thread reader on m_drainMicrotaskDelayScopeCount, per
+    that field's own comment), and CLEAR (not run) the per-lite queue
+    when executionForbidden() — mirroring VM::drainMicrotasks exactly.
+    Flag-off/GIL-on: per-lite drains unreachable, unchanged.
+  - R5-6 (AB-17 RELEASE_ASSERT makes the milestone deliverable
+    structurally unreachable on this tree; BLOCKER as filed, REFUTED as a
+    NEW defect / CONFIRMED as a coverage-accounting rule) — the refusal
+    is the deliberate, documented interim (this file already carried the
+    MILESTONE GATE STATUS: NOT MET ruling); what was missing is now the
+    §B LADDER ENTRY CRITERIA paragraph above (AB-13/AB-16/AB-17 gate the
+    first parallel rung; no gilOff run from this tree counts as
+    parallel-mutator coverage).
+
 ## (i) Supersession ledger (one row per SPEC-ungil SUPERSESSION; spec side already written, IU side written at landing)
 
 | # | Spec side | IU side (landing record) | Task |
@@ -825,7 +947,8 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
 | 7 | A36 r9 F4 TID supersessions (vmstate §6.7 tid-0 GIL-on-only; carrier TIDs from the 2^15 TM space) | PARTIAL: carrier creation consumes the hook pair; **OBLIGATION: ThreadManager must register a carrier-TID allocator (I17 accounting incl. carriers) at initialization — until then GIL-off first entry RELEASE_ASSERTs** | U-T1 → api/U-T6 |
 | 8 | heap §10A.1 re-stamp clause (SPEC-heap.md:281-283) vs §B.3 + A36C | PARTIAL: GIL-off install/restore re-stamp landed (tuple swap); GIL-on forwarding + re-stamp UNCHANGED; the {client, epoch} staleness upgrade of the §10A.1 slot itself is U-T6's | U-T1 → U-T6 |
 | 9 | Phase-1 "useThreadGIL always on" (OptionsList.h text; SPEC-api phase-1 framing) vs handout §T U-T14 default flip + §0 U0 | LANDED: default false (OptionsList.h); U0 validation forces useThreadGIL=1 when {useVMLite, useSharedAtomStringTable, useSharedGCHeap} incomplete (Options.cpp, after the M_opts2 normalization) — restores equivalence of all short-form `useJSThreads && !useThreadGIL` derivations with VM::isGILOffProcess() | U-T14 |
-| 10-… | (mid-program supersessions by U-T2…U-T13 were recorded in their task-log entries and in-code doc-of-record blocks rather than as rows here; see the U-T14 close entry item 7 for the pointer map) | — | U-T2…U-T13 |
+| 10 | SPEC-ungil §H — "WTF::SymbolRegistry's m_table gains Lock m_lock" (per-registry member, destructor-leaf §LK.8) | SUPERSEDED IN SHAPE (round 5, R5-4): landed as ONE file-static `s_symbolRegistryLock` (SymbolRegistry.cpp) serializing all registries, taken unconditionally in every configuration. Strictly MORE serialization (every §H ordering holds; leaf rank unchanged); file-static retained deliberately — it outlives every registry, so the destructor-walk vs straggling ~StringImpl `remove()` ordering never uses a destroyed lock, which a member m_lock cannot guarantee. COSTS: flag-off Symbol.for + registered-symbol ~StringImpl (incl. sweeper-thread sweep paths) now take an uncontended process-global lock where they were lock-free — ON the §B.5 flag-off bench adjudication list with the R4-8 aggregate. Reopen-to-per-registry/sharded on bench evidence (the chartered non-sharding's reopen condition) | U-T13 |
+| 11-… | (mid-program supersessions by U-T2…U-T13 were recorded in their task-log entries and in-code doc-of-record blocks rather than as rows here; see the U-T14 close entry item 7 for the pointer map) | — | U-T2…U-T13 |
 
 ## (ii) §F.2 predicate-consumer table (~60 rows: assert / BRANCH / EXCLUSIVITY CONSUMER) — U-T8
 

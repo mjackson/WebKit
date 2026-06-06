@@ -54,8 +54,17 @@ namespace WTF {
 // symbolForKey/remove/the walk never call back into registry code under the
 // lock, see the per-section comments), and at Symbol.for traffic levels is
 // within the same bench-evidence reopen condition as the chartered
-// non-sharding. Moving to the spec'd per-registry member is a one-line header
-// follow-up plus renaming the Lockers below.
+// non-sharding. NOTE (GIL-removal round 5): this deviation is now RECORDED as
+// INTEGRATE-ungil.md supersession-ledger row 10 (R5-4), and the flag-off
+// Symbol.for/sweep-path lock cost is on the §B.5 flag-off bench adjudication
+// list. Moving to the spec'd per-registry member is NOT the mechanical
+// follow-up an earlier draft of this note claimed: a member m_lock is
+// destroyed right after ~SymbolRegistry's body, re-opening a destroyed-lock
+// window for a straggling ~StringImpl-driven remove() that loaded its
+// back-pointer before the destructor walk's clear — the file-static's
+// outliving-the-registry property (lifecycle paragraph below) is
+// load-bearing, so any move to a member lock must also re-solve that
+// ordering.
 //
 // Lifecycle: the per-VM registries are destroyed in ~VM strictly after every
 // spawned thread has exited (SPEC-ungil U16), so the destructor cannot race a

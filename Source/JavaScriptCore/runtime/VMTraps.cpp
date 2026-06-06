@@ -569,6 +569,18 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
                 // survives VM exit; see the class comment). Once the
                 // §A.2.1 per-lite words land, every thread takes from its
                 // OWN word and this collapses to an unconditional clear.
+                // ORDERING (GIL-removal round 5): the "entered" predicate
+                // here is a live per-lite VMEntryScope record, but the
+                // delivery obligation is TOKEN-scoped — a token-holding
+                // sibling between entry scopes (teardown -> completion
+                // drain, or between drain iterations) re-enters with the
+                // bit gone if this clear fires in that window. That hole is
+                // closed by the AB-17 tripwire (VMEntryScope::setUpSlow
+                // refuses any second concurrent entry), which is now
+                // MECHANICALLY keyed to ALSO persist while
+                // perThreadTrapsIfExists aliases the VM word — so this
+                // interim cannot silently outlive its protection no matter
+                // which of §A.2.1/§A.2.2 lands first.
                 if (event == NeedTermination && vm.gilOff()) [[unlikely]] {
                     if (anyOtherLiteOfVMEntered(vm)) {
                         if (!isSpawnedGILOff)

@@ -161,6 +161,7 @@
 #include "WeakGCMapInlines.h"
 #include "WideningNumberPredictionFuzzerAgent.h"
 #include <wtf/CryptographicallyRandomNumber.h>
+#include <wtf/MainThread.h>
 #include <wtf/MemoryPressureHandler.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/ProcessID.h>
@@ -782,6 +783,19 @@ void VM::queueMicrotask(QueuedTask&& task)
             lite->enqueueMicrotaskToDefaultQueue(WTF::move(task));
             return;
         }
+        // UNGIL AB-25 interim fail-stop (GIL-removal round 5):
+        // MicrotaskQueue is a plain unlocked Deque, and gilOff the VM
+        // default queue is OWNED by the main thread's carrier (the AB-23
+        // re-key above). The fallthrough below therefore may run only on
+        // the main thread (its own carrier, or the pre-carrier no-lite
+        // window — ownerHasNoTlsDtor is fixed from WTF::isMainThread() at
+        // registration, JSLock.cpp). A no-lite/foreign-VM enqueue from any
+        // OTHER thread would be an unsynchronized Deque write racing the
+        // main carrier's drain — exactly the AB-23 "no-DRAINER" residual's
+        // corruption-grade sibling. Retired by the AB-20/AB-23/AB-25
+        // service-request word (cross-thread enqueues handed off, serviced
+        // at the owner's next drain). Flag-off/GIL-on: branch not taken.
+        RELEASE_ASSERT(WTF::isMainThread());
     }
     m_defaultMicrotaskQueue->enqueue(WTF::move(task));
 }
@@ -2384,6 +2398,17 @@ void VM::drainMicrotasksForGlobalObject(JSGlobalObject* globalObject)
             if (MicrotaskQueue* queue = lite->defaultMicrotaskQueue.get())
                 queue->clearForGlobalObject(globalObject);
         }
+        // UNGIL AB-25 interim fail-stop (GIL-removal round 5): the comment
+        // above asserts "this API is called on the thread that owns the
+        // global's tasks", but nothing enforced it for the VM DEFAULT queue
+        // arm below — gilOff that queue is owned by the MAIN thread's
+        // carrier (AB-23 re-key), and clearForGlobalObject from a spawned/
+        // non-main thread is an unsynchronized Deque mutation racing the
+        // owner's performMicrotaskCheckpoint. Fail loudly until the
+        // AB-20/AB-23/AB-25 per-owner service-request word routes this as a
+        // "clear for global G" request serviced at the main carrier's next
+        // drain. Flag-off/GIL-on: branch not taken, byte-identical below.
+        RELEASE_ASSERT(WTF::isMainThread());
     }
     m_defaultMicrotaskQueue->clearForGlobalObject(globalObject);
 }

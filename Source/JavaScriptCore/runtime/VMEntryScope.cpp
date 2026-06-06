@@ -97,11 +97,36 @@ void VMEntryScope::setUpSlow()
         // VMEntryScope never re-runs updateStackLimits at all. Both holes
         // close here because every gilOff outermost per-thread entry funnels
         // through this store. Deleted by the same change that lands the
-        // §A.2.2 per-lite soft-stack-limit reroute (AB-17).
-        for (VMLite* other : registry.lites) {
-            if (other->vm == &m_vm && other != &lite) {
-                RELEASE_ASSERT_WITH_MESSAGE(!other->entryScope.load(std::memory_order_relaxed),
-                    "GIL-off second concurrent JS entry refused: VM-level soft stack limit is shared (AB-17 not landed)");
+        // §A.2.2 per-lite soft-stack-limit reroute (AB-17) — BUT see the
+        // alias coupling below; deletion alone is not licensed.
+        //
+        // GIL-removal round 5 (TERM1.2 <-> AB-17 ordering, MECHANICAL):
+        // VMTraps.cpp's TERM1.2 interim retires the shared NeedTermination
+        // bit when no OTHER lite of this VM has a live entryScope — but the
+        // delivery obligation is TOKEN-scoped, and a token-holding sibling
+        // with NO live entry scope (between its fn-return teardown and the
+        // completion drain, or between drainMicrotasks iterations) would
+        // RE-ENTER through a fresh VMEntryScope with the bit already
+        // cleared and lose the termination permanently
+        // (orVMWideTrapBitsIntoLite re-ORs only at TOKEN acquisition, not
+        // at entry-scope re-entry — and is a no-op under the alias anyway).
+        // That race is unreachable ONLY while this walk refuses the second
+        // concurrent entry. Its recorded deletion trigger (§A.2.2) and the
+        // TERM1.2 interim's retirement trigger (§A.2.1 per-lite trap words)
+        // are DIFFERENT chartered changes, so the walk is now keyed on
+        // BOTH: the §A.2.2 change flips the constant below, and the walk
+        // then still self-retains while perThreadTrapsIfExists aliases the
+        // VM word (i.e. §A.2.1 not landed). Delete the whole gate only when
+        // both legs are false. INTEGRATE-ungil.md AB-17 records this
+        // ordering dependency.
+        constexpr bool perLiteSoftStackLimitRerouteLanded = false; // Flipped by the §A.2.2 change (AB-17).
+        bool perLiteTrapWordsStillAliasVMTrapWord = perThreadTrapsIfExists(lite) == &m_vm.traps(); // §A.2.1 not landed.
+        if (!perLiteSoftStackLimitRerouteLanded || perLiteTrapWordsStillAliasVMTrapWord) {
+            for (VMLite* other : registry.lites) {
+                if (other->vm == &m_vm && other != &lite) {
+                    RELEASE_ASSERT_WITH_MESSAGE(!other->entryScope.load(std::memory_order_relaxed),
+                        "GIL-off second concurrent JS entry refused: VM-level soft stack limit is shared (AB-17 not landed) or per-lite trap words still alias the VM word (TERM1.2 interim, A.2.1 not landed)");
+                }
             }
         }
         lite.entryScope.store(this, std::memory_order_relaxed);

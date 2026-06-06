@@ -82,6 +82,22 @@ ALWAYS_INLINE void VMLite::drainDefaultMicrotaskQueue()
         return;
     ASSERT(vm); // Registered (§6.5.1) before any facility use.
     ASSERT(vm->currentThreadIsHoldingAPILock()); // I14.
+    // UNGIL review fix (GIL-removal round 5): mirror VM::drainMicrotasks'
+    // two guards. (1) DrainMicrotaskDelayScope: GIL-off every non-main
+    // carrier and spawned thread's enqueues are rerouted to its per-lite
+    // queue, so without this check the embedder's delay-scope contract
+    // (VM.h — the API Bun uses to suppress drains during host calls) was
+    // dead on every non-main thread: user JS ran at JSLockHolder
+    // destruction inside an open scope. Defer, exactly like the VM-level
+    // drain; the scope-closing thread's exit re-drains. (2)
+    // executionForbidden: the GIL-on semantics are CLEAR-the-queue, not
+    // run; running here would execute user JS after termination latched.
+    if (vm->microtaskDrainIsDelayed()) [[unlikely]]
+        return;
+    if (vm->executionForbidden()) [[unlikely]] {
+        defaultMicrotaskQueue->clear();
+        return;
+    }
     // No globalObject-switch bookkeeping (that is the embedder's
     // drainMicrotasks concern); pass a no-op callback. useCallOnEachMicrotask
     // = TRUE (GIL-removal review round): this drain is no longer
