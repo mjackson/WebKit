@@ -5209,6 +5209,66 @@ bool Heap::currentThreadIsAllocatorOwner(const LocalAllocator* allocator) const
     return vm().currentThreadIsHoldingAPILock();
 }
 
+// SPEC-ungil §B (heap Dev 8: ONE GCClient PER Thread, NEVER the main
+// client): resolve the client whose TLC/iso LocalAllocators the CURRENT
+// thread may allocate through. A spawned thread (§B.1,
+// attachSpawnedThreadGCClient) and a GIL-off carrier thread (ANNEX A36C)
+// stamp their OWN client into the §10A.1 TLS slot; routing allocation
+// through vm.clientHeap on such a thread hands them the MAIN thread's
+// LocalAllocators — an unsynchronized FreeList shared across mutators (I3).
+// Gate is vm.gilOff() (review amendment; NOT isSharedServer()), mirroring
+// gcWillParkInStopTheWorld()/gcDidResumeFromStopTheWorld() below: GIL-on and
+// flag-off stay identity BY CONSTRUCTION (no TLS consultation at all — under
+// isSharedServer()-only gating a GIL-on thread nested across two VMs sharing
+// one server would re-route the outer VM's allocations into the inner VM's
+// client), and spawned-client stamps cannot exist GIL-on
+// (RELEASE_ASSERT(vm.gilOff()) in attachSpawnedThreadGCClient), so the
+// narrower gate covers every failing case. Unstamped threads (GC helpers,
+// pre-attach): the VM's original client, today's behavior (I10).
+//
+// APPLY-SCOPE NOTE (I3, this round touches Heap.cpp only): this is the
+// in-scope half of the fix and is intentionally uncalled until the
+// companion routing edits land. Outstanding for the next round:
+//   (1) Per review amendments, hoist this ALWAYS_INLINE into Heap.h as a
+//       Heap member next to the deferralDepthSlot()/mutatorStateSlot()
+//       dispatchers — the consuming sites are ALWAYS_INLINE VM.h iso
+//       accessors on the hottest allocation path, so an out-of-line call
+//       would regress the flag-off bench gate — and strengthen the fallback
+//       tripwire below to `vmOriginalClient.m_accessOwner ==
+//       &Thread::currentSingleton()` (private; needs the GCClient::Heap
+//       friendship a Heap member has; a namespace-scope function here does
+//       not).
+//   (2) Consume it at the three vm.clientHeap routing sites: the VM.h iso
+//       subspace accessors, CompleteSubspaceInlines.h allocate(), and
+//       CompleteSubspace.cpp tryAllocateSlow(). Until then the spawned
+//       thread still reaches the main client's LocalAllocator and the
+//       (correct, load-bearing) ownership ASSERT in
+//       LocalAllocator::allocateSlowCase still fires.
+GCClient::Heap& allocationClientForCurrentThread(VM&, GCClient::Heap&);
+GCClient::Heap& allocationClientForCurrentThread(VM& vm, GCClient::Heap& vmOriginalClient)
+{
+    ASSERT(&vmOriginalClient.server() == &vm.heap);
+    if (vm.gilOff()) [[unlikely]] {
+        GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+        if (client && &client->server() == &vm.heap) {
+            // I2: an allocating thread must hold ITS client's access; a
+            // stamped thread must not silently fall back to the main client
+            // (that re-creates the shared-FreeList race).
+            ASSERT(client->hasHeapAccess() || vm.heap.worldIsStoppedForAllClients());
+            return *client;
+        }
+        // Review tripwire: under sticky GIL-off every legitimate mutator is
+        // stamped before its first allocation (JSLock forwarding, §B.1
+        // attach, A36C carrier swap), so falling back to the main client is
+        // only legal when its access is genuinely held or the world is
+        // stopped — otherwise this fallback would silently reintroduce the
+        // exact cross-thread FreeList race in release builds. Converts the
+        // remaining window into a deterministic debug abort.
+        ASSERT(vm.heap.worldIsStoppedForAllClients() || vmOriginalClient.hasHeapAccess());
+    }
+    return vmOriginalClient;
+}
+
 // --- §10A access forwarding (T2) ---
 
 NEVER_INLINE void Heap::acquireAccessForwardedToMainClient()

@@ -679,7 +679,13 @@ Structure* Structure::addNewPropertyTransition(VM& vm, Structure* structure, Pro
 
     Structure* transition;
     {
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        // I10 at the call site: the locker's flag-off no-op lives behind a
+        // cross-DSO out-of-line call (VMLiteShared.cpp); gate construction on
+        // the same latched option so flag-off emits no call at all. (Same
+        // pattern at every StructureAllocationLocker site in this file.)
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }
 
@@ -718,7 +724,9 @@ Structure* Structure::addNewPropertyTransition(VM& vm, Structure* structure, Pro
     if (!structure->hasBeenDictionary()) {
         // Task 3b: SAL outside m_lock (§6 order); salDeferGC above keeps the
         // GCSafe locker's deferred collection from starting under the SAL.
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         GCSafeConcurrentJSLocker locker(structure->m_lock, vm);
         // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock — a
         // racing thread may have published an identical transition between
@@ -826,7 +834,9 @@ Structure* Structure::removeNewPropertyTransition(VM& vm, Structure* structure, 
 
     Structure* transition;
     {
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }
     transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->m_cachedPrototypeChain.get());
@@ -856,7 +866,9 @@ Structure* Structure::removeNewPropertyTransition(VM& vm, Structure* structure, 
     if (!structure->hasBeenDictionary()) {
         // Task 3b: SAL outside m_lock (§6 order); salDeferGC above keeps the
         // GCSafe locker's deferred collection from starting under the SAL.
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         GCSafeConcurrentJSLocker locker(structure->m_lock, vm);
         // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
         // addNewPropertyTransition. The winner's offset is authoritative.
@@ -904,7 +916,9 @@ Structure* Structure::changePrototypeTransition(VM& vm, Structure* structure, JS
     // non-null here, so no watchpoint fires inline within the SAL region.
     Structure* transition;
     {
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, &deferred);
     }
     PropertyTable* table = structure->copyPropertyTableForPinning(vm);
@@ -917,7 +931,9 @@ Structure* Structure::changePrototypeTransition(VM& vm, Structure* structure, JS
     if (shouldChain) {
         // Task 3b: SAL outside m_lock (§6 order); the function-scope DeferGC
         // keeps the GCSafe locker's deferred collection out of the SAL region.
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         GCSafeConcurrentJSLocker locker(structure->m_lock, vm);
         // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
         // addNewPropertyTransition. (Key: prototype object + ChangePrototype —
@@ -945,7 +961,9 @@ Structure* Structure::changeGlobalProxyTargetTransition(VM& vm, Structure* struc
     // `deferred` is always non-null (no inline watchpoint fire under SAL).
     Structure* transition;
     {
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, &deferred);
     }
 
@@ -1033,7 +1051,9 @@ Structure* Structure::attributeChangeTransition(VM& vm, Structure* structure, Pr
 
     Structure* transition;
     {
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }
     transition->m_cachedPrototypeChain.setMayBeNull(vm, transition, structure->m_cachedPrototypeChain.get());
@@ -1062,7 +1082,9 @@ Structure* Structure::attributeChangeTransition(VM& vm, Structure* structure, Pr
     if (!structure->hasBeenDictionary()) {
         // Task 3b: SAL outside m_lock (§6 order); salDeferGC above keeps the
         // GCSafe locker's deferred collection from starting under the SAL.
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         GCSafeConcurrentJSLocker locker(structure->m_lock, vm);
         // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
         // addNewPropertyTransition.
@@ -1096,7 +1118,9 @@ Structure* Structure::toDictionaryTransition(VM& vm, Structure* structure, Dicti
 
     Structure* transition;
     {
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }
 
@@ -1212,7 +1236,9 @@ Structure* Structure::nonPropertyTransitionSlow(VM& vm, Structure* structure, Tr
 
     Structure* transition;
     {
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         transition = Structure::create(vm, structure, deferred);
     }
     transition->setTransitionKind(transitionKind);
@@ -1269,7 +1295,9 @@ Structure* Structure::nonPropertyTransitionSlow(VM& vm, Structure* structure, Tr
     } else {
         // Task 3b: SAL outside m_lock (§6 order); the function-scope GC
         // deferral above keeps any GC trigger out of the SAL region.
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         Locker locker { structure->m_lock };
         // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
         // addNewPropertyTransition. (Key: null pointer + transitionKind.)
@@ -2336,7 +2364,9 @@ Structure* Structure::setBrandTransition(VM& vm, Structure* structure, Symbol* b
 
     Structure* transition;
     {
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         transition = BrandedStructure::create(vm, structure, &brand->uid(), deferred);
     }
     transition->setTransitionKind(TransitionKind::SetBrand);
@@ -2356,7 +2386,9 @@ Structure* Structure::setBrandTransition(VM& vm, Structure* structure, Symbol* b
     } else {
         // Task 3b: SAL outside m_lock (§6 order); the function-scope GC
         // deferral above keeps any GC trigger out of the SAL region.
-        SharedVMState::StructureAllocationLocker structureAllocationLocker { vm };
+        std::optional<SharedVMState::StructureAllocationLocker> structureAllocationLocker;
+        if (Options::useStructureAllocationLock()) [[unlikely]]
+            structureAllocationLocker.emplace(vm);
         Locker locker { structure->m_lock };
         // SPEC-objectmodel L6/I37 (Task 3c): dual-check under m_lock; see
         // addNewPropertyTransition. (Key: brand uid + SetBrand.)

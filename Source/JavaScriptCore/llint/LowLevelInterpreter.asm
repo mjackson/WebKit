@@ -278,6 +278,19 @@ const VMTrapsAsyncEvents = constexpr VMTraps::AsyncEvents
 const VMTrapAwareSoftStackLimitOffset = VM::m_threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_trapAwareSoftStackLimit
 const VMCLoopStackLimitOffset = VM::m_threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_cloopStackLimit
 const VMSoftStackLimitOffset = VM::m_threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_softStackLimit
+# UNGIL sec A.2.2 (AB-17 item 3) -- STAGED, NOT YET REFERENCED by any check site:
+# GIL-off, stack limits live in the CURRENT thread's VMLite (L2 append
+# threadContext); generated code will reach them via these chained offsets,
+# selected per site by the landed Group-3 discriminator. The prologue
+# stack-check reroute that consumes them must land ONLY in the same atomic
+# change as the VMTraps per-lite stop fan (VMTraps.h activation checklist
+# item 3c) and the remaining soft-limit reader legs (doVMEntry/CLoop sites,
+# Baseline/DFG/FTL/thunk/varargs/Yarr emission sites, C++ accessors) --
+# rerouting the read side first would leave VM-wide trap requests
+# (termination, GC safepoints) poking a word the rerouted site no longer
+# reads: lost/late trap delivery even single-entered GIL-off.
+const VMLiteTrapAwareSoftStackLimitOffset = VMLite::threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_trapAwareSoftStackLimit
+const VMLiteSoftStackLimitOffset = VMLite::threadContext + VMThreadContext::m_traps + VMTraps::m_stack + StackManager::m_softStackLimit
 
 # Registers
 
@@ -617,6 +630,31 @@ end
 
 macro branchIfGilOffGroup3ToT5(gilOffLabel)
     gilOffGroup3Check(loadCurrentVMLiteToT5, t5, gilOffLabel)
+end
+
+# STAGED for the sec A.2.2 prologue stack-check reroute (AB-17 item 3) -- defined
+# but NOT yet expanded anywhere. t2 (rdx / x2) is dead at the shared prologue
+# stack-check site (the existing code clobbers it with CodeBlock::m_vm
+# immediately) and no args are live there; do NOT reuse at any other site
+# without re-checking scratch discipline. The reroute itself must land only
+# with the complete atomic bundle (see the VMLite*SoftStackLimitOffset
+# comment above and VMTraps.h checklist items 3/3c).
+macro loadCurrentVMLiteToT2()
+    if X86_64
+        emit "movq g_jscCurrentVMLite@GOTTPOFF(%rip), %rdx"   # t2 == rdx
+        emit "movq %fs:(%rdx), %rdx"
+    elsif ARM64 or ARM64E
+        emit "adrp x16, :gottprel:g_jscCurrentVMLite"
+        emit "ldr x16, [x16, #:gottprel_lo12:g_jscCurrentVMLite]"
+        emit "mrs x2, tpidr_el0"                              # t2 == x2
+        emit "ldr x2, [x2, x16]"
+    end
+end
+
+# Prologue stack-check site only (t2 dead there; see the scratch-discipline
+# note above before reusing at any other site).
+macro branchIfGilOffGroup3ToT2(gilOffLabel)
+    gilOffGroup3Check(loadCurrentVMLiteToT2, t2, gilOffLabel)
 end
 
 # vmEntryToJavaScriptWithNArguments fast paths: a0..a7 (+ stack args) are

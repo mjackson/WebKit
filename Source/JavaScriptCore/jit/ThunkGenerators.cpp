@@ -478,7 +478,17 @@ static MacroAssemblerCodeRef<JITThunkPtrTag> nativeForGenerator(VM& vm, ThunkFun
     }
 
     jit.emitPutToCallFrameHeader(nullptr, CallFrameSlot::codeBlock);
-    jit.storePtr(GPRInfo::callFrameRegister, &vm.topCallFrame);
+    if (vm.gilOff()) [[unlikely]] {
+        // UNGIL §A.1.3 (U-T4): this thunk is cached per-VM but shared by
+        // every thread entering this VM — resolve the CURRENT lite instead
+        // of baking &vm's Group-3 word (COMPILED-FOR-VM mode rule; same
+        // pattern as DFGOSRExitCompilerCommon.cpp's gilOff arms).
+        // argumentGPR0 is dead here: every later use writes it before
+        // reading (debugger hook / scopeChain / globalObject loads).
+        jit.loadVMLite(GPRInfo::argumentGPR0);
+        jit.storePtr(GPRInfo::callFrameRegister, CCallHelpers::Address(GPRInfo::argumentGPR0, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topCallFrame())));
+    } else
+        jit.storePtr(GPRInfo::callFrameRegister, &vm.topCallFrame);
 
     if (includeDebuggerHook == IncludeDebuggerHook::Yes) {
         jit.move(JSInterfaceJIT::framePointerRegister, GPRInfo::argumentGPR0);
@@ -528,8 +538,21 @@ static MacroAssemblerCodeRef<JITThunkPtrTag> nativeForGenerator(VM& vm, ThunkFun
     // Handle an exception
     exceptionHandler.link(&jit);
 
-    jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, GPRInfo::argumentGPR0);
-    jit.storePtr(JSInterfaceJIT::callFrameRegister, &vm.topCallFrame);
+    if (vm.gilOff()) [[unlikely]] {
+        // UNGIL §A.1.3 (U-T4): topEntryFrame and topCallFrame are per-lite
+        // Group-3 state GIL-off (doVMEntry publishes topEntryFrame through
+        // the lite; the VM-block words are inert spare storage — see
+        // SlowPathFrameTracer). Rematerialize the lite per §A.1.2 because
+        // copyCalleeSavesToEntryFrameCalleeSavesBuffer clobbers its GPR.
+        jit.loadVMLite(GPRInfo::argumentGPR0);
+        jit.loadPtr(CCallHelpers::Address(GPRInfo::argumentGPR0, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topEntryFrame())), GPRInfo::argumentGPR0);
+        jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(GPRInfo::argumentGPR0); // Clobbers argumentGPR0.
+        jit.loadVMLite(GPRInfo::argumentGPR0);
+        jit.storePtr(JSInterfaceJIT::callFrameRegister, CCallHelpers::Address(GPRInfo::argumentGPR0, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topCallFrame())));
+    } else {
+        jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, GPRInfo::argumentGPR0);
+        jit.storePtr(JSInterfaceJIT::callFrameRegister, &vm.topCallFrame);
+    }
 
     jit.move(CCallHelpers::TrustedImmPtr(&vm), JSInterfaceJIT::argumentGPR0);
     jit.move(JSInterfaceJIT::TrustedImmPtr(tagCFunction<OperationPtrTag>(operationVMHandleException)), JSInterfaceJIT::regT3);

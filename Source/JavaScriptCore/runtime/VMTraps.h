@@ -488,14 +488,39 @@ private:
 //       GIL-off — the entering thread's lite StackManager (its own
 //       StackBounds; what the future per-lite generated-code checks read)
 //       AND the VM-level word (what all tiers' generated-code stack checks
-//       STILL read today). The VM-level publish + its no-other-entered
-//       RELEASE_ASSERT tripwire can be deleted ONLY in the same change that
-//       reroutes every generated-code soft-limit read (LLInt 64/32_64,
-//       CLoop, Baseline/DFG/FTL emission sites) and every C++
-//       VM::softStackLimit() reader (VMInlines.h isSafeToRecurse /
+//       STILL read today). The LLInt per-lite chained offsets
+//       (VMLiteTrapAwareSoftStackLimitOffset / VMLiteSoftStackLimitOffset)
+//       and the T2 loader/discriminator wrapper are STAGED in
+//       LowLevelInterpreter.asm but referenced by no check site. The
+//       VM-level publish + its no-other-entered RELEASE_ASSERT tripwire can
+//       be deleted ONLY in the same change that reroutes every
+//       generated-code soft-limit read (LLInt shared prologue and the
+//       64/32_64 doVMEntry/CLoop sites, the Baseline/DFG/FTL emission
+//       sites — JIT.cpp, AssemblyHelpers.cpp, ThunkGenerators.cpp,
+//       SetupVarargsFrame.cpp, DFGSpeculativeJIT.cpp, FTLLowerDFGToB3.cpp,
+//       YarrJIT.cpp — under the §A.1.3 COMPILED-FOR-VM-mode rule) and every
+//       C++ VM::softStackLimit() reader (VMInlines.h isSafeToRecurse /
 //       ensureStackCapacityFor, LLIntSlowPaths stack_check slow-path
 //       re-confirm, JSString rope resolution, JSONObject, LiteralParser,
-//       Yarr) through the per-thread lite chain.
+//       Yarr) through the per-thread lite chain, AND lands item (3c).
+//   (3c) STOP FAN (REQUIRED BEFORE any (3) read-site reroute lands;
+//       memory-safety/liveness grade): once any check site reads the
+//       per-lite trap-aware word, VMTraps::requestThreadStopIfNeeded() /
+//       cancelThreadStopIfNeeded() on the VM-level instance must fan the
+//       m_trapAwareSoftStackLimit poke to EVERY entered lite of that VM —
+//       today they poke only the VM word, which a rerouted site no longer
+//       reads, so termination / GC-safepoint delivery would be lost or
+//       late even single-entered GIL-off. Contract the fan must satisfy:
+//       (a) the requester atomically swaps each entered lite's
+//       m_trapAwareSoftStackLimit under a lock order stated against the
+//       entry-scope publication in VM::updateStackLimits (the
+//       fan-vs-concurrent-updateStackLimits write ordering — CAS/exchange
+//       discipline on the Atomic word — must be explicit, not implied);
+//       (b) a delivery argument: the target mutator is guaranteed to
+//       re-execute a rerouted check site within bounded work after the
+//       swap; (c) cancel restores the PER-LITE saved value (never the VM
+//       word). Pin with a GIL-off test requesting a VMTraps stop while a
+//       lite is mid-LLInt.
 //   (3b) VMTrapsInlines.h: VMTraps::vm() must consult m_liteOwnerVM before
 //       the `this - VM::offsetOfTraps()` arithmetic — that arithmetic is
 //       valid ONLY for the VM-embedded instance and is garbage on a

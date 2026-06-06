@@ -75,11 +75,52 @@ public:
     VM& vm() { return m_codeBlock->vm(); }
     AssemblerType_T& assembler() LIFETIME_BOUND { return m_assembler; }
 
+    // UNGIL §A.1.1 (U-T3/U-T4): one-load read of the CURRENT thread's
+    // VMLite*. Defined in AssemblyHelpers.cpp; the macro beside this
+    // declaration enables the member surface there (the
+    // JSC_CONFIG_HAS_BUTTERFLY_TID_TAG_TLS_KEY inversion pattern noted in
+    // that TU). §A.1.2: rematerialize freely — one TLS-relative load, no
+    // side effects. ARM64: destGPR must not be the data temp.
+#define JSC_ASSEMBLYHELPERS_HAS_LOAD_VMLITE 1
+    void loadVMLite(GPRReg destGPR);
+
     void prepareCallOperation(VM& vm)
     {
         UNUSED_PARAM(vm);
 #if !USE(BUILTIN_FRAME_ADDRESS) || ASSERT_ENABLED
-        storePtr(GPRInfo::callFrameRegister, &vm.topCallFrame);
+        if (vm.gilOff()) [[unlikely]] {
+            // UNGIL §A.1.3 (U-T4, emission side): GIL-off, topCallFrame is
+            // per-lite Group-3 state — publish through the CURRENT thread's
+            // VMLitePrimitives, the word the FrameTracers.h mode split
+            // (JITOperationPrologueCallFrameTracer et al.) reads. A raw
+            // &vm.topCallFrame store split-brains against it: debug asserts
+            // at FrameTracers.h:179, release silently unwinds a stale frame.
+            //
+            // Scratch discipline: this helper runs in arbitrary register
+            // contexts (Baseline slow paths, IC stubs, DFG/FTL thunks), so
+            // only the macro-assembler reserved temp is used — the same
+            // register set the GIL-on absolute-address storePtr already
+            // clobbers on each arch, so no call site's live-range
+            // assumptions change (DFGThunks.cpp bufferGPR idiom).
+#if CPU(ARM64)
+            // Obtained via the cache-invalidating accessor (not named raw):
+            // loadVMLite writes the temp via mrs+ldr without updating
+            // m_cachedMemoryTempRegister, so the cached-value tracking must
+            // be invalidated here or a later absolute-address op could reuse
+            // a stale cached address. Same register (ip1), same clobber set
+            // as the GIL-on absolute store.
+            GPRReg scratchGPR = getCachedMemoryTempRegisterIDAndInvalidate();
+#elif CPU(X86_64)
+            GPRReg scratchGPR = scratchRegister(); // r11, already clobbered by the GIL-on absolute store.
+#else
+            // SPEC-jit annex App. R5: no gilOff support on this platform;
+            // loadVMLite fail-stops at emission before this store is reached.
+            GPRReg scratchGPR = GPRInfo::nonArgGPR0;
+#endif
+            loadVMLite(scratchGPR);
+            storePtr(GPRInfo::callFrameRegister, Address(scratchGPR, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_topCallFrame())));
+        } else
+            storePtr(GPRInfo::callFrameRegister, &vm.topCallFrame);
 #endif
     }
 

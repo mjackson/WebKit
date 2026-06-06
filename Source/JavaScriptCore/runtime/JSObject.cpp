@@ -128,6 +128,12 @@ ALWAYS_INLINE Structure* JSObjectWithButterfly::visitButterflyImpl(Visitor& visi
     Structure* structure;
     PropertyOffset maxOffset;
 
+#if USE(JSVALUE64)
+    // Latched option (I22): load once per visit instead of three cross-DSO
+    // global loads per visited object per mark pass.
+    const bool jsThreads = Options::useJSThreads();
+#endif
+
     auto visitElements = [&] (IndexingType indexingMode) {
         switch (indexingMode) {
         // We don't need to visit the elements for CopyOnWrite butterflies since they we marked the JSCellButterfly acting as our butterfly.
@@ -150,7 +156,7 @@ ALWAYS_INLINE Structure* JSObjectWithButterfly::visitButterflyImpl(Visitor& visi
             // never be SW=1), so the extra slots hold holes or stale-but-valid
             // JSValues. SW monotonicity makes a re-loaded word's bit safe to
             // key on (over-visiting is conservative).
-            if (Options::useJSThreads() && butterflySharedWrite(taggedButterflyWord())) [[unlikely]]
+            if (jsThreads && butterflySharedWrite(taggedButterflyWord())) [[unlikely]]
                 visitBound = butterfly->vectorLength();
 #endif
             visitor.appendValuesHidden(butterfly->contiguous().data(), visitBound);
@@ -173,7 +179,7 @@ ALWAYS_INLINE Structure* JSObjectWithButterfly::visitButterflyImpl(Visitor& visi
         // stopped nothing can race: the structureID is settled (transitions
         // are poll-free between nuke and restore, O2), so the visit must
         // succeed - a nullptr here would be a logic error, not a race.
-        if (Options::useJSThreads()) [[unlikely]] {
+        if (jsThreads) [[unlikely]] {
             uint64_t word = taggedButterflyWord();
             if (isSegmentedButterfly(word)) [[unlikely]] {
                 // Review round 2: pass the settled {id, structure, maxOffset,
@@ -465,7 +471,7 @@ ALWAYS_INLINE Structure* JSObjectWithButterfly::visitButterflyImpl(Visitor& visi
     // (e.g. a §4.7 in-place relabel, which stops mutators but not concurrent
     // markers) with this older spine and value-visit raw double lanes as
     // JSValues. nullptr => didRace, surfaced exactly like the flat path.
-    if (Options::useJSThreads()) [[unlikely]] {
+    if (jsThreads) [[unlikely]] {
         uint64_t word = std::bit_cast<uint64_t>(butterfly);
         if (isSegmentedButterfly(word)) [[unlikely]]
             return visitSegmentedButterfly(visitor, this, butterflySpine(word), structureID, structure, maxOffset, indexingMode); // §4.5; nullptr => didRace.

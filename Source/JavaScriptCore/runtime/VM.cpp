@@ -1757,8 +1757,13 @@ void VM::updateStackLimits()
     // (JSLock::didAcquireLock -> setStackPointerAtVMEntry), so the second
     // concurrent entry trips deterministically. Delete this walk AND the
     // VM-level dual-publish only in the same change that reroutes every
-    // soft-limit read through the per-thread lite chain. GIL-on: branch not
-    // taken, byte-identical behavior.
+    // soft-limit read through the per-thread lite chain AND lands the
+    // VMTraps per-lite stop fan (checklist item 3c, VMTraps.h): once any
+    // generated-code site reads the per-lite trap-aware word, VM-wide trap
+    // requests must fan to every entered lite's word (and cancel must
+    // restore the PER-LITE saved value, never the VM word), or trap
+    // delivery is lost at the rerouted site even single-entered. GIL-on:
+    // branch not taken, byte-identical behavior.
     if (m_gilOff) [[unlikely]] {
         VMLite* currentLite = VMLite::currentIfExists();
         auto& registry = VMLiteRegistry::singleton();
