@@ -36,10 +36,14 @@ ALWAYS_INLINE void* CompleteSubspace::allocate(VM& vm, size_t cellSize, GCDeferr
         vm.verifyCanGC();
 
     // SharedGC (§5.3; T4): with the option on, route through the calling
-    // VM's client TLC (the server allocator table is never populated, §5.5).
-    // Option off: today's code (I10; the branch is the only delta).
+    // thread's client TLC (the server allocator table is never populated,
+    // §5.5). SPEC-ungil §B / I4: GIL-off, the CURRENT thread's client — not
+    // unconditionally vm.clientHeap — owns the LocalAllocators this thread
+    // may pop from (Heap::allocationClientForCurrentThread is identity
+    // GIL-on/flag-off). Option off: today's code (I10; the branch is the
+    // only delta).
     if (Options::useSharedGCHeap()) [[unlikely]]
-        return allocateForClient(vm.clientHeap, cellSize, deferralContext, failureMode);
+        return allocateForClient(Heap::allocationClientForCurrentThread(vm, vm.clientHeap), cellSize, deferralContext, failureMode);
 
     if (Allocator allocator = allocatorFor(cellSize, AllocatorForMode::AllocatorIfExists))
         return allocator.allocate(vm.heap, allocator.cellSize(), deferralContext, failureMode);

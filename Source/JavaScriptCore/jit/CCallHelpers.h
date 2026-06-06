@@ -748,9 +748,26 @@ public:
 
     void jumpToExceptionHandler(VM& vm)
     {
-        // genericUnwind() leaves the handler CallFrame* in vm->callFrameForCatch,
-        // and the address of the handler in vm->targetMachinePCForThrow.
-        loadPtr(&vm.targetMachinePCForThrow, GPRInfo::regT1);
+        // genericUnwind() leaves the handler CallFrame* in callFrameForCatch,
+        // and the address of the handler in targetMachinePCForThrow.
+        if (vm.gilOff()) [[unlikely]] {
+            // UNGIL §A.1.3 (U-T4, emission side): GIL-off, targetMachinePCForThrow
+            // is per-lite Group-2 state — genericUnwind publishes the catch target
+            // only through the throwing thread's VMLitePrimitives (JITExceptions.cpp
+            // mode split); the raw VM-block word is inert and stays null, so the
+            // GIL-on absolute load would farJump to 0. Mode is selected at codegen
+            // time on the compiled-for VM (same keying as loadTopEntryFrame /
+            // prepareCallOperation and the op_catch gilOff leg, JITOpcodes.cpp).
+            // regT1 is dead here (immediately consumed by the farJump) and is not
+            // the ARM64 data temp, satisfying the loadVMLite destGPR contract; the
+            // emitted sequence may also touch the macro-assembler reserved temps
+            // (e.g. ARM64 data temp on the unencodable-TLS-offset fallback), same
+            // as the landed loadTopEntryFrame pattern — no call site may hold
+            // those live across this helper in either mode.
+            loadVMLite(GPRInfo::regT1);
+            loadPtr(Address(GPRInfo::regT1, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_targetMachinePCForThrow())), GPRInfo::regT1);
+        } else
+            loadPtr(&vm.targetMachinePCForThrow, GPRInfo::regT1);
         farJump(GPRInfo::regT1, ExceptionHandlerPtrTag);
     }
 

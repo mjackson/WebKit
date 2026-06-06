@@ -741,22 +741,37 @@ public:
     ALWAYS_INLINE GCClient::PreciseSubspace* webAssemblyInstanceSpace() { return heap.webAssemblyInstanceSpace<mode>(); }
 #endif
 
+// SPEC-ungil §B / I4: route through the CURRENT thread's client GIL-off
+// (Heap::allocationClientForCurrentThread is identity GIL-on/flag-off).
 #define DEFINE_ISO_SUBSPACE_ACCESSOR(name, heapCellType, type) \
-    ALWAYS_INLINE GCClient::IsoSubspace& name() { return clientHeap.name; }
+    ALWAYS_INLINE GCClient::IsoSubspace& name() { return Heap::allocationClientForCurrentThread(*this, clientHeap).name; }
 
     FOR_EACH_JSC_ISO_SUBSPACE(DEFINE_ISO_SUBSPACE_ACCESSOR)
 #undef DEFINE_ISO_SUBSPACE_ACCESSOR
 
+// SPEC-ungil §B / I4: allocation-capable lookups route per-thread.
+// SubspaceAccess::Concurrently stays on the VM's original client: it is a
+// pure pointer read (never materializes the subspace or touches a
+// LocalAllocator) issued by UNSTAMPED non-mutator threads (DFG/FTL compiler
+// threads), which must not trip the helper's access-owner tripwire — today's
+// behavior, per the Heap.cpp apply-scope note's non-mutator re-validation
+// clause.
 #define DEFINE_DYNAMIC_ISO_SUBSPACE_ACCESSOR_IMPL(name, heapCellType, type) \
     template<SubspaceAccess mode> \
-    ALWAYS_INLINE GCClient::IsoSubspace* name() { return clientHeap.name<mode>(); }
+    ALWAYS_INLINE GCClient::IsoSubspace* name() \
+    { \
+        if constexpr (mode == SubspaceAccess::Concurrently) \
+            return clientHeap.name<mode>(); \
+        else \
+            return Heap::allocationClientForCurrentThread(*this, clientHeap).name<mode>(); \
+    }
 
 #define DEFINE_DYNAMIC_ISO_SUBSPACE_ACCESSOR(name) \
     DEFINE_DYNAMIC_ISO_SUBSPACE_ACCESSOR_IMPL(name, unused, unused2)
 
     FOR_EACH_JSC_DYNAMIC_ISO_SUBSPACE(DEFINE_DYNAMIC_ISO_SUBSPACE_ACCESSOR_IMPL)
 
-    ALWAYS_INLINE GCClient::IsoSubspace& codeBlockSpace() { return clientHeap.codeBlockSpace; }
+    ALWAYS_INLINE GCClient::IsoSubspace& codeBlockSpace() { return Heap::allocationClientForCurrentThread(*this, clientHeap).codeBlockSpace; }
 
     DEFINE_DYNAMIC_ISO_SUBSPACE_ACCESSOR(evalExecutableSpace)
     DEFINE_DYNAMIC_ISO_SUBSPACE_ACCESSOR(moduleProgramExecutableSpace)
@@ -764,9 +779,9 @@ public:
 #undef DEFINE_DYNAMIC_ISO_SUBSPACE_ACCESSOR_IMPL
 #undef DEFINE_DYNAMIC_ISO_SUBSPACE_GETTER
 
-    ALWAYS_INLINE GCClient::IsoSubspace& functionExecutableSpace() { return clientHeap.functionExecutableSpace; }
-    ALWAYS_INLINE GCClient::IsoSubspace& programExecutableSpace() { return clientHeap.programExecutableSpace; }
-    ALWAYS_INLINE GCClient::IsoSubspace& unlinkedFunctionExecutableSpace() { return clientHeap.unlinkedFunctionExecutableSpace; }
+    ALWAYS_INLINE GCClient::IsoSubspace& functionExecutableSpace() { return Heap::allocationClientForCurrentThread(*this, clientHeap).functionExecutableSpace; }
+    ALWAYS_INLINE GCClient::IsoSubspace& programExecutableSpace() { return Heap::allocationClientForCurrentThread(*this, clientHeap).programExecutableSpace; }
+    ALWAYS_INLINE GCClient::IsoSubspace& unlinkedFunctionExecutableSpace() { return Heap::allocationClientForCurrentThread(*this, clientHeap).unlinkedFunctionExecutableSpace; }
 
     VMType vmType;
     bool m_mightBeExecutingTaintedCode { false };

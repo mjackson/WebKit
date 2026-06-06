@@ -432,7 +432,7 @@ CONCURRENT_SAFE void VMTraps::requestThreadStopIfNeeded(Locker<Lock>& locker)
     ASSERT(!m_threadStopRequested);
     ASSERT(!m_isShuttingDown);
 
-    VM& vm = this->vm();
+    VM& vm = liteAwareVM(); // §A.2.2 item 3c: callable on a per-lite instance (see VMTraps.h).
     m_stack.requestStop();
 
     m_needToInvalidateCodeBlocks = true;

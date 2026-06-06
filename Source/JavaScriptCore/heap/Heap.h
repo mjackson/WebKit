@@ -489,6 +489,23 @@ public:
     // WSAC (F7): written only by the conductor under m_gcBarrierLock; reads acquire.
     bool worldIsStoppedForAllClients() const { return m_worldIsStoppedForAllClients.load(std::memory_order_acquire); }
 
+    // SPEC-ungil §B (heap Dev 8: ONE GCClient PER Thread) / I4 — promotion of
+    // the chartered Heap.cpp:5266 namespace-scope helper (apply-scope note
+    // items (1)-(3)): resolve the GCClient whose TLC/iso LocalAllocators the
+    // CURRENT thread may allocate through. Gate is vm.gilOff(), NOT
+    // isSharedServer() (review amendment recorded at the Heap.cpp note):
+    // GIL-on and flag-off stay identity BY CONSTRUCTION, and spawned-client
+    // stamps cannot exist GIL-on. Unstamped threads (GC helpers, pre-attach)
+    // fall back to the VM's original client under the access-owner identity
+    // tripwire. Templated on VMType (always VM) ONLY so the ALWAYS_INLINE
+    // body can live in this header — VM is incomplete here, and an
+    // out-of-line call on the iso fast path would regress the flag-off bench
+    // gate (apply-scope item (1)). Defined at the bottom of this header
+    // (needs GCClient::Heap), next to the deferralDepthSlot()/
+    // mutatorStateSlot() dispatchers it mirrors.
+    template<typename VMType>
+    static GCClient::Heap& allocationClientForCurrentThread(VMType& vm, GCClient::Heap& vmOriginalClient);
+
     // GSP (F8): read-only view of the stop-pending flag; seq_cst.
     bool gcStopPendingForAllClients() const { return m_gcStopPending.load(std::memory_order_seq_cst); }
 
@@ -1756,6 +1773,37 @@ ALWAYS_INLINE MutatorState& Heap::mutatorStateSlot()
         // consult the same field, so save/restore pairing holds.
     }
     return m_mutatorState;
+}
+
+// SPEC-ungil §B / I4 (apply-scope items (1)+(2); see the declaration comment
+// above): per-thread allocation-client dispatch. Mirrors deferralDepthSlot()
+// but gated on vm.gilOff().
+template<typename VMType>
+ALWAYS_INLINE GCClient::Heap& Heap::allocationClientForCurrentThread(VMType& vm, GCClient::Heap& vmOriginalClient)
+{
+    static_assert(std::is_same_v<VMType, VM>, "templated solely to defer instantiation until VM is complete");
+    ASSERT(&vmOriginalClient.server() == &vm.heap);
+    if (vm.gilOff()) [[unlikely]] {
+        GCClient::Heap* client = GCClient::Heap::currentThreadClient();
+        if (client && &client->server() == &vm.heap) {
+            // I2: an allocating thread must hold ITS client's access; a
+            // stamped thread must not silently fall back to the main client
+            // (that re-creates the shared-FreeList race).
+            ASSERT(client->hasHeapAccess() || vm.heap.worldIsStoppedForAllClients());
+            return *client;
+        }
+        // Tripwire, access-OWNER identity form (apply-scope item (2);
+        // GCClient::Heap friendship): under sticky GIL-off every legitimate
+        // mutator is stamped before its first allocation (JSLock forwarding,
+        // §B.1 attach, A36C carrier swap), so the fallback is only legal when
+        // THIS thread owns the main client's access or the world is stopped.
+        // hasHeapAccess() alone would pass while ANOTHER thread holds the
+        // main client's access — the exact racy fallback. If a legitimate
+        // unstamped caller trips this, stamp that caller; never weaken it.
+        ASSERT(vm.heap.worldIsStoppedForAllClients()
+            || vmOriginalClient.m_accessOwner.load(std::memory_order_relaxed) == &Thread::currentSingleton());
+    }
+    return vmOriginalClient;
 }
 
 ALWAYS_INLINE MutatorState Heap::mutatorState() const

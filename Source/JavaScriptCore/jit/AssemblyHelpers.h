@@ -530,6 +530,25 @@ public:
             loadPtr(&vm.topEntryFrame, destGPR);
     }
 
+    // UNGIL §A.1.3 (U-T4, emission side): mode-keyed exception-word access.
+    // GIL-on the live word is VM::m_exception (AbsoluteAddress is correct);
+    // GIL-off VM::setException publishes through the CURRENT thread's
+    // VMLitePrimitives::m_exception, so emitted checks must read per-lite —
+    // the raw VM-block word is inert spare storage and always reads null.
+    //
+    // materializeGILOffExceptionSlot: GIL-off only. Materializes the current
+    // thread's VMLite* into the per-arch reserved macro-assembler temp (same
+    // scratch/clobber discipline as prepareCallOperation — the same register
+    // the GIL-on AbsoluteAddress form already clobbers on each arch, so no
+    // call site's live-range assumptions change) and returns the Address of
+    // the live exception slot. The returned Address is only valid until the
+    // next op that may clobber the reserved temp.
+    Address materializeGILOffExceptionSlot();
+
+    // Mode-keyed load of the CURRENT thread's exception into destGPR.
+    // ARM64: destGPR must not be the data temp (same contract as loadVMLite).
+    void loadException(VM&, GPRReg destGPR);
+
     // Mode-keyed replacement for the EntryFrame*&-baking overload above.
     // GIL-on, instruction-identical to
     // copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, scratch).

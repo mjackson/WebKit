@@ -394,6 +394,15 @@ private:
     VM* m_liteOwnerVM { nullptr };
 public:
     void setLiteOwnerVM(VM* vm) { m_liteOwnerVM = vm; } // §A.2.1 registration-time, once.
+    // §A.2.2 item 3c accommodation: VM resolution that is valid on BOTH the
+    // VM-embedded instance and a per-lite instance. The `this -
+    // VM::offsetOfTraps()` arithmetic in VMTraps::vm() is garbage on a
+    // per-lite instance (item 3b); Watchdog's clearTrap on a per-lite
+    // instance already reaches requestThreadStopIfNeeded via
+    // updateThreadStopRequestIfNeeded today, so the request path must
+    // resolve through m_liteOwnerVM first. Interim until the full
+    // VMTrapsInlines.h item-3b reroute lands.
+    ALWAYS_INLINE VM& liteAwareVM() const { return m_liteOwnerVM ? *m_liteOwnerVM : vm(); }
 private:
 
     // UNGIL §A.2.1 interim (single shared trap word — see

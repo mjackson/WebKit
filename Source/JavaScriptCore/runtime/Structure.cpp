@@ -803,6 +803,15 @@ Structure* Structure::removePropertyTransitionFromExistingStructureConcurrently(
     return removePropertyTransitionFromExistingStructureImpl(structure, propertyName, attributes, offset);
 }
 
+Structure* Structure::addPropertyTransitionToExistingStructureConcurrently(Structure* structure, UniquedStringImpl* uid, unsigned attributes, PropertyOffset& offset)
+{
+    // SPEC-objectmodel L6(i)/I37 (Task 3c): the m_lock-holding lookup. Kept
+    // out-of-line so the flag-off fast path in the ALWAYS_INLINE dispatcher
+    // (StructureInlines.h) stays at today's code size at every put site.
+    ConcurrentJSLocker locker(structure->m_lock);
+    return addPropertyTransitionToExistingStructureImpl(structure, uid, attributes, offset);
+}
+
 Structure* Structure::removeNewPropertyTransition(VM& vm, Structure* structure, PropertyName propertyName, PropertyOffset& offset, DeferredStructureTransitionWatchpointFire* deferred)
 {
     ASSERT(!isCompilationThread());

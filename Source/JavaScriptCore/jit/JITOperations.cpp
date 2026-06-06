@@ -147,7 +147,7 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationThrowStackOverflowErrorFromThunk, voi
     auto scope = DECLARE_THROW_SCOPE(vm);
     throwStackOverflowError(globalObject, scope);
     genericUnwind(vm, callFrame);
-    ASSERT(vm.targetMachinePCForThrow);
+    ASSERT(vm.group3Primitives().targetMachinePCForThrow); // UNGIL §A.1.3 mode split: GIL-off the raw VM word is inert; group3Primitives() reads the word genericUnwind actually wrote (GIL-on it aliases the VM block via mainVMLitePrimitives()).
 }
 
 JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationThrowOutOfMemoryError, void, (VM* vmPointer))
@@ -4920,7 +4920,7 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationLookupExceptionHandler, void, (VM* vm
     CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     genericUnwind(vm, callFrame);
-    ASSERT(vm.targetMachinePCForThrow);
+    ASSERT(vm.group3Primitives().targetMachinePCForThrow); // UNGIL §A.1.3 mode split (see operationThrowStackOverflowErrorFromThunk).
 }
 
 JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationLookupExceptionHandlerFromCallerFrame, void, (VM* vmPointer))
@@ -4931,7 +4931,7 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationLookupExceptionHandlerFromCallerFrame
     ASSERT(callFrame->isZombieFrame());
     ASSERT(vm.hasPendingTerminationException() || uncheckedDowncast<ErrorInstance>(vm.exceptionForInspection()->value().asCell())->isStackOverflowError());
     genericUnwind(vm, callFrame);
-    ASSERT(vm.targetMachinePCForThrow);
+    ASSERT(vm.group3Primitives().targetMachinePCForThrow); // UNGIL §A.1.3 mode split (see operationThrowStackOverflowErrorFromThunk).
 }
 
 JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationVMHandleException, void, (VM* vmPointer))

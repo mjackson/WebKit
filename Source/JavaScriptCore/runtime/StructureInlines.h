@@ -461,7 +461,14 @@ ALWAYS_INLINE auto Structure::addOrReplacePropertyWithoutTransition(VM& vm, Prop
     if (findResult.offset != invalidOffset)
         return std::tuple { findResult.offset, findResult.attributes, false };
 
-    GCSafeConcurrentJSLocker flagOffLocker(Options::useJSThreads() ? nullptr : &m_lock, vm);
+    // Keyed off l6Locker, not a second Options::useJSThreads() load (the I22
+    // latched-option pattern: the compiler cannot CSE the global load across
+    // the opaque ensurePropertyTable/find calls above). Flag-on l6Locker is
+    // always engaged (the loop above emplaced it), so this stays null;
+    // flag-off l6Locker was never engaged and we take m_lock here — exactly
+    // today's lock placement.
+    ASSERT(Options::useJSThreads() == !!l6Locker);
+    GCSafeConcurrentJSLocker flagOffLocker(l6Locker ? nullptr : &m_lock, vm);
     const GCSafeConcurrentJSLocker& locker = l6Locker ? *l6Locker : flagOffLocker;
 
     pin(locker, vm, table);
@@ -702,11 +709,12 @@ ALWAYS_INLINE Structure* Structure::addPropertyTransitionToExistingStructure(Str
     return addPropertyTransitionToExistingStructureImpl(structure, propertyName.uid(), attributes, offset);
 }
 
-ALWAYS_INLINE Structure* Structure::addPropertyTransitionToExistingStructureConcurrently(Structure* structure, UniquedStringImpl* uid, unsigned attributes, PropertyOffset& offset)
-{
-    ConcurrentJSLocker locker(structure->m_lock);
-    return addPropertyTransitionToExistingStructureImpl(structure, uid, attributes, offset);
-}
+// addPropertyTransitionToExistingStructureConcurrently is out-of-line in
+// Structure.cpp (like its remove/attributeChange siblings): flag-off, the
+// m_lock machinery and the duplicated Impl body must not be inlined into
+// every put site through the ALWAYS_INLINE dispatcher above — that is pure
+// icache/register-pressure cost on the transition fast path. Flag-on, this
+// path immediately takes m_lock, so one extra call is noise.
 
 ALWAYS_INLINE StructureTransitionTable::Hash::Key StructureTransitionTable::Hash::createKeyFromStructure(Structure* structure)
 {

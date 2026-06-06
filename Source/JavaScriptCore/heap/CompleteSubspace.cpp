@@ -191,11 +191,15 @@ void* CompleteSubspace::tryAllocateSlow(VM& vm, size_t size, GCDeferralContext* 
     sanitizeStackForVM(vm);
 
     // SharedGC (§5.3/§5.5; T4): with the option on, the server allocator
-    // table is never populated — route through the calling VM's client TLC
-    // (the VM-coupled preludes above already ran; the client overload skips
-    // them for standalone clients, §12.1).
+    // table is never populated — route through the calling thread's client
+    // TLC (the VM-coupled preludes above already ran; the client overload
+    // skips them for standalone clients, §12.1). SPEC-ungil §B / I4: GIL-off
+    // the CURRENT thread's client, not unconditionally vm.clientHeap
+    // (Heap::allocationClientForCurrentThread is identity GIL-on/flag-off);
+    // the currentThreadClient() ASSERT in tryAllocateSlowForClient is the
+    // per-site verification anchor.
     if (Options::useSharedGCHeap()) [[unlikely]]
-        return tryAllocateSlowForClient(vm.clientHeap, size, deferralContext);
+        return tryAllocateSlowForClient(Heap::allocationClientForCurrentThread(vm, vm.clientHeap), size, deferralContext);
 
     if (Allocator allocator = allocatorForNonInline(size, AllocatorForMode::EnsureAllocator))
         return allocator.allocate(vm.heap, allocator.cellSize(), deferralContext, AllocationFailureMode::ReturnNull);

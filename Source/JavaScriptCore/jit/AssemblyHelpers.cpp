@@ -506,12 +506,45 @@ void AssemblyHelpers::jitAssertCodeBlockOnCallFrameIsOptimizingJIT(GPRReg scratc
 
 #endif // ASSERT_ENABLED
 
+// UNGIL §A.1.3 (U-T4): see the declaration comment in AssemblyHelpers.h.
+AssemblyHelpers::Address AssemblyHelpers::materializeGILOffExceptionSlot()
+{
+#if CPU(ARM64)
+    // Cache-invalidating accessor for the same reason as prepareCallOperation:
+    // loadVMLite writes the temp via mrs+ldr without updating
+    // m_cachedMemoryTempRegister.
+    GPRReg scratchGPR = getCachedMemoryTempRegisterIDAndInvalidate();
+#elif CPU(X86_64)
+    GPRReg scratchGPR = scratchRegister(); // r11, already clobbered by the GIL-on AbsoluteAddress form.
+#else
+    // SPEC-jit annex App. R5: no gilOff support here; loadVMLite fail-stops
+    // at emission before this address is used.
+    GPRReg scratchGPR = GPRInfo::nonArgGPR0;
+#endif
+    loadVMLite(scratchGPR);
+    return Address(scratchGPR, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_m_exception()));
+}
+
+void AssemblyHelpers::loadException(VM& vm, GPRReg destGPR)
+{
+    if (vm.gilOff()) [[unlikely]] {
+        loadVMLite(destGPR);
+        loadPtr(Address(destGPR, static_cast<int32_t>(VMLite::offsetOfPrimitives() + VMLitePrimitives::offsetOf_m_exception())), destGPR);
+    } else
+        loadPtr(vm.addressOfException(), destGPR);
+}
+
 void AssemblyHelpers::jitReleaseAssertNoException(VM& vm)
 {
     Jump noException;
 #if USE(JSVALUE64)
-    noException = branchTest64(Zero, AbsoluteAddress(vm.addressOfException()));
+    if (vm.gilOff()) [[unlikely]]
+        noException = branchTestPtr(Zero, materializeGILOffExceptionSlot());
+    else
+        noException = branchTest64(Zero, AbsoluteAddress(vm.addressOfException()));
 #elif USE(JSVALUE32_64)
+    // GIL-off is unsupported on 32-bit platforms (jit App. R5); loadVMLite
+    // fail-stops at emission, so the absolute form stays correct here.
     noException = branch32(Equal, AbsoluteAddress(vm.addressOfException()), TrustedImm32(0));
 #endif
     abortWithReason(JITUncaughtExceptionAfterCall);
@@ -555,7 +588,7 @@ void AssemblyHelpers::callExceptionFuzz(VM& vm, GPRReg exceptionReg)
     }
 
     if (exceptionReg != InvalidGPRReg)
-        loadPtr(vm.addressOfException(), exceptionReg);
+        loadException(vm, exceptionReg);
 }
 
 AssemblyHelpers::Jump AssemblyHelpers::emitJumpIfException(VM& vm)
@@ -575,7 +608,11 @@ AssemblyHelpers::Jump AssemblyHelpers::emitExceptionCheck(VM& vm, ExceptionCheck
     if (exceptionReg != InvalidGPRReg) {
 #if ASSERT_ENABLED
         JIT_COMMENT(*this, "Exception validation");
-        Jump ok = branchPtr(Equal, AbsoluteAddress(vm.addressOfException()), exceptionReg);
+        Jump ok;
+        if (vm.gilOff()) [[unlikely]]
+            ok = branchPtr(Equal, materializeGILOffExceptionSlot(), exceptionReg);
+        else
+            ok = branchPtr(Equal, AbsoluteAddress(vm.addressOfException()), exceptionReg);
         breakpoint();
         ok.link(this);
 #endif
@@ -583,7 +620,10 @@ AssemblyHelpers::Jump AssemblyHelpers::emitExceptionCheck(VM& vm, ExceptionCheck
         result = branchTestPtr(kind == NormalExceptionCheck ? NonZero : Zero, exceptionReg);
     } else {
         JIT_COMMENT(*this, "Exception check from vm");
-        result = branchTestPtr(kind == NormalExceptionCheck ? NonZero : Zero, AbsoluteAddress(vm.addressOfException()));
+        if (vm.gilOff()) [[unlikely]]
+            result = branchTestPtr(kind == NormalExceptionCheck ? NonZero : Zero, materializeGILOffExceptionSlot());
+        else
+            result = branchTestPtr(kind == NormalExceptionCheck ? NonZero : Zero, AbsoluteAddress(vm.addressOfException()));
     }
 
     if (width == NormalJumpWidth)
