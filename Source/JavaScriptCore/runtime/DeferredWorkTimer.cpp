@@ -300,6 +300,37 @@ void DeferredWorkTimer::runRunLoop()
 {
     ASSERT(!m_apiLock->vm()->currentThreadIsHoldingAPILock());
     ASSERT(&RunLoop::currentSingleton() == &m_apiLock->vm()->runLoop());
+
+    // UNGIL §E.7.1/§E.7.4 (U-T9): GIL-off, both the flag write and the
+    // emptiness read take the extended m_pendingLock (=m_taskLock) — spawned
+    // threads concurrently insert (addPendingWork) and read the flag
+    // (cancelPendingWork's recheck arm). Purging already-cancelled tickets
+    // under the same hold closes the missed-stop window: a spawned-side
+    // cancel that ran BEFORE the flag was set saw it false and dispatched no
+    // recheck, but cancel() does not remove from m_pendingTickets — without
+    // the purge a set of all-cancelled tickets would park the shell forever.
+    // The lock serializes the two cases: a cancel ordered before this
+    // critical section is swept by the purge; one ordered after sees the
+    // flag true and dispatches the on-loop recheck, which RunLoop::run()
+    // then services. GIL-on/flag-off: landed lock-free shape.
+    if (VM* vm = m_apiLock->vm(); vm && vm->gilOff()) [[unlikely]] {
+        bool hasLiveTickets;
+        {
+            Locker locker { m_taskLock };
+            m_shouldStopRunLoopWhenAllTicketsFinish = true;
+            m_pendingTickets.removeIf([&](auto& ticket) {
+                if (!ticket->isCancelled())
+                    return false;
+                crossThreadDWTForgetTicket(this, ticket.ptr());
+                return true;
+            });
+            hasLiveTickets = !m_pendingTickets.isEmpty();
+        }
+        if (hasLiveTickets)
+            RunLoop::run();
+        return;
+    }
+
     m_shouldStopRunLoopWhenAllTicketsFinish = true;
     if (!m_pendingTickets.isEmpty())
         RunLoop::run();
@@ -441,8 +472,17 @@ void DeferredWorkTimer::scheduleWorkSoon(Ticket ticket, Task&& task)
 bool DeferredWorkTimer::cancelPendingWork(Ticket ticket)
 {
 #if ASSERT_ENABLED
+    // UNGIL §E.7.1 (U-T9): GIL-off this membership probe is SKIPPED — the
+    // unlocked contains() would race a spawned addPendingWork's locked
+    // insert (HashSet rehash vs read), and membership is not even a stable
+    // cross-thread invariant: a carrier doWork take()s the ticket out of
+    // m_pendingTickets before running its task while a spawned settle path
+    // can still cancel it. (Taking m_taskLock here is not an option either:
+    // GIL-on cancelPendingWorkSafe calls in already holding it.)
     if (!onCancelPendingWork) {
-        ASSERT(m_pendingTickets.contains(ticket));
+        VM* assertVM = m_apiLock->vm();
+        if (!assertVM || !assertVM->gilOff())
+            ASSERT(m_pendingTickets.contains(ticket));
     }
 #endif
 
@@ -507,9 +547,32 @@ bool DeferredWorkTimer::cancelPendingWork(Ticket ticket)
 
 void DeferredWorkTimer::cancelPendingWorkSafe(JSGlobalObject* globalObject)
 {
-    Locker locker { m_taskLock };
-
     dataLogLnIf(DeferredWorkTimerInternal::verbose, "Cancel pending work for globalObject ", RawPointer(globalObject));
+
+    // UNGIL §E.7.4 (U-T9): GIL-off, cancelPendingWork's hookless arm takes
+    // m_taskLock for the parked-run-loop recheck, and WTF::Lock is
+    // non-recursive — so the walk must NOT hold m_taskLock across the
+    // per-ticket cancels. Decide-under-iteration / act-after (the r18 F2
+    // shape): snapshot the live tickets as strong refs (the weak set hands
+    // out Refs; no DWT lock guards it), cancel with no DWT lock held, then
+    // re-take the lock for the timer arm. GIL-on/flag-off: the landed
+    // single-lock shape, byte-for-byte (the recheck arm is unreachable —
+    // gilOffVM is null — so no re-entry exists there).
+    if (VM* vm = m_apiLock->vm(); vm && vm->gilOff()) [[unlikely]] {
+        Vector<Ref<TicketData>> liveTickets;
+        for (Ref<TicketData> ticket : *globalObject->m_weakTickets) {
+            if (!ticket->isCancelled())
+                liveTickets.append(WTF::move(ticket));
+        }
+        for (auto& ticket : liveTickets)
+            cancelPendingWork(ticket.ptr());
+        Locker locker { m_taskLock };
+        if (!isScheduled() && !m_currentlyRunningTask)
+            setTimeUntilFire(0_s);
+        return;
+    }
+
+    Locker locker { m_taskLock };
     for (Ref<TicketData> ticket : *globalObject->m_weakTickets) {
         if (!ticket->isCancelled())
             cancelPendingWork(ticket.ptr());
@@ -584,6 +647,21 @@ bool DeferredWorkTimer::hasAnyPendingWork() const
 bool DeferredWorkTimer::hasImminentlyScheduledWork() const
 {
     ASSERT(m_apiLock->vm()->currentThreadIsHoldingAPILock() || (Thread::mayBeGCThread() && m_apiLock->vm()->heap.worldIsStopped()));
+    // UNGIL §E.7.1 (U-T9): GIL-off the iteration takes the extended
+    // m_pendingLock — the precondition above no longer excludes concurrent
+    // mutation (the §F.2 token is per-thread; a spawned addPendingWork's
+    // locked insert can rehash under this probe). Same const_cast note as
+    // hasAnyPendingWork (the header is outside U-T9's owned set).
+    if (VM* vm = m_apiLock->vm(); vm && vm->gilOff()) [[unlikely]] {
+        Locker locker { const_cast<Lock&>(m_taskLock) };
+        for (auto& ticket : m_pendingTickets) {
+            if (ticket->isCancelled())
+                continue;
+            if (ticket->type() == WorkType::ImminentlyScheduled)
+                return true;
+        }
+        return false;
+    }
     for (auto& ticket : m_pendingTickets) {
         if (ticket->isCancelled())
             continue;

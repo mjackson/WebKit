@@ -192,6 +192,50 @@ docs/threads/SPEC-ungil.md is the doc of record on conflict.
      cross-thread increments under gilOff (profiling-only; CodeBlock/jit
      rows own the ruling).
 
+- U-T10 (§C.1-2 atomic slot accessors) — LANDED in-tree. Files (U-T10-owned
+  edits): `runtime/JSObject.h` (AtomicSlotOperation/AtomicSlotStatus/
+  AtomicSlotRequest + the four §9.5 entry points on JSObject:
+  `atomicSlotReadModifyWrite`/`atomicSlotCompareExchange` + the AtIndex pair),
+  `runtime/ConcurrentButterfly.cpp` (ANNEX C1 implementation: lock-free
+  inline/flat-OOL/segmented-fragment seq_cst 64-bit slot CAS/RMW loop; the
+  flat-path SW discipline — ensureSharedWriteBit FIRST, I34 structureID +
+  butterfly re-validation, THEN the slot CAS, Restart on validation failure,
+  completed CAS never re-applied; the OM-locked third arm for dictionary/
+  AS-shape with the AS PRE-LOCK SW protocol (r8 item 6) and under-lock
+  dictionary-ness/offset/D7 re-checks; the indexed-by-shape arm — CoW
+  materialize-first §4.8/I35, Int32/Double convert-to-Contiguous on FIRST
+  atomic access (owner direct, foreign SW-set DCAS first), Contiguous = flat
+  arm, AS/dict-indexed = third arm; write barrier after success),
+  `runtime/ThreadAtomics.cpp` (§C.2 re-home: gilOff-only \*GilOff bodies for
+  load/store/compareExchange/RMW dispatching through the §9.5 accessors with
+  the probe/Restart loop; D3 receiver gates + messages and D7 writability
+  carried verbatim; rope SVZ operands resolved OUTSIDE any lock via JSString
+  resolution (§N.2) then re-probed; store's Missing arm stays on the generic
+  OM add path). GIL-on/flag-off: byte-identical bodies (every new branch is
+  `vm.gilOff()`-gated; ThreadAtomics.h signatures untouched per the frozen §7
+  list). Corpus: `JSTests/threads/atomics/property-cas-storm-u5-as.js` (ANNEX
+  C1 U5 amplifier: owner unlocked AS store storm vs foreign CAS, same index,
+  SW initially 0 + exact locked-counter arm),
+  `property-cas-storm-u28-flat.js` (U28-class lock-free-arm exactness storm:
+  inline/OOL/Int32-converting/Double-converting/RMW + rope-SVZ contention),
+  `property-cas-dictionary-delete-u5.js` (U5 dictionary arm: delete/re-add
+  storm vs foreign CAS; no quarantined-slot resurrection).
+  **ENTRY GATE record (§D.2):** the OM Task-14 PRE-INT bench verdict is NOT
+  recorded anywhere in-tree (INTEGRATE-objectmodel §46 still instructs "record
+  the verdict here"; no PROMOTE record exists). This task cannot run the jit
+  Task-13 GIL-stub construction bench (docs+code round, no builds), so U-T10
+  proceeded on the no-PROMOTE arm — 8h ships as landed (cell-locked N2), which
+  is the only arm consistent with §C's third arm as frozen. OBLIGATION
+  (orchestrator, before U-T14 close): run the §L2.h bench, record the verdict
+  in INTEGRATE-objectmodel §46; a PROMOTE verdict retroactively requires
+  landing Task 14 and re-reviewing §C's third arm (this file's locked-arm
+  code is the surface to re-review).
+  OPEN (owned by U-T11 per the task split): §C.3 PWT pre-enqueue routing —
+  atomicsWaitOnProperty/atomicsWaitAsyncOnProperty now reach the §9.5 atomic
+  load via atomicsLoadOnProperty's gilOff branch (forcing conversions outside
+  listLock, as §C.3(a) requires), but the under-listLock SVZ re-validation +
+  dequeue-and-restart arm and the 4.5-1a/G11 gate edits are U-T11's.
+
 ## (i) Supersession ledger (one row per SPEC-ungil SUPERSESSION; spec side already written, IU side written at landing)
 
 | # | Spec side | IU side (landing record) | Task |

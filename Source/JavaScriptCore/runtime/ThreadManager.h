@@ -84,7 +84,16 @@ class AsyncTicket final : public ThreadSafeRefCounted<AsyncTicket> {
 public:
     // Must be called while holding the shared VM's JSLock. Captures the
     // calling thread's ThreadState as the registrant.
-    JS_EXPORT_PRIVATE static Ref<AsyncTicket> create(JSGlobalObject*, JSPromise*, Vector<JSCell*>&& dependencies = { });
+    //
+    // countsKeepalive (§E.3, U-T9): pass true at the COUNTED registration
+    // sites — asyncHold, cond.asyncWait, property Atomics.waitAsync; never
+    // asyncJoin — and create arms the keepalive INTERNALLY (the full §E.3
+    // protocol: armed-before-visible, inboxLock'd increment, spawned+OPEN
+    // assert) iff the VM is gilOff and the registrant is a spawned TS.
+    // Main/embedder registrants and GIL-on/flag-off ignore the bit (§E.7:
+    // they never touch keepalive). Defaulted false so the unowned call-site
+    // TUs compile unchanged; see gate U-T9-INT1 at armKeepalive() below.
+    JS_EXPORT_PRIVATE static Ref<AsyncTicket> create(JSGlobalObject*, JSPromise*, Vector<JSCell*>&& dependencies = { }, bool countsKeepalive = false);
     JS_EXPORT_PRIVATE ~AsyncTicket();
 
     VM& vm() { return m_vm; }
@@ -172,14 +181,26 @@ public:
     // observes inboxOpen == false, SKIPS the decrement (the counter is dead)
     // and takes the main fallback.
     //
-    // INTEGRATION OBLIGATION (recorded; registration host calls live in
-    // ThreadObject.cpp / LockObject.cpp / the property-atomics TU, outside
-    // U-T9's owned set): until those sites call armKeepalive(), every ticket
-    // stays never-armed — keepalive reads 0, so a spawned thread's E2A loop
-    // exits at fn-return + queue-empty and late settles take the declared
-    // main fallback (the api 4.6.2 class), which is safe (no hang, no wrap)
-    // but does not yet hold the loop alive for pending asyncHold/waitAsync.
-    // GIL-on/flag-off: armKeepalive is never called and nothing here runs.
+    // ==== NAMED INTEGRATION GATE U-T9-INT1 (blocks the §E ladder arms) ====
+    // The arming PROTOCOL is fully in-set: AsyncTicket::create takes
+    // `bool countsKeepalive` and arms internally (gilOff + spawned
+    // registrant). The RESIDUAL obligation is exactly four one-token edits
+    // in TUs outside U-T9's owned set, to be landed TOGETHER with the
+    // threadMain E2A wiring (openThreadInbox / runSpawnedThreadDrainLoop-
+    // AndClose, see the integration-point banner below):
+    //   LockObject.cpp:492      asyncHold            -> countsKeepalive=true
+    //   ConditionObject.cpp:287 cond.asyncWait       -> countsKeepalive=true
+    //   ThreadAtomics.cpp:639   property waitAsync   -> countsKeepalive=true
+    //   ThreadObject.cpp:414    asyncJoin            -> stays false (§E.3)
+    // plus the §C.3 finite-timeout addThreadWaitDeadline call (SD16). Until
+    // U-T9-INT1 lands, every ticket stays never-armed: keepalive reads 0, a
+    // spawned thread's E2A loop exits at fn-return + queue-empty, and late
+    // settles take the declared main fallback (the api 4.6.2 class) — safe
+    // (no hang, no wrap) but the §E.3 liveness semantics (never-notified
+    // asyncHold/waitAsync keeps the loop alive) and the SD16 timing arms are
+    // NOT in force; the §E.2/§E.3/SD16/SD17 ladder arms cannot be claimed
+    // green before this gate closes. GIL-on/flag-off: armKeepalive is never
+    // called and nothing here runs.
     // ========================================================================
     JS_EXPORT_PRIVATE void armKeepalive();
     bool claimKeepaliveRelease()

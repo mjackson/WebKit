@@ -289,6 +289,7 @@
 #include "TemporalTimeZonePrototype.h"
 #include "TopExceptionScope.h"
 #include "VMLite.h"
+#include "VMLiteInlines.h" // UNGIL §E.1/I11 (U-T9): per-lite microtask enqueue reroute.
 #include "VMTrapsInlines.h"
 #include "WaiterListManager.h"
 #include "WasmCapabilities.h"
@@ -1201,8 +1202,14 @@ JSGlobalObject::JSGlobalObject(VM& vm, Structure* structure, const GlobalObjectM
 // globalObject->regExpGlobalData() (RegExpGlobalDataInlines.h,
 // RegExpConstructor.cpp, StringPrototype/RegExpObject paths) re-point to
 // threadRegExpGlobalData per AUD1.K2; the DFG/FTL RecordRegExpCachedResult
-// re-point is the A16-ext jit slice; the ALS capture/restore re-point is
-// U-T9 (ALS1.3).
+// re-point is the A16-ext jit slice. ALS1.3 STATUS (U-T9): the CAPTURE-side
+// re-point LANDED (JSPromise.cpp's five registration sites call
+// threadAsyncContextData) but the accessor's per-lite routing is GATED OFF
+// (perLiteAsyncContextCursorEnabled below) until the RESTORE-side brackets
+// (JSMicrotask.cpp save/write/run/write-back) and the then() prototype
+// fast-path capture (JSPromisePrototype.cpp) — both TUs outside U-T9's owned
+// set — land their re-point; a capture-only reroute would split the cursor
+// regime (see the gate comment). Single flip enables the whole annex.
 // =============================================================================
 
 void jsThreadsAssertNoWriteAfterFirstCrossThreadEntry(VM*); // Defined in VMLite.cpp (K4 §VIII machinery); identical self-declaration.
@@ -1278,8 +1285,25 @@ RegExpGlobalData& threadRegExpGlobalData(JSGlobalObject* globalObject)
 
 #if USE(BUN_JSC_ADDITIONS)
 InternalFieldTuple* threadAsyncContextData(JSGlobalObject*); // Self-declaration (U-T9/ALS1.3 lifts it beside m_asyncContextData's consumers).
+
+// ALS1.3 STAGING GATE (U-T9): the per-lite reroute below stays DISABLED until
+// the RESTORE-side brackets (JSMicrotask.cpp save/write/run/write-back) and
+// the then() fast-path capture (JSPromisePrototype.cpp) — both TUs outside
+// U-T9's owned file set — are re-pointed at this accessor. Enabling only the
+// CAPTURE half would SPLIT the regime: a spawned thread's job-run brackets
+// swap-write the SHARED in-object cursor while its registration-time captures
+// read a never-bracket-written per-lite copy — the bracket value is missed
+// entirely (ALS1.4 cannot pass) on top of the cross-thread clobber ALS1.3
+// exists to fix. Until the restore slice lands, EVERY thread coherently uses
+// the shared cursor (the landed pre-ALS1 regime; the documented clobber class
+// remains, unamplified). Flip this constant WITH the restore-side re-point.
+static constexpr bool perLiteAsyncContextCursorEnabled = false;
+
 InternalFieldTuple* threadAsyncContextData(JSGlobalObject* globalObject)
 {
+    if constexpr (!perLiteAsyncContextCursorEnabled)
+        return globalObject->m_asyncContextData.get();
+
     VM& vm = globalObject->vm();
     VMLite* lite = perLiteRealmRoutingLite(vm);
     if (!lite) [[likely]]
@@ -4201,6 +4225,17 @@ void JSGlobalObject::queueMicrotask(VM& vm, QueuedTask&& task)
         queueMicrotaskSlow(vm, WTF::move(task));
         return;
     }
+    // UNGIL §E.1/I11 (U-T9): GIL-off, a SPAWNED thread's enqueue is ALWAYS
+    // per-lite — the realm-bound m_microtaskQueue aliases the VM default
+    // queue, which only the carrier may drain; routing there would let two
+    // threads enqueue/drain one queue (I11/U22 break, r22). The X1.7 host
+    // hook (queueMicrotaskToEventLoop) is consulted only on carrier paths;
+    // its default forwards here and reroutes identically. Flag-off/GIL-on/
+    // main carrier: the landed enqueue, byte-identical.
+    if (VMLite* lite = perLiteRealmRoutingLite(vm)) [[unlikely]] {
+        lite->enqueueMicrotaskToDefaultQueue(WTF::move(task));
+        return;
+    }
     microtaskQueue().enqueue(WTF::move(task));
 }
 
@@ -4227,6 +4262,13 @@ void JSGlobalObject::queueMicrotaskSlow(VM& vm, QueuedTask&& task)
     if (!m_associatedContextIsFullyActive) [[unlikely]] {
         if (microtaskQueue().isPerformingMicrotaskCheckpoint() && incumbentRealmIs(vm, this)) [[unlikely]]
             return;
+    }
+    // UNGIL §E.1/I11 (U-T9): the slow path's dispatcher decoration ran
+    // INLINE on the acting thread (the U-T8e CrossTaskToken disposition);
+    // the storage routing is the same per-lite reroute as the fast path.
+    if (VMLite* lite = perLiteRealmRoutingLite(vm)) [[unlikely]] {
+        lite->enqueueMicrotaskToDefaultQueue(WTF::move(task));
+        return;
     }
     microtaskQueue().enqueue(WTF::move(task));
 }

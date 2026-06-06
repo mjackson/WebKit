@@ -2606,6 +2606,422 @@ bool JSObjectWithButterfly::putIndexConcurrent(VM& vm, unsigned i, JSValue value
     }
 }
 
+// ===== U-T10: §9.5 atomic slot accessors (SPEC-ungil ANNEX C1) =====
+//
+// GIL-off, SPEC-api 4.5 property Atomics can no longer lean on the VM lock
+// for read-modify-write atomicity: the ThreadAtomics.cpp bodies re-home onto
+// the accessors below (§C.2), and §C.3(a) routes the property-waiter
+// pre-enqueue validation through the Load form. Receivers are restricted by
+// the caller's probe to plain structure/butterfly-backed own data slots (the
+// D3 exotic-receiver TypeErrors stay in ThreadAtomics.cpp), so the dispatch
+// here is exactly the §2 regime split of get/putDirectConcurrent above plus
+// the ANNEX C1 write-side protocols:
+//
+//   - LOCK-FREE ARMS (inline, flat out-of-line, segmented fragment): one
+//     seq_cst 64-bit CAS/RMW loop on the EncodedJSValue slot word. NO cell
+//     lock on the segmented arm: a lock-held RMW would not serialize against
+//     lock-free fragment stores (U5).
+//   - FLAT-PATH SW DISCIPLINE: a foreign writer on an SW=0 flat word FIRST
+//     runs the §2/§3 foreign-write SW-set DCAS (ensureSharedWriteBit: F1
+//     fire-then-flip with the R-DOUBLE/CoW/PA carve-outs), re-validates
+//     structureID + butterfly per I34, THEN CASes the slot. Validation
+//     failure restarts the WHOLE probe (I33-bounded by the forward-only
+//     shape order); a completed RMW/CAS is NEVER re-applied. Flat GROW is
+//     butterfly-CAS + copy with NO nuke, so an old-butterfly CAS would be
+//     silently lost - hence the post-resolution word re-validation, after
+//     which the payload is pinned (T1 copies are owner-only against a
+//     (currentTID, 0) word: we are that owner, or SW=1 - I27).
+//   - THIRD ARM (OM-locked regimes): dictionary (I19/L3) and AS shape
+//     (§4.6; Thread.restrict FORCES AS) probe + CAS/RMW UNDER the JSCellLock
+//     the OM already requires there. AS PRE-LOCK (r8 item 6): the cell lock
+//     suffices only AFTER SW=1 - jit §5.5 owner AS fast paths store UNLOCKED
+//     while SW=0 - so SW==0 && foreign writer => FIRST the OM §4.6
+//     first-foreign-write protocol (per-event STW, fire-then-publish
+//     (installerTID, 1); I10b - it lives inside ensureSharedWriteBit's AS
+//     carve-out), then RESTART the probe; only SW=1 (or the owner) enters
+//     the locked CAS/RMW. The lock is REQUIRED: dictionary delete is
+//     I34-blind, so a lock-free CAS could "succeed" on an absent property
+//     (U5) - dictionary-ness and the offset are re-checked under the lock.
+//   - INDEXED ARM, BY SHAPE (8g re-freeze): CoW materializes per §4.8/I35
+//     first; Int32/Double raw-word CAS is REJECTED - the first atomic access
+//     CONVERTS to Contiguous (owner direct, foreign SW-set DCAS first);
+//     Contiguous is the flat arm verbatim; ArrayStorage/dictionary-indexed
+//     is the third arm. ThreadAtomics' §C.2 probe routes parseIndex hits
+//     here; one arm per shape.
+//   - Write barrier after success, as §9.5 orders.
+//
+// The locked third arm never allocates under the cell lock (I20): SVZ
+// comparison is allocation-free - rope strings bounce out as
+// NeedsStringResolution and the caller resolves them OUTSIDE any lock via
+// the §N.2 single-flight protocol, then re-probes.
+
+#if USE(JSVALUE64)
+
+namespace {
+
+// SameValueZero, allocation-free. Mirrors ThreadAtomics.cpp's
+// sameValueZeroForAtomics except that rope strings are NOT resolved here;
+// for non-string, non-number values sameValue() is pure.
+bool atomicSlotSameValueZero(JSGlobalObject* globalObject, JSValue a, JSValue b, bool& needsResolution)
+{
+    needsResolution = false;
+    if (a.isNumber() && b.isNumber()) {
+        double x = a.asNumber();
+        double y = b.asNumber();
+        if (std::isnan(x) && std::isnan(y))
+            return true;
+        return x == y; // +0 == -0 under SVZ.
+    }
+    bool aIsString = a.isString();
+    bool bIsString = b.isString();
+    if (aIsString != bIsString)
+        return false;
+    if (aIsString) {
+        StringImpl* aImpl = asString(a)->tryGetValueImpl();
+        StringImpl* bImpl = asString(b)->tryGetValueImpl();
+        if (!aImpl || !bImpl) {
+            // Rope: resolving may allocate - illegal under the cell lock
+            // (I20) and unwanted inside the CAS loop. Bounce to the caller.
+            needsResolution = true;
+            return false;
+        }
+        return WTF::equal(aImpl, bImpl);
+    }
+    return sameValue(globalObject, a, b); // Non-string residue: allocation-free.
+}
+
+ALWAYS_INLINE bool atomicSlotOperationWrites(AtomicSlotOperation operation)
+{
+    return operation != AtomicSlotOperation::Load;
+}
+
+// Evaluates the request against the value read. true => the caller stores
+// newValue (and reports Applied after the store lands); false => no write,
+// status already set (Applied for Load, NotEqual, NotNumber,
+// NeedsStringResolution). Allocation-free (jsNumber() is NaN-boxed bits).
+bool atomicSlotEvaluate(JSGlobalObject* globalObject, const AtomicSlotRequest& request, JSValue current, JSValue& newValue, AtomicSlotStatus& status)
+{
+    switch (request.operation) {
+    case AtomicSlotOperation::Load:
+        status = AtomicSlotStatus::Applied;
+        return false;
+    case AtomicSlotOperation::Exchange:
+        newValue = request.replacement;
+        return true;
+    case AtomicSlotOperation::CompareExchangeSVZ: {
+        bool needsResolution = false;
+        bool equal = atomicSlotSameValueZero(globalObject, current, request.expected, needsResolution);
+        if (needsResolution) {
+            status = AtomicSlotStatus::NeedsStringResolution;
+            return false;
+        }
+        if (!equal) {
+            status = AtomicSlotStatus::NotEqual;
+            return false;
+        }
+        newValue = request.replacement;
+        return true;
+    }
+    case AtomicSlotOperation::Add:
+    case AtomicSlotOperation::Sub:
+    case AtomicSlotOperation::And:
+    case AtomicSlotOperation::Or:
+    case AtomicSlotOperation::Xor:
+        break;
+    }
+    if (!current.isNumber()) {
+        status = AtomicSlotStatus::NotNumber;
+        return false;
+    }
+    switch (request.operation) {
+    case AtomicSlotOperation::Add:
+        newValue = jsNumber(current.asNumber() + request.operandNumber);
+        break;
+    case AtomicSlotOperation::Sub:
+        newValue = jsNumber(current.asNumber() - request.operandNumber);
+        break;
+    case AtomicSlotOperation::And:
+        newValue = jsNumber(JSC::toInt32(current.asNumber()) & request.operandInt);
+        break;
+    case AtomicSlotOperation::Or:
+        newValue = jsNumber(JSC::toInt32(current.asNumber()) | request.operandInt);
+        break;
+    case AtomicSlotOperation::Xor:
+        newValue = jsNumber(JSC::toInt32(current.asNumber()) ^ request.operandInt);
+        break;
+    default:
+        RELEASE_ASSERT_NOT_REACHED();
+        break;
+    }
+    return true;
+}
+
+// The ANNEX C1 lock-free arm core: one seq_cst 64-bit CAS/RMW loop on the
+// EncodedJSValue slot word. The slot's storage identity must already be
+// pinned by the caller's I34 validation; an empty word (hole / mid-delete)
+// restarts the whole probe. The loop re-reads and re-EVALUATES on CAS
+// failure - the never-re-apply rule governs probe restarts, and no write has
+// landed when the CAS fails.
+JSValue atomicSlotLockFreeLoop(JSGlobalObject* globalObject, VM& vm, JSObject* owner, WriteBarrierBase<Unknown>* slot, const AtomicSlotRequest& request, AtomicSlotStatus& status)
+{
+    Atomic<uint64_t>* atomicSlot = std::bit_cast<Atomic<uint64_t>*>(slot);
+    while (true) {
+        uint64_t currentBits = atomicSlot->load(std::memory_order_seq_cst);
+        JSValue current = JSValue::decode(currentBits);
+        if (!current) [[unlikely]] {
+            status = AtomicSlotStatus::Restart;
+            return { };
+        }
+        JSValue newValue;
+        if (!atomicSlotEvaluate(globalObject, request, current, newValue, status))
+            return current;
+        if (atomicSlot->compareExchangeStrong(currentBits, JSValue::encode(newValue), std::memory_order_seq_cst) == currentBits) {
+            vm.writeBarrier(owner, newValue); // Write barrier after success, as §9.5 orders.
+            status = AtomicSlotStatus::Applied;
+            return current;
+        }
+    }
+}
+
+} // anonymous namespace
+
+JSValue JSObject::atomicSlotReadModifyWrite(JSGlobalObject* globalObject, UniquedStringImpl* uid, PropertyOffset offset, StructureID expectedStructureID, const AtomicSlotRequest& request, AtomicSlotStatus& status)
+{
+    ASSERT(Options::useJSThreads());
+    ASSERT(isValidOffset(offset));
+    VM& vm = globalObject->vm();
+    status = AtomicSlotStatus::Restart;
+    bool isWrite = atomicSlotOperationWrites(request.operation);
+
+    // I34 provenance: the offset is only meaningful against the structure the
+    // caller probed. structureID() is read RAW (M5): a nuked ID never equals
+    // a live probed ID, so nuke windows Restart instead of decoding.
+    if (structureID() != expectedStructureID)
+        return { };
+    Structure* structure = this->structure(); // M5 nuke-masked.
+    bool arrayStorageShape = hasAnyArrayStorage(indexingType());
+    if (structure->isDictionary() || arrayStorageShape) [[unlikely]] {
+        // ---- Third arm: OM-locked regimes. AS PRE-LOCK SW protocol (r8
+        // item 6) - and the I12 first-foreign-write fire for the dictionary
+        // regime - BEFORE the lock, with no lock held (GT11), then RESTART.
+        uint64_t probeWord = taggedButterflyWord();
+        if (isWrite && (probeWord & butterflyPointerMask) && !butterflySharedWrite(probeWord)
+            && butterflyWriterIsForeign(probeWord)) { // incl. §9.6 forceButterflySWBit
+            ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this));
+            return { }; // Restart the whole probe on the fresh tag.
+        }
+        Locker locker { cellLock() };
+        CellLockDepthScope cellLockDepthScope; // O3/I20
+        if (structureID() != expectedStructureID)
+            return { };
+        // Re-resolve under the lock: dictionary deletes are I34-blind - a
+        // lock-free CAS could "succeed" on an absent property (U5). No
+        // allocation under the cell lock (I20): getConcurrently only walks.
+        unsigned attributes = 0;
+        PropertyOffset lockedOffset = this->structure()->getConcurrently(uid, attributes);
+        if (lockedOffset != offset || !isValidOffset(lockedOffset))
+            return { };
+        if (attributes & (PropertyAttribute::Accessor | PropertyAttribute::CustomAccessor | PropertyAttribute::CustomValue))
+            return { }; // Reified into a non-plain slot since the probe: re-probe rejects.
+        if (isWrite && (attributes & PropertyAttribute::ReadOnly))
+            return { }; // D7 re-validated inside the atomic body; the caller's re-probe throws.
+        WriteBarrierBase<Unknown>* slot = nullptr;
+        if (isInlineOffset(offset))
+            slot = &inlineStorage()[offsetInInlineStorage(offset)];
+        else {
+            uint64_t word = taggedButterflyWord();
+            if (arrayStorageShape)
+                RELEASE_ASSERT(!isSegmentedButterfly(word)); // I31: AS never segments.
+            if (isSegmentedButterfly(word)) {
+                slot = segmentedOutOfLineSlotIfWithinBounds(butterflySpine(word), offset);
+                if (!slot)
+                    return { }; // Defensive: stale coverage => re-probe.
+            } else {
+                RELEASE_ASSERT(word & butterflyPointerMask); // Live storage never shrinks (I18).
+                slot = &untaggedButterfly(word)->propertyStorage()[offsetInOutOfLineStorage(offset)];
+            }
+        }
+        JSValue current = slot->get();
+        if (!current)
+            return { }; // Quarantined/cleared slot (D1/I30 family): re-probe.
+        JSValue newValue;
+        if (!atomicSlotEvaluate(globalObject, request, current, newValue, status))
+            return current;
+        // Lock-serialized store: every access to dictionary/AS slots holds
+        // this lock (I19/L3, I31/L5); the pre-lock protocol above retired the
+        // only unlocked writers (owner AS fast paths gate on SW=0).
+        slot->set(vm, this, newValue);
+        status = AtomicSlotStatus::Applied;
+        return current;
+    }
+
+    // ---- Lock-free arms: inline, flat out-of-line, segmented fragment.
+    if (isInlineOffset(offset)) {
+        // Inline slots: the cell never resizes; there is no butterfly word,
+        // hence no SW bit and no SW protocol (§3 - matching
+        // putDirectConcurrent's inline arm). Attributes are pinned by
+        // expectedStructureID (non-dictionary structures are immutable).
+        return atomicSlotLockFreeLoop(globalObject, vm, this, &inlineStorage()[offsetInInlineStorage(offset)], request, status);
+    }
+    WTF::loadLoadFence(); // M7(d): order the probe's structureID/offset provenance before the tagged-word load.
+    uint64_t word = taggedButterflyWord();
+    WriteBarrierBase<Unknown>* slot = nullptr;
+    while (true) {
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            slot = segmentedOutOfLineSlotIfWithinBounds(butterflySpine(word), offset);
+            if (!slot) {
+                // I33: out of the loaded spine's bounds = stale spine =>
+                // acquire-re-load the tagged word, re-dispatch.
+                WTF::loadLoadFence();
+                word = taggedButterflyWord();
+                continue;
+            }
+            // Segmented fragment slot: NO cell lock (U5) and no SW protocol
+            // (segmented words are shared by construction, I3/I4).
+            // Out-of-line fragment identity is stable across T2 replacement
+            // spines (out-of-line fragments are aliased verbatim) and the
+            // mode-(b) rebuild runs inside a stop we cannot be racing (I34:
+            // no poll between here and the CAS).
+            break;
+        }
+        RELEASE_ASSERT(word & butterflyPointerMask); // A valid out-of-line offset implies storage (I18).
+        if (isWrite && !butterflySharedWrite(word) && butterflyWriterIsForeign(word)) [[unlikely]] {
+            // Flat-path SW discipline (ANNEX C1): FIRST the §2/§3 foreign
+            // first-write SW-set DCAS, THEN re-validate and CAS. Re-dispatch:
+            // the word may have gone segmented or been republished meanwhile.
+            ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this));
+            WTF::loadLoadFence();
+            word = taggedButterflyWord();
+            continue;
+        }
+        slot = &untaggedButterfly(word)->propertyStorage()[offsetInOutOfLineStorage(offset)];
+        break;
+    }
+    // I34 re-validation, THEN the slot CAS. After this check the flat payload
+    // is pinned for the loop's lifetime: flat GROW is butterfly-CAS + copy
+    // (T1), owner-only against a (currentTID, 0) word - we are either that
+    // owner (cannot race ourselves) or the word carries SW=1 (T1 impossible,
+    // I27); a §4.2 conversion aliases the flat allocation's slices, so even a
+    // racing conversion leaves this slot address live (I7).
+    if (structureID() != expectedStructureID || (!isSegmentedButterfly(word) && taggedButterflyWord() != word)) {
+        status = AtomicSlotStatus::Restart;
+        return { };
+    }
+    return atomicSlotLockFreeLoop(globalObject, vm, this, slot, request, status);
+}
+
+JSValue JSObject::atomicSlotReadModifyWriteAtIndex(JSGlobalObject* globalObject, unsigned index, const AtomicSlotRequest& request, AtomicSlotStatus& status)
+{
+    ASSERT(Options::useJSThreads());
+    VM& vm = globalObject->vm();
+    status = AtomicSlotStatus::Restart;
+    bool isWrite = atomicSlotOperationWrites(request.operation);
+
+    while (true) {
+        // ---- CoW: materialize per §4.8/I35 FIRST. The first atomic ACCESS
+        // converts (reads included) - this is what §C.3(a)'s monotonicity
+        // lemma relies on: a §9.5-touched slot never returns to a converting
+        // arm.
+        if (isCopyOnWrite(indexingMode())) [[unlikely]] {
+            uint64_t cowWord = taggedButterflyWord();
+            if (!butterflyWriterIsForeign(cowWord)) // incl. §9.6 forceButterflySWBit
+                ensureWritable(vm); // Owner: routes through materializeCopyOnWriteButterflyConcurrent flag-on.
+            else
+                ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this)); // Foreign: §4.8 materialize-first carve-out.
+            continue;
+        }
+        IndexingType type = indexingType();
+
+        // ---- ArrayStorage / dictionary-indexed: third arm (cell-locked).
+        // Existing-element stores are LikePutDirect (matching the GIL bodies'
+        // putDirectIndex semantics), so SlowPut prototype intercepts do not
+        // apply to an in-vector hit.
+        if (hasAnyArrayStorage(type)) [[unlikely]] {
+            uint64_t probeWord = taggedButterflyWord();
+            if (isWrite && (probeWord & butterflyPointerMask) && !butterflySharedWrite(probeWord)
+                && butterflyWriterIsForeign(probeWord)) { // AS PRE-LOCK SW protocol (r8 item 6), no lock held (GT11).
+                ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this));
+                return { }; // Restart the whole probe.
+            }
+            Locker locker { cellLock() }; // I31/L5
+            CellLockDepthScope cellLockDepthScope; // O3/I20
+            if (!hasAnyArrayStorage(indexingType()))
+                return { }; // Shape moved before the lock landed: re-probe.
+            uint64_t word = taggedButterflyWord();
+            RELEASE_ASSERT(!isSegmentedButterfly(word)); // I31
+            ArrayStorage* storage = untaggedButterfly(word)->arrayStorage();
+            if (storage->m_sparseMap || index >= storage->vectorLength() || index >= storage->length())
+                return { }; // Sparse/out-of-bounds: re-probe (Atomics never create elements).
+            WriteBarrier<Unknown>& slot = storage->m_vector[index];
+            JSValue current = slot.get();
+            if (!current)
+                return { }; // Hole: re-probe rejects.
+            JSValue newValue;
+            if (!atomicSlotEvaluate(globalObject, request, current, newValue, status))
+                return current;
+            slot.set(vm, this, newValue); // Lock-serialized (I31; pre-lock flip retired the unlocked owner fast paths).
+            status = AtomicSlotStatus::Applied;
+            return current;
+        }
+
+        // ---- Int32/Double: raw-word CAS REJECTED (8g) - the FIRST atomic
+        // access converts to Contiguous (owner direct; foreign SW-set DCAS
+        // first), so every later atomic access takes the flat arm verbatim.
+        if (hasInt32(type) || hasDouble(type)) [[unlikely]] {
+            uint64_t word = taggedButterflyWord();
+            if ((word & butterflyPointerMask) && !butterflySharedWrite(word)
+                && butterflyWriterIsForeign(word)) { // incl. §9.6 forceButterflySWBit
+                ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this));
+                continue; // Re-dispatch on the fresh tag, then convert.
+            }
+            if (hasInt32(indexingType()))
+                convertInt32ToContiguous(vm); // Flag-on: per-event-stop relabel (§4.7/I28).
+            else if (hasDouble(indexingType()))
+                convertDoubleToContiguous(vm);
+            continue;
+        }
+        if (!hasContiguous(type))
+            return { }; // Undecided/None/blank territory: the caller's re-probe classifies (and throws).
+
+        // ---- Contiguous: flat arm verbatim (+ the segmented fragment arm).
+        WTF::loadLoadFence(); // M7(d)
+        uint64_t word = taggedButterflyWord();
+        if (!(word & butterflyPointerMask))
+            return { }; // Racing N3 first install: re-probe.
+        WriteBarrierBase<Unknown>* slot = nullptr;
+        if (isSegmentedButterfly(word)) [[unlikely]] {
+            slot = segmentedIndexedSlotIfReadable(butterflySpine(word), index);
+            if (!slot) {
+                // Stale spine (I33) or genuinely out of bounds: re-load once;
+                // an unchanged word means real OOB (re-probe rejects).
+                WTF::loadLoadFence();
+                if (taggedButterflyWord() == word)
+                    return { };
+                continue;
+            }
+        } else {
+            if (isWrite && !butterflySharedWrite(word) && butterflyWriterIsForeign(word)) [[unlikely]] {
+                ensureSharedWriteBit(vm, static_cast<JSObjectWithButterfly*>(this)); // Flat-path SW discipline.
+                continue;
+            }
+            Butterfly* butterfly = untaggedButterfly(word);
+            if (index >= butterfly->vectorLength() || index >= butterfly->publicLength())
+                return { }; // Out of bounds: re-probe rejects.
+            slot = &butterfly->indexingPayload<WriteBarrier<Unknown>>()[index];
+            // I34 re-validation: a racing owner T1 grow republishes a COPY -
+            // a CAS into the old payload would be silently lost (ANNEX C1
+            // "flat GROW = butterfly-CAS + copy, NO nuke"). After this check
+            // the payload is pinned: T1 is owner-only on (currentTID, 0)
+            // words - we are that owner, or SW=1 (I27).
+            if (taggedButterflyWord() != word)
+                continue;
+        }
+        return atomicSlotLockFreeLoop(globalObject, vm, this, slot, request, status);
+    }
+}
+
+#endif // USE(JSVALUE64)
+
 // ===== Task 6b: §4.5 GC visit of a segmented butterfly =====
 //
 // Called from the owned JSObject.cpp visitButterflyImpl (both the

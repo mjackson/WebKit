@@ -261,7 +261,16 @@ VMLite* VMLite::setCurrent(VMLite* lite)
     return previous;
 }
 
-// ---- §6.5 Group 6: per-thread default microtask queue (Phase A inert) -----
+// ---- §6.5 Group 6: per-thread default microtask queue. ACTIVATED by UNGIL
+// §E.1/I11 (U-T9): VM::queueMicrotask / VM::drainMicrotasks and
+// JSGlobalObject::queueMicrotask[Slow] re-route here for gilOff
+// spawned/foreign-carrier lites (the Phase-A "inert — nothing routes here"
+// caveat is superseded for gilOff; flag-off/GIL-on nothing routes here,
+// byte-identically). The VMLite.h HARD-GATE note (task-7 C++ test
+// obligations before any Phase-B routing) is U-T9's recorded debt: the
+// owner-only/lazy-idempotence asserts below are the in-code half; the test
+// lands with the thread-ungil verification ladder (header is outside U-T9's
+// owned set, so the note itself is amended there by its owner). -----
 
 MicrotaskQueue& VMLite::ensureDefaultMicrotaskQueue()
 {

@@ -99,6 +99,42 @@ class JSFinalObject;
 #define JS_EXPORT_PRIVATE_IF_ASSERT_ENABLED
 #endif
 
+#if USE(JSVALUE64)
+// SPEC-ungil ANNEX C1 / OM §9.5 atomic slot accessors (U-T10; defined in
+// ConcurrentButterfly.cpp). One request descriptor + status word shared by
+// the named and indexed §9.5 entry points below. Callers (ThreadAtomics.cpp
+// bodies, SPEC-api 4.5 ops; §C.3(a)'s pre-enqueue atomic load) own the
+// outer probe loop: every Restart re-runs the WHOLE own-property probe
+// (I33-bounded by the forward-only shape order); a completed CAS/RMW is
+// NEVER re-applied.
+enum class AtomicSlotOperation : uint8_t {
+    Load, // seq_cst slot load; never writes (still converts CoW/Int32/Double on the indexed path - first atomic ACCESS converts, §C.1)
+    Exchange, // unconditional swap; also serves Atomics.store on an existing slot (value-only, no attribute transition)
+    CompareExchangeSVZ, // SameValueZero compare (allocation-free; rope strings bounce out as NeedsStringResolution)
+    Add,
+    Sub,
+    And,
+    Or,
+    Xor,
+};
+
+enum class AtomicSlotStatus : uint8_t {
+    Applied, // op done (Load: value read; writes: slot updated + barrier emitted)
+    NotEqual, // CompareExchangeSVZ compared unequal; no write; returned value = the value read
+    NotNumber, // arithmetic RMW read a non-number; no write; returned value = the value read
+    NeedsStringResolution, // CAS needs a rope resolved; no write; caller resolves OUTSIDE any lock (§N.2 single-flight) and restarts the probe
+    Restart, // validation failed (structure/shape/offset moved, slot vanished); caller re-runs the whole probe
+};
+
+struct AtomicSlotRequest {
+    AtomicSlotOperation operation { AtomicSlotOperation::Load };
+    JSValue expected; // CompareExchangeSVZ
+    JSValue replacement; // CompareExchangeSVZ / Exchange
+    double operandNumber { 0 }; // Add / Sub
+    int32_t operandInt { 0 }; // And / Or / Xor
+};
+#endif
+
 class JSObject : public JSCell {
     friend class BatchedTransitionOptimizer;
     friend class JIT;
@@ -907,6 +943,51 @@ public:
     JSValue getDirectConcurrently(Locker<JSCellLock>&, Structure* expectedStructure, PropertyOffset) const;
     void putDirectOffset(VM& vm, PropertyOffset offset, JSValue value) { locationForOffset(offset)->set(vm, this, value); }
     void putDirectWithoutBarrier(PropertyOffset offset, JSValue value) { locationForOffset(offset)->setWithoutWriteBarrier(value); }
+
+#if USE(JSVALUE64)
+    // SPEC-ungil ANNEX C1 / OM §9.5 (U-T10; defined in ConcurrentButterfly.cpp):
+    // atomic CAS/RMW/load on plain structure/butterfly-backed own NAMED data
+    // slots + the indexed pair. Arms (§C.1):
+    //   - lock-free (inline, flat out-of-line, segmented fragment): seq_cst
+    //     64-bit CAS/RMW loop on the EncodedJSValue slot word; NO cell lock on
+    //     the segmented arm (a lock-held RMW would not serialize vs lock-free
+    //     fragment stores, U5);
+    //   - flat-path SW discipline: foreign writer on an SW=0 flat word runs
+    //     the §2/§3 SW-set DCAS (ensureSharedWriteBit) FIRST, then re-validates
+    //     structureID + butterfly per I34 before the slot CAS; validation
+    //     failure => Restart (whole-probe);
+    //   - third arm (OM-locked regimes): dictionary (I19/L3) and AS-shape
+    //     (§4.6) probe + CAS/RMW UNDER the JSCellLock, with the AS PRE-LOCK SW
+    //     protocol (r8 item 6) for foreign writers while SW=0; dictionary-ness
+    //     and the offset are re-checked under the lock (dictionary delete is
+    //     I34-blind, U5);
+    //   - indexed, by shape (8g re-freeze): CoW materializes first (§4.8/I35);
+    //     Int32/Double CONVERT to Contiguous on first atomic access (owner
+    //     direct, foreign SW-set DCAS first); Contiguous = flat arm verbatim;
+    //     ArrayStorage/dict-indexed = third arm.
+    // Write barrier after success, as §9.5 orders. expectedStructureID is the
+    // caller's probe provenance (named form only; the indexed form re-dispatches
+    // on the live shape). D7: writability is re-validated inside the locked arm
+    // (Restart on mismatch); the lock-free arms pin it via expectedStructureID.
+    JS_EXPORT_PRIVATE JSValue atomicSlotReadModifyWrite(JSGlobalObject*, UniquedStringImpl*, PropertyOffset, StructureID expectedStructureID, const AtomicSlotRequest&, AtomicSlotStatus&);
+    JS_EXPORT_PRIVATE JSValue atomicSlotReadModifyWriteAtIndex(JSGlobalObject*, unsigned index, const AtomicSlotRequest&, AtomicSlotStatus&);
+    JSValue atomicSlotCompareExchange(JSGlobalObject* globalObject, UniquedStringImpl* uid, PropertyOffset offset, StructureID expectedStructureID, JSValue expected, JSValue replacement, AtomicSlotStatus& status)
+    {
+        AtomicSlotRequest request;
+        request.operation = AtomicSlotOperation::CompareExchangeSVZ;
+        request.expected = expected;
+        request.replacement = replacement;
+        return atomicSlotReadModifyWrite(globalObject, uid, offset, expectedStructureID, request, status);
+    }
+    JSValue atomicSlotCompareExchangeAtIndex(JSGlobalObject* globalObject, unsigned index, JSValue expected, JSValue replacement, AtomicSlotStatus& status)
+    {
+        AtomicSlotRequest request;
+        request.operation = AtomicSlotOperation::CompareExchangeSVZ;
+        request.expected = expected;
+        request.replacement = replacement;
+        return atomicSlotReadModifyWriteAtIndex(globalObject, index, request, status);
+    }
+#endif
 
     JS_EXPORT_PRIVATE bool putDirectNativeIntrinsicGetter(VM&, JSGlobalObject*, Identifier, NativeFunction, Intrinsic, unsigned attributes);
     JS_EXPORT_PRIVATE void putDirectNativeIntrinsicGetterWithoutTransition(VM&, JSGlobalObject*, Identifier, NativeFunction, Intrinsic, unsigned attributes);

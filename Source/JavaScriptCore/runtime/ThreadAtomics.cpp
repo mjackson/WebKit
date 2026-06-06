@@ -132,9 +132,11 @@ static bool sameValueZeroForAtomics(JSGlobalObject* globalObject, JSValue a, JSV
 // After these gates the read is a non-reentrant structure/butterfly probe and
 // the write targets exactly the probed slot. Post-GIL these bodies re-home
 // onto the object-model atomic slot CAS/RMW helpers (OM §9.5) per Deviation
-// 12 (UNOWNED chartered workstream); the §7 signatures are frozen so only the
-// bodies change.
+// 12; the §7 signatures are frozen so only the bodies change.
 // THREADS-INTEGRATE(api): Dev 12 re-freeze point (atomic slot CAS/RMW).
+// THREADS-INTEGRATE(ungil): U-T10 LANDED the re-home - GIL-off the four value
+// ops dispatch to the *GilOff bodies below (SPEC-ungil ANNEX C1 accessors in
+// ConcurrentButterfly.cpp); GIL-on keeps the bodies in this section verbatim.
 
 // Writes an EXISTING own data property's value, preserving its attributes.
 // putDirect/putDirectMayBeIndex default to attributes 0, and putDirectInternal
@@ -151,9 +153,288 @@ static void putExistingOwnDataPropertyForAtomics(JSGlobalObject* globalObject, J
     object->putDirect(globalObject->vm(), propertyName, value, preservedAttributes);
 }
 
+#if USE(JSVALUE64)
+
+// ---------------- GIL-off re-home (SPEC-ungil §C.1/§C.2, U-T10) ----------------
+//
+// GIL-off (vm.gilOff()), the VM lock no longer serializes mutators, so the
+// "one atomic step" bodies above are re-homed onto the OM §9.5 atomic slot
+// accessors (ANNEX C1): probe -> accessor -> status dispatch, looping on
+// Restart (the accessor re-validates structure/shape/offset provenance and
+// runs the write-side SW protocols internally; restarts are I33-bounded by
+// the forward-only shape order, plus the same adversarial-progress caveat as
+// the §C.3(b) dequeue-and-restart class). CARRIED across the re-home (§C.2):
+//   - D3 exotic-receiver TypeErrors: the probe below keeps the GIL probe's
+//     Proxy/GlobalProxy gate and plain-slot gates, messages identical;
+//   - D7 writability inside the atomic body: probe-time ReadOnly TypeErrors
+//     here, re-validated in the accessor's locked arm (Restart on mismatch -
+//     the fresh probe then throws).
+// GIL-on (and flag-off) keeps the bodies above byte-for-byte: every gilOff
+// branch below is unreachable there (U19 oracle; SD4-class deltas are owned
+// by U-T11, not this file's value ops).
+//
+// Store's Missing arm intentionally stays on the generic putDirectMayBeIndex
+// path: a fresh-property ADD is a structure transition, and the OM's locked/
+// E4 transition machinery is its single-publication form - §9.5 accessors
+// only cover EXISTING slots.
+
+struct ConcurrentAtomicsProbe {
+    OwnPropertyKind kind { OwnPropertyKind::Missing };
+    unsigned attributes { 0 };
+    std::optional<uint32_t> index;
+    PropertyOffset offset { invalidOffset };
+    StructureID structureID;
+};
+
+// GIL-off twin of getOwnPropertyForAtomics: same gates, same TypeError
+// messages, but resolves the named offset with the lock-free walker
+// (Structure::getConcurrently - Structure::get(VM&) may materialize the
+// property table, a GIL-on-only luxury) and records {offset, structureID}
+// provenance for the accessor's I34 validation instead of reading the value
+// here (the accessor's seq_cst load is the read that counts).
+static ConcurrentAtomicsProbe probeOwnPropertyForAtomicsConcurrent(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName)
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    ConcurrentAtomicsProbe probe;
+
+    // Gate 1 (D3): reentrant receivers.
+    if (object->type() == ProxyObjectType || object->type() == GlobalProxyType) [[unlikely]] {
+        throwTypeError(globalObject, scope, "Atomics property operations cannot be performed on a Proxy"_s);
+        return probe;
+    }
+    PropertySlot slot(object, PropertySlot::InternalMethodType::GetOwnProperty);
+    bool hasProperty = object->methodTable()->getOwnPropertySlot(object, globalObject, propertyName, slot);
+    RETURN_IF_EXCEPTION(scope, probe);
+    if (!hasProperty)
+        return probe;
+    probe.attributes = slot.attributes();
+    if (!slot.isValue()) {
+        probe.kind = OwnPropertyKind::Accessor;
+        return probe;
+    }
+    // Gate 2 (D3): plain structure/butterfly storage only. §C.2 routes
+    // parseIndex hits to the indexed accessor (one arm per shape, 8g).
+    if (std::optional<uint32_t> index = parseIndex(propertyName)) {
+        if (!object->canGetIndexQuickly(index.value())) [[unlikely]] {
+            throwTypeError(globalObject, scope, "Atomics property operations require a plain data property"_s);
+            return probe;
+        }
+        probe.index = index;
+        probe.attributes = 0; // Butterfly elements are writable/enumerable/configurable.
+        probe.kind = OwnPropertyKind::Data;
+        return probe;
+    }
+    Structure* structure = object->structure();
+    unsigned structureAttributes = 0;
+    PropertyOffset offset = structure->getConcurrently(propertyName.uid(), structureAttributes);
+    if (!isValidOffset(offset)) [[unlikely]] {
+        throwTypeError(globalObject, scope, "Atomics property operations require a plain data property"_s);
+        return probe;
+    }
+    probe.attributes = structureAttributes;
+    probe.offset = offset;
+    probe.structureID = structure->id();
+    probe.kind = OwnPropertyKind::Data;
+    return probe;
+}
+
+static ALWAYS_INLINE JSValue dispatchAtomicSlotRequest(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, const ConcurrentAtomicsProbe& probe, const AtomicSlotRequest& request, AtomicSlotStatus& status)
+{
+    if (probe.index)
+        return object->atomicSlotReadModifyWriteAtIndex(globalObject, probe.index.value(), request, status);
+    return object->atomicSlotReadModifyWrite(globalObject, propertyName.uid(), probe.offset, probe.structureID, request, status);
+}
+
+static JSValue atomicsLoadOnPropertyGilOff(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName)
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    while (true) {
+        auto probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
+        RETURN_IF_EXCEPTION(scope, { });
+        if (probe.kind != OwnPropertyKind::Data) {
+            throwTypeError(globalObject, scope, "Atomics.load: object has no own property"_s);
+            return { };
+        }
+        AtomicSlotRequest request; // operation = Load
+        AtomicSlotStatus status = AtomicSlotStatus::Restart;
+        JSValue result = dispatchAtomicSlotRequest(globalObject, object, propertyName, probe, request, status);
+        if (status == AtomicSlotStatus::Applied)
+            return result;
+        ASSERT(status == AtomicSlotStatus::Restart);
+    }
+}
+
+static JSValue atomicsStoreOnPropertyGilOff(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, JSValue value)
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    while (true) {
+        auto probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
+        RETURN_IF_EXCEPTION(scope, { });
+        switch (probe.kind) {
+        case OwnPropertyKind::Accessor:
+            throwTypeError(globalObject, scope, "Atomics.store: property is an accessor"_s);
+            return { };
+        case OwnPropertyKind::Data: {
+            if (probe.attributes & PropertyAttribute::ReadOnly) {
+                throwTypeError(globalObject, scope, "Atomics.store: property is not writable"_s);
+                return { };
+            }
+            // Existing slot: a §9.5 Exchange (value-only - no putDirect, no
+            // attribute-changing transition; result discarded).
+            AtomicSlotRequest request;
+            request.operation = AtomicSlotOperation::Exchange;
+            request.replacement = value;
+            AtomicSlotStatus status = AtomicSlotStatus::Restart;
+            dispatchAtomicSlotRequest(globalObject, object, propertyName, probe, request, status);
+            if (status == AtomicSlotStatus::Applied)
+                return value;
+            ASSERT(status == AtomicSlotStatus::Restart);
+            continue;
+        }
+        case OwnPropertyKind::Missing: {
+            bool extensible = object->isExtensible(globalObject);
+            RETURN_IF_EXCEPTION(scope, { });
+            if (!extensible) {
+                throwTypeError(globalObject, scope, "Atomics.store: cannot add a property to a non-extensible object"_s);
+                return { };
+            }
+            // Fresh data property (writable/enumerable/configurable): the
+            // generic concurrent add path - the OM transition machinery is
+            // the single-publication form for adds (see the header comment).
+            object->putDirectMayBeIndex(globalObject, propertyName, value);
+            RETURN_IF_EXCEPTION(scope, { });
+            return value;
+        }
+        }
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+}
+
+static JSValue atomicsCompareExchangeOnPropertyGilOff(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, JSValue expected, JSValue replacement)
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    while (true) {
+        auto probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
+        RETURN_IF_EXCEPTION(scope, { });
+        if (probe.kind != OwnPropertyKind::Data) {
+            throwTypeError(globalObject, scope, "Atomics.compareExchange: object has no own data property"_s);
+            return { };
+        }
+        // D7 (see the GIL body's rationale): thrown unconditionally, not only
+        // when SVZ matches.
+        if (probe.attributes & PropertyAttribute::ReadOnly) {
+            throwTypeError(globalObject, scope, "Atomics.compareExchange: property is not writable"_s);
+            return { };
+        }
+        AtomicSlotStatus status = AtomicSlotStatus::Restart;
+        JSValue current;
+        if (probe.index)
+            current = object->atomicSlotCompareExchangeAtIndex(globalObject, probe.index.value(), expected, replacement, status);
+        else
+            current = object->atomicSlotCompareExchange(globalObject, propertyName.uid(), probe.offset, probe.structureID, expected, replacement, status);
+        switch (status) {
+        case AtomicSlotStatus::Applied:
+        case AtomicSlotStatus::NotEqual:
+            return current; // SVZ semantics: returns the value READ either way.
+        case AtomicSlotStatus::NeedsStringResolution: {
+            // Resolve the rope(s) OUTSIDE any lock (§N.2 single-flight; may
+            // allocate and throw OOM), then re-probe. Resolution rewrites the
+            // rope in place, so an unchanged slot makes progress next pass;
+            // a storm of fresh rope stores re-enters here - the same
+            // adversarial-progress class as §C.3(b)'s dequeue-and-restart.
+            if (expected.isString()) {
+                auto resolvedExpected = asString(expected)->value(globalObject);
+                RETURN_IF_EXCEPTION(scope, { });
+                UNUSED_VARIABLE(resolvedExpected);
+            }
+            if (current.isString()) {
+                auto resolvedCurrent = asString(current)->value(globalObject);
+                RETURN_IF_EXCEPTION(scope, { });
+                UNUSED_VARIABLE(resolvedCurrent);
+            }
+            continue;
+        }
+        case AtomicSlotStatus::Restart:
+            continue;
+        case AtomicSlotStatus::NotNumber:
+            break;
+        }
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+}
+
+static JSValue atomicsRMWOnPropertyGilOff(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, AtomicsRMWOp op, JSValue operand)
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    // Operand coercions first (may run JS), exactly as the GIL bodies order
+    // them; the atomic step is the accessor call below.
+    AtomicSlotRequest request;
+    switch (op) {
+    case AtomicsRMWOp::Exchange:
+        request.operation = AtomicSlotOperation::Exchange;
+        request.replacement = operand;
+        break;
+    case AtomicsRMWOp::Add:
+    case AtomicsRMWOp::Sub:
+        request.operation = op == AtomicsRMWOp::Add ? AtomicSlotOperation::Add : AtomicSlotOperation::Sub;
+        request.operandNumber = operand.toNumber(globalObject);
+        RETURN_IF_EXCEPTION(scope, { });
+        break;
+    case AtomicsRMWOp::And:
+    case AtomicsRMWOp::Or:
+    case AtomicsRMWOp::Xor:
+        request.operation = op == AtomicsRMWOp::And ? AtomicSlotOperation::And
+            : op == AtomicsRMWOp::Or ? AtomicSlotOperation::Or : AtomicSlotOperation::Xor;
+        request.operandInt = operand.toInt32(globalObject);
+        RETURN_IF_EXCEPTION(scope, { });
+        break;
+    }
+
+    bool isExchange = op == AtomicsRMWOp::Exchange;
+    while (true) {
+        auto probe = probeOwnPropertyForAtomicsConcurrent(globalObject, object, propertyName);
+        RETURN_IF_EXCEPTION(scope, { });
+        if (probe.kind != OwnPropertyKind::Data) {
+            throwTypeError(globalObject, scope, isExchange ? "Atomics.exchange: object has no own data property"_s : "Atomics RMW: object has no own data property"_s);
+            return { };
+        }
+        if (probe.attributes & PropertyAttribute::ReadOnly) {
+            throwTypeError(globalObject, scope, isExchange ? "Atomics.exchange: property is not writable"_s : "Atomics RMW: property is not writable"_s);
+            return { };
+        }
+        AtomicSlotStatus status = AtomicSlotStatus::Restart;
+        JSValue current = dispatchAtomicSlotRequest(globalObject, object, propertyName, probe, request, status);
+        switch (status) {
+        case AtomicSlotStatus::Applied:
+            return current;
+        case AtomicSlotStatus::NotNumber:
+            throwTypeError(globalObject, scope, "Atomics RMW: stored value is not a number"_s);
+            return { };
+        case AtomicSlotStatus::Restart:
+            continue;
+        case AtomicSlotStatus::NotEqual:
+        case AtomicSlotStatus::NeedsStringResolution:
+            break;
+        }
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+}
+
+#endif // USE(JSVALUE64)
+
 JSValue atomicsLoadOnProperty(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName)
 {
     VM& vm = globalObject->vm();
+#if USE(JSVALUE64)
+    if (vm.gilOff()) [[unlikely]]
+        return atomicsLoadOnPropertyGilOff(globalObject, object, propertyName);
+#endif
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSValue value;
     unsigned attributes = 0;
@@ -169,6 +450,10 @@ JSValue atomicsLoadOnProperty(JSGlobalObject* globalObject, JSObject* object, Pr
 JSValue atomicsStoreOnProperty(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, JSValue value)
 {
     VM& vm = globalObject->vm();
+#if USE(JSVALUE64)
+    if (vm.gilOff()) [[unlikely]]
+        return atomicsStoreOnPropertyGilOff(globalObject, object, propertyName, value);
+#endif
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSValue existing;
     unsigned attributes = 0;
@@ -205,6 +490,10 @@ JSValue atomicsStoreOnProperty(JSGlobalObject* globalObject, JSObject* object, P
 JSValue atomicsCompareExchangeOnProperty(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, JSValue expected, JSValue replacement)
 {
     VM& vm = globalObject->vm();
+#if USE(JSVALUE64)
+    if (vm.gilOff()) [[unlikely]]
+        return atomicsCompareExchangeOnPropertyGilOff(globalObject, object, propertyName, expected, replacement);
+#endif
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSValue current;
     unsigned attributes = 0;
@@ -239,6 +528,10 @@ JSValue atomicsCompareExchangeOnProperty(JSGlobalObject* globalObject, JSObject*
 JSValue atomicsRMWOnProperty(JSGlobalObject* globalObject, JSObject* object, PropertyName propertyName, AtomicsRMWOp op, JSValue operand)
 {
     VM& vm = globalObject->vm();
+#if USE(JSVALUE64)
+    if (vm.gilOff()) [[unlikely]]
+        return atomicsRMWOnPropertyGilOff(globalObject, object, propertyName, op, operand);
+#endif
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     if (op == AtomicsRMWOp::Exchange) {

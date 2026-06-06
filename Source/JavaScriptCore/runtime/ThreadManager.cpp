@@ -67,7 +67,7 @@ AsyncTicket::~AsyncTicket()
     ASSERT(!m_promise || m_vm.currentThreadIsHoldingAPILock());
 }
 
-Ref<AsyncTicket> AsyncTicket::create(JSGlobalObject* globalObject, JSPromise* promise, Vector<JSCell*>&& dependencies)
+Ref<AsyncTicket> AsyncTicket::create(JSGlobalObject* globalObject, JSPromise* promise, Vector<JSCell*>&& dependencies, bool countsKeepalive)
 {
     VM& vm = globalObject->vm();
     JSObject* extraDependency = nullptr;
@@ -80,6 +80,16 @@ Ref<AsyncTicket> AsyncTicket::create(JSGlobalObject* globalObject, JSPromise* pr
     DeferredWorkTimer::Ticket ticket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::AtSomePoint, vm, promise, WTF::move(dependencies));
     Ref<AsyncTicket> result = adoptRef(*new AsyncTicket(vm, Ref { *ticket }, ensureCurrentThreadState(), extraDependency));
     result->m_promise.set(vm, promise);
+    // §E.3 INCREMENT, in-set (U-T9): a COUNTED registration (asyncHold /
+    // cond.asyncWait / property waitAsync — gate U-T9-INT1's boolean) arms
+    // here, BEFORE the ticket is returned and thus before it is visible to
+    // any settler. Only gilOff spawned registrants count (§E.7:
+    // main/embedder registrations never touch keepalive); armKeepalive
+    // asserts spawned+inbox-OPEN (U25), which holds because the counted
+    // host calls run inside fn, after openThreadInbox. GIL-on/flag-off:
+    // gilOff() is false and this is dead.
+    if (countsKeepalive && vm.gilOff() && result->m_registrant->isSpawned) [[unlikely]]
+        result->armKeepalive();
     return result;
 }
 

@@ -209,9 +209,64 @@ WaiterListManager::WaitSyncResult WaiterListManager::waitSync(VM& vm, int64_t* p
     return waitSyncImpl(vm, ptr, expected, timeout);
 }
 
+// =============================================================================
+// UNGIL §E.7.5/SD11 + §E.4 r17 F2 (U-T9). TA (SharedArrayBuffer)
+// Atomics.waitAsync is NOT an AsyncTicket and carries NO §E.3 keepalive: WLM
+// settles via DWT scheduleWorkSoon MAIN-side (a spawned registrant's ticket
+// took the §E.7.3 internal arm at addPendingWork, so with embedder hooks the
+// settle lands in the carrier handoff queue — hooks never see it). The §E.7.5
+// registrant re-home is REJECTED v1 (it covers PROPERTY waitAsync only,
+// whose deadlines live on ThreadState::waitDeadlines); the finite-timeout
+// timer here stays on vm.runLoop() (waitAsyncImpl below) — the landed
+// GIL-on-identical shape.
+//
+// Lock-context fix (gilOffProcess only; flag-off byte-identical): the landed
+// notify/timeout paths invoked scheduleWorkSoon while HOLDING list->lock —
+// GIL-off that violates the §E.4 settle precondition (r17 F2: no api
+// rank-1..3 lock across settle; the §E.7.3 wake must fire with no such lock
+// held, r18 F2). The gilOff arms below DECIDE under the lock (dequeue +
+// ticket extract + timer clear) and ACT (scheduleWorkSoon) after the drop —
+// sound because a dequeued waiter with a cleared ticket is unreachable to
+// any racing notifier/timeout (both re-check ticket() under the lock), so
+// exactly one settler schedules.
+// =============================================================================
+
 void WaiterListManager::timeoutAsyncWaiter(void* ptr, Ref<Waiter>&& waiter)
 {
     dataLogLnIf(WaiterListsManagerInternal::verbose, "<WaiterListManager> <Thread:", Thread::currentSingleton(), "> timeoutAsyncWaiter ", waiter.get(), ") for ptr ", RawPointer(ptr));
+    if (VM::isGILOffProcess()) [[unlikely]] {
+        RefPtr<DeferredWorkTimer::TicketData> ticket;
+        if (RefPtr<WaiterList> list = findList(ptr)) {
+            {
+                Locker listLocker { list->lock };
+                if (waiter->isOnList()) {
+                    bool didGetDequeued = list->findAndRemove(listLocker, waiter);
+                    ASSERT_UNUSED(didGetDequeued, didGetDequeued);
+                }
+                ticket = waiter->ticket(listLocker);
+                if (ticket)
+                    waiter->clearTicket(listLocker);
+                waiter->clearTimer(listLocker);
+            }
+        } else {
+            ASSERT(!waiter->isOnList());
+            ticket = waiter->ticket(NoLockingNecessary);
+            if (ticket)
+                waiter->clearTicket(NoLockingNecessary);
+            waiter->clearTimer(NoLockingNecessary);
+        }
+        if (ticket) {
+            VM* waiterVM = waiter->vm();
+            waiterVM->deferredWorkTimer->scheduleWorkSoon(ticket.get(), [](DeferredWorkTimer::Ticket dwtTicket) {
+                JSPromise* promise = uncheckedDowncast<JSPromise>(dwtTicket->target());
+                JSGlobalObject* globalObject = promise->realm();
+                VM& vm = promise->vm();
+                promise->resolve(globalObject, vm, vm.smallStrings.timedOutString());
+            });
+        }
+        return;
+    }
+
     if (RefPtr<WaiterList> list = findList(ptr)) {
         Locker listLocker { list->lock };
         if (waiter->isOnList()) {
@@ -232,10 +287,40 @@ unsigned WaiterListManager::notifyWaiter(void* ptr, unsigned count)
     unsigned notified = 0;
     RefPtr<WaiterList> list = findList(ptr);
     if (list) {
-        Locker listLocker { list->lock };
-        while (notified < count && list->size()) {
-            notifyWaiterImpl(listLocker, list->takeFirst(listLocker), ResolveResult::Ok);
-            notified++;
+        if (VM::isGILOffProcess()) [[unlikely]] {
+            // Decide-under-lock / act-after-drop (see banner). Sync waiters
+            // keep the in-lock condition notify (rank-4-class park internals,
+            // not a settle).
+            Vector<std::pair<RefPtr<DeferredWorkTimer::TicketData>, VM*>, 4> pendingSettles;
+            {
+                Locker listLocker { list->lock };
+                while (notified < count && list->size()) {
+                    Ref<Waiter> waiter = list->takeFirst(listLocker);
+                    if (waiter->isAsync()) {
+                        if (auto ticket = waiter->ticket(listLocker)) {
+                            pendingSettles.append({ WTF::move(ticket), waiter->vm() });
+                            waiter->clearTicket(listLocker);
+                        }
+                        waiter->clearTimer(listLocker);
+                    } else
+                        waiter->condition().notifyOne();
+                    notified++;
+                }
+            }
+            for (auto& pending : pendingSettles) {
+                pending.second->deferredWorkTimer->scheduleWorkSoon(pending.first.get(), [](DeferredWorkTimer::Ticket dwtTicket) {
+                    JSPromise* promise = uncheckedDowncast<JSPromise>(dwtTicket->target());
+                    JSGlobalObject* globalObject = promise->realm();
+                    VM& vm = promise->vm();
+                    promise->resolve(globalObject, vm, vm.smallStrings.okString());
+                });
+            }
+        } else {
+            Locker listLocker { list->lock };
+            while (notified < count && list->size()) {
+                notifyWaiterImpl(listLocker, list->takeFirst(listLocker), ResolveResult::Ok);
+                notified++;
+            }
         }
     }
 

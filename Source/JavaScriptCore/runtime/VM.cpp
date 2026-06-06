@@ -31,6 +31,7 @@
 
 #include "ConcurrentButterfly.h"
 #include "PropertyTable.h"
+#include "VMLiteInlines.h" // UNGIL §E.1/I11 (U-T9): per-lite microtask enqueue/drain reroute.
 #include "VMLiteShared.h"
 
 #include "AbortReason.h"
@@ -207,6 +208,9 @@ void enqueuePromiseRejectionTrackerHandoffRecord(VM&, JSPromise*, JSPromiseRejec
 void flushPromiseRejectionTrackerHandoffRecords(VM&);
 void notifyPromiseRejectionTrackerCrossThreadAware(JSGlobalObject*, JSPromise*, JSPromiseRejectionOperation);
 static void purgePromiseRejectionHandoffRecordsAtVMDestruction(VM&);
+// UNGIL §E.7.3 (U-T9): jsThreadsPurgeCrossThreadDeferredWorkAtVMDestruction
+// (DeferredWorkTimer.cpp) is consumed in ~VM below via its ThreadManager.h
+// declaration (already included by this TU).
 
 // ===========================================================================
 // UNGIL §A.1.1 (U-T3): g_jscCurrentVMLite — the JIT/LLInt-visible mirror of
@@ -760,6 +764,17 @@ void VM::setCrossTaskToken(RefPtr<CrossTaskToken>&& token)
 #if USE(BUN_JSC_ADDITIONS)
 void VM::queueMicrotask(QueuedTask&& task)
 {
+    // UNGIL §E.1/I11 (U-T9): GIL-off, enqueue re-routes to the CURRENT
+    // lite's queue on spawned/foreign-carrier threads — the VM default queue
+    // is the MAIN carrier's (vmstate §6.6). Flag-off/GIL-on/main carrier:
+    // the landed single-queue enqueue, byte-identical.
+    if (m_gilOff) [[unlikely]] {
+        VMLite* lite = VMLite::currentIfExists();
+        if (lite && lite->vm == this && lite != m_mainVMLite.get()) {
+            lite->enqueueMicrotaskToDefaultQueue(WTF::move(task));
+            return;
+        }
+    }
     m_defaultMicrotaskQueue->enqueue(WTF::move(task));
 }
 #endif
@@ -1066,8 +1081,14 @@ VM::~VM()
     // destroying thread, which still holds the token here (the §F.2
     // lock-keyed retirement above keeps it live through teardown). Entries
     // exist only for gilOff VMs; flag-off this is a no-op gate.
-    if (m_gilOff) [[unlikely]]
+    if (m_gilOff) [[unlikely]] {
         purgePromiseRejectionHandoffRecordsAtVMDestruction(*this);
+        // UNGIL §E.7.3 (U-T9): same lifetime point for the cross-thread DWT
+        // handoff queue + internal-arm marks (queued-but-never-drained work
+        // is dropped — the declared SD15-class exit-before-drain leak,
+        // bounded by VM lifetime).
+        jsThreadsPurgeCrossThreadDeferredWorkAtVMDestruction(*this);
+    }
     m_apiLock->willDestroyVM(this);
     smallStrings.setIsInitialized(false);
     // UNGIL A36/U-T6: the deferred own-carrier client detach (non-main
@@ -2228,6 +2249,48 @@ void VM::drainMicrotasks()
 {
     if (m_drainMicrotaskDelayScopeCount) [[unlikely]]
         return;
+
+    // UNGIL §E.1/I11 (U-T9): GIL-off, a spawned/foreign-carrier thread
+    // drains ONLY its own per-lite queue (enqueued/drained by its owner —
+    // I11; reaction jobs run on the SETTLING thread, SD10/§E.1b.1). The VM
+    // default queue stays the main carrier's. didExhaustMicrotaskQueue
+    // already gates its carrier-confined work internally (U-T8e).
+    // Flag-off/GIL-on/main carrier: the landed body, byte-identical.
+    if (m_gilOff) [[unlikely]] {
+        VMLite* lite = VMLite::currentIfExists();
+        if (lite && lite->vm == this && lite != m_mainVMLite.get()) {
+            MicrotaskQueue* queue = lite->defaultMicrotaskQueue.get();
+            if (!queue) {
+                finalizeSynchronousJSExecution();
+                return;
+            }
+            if (executionForbidden()) [[unlikely]]
+                queue->clear();
+            else {
+                std::optional<VMEntryScope> entryScope;
+                if (!queue->isEmpty())
+                    entryScope.emplace(*this, nullptr);
+                while (true) {
+                    queue->performMicrotaskCheckpoint</* useCallOnEachMicrotask */ true>(*this,
+                        [&](JSGlobalObject*, JSGlobalObject* nextGlobalObject) {
+                            if (entryScope && nextGlobalObject)
+                                entryScope->setGlobalObject(nextGlobalObject);
+                        });
+                    if (hasPendingTerminationException()) [[unlikely]]
+                        return;
+                    didExhaustMicrotaskQueue();
+                    if (hasPendingTerminationException()) [[unlikely]]
+                        return;
+                    if (queue->isEmpty())
+                        break;
+                    if (!entryScope)
+                        entryScope.emplace(*this, nullptr);
+                }
+            }
+            finalizeSynchronousJSExecution();
+            return;
+        }
+    }
 
     if (executionForbidden()) [[unlikely]]
         m_defaultMicrotaskQueue->clear();
